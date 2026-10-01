@@ -2001,9 +2001,12 @@ void ScriptEngineHost::report_text_fonts(const QString& api, std::int64_t sessio
         continue;
       }
       if (!family_listed(installed, family)) {
-        // A name the database lists under another spelling (family plus face, a full name) is
-        // still in the runs when it resolved; gone from them, it was substituted.
-        if (!family_listed(named, family)) {
+        // PostScript/full names can be valid OpenType aliases even when Qt lists only the
+        // canonical family. If the index resolves the alias to the family actually used by the
+        // layer, it was not substituted and must not be reported as missing.
+        const auto indexed = font_face_for_name_table_name(family);
+        const bool resolved_to_named_face = indexed.has_value() && family_listed(named, indexed->family);
+        if (!family_listed(named, family) && !resolved_to_named_face) {
           problems.not_installed.push_back(family);
         }
       } else if (!family_listed(named, family) || text_family_lacks_some_character(family, text)) {

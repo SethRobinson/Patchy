@@ -156,6 +156,7 @@ QString error_message(QPdfDocument::Error error, const QString& file_name) {
       return QObject::tr("%1 uses a security scheme Patchy cannot open.").arg(file_name);
     case QPdfDocument::Error::DataNotYetAvailable:
       return QObject::tr("%1 is still loading.").arg(file_name);
+    case QPdfDocument::Error::Unknown:
     case QPdfDocument::Error::None:
       break;
   }

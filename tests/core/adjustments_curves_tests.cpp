@@ -883,10 +883,12 @@ void psd_curves_private_plad_v4_imports_and_malformed_tail_migrates_fallback() {
   // The v1 shape can never exceed 324 bytes (four 19-point channels). Reject
   // larger declared records before copying them, even when the enclosing plAD
   // really contains all of those bytes. Migration keeps the modeled fallback.
-  auto oversized = std::vector<std::uint8_t>(
-      payload.begin(), payload.begin() + static_cast<std::ptrdiff_t>(kCurvesTailOffset));
-  oversized.insert(oversized.end(), {'C', 'R', 'V', '2'});
-  oversized.resize(kCurvesTailOffset + 8U + 325U, 0xa5U);
+  auto oversized = std::vector<std::uint8_t>(kCurvesTailOffset + 8U + 325U, 0xa5U);
+  std::copy_n(payload.begin(), kCurvesTailOffset, oversized.begin());
+  oversized[kCurvesTailOffset + 0U] = 'C';
+  oversized[kCurvesTailOffset + 1U] = 'R';
+  oversized[kCurvesTailOffset + 2U] = 'V';
+  oversized[kCurvesTailOffset + 3U] = '2';
   write_u32_at(oversized, kCurvesTailOffset + 4U, 325U);
   check_fallback(oversized);
 
