@@ -422,7 +422,7 @@ void CanvasWidget::graphics_surface_failed(const QString& reason) {
   disable_gpu_canvas(reason);
 }
 
-void CanvasWidget::render_graphics_canvas_frame(const QRegion& dirty_widget_region) {
+void CanvasWidget::render_graphics_canvas_frame() {
   if (graphics_surface_ == nullptr || canvas_render_backend_ == CanvasRenderBackend::Cpu) {
     return;
   }
@@ -460,30 +460,32 @@ void CanvasWidget::render_graphics_canvas_frame(const QRegion& dirty_widget_regi
   if (webgpu_compositor_ != nullptr) {
     const auto cache_key = webgpu_document_key(document);
     QString webgpu_reason;
-    if (cache_key == webgpu_frame_cache_key_ && !webgpu_frame_cache_.isNull()) {
+    // The cached frame is only current when the snapshot key matches and no
+    // document change has been recorded since it was published. A widget
+    // repaint (expose, scroll, pan) never invalidates it by itself.
+    if (cache_key == webgpu_frame_cache_key_ && !webgpu_frame_cache_.isNull() &&
+        gpu_frame_invalidation_.empty()) {
       document.composited_frame = webgpu_frame_cache_;
       document.layers.clear();
     } else {
       QImage composited_frame;
       bool composed = false;
-      if (!webgpu_frame_cache_.isNull() && !dirty_widget_region.isEmpty()) {
-        QRegion dirty_document_region;
-        for (const auto& widget_rect : dirty_widget_region) {
-          const auto top_left = document_point_for_widget_position(widget_rect.topLeft());
-          const auto bottom_right = document_point_for_widget_position(widget_rect.bottomRight() + QPoint(1, 1));
-          const auto document_rect = QRectF(top_left, bottom_right).normalized().toAlignedRect();
-          if (!document_rect.isEmpty()) {
-            dirty_document_region += document_rect;
-          }
-        }
-        composed = webgpu_compositor_->compose_incremental(document, dirty_document_region, webgpu_frame_cache_,
-                                                           composited_frame, &webgpu_reason);
+      const bool incremental = !webgpu_frame_cache_.isNull() && !gpu_frame_invalidation_.full() &&
+                               !gpu_frame_invalidation_.empty() &&
+                               webgpu_frame_cache_.size() == document.document_size;
+      if (incremental) {
+        // Rebuild exactly the tiles the document edits touched, including
+        // tiles outside the current viewport, so panning afterwards presents
+        // current pixels instead of a stale cached tile.
+        composed = webgpu_compositor_->compose_incremental(document, gpu_frame_invalidation_.region(),
+                                                           webgpu_frame_cache_, composited_frame, &webgpu_reason);
       } else {
         composed = webgpu_compositor_->compose(document, composited_frame, &webgpu_reason);
       }
       if (composed) {
         webgpu_frame_cache_ = std::move(composited_frame);
         webgpu_frame_cache_key_ = cache_key;
+        gpu_frame_invalidation_.clear();
         document.composited_frame = webgpu_frame_cache_;
         document.layers.clear();
       }
@@ -519,7 +521,7 @@ void CanvasWidget::request_graphics_canvas_update(const QRegion& region) {
   if (graphics_surface_ == nullptr || canvas_render_backend_ == CanvasRenderBackend::Cpu || !gpu_document_active_) {
     return;
   }
-  render_graphics_canvas_frame(region);
+  render_graphics_canvas_frame();
   graphics_surface_->request_update(region);
 }
 
@@ -571,17 +573,20 @@ bool CanvasWidget::build_gpu_document(CanvasGpuDocument& result, QString* reject
   }
 
   result.layers.reserve(document_->layers().size());
+  std::vector<std::uint64_t> snapshot_layer_ids;
+  snapshot_layer_ids.reserve(document_->layers().size());
   for (const auto& layer : document_->layers()) {
     if (!layer.visible() || layer.opacity() <= 0.0F) {
       continue;
     }
+    snapshot_layer_ids.push_back(layer.id());
     CanvasGpuLayer gpu_layer;
     gpu_layer.id = layer.id();
     gpu_layer.revision = layer.render_revision();
     gpu_layer.pixel_revision = layer.pixel_revision();
     gpu_layer.content_revision = layer.content_revision();
     gpu_layer.mask_revision = layer.mask_revision();
-    gpu_layer.image = qimage_from_pixel_buffer(layer.pixels());
+    gpu_layer.image = gpu_layer_image_cache_.layer_image(layer.id(), layer.pixel_revision(), layer.pixels());
     const QRectF document_rect(layer.bounds().x, layer.bounds().y, layer.bounds().width, layer.bounds().height);
     gpu_layer.document_rect = document_rect;
     gpu_layer.rect = widget_rect_for_document_rect(document_rect);
@@ -607,7 +612,7 @@ bool CanvasWidget::build_gpu_document(CanvasGpuDocument& result, QString* reject
         // Grayscale8 is the format every GPU tier samples from the red
         // channel; see grayscale_qimage_from_pixel_buffer for why Alpha8 is
         // not an option here.
-        gpu_layer.mask_image = grayscale_qimage_from_pixel_buffer(mask.pixels);
+        gpu_layer.mask_image = gpu_layer_image_cache_.mask_image(layer.id(), layer.mask_revision(), mask.pixels);
         gpu_layer.mask_document_rect =
             QRectF(mask.bounds.x, mask.bounds.y, mask.bounds.width, mask.bounds.height);
         gpu_layer.mask_rect = widget_rect_for_document_rect(gpu_layer.mask_document_rect);
@@ -617,6 +622,7 @@ bool CanvasWidget::build_gpu_document(CanvasGpuDocument& result, QString* reject
     }
     result.layers.push_back(std::move(gpu_layer));
   }
+  gpu_layer_image_cache_.retain_only(snapshot_layer_ids);
   return true;
 }
 
@@ -795,6 +801,8 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
 #ifdef PATCHY_GPU_CANVAS
   webgpu_frame_cache_ = QImage();
   webgpu_frame_cache_key_ = 0;
+  gpu_frame_invalidation_.mark_full();
+  gpu_layer_image_cache_.clear();
 #endif
   document_ = document;
   set_move_transform_controls_layer(std::nullopt);

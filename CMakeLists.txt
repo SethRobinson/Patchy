@@ -1117,6 +1117,9 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/brush_tip_picker.cpp
       src/ui/canvas_graphics_surface.hpp
       src/ui/canvas_graphics_surface.cpp
+      src/ui/gpu_frame_invalidation.hpp
+      src/ui/gpu_layer_image_cache.hpp
+      src/ui/gpu_layer_image_cache.cpp
       src/ui/webgpu_document_compositor.hpp
       src/ui/webgpu_document_compositor.cpp
       src/ui/webgpu_render_backend.hpp

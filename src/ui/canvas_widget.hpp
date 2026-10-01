@@ -13,6 +13,8 @@
 #include "core/warp_mesh.hpp"
 #include "ui/curves_clipping_preview.hpp"
 #include "ui/canvas_graphics_surface.hpp"
+#include "ui/gpu_frame_invalidation.hpp"
+#include "ui/gpu_layer_image_cache.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/measurement_units.hpp"
 #include "ui/selection_outline.hpp"
@@ -1357,7 +1359,7 @@ private:
   void resize_graphics_canvas_surface();
   void graphics_surface_ready(CanvasGraphicsApi api);
   void graphics_surface_failed(const QString& reason);
-  void render_graphics_canvas_frame(const QRegion& dirty_widget_region = {});
+  void render_graphics_canvas_frame();
   void disable_gpu_canvas(const QString& reason);
   void request_graphics_canvas_update(const QRegion& region);
   [[nodiscard]] bool build_gpu_document(CanvasGpuDocument& document, QString* rejection_reason = nullptr) const;
@@ -1365,6 +1367,13 @@ private:
   std::unique_ptr<WebGpuRenderBackend> webgpu_compositor_;
   QImage webgpu_frame_cache_;
   std::uint64_t webgpu_frame_cache_key_{0};
+  // Document-space damage since the last published GPU frame. Fed by the
+  // document_changed family, consumed by render_graphics_canvas_frame; the
+  // exposed widget region never decides which tiles are rebuilt.
+  GpuFrameInvalidation gpu_frame_invalidation_;
+  // build_gpu_document is const and runs per repaint request; the cache keeps
+  // it from copying unchanged layer pixels (docs/performance.md).
+  mutable GpuLayerImageCache gpu_layer_image_cache_;
   bool webgpu_compositor_reported_{false};
 #ifdef PATCHY_VULKAN_QT_INTEROP_PROBE
   std::atomic_bool vulkan_qt_interop_probe_reported_{false};
