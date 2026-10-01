@@ -104,5 +104,7 @@ These commands do not download Dawn, open a window, or require a hardware adapte
 For the separate native check, configure with
 `-DPATCHY_BUILD_WEBGPU_VALIDATION_TESTS=ON`, build
 `patchy_webgpu_equivalence_tests`, and run it with a real desktop platform as
-described in [the GPU build guide](gpu-build.md). A `[SKIP]` result is expected
-when the optional dependency or hardware is absent; it is not a CTest failure.
+described in [the GPU build guide](gpu-build.md). With that option the
+executable is also a CTest entry; a `[SKIP]` result (exit code 77) is expected
+when the optional dependency or hardware is absent and CTest reports it as
+skipped, never as a pass.
