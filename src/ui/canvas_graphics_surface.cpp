@@ -757,6 +757,11 @@ protected:
     background_->setSize(new_geometry.size());
     composite_frame_->setSize(new_geometry.size());
     layers_->setSize(new_geometry.size());
+#ifdef PATCHY_GPU_SHADER_COMPOSITOR
+    // The shader tier sizes its passes and normalizes mask rectangles from its
+    // own geometry, so it must follow the canvas item like the other children.
+    shader_layers_->setSize(new_geometry.size());
+#endif
     render_probe_->setPosition(QPointF(0.0, 0.0));
   }
 private:
