@@ -66,9 +66,8 @@ QString sanitized_file_name(const QString& name) {
 }
 
 QStringList sorted_sequence_paths(QStringList paths) {
-  const auto collator = natural_name_collator();
-  std::sort(paths.begin(), paths.end(), [&collator](const QString& a, const QString& b) {
-    const auto compared = collator.compare(QFileInfo(a).fileName(), QFileInfo(b).fileName());
+  std::stable_sort(paths.begin(), paths.end(), [](const QString& a, const QString& b) {
+    const auto compared = natural_name_compare(QFileInfo(a).fileName(), QFileInfo(b).fileName());
     if (compared != 0) {
       return compared < 0;
     }

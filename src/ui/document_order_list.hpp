@@ -1,8 +1,8 @@
 #pragma once
 
-#include <QCollator>
 #include <QString>
 #include <QStringList>
+#include <QStringView>
 
 #include <cstdint>
 #include <vector>
@@ -36,9 +36,9 @@ struct DocumentOrderControls {
   QPushButton* reverse{nullptr};
 };
 
-// Numeric-aware, case-insensitive: "Page 2" sorts before "Page 10". Shared with the
-// image-sequence file ordering (sorted_sequence_paths).
-[[nodiscard]] QCollator natural_name_collator();
+// Locale-independent, numeric-aware, case-insensitive comparison: "Page 2" sorts
+// before "Page 10". Shared with image-sequence file ordering.
+[[nodiscard]] int natural_name_compare(QStringView lhs, QStringView rhs);
 
 // Stable natural sort of titles (ties keep their input order).
 [[nodiscard]] QStringList natural_sorted_titles(QStringList titles);
