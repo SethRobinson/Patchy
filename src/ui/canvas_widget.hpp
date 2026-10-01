@@ -2276,7 +2276,6 @@ private:
   Document* document_{nullptr};
   double zoom_{1.0};
   QPointF pan_{40.0, 40.0};
-  bool has_completed_initial_show_{false};
   bool wheel_zooms_{true};
   // Set by a press, cleared by the next ScrollBegin: drops leftover flick momentum.
   bool swallow_scroll_momentum_{false};

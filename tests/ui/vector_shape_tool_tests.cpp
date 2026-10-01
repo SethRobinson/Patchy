@@ -932,15 +932,12 @@ void ui_shape_moved_off_canvas_by_free_transform_moves_back() {
   canvas->set_auto_select_layer(false);
   canvas->set_zoom(0.25);
   QApplication::processEvents();
+  const auto on_canvas = canvas->widget_position_for_document_point(QPoint(200, 160));
+  const auto below_canvas = canvas->widget_position_for_document_point(QPoint(200, 1300));
 
   require_action(window, "editFreeTransformAction")->trigger();
   QApplication::processEvents();
   CHECK(canvas->free_transform_active());
-  // Activating Free Transform can resize the controls and recenter the
-  // document vertically. Compute synthetic input points after that layout
-  // settles, using the same document coordinates as a real user.
-  const auto on_canvas = canvas->widget_position_for_document_point(QPoint(200, 160));
-  const auto below_canvas = canvas->widget_position_for_document_point(QPoint(200, 1300));
   drag(*canvas, on_canvas, below_canvas);
   QApplication::processEvents();
   send_key(*canvas, Qt::Key_Return);
@@ -950,12 +947,7 @@ void ui_shape_moved_off_canvas_by_free_transform_moves_back() {
   CHECK(layer != nullptr && !layer->pixels().empty());
   CHECK(layer->bounds().y > document.height() && layer->bounds().width == 200 && layer->bounds().height == 120);
 
-  // Closing the transform controls can recenter the viewport again. Recompute
-  // both endpoints before returning the off-canvas layer to avoid stale widget
-  // coordinates from the active-transform layout.
-  const auto return_from = canvas->widget_position_for_document_point(QPoint(200, 1300));
-  const auto return_to = canvas->widget_position_for_document_point(QPoint(200, 160));
-  drag(*canvas, return_from, return_to);
+  drag(*canvas, below_canvas, on_canvas);
   QApplication::processEvents();
   layer = document.find_layer(layer_id);
   CHECK(layer->bounds().x == 100 && layer->bounds().y == 100);
