@@ -549,6 +549,7 @@ void CanvasWidget::wheelEvent(QWheelEvent* event) {
 void CanvasWidget::resizeEvent(QResizeEvent* event) {
   QWidget::resizeEvent(event);
 #ifdef PATCHY_GPU_CANVAS
+  // Keep the Qt Quick surface and its mask rect in step with the widget.
   resize_graphics_canvas_surface();
 #endif
   // A maximized window, a dock opening or closing and a resized float window all re-anchor
