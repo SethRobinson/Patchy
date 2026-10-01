@@ -189,23 +189,32 @@ fn main(@builtin(global_invocation_id) invocation: vec3<u32>) {
                      sourceRelative.x < i32(sourceDimensions.x) && sourceRelative.y < i32(sourceDimensions.y);
   let safeSourceRelative = clamp(sourceRelative, vec2<i32>(0),
                                  vec2<i32>(i32(sourceDimensions.x) - 1, i32(sourceDimensions.y) - 1));
+  // Source, backdrop and output textures all hold straight (non-premultiplied)
+  // RGBA8. The CPU compositor keeps straight RGB bytes next to a separate
+  // alpha plane; premultiplying 8-bit sources before upload and dividing the
+  // alpha back out in the shader loses up to several byte levels on
+  // partially transparent pixels, which showed up as a wide but shallow
+  // CPU/GPU mismatch on every translucent layer.
   let sourceSample = select(vec4<f32>(0.0), textureLoad(sourceTexture, safeSourceRelative, 0), sourceInside);
   let backdropSample = textureLoad(backdropTexture, localCoord, 0);
   let coverage = maskCoverage(coord);
   var sourceAlpha = clamp(sourceSample.a * params.layerOpacity * coverage, 0.0, 1.0);
   let backdropAlpha = clamp(backdropSample.a, 0.0, 1.0);
-  let sourceColor = select(vec3<f32>(0.0), sourceSample.rgb / max(sourceSample.a, 0.000001), sourceAlpha > 0.000001);
-  let backdropColor = select(vec3<f32>(0.0), backdropSample.rgb / max(backdropAlpha, 0.000001), backdropAlpha > 0.000001);
+  let sourceColor = sourceSample.rgb;
+  let backdropColor = backdropSample.rgb;
   if (params.hasBlendIf != 0u) {
     sourceAlpha = sourceAlpha * blendIfColorFactor(sourceColor, true);
     let underlyingFactor = blendIfColorFactor(backdropColor, false);
     sourceAlpha = sourceAlpha * ((1.0 - backdropAlpha) + backdropAlpha * underlyingFactor);
   }
-  let blended = blendColor(sourceColor, backdropColor, params.blendMode);
+  // blend_rgb on the CPU returns bytes; quantize the blended color the same
+  // way before mixing so both sides feed identical values into the mix.
+  let blended = round(blendColor(sourceColor, backdropColor, params.blendMode) * 255.0) / 255.0;
   let outputAlpha = sourceAlpha + backdropAlpha * (1.0 - sourceAlpha);
-  let outputRgb = blended * sourceAlpha * backdropAlpha +
-                  sourceColor * sourceAlpha * (1.0 - backdropAlpha) +
-                  backdropColor * backdropAlpha * (1.0 - sourceAlpha);
+  let mixed = blended * sourceAlpha * backdropAlpha +
+              sourceColor * sourceAlpha * (1.0 - backdropAlpha) +
+              backdropColor * backdropAlpha * (1.0 - sourceAlpha);
+  let outputRgb = select(vec3<f32>(0.0), mixed / max(outputAlpha, 0.000001), outputAlpha > 0.000001);
   textureStore(outputTexture, localCoord, vec4<f32>(outputRgb, outputAlpha));
 }
 )WGSL";
@@ -568,7 +577,8 @@ public:
       return fail(reason, QStringLiteral("WebGPU document dimensions are invalid"));
     }
 
-    QImage result(width, height, QImage::Format_RGBA8888_Premultiplied);
+    // Straight alpha end to end; see the WGSL comment above main().
+    QImage result(width, height, QImage::Format_RGBA8888);
     result.fill(Qt::transparent);
     if (previous_frame != nullptr && previous_frame->size() == result.size()) {
       result = previous_frame->convertToFormat(result.format());
@@ -587,7 +597,7 @@ public:
         continue;
       }
       active_layer_ids.insert(layer.id);
-      const auto source_image = layer.image.convertToFormat(QImage::Format_RGBA8888_Premultiplied);
+      const auto source_image = layer.image.convertToFormat(QImage::Format_RGBA8888);
       auto& cached = layer_resource_cache_[layer.id];
       const auto pixel_revision = layer.pixel_revision != 0 ? layer.pixel_revision : layer.revision;
       const bool source_matches = cached.source.texture && cached.source.view &&
@@ -691,7 +701,7 @@ public:
       if (!backdrop.texture || !backdrop.view) {
         return false;
       }
-      QImage clear_image(tile_size, QImage::Format_RGBA8888_Premultiplied);
+      QImage clear_image(tile_size, QImage::Format_RGBA8888);
       clear_image.fill(Qt::transparent);
       if (!write_texture(backdrop.texture.get(), image_bytes(clear_image), tile_size,
                          WGPUTextureFormat_RGBA8Unorm, reason)) {
@@ -850,7 +860,7 @@ public:
           wgpuBufferUnmap(pending.readback.get());
           return fail(reason, QStringLiteral("WebGPU returned an empty tile readback"));
         }
-        QImage tile(pending.size, QImage::Format_RGBA8888_Premultiplied);
+        QImage tile(pending.size, QImage::Format_RGBA8888);
         for (int y = 0; y < pending.size.height(); ++y) {
           std::memcpy(tile.scanLine(y), mapped + static_cast<size_t>(y) * pending.padded_row_bytes,
                       static_cast<size_t>(pending.size.width()) * kBytesPerPixel);
