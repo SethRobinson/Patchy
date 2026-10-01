@@ -1,4 +1,5 @@
 #include "core/blend_math.hpp"
+#include "core/environment.hpp"
 #include "core/document.hpp"
 #include "core/layer.hpp"
 #include "render/compositor.hpp"
@@ -7,6 +8,8 @@
 #include "test_harness.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/edit_conversions.hpp"
+#include "ui/memory_info.hpp"
+#include "render/gpu_wait_budget.hpp"
 #include "ui/webgpu_render_backend.hpp"
 
 #include <QApplication>
@@ -14,6 +17,7 @@
 #include <QImage>
 #include <QRegion>
 #include <QString>
+#include <QtGlobal>
 
 #include <algorithm>
 #include <array>
@@ -23,6 +27,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <exception>
+#include <fstream>
 #include <functional>
 #include <iostream>
 #include <sstream>
@@ -611,6 +616,239 @@ void benchmark_full_dirty_and_idle(patchy::ui::WebGpuRenderBackend& backend) {
   print_benchmark_metrics("idle", backend, cpu_reference_time_ns(document));
 }
 
+// Representative end-to-end benchmark (discussion #37). Unlike the 513x257
+// two-layer scenarios above it measures what the canvas actually pays per
+// repaint on realistic documents: snapshot construction through
+// CanvasWidget::gpu_document_snapshot() (layer/mask conversion and the image
+// cache), Dawn composition including readback, and the CPU reference. Each
+// scenario reports median latency over several iterations plus the process
+// RSS delta, so a per-document result can be compared honestly. The numbers
+// are printed, not asserted: this is evidence, not a speed-up claim.
+struct RepresentativeScenario {
+  const char* name;
+  std::int32_t width;
+  std::int32_t height;
+  int layer_count;
+  bool masks;
+  bool mixed_blend_modes;
+};
+
+constexpr std::array<RepresentativeScenario, 4> kRepresentativeScenarios{{
+    {"large_2_layers_4096x2304", 4096, 2304, 2, false, false},
+    {"medium_24_layers_2048x1536", 2048, 1536, 24, false, false},
+    {"medium_24_layers_masks_blends_2048x1536", 2048, 1536, 24, true, true},
+    {"many_64_layers_1024x1024", 1024, 1024, 64, true, true},
+}};
+
+patchy::Document make_representative_document(const RepresentativeScenario& scenario) {
+  constexpr std::array<patchy::BlendMode, 6> kModes{
+      patchy::BlendMode::Normal,   patchy::BlendMode::Multiply, patchy::BlendMode::Screen,
+      patchy::BlendMode::Overlay,  patchy::BlendMode::Darken,   patchy::BlendMode::Lighten,
+  };
+  auto document = make_document(scenario.width, scenario.height);
+  // make_document() adds Background and one Overlay; add the rest as
+  // mid-sized layers spread over the canvas so every tile sees several.
+  for (int index = 2; index < scenario.layer_count; ++index) {
+    const auto layer_width = std::max<std::int32_t>(64, scenario.width / 3);
+    const auto layer_height = std::max<std::int32_t>(64, scenario.height / 3);
+    patchy::PixelBuffer pixels(layer_width, layer_height, patchy::PixelFormat::rgba8());
+    for (std::int32_t y = 0; y < layer_height; ++y) {
+      for (std::int32_t x = 0; x < layer_width; ++x) {
+        auto* pixel = pixels.pixel(x, y);
+        pixel[0] = static_cast<std::uint8_t>((index * 37 + x) % 251);
+        pixel[1] = static_cast<std::uint8_t>((index * 59 + y) % 251);
+        pixel[2] = static_cast<std::uint8_t>((index * 83 + x / 2 + y / 2) % 251);
+        pixel[3] = static_cast<std::uint8_t>(((x + y) % 9 == 0) ? 0 : 128 + (index * 13) % 128);
+      }
+    }
+    patchy::Layer layer(document.allocate_layer_id(), "Layer " + std::to_string(index), std::move(pixels));
+    const auto x0 = static_cast<std::int32_t>((index * 173) % std::max<std::int32_t>(1, scenario.width - layer_width));
+    const auto y0 = static_cast<std::int32_t>((index * 97) % std::max<std::int32_t>(1, scenario.height - layer_height));
+    layer.set_bounds(patchy::Rect{x0, y0, layer_width, layer_height});
+    if (scenario.mixed_blend_modes) {
+      layer.set_blend_mode(kModes[static_cast<std::size_t>(index) % kModes.size()]);
+      layer.set_opacity(0.55F + 0.45F * static_cast<float>(index % 3) / 2.0F);
+    }
+    if (scenario.masks && index % 2 == 0) {
+      patchy::LayerMask mask;
+      mask.bounds = layer.bounds();
+      mask.pixels = patchy::PixelBuffer(layer_width, layer_height, patchy::PixelFormat::gray8());
+      for (std::int32_t y = 0; y < layer_height; ++y) {
+        for (std::int32_t x = 0; x < layer_width; ++x) {
+          mask.pixels.pixel(x, y)[0] = static_cast<std::uint8_t>((x * 5 + y * 3 + index) % 256);
+        }
+      }
+      layer.set_mask(std::move(mask));
+    }
+    document.add_layer(std::move(layer));
+  }
+  return document;
+}
+
+// Resident/peak memory in MB for the benchmark record. Reads /proc directly on
+// Linux (VmRSS, VmHWM) and falls back to the shared ui probe elsewhere; -1
+// when unavailable.
+struct ProcessMemoryMb {
+  long long resident{-1};
+  long long peak{-1};
+};
+
+ProcessMemoryMb process_memory_mb() {
+  ProcessMemoryMb result;
+#if defined(__linux__)
+  std::ifstream status("/proc/self/status");
+  std::string line;
+  while (std::getline(status, line)) {
+    const auto parse_kb = [&line](const char* key) -> long long {
+      if (line.rfind(key, 0) != 0) {
+        return -1;
+      }
+      long long kb = 0;
+      std::istringstream fields(line.substr(std::strlen(key)));
+      fields >> kb;
+      return fields ? kb / 1024 : -1;
+    };
+    if (const auto rss = parse_kb("VmRSS:"); rss >= 0) {
+      result.resident = rss;
+    }
+    if (const auto hwm = parse_kb("VmHWM:"); hwm >= 0) {
+      result.peak = hwm;
+    }
+  }
+#endif
+  if (result.resident < 0) {
+    result.resident = patchy::ui::current_process_memory_mb();
+  }
+  if (result.peak < 0) {
+    result.peak = patchy::ui::peak_process_memory_mb();
+  }
+  return result;
+}
+
+std::uint64_t median_ns(std::vector<std::uint64_t> samples) {
+  if (samples.empty()) {
+    return 0;
+  }
+  std::sort(samples.begin(), samples.end());
+  return samples[samples.size() / 2];
+}
+
+template <typename Fn>
+std::uint64_t time_ns(Fn&& fn) {
+  const auto start = std::chrono::steady_clock::now();
+  fn();
+  return static_cast<std::uint64_t>(
+      std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - start).count());
+}
+
+void representative_documents_benchmark(patchy::ui::WebGpuRenderBackend& backend) {
+  constexpr int kIterations = 5;
+  // The interactive path stops at the 250 ms frame budget (GpuWaitBudget) and
+  // falls back to the CPU. A benchmark must measure the real duration instead,
+  // so it runs under a generous budget and reports, per scenario, whether the
+  // warm median would have exceeded the interactive default. The variable is
+  // restored afterwards; the compositor reads it on every composition.
+  const auto default_frame_budget = patchy::gpu_wait_budget_from_environment().frame;
+  const auto previous_budget = qgetenv("PATCHY_WEBGPU_FRAME_BUDGET_MS");
+  const bool had_previous_budget = qEnvironmentVariableIsSet("PATCHY_WEBGPU_FRAME_BUDGET_MS");
+  qputenv("PATCHY_WEBGPU_FRAME_BUDGET_MS", QByteArrayLiteral("20000"));
+  struct RestoreBudget {
+    QByteArray previous;
+    bool had_previous;
+    ~RestoreBudget() {
+      if (had_previous) {
+        qputenv("PATCHY_WEBGPU_FRAME_BUDGET_MS", previous);
+      } else {
+        qunsetenv("PATCHY_WEBGPU_FRAME_BUDGET_MS");
+      }
+    }
+  } restore_budget{previous_budget, had_previous_budget};
+  for (const auto& scenario : kRepresentativeScenarios) {
+    const auto document = make_representative_document(scenario);
+    const auto memory_before = process_memory_mb();
+
+    // The canvas is the real snapshot producer; keep one alive across the
+    // iterations exactly like the application does, so the layer image cache
+    // and the Dawn texture cache are both exercised (cold first, then warm).
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(1280, 800);
+    canvas.set_document(const_cast<patchy::Document*>(&document));
+    canvas.set_zoom(1.0);
+
+    std::vector<std::uint64_t> snapshot_ns;
+    std::vector<std::uint64_t> compose_ns;
+    std::vector<std::uint64_t> cpu_ns;
+    std::uint64_t cold_total_ns = 0;
+    QImage frame;
+    for (int iteration = 0; iteration < kIterations; ++iteration) {
+      patchy::ui::CanvasGpuDocument snapshot;
+      QString reason;
+      bool accepted = false;
+      const auto s_ns = time_ns([&] { accepted = canvas.gpu_document_snapshot(snapshot, &reason); });
+      if (!accepted) {
+        throw std::runtime_error(std::string("representative scenario rejected by the canvas: ") + scenario.name +
+                                 ": " + reason.toStdString());
+      }
+      const auto c_ns = time_ns([&] {
+        if (!backend.compose(snapshot, frame, &reason)) {
+          throw std::runtime_error(std::string("representative scenario composition failed: ") + scenario.name +
+                                   ": " + reason.toStdString());
+        }
+      });
+      cpu_ns.push_back(cpu_reference_time_ns(document));
+      if (iteration == 0) {
+        cold_total_ns = s_ns + c_ns;
+      } else {
+        snapshot_ns.push_back(s_ns);
+        compose_ns.push_back(c_ns);
+      }
+    }
+    // Deep stacks drift: the Dawn path stores the running backdrop, including
+    // its accumulated alpha, in RGBA8Unorm scratch textures between layer
+    // passes, while the CPU compositor keeps a float alpha plane. Each masked,
+    // translucent layer therefore re-quantises alpha on the GPU, and with 24
+    // or 64 such layers the final bytes deviate by a few levels on a small
+    // set of pixels even though every layer's math is CPU-mirrored. The strict
+    // <=1 policy stays in the equivalence tests above; here the deviation is
+    // reported in the record and only a visible divergence (more than four
+    // levels, more than 0.1% of pixels, or a mean above 0.1) fails. Removing
+    // the drift needs 16-bit float intermediates; see docs/performance.md.
+    require_opaque(frame, std::string("representative ") + scenario.name);
+    const auto comparison = patchy::compare_pixel_buffers(cpu_frame(document), pixel_buffer_from_image(frame));
+    patchy::PixelComparisonPolicy deep_stack_policy;
+    deep_stack_policy.max_channel_delta = 4;
+    deep_stack_policy.max_mean_abs_channel_delta = 0.1;
+    deep_stack_policy.max_differing_fraction = 0.001;
+    deep_stack_policy.max_differing_pixels =
+        static_cast<std::uint64_t>(scenario.width) * static_cast<std::uint64_t>(scenario.height) / 1000U;
+    if (!comparison.within(deep_stack_policy)) {
+      std::ostringstream message;
+      message << "representative " << scenario.name << " differs from CPU: max delta=" << comparison.max_channel_delta
+              << ", differing pixels=" << comparison.differing_pixels
+              << ", mean delta=" << comparison.mean_abs_channel_delta;
+      throw std::runtime_error(message.str());
+    }
+    const auto memory_after = process_memory_mb();
+    const auto metrics = backend.last_composition_metrics();
+    std::cout << "[METRIC] scenario=representative_" << scenario.name << " layers=" << document.layers().size()
+              << " pixels=" << (static_cast<std::uint64_t>(scenario.width) * static_cast<std::uint64_t>(scenario.height))
+              << " cold_end_to_end_ns=" << cold_total_ns
+              << " warm_snapshot_median_ns=" << median_ns(snapshot_ns)
+              << " warm_dawn_median_ns=" << median_ns(compose_ns)
+              << " warm_end_to_end_median_ns=" << (median_ns(snapshot_ns) + median_ns(compose_ns))
+              << " cpu_median_ns=" << median_ns(cpu_ns)
+              << " readback_bytes=" << backend.last_readback_bytes()
+              << " warm_source_upload_bytes=" << metrics.source_upload_bytes
+              << " wait_timeouts=" << metrics.wait_timeouts
+              << " exceeds_default_frame_budget="
+              << (std::chrono::nanoseconds(static_cast<std::int64_t>(median_ns(compose_ns))) > default_frame_budget ? 1 : 0)
+              << " cpu_gpu_max_delta=" << comparison.max_channel_delta
+              << " cpu_gpu_differing_pixels=" << comparison.differing_pixels
+              << " rss_before_mb=" << memory_before.resident << " rss_after_mb=" << memory_after.resident
+              << " peak_rss_mb=" << memory_after.peak << '\n';
+  }
+}
+
 int run_test(const char* name, const std::function<void()>& test) {
   try {
     test();
@@ -666,5 +904,10 @@ int main(int argc, char** argv) {
                          }
                          benchmark_full_dirty_and_idle(benchmark_backend);
                        });
+  // Opt-in: several seconds on integrated GPUs and hundreds of MB of layers.
+  if (patchy::environment_variable_is_set("PATCHY_WEBGPU_REPRESENTATIVE_BENCHMARK")) {
+    failures += run_test("webgpu_representative_documents_benchmark",
+                         [&backend] { representative_documents_benchmark(backend); });
+  }
   return failures == 0 ? 0 : 1;
 }
