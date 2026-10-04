@@ -101,9 +101,7 @@ In the August 7, 2026 Testy run, Photoshop reopened **all 64 Patchy saves**, and
 These are dated, corpus-specific results. Read the [full comparison and methodology](docs/psd-compatibility-benchmark.md)
 for tested versions, per-file results, preservation checks, and limitations.
 
-**Know the limits:** editing is RGB/RGBA 8-bit; there is no GPU acceleration or
-CMYK/Lab/16-bit/32-bit editing. Unsupported Smart Filters can remain preview-locked,
-and Affinity import has format-specific limitations. See [current compatibility](docs/features.md#current-status).
+**Know the limits:** editing is RGB/RGBA 8-bit; CPU compositing, PSD output, and compatibility tests remain authoritative for portability and deterministic output. Desktop builds include an automatic Qt Quick/RHI presentation backend that selects OpenGL, Vulkan, Metal, or Direct3D by platform and driver, rejects software renderers, and falls back to the CPU widget when needed. The optional Dawn/WebGPU document-compositing tier can be enabled with `-DPATCHY_ENABLE_GPU_CANVAS=ON` and `-DPATCHY_ENABLE_WEBGPU=ON`; unsupported features and export remain on the CPU with atomic fallback. See [GPU canvas presentation](docs/gpu-canvas.md). CMYK/Lab/16-bit/32-bit editing is not supported. Unsupported Smart Filters can remain preview-locked, and Affinity import has format-specific limitations. See [current compatibility](docs/features.md#current-status).
 
 ## What's New
 

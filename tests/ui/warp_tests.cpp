@@ -1920,10 +1920,10 @@ void ui_text_options_bar_family_and_style_apply_to_selected_layers_without_sessi
   }
   const auto primary = QApplication::font().family();
   QString second;
-  // The Linux UiDefault role registers Liberation Sans and DejaVu Sans, not the others.
-  for (const auto* candidate : {"Calibri", "Segoe UI", "Verdana", "Arial", "Liberation Sans", "DejaVu Sans"}) {
-    const auto family = QString::fromLatin1(candidate);
-    if (family != primary && QFontDatabase::hasFamily(family)) {
+  // Keep the test portable: these names are common on Windows but are not guaranteed on Linux
+  // or macOS. Any distinct Latin family is sufficient to exercise the multi-layer apply path.
+  for (const auto& family : QFontDatabase::families(QFontDatabase::Latin)) {
+    if (family.compare(primary, Qt::CaseInsensitive) != 0 && !family.trimmed().isEmpty()) {
       second = family;
       break;
     }

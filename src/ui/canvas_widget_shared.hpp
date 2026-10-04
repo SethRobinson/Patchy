@@ -214,9 +214,9 @@ bool tool_uses_brush_footprint_cursor(CanvasTool tool) noexcept;
 // selected. Shared by the cursors and brush TUs.
 bool tool_paints_with_brush_tip(CanvasTool tool) noexcept;
 
-// PATCHY_ZOOM_TRACE=1 prints paint/zoom phase timings over 2 ms to stderr (the
-// PATCHY_REV_TRACE pattern): run the real app with it set to attribute slow
-// zoom/pan/paint steps to a phase instead of guessing.
+// PATCHY_ZOOM_TRACE=1 prints paint/zoom phase timings over 2 ms to stderr;
+// run the real app with it set to attribute slow zoom/pan/paint steps to a
+// phase instead of guessing.
 bool zoom_trace_enabled();
 
 class ZoomTraceScope {

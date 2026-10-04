@@ -2,6 +2,7 @@
 
 #include "core/blend_math.hpp"
 #include "core/environment.hpp"
+#include "core/rect_utils.hpp"
 #include "core/worker_budget.hpp"
 #include "render/layer_compositor.hpp"
 #include "support/translate_noop.hpp"
@@ -314,6 +315,20 @@ PixelBuffer Compositor::flatten_rgb8(const Document& document, std::vector<std::
   if (merged_alpha != nullptr) {
     *merged_alpha = target.alpha_bytes();
   }
+  return output;
+}
+
+PixelBuffer Compositor::flatten_rgb8_region(const Document& document, Rect region) const {
+  const auto clipped = intersect_rect(region, Rect::from_size(document.width(), document.height()));
+  PixelBuffer output(clipped.width, clipped.height, PixelFormat::rgb8());
+  output.clear(0);
+  if (clipped.empty()) {
+    return output;
+  }
+
+  Rgb8PixelBufferTarget target(output, 0.0F, clipped.x, clipped.y);
+  render_detail::composite_layers(target, document.layers(), clipped, nullptr, true, nullptr,
+                                  &document.metadata().patterns);
   return output;
 }
 

@@ -31,7 +31,7 @@ Undo/redo diffs the two history states per layer (globally-unique revisions + vi
 
 ## Reads must not bump layer revisions
 
-Layer's mutable accessors bump render/content revisions on ACCESS, so read-only code must go through const layers (`std::as_const`), or it silently invalidates every revision-keyed cache. Document::find_layer once bumped every visited layer per lookup (thousands per frame); its walk is now const + const_cast. Hunt regressions with `PATCHY_REV_TRACE=1` (stderr REVBUMP lines per accessor+layer).
+Layer's mutable accessors bump render/content revisions on ACCESS, so read-only code must go through const layers (`std::as_const`), or it silently invalidates every revision-keyed cache. Document::find_layer once bumped every visited layer per lookup (thousands per frame); its walk is now const + const_cast.
 
 ## Nothing O(layer pixels) may run per repaint
 
@@ -103,7 +103,7 @@ The per-pixel general loop in `composite_pixel_layer` (render/layer_compositor.h
 
 Guarding all of it, the **byte-identity corpus**: `composite_corpus_flatten_digests_are_stable` (tests/core/composite_corpus_tests.cpp) and `composite_corpus_render_digests_are_stable` plus the override-equivalence test (tests/ui/composite_render_tests.cpp) flatten/render every committed `test-fixtures/psd` document plus anything dropped into `local-test-fixtures/composite-corpus/`, single-threaded, and compare FNV-1a digests against the tracked baselines in `test-fixtures/psd/*-digests.txt` (plus a local overlay). Any compositor optimization must keep these green; after a DELIBERATE rendering change, delete the tracked files, rerun, and commit the diff. Isolated-group bounds are override-aware (`layer_render_bounds_for_render`): move/transform preview overrides no longer force full-clip isolation buffers, and the styled pass-through silhouette includes override-moved children.
 
-Known remaining slow-path costs for future tiers (validated ordering in the August 2026 optimization plan): `merge_layer_into` and the channel-restricted/`GroupMaskedTarget` wrappers (deliberately per-pixel; fusing their factors into a kernel mask row would change float association order), the three float divides per pixel (skipped only when the output alpha is exactly 1.0), exact-value SIMD for the row kernels, a thread pool replacing the per-strip `std::async` spawns, and display-resolution interactive compositing (composite previews at the current mip level; the general form of what the move/transform proxies do). GPU compositing stays deliberately unpursued: no scaffolding exists, byte identity with the CPU reference is effectively unachievable on GPU float paths, and a preview-only GPU tier should only be considered after the CPU tiers above are exhausted.
+Known remaining slow-path costs for future tiers (validated ordering in the August 2026 optimization plan): `merge_layer_into` and the channel-restricted/`GroupMaskedTarget` wrappers (deliberately per-pixel; fusing their factors into a kernel mask row would change float association order), the three float divides per pixel (skipped only when the output alpha is exactly 1.0), exact-value SIMD for the row kernels, a thread pool replacing the per-strip `std::async` spawns, and display-resolution interactive compositing (composite previews at the current mip level; the general form of what the move/transform proxies do). **GPU document compositing** now has two conservative capability tiers: simple top-level 8-bit RGB/RGBA pixel stacks with Normal/source-over blending use GPU textures, while separable blend modes, unfeathered gray8 masks, and supported RGB Blend If thresholds use portable QSB fragment passes that sample the accumulated backdrop. When Dawn is installed, the same tiers can use WebGPU compute tile passes with full-frame or dirty-region readback, preserving an all-or-nothing document decision. Groups, non-separable modes, unsupported or malformed Blend If payloads, feathered masks, and advanced features remain on the byte-authoritative CPU path. The desktop `PATCHY_ENABLE_GPU_CANVAS` build flag includes the Qt Quick/RHI graphics backend by default, with automatic OpenGL, Vulkan, Metal, or Direct3D selection and a CPU fallback for software adapters, unavailable scene graphs, or unsupported document features; the optional `PATCHY_ENABLE_WEBGPU` flag adds automatic Dawn discovery but never makes Dawn mandatory. The CPU path remains the output authority for exports and byte-identity tests.
 
 ## Vector-shape edits invalidate their effect rect, not the canvas (August 2026)
 
@@ -138,3 +138,87 @@ Instrumentation on the page: an on-screen HUD (heap/used/cap/stage), 2 s `POST /
 The sampler tracks the number WebKit's kill policy watches: per-process `footprint` of the app's WebContent process (identified as the first new WebContent instance crossing 300 MB), plus Safari and the GPU process (canvas/IOSurface growth lands there, invisible to wasm-side numbers). Reading the curves: used grows while heap stays flat = in-app leak; heap steps up at workload peaks while used returns low = peak ratchet (wasm memory never shrinks); WebContent footprint grows while heap stays flat = browser-side growth; GPU process grows = canvas/IOSurface. The default `open` driver needs no setup and quits Safari via pkill afterwards. `-Driver webdriver` additionally polls `patchyMemStats` on the real patchy.html and detects kills via a page epoch sentinel; it needs a one-time `sudo safaridriver --enable` on the mac build host plus Safari > Develop > Developer Settings > Allow Remote Automation, and if an ssh-launched safaridriver cannot reach the window server, start `safaridriver -p 4723` once in a Terminal on the mac build host (the script attaches to a listener).
 
 iOS device runs use the beta deploy (`scripts\release\upload-wasm-to-rtsoft-beta.bat` publishes the same staged site plus the harness to https://www.rtsoft.com/patchy-beta/; an iPhone needs real https for SharedArrayBuffer, a LAN http server cannot boot the threaded build). Walk the memory knobs on the device against `stress-harness.html`; the black-box banner attributes deaths to a load stage. One-time device step: Settings > Apps > Safari > Advanced > Web Inspector ON (inspect from the mac build host's Safari Develop menu). After a death, fetch jetsam logs from the mac build host: `xcrun devicectl device copy from --device "<name>" --domain-type systemCrashLogs --source . --destination <dir>`, then read the newest JetsamEvent-*.ips: `per-process-limit` with a footprint near the chosen cap means the shared maximum was committed eagerly; `vm-pageshortage` well below limits means a transient spike (module compile or pool spawn).
+
+## Hardware-agnostic GPU planning and equivalence
+
+The render graph, dirty-region coalescing, tile invalidation, and fake device
+contracts are documented in [Hardware-agnostic GPU render graph](gpu-render-graph.md).
+The current `compare_pixel_buffers()` policy and fake tiled renderer establish the
+first structured `render_cpu()` versus `render_gpu()` comparison, but the fake path
+still calls the CPU compositor for tile contents. They are useful correctness and
+invalidation infrastructure, not a performance measurement, and do not imply that
+a physical GPU was used. A future benchmark must compare native `render_gpu()` and
+`render_cpu()` on the same scene, format, and document revision before claiming a
+speedup. Zero-copy presentation, complete filter shaders, HDR/16-bit paths, and
+native device-loss recovery require real platform validation after their contracts
+and equivalence tests are implemented.
+
+The current Dawn bridge is a bounded execution path, not a promise of a
+throughput win: it validates a full or dirty tile graph, executes each planned
+tile, and reports the number of rendered tiles and padded readback bytes.
+Benchmark results must therefore identify whether they measure Qt RHI
+presentation, Dawn document composition, dirty-tile reuse, or the CPU reference.
+The compositor now retains source and mask textures by their pixel/content
+revisions, keeps one uniform buffer per layer and tile, and reuses scratch and readback
+resources by tile size. These caches are device-owned and are discarded when
+the Dawn backend is recreated, so recovery cannot reuse resources from a lost
+device. Every non-empty composition plan records all of its tile passes and
+regional copies in one command buffer, followed by one queue submission and one
+wait before mapping the readbacks. Bind groups are retained while their five
+resource views remain valid. A controlled submit/readback failure discards these
+device-owned caches before recreation, and the destination frame is published
+only after the complete retry succeeds. The CPU path remains the output
+authority.
+
+The optional `patchy_webgpu_equivalence_tests` executable prints `[METRIC]`
+records for `full_cold`, `full_warm`, `dirty_single`, `dirty_multiple`, and
+`idle`. Each record includes Dawn time, CPU reference time, rendered tiles,
+padded readback bytes, source/mask/clear upload bytes, and resource-reuse
+counters, including queue submissions and waits. A non-empty full or dirty
+plan should report one submission and one wait regardless of its tile count;
+an idle plan should report zero for both. Run it repeatedly on the same
+machine and interleave configurations before comparing means. A lower Dawn
+time is not by itself a product-level
+speedup: the executable still performs regional readback and returns a
+CPU-readable `QImage` to Qt Quick. Zero-copy presentation, complete filter
+shaders, HDR/16-bit paths, and platform-specific device-loss recovery remain
+separate work.
+
+### Representative end-to-end benchmark (opt-in)
+
+The 513×257 two-layer scenarios above isolate Dawn and exclude what the canvas
+pays before and after composition. `PATCHY_WEBGPU_REPRESENTATIVE_BENCHMARK=1`
+adds `webgpu_representative_documents_benchmark`, which measures the whole
+canvas-side cost on realistic documents: 4096×2304 with two layers, 2048×1536
+with 24 layers (plain, then with gray masks and mixed separable blend modes),
+and 1024×1024 with 64 layers. Each scenario keeps one `CanvasWidget` alive and
+times `gpu_document_snapshot()` (layer and mask conversion through the image
+cache), the Dawn composition including readback, and the CPU reference
+`flatten_rgb8()`, reporting the cold first pass plus warm medians over four
+iterations, readback bytes, warm source uploads, wait-budget timeouts, process
+RSS before and after (`current_process_memory_mb()`), and whether the warm Dawn
+median exceeds the interactive 250 ms frame budget. The benchmark itself runs
+under a 20 s budget so it measures real durations; a scenario flagged
+`exceeds_default_frame_budget=1` is one the live canvas would hand back to the
+CPU compositor, which is exactly the information the maintenance decision needs. The record is
+`[METRIC] scenario=representative_<name> ...`, including peak RSS and the
+CPU/GPU comparison (`cpu_gpu_max_delta`, `cpu_gpu_differing_pixels`). The
+timings are printed rather than asserted. Frames are still compared with the
+CPU reference, but with a deep-stack allowance that documents a real
+limitation: the Dawn path stores the running backdrop, including accumulated
+alpha, in `RGBA8Unorm` scratch textures between layer passes, whereas the CPU
+compositor keeps a float alpha plane. Every masked translucent layer therefore
+re-quantises alpha on the GPU. Measured on Intel Iris Xe/Vulkan: the plain
+two- and 24-layer scenarios are byte-identical; 24 masked, translucent,
+mixed-mode layers differ by at most two levels on 79 of 3.1 M pixels; 64 such
+layers differ by at most three levels on 748 of 1 M pixels (mean 0.0003). The
+strict one-level policy remains in the equivalence tests; the benchmark fails
+only above four levels, 0.1% of pixels or a mean of 0.1, and records the actual
+deviation. Removing the drift requires 16-bit float intermediates (or a
+separate float alpha texture) and a final conversion pass; until then, documents
+with many masked translucent layers are a known shallow-deviation case and the
+CPU remains the output authority.
+Interpret them with the same caveats: presentation through the Qt Quick
+surface is not included, documents that the capability matrix rejects never
+reach this path, and a single machine (so far an Intel Iris Xe through Vulkan)
+is not a cross-vendor result.

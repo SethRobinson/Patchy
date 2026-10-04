@@ -3,6 +3,7 @@
 
 #include "core/adjustment_layer.hpp"
 #include "core/blend_math.hpp"
+#include "core/layer.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/smart_object.hpp"
 #include "core/smart_filter.hpp"
@@ -10,14 +11,17 @@
 #include "core/layer_tree.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/quick_select.hpp"
+#include "render/gpu_document_capabilities.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/smart_object_render.hpp"
+#include "ui/theme_palette.hpp"
 #include "ui/tool_cursors.hpp"
 
 #include <QApplication>
 #include <QCursor>
+#include <QDebug>
 #include <QEnterEvent>
 #include <QEventLoop>
 #include <QFocusEvent>
@@ -43,6 +47,7 @@
 #include <QScrollBar>
 #include <QSet>
 #include <QTabletEvent>
+#include <QTimer>
 #include <QTimerEvent>
 #include <QTransform>
 #include <QWheelEvent>
@@ -213,6 +218,46 @@ bool expand_mask_to_include_rect(LayerMask& mask, QRect document_rect, QSize can
   return true;
 }
 
+#ifdef PATCHY_GPU_CANVAS
+std::uint64_t webgpu_hash_combine(std::uint64_t hash, std::uint64_t value) {
+  hash ^= value + UINT64_C(0x9e3779b97f4a7c15) + (hash << 6U) + (hash >> 2U);
+  return hash;
+}
+
+std::uint64_t webgpu_document_key(const CanvasGpuDocument& document) {
+  std::uint64_t hash = UINT64_C(0xcbf29ce484222325);
+  hash = webgpu_hash_combine(hash, static_cast<std::uint64_t>(document.document_size.width()));
+  hash = webgpu_hash_combine(hash, static_cast<std::uint64_t>(document.document_size.height()));
+  for (const auto& layer : document.layers) {
+    hash = webgpu_hash_combine(hash, layer.id);
+    hash = webgpu_hash_combine(hash, layer.revision);
+    hash = webgpu_hash_combine(hash, static_cast<std::uint64_t>(layer.blend_mode));
+    hash = webgpu_hash_combine(hash, std::hash<double>{}(layer.opacity));
+    hash = webgpu_hash_combine(hash, std::hash<double>{}(layer.mask_default));
+    hash = webgpu_hash_combine(hash, std::hash<double>{}(layer.mask_density));
+    hash = webgpu_hash_combine(hash, static_cast<std::uint64_t>(layer.has_mask));
+    hash = webgpu_hash_combine(hash, static_cast<std::uint64_t>(layer.has_blend_if));
+    for (const auto& ranges : layer.blend_if) {
+      for (const auto& thresholds : {ranges.this_layer, ranges.underlying_layer}) {
+        hash = webgpu_hash_combine(hash, thresholds.black_low);
+        hash = webgpu_hash_combine(hash, thresholds.black_high);
+        hash = webgpu_hash_combine(hash, thresholds.white_low);
+        hash = webgpu_hash_combine(hash, thresholds.white_high);
+      }
+    }
+    hash = webgpu_hash_combine(hash, static_cast<std::uint64_t>(layer.image.width()));
+    hash = webgpu_hash_combine(hash, static_cast<std::uint64_t>(layer.image.height()));
+    hash = webgpu_hash_combine(hash, std::hash<double>{}(layer.document_rect.left()));
+    hash = webgpu_hash_combine(hash, std::hash<double>{}(layer.document_rect.top()));
+    hash = webgpu_hash_combine(hash, std::hash<double>{}(layer.mask_document_rect.left()));
+    hash = webgpu_hash_combine(hash, std::hash<double>{}(layer.mask_document_rect.top()));
+    hash = webgpu_hash_combine(hash, static_cast<std::uint64_t>(layer.mask_image.width()));
+    hash = webgpu_hash_combine(hash, static_cast<std::uint64_t>(layer.mask_image.height()));
+  }
+  return hash;
+}
+#endif
+
 }  // namespace
 
 CanvasWidget::CanvasWidget(QWidget* parent) : QWidget(parent) {
@@ -238,7 +283,387 @@ CanvasWidget::CanvasWidget(QWidget* parent) : QWidget(parent) {
   qApp->installEventFilter(this);
   selection_timer_.start(120, this);
   pen_proximity_clock_.start();
+#ifdef PATCHY_GPU_CANVAS
+  initialize_graphics_canvas();
+#endif
 }
+
+CanvasWidget::~CanvasWidget() {
+#ifdef PATCHY_GPU_CANVAS
+  canvas_render_backend_ = CanvasRenderBackend::Cpu;
+  graphics_surface_.reset();
+#endif
+}
+
+CanvasWidget::CanvasRenderBackend CanvasWidget::canvas_render_backend() const noexcept {
+  return canvas_render_backend_;
+}
+
+#ifdef PATCHY_GPU_CANVAS
+void CanvasWidget::initialize_webgpu_compositor() {
+  if (!WebGpuDocumentCompositor::should_try_automatically()) {
+    return;
+  }
+  auto backend = std::make_unique<WebGpuRenderBackend>();
+  if (!backend->initialize()) {
+    const auto reason = QString::fromStdString(std::string(backend->last_error()));
+    qInfo().noquote() << "Patchy WebGPU document compositor unavailable; using Qt RHI/CPU fallback:" << reason;
+    return;
+  }
+  webgpu_compositor_ = std::move(backend);
+}
+
+void CanvasWidget::initialize_graphics_canvas() {
+  if (graphics_surface_ != nullptr) {
+    return;
+  }
+  initialize_webgpu_compositor();
+  graphics_surface_ = CanvasGraphicsSurface::create(this);
+  if (graphics_surface_ == nullptr) {
+    disable_gpu_canvas(QStringLiteral("GPU presentation was disabled by configuration or build"));
+    return;
+  }
+  canvas_render_backend_ = CanvasRenderBackend::Initializing;
+  connect(graphics_surface_.get(), &CanvasGraphicsSurface::ready, this,
+          [this](CanvasGraphicsApi api) { graphics_surface_ready(api); });
+  connect(graphics_surface_.get(), &CanvasGraphicsSurface::failed, this,
+          [this](const QString& reason) { graphics_surface_failed(reason); });
+  graphics_surface_->set_overlay_painter([this](QPainter& painter, QRect exposed_rect) {
+    paint_gpu_overlay(painter, exposed_rect);
+  });
+#ifdef PATCHY_VULKAN_QT_INTEROP_PROBE
+  // Capture the Dawn observation on the GUI thread. The render-thread probe
+  // must query only Qt's scene-graph resources and never touch the Dawn
+  // compositor while its queue may be submitting work.
+  const auto dawn_interop_observation = webgpu_compositor_ != nullptr
+                                            ? webgpu_compositor_->vulkan_interop_observation()
+                                            : DawnVulkanInteropObservation{};
+  if (qEnvironmentVariableIsSet("PATCHY_VULKAN_QT_INTEROP_PROBE")) {
+    graphics_surface_->set_render_thread_probe([this, dawn_interop_observation](QQuickWindow* window) {
+      if (vulkan_qt_interop_probe_reported_.exchange(true, std::memory_order_acq_rel)) {
+        return;
+      }
+      const auto report = probe_vulkan_qt_interop(window, dawn_interop_observation);
+      QMetaObject::invokeMethod(this, [this, report] {
+        qInfo().noquote() << "Patchy Vulkan/Qt RHI interop probe:" << report.summary;
+        qInfo().noquote()
+            << "Patchy zero-copy remains disabled:" << QString::fromStdString(report.decision.reason);
+      }, Qt::QueuedConnection);
+    });
+  }
+#endif
+  graphics_surface_->setGeometry(rect());
+  graphics_surface_->lower();
+}
+
+void CanvasWidget::show_graphics_canvas() {
+  if (graphics_surface_ == nullptr) {
+    return;
+  }
+  resize_graphics_canvas_surface();
+  render_graphics_canvas_frame();
+}
+
+void CanvasWidget::resize_graphics_canvas_surface() {
+  if (graphics_surface_ != nullptr && canvas_render_backend_ != CanvasRenderBackend::Cpu) {
+    graphics_surface_->setGeometry(rect());
+  }
+}
+
+void CanvasWidget::graphics_surface_ready(CanvasGraphicsApi api) {
+  switch (api) {
+  case CanvasGraphicsApi::OpenGL:
+    canvas_render_backend_ = CanvasRenderBackend::OpenGL;
+    break;
+  case CanvasGraphicsApi::Vulkan:
+    canvas_render_backend_ = CanvasRenderBackend::Vulkan;
+    break;
+  case CanvasGraphicsApi::Metal:
+    canvas_render_backend_ = CanvasRenderBackend::Metal;
+    break;
+  case CanvasGraphicsApi::Direct3D11:
+    canvas_render_backend_ = CanvasRenderBackend::Direct3D11;
+    break;
+  case CanvasGraphicsApi::Direct3D12:
+    canvas_render_backend_ = CanvasRenderBackend::Direct3D12;
+    break;
+  case CanvasGraphicsApi::Unknown:
+    disable_gpu_canvas(QStringLiteral("Qt Quick reported an unknown graphics API"));
+    return;
+  }
+  show_graphics_canvas();
+}
+
+void CanvasWidget::graphics_surface_failed(const QString& reason) {
+  disable_gpu_canvas(reason);
+}
+
+void CanvasWidget::render_graphics_canvas_frame() {
+  if (graphics_surface_ == nullptr || canvas_render_backend_ == CanvasRenderBackend::Cpu) {
+    return;
+  }
+  CanvasGpuDocument document;
+  QString rejection_reason;
+  if (!build_gpu_document(document, &rejection_reason)) {
+    if (rejection_reason != last_gpu_fallback_reason_) {
+      last_gpu_fallback_reason_ = rejection_reason;
+      if (!rejection_reason.isEmpty()) {
+        qInfo().noquote() << "Patchy GPU document compositor unavailable; using CPU compositor:" << rejection_reason;
+      }
+    }
+    if (gpu_document_active_) {
+      gpu_document_active_ = false;
+      graphics_surface_->clear_gpu_document();
+      graphics_surface_->hide();
+      update();
+    }
+    return;
+  }
+
+  if (webgpu_compositor_ != nullptr) {
+    if (webgpu_compositor_->state() != patchy::GpuBackendState::Ready &&
+        !webgpu_compositor_->recover()) {
+      const auto reason = QString::fromStdString(std::string(webgpu_compositor_->last_error()));
+      if (!reason.isEmpty() && reason != last_gpu_fallback_reason_) {
+        last_gpu_fallback_reason_ = reason;
+        qInfo().noquote() << "Patchy WebGPU document compositor could not recover; using Qt RHI/CPU fallback:"
+                          << reason;
+      }
+      webgpu_compositor_.reset();
+    }
+  }
+
+  if (webgpu_compositor_ != nullptr) {
+    const auto cache_key = webgpu_document_key(document);
+    QString webgpu_reason;
+    // The cached frame is only current when the snapshot key matches and no
+    // document change has been recorded since it was published. A widget
+    // repaint (expose, scroll, pan) never invalidates it by itself.
+    if (cache_key == webgpu_frame_cache_key_ && !webgpu_frame_cache_.isNull() &&
+        gpu_frame_invalidation_.empty()) {
+      document.composited_frame = webgpu_frame_cache_;
+      document.layers.clear();
+    } else {
+      QImage composited_frame;
+      bool composed = false;
+      const bool incremental = !webgpu_frame_cache_.isNull() && !gpu_frame_invalidation_.full() &&
+                               !gpu_frame_invalidation_.empty() &&
+                               webgpu_frame_cache_.size() == document.document_size;
+      if (incremental) {
+        // Rebuild exactly the tiles the document edits touched, including
+        // tiles outside the current viewport, so panning afterwards presents
+        // current pixels instead of a stale cached tile.
+        composed = webgpu_compositor_->compose_incremental(document, gpu_frame_invalidation_.region(),
+                                                           webgpu_frame_cache_, composited_frame, &webgpu_reason);
+      } else {
+        composed = webgpu_compositor_->compose(document, composited_frame, &webgpu_reason);
+      }
+      if (composed) {
+        webgpu_frame_cache_ = std::move(composited_frame);
+        webgpu_frame_cache_key_ = cache_key;
+        gpu_frame_invalidation_.clear();
+        document.composited_frame = webgpu_frame_cache_;
+        document.layers.clear();
+      }
+    }
+    if (!document.composited_frame.isNull()) {
+      if (!webgpu_compositor_reported_) {
+        webgpu_compositor_reported_ = true;
+        qInfo().noquote() << "Patchy WebGPU document compositor active on"
+                          << webgpu_compositor_->adapter_name() << "via"
+                          << webgpu_compositor_->native_backend_name()
+                          << "; render-graph passes:" << webgpu_compositor_->last_submitted_pass_count()
+                          << "; tiles:" << webgpu_compositor_->last_rendered_tile_count()
+                          << "; readback bytes:" << webgpu_compositor_->last_readback_bytes();
+      }
+    } else if (!webgpu_reason.isEmpty() && webgpu_reason != last_gpu_fallback_reason_) {
+      qInfo().noquote() << "Patchy WebGPU document compositor failed; using Qt RHI/CPU document fallback:"
+                        << webgpu_reason;
+    }
+  }
+
+  gpu_document_active_ = true;
+  last_gpu_fallback_reason_.clear();
+  if (!graphics_surface_->isVisible()) {
+    graphics_surface_->show();
+    graphics_surface_->lower();
+  }
+  if (!graphics_surface_->set_gpu_document(std::move(document))) {
+    disable_gpu_canvas(QStringLiteral("Qt Quick could not create the portable GPU compositor passes"));
+  }
+}
+
+void CanvasWidget::request_graphics_canvas_update(const QRegion& region) {
+  if (graphics_surface_ == nullptr || canvas_render_backend_ == CanvasRenderBackend::Cpu || !gpu_document_active_) {
+    return;
+  }
+  render_graphics_canvas_frame();
+  graphics_surface_->request_update(region);
+}
+
+bool CanvasWidget::gpu_document_snapshot(CanvasGpuDocument& document, QString* rejection_reason) const {
+  return build_gpu_document(document, rejection_reason);
+}
+
+bool CanvasWidget::build_gpu_document(CanvasGpuDocument& result, QString* rejection_reason) const {
+  const auto reject = [rejection_reason](QString reason) {
+    if (rejection_reason != nullptr) {
+      *rejection_reason = std::move(reason);
+    }
+    return false;
+  };
+  if (document_ == nullptr || document_->width() <= 0 || document_->height() <= 0) {
+    return reject(QStringLiteral("document has no renderable canvas"));
+  }
+
+  // The GPU path is deliberately all-or-nothing for a document. Falling back
+  // here is safer than mixing a GPU approximation with CPU-rendered siblings.
+  // The capability matrix covers the common raster stack in two all-or-nothing
+  // tiers: source-over textures and a portable shader pass for separable blends
+  // and simple raster masks. Unsupported Photoshop features stay on the CPU
+  // compositor rather than being mixed with an approximate GPU sibling.
+  if (tiling_preview_enabled_ || uses_deep_zoom_pixel_renderer(zoom_) || transforming_layer_ || warping_layer_ ||
+      moving_layer_ || patch_tool_dragging_ || curves_clipping_mode_.has_value() || processing_operation_active() ||
+      layer_edit_target_ != LayerEditTarget::Content) {
+    return reject(QStringLiteral("an interactive preview or non-content channel is active"));
+  }
+
+  const auto capability = patchy::gpu_document_capability(*document_);
+  if (!capability.supported()) {
+    return reject(QString::fromStdString(capability.reason));
+  }
+#ifndef PATCHY_GPU_SHADER_COMPOSITOR
+  if (capability.mode == patchy::GpuDocumentRenderMode::PixelStackShader) {
+    return reject(QStringLiteral("GPU shader compositor is not available in this build"));
+  }
+#endif
+
+  result.document_size = QSize(document_->width(), document_->height());
+  result.canvas_backdrop = theme().canvas_backdrop;
+  result.smooth_scaling = uses_smooth_display_scaling(zoom_, false);
+  result.shader_composition = capability.mode == patchy::GpuDocumentRenderMode::PixelStackShader;
+  const QRectF exact_target_rect(widget_position_f(QPointF(0.0, 0.0)),
+                                 widget_position_f(QPointF(document_->width(), document_->height())));
+  if (uses_pixel_aligned_view(zoom_)) {
+    const auto top_left = widget_position(QPoint(0, 0));
+    const auto bottom_right = widget_position(QPoint(document_->width(), document_->height()));
+    result.canvas_rect = QRectF(QRect(top_left, QSize(bottom_right.x() - top_left.x(), bottom_right.y() - top_left.y())));
+  } else {
+    result.canvas_rect = exact_target_rect;
+  }
+
+  result.layers.reserve(document_->layers().size());
+  std::vector<std::uint64_t> snapshot_layer_ids;
+  snapshot_layer_ids.reserve(document_->layers().size());
+  for (const auto& layer : document_->layers()) {
+    if (!layer.visible() || layer.opacity() <= 0.0F) {
+      continue;
+    }
+    snapshot_layer_ids.push_back(layer.id());
+    CanvasGpuLayer gpu_layer;
+    gpu_layer.id = layer.id();
+    gpu_layer.revision = layer.render_revision();
+    gpu_layer.pixel_revision = layer.pixel_revision();
+    gpu_layer.content_revision = layer.content_revision();
+    gpu_layer.mask_revision = layer.mask_revision();
+    gpu_layer.image = gpu_layer_image_cache_.layer_image(layer.id(), layer.pixel_revision(), layer.pixels());
+    const QRectF document_rect(layer.bounds().x, layer.bounds().y, layer.bounds().width, layer.bounds().height);
+    gpu_layer.document_rect = document_rect;
+    gpu_layer.rect = widget_rect_for_document_rect(document_rect);
+    gpu_layer.opacity = static_cast<qreal>(std::clamp(layer.opacity() * layer.fill_opacity(), 0.0F, 1.0F));
+    gpu_layer.blend_mode = static_cast<int>(layer.blend_mode());
+    const auto blend_if_status = layer.blend_if_payload_status();
+    if (blend_if_status == BlendIfPayloadStatus::Supported && !blend_if_is_identity(layer.blend_if())) {
+      const auto settings = layer.blend_if();
+      gpu_layer.has_blend_if = true;
+      for (std::size_t index = 0; index < settings.channels.size(); ++index) {
+        const auto copy_thresholds = [](const BlendIfThresholds& thresholds) {
+          return CanvasGpuBlendIfThresholds{thresholds.black_low, thresholds.black_high, thresholds.white_low,
+                                            thresholds.white_high};
+        };
+        gpu_layer.blend_if[index] = CanvasGpuBlendIfRanges{copy_thresholds(settings.channels[index].this_layer),
+                                                           copy_thresholds(settings.channels[index].underlying_layer)};
+      }
+    }
+    if (layer.mask().has_value() && !layer.mask()->disabled) {
+      const auto& mask = *layer.mask();
+      gpu_layer.has_mask = true;
+      if (!mask.pixels.empty()) {
+        // Grayscale8 is the format every GPU tier samples from the red
+        // channel; see grayscale_qimage_from_pixel_buffer for why Alpha8 is
+        // not an option here.
+        gpu_layer.mask_image = gpu_layer_image_cache_.mask_image(layer.id(), layer.mask_revision(), mask.pixels);
+        gpu_layer.mask_document_rect =
+            QRectF(mask.bounds.x, mask.bounds.y, mask.bounds.width, mask.bounds.height);
+        gpu_layer.mask_rect = widget_rect_for_document_rect(gpu_layer.mask_document_rect);
+      }
+      gpu_layer.mask_default = static_cast<qreal>(mask.default_color) / 255.0;
+      gpu_layer.mask_density = static_cast<qreal>(mask.density) / 255.0;
+    }
+    result.layers.push_back(std::move(gpu_layer));
+  }
+  gpu_layer_image_cache_.retain_only(snapshot_layer_ids);
+  return true;
+}
+
+void CanvasWidget::paint_gpu_overlay(QPainter& painter, QRect exposed_rect) {
+  if (document_ == nullptr || document_->width() <= 0 || document_->height() <= 0) {
+    return;
+  }
+  const QRectF exact_target_rect(widget_position_f(QPointF(0.0, 0.0)),
+                                 widget_position_f(QPointF(document_->width(), document_->height())));
+  const bool pixel_aligned_view = uses_pixel_aligned_view(zoom_);
+  QRect pixel_aligned_target_rect;
+  if (pixel_aligned_view) {
+    const auto top_left = widget_position(QPoint(0, 0));
+    const auto bottom_right = widget_position(QPoint(document_->width(), document_->height()));
+    pixel_aligned_target_rect =
+        QRect(top_left, QSize(bottom_right.x() - top_left.x(), bottom_right.y() - top_left.y()));
+  }
+  const QRectF target_rect = pixel_aligned_view ? QRectF(pixel_aligned_target_rect) : exact_target_rect;
+
+  if (!curves_clipping_mode_.has_value()) {
+    draw_mask_display_overlay(painter, target_rect, pixel_aligned_view, pixel_aligned_target_rect);
+  }
+  draw_grid_overlay(painter, target_rect, exposed_rect);
+  draw_guides_overlay(painter);
+  painter.setPen(theme().canvas_document_border);
+  const auto border_rect = target_rect.adjusted(0.5, 0.5, -0.5, -0.5);
+  if (!border_rect.isEmpty()) {
+    painter.drawRect(border_rect);
+  }
+  draw_selection_overlay(painter);
+  draw_patch_tool_drag_outline(painter);
+  draw_quick_select_stroke_overlay(painter);
+  draw_spot_heal_stroke_overlay(painter);
+  draw_pen_overlay(painter);
+  draw_path_edit_overlay(painter);
+  draw_shape_preview(painter, exposed_rect);
+  draw_crop_overlay(painter);
+  draw_move_layer_selection(painter);
+  draw_drag_size_readout(painter);
+  draw_text_rect_preview(painter);
+  draw_zoom_preview(painter);
+  draw_rulers(painter);
+  draw_brush_hover_outline(painter);
+  draw_stroke_leash_overlay(painter);
+  draw_brush_adjust_overlay(painter);
+  draw_processing_overlay(painter);
+}
+
+void CanvasWidget::disable_gpu_canvas(const QString& reason) {
+  if (canvas_render_backend_ == CanvasRenderBackend::Cpu && graphics_surface_ == nullptr) {
+    return;
+  }
+  canvas_render_backend_ = CanvasRenderBackend::Cpu;
+  gpu_document_active_ = false;
+  graphics_surface_.reset();
+  if (!reason.isEmpty()) {
+    qInfo().noquote() << "Patchy GPU presentation unavailable; using CPU canvas:" << reason;
+  }
+  update();
+}
+#endif
 
 void CanvasWidget::set_document(Document* document) {
   set_document_internal(document, /*preserve_frame_for_same_size=*/false);
@@ -353,6 +778,12 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
   moving_layers_use_outline_preview_ = false;
   clear_retained_move_caches();
   reset_move_live_latch();
+#ifdef PATCHY_GPU_CANVAS
+  webgpu_frame_cache_ = QImage();
+  webgpu_frame_cache_key_ = 0;
+  gpu_frame_invalidation_.mark_full();
+  gpu_layer_image_cache_.clear();
+#endif
   document_ = document;
   set_move_transform_controls_layer(std::nullopt);
   selected_guide_index_ = -1;

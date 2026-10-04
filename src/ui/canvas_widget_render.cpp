@@ -434,6 +434,9 @@ void CanvasWidget::document_changed() {
   cancel_move_commit_job();
   cancel_async_render_cache_refresh();
   render_cache_dirty_ = true;
+#ifdef PATCHY_GPU_CANVAS
+  gpu_frame_invalidation_.mark_full();
+#endif
   // This overload bypasses document_changed_impl, so drop the preview-scaled
   // document and retained move caches here too or a zoomed-out drag previews
   // stale content.
@@ -471,6 +474,10 @@ void CanvasWidget::layer_visibility_changed(LayerId id) {
 void CanvasWidget::document_changed_async_preview_impl(bool preserve_scaled_document) {
   clear_transform_commit_hold();
   cancel_move_commit_job();
+#ifdef PATCHY_GPU_CANVAS
+  // This overload carries no region, so the GPU frame is fully stale.
+  gpu_frame_invalidation_.mark_full();
+#endif
   if (document_ == nullptr || render_cache_.isNull() ||
       render_cache_.size() != QSize(document_->width(), document_->height())) {
     document_changed();
@@ -662,6 +669,14 @@ void CanvasWidget::active_edit_target_changed_impl(QRegion document_region, Docu
 
 void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_effect_bounds,
                                          DocumentChangeReason reason) {
+#ifdef PATCHY_GPU_CANVAS
+  // Record the document-space damage before any early return below: the GPU
+  // frame cache must learn about edits outside the viewport and about
+  // full-document changes regardless of how the CPU cache handles them.
+  gpu_frame_invalidation_.mark(document_region, document_ != nullptr
+                                                    ? QRect(0, 0, document_->width(), document_->height())
+                                                    : QRect());
+#endif
   // A freshly armed commit hold belongs to exactly this notification (the
   // transform commit arms it right before its document_changed call); any
   // other document change makes the held frame stale and drops it.
@@ -784,9 +799,23 @@ void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_
 }
 
 void CanvasWidget::paintEvent(QPaintEvent* event) {
-  ZoomTraceScope trace("paint", zoom_);
+#ifdef PATCHY_GPU_CANVAS
+  if (canvas_render_backend_ != CanvasRenderBackend::Cpu) {
+    if (!gpu_document_active_) {
+      render_graphics_canvas_frame();
+    }
+    if (gpu_document_active_) {
+      request_graphics_canvas_update(event != nullptr ? event->region() : QRegion(rect()));
+      return;
+    }
+  }
+#endif
   QPainter painter(this);
-  const auto exposed_rect = event != nullptr ? event->rect() : rect();
+  paint_canvas(painter, event != nullptr ? event->rect() : rect());
+}
+
+void CanvasWidget::paint_canvas(QPainter& painter, const QRect& exposed_rect) {
+  ZoomTraceScope trace("paint", zoom_);
   painter.fillRect(exposed_rect, backdrop_color());
 
   if (document_ == nullptr || document_->width() == 0 || document_->height() == 0) {

@@ -591,6 +591,9 @@ public:
   // Changes only when the pixel buffer may have changed. Alpha-bound caches
   // use this instead of content_revision, which also changes for style edits.
   [[nodiscard]] std::uint64_t pixel_revision() const noexcept;
+  // Changes when mask pixels or mask bounds are mutably replaced. It remains
+  // stable for ordinary layer-style and pixel-buffer edits.
+  [[nodiscard]] std::uint64_t mask_revision() const noexcept;
   [[nodiscard]] Layer clone_with_id(LayerId id) const;
 
   void set_name(std::string name);
@@ -669,6 +672,7 @@ private:
   std::uint64_t render_revision_{1};
   std::uint64_t content_revision_{1};
   std::uint64_t pixel_revision_{1};
+  std::uint64_t mask_revision_{1};
 };
 
 // Photoshop's optional `lyid` block is a per-layer identity. Imported blocks
