@@ -1,6 +1,9 @@
 # Smart objects (Photoshop placed layers)
 
-Warp-specific machinery lives in [warp.md](warp.md). This document owns the never-save-over-PSBtest warning; the layer context-menu rule lives in [ui-conventions.md](ui-conventions.md).
+Warp: [warp.md](warp.md). Layer context menus: [ui-conventions.md](ui-conventions.md).
+
+Script Replace Contents shares the menu's atomic core with explicit session/layer
+IDs and script Undo.
 
 A smart object stays a **`LayerKind::Pixel` layer** (the text-layer pattern) whose pixels are Photoshop's rendered preview; identification is the `layer_is_smart_object()` predicate over `patchy.smart_object.*` metadata (core/smart_object.hpp owns the keys and helpers, like adjustment_layer.hpp does).
 

@@ -6,6 +6,7 @@
 #include "core/layer_metadata.hpp"
 #include "core/pattern_presets.hpp"
 #include "core/smart_filter.hpp"
+#include "filters/smart_filter_renderer.hpp"
 #include "core/smart_filter_effects.hpp"
 #include "core/smart_object.hpp"
 #include "core/text_warp.hpp"
@@ -56,6 +57,8 @@
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
 #include "ui/script_engine.hpp"
+#include "ui/script_api.hpp"
+#include <QJSEngine>
 #include "ui/qt_paths.hpp"
 #include "unicode_path_names.hpp"
 #include "ui/print_dialog.hpp"
@@ -2405,6 +2408,295 @@ void ui_smart_object_placed_svg_is_vector_contents() {
   CHECK(!patchy::ui::render_smart_object_vector_contents(*png_probe, *big_placement).has_value());
 }
 
+
+// Exercise the wrapper target with an inactive layer and an inactive document,
+// two shared instances, masks, physical density and the normal script Undo group.
+void ui_script_smart_object_replace_contents_shared_unicode_and_ppi() {
+  using patchy::ui::MainWindowTestAccess;
+  const auto dir = patchy::test::unicode_artifact_dir(u8"script-replace");
+  const auto original_path = patchy::ui::to_qstring(dir / "original.png");
+  auto replacement_file = dir / patchy::test::unicode_path_piece(patchy::test::kUnicodeCombinedStem);
+  replacement_file += ".png";
+  const auto replacement_path = patchy::ui::to_qstring(replacement_file);
+  const auto same_rect = [](const patchy::Rect& a, const patchy::Rect& b) {
+    return a.x == b.x && a.y == b.y && a.width == b.width && a.height == b.height;
+  };
+  QImage image(8, 6, QImage::Format_RGBA8888);
+  image.fill(QColor(220, 20, 30, 255));
+  image.setDotsPerMeterX(23622);  // PNG's integer pHYs encoding of 600 PPI
+  image.setDotsPerMeterY(23622);
+  CHECK(image.save(original_path));
+  for (const int replacement_dpm : {23622, 3780}) {  // 600 and 96 PPI
+    patchy::ui::MainWindow window;
+    show_window_empty(window);
+    CHECK(run_smart_object_script(window, QStringLiteral(R"JS(
+      var d = app.newDocument(96, 96);
+      var a = d.addSmartObject(%1, {x: 20, y: 20, width: 8, name: 'FOTO'});
+      a.duplicate();
+      d.addLayer('untouched').fill('#123456');
+    )JS").arg(js_string(original_path))));
+    auto& document = MainWindowTestAccess::document(window);
+    // newDocument supplies a background layer, so locate the two placed layers.
+    std::vector<patchy::LayerId> ids;
+    for (const auto& layer : std::as_const(document).layers()) {
+      if (patchy::layer_is_smart_object(layer)) {
+        ids.push_back(layer.id());
+      }
+    }
+    CHECK(ids.size() == 2U);
+    const auto old_uuid = patchy::smart_object_source_uuid(*std::as_const(document).find_layer(ids[0]));
+    const auto old_placement = patchy::smart_object_placement_from_layer(*std::as_const(document).find_layer(ids[0]));
+    CHECK(old_placement.has_value());
+    CHECK(std::abs(old_placement->resolution - 600.0) < 0.02);
+    patchy::PixelBuffer mask_pixels(3, 2, patchy::PixelFormat::gray8());
+    mask_pixels.clear(173);
+    document.find_layer(ids[0])->set_mask(
+        patchy::LayerMask{patchy::Rect{21, 22, 3, 2}, std::move(mask_pixels), 31, false, 201, 0.5});
+    patchy::LayerVectorMask vector_mask;
+    vector_mask.disabled = true;
+    vector_mask.unlinked = true;
+    vector_mask.density = 199;
+    document.find_layer(ids[0])->set_vector_mask(vector_mask);
+    patchy::SmartObjectWarp warp;
+    warp.style = "warpCustom";
+    warp.bounds_right = 8;
+    warp.bounds_bottom = 6;
+    warp.u_order = 2;
+    warp.v_order = 2;
+    warp.mesh_xs = {0, 8, 0, 8};
+    warp.mesh_ys = {0, 0, 6, 6};
+    document.find_layer(ids[0])->metadata()[patchy::kLayerMetadataSmartObjectWarp] =
+        patchy::serialize_smart_object_warp(warp);
+    patchy::SmartFilterStack filters;
+    filters.support = patchy::SmartFilterStackSupport::Supported;
+    // Match the UI-authored filter mask; linked masks are not renderable.
+    filters.mask.linked = false;
+    patchy::SmartFilterEntry blur;
+    blur.kind = patchy::SmartFilterKind::GaussianBlur;
+    blur.native_name = "Gaussian Blur";
+    blur.native_class_id = "GsnB";
+    blur.native_filter_id = 0x47736E42U;
+    blur.parameters = patchy::GaussianBlurSmartFilter{0.5};
+    filters.entries.push_back(blur);
+    document.find_layer(ids[1])->set_smart_filter_stack(filters);
+    // Diagnose the same phases as refresh_smart_object_layer_preview separately.
+    const auto& fixture_layer = *std::as_const(document).find_layer(ids[1]);
+    const auto* fixture_source = std::as_const(document).metadata().smart_objects.find(
+        patchy::smart_object_source_uuid(fixture_layer));
+    CHECK(fixture_source != nullptr);
+    CHECK(patchy::ui::decode_smart_object_source_image(*fixture_source).has_value());
+    CHECK(patchy::smart_object_lock_reason(fixture_layer).empty());
+    const auto fixture_unfiltered = patchy::ui::render_smart_object_unfiltered_layer_preview(
+        std::as_const(document), fixture_layer,
+        patchy::ui::CanvasWidget::TransformInterpolation::Bicubic);
+    CHECK(fixture_unfiltered.has_value());
+    patchy::ui::SmartObjectLayerPreview fixture_preview;
+    fixture_preview.unfiltered = *fixture_unfiltered;
+    CHECK(!filters.mask.linked);
+    try {
+      fixture_preview.rendered = patchy::render_smart_filter_stack(
+          fixture_unfiltered->pixels, fixture_unfiltered->bounds,
+          patchy::Rect::from_size(document.width(), document.height()), filters);
+    } catch (const std::exception& error) {
+      throw std::runtime_error(std::string("Smart Filter fixture application: ") + error.what());
+    }
+    const auto fixture_record = patchy::psd::author_filter_effects_record(
+        patchy::smart_object_placed_uuid(fixture_layer),
+        patchy::Rect::from_size(document.width(), document.height()),
+        fixture_unfiltered->pixels, fixture_unfiltered->bounds, filters.mask);
+    CHECK(fixture_record.has_value());
+    auto fixture_cache = std::as_const(document).metadata().smart_filter_effects;
+    CHECK(fixture_cache.upsert_authored(*fixture_record));
+    CHECK(patchy::ui::install_smart_object_layer_preview(
+        document, *document.find_layer(ids[1]), std::move(fixture_preview)));
+    const auto old_placed = patchy::smart_object_placed_uuid(*std::as_const(document).find_layer(ids[1]));
+    CHECK(std::as_const(document).metadata().smart_filter_effects.find_unique(old_placed) != nullptr);
+    const auto before = document;
+    const auto undo_before = MainWindowTestAccess::active_session_undo_depth(window);
+    image.fill(QColor(20, 30, 220, 255));
+    image.setDotsPerMeterX(replacement_dpm);
+    image.setDotsPerMeterY(replacement_dpm);
+    CHECK(image.save(replacement_path));
+    const auto probe = patchy::ui::load_smart_object_file_probe(replacement_path);
+    CHECK(probe.has_value());
+    const auto dpi = patchy::ui::smart_object_source_dpi(*probe);
+    CHECK(std::abs(dpi - (replacement_dpm == 23622 ? 600.0 : 96.0)) < 0.02);
+    // Keep another document active, with colliding layer ids.
+    CHECK(run_smart_object_script(window, "app.newDocument(12,12).addLayer('other').fill('#abcdef');"));
+    const auto other_before = patchy::psd::DocumentIo::write_layered_rgb8(
+        std::as_const(MainWindowTestAccess::document(window)));
+    const auto other_undo = MainWindowTestAccess::active_session_undo_depth(window);
+    const auto session_id = MainWindowTestAccess::session_id(window, 0);
+    CHECK(run_smart_object_script(window, QStringLiteral(R"JS(
+      var d = app.getDocument('%1');
+      var selected = app.activeDocument.id, activeLayer = d.activeLayer.id;
+      var n = d.getLayer('%2').replaceSmartObjectContents(%3);
+      if (n !== 2) throw new Error('shared count ' + n);
+      if (app.activeDocument.id !== selected || d.activeLayer.id !== activeLayer)
+        throw new Error('selection changed');
+    )JS").arg(QString::number(session_id), QString::number(ids[0]), js_string(replacement_path))));
+    CHECK(patchy::psd::DocumentIo::write_layered_rgb8(
+              std::as_const(MainWindowTestAccess::document(window))) == other_before);
+    CHECK(MainWindowTestAccess::active_session_undo_depth(window) == other_undo);
+    CHECK(std::as_const(document).metadata().smart_objects.find(old_uuid) == nullptr);
+    const auto* filtered = std::as_const(document).find_layer(ids[1]);
+    CHECK(filtered->smart_filter_stack() == before.find_layer(ids[1])->smart_filter_stack());
+    CHECK(std::as_const(document).metadata().smart_filter_effects.find_unique(old_placed) == nullptr);
+    CHECK(std::as_const(document).metadata().smart_filter_effects.find_unique(
+              patchy::smart_object_placed_uuid(*filtered)) != nullptr);
+    std::string new_uuid;
+    for (const auto id : ids) {
+      const auto* layer = std::as_const(document).find_layer(id);
+      CHECK(layer != nullptr);
+      const auto uuid = patchy::smart_object_source_uuid(*layer);
+      CHECK(uuid != old_uuid);
+      if (new_uuid.empty()) { new_uuid = uuid; }
+      CHECK(uuid == new_uuid);
+      const auto placement = patchy::smart_object_placement_from_layer(*layer);
+      CHECK(placement.has_value());
+      CHECK(placement->width == 8.0 && placement->height == 6.0);
+      CHECK(std::abs(placement->resolution - dpi) < 1e-9);
+      const auto old = patchy::smart_object_placement_from_layer(*before.find_layer(id));
+      CHECK(old.has_value());
+      const auto expected = patchy::rescaled_smart_object_placement(*old, 8, 6, dpi);
+      for (std::size_t i = 0; i < 8; ++i) {
+        CHECK(std::abs(placement->transform[i] - expected.transform[i]) < 1e-8);
+      }
+      // Pin the physical rule independently as well as checking all quad corners.
+      const auto factor = old->resolution / dpi;
+      CHECK(std::abs(factor - (replacement_dpm == 23622 ? 1.0 : 6.25)) < 0.001);
+      CHECK(std::abs((placement->transform[2] - placement->transform[0]) -
+                     (old->transform[2] - old->transform[0]) * factor) < 1e-8);
+      CHECK(layer_center_color(*layer).blue() > 200);
+    }
+    const auto* updated = std::as_const(document).find_layer(ids[0]);
+    CHECK(updated->name() == "FOTO");
+    const auto* source = std::as_const(document).metadata().smart_objects.find(new_uuid);
+    CHECK(source != nullptr && source->kind == patchy::SmartObjectSourceKind::Embedded);
+    CHECK(QString::fromStdString(source->filename) == QFileInfo(replacement_path).fileName());
+    CHECK(source->file_bytes != nullptr && source->dirty);
+    CHECK(source->creator == "    ");
+    CHECK(updated->mask().has_value());
+    const auto& mask = *updated->mask();
+    const auto& old_mask = *before.find_layer(ids[0])->mask();
+    CHECK(same_rect(mask.bounds, old_mask.bounds) && mask.default_color == old_mask.default_color);
+    CHECK(mask.disabled == old_mask.disabled && mask.density == old_mask.density);
+    CHECK(mask.feather == old_mask.feather && same_rect(mask.feather_canvas, old_mask.feather_canvas));
+    CHECK(mask.pixels.width() == old_mask.pixels.width() && mask.pixels.height() == old_mask.pixels.height());
+    for (int y = 0; y < mask.pixels.height(); ++y) {
+      CHECK(std::equal(mask.pixels.row(y).begin(), mask.pixels.row(y).end(), old_mask.pixels.row(y).begin()));
+    }
+    CHECK(updated->vector_mask() == before.find_layer(ids[0])->vector_mask());
+    CHECK(updated->metadata().at(patchy::kLayerMetadataSmartObjectWarp) ==
+          before.find_layer(ids[0])->metadata().at(patchy::kLayerMetadataSmartObjectWarp));
+    CHECK(document.layers().size() == before.layers().size());
+    for (const auto& layer : before.layers()) {
+      if (patchy::layer_is_smart_object(layer)) { continue; }
+      const auto* unchanged = std::as_const(document).find_layer(layer.id());
+      CHECK(unchanged != nullptr);
+      CHECK(unchanged->name() == layer.name() && same_rect(unchanged->bounds(), layer.bounds()));
+      CHECK(unchanged->metadata() == layer.metadata());
+      CHECK(unchanged->content_revision() == layer.content_revision());
+    }
+    MainWindowTestAccess::activate_session(window, 0);
+    CHECK(MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 1);
+    MainWindowTestAccess::undo(window);
+    CHECK(patchy::psd::DocumentIo::write_layered_rgb8(std::as_const(document)) ==
+          patchy::psd::DocumentIo::write_layered_rgb8(before));
+  }
+}
+
+void ui_script_smart_object_replace_contents_errors_are_atomic() {
+  using patchy::ui::MainWindowTestAccess;
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  const auto dir = linked_test_dir(QStringLiteral("script-replace-errors"));
+  const auto source = write_linked_test_png(dir + "/source.png", QColor(230, 10, 20, 255), 8, 6);
+  const auto corrupt = dir + "/corrupt.png";
+  write_linked_test_file(corrupt, QByteArray("not an image"));
+  CHECK(run_smart_object_script(window, QStringLiteral(R"JS(
+    var d = app.newDocument(32,32);
+    d.addSmartObject(%1, {name:'embedded', width:8});
+    d.addSmartObject(%1, {name:'linked', linked:true, width:8});
+    d.addLayer('plain').fill('#123456');
+  )JS").arg(js_string(source))));
+  auto& document = MainWindowTestAccess::document(window);
+  const auto snapshot = patchy::psd::DocumentIo::write_layered_rgb8(std::as_const(document));
+  const auto undo = MainWindowTestAccess::active_session_undo_depth(window);
+  const auto redo = MainWindowTestAccess::active_session_redo_depth(window);
+  const auto modified = MainWindowTestAccess::active_session_is_modified(window);
+  for (const auto& scenario : std::vector<std::pair<QString, QString>>{
+           {"embedded", dir + "/missing.png"}, {"embedded", corrupt},
+           {"plain", source}, {"linked", source}}) {
+    CHECK(run_smart_object_script(window, QStringLiteral(R"JS(
+      var d = app.activeDocument, target;
+      for (var i=0;i<d.layers.length;i++) if(d.layers[i].name === %1) target=d.layers[i];
+      var caught=false;
+      try { target.replaceSmartObjectContents(%2); } catch(e) { caught=true; }
+      if (!caught) throw new Error('replacement did not throw');
+    )JS").arg(js_string(scenario.first), js_string(scenario.second))));
+    CHECK(patchy::psd::DocumentIo::write_layered_rgb8(std::as_const(document)) == snapshot);
+    CHECK(MainWindowTestAccess::active_session_undo_depth(window) == undo);
+    CHECK(MainWindowTestAccess::active_session_redo_depth(window) == redo);
+    CHECK(MainWindowTestAccess::active_session_is_modified(window) == modified);
+  }
+
+
+  CHECK(run_smart_object_script(window, R"JS(
+    var d=app.activeDocument;
+    for(var i=0;i<d.layers.length;i++)
+      if(d.layers[i].name==='embedded') { d.layers[i].duplicate(); break; }
+  )JS"));
+  std::vector<patchy::LayerId> shared;
+  for (const auto& layer : std::as_const(document).layers()) {
+    const auto* so = std::as_const(document).metadata().smart_objects.find(patchy::smart_object_source_uuid(layer));
+    if (so != nullptr && so->kind == patchy::SmartObjectSourceKind::Embedded) {
+      shared.push_back(layer.id());
+    }
+  }
+  CHECK(shared.size() == 2U);
+  document.find_layer(shared.back())->metadata()[patchy::kLayerMetadataSmartObjectLock] = "filters";
+  const auto blocked_snapshot = patchy::psd::DocumentIo::write_layered_rgb8(std::as_const(document));
+  const auto blocked_undo = MainWindowTestAccess::active_session_undo_depth(window);
+  const auto blocked_redo = MainWindowTestAccess::active_session_redo_depth(window);
+  // First targets an editable instance, then the protected instance directly.
+  for (const auto id : shared) {
+    CHECK(run_smart_object_script(window, QStringLiteral(R"JS(
+      var caught=false;
+      try { app.activeDocument.getLayer('%1').replaceSmartObjectContents(%2); }
+      catch(e) { caught=true; }
+      if(!caught) throw new Error('protected instance did not throw');
+    )JS").arg(QString::number(id), js_string(source))));
+    CHECK(patchy::psd::DocumentIo::write_layered_rgb8(std::as_const(document)) == blocked_snapshot);
+    CHECK(MainWindowTestAccess::active_session_undo_depth(window) == blocked_undo);
+    CHECK(MainWindowTestAccess::active_session_redo_depth(window) == blocked_redo);
+  }
+
+  // Invalid wrappers must fail at the JS boundary without entering mutation.
+  for (const bool closed_session : {false, true}) {
+    auto& host = window.script_engine_host();
+    patchy::ui::ScriptEngineHost::RunOptions options;
+    options.unattended = true;
+    CHECK(host.run_source(QStringLiteral(R"JS(
+      setTimeout(function() {
+        var caught=false;
+        try { stale.replaceSmartObjectContents(%1); } catch(e) { caught=true; }
+        if (!caught) throw new Error('stale wrapper did not throw');
+      }, 0);
+    )JS").arg(js_string(source)), options));
+    CHECK(host.run_active());
+    const auto session_id = MainWindowTestAccess::session_id(window, 0);
+    auto* wrapper = new patchy::ui::ScriptLayerObject(
+        host, closed_session ? -1 : session_id, closed_session ? std::as_const(document).layers().front().id() : 999999);
+    host.engine()->globalObject().setProperty(QStringLiteral("stale"), host.engine()->newQObject(wrapper));
+    CHECK(process_events_until([&] { return !host.run_active(); }, 30000));
+    CHECK(!host.last_run_had_error());
+    CHECK(patchy::psd::DocumentIo::write_layered_rgb8(std::as_const(document)) == blocked_snapshot);
+    CHECK(MainWindowTestAccess::active_session_undo_depth(window) == blocked_undo);
+    CHECK(MainWindowTestAccess::active_session_redo_depth(window) == blocked_redo);
+  }
+}
+
 // The acceptance scenario, scripted: a new document, one SVG placed linked three
 // times at different sizes plus a text layer, saved next to the SVG, reopened, and
 // read back as three linked layers on one source. Changing the SVG on disk and
@@ -3124,6 +3416,10 @@ std::vector<patchy::test::TestCase> smart_object_tests() {
        ui_smart_object_linked_svg_child_saves_vectors_without_warning},
       {"ui_script_smart_object_linked_round_trip_and_update",
        ui_script_smart_object_linked_round_trip_and_update},
+      {"ui_script_smart_object_replace_contents_shared_unicode_and_ppi",
+       ui_script_smart_object_replace_contents_shared_unicode_and_ppi},
+      {"ui_script_smart_object_replace_contents_errors_are_atomic",
+       ui_script_smart_object_replace_contents_errors_are_atomic},
       {"ui_script_smart_object_options_and_errors", ui_script_smart_object_options_and_errors},
       {"ui_smart_object_missing_linked_file_is_reported_and_relinks",
        ui_smart_object_missing_linked_file_is_reported_and_relinks},

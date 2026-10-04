@@ -1,5 +1,11 @@
 # Scripting API compatibility
 
+2026-10-03 additive (API 1): `layer.replaceSmartObjectContents(path)` replaces
+editable embedded contents for the wrapper's document/layer and returns the number
+of updated shared instances. It shares the menu's fresh-source, physical PPI scale,
+warp and Smart Filter cache behavior. Preparation failures throw without document
+or history changes. Available via MCP `execute_script` with its existing state guard.
+
 2026-10-03 additive (API 1): `doc.mergeLayers(layers, {singleVector: true,
 effectsFrom?: layer})` explicitly combines selected vectors at the bottommost
 source's stack position. It removes individual layer effects unless `effectsFrom`

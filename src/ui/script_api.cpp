@@ -579,6 +579,19 @@ int ScriptLayerObject::updateSmartObject() {
   return updated;
 }
 
+int ScriptLayerObject::replaceSmartObjectContents(const QString& path) {
+  const ScriptApiCall api_call(host_);
+  if (read_layer() == nullptr) {
+    return 0;
+  }
+  QString error;
+  const auto replaced = host_.replace_smart_object_contents(session_id_, layer_id_, path, &error);
+  if (replaced == 0 && !error.isEmpty()) {
+    host_.throw_js_error(error);
+  }
+  return replaced;
+}
+
 QJSValue ScriptLayerObject::children() const {
   const ScriptApiCall api_call(host_);
   const auto* layer = read_layer();

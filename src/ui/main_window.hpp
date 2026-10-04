@@ -1306,6 +1306,11 @@ private:
                                               const SmartObjectSource* vector_contents = nullptr);
   void replace_smart_object_contents();
   void replace_smart_object_contents_with_path(const QString& path);
+  // Prepare every shared embedded instance before invoking the caller's undo
+  // callback and atomically assigning the document. No dialogs or refresh.
+  int replace_embedded_smart_object_contents(
+      DocumentSession& session, LayerId layer_id, const QString& path,
+      const std::function<bool()>& before_mutation, QString* error);
   void convert_to_smart_object();
   // The conversion core: wraps exactly these layers (a root-dropped selection)
   // into one embedded smart object. Returns false when refused or the child

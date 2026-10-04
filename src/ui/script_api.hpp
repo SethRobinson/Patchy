@@ -87,6 +87,7 @@ public:
   // every layer sharing its source. Returns the number of layers re-rendered;
   // throws for an embedded smart object, a missing file, or an unreadable one.
   Q_INVOKABLE int updateSmartObject();
+  Q_INVOKABLE int replaceSmartObjectContents(const QString& path);
   Q_INVOKABLE QJSValue getShape() const;
   Q_INVOKABLE void updateShape(const QJSValue& changes);
   Q_INVOKABLE void transformShape(const QJSValue& matrix, const QJSValue& options = QJSValue());

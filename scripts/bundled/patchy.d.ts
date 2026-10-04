@@ -273,6 +273,17 @@ interface PatchyLayer {
    * layer, or a linked file that is missing or cannot be decoded.
    */
   updateSmartObject(): number;
+  /**
+   * Replace Contents for an editable embedded smart object. Embeds a fresh copy
+   * of path and updates every instance sharing this source in this document.
+   * Preserves each placement's center and physical content scale (old PPI/new
+   * PPI), warp, masks and Smart Filters. Returns the updated instance count.
+   * Targets this wrapper's document/layer, regardless of active selection.
+   * Throws for missing/invalid files, linked/plain/protected layers or a stale
+   * wrapper, without changing the document or adding an undo entry on failure.
+   * Participates in the script's normal per-document undo group; does not save.
+   */
+  replaceSmartObjectContents(path: string): number;
   getShape(): PatchyShapeState | null;
   /** Partial update. geometry and path are mutually exclusive; group targets one existing shape group. */
   updateShape(changes: {geometry?: PatchyVectorGeometry; group?: number; path?: PatchyVectorPath;

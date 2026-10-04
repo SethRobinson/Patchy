@@ -223,6 +223,8 @@ public:
   // Returns how many layers were re-rendered (every layer sharing the source); 0
   // with *error set on refusal.
   int update_smart_object(std::int64_t session_id, LayerId layer_id, QString* error);
+  int replace_smart_object_contents(std::int64_t session_id, LayerId layer_id,
+                                   const QString& path, QString* error);
   // layer.getSmartObject(): nullopt for layers that are not smart objects.
   struct SmartObjectInfo {
     bool linked{false};

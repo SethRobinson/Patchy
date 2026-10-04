@@ -1,4 +1,7 @@
 #include "ui/main_window.hpp"
+#include "core/smart_object.hpp"
+#include "psd/psd_document_io.hpp"
+#include <QImage>
 #include "ui/mcp_session.hpp"
 #include "ui/script_engine.hpp"
 #include "ui/mcp_activity.hpp"
@@ -174,6 +177,58 @@ void ui_mcp_attached_state_guard_and_unsaved_history() {
   connection.connect();
   CHECK(connection.state()["stateToken"] != state["stateToken"]);
   connection.call("execute_script", {{"code", fix}, {"expectedState", state["stateToken"]}}, true);
+  connection.disconnect();
+}
+
+
+void ui_mcp_replace_smart_object_contents_expected_state() {
+  using namespace patchy::ui;
+  ensure_artifact_dir();
+  const auto source = QFileInfo(QStringLiteral("test-artifacts/mcp-so-source.png")).absoluteFilePath();
+  const auto replacement = QFileInfo(QStringLiteral("test-artifacts/mcp-so-replacement.png")).absoluteFilePath();
+  QImage image(8, 6, QImage::Format_RGBA8888);
+  image.setDotsPerMeterX(23622);
+  image.setDotsPerMeterY(23622);
+  image.fill(Qt::red);
+  CHECK(image.save(source));
+  image.fill(Qt::blue);
+  CHECK(image.save(replacement));
+  const auto quote = [](const QString& path) {
+    return QString::fromUtf8(QJsonDocument(QJsonArray{path}).toJson(QJsonDocument::Compact)) + "[0]";
+  };
+  MainWindow window;
+  show_window_empty(window);
+  local_script(window, QStringLiteral(
+      "var d=app.newDocument(32,32); d.addSmartObject(%1,{width:8,name:'FOTO'});").arg(quote(source)));
+  Connection connection(window);
+  const auto state = connection.state();
+  const auto smart_id = std::as_const(MainWindowTestAccess::document(window)).layers().back().id();
+  const auto old_source = patchy::smart_object_source_uuid(
+      *std::as_const(MainWindowTestAccess::document(window)).find_layer(smart_id));
+  local_script(window, "app.activeDocument.addLayer('other').fill('#123456');");
+  const auto& document = std::as_const(MainWindowTestAccess::document(window));
+  const auto before = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto undo = MainWindowTestAccess::active_session_undo_depth(window);
+  const auto code = QStringLiteral(
+      "var n=app.activeDocument.getLayer('%1').replaceSmartObjectContents(%2);"
+      "if(n!==1)throw new Error('count '+n);").arg(QString::number(smart_id), quote(replacement));
+  const auto refused = connection.call("execute_script", {{"code", code}, {"expectedState", state["stateToken"]}}, true);
+  CHECK(refused["structuredContent"].toObject()["error"] == "stale_state");
+  CHECK(patchy::psd::DocumentIo::write_layered_rgb8(document) == before);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == undo);
+  const auto fresh = connection.state();
+  const auto result = connection.call("execute_script", {{"code", code}, {"expectedState", fresh["stateToken"]}});
+  CHECK(result["structuredContent"].toObject()["status"] == "done");
+  CHECK(connection.state()["stateToken"] != fresh["stateToken"]);
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == undo + 1);
+  CHECK(document.metadata().smart_objects.find(old_source) == nullptr);
+  const auto* layer = document.find_layer(smart_id);
+  CHECK(layer != nullptr && layer->name() == "FOTO");
+  const auto* pixel = layer->pixels().pixel(layer->pixels().width()/2, layer->pixels().height()/2);
+  CHECK(pixel != nullptr && pixel[2] > 200 && pixel[0] < 50);
+  connection.call("undo", {{"documentId", fresh["activeDocumentId"]},
+                         {"expectedState", connection.state()["stateToken"]}});
+  CHECK(patchy::psd::DocumentIo::write_layered_rgb8(document) == before);
   connection.disconnect();
 }
 
@@ -1152,6 +1207,7 @@ void ui_raw_mcp_open_reads_sidecar_without_writing() {
 
 std::vector<patchy::test::TestCase> mcp_tests() {
   return {{"ui_raw_mcp_open_reads_sidecar_without_writing", ui_raw_mcp_open_reads_sidecar_without_writing},
+          {"ui_mcp_replace_smart_object_contents_expected_state", ui_mcp_replace_smart_object_contents_expected_state},
           {"ui_mcp_attached_state_guard_and_unsaved_history", ui_mcp_attached_state_guard_and_unsaved_history},
           {"ui_mcp_activity_stop_input_lock_and_local_scripts", ui_mcp_activity_stop_input_lock_and_local_scripts},
           {"ui_mcp_attached_cancellation_interrupts_tight_loop", ui_mcp_attached_cancellation_interrupts_tight_loop},

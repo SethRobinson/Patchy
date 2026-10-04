@@ -1287,30 +1287,73 @@ void MainWindow::replace_smart_object_contents_with_path(const QString& path) {
   if (!has_active_document()) {
     return;
   }
-  auto& doc = document();
   select_only_layer_if_none_active();
-  const auto active = doc.active_layer_id();
-  auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
+  const auto active = std::as_const(document()).active_layer_id();
+  if (!active.has_value()) {
+    return;
+  }
+  const auto& doc = std::as_const(document());
+  const auto* layer = doc.find_layer(*active);
   if (layer == nullptr || !layer_is_smart_object(*layer) || !smart_object_lock_reason(*layer).empty()) {
     return;
+  }
+  const auto* source = doc.metadata().smart_objects.find(smart_object_source_uuid(*layer));
+  if (source == nullptr || source->kind != SmartObjectSourceKind::Embedded || source->file_bytes == nullptr) {
+    return;
+  }
+  QString error;
+  const auto replaced = replace_embedded_smart_object_contents(
+      session(), *active, path,
+      [this] {
+        push_undo_snapshot(tr("Replace Smart Object Contents"));
+        return true;
+      },
+      &error);
+  if (replaced == 0) {
+    if (error == tr("Could not rebuild the Smart Filter preview and cache")) {
+      show_status_error(error);
+    } else if (!error.isEmpty()) {
+      show_critical_message(this, tr("Replace failed"), error,
+                            QStringLiteral("replaceSmartObjectFailedMessageBox"));
+    }
+    return;
+  }
+  refresh_layer_list();
+  refresh_layer_controls();
+  canvas_->document_changed();
+  statusBar()->showMessage(tr("Replaced smart object contents with %1").arg(QFileInfo(path).fileName()));
+}
+
+int MainWindow::replace_embedded_smart_object_contents(
+    DocumentSession& session, LayerId layer_id, const QString& path,
+    const std::function<bool()>& before_mutation, QString* error) {
+  const auto fail = [error](const QString& message) {
+    if (error != nullptr) {
+      *error = message;
+    }
+    return 0;
+  };
+  const auto& doc = std::as_const(session.document);
+  const auto* layer = doc.find_layer(layer_id);
+  if (layer == nullptr || !layer_is_smart_object(*layer)) {
+    return fail(tr("Select a smart object layer first"));
+  }
+  if (!smart_object_lock_reason(*layer).empty()) {
+    return fail(tr("This smart object can only be preserved, not edited"));
   }
   const auto old_uuid = smart_object_source_uuid(*layer);
   const auto* old_source = doc.metadata().smart_objects.find(old_uuid);
   if (old_source == nullptr || old_source->kind != SmartObjectSourceKind::Embedded ||
       old_source->file_bytes == nullptr) {
-    return;
+    return fail(tr("This smart object's contents are not embedded in the document"));
   }
   QFile file(path);
   if (!file.open(QIODevice::ReadOnly)) {
-    show_critical_message(this, tr("Replace failed"), tr("Could not read %1").arg(path),
-                          QStringLiteral("replaceSmartObjectFailedMessageBox"));
-    return;
+    return fail(tr("Could not read %1").arg(path));
   }
   const auto raw = file.readAll();
   if (raw.isEmpty()) {
-    show_critical_message(this, tr("Replace failed"), tr("Could not read %1").arg(path),
-                          QStringLiteral("replaceSmartObjectFailedMessageBox"));
-    return;
+    return fail(tr("Could not read %1").arg(path));
   }
 
   const QFileInfo info(path);
@@ -1329,16 +1372,11 @@ void MainWindow::replace_smart_object_contents_with_path(const QString& path) {
   const auto contents_format = classify_smart_object_contents(replacement);
   if (contents_format != SmartObjectContentsFormat::PsdDocument &&
       contents_format != SmartObjectContentsFormat::QtImage) {
-    show_critical_message(this, tr("Replace failed"),
-                          tr("%1 is not a file type Patchy can embed and edit").arg(info.fileName()),
-                          QStringLiteral("replaceSmartObjectFailedMessageBox"));
-    return;
+    return fail(tr("%1 is not a file type Patchy can embed and edit").arg(info.fileName()));
   }
   const auto rendered_image = decode_smart_object_source_image(replacement);
   if (!rendered_image.has_value()) {
-    show_critical_message(this, tr("Replace failed"), tr("Could not decode %1").arg(info.fileName()),
-                          QStringLiteral("replaceSmartObjectFailedMessageBox"));
-    return;
+    return fail(tr("Could not decode %1").arg(info.fileName()));
   }
   const double content_dpi = smart_object_source_dpi(replacement);
   const double new_width = rendered_image->width();
@@ -1357,10 +1395,11 @@ void MainWindow::replace_smart_object_contents_with_path(const QString& path) {
     added->creator = replacement.creator;
   }
 
+  int replaced = 0;
   std::function<bool(std::vector<Layer>&)> repoint_layers =
       [&](std::vector<Layer>& layers) {
     for (auto& target : layers) {
-      if (!target.children().empty() && !repoint_layers(target.children())) {
+      if (!std::as_const(target).children().empty() && !repoint_layers(target.children())) {
         return false;
       }
       if (!layer_is_smart_object(target) || smart_object_source_uuid(target) != old_uuid ||
@@ -1419,22 +1458,19 @@ void MainWindow::replace_smart_object_contents_with_path(const QString& path) {
       } else {
         return false;
       }
+      ++replaced;
     }
     return true;
   };
   if (!repoint_layers(updated_document.layers())) {
-    show_status_error(
-        tr("Could not rebuild the Smart Filter preview and cache"));
-    return;
+    return fail(tr("Could not rebuild the Smart Filter preview and cache"));
   }
   store.remove(old_uuid);
-  push_undo_snapshot(tr("Replace Smart Object Contents"));
-  doc = std::move(updated_document);
-
-  refresh_layer_list();
-  refresh_layer_controls();
-  canvas_->document_changed();
-  statusBar()->showMessage(tr("Replaced smart object contents with %1").arg(info.fileName()));
+  if (before_mutation && !before_mutation()) {
+    return fail(QString());
+  }
+  session.document = std::move(updated_document);
+  return replaced;
 }
 
 void MainWindow::convert_to_smart_object() {
