@@ -204,7 +204,7 @@ onto setTimeout before qtloader runs (harness below).
   `globalThis.patchyPthreadPoolSize`, which the baked pool formula prefers.
   Perf-only: an undersized pool degrades blocking fan-outs to sequential, it
   cannot deadlock).
-- **Open from Clipboard** is hidden/disabled: browser reads are cached
+- **Clipboard:** reads are cached, image writes bypass Qt's untyped Blob
   ([clipboard.md](clipboard.md)).
 - **Compiled out or stubbed:** QtPrintSupport does not exist on wasm
   (`print_dialog_wasm.cpp` stubs; File menu hides Print/Page Setup; the

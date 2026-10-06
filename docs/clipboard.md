@@ -34,6 +34,24 @@ paste event and delivers Ctrl+V. An arbitrary menu click or Ctrl+Alt+Shift+N
 does not refresh that cache. Exposing the desktop implementation would risk
 opening an earlier image after the host clipboard had changed.
 
+Copy in the other direction (Patchy to the browser clipboard) does not use
+Qt's write path either. The same backend serializes a copied image to PNG and
+calls `navigator.clipboard.write()` with a Blob built by qstdweb's
+`Blob::fromArrayBuffer`, which carries no MIME type. Chromium rejects a
+`ClipboardItem` whose Blob type does not match its key (`NotAllowedError: Type
+image/png does not match the blob's type`), Qt only prints "clipboard error" on
+the console, and the 1.06 web build could not copy an image out to any
+Chromium browser (Brave, October 2026). `set_system_clipboard_image` therefore
+also calls `wasm_clipboard::write_image_png` (`src/ui/clipboard_wasm.cpp`),
+which encodes the PNG and writes it through a typed Blob from the same user
+gesture; Qt's own rejected write still logs its warning. The Qt clipboard is
+still set so the internal paste signature and the New Document Clipboard preset
+keep working. A refused write (insecure context, no user activation, permission
+denied) only warns on the console; the copy stays usable inside Patchy. Text and
+SVG copies go through Qt's write unchanged (strings need no Blob). The browser
+pane inside Claude's desktop app denies clipboard permissions outright, so
+verify this in a real browser.
+
 A future browser implementation needs a fresh, asynchronous read, explicit
 permission/error handling, and protection against applying a late result to a
 closed or locked workspace. Browser reads require a secure context and may need

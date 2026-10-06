@@ -72,6 +72,9 @@
 #include "ui/color_panel.hpp"
 #include "ui/layer_style_dialog.hpp"
 #include "ui/canvas_widget_shared.hpp"
+#ifdef Q_OS_WASM
+#include "ui/clipboard_wasm.hpp"
+#endif
 #include "ui/layer_list_widget.hpp"
 #include "ui/localization.hpp"
 #include "ui/measurement_units.hpp"
@@ -643,6 +646,13 @@ void MainWindow::set_system_clipboard_image(const QImage& image) {
     clipboard->setImage(image);
     patchy_system_clipboard_signature_ = clipboard_image_signature(clipboard->image());
   }
+#ifdef Q_OS_WASM
+  // Qt's own browser write above is rejected by Chromium (untyped Blob; see
+  // clipboard_wasm.hpp), so the Qt clipboard only serves Patchy's internal
+  // paste and the New Document Clipboard preset. This write is what reaches
+  // other apps.
+  wasm_clipboard::write_image_png(image);
+#endif
 }
 
 void MainWindow::set_system_clipboard_mime(QMimeData* mime) {

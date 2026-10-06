@@ -1233,6 +1233,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
     if(EMSCRIPTEN)
       target_sources(patchy_ui PRIVATE
         src/ui/print_dialog_wasm.cpp
+        src/ui/clipboard_wasm.hpp
+        src/ui/clipboard_wasm.cpp
         src/ui/dialog_utils_wasm.hpp
         src/ui/dialog_utils_wasm.cpp
         src/ui/user_fonts_wasm.hpp
