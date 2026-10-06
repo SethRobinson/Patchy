@@ -8909,6 +8909,10 @@ RGB: %2, %3, %4</translation>
         <source>Ratio</source>
         <translation>Proporción</translation>
     </message>
+    <message>
+        <source>Delete cropped pixels and layers too</source>
+        <translation>Eliminar también los píxeles y las capas recortados</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -18658,6 +18662,14 @@ Convertido en imágenes: %1.</translation>
     <message>
         <source>Height of the crop box</source>
         <translation>Alto del cuadro de recorte</translation>
+    </message>
+    <message>
+        <source>Nothing to crop: the crop box matches the canvas</source>
+        <translation>Nada que recortar: el cuadro de recorte coincide con el lienzo</translation>
+    </message>
+    <message>
+        <source>Crop to Selection (Advanced) cannot straighten a rotated crop box; use Crop to Selection</source>
+        <translation>Recortar según la selección (Avanzado) no puede enderezar un cuadro de recorte girado; use Recortar según la selección</translation>
     </message>
 </context>
 <context>

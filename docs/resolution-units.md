@@ -51,8 +51,10 @@ new canvas entirely and any group that empties as a result; layers without bound
 (adjustments, never-painted layers) stay, and the status line reports the count. The
 delete runs against the frame BEFORE the resize (`remove_layers_outside_canvas(doc, frame)`):
 the layer crop rewrites every pixel layer to canvas-sized bounds, so afterwards nothing
-tests as off the canvas. Both
-checkboxes start unchecked on every opening and are never persisted. All modes are
+tests as off the canvas. "Delete cropped pixels and layers too"
+(`canvasSizeDeleteCroppedCheck`, above the pair) is their one-click form: toggling it sets
+both, and it mirrors them, checked only while both are. All three start unchecked on every
+opening and are never persisted. All modes are
 undoable. Document alpha/spot channels remain canvas-sized; editable vector paths, text
 transforms and Smart Object placements continue to follow the anchor translation.
 The resize itself is core `resize_canvas_to_frame(doc, frame, ...)`: the dialog turns its
@@ -61,7 +63,8 @@ canvas rect in current coordinates through `canvas_resize_frame`, and the anchor
 `resize_canvas_and_layers` is that same path with the canvas as the frame.
 Image > Crop to Selection (Advanced) (`imageCropToSelectionAdvancedAction`, hotkey id
 `image.crop_to_selection_advanced`, no default) opens this dialog titled "Crop to Selection
-(Advanced)" with the rectangular selection as the reference frame: W/H prefill to the
+(Advanced)" with the rectangular selection as the reference frame (the Crop tool's pending
+box while that tool is active; see [crop-tool.md](crop-tool.md)): W/H prefill to the
 selection size, Current Size still shows the document, an unchanged accept crops exactly to
 the selection, and an edit grows or shrinks that rect about the chosen anchor point
 (Relative and Percent stay relative to the document size, as labeled). The link keeps the

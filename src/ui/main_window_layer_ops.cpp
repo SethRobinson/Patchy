@@ -4362,6 +4362,13 @@ void MainWindow::flip_active_layer_vertical() {
 }
 
 void MainWindow::crop_to_selection() {
+  // With the Crop tool active its pending box is the crop selection: the command
+  // commits it exactly like Enter (an off-canvas box expands, a rotated one
+  // straightens, the untouched canvas frame reports "Nothing to crop").
+  if (canvas_->crop_session_active()) {
+    canvas_->commit_crop_session();
+    return;
+  }
   const auto selection = canvas_->selected_document_rect();
   if (!selection.has_value() || selection->isEmpty()) {
     show_status_error(tr("Make a rectangular selection before cropping"));

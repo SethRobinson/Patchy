@@ -8909,6 +8909,10 @@ RGB: %2, %3, %4</translation>
         <source>Ratio</source>
         <translation>Proporção</translation>
     </message>
+    <message>
+        <source>Delete cropped pixels and layers too</source>
+        <translation>Excluir também os pixels e as camadas cortados</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -18658,6 +18662,14 @@ Y: %2
     <message>
         <source>Height of the crop box</source>
         <translation>Altura da caixa de corte</translation>
+    </message>
+    <message>
+        <source>Nothing to crop: the crop box matches the canvas</source>
+        <translation>Nada para cortar: a caixa de corte coincide com a tela</translation>
+    </message>
+    <message>
+        <source>Crop to Selection (Advanced) cannot straighten a rotated crop box; use Crop to Selection</source>
+        <translation>Cortar para seleção (avançado) não consegue endireitar uma caixa de corte girada; use Cortar para seleção</translation>
     </message>
 </context>
 <context>

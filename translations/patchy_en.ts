@@ -8898,6 +8898,10 @@ RGB: %2, %3, %4</source>
         <source>Ratio</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Delete cropped pixels and layers too</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -18607,6 +18611,14 @@ Baked into images: %1.</source>
     </message>
     <message>
         <source>Height of the crop box</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Nothing to crop: the crop box matches the canvas</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Crop to Selection (Advanced) cannot straighten a rotated crop box; use Crop to Selection</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

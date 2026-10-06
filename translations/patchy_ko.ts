@@ -8879,6 +8879,10 @@ RGB: %2, %3, %4</translation>
         <source>Ratio</source>
         <translation>비율</translation>
     </message>
+    <message>
+        <source>Delete cropped pixels and layers too</source>
+        <translation>잘린 픽셀과 레이어도 삭제</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -18602,6 +18606,14 @@ Y: %2
     <message>
         <source>Height of the crop box</source>
         <translation>자르기 상자 높이</translation>
+    </message>
+    <message>
+        <source>Nothing to crop: the crop box matches the canvas</source>
+        <translation>자를 것이 없습니다: 자르기 상자가 캔버스와 일치합니다</translation>
+    </message>
+    <message>
+        <source>Crop to Selection (Advanced) cannot straighten a rotated crop box; use Crop to Selection</source>
+        <translation>선택 영역으로 자르기(고급)는 회전된 자르기 상자를 바로잡을 수 없습니다. 선택 영역으로 자르기를 사용하세요</translation>
     </message>
 </context>
 <context>

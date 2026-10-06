@@ -8879,6 +8879,10 @@ Mixed selection</source>
         <source>Ratio</source>
         <translation>比率</translation>
     </message>
+    <message>
+        <source>Delete cropped pixels and layers too</source>
+        <translation>切り抜かれたピクセルとレイヤーも削除する</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -18602,6 +18606,14 @@ Baked into images: %1.</source>
     <message>
         <source>Height of the crop box</source>
         <translation>切り抜き枠の高さ</translation>
+    </message>
+    <message>
+        <source>Nothing to crop: the crop box matches the canvas</source>
+        <translation>切り抜くものがありません: 切り抜き枠がカンバスと一致しています</translation>
+    </message>
+    <message>
+        <source>Crop to Selection (Advanced) cannot straighten a rotated crop box; use Crop to Selection</source>
+        <translation>選択範囲で切り抜き(詳細)では回転した切り抜き枠をまっすぐにできません。選択範囲で切り抜きを使用してください</translation>
     </message>
 </context>
 <context>

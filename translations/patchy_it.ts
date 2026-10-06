@@ -8909,6 +8909,10 @@ RGB: %2, %3, %4</translation>
         <source>Ratio</source>
         <translation>Rapporto</translation>
     </message>
+    <message>
+        <source>Delete cropped pixels and layers too</source>
+        <translation>Elimina anche i pixel e i livelli ritagliati</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -18658,6 +18662,14 @@ Convertiti in immagini: %1.</translation>
     <message>
         <source>Height of the crop box</source>
         <translation>Altezza del riquadro di ritaglio</translation>
+    </message>
+    <message>
+        <source>Nothing to crop: the crop box matches the canvas</source>
+        <translation>Niente da ritagliare: il riquadro di ritaglio coincide con la tela</translation>
+    </message>
+    <message>
+        <source>Crop to Selection (Advanced) cannot straighten a rotated crop box; use Crop to Selection</source>
+        <translation>Ritaglia sulla selezione (Avanzato) non può raddrizzare un riquadro di ritaglio ruotato; usa Ritaglia sulla selezione</translation>
     </message>
 </context>
 <context>

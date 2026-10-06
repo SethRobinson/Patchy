@@ -8909,6 +8909,10 @@ RVB : %2, %3, %4</translation>
         <source>Ratio</source>
         <translation>Rapport</translation>
     </message>
+    <message>
+        <source>Delete cropped pixels and layers too</source>
+        <translation>Supprimer aussi les pixels et les calques recadrés</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -18658,6 +18662,14 @@ Convertis en images : %1.</translation>
     <message>
         <source>Height of the crop box</source>
         <translation>Hauteur du cadre de recadrage</translation>
+    </message>
+    <message>
+        <source>Nothing to crop: the crop box matches the canvas</source>
+        <translation>Rien à recadrer : le cadre de recadrage correspond à la zone de travail</translation>
+    </message>
+    <message>
+        <source>Crop to Selection (Advanced) cannot straighten a rotated crop box; use Crop to Selection</source>
+        <translation>Recadrer selon la sélection (Avancé) ne peut pas redresser un cadre de recadrage pivoté ; utilisez Recadrer selon la sélection</translation>
     </message>
 </context>
 <context>

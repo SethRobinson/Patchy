@@ -8909,6 +8909,10 @@ RGB: %2, %3, %4</translation>
         <source>Ratio</source>
         <translation>Verhältnis</translation>
     </message>
+    <message>
+        <source>Delete cropped pixels and layers too</source>
+        <translation>Auch freigestellte Pixel und Ebenen löschen</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -18658,6 +18662,14 @@ In Bilder umgewandelt: %1.</translation>
     <message>
         <source>Height of the crop box</source>
         <translation>Höhe des Zuschneiderahmens</translation>
+    </message>
+    <message>
+        <source>Nothing to crop: the crop box matches the canvas</source>
+        <translation>Nichts freizustellen: Der Freistellrahmen entspricht der Arbeitsfläche</translation>
+    </message>
+    <message>
+        <source>Crop to Selection (Advanced) cannot straighten a rotated crop box; use Crop to Selection</source>
+        <translation>Auf Auswahl freistellen (Erweitert) kann einen gedrehten Freistellrahmen nicht begradigen; verwenden Sie Auf Auswahl freistellen</translation>
     </message>
 </context>
 <context>

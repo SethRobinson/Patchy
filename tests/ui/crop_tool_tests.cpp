@@ -6,8 +6,14 @@
 
 #include "ui_test_groups.hpp"
 
+#include <QCheckBox>
+#include <QDialog>
+#include <QDoubleSpinBox>
 #include <QLineEdit>
 #include <QStatusBar>
+#include <QTimer>
+
+#include <cstdlib>
 
 namespace {
 
@@ -817,6 +823,111 @@ void ui_crop_overlay_renders_shield_and_thirds() {
   send_key(*canvas, Qt::Key_Escape);
 }
 
+// Image > Crop to Selection and Crop to Selection (Advanced) act on the Crop
+// tool's pending box while the tool is active, with no marquee selection: the
+// plain command commits like Enter, the advanced one prefills the Canvas Size
+// dialog with the box, and the untouched canvas frame is refused with a message.
+// The dialog's "Delete cropped pixels and layers too" box drives the two
+// per-option checkboxes and mirrors them.
+void ui_crop_menu_commands_use_crop_box() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* info_label = window.findChild<QLabel*>(QStringLiteral("documentInfoLabel"));
+  CHECK(info_label != nullptr);
+  require_action(window, "toolCropAction")->trigger();
+  QApplication::processEvents();
+  canvas->set_snap_enabled(false);
+  canvas->set_crop_ratio(0.0, 0.0);
+  CHECK(!canvas->has_selection());
+
+  // The default frame is the whole canvas: nothing to crop, nothing changes.
+  require_action(window, "imageCropToSelectionAction")->trigger();
+  QApplication::processEvents();
+  CHECK(info_label->text().contains(QStringLiteral("1024 x 768 px")));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Nothing to crop: the box matches the canvas"));
+  require_action(window, "imageCropToSelectionAdvancedAction")->trigger();
+  QApplication::processEvents();
+  CHECK(info_label->text().contains(QStringLiteral("1024 x 768 px")));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Nothing to crop: the crop box matches the canvas"));
+
+  // The plain command commits the laid-out box.
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(50, 50)),
+       canvas->widget_position_for_document_point(QPoint(350, 250)));
+  CHECK(canvas->crop_session_rect() == QRect(50, 50, 301, 201));
+  require_action(window, "imageCropToSelectionAction")->trigger();
+  QApplication::processEvents();
+  CHECK(info_label->text().contains(QStringLiteral("301 x 201 px")));
+  CHECK(canvas->crop_session_active());
+  CHECK(canvas->crop_session_rect() == QRect(0, 0, 301, 201));
+  CHECK(!canvas->crop_session_has_changes());
+
+  // The advanced command opens the Canvas Size dialog prefilled with the box.
+  canvas->zoom_to_document_rect(QRect(0, 0, 301, 201));
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 30)),
+       canvas->widget_position_for_document_point(QPoint(160, 110)));
+  // (At a fractional zoom the widget-to-document mapping can wobble a pixel,
+  // so the expectations derive from the actual session rect.)
+  const auto box = canvas->crop_session_rect();
+  CHECK(box.has_value());
+  CHECK(std::abs(box->x() - 40) <= 2 && std::abs(box->y() - 30) <= 2);
+  CHECK(std::abs(box->width() - 121) <= 2 && std::abs(box->height() - 81) <= 2);
+  const auto expected_info = QStringLiteral("%1 x %2 px").arg(box->width()).arg(box->height());
+  bool drove_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyCanvasSizeDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("canvasSizeWidthSpin"));
+    auto* height = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("canvasSizeHeightSpin"));
+    auto* delete_cropped = dialog->findChild<QCheckBox*>(QStringLiteral("canvasSizeDeleteCroppedCheck"));
+    auto* crop_layers = dialog->findChild<QCheckBox*>(QStringLiteral("canvasSizeCropLayersCheck"));
+    auto* delete_off_canvas = dialog->findChild<QCheckBox*>(QStringLiteral("canvasSizeDeleteOffCanvasCheck"));
+    CHECK(width != nullptr && height != nullptr && delete_cropped != nullptr && crop_layers != nullptr &&
+          delete_off_canvas != nullptr);
+    CHECK(dialog->windowTitle() == QStringLiteral("Crop to Selection (Advanced)"));
+    CHECK(width->value() == static_cast<double>(box->width()));
+    CHECK(height->value() == static_cast<double>(box->height()));
+    CHECK(delete_cropped->text() == QStringLiteral("Delete cropped pixels and layers too"));
+    // Off on every opening; the combined box sets both options and mirrors them.
+    CHECK(!delete_cropped->isChecked() && !crop_layers->isChecked() && !delete_off_canvas->isChecked());
+    delete_cropped->setChecked(true);
+    CHECK(crop_layers->isChecked() && delete_off_canvas->isChecked());
+    crop_layers->setChecked(false);
+    CHECK(!delete_cropped->isChecked() && delete_off_canvas->isChecked());
+    crop_layers->setChecked(true);
+    CHECK(delete_cropped->isChecked());
+    delete_cropped->setChecked(false);
+    CHECK(!crop_layers->isChecked() && !delete_off_canvas->isChecked());
+    save_widget_artifact("ui_crop_advanced_from_crop_box", *dialog);
+    drove_dialog = true;
+    dialog->accept();
+  });
+  require_action(window, "imageCropToSelectionAdvancedAction")->trigger();
+  QApplication::processEvents();
+  CHECK(drove_dialog);
+  CHECK(info_label->text().contains(expected_info));
+  CHECK(canvas->crop_session_rect() == QRect(0, 0, box->width(), box->height()));
+
+  // A rotated box is refused by the advanced command (the dialog cannot straighten).
+  canvas->zoom_to_document_rect(QRect(0, 0, box->width(), box->height()));
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(30, 25)),
+       canvas->widget_position_for_document_point(QPoint(90, 60)));
+  CHECK(canvas->crop_session_has_changes());
+  CHECK(canvas->crop_session_angle() == 0.0);
+  // A drag off the custom box rotates it about its center.
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(110, 70)),
+       canvas->widget_position_for_document_point(QPoint(110, 15)));
+  CHECK(canvas->crop_session_angle() != 0.0);
+  require_action(window, "imageCropToSelectionAdvancedAction")->trigger();
+  QApplication::processEvents();
+  CHECK(info_label->text().contains(expected_info));
+  CHECK(window.statusBar()->currentMessage().startsWith(QStringLiteral("Crop to Selection (Advanced) cannot")));
+  send_key(*canvas, Qt::Key_Escape);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> crop_tool_tests() {
@@ -834,5 +945,6 @@ std::vector<patchy::test::TestCase> crop_tool_tests() {
       {"ui_crop_escape_resets_and_tool_switch_cancels", ui_crop_escape_resets_and_tool_switch_cancels},
       {"ui_crop_apply_cancel_buttons_follow_session", ui_crop_apply_cancel_buttons_follow_session},
       {"ui_crop_overlay_renders_shield_and_thirds", ui_crop_overlay_renders_shield_and_thirds},
+      {"ui_crop_menu_commands_use_crop_box", ui_crop_menu_commands_use_crop_box},
   };
 }
