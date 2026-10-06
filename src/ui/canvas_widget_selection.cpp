@@ -1183,8 +1183,9 @@ void CanvasWidget::draw_selection_overlay(QPainter& painter) const {
 QRect CanvasWidget::marquee_selection_rect(QPoint anchor, QPoint current) const {
   QRect rect;
   if (marquee_from_center_) {
-    // Draw-from-center (Alt with no existing selection): the press point is the
-    // center, so the rectangle grows symmetrically and is twice the drag extent.
+    // Draw-from-center (Alt with no existing selection, or Alt pressed mid-drag):
+    // the press point is the center, so the rectangle grows symmetrically and is
+    // twice the drag extent.
     if (marquee_style_ == MarqueeStyle::FixedSize) {
       rect = QRect(anchor - QPoint(marquee_fixed_size_.width() / 2, marquee_fixed_size_.height() / 2),
                    marquee_fixed_size_);
@@ -1597,6 +1598,17 @@ void CanvasWidget::update_selection_square_constraint(Qt::KeyboardModifiers modi
   // only constrains after being released and pressed again.
   selection_square_constrained_ =
       shift_now && (!selection_shift_at_press_ || selection_shift_released_since_press_);
+}
+
+void CanvasWidget::update_marquee_from_center(Qt::KeyboardModifiers modifiers) {
+  const bool alt_now = (modifiers & Qt::AltModifier) != 0;
+  if (!alt_now) {
+    selection_alt_released_since_press_ = true;
+  }
+  // Alt after the drag starts draws from the center (GitHub issue 78); Alt held
+  // from the press over an existing selection is "subtract", so it only
+  // mirrors after being released and pressed again (the Shift rule above).
+  marquee_from_center_ = alt_now && (!selection_alt_at_press_ || selection_alt_released_since_press_);
 }
 
 void CanvasWidget::refresh_active_marquee_selection() {

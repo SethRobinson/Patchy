@@ -155,6 +155,7 @@ void CanvasWidget::reset_crop_session_state() {
   crop_rotate_start_angle_ = 0.0;
   crop_rotate_start_vector_degrees_ = 0.0;
   crop_square_constrained_ = false;
+  crop_from_center_ = false;
 }
 
 void CanvasWidget::commit_crop_session() {
@@ -255,7 +256,25 @@ void CanvasWidget::reset_crop_session_to_canvas() {
 // but its anchor may live on the pasteboard, so nothing is edge-clamped.
 QRect CanvasWidget::crop_drag_rect(QPoint anchor, QPoint current) const {
   QRect rect;
-  if (crop_ratio_w_ > 0.0 && crop_ratio_h_ > 0.0) {
+  if (crop_from_center_) {
+    // Alt draws from the center (GitHub issue 78): the press point is the
+    // center, so the box grows symmetrically and is twice the drag extent. A
+    // set ratio or Shift's 1:1 latch still constrains the result.
+    const auto delta = current - anchor;
+    auto half_w = std::abs(delta.x());
+    auto half_h = std::abs(delta.y());
+    if (crop_ratio_w_ > 0.0 && crop_ratio_h_ > 0.0) {
+      const auto ratio = crop_ratio_w_ / crop_ratio_h_;
+      if (static_cast<double>(half_w) / std::max(1, half_h) > ratio) {
+        half_h = std::max(0, static_cast<int>(std::round(half_w / ratio)));
+      } else {
+        half_w = std::max(0, static_cast<int>(std::round(half_h * ratio)));
+      }
+    } else if (crop_square_constrained_) {
+      half_w = half_h = std::min(half_w, half_h);
+    }
+    rect = QRect(anchor.x() - half_w, anchor.y() - half_h, half_w * 2, half_h * 2);
+  } else if (crop_ratio_w_ > 0.0 && crop_ratio_h_ > 0.0) {
     const auto ratio = crop_ratio_w_ / crop_ratio_h_;
     const auto delta = current - anchor;
     auto width = std::max(1, std::abs(delta.x()));
@@ -308,6 +327,9 @@ void CanvasWidget::begin_crop_drag_out(QMouseEvent* event, QPoint document_point
   crop_current_document_ = snapped;
   crop_angle_ = 0.0;
   crop_square_constrained_ = (event->modifiers() & Qt::ShiftModifier) != 0;
+  // Alt mirrors the box about the press point (Photoshop's draw-from-center);
+  // moves and key events keep both latches current mid-drag (GitHub issue 78).
+  crop_from_center_ = (event->modifiers() & Qt::AltModifier) != 0;
   update();
 }
 
@@ -361,13 +383,15 @@ void CanvasWidget::update_crop_rotate_drag(QPointF document_point, Qt::KeyboardM
   update();
 }
 
-void CanvasWidget::update_crop_drag_out(QPoint document_point) {
+void CanvasWidget::update_crop_drag_out(QPoint document_point, Qt::KeyboardModifiers modifiers) {
   if (spacebar_repositioning_drag_rect_) {
     const auto delta = document_point - spacebar_reposition_last_document_position_;
     crop_anchor_document_ += delta;
     crop_current_document_ += delta;
     spacebar_reposition_last_document_position_ = document_point;
   } else {
+    crop_square_constrained_ = (modifiers & Qt::ShiftModifier) != 0;
+    crop_from_center_ = (modifiers & Qt::AltModifier) != 0;
     crop_current_document_ = snapped_marquee_current_point(crop_anchor_document_, document_point);
   }
   update();
@@ -529,6 +553,7 @@ void CanvasWidget::finish_crop_mouse_release(QMouseEvent* event) {
     }
     // A plain click leaves any pending rect (and the session) untouched.
     crop_square_constrained_ = false;
+    crop_from_center_ = false;
     update_tool_cursor();
     update();
     return;
