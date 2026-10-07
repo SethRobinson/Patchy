@@ -8909,10 +8909,6 @@ RVB : %2, %3, %4</translation>
         <source>Ratio</source>
         <translation>Rapport</translation>
     </message>
-    <message>
-        <source>Delete cropped pixels and layers too</source>
-        <translation>Supprimer aussi les pixels et les calques recadrés</translation>
-    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -18670,6 +18666,18 @@ Convertis en images : %1.</translation>
     <message>
         <source>Crop to Selection (Advanced) cannot straighten a rotated crop box; use Crop to Selection</source>
         <translation>Recadrer selon la sélection (Avancé) ne peut pas redresser un cadre de recadrage pivoté ; utilisez Recadrer selon la sélection</translation>
+    </message>
+    <message>
+        <source>Delete cropped pixels and layers too</source>
+        <translation>Supprimer aussi les pixels et les calques recadrés</translation>
+    </message>
+    <message>
+        <source>Crop every layer to the new canvas and delete layers left fully outside it; off, layers keep their pixels beyond the canvas</source>
+        <translation>Recadre chaque calque sur la nouvelle zone de travail et supprime les calques entièrement hors de celle-ci ; désactivé, les calques gardent leurs pixels hors de la zone de travail</translation>
+    </message>
+    <message>
+        <source>Cropped, off-canvas layers deleted: %1</source>
+        <translation>Recadré, calques hors zone supprimés : %1</translation>
     </message>
 </context>
 <context>

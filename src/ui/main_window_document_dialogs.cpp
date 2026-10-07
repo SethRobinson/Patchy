@@ -1130,39 +1130,18 @@ std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, 
   color_swatch->setFocusPolicy(Qt::StrongFocus);
   color_swatch->setFixedSize(49, 24);
   extension_row->addWidget(color_swatch);
-  // "Delete cropped pixels and layers too" is the one-click form of the two
-  // destructive options below it: toggling it sets both, and it mirrors them
-  // (checked only while both are). All three are opt-ins, unchecked on every
-  // opening and deliberately never loaded from or saved to settings.
-  auto* delete_cropped = new QCheckBox(QObject::tr("Delete cropped pixels and layers too"), &dialog);
-  delete_cropped->setObjectName(QStringLiteral("canvasSizeDeleteCroppedCheck"));
-  delete_cropped->setChecked(false);
-  content_layout->addWidget(delete_cropped);
-  auto* option_layout = new QVBoxLayout();
-  option_layout->setContentsMargins(18, 0, 0, 0);
-  option_layout->setSpacing(content_layout->spacing());
-  content_layout->addLayout(option_layout);
   auto* crop_layers = new QCheckBox(QObject::tr("Also crop each actual layer to the canvas area"), &dialog);
   crop_layers->setObjectName(QStringLiteral("canvasSizeCropLayersCheck"));
+  // Destructive opt-in, deliberately never loaded from or saved to settings.
   crop_layers->setChecked(false);
-  option_layout->addWidget(crop_layers);
+  content_layout->addWidget(crop_layers);
   auto* delete_off_canvas =
       new QCheckBox(QObject::tr("Also delete layers that end up fully off the canvas"), &dialog);
   delete_off_canvas->setObjectName(QStringLiteral("canvasSizeDeleteOffCanvasCheck"));
+  // The same destructive opt-in rule: unchecked on every opening, never persisted.
   delete_off_canvas->setChecked(false);
-  option_layout->addWidget(delete_off_canvas);
+  content_layout->addWidget(delete_off_canvas);
   content_layout->addStretch(1);
-
-  QObject::connect(delete_cropped, &QCheckBox::toggled, &dialog, [crop_layers, delete_off_canvas](bool checked) {
-    crop_layers->setChecked(checked);
-    delete_off_canvas->setChecked(checked);
-  });
-  const auto mirror_delete_cropped = [delete_cropped, crop_layers, delete_off_canvas] {
-    const QSignalBlocker blocker(delete_cropped);
-    delete_cropped->setChecked(crop_layers->isChecked() && delete_off_canvas->isChecked());
-  };
-  QObject::connect(crop_layers, &QCheckBox::toggled, &dialog, mirror_delete_cropped);
-  QObject::connect(delete_off_canvas, &QCheckBox::toggled, &dialog, mirror_delete_cropped);
 
   QColor extension_color_value(Qt::white);
   const auto update_swatch = [&extension_color_value, color_swatch] {
@@ -1511,25 +1490,21 @@ void MainWindow::resize_canvas_dialog() {
 
 void MainWindow::crop_to_selection_advanced() {
   finish_active_text_editor();
-  // With the Crop tool active its pending box is the frame. The dialog resizes
-  // through `resize_canvas_to_frame`, which has no rotation, so a rotated box is
-  // refused rather than silently straightened or ignored.
-  std::optional<QRect> selection;
-  if (canvas_->crop_session_active()) {
-    if (!canvas_->crop_session_has_changes()) {
-      show_status_error(tr("Nothing to crop: the crop box matches the canvas"));
-      return;
-    }
+  // With the Crop tool active, a box the user laid out is the frame; the
+  // untouched canvas frame defers to a marquee selection (it stays after Esc or
+  // Select commands). The dialog resizes through `resize_canvas_to_frame`, which
+  // has no rotation, so a rotated box is refused rather than silently ignored.
+  auto selection = canvas_->selected_document_rect();
+  if (canvas_->crop_session_active() && canvas_->crop_session_has_changes()) {
     if (canvas_->crop_session_angle() != 0.0) {
       show_status_error(tr("Crop to Selection (Advanced) cannot straighten a rotated crop box; use Crop to Selection"));
       return;
     }
     selection = canvas_->crop_session_rect();
-  } else {
-    selection = canvas_->selected_document_rect();
   }
   if (!selection.has_value() || selection->isEmpty()) {
-    show_status_error(tr("Make a rectangular selection before cropping"));
+    show_status_error(canvas_->crop_session_active() ? tr("Nothing to crop: the crop box matches the canvas")
+                                                     : tr("Make a rectangular selection before cropping"));
     return;
   }
   const auto settings = request_canvas_size_settings(this, document(), to_core_rect(*selection));

@@ -8939,10 +8939,6 @@ RGB: %2, %3, %4</translation>
         <source>Ratio</source>
         <translation>Пропорции</translation>
     </message>
-    <message>
-        <source>Delete cropped pixels and layers too</source>
-        <translation>Также удалить обрезанные пиксели и слои</translation>
-    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -18726,6 +18722,18 @@ Y: %2
     <message>
         <source>Crop to Selection (Advanced) cannot straighten a rotated crop box; use Crop to Selection</source>
         <translation>Кадрировать по выделению (дополнительно) не может выровнять повёрнутую рамку кадрирования; используйте Кадрировать по выделению</translation>
+    </message>
+    <message>
+        <source>Delete cropped pixels and layers too</source>
+        <translation>Также удалить обрезанные пиксели и слои</translation>
+    </message>
+    <message>
+        <source>Crop every layer to the new canvas and delete layers left fully outside it; off, layers keep their pixels beyond the canvas</source>
+        <translation>Обрезает каждый слой по новому холсту и удаляет слои, полностью оставшиеся за его пределами; если выключено, слои сохраняют пиксели за пределами холста</translation>
+    </message>
+    <message>
+        <source>Cropped, off-canvas layers deleted: %1</source>
+        <translation>Кадрировано, удалены слои за пределами холста: %1</translation>
     </message>
 </context>
 <context>

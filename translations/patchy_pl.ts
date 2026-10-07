@@ -8939,10 +8939,6 @@ RGB: %2, %3, %4</translation>
         <source>Ratio</source>
         <translation>Proporcje</translation>
     </message>
-    <message>
-        <source>Delete cropped pixels and layers too</source>
-        <translation>Usuń także przycięte piksele i warstwy</translation>
-    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -18726,6 +18722,18 @@ Y: %2
     <message>
         <source>Crop to Selection (Advanced) cannot straighten a rotated crop box; use Crop to Selection</source>
         <translation>Przytnij do zaznaczenia (zaawansowane) nie może wyprostować obróconej ramki kadrowania; użyj polecenia Przytnij do zaznaczenia</translation>
+    </message>
+    <message>
+        <source>Delete cropped pixels and layers too</source>
+        <translation>Usuń także przycięte piksele i warstwy</translation>
+    </message>
+    <message>
+        <source>Crop every layer to the new canvas and delete layers left fully outside it; off, layers keep their pixels beyond the canvas</source>
+        <translation>Przycina każdą warstwę do nowego płótna i usuwa warstwy pozostające całkowicie poza nim; wyłączone, warstwy zachowują piksele poza płótnem</translation>
+    </message>
+    <message>
+        <source>Cropped, off-canvas layers deleted: %1</source>
+        <translation>Przycięto, usunięto warstwy poza płótnem: %1</translation>
     </message>
 </context>
 <context>

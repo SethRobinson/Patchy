@@ -8909,10 +8909,6 @@ RGB: %2, %3, %4</translation>
         <source>Ratio</source>
         <translation>Verhältnis</translation>
     </message>
-    <message>
-        <source>Delete cropped pixels and layers too</source>
-        <translation>Auch freigestellte Pixel und Ebenen löschen</translation>
-    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -18670,6 +18666,18 @@ In Bilder umgewandelt: %1.</translation>
     <message>
         <source>Crop to Selection (Advanced) cannot straighten a rotated crop box; use Crop to Selection</source>
         <translation>Auf Auswahl freistellen (Erweitert) kann einen gedrehten Freistellrahmen nicht begradigen; verwenden Sie Auf Auswahl freistellen</translation>
+    </message>
+    <message>
+        <source>Delete cropped pixels and layers too</source>
+        <translation>Auch freigestellte Pixel und Ebenen löschen</translation>
+    </message>
+    <message>
+        <source>Crop every layer to the new canvas and delete layers left fully outside it; off, layers keep their pixels beyond the canvas</source>
+        <translation>Jede Ebene auf die neue Arbeitsfläche zuschneiden und Ebenen löschen, die vollständig außerhalb liegen; deaktiviert behalten Ebenen ihre Pixel außerhalb der Arbeitsfläche</translation>
+    </message>
+    <message>
+        <source>Cropped, off-canvas layers deleted: %1</source>
+        <translation>Freigestellt, Ebenen außerhalb gelöscht: %1</translation>
     </message>
 </context>
 <context>

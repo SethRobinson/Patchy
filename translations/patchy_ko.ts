@@ -8879,10 +8879,6 @@ RGB: %2, %3, %4</translation>
         <source>Ratio</source>
         <translation>비율</translation>
     </message>
-    <message>
-        <source>Delete cropped pixels and layers too</source>
-        <translation>잘린 픽셀과 레이어도 삭제</translation>
-    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -18614,6 +18610,18 @@ Y: %2
     <message>
         <source>Crop to Selection (Advanced) cannot straighten a rotated crop box; use Crop to Selection</source>
         <translation>선택 영역으로 자르기(고급)는 회전된 자르기 상자를 바로잡을 수 없습니다. 선택 영역으로 자르기를 사용하세요</translation>
+    </message>
+    <message>
+        <source>Delete cropped pixels and layers too</source>
+        <translation>잘린 픽셀과 레이어도 삭제</translation>
+    </message>
+    <message>
+        <source>Crop every layer to the new canvas and delete layers left fully outside it; off, layers keep their pixels beyond the canvas</source>
+        <translation>모든 레이어를 새 캔버스에 맞춰 자르고 완전히 밖에 남은 레이어를 삭제합니다. 끄면 레이어가 캔버스 밖의 픽셀을 유지합니다</translation>
+    </message>
+    <message>
+        <source>Cropped, off-canvas layers deleted: %1</source>
+        <translation>잘림, 캔버스 외부 레이어 삭제됨: %1</translation>
     </message>
 </context>
 <context>

@@ -8879,10 +8879,6 @@ Mixed selection</source>
         <source>Ratio</source>
         <translation>比率</translation>
     </message>
-    <message>
-        <source>Delete cropped pixels and layers too</source>
-        <translation>切り抜かれたピクセルとレイヤーも削除する</translation>
-    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -18614,6 +18610,18 @@ Baked into images: %1.</source>
     <message>
         <source>Crop to Selection (Advanced) cannot straighten a rotated crop box; use Crop to Selection</source>
         <translation>選択範囲で切り抜き(詳細)では回転した切り抜き枠をまっすぐにできません。選択範囲で切り抜きを使用してください</translation>
+    </message>
+    <message>
+        <source>Delete cropped pixels and layers too</source>
+        <translation>切り抜かれたピクセルとレイヤーも削除する</translation>
+    </message>
+    <message>
+        <source>Crop every layer to the new canvas and delete layers left fully outside it; off, layers keep their pixels beyond the canvas</source>
+        <translation>各レイヤーを新しいカンバスに切り抜き、完全に外に出たレイヤーを削除します。オフの場合、レイヤーはカンバス外のピクセルを保持します</translation>
+    </message>
+    <message>
+        <source>Cropped, off-canvas layers deleted: %1</source>
+        <translation>切り抜きました、カンバス外のレイヤーを削除: %1</translation>
     </message>
 </context>
 <context>

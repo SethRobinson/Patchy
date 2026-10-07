@@ -4362,10 +4362,12 @@ void MainWindow::flip_active_layer_vertical() {
 }
 
 void MainWindow::crop_to_selection() {
-  // With the Crop tool active its pending box is the crop selection: the command
-  // commits it exactly like Enter (an off-canvas box expands, a rotated one
-  // straightens, the untouched canvas frame reports "Nothing to crop").
-  if (canvas_->crop_session_active()) {
+  // With the Crop tool active, a box the user laid out is the crop selection:
+  // the command commits it exactly like Enter (an off-canvas box expands, a
+  // rotated one straightens). The untouched canvas frame defers to a marquee
+  // selection (it stays after Esc or Select commands); with neither, the
+  // commit reports "Nothing to crop".
+  if (canvas_->crop_session_active() && (canvas_->crop_session_has_changes() || !canvas_->has_selection())) {
     canvas_->commit_crop_session();
     return;
   }
@@ -4412,12 +4414,33 @@ void MainWindow::commit_crop_rect(QRect rect, double angle_degrees) {
 
   auto& doc = document();
   auto cropped_document = doc;
-  // The rect may extend past the canvas; the expansion fills with the
-  // background color under a "Background" layer, transparent elsewhere. A
-  // rotated box straightens on commit.
-  if (!patchy::crop_document(cropped_document, to_core_rect(rect), angle_degrees,
-                             edit_color(canvas_->secondary_color()))) {
-    return;
+  const auto extension_color = edit_color(canvas_->secondary_color());
+  const auto frame = to_core_rect(rect);
+  const auto rotated = std::abs(angle_degrees) >= 0.01;
+  std::size_t deleted_layers = 0;
+  if (current_crop_delete_cropped_) {
+    // Canvas Size's two destructive options at once. The delete runs against
+    // the frame BEFORE the crop (the crop empties off-frame layers, which would
+    // then no longer test as outside). For a rotated box the axis-aligned rect
+    // is a conservative test: a layer outside it is certainly outside the box.
+    deleted_layers = patchy::remove_layers_outside_canvas(cropped_document, frame);
+  }
+  if (rotated || current_crop_delete_cropped_) {
+    // The expansion fills with the background color under a "Background"
+    // layer, transparent elsewhere; a rotated box straightens on commit.
+    // `crop_document` crops every layer to the box (tight buffers), which is
+    // the "delete cropped pixels" half; the rotated path always does.
+    if (!patchy::crop_document(cropped_document, frame, angle_degrees, extension_color)) {
+      return;
+    }
+  } else {
+    // Non-destructive (the default): the same frame resize as Canvas Size, so
+    // layers keep their pixels beyond the new canvas and a later canvas
+    // extension or move brings them back.
+    if (frame.empty()) {
+      return;
+    }
+    patchy::resize_canvas_to_frame(cropped_document, frame, extension_color, false);
   }
   push_undo_snapshot(tr("Crop"));
   doc = std::move(cropped_document);
@@ -4436,7 +4459,9 @@ void MainWindow::commit_crop_rect(QRect rect, double angle_degrees) {
   refresh_layer_controls();
   refresh_document_info();
   refresh_options_bar();
-  statusBar()->showMessage(tr("Cropped"));
+  statusBar()->showMessage(deleted_layers > 0
+                               ? tr("Cropped, off-canvas layers deleted: %1").arg(deleted_layers)
+                               : tr("Cropped"));
 }
 
 void MainWindow::rotate_canvas_clockwise() {

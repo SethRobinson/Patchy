@@ -1915,6 +1915,12 @@ private:
   // ratio), when the Crop tool is current and a document is set; a no-op
   // otherwise. Called on tool pick, document swap, and unlock.
   void begin_default_crop_session();
+  // A selection set or cleared while the Crop tool still shows its automatic
+  // frame (or the box it adopted from the previous selection) re-frames the
+  // session so the box follows Select commands and scripts, not only the
+  // selection that existed on tool pick. A custom box or an in-flight drag is
+  // left alone.
+  void follow_selection_into_crop_session();
   // The largest rect of the set ratio inside `within`, centered; `within`
   // itself when no ratio is set.
   [[nodiscard]] QRect ratio_fitted_crop_rect(QRect within) const;

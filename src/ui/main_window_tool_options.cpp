@@ -1882,6 +1882,11 @@ void MainWindow::load_tool_settings() {
     const QSignalBlocker blocker(crop_style_combo_);
     crop_style_combo_->setCurrentIndex(current_crop_style_);
   }
+  current_crop_delete_cropped_ = settings.value(QStringLiteral("tools/cropDeleteCropped"), false).toBool();
+  if (crop_delete_cropped_check_ != nullptr) {
+    const QSignalBlocker blocker(crop_delete_cropped_check_);
+    crop_delete_cropped_check_->setChecked(current_crop_delete_cropped_);
+  }
   canvas_->set_crop_ratio(effective_crop_ratio_width(), effective_crop_ratio_height());
   // Patch mode and Transparent are deliberately session-only: every startup
   // begins at Source with Transparent off, because a persisted Destination or
@@ -2185,6 +2190,7 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/cropRatioWidth"), current_crop_ratio_w_);
   settings.setValue(QStringLiteral("tools/cropRatioHeight"), current_crop_ratio_h_);
   settings.setValue(QStringLiteral("tools/cropStyle"), current_crop_style_);
+  settings.setValue(QStringLiteral("tools/cropDeleteCropped"), current_crop_delete_cropped_);
   settings.setValue(QStringLiteral("tools/patternStampPatternId"), current_pattern_stamp_pattern_id_);
   settings.setValue(QStringLiteral("tools/patternStampAligned"), current_pattern_stamp_aligned_);
   settings.setValue(QStringLiteral("tools/healingDiffusion"), current_healing_diffusion_);

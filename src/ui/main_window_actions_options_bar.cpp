@@ -1327,6 +1327,16 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   bind_tooltip(crop_height_spin_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Height of the crop box"));
   configure_toolbar_spinbox(crop_height_spin_, 78);
   crop_size_option_widgets_.push_back(add_option_widget(crop_height_spin_, {CanvasTool::Crop}));
+  crop_delete_cropped_check_ = new CheckGlyphBox(tr("Delete cropped pixels and layers too"), toolbar);
+  crop_delete_cropped_check_->setObjectName(QStringLiteral("cropDeleteCroppedCheck"));
+  crop_delete_cropped_check_->setChecked(current_crop_delete_cropped_);
+  bind_tooltip(crop_delete_cropped_check_,
+               QT_TR_NOOP("Crop every layer to the new canvas and delete layers left fully outside it; off, layers keep their pixels beyond the canvas"));
+  add_option_widget(crop_delete_cropped_check_, {CanvasTool::Crop});
+  connect(crop_delete_cropped_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    current_crop_delete_cropped_ = checked;
+    save_tool_settings();
+  });
   crop_apply_button_ = new QPushButton(toolbar);
   crop_apply_button_->setObjectName(QStringLiteral("cropApplyButton"));
   crop_apply_button_->setIcon(simple_icon(QStringLiteral("ok"), QColor(160, 220, 165)));

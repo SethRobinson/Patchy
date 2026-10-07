@@ -438,6 +438,7 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
       {move_show_transform_controls_check_, QT_TR_NOOP("Show Transform Controls")},
       {move_snap_check_, QT_TR_NOOP("Snap")},
       {clone_aligned_check_, QT_TR_NOOP("Aligned")},
+      {crop_delete_cropped_check_, QT_TR_NOOP("Delete cropped pixels and layers too")},
       {retouch_sample_all_layers_check_, QT_TR_NOOP("Sample All Layers")},
       {mixer_sample_all_layers_check_, QT_TR_NOOP("Sample All Layers")},
       {patch_transparent_check_, QT_TR_NOOP("Transparent")},

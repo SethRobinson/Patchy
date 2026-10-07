@@ -217,6 +217,17 @@ void CanvasWidget::begin_default_crop_session() {
   notify_crop_session_changed();
 }
 
+void CanvasWidget::follow_selection_into_crop_session() {
+  if (tool_ != CanvasTool::Crop || !crop_session_active_ || crop_dragging_out_ || crop_rotating_ ||
+      crop_drag_handle_ != TransformHandle::None) {
+    return;
+  }
+  if (!crop_box_is_default_ && !crop_box_from_selection_) {
+    return;
+  }
+  begin_default_crop_session();
+}
+
 void CanvasWidget::set_crop_session_size(QSize size) {
   if (!crop_session_active_ || size.width() < 1 || size.height() < 1) {
     return;

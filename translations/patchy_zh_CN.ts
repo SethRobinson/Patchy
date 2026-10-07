@@ -8879,10 +8879,6 @@ RGB：%2, %3, %4</translation>
         <source>Ratio</source>
         <translation>比例</translation>
     </message>
-    <message>
-        <source>Delete cropped pixels and layers too</source>
-        <translation>同时删除裁剪掉的像素和图层</translation>
-    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -18614,6 +18610,18 @@ Baked into images: %1.</source>
     <message>
         <source>Crop to Selection (Advanced) cannot straighten a rotated crop box; use Crop to Selection</source>
         <translation>裁剪到选区(高级)无法拉直旋转的裁剪框；请使用裁剪到选区</translation>
+    </message>
+    <message>
+        <source>Delete cropped pixels and layers too</source>
+        <translation>同时删除裁剪掉的像素和图层</translation>
+    </message>
+    <message>
+        <source>Crop every layer to the new canvas and delete layers left fully outside it; off, layers keep their pixels beyond the canvas</source>
+        <translation>将每个图层裁剪到新画布并删除完全位于画布之外的图层；关闭时，图层保留画布之外的像素</translation>
+    </message>
+    <message>
+        <source>Cropped, off-canvas layers deleted: %1</source>
+        <translation>已裁剪，已删除画布外图层: %1</translation>
     </message>
 </context>
 <context>

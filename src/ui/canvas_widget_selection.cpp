@@ -1554,6 +1554,7 @@ void CanvasWidget::set_selection_from_region(QRegion selection) {
   // marquee commit, resize, and move paths store the shape again afterwards.
   marquee_shape_.reset();
   refresh_info_display();
+  follow_selection_into_crop_session();
 }
 
 void CanvasWidget::set_selection_from_mask(QRegion selection, QRect mask_bounds, QImage mask_alpha) {
@@ -1577,6 +1578,7 @@ void CanvasWidget::set_selection_from_mask(QRegion selection, QRect mask_bounds,
     selection_mask_bounds_ = {};
     selection_mask_alpha_ = QImage();
     refresh_info_display();
+    follow_selection_into_crop_session();
     return;
   }
   selection_mask_bounds_ = mask_bounds;
@@ -1586,6 +1588,7 @@ void CanvasWidget::set_selection_from_mask(QRegion selection, QRect mask_bounds,
   }
   selection_mask_alpha_ = std::move(mask_alpha);
   refresh_info_display();
+  follow_selection_into_crop_session();
 }
 
 void CanvasWidget::update_selection_square_constraint(Qt::KeyboardModifiers modifiers) {

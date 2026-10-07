@@ -8909,10 +8909,6 @@ RGB: %2, %3, %4</translation>
         <source>Ratio</source>
         <translation>Proporción</translation>
     </message>
-    <message>
-        <source>Delete cropped pixels and layers too</source>
-        <translation>Eliminar también los píxeles y las capas recortados</translation>
-    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -18670,6 +18666,18 @@ Convertido en imágenes: %1.</translation>
     <message>
         <source>Crop to Selection (Advanced) cannot straighten a rotated crop box; use Crop to Selection</source>
         <translation>Recortar según la selección (Avanzado) no puede enderezar un cuadro de recorte girado; use Recortar según la selección</translation>
+    </message>
+    <message>
+        <source>Delete cropped pixels and layers too</source>
+        <translation>Eliminar también los píxeles y las capas recortados</translation>
+    </message>
+    <message>
+        <source>Crop every layer to the new canvas and delete layers left fully outside it; off, layers keep their pixels beyond the canvas</source>
+        <translation>Recorta cada capa al nuevo lienzo y elimina las capas que queden totalmente fuera; desactivado, las capas conservan sus píxeles fuera del lienzo</translation>
+    </message>
+    <message>
+        <source>Cropped, off-canvas layers deleted: %1</source>
+        <translation>Recortado, capas fuera del lienzo eliminadas: %1</translation>
     </message>
 </context>
 <context>

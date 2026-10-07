@@ -8898,10 +8898,6 @@ RGB: %2, %3, %4</source>
         <source>Ratio</source>
         <translation type="unfinished"></translation>
     </message>
-    <message>
-        <source>Delete cropped pixels and layers too</source>
-        <translation type="unfinished"></translation>
-    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -18619,6 +18615,18 @@ Baked into images: %1.</source>
     </message>
     <message>
         <source>Crop to Selection (Advanced) cannot straighten a rotated crop box; use Crop to Selection</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete cropped pixels and layers too</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Crop every layer to the new canvas and delete layers left fully outside it; off, layers keep their pixels beyond the canvas</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cropped, off-canvas layers deleted: %1</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
