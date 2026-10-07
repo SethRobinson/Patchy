@@ -2,7 +2,7 @@
 
 Deep reference for wasm memory: how the shared memory is constructed, what
 the in-app numbers mean, the telemetry publisher, the in-app budgets, and
-the open Safari 26 tab-kill investigation. Build, toolchain, and threading
+the resolved Safari 26 tab-kill record. Build, toolchain, and threading
 rules live in [wasm.md](wasm.md); the measurement harness and the mac-host
 workflow live in [performance.md](performance.md).
 
@@ -60,7 +60,18 @@ History is byte-budgeted (256 MB on wasm, `history_memory_budget_bytes`,
 floor 3 states/session) and the style caches shrink to 96/48 MB under
 `Q_OS_WASM` (image_document_io.cpp).
 
-## Known issue: Safari 26 kills the tab within minutes (August 2026)
+## Safari 26 tab kill (August 2026; gone in Safari 26.6)
+
+Resolved browser-side. Retested October 8, 2026 on the mac build host (macOS
+and Safari 26.6.2) with the same unchanged toolchain (Qt 6.10.3, emsdk 4.0.7):
+the threaded build that August runs killed at 97 s / 19 GB survived `stress`
+`quick` to a clean exit (footprint peak 5.3 GB during the compile storm, then
+~1.9 GB) and a 15-minute `stress` `standard` run (peak 6.4 GB early, flat
+~4.2 GB after, no kill). Every browser now gets the threaded build; the
+WebKit warning notice, the `st/` artifact, and the shell page's ST routing
+were removed. iOS was not retested. If the kill returns, rerun
+`wasm-safari-memtest.ps1 -Mode stress` against older Safari first; the
+`wasm-release-st` preset still builds for comparison. The August record:
 
 Measured on the mac build host (macOS 26.3.1, Safari 26.x) with the memtest harness
 (see [performance.md](performance.md)): the app's WebContent process grows
@@ -113,15 +124,4 @@ and no kill fires in 8 minutes; but under the stress workload the process
 then climbs again past 55 GB (uncharacterized: tier-up of hot functions or
 another browser-side sink; the ST app starves page JS, so only the process
 sampler sees it), so the old toolchain delays rather than removes the
-pathology. Infrastructure state: the `wasm-release-st` preset, `st/` staging,
-uploads, and the shell page's WebKit routing plus compatibility notice are
-all in place but AUTO-ROUTING IS DISABLED (`AUTO_ROUTE_WEBKIT_TO_ST=false`
-in patchy.html.in) until a configuration demonstrably survives;
-`?PATCHY_WASM_FORCE=st|mt` selects an artifact manually for testing.
-Stopgap shipped to production (August 2026): WebKit visitors on the threaded
-build get a once-per-browser-session "Safari warning" notice after load
-(save often, Chrome/Firefox/Edge recommended); the same notice element shows
-the persistent-dismissal compatibility text if ST routing is ever enabled.
-Open: the WebKit bug report (rtsoft.com/patchy?PATCHY_WASM_FORCE=mt stays a
-clean public repro), characterizing the old-toolchain second climb, and the
-iPhone run via the beta site.
+pathology.

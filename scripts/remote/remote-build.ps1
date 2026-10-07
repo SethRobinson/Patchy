@@ -49,7 +49,7 @@ if (-not $repoRoot) { throw 'remote-build.ps1 must run inside the Patchy reposit
 Push-Location $repoRoot.Trim()
 try {
   # Snapshot the working tree with a temporary index; the real index stays untouched
-  # (remote-snapshot.ps1, shared with the wasm-release-st offload).
+  # (remote-snapshot.ps1).
   . "$PSScriptRoot\remote-snapshot.ps1"
   $snap = Push-PatchySnapshot -RemoteHost $remoteHost
   Write-Host "== building snapshot $($snap.Substring(0, 12)) on $remoteHost =="

@@ -12,11 +12,9 @@ All three configurations use Emscripten 4.0.7:
   Asyncify and pthreads. File I/O, drops and settings are browser-backed.
   Real worker threads require COOP/COEP headers (see deployment).
 - **`wasm-release-st`**: the same app with the 6.10.3 single-thread kit
-  (`PATCHY_WASM_SINGLETHREAD=ON`: no pthreads, pool, or shared memory). It is
-  staged as `st/` for Safari diagnostics, but current ST builds also die under
-  workload, so auto-routing is disabled and only
-  `?PATCHY_WASM_FORCE=st` selects it. See [wasm-memory.md](wasm-memory.md).
-  Provision with `setup-qt-wasm.ps1 -WasmArch wasm_singlethread`. The ST kit
+  (`PATCHY_WASM_SINGLETHREAD=ON`: no pthreads, pool, or shared memory). Manual
+  comparisons only: releases ship the threaded build to every browser,
+  Safari included ([wasm-memory.md](wasm-memory.md)). Provision with `setup-qt-wasm.ps1 -WasmArch wasm_singlethread`. The ST kit
   declares `QThread::loopLevel()` without defining it (an ST-only link error);
   `canvas_widget_move.cpp` reads `QThreadData` via `Qt6::CorePrivate` instead.
 

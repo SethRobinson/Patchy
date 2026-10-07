@@ -1,11 +1,9 @@
 <!doctype html>
 <!-- Patchy web shell template. scripts\release\build-wasm.bat substitutes
-     __PATCHY_VERSION__, __PATCHY_CACHE_TAG__, __PATCHY_WASM_SIZE__, and
-     __PATCHY_WASM_SIZE_ST__ and stages the result as both patchy.html and
-     index.html in build\package\wasm-site. The single-threaded st/ artifact is
-     staged for manual Safari diagnostics, but automatic routing is disabled
-     because current ST builds also die under workload (docs\wasm-memory.md).
-     The ?v= query strings are the cache busters:
+     __PATCHY_VERSION__, __PATCHY_CACHE_TAG__, and __PATCHY_WASM_SIZE__ and
+     stages the result as both patchy.html and index.html in
+     build\package\wasm-site. Every browser, Safari included, gets the threaded
+     build (docs\wasm-memory.md). The ?v= query strings are the cache busters:
      every deploy gets a fresh tag, so browsers re-fetch changed assets while
      .htaccess lets tagged URLs cache forever. The page downloads patchy.wasm
      itself with a byte-counting reader (the Emscripten loader has no
@@ -62,14 +60,6 @@
       }
       #status { margin-top: 12px; font-size: 13px; color: #8f99ab; min-height: 1.3em; }
       #status.error { color: #f07862; white-space: pre-wrap; max-width: 80vw; }
-      #stnote {
-        position: fixed; right: 14px; bottom: 14px; z-index: 10; max-width: 420px;
-        background: #232b3a; color: #e8ebf1; border: 1px solid #3a4458; border-radius: 8px;
-        padding: 14px 16px; font: 13px/1.5 "Segoe UI", system-ui, -apple-system, sans-serif;
-        box-shadow: 0 6px 24px rgba(0, 0, 0, .45); display: none;
-      }
-      #stnote b { display: block; margin-bottom: 4px; }
-      #stnote button { margin-top: 10px; padding: 6px 14px; }
     </style>
   </head>
   <body onload="init()">
@@ -81,11 +71,6 @@
       <div id="bar"><div id="bar-fill"></div></div>
       <div id="status">Preparing...</div>
       <noscript>JavaScript is disabled. Please enable JavaScript to use Patchy.</noscript>
-    </div>
-    <div id="stnote">
-      <b id="stnote-title"></b>
-      <span id="stnote-text"></span>
-      <br><button id="stnote-ok">OK</button>
     </div>
 
     <script type="text/javascript">
@@ -173,7 +158,6 @@
       // sees decompressed bytes but Content-Length carries the compressed
       // count. Falls back to the indeterminate sweep if it were ever 0.
       const WASM_SIZE = Number('__PATCHY_WASM_SIZE__') || 0;
-      const WASM_SIZE_ST = Number('__PATCHY_WASM_SIZE_ST__') || 0;
 
       // ---- Wasm memory and threading (docs/wasm-memory.md, docs/wasm.md) ----
       // Tuning knobs for on-device experiments, all URL query params:
@@ -199,74 +183,6 @@
         // multi-touch.
         return /iPad|iPhone|iPod/.test(navigator.userAgent)
             || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-      }
-
-      // Safari's optimizing wasm compiler allocates unboundedly while
-      // compiling the THREADED module and WebKit kills the tab within minutes
-      // (measured; see docs/wasm-memory.md). The single-threaded artifact in
-      // st/ is retained for manual comparisons, but current ST builds do not
-      // survive a real workload either. Every iOS browser is WebKit regardless
-      // of its name, and desktop Safari is the only desktop browser whose
-      // vendor string is Apple's.
-      // ?PATCHY_WASM_FORCE=st|mt overrides for testing (mt on Safari
-      // reproduces the bug and retests future WebKit fixes).
-      function isWebKitBrowser() {
-        return isIosDevice() || navigator.vendor === 'Apple Computer, Inc.';
-      }
-      const FORCED_ARTIFACT = new URLSearchParams(location.search).get('PATCHY_WASM_FORCE');
-      // Auto-routing stays OFF until an artifact that actually survives
-      // Safari's compiler exists: measured August 2026, every
-      // current-toolchain build, threaded or single-threaded and at every
-      // optimization level, still dies under workload (docs/wasm-memory.md).
-      // Flip this once a surviving st/ artifact ships.
-      const AUTO_ROUTE_WEBKIT_TO_ST = false;
-      const USE_ST = FORCED_ARTIFACT === 'st'
-          || (AUTO_ROUTE_WEBKIT_TO_ST && FORCED_ARTIFACT !== 'mt' && isWebKitBrowser());
-      const ARTIFACT_PREFIX = USE_ST ? 'st/' : '';
-
-      // WebKit visitors get a notice after load. Two cases: the ST artifact
-      // (compatibility mode; dismissed once, remembered forever) and the
-      // stopgap warning while WebKit visitors still get the THREADED build
-      // (the Safari 26 compiler bug can kill the tab within minutes, so the
-      // warning returns each browser session rather than staying dismissed).
-      function maybeShowSafariNotice() {
-        let title;
-        let text;
-        let store;
-        let key;
-        if (USE_ST) {
-          title = 'Running in Safari compatibility mode';
-          text = 'A bug in Safari\'s WebAssembly optimizer can crash this tab, so Patchy is'
-            + ' running in a slower single-threaded mode here. Heavy operations (large'
-            + ' filters, big documents) may briefly freeze the display. For full speed,'
-            + ' open Patchy in Chrome or Firefox on a desktop.';
-          store = localStorage;
-          key = 'patchySafariStNoticeDismissed';
-        } else if (isWebKitBrowser()) {
-          title = 'Safari warning';
-          text = 'A bug in Safari\'s WebAssembly optimizer can make this tab run out of'
-            + ' memory and close after a few minutes of use. Save your work often, and'
-            + ' until the fix ships, Chrome, Firefox, or Edge on a desktop computer is'
-            + ' recommended for Patchy.';
-          store = sessionStorage;
-          key = 'patchySafariMtWarningDismissed';
-        } else {
-          return;
-        }
-        try {
-          if (store.getItem(key) === '1') return;
-        } catch (e) { /* private mode: just show it */ }
-        el('stnote-title').textContent = title;
-        el('stnote-text').textContent = text;
-        const note = el('stnote');
-        note.style.display = 'block';
-        el('stnote-ok').addEventListener('click', () => {
-          note.style.display = 'none';
-          // Give the keyboard back to Qt: a focused page button would
-          // otherwise swallow every hotkey until the canvas is clicked.
-          el('stnote-ok').blur();
-          try { store.setItem(key, '1'); } catch (e) { /* ok */ }
-        });
       }
 
       // The heap floor baked into the wasm memory import by
@@ -312,9 +228,9 @@
       const el = id => document.getElementById(id);
       const formatMb = bytes => (bytes / (1024 * 1024)).toFixed(1);
 
-      // patchy.js and qtloader.js come from the artifact set chosen above
-      // (st/ for WebKit), so they are appended at runtime rather than as
-      // static tags.
+      // patchy.js and qtloader.js load only after the memory checks in
+      // init() pass, so they are appended at runtime rather than as static
+      // tags.
       function loadScript(src) {
         return new Promise((resolve, reject) => {
           const tag = document.createElement('script');
@@ -413,44 +329,33 @@
               return; // The iframe copy of this page loads the app.
             }
           }
-          let wasmMemory = null;
-          if (!USE_ST) {
-            // The multithreaded wasm build needs SharedArrayBuffer, which
-            // browsers only enable on cross-origin isolated pages. The server
-            // must send Cross-Origin-Opener-Policy: same-origin and
-            // Cross-Origin-Embedder-Policy: require-corp (the staged
-            // .htaccess does). Failing here beats the inscrutable
-            // SharedArrayBuffer ReferenceError the loader would hit
-            // otherwise. The single-threaded artifact needs neither the
-            // isolation nor a page-built memory (its unshared memory import
-            // rejects a shared one; Emscripten creates its own, and heap
-            // growth needs no upfront reservation).
-            if (!window.crossOriginIsolated) {
-              showError('Patchy cannot start: this page is not cross-origin isolated.\n'
-                + 'The server must send the Cross-Origin-Opener-Policy: same-origin and\n'
-                + 'Cross-Origin-Embedder-Policy: require-corp response headers.');
-              return;
-            }
-            // Reserve the memory before the download: if the device refuses
-            // every ladder rung there is no point fetching 66 MB first. Only
-            // this document (the iframe copy at non-100% scale) constructs a
-            // memory; the outer page returned above, so the address-space
-            // reservation is never doubled.
-            wasmMemory = buildWasmMemory();
-            if (!wasmMemory) {
-              showError('Patchy cannot start: the browser refused to allocate its working memory.\n'
-                + 'This device may be low on memory. Close other tabs and reload to try again.');
-              return;
-            }
+          // The threaded wasm build needs SharedArrayBuffer, which browsers
+          // only enable on cross-origin isolated pages. The server must send
+          // Cross-Origin-Opener-Policy: same-origin and
+          // Cross-Origin-Embedder-Policy: require-corp (the staged .htaccess
+          // does). Failing here beats the inscrutable SharedArrayBuffer
+          // ReferenceError the loader would hit otherwise.
+          if (!window.crossOriginIsolated) {
+            showError('Patchy cannot start: this page is not cross-origin isolated.\n'
+              + 'The server must send the Cross-Origin-Opener-Policy: same-origin and\n'
+              + 'Cross-Origin-Embedder-Policy: require-corp response headers.');
+            return;
+          }
+          // Reserve the memory before the download: if the device refuses
+          // every ladder rung there is no point fetching 66 MB first. Only
+          // this document (the iframe copy at non-100% scale) constructs a
+          // memory; the outer page returned above, so the address-space
+          // reservation is never doubled.
+          const wasmMemory = buildWasmMemory();
+          if (!wasmMemory) {
+            showError('Patchy cannot start: the browser refused to allocate its working memory.\n'
+              + 'This device may be low on memory. Close other tabs and reload to try again.');
+            return;
           }
           setStatus('Contacting server...');
-          // The loader scripts come from the chosen artifact set, so they
-          // load here instead of static tags.
-          await loadScript(ARTIFACT_PREFIX + 'patchy.js?v=' + CACHE_TAG);
-          await loadScript(ARTIFACT_PREFIX + 'qtloader.js?v=' + CACHE_TAG);
-          const wasmBytes = await fetchWasmWithProgress(
-              ARTIFACT_PREFIX + 'patchy.wasm?v=' + CACHE_TAG,
-              USE_ST ? WASM_SIZE_ST : WASM_SIZE);
+          await loadScript('patchy.js?v=' + CACHE_TAG);
+          await loadScript('qtloader.js?v=' + CACHE_TAG);
+          const wasmBytes = await fetchWasmWithProgress('patchy.wasm?v=' + CACHE_TAG, WASM_SIZE);
           el('loader').classList.remove('indeterminate');
           el('bar-fill').style.width = '100%';
           setStatus('Starting Patchy...');
@@ -459,18 +364,16 @@
           // become garbage collectable as soon as compile resolves.
           const wasmModule = await WebAssembly.compile(wasmBytes);
           const loadConfig = {
-            locateFile: filename => ARTIFACT_PREFIX + filename + '?v=' + CACHE_TAG,
+            locateFile: filename => filename + '?v=' + CACHE_TAG,
+            wasmMemory,
             qt: {
               module: Promise.resolve(wasmModule),
-              onLoaded: () => { showApp(); maybeShowSafariNotice(); },
+              onLoaded: showApp,
               onExit: showExit,
               entryFunction: window.patchy_entry,
               containerElements: [el('screen')],
             },
           };
-          if (wasmMemory) {
-            loadConfig.wasmMemory = wasmMemory;
-          }
           await qtLoad(loadConfig);
         } catch (e) {
           console.error(e);

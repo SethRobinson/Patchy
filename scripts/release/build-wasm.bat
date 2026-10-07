@@ -20,7 +20,6 @@ set "CMAKE_EXE=C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE
 if not exist "%CMAKE_EXE%" set "CMAKE_EXE=cmake"
 
 set "BUILD_DIR=%REPO%\build\wasm-release"
-set "BUILD_DIR_ST=%REPO%\build\wasm-release-st"
 set "SITE_DIR=%REPO%\build\package\wasm-site"
 
 if not exist "%REPO%\.deps\emsdk\emsdk_env.bat" (
@@ -29,11 +28,6 @@ if not exist "%REPO%\.deps\emsdk\emsdk_env.bat" (
 )
 if not exist "%REPO%\.deps\Qt\6.10.3\wasm_multithread\lib\cmake\Qt6\qt.toolchain.cmake" (
   echo Qt for WebAssembly was not found. Run: pwsh -File scripts\wasm\setup-qt-wasm.ps1
-  goto fail
-)
-if not exist "%REPO%\.deps\Qt\6.10.3\wasm_singlethread\lib\cmake\Qt6\qt.toolchain.cmake" (
-  echo The single-threaded Qt wasm kit was not found ^(the Safari-served artifact needs it^).
-  echo Run: pwsh -File scripts\wasm\setup-qt-wasm.ps1 -WasmArch wasm_singlethread
   goto fail
 )
 if not exist "%REPO%\.deps\Qt\6.10.3\msvc2022_64\bin\qmake.exe" (
@@ -59,32 +53,6 @@ call "%REPO%\.deps\emsdk\emsdk_env.bat" >nul 2>&1
 call "%REPO%\scripts\vs-env.bat" -arch=x64 -host_arch=x64 >nul
 if not "%ERRORLEVEL%"=="0" goto fail
 
-rem The single-threaded variant (wasm-release-st, served to Safari/WebKit) normally
-rem builds on the Windows offload host at the same time as the local wasm-release
-rem build; back to back the two took well over an hour. build-wasm-st-remote.ps1
-rem snapshots the working tree, builds there, copies the four outputs into
-rem build\wasm-release-st, and writes exit=<code> to a marker file when it ends.
-rem PATCHY_WASM_ST_LOCAL=1, or no "windows" host in hosts.local.json, keeps both
-rem builds local. See docs\release-process.md.
-set "ST_MODE=remote"
-if "%PATCHY_WASM_ST_LOCAL%"=="1" set "ST_MODE=local"
-set "ST_HOST="
-if "%ST_MODE%"=="remote" (
-  for /f "usebackq delims=" %%H in (`powershell -NoProfile -ExecutionPolicy Bypass -Command ". '%REPO%\scripts\remote\remote-hosts.ps1'; try { (Get-PatchyRemoteHost windows).ssh } catch { '' }"`) do set "ST_HOST=%%H"
-)
-if "%ST_MODE%"=="remote" if not defined ST_HOST (
-  echo No Windows offload host in scripts\remote\hosts.local.json; building wasm-release-st locally.
-  set "ST_MODE=local"
-)
-set "ST_LOG=%REPO%\build\release-logs\wasm-st-remote.log"
-set "ST_MARKER=%REPO%\build\release-logs\wasm-st-remote.exit"
-if "%ST_MODE%"=="remote" (
-  if not exist "%REPO%\build\release-logs" mkdir "%REPO%\build\release-logs"
-  if exist "%ST_MARKER%" del "%ST_MARKER%"
-  echo Starting the wasm-release-st build on %ST_HOST% in the background ^(log: "%ST_LOG%"^)...
-  start "Patchy wasm-release-st on %ST_HOST%" /b cmd /s /c ""%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "%REPO%\scripts\remote\build-wasm-st-remote.ps1" -Marker "%ST_MARKER%" > "%ST_LOG%" 2>&1"
-)
-
 echo Configuring wasm-release build...
 "%CMAKE_EXE%" --preset wasm-release
 if not "%ERRORLEVEL%"=="0" goto fail
@@ -92,44 +60,6 @@ if not "%ERRORLEVEL%"=="0" goto fail
 echo Building wasm-release preset...
 "%CMAKE_EXE%" --build --preset wasm-release
 if not "%ERRORLEVEL%"=="0" goto fail
-
-rem The single-threaded artifact, served to Safari/WebKit (its optimizing
-rem wasm compiler blows up on the threaded module; docs\wasm-memory.md).
-if "%ST_MODE%"=="remote" goto wait_st
-echo Configuring wasm-release-st build...
-"%CMAKE_EXE%" --preset wasm-release-st
-if not "%ERRORLEVEL%"=="0" goto fail
-echo Building wasm-release-st preset...
-"%CMAKE_EXE%" --build --preset wasm-release-st
-if not "%ERRORLEVEL%"=="0" goto fail
-goto st_ready
-
-:wait_st
-rem Poll for the marker the background driver writes when it ends, whatever
-rem happened; a driver that died without writing one is caught by the deadline.
-rem powershell sleeps because timeout.exe refuses to run without a console stdin.
-set /a ST_WAITED=0
-:wait_st_loop
-if exist "%ST_MARKER%" goto st_finished
-if %ST_WAITED% geq 10800 (
-  echo The remote wasm-release-st build did not finish within three hours; see "%ST_LOG%".
-  goto fail
-)
-powershell -NoProfile -Command "Start-Sleep -Seconds 15"
-set /a ST_WAITED+=15
-goto wait_st_loop
-:st_finished
-set "ST_EXIT="
-set /p ST_EXIT=<"%ST_MARKER%"
-echo ---- remote wasm-release-st log ^("%ST_LOG%"^) ----
-type "%ST_LOG%"
-echo ---- end of remote wasm-release-st log ----
-if not "%ST_EXIT%"=="exit=0" (
-  echo The remote wasm-release-st build on %ST_HOST% failed ^(%ST_EXIT%^).
-  goto fail
-)
-
-:st_ready
 
 echo Staging web site files...
 mkdir "%SITE_DIR%" || goto fail
@@ -142,15 +72,6 @@ for %%F in (patchy.js patchy.wasm patchy.data qtloader.js) do (
   )
   copy /Y "%BUILD_DIR%\%%F" "%SITE_DIR%\" >nul || goto fail
 )
-mkdir "%SITE_DIR%\st" || goto fail
-for %%F in (patchy.js patchy.wasm patchy.data qtloader.js) do (
-  if not exist "%BUILD_DIR_ST%\%%F" (
-    echo %%F was not created in build\wasm-release-st.
-    goto fail
-  )
-  copy /Y "%BUILD_DIR_ST%\%%F" "%SITE_DIR%\st\" >nul || goto fail
-)
-for %%S in ("%SITE_DIR%\st\patchy.wasm") do set "PATCHY_WASM_SIZE_ST=%%~zS"
 rem Shared SVG, multi-size favicon, touch icons, and cache-versioned manifest.
 powershell -NoProfile -ExecutionPolicy Bypass -File "%REPO%\scripts\wasm\stage-branding.ps1" -Destination "%SITE_DIR%" -CacheTag "%PATCHY_WEB_CACHE_TAG%"
 if not "%ERRORLEVEL%"=="0" goto fail
@@ -166,7 +87,7 @@ rem Configure the shell template; it is staged as both patchy.html and an
 rem index.html copy so https://rtsoft.com/patchy/ serves the app directly.
 set "PATCHY_WEB_TEMPLATE=%REPO%\packaging\web\patchy.html.in"
 set "PATCHY_WEB_SITE_DIR=%SITE_DIR%"
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$html = Get-Content -Raw -LiteralPath $env:PATCHY_WEB_TEMPLATE; $html = $html.Replace('__PATCHY_VERSION__', $env:PATCHY_PACKAGE_VERSION).Replace('__PATCHY_CACHE_TAG__', $env:PATCHY_WEB_CACHE_TAG).Replace('__PATCHY_WASM_SIZE_ST__', $env:PATCHY_WASM_SIZE_ST).Replace('__PATCHY_WASM_SIZE__', $env:PATCHY_WASM_SIZE); if ($html -match '__PATCHY_') { Write-Error 'patchy.html.in still contains an unreplaced __PATCHY_ placeholder.'; exit 1 }; Set-Content -LiteralPath (Join-Path $env:PATCHY_WEB_SITE_DIR 'patchy.html') -Value $html -NoNewline -Encoding UTF8; Set-Content -LiteralPath (Join-Path $env:PATCHY_WEB_SITE_DIR 'index.html') -Value $html -NoNewline -Encoding UTF8"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$html = Get-Content -Raw -LiteralPath $env:PATCHY_WEB_TEMPLATE; $html = $html.Replace('__PATCHY_VERSION__', $env:PATCHY_PACKAGE_VERSION).Replace('__PATCHY_CACHE_TAG__', $env:PATCHY_WEB_CACHE_TAG).Replace('__PATCHY_WASM_SIZE__', $env:PATCHY_WASM_SIZE); if ($html -match '__PATCHY_') { Write-Error 'patchy.html.in still contains an unreplaced __PATCHY_ placeholder.'; exit 1 }; Set-Content -LiteralPath (Join-Path $env:PATCHY_WEB_SITE_DIR 'patchy.html') -Value $html -NoNewline -Encoding UTF8; Set-Content -LiteralPath (Join-Path $env:PATCHY_WEB_SITE_DIR 'index.html') -Value $html -NoNewline -Encoding UTF8"
 if not "%ERRORLEVEL%"=="0" goto fail
 
 rem Stage the memory-diagnostics harness with the same cache tag, plus the

@@ -45,8 +45,7 @@ scripts\remote\remote-build.ps1 -Target linux
 
 After it snapshots the tree, use the corresponding remote checkout for clean
 `mac-dev` or `linux-dev` verification. The snapshot push lives in
-`scripts\remote\remote-snapshot.ps1`, shared with `build-wasm-st-remote.ps1` (the
-wasm section of [release-process.md](release-process.md)). Do not add `-Werror` or `/WX`; a new warning is
+`scripts\remote\remote-snapshot.ps1`. Do not add `-Werror` or `/WX`; a new warning is
 fixed in source or isolated at the exact vendored source and diagnostic.
 
 GCC-only diagnostics MSVC never reports: `-Wmissing-field-initializers` fires when a

@@ -11,7 +11,7 @@ temporary index (PID-suffixed, so concurrent pushes to different hosts do not cl
 other) takes `git add -A`, write-tree and commit-tree produce the snapshot, and the temporary
 index is removed again. The remote side checks the ref out detached, so unchanged files keep
 their mtimes and the remote Ninja build stays incremental. Throws on any git failure.
-Shared by remote-build.ps1 (mac/linux/windows test builds) and build-wasm-st-remote.ps1.
+Used by remote-build.ps1 (mac/linux/windows test builds).
 #>
 function Push-PatchySnapshot {
   param(
