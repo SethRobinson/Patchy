@@ -51,8 +51,10 @@ new canvas entirely and any group that empties as a result; layers without bound
 (adjustments, never-painted layers) stay, and the status line reports the count. The
 delete runs against the frame BEFORE the resize (`remove_layers_outside_canvas(doc, frame)`):
 the layer crop rewrites every pixel layer to canvas-sized bounds, so afterwards nothing
-tests as off the canvas. Both
-checkboxes start unchecked on every opening and are never persisted. The Crop tool's
+tests as off the canvas. Neither
+checkbox is persisted: both start unchecked on every Canvas Size opening, while Crop to
+Selection (Advanced) starts with the layer crop checked (Photoshop's Image > Crop trims
+the layers) and the delete unchecked. The Crop tool's
 options bar carries the same two options as Delete Cropped Pixels (default on) and Delete
 Off-Canvas Layers ([crop-tool.md](crop-tool.md)). All modes are
 undoable. Document alpha/spot channels remain canvas-sized; editable vector paths, text

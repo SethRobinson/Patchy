@@ -4412,8 +4412,10 @@ void ui_canvas_size_dialog_deletes_off_canvas_layers() {
 
 // Crop to Selection (Advanced) opens the Canvas Size dialog with the selection as its
 // frame: the fields prefill to the selection size, Current Size still shows the
-// document, an unchanged accept crops exactly to the selection (content translates by
-// its origin), and the delete option drops what the crop left outside.
+// document, the layer crop starts checked (Photoshop's Image > Crop trims the layers)
+// while the delete option does not, an unchanged accept crops exactly to the selection
+// (every layer trimmed to the new canvas), and the delete option drops what the crop
+// left outside.
 void ui_crop_to_selection_advanced_prefills_canvas_size_dialog() {
   SettingsValueRestorer restore_unit(QStringLiteral("canvasSize/lastUnit"));
   patchy::ui::app_settings().remove(QStringLiteral("canvasSize"));
@@ -4457,10 +4459,13 @@ void ui_crop_to_selection_advanced_prefills_canvas_size_dialog() {
       auto* height = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("canvasSizeHeightSpin"));
       auto* width_unit = dialog->findChild<QComboBox*>(QStringLiteral("canvasSizeWidthUnitCombo"));
       auto* current_width = dialog->findChild<QLabel*>(QStringLiteral("canvasSizeCurrentWidthLabel"));
+      auto* crop = dialog->findChild<QCheckBox*>(QStringLiteral("canvasSizeCropLayersCheck"));
       auto* remove = dialog->findChild<QCheckBox*>(QStringLiteral("canvasSizeDeleteOffCanvasCheck"));
       CHECK(width != nullptr && height != nullptr && width_unit != nullptr && current_width != nullptr &&
-            remove != nullptr);
+            crop != nullptr && remove != nullptr);
       CHECK(dialog->windowTitle() == QStringLiteral("Crop to Selection (Advanced)"));
+      CHECK(crop->isChecked());
+      CHECK(!remove->isChecked());
       CHECK(width_unit->currentText() == QStringLiteral("Pixels"));
       CHECK(width->value() == static_cast<double>(selection->width()));
       CHECK(height->value() == static_cast<double>(selection->height()));
@@ -4480,8 +4485,9 @@ void ui_crop_to_selection_advanced_prefills_canvas_size_dialog() {
   CHECK(document.height() == selection->height());
   CHECK(document.find_layer(far_id) == nullptr);
   const auto paint_bounds_after = paint_layer_bounds();
-  CHECK(paint_bounds_after.x == paint_bounds_before.x - selection->x());
-  CHECK(paint_bounds_after.y == paint_bounds_before.y - selection->y());
+  CHECK(paint_bounds_before.width > selection->width());
+  CHECK(paint_bounds_after.x == 0 && paint_bounds_after.y == 0);
+  CHECK(paint_bounds_after.width == selection->width() && paint_bounds_after.height == selection->height());
   CHECK(!canvas->selected_document_rect().has_value());
 }
 

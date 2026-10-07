@@ -1176,8 +1176,10 @@ std::optional<CanvasSizeSettings> request_canvas_size_settings(QWidget* parent, 
   extension_row->addWidget(color_swatch);
   auto* crop_layers = new QCheckBox(QObject::tr("Also crop each actual layer to the canvas area"), &dialog);
   crop_layers->setObjectName(QStringLiteral("canvasSizeCropLayersCheck"));
-  // Destructive opt-in, deliberately never loaded from or saved to settings.
-  crop_layers->setChecked(false);
+  // Never loaded from or saved to settings. Canvas Size keeps off-canvas pixels (a
+  // destructive opt-in, like Photoshop); a crop trims the layers, like Photoshop's
+  // Image > Crop with Delete Cropped Pixels, so the advanced crop starts checked.
+  crop_layers->setChecked(crop_frame.has_value());
   content_layout->addWidget(crop_layers);
   auto* delete_off_canvas =
       new QCheckBox(QObject::tr("Also delete layers that end up fully off the canvas"), &dialog);
