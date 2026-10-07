@@ -5887,16 +5887,6 @@
         <translation>쌍입방 더 매끄럽게(확대)</translation>
     </message>
     <message>
-        <source>Nearest Neighbor</source>
-        <translation>최단입점</translation>
-    </message>
-    <message>
-        <source>Create a new, larger document with more detail
-Open in Generative Upscale...</source>
-        <translation>더 자세한 내용이 포함된 더 큰 새 문서 만들기
-제너러티브 업스케일로 열기...</translation>
-    </message>
-    <message>
         <source>%1 px x %2 px</source>
         <translation>%1픽셀x%2픽셀</translation>
     </message>
@@ -8878,6 +8868,30 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>Ratio</source>
         <translation>비율</translation>
+    </message>
+    <message>
+        <source>Automatic</source>
+        <translation>자동</translation>
+    </message>
+    <message>
+        <source>Nearest Neighbor (hard edges)</source>
+        <translation>최근접 이웃 (선명한 가장자리)</translation>
+    </message>
+    <message>
+        <source>Bilinear</source>
+        <translation>이중선형</translation>
+    </message>
+    <message>
+        <source>Bicubic (smooth gradients)</source>
+        <translation>쌍입방 (부드러운 그라디언트)</translation>
+    </message>
+    <message>
+        <source>Off: the pixel dimensions stay the same and only the print resolution changes, so the image is not scaled.</source>
+        <translation>끄면 픽셀 크기는 그대로 유지되고 인쇄 해상도만 바뀌므로 이미지가 확대 또는 축소되지 않습니다.</translation>
+    </message>
+    <message>
+        <source>Pixel dimensions are locked. Only the print resolution and the print size change.</source>
+        <translation>픽셀 크기가 잠겨 있습니다. 인쇄 해상도와 인쇄 크기만 바뀝니다.</translation>
     </message>
 </context>
 <context>
@@ -20040,6 +20054,10 @@ Y: %2
     <message>
         <source>mergeLayers: effectsFrom requires singleVector.</source>
         <translation>mergeLayers: effectsFrom에는 singleVector가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>resizeImage method must be one of %1.</source>
+        <translation>resizeImage의 method는 %1 중 하나여야 합니다.</translation>
     </message>
 </context>
 <context>

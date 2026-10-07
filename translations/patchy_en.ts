@@ -5690,15 +5690,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Nearest Neighbor</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Create a new, larger document with more detail
-Open in Generative Upscale...</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>%1 px x %2 px</source>
         <translation type="unfinished"></translation>
     </message>
@@ -8896,6 +8887,30 @@ RGB: %2, %3, %4</source>
     </message>
     <message>
         <source>Ratio</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Automatic</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Nearest Neighbor (hard edges)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bilinear</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bicubic (smooth gradients)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Off: the pixel dimensions stay the same and only the print resolution changes, so the image is not scaled.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pixel dimensions are locked. Only the print resolution and the print size change.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -20046,6 +20061,10 @@ Baked into images: %1.</source>
     </message>
     <message>
         <source>mergeLayers: effectsFrom requires singleVector.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>resizeImage method must be one of %1.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

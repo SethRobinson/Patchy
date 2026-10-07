@@ -1645,6 +1645,7 @@ void accept_image_size_dialog(int width_value, int height_value) {
       auto* method = dialog->findChild<QComboBox*>(QStringLiteral("imageSizeResampleCombo"));
       auto* link = dialog->findChild<QToolButton*>(QStringLiteral("imageSizeLinkButton"));
       auto* width_unit = dialog->findChild<QComboBox*>(QStringLiteral("imageSizeWidthUnitCombo"));
+      auto* hint = dialog->findChild<QLabel*>(QStringLiteral("imageSizeResampleHintLabel"));
       CHECK(width != nullptr);
       CHECK(height != nullptr);
       CHECK(dimensions != nullptr);
@@ -1653,6 +1654,7 @@ void accept_image_size_dialog(int width_value, int height_value) {
       CHECK(method != nullptr);
       CHECK(link != nullptr);
       CHECK(width_unit != nullptr);
+      CHECK(hint != nullptr);
       // The dialog remembers its last unit (a Resample-off accept leaves Inches);
       // the values below are pixels, so pick Pixels explicitly.
       width_unit->setCurrentIndex(width_unit->findText(QStringLiteral("Pixels")));
@@ -1661,7 +1663,12 @@ void accept_image_size_dialog(int width_value, int height_value) {
       CHECK(height->buttonSymbols() == QAbstractSpinBox::NoButtons);
       CHECK(dimensions->text().contains(QStringLiteral("px x")));
       CHECK(resample->isChecked());
-      CHECK(method->currentText() == QStringLiteral("Bicubic Sharper (reduction)"));
+      // Six real methods, remembered across openings; the Resample-off hint stays hidden
+      // while resampling is on, and the Photoshop "Generative Upscale" label is gone.
+      CHECK(method->count() == 6);
+      CHECK(!method->currentData().toString().isEmpty());
+      CHECK(hint != nullptr && !hint->isVisible());
+      CHECK(dialog->findChild<QLabel*>(QStringLiteral("imageSizeUpscaleLabel")) == nullptr);
       CHECK(link->isChecked());
       width->setValue(width_value);
       height->setValue(height_value);

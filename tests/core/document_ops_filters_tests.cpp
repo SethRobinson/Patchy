@@ -638,6 +638,35 @@ void document_image_resize_scales_layers_and_writes_artifact() {
   CHECK(px[2] == 150);
   CHECK(px[3] == 255);
   write_bmp_artifact("document_image_resize", document);
+
+  // The method reaches every layer: Nearest Neighbor doubles a 2x2 checker into hard
+  // 2x2 blocks, where the default (Automatic -> Bicubic Smoother) would blend the edges.
+  patchy::Document checker_document(2, 2, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer checker(2, 2, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < 2; ++y) {
+    for (std::int32_t x = 0; x < 2; ++x) {
+      auto* pixel = checker.pixel(x, y);
+      const std::uint8_t value = (x + y) % 2 == 0 ? 0 : 255;
+      pixel[0] = pixel[1] = pixel[2] = value;
+      pixel[3] = 255;
+    }
+  }
+  checker_document.add_pixel_layer("Checker", std::move(checker));
+  auto blended = checker_document;
+  patchy::resize_image_and_layers(checker_document, 4, 4, patchy::ResampleMethod::NearestNeighbor);
+  patchy::resize_image_and_layers(blended, 4, 4);
+  CHECK(checker_document.width() == 4 && checker_document.height() == 4);
+  bool blended_has_midtone = false;
+  for (std::int32_t y = 0; y < 4; ++y) {
+    for (std::int32_t x = 0; x < 4; ++x) {
+      const auto* nearest = std::as_const(checker_document).layers().front().pixels().pixel(x, y);
+      const std::uint8_t expected = ((x / 2) + (y / 2)) % 2 == 0 ? 0 : 255;
+      CHECK(nearest[0] == expected && nearest[3] == 255);
+      const auto* soft = std::as_const(blended).layers().front().pixels().pixel(x, y);
+      blended_has_midtone = blended_has_midtone || (soft[0] != 0 && soft[0] != 255);
+    }
+  }
+  CHECK(blended_has_midtone);
 }
 
 void document_rotate_clockwise_changes_canvas_and_writes_artifact() {

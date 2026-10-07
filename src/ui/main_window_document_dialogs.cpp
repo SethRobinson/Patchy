@@ -20,6 +20,7 @@
 #include "core/palette_presets.hpp"
 #include "core/pattern_presets.hpp"
 #include "core/pixel_tools.hpp"
+#include "core/resample.hpp"
 #include "formats/palette_io.hpp"
 #include "filters/builtin_filters.hpp"
 #include "formats/aseprite_document_io.hpp"
@@ -389,7 +390,32 @@ struct ImageSizeSettings {
   std::int32_t height{0};
   double resolution{300.0};
   bool resample{true};
+  ResampleMethod method{ResampleMethod::Automatic};
 };
+
+// The combo's visible names; the item data is the permanent id (core/resample.hpp).
+QString resample_method_label(ResampleMethod method) {
+  switch (method) {
+    case ResampleMethod::Automatic:
+      return QObject::tr("Automatic");
+    case ResampleMethod::NearestNeighbor:
+      return QObject::tr("Nearest Neighbor (hard edges)");
+    case ResampleMethod::Bilinear:
+      return QObject::tr("Bilinear");
+    case ResampleMethod::Bicubic:
+      return QObject::tr("Bicubic (smooth gradients)");
+    case ResampleMethod::BicubicSmoother:
+      return QObject::tr("Bicubic Smoother (enlargement)");
+    case ResampleMethod::BicubicSharper:
+      return QObject::tr("Bicubic Sharper (reduction)");
+  }
+  return QObject::tr("Automatic");
+}
+
+QString resample_method_id_string(ResampleMethod method) {
+  const auto id = resample_method_id(method);
+  return QString::fromUtf8(id.data(), static_cast<qsizetype>(id.size()));
+}
 
 QString format_image_size_bytes(std::int32_t width, std::int32_t height, PixelFormat format) {
   const auto bytes = static_cast<double>(std::max<std::int32_t>(0, width)) *
@@ -453,7 +479,7 @@ std::optional<ImageSizeSettings> request_image_size_settings(QWidget* parent, co
       background: @dlg_field_bg;
       border: 1px solid @dlg_field_border;
     }
-    QLabel#imageSizeUpscaleLabel {
+    QLabel#imageSizeResampleHintLabel {
       color: @dlg_field_text;
     }
     QSpinBox, QComboBox {
@@ -625,22 +651,36 @@ std::optional<ImageSizeSettings> request_image_size_settings(QWidget* parent, co
   auto* resample = new QCheckBox(QObject::tr("Resample:"), &dialog);
   resample->setObjectName(QStringLiteral("imageSizeResampleCheck"));
   resample->setChecked(true);
+  resample->setToolTip(QObject::tr("Off: the pixel dimensions stay the same and only the print resolution "
+                                   "changes, so the image is not scaled."));
+  // The method persists across sessions by its permanent id (`imageSize/lastResampleMethod`,
+  // Photoshop's dialog memory); an unknown or missing value is Automatic.
   auto* resample_method = new QComboBox(&dialog);
   resample_method->setObjectName(QStringLiteral("imageSizeResampleCombo"));
-  resample_method->addItem(QObject::tr("Bicubic Sharper (reduction)"));
-  resample_method->addItem(QObject::tr("Bicubic Smoother (enlargement)"));
-  resample_method->addItem(QObject::tr("Nearest Neighbor"));
+  for (const auto method : all_resample_methods()) {
+    resample_method->addItem(resample_method_label(method), resample_method_id_string(method));
+  }
+  const auto remembered_method =
+      parse_resample_method(
+          app_settings().value(QStringLiteral("imageSize/lastResampleMethod")).toString().toStdString())
+          .value_or(ResampleMethod::Automatic);
+  resample_method->setCurrentIndex(resample_method->findData(resample_method_id_string(remembered_method)));
   grid->addWidget(resample, 6, 0, Qt::AlignRight | Qt::AlignVCenter);
   grid->addWidget(resample_method, 6, 1, 1, 3);
 
-  auto* upscale_label = new QLabel(QObject::tr("Create a new, larger document with more detail\n"
-                                               "Open in Generative Upscale..."),
-                                   &dialog);
-  upscale_label->setObjectName(QStringLiteral("imageSizeUpscaleLabel"));
-  upscale_label->setWordWrap(true);
-  upscale_label->setMinimumHeight(54);
+  // Shown only while Resample is off: that mode never scales pixels, which is not
+  // obvious from a disabled combo alone.
+  auto* resample_hint = new QLabel(
+      QObject::tr("Pixel dimensions are locked. Only the print resolution and the print size change."), &dialog);
+  resample_hint->setObjectName(QStringLiteral("imageSizeResampleHintLabel"));
+  resample_hint->setWordWrap(true);
+  resample_hint->setMinimumHeight(54);
+  auto hint_policy = resample_hint->sizePolicy();
+  hint_policy.setRetainSizeWhenHidden(true);
+  resample_hint->setSizePolicy(hint_policy);
+  resample_hint->setVisible(false);
   controls_layout->addSpacing(26);
-  controls_layout->addWidget(upscale_label);
+  controls_layout->addWidget(resample_hint);
   controls_layout->addStretch(1);
 
   const auto update_summary = [image_size_value, dimensions_value, &state, &document] {
@@ -772,6 +812,7 @@ std::optional<ImageSizeSettings> request_image_size_settings(QWidget* parent, co
     fit->setEnabled(checked);
     link->setEnabled(checked);
     resample_method->setEnabled(checked);
+    resample_hint->setVisible(!checked);
     if (!checked) {
       // Pixels lock to the document's real dimensions: any pending resample reverts
       // (Photoshop behavior), matching the metadata-only apply that follows.
@@ -814,7 +855,10 @@ std::optional<ImageSizeSettings> request_image_size_settings(QWidget* parent, co
   }
   remember_dialog_unit(QStringLiteral("imageSize/lastUnit"), current_unit(width_unit));
   remember_resolution_unit(QStringLiteral("imageSize/lastResolutionUnit"), resolution_unit->currentIndex());
-  return ImageSizeSettings{state.pixel_width, state.pixel_height, state.ppi, resample->isChecked()};
+  const auto method = parse_resample_method(resample_method->currentData().toString().toStdString())
+                          .value_or(ResampleMethod::Automatic);
+  app_settings().setValue(QStringLiteral("imageSize/lastResampleMethod"), resample_method_id_string(method));
+  return ImageSizeSettings{state.pixel_width, state.pixel_height, state.ppi, resample->isChecked(), method};
 }
 
 // `crop_frame` is Crop to Selection (Advanced): the selection rect prefills the fields
@@ -1384,7 +1428,7 @@ void MainWindow::create_new_document() {
   fit_new_document_view(canvas_);
 }
 
-bool MainWindow::resize_document_image(DocumentSession& target, int width, int height,
+bool MainWindow::resize_document_image(DocumentSession& target, int width, int height, ResampleMethod method,
                                        std::function<bool()> keep_running) {
   if (target.document.width() == width && target.document.height() == height) { return true; }
   auto edit_lock = lock_preview_dialog_edits();
@@ -1392,9 +1436,9 @@ bool MainWindow::resize_document_image(DocumentSession& target, int width, int h
   // private copy lets the normal Processing overlay paint without racing the
   // canvas, thumbnails, or an in-flight renderer against partially resized data.
   const auto* source = &std::as_const(target.document);
-  auto future = launch_async([source, width, height] {
+  auto future = launch_async([source, width, height, method] {
     auto resized = *source;
-    resize_image_and_layers(resized, width, height);
+    resize_image_and_layers(resized, width, height, method);
     return resized;
   });
   bool cancelled = false;
@@ -1453,7 +1497,7 @@ void MainWindow::resize_image_dialog() {
 
   push_undo_snapshot(tr("Image size"));
   if (dimensions_changed) {
-    resize_document_image(session(), settings->width, settings->height);
+    resize_document_image(session(), settings->width, settings->height, settings->method);
     canvas_->clear_selection();
     const auto previous_channel_target = canvas_->layer_edit_target();
     const auto previous_channel_id = canvas_->active_document_channel_id();

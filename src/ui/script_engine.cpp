@@ -1182,12 +1182,12 @@ bool ScriptEngineHost::prepare_mutation(std::int64_t session_id) {
   return true;
 }
 
-bool ScriptEngineHost::resize_session_image(std::int64_t session_id, int width, int height) {
+bool ScriptEngineHost::resize_session_image(std::int64_t session_id, int width, int height, ResampleMethod method) {
   auto* session = window_.session_with_id(session_id);
   if (!session) { return false; }
   if (session->document.width() == width && session->document.height() == height) { return true; }
   if (!prepare_mutation(session_id)) { return false; }
-  const bool resized = window_.resize_document_image(*session, width, height, [this] {
+  const bool resized = window_.resize_document_image(*session, width, height, method, [this] {
     pump_progress_indicator();
     return !engine_ || !engine_->isInterrupted();
   });

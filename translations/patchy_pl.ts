@@ -5907,16 +5907,6 @@
         <translation>Dwusześcienna gładsza (powiększanie)</translation>
     </message>
     <message>
-        <source>Nearest Neighbor</source>
-        <translation>Najbliższy sąsiad</translation>
-    </message>
-    <message>
-        <source>Create a new, larger document with more detail
-Open in Generative Upscale...</source>
-        <translation>Utwórz nowy, większy dokument z większą liczbą szczegółów
-Otwórz w Powiększaniu generatywnym...</translation>
-    </message>
-    <message>
         <source>%1 px x %2 px</source>
         <translation>%1 piksel x %2 piksel</translation>
     </message>
@@ -8938,6 +8928,30 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>Ratio</source>
         <translation>Proporcje</translation>
+    </message>
+    <message>
+        <source>Automatic</source>
+        <translation>Automatycznie</translation>
+    </message>
+    <message>
+        <source>Nearest Neighbor (hard edges)</source>
+        <translation>Najbliższy sąsiad (ostre krawędzie)</translation>
+    </message>
+    <message>
+        <source>Bilinear</source>
+        <translation>Dwuliniowy</translation>
+    </message>
+    <message>
+        <source>Bicubic (smooth gradients)</source>
+        <translation>Dwusześcienna (gładkie gradienty)</translation>
+    </message>
+    <message>
+        <source>Off: the pixel dimensions stay the same and only the print resolution changes, so the image is not scaled.</source>
+        <translation>Wyłączone: wymiary w pikselach pozostają bez zmian, zmienia się tylko rozdzielczość druku, więc obraz nie jest skalowany.</translation>
+    </message>
+    <message>
+        <source>Pixel dimensions are locked. Only the print resolution and the print size change.</source>
+        <translation>Wymiary w pikselach są zablokowane. Zmieniają się tylko rozdzielczość i rozmiar wydruku.</translation>
     </message>
 </context>
 <context>
@@ -20154,6 +20168,10 @@ Y: %2
     <message>
         <source>mergeLayers: effectsFrom requires singleVector.</source>
         <translation>mergeLayers: effectsFrom wymaga singleVector.</translation>
+    </message>
+    <message>
+        <source>resizeImage method must be one of %1.</source>
+        <translation>Metoda resizeImage musi być jedną z: %1.</translation>
     </message>
 </context>
 <context>

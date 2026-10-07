@@ -70,6 +70,9 @@ interface PatchyStrokePoint {
   timeMs?: number;
 }
 type PatchyBrushControl = "off" | "fade" | "penPressure" | "penTilt" | "penRotation" | "stylusWheel";
+/** Image Size resampling methods (`doc.resizeImage`): "automatic" picks Bicubic Sharper for a
+ *  reduction and Bicubic Smoother for an enlargement. */
+type PatchyResampleMethod = "automatic" | "nearest" | "bilinear" | "bicubic" | "bicubicSmoother" | "bicubicSharper";
 interface PatchyBrushDynamics {
   sizeJitter?: number; minimumDiameter?: number;
   sizeControl?: PatchyBrushControl | "global"; sizeFadeSteps?: number;
@@ -695,7 +698,10 @@ interface PatchyDocument {
   distributeLayers(mode: "left" | "hcenter" | "right" | "top" | "vcenter" | "bottom" | "hspacing" | "vspacing",
     options?: {layers?: PatchyLayer[]}): number;
   flatten(): void;
-  resizeImage(width: number, height: number): void;
+  /** Image > Image Size. `options.method` is the resampling method (default "automatic":
+   *  Bicubic Sharper for a reduction, Bicubic Smoother for an enlargement); an unknown id
+   *  throws. Text layers and smart objects re-render from their sources afterwards. */
+  resizeImage(width: number, height: number, options?: {method?: PatchyResampleMethod}): void;
   resizeCanvas(width: number, height: number): void;
   /** Crops to the canvas intersection; throws if the rectangle is outside the canvas. */
   crop(x: number, y: number, width: number, height: number): void;

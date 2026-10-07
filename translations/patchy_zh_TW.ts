@@ -5681,16 +5681,6 @@
         <translation>環迴增值法：更平滑 (放大)</translation>
     </message>
     <message>
-        <source>Nearest Neighbor</source>
-        <translation>最接近像素</translation>
-    </message>
-    <message>
-        <source>Create a new, larger document with more detail
-Open in Generative Upscale...</source>
-        <translation>建立細節更豐富的全新較大文件
-在生成式放大中開啟...</translation>
-    </message>
-    <message>
         <source>%1 px x %2 px</source>
         <translation>%1 px x %2 px</translation>
     </message>
@@ -8878,6 +8868,30 @@ RGB：%2, %3, %4</translation>
     <message>
         <source>Ratio</source>
         <translation>比例</translation>
+    </message>
+    <message>
+        <source>Automatic</source>
+        <translation>自動</translation>
+    </message>
+    <message>
+        <source>Nearest Neighbor (hard edges)</source>
+        <translation>最接近像素 (硬邊緣)</translation>
+    </message>
+    <message>
+        <source>Bilinear</source>
+        <translation>縱橫增值</translation>
+    </message>
+    <message>
+        <source>Bicubic (smooth gradients)</source>
+        <translation>環迴增值 (平滑漸層)</translation>
+    </message>
+    <message>
+        <source>Off: the pixel dimensions stay the same and only the print resolution changes, so the image is not scaled.</source>
+        <translation>關閉時像素尺寸維持不變，只會更改列印解析度，因此影像不會被縮放。</translation>
+    </message>
+    <message>
+        <source>Pixel dimensions are locked. Only the print resolution and the print size change.</source>
+        <translation>像素尺寸已鎖定。只有列印解析度與列印尺寸會更改。</translation>
     </message>
 </context>
 <context>
@@ -20040,6 +20054,10 @@ Baked into images: %1.</source>
     <message>
         <source>mergeLayers: effectsFrom requires singleVector.</source>
         <translation>mergeLayers：effectsFrom 需要 singleVector。</translation>
+    </message>
+    <message>
+        <source>resizeImage method must be one of %1.</source>
+        <translation>resizeImage 的 method 必須是 %1 之一。</translation>
     </message>
 </context>
 <context>

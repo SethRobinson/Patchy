@@ -5,6 +5,7 @@
 #include "core/document_recovery_store.hpp"
 #include "core/layer_alignment.hpp"
 #include "core/layer_tree.hpp"
+#include "core/resample.hpp"
 #include "core/smart_filter.hpp"
 #include "core/text_warp.hpp"
 #include "filters/filter_registry.hpp"
@@ -633,7 +634,9 @@ private:
   void create_clipboard_document(const QImage& image, QString history_label);
   void create_new_document();
   void resize_image_dialog();
-  bool resize_document_image(DocumentSession& target, int width, int height,
+  // Image Size for the dialog, doc.resizeImage and MCP: `method` is a core ResampleMethod
+  // (Automatic resolves inside resize_image_and_layers).
+  bool resize_document_image(DocumentSession& target, int width, int height, ResampleMethod method,
                              std::function<bool()> keep_running = {});
   void resize_canvas_dialog();
   // Image > Crop to Selection (Advanced): the Canvas Size dialog prefilled with the

@@ -11,6 +11,7 @@
 #include "core/layer_metadata.hpp"
 #include "core/pixel_tools_internal.hpp"
 #include "core/rect_utils.hpp"
+#include "core/resample.hpp"
 #include "core/smart_object.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
@@ -496,8 +497,8 @@ struct RotatedCropMap {
 
 // Samples `source` (document-space `source_bounds`) into `destination`
 // (result-space `destination_bounds`) through the inverse crop mapping.
-// Bilinear with clamped edges for 8-bit (the scale_pixels_resampled
-// conventions), nearest for other depths; destination pixels whose source
+// Bilinear with clamped edges for 8-bit (the convention a bilinear Image Size
+// enlargement shares, core/resample.cpp), nearest for other depths; destination pixels whose source
 // point falls outside the buffer keep their pre-filled value. A 3->4 channel
 // promotion writes opaque alpha, like copy_resized_layer_pixel.
 void sample_rotated_crop_pixels(const PixelBuffer& source, Rect source_bounds, PixelBuffer& destination,
@@ -680,71 +681,10 @@ void crop_layer_to_rect_expanding(Layer& layer, Rect crop, EditColor extension_c
   return Rect{left, top, right - left, bottom - top};
 }
 
-void copy_nearest_scaled_pixels(const PixelBuffer& source, PixelBuffer& scaled) {
-  const auto pixel_bytes = bytes_per_pixel(source.format());
-  for (std::int32_t y = 0; y < scaled.height(); ++y) {
-    const auto sy =
-        std::clamp(static_cast<std::int32_t>((static_cast<std::int64_t>(y) * source.height()) / scaled.height()), 0,
-                   source.height() - 1);
-    for (std::int32_t x = 0; x < scaled.width(); ++x) {
-      const auto sx =
-          std::clamp(static_cast<std::int32_t>((static_cast<std::int64_t>(x) * source.width()) / scaled.width()), 0,
-                     source.width() - 1);
-      const auto* src = source.pixel(sx, sy);
-      auto* dst = scaled.pixel(x, y);
-      std::copy(src, src + pixel_bytes, dst);
-    }
-  }
-}
-
-}  // namespace
-
-// Declared in core/pixel_tools.hpp; the Proton texture writer's stretch mode shares it.
-PixelBuffer scale_pixels_resampled(const PixelBuffer& source, std::int32_t width, std::int32_t height) {
-  PixelBuffer scaled(width, height, source.format());
-  if (source.empty() || width <= 0 || height <= 0) {
-    return scaled;
-  }
-
-  if (source.format().bit_depth != BitDepth::UInt8) {
-    copy_nearest_scaled_pixels(source, scaled);
-    return scaled;
-  }
-
-  const auto channels = source.format().channels;
-  for (std::int32_t y = 0; y < height; ++y) {
-    const auto source_y =
-        ((static_cast<double>(y) + 0.5) * static_cast<double>(source.height()) / static_cast<double>(height)) - 0.5;
-    const auto y0 = std::clamp(static_cast<std::int32_t>(std::floor(source_y)), 0, source.height() - 1);
-    const auto y1 = std::clamp(y0 + 1, 0, source.height() - 1);
-    const auto ty = std::clamp(source_y - static_cast<double>(y0), 0.0, 1.0);
-    for (std::int32_t x = 0; x < width; ++x) {
-      const auto source_x =
-          ((static_cast<double>(x) + 0.5) * static_cast<double>(source.width()) / static_cast<double>(width)) - 0.5;
-      const auto x0 = std::clamp(static_cast<std::int32_t>(std::floor(source_x)), 0, source.width() - 1);
-      const auto x1 = std::clamp(x0 + 1, 0, source.width() - 1);
-      const auto tx = std::clamp(source_x - static_cast<double>(x0), 0.0, 1.0);
-      const auto* top_left = source.pixel(x0, y0);
-      const auto* top_right = source.pixel(x1, y0);
-      const auto* bottom_left = source.pixel(x0, y1);
-      const auto* bottom_right = source.pixel(x1, y1);
-      auto* dst = scaled.pixel(x, y);
-      for (std::uint16_t channel = 0; channel < channels; ++channel) {
-        const auto top =
-            static_cast<double>(top_left[channel]) * (1.0 - tx) + static_cast<double>(top_right[channel]) * tx;
-        const auto bottom =
-            static_cast<double>(bottom_left[channel]) * (1.0 - tx) + static_cast<double>(bottom_right[channel]) * tx;
-        dst[channel] = clamp_byte(static_cast<float>(top * (1.0 - ty) + bottom * ty));
-      }
-    }
-  }
-  return scaled;
-}
-
-namespace {
-
+// Image Size resampling lives in core/resample.cpp (docs/resampling.md); `method` is
+// already resolved from Automatic by resize_image_and_layers.
 void resize_layer_mask_image(Layer& layer, std::int32_t old_width, std::int32_t old_height,
-                             std::int32_t new_width, std::int32_t new_height) {
+                             std::int32_t new_width, std::int32_t new_height, ResampleMethod method) {
   auto& mask = layer.mask();
   if (!mask.has_value()) {
     return;
@@ -761,16 +701,16 @@ void resize_layer_mask_image(Layer& layer, std::int32_t old_width, std::int32_t 
     return;
   }
 
-  mask->pixels = scale_pixels_resampled(mask->pixels, new_bounds.width, new_bounds.height);
+  mask->pixels = resample_pixels(mask->pixels, new_bounds.width, new_bounds.height, method);
   mask->bounds = new_bounds;
 }
 
 void resize_layer_image(Layer& layer, std::int32_t old_width, std::int32_t old_height, std::int32_t new_width,
-                        std::int32_t new_height) {
-  resize_layer_mask_image(layer, old_width, old_height, new_width, new_height);
+                        std::int32_t new_height, ResampleMethod method) {
+  resize_layer_mask_image(layer, old_width, old_height, new_width, new_height, method);
   if (layer.kind() == LayerKind::Group) {
     for (auto& child : layer.children()) {
-      resize_layer_image(child, old_width, old_height, new_width, new_height);
+      resize_layer_image(child, old_width, old_height, new_width, new_height, method);
     }
     if (!layer.bounds().empty()) {
       layer.set_bounds(scale_document_rect(layer.bounds(), old_width, old_height, new_width, new_height));
@@ -795,14 +735,15 @@ void resize_layer_image(Layer& layer, std::int32_t old_width, std::int32_t old_h
     return;
   }
 
-  auto scaled = scale_pixels_resampled(source, new_bounds.width, new_bounds.height);
+  auto scaled = resample_pixels(source, new_bounds.width, new_bounds.height, method);
   layer.set_pixels(std::move(scaled));
   layer.set_bounds(new_bounds);
 }
 
-void resize_document_channel_image(DocumentChannel& channel, std::int32_t width, std::int32_t height) {
+void resize_document_channel_image(DocumentChannel& channel, std::int32_t width, std::int32_t height,
+                                   ResampleMethod method) {
   const auto& source = std::as_const(channel).pixels();
-  channel.set_pixels(scale_pixels_resampled(source, width, height));
+  channel.set_pixels(resample_pixels(source, width, height, method));
 }
 
 void resize_document_channel_canvas(DocumentChannel& channel, std::int32_t width, std::int32_t height,
@@ -1091,7 +1032,7 @@ Rect flip_layer_vertical(Document& document, LayerId layer_id) {
   return layer->bounds();
 }
 
-void resize_image_and_layers(Document& document, std::int32_t width, std::int32_t height) {
+void resize_image_and_layers(Document& document, std::int32_t width, std::int32_t height, ResampleMethod method) {
   if (width <= 0 || height <= 0) {
     return;
   }
@@ -1103,16 +1044,18 @@ void resize_image_and_layers(Document& document, std::int32_t width, std::int32_
     return;
   }
 
+  // One kernel for every layer, mask and channel of this resize.
+  method = resolve_automatic_resample_method(method, old_width, old_height, width, height);
   const auto sx = static_cast<double>(width) / old_width;
   const auto sy = static_cast<double>(height) / old_height;
   // Before the raster loop: the implicit-transform case reads pre-resize bounds.
   compose_document_text_transforms(document.layers(), {sx, 0.0, 0.0, sy, 0.0, 0.0});
   compose_document_smart_object_placements(document.layers(), {sx, 0.0, 0.0, sy, 0.0, 0.0});
   for (auto& layer : document.layers()) {
-    resize_layer_image(layer, old_width, old_height, width, height);
+    resize_layer_image(layer, old_width, old_height, width, height, method);
   }
   for (auto& channel : document.channels()) {
-    resize_document_channel_image(channel, width, height);
+    resize_document_channel_image(channel, width, height, method);
   }
   document.resize_canvas(width, height);
   transform_document_vector_data(document, {sx, 0.0, 0.0, sy, 0.0, 0.0},

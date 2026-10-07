@@ -1,5 +1,14 @@
 # Scripting API compatibility
 
+2026-10-07 additive (API 1): `doc.resizeImage(width, height, {method})` takes a resampling
+method id: `"automatic"` (default), `"nearest"`, `"bilinear"`, `"bicubic"`, `"bicubicSmoother"`,
+`"bicubicSharper"`; an unknown id throws. Behavioral correction in the same change: a resize
+without a method is Automatic (Bicubic Sharper for a reduction, Bicubic Smoother for an
+enlargement) instead of the old fixed bilinear, 16-bit and float documents are filtered instead
+of nearest-sampled, reductions average their footprint, and alpha interpolates premultiplied. The
+Image Size dialog now honors its method combo and remembers the choice. See docs/resampling.md;
+pinned by `ui_script_resize_image_method_option` and the `resample_*` core tests.
+
 2026-10-06 behavior (API 1): `ui.zoom` reads and writes the view zoom in percent, where
 100 is one document pixel per device pixel (the status-box number). On a HiDPI or scaled
 display the value therefore differs from the logical widget scale by the device pixel

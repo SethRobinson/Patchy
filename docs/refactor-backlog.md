@@ -41,6 +41,12 @@ canaries.
 
 ### MainWindow and CanvasWidget
 
+- Free Transform's samplers in `canvas_widget_transform.cpp` (`sample_nearest`, `sample_bilinear`,
+  `sample_bicubic`, and the gray8 switch) take their cubic weights from `core/resample.hpp` but
+  keep their own QImage inverse-mapping loops. They could sit on a core `sample_at(PixelBuffer,
+  x, y, method)` once someone wants to re-pin `gray8_resample_identity_and_default_fill` and
+  `ui_group_transform_resamples_linked_masks`; the transform combo could also offer Bicubic
+  Smoother and Sharper for free (append to `TransformInterpolation`, persisted as an int).
 - Share the destructive-adjustment guard, apply, and restore phases, the Smart Filter
   command guard preambles, and the remaining progress-dialog implementations through
   `main_window_shared`.

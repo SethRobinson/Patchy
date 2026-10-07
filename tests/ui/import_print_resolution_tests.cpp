@@ -67,6 +67,7 @@
 #include "ui/tile_preview_window.hpp"
 #include "ui/splash_dialog.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/script_engine.hpp"
 #include "ui/update_checker.hpp"
 #include "ui/visual_filter_gallery_dialog.hpp"
 #include "ui/zoomable_image_preview.hpp"
@@ -794,11 +795,13 @@ void ui_export_transforms_apply_trim_resize_scale_matte_in_order() {
   CHECK(image.width() == 12);
   CHECK(image.height() == 4);
   // trim -> 3x1 [red, clear, red]; bilinear to 6x2 -> alpha 252, 189, 63, 63, 189, 252 on
-  // both rows; 2x replication; then the matte over blue. Matting before the resize would
-  // leave (63, 0, 191) at the fringe instead of (16, 0, 192); skipping the trim would give
-  // a mostly blue image.
-  const QColor expected[6] = {QColor(249, 0, 3),  QColor(140, 0, 66), QColor(16, 0, 192),
-                              QColor(16, 0, 192), QColor(140, 0, 66), QColor(249, 0, 3)};
+  // both rows, and premultiplied interpolation (docs/resampling.md) keeps the fringe pure
+  // red (252) at that reduced coverage; 2x replication; then the matte over blue:
+  // (252 * a + 255 * (255 - a) + 127) / 255 for blue, (252 * a + 127) / 255 for red.
+  // Matting before the resize would blend the opaque blue into the fringe colors instead
+  // of thinning red over blue; skipping the trim would give a mostly blue image.
+  const QColor expected[6] = {QColor(249, 0, 3),  QColor(187, 0, 66), QColor(62, 0, 192),
+                              QColor(62, 0, 192), QColor(187, 0, 66), QColor(249, 0, 3)};
   for (int x = 0; x < 12; ++x) {
     for (int y = 0; y < 4; ++y) {
       CHECK(image.pixelColor(x, y) == expected[x / 2]);
@@ -4123,6 +4126,14 @@ void ui_image_size_dialog_unit_and_resolution_links_work() {
       resample->setChecked(false);
       QApplication::processEvents();
       CHECK(!link->isEnabled());
+      // The method combo disables and the "pixels are locked" hint appears: Resample
+      // off never scales pixels, which the dialog now says instead of implying.
+      auto* method = dialog->findChild<QComboBox*>(QStringLiteral("imageSizeResampleCombo"));
+      auto* hint = dialog->findChild<QLabel*>(QStringLiteral("imageSizeResampleHintLabel"));
+      CHECK(method != nullptr && !method->isEnabled());
+      CHECK(hint != nullptr && hint->isVisible());
+      CHECK(hint != nullptr && hint->text().contains(QStringLiteral("locked")));
+      CHECK(!resample->toolTip().isEmpty());
       CHECK(width_unit->currentText() == QStringLiteral("Inches"));
       CHECK(dimensions->text().contains(QStringLiteral("1024 px x 768 px")));
       CHECK(std::abs(width->value() - 1024.0 / 36.0) < 0.005);
@@ -4545,6 +4556,154 @@ void ui_crop_to_selection_advanced_crops_and_deletes_off_canvas_layers() {
 // across openings (`imageSize/lastUnit`, `imageSize/lastResolutionUnit`, written on
 // accept only); a first run seeds the W/H unit from the ruler unit, and a token the
 // combo cannot show falls back to Pixels.
+namespace {
+
+// Replaces the window's document with a 2x2 black/white checker (opaque), the sharpest
+// possible probe for the resampling method: Nearest Neighbor doubles it into hard 2x2
+// blocks, every other method produces midtones at the block edges.
+patchy::Document& load_checker_document(patchy::ui::MainWindow& window) {
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  document = patchy::Document(2, 2, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer checker(2, 2, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < 2; ++y) {
+    for (std::int32_t x = 0; x < 2; ++x) {
+      auto* pixel = checker.pixel(x, y);
+      const std::uint8_t value = (x + y) % 2 == 0 ? 0 : 255;
+      pixel[0] = pixel[1] = pixel[2] = value;
+      pixel[3] = 255;
+    }
+  }
+  document.add_pixel_layer("Checker", std::move(checker));
+  patchy::ui::MainWindowTestAccess::canvas(window)->set_document(&document);
+  return document;
+}
+
+bool checker_doubled_with_hard_edges(const patchy::Document& document) {
+  if (document.width() != 4 || document.height() != 4 || document.layers().empty()) {
+    return false;
+  }
+  const auto& pixels = std::as_const(document.layers().front()).pixels();
+  for (std::int32_t y = 0; y < 4; ++y) {
+    for (std::int32_t x = 0; x < 4; ++x) {
+      const auto* pixel = pixels.pixel(x, y);
+      const std::uint8_t expected = ((x / 2) + (y / 2)) % 2 == 0 ? 0 : 255;
+      if (pixel[0] != expected || pixel[3] != 255) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+bool checker_resized_with_midtones(const patchy::Document& document) {
+  if (document.layers().empty()) {
+    return false;
+  }
+  const auto& pixels = std::as_const(document.layers().front()).pixels();
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto value = pixels.pixel(x, y)[0];
+      if (value != 0 && value != 255) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+}  // namespace
+
+// The method combo drives the resampler and persists by id (`imageSize/lastResampleMethod`),
+// the first opening defaults to Automatic, and the dead "Generative Upscale" label is gone.
+void ui_image_size_dialog_method_is_applied_and_remembered() {
+  SettingsValueRestorer restore_unit(QStringLiteral("imageSize/lastUnit"));
+  SettingsValueRestorer restore_resolution_unit(QStringLiteral("imageSize/lastResolutionUnit"));
+  SettingsValueRestorer restore_method(QStringLiteral("imageSize/lastResampleMethod"));
+  patchy::ui::app_settings().remove(QStringLiteral("imageSize"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  const auto resize_through_dialog = [&](const QString& method_id, const QString& expected_preselected) {
+    bool drove_dialog = false;
+    QTimer::singleShot(0, [&] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("patchyImageSizeDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      auto* method = dialog->findChild<QComboBox*>(QStringLiteral("imageSizeResampleCombo"));
+      auto* width_unit = dialog->findChild<QComboBox*>(QStringLiteral("imageSizeWidthUnitCombo"));
+      auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("imageSizeWidthSpin"));
+      auto* height = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("imageSizeHeightSpin"));
+      auto* hint = dialog->findChild<QLabel*>(QStringLiteral("imageSizeResampleHintLabel"));
+      CHECK(method != nullptr && width_unit != nullptr && width != nullptr && height != nullptr && hint != nullptr);
+      if (method == nullptr || width_unit == nullptr || width == nullptr || height == nullptr) {
+        dialog->reject();
+        return;
+      }
+      CHECK(dialog->findChild<QLabel*>(QStringLiteral("imageSizeUpscaleLabel")) == nullptr);
+      CHECK(method->count() == 6);
+      CHECK(method->currentData().toString() == expected_preselected);
+      CHECK(hint == nullptr || !hint->isVisible());
+      method->setCurrentIndex(method->findData(method_id));
+      CHECK(method->currentData().toString() == method_id);
+      width_unit->setCurrentIndex(width_unit->findText(QStringLiteral("Pixels")));
+      QApplication::processEvents();
+      width->setValue(4);
+      height->setValue(4);
+      dialog->accept();
+      drove_dialog = true;
+    });
+    require_action(window, "imageSizeAction")->trigger();
+    QApplication::processEvents();
+    process_events_for(120);
+    CHECK(drove_dialog);
+  };
+  const auto stored_method = [] {
+    return patchy::ui::app_settings().value(QStringLiteral("imageSize/lastResampleMethod")).toString();
+  };
+
+  auto& document = load_checker_document(window);
+  resize_through_dialog(QStringLiteral("nearest"), QStringLiteral("automatic"));
+  CHECK(checker_doubled_with_hard_edges(document));
+  CHECK(stored_method() == QStringLiteral("nearest"));
+
+  // Reopening preselects the remembered method; a cubic resize blends the block edges.
+  load_checker_document(window);
+  resize_through_dialog(QStringLiteral("bicubic"), QStringLiteral("nearest"));
+  CHECK(document.width() == 4 && document.height() == 4);
+  CHECK(checker_resized_with_midtones(document));
+  CHECK(stored_method() == QStringLiteral("bicubic"));
+}
+
+// doc.resizeImage(w, h, {method}) reaches the same resampler; an unknown id throws before
+// anything changes, and the default is Automatic.
+void ui_script_resize_image_method_option() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& document = load_checker_document(window);
+  auto& host = window.script_engine_host();
+  const auto run = [&](const QString& source) {
+    patchy::ui::ScriptEngineHost::RunOptions options;
+    options.name = QStringLiteral("Resize");
+    options.unattended = true;
+    // run_source is false when the script throws synchronously, which the bad-id call must do.
+    const bool started = host.run_source(source, options);
+    CHECK(process_events_until([&] { return !host.run_active(); }));
+    return started && !host.last_run_had_error();
+  };
+
+  CHECK(run(QStringLiteral("app.activeDocument.resizeImage(4, 4, {method: 'nearest'});")));
+  CHECK(checker_doubled_with_hard_edges(document));
+
+  CHECK(!run(QStringLiteral("app.activeDocument.resizeImage(8, 8, {method: 'lanczos'});")));
+  CHECK(document.width() == 4 && document.height() == 4);
+
+  CHECK(run(QStringLiteral("app.activeDocument.resizeImage(8, 8);")));
+  CHECK(document.width() == 8 && document.height() == 8);
+  CHECK(checker_resized_with_midtones(document));
+}
+
 void ui_image_size_dialog_remembers_units() {
   SettingsValueRestorer restore_ruler(QStringLiteral("view/rulerUnits"));
   SettingsValueRestorer restore_unit(QStringLiteral("imageSize/lastUnit"));
@@ -5580,6 +5739,9 @@ std::vector<patchy::test::TestCase> import_print_resolution_tests() {
       {"ui_crop_to_selection_advanced_prefills_canvas_size_dialog",
        ui_crop_to_selection_advanced_prefills_canvas_size_dialog},
       {"ui_image_size_dialog_remembers_units", ui_image_size_dialog_remembers_units},
+      {"ui_image_size_dialog_method_is_applied_and_remembered",
+       ui_image_size_dialog_method_is_applied_and_remembered},
+      {"ui_script_resize_image_method_option", ui_script_resize_image_method_option},
       {"ui_canvas_size_dialog_remembers_unit", ui_canvas_size_dialog_remembers_unit},
       {"ui_imported_image_density_follows_photoshop_conventions",
        ui_imported_image_density_follows_photoshop_conventions},

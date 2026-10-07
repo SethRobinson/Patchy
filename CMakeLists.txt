@@ -106,6 +106,7 @@ add_library(patchy_core
   src/support/atomic_file_write.cpp
   src/core/environment.cpp
   src/core/document_geometry.cpp
+  src/core/resample.cpp
   src/core/document_path.cpp
   src/core/heal_membrane.cpp
   src/core/image_trace.cpp

@@ -21,6 +21,7 @@
 #include "core/layer_tree.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/quick_select.hpp"
+#include "core/resample.hpp"
 #include "core/worker_budget.hpp"
 #include "ui/background_workers.hpp"
 #include "ui/edit_conversions.hpp"
@@ -573,17 +574,8 @@ PremultipliedSample sample_bilinear(const QImage& image, QPointF source_point) {
   return total;
 }
 
-double cubic_weight(double distance) {
-  const auto x = std::abs(distance);
-  if (x < 1.0) {
-    return (1.5 * x * x * x) - (2.5 * x * x) + 1.0;
-  }
-  if (x < 2.0) {
-    return (-0.5 * x * x * x) + (2.5 * x * x) - (4.0 * x) + 2.0;
-  }
-  return 0.0;
-}
-
+// Bicubic taps use patchy::cubic_weight (core/resample.hpp, Catmull-Rom), the kernel
+// Image Size shares.
 PremultipliedSample sample_bicubic(const QImage& image, QPointF source_point) {
   const auto x = source_point.x() - 0.5;
   const auto y = source_point.y() - 0.5;
