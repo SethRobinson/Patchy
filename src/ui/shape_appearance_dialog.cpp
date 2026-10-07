@@ -1617,8 +1617,13 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   const auto page_hint = page->sizeHint();
   const auto margins = dialog_layout->contentsMargins();
   int width = std::max(page_hint.width(), scroll->minimumWidth()) + margins.left() + margins.right();
-  int height = page_hint.height() + buttons->sizeHint().height() + dialog_layout->spacing() +
-               margins.top() + margins.bottom();
+  // The dialog layout's own hint counts every row under the page (the Preview
+  // checkbox, the button box) with their spacings and margins; only its scroll
+  // area entry is wrong (the capped QScrollArea hint), so swap that for the
+  // page's hint. Summing the rows by hand missed the Preview row and opened
+  // the dialog one row short, with a scrollbar on a tall screen (Seth,
+  // October 2026).
+  int height = dialog_layout->sizeHint().height() - scroll->sizeHint().height() + page_hint.height();
   const QScreen* screen = parent != nullptr ? parent->screen() : nullptr;
   if (screen == nullptr) {
     screen = QGuiApplication::primaryScreen();

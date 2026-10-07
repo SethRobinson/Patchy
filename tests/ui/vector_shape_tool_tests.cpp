@@ -32,6 +32,7 @@
 #include <QGroupBox>
 #include <QDialogButtonBox>
 #include <QScreen>
+#include <QScrollBar>
 #include <QScrollArea>
 #include <QStandardItemModel>
 #include <QStatusBar>
@@ -4116,6 +4117,17 @@ void ui_shape_appearance_dialog_fits_1080p_and_has_two_columns() {
       // Solid fill + stroke off: the left column's 11 rows set the height,
       // well under the all-rows-visible measurement (about 900 px).
       CHECK(dialog->height() <= 720);
+      // ...and not one row short: unless the screen cap applied, the whole
+      // page is in view at open, no scrollbar (the Preview row under the
+      // scroll area used to go uncounted; Seth, October 2026).
+      auto* opened_scroll = dialog->findChild<QScrollArea*>(QStringLiteral("shapeAppearanceScroll"));
+      CHECK(opened_scroll != nullptr);
+      if (opened_page != nullptr && opened_scroll != nullptr && dialog->screen() != nullptr &&
+          dialog->height() < dialog->screen()->availableGeometry().height() - 40) {
+        CHECK(opened_scroll->viewport()->height() >= opened_page->sizeHint().height());
+        // (The bar's visibility lags a layout pass; its range is current.)
+        CHECK(opened_scroll->verticalScrollBar()->maximum() == 0);
+      }
     }
     // Worst case: pattern fill rows plus a gradient stroke.
     auto* fill_kind = dialog->findChild<QComboBox*>(QStringLiteral("shapeFillKindCombo"));
