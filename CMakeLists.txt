@@ -951,6 +951,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/canvas_widget.cpp
       src/ui/canvas_widget_shared.hpp
       src/ui/canvas_widget_shared.cpp
+      src/ui/canvas_alt_space_filter.hpp
+      src/ui/canvas_alt_space_filter.cpp
       src/ui/canvas_widget_brush.cpp
       src/ui/canvas_widget_crop.cpp
       src/ui/canvas_widget_cursors.cpp

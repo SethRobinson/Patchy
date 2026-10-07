@@ -1,4 +1,5 @@
 #include "ui/canvas_widget.hpp"
+#include "ui/canvas_alt_space_filter.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/app_settings.hpp"
 #include "core/adjustment_layer.hpp"
@@ -195,6 +196,13 @@
 #include <string_view>
 #include <utility>
 #include <vector>
+
+#ifdef Q_OS_WIN
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 
 #include "ui_test_access.hpp"
 #include "ui_test_groups.hpp"
@@ -1649,6 +1657,73 @@ void ui_marquee_alt_mid_drag_draws_from_center() {
   canvas->clear_selection();
 }
 
+#ifdef Q_OS_WIN
+// Alt+Space mid-drag: Qt's Windows key mapper would open the window's system
+// menu (a native modal loop that eats the mouse release and leaves the drag
+// stranded). The native filter forwards it to the canvas as Space instead, so
+// an Alt (from-center) drag can still be repositioned (GitHub issue 78). The
+// offscreen platform has no Win32 message loop, so the messages are fed to the
+// filter directly.
+void ui_marquee_alt_space_mid_drag_repositions_instead_of_system_menu() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  canvas->set_snap_enabled(false);
+  canvas->setFocus();
+  QApplication::processEvents();
+  auto* filter = patchy::ui::alt_space_drag_native_filter();
+  CHECK(filter != nullptr);
+  if (filter == nullptr) {
+    return;
+  }
+  const auto at = [&](int x, int y) { return canvas->widget_position_for_document_point(QPoint(x, y)); };
+  const auto feed = [&](UINT message, LPARAM lparam) {
+    MSG native{};
+    native.message = message;
+    native.wParam = VK_SPACE;
+    native.lParam = lparam;
+    qintptr result = -1;
+    const auto handled = filter->nativeEventFilter(QByteArrayLiteral("windows_generic_MSG"), &native, &result);
+    QApplication::processEvents();
+    return handled;
+  };
+  const auto rect_is = [&](int x, int y, int w, int h) {
+    const auto rect = canvas->selected_document_rect();
+    return rect.has_value() && std::abs(rect->x() - x) <= 1 && std::abs(rect->y() - y) <= 1 &&
+           std::abs(rect->width() - w) <= 1 && std::abs(rect->height() - h) <= 1;
+  };
+
+  // Idle canvas: the filter stays out of the way, so the system menu still opens.
+  CHECK(!feed(WM_SYSKEYDOWN, 0));
+
+  // Alt-from-center drag in flight: 40x30 extent doubles around (200, 120).
+  send_mouse(*canvas, QEvent::MouseButtonPress, at(200, 120), Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseMove, at(240, 150), Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+  CHECK(rect_is(160, 90, 80, 60));
+
+  // Alt+Space: the key-down, its derived WM_SYSCHAR and the key-up are all
+  // consumed, and the canvas sees Space, so the next move slides the rect.
+  CHECK(feed(WM_SYSKEYDOWN, 0));
+  CHECK(feed(WM_SYSCHAR, 0));
+  send_mouse(*canvas, QEvent::MouseMove, at(260, 170), Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+  CHECK(rect_is(180, 110, 80, 60));
+  CHECK(feed(WM_SYSKEYUP, (1u << 31) | (1u << 30)));
+
+  // Space released: the drag resumes resizing from the slid anchor (220, 140).
+  send_mouse(*canvas, QEvent::MouseMove, at(280, 190), Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+  CHECK(rect_is(160, 90, 120, 100));
+  send_mouse(*canvas, QEvent::MouseButtonRelease, at(280, 190), Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  QApplication::processEvents();
+  CHECK(rect_is(160, 90, 120, 100));
+
+  // Back to idle: Alt+Space is the system's again.
+  CHECK(!feed(WM_SYSKEYDOWN, 0));
+  CHECK(!feed(WM_SYSKEYUP, (1u << 31) | (1u << 30)));
+  canvas->clear_selection();
+}
+#endif
+
 void ui_marquee_alt_on_handle_shows_resize_cursor_and_mirrors() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2216,6 +2291,10 @@ std::vector<patchy::test::TestCase> selection_marquee_lasso_tests_part2() {
       {"ui_marquee_corner_handle_drag_and_shift_aspect", ui_marquee_corner_handle_drag_and_shift_aspect},
       {"ui_marquee_alt_handle_drag_resizes_about_center", ui_marquee_alt_handle_drag_resizes_about_center},
       {"ui_marquee_alt_mid_drag_draws_from_center", ui_marquee_alt_mid_drag_draws_from_center},
+#ifdef Q_OS_WIN
+      {"ui_marquee_alt_space_mid_drag_repositions_instead_of_system_menu",
+       ui_marquee_alt_space_mid_drag_repositions_instead_of_system_menu},
+#endif
       {"ui_marquee_alt_on_handle_shows_resize_cursor_and_mirrors",
        ui_marquee_alt_on_handle_shows_resize_cursor_and_mirrors},
       {"ui_elliptical_marquee_handle_drag_keeps_ellipse", ui_elliptical_marquee_handle_drag_keeps_ellipse},
