@@ -18668,16 +18668,24 @@ Convertiti in immagini: %1.</translation>
         <translation>Ritaglia sulla selezione (Avanzato) non può raddrizzare un riquadro di ritaglio ruotato; usa Ritaglia sulla selezione</translation>
     </message>
     <message>
-        <source>Delete cropped pixels and layers too</source>
-        <translation>Elimina anche i pixel e i livelli ritagliati</translation>
-    </message>
-    <message>
-        <source>Crop every layer to the new canvas and delete layers left fully outside it; off, layers keep their pixels beyond the canvas</source>
-        <translation>Ritaglia ogni livello sul nuovo quadro ed elimina i livelli rimasti completamente fuori; disattivato, i livelli conservano i pixel oltre il quadro</translation>
-    </message>
-    <message>
         <source>Cropped, off-canvas layers deleted: %1</source>
         <translation>Ritagliato, livelli fuori dal quadro eliminati: %1</translation>
+    </message>
+    <message>
+        <source>Delete Cropped Pixels</source>
+        <translation>Elimina pixel ritagliati</translation>
+    </message>
+    <message>
+        <source>Delete Off-Canvas Layers</source>
+        <translation>Elimina livelli fuori dal quadro</translation>
+    </message>
+    <message>
+        <source>Crop every layer to the new canvas; off, layers keep their pixels beyond it</source>
+        <translation>Ritaglia ogni livello sul nuovo quadro; disattivato, i livelli conservano i pixel oltre il quadro</translation>
+    </message>
+    <message>
+        <source>Delete layers that end up fully outside the crop box</source>
+        <translation>Elimina i livelli rimasti completamente fuori dal riquadro di ritaglio</translation>
     </message>
 </context>
 <context>

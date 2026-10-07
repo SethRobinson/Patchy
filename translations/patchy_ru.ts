@@ -18724,16 +18724,24 @@ Y: %2
         <translation>Кадрировать по выделению (дополнительно) не может выровнять повёрнутую рамку кадрирования; используйте Кадрировать по выделению</translation>
     </message>
     <message>
-        <source>Delete cropped pixels and layers too</source>
-        <translation>Также удалить обрезанные пиксели и слои</translation>
-    </message>
-    <message>
-        <source>Crop every layer to the new canvas and delete layers left fully outside it; off, layers keep their pixels beyond the canvas</source>
-        <translation>Обрезает каждый слой по новому холсту и удаляет слои, полностью оставшиеся за его пределами; если выключено, слои сохраняют пиксели за пределами холста</translation>
-    </message>
-    <message>
         <source>Cropped, off-canvas layers deleted: %1</source>
         <translation>Кадрировано, удалены слои за пределами холста: %1</translation>
+    </message>
+    <message>
+        <source>Delete Cropped Pixels</source>
+        <translation>Удалять обрезанные пиксели</translation>
+    </message>
+    <message>
+        <source>Delete Off-Canvas Layers</source>
+        <translation>Удалять слои за холстом</translation>
+    </message>
+    <message>
+        <source>Crop every layer to the new canvas; off, layers keep their pixels beyond it</source>
+        <translation>Обрезает каждый слой по новому холсту; если выключено, слои сохраняют пиксели за его пределами</translation>
+    </message>
+    <message>
+        <source>Delete layers that end up fully outside the crop box</source>
+        <translation>Удаляет слои, полностью оставшиеся за пределами рамки кадрирования</translation>
     </message>
 </context>
 <context>

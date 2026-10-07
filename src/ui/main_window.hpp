@@ -1979,10 +1979,12 @@ private:
   std::vector<QWidget*> crop_ratio_option_widgets_;
   std::vector<QWidget*> crop_size_option_widgets_;
   QPushButton* crop_apply_button_{nullptr};
-  // "Delete cropped pixels and layers too": the commit crops every layer to the
-  // new canvas and drops layers left fully outside (Canvas Size's two options
-  // at once); off, layers keep their off-canvas pixels like Canvas Size.
-  QCheckBox* crop_delete_cropped_check_{nullptr};
+  // Canvas Size's two layer options on the Crop bar. "Delete Cropped Pixels"
+  // (Photoshop's option and default: on) crops every layer to the new canvas;
+  // off, layers keep their off-canvas pixels like Canvas Size. "Delete
+  // Off-Canvas Layers" (off) drops layers left fully outside the box.
+  QCheckBox* crop_delete_pixels_check_{nullptr};
+  QCheckBox* crop_delete_layers_check_{nullptr};
   QPushButton* patch_remove_object_button_{nullptr};
   QPushButton* crop_cancel_button_{nullptr};
   QCheckBox* clone_aligned_check_{nullptr};
@@ -2323,8 +2325,10 @@ private:
   // show and set the box). Size mode runs the canvas with no ratio; the
   // remembered ratio comes back with Ratio mode (effective_crop_ratio_*).
   int current_crop_style_{0};
-  // tools/cropDeleteCropped (default off): see crop_delete_cropped_check_.
-  bool current_crop_delete_cropped_{false};
+  // tools/cropDeletePixels (default on) and tools/cropDeleteLayers (default
+  // off): see crop_delete_pixels_check_ / crop_delete_layers_check_.
+  bool current_crop_delete_pixels_{true};
+  bool current_crop_delete_layers_{false};
   bool current_fill_shapes_{false};
   int current_shape_corner_radius_{0};
   CanvasWidget::MarqueeStyle current_shape_style_{CanvasWidget::MarqueeStyle::Normal};

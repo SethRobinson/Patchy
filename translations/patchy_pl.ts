@@ -18724,16 +18724,24 @@ Y: %2
         <translation>Przytnij do zaznaczenia (zaawansowane) nie może wyprostować obróconej ramki kadrowania; użyj polecenia Przytnij do zaznaczenia</translation>
     </message>
     <message>
-        <source>Delete cropped pixels and layers too</source>
-        <translation>Usuń także przycięte piksele i warstwy</translation>
-    </message>
-    <message>
-        <source>Crop every layer to the new canvas and delete layers left fully outside it; off, layers keep their pixels beyond the canvas</source>
-        <translation>Przycina każdą warstwę do nowego płótna i usuwa warstwy pozostające całkowicie poza nim; wyłączone, warstwy zachowują piksele poza płótnem</translation>
-    </message>
-    <message>
         <source>Cropped, off-canvas layers deleted: %1</source>
         <translation>Przycięto, usunięto warstwy poza płótnem: %1</translation>
+    </message>
+    <message>
+        <source>Delete Cropped Pixels</source>
+        <translation>Usuń przycięte piksele</translation>
+    </message>
+    <message>
+        <source>Delete Off-Canvas Layers</source>
+        <translation>Usuń warstwy poza płótnem</translation>
+    </message>
+    <message>
+        <source>Crop every layer to the new canvas; off, layers keep their pixels beyond it</source>
+        <translation>Przycina każdą warstwę do nowego płótna; wyłączone, warstwy zachowują piksele poza nim</translation>
+    </message>
+    <message>
+        <source>Delete layers that end up fully outside the crop box</source>
+        <translation>Usuwa warstwy pozostające całkowicie poza ramką kadrowania</translation>
     </message>
 </context>
 <context>

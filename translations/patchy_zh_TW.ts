@@ -18612,16 +18612,24 @@ Baked into images: %1.</source>
         <translation>裁切至選取範圍(進階)無法拉直旋轉的裁切框；請使用裁切至選取範圍</translation>
     </message>
     <message>
-        <source>Delete cropped pixels and layers too</source>
-        <translation>同時刪除裁切掉的像素和圖層</translation>
-    </message>
-    <message>
-        <source>Crop every layer to the new canvas and delete layers left fully outside it; off, layers keep their pixels beyond the canvas</source>
-        <translation>將每個圖層裁切至新版面並刪除完全位於版面之外的圖層；關閉時，圖層保留版面之外的像素</translation>
-    </message>
-    <message>
         <source>Cropped, off-canvas layers deleted: %1</source>
         <translation>已裁切，已刪除版面外的圖層: %1</translation>
+    </message>
+    <message>
+        <source>Delete Cropped Pixels</source>
+        <translation>刪除裁切的像素</translation>
+    </message>
+    <message>
+        <source>Delete Off-Canvas Layers</source>
+        <translation>刪除版面外圖層</translation>
+    </message>
+    <message>
+        <source>Crop every layer to the new canvas; off, layers keep their pixels beyond it</source>
+        <translation>將每個圖層裁切至新版面；關閉時，圖層保留版面之外的像素</translation>
+    </message>
+    <message>
+        <source>Delete layers that end up fully outside the crop box</source>
+        <translation>刪除完全位於裁切框之外的圖層</translation>
     </message>
 </context>
 <context>

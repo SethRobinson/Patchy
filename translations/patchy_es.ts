@@ -18668,16 +18668,24 @@ Convertido en imágenes: %1.</translation>
         <translation>Recortar según la selección (Avanzado) no puede enderezar un cuadro de recorte girado; use Recortar según la selección</translation>
     </message>
     <message>
-        <source>Delete cropped pixels and layers too</source>
-        <translation>Eliminar también los píxeles y las capas recortados</translation>
-    </message>
-    <message>
-        <source>Crop every layer to the new canvas and delete layers left fully outside it; off, layers keep their pixels beyond the canvas</source>
-        <translation>Recorta cada capa al nuevo lienzo y elimina las capas que queden totalmente fuera; desactivado, las capas conservan sus píxeles fuera del lienzo</translation>
-    </message>
-    <message>
         <source>Cropped, off-canvas layers deleted: %1</source>
         <translation>Recortado, capas fuera del lienzo eliminadas: %1</translation>
+    </message>
+    <message>
+        <source>Delete Cropped Pixels</source>
+        <translation>Eliminar píxeles recortados</translation>
+    </message>
+    <message>
+        <source>Delete Off-Canvas Layers</source>
+        <translation>Eliminar capas fuera del lienzo</translation>
+    </message>
+    <message>
+        <source>Crop every layer to the new canvas; off, layers keep their pixels beyond it</source>
+        <translation>Recorta cada capa al nuevo lienzo; desactivado, las capas conservan sus píxeles fuera de él</translation>
+    </message>
+    <message>
+        <source>Delete layers that end up fully outside the crop box</source>
+        <translation>Elimina las capas que queden totalmente fuera del cuadro de recorte</translation>
     </message>
 </context>
 <context>

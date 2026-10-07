@@ -18668,16 +18668,24 @@ Y: %2
         <translation>Cortar para seleção (avançado) não consegue endireitar uma caixa de corte girada; use Cortar para seleção</translation>
     </message>
     <message>
-        <source>Delete cropped pixels and layers too</source>
-        <translation>Excluir também os pixels e as camadas cortados</translation>
-    </message>
-    <message>
-        <source>Crop every layer to the new canvas and delete layers left fully outside it; off, layers keep their pixels beyond the canvas</source>
-        <translation>Corta cada camada para a nova tela e exclui as camadas que ficam totalmente fora dela; desligado, as camadas mantêm seus pixels além da tela</translation>
-    </message>
-    <message>
         <source>Cropped, off-canvas layers deleted: %1</source>
         <translation>Cortado, camadas fora da tela excluídas: %1</translation>
+    </message>
+    <message>
+        <source>Delete Cropped Pixels</source>
+        <translation>Excluir pixels cortados</translation>
+    </message>
+    <message>
+        <source>Delete Off-Canvas Layers</source>
+        <translation>Excluir camadas fora da tela</translation>
+    </message>
+    <message>
+        <source>Crop every layer to the new canvas; off, layers keep their pixels beyond it</source>
+        <translation>Corta cada camada para a nova tela; desligado, as camadas mantêm seus pixels além dela</translation>
+    </message>
+    <message>
+        <source>Delete layers that end up fully outside the crop box</source>
+        <translation>Exclui as camadas que ficam totalmente fora da caixa de corte</translation>
     </message>
 </context>
 <context>

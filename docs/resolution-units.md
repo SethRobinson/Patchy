@@ -53,8 +53,8 @@ delete runs against the frame BEFORE the resize (`remove_layers_outside_canvas(d
 the layer crop rewrites every pixel layer to canvas-sized bounds, so afterwards nothing
 tests as off the canvas. Both
 checkboxes start unchecked on every opening and are never persisted. The Crop tool's
-options-bar "Delete cropped pixels and layers too" applies the same two options to a crop
-commit ([crop-tool.md](crop-tool.md)). All modes are
+options bar carries the same two options as Delete Cropped Pixels (default on) and Delete
+Off-Canvas Layers ([crop-tool.md](crop-tool.md)). All modes are
 undoable. Document alpha/spot channels remain canvas-sized; editable vector paths, text
 transforms and Smart Object placements continue to follow the anchor translation.
 The resize itself is core `resize_canvas_to_frame(doc, frame, ...)`: the dialog turns its

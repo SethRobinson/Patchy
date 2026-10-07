@@ -863,7 +863,7 @@ void ui_crop_menu_commands_use_crop_box() {
   CHECK(!canvas->crop_session_has_changes());
 
   // The advanced command opens the Canvas Size dialog prefilled with the box
-  // (its two layer options alone; the tool's own checkbox lives on the options bar).
+  // (its two layer options; the tool's own pair lives on the options bar).
   canvas->zoom_to_document_rect(QRect(0, 0, 301, 201));
   drag(*canvas, canvas->widget_position_for_document_point(QPoint(40, 30)),
        canvas->widget_position_for_document_point(QPoint(160, 110)));
@@ -884,7 +884,6 @@ void ui_crop_menu_commands_use_crop_box() {
     auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("canvasSizeWidthSpin"));
     auto* height = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("canvasSizeHeightSpin"));
     CHECK(width != nullptr && height != nullptr);
-    CHECK(dialog->findChild<QCheckBox*>(QStringLiteral("canvasSizeDeleteCroppedCheck")) == nullptr);
     CHECK(dialog->windowTitle() == QStringLiteral("Crop to Selection (Advanced)"));
     CHECK(width->value() == static_cast<double>(box->width()));
     CHECK(height->value() == static_cast<double>(box->height()));
@@ -947,25 +946,34 @@ void ui_crop_menu_commands_use_crop_box() {
   CHECK(!canvas->has_selection());
 }
 
-// The options-bar "Delete cropped pixels and layers too" checkbox
-// (tools/cropDeleteCropped, off by default): off, a commit keeps every layer's
-// pixels beyond the new canvas (the Canvas Size frame resize) and every layer;
-// on, layers are cropped to the canvas and layers left fully outside are
-// deleted, with the count in the status line. The setting persists.
-void ui_crop_delete_cropped_option_crops_and_deletes_layers() {
-  SettingsValueRestorer restore_option(QStringLiteral("tools/cropDeleteCropped"));
-  patchy::ui::app_settings().remove(QStringLiteral("tools/cropDeleteCropped"));
+// The options-bar layer options: "Delete Cropped Pixels" (tools/cropDeletePixels,
+// on by default like Photoshop's) and "Delete Off-Canvas Layers"
+// (tools/cropDeleteLayers, off). Pixels off, a commit keeps every layer's pixels
+// beyond the new canvas (the Canvas Size frame resize); on, layers are cropped to
+// the canvas. Layers on, layers left fully outside the box are deleted, with the
+// count in the status line. Both settings persist.
+void ui_crop_delete_options_crop_and_delete_layers() {
+  SettingsValueRestorer restore_pixels(QStringLiteral("tools/cropDeletePixels"));
+  SettingsValueRestorer restore_layers(QStringLiteral("tools/cropDeleteLayers"));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("tools/cropDeletePixels"));
+    settings.remove(QStringLiteral("tools/cropDeleteLayers"));
+  }
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
-  auto* check = window.findChild<QCheckBox*>(QStringLiteral("cropDeleteCroppedCheck"));
-  CHECK(check != nullptr);
-  CHECK(!check->isChecked());
-  CHECK(check->text() == QStringLiteral("Delete cropped pixels and layers too"));
+  auto* pixels_check = window.findChild<QCheckBox*>(QStringLiteral("cropDeletePixelsCheck"));
+  auto* layers_check = window.findChild<QCheckBox*>(QStringLiteral("cropDeleteLayersCheck"));
+  CHECK(pixels_check != nullptr && layers_check != nullptr);
+  CHECK(pixels_check->isChecked());
+  CHECK(!layers_check->isChecked());
+  CHECK(pixels_check->text() == QStringLiteral("Delete Cropped Pixels"));
+  CHECK(layers_check->text() == QStringLiteral("Delete Off-Canvas Layers"));
   require_action(window, "toolCropAction")->trigger();
   QApplication::processEvents();
-  CHECK(check->isVisible());
+  CHECK(pixels_check->isVisible() && layers_check->isVisible());
   canvas->set_snap_enabled(false);
   canvas->set_crop_ratio(0.0, 0.0);
 
@@ -981,15 +989,45 @@ void ui_crop_delete_cropped_option_crops_and_deletes_layers() {
   const auto outside_id = add_layer("Outside", QRect(600, 500, 40, 40));
   canvas->set_document(&document);
   QApplication::processEvents();
+  const auto crop_to_box = [&] {
+    drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
+         canvas->widget_position_for_document_point(QPoint(300, 250)));
+    CHECK(canvas->crop_session_rect() == QRect(100, 100, 201, 151));
+    send_key(*canvas, Qt::Key_Return);
+    QApplication::processEvents();
+    CHECK(document.width() == 201 && document.height() == 151);
+  };
+  const auto undo = [&] {
+    require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+    QApplication::processEvents();
+    CHECK(document.width() == 1024 && document.height() == 768);
+    CHECK(std::as_const(document).find_layer(outside_id) != nullptr);
+  };
 
-  // Off: the frame resize keeps the straddling layer's full buffer (translated
-  // by the box origin) and the outside layer survives.
-  drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
-       canvas->widget_position_for_document_point(QPoint(300, 250)));
-  CHECK(canvas->crop_session_rect() == QRect(100, 100, 201, 151));
-  send_key(*canvas, Qt::Key_Return);
+  // Defaults (pixels on, layers off): the straddling layer is cropped to the
+  // canvas, the outside layer survives emptied (the tool's long-standing crop).
+  crop_to_box();
+  {
+    const auto* straddling = std::as_const(document).find_layer(straddling_id);
+    const auto* outside = std::as_const(document).find_layer(outside_id);
+    CHECK(straddling != nullptr && outside != nullptr);
+    if (straddling != nullptr) {
+      CHECK(straddling->bounds().x == 0 && straddling->bounds().y == 0);
+      CHECK(straddling->bounds().width == 40 && straddling->bounds().height == 40);
+    }
+    if (outside != nullptr) {
+      CHECK(outside->bounds().empty());
+    }
+  }
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Cropped"));
+  undo();
+
+  // Pixels off: the frame resize keeps the straddling layer's full buffer
+  // (translated by the box origin) and the outside layer's bounds.
+  pixels_check->setChecked(false);
   QApplication::processEvents();
-  CHECK(document.width() == 201 && document.height() == 151);
+  CHECK(!patchy::ui::app_settings().value(QStringLiteral("tools/cropDeletePixels"), true).toBool());
+  crop_to_box();
   {
     const auto* straddling = std::as_const(document).find_layer(straddling_id);
     const auto* outside = std::as_const(document).find_layer(outside_id);
@@ -1002,46 +1040,49 @@ void ui_crop_delete_cropped_option_crops_and_deletes_layers() {
       CHECK(outside->bounds().x == 500 && outside->bounds().y == 400);
     }
   }
-  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Cropped"));
+  undo();
 
-  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  // Pixels off, layers on: the outside layer goes, the straddling buffer stays whole.
+  layers_check->setChecked(true);
   QApplication::processEvents();
-  CHECK(document.width() == 1024 && document.height() == 768);
-
-  // On: the straddling layer is cropped to the canvas, the outside one deleted.
-  check->setChecked(true);
-  QApplication::processEvents();
-  CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/cropDeleteCropped")).toBool());
-  drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 100)),
-       canvas->widget_position_for_document_point(QPoint(300, 250)));
-  CHECK(canvas->crop_session_rect() == QRect(100, 100, 201, 151));
-  send_key(*canvas, Qt::Key_Return);
-  QApplication::processEvents();
-  CHECK(document.width() == 201 && document.height() == 151);
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/cropDeleteLayers")).toBool());
+  crop_to_box();
   {
     const auto* straddling = std::as_const(document).find_layer(straddling_id);
     CHECK(straddling != nullptr);
     CHECK(std::as_const(document).find_layer(outside_id) == nullptr);
     if (straddling != nullptr) {
-      CHECK(straddling->bounds().x == 0 && straddling->bounds().y == 0);
+      CHECK(straddling->bounds().width == 60 && straddling->bounds().height == 60);
+    }
+  }
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Cropped, off-canvas layers deleted: 1"));
+  undo();
+
+  // Both on: cropped and deleted (the Advanced dialog's pair at once).
+  pixels_check->setChecked(true);
+  QApplication::processEvents();
+  crop_to_box();
+  {
+    const auto* straddling = std::as_const(document).find_layer(straddling_id);
+    CHECK(straddling != nullptr);
+    CHECK(std::as_const(document).find_layer(outside_id) == nullptr);
+    if (straddling != nullptr) {
       CHECK(straddling->bounds().width == 40 && straddling->bounds().height == 40);
     }
   }
   CHECK(window.statusBar()->currentMessage() == QStringLiteral("Cropped, off-canvas layers deleted: 1"));
-  save_widget_artifact("ui_crop_delete_cropped_option", window);
+  save_widget_artifact("ui_crop_delete_options", window);
+  undo();
 
-  // Undo restores the deleted layer and the full buffers.
-  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  // Both settings persist into a fresh window.
+  pixels_check->setChecked(false);
   QApplication::processEvents();
-  CHECK(document.width() == 1024 && document.height() == 768);
-  CHECK(std::as_const(document).find_layer(outside_id) != nullptr);
-
-  // The option persists into a fresh window.
   patchy::ui::MainWindow second;
   show_window(second);
-  auto* second_check = second.findChild<QCheckBox*>(QStringLiteral("cropDeleteCroppedCheck"));
-  CHECK(second_check != nullptr && second_check->isChecked());
-  second_check->setChecked(false);
+  auto* second_pixels = second.findChild<QCheckBox*>(QStringLiteral("cropDeletePixelsCheck"));
+  auto* second_layers = second.findChild<QCheckBox*>(QStringLiteral("cropDeleteLayersCheck"));
+  CHECK(second_pixels != nullptr && !second_pixels->isChecked());
+  CHECK(second_layers != nullptr && second_layers->isChecked());
 }
 
 }  // namespace
@@ -1062,6 +1103,6 @@ std::vector<patchy::test::TestCase> crop_tool_tests() {
       {"ui_crop_apply_cancel_buttons_follow_session", ui_crop_apply_cancel_buttons_follow_session},
       {"ui_crop_overlay_renders_shield_and_thirds", ui_crop_overlay_renders_shield_and_thirds},
       {"ui_crop_menu_commands_use_crop_box", ui_crop_menu_commands_use_crop_box},
-      {"ui_crop_delete_cropped_option_crops_and_deletes_layers", ui_crop_delete_cropped_option_crops_and_deletes_layers},
+      {"ui_crop_delete_options_crop_and_delete_layers", ui_crop_delete_options_crop_and_delete_layers},
   };
 }

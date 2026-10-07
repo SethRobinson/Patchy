@@ -18668,16 +18668,24 @@ Convertis en images : %1.</translation>
         <translation>Recadrer selon la sélection (Avancé) ne peut pas redresser un cadre de recadrage pivoté ; utilisez Recadrer selon la sélection</translation>
     </message>
     <message>
-        <source>Delete cropped pixels and layers too</source>
-        <translation>Supprimer aussi les pixels et les calques recadrés</translation>
-    </message>
-    <message>
-        <source>Crop every layer to the new canvas and delete layers left fully outside it; off, layers keep their pixels beyond the canvas</source>
-        <translation>Recadre chaque calque sur la nouvelle zone de travail et supprime les calques entièrement hors de celle-ci ; désactivé, les calques gardent leurs pixels hors de la zone de travail</translation>
-    </message>
-    <message>
         <source>Cropped, off-canvas layers deleted: %1</source>
         <translation>Recadré, calques hors zone supprimés : %1</translation>
+    </message>
+    <message>
+        <source>Delete Cropped Pixels</source>
+        <translation>Supprimer les pixels recadrés</translation>
+    </message>
+    <message>
+        <source>Delete Off-Canvas Layers</source>
+        <translation>Supprimer les calques hors zone</translation>
+    </message>
+    <message>
+        <source>Crop every layer to the new canvas; off, layers keep their pixels beyond it</source>
+        <translation>Recadre chaque calque sur la nouvelle zone de travail ; désactivé, les calques gardent leurs pixels au-delà</translation>
+    </message>
+    <message>
+        <source>Delete layers that end up fully outside the crop box</source>
+        <translation>Supprime les calques entièrement hors du cadre de recadrage</translation>
     </message>
 </context>
 <context>

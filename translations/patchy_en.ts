@@ -18618,15 +18618,23 @@ Baked into images: %1.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Delete cropped pixels and layers too</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Crop every layer to the new canvas and delete layers left fully outside it; off, layers keep their pixels beyond the canvas</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Cropped, off-canvas layers deleted: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete Cropped Pixels</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete Off-Canvas Layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Crop every layer to the new canvas; off, layers keep their pixels beyond it</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete layers that end up fully outside the crop box</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

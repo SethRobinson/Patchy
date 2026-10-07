@@ -18668,16 +18668,24 @@ In Bilder umgewandelt: %1.</translation>
         <translation>Auf Auswahl freistellen (Erweitert) kann einen gedrehten Freistellrahmen nicht begradigen; verwenden Sie Auf Auswahl freistellen</translation>
     </message>
     <message>
-        <source>Delete cropped pixels and layers too</source>
-        <translation>Auch freigestellte Pixel und Ebenen löschen</translation>
-    </message>
-    <message>
-        <source>Crop every layer to the new canvas and delete layers left fully outside it; off, layers keep their pixels beyond the canvas</source>
-        <translation>Jede Ebene auf die neue Arbeitsfläche zuschneiden und Ebenen löschen, die vollständig außerhalb liegen; deaktiviert behalten Ebenen ihre Pixel außerhalb der Arbeitsfläche</translation>
-    </message>
-    <message>
         <source>Cropped, off-canvas layers deleted: %1</source>
         <translation>Freigestellt, Ebenen außerhalb gelöscht: %1</translation>
+    </message>
+    <message>
+        <source>Delete Cropped Pixels</source>
+        <translation>Freigestellte Pixel löschen</translation>
+    </message>
+    <message>
+        <source>Delete Off-Canvas Layers</source>
+        <translation>Ebenen außerhalb löschen</translation>
+    </message>
+    <message>
+        <source>Crop every layer to the new canvas; off, layers keep their pixels beyond it</source>
+        <translation>Jede Ebene auf die neue Arbeitsfläche zuschneiden; deaktiviert behalten Ebenen ihre Pixel außerhalb</translation>
+    </message>
+    <message>
+        <source>Delete layers that end up fully outside the crop box</source>
+        <translation>Ebenen löschen, die vollständig außerhalb des Freistellrahmens liegen</translation>
     </message>
 </context>
 <context>
