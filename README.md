@@ -16,7 +16,7 @@ For bug reports and feature requests, please [open an issue](https://github.com/
 
 ## Download
 
-**Latest release: 1.06** · October 6, 2026 · [Release notes](#whats-new) · [All releases](https://github.com/SethRobinson/Patchy/releases)
+**Latest release: 1.07** · October 7, 2026 · [Release notes](#whats-new) · [All releases](https://github.com/SethRobinson/Patchy/releases)
 
 Windows releases are code signed by Seth A. Robinson; the macOS app is signed and
 notarized (Robinson Technologies Corporation); the Linux Flatpak repository is GPG
@@ -125,6 +125,14 @@ and Affinity import has format-specific limitations. See [current compatibility]
 
 ## What's New
 
+### 1.07 - October 7, 2026
+
+- Free Transform: Bicubic Smoother, Bicubic Sharper and Bicubic Automatic interpolation, the same choices as Image Size, which now honors and remembers the chosen resampling method and previews with it
+- Crop tool: the layer options are now Delete Cropped Pixels (on by default, like Photoshop) and Delete Off-Canvas Layers. Image > Crop and Crop to Selection (Advanced) use the Crop tool's box while the tool is active, and the advanced dialog starts with the layer crop checked
+- Pressing Alt mid-drag draws a marquee or crop box from the center, and on Windows Alt+Space mid-drag slides the box instead of opening the window menu ([issue 78](https://github.com/SethRobinson/Patchy/issues/78))
+- The Shape Appearance dialog opens sized to all of its rows, without a scrollbar
+- Web build: copying an image to the clipboard works again in Chromium browsers
+
 ### 1.06 - October 6, 2026
 
 - Crop tool: it frames the canvas when selected, adopts the current selection, and has a Style menu with a Size mode for typing an exact Width and Height. Alt resizes the box about its center and Space slides it during a handle drag ([issue 66](https://github.com/SethRobinson/Patchy/issues/66))
@@ -141,14 +149,6 @@ and Affinity import has format-specific limitations. See [current compatibility]
 - Testy V2 written, it's a more accurate way to test PSD compatibilty of various apps,, it's a WIP but you can see a run [here](https://www.rtsoft.com/testy/2026-10-06/).  
 
 - I added some people to the credits (Kevdoy had a TON of bug reports today), thanks folks!)  But then the credits got too big, so I moved them to the Help->About screen as being on the main screen actually hurt the real-estate needed to show more recent files.  If anybody is like "no, don't put me in the credits, jerk" just let me know.
-### 1.05 - October 4, 2026
-
-- Linux: Patchy now updates through `flatpak update` and the software center, from a signed Flatpak repository ([issue 28](https://github.com/SethRobinson/Patchy/issues/28)). The Flatpak moved to the current KDE runtime, and iPhone HEIC photos open without installing an extra codec package
-- Open from Clipboard: File > Open from Clipboard (Ctrl+Alt+Shift+N) opens the copied image as a new document
-- Clicking a palette swatch recolors the selected text and shape layers ([issue 61](https://github.com/SethRobinson/Patchy/issues/61))
-- Type tool: pressing on a text layer and dragging selects text in one gesture, without a second click to enter editing first
-- Windows installer: Patchy now appears under Explorer's "Open with" for the image types it opens, without changing any default program
-- Fixed a freeze on KDE when a drag crossed the layer action buttons ([issue 62](https://github.com/SethRobinson/Patchy/issues/62))
 
 [Older releases](RELEASE-HISTORY.md)
 

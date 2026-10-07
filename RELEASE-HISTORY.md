@@ -3,6 +3,15 @@
 Older Patchy release notes are collected here. The two most recent releases
 remain in [README.md](README.md#whats-new).
 
+## 1.05 - October 4, 2026
+
+- Linux: Patchy now updates through `flatpak update` and the software center, from a signed Flatpak repository ([issue 28](https://github.com/SethRobinson/Patchy/issues/28)). The Flatpak moved to the current KDE runtime, and iPhone HEIC photos open without installing an extra codec package
+- Open from Clipboard: File > Open from Clipboard (Ctrl+Alt+Shift+N) opens the copied image as a new document
+- Clicking a palette swatch recolors the selected text and shape layers ([issue 61](https://github.com/SethRobinson/Patchy/issues/61))
+- Type tool: pressing on a text layer and dragging selects text in one gesture, without a second click to enter editing first
+- Windows installer: Patchy now appears under Explorer's "Open with" for the image types it opens, without changing any default program
+- Fixed a freeze on KDE when a drag crossed the layer action buttons ([issue 62](https://github.com/SethRobinson/Patchy/issues/62))
+
 ## 1.04 - October 3, 2026
 
 - Edit shape appearance and layer styles across selected layers, with mixed-value indicators, live previews, and one undo step per edit

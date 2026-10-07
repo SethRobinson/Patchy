@@ -132,6 +132,16 @@
     <control>tablet</control>
   </supports>
   <releases>
+    <release version="1.07" date="2026-10-07">
+      <description>
+        <ul>
+          <li>Free Transform: Bicubic Smoother, Bicubic Sharper and Bicubic Automatic interpolation; Image Size remembers the chosen resampling method</li>
+          <li>Crop tool: Delete Cropped Pixels (on by default) and Delete Off-Canvas Layers options; the Crop commands use the Crop tool's box</li>
+          <li>Pressing Alt mid-drag draws a marquee or crop box from the center</li>
+          <li>The Shape Appearance dialog opens sized to all of its rows</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.06" date="2026-10-06">
       <description>
         <ul>
