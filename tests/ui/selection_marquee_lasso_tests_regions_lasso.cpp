@@ -1,4 +1,5 @@
 #include "ui/canvas_widget.hpp"
+#include "ui/canvas_alt_space_filter.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/app_settings.hpp"
 #include "core/adjustment_layer.hpp"
@@ -195,6 +196,13 @@
 #include <string_view>
 #include <utility>
 #include <vector>
+
+#ifdef Q_OS_WIN
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
 
 #include "ui_test_access.hpp"
 #include "ui_test_groups.hpp"
@@ -1547,6 +1555,175 @@ void ui_elliptical_marquee_handle_drag_keeps_ellipse() {
 // GitHub issue 66: Alt over a marquee handle is the symmetric resize, so the
 // hover shows the resize cursor (not the Subtract badge) and Alt held from the
 // press mirrors the opposite side. Inside the selection Alt still subtracts.
+// Alt pressed after a marquee drag-out starts mirrors the rectangle about the
+// press point, releasing it goes back to the corner anchor, and Alt held from
+// the press over an existing selection stays Subtract until it is released
+// and pressed again (GitHub issue 78).
+void ui_marquee_alt_mid_drag_draws_from_center() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  canvas->set_snap_enabled(false);
+  const auto at = [&](int x, int y) { return canvas->widget_position_for_document_point(QPoint(x, y)); };
+  const auto within = [](int actual, int expected) { return std::abs(actual - expected) <= 1; };
+
+  // Plain press, then Alt arrives as a key event with the pointer still: the
+  // 40x30 drag extent doubles to 80x60 centered on the press point.
+  canvas->clear_selection();
+  send_mouse(*canvas, QEvent::MouseButtonPress, at(200, 120), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, at(240, 150), Qt::NoButton, Qt::LeftButton);
+  send_key_press(*canvas, Qt::Key_Alt);
+  QApplication::processEvents();
+  auto rect = canvas->selected_document_rect();
+  CHECK(rect.has_value());
+  if (rect.has_value()) {
+    CHECK(within(rect->x(), 160));
+    CHECK(within(rect->y(), 90));
+    CHECK(within(rect->width(), 80));
+    CHECK(within(rect->height(), 60));
+  }
+  send_mouse(*canvas, QEvent::MouseButtonRelease, at(240, 150), Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  send_key_release(*canvas, Qt::Key_Alt, Qt::AltModifier);
+  QApplication::processEvents();
+  rect = canvas->selected_document_rect();
+  CHECK(rect.has_value());
+  if (rect.has_value()) {
+    CHECK(within(rect->x(), 160));
+    CHECK(within(rect->y(), 90));
+    CHECK(within(rect->width(), 80));
+    CHECK(within(rect->height(), 60));
+  }
+
+  // Alt released mid-drag: the rectangle re-anchors at the press corner.
+  canvas->clear_selection();
+  send_mouse(*canvas, QEvent::MouseButtonPress, at(200, 120), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, at(240, 150), Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+  rect = canvas->selected_document_rect();
+  CHECK(rect.has_value() && within(rect->x(), 160));
+  send_key_release(*canvas, Qt::Key_Alt, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseMove, at(240, 150), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, at(240, 150), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  rect = canvas->selected_document_rect();
+  CHECK(rect.has_value());
+  if (rect.has_value()) {
+    CHECK(rect->topLeft() == QPoint(200, 120));
+    CHECK(within(rect->width(), 40));
+    CHECK(within(rect->height(), 30));
+  }
+
+  // Alt held from the press over a selection subtracts from the press corner,
+  // not from the center: cutting x >= 220 off a 160..240 selection leaves 60 wide.
+  canvas->clear_selection();
+  drag(*canvas, at(160, 90), at(239, 149));
+  rect = canvas->selected_document_rect();
+  CHECK(rect.has_value() && rect->x() == 160 && within(rect->width(), 80));
+  send_mouse(*canvas, QEvent::MouseButtonPress, at(220, 80), Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseMove, at(260, 170), Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, at(260, 170), Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  QApplication::processEvents();
+  rect = canvas->selected_document_rect();
+  CHECK(rect.has_value());
+  if (rect.has_value()) {
+    CHECK(rect->x() == 160);
+    CHECK(within(rect->width(), 60));
+    CHECK(rect->height() == 60);
+  }
+
+  // Releasing and pressing Alt again during that Subtract drag turns on
+  // from-center for the candidate: centered on x 210 with a 40 px half width it
+  // cuts x 170..250, leaving 10 wide (a corner-anchored cut would leave 50).
+  canvas->clear_selection();
+  drag(*canvas, at(160, 90), at(239, 149));
+  rect = canvas->selected_document_rect();
+  CHECK(rect.has_value() && rect->x() == 160 && within(rect->width(), 80));
+  send_mouse(*canvas, QEvent::MouseButtonPress, at(210, 80), Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseMove, at(215, 85), Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+  send_key_release(*canvas, Qt::Key_Alt, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseMove, at(215, 85), Qt::NoButton, Qt::LeftButton);
+  send_key_press(*canvas, Qt::Key_Alt);
+  send_mouse(*canvas, QEvent::MouseMove, at(250, 170), Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, at(250, 170), Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  send_key_release(*canvas, Qt::Key_Alt, Qt::AltModifier);
+  QApplication::processEvents();
+  rect = canvas->selected_document_rect();
+  CHECK(rect.has_value());
+  if (rect.has_value()) {
+    CHECK(rect->x() == 160);
+    CHECK(within(rect->width(), 10));
+    CHECK(rect->height() == 60);
+  }
+  canvas->clear_selection();
+}
+
+#ifdef Q_OS_WIN
+// Alt+Space mid-drag: Qt's Windows key mapper would open the window's system
+// menu (a native modal loop that eats the mouse release and leaves the drag
+// stranded). The native filter forwards it to the canvas as Space instead, so
+// an Alt (from-center) drag can still be repositioned (GitHub issue 78). The
+// offscreen platform has no Win32 message loop, so the messages are fed to the
+// filter directly.
+void ui_marquee_alt_space_mid_drag_repositions_instead_of_system_menu() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  canvas->set_snap_enabled(false);
+  canvas->setFocus();
+  QApplication::processEvents();
+  auto* filter = patchy::ui::alt_space_drag_native_filter();
+  CHECK(filter != nullptr);
+  if (filter == nullptr) {
+    return;
+  }
+  const auto at = [&](int x, int y) { return canvas->widget_position_for_document_point(QPoint(x, y)); };
+  const auto feed = [&](UINT message, LPARAM lparam) {
+    MSG native{};
+    native.message = message;
+    native.wParam = VK_SPACE;
+    native.lParam = lparam;
+    qintptr result = -1;
+    const auto handled = filter->nativeEventFilter(QByteArrayLiteral("windows_generic_MSG"), &native, &result);
+    QApplication::processEvents();
+    return handled;
+  };
+  const auto rect_is = [&](int x, int y, int w, int h) {
+    const auto rect = canvas->selected_document_rect();
+    return rect.has_value() && std::abs(rect->x() - x) <= 1 && std::abs(rect->y() - y) <= 1 &&
+           std::abs(rect->width() - w) <= 1 && std::abs(rect->height() - h) <= 1;
+  };
+
+  // Idle canvas: the filter stays out of the way, so the system menu still opens.
+  CHECK(!feed(WM_SYSKEYDOWN, 0));
+
+  // Alt-from-center drag in flight: 40x30 extent doubles around (200, 120).
+  send_mouse(*canvas, QEvent::MouseButtonPress, at(200, 120), Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseMove, at(240, 150), Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+  CHECK(rect_is(160, 90, 80, 60));
+
+  // Alt+Space: the key-down, its derived WM_SYSCHAR and the key-up are all
+  // consumed, and the canvas sees Space, so the next move slides the rect.
+  CHECK(feed(WM_SYSKEYDOWN, 0));
+  CHECK(feed(WM_SYSCHAR, 0));
+  send_mouse(*canvas, QEvent::MouseMove, at(260, 170), Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+  CHECK(rect_is(180, 110, 80, 60));
+  CHECK(feed(WM_SYSKEYUP, (1u << 31) | (1u << 30)));
+
+  // Space released: the drag resumes resizing from the slid anchor (220, 140).
+  send_mouse(*canvas, QEvent::MouseMove, at(280, 190), Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+  CHECK(rect_is(160, 90, 120, 100));
+  send_mouse(*canvas, QEvent::MouseButtonRelease, at(280, 190), Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  QApplication::processEvents();
+  CHECK(rect_is(160, 90, 120, 100));
+
+  // Back to idle: Alt+Space is the system's again.
+  CHECK(!feed(WM_SYSKEYDOWN, 0));
+  CHECK(!feed(WM_SYSKEYUP, (1u << 31) | (1u << 30)));
+  canvas->clear_selection();
+}
+#endif
+
 void ui_marquee_alt_on_handle_shows_resize_cursor_and_mirrors() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2113,6 +2290,11 @@ std::vector<patchy::test::TestCase> selection_marquee_lasso_tests_part2() {
        ui_marquee_gestures_never_snap_to_their_own_selection},
       {"ui_marquee_corner_handle_drag_and_shift_aspect", ui_marquee_corner_handle_drag_and_shift_aspect},
       {"ui_marquee_alt_handle_drag_resizes_about_center", ui_marquee_alt_handle_drag_resizes_about_center},
+      {"ui_marquee_alt_mid_drag_draws_from_center", ui_marquee_alt_mid_drag_draws_from_center},
+#ifdef Q_OS_WIN
+      {"ui_marquee_alt_space_mid_drag_repositions_instead_of_system_menu",
+       ui_marquee_alt_space_mid_drag_repositions_instead_of_system_menu},
+#endif
       {"ui_marquee_alt_on_handle_shows_resize_cursor_and_mirrors",
        ui_marquee_alt_on_handle_shows_resize_cursor_and_mirrors},
       {"ui_elliptical_marquee_handle_drag_keeps_ellipse", ui_elliptical_marquee_handle_drag_keeps_ellipse},
