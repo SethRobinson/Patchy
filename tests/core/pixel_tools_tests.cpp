@@ -69,6 +69,7 @@
 #include <cstdint>
 #include <fstream>
 #include <functional>
+#include <initializer_list>
 #include <iomanip>
 #include <iostream>
 #include <iterator>
@@ -1088,9 +1089,244 @@ void tool_paint_pixel_block_native_blend_selection_and_palette() {
   CHECK(std::as_const(*layer).pixels().pixel(21, 10)[0] == 255);
   CHECK(std::as_const(*layer).pixels().pixel(21, 10)[3] == 255);
 }
+
+// Image Size resampling (core/resample.hpp, docs/resampling.md).
+
+patchy::PixelBuffer gray8_row(std::initializer_list<int> values) {
+  patchy::PixelBuffer row(static_cast<std::int32_t>(values.size()), 1, patchy::PixelFormat::gray8());
+  std::int32_t x = 0;
+  for (const auto value : values) {
+    *row.pixel(x++, 0) = static_cast<std::uint8_t>(value);
+  }
+  return row;
+}
+
+void resample_nearest_replicates_pixels_at_every_depth() {
+  using patchy::BitDepth;
+  for (const auto format : {patchy::PixelFormat::rgba8(), patchy::PixelFormat::rgb16(), patchy::PixelFormat::rgbf32()}) {
+    patchy::PixelBuffer source(2, 2, format);
+    const auto pixel_bytes = patchy::bytes_per_pixel(format);
+    for (std::int32_t y = 0; y < 2; ++y) {
+      for (std::int32_t x = 0; x < 2; ++x) {
+        auto* px = source.pixel(x, y);
+        for (std::size_t byte = 0; byte < pixel_bytes; ++byte) {
+          px[byte] = static_cast<std::uint8_t>(17 * (x + 2 * y) + 3 * byte + 1);
+        }
+      }
+    }
+    const auto scaled = patchy::resample_pixels(source, 4, 4, patchy::ResampleMethod::NearestNeighbor);
+    CHECK(scaled.width() == 4 && scaled.height() == 4 && scaled.format() == format);
+    for (std::int32_t y = 0; y < 4; ++y) {
+      for (std::int32_t x = 0; x < 4; ++x) {
+        CHECK(std::equal(scaled.pixel(x, y), scaled.pixel(x, y) + pixel_bytes, source.pixel(x / 2, y / 2)));
+      }
+    }
+  }
+
+  // A reduction picks the pixel under each output center: 16 -> 4 reads columns 2, 6, 10, 14.
+  patchy::PixelBuffer ramp(16, 1, patchy::PixelFormat::gray8());
+  for (std::int32_t x = 0; x < 16; ++x) {
+    *ramp.pixel(x, 0) = static_cast<std::uint8_t>(x * 16);
+  }
+  const auto reduced = patchy::resample_pixels(ramp, 4, 1, patchy::ResampleMethod::NearestNeighbor);
+  const int expected[4] = {32, 96, 160, 224};
+  for (std::int32_t x = 0; x < 4; ++x) {
+    CHECK(*reduced.pixel(x, 0) == expected[x]);
+  }
+}
+
+void resample_bilinear_enlargement_matches_clamped_edge_ramp() {
+  // Source x = (x + 0.5) / 2 - 0.5 with clamped edges gives 0, 25, 75, 100 exactly (the
+  // export resize pins the same numbers through write_flat_image_file).
+  const auto horizontal = patchy::resample_pixels(gray8_row({0, 100}), 4, 1, patchy::ResampleMethod::Bilinear);
+  const int expected[4] = {0, 25, 75, 100};
+  for (std::int32_t x = 0; x < 4; ++x) {
+    CHECK(*horizontal.pixel(x, 0) == expected[x]);
+  }
+  patchy::PixelBuffer column(1, 2, patchy::PixelFormat::gray8());
+  *column.pixel(0, 0) = 0;
+  *column.pixel(0, 1) = 100;
+  const auto vertical = patchy::resample_pixels(column, 1, 4, patchy::ResampleMethod::Bilinear);
+  for (std::int32_t y = 0; y < 4; ++y) {
+    CHECK(*vertical.pixel(0, y) == expected[y]);
+  }
+}
+
+void resample_reduction_widens_the_kernel() {
+  // Eight alternating columns halved: a point-sampled filter would keep pure 0/255
+  // (aliasing); the widened kernels average toward 128. Nearest keeps source values.
+  const auto source = gray8_row({0, 255, 0, 255, 0, 255, 0, 255});
+  for (const auto method : {patchy::ResampleMethod::Bilinear, patchy::ResampleMethod::Bicubic,
+                            patchy::ResampleMethod::BicubicSmoother, patchy::ResampleMethod::BicubicSharper}) {
+    const auto reduced = patchy::resample_pixels(source, 4, 1, method);
+    CHECK(reduced.width() == 4);
+    for (std::int32_t x = 0; x < 4; ++x) {
+      CHECK(std::abs(static_cast<int>(*reduced.pixel(x, 0)) - 128) <= 40);
+    }
+  }
+  const auto nearest = patchy::resample_pixels(source, 4, 1, patchy::ResampleMethod::NearestNeighbor);
+  for (std::int32_t x = 0; x < 4; ++x) {
+    const int value = *nearest.pixel(x, 0);
+    CHECK(value == 0 || value == 255);
+  }
+}
+
+void resample_cubic_variants_are_distinct_and_keep_flat_color() {
+  // Normalized weights leave a flat buffer untouched under every method.
+  patchy::PixelBuffer flat(5, 5, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < 5; ++y) {
+    for (std::int32_t x = 0; x < 5; ++x) {
+      auto* px = flat.pixel(x, y);
+      px[0] = 37;
+      px[1] = 120;
+      px[2] = 200;
+      px[3] = 255;
+    }
+  }
+  for (const auto method : patchy::all_resample_methods()) {
+    const auto scaled = patchy::resample_pixels(flat, 9, 7, method);
+    for (std::int32_t y = 0; y < 7; ++y) {
+      for (std::int32_t x = 0; x < 9; ++x) {
+        const auto* px = scaled.pixel(x, y);
+        CHECK(px[0] == 37 && px[1] == 120 && px[2] == 200 && px[3] == 255);
+      }
+    }
+  }
+
+  // A 64 -> 192 step doubled: the cubics overshoot in increasing order Smoother < Bicubic
+  // < Sharper (Mitchell, Catmull-Rom, Keys -0.75), while Bilinear and Nearest stay inside
+  // the source range.
+  const auto step = gray8_row({64, 64, 64, 64, 192, 192, 192, 192});
+  const auto max_of = [&](patchy::ResampleMethod method) {
+    const auto scaled = patchy::resample_pixels(step, 16, 1, method);
+    int maximum = 0;
+    for (std::int32_t x = 0; x < 16; ++x) {
+      maximum = std::max(maximum, static_cast<int>(*scaled.pixel(x, 0)));
+    }
+    return maximum;
+  };
+  const auto min_of = [&](patchy::ResampleMethod method) {
+    const auto scaled = patchy::resample_pixels(step, 16, 1, method);
+    int minimum = 255;
+    for (std::int32_t x = 0; x < 16; ++x) {
+      minimum = std::min(minimum, static_cast<int>(*scaled.pixel(x, 0)));
+    }
+    return minimum;
+  };
+  const int smoother = max_of(patchy::ResampleMethod::BicubicSmoother);
+  const int bicubic = max_of(patchy::ResampleMethod::Bicubic);
+  const int sharper = max_of(patchy::ResampleMethod::BicubicSharper);
+  CHECK(sharper > 192);
+  CHECK(smoother < bicubic);
+  CHECK(bicubic < sharper);
+  CHECK(min_of(patchy::ResampleMethod::BicubicSharper) < 64);
+  for (const auto method : {patchy::ResampleMethod::Bilinear, patchy::ResampleMethod::NearestNeighbor}) {
+    CHECK(max_of(method) == 192);
+    CHECK(min_of(method) == 64);
+  }
+}
+
+void resample_interpolates_premultiplied_alpha() {
+  // Opaque red beside transparent black: the fringe keeps the red hue with reduced
+  // coverage instead of darkening toward the transparent pixel's color.
+  patchy::PixelBuffer source(2, 1, patchy::PixelFormat::rgba8());
+  source.clear(0);
+  auto* red = source.pixel(0, 0);
+  red[0] = 255;
+  red[3] = 255;
+  const auto scaled = patchy::resample_pixels(source, 4, 1, patchy::ResampleMethod::Bilinear);
+  const int expected_alpha[4] = {255, 191, 64, 0};
+  for (std::int32_t x = 0; x < 4; ++x) {
+    const auto* px = scaled.pixel(x, 0);
+    CHECK(px[3] == expected_alpha[x]);
+    CHECK(px[1] == 0 && px[2] == 0);
+    if (px[3] > 0) {
+      CHECK(px[0] >= 250);
+    } else {
+      CHECK(px[0] == 0);
+    }
+  }
+
+  // Gray + alpha (two channels) follows the same rule.
+  patchy::PixelBuffer gray_alpha(2, 1, patchy::PixelFormat{patchy::ColorMode::Grayscale, patchy::BitDepth::UInt8, 2});
+  gray_alpha.clear(0);
+  gray_alpha.pixel(0, 0)[0] = 200;
+  gray_alpha.pixel(0, 0)[1] = 255;
+  const auto scaled_gray = patchy::resample_pixels(gray_alpha, 4, 1, patchy::ResampleMethod::Bilinear);
+  CHECK(scaled_gray.pixel(1, 0)[1] == 191);
+  CHECK(scaled_gray.pixel(1, 0)[0] >= 196);
+}
+
+void resample_sixteen_bit_and_float_interpolate() {
+  patchy::PixelBuffer deep(2, 1, patchy::PixelFormat::rgb16());
+  const std::uint16_t low = 0;
+  const std::uint16_t high = 60000;
+  for (std::uint16_t channel = 0; channel < 3; ++channel) {
+    std::memcpy(deep.pixel(0, 0) + channel * 2, &low, 2);
+    std::memcpy(deep.pixel(1, 0) + channel * 2, &high, 2);
+  }
+  const auto deep_scaled = patchy::resample_pixels(deep, 4, 1, patchy::ResampleMethod::Bilinear);
+  const std::uint16_t expected_deep[4] = {0, 15000, 45000, 60000};
+  for (std::int32_t x = 0; x < 4; ++x) {
+    std::uint16_t value = 0;
+    std::memcpy(&value, deep_scaled.pixel(x, 0), 2);
+    CHECK(value == expected_deep[x]);
+  }
+
+  patchy::PixelBuffer floating(2, 1, patchy::PixelFormat::rgbf32());
+  const float zero = 0.0F;
+  const float one = 1.0F;
+  for (std::uint16_t channel = 0; channel < 3; ++channel) {
+    std::memcpy(floating.pixel(0, 0) + channel * 4, &zero, 4);
+    std::memcpy(floating.pixel(1, 0) + channel * 4, &one, 4);
+  }
+  const auto float_scaled = patchy::resample_pixels(floating, 4, 1, patchy::ResampleMethod::Bilinear);
+  const float expected_float[4] = {0.0F, 0.25F, 0.75F, 1.0F};
+  for (std::int32_t x = 0; x < 4; ++x) {
+    float value = 0.0F;
+    std::memcpy(&value, float_scaled.pixel(x, 0), 4);
+    CHECK(std::abs(value - expected_float[x]) < 1e-6F);
+  }
+}
+
+void resample_automatic_resolves_by_direction() {
+  using patchy::ResampleMethod;
+  CHECK(patchy::resolve_automatic_resample_method(ResampleMethod::Automatic, 100, 100, 50, 50) ==
+        ResampleMethod::BicubicSharper);
+  CHECK(patchy::resolve_automatic_resample_method(ResampleMethod::Automatic, 100, 100, 200, 200) ==
+        ResampleMethod::BicubicSmoother);
+  CHECK(patchy::resolve_automatic_resample_method(ResampleMethod::Automatic, 100, 100, 200, 50) ==
+        ResampleMethod::Bicubic);
+  CHECK(patchy::resolve_automatic_resample_method(ResampleMethod::Bilinear, 100, 100, 50, 50) ==
+        ResampleMethod::Bilinear);
+}
+
+void resample_method_ids_round_trip() {
+  const auto methods = patchy::all_resample_methods();
+  CHECK(methods.size() == 6);
+  CHECK(methods.front() == patchy::ResampleMethod::Automatic);
+  for (const auto method : methods) {
+    const auto parsed = patchy::parse_resample_method(patchy::resample_method_id(method));
+    CHECK(parsed.has_value() && *parsed == method);
+  }
+  CHECK(patchy::resample_method_id(patchy::ResampleMethod::NearestNeighbor) == "nearest");
+  CHECK(patchy::resample_method_id(patchy::ResampleMethod::BicubicSharper) == "bicubicSharper");
+  CHECK(!patchy::parse_resample_method("nearestNeighbor").has_value());
+  CHECK(!patchy::parse_resample_method("").has_value());
+}
 }
 std::vector<patchy::test::TestCase> pixel_tools_tests() {
   return {
+      {"resample_nearest_replicates_pixels_at_every_depth", resample_nearest_replicates_pixels_at_every_depth},
+      {"resample_bilinear_enlargement_matches_clamped_edge_ramp",
+       resample_bilinear_enlargement_matches_clamped_edge_ramp},
+      {"resample_reduction_widens_the_kernel", resample_reduction_widens_the_kernel},
+      {"resample_cubic_variants_are_distinct_and_keep_flat_color",
+       resample_cubic_variants_are_distinct_and_keep_flat_color},
+      {"resample_interpolates_premultiplied_alpha", resample_interpolates_premultiplied_alpha},
+      {"resample_sixteen_bit_and_float_interpolate", resample_sixteen_bit_and_float_interpolate},
+      {"resample_automatic_resolves_by_direction", resample_automatic_resolves_by_direction},
+      {"resample_method_ids_round_trip", resample_method_ids_round_trip},
       {"tool_one_pixel_brush_segment_snaps_fractional_points_to_one_pixel",
        tool_one_pixel_brush_segment_snaps_fractional_points_to_one_pixel},
       {"tool_wide_brush_segment_is_fast_and_writes_artifact",

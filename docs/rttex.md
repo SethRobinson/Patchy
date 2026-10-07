@@ -113,7 +113,7 @@ The writer mirrors `WriteTextureWithoutPVR` and the RTPack switches:
 | `-4444` | Encoding Rgba4444 | RGBA4444, or RGB565 when opaque; rounded quantization `(v * max + 127) / 255`, which the reader's bit replication inverts exactly for 0 and 255 |
 | `-ultra_compress q` | Encoding Jpeg + jpeg_quality | embedded JPEG only when the image has no transparency; a transparent image is written as RGBA8888 instead and the status message says so (RTPack silently does the same) |
 | default padding | PowerOfTwo Pad | each axis to the next power of two, unchanged when already one |
-| `-stretch` | PowerOfTwo Stretch | resample to the power-of-two size through `scale_pixels_resampled` (the Image Size resampler); the original size then equals the texture size |
+| `-stretch` | PowerOfTwo Stretch | resample to the power-of-two size through `resample_pixels` (the Image Size resampler, always Bilinear here; docs/resampling.md); the original size then equals the texture size |
 | `-nopowerof2` | PowerOfTwo None | keep the exact size |
 | `-force_square` | force_square | both axes become the larger one, in every mode |
 | second pass with no flags | compress (default on) | RTPACK zlib wrapper; RTPack refuses to wrap a file already starting with "RTPACK", Patchy simply writes the wrapper or not |

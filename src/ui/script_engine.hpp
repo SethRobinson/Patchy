@@ -10,6 +10,7 @@
 #include "core/document.hpp"
 #include "core/layer.hpp"
 #include "core/layer_alignment.hpp"
+#include "core/resample.hpp"
 
 #include <QColor>
 #include <QSize>
@@ -458,7 +459,7 @@ public:
   void end_api_call();
   void pause_at_edit_boundary();
   void keep_alive_for_ui();
-  bool resize_session_image(std::int64_t session_id, int width, int height);
+  bool resize_session_image(std::int64_t session_id, int width, int height, ResampleMethod method);
   // The activeLayer setter's reveal: expand collapsed ancestor folders and
   // (when the session is the active one) select + scroll the row into view.
   void reveal_layer_row(std::int64_t session_id, LayerId layer_id);

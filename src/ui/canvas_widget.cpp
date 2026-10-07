@@ -1,4 +1,6 @@
 #include "ui/canvas_widget.hpp"
+
+#include "ui/canvas_alt_space_filter.hpp"
 #include "ui/canvas_widget_shared.hpp"
 
 #include "core/adjustment_layer.hpp"
@@ -216,6 +218,8 @@ bool expand_mask_to_include_rect(LayerMask& mask, QRect document_rect, QSize can
 }  // namespace
 
 CanvasWidget::CanvasWidget(QWidget* parent) : QWidget(parent) {
+  // Windows: keep Alt+Space mid-gesture away from Qt's system-menu path.
+  install_alt_space_drag_filter();
   setAutoFillBackground(false);
   setMouseTracking(true);
   setTabletTracking(true);

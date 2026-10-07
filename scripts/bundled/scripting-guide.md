@@ -347,7 +347,7 @@ Field types: `number`, `slider`, `checkbox`, `choice`, `text`, `color`, `folder`
 | `doc.distributeLayers(mode, options?)` | Layer > Arrange > Distribute over three or more layers or groups. `mode` adds `"hspacing"` and `"vspacing"` to the Align edges: feature modes keep the outermost units and space the rest evenly; spacing modes share one equal gap. Option `layers` as above. Throws with fewer than three movable units. |
 | `doc.selection` | The selection object (below). |
 | `doc.flatten()` | Flattens the document. |
-| `doc.resizeImage(w, h)` / `doc.resizeCanvas(w, h)` / `doc.crop(x, y, w, h)` | Geometry operations. `crop` clips to the canvas and throws for a disjoint rectangle. |
+| `doc.resizeImage(w, h, {method?})` / `doc.resizeCanvas(w, h)` / `doc.crop(x, y, w, h)` | Geometry operations. `resizeImage` takes a resampling `method` id (`"automatic"`, `"nearest"`, `"bilinear"`, `"bicubic"`, `"bicubicSmoother"`, `"bicubicSharper"`; default automatic). `crop` clips to the canvas and throws for a disjoint rectangle. |
 | `doc.saveAs(path)` / `doc.exportAs(path)` | Saves to the path; the format follows the extension (`.psd`, `.png`, `.jpg`, ...). WebP stays a single flattened image. |
 | `doc.exportAnimatedWebp(path, options?)` | Exports visible top-level layers top first, with each group rendered as one frame. Leaves the document path and modified state unchanged. |
 | `doc.close()` | Closes without prompting. |

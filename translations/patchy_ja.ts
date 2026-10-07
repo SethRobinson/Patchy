@@ -3592,16 +3592,6 @@ Flow: %6
         <translation>バイキュービック法(拡大向き)</translation>
     </message>
     <message>
-        <source>Nearest Neighbor</source>
-        <translation>ニアレストネイバー</translation>
-    </message>
-    <message>
-        <source>Create a new, larger document with more detail
-Open in Generative Upscale...</source>
-        <translation>より詳細な新しい大きいドキュメントを作成
-生成アップスケールで開く...</translation>
-    </message>
-    <message>
         <source>%1 px x %2 px</source>
         <translation>%1 px x %2 px</translation>
     </message>
@@ -8878,6 +8868,30 @@ Mixed selection</source>
     <message>
         <source>Ratio</source>
         <translation>比率</translation>
+    </message>
+    <message>
+        <source>Automatic</source>
+        <translation>自動</translation>
+    </message>
+    <message>
+        <source>Nearest Neighbor (hard edges)</source>
+        <translation>ニアレストネイバー (ハードな輪郭)</translation>
+    </message>
+    <message>
+        <source>Bilinear</source>
+        <translation>バイリニア</translation>
+    </message>
+    <message>
+        <source>Bicubic (smooth gradients)</source>
+        <translation>バイキュービック (滑らかなグラデーション)</translation>
+    </message>
+    <message>
+        <source>Off: the pixel dimensions stay the same and only the print resolution changes, so the image is not scaled.</source>
+        <translation>オフ: ピクセル数は変わらず、印刷解像度だけが変わります。画像は拡大縮小されません。</translation>
+    </message>
+    <message>
+        <source>Pixel dimensions are locked. Only the print resolution and the print size change.</source>
+        <translation>ピクセル数は固定されています。変わるのは印刷解像度と印刷サイズだけです。</translation>
     </message>
 </context>
 <context>
@@ -20068,6 +20082,10 @@ Baked into images: %1.</source>
     <message>
         <source>mergeLayers: effectsFrom requires singleVector.</source>
         <translation>mergeLayers: effectsFromにはsingleVectorが必要です。</translation>
+    </message>
+    <message>
+        <source>resizeImage method must be one of %1.</source>
+        <translation>resizeImage の method は %1 のいずれかでなければなりません。</translation>
     </message>
 </context>
 <context>

@@ -4,6 +4,7 @@
 
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/resample.hpp"
 #include "core/worker_budget.hpp"
 #include "core/smart_object.hpp"
 #include "core/layer_render_utils.hpp"
@@ -1894,8 +1895,8 @@ namespace {
   return scaled;
 }
 
-// Export-only geometry, applied in this order: crop (Trim transparent edges), resize (the
-// bilinear Image Size resampler), nearest-neighbor pixel-art scale. Channel-agnostic, so
+// Export-only geometry, applied in this order: crop (Trim transparent edges), resize (the Image Size
+// resampler, always Bilinear here), nearest-neighbor pixel-art scale. Channel-agnostic, so
 // rgb8/rgba8 pixels and gray8 mask planes go through identical math.
 struct ExportTransform {
   std::optional<Rect> crop;                                     // source pixels; nullopt = whole buffer
@@ -1920,7 +1921,7 @@ struct ExportTransform {
   }
   if (transform.resize.has_value() &&
       (transform.resize->first != result.width() || transform.resize->second != result.height())) {
-    result = scale_pixels_resampled(result, transform.resize->first, transform.resize->second);
+    result = resample_pixels(result, transform.resize->first, transform.resize->second, ResampleMethod::Bilinear);
   }
   if (transform.scale > 1) {
     result = upscale_nearest_buffer(result, transform.scale);

@@ -1119,8 +1119,12 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     selection_shift_released_since_press_ = false;
     selection_square_constrained_ = false;
     // With no existing selection Alt does not subtract; instead it mirrors the
-    // marquee about the press point (Photoshop's draw-from-center).
-    marquee_from_center_ = (event->modifiers() & Qt::AltModifier) != 0 && selection_.isEmpty();
+    // marquee about the press point (Photoshop's draw-from-center). Alt held
+    // from the press over a selection is Subtract, so it only mirrors once
+    // released and pressed again mid-drag (GitHub issue 78; the Shift rule).
+    selection_alt_at_press_ = (event->modifiers() & Qt::AltModifier) != 0 && !selection_.isEmpty();
+    selection_alt_released_since_press_ = false;
+    update_marquee_from_center(event->modifiers());
     selection_start_ = snapped_point;
     selection_current_ = snapped_point;
     capture_selection_before_edit();
@@ -1558,7 +1562,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
 
   if (tool_ == CanvasTool::Crop && crop_dragging_out_) {
     clear_move_hover_outline();
-    update_crop_drag_out(document_position(event->pos()));
+    update_crop_drag_out(document_position(event->pos()), event->modifiers());
     last_mouse_position_ = event->pos();
     return;
   }
@@ -1921,6 +1925,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       selection_current_ = spacebar_reposition_start_selection_current_ + delta;
     } else {
       update_selection_square_constraint(event->modifiers());
+      update_marquee_from_center(event->modifiers());
       selection_current_ = snapped_marquee_current_point(selection_start_, document_point);
     }
     // Replace updates the live selection; the combine modes defer to release and
@@ -2643,6 +2648,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       spacebar_repositioning_drag_rect_ = false;
     } else {
       update_selection_square_constraint(event->modifiers());
+      update_marquee_from_center(event->modifiers());
       selection_current_ = snapped_marquee_current_point(selection_start_, document_point);
     }
     // Rounded corners commit through the mask path too so the curved edges pick
@@ -3175,11 +3181,15 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     return;
   }
 
-  // Shift toggled mid-drag arrives as a key event, not a mouse move; update the
-  // constraint here so a stationary cursor still responds.
-  if (selecting_ && !spacebar_repositioning_drag_rect_ && event->key() == Qt::Key_Shift &&
-      !event->isAutoRepeat()) {
-    update_selection_square_constraint(event->modifiers() | Qt::ShiftModifier);
+  // Shift/Alt toggled mid-drag arrives as a key event, not a mouse move; update
+  // the square and from-center constraints here so a stationary cursor still
+  // responds (GitHub issue 78). The event reports the modifier state before
+  // this key, so fold the pressed key in.
+  if (selecting_ && !spacebar_repositioning_drag_rect_ &&
+      (event->key() == Qt::Key_Shift || event->key() == Qt::Key_Alt) && !event->isAutoRepeat()) {
+    const auto bit = event->key() == Qt::Key_Shift ? Qt::ShiftModifier : Qt::AltModifier;
+    update_selection_square_constraint(event->modifiers() | bit);
+    update_marquee_from_center(event->modifiers() | bit);
     refresh_active_marquee_selection();
     event->accept();
     return;
@@ -3193,11 +3203,16 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     return;
   }
 
-  // Shift toggled mid-crop-drag-out arrives as a key event, not a mouse move;
-  // update the square constraint so a stationary cursor still snaps.
-  if (crop_dragging_out_ && !spacebar_repositioning_drag_rect_ && event->key() == Qt::Key_Shift &&
-      !event->isAutoRepeat()) {
-    crop_square_constrained_ = true;
+  // Shift/Alt toggled mid-crop-drag-out arrives as a key event, not a mouse
+  // move; update the square and from-center constraints so a stationary
+  // cursor still responds (GitHub issue 78).
+  if (crop_dragging_out_ && !spacebar_repositioning_drag_rect_ &&
+      (event->key() == Qt::Key_Shift || event->key() == Qt::Key_Alt) && !event->isAutoRepeat()) {
+    if (event->key() == Qt::Key_Shift) {
+      crop_square_constrained_ = true;
+    } else {
+      crop_from_center_ = true;
+    }
     update();
     event->accept();
     return;
@@ -3535,9 +3550,11 @@ void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
     event->accept();
     return;
   }
-  if (selecting_ && !spacebar_repositioning_drag_rect_ && event->key() == Qt::Key_Shift &&
-      !event->isAutoRepeat()) {
-    update_selection_square_constraint(event->modifiers() & ~Qt::ShiftModifier);
+  if (selecting_ && !spacebar_repositioning_drag_rect_ &&
+      (event->key() == Qt::Key_Shift || event->key() == Qt::Key_Alt) && !event->isAutoRepeat()) {
+    const auto bit = event->key() == Qt::Key_Shift ? Qt::ShiftModifier : Qt::AltModifier;
+    update_selection_square_constraint(event->modifiers() & ~bit);
+    update_marquee_from_center(event->modifiers() & ~bit);
     refresh_active_marquee_selection();
     event->accept();
     return;
@@ -3549,9 +3566,13 @@ void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
     event->accept();
     return;
   }
-  if (crop_dragging_out_ && !spacebar_repositioning_drag_rect_ && event->key() == Qt::Key_Shift &&
-      !event->isAutoRepeat()) {
-    crop_square_constrained_ = false;
+  if (crop_dragging_out_ && !spacebar_repositioning_drag_rect_ &&
+      (event->key() == Qt::Key_Shift || event->key() == Qt::Key_Alt) && !event->isAutoRepeat()) {
+    if (event->key() == Qt::Key_Shift) {
+      crop_square_constrained_ = false;
+    } else {
+      crop_from_center_ = false;
+    }
     update();
     event->accept();
     return;

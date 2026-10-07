@@ -4,6 +4,7 @@
 #include "core/document.hpp"
 #include "core/palette.hpp"
 #include "core/rect_utils.hpp"
+#include "core/resample.hpp"
 
 #include <array>
 #include <cstdint>
@@ -225,11 +226,11 @@ void expand_layer_to_include_rect(Layer& layer, Rect document_rect);
                                       const EditOptions& options);
 [[nodiscard]] Rect flip_layer_horizontal(Document& document, LayerId layer_id);
 [[nodiscard]] Rect flip_layer_vertical(Document& document, LayerId layer_id);
-void resize_image_and_layers(Document& document, std::int32_t width, std::int32_t height);
-// The resampler behind Image Size: bilinear with clamped edges for 8-bit buffers, nearest
-// for deeper formats. Shared with the Proton texture writer's stretch-to-power-of-two mode.
-[[nodiscard]] PixelBuffer scale_pixels_resampled(const PixelBuffer& source, std::int32_t width,
-                                                 std::int32_t height);
+// Image Size: resamples every layer, mask and channel with `method` (core/resample.hpp;
+// Automatic resolves once from the document dimensions) and scales the text, smart-object
+// and vector transforms to match.
+void resize_image_and_layers(Document& document, std::int32_t width, std::int32_t height,
+                             ResampleMethod method = ResampleMethod::Automatic);
 // Preserve off-canvas layer pixels and masks unless crop_layers is explicitly enabled.
 // Background layers still fill newly exposed canvas with extension_color.
 void resize_canvas_and_layers(Document& document, std::int32_t width, std::int32_t height,

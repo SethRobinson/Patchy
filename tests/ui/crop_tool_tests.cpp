@@ -576,6 +576,89 @@ void ui_crop_alt_handle_drag_resizes_about_center() {
   CHECK(canvas->crop_session_rect() == QRect(0, 128, 1024, 512));
 }
 
+// Alt mirrors a crop drag-out about the press point, whether held from the
+// press or pressed mid-drag; releasing it re-anchors at the press corner, and a
+// set ratio still constrains the mirrored box (GitHub issue 78).
+void ui_crop_alt_drag_out_draws_from_center() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action(window, "toolCropAction")->trigger();
+  QApplication::processEvents();
+  canvas->set_snap_enabled(false);
+  canvas->set_crop_ratio(0.0, 0.0);
+  const auto at = [&](int x, int y) { return canvas->widget_position_for_document_point(QPoint(x, y)); };
+  const auto within = [](int actual, int expected) { return std::abs(actual - expected) <= 1; };
+  const auto reset = [&] {
+    send_key(*canvas, Qt::Key_Escape);
+    QApplication::processEvents();
+  };
+
+  // Alt held from the press: the 100x80 drag extent doubles around (300, 300).
+  send_mouse(*canvas, QEvent::MouseButtonPress, at(300, 300), Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseMove, at(400, 380), Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, at(400, 380), Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  QApplication::processEvents();
+  auto rect = canvas->crop_session_rect();
+  CHECK(rect.has_value());
+  if (rect.has_value()) {
+    CHECK(within(rect->x(), 200));
+    CHECK(within(rect->y(), 220));
+    CHECK(within(rect->width(), 200));
+    CHECK(within(rect->height(), 160));
+  }
+  reset();
+
+  // Alt pressed after the drag starts, as a key event with the pointer still,
+  // then kept through the rest of the drag.
+  send_mouse(*canvas, QEvent::MouseButtonPress, at(300, 300), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, at(350, 340), Qt::NoButton, Qt::LeftButton);
+  send_key_press(*canvas, Qt::Key_Alt);
+  send_mouse(*canvas, QEvent::MouseMove, at(400, 380), Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, at(400, 380), Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  send_key_release(*canvas, Qt::Key_Alt, Qt::AltModifier);
+  QApplication::processEvents();
+  rect = canvas->crop_session_rect();
+  CHECK(rect.has_value());
+  if (rect.has_value()) {
+    CHECK(within(rect->x(), 200));
+    CHECK(within(rect->y(), 220));
+    CHECK(within(rect->width(), 200));
+    CHECK(within(rect->height(), 160));
+  }
+  reset();
+
+  // Alt released mid-drag: the box re-anchors at the press corner.
+  send_mouse(*canvas, QEvent::MouseButtonPress, at(300, 300), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, at(350, 340), Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+  send_key_release(*canvas, Qt::Key_Alt, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseMove, at(400, 380), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, at(400, 380), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  rect = canvas->crop_session_rect();
+  CHECK(rect.has_value());
+  CHECK(rect == QRect(300, 300, 101, 81));
+  reset();
+
+  // A 2:1 ratio holds about the center: the 80 px half height wins, so the half
+  // width becomes 160.
+  canvas->set_crop_ratio(2.0, 1.0);
+  send_mouse(*canvas, QEvent::MouseButtonPress, at(300, 300), Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseMove, at(400, 380), Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, at(400, 380), Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  QApplication::processEvents();
+  rect = canvas->crop_session_rect();
+  CHECK(rect.has_value());
+  if (rect.has_value()) {
+    CHECK(within(rect->x(), 140));
+    CHECK(within(rect->y(), 220));
+    CHECK(within(rect->width(), 320));
+    CHECK(within(rect->height(), 160));
+  }
+  reset();
+  CHECK(canvas->crop_session_rect() == QRect(0, 128, 1024, 512));
+}
+
 // Space held during a crop handle drag slides the whole box, and releasing it
 // resumes the resize from the slid position (the marquee handle rule).
 void ui_crop_handle_drag_space_slides_box_then_resumes() {
@@ -1096,6 +1179,7 @@ std::vector<patchy::test::TestCase> crop_tool_tests() {
       {"ui_crop_size_style_fields_mirror_and_resize_box", ui_crop_size_style_fields_mirror_and_resize_box},
       {"ui_crop_handles_resize_move_and_nudge", ui_crop_handles_resize_move_and_nudge},
       {"ui_crop_alt_handle_drag_resizes_about_center", ui_crop_alt_handle_drag_resizes_about_center},
+      {"ui_crop_alt_drag_out_draws_from_center", ui_crop_alt_drag_out_draws_from_center},
       {"ui_crop_handle_drag_space_slides_box_then_resumes", ui_crop_handle_drag_space_slides_box_then_resumes},
       {"ui_crop_rotated_commit_straightens_box", ui_crop_rotated_commit_straightens_box},
       {"ui_crop_enter_commits_expanding_document", ui_crop_enter_commits_expanding_document},

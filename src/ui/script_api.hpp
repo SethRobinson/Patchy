@@ -267,7 +267,8 @@ public:
   Q_INVOKABLE int alignLayers(const QString& edge, const QJSValue& options = QJSValue());
   Q_INVOKABLE int distributeLayers(const QString& mode, const QJSValue& options = QJSValue());
   Q_INVOKABLE void flatten();
-  Q_INVOKABLE void resizeImage(int width, int height);
+  // `options.method`: a resample id (core/resample.hpp), default "automatic".
+  Q_INVOKABLE void resizeImage(int width, int height, const QJSValue& options = QJSValue());
   Q_INVOKABLE void resizeCanvas(int width, int height);
   Q_INVOKABLE void crop(int x, int y, int width, int height);
   Q_INVOKABLE bool saveAs(const QString& path);

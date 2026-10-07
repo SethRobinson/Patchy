@@ -1,0 +1,86 @@
+# Image Size resampling
+
+Owner: `src/core/resample.hpp` / `resample.cpp`. Image > Image Size (`request_image_size_settings`
+and `MainWindow::resize_document_image` in `src/ui/main_window_document_dialogs.cpp`),
+`doc.resizeImage` and the MCP connector all resize through `resize_image_and_layers`
+(`core/document_geometry.cpp`), which hands every layer, mask and document channel to
+`resample_pixels` with one method.
+
+## Methods and permanent ids
+
+`ResampleMethod` is append-only. The ids are compatibility contracts: the dialog stores the
+last choice under the settings key `imageSize/lastResampleMethod` (an id string, saved on
+accept only; missing or unknown reads as Automatic) and `doc.resizeImage(w, h, {method})`
+accepts them. The dialog shows them in this order.
+
+| Id | Dialog label | Kernel |
+|---|---|---|
+| `automatic` | Automatic | Bicubic Sharper when the target area is smaller than the source, Bicubic Smoother when larger, Bicubic when equal. Resolved once per resize from the document dimensions (`resolve_automatic_resample_method`), so every layer uses the same kernel. |
+| `nearest` | Nearest Neighbor (hard edges) | Pixel copy of the source pixel under each output center, `floor((i + 0.5) * source / target)`. Integer enlargements replicate exactly. |
+| `bilinear` | Bilinear | Triangle (tent), support 1. |
+| `bicubic` | Bicubic (smooth gradients) | Catmull-Rom: Mitchell-Netravali B 0, C 0.5. The same kernel as Free Transform's Bicubic. |
+| `bicubicSmoother` | Bicubic Smoother (enlargement) | Mitchell: B 1/3, C 1/3. Softer, least ringing. |
+| `bicubicSharper` | Bicubic Sharper (reduction) | Keys a = -0.75: B 0, C 0.75. Highest acutance, most overshoot. |
+
+The three cubics are one function, `cubic_bc_weight(distance, B, C)`. `cubic_weight` is
+Catmull-Rom spelled with its literal coefficients because Free Transform's bicubic output is
+pinned on that exact expression (`gray8_resample_identity_and_default_fill`,
+`ui_group_transform_resamples_linked_masks`); keep both.
+
+## The driver (`resample_pixels`)
+
+Separable two-pass filter with per-axis weight tables (`build_axis_weights`):
+
+- Output index i samples the source around `center = (i + 0.5) * source / target`.
+- On a reduction the kernel widens by the scale (`filter_scale = max(1, source / target)`), so
+  the output averages its footprint instead of aliasing. That is what makes "Sharper
+  (reduction)" a real choice; the old point-sampled bilinear kept pure alternating columns
+  through a 2:1 reduction.
+- Taps outside the buffer are dropped and the remaining weights renormalized. For a bilinear
+  enlargement this is byte-identical to clamp-to-edge sampling, which keeps the export resize
+  pin (`ui_export_resize_resamples_bilinear_to_target`: 2 -> 4 of 0/100 gives 0, 25, 75, 100).
+- Every bit depth: channels are read as doubles from UInt8, UInt16 (native memcpy) or Float32
+  and written back rounded and clamped for the integer depths (floats unclamped). Deep
+  documents used to fall back to nearest.
+- Alpha: a buffer with one channel more than its color mode's color channels (RGBA, gray +
+  alpha) interpolates premultiplied and un-premultiplies against the stored alpha on write; a
+  fully transparent result is black, like Free Transform's commit. The old straight-alpha
+  bilinear darkened fringes toward transparent black.
+- The vertical pass streams: horizontally resampled source rows live in a window that advances
+  with the output row, so memory is `max_taps` rows, never the whole image.
+- Deterministic: fixed summation order, no threads inside. The Image Size caller already runs
+  it on a worker (`resize_document_image`).
+
+Other callers pass an explicit method and keep Bilinear: the export Resize option
+(`transform_export_buffer`, `src/ui/image_document_io.cpp`) and the Proton texture writer's
+stretch mode (`rttex_document_io.cpp`).
+
+## Free Transform
+
+Free Transform (`src/ui/canvas_widget_transform.cpp`) keeps its own inverse-mapping samplers
+over a QImage (arbitrary affine, 8-bit RGBA and gray8, point-sampled) and takes its cubic
+weights from `patchy::cubic_weight`. Its combo persists `tools/transformInterpolation` as an
+integer of `CanvasWidget::TransformInterpolation` (three values); it could offer Smoother and
+Sharper now that the kernel takes (B, C), see docs/refactor-backlog.md.
+
+## Dialog behavior
+
+Resample on: the method combo is enabled and the choice is applied and remembered. Resample
+off: pixel dimensions lock to the document (Photoshop semantics, docs/resolution-units.md),
+the combo disables, and the hint label `imageSizeResampleHintLabel` ("Pixel dimensions are
+locked...") appears; the checkbox tooltip says the same. OK with Resample off is a
+metadata-only "Print resolution" undo step.
+
+## Tests
+
+Core (`tests/core/pixel_tools_tests.cpp`): `resample_nearest_replicates_pixels_at_every_depth`,
+`resample_bilinear_enlargement_matches_clamped_edge_ramp`, `resample_reduction_widens_the_kernel`,
+`resample_cubic_variants_are_distinct_and_keep_flat_color`, `resample_interpolates_premultiplied_alpha`,
+`resample_sixteen_bit_and_float_interpolate`, `resample_automatic_resolves_by_direction`,
+`resample_method_ids_round_trip`; `document_image_resize_scales_layers_and_writes_artifact`
+covers the method reaching layers. UI (`tests/ui/import_print_resolution_tests.cpp`):
+`ui_image_size_dialog_method_is_applied_and_remembered`, `ui_script_resize_image_method_option`,
+the Resample-off phase of `ui_image_size_dialog_unit_and_resolution_links_work`, and the export
+pins `ui_export_resize_resamples_bilinear_to_target` and
+`ui_export_transforms_apply_trim_resize_scale_matte_in_order` (whose fringe values encode the
+premultiplied rule).

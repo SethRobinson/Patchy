@@ -2130,13 +2130,32 @@ void ScriptDocumentObject::flatten() {
   host_.note_structure_changed(session_id_);
 }
 
-void ScriptDocumentObject::resizeImage(int width, int height) {
+void ScriptDocumentObject::resizeImage(int width, int height, const QJSValue& options) {
   const ScriptApiCall api_call(host_);
   if (width < 1 || height < 1 || width > 30000 || height > 30000) {
     host_.throw_js_error(ScriptEngineHost::tr("resizeImage needs a size between 1 and 30000."));
     return;
   }
-  if (read_document()) { host_.resize_session_image(session_id_, width, height); }
+  // The Image Size dialog's method, by its permanent id (core/resample.hpp); Automatic
+  // picks Bicubic Sharper for a reduction and Bicubic Smoother for an enlargement.
+  auto method = ResampleMethod::Automatic;
+  if (options.isObject()) {
+    if (const auto value = options.property(QStringLiteral("method")); !value.isUndefined() && !value.isNull()) {
+      const auto parsed = parse_resample_method(value.toString().toStdString());
+      if (!parsed.has_value()) {
+        QStringList ids;
+        for (const auto candidate : all_resample_methods()) {
+          const auto id = resample_method_id(candidate);
+          ids.push_back(QStringLiteral("\"%1\"").arg(QString::fromUtf8(id.data(), static_cast<qsizetype>(id.size()))));
+        }
+        host_.throw_js_error(
+            ScriptEngineHost::tr("resizeImage method must be one of %1.").arg(ids.join(QStringLiteral(", "))));
+        return;
+      }
+      method = *parsed;
+    }
+  }
+  if (read_document()) { host_.resize_session_image(session_id_, width, height, method); }
 }
 
 void ScriptDocumentObject::resizeCanvas(int width, int height) {

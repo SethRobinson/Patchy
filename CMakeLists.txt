@@ -106,6 +106,7 @@ add_library(patchy_core
   src/support/atomic_file_write.cpp
   src/core/environment.cpp
   src/core/document_geometry.cpp
+  src/core/resample.cpp
   src/core/document_path.cpp
   src/core/heal_membrane.cpp
   src/core/image_trace.cpp
@@ -951,6 +952,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/canvas_widget.cpp
       src/ui/canvas_widget_shared.hpp
       src/ui/canvas_widget_shared.cpp
+      src/ui/canvas_alt_space_filter.hpp
+      src/ui/canvas_alt_space_filter.cpp
       src/ui/canvas_widget_brush.cpp
       src/ui/canvas_widget_crop.cpp
       src/ui/canvas_widget_cursors.cpp

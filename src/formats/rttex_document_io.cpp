@@ -5,6 +5,7 @@
 #include "formats/rttex_document_io.hpp"
 
 #include "core/pixel_tools.hpp"
+#include "core/resample.hpp"
 #include "formats/binary_le.hpp"
 #include "formats/document_flatten.hpp"
 #include "formats/format_file_io.hpp"
@@ -529,7 +530,7 @@ std::vector<std::uint8_t> write_rttex(const Document& document, const WriteOptio
     std::fill(bytes.begin(), bytes.end(), std::uint8_t{0});
   }
   if (options.power_of_two == PowerOfTwo::Stretch && (width != original_width || height != original_height)) {
-    padded = scale_pixels_resampled(flat, width, height);
+    padded = resample_pixels(flat, width, height, ResampleMethod::Bilinear);
     original_width = width;
     original_height = height;
   } else {
