@@ -1907,7 +1907,7 @@ void ui_pattern_library_delete_requires_tile_removal() {
   CHECK(library.find_entry(storage_id) != nullptr);
   CHECK(changed_signals == 0);
 
-  CHECK(QDir(tile_path).removeRecursively());
+  CHECK(remove_test_scratch_dir(tile_path));
   CHECK(library.remove_pattern(storage_id));
   CHECK(library.find_entry(storage_id) == nullptr);
   CHECK(changed_signals == 1);

@@ -284,6 +284,11 @@ void fill_pixel_rect(patchy::PixelBuffer& pixels, QRect rect, QColor color);
 
 void ensure_artifact_dir();
 
+// Recursive delete for test folders: refuses (throws) a blank path or one outside
+// test-artifacts, the QStandardPaths test-mode folder, and patchy* temp folders. Never call
+// QDir::removeRecursively directly in tests; see tests/test_scratch_remove.hpp.
+bool remove_test_scratch_dir(const QString& path);
+
 // Default ppi matches the MainWindow startup document (72). Tests that construct a
 // patchy::Document directly get the core default (300) and must pass it explicitly.
 double text_points_for_pixels(int pixels, double ppi = 72.0) noexcept;

@@ -59,6 +59,7 @@ using patchy::test::kUnicodeDirName;
 using patchy::test::kUnicodePathStems;
 using patchy::test::ui::ensure_artifact_dir;
 using patchy::test::ui::find_top_level_dialog;
+using patchy::test::ui::remove_test_scratch_dir;
 using patchy::test::ui::require_action;
 using patchy::test::ui::SettingsValueRestorer;
 using patchy::test::ui::show_window;
@@ -76,7 +77,7 @@ QString unicode_dir(const QString& leaf) {
   ensure_artifact_dir();
   const auto dir = QFileInfo(QStringLiteral("test-artifacts")).absoluteFilePath() + QLatin1Char('/') +
                    q(kUnicodeDirName) + QLatin1Char('/') + leaf;
-  QDir(dir).removeRecursively();
+  remove_test_scratch_dir(dir);
   CHECK(QDir().mkpath(dir));
   return dir;
 }

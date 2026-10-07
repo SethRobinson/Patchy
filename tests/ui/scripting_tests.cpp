@@ -95,6 +95,7 @@
 
 namespace {
 
+using patchy::test::ui::remove_test_scratch_dir;
 using patchy::test::ui::save_widget_artifact;
 using patchy::test::ui::show_window;
 
@@ -1922,7 +1923,7 @@ QTreeWidgetItem* find_child_item(QTreeWidgetItem* parent, const QString& text) {
 
 void ui_script_editor_tree_shadow_override() {
   const StandardPathsTestMode test_paths;
-  QDir(patchy::ui::MainWindow::user_scripts_directory()).removeRecursively();
+  remove_test_scratch_dir(patchy::ui::MainWindow::user_scripts_directory());
   patchy::ui::MainWindow window;
   show_window(window);
   patchy::ui::ScriptEditorDialog dialog(window, window.script_engine_host());
@@ -2024,7 +2025,7 @@ void ui_script_editor_tree_shadow_override() {
   CHECK(restored_item != nullptr);
   CHECK(restored_item->data(0, kBundledPathRole).toString().isEmpty());
   dialog.close();
-  QDir(patchy::ui::MainWindow::user_scripts_directory()).removeRecursively();
+  remove_test_scratch_dir(patchy::ui::MainWindow::user_scripts_directory());
 }
 
 // A single click (tree selection) loads the clicked script into the editor;
@@ -2032,7 +2033,7 @@ void ui_script_editor_tree_shadow_override() {
 // load, no prompt) - only activation switches, behind the discard prompt.
 void ui_script_manager_single_click_loads_and_preserves_edits() {
   const StandardPathsTestMode test_paths;
-  QDir(patchy::ui::MainWindow::user_scripts_directory()).removeRecursively();
+  remove_test_scratch_dir(patchy::ui::MainWindow::user_scripts_directory());
   patchy::ui::MainWindow window;
   show_window(window);
   patchy::ui::ScriptEditorDialog dialog(window, window.script_engine_host());
@@ -2304,7 +2305,7 @@ void ui_script_run_command_triggers_actions() {
 // user-folder icon PNG that then overrides the bundled one.
 void ui_script_manager_set_icon_from_document() {
   const StandardPathsTestMode test_paths;
-  QDir(patchy::ui::MainWindow::user_scripts_directory()).removeRecursively();
+  remove_test_scratch_dir(patchy::ui::MainWindow::user_scripts_directory());
   patchy::ui::MainWindow window;
   show_window(window);  // opens the historical startup document
   patchy::ui::ScriptEditorDialog dialog(window, window.script_engine_host());
@@ -2348,7 +2349,7 @@ void ui_script_manager_set_icon_from_document() {
   CHECK(breakout_item != nullptr);
   CHECK(breakout_item->data(0, Qt::UserRole + 1).toString().isEmpty());  // still not "modified"
   dialog.close();
-  QDir(patchy::ui::MainWindow::user_scripts_directory()).removeRecursively();
+  remove_test_scratch_dir(patchy::ui::MainWindow::user_scripts_directory());
 }
 
 // The script browser model: @name/@window header parsing, sidecar icon
@@ -2818,7 +2819,7 @@ void ui_script_cli_directive_and_example_command() {
 // Copy puts the exact command on the clipboard.
 void ui_script_manager_cli_example_dialog() {
   const StandardPathsTestMode test_paths;
-  QDir(patchy::ui::MainWindow::user_scripts_directory()).removeRecursively();
+  remove_test_scratch_dir(patchy::ui::MainWindow::user_scripts_directory());
   patchy::ui::MainWindow window;
   show_window(window);
   patchy::ui::ScriptEditorDialog dialog(window, window.script_engine_host());
@@ -3295,7 +3296,7 @@ void ui_script_io_round_trips_unicode_path() {
                    QString::fromUtf8(reinterpret_cast<const char*>(patchy::test::kUnicodeDirName.data()),
                                      static_cast<qsizetype>(patchy::test::kUnicodeDirName.size())) +
                    QStringLiteral("/script-io");
-  QDir(dir).removeRecursively();
+  remove_test_scratch_dir(dir);
   CHECK(!QDir(dir).exists());
 
   auto& host = window.script_engine_host();

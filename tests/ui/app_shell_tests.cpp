@@ -1359,7 +1359,7 @@ void ui_open_remembers_last_directory_and_lists_recent_folders() {
   const auto missing_folder = QFileInfo(QStringLiteral("test-artifacts/recent-open-dir-missing")).absoluteFilePath();
   CHECK(QDir().mkpath(folder_a));
   CHECK(QDir().mkpath(folder_b));
-  QDir(missing_folder).removeRecursively();
+  remove_test_scratch_dir(missing_folder);
 
   SettingsValueRestorer last_open_directory_restorer(QStringLiteral("lastOpenDirectory"));
   SettingsValueRestorer recent_folders_restorer(QStringLiteral("recentFolders"));
@@ -1519,7 +1519,7 @@ void ui_recent_history_checks_in_background_and_skips_network_paths() {
   }
   QFile::remove(missing_file);
   CHECK(QDir().mkpath(live_folder));
-  QDir(missing_folder).removeRecursively();
+  remove_test_scratch_dir(missing_folder);
 
   SettingsValueRestorer recent_files_restorer(QStringLiteral("recentFiles"));
   SettingsValueRestorer recent_folders_restorer(QStringLiteral("recentFolders"));

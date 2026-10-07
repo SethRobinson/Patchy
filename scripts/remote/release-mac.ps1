@@ -27,6 +27,7 @@ $remoteHost = (Get-PatchyRemoteHost mac).ssh
 # Delete previous local copies up front so a failed run leaves nothing stale for the
 # newest-file upload script to pick up by accident (the remote side does the same).
 $repoRoot = (git rev-parse --show-toplevel).Trim()
+if (-not $repoRoot -or -not (Test-Path -LiteralPath (Join-Path $repoRoot 'CMakeLists.txt'))) { throw 'could not find the repository root' }
 Remove-Item (Join-Path $repoRoot 'build\package\Patchy-*.dmg') -Force -ErrorAction SilentlyContinue
 # The upload script's staging copy of the PREVIOUS version must go too: it carries the
 # final published name, so a stale one sitting beside a fresh versioned dmg reads as the
@@ -42,6 +43,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 $repoRoot = (git rev-parse --show-toplevel).Trim()
+if (-not $repoRoot -or -not (Test-Path -LiteralPath (Join-Path $repoRoot 'CMakeLists.txt'))) { throw 'could not find the repository root' }
 $dest = Join-Path $repoRoot 'build\package'
 New-Item -ItemType Directory -Force $dest | Out-Null
 scp -q "${remoteHost}:patchy/src/build/package/Patchy-*.dmg" $dest

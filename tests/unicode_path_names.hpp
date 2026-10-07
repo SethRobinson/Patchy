@@ -7,6 +7,8 @@
 // u8 literals are UTF-8 whatever the execution charset, and
 // std::filesystem::path(std::u8string) decodes them as UTF-8 on every platform.
 
+#include "test_scratch_remove.hpp"
+
 #include <array>
 #include <cstddef>
 #include <filesystem>
@@ -54,7 +56,7 @@ inline std::filesystem::path unicode_path_piece(std::u8string_view text) {
 inline std::filesystem::path unicode_artifact_dir(std::u8string_view leaf) {
   const auto dir =
       std::filesystem::path("test-artifacts") / unicode_path_piece(kUnicodeDirName) / unicode_path_piece(leaf);
-  std::filesystem::remove_all(dir);
+  remove_test_scratch_tree(dir);
   std::filesystem::create_directories(dir);
   return dir;
 }

@@ -1990,7 +1990,7 @@ QString linked_test_dir(const QString& leaf) {
   ensure_artifact_dir();
   const auto dir =
       QFileInfo(QStringLiteral("test-artifacts/so-linked")).absoluteFilePath() + QLatin1Char('/') + leaf;
-  QDir(dir).removeRecursively();
+  remove_test_scratch_dir(dir);
   CHECK(QDir().mkpath(dir));
   return dir;
 }

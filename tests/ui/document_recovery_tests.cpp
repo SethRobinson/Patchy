@@ -50,6 +50,7 @@ using patchy::test::kUnicodeDirName;
 using patchy::test::ui::ensure_artifact_dir;
 using patchy::test::ui::find_top_level_dialog;
 using patchy::test::ui::process_events_for;
+using patchy::test::ui::remove_test_scratch_dir;
 using patchy::test::ui::process_events_until;
 using patchy::test::ui::require_action;
 using patchy::test::ui::SettingsValueRestorer;
@@ -80,7 +81,7 @@ QString fresh_recovery_root(const QString& leaf, const QString& parent = QString
   ensure_artifact_dir();
   const auto root = QFileInfo(QStringLiteral("test-artifacts")).absoluteFilePath() + QLatin1Char('/') + parent +
                     QLatin1Char('/') + leaf;
-  QDir(root).removeRecursively();
+  remove_test_scratch_dir(root);
   CHECK(QDir().mkpath(root));
   set_recovery_dir_env(root);
   return root;
@@ -419,6 +420,35 @@ void ui_recovery_live_instance_is_not_reported_as_orphaned() {
   CHECK(!QDir(root + QStringLiteral("/4000000000-9")).exists());
 }
 
+// The orphan sweep and remove_folder only ever touch <pid>-<msecs> instance folders:
+// a PATCHY_RECOVERY_DIR pointed at a folder holding other things (even one shaped like
+// an orphan, with recovery files and a dead lock) leaves those things alone.
+void ui_recovery_sweep_only_touches_instance_folders() {
+  RecoveryEnvRestorer env;
+  const auto root = fresh_recovery_root(QStringLiteral("sweep-guard"));
+  seed_orphan_folder(root, QStringLiteral("Holiday Photos"), {{3, patchy::recovery::RecoveryEntry{}}});
+  CHECK(QDir().mkpath(root + QStringLiteral("/notes")));
+  CHECK(QDir().mkpath(root + QStringLiteral("/12-")));
+  CHECK(QDir().mkpath(root + QStringLiteral("/4000000000-7")));
+
+  const auto orphans = patchy::ui::RecoveryInstanceFolder::scan_orphaned(root);
+  CHECK(orphans.empty());
+  CHECK(QDir(root + QStringLiteral("/Holiday Photos")).exists());
+  CHECK(QDir(root + QStringLiteral("/notes")).exists());
+  CHECK(QDir(root + QStringLiteral("/12-")).exists());
+  CHECK(!QDir(root + QStringLiteral("/4000000000-7")).exists());
+
+  using Folder = patchy::ui::RecoveryInstanceFolder;
+  CHECK(!Folder::remove_folder(std::filesystem::path()));
+  CHECK(!Folder::remove_folder(std::filesystem::path("4000000000-8")));
+  CHECK(!Folder::remove_folder(fs(root + QStringLiteral("/notes"))));
+  CHECK(!Folder::remove_folder(fs(root)));
+  CHECK(QDir(root + QStringLiteral("/notes")).exists());
+  CHECK(QDir().mkpath(root + QStringLiteral("/4000000000-8")));
+  CHECK(Folder::remove_folder(fs(root + QStringLiteral("/4000000000-8"))));
+  CHECK(!QDir(root + QStringLiteral("/4000000000-8")).exists());
+}
+
 void ui_recovery_round_trips_unicode_paths() {
   RecoveryEnvRestorer env;
   const auto root = fresh_recovery_root(QStringLiteral("recovery"), q(kUnicodeDirName));
@@ -474,7 +504,7 @@ void ui_recovery_round_trips_unicode_paths() {
 void ui_flat_save_is_atomic_and_reports_failure() {
   ensure_artifact_dir();
   const auto dir = QFileInfo(QStringLiteral("test-artifacts")).absoluteFilePath() + QStringLiteral("/atomic-save");
-  QDir(dir).removeRecursively();
+  remove_test_scratch_dir(dir);
   CHECK(QDir().mkpath(dir));
   patchy::ui::MainWindow window;
   show_window(window);
@@ -559,6 +589,7 @@ std::vector<patchy::test::TestCase> document_recovery_tests() {
       {"ui_recovery_orphaned_folder_recovers_as_modified_document",
        ui_recovery_orphaned_folder_recovers_as_modified_document},
       {"ui_recovery_live_instance_is_not_reported_as_orphaned", ui_recovery_live_instance_is_not_reported_as_orphaned},
+      {"ui_recovery_sweep_only_touches_instance_folders", ui_recovery_sweep_only_touches_instance_folders},
       {"ui_recovery_round_trips_unicode_paths", ui_recovery_round_trips_unicode_paths},
       {"ui_flat_save_is_atomic_and_reports_failure", ui_flat_save_is_atomic_and_reports_failure},
       {"ui_preferences_recovery_controls_persist", ui_preferences_recovery_controls_persist},

@@ -52,7 +52,9 @@ rem Unpack beside the live copy, check the signed summary is there, then swap th
 rem directory in with two renames so a client never reads a half-written repository.
 rem The descriptor files move last: they only name the repository URL and key.
 echo Installing the repository on the server ...
-ssh rtsoft@rtsoft.com "cd www/flatpak && rm -rf incoming repo.old && mkdir incoming && tar -xf PatchyFlatpakRepo.tar -C incoming && test -s incoming/repo/summary && test -s incoming/repo/summary.sig && test -s incoming/patchy.flatpakrepo && test -s incoming/com.rtsoft.patchy.flatpakref && if [ -d repo ]; then mv repo repo.old; fi && mv incoming/repo repo && mv incoming/patchy.flatpakrepo incoming/com.rtsoft.patchy.flatpakref . && rm -rf incoming repo.old PatchyFlatpakRepo.tar"
+rem Every path is spelled out under D, which must end in /www/flatpak below a non-blank
+rem HOME, so no rm -rf depends on the remote working directory (AGENTS.md).
+ssh rtsoft@rtsoft.com "D=$HOME/www/flatpak && case $D in /?*/www/flatpak) ;; *) echo bad flatpak dir: $D; exit 1 ;; esac && rm -rf $D/incoming $D/repo.old && mkdir $D/incoming && tar -xf $D/PatchyFlatpakRepo.tar -C $D/incoming && test -s $D/incoming/repo/summary && test -s $D/incoming/repo/summary.sig && test -s $D/incoming/patchy.flatpakrepo && test -s $D/incoming/com.rtsoft.patchy.flatpakref && if [ -d $D/repo ]; then mv $D/repo $D/repo.old; fi && mv $D/incoming/repo $D/repo && mv $D/incoming/patchy.flatpakrepo $D/incoming/com.rtsoft.patchy.flatpakref $D/ && rm -rf $D/incoming $D/repo.old $D/PatchyFlatpakRepo.tar"
 if errorlevel 1 goto repo_fail
 rem The claim "it shipped" needs evidence from the public URL, not the ssh session.
 echo Verifying the live repository ...

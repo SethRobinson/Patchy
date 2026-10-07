@@ -1511,7 +1511,7 @@ void ui_bundled_legacy_plugin_action_applies_filter() {
   // "DialogBoxParam failed" box that waits for a click. A folder holding only
   // a 32-bit copy gives the menu path a fixture whose Parameters is silent.
   const auto menu_dir = QDir::current().filePath(QStringLiteral("test-artifacts/legacy-plugins/menu32-bundled"));
-  QDir(menu_dir).removeRecursively();
+  remove_test_scratch_dir(menu_dir);
   CHECK(QDir().mkpath(menu_dir));
   CHECK(QFile::copy(patchy::ui::to_qstring(patchy::test::source_root_path() / "test-fixtures" / "photoshop-plugins" /
                                             "Greyscale.8bf"),

@@ -4,6 +4,10 @@ setlocal EnableExtensions EnableDelayedExpansion
 rem This script lives in scripts\release, two levels below the repo root.
 pushd "%~dp0..\.." || exit /b 1
 set "REPO=%CD%"
+rem Every folder this script deletes is REPO plus a literal build\... suffix, so make
+rem sure REPO really is this repository first (AGENTS.md, destructive deletes).
+if not defined REPO goto fail
+if not exist "%REPO%\CMakeLists.txt" goto fail
 
 set "CMAKE_EXE=C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe"
 if not exist "%CMAKE_EXE%" set "CMAKE_EXE=cmake"

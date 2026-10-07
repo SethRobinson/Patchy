@@ -67,7 +67,7 @@ QString fixture_path(const char* name) {
 QString make_plugin_folder(const QString& leaf, const std::vector<std::pair<const char*, QString>>& copies) {
   ensure_artifact_dir();
   const auto dir = QDir::current().filePath(QStringLiteral("test-artifacts/legacy-plugins/") + leaf);
-  QDir(dir).removeRecursively();
+  remove_test_scratch_dir(dir);
   CHECK(QDir().mkpath(dir + QStringLiteral("/sub")));
   for (const auto& [fixture, target] : copies) {
     CHECK(QFile::copy(fixture_path(fixture), dir + QLatin1Char('/') + target));

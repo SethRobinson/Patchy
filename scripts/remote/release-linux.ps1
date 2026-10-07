@@ -27,6 +27,7 @@ $remoteHost = (Get-PatchyRemoteHost linux).ssh
 # Delete previous local copies up front so a failed run leaves nothing stale for the
 # newest-file upload script to pick up by accident (the remote side does the same).
 $repoRoot = (git rev-parse --show-toplevel).Trim()
+if (-not $repoRoot -or -not (Test-Path -LiteralPath (Join-Path $repoRoot 'CMakeLists.txt'))) { throw 'could not find the repository root' }
 Remove-Item (Join-Path $repoRoot 'build\package\Patchy-*.flatpak') -Force -ErrorAction SilentlyContinue
 # The upload script's staging copy of the PREVIOUS version must go too: it carries the
 # final published name, so a stale one sitting beside a fresh versioned bundle reads as the
@@ -42,6 +43,7 @@ ssh $remoteHost 'source ~/.patchy-release-env 2>/dev/null || true; PATCHY_REQUIR
 if ($LASTEXITCODE -ne 0) { throw 'make-flatpak.sh failed on the linux build host' }
 
 $repoRoot = (git rev-parse --show-toplevel).Trim()
+if (-not $repoRoot -or -not (Test-Path -LiteralPath (Join-Path $repoRoot 'CMakeLists.txt'))) { throw 'could not find the repository root' }
 $dest = Join-Path $repoRoot 'build\package'
 New-Item -ItemType Directory -Force $dest | Out-Null
 scp -q "${remoteHost}:patchy/src/build/package/Patchy-*.flatpak" "${remoteHost}:patchy/src/build/package/Patchy-*-flatpak-repo.tar" $dest

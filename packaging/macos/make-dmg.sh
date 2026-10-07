@@ -17,11 +17,28 @@
 # scroll past in a long build log. Leave it unset for a local unsigned dev build.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
+ROOT=$(pwd)
+[ -n "$ROOT" ] && [ -f "$ROOT/CMakeLists.txt" ] || { echo "ERROR: could not find the repository root"; exit 1; }
+
+# Scratch folders come from mktemp with a patchy-dmg prefix, and are deleted only when
+# their path still carries it (AGENTS.md, destructive deletes).
+SCRATCH_PARENT="${TMPDIR:-/tmp}"
+SCRATCH_PARENT="${SCRATCH_PARENT%/}"
+remove_scratch() {
+  local dir
+  for dir in "$@"; do
+    case "$dir" in
+      */patchy-dmg-*.?*) rm -rf "$dir" ;;
+      "") ;;
+      *) echo "WARNING: not deleting unexpected scratch path '$dir'" >&2 ;;
+    esac
+  done
+}
 
 BUILD_DIR=build/mac-release
 APP="$BUILD_DIR/Patchy.app"
 QT_BIN=".deps/Qt/6.8.3/macos/bin"
-PACKAGE_DIR=build/package
+PACKAGE_DIR="$ROOT/build/package"
 
 [ -d "$APP" ] || { echo "ERROR: $APP not found; build the mac-release preset first."; exit 1; }
 [ -x "$QT_BIN/macdeployqt" ] || { echo "ERROR: $QT_BIN/macdeployqt not found."; exit 1; }
@@ -31,13 +48,13 @@ DMG="$PACKAGE_DIR/Patchy-$VERSION.dmg"
 mkdir -p "$PACKAGE_DIR"
 # Delete ALL previous dmgs up front (not just this version's): if any later step fails,
 # nothing stale remains for the newest-file upload script to pick up by accident.
-rm -f "$PACKAGE_DIR"/Patchy-*.dmg
+rm -f "${ROOT:?}/build/package"/Patchy-*.dmg
 
-STAGE=$(mktemp -d)
-trap 'rm -rf "$STAGE"' EXIT
+STAGE=$(mktemp -d "$SCRATCH_PARENT/patchy-dmg-stage.XXXXXX")
+trap 'remove_scratch "$STAGE"' EXIT
 cp -R "$APP" "$STAGE/Patchy.app"
 # Dev-tree extras that are not part of the shipped app.
-rm -rf "$STAGE/Patchy.app/Contents/MacOS/test-fixtures"
+rm -rf "${STAGE:?}/Patchy.app/Contents/MacOS/test-fixtures"
 
 echo "== macdeployqt (bundling Qt frameworks and plugins) =="
 "$QT_BIN/macdeployqt" "$STAGE/Patchy.app" -executable="$STAGE/Patchy.app/Contents/MacOS/patchy-mcp"
@@ -83,8 +100,8 @@ fi
 # PATCHY_SETTINGS_DIR keeps the run out of the real settings. macOS ships no
 # timeout(1), hence the watchdog.
 echo "== headless smoke check (the staged app must run with no display) =="
-SMOKE=$(mktemp -d)
-trap 'rm -rf "$STAGE" "$SMOKE"' EXIT
+SMOKE=$(mktemp -d "$SCRATCH_PARENT/patchy-dmg-smoke.XXXXXX")
+trap 'remove_scratch "$STAGE" "$SMOKE"' EXIT
 mkdir -p "$SMOKE/settings"
 echo 'console.log("headless smoke")' > "$SMOKE/smoke.js"
 PATCHY_SETTINGS_DIR="$SMOKE/settings" PATCHY_NO_SOUND=1 \
@@ -123,12 +140,12 @@ echo "== MCP smoke check (the staged connector must run) =="
 "$STAGE/Patchy.app/Contents/MacOS/patchy-mcp" --check
 
 echo "== dmg =="
-DMG_STAGE=$(mktemp -d)
+DMG_STAGE=$(mktemp -d "$SCRATCH_PARENT/patchy-dmg-image.XXXXXX")
 cp -R "$STAGE/Patchy.app" "$DMG_STAGE/"
 ln -s /Applications "$DMG_STAGE/Applications"
 rm -f "$DMG"
 hdiutil create -volname "Patchy $VERSION" -srcfolder "$DMG_STAGE" -ov -format UDZO "$DMG"
-rm -rf "$DMG_STAGE"
+remove_scratch "$DMG_STAGE"
 
 if [ -n "${PATCHY_MAC_SIGN_IDENTITY:-}" ]; then
   # Sign the DMG container itself too (spctl assesses the dmg's own signature); must

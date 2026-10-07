@@ -29,7 +29,7 @@ namespace {
 
 std::filesystem::path fresh_artifact_dir(const char* leaf) {
   const auto dir = std::filesystem::path("test-artifacts") / "atomic-write" / leaf;
-  std::filesystem::remove_all(dir);
+  patchy::test::remove_test_scratch_tree(dir);
   std::filesystem::create_directories(dir);
   return dir;
 }
@@ -178,6 +178,48 @@ void recovery_write_entry_creates_instance_dir_under_unicode_root() {
   }
 }
 
+// The guarded recursive delete every test uses refuses a blank path and anything not
+// strictly below a test-artifacts or qttest folder, and deletes what is below one.
+void test_scratch_remove_refuses_paths_outside_scratch_roots() {
+  const auto refuses = [](const std::filesystem::path& path) {
+    try {
+      (void)patchy::test::remove_test_scratch_tree(path);
+    } catch (const std::runtime_error&) {
+      return true;
+    }
+    return false;
+  };
+  CHECK(refuses(std::filesystem::path()));
+  CHECK(refuses(std::filesystem::path(".")));
+  CHECK(refuses(std::filesystem::path("scratch-remove-guard")));
+  CHECK(refuses(std::filesystem::path("test-artifacts")));
+  CHECK(refuses(std::filesystem::path("test-artifacts/")));
+  CHECK(refuses(std::filesystem::path("test-artifacts/..")));
+  CHECK(refuses(std::filesystem::path("test-artifacts/scratch-remove-guard/../..")));
+  CHECK(!patchy::test::is_below_test_scratch_root(std::filesystem::current_path()));
+
+  const auto dir = std::filesystem::path("test-artifacts") / "scratch-remove-guard";
+  std::filesystem::create_directories(dir / "child");
+  std::ofstream(dir / "child" / "file.txt") << "x";
+  CHECK(patchy::test::remove_test_scratch_tree(dir / "child"));
+  CHECK(!std::filesystem::exists(dir / "child"));
+  CHECK(std::filesystem::exists(dir));
+  CHECK(patchy::test::remove_test_scratch_tree(dir));
+  CHECK(!std::filesystem::exists(dir));
+  CHECK(patchy::test::remove_test_scratch_tree(dir));  // already gone
+
+  // QTemporaryDir-style folders: below <temp>/patchy*, never the temp folder itself.
+  const auto temp = std::filesystem::temp_directory_path();
+  CHECK(refuses(temp));
+  CHECK(refuses(temp / "unrelated-folder" / "child"));
+  CHECK(refuses(temp / "patchy-scratch-remove-guard"));
+  const auto owned = temp / "patchy-scratch-remove-guard";
+  std::filesystem::create_directories(owned / "child");
+  CHECK(patchy::test::remove_test_scratch_tree(owned / "child"));
+  CHECK(!std::filesystem::exists(owned / "child"));
+  std::filesystem::remove(owned);
+}
+
 std::vector<patchy::test::TestCase> atomic_write_recovery_tests() {
   return {
       {"atomic_write_replaces_existing_file_and_leaves_no_temp", atomic_write_replaces_existing_file_and_leaves_no_temp},
@@ -189,5 +231,7 @@ std::vector<patchy::test::TestCase> atomic_write_recovery_tests() {
        recovery_scan_lists_psb_without_sidecar_as_untitled_and_ignores_strays},
       {"recovery_write_entry_creates_instance_dir_under_unicode_root",
        recovery_write_entry_creates_instance_dir_under_unicode_root},
+      {"test_scratch_remove_refuses_paths_outside_scratch_roots",
+       test_scratch_remove_refuses_paths_outside_scratch_roots},
   };
 }

@@ -28,7 +28,7 @@ ERR="$WORK/helper.err"
 GUI_DOMAIN="gui/$(id -u)"
 cleanup() {
   launchctl bootout "$GUI_DOMAIN/$LABEL" 2>/dev/null || true
-  rm -rf "$WORK"
+  case "$WORK" in /tmp/patchy-desktop-kc.?*) rm -rf "$WORK" ;; esac
 }
 trap cleanup EXIT
 

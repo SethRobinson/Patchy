@@ -16,7 +16,9 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 APP_ID=com.rtsoft.patchy
-ROOT=../..
+# Absolute and checked: the rm -rf lines below build on it (AGENTS.md, destructive deletes).
+ROOT=$(cd ../.. && pwd)
+[ -n "$ROOT" ] && [ -f "$ROOT/CMakeLists.txt" ] || { echo "ERROR: could not find the repository root" >&2; exit 1; }
 BUILD_DIR="$ROOT/build/flatpak"
 REPO_DIR="$ROOT/build/flatpak-repo"
 PACKAGE_DIR="$ROOT/build/package"
@@ -45,7 +47,7 @@ JOBS=$(( $(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 5) - 4 ))
 [ "$JOBS" -ge 1 ] || JOBS=1
 # Delete ALL previous bundles up front (not just this version's): if the build fails,
 # nothing stale remains for the newest-file upload script to pick up by accident.
-rm -f "$PACKAGE_DIR"/Patchy-*.flatpak "$PACKAGE_DIR"/Patchy-*-flatpak-repo.tar
+rm -f "${ROOT:?}/build/package"/Patchy-*.flatpak "${ROOT:?}/build/package"/Patchy-*-flatpak-repo.tar
 nice -n 10 flatpak-builder --jobs="$JOBS" --force-clean --repo="$REPO_DIR" "$BUILD_DIR" "flatpak/$APP_ID.yml"
 
 # Proves the sandboxed app runs with no display before any bundle exists. The Qt
@@ -58,7 +60,7 @@ nice -n 10 flatpak-builder --jobs="$JOBS" --force-clean --repo="$REPO_DIR" "$BUI
 # can see. The same check runs in the Windows and macOS packagers.
 echo "== headless smoke check (the sandboxed app must run with no display) =="
 SMOKE=$(mktemp -d "$HOME/.patchy-flatpak-smoke.XXXXXX")
-trap 'rm -rf "$SMOKE"' EXIT
+trap 'case "$SMOKE" in */.patchy-flatpak-smoke.?*) rm -rf "$SMOKE" ;; esac' EXIT
 mkdir -p "$SMOKE/settings"
 echo 'console.log("headless smoke")' > "$SMOKE/smoke.js"
 smoke_status=0
@@ -101,7 +103,7 @@ fi
 # from it like a repository install does.
 ARCH=$(flatpak --default-arch)
 APP_REF="app/$APP_ID/$ARCH/master"
-rm -rf "$PUBLISH_DIR"
+rm -rf "${ROOT:?}/build/flatpak-publish"
 mkdir -p "$PUBLISH_DIR"
 ostree init --repo="$PUBLISH_DIR/repo" --mode=archive-z2
 flatpak build-commit-from --src-repo="$REPO_DIR" --gpg-sign="$GPG_KEY" "${GPG_HOMEDIR_ARGS[@]}" \

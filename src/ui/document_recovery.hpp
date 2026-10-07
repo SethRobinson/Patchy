@@ -55,9 +55,14 @@ public:
 
   // Instance folders under `root` whose owner is gone: no lock file, or a lock
   // whose process no longer runs. A live instance's folder is never listed. Empty
-  // orphan folders (nothing was ever written) are removed on the way.
+  // orphan folders (nothing was ever written) are removed on the way. Only folders
+  // named like an instance folder count; anything else under the root is left alone.
   [[nodiscard]] static std::vector<OrphanedRecoveryFolder> scan_orphaned(const QString& root);
+  // Deletes an instance folder recursively. Refuses (returns false) a blank or
+  // relative path, or one whose name is not <pid>-<msecs>, so a mistaken root such as
+  // a PATCHY_RECOVERY_DIR pointed at a user folder can never be wiped.
   [[nodiscard]] static bool remove_folder(const std::filesystem::path& directory) noexcept;
+  [[nodiscard]] static bool is_instance_folder_name(const std::filesystem::path& name) noexcept;
 
 private:
   std::filesystem::path directory_;

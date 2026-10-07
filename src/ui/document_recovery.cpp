@@ -81,7 +81,7 @@ std::vector<OrphanedRecoveryFolder> RecoveryInstanceFolder::scan_orphaned(const 
     return orphans;
   }
   for (const auto& item : iterator) {
-    if (!item.is_directory(error) || error) {
+    if (!item.is_directory(error) || error || !is_instance_folder_name(item.path().filename())) {
       continue;
     }
     {
@@ -107,7 +107,25 @@ std::vector<OrphanedRecoveryFolder> RecoveryInstanceFolder::scan_orphaned(const 
   return orphans;
 }
 
+bool RecoveryInstanceFolder::is_instance_folder_name(const std::filesystem::path& name) noexcept {
+  // <pid>-<msecs>, as the constructor names it.
+  const auto text = name.native();
+  const auto dash = text.find(static_cast<std::filesystem::path::value_type>('-'));
+  if (dash == 0 || dash == std::filesystem::path::string_type::npos || dash + 1 == text.size()) {
+    return false;
+  }
+  for (std::size_t i = 0; i < text.size(); ++i) {
+    if (i != dash && (text[i] < '0' || text[i] > '9')) {
+      return false;
+    }
+  }
+  return true;
+}
+
 bool RecoveryInstanceFolder::remove_folder(const std::filesystem::path& directory) noexcept {
+  if (directory.empty() || !directory.is_absolute() || !is_instance_folder_name(directory.filename())) {
+    return false;
+  }
   std::error_code error;
   std::filesystem::remove_all(directory, error);
   return !error;

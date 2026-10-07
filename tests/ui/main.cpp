@@ -229,7 +229,7 @@ int main(int argc, char* argv[]) {
       stale_lock.setStaleLockTime(0);
       if (stale_lock.tryLock(0)) {
         stale_lock.unlock();
-        QDir(stale.absoluteFilePath()).removeRecursively();
+        patchy::test::ui::remove_test_scratch_dir(stale.absoluteFilePath());
       }
     }
     const auto store = stores.filePath(QString::number(QCoreApplication::applicationPid()));
