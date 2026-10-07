@@ -4682,6 +4682,69 @@ void ui_image_size_dialog_method_is_applied_and_remembered() {
   CHECK(stored_method() == QStringLiteral("bicubic"));
 }
 
+// The dialog's preview resamples the document with the chosen method: the 2x2 checker
+// enlarged to the box shows pure blocks under Nearest Neighbor and midtones under
+// Bicubic, and switching the combo alone redraws it. (It used to smooth-scale the
+// current pixels whatever the method; Seth, October 2026.)
+void ui_image_size_dialog_preview_follows_method() {
+  SettingsValueRestorer restore_unit(QStringLiteral("imageSize/lastUnit"));
+  SettingsValueRestorer restore_method(QStringLiteral("imageSize/lastResampleMethod"));
+  patchy::ui::app_settings().remove(QStringLiteral("imageSize"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  load_checker_document(window);
+
+  // Counts the pure (0 or 255) and the in-between gray values along the preview's
+  // middle row, inside the drawn image (the box is 276 wide; the square image fills it).
+  const auto classify_middle_row = [](const QLabel& preview) {
+    const auto image = preview.pixmap().toImage();
+    int pure = 0;
+    int midtones = 0;
+    const int y = image.height() / 2;
+    for (int x = 2; x < image.width() - 2; ++x) {
+      const auto value = qGray(image.pixel(x, y));
+      if (value == 0 || value == 255) {
+        ++pure;
+      } else {
+        ++midtones;
+      }
+    }
+    return std::pair{pure, midtones};
+  };
+
+  bool drove_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyImageSizeDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* method = dialog->findChild<QComboBox*>(QStringLiteral("imageSizeResampleCombo"));
+    auto* preview = dialog->findChild<QLabel*>(QStringLiteral("imageSizePreview"));
+    CHECK(method != nullptr && preview != nullptr);
+    if (method == nullptr || preview == nullptr) {
+      dialog->reject();
+      return;
+    }
+    method->setCurrentIndex(method->findData(QStringLiteral("nearest")));
+    QApplication::processEvents();
+    const auto [nearest_pure, nearest_midtones] = classify_middle_row(*preview);
+    CHECK(nearest_pure > 200);
+    CHECK(nearest_midtones == 0);
+    method->setCurrentIndex(method->findData(QStringLiteral("bicubic")));
+    QApplication::processEvents();
+    const auto [bicubic_pure, bicubic_midtones] = classify_middle_row(*preview);
+    CHECK(bicubic_midtones > 20);
+    CHECK(bicubic_pure < nearest_pure);
+    drove_dialog = true;
+    dialog->reject();
+  });
+  require_action(window, "imageSizeAction")->trigger();
+  QApplication::processEvents();
+  process_events_for(120);
+  CHECK(drove_dialog);
+}
+
 // doc.resizeImage(w, h, {method}) reaches the same resampler; an unknown id throws before
 // anything changes, and the default is Automatic.
 void ui_script_resize_image_method_option() {
@@ -5747,6 +5810,7 @@ std::vector<patchy::test::TestCase> import_print_resolution_tests() {
       {"ui_image_size_dialog_remembers_units", ui_image_size_dialog_remembers_units},
       {"ui_image_size_dialog_method_is_applied_and_remembered",
        ui_image_size_dialog_method_is_applied_and_remembered},
+      {"ui_image_size_dialog_preview_follows_method", ui_image_size_dialog_preview_follows_method},
       {"ui_script_resize_image_method_option", ui_script_resize_image_method_option},
       {"ui_canvas_size_dialog_remembers_unit", ui_canvas_size_dialog_remembers_unit},
       {"ui_imported_image_density_follows_photoshop_conventions",

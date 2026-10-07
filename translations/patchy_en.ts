@@ -18652,6 +18652,18 @@ Baked into images: %1.</source>
         <source>Delete layers that end up fully outside the crop box</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Bicubic Smoother</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bicubic Sharper</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bicubic Automatic</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>

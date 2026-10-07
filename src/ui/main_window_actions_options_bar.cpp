@@ -852,6 +852,13 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
                                             static_cast<int>(CanvasWidget::TransformInterpolation::Bilinear));
     transform_interpolation_combo_->addItem(tr("Bicubic"),
                                             static_cast<int>(CanvasWidget::TransformInterpolation::Bicubic));
+    // Photoshop's Free Transform set, in its order; the kernels are Image Size's.
+    transform_interpolation_combo_->addItem(tr("Bicubic Smoother"),
+                                            static_cast<int>(CanvasWidget::TransformInterpolation::BicubicSmoother));
+    transform_interpolation_combo_->addItem(tr("Bicubic Sharper"),
+                                            static_cast<int>(CanvasWidget::TransformInterpolation::BicubicSharper));
+    transform_interpolation_combo_->addItem(tr("Bicubic Automatic"),
+                                            static_cast<int>(CanvasWidget::TransformInterpolation::Automatic));
     const auto fallback = static_cast<int>(CanvasWidget::TransformInterpolation::Bicubic);
     const auto index = transform_interpolation_combo_->findData(current.isValid() ? current : QVariant(fallback));
     transform_interpolation_combo_->setCurrentIndex(index >= 0 ? index : transform_interpolation_combo_->findData(fallback));

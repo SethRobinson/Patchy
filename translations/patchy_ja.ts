@@ -18645,6 +18645,18 @@ Baked into images: %1.</source>
         <source>Delete layers that end up fully outside the crop box</source>
         <translation>切り抜き枠の完全に外に出たレイヤーを削除します</translation>
     </message>
+    <message>
+        <source>Bicubic Smoother</source>
+        <translation>バイキュービック法(滑らか)</translation>
+    </message>
+    <message>
+        <source>Bicubic Sharper</source>
+        <translation>バイキュービック法(シャープ)</translation>
+    </message>
+    <message>
+        <source>Bicubic Automatic</source>
+        <translation>バイキュービック法(自動)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>

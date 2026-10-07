@@ -1092,6 +1092,15 @@ void ui_transform_numeric_controls_apply_values() {
   CHECK(canvas->free_transform_active());
   CHECK(x->isVisible());
   CHECK(interpolation->currentText() == QStringLiteral("Bicubic"));
+  // Photoshop's six choices in its order; the appended ones reach the canvas.
+  CHECK(interpolation->count() == 6);
+  CHECK(interpolation->itemText(5) == QStringLiteral("Bicubic Automatic"));
+  interpolation->setCurrentIndex(5);
+  QApplication::processEvents();
+  CHECK(canvas->transform_interpolation() == patchy::ui::CanvasWidget::TransformInterpolation::Automatic);
+  interpolation->setCurrentIndex(2);
+  QApplication::processEvents();
+  CHECK(canvas->transform_interpolation() == patchy::ui::CanvasWidget::TransformInterpolation::Bicubic);
 
   x->setValue(x->value() + 32.0);
   y->setValue(y->value() + 18.0);

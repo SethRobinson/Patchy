@@ -18757,6 +18757,18 @@ Y: %2
         <source>Delete layers that end up fully outside the crop box</source>
         <translation>Удаляет слои, полностью оставшиеся за пределами рамки кадрирования</translation>
     </message>
+    <message>
+        <source>Bicubic Smoother</source>
+        <translation>Бикубическая, глаже</translation>
+    </message>
+    <message>
+        <source>Bicubic Sharper</source>
+        <translation>Бикубическая, чётче</translation>
+    </message>
+    <message>
+        <source>Bicubic Automatic</source>
+        <translation>Бикубическая, автоматически</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>

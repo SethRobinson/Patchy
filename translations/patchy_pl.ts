@@ -18757,6 +18757,18 @@ Y: %2
         <source>Delete layers that end up fully outside the crop box</source>
         <translation>Usuwa warstwy pozostające całkowicie poza ramką kadrowania</translation>
     </message>
+    <message>
+        <source>Bicubic Smoother</source>
+        <translation>Dwusześcienna gładsza</translation>
+    </message>
+    <message>
+        <source>Bicubic Sharper</source>
+        <translation>Dwusześcienna ostrzejsza</translation>
+    </message>
+    <message>
+        <source>Bicubic Automatic</source>
+        <translation>Dwusześcienna automatyczna</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>

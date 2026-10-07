@@ -304,10 +304,15 @@ public:
     BrushStrokeFinished
   };
 
+  // Persisted as an int (`tools/transformInterpolation`): append only. Automatic
+  // resolves per resample from the output area, like Image Size (docs/resampling.md).
   enum class TransformInterpolation {
     NearestNeighbor,
     Bilinear,
-    Bicubic
+    Bicubic,
+    BicubicSmoother,
+    BicubicSharper,
+    Automatic
   };
 
   struct TransformControlsState {

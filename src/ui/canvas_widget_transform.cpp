@@ -574,18 +574,53 @@ PremultipliedSample sample_bilinear(const QImage& image, QPointF source_point) {
   return total;
 }
 
-// Bicubic taps use patchy::cubic_weight (core/resample.hpp, Catmull-Rom), the kernel
-// Image Size shares.
-PremultipliedSample sample_bicubic(const QImage& image, QPointF source_point) {
+// The cubic tap weight per method, all from core/resample.hpp so Free Transform and
+// Image Size agree kernel for kernel: Bicubic keeps patchy::cubic_weight (Catmull-Rom
+// spelled literally, the pinned expression), Smoother and Sharper take their (B, C)
+// from the Image Size kernel table. Automatic is resolved before sampling.
+double cubic_tap_weight(CanvasWidget::TransformInterpolation interpolation, double distance) {
+  switch (interpolation) {
+    case CanvasWidget::TransformInterpolation::BicubicSmoother: {
+      const auto kernel = resample_kernel(ResampleMethod::BicubicSmoother);
+      return cubic_bc_weight(distance, kernel.b, kernel.c);
+    }
+    case CanvasWidget::TransformInterpolation::BicubicSharper: {
+      const auto kernel = resample_kernel(ResampleMethod::BicubicSharper);
+      return cubic_bc_weight(distance, kernel.b, kernel.c);
+    }
+    default:
+      return cubic_weight(distance);
+  }
+}
+
+// Automatic follows Image Size's rule by output area: Sharper for a reduction, Smoother
+// for an enlargement, Bicubic at 1:1 (`area_scale` is output area over source area).
+CanvasWidget::TransformInterpolation resolve_automatic_interpolation(
+    CanvasWidget::TransformInterpolation interpolation, double area_scale) {
+  if (interpolation != CanvasWidget::TransformInterpolation::Automatic) {
+    return interpolation;
+  }
+  constexpr double kEqualAreaTolerance = 1e-9;
+  if (area_scale < 1.0 - kEqualAreaTolerance) {
+    return CanvasWidget::TransformInterpolation::BicubicSharper;
+  }
+  if (area_scale > 1.0 + kEqualAreaTolerance) {
+    return CanvasWidget::TransformInterpolation::BicubicSmoother;
+  }
+  return CanvasWidget::TransformInterpolation::Bicubic;
+}
+
+PremultipliedSample sample_bicubic(const QImage& image, QPointF source_point,
+                                   CanvasWidget::TransformInterpolation interpolation) {
   const auto x = source_point.x() - 0.5;
   const auto y = source_point.y() - 0.5;
   const auto base_x = static_cast<int>(std::floor(x));
   const auto base_y = static_cast<int>(std::floor(y));
   PremultipliedSample total;
   for (int yy = -1; yy <= 2; ++yy) {
-    const auto wy = cubic_weight(y - static_cast<double>(base_y + yy));
+    const auto wy = cubic_tap_weight(interpolation, y - static_cast<double>(base_y + yy));
     for (int xx = -1; xx <= 2; ++xx) {
-      const auto wx = cubic_weight(x - static_cast<double>(base_x + xx));
+      const auto wx = cubic_tap_weight(interpolation, x - static_cast<double>(base_x + xx));
       total = add_weighted(total, premultiplied_pixel(image, base_x + xx, base_y + yy), wx * wy);
     }
   }
@@ -602,6 +637,7 @@ std::uint8_t clamp_sample_channel(double value) {
 // lives outside the anonymous namespace (the sampling helpers above stay file-local).
 TransformedImage resample_transformed_rgba8(const QImage& source, const QTransform& source_to_document,
                                             CanvasWidget::TransformInterpolation interpolation) {
+  interpolation = resolve_automatic_interpolation(interpolation, std::abs(source_to_document.determinant()));
   const auto converted = source.convertToFormat(QImage::Format_RGBA8888);
   const auto mapped = source_to_document.mapRect(QRectF(0.0, 0.0, converted.width(), converted.height()));
   const auto left = static_cast<int>(std::floor(mapped.left()));
@@ -641,7 +677,10 @@ TransformedImage resample_transformed_rgba8(const QImage& source, const QTransfo
             sample = sample_bilinear(converted, source_point);
             break;
           case CanvasWidget::TransformInterpolation::Bicubic:
-            sample = sample_bicubic(converted, source_point);
+          case CanvasWidget::TransformInterpolation::BicubicSmoother:
+          case CanvasWidget::TransformInterpolation::BicubicSharper:
+          case CanvasWidget::TransformInterpolation::Automatic:  // resolved above
+            sample = sample_bicubic(converted, source_point, interpolation);
             break;
         }
 
@@ -702,6 +741,10 @@ TransformedImage resample_warped_rgba8(const QImage& source, const WarpSurfaceGr
   QImage transformed(std::max(1, right - left), std::max(1, bottom - top), QImage::Format_RGBA8888);
   transformed.fill(Qt::transparent);
   std::vector<std::uint8_t> covered(static_cast<std::size_t>(transformed.width()) * transformed.height(), 0);
+  // A warp has no single scale; its output extent over the source extent stands in.
+  const auto source_area = static_cast<double>(std::max(1, converted.width())) * std::max(1, converted.height());
+  interpolation = resolve_automatic_interpolation(
+      interpolation, static_cast<double>(transformed.width()) * transformed.height() / source_area);
 
   const auto sample_at = [&converted, interpolation](QPointF source_point) {
     switch (interpolation) {
@@ -710,7 +753,7 @@ TransformedImage resample_warped_rgba8(const QImage& source, const WarpSurfaceGr
       case CanvasWidget::TransformInterpolation::Bilinear:
         return sample_bilinear(converted, source_point);
       default:
-        return sample_bicubic(converted, source_point);
+        return sample_bicubic(converted, source_point, interpolation);
     }
   };
 
@@ -782,6 +825,7 @@ TransformedMask resample_transformed_gray8(const PixelBuffer& source, std::uint8
   PixelBuffer transformed(std::max(1, right - left), std::max(1, bottom - top), PixelFormat::gray8());
   transformed.clear(default_color);
   const auto bounds = Rect{left, top, transformed.width(), transformed.height()};
+  interpolation = resolve_automatic_interpolation(interpolation, std::abs(source_to_document.determinant()));
 
   bool invertible = false;
   const auto document_to_source = source_to_document.inverted(&invertible);
@@ -838,15 +882,18 @@ TransformedMask resample_transformed_gray8(const PixelBuffer& source, std::uint8
                     sample_gray(x0, y0 + 1) * (1.0 - tx) * ty + sample_gray(x0 + 1, y0 + 1) * tx * ty;
             break;
           }
-          case CanvasWidget::TransformInterpolation::Bicubic: {
+          case CanvasWidget::TransformInterpolation::Bicubic:
+          case CanvasWidget::TransformInterpolation::BicubicSmoother:
+          case CanvasWidget::TransformInterpolation::BicubicSharper:
+          case CanvasWidget::TransformInterpolation::Automatic: {  // resolved above
             const auto sx = source_point.x() - 0.5;
             const auto sy = source_point.y() - 0.5;
             const auto base_x = static_cast<int>(std::floor(sx));
             const auto base_y = static_cast<int>(std::floor(sy));
             for (int yy = -1; yy <= 2; ++yy) {
-              const auto wy = cubic_weight(sy - static_cast<double>(base_y + yy));
+              const auto wy = cubic_tap_weight(interpolation, sy - static_cast<double>(base_y + yy));
               for (int xx = -1; xx <= 2; ++xx) {
-                const auto wx = cubic_weight(sx - static_cast<double>(base_x + xx));
+                const auto wx = cubic_tap_weight(interpolation, sx - static_cast<double>(base_x + xx));
                 value += sample_gray(base_x + xx, base_y + yy) * wx * wy;
               }
             }

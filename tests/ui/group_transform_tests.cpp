@@ -1134,11 +1134,74 @@ void ui_group_transform_folder_with_stroke_only_shape_layers_if_available() {
   CHECK(!canvas->free_transform_active());
 }
 
+// The appended cubic variants: Smoother and Sharper are distinct kernels from Bicubic
+// (a step edge resamples to different ramps), flat color stays flat under all three,
+// and Automatic resolves by output area (Smoother at 2x, Sharper at 0.5x, Bicubic at
+// 1:1) for both the RGBA and the gray8 sampler.
+void transform_resample_cubic_variants_and_automatic() {
+  using Interpolation = patchy::ui::CanvasWidget::TransformInterpolation;
+  QImage source(8, 8, QImage::Format_RGBA8888);
+  for (int y = 0; y < 8; ++y) {
+    auto* row = source.scanLine(y);
+    for (int x = 0; x < 8; ++x) {
+      const std::uint8_t value = x < 4 ? 40 : 220;
+      row[x * 4] = row[x * 4 + 1] = row[x * 4 + 2] = value;
+      row[x * 4 + 3] = 255;
+    }
+  }
+  patchy::PixelBuffer gray(8, 8, patchy::PixelFormat::gray8());
+  for (std::int32_t y = 0; y < 8; ++y) {
+    for (std::int32_t x = 0; x < 8; ++x) {
+      gray.pixel(x, y)[0] = x < 4 ? 40 : 220;
+    }
+  }
+  const auto bytes = [](const QImage& image) {
+    return QByteArray(reinterpret_cast<const char*>(image.constBits()), static_cast<qsizetype>(image.sizeInBytes()));
+  };
+  const auto gray_bytes = [](const patchy::PixelBuffer& pixels) {
+    return QByteArray(reinterpret_cast<const char*>(pixels.data().data()), static_cast<qsizetype>(pixels.data().size()));
+  };
+
+  const auto doubled = QTransform::fromScale(2.0, 2.0);
+  const auto bicubic = patchy::ui::resample_transformed_rgba8(source, doubled, Interpolation::Bicubic);
+  const auto smoother = patchy::ui::resample_transformed_rgba8(source, doubled, Interpolation::BicubicSmoother);
+  const auto sharper = patchy::ui::resample_transformed_rgba8(source, doubled, Interpolation::BicubicSharper);
+  const auto automatic = patchy::ui::resample_transformed_rgba8(source, doubled, Interpolation::Automatic);
+  CHECK(bicubic.bounds.width == 16 && smoother.bounds.width == 16 && sharper.bounds.width == 16);
+  CHECK(bytes(bicubic.image) != bytes(smoother.image));
+  CHECK(bytes(bicubic.image) != bytes(sharper.image));
+  CHECK(bytes(smoother.image) != bytes(sharper.image));
+  CHECK(bytes(automatic.image) == bytes(smoother.image));
+  // Away from the step and the image border (whose outside taps read transparent)
+  // every kernel keeps the flat values: the (B, C) weights sum to 1. Output column
+  // 4 samples source x 1.75 (taps 0..3), column 11 samples 5.25 (taps 4..7).
+  for (const auto* result : {&bicubic, &smoother, &sharper}) {
+    const auto* row = result->image.constScanLine(8);
+    CHECK(row[4 * 4] == 40 && row[4 * 4 + 3] == 255);
+    CHECK(row[11 * 4] == 220 && row[11 * 4 + 3] == 255);
+  }
+
+  const auto halved = QTransform::fromScale(0.5, 0.5);
+  CHECK(bytes(patchy::ui::resample_transformed_rgba8(source, halved, Interpolation::Automatic).image) ==
+        bytes(patchy::ui::resample_transformed_rgba8(source, halved, Interpolation::BicubicSharper).image));
+  CHECK(bytes(patchy::ui::resample_transformed_rgba8(source, QTransform(), Interpolation::Automatic).image) ==
+        bytes(patchy::ui::resample_transformed_rgba8(source, QTransform(), Interpolation::Bicubic).image));
+
+  const auto gray_smoother = patchy::ui::resample_transformed_gray8(gray, 0, doubled, Interpolation::BicubicSmoother);
+  const auto gray_sharper = patchy::ui::resample_transformed_gray8(gray, 0, doubled, Interpolation::BicubicSharper);
+  const auto gray_automatic = patchy::ui::resample_transformed_gray8(gray, 0, doubled, Interpolation::Automatic);
+  CHECK(gray_bytes(gray_smoother.pixels) != gray_bytes(gray_sharper.pixels));
+  CHECK(gray_bytes(gray_automatic.pixels) == gray_bytes(gray_smoother.pixels));
+  CHECK(gray_bytes(patchy::ui::resample_transformed_gray8(gray, 0, halved, Interpolation::Automatic).pixels) ==
+        gray_bytes(patchy::ui::resample_transformed_gray8(gray, 0, halved, Interpolation::BicubicSharper).pixels));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> group_transform_tests() {
   return {
       {"gray8_resample_identity_and_default_fill", gray8_resample_identity_and_default_fill},
+      {"transform_resample_cubic_variants_and_automatic", transform_resample_cubic_variants_and_automatic},
       {"ui_group_free_transform_scales_folder_members_together",
        ui_group_free_transform_scales_folder_members_together},
       {"ui_multi_select_free_transform_transforms_selection_together",

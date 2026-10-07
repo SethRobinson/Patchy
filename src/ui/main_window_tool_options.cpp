@@ -1865,6 +1865,15 @@ void MainWindow::load_tool_settings() {
     case CanvasWidget::TransformInterpolation::Bilinear:
       canvas_->set_transform_interpolation(CanvasWidget::TransformInterpolation::Bilinear);
       break;
+    case CanvasWidget::TransformInterpolation::BicubicSmoother:
+      canvas_->set_transform_interpolation(CanvasWidget::TransformInterpolation::BicubicSmoother);
+      break;
+    case CanvasWidget::TransformInterpolation::BicubicSharper:
+      canvas_->set_transform_interpolation(CanvasWidget::TransformInterpolation::BicubicSharper);
+      break;
+    case CanvasWidget::TransformInterpolation::Automatic:
+      canvas_->set_transform_interpolation(CanvasWidget::TransformInterpolation::Automatic);
+      break;
     case CanvasWidget::TransformInterpolation::Bicubic:
     default:
       canvas_->set_transform_interpolation(CanvasWidget::TransformInterpolation::Bicubic);

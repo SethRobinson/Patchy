@@ -18701,6 +18701,18 @@ Convertido en imágenes: %1.</translation>
         <source>Delete layers that end up fully outside the crop box</source>
         <translation>Elimina las capas que queden totalmente fuera del cuadro de recorte</translation>
     </message>
+    <message>
+        <source>Bicubic Smoother</source>
+        <translation>Bicúbica más suavizada</translation>
+    </message>
+    <message>
+        <source>Bicubic Sharper</source>
+        <translation>Bicúbica más enfocada</translation>
+    </message>
+    <message>
+        <source>Bicubic Automatic</source>
+        <translation>Bicúbica automática</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>

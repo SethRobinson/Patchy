@@ -18701,6 +18701,18 @@ Y: %2
         <source>Delete layers that end up fully outside the crop box</source>
         <translation>Exclui as camadas que ficam totalmente fora da caixa de corte</translation>
     </message>
+    <message>
+        <source>Bicubic Smoother</source>
+        <translation>Bicúbico mais suave</translation>
+    </message>
+    <message>
+        <source>Bicubic Sharper</source>
+        <translation>Bicúbico mais nítido</translation>
+    </message>
+    <message>
+        <source>Bicubic Automatic</source>
+        <translation>Bicúbico automático</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>

@@ -18701,6 +18701,18 @@ In Bilder umgewandelt: %1.</translation>
         <source>Delete layers that end up fully outside the crop box</source>
         <translation>Ebenen löschen, die vollständig außerhalb des Freistellrahmens liegen</translation>
     </message>
+    <message>
+        <source>Bicubic Smoother</source>
+        <translation>Bikubisch glatter</translation>
+    </message>
+    <message>
+        <source>Bicubic Sharper</source>
+        <translation>Bikubisch schärfer</translation>
+    </message>
+    <message>
+        <source>Bicubic Automatic</source>
+        <translation>Bikubisch automatisch</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>

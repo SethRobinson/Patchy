@@ -58,12 +58,28 @@ stretch mode (`rttex_document_io.cpp`).
 ## Free Transform
 
 Free Transform (`src/ui/canvas_widget_transform.cpp`) keeps its own inverse-mapping samplers
-over a QImage (arbitrary affine, 8-bit RGBA and gray8, point-sampled) and takes its cubic
-weights from `patchy::cubic_weight`. Its combo persists `tools/transformInterpolation` as an
-integer of `CanvasWidget::TransformInterpolation` (three values); it could offer Smoother and
-Sharper now that the kernel takes (B, C), see docs/refactor-backlog.md.
+over a QImage (arbitrary affine, 8-bit RGBA and gray8, point-sampled; no kernel widening on
+a reduction, unlike `resample_pixels`). Its options-bar combo offers Photoshop's six choices
+in Photoshop's order: Nearest Neighbor, Bilinear, Bicubic, Bicubic Smoother, Bicubic Sharper,
+Bicubic Automatic. `CanvasWidget::TransformInterpolation` is persisted as an integer under
+`tools/transformInterpolation`, so the enum is append-only (Smoother, Sharper and Automatic
+were appended in October 2026; an unknown value loads as Bicubic). The cubic taps come from
+`cubic_tap_weight`: Bicubic keeps `patchy::cubic_weight` (the pinned literal Catmull-Rom),
+Smoother and Sharper read their (B, C) from `resample_kernel`, so the kernels are Image
+Size's. Automatic is resolved per resample by output area over source area
+(`resolve_automatic_interpolation`: the affine determinant for a transform, the output
+extent over the source extent for a warp): Sharper below 1, Smoother above, Bicubic at 1:1.
+Test: `transform_resample_cubic_variants_and_automatic` (group_transform_tests.cpp).
 
 ## Dialog behavior
+
+The preview (`imageSizePreview`) shows the method, not just the size: the flattened document
+(reduced once to at most four times the box when larger; a small document keeps its exact
+pixels) is resampled by `resample_pixels` to the target size fitted into the box with the
+chosen method on every size or method change (`image_size_preview_pixmap`, called from
+`update_summary`). Automatic resolves from the real document and target sizes. Nearest
+Neighbor therefore previews as blocks and the cubics as their blur; a Qt smooth scale of
+the current pixels used to show every method as a blur (`ui_image_size_dialog_preview_follows_method`).
 
 Resample on: the method combo is enabled and the choice is applied and remembered. Resample
 off: pixel dimensions lock to the document (Photoshop semantics, docs/resolution-units.md),

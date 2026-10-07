@@ -427,7 +427,28 @@ QString format_image_size_bytes(std::int32_t width, std::int32_t height, PixelFo
   return QObject::tr("%1K").arg(bytes / 1024.0, 0, 'f', 1);
 }
 
-QPixmap image_size_preview_pixmap(const Document& document, QSize preview_size) {
+// The preview's source: the flattened document as RGBA8, reduced once (smoothly) to at
+// most four times the preview box when larger, since the box cannot show more detail;
+// a small document keeps its exact pixels so an enlargement previews true.
+PixelBuffer image_size_preview_source(const Document& document, QSize preview_size) {
+  auto image = qimage_from_document(document, true).convertToFormat(QImage::Format_RGBA8888);
+  const QSize bound = preview_size * 4;
+  if (image.width() > bound.width() || image.height() > bound.height()) {
+    image = image.scaled(bound, Qt::KeepAspectRatio, Qt::SmoothTransformation).convertToFormat(QImage::Format_RGBA8888);
+  }
+  PixelBuffer pixels(image.width(), image.height(), PixelFormat::rgba8());
+  for (int y = 0; y < image.height(); ++y) {
+    std::copy_n(image.constScanLine(y), static_cast<std::size_t>(image.width()) * 4, pixels.row(y).data());
+  }
+  return pixels;
+}
+
+// Resamples the source to the target size with the chosen method, fitted into the
+// box, so the preview shows the method: Nearest Neighbor its blocks, the cubics their
+// blur. (A Qt smooth scale of the current pixels showed every method as a blur; Seth,
+// October 2026.) Automatic resolves from the real document and target sizes.
+QPixmap image_size_preview_pixmap(const PixelBuffer& source, QSize preview_size, QSize document_size,
+                                  QSize target_size, ResampleMethod method) {
   QPixmap pixmap(preview_size);
   pixmap.fill(QColor(22, 22, 22));
 
@@ -440,11 +461,13 @@ QPixmap image_size_preview_pixmap(const Document& document, QSize preview_size) 
     }
   }
 
-  const auto image = qimage_from_document(document, true);
-  if (!image.isNull()) {
-    const auto scaled = image.scaled(preview_size, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-    const QPoint position((preview_size.width() - scaled.width()) / 2, (preview_size.height() - scaled.height()) / 2);
-    painter.drawImage(position, scaled);
+  if (!source.empty() && !target_size.isEmpty()) {
+    const auto resolved = resolve_automatic_resample_method(method, document_size.width(), document_size.height(),
+                                                            target_size.width(), target_size.height());
+    const auto fitted = target_size.scaled(preview_size, Qt::KeepAspectRatio).expandedTo(QSize(1, 1));
+    const auto image = qimage_from_pixel_buffer(resample_pixels(source, fitted.width(), fitted.height(), resolved));
+    const QPoint position((preview_size.width() - image.width()) / 2, (preview_size.height() - image.height()) / 2);
+    painter.drawImage(position, image);
   }
   painter.setPen(QPen(QColor(30, 30, 30), 1));
   painter.drawRect(pixmap.rect().adjusted(0, 0, -1, -1));
@@ -534,7 +557,8 @@ std::optional<ImageSizeSettings> request_image_size_settings(QWidget* parent, co
   preview->setObjectName(QStringLiteral("imageSizePreview"));
   preview->setFixedSize(276, 304);
   preview->setAlignment(Qt::AlignCenter);
-  preview->setPixmap(image_size_preview_pixmap(document, preview->size()));
+  // Flattened once; every size or method change re-resamples it (update_summary).
+  const auto preview_source = image_size_preview_source(document, preview->size());
   body->addWidget(preview, 0, Qt::AlignTop);
 
   auto* controls = new QWidget(&dialog);
@@ -683,10 +707,17 @@ std::optional<ImageSizeSettings> request_image_size_settings(QWidget* parent, co
   controls_layout->addWidget(resample_hint);
   controls_layout->addStretch(1);
 
-  const auto update_summary = [image_size_value, dimensions_value, &state, &document] {
+  const auto update_summary = [image_size_value, dimensions_value, preview, &preview_source, resample_method, &state,
+                               &document] {
     image_size_value->setText(format_image_size_bytes(state.pixel_width, state.pixel_height, document.format()));
     dimensions_value->setText(QObject::tr("%1 px x %2 px").arg(state.pixel_width).arg(state.pixel_height));
+    const auto method = parse_resample_method(resample_method->currentData().toString().toStdString())
+                            .value_or(ResampleMethod::Automatic);
+    preview->setPixmap(image_size_preview_pixmap(preview_source, preview->size(),
+                                                 QSize(document.width(), document.height()),
+                                                 QSize(state.pixel_width, state.pixel_height), method));
   };
+  QObject::connect(resample_method, &QComboBox::currentIndexChanged, &dialog, [&](int) { update_summary(); });
 
   const auto current_unit = [](QComboBox* combo) {
     return static_cast<MeasurementUnit>(combo->currentData().toInt());

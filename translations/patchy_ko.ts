@@ -18645,6 +18645,18 @@ Y: %2
         <source>Delete layers that end up fully outside the crop box</source>
         <translation>자르기 상자 완전히 밖에 남은 레이어를 삭제합니다</translation>
     </message>
+    <message>
+        <source>Bicubic Smoother</source>
+        <translation>쌍입방 더 매끄럽게</translation>
+    </message>
+    <message>
+        <source>Bicubic Sharper</source>
+        <translation>쌍입방 더 선명하게</translation>
+    </message>
+    <message>
+        <source>Bicubic Automatic</source>
+        <translation>쌍입방 자동</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
