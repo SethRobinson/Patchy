@@ -167,7 +167,8 @@ std::vector<std::uint8_t> planar_rgb8_data(const PixelBuffer& pixels) {
 // A flat export whose single pixel layer carries an enabled imported-alpha mask
 // preserves that mask as a saved composite channel ("Alpha 1"). On PSD reopen it is
 // a DocumentChannel, never an applied layer mask. This is the eligibility check.
-[[nodiscard]] const Layer* document_alpha_mask_layer(const Document& document) noexcept {
+// any_depth: the deep writer's form, which reads the layer and mask at their own depth.
+[[nodiscard]] const Layer* document_alpha_mask_layer(const Document& document, bool any_depth = false) noexcept {
   if (document.layers().size() != 1) {
     return nullptr;
   }
@@ -176,8 +177,8 @@ std::vector<std::uint8_t> planar_rgb8_data(const PixelBuffer& pixels) {
     return nullptr;
   }
   const auto& mask = layer.mask();
-  if (!mask.has_value() || mask->disabled || mask->pixels.empty() ||
-      mask->pixels.format() != PixelFormat::gray8()) {
+  if (!mask.has_value() || mask->disabled || mask->pixels.empty() || mask->pixels.format().channels != 1U ||
+      (!any_depth && mask->pixels.format() != PixelFormat::gray8())) {
     return nullptr;
   }
   const auto width = document.width();
@@ -186,6 +187,9 @@ std::vector<std::uint8_t> planar_rgb8_data(const PixelBuffer& pixels) {
     return nullptr;
   }
   const auto pixel_format = layer.pixels().format();
+  if (any_depth) {
+    return pixel_format.channels == 3U || pixel_format.channels == 4U ? &layer : nullptr;
+  }
   if (pixel_format.bit_depth != BitDepth::UInt8 ||
       (pixel_format != PixelFormat::rgb8() && pixel_format != PixelFormat::rgba8())) {
     return nullptr;
@@ -506,6 +510,80 @@ void write_rgb8_image_data(BigEndianWriter& writer, const PixelBuffer& pixels, b
     return DocumentAlphaComposite{std::move(rgb), std::move(alpha), std::string_view{}};
   }
   return DocumentAlphaComposite{std::move(rgb), std::move(alpha), "Transparency"};
+}
+
+namespace {
+
+std::vector<std::uint8_t> narrowed_plane(const PixelBuffer& coverage) {
+  const auto narrow = convert_pixel_buffer_depth(coverage, BitDepth::UInt8, SampleKind::Coverage);
+  return {narrow.data().begin(), narrow.data().end()};
+}
+
+}  // namespace
+
+std::optional<DeepDocumentComposite> deep_document_alpha_composite(const Document& document, BitDepth depth) {
+  const Layer* layer = document_alpha_mask_layer(document, true);
+  if (layer == nullptr) {
+    return std::nullopt;
+  }
+  const auto width = document.width();
+  const auto height = document.height();
+  const auto domain = deep_domain_for(depth);
+  DeepDocumentComposite composite{PixelBuffer(width, height, with_bit_depth(PixelFormat::rgb8(), depth)),
+                                 PixelBuffer(width, height, with_bit_depth(PixelFormat::gray8(), depth)),
+                                 {},
+                                 "Alpha 1"};
+  const auto& mask = *layer->mask();
+  std::vector<float> row(static_cast<std::size_t>(width) * 4U);
+  std::vector<float> coverage(static_cast<std::size_t>(width));
+  for (std::int32_t y = 0; y < height; ++y) {
+    load_rgba_row(layer->pixels(), y, 0, width, domain, row);
+    store_rgba_row(composite.rgb, y, 0, width, domain, row);
+    std::fill(coverage.begin(), coverage.end(), static_cast<float>(mask.default_color));
+    const auto mask_y = y - mask.bounds.y;
+    if (mask_y >= 0 && mask_y < mask.pixels.height()) {
+      const auto first = std::max(0, mask.bounds.x);
+      const auto last = std::min(width, mask.bounds.x + mask.pixels.width());
+      if (last > first) {
+        load_coverage_row(mask.pixels, mask_y, first - mask.bounds.x, last - first,
+                          std::span<float>(coverage).subspan(static_cast<std::size_t>(first)));
+      }
+    }
+    store_coverage_row(composite.alpha, y, 0, width, coverage);
+  }
+  composite.alpha8 = narrowed_plane(composite.alpha);
+  return composite;
+}
+
+DeepDocumentComposite deep_merged_flatten_composite(const Document& document, BitDepth depth) {
+  const auto width = document.width();
+  const auto height = document.height();
+  const auto domain = deep_domain_for(depth);
+  const auto flat = Compositor{}.flatten_rgba_deep(document);
+  DeepDocumentComposite composite{PixelBuffer(width, height, with_bit_depth(PixelFormat::rgb8(), depth)),
+                                 PixelBuffer(width, height, with_bit_depth(PixelFormat::gray8(), depth)),
+                                 {},
+                                 std::string_view{}};
+  bool transparent = false;
+  std::vector<float> row(static_cast<std::size_t>(width) * 4U);
+  std::vector<float> coverage(static_cast<std::size_t>(width));
+  for (std::int32_t y = 0; y < height; ++y) {
+    load_rgba_row(flat, y, 0, width, domain, row);
+    store_rgba_row(composite.rgb, y, 0, width, domain, row);
+    for (std::int32_t x = 0; x < width; ++x) {
+      coverage[static_cast<std::size_t>(x)] = row[static_cast<std::size_t>(x) * 4U + 3U];
+      transparent = transparent || coverage[static_cast<std::size_t>(x)] < kDeepScale;
+    }
+    store_coverage_row(composite.alpha, y, 0, width, coverage);
+  }
+  // A fully opaque flatten writes three channels, as the 8-bit writer does.
+  if (!transparent) {
+    composite.alpha = PixelBuffer{};
+    return composite;
+  }
+  composite.alpha8 = narrowed_plane(composite.alpha);
+  composite.channel_name = "Transparency";
+  return composite;
 }
 
 // Writes RGB followed by any number of full-canvas grayscale planes. The merged

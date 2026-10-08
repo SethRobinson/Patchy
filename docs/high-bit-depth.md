@@ -140,8 +140,9 @@ Each phase lands as verified commits; the gate stays off until Phase 9.
    reading of a deep file is exactly the deep reading narrowed. The writer takes the
    document's depth: header depth, layer records in `Lr16`/`Lr32` behind an empty
    standard section, deep composite and saved channels; descriptor colors linear for
-   32 bits (`ScopedLinearDescriptorColors`). The composite still comes from the 8-bit
-   compositor until Phase 3. Photoshop 2026 rules found by splicing sections:
+   32 bits (`ScopedLinearDescriptorColors`). The stored composite (and its merged
+   transparency) is the deep compositor's flatten at the document's depth
+   (`deep_merged_flatten_composite`). Photoshop 2026 rules found by splicing sections:
    - 32-bit layer channels must be zip with prediction (raw and RLE are refused;
      16-bit RLE and raw open fine).
    - A 32-bit file needs its color mode data: the `hdrt`/`hdra` HDR toning record.
@@ -179,11 +180,10 @@ Each phase lands as verified commits; the gate stays off until Phase 9.
      multipliers (`kDeepSaturationScale`, probed per percent; +20 is 318/256 where 8
      bits use 1.2473). At 32 bits there is no gamut limit and no clamp.
    - 32-bit Luminosity is the PDF SetLum without ClipColor (negatives survive).
-   Open in Phase 3: the eyedropper at depth (`compose_document_pixel`), canvas caches
-   and thumbnails from the deep render, parallel strip rendering for deep documents,
-   the PSD writer's composite from the deep flatten (it still narrows a shallow copy),
-   Testy's `deepRender` from Patchy's 16-bit export (the cache-free leg's composed
-   `render.png` must then keep 16 bits), and the recovery store at depth.
+   The eyedropper picks deep documents from the deep render; layer thumbnails read
+   any depth (`display_rgba8_at`). Open in Phase 3: parallel strip rendering for deep
+   documents, Testy's `deepRender` from Patchy's 16-bit export (the cache-free leg's
+   composed `render.png` must then keep 16 bits), and the recovery store at depth.
 4. **Layer operations and transforms.** Merge, flatten, duplicate, rasterize at depth,
    transforms, warp, liquify, crop, canvas size, copy/paste and Files as Layers across
    depths (convert on entry).

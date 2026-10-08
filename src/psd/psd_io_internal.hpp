@@ -503,6 +503,20 @@ private:
 void write_rgb8_image_data(BigEndianWriter& writer, const PixelBuffer& pixels, bool wide_rle_counts);
 [[nodiscard]] std::optional<DocumentAlphaComposite> document_alpha_composite(const Document& document);
 [[nodiscard]] DocumentAlphaComposite merged_flatten_composite(const Document& document);
+// A 16 or 32-bit document's composite at its own depth (docs/high-bit-depth.md): `rgb`
+// is canvas-sized 3-channel at `depth`, `alpha` the matching coverage plane (empty when
+// channel_name is), `alpha8` that plane narrowed for the writer's channel bookkeeping.
+struct DeepDocumentComposite {
+  PixelBuffer rgb;
+  PixelBuffer alpha;
+  std::vector<std::uint8_t> alpha8;
+  std::string_view channel_name;
+};
+// document_alpha_composite at depth: the single masked layer's own colors and its mask.
+[[nodiscard]] std::optional<DeepDocumentComposite> deep_document_alpha_composite(const Document& document,
+                                                                                BitDepth depth);
+// merged_flatten_composite at depth, from the deep compositor.
+[[nodiscard]] DeepDocumentComposite deep_merged_flatten_composite(const Document& document, BitDepth depth);
 void write_rgb8_image_data_with_extra_channels(
     BigEndianWriter& writer, const PixelBuffer& pixels,
     std::span<const std::span<const std::uint8_t>> extra_channels, bool wide_rle_counts);

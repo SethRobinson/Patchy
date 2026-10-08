@@ -1817,29 +1817,12 @@ Document DocumentIo::read_file(const std::filesystem::path& path, ReadOptions op
 
 namespace {
 
-// A 16 or 32-bit document's composite still comes from the 8-bit compositor until the
-// deep one exists (docs/high-bit-depth.md): it is only the preview other readers show,
-// and Photoshop recomposites from the layers.
-Document shallow_copy_for_composite(const Document& document) {
-  auto shallow = document;
-  convert_document_depth(shallow, BitDepth::UInt8);
-  return shallow;
-}
-
-// A canvas-sized 8-bit plane as big-endian samples at `depth`.
-std::vector<std::uint8_t> widen_plane(std::span<const std::uint8_t> plane, std::int32_t width, std::int32_t height,
-                                      BitDepth depth) {
-  PixelBuffer gray(width, height, PixelFormat::gray8());
-  std::copy(plane.begin(), plane.end(), gray.data().begin());
-  return big_endian_plane(convert_pixel_buffer_depth(gray, depth, SampleKind::Coverage), 0);
-}
-
 // Merged transparency or a saved alpha channel, then every document channel, at `depth`.
 std::vector<std::vector<std::uint8_t>> deep_extra_planes(const Document& document,
-                                                         const DocumentAlphaComposite& composite, BitDepth depth) {
+                                                         const DeepDocumentComposite& composite, BitDepth depth) {
   std::vector<std::vector<std::uint8_t>> planes;
   if (!composite.channel_name.empty()) {
-    planes.push_back(widen_plane(composite.alpha, document.width(), document.height(), depth));
+    planes.push_back(big_endian_plane(composite.alpha, 0));
   }
   for (const auto& channel : document.channels()) {
     planes.push_back(
@@ -1890,10 +1873,9 @@ std::vector<std::uint8_t> DocumentIo::write_flat_rgb8(const Document& document, 
   if (depth != BitDepth::UInt8) {
     // The flat file's composite at the document's depth; everything else is the 8-bit
     // writer's layout.
-    const auto shallow = shallow_copy_for_composite(document);
-    auto composite = document_alpha_composite(shallow);
+    auto composite = deep_document_alpha_composite(document, depth);
     if (!composite.has_value()) {
-      composite = merged_flatten_composite(shallow);
+      composite = deep_merged_flatten_composite(document, depth);
       if (!composite->channel_name.empty()) {
         composite->channel_name = "Alpha 1";
       }
@@ -1901,7 +1883,7 @@ std::vector<std::uint8_t> DocumentIo::write_flat_rgb8(const Document& document, 
     std::vector<std::span<const std::uint8_t>> unused_planes;
     std::vector<CompositeChannelInfo> channel_info;
     if (!composite->channel_name.empty()) {
-      unused_planes.emplace_back(composite->alpha);
+      unused_planes.emplace_back(composite->alpha8);
       channel_info.push_back(CompositeChannelInfo{composite->channel_name, false, true, std::nullopt,
                                                   DocumentChannelDisplayInfo{}, {}});
     }
@@ -1920,8 +1902,7 @@ std::vector<std::uint8_t> DocumentIo::write_flat_rgb8(const Document& document, 
     } else {
       writer.write_u32(0);
     }
-    write_deep_image_data(writer, convert_pixel_buffer_depth(composite->rgb, depth, SampleKind::Color), extra, depth,
-                          options.large_document);
+    write_deep_image_data(writer, composite->rgb, extra, depth, options.large_document);
     return writer.bytes();
   }
 
@@ -2008,8 +1989,17 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
   const auto depth = document_bit_depth(document);
   const bool deep = depth != BitDepth::UInt8;
   const ScopedLinearDescriptorColors linear_colors(depth == BitDepth::Float32);
-  auto composite = deep ? merged_flatten_composite(shallow_copy_for_composite(document))
-                        : merged_flatten_composite(document);
+  // A deep document's composite comes from the deep compositor; `composite` then only
+  // carries its narrowed alpha and channel name for the bookkeeping below.
+  std::optional<DeepDocumentComposite> deep_composite;
+  DocumentAlphaComposite composite;
+  if (deep) {
+    deep_composite = deep_merged_flatten_composite(document, depth);
+    composite.alpha = deep_composite->alpha8;
+    composite.channel_name = deep_composite->channel_name;
+  } else {
+    composite = merged_flatten_composite(document);
+  }
 
   const bool merged_transparency_channel = composite.channel_name == "Transparency";
   std::vector<std::span<const std::uint8_t>> extra_channels;
@@ -2333,8 +2323,8 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
     write_length_prefixed_block(writer, layer_mask.bytes());
   }
   if (deep) {
-    write_deep_image_data(writer, convert_pixel_buffer_depth(composite.rgb, depth, SampleKind::Color),
-                          deep_extra_planes(document, composite, depth), depth, options.large_document);
+    write_deep_image_data(writer, deep_composite->rgb, deep_extra_planes(document, *deep_composite, depth), depth,
+                          options.large_document);
   } else if (!extra_channels.empty()) {
     write_rgb8_image_data_with_extra_channels(writer, composite.rgb, extra_channels,
                                               options.large_document);

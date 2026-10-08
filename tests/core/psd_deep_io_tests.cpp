@@ -8,8 +8,11 @@
 #include "core/pixel_depth.hpp"
 #include "local_psd_fixtures.hpp"
 #include "psd/psd_document_io.hpp"
+#include "render/compositor.hpp"
 #include "test_harness.hpp"
 
+#include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
@@ -120,6 +123,44 @@ void deep_round_trip(BitDepth depth, bool large_document) {
   }
 }
 
+// The stored composite is the deep compositor's flatten at the document's depth, not
+// an 8-bit flatten widened: other readers (and Patchy's flat reading) see every bit.
+void deep_composite_keeps_depth(BitDepth depth) {
+  const auto original = make_deep_document(depth);
+  const auto expected = Compositor{}.flatten_rgba_deep(original);
+  const auto domain = deep_domain_for(depth);
+  for (const bool flat : {false, true}) {
+    const auto bytes = flat ? psd::DocumentIo::write_flat_rgb8(original) : psd::DocumentIo::write_layered_rgb8(original);
+    psd::ReadOptions options;
+    options.keep_bit_depth = true;
+    options.prefer_flat_composite = true;
+    const auto read = psd::DocumentIo::read(bytes, options);
+    CHECK(document_bit_depth(read) == depth);
+    CHECK(!read.layers().empty());
+    const auto& pixels = read.layers()[0].pixels();
+    CHECK(pixels.width() == expected.width() && pixels.height() == expected.height());
+    std::vector<float> mine(static_cast<std::size_t>(expected.width()) * 4U);
+    std::vector<float> theirs(mine.size());
+    double worst = 0.0;
+    for (std::int32_t y = 0; y < expected.height(); ++y) {
+      load_rgba_row(pixels, y, 0, expected.width(), domain, mine);
+      load_rgba_row(expected, y, 0, expected.width(), domain, theirs);
+      for (std::size_t i = 0; i < mine.size(); ++i) {
+        if (i % 4U != 3U) {
+          worst = std::max(worst, static_cast<double>(std::abs(mine[i] - theirs[i])));
+        }
+      }
+    }
+    // Exact for floats; within rounding for 16 bits (one 16-bit step is 1/257).
+    CHECK(worst <= (depth == BitDepth::Float32 ? 1e-4 : 0.5 / 257.0 + 1e-4));
+  }
+}
+
+void psd_deep_composite_is_written_at_depth() {
+  deep_composite_keeps_depth(BitDepth::UInt16);
+  deep_composite_keeps_depth(BitDepth::Float32);
+}
+
 void psd_deep_16_bit_document_round_trips_exactly() {
   deep_round_trip(BitDepth::UInt16, false);
   deep_round_trip(BitDepth::UInt16, true);
@@ -214,6 +255,7 @@ void psd_deep_photoshop_corpus_reads_and_round_trips_if_available() {
 
 std::vector<patchy::test::TestCase> psd_deep_io_tests() {
   return {
+      {"psd_deep_composite_is_written_at_depth", psd_deep_composite_is_written_at_depth},
       {"psd_deep_16_bit_document_round_trips_exactly", psd_deep_16_bit_document_round_trips_exactly},
       {"psd_deep_32_bit_document_round_trips_exactly", psd_deep_32_bit_document_round_trips_exactly},
       {"psd_deep_gate_off_reads_8_bit_as_before", psd_deep_gate_off_reads_8_bit_as_before},
