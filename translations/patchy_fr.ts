@@ -8925,11 +8925,15 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>Pixel row access is outside the buffer</source>
-        <translation>L'accès à la ligne de pixels sort du tampon</translation>
+        <translation>L&apos;accès à la ligne de pixels sort du tampon</translation>
     </message>
     <message>
         <source>RGBA rows need a color buffer</source>
         <translation>Les lignes RGBA nécessitent un tampon de couleur</translation>
+    </message>
+    <message>
+        <source>PSD channel depth does not match the document</source>
+        <translation>La profondeur du canal PSD ne correspond pas au document</translation>
     </message>
 </context>
 <context>

@@ -4,7 +4,9 @@
 
 #include "color/color_management.hpp"
 #include "core/adjustment_layer.hpp"
+#include "core/document_depth.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/pixel_depth.hpp"
 #include "core/pattern_resource.hpp"
 #include "core/smart_object.hpp"
 #include "core/style_contour.hpp"
@@ -149,8 +151,8 @@ void append_document_channels_for_write(
   channel_info.reserve(channel_info.size() + document.channels().size());
   for (const auto& channel : document.channels()) {
     const auto& pixels = channel.pixels();
-    if (pixels.format() != PixelFormat::gray8() || pixels.width() != document.width() ||
-        pixels.height() != document.height()) {
+    if (pixels.format() != with_bit_depth(PixelFormat::gray8(), pixels.format().bit_depth) ||
+        pixels.width() != document.width() || pixels.height() != document.height()) {
       throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "PSD saved channels must be full-canvas 8-bit grayscale images"));
     }
     planes.emplace_back(pixels.data());
@@ -185,21 +187,54 @@ bool records_look_like_legacy_top_to_bottom(const std::vector<Layer>& layers, st
   return !layers.empty() && is_full_canvas_background(layers.back(), canvas_width, canvas_height);
 }
 
+// Replaces the saved channels just added (from `first_index` on) with the file's own
+// samples, for documents that keep a 16 or 32-bit file's depth.
+void keep_native_saved_channels(Document& document, std::size_t first_index,
+                                std::span<const std::vector<std::uint8_t>> native_planes, std::uint16_t depth) {
+  const auto bit_depth = depth == 32 ? BitDepth::Float32 : BitDepth::UInt16;
+  for (std::size_t i = 0; i < native_planes.size() && first_index + i < document.channels().size(); ++i) {
+    PixelBuffer plane(document.width(), document.height(), with_bit_depth(PixelFormat::gray8(), bit_depth));
+    store_native_plane(plane, 0, native_planes[i], depth);
+    document.channels()[first_index + i].set_pixels(std::move(plane));
+  }
+}
+
 Document read_flat_composite(BigEndianReader& reader, const Header& header,
                              const CmykColorConverter& source_colors,
                              const ParsedCompositeChannelResources& channel_resources,
-                             bool has_merged_transparency, std::size_t* damaged_rows = nullptr) {
+                             bool has_merged_transparency, std::size_t* damaged_rows = nullptr,
+                             bool keep_depth = false) {
   const auto format = format_from_header(header);
   const auto compression = reader.read_u16();
   const auto source_is_cmyk = is_cmyk_color_mode(header.color_mode);
   const auto source_is_gray = is_grayscale_color_mode(header.color_mode);
+  // Deep files kept at their depth read the file's samples; the 8-bit planes below are
+  // converted copies that keep driving the mode conversions, and RGB and plain gray
+  // composites then take the native samples (other modes widen in DocumentIo::read).
+  const bool native_depth = keep_depth && (header.depth == 16 || header.depth == 32) &&
+                            header.color_mode != kColorModeBitmap;
+  const auto native_bit_depth = header.depth == 32 ? BitDepth::Float32 : BitDepth::UInt16;
 
   Document document(static_cast<std::int32_t>(header.width), static_cast<std::int32_t>(header.height), format);
   PixelBuffer pixels(static_cast<std::int32_t>(header.width), static_cast<std::int32_t>(header.height), format);
   // A Bitmap document is one 1-bit plane with rows packed to bytes: nothing else in the
   // file can follow it (no alpha, no saved channels), so it is read on its own.
+  std::vector<std::vector<std::uint8_t>> native_planes;
+  if (native_depth) {
+    native_planes = read_flat_image_channels(reader, header, compression, damaged_rows, true);
+  }
+  const auto color_plane_count = composite_color_channel_count(header.color_mode);
+  std::vector<std::vector<std::uint8_t>> converted_planes;
+  if (native_depth) {
+    converted_planes.reserve(native_planes.size());
+    for (std::size_t plane = 0; plane < native_planes.size(); ++plane) {
+      converted_planes.push_back(convert_channel_to_8bit(std::vector<std::uint8_t>(native_planes[plane]),
+                                                         header.depth, plane < color_plane_count));
+    }
+  }
   const auto channel_data =
-      header.color_mode == kColorModeBitmap
+      native_depth ? std::move(converted_planes)
+      : header.color_mode == kColorModeBitmap
           ? std::vector<std::vector<std::uint8_t>>{read_bitmap_composite_plane(reader, header, compression,
                                                                                 damaged_rows)}
           : read_flat_image_channels(reader, header, compression, damaged_rows);
@@ -232,6 +267,15 @@ Document read_flat_composite(BigEndianReader& reader, const Header& header,
   if (first_saved_channel > header.channels) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "PSD merged transparency flag has no matching composite channel"));
   }
+  const bool native_color =
+      native_depth && (header.color_mode == kColorModeRgb || (source_is_gray && source_colors.gray_icc == nullptr));
+  if (native_color) {
+    PixelBuffer deep(document.width(), document.height(), with_bit_depth(format, native_bit_depth));
+    for (std::size_t c = 0; c < 3U; ++c) {
+      store_native_plane(deep, c, native_planes[source_is_gray ? 0U : c], header.depth);
+    }
+    pixels = std::move(deep);
+  }
   Layer& background = document.add_pixel_layer("Background", std::move(pixels));
   if (has_merged_transparency) {
     const auto& merged_alpha = channel_data[color_channel_count];
@@ -240,6 +284,11 @@ Document read_flat_composite(BigEndianReader& reader, const Header& header,
     }
     PixelBuffer mask_pixels(document.width(), document.height(), PixelFormat::gray8());
     std::copy(merged_alpha.begin(), merged_alpha.end(), mask_pixels.data().begin());
+    if (native_depth) {
+      mask_pixels = PixelBuffer(document.width(), document.height(),
+                                with_bit_depth(PixelFormat::gray8(), native_bit_depth));
+      store_native_plane(mask_pixels, 0, native_planes[color_channel_count], header.depth);
+    }
     background.set_mask(LayerMask{Rect::from_size(document.width(), document.height()),
                                   std::move(mask_pixels), 255, false});
     set_layer_mask_is_document_alpha(background, true);
@@ -250,8 +299,14 @@ Document read_flat_composite(BigEndianReader& reader, const Header& header,
     saved_channels.push_back(std::move(channel_data[channel]));
   }
   if (!saved_channels.empty()) {
+    const auto first_index = document.channels().size();
     add_saved_composite_channels(document, std::move(saved_channels), first_saved_channel, header,
                                  channel_resources);
+    if (native_depth) {
+      keep_native_saved_channels(document, first_index,
+                                 std::span<const std::vector<std::uint8_t>>(native_planes).subspan(first_saved_channel),
+                                 header.depth);
+    }
   }
 
   return document;
@@ -503,9 +558,14 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
                                            const CmykColorConverter& source_colors,
                                            bool& has_merged_transparency,
                                            std::vector<std::string>* notices,
-                                           std::size_t* damaged_rows) {
+                                           std::size_t* damaged_rows, bool keep_depth) {
   has_merged_transparency = false;
   int unrendered_color_balance_count = 0;
+  // A deep file kept at its depth: color, transparency and mask planes are stored at
+  // the file's depth here; modes without a native path (CMYK, Lab, profiled gray) keep
+  // the 8-bit conversion below and widen afterwards (DocumentIo::read).
+  const bool native_depth = keep_depth && (depth == 16 || depth == 32);
+  const auto native_bit_depth = depth == 32 ? BitDepth::Float32 : BitDepth::UInt16;
   const auto layer_count_raw = static_cast<std::int16_t>(layer_reader.read_u16());
   has_merged_transparency = layer_count_raw < 0;
   const auto layer_count = static_cast<std::uint16_t>(
@@ -557,6 +617,18 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
       return channel.id == kChannelTransparency;
     });
     PixelBuffer pixels(width, height, (has_alpha || !has_color) ? PixelFormat::rgba8() : PixelFormat::rgb8());
+    const bool native_color = native_depth && (source_color_mode == kColorModeRgb ||
+                                               (source_is_gray && source_colors.gray_icc == nullptr));
+    PixelBuffer native_pixels;
+    if (native_color) {
+      native_pixels = PixelBuffer(width, height, with_bit_depth(pixels.format(), native_bit_depth));
+      if (has_alpha) {
+        const std::vector<float> opaque(static_cast<std::size_t>(width) * 4U, 255.0F);
+        for (std::int32_t y = 0; y < height; ++y) {
+          store_rgba_row(native_pixels, y, 0, width, deep_domain_for(native_bit_depth), opaque);
+        }
+      }
+    }
     if (has_alpha) {
       for (std::int32_t y = 0; y < height; ++y) {
         for (std::int32_t x = 0; x < width; ++x) {
@@ -616,11 +688,19 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
         throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "PSD layer channel data is truncated"));
       }
       std::vector<std::uint8_t> channel_data;
+      std::vector<std::uint8_t> native_samples;
       try {
-        channel_data = read_channel_data(
-          channel_reader, compression, channel_width, channel_height, large_document,
-          ChannelDecodeInfo{depth, is_source_color_channel(channel.id, source_color_mode), payload_length},
-          damaged_rows);
+        const ChannelDecodeInfo decode_info{depth, is_source_color_channel(channel.id, source_color_mode),
+                                            payload_length};
+        if (native_depth) {
+          native_samples = read_channel_samples(channel_reader, compression, channel_width, channel_height,
+                                                large_document, decode_info, damaged_rows);
+          channel_data = convert_channel_to_8bit(std::vector<std::uint8_t>(native_samples), depth,
+                                                 decode_info.color_channel);
+        } else {
+          channel_data = read_channel_data(channel_reader, compression, channel_width, channel_height,
+                                           large_document, decode_info, damaged_rows);
+        }
       } catch (const std::runtime_error&) {
         if (damaged_rows != nullptr) {
           *damaged_rows += static_cast<std::size_t>(channel_height);
@@ -630,6 +710,10 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
       if (channel.id == kChannelUserMask && record.mask.has_value()) {
         PixelBuffer mask_pixels(channel_width, channel_height, PixelFormat::gray8());
         std::copy(channel_data.begin(), channel_data.end(), mask_pixels.data().begin());
+        if (native_depth) {
+          mask_pixels = PixelBuffer(channel_width, channel_height, with_bit_depth(PixelFormat::gray8(), native_bit_depth));
+          store_native_plane(mask_pixels, 0, native_samples, depth);
+        }
         decoded_mask = LayerMask{record.mask->bounds, std::move(mask_pixels), record.mask->default_color,
                                  record.mask->disabled};
       }
@@ -643,6 +727,11 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
           const auto& real = *record.mask->real_user_mask;
           PixelBuffer mask_pixels(channel_width, channel_height, PixelFormat::gray8());
           std::copy_n(channel_data.begin(), channel_pixel_count, mask_pixels.data().begin());
+          if (native_depth) {
+            mask_pixels =
+                PixelBuffer(channel_width, channel_height, with_bit_depth(PixelFormat::gray8(), native_bit_depth));
+            store_native_plane(mask_pixels, 0, native_samples, depth);
+          }
           decoded_real_user_mask = LayerMask{real.bounds, std::move(mask_pixels), real.default_color, real.disabled};
         }
         continue;
@@ -652,6 +741,16 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
                                   : channel.id == kChannelBlue   ? 2
                                   : channel.id == kChannelTransparency ? 3
                                                                        : -1;
+      if (native_color && native_samples.size() >= channel_pixel_count * sample_bytes) {
+        if (source_is_gray && channel.id == kChannelGray) {
+          for (std::size_t c = 0; c < 3U; ++c) {
+            store_native_plane(native_pixels, c, native_samples, depth);
+          }
+        } else if (target_channel >= 0 && target_channel < native_pixels.format().channels &&
+                   (!source_is_gray || target_channel == 3)) {
+          store_native_plane(native_pixels, static_cast<std::size_t>(target_channel), native_samples, depth);
+        }
+      }
       if (source_is_cmyk) {
         if (channel.id <= kChannelBlack && channel_data.size() == pixel_count) {
           cmyk_channels[channel.id] = channel_data;
@@ -697,6 +796,11 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
         pixels = std::move(*regenerated);
         text_regenerated_rendered = true;
       }
+    }
+    if (native_color && !text_placeholder_rendered && !text_regenerated_rendered) {
+      // The 8-bit planes above still drove every decision (empty-text detection,
+      // adjustment parsing); the layer itself keeps the file's samples.
+      pixels = std::move(native_pixels);
     }
 
     std::optional<AdjustmentSettings> native_adjustment_settings;
@@ -1145,7 +1249,7 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
                                const CmykColorConverter& source_colors,
                                bool& has_merged_transparency,
                                std::vector<std::string>* notices,
-                               std::size_t* damaged_rows) {
+                               std::size_t* damaged_rows, bool keep_depth) {
   has_merged_transparency = false;
   const auto layer_info_length = large_document
                                      ? read_section_length_u64(layer_reader, "layer info")
@@ -1157,7 +1261,7 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
   const auto layer_info_end = layer_reader.position() + static_cast<std::size_t>(layer_info_length);
   auto layers = read_layer_info_records(layer_reader, canvas_width, canvas_height, source_color_mode, depth,
                                         global_light_angle, global_light_altitude, large_document, source_colors,
-                                        has_merged_transparency, notices, damaged_rows);
+                                        has_merged_transparency, notices, damaged_rows, keep_depth);
   if (layer_reader.position() < layer_info_end) {
     layer_reader.skip(layer_info_end - layer_reader.position());
   }
@@ -1249,10 +1353,16 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     }
   }
   const auto format = format_from_header(header);
+  // A 16 or 32-bit file keeps its depth when deep editing is on (docs/high-bit-depth.md).
+  const bool keep_depth = (header.depth == 16 || header.depth == 32) && header.color_mode != kColorModeBitmap &&
+                          options.keep_bit_depth.value_or(deep_editing_enabled());
+  const auto kept_depth = header.depth == 32 ? BitDepth::Float32 : BitDepth::UInt16;
   // The depth conversion is permanent data loss once the document is saved (every writer
   // emits 8-bit), so the UI forces the Import Notes popup for these two notes regardless of
   // the popup preference; it recognizes them through the "psd.depth" metadata value below.
-  if (header.depth == 32 && options.notices != nullptr) {
+  if (keep_depth) {
+    // Nothing is converted, so there is nothing to warn about.
+  } else if (header.depth == 32 && options.notices != nullptr) {
     options.notices->push_back(PATCHY_TRANSLATE_NOOP(
         "QObject",
         "This file is 32-bit per channel (HDR). Patchy converted it to 8-bit for editing: precision and "
@@ -1283,6 +1393,9 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
 
   Document document(static_cast<std::int32_t>(header.width), static_cast<std::int32_t>(header.height), format);
   document.metadata().raw_psd_image_resources = image_resources;
+  if (keep_depth && header.depth == 32) {
+    document.metadata().raw_psd_color_mode_data = color_mode_data;
+  }
   // Source bits per channel ("8", "16", "32"). Set here so both the flat-composite and the
   // layered paths carry it; the flat path moves metadata() across its document swap.
   document.metadata().values["psd.depth"] = std::to_string(header.depth);
@@ -1419,7 +1532,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     auto grid_settings = document.grid_settings();
     auto guides = std::move(document.guides());
     document = read_flat_composite(reader, header, source_colors, channel_resources,
-                                   has_merged_transparency, &damaged_rows);
+                                   has_merged_transparency, &damaged_rows, keep_depth);
     document.metadata() = std::move(metadata);
     document.color_state().embedded_icc_profile = std::move(color_state.embedded_icc_profile);
     document.color_state().ocio_view = std::move(color_state.ocio_view);
@@ -1433,6 +1546,9 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
       apply_patchy_palette_resource(document, *palette);
     }
     append_damaged_row_notice(damaged_rows, options.notices);
+    if (keep_depth) {
+      convert_document_depth(document, kept_depth);
+    }
     return document;
   }
 
@@ -1441,7 +1557,8 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     BigEndianReader layer_reader(layer_mask_payload);
     auto layers = read_layers(layer_reader, document.width(), document.height(), header.color_mode,
                               header.depth, global_light_angle, global_light_altitude, header.large_document,
-                              source_colors, has_merged_transparency, options.notices, &damaged_rows);
+                              source_colors, has_merged_transparency, options.notices, &damaged_rows,
+                              keep_depth);
     const auto add_layer = [&document](const Layer& source) {
       document.add_layer(clone_layer_with_document_ids(document, source));
     };
@@ -1504,7 +1621,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
         auto deep_layers = read_layer_info_records(
             block_reader, document.width(), document.height(), header.color_mode, header.depth,
             global_light_angle, global_light_altitude, header.large_document, source_colors,
-            has_merged_transparency, options.notices, &damaged_rows);
+            has_merged_transparency, options.notices, &damaged_rows, keep_depth);
         // Always Photoshop's bottom-to-top order: legacy Patchy never wrote these
         // blocks, so the legacy-order heuristic used for the standard section
         // could only misfire here.
@@ -1566,7 +1683,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     auto grid_settings = document.grid_settings();
     auto guides = std::move(document.guides());
     document = read_flat_composite(reader, header, source_colors, channel_resources,
-                                   has_merged_transparency, &damaged_rows);
+                                   has_merged_transparency, &damaged_rows, keep_depth);
     document.metadata() = std::move(metadata);
     document.color_state().embedded_icc_profile = std::move(color_state.embedded_icc_profile);
     document.color_state().ocio_view = std::move(color_state.ocio_view);
@@ -1587,7 +1704,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     if (options.retain_flat_composite) {
       try {
         auto flat_composite = read_flat_composite(reader, header, source_colors, channel_resources,
-                                                  has_merged_transparency, &damaged_rows);
+                                                  has_merged_transparency, &damaged_rows, keep_depth);
         if (!flat_composite.layers().empty() && flat_composite.layers().front().kind() == LayerKind::Pixel) {
           document.metadata().psd_flat_composite =
               std::as_const(flat_composite).layers().front().pixels();
@@ -1606,10 +1723,23 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
         throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "PSD composite image data is missing"));
       }
       const auto compression = reader.read_u16();
-      auto saved_channels = read_flat_image_channels_from(reader, header, compression,
-                                                          first_saved_channel, &damaged_rows);
-      add_saved_composite_channels(document, std::move(saved_channels), first_saved_channel, header,
-                                   channel_resources);
+      if (keep_depth) {
+        const auto native = read_flat_image_channels_from(reader, header, compression, first_saved_channel,
+                                                          &damaged_rows, true);
+        std::vector<std::vector<std::uint8_t>> saved_channels;
+        for (const auto& plane : native) {
+          saved_channels.push_back(convert_channel_to_8bit(std::vector<std::uint8_t>(plane), header.depth, false));
+        }
+        const auto first_index = document.channels().size();
+        add_saved_composite_channels(document, std::move(saved_channels), first_saved_channel, header,
+                                     channel_resources);
+        keep_native_saved_channels(document, first_index, native, header.depth);
+      } else {
+        auto saved_channels = read_flat_image_channels_from(reader, header, compression,
+                                                            first_saved_channel, &damaged_rows);
+        add_saved_composite_channels(document, std::move(saved_channels), first_saved_channel, header,
+                                     channel_resources);
+      }
     }
   }
 
@@ -1672,6 +1802,11 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
       palette.has_value()) {
     apply_patchy_palette_resource(document, *palette);
   }
+  if (keep_depth) {
+    // Everything without a native path (CMYK and Lab planes, profiled gray, saved
+    // channels, rasters regenerated above) widens to the file's depth.
+    convert_document_depth(document, kept_depth);
+  }
   return document;
 }
 
@@ -1680,8 +1815,115 @@ Document DocumentIo::read_file(const std::filesystem::path& path, ReadOptions op
   return read(bytes, options);
 }
 
+namespace {
+
+// A 16 or 32-bit document's composite still comes from the 8-bit compositor until the
+// deep one exists (docs/high-bit-depth.md): it is only the preview other readers show,
+// and Photoshop recomposites from the layers.
+Document shallow_copy_for_composite(const Document& document) {
+  auto shallow = document;
+  convert_document_depth(shallow, BitDepth::UInt8);
+  return shallow;
+}
+
+// A canvas-sized 8-bit plane as big-endian samples at `depth`.
+std::vector<std::uint8_t> widen_plane(std::span<const std::uint8_t> plane, std::int32_t width, std::int32_t height,
+                                      BitDepth depth) {
+  PixelBuffer gray(width, height, PixelFormat::gray8());
+  std::copy(plane.begin(), plane.end(), gray.data().begin());
+  return big_endian_plane(convert_pixel_buffer_depth(gray, depth, SampleKind::Coverage), 0);
+}
+
+// Merged transparency or a saved alpha channel, then every document channel, at `depth`.
+std::vector<std::vector<std::uint8_t>> deep_extra_planes(const Document& document,
+                                                         const DocumentAlphaComposite& composite, BitDepth depth) {
+  std::vector<std::vector<std::uint8_t>> planes;
+  if (!composite.channel_name.empty()) {
+    planes.push_back(widen_plane(composite.alpha, document.width(), document.height(), depth));
+  }
+  for (const auto& channel : document.channels()) {
+    planes.push_back(
+        big_endian_plane(convert_pixel_buffer_depth(channel.pixels(), depth, SampleKind::Coverage), 0));
+  }
+  return planes;
+}
+
+// The color mode data of a 32-bit file: the document's own HDR toning record, else the
+// one Photoshop 2026 (27.10) writes in a new 32-bit document. Photoshop refuses a 32-bit
+// file whose section is empty ("Cannot open the file because the open options are
+// incorrect"; COM splices of the deep fixture corpus, October 2026). Empty below 32 bits.
+void write_color_mode_data(BigEndianWriter& writer, const Document& document, BitDepth depth) {
+  static constexpr std::uint8_t kDefaultHdrToning[] = {
+    0x68, 0x64, 0x72, 0x74, 0x00, 0x00, 0x00, 0x03, 0x3E, 0x6B, 0x85, 0x1F,
+    0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x07, 0x00, 0x4C, 0x00, 0x69,
+    0x00, 0x6E, 0x00, 0x65, 0x00, 0x61, 0x00, 0x72, 0x00, 0x00, 0x00, 0x02,
+    0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x00, 0xFF, 0x01, 0x01,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x41, 0x80, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x3F, 0x80, 0x00, 0x00,
+    0x68, 0x64, 0x72, 0x61, 0x00, 0x00, 0x00, 0x06, 0x00, 0x00, 0x00, 0x00,
+    0x41, 0xA0, 0x00, 0x00, 0x41, 0xF0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x3F, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00,
+  };
+  if (depth != BitDepth::Float32) {
+    writer.write_u32(0);
+    return;
+  }
+  const auto& kept = document.metadata().raw_psd_color_mode_data;
+  if (!kept.empty()) {
+    write_length_prefixed_block(writer, kept);
+  } else {
+    write_length_prefixed_block(writer, std::vector<std::uint8_t>(std::begin(kDefaultHdrToning),
+                                                                  std::end(kDefaultHdrToning)));
+  }
+}
+
+std::uint16_t header_depth(BitDepth depth) noexcept {
+  return depth == BitDepth::Float32 ? 32 : depth == BitDepth::UInt16 ? 16 : 8;
+}
+
+}  // namespace
+
 std::vector<std::uint8_t> DocumentIo::write_flat_rgb8(const Document& document, WriteOptions options) {
   check_write_dimensions(document, options.large_document);
+  const auto depth = document_bit_depth(document);
+  if (depth != BitDepth::UInt8) {
+    // The flat file's composite at the document's depth; everything else is the 8-bit
+    // writer's layout.
+    const auto shallow = shallow_copy_for_composite(document);
+    auto composite = document_alpha_composite(shallow);
+    if (!composite.has_value()) {
+      composite = merged_flatten_composite(shallow);
+      if (!composite->channel_name.empty()) {
+        composite->channel_name = "Alpha 1";
+      }
+    }
+    std::vector<std::span<const std::uint8_t>> unused_planes;
+    std::vector<CompositeChannelInfo> channel_info;
+    if (!composite->channel_name.empty()) {
+      unused_planes.emplace_back(composite->alpha);
+      channel_info.push_back(CompositeChannelInfo{composite->channel_name, false, true, std::nullopt,
+                                                  DocumentChannelDisplayInfo{}, {}});
+    }
+    append_document_channels_for_write(document, unused_planes, channel_info);
+    check_composite_channel_limit(unused_planes.size());
+    const auto extra = deep_extra_planes(document, *composite, depth);
+    BigEndianWriter writer;
+    write_header(writer, Header{options.large_document, static_cast<std::uint16_t>(3U + extra.size()),
+                                static_cast<std::uint32_t>(document.height()),
+                                static_cast<std::uint32_t>(document.width()), header_depth(depth),
+                                kColorModeRgb});
+    write_color_mode_data(writer, document, depth);
+    write_length_prefixed_block(writer, image_resources_for_document(document, channel_info));
+    if (options.large_document) {
+      writer.write_u64(0);
+    } else {
+      writer.write_u32(0);
+    }
+    write_deep_image_data(writer, convert_pixel_buffer_depth(composite->rgb, depth, SampleKind::Color), extra, depth,
+                          options.large_document);
+    return writer.bytes();
+  }
 
   auto composite = document_alpha_composite(document);
   if (!composite.has_value()) {
@@ -1761,7 +2003,13 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
   };
   count_records(count_records, document.layers());
 
-  auto composite = merged_flatten_composite(document);
+  // 16 and 32-bit documents (docs/high-bit-depth.md): channels at the document's depth,
+  // the layer records in the Lr16/Lr32 block, descriptor colors linear for 32 bits.
+  const auto depth = document_bit_depth(document);
+  const bool deep = depth != BitDepth::UInt8;
+  const ScopedLinearDescriptorColors linear_colors(depth == BitDepth::Float32);
+  auto composite = deep ? merged_flatten_composite(shallow_copy_for_composite(document))
+                        : merged_flatten_composite(document);
 
   const bool merged_transparency_channel = composite.channel_name == "Transparency";
   std::vector<std::span<const std::uint8_t>> extra_channels;
@@ -1785,7 +2033,7 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
   // document model uses the same order, so write it directly instead of reversing.
   for (const auto& layer : document.layers()) {
     append_encoded_layers(layer, encoded_layers, options.large_document,
-                          Rect::from_size(document.width(), document.height()));
+                          Rect::from_size(document.width(), document.height()), depth);
   }
 
   BigEndianWriter layer_info;
@@ -1851,7 +2099,14 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
   }
 
   BigEndianWriter layer_mask;
-  if (options.large_document) {
+  if (deep) {
+    // Deep files keep the standard layer info empty; the records follow as 'Lr16'/'Lr32'.
+    if (options.large_document) {
+      layer_mask.write_u64(0);
+    } else {
+      layer_mask.write_u32(0);
+    }
+  } else if (options.large_document) {
     layer_mask.write_u64(layer_info.bytes().size());
     layer_mask.write_bytes(layer_info.bytes());
   } else {
@@ -1878,6 +2133,9 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
       layer_mask.write_u8(0);
     }
   };
+  if (deep) {
+    emit_global_payload(depth == BitDepth::Float32 ? "Lr32" : "Lr16", layer_info.bytes(), false);
+  }
   {
     const auto& store = document.metadata().smart_objects;
     const auto& filter_store = document.metadata().smart_filter_effects;
@@ -2064,9 +2322,9 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
                               static_cast<std::uint16_t>(3U + extra_channels.size()),
                               static_cast<std::uint32_t>(document.height()),
                               static_cast<std::uint32_t>(document.width()),
-                              8,
+                              header_depth(depth),
                               kColorModeRgb});
-  writer.write_u32(0);
+  write_color_mode_data(writer, document, depth);
   write_length_prefixed_block(writer, image_resources_for_document(document, channel_info));
   if (options.large_document) {
     writer.write_u64(layer_mask.bytes().size());
@@ -2074,7 +2332,10 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
   } else {
     write_length_prefixed_block(writer, layer_mask.bytes());
   }
-  if (!extra_channels.empty()) {
+  if (deep) {
+    write_deep_image_data(writer, convert_pixel_buffer_depth(composite.rgb, depth, SampleKind::Color),
+                          deep_extra_planes(document, composite, depth), depth, options.large_document);
+  } else if (!extra_channels.empty()) {
     write_rgb8_image_data_with_extra_channels(writer, composite.rgb, extra_channels,
                                               options.large_document);
   } else {

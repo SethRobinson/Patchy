@@ -8901,6 +8901,10 @@ RGB: %2, %3, %4</translation>
         <source>RGBA rows need a color buffer</source>
         <translation>RGBA 행에는 색상 버퍼가 필요합니다</translation>
     </message>
+    <message>
+        <source>PSD channel depth does not match the document</source>
+        <translation>PSD 채널의 비트 심도가 문서와 일치하지 않습니다</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

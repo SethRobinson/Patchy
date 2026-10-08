@@ -574,9 +574,9 @@ void put_value(DescriptorObject& object, const std::string& key, DescriptorValue
 DescriptorObject rgb_color_object(RgbColor color) {
   DescriptorObject object;
   object.class_id = "RGBC";
-  put_value(object, "Rd  ", make_double_value(color.red));
-  put_value(object, "Grn ", make_double_value(color.green));
-  put_value(object, "Bl  ", make_double_value(color.blue));
+  put_value(object, "Rd  ", make_double_value(descriptor_rgb_component(color.red)));
+  put_value(object, "Grn ", make_double_value(descriptor_rgb_component(color.green)));
+  put_value(object, "Bl  ", make_double_value(descriptor_rgb_component(color.blue)));
   return object;
 }
 

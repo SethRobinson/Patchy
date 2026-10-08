@@ -4,6 +4,7 @@
 
 #include <filesystem>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
@@ -17,6 +18,9 @@ struct ReadOptions {
   // When set, the reader appends plain-English import notes (smart-object handling,
   // etc.) for the UI's import-notices dialog.
   std::vector<std::string>* notices{nullptr};
+  // A 16 or 32-bit file keeps its bit depth (docs/high-bit-depth.md) instead of
+  // converting to 8 bits. Unset follows the deep-editing gate (deep_editing_enabled()).
+  std::optional<bool> keep_bit_depth{};
 };
 
 struct WriteOptions {

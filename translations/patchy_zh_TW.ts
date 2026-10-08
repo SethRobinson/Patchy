@@ -8901,6 +8901,10 @@ RGB：%2, %3, %4</translation>
         <source>RGBA rows need a color buffer</source>
         <translation>RGBA 列需要色彩緩衝區</translation>
     </message>
+    <message>
+        <source>PSD channel depth does not match the document</source>
+        <translation>PSD 色版位元深度與文件不符</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

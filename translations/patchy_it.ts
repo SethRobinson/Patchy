@@ -8925,11 +8925,15 @@ RGB: %2, %3, %4</translation>
     </message>
     <message>
         <source>Pixel row access is outside the buffer</source>
-        <translation>L'accesso alla riga di pixel è fuori dal buffer</translation>
+        <translation>L&apos;accesso alla riga di pixel è fuori dal buffer</translation>
     </message>
     <message>
         <source>RGBA rows need a color buffer</source>
         <translation>Le righe RGBA richiedono un buffer di colore</translation>
+    </message>
+    <message>
+        <source>PSD channel depth does not match the document</source>
+        <translation>La profondità del canale PSD non corrisponde al documento</translation>
     </message>
 </context>
 <context>

@@ -1095,8 +1095,10 @@ OpenDocumentResult load_document_from_path(QString path) {
     for (const auto& notice : psd_notices) {
       import_notices.push_back(translated_file_message(notice));
     }
+    // Only when the depth was converted: a document that kept it lost nothing.
     if (const auto depth = opened.metadata().values.find("psd.depth");
-        depth != opened.metadata().values.end() && depth->second != "8") {
+        depth != opened.metadata().values.end() && depth->second != "8" &&
+        opened.color_state().bit_depth == BitDepth::UInt8) {
       force_import_notices_popup = true;
     }
     // The other conversions a save makes permanent: a color mode with no RGB, CMYK or

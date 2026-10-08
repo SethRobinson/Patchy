@@ -470,6 +470,36 @@ void write_descriptor_text_item(BigEndianWriter& writer, std::string_view key, s
 // Channel/composite image-data codec helpers (definitions in psd_channel_data.cpp).
 EncodedChannel encode_channel(std::uint16_t id, std::int32_t width, std::int32_t height,
                               std::span<const std::uint8_t> raw_data, bool wide_rle_counts);
+// Deep documents (docs/high-bit-depth.md): one channel of `buffer`, which must already be
+// at `depth`, as big-endian samples (a channel index past the buffer's count yields a
+// constant full-scale plane, the opaque alpha of an RGB layer).
+[[nodiscard]] std::vector<std::uint8_t> big_endian_plane(const PixelBuffer& buffer, std::size_t channel);
+// encode_channel for big-endian samples at `depth`: 8 bits is encode_channel itself;
+// 16 bits RLE-encodes the byte rows when that is smaller; 32 bits stays raw.
+EncodedChannel encode_channel_at_depth(std::uint16_t id, std::int32_t width, std::int32_t height,
+                                       std::span<const std::uint8_t> big_endian_samples, BitDepth depth,
+                                       bool wide_rle_counts);
+// Composite image data for a 16 or 32-bit file: the RGB planes of `rgb` (at `depth`)
+// followed by `extra_planes` (big-endian samples at `depth`), RLE for 16 bits when
+// smaller, raw otherwise.
+void write_deep_image_data(BigEndianWriter& writer, const PixelBuffer& rgb,
+                           const std::vector<std::vector<std::uint8_t>>& extra_planes, BitDepth depth,
+                           bool wide_rle_counts);
+
+// The writer's side of CmykColorConverter::linear_rgb: while a 32-bit document is
+// written, RGB descriptor values (fills, gradient stops, effect colors) are linear light
+// on the 0..255 scale. Outside the scope a component is written as it is.
+class ScopedLinearDescriptorColors {
+public:
+  explicit ScopedLinearDescriptorColors(bool linear) noexcept;
+  ~ScopedLinearDescriptorColors();
+  ScopedLinearDescriptorColors(const ScopedLinearDescriptorColors&) = delete;
+  ScopedLinearDescriptorColors& operator=(const ScopedLinearDescriptorColors&) = delete;
+
+private:
+  bool previous_;
+};
+[[nodiscard]] double descriptor_rgb_component(std::uint8_t encoded) noexcept;
 void write_rgb8_image_data(BigEndianWriter& writer, const PixelBuffer& pixels, bool wide_rle_counts);
 [[nodiscard]] std::optional<DocumentAlphaComposite> document_alpha_composite(const Document& document);
 [[nodiscard]] DocumentAlphaComposite merged_flatten_composite(const Document& document);
@@ -504,12 +534,25 @@ std::vector<std::uint8_t> read_channel_data(BigEndianReader& reader, std::uint16
                                             std::int32_t height, bool wide_rle_counts,
                                             const ChannelDecodeInfo& decode_info = {},
                                             std::size_t* damaged_rows = nullptr);
+// The same decode without the 8-bit conversion: the channel's big-endian samples at the
+// file's depth, for documents that keep it (docs/high-bit-depth.md).
+std::vector<std::uint8_t> read_channel_samples(BigEndianReader& reader, std::uint16_t compression, std::int32_t width,
+                                               std::int32_t height, bool wide_rle_counts,
+                                               const ChannelDecodeInfo& decode_info = {},
+                                               std::size_t* damaged_rows = nullptr);
+// Copies one big-endian plane of `depth`-bit samples into channel `channel` of a buffer of
+// the same depth, in host order (32-bit floats stay linear and unclamped).
+void store_native_plane(PixelBuffer& target, std::size_t channel, std::span<const std::uint8_t> plane,
+                        std::uint16_t depth);
+// keep_native returns each plane's big-endian samples at the file's depth instead of
+// converting them to 8 bits (documents that keep their depth).
 std::vector<std::vector<std::uint8_t>> read_flat_image_channels(BigEndianReader& reader, const Header& header,
                                                                 std::uint16_t compression,
-                                                                std::size_t* damaged_rows = nullptr);
+                                                                std::size_t* damaged_rows = nullptr,
+                                                                bool keep_native = false);
 std::vector<std::vector<std::uint8_t>> read_flat_image_channels_from(
     BigEndianReader& reader, const Header& header, std::uint16_t compression,
-    std::uint16_t first_channel, std::size_t* damaged_rows = nullptr);
+    std::uint16_t first_channel, std::size_t* damaged_rows = nullptr, bool keep_native = false);
 // Appends the "some scanlines were damaged" import notice when the count is nonzero.
 void append_damaged_row_notice(std::size_t damaged_rows, std::vector<std::string>* notices);
 bool is_cmyk_color_mode(std::uint16_t color_mode) noexcept;
@@ -633,8 +676,9 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
                         Rect canvas);
 // `canvas` identifies Photoshop's Background record: the only pixel record written without a
 // transparency channel is the bottom one covering exactly the canvas (see encode_layer).
+// `depth` is the document's: deep documents write their channels at it.
 void append_encoded_layers(const Layer& layer, std::vector<EncodedLayer>& encoded_layers, bool large_document,
-                           Rect canvas);
+                           Rect canvas, BitDepth depth = BitDepth::UInt8);
 
 // Vector shape/path codec: vmsk/vsms path records, SoCo/GdFl/PtFl fill
 // content, vstk stroke style, vogk live-shape origination, and the saved-path

@@ -178,6 +178,7 @@ int main(int argc, char** argv) {
            translation_marker_tests,
            atomic_write_recovery_tests,
            pixel_depth_tests,
+           psd_deep_io_tests,
        }) {
     auto group = registration();
     tests.insert(tests.end(), std::make_move_iterator(group.begin()),

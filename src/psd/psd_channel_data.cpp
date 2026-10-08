@@ -9,6 +9,7 @@
 #include "core/adjustment_layer.hpp"
 #include "formats/miniz/miniz.h"
 #include "core/layer_metadata.hpp"
+#include "core/pixel_depth.hpp"
 #include "core/pattern_resource.hpp"
 #include "core/smart_object.hpp"
 #include "core/style_contour.hpp"
@@ -29,6 +30,7 @@
 #include <array>
 #include <bit>
 #include <cmath>
+#include <cstring>
 #include <cctype>
 #include <climits>
 #include <cstdlib>
@@ -289,6 +291,142 @@ EncodedChannel encode_channel(std::uint16_t id, std::int32_t width, std::int32_t
                         std::vector<std::uint8_t>(raw_data.begin(), raw_data.end())};
 }
 
+std::vector<std::uint8_t> big_endian_plane(const PixelBuffer& buffer, std::size_t channel) {
+  const auto format = buffer.format();
+  const auto sample_bytes = bytes_per_channel(format.bit_depth);
+  const auto pixel_count = static_cast<std::size_t>(buffer.width()) * static_cast<std::size_t>(buffer.height());
+  std::vector<std::uint8_t> plane(pixel_count * sample_bytes);
+  const auto stride = static_cast<std::size_t>(format.channels) * sample_bytes;
+  const auto* in = buffer.data().data();
+  for (std::size_t i = 0; i < pixel_count; ++i) {
+    auto* out = plane.data() + i * sample_bytes;
+    if (channel >= format.channels) {
+      // Constant full scale.
+      if (sample_bytes == 1U) {
+        out[0] = 0xFFU;
+      } else if (sample_bytes == 2U) {
+        out[0] = 0xFFU;
+        out[1] = 0xFFU;
+      } else {
+        const auto bits = std::bit_cast<std::uint32_t>(1.0F);
+        out[0] = static_cast<std::uint8_t>(bits >> 24U);
+        out[1] = static_cast<std::uint8_t>(bits >> 16U);
+        out[2] = static_cast<std::uint8_t>(bits >> 8U);
+        out[3] = static_cast<std::uint8_t>(bits);
+      }
+      continue;
+    }
+    const auto* sample = in + i * stride + channel * sample_bytes;
+    if (sample_bytes == 1U) {
+      out[0] = sample[0];
+    } else if (sample_bytes == 2U) {
+      std::uint16_t value = 0;
+      std::memcpy(&value, sample, sizeof(value));
+      out[0] = static_cast<std::uint8_t>(value >> 8U);
+      out[1] = static_cast<std::uint8_t>(value);
+    } else {
+      float value = 0.0F;
+      std::memcpy(&value, sample, sizeof(value));
+      const auto bits = std::bit_cast<std::uint32_t>(value);
+      out[0] = static_cast<std::uint8_t>(bits >> 24U);
+      out[1] = static_cast<std::uint8_t>(bits >> 16U);
+      out[2] = static_cast<std::uint8_t>(bits >> 8U);
+      out[3] = static_cast<std::uint8_t>(bits);
+    }
+  }
+  return plane;
+}
+
+EncodedChannel encode_channel_at_depth(std::uint16_t id, std::int32_t width, std::int32_t height,
+                                       std::span<const std::uint8_t> big_endian_samples, BitDepth depth,
+                                       bool wide_rle_counts) {
+  if (depth == BitDepth::UInt8) {
+    return encode_channel(id, width, height, big_endian_samples, wide_rle_counts);
+  }
+  if (depth == BitDepth::UInt16) {
+    auto rle_data = encode_packbits_rows(big_endian_samples, width * 2, height, 1, wide_rle_counts);
+    if (rle_data.size() < big_endian_samples.size()) {
+      return EncodedChannel{id, width, height, kCompressionRle, std::move(rle_data)};
+    }
+    return EncodedChannel{id, width, height, kCompressionRaw,
+                          std::vector<std::uint8_t>(big_endian_samples.begin(), big_endian_samples.end())};
+  }
+  // 32-bit layer channels: Photoshop 2026 refuses raw ones ("Cannot open the file because
+  // the open options are incorrect") and writes zip with prediction itself, so Patchy does
+  // too. The filter is the exact inverse of unpredict_channel_rows: each row's floats split
+  // into four byte planes (all most significant bytes first), then byte deltas.
+  if (big_endian_samples.empty()) {
+    return EncodedChannel{id, width, height, kCompressionRaw, {}};
+  }
+  std::vector<std::uint8_t> predicted(big_endian_samples.size());
+  const auto columns = static_cast<std::size_t>(std::max(0, width));
+  const auto row_bytes = columns * 4U;
+  for (std::int32_t y = 0; y < height; ++y) {
+    const auto* in = big_endian_samples.data() + static_cast<std::size_t>(y) * row_bytes;
+    auto* out = predicted.data() + static_cast<std::size_t>(y) * row_bytes;
+    for (std::size_t x = 0; x < columns; ++x) {
+      for (std::size_t byte = 0; byte < 4U; ++byte) {
+        out[byte * columns + x] = in[x * 4U + byte];
+      }
+    }
+    for (std::size_t i = row_bytes; i-- > 1;) {
+      out[i] = static_cast<std::uint8_t>(out[i] - out[i - 1]);
+    }
+  }
+  auto bound = mz_compressBound(static_cast<mz_ulong>(predicted.size()));
+  std::vector<std::uint8_t> compressed(static_cast<std::size_t>(bound));
+  if (mz_compress(compressed.data(), &bound, predicted.data(), static_cast<mz_ulong>(predicted.size())) != MZ_OK) {
+    throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "PSD zip-compressed channel data is corrupt"));
+  }
+  compressed.resize(static_cast<std::size_t>(bound));
+  return EncodedChannel{id, width, height, kCompressionZipPrediction, std::move(compressed)};
+}
+
+void write_deep_image_data(BigEndianWriter& writer, const PixelBuffer& rgb,
+                           const std::vector<std::vector<std::uint8_t>>& extra_planes, BitDepth depth,
+                           bool wide_rle_counts) {
+  std::vector<std::uint8_t> planar;
+  for (std::size_t channel = 0; channel < 3U; ++channel) {
+    const auto plane = big_endian_plane(rgb, channel);
+    planar.insert(planar.end(), plane.begin(), plane.end());
+  }
+  for (const auto& plane : extra_planes) {
+    planar.insert(planar.end(), plane.begin(), plane.end());
+  }
+  if (depth == BitDepth::UInt16) {
+    const auto plane_count = static_cast<std::uint16_t>(3U + extra_planes.size());
+    const auto rle_data = encode_packbits_rows(planar, rgb.width() * 2, rgb.height(), plane_count,
+                                               wide_rle_counts, /*even_rows=*/true);
+    if (rle_data.size() < planar.size()) {
+      writer.write_u16(kCompressionRle);
+      writer.write_bytes(rle_data);
+      return;
+    }
+  }
+  writer.write_u16(kCompressionRaw);
+  writer.write_bytes(planar);
+}
+
+namespace {
+thread_local bool g_linear_descriptor_colors = false;
+}  // namespace
+
+ScopedLinearDescriptorColors::ScopedLinearDescriptorColors(bool linear) noexcept
+    : previous_(g_linear_descriptor_colors) {
+  g_linear_descriptor_colors = linear;
+}
+
+ScopedLinearDescriptorColors::~ScopedLinearDescriptorColors() {
+  g_linear_descriptor_colors = previous_;
+}
+
+double descriptor_rgb_component(std::uint8_t encoded) noexcept {
+  if (!g_linear_descriptor_colors) {
+    return static_cast<double>(encoded);
+  }
+  return srgb_decode(static_cast<double>(encoded) / 255.0) * 255.0;
+}
+
 void write_rgb8_image_data(BigEndianWriter& writer, const PixelBuffer& pixels, bool wide_rle_counts) {
   const auto raw_data = planar_rgb8_data(pixels);
   const auto rle_data =
@@ -477,16 +615,16 @@ std::vector<std::uint8_t> convert_channel_to_8bit(std::vector<std::uint8_t>&& da
   return std::move(data);
 }
 
-std::vector<std::uint8_t> read_channel_data(BigEndianReader& reader, std::uint16_t compression, std::int32_t width,
-                                            std::int32_t height, bool wide_rle_counts,
-                                            const ChannelDecodeInfo& decode_info,
-                                            std::size_t* damaged_rows) {
+std::vector<std::uint8_t> read_channel_samples(BigEndianReader& reader, std::uint16_t compression, std::int32_t width,
+                                               std::int32_t height, bool wide_rle_counts,
+                                               const ChannelDecodeInfo& decode_info,
+                                               std::size_t* damaged_rows) {
   const auto depth = decode_info.depth;
   const auto row_bytes = static_cast<std::size_t>(width) * bytes_per_sample(depth);
   const auto byte_count = row_bytes * static_cast<std::size_t>(height);
 
   if (compression == kCompressionRaw) {
-    return convert_channel_to_8bit(reader.read_bytes(byte_count), depth, decode_info.color_channel);
+    return reader.read_bytes(byte_count);
   }
 
   if (compression == kCompressionZip || compression == kCompressionZipPrediction) {
@@ -495,7 +633,7 @@ std::vector<std::uint8_t> read_channel_data(BigEndianReader& reader, std::uint16
     if (compression == kCompressionZipPrediction) {
       unpredict_channel_rows(data, width, height, depth);
     }
-    return convert_channel_to_8bit(std::move(data), depth, decode_info.color_channel);
+    return data;
   }
 
   if (compression != kCompressionRle) {
@@ -508,8 +646,44 @@ std::vector<std::uint8_t> read_channel_data(BigEndianReader& reader, std::uint16
     row_lengths.push_back(wide_rle_counts ? reader.read_u32() : reader.read_u16());
   }
 
-  auto channel = read_rle_channel_from_counts(reader, row_lengths, row_bytes, damaged_rows);
-  return convert_channel_to_8bit(std::move(channel), depth, decode_info.color_channel);
+  return read_rle_channel_from_counts(reader, row_lengths, row_bytes, damaged_rows);
+}
+
+std::vector<std::uint8_t> read_channel_data(BigEndianReader& reader, std::uint16_t compression, std::int32_t width,
+                                            std::int32_t height, bool wide_rle_counts,
+                                            const ChannelDecodeInfo& decode_info,
+                                            std::size_t* damaged_rows) {
+  return convert_channel_to_8bit(
+      read_channel_samples(reader, compression, width, height, wide_rle_counts, decode_info, damaged_rows),
+      decode_info.depth, decode_info.color_channel);
+}
+
+void store_native_plane(PixelBuffer& target, std::size_t channel, std::span<const std::uint8_t> plane,
+                        std::uint16_t depth) {
+  const auto format = target.format();
+  const auto sample_bytes = bytes_per_channel(format.bit_depth);
+  if (static_cast<std::size_t>(depth / 8U) != sample_bytes || channel >= format.channels) {
+    throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "PSD channel depth does not match the document"));
+  }
+  const auto pixel_count = static_cast<std::size_t>(target.width()) * static_cast<std::size_t>(target.height());
+  const auto samples = std::min(pixel_count, plane.size() / sample_bytes);
+  auto* out = target.data().data();
+  const auto stride = static_cast<std::size_t>(format.channels) * sample_bytes;
+  for (std::size_t i = 0; i < samples; ++i) {
+    const auto* in = plane.data() + i * sample_bytes;
+    auto* sample = out + i * stride + channel * sample_bytes;
+    if (sample_bytes == 2U) {
+      const auto value = static_cast<std::uint16_t>((in[0] << 8U) | in[1]);
+      std::memcpy(sample, &value, sizeof(value));
+    } else if (sample_bytes == 4U) {
+      const auto bits = (static_cast<std::uint32_t>(in[0]) << 24U) | (static_cast<std::uint32_t>(in[1]) << 16U) |
+                        (static_cast<std::uint32_t>(in[2]) << 8U) | static_cast<std::uint32_t>(in[3]);
+      const auto value = std::bit_cast<float>(bits);
+      std::memcpy(sample, &value, sizeof(value));
+    } else {
+      *sample = in[0];
+    }
+  }
 }
 
 void append_damaged_row_notice(std::size_t damaged_rows, std::vector<std::string>* notices) {
@@ -747,7 +921,7 @@ void convert_cmyk_planes_to_rgb(PixelBuffer& pixels, const std::uint8_t* cyan,
 
 std::vector<std::vector<std::uint8_t>> read_flat_image_channels(BigEndianReader& reader, const Header& header,
                                                                 std::uint16_t compression,
-                                                                std::size_t* damaged_rows) {
+                                                                std::size_t* damaged_rows, bool keep_native) {
   std::vector<std::vector<std::uint8_t>> channels;
   channels.reserve(header.channels);
   const auto width = static_cast<std::int32_t>(header.width);
@@ -757,8 +931,10 @@ std::vector<std::vector<std::uint8_t>> read_flat_image_channels(BigEndianReader&
 
   if (compression == kCompressionRaw) {
     for (std::uint16_t channel = 0; channel < header.channels; ++channel) {
-      channels.push_back(read_channel_data(reader, compression, width, height, header.large_document,
-                                           ChannelDecodeInfo{header.depth, is_color(channel), 0U}));
+      const ChannelDecodeInfo info{header.depth, is_color(channel), 0U};
+      channels.push_back(keep_native
+                             ? read_channel_samples(reader, compression, width, height, header.large_document, info)
+                             : read_channel_data(reader, compression, width, height, header.large_document, info));
     }
     return channels;
   }
@@ -776,9 +952,9 @@ std::vector<std::vector<std::uint8_t>> read_flat_image_channels(BigEndianReader&
       const auto offset = static_cast<std::size_t>(channel) * static_cast<std::size_t>(header.height);
       const auto rows =
           std::span<const std::uint32_t>(row_lengths.data() + offset, static_cast<std::size_t>(header.height));
-      channels.push_back(
-          convert_channel_to_8bit(read_rle_channel_from_counts(reader, rows, row_bytes, damaged_rows),
-                                  header.depth, is_color(channel)));
+      auto samples = read_rle_channel_from_counts(reader, rows, row_bytes, damaged_rows);
+      channels.push_back(keep_native ? std::move(samples)
+                                     : convert_channel_to_8bit(std::move(samples), header.depth, is_color(channel)));
     }
     return channels;
   }
@@ -791,7 +967,7 @@ std::vector<std::vector<std::uint8_t>> read_flat_image_channels(BigEndianReader&
 // encoded rows for unwanted planes are skipped without decoding or storing them.
 std::vector<std::vector<std::uint8_t>> read_flat_image_channels_from(
     BigEndianReader& reader, const Header& header, std::uint16_t compression,
-    std::uint16_t first_channel, std::size_t* damaged_rows) {
+    std::uint16_t first_channel, std::size_t* damaged_rows, bool keep_native) {
   if (first_channel > header.channels) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Invalid PSD saved channel index"));
   }
@@ -810,8 +986,10 @@ std::vector<std::vector<std::uint8_t>> read_flat_image_channels_from(
     }
     reader.skip(skip_bytes);
     for (std::uint16_t channel = first_channel; channel < header.channels; ++channel) {
-      channels.push_back(read_channel_data(reader, compression, width, height, header.large_document,
-                                           ChannelDecodeInfo{header.depth, channel < color_channels, 0U}));
+      const ChannelDecodeInfo info{header.depth, channel < color_channels, 0U};
+      channels.push_back(keep_native
+                             ? read_channel_samples(reader, compression, width, height, header.large_document, info)
+                             : read_channel_data(reader, compression, width, height, header.large_document, info));
     }
     return channels;
   }
@@ -843,9 +1021,10 @@ std::vector<std::vector<std::uint8_t>> read_flat_image_channels_from(
         }
         reader.skip(encoded_size);
       } else {
-        channels.push_back(
-            convert_channel_to_8bit(read_rle_channel_from_counts(reader, rows, row_bytes, damaged_rows),
-                                    header.depth, channel < color_channels));
+        auto samples = read_rle_channel_from_counts(reader, rows, row_bytes, damaged_rows);
+        channels.push_back(keep_native ? std::move(samples)
+                                       : convert_channel_to_8bit(std::move(samples), header.depth,
+                                                                 channel < color_channels));
       }
     }
     return channels;

@@ -8901,6 +8901,10 @@ Mixed selection</source>
         <source>RGBA rows need a color buffer</source>
         <translation>RGBA 行にはカラーバッファが必要です</translation>
     </message>
+    <message>
+        <source>PSD channel depth does not match the document</source>
+        <translation>PSD チャンネルのビット深度がドキュメントと一致しません</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

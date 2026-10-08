@@ -208,7 +208,8 @@ QStringList compatibility_warnings_for_document(const Document& document) {
     }
   }
   if (const auto depth = document.metadata().values.find("psd.depth");
-      depth != document.metadata().values.end() && depth->second != "8") {
+      depth != document.metadata().values.end() && depth->second != "8" &&
+      document.color_state().bit_depth == BitDepth::UInt8) {
     warnings << QObject::tr("The source is %1 bits per channel; Patchy converted it to 8-bit for editing and "
                             "saves an 8-bit file. Keep the original if you need the deeper data.")
                     .arg(QString::fromStdString(depth->second));

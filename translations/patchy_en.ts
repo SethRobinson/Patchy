@@ -8921,6 +8921,10 @@ RGB: %2, %3, %4</source>
         <source>RGBA rows need a color buffer</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>PSD channel depth does not match the document</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

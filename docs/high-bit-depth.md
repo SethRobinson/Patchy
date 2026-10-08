@@ -1,6 +1,6 @@
 # High bit depth: 16-bit and 32-bit (HDR) editing
 
-Status (October 9, 2026): Phase 0 done; Phase 1 next. Patchy still edits in 8 bits: deep files
+Status (October 9, 2026): Phases 0-2 done (PNG 16 export pending); Phase 3 in progress. Patchy still edits in 8 bits: deep files
 convert at decode (docs/file-formats.md, "16-bit and 32-bit PSD/PSB import") and every
 writer emits 8 bits. This document is the plan of record and the rules the work must
 follow. Update it as each phase lands; keep it current-state.
@@ -114,16 +114,35 @@ Each phase lands as verified commits; the gate stays off until Phase 9.
 0. **Measurement** (done, October 9, 2026). Testy measures saved depth and 16-bit
    precision (docs/testy-scoring.md); the deep fixture corpus and its scorer exist
    (below).
-1. **Core primitives.** Typed rows and conversions; `convert_document_depth` across
-   layers, masks, channels, smart-filter masks, vector-mask caches, the flat composite
-   and descriptor colors (32-bit colors are linear); `Document` depth authoritative,
-   with an invariant check.
-2. **PSD/PSB at depth.** Read native samples when the gate is on; write header depth,
-   the `Lr16`/`Lr32` block behind an empty standard layer section, and the deep
-   composite; must open in Photoshop without prompts (docs/ps-compat.md). Recovery
-   writes deep PSB. PNG 16 export comes here too, so Testy's `deepRender` can measure
-   Patchy's own render (the cache-free leg's composed `render.png` must then keep 16
-   bits).
+1. **Core primitives** (done). `core/pixel_depth.hpp`: the gate, exact sample
+   conversions, typed float rows (`load_rgba_row`/`store_rgba_row`, coverage rows),
+   `convert_pixel_buffer_depth`. `core/document_depth.hpp`: `convert_document_depth`
+   and `document_depth_problems` (authoritative buffers: pixel layers without vector
+   content, masks, smart filter masks, saved channels; derived rasters may be any
+   depth and convert on read). Layer masks and saved channels accept gray at any
+   depth. Never use `Layer::set_pixels` to swap depth: it also resets kind and bounds.
+2. **PSD/PSB at depth** (done; `tests/core/psd_deep_io_tests.cpp`). `ReadOptions::
+   keep_bit_depth` (unset follows the gate) keeps the file's samples: RGB and unprofiled
+   gray layers, masks, the composite, merged transparency and saved channels store
+   natively; CMYK, Lab and profiled gray convert at 8 bits and widen (gap). The 8-bit
+   reading of a deep file is exactly the deep reading narrowed. The writer takes the
+   document's depth: header depth, layer records in `Lr16`/`Lr32` behind an empty
+   standard section, deep composite and saved channels; descriptor colors linear for
+   32 bits (`ScopedLinearDescriptorColors`). The composite still comes from the 8-bit
+   compositor until Phase 3. Photoshop 2026 rules found by splicing sections:
+   - 32-bit layer channels must be zip with prediction (raw and RLE are refused;
+     16-bit RLE and raw open fine).
+   - A 32-bit file needs its color mode data: the `hdrt`/`hdra` HDR toning record.
+     An empty section is refused ("open options are incorrect"). It is kept from the
+     source (`DocumentMetadata::raw_psd_color_mode_data`) or Photoshop 27.10's default
+     is written.
+   - The first HDR document a Photoshop session opens raises an informational "HDR
+     display setting is off" alert; it is not about the file.
+   `python scripts\dev\deep\ps_check_writes.py` re-saves every corpus document
+   through patchy.exe and opens it in Photoshop: all 77 open and render identical to
+   the originals (16-bit precision 100%). Still to do here: PNG 16 export (so Testy's
+   `deepRender` measures Patchy's own render; the cache-free leg's composed
+   `render.png` must then keep 16 bits) and the recovery store at depth.
 3. **Deep compositor.** Color type becomes a template parameter of the compositor;
    float targets, float blend math (32-bit follows Photoshop's mode list), float
    adjustments (no 256-entry LUTs), float effects, Blend If on deep values. Display

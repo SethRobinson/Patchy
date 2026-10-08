@@ -9,6 +9,7 @@
 #include "color/color_management.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/pixel_depth.hpp"
 #include "core/pattern_resource.hpp"
 #include "core/smart_object.hpp"
 #include "core/style_contour.hpp"
@@ -238,7 +239,84 @@ std::uint8_t vector_parameter_flags(const LayerVectorMask& mask) {
   return flags;
 }
 
-EncodedLayer encode_layer(const Layer& layer, bool large_document, bool bottom_record, Rect canvas) {
+// A deep document's mask plane (any stored depth) as big-endian samples at `depth`.
+EncodedChannel encode_mask_at_depth(const PixelBuffer& mask_pixels, BitDepth depth, bool large_document) {
+  const auto converted = convert_pixel_buffer_depth(mask_pixels, depth, SampleKind::Coverage);
+  return encode_channel_at_depth(kChannelUserMask, converted.width(), converted.height(),
+                                 big_endian_plane(converted, 0), depth, large_document);
+}
+
+// The mask channel of an adjustment or group record in a deep document: the raster mask,
+// else the baked plane of a parameterized vector mask (the 8-bit encoders' rules).
+void append_deep_mask_channel(const Layer& layer, EncodedLayer& encoded, BitDepth depth, bool large_document) {
+  if (layer.mask().has_value()) {
+    const auto& mask = *layer.mask();
+    if (mask.bounds.width != mask.pixels.width() || mask.bounds.height != mask.pixels.height()) {
+      throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Layer mask bounds do not match mask pixels"));
+    }
+    encoded.channels.push_back(encode_mask_at_depth(mask.pixels, depth, large_document));
+  } else if (const auto parameters = parameterized_vector_mask(layer); parameters.has_value()) {
+    const auto plane = vector_mask_derived_plane(*parameters);
+    if (!plane.bounds.empty()) {
+      encoded.channels.push_back(encode_mask_at_depth(plane.pixels, depth, large_document));
+    }
+  }
+}
+
+// encode_layer for a 16 or 32-bit document: the same channels in the same order, with
+// samples at `depth`. Rasters an 8-bit generator produced (text, smart object previews)
+// convert on the way out.
+EncodedLayer encode_deep_layer(const Layer& layer, bool large_document, bool bottom_record, Rect canvas,
+                               BitDepth depth) {
+  const auto& source = layer.pixels();
+  if (source.format().channels < 3 || source.format().channels > 4) {
+    throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Layered PSD export currently supports RGB/RGBA 8-bit layers only"));
+  }
+  const auto pixels = convert_pixel_buffer_depth(source, depth, SampleKind::Color);
+  EncodedLayer encoded;
+  encoded.layer = &layer;
+  encoded.kind = EncodedLayerKind::Pixel;
+  encoded.bounds = layer.bounds().empty() ? Rect::from_size(pixels.width(), pixels.height()) : layer.bounds();
+  encoded.blending_ranges = &layer.raw_psd_blending_ranges();
+  std::vector<std::uint16_t> channel_ids{kChannelRed, kChannelGreen, kChannelBlue};
+  const bool photoshop_background = bottom_record && encoded.bounds.x == canvas.x && encoded.bounds.y == canvas.y &&
+                                    encoded.bounds.width == canvas.width && encoded.bounds.height == canvas.height;
+  if (pixels.format().channels >= 4 || !photoshop_background) {
+    channel_ids.push_back(kChannelTransparency);
+  }
+  if (layer.mask().has_value()) {
+    const auto& mask = *layer.mask();
+    if (mask.bounds.width != mask.pixels.width() || mask.bounds.height != mask.pixels.height()) {
+      throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Layer mask bounds do not match mask pixels"));
+    }
+    channel_ids.push_back(kChannelUserMask);
+  }
+  CoverageBuffer derived_plane;
+  if (const auto parameters = parameterized_vector_mask(layer);
+      parameters.has_value() && !layer.mask().has_value()) {
+    derived_plane = vector_mask_derived_plane(*parameters);
+    if (!derived_plane.bounds.empty()) {
+      channel_ids.push_back(kChannelUserMask);
+    }
+  }
+  encoded.channels.reserve(channel_ids.size());
+  for (std::size_t channel_index = 0; channel_index < channel_ids.size(); ++channel_index) {
+    const auto channel_id = channel_ids[channel_index];
+    if (channel_id == kChannelUserMask) {
+      encoded.channels.push_back(encode_mask_at_depth(
+          layer.mask().has_value() ? layer.mask()->pixels : derived_plane.pixels, depth, large_document));
+      continue;
+    }
+    const auto source_channel = channel_id == kChannelTransparency ? std::size_t{3} : channel_index;
+    encoded.channels.push_back(encode_channel_at_depth(channel_id, pixels.width(), pixels.height(),
+                                                       big_endian_plane(pixels, source_channel), depth,
+                                                       large_document));
+  }
+  return encoded;
+}
+
+EncodedLayer encode_layer(const Layer& layer, bool large_document, bool bottom_record, Rect canvas,
+                          BitDepth depth) {
   if (layer.kind() != LayerKind::Pixel) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Layered PSD export currently supports pixel and group layers only"));
   }
@@ -255,13 +333,18 @@ EncodedLayer encode_layer(const Layer& layer, bool large_document, bool bottom_r
          {kChannelTransparency, kChannelRed, kChannelGreen, kChannelBlue}) {
       encoded.channels.push_back(EncodedChannel{channel_id, 0, 0, kCompressionRaw, {}});
     }
-    if (layer.mask().has_value() && layer.mask()->pixels.format() == PixelFormat::gray8()) {
+    if (depth != BitDepth::UInt8 && layer.mask().has_value()) {
+      encoded.channels.push_back(encode_mask_at_depth(layer.mask()->pixels, depth, large_document));
+    } else if (layer.mask().has_value() && layer.mask()->pixels.format() == PixelFormat::gray8()) {
       const auto& mask_pixels = layer.mask()->pixels;
       encoded.channels.push_back(encode_channel(kChannelUserMask, mask_pixels.width(),
                                                 mask_pixels.height(), mask_pixels.data(),
                                                 large_document));
     }
     return encoded;
+  }
+  if (depth != BitDepth::UInt8) {
+    return encode_deep_layer(layer, large_document, bottom_record, canvas, depth);
   }
   const auto& pixels = layer.pixels();
   if (pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3 || pixels.format().channels > 4) {
@@ -330,7 +413,7 @@ EncodedLayer encode_layer(const Layer& layer, bool large_document, bool bottom_r
   return encoded;
 }
 
-EncodedLayer encode_adjustment_layer(const Layer& layer, bool large_document) {
+EncodedLayer encode_adjustment_layer(const Layer& layer, bool large_document, BitDepth depth) {
   if (layer.kind() != LayerKind::Adjustment || !adjustment_settings_from_layer(layer).has_value()) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Adjustment layer is missing Patchy adjustment settings"));
   }
@@ -340,7 +423,9 @@ EncodedLayer encode_adjustment_layer(const Layer& layer, bool large_document) {
   encoded.kind = EncodedLayerKind::Adjustment;
   encoded.bounds = layer.bounds();
   encoded.blending_ranges = &layer.raw_psd_blending_ranges();
-  if (layer.mask().has_value()) {
+  if (depth != BitDepth::UInt8) {
+    append_deep_mask_channel(layer, encoded, depth, large_document);
+  } else if (layer.mask().has_value()) {
     const auto& mask = *layer.mask();
     if (mask.pixels.format() != PixelFormat::gray8()) {
       throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Layered PSD export requires 8-bit grayscale layer masks"));
@@ -367,7 +452,7 @@ EncodedLayer encode_group_boundary(const Layer& layer) {
   return encoded;
 }
 
-EncodedLayer encode_group(const Layer& layer, bool large_document) {
+EncodedLayer encode_group(const Layer& layer, bool large_document, BitDepth depth) {
   EncodedLayer encoded;
   encoded.layer = &layer;
   encoded.kind = EncodedLayerKind::Group;
@@ -376,7 +461,9 @@ EncodedLayer encode_group(const Layer& layer, bool large_document) {
   // Photoshop carries a group's raster mask on the folder record: the -2
   // channel plus the mask-data block (write_layer_record adds the block).
   // Mask-less groups keep their historical zero-channel record byte for byte.
-  if (layer.mask().has_value()) {
+  if (depth != BitDepth::UInt8) {
+    append_deep_mask_channel(layer, encoded, depth, large_document);
+  } else if (layer.mask().has_value()) {
     const auto& mask = *layer.mask();
     if (mask.pixels.format() != PixelFormat::gray8()) {
       throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Layered PSD export requires 8-bit grayscale layer masks"));
@@ -1173,23 +1260,23 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
 }
 
 void append_encoded_layers(const Layer& layer, std::vector<EncodedLayer>& encoded_layers, bool large_document,
-                           Rect canvas) {
+                           Rect canvas, BitDepth depth) {
   if (layer.kind() == LayerKind::Pixel) {
-    encoded_layers.push_back(encode_layer(layer, large_document, encoded_layers.empty(), canvas));
+    encoded_layers.push_back(encode_layer(layer, large_document, encoded_layers.empty(), canvas, depth));
     return;
   }
 
   if (layer.kind() == LayerKind::Adjustment) {
-    encoded_layers.push_back(encode_adjustment_layer(layer, large_document));
+    encoded_layers.push_back(encode_adjustment_layer(layer, large_document, depth));
     return;
   }
 
   if (layer.kind() == LayerKind::Group) {
     encoded_layers.push_back(encode_group_boundary(layer));
     for (const auto& child : layer.children()) {
-      append_encoded_layers(child, encoded_layers, large_document, canvas);
+      append_encoded_layers(child, encoded_layers, large_document, canvas, depth);
     }
-    encoded_layers.push_back(encode_group(layer, large_document));
+    encoded_layers.push_back(encode_group(layer, large_document, depth));
     return;
   }
 

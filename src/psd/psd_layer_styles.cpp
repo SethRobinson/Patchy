@@ -1253,9 +1253,9 @@ void write_blend_mode_descriptor_item(BigEndianWriter& writer, std::string_view 
 
 void write_rgb_color_descriptor(BigEndianWriter& writer, RgbColor color) {
   write_descriptor_object_header(writer, "", "RGBC", 3);
-  write_descriptor_unit_float_item(writer, "Rd  ", {'#', 'P', 'r', 'c'}, color.red);
-  write_descriptor_unit_float_item(writer, "Grn ", {'#', 'P', 'r', 'c'}, color.green);
-  write_descriptor_unit_float_item(writer, "Bl  ", {'#', 'P', 'r', 'c'}, color.blue);
+  write_descriptor_unit_float_item(writer, "Rd  ", {'#', 'P', 'r', 'c'}, descriptor_rgb_component(color.red));
+  write_descriptor_unit_float_item(writer, "Grn ", {'#', 'P', 'r', 'c'}, descriptor_rgb_component(color.green));
+  write_descriptor_unit_float_item(writer, "Bl  ", {'#', 'P', 'r', 'c'}, descriptor_rgb_component(color.blue));
 }
 
 void write_rgb_color_descriptor_item(BigEndianWriter& writer, std::string_view key, RgbColor color) {
@@ -1398,9 +1398,9 @@ void write_layer_style_gradient_descriptor_item(BigEndianWriter& writer, std::st
 // "Gradient". Native ChFX colors use the same double RGB object.
 void write_native_rgb_color_descriptor(BigEndianWriter& writer, RgbColor color) {
   write_descriptor_object_header(writer, "", "RGBC", 3);
-  write_descriptor_double_item(writer, "Rd  ", color.red);
-  write_descriptor_double_item(writer, "Grn ", color.green);
-  write_descriptor_double_item(writer, "Bl  ", color.blue);
+  write_descriptor_double_item(writer, "Rd  ", descriptor_rgb_component(color.red));
+  write_descriptor_double_item(writer, "Grn ", descriptor_rgb_component(color.green));
+  write_descriptor_double_item(writer, "Bl  ", descriptor_rgb_component(color.blue));
 }
 
 void write_native_rgb_color_descriptor_item(BigEndianWriter& writer, std::string_view key, RgbColor color) {

@@ -8931,6 +8931,10 @@ RGB: %2, %3, %4</translation>
         <source>RGBA rows need a color buffer</source>
         <translation>Las filas RGBA necesitan un búfer de color</translation>
     </message>
+    <message>
+        <source>PSD channel depth does not match the document</source>
+        <translation>La profundidad del canal PSD no coincide con la del documento</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
