@@ -386,15 +386,13 @@ src/core/vector_live_shapes.hpp.
   min(w/|cos a|, h/|sin a|), centered on the bounds center (measured within
   0.5 px at angles 0/20/37/60/75/90). Layer-style overlays deliberately keep
   their corner-to-corner projection (GradientSpanBasis::LayerProjection);
-  the two agree at exact axis angles.
+  the two agree at exact axis angles. Pixel sampling and the whole-pixel
+  ends: [gradients.md](gradients.md), "Gradient fill layer geometry".
 - Classic easing applies even to TWO-stop ramps: per-segment catmull-rom
   with duplicated virtual endpoints (f(t) = 0.5t + 1.5t^2 - t^3 for a plain
   2-stop ramp), scaled by smoothness/4096. The OPACITY ramp eases
   identically. Midpoints are the piecewise-linear law through
   (midpoint, 50%) and apply BEFORE the ease.
-- gradient_color/gradient_stop_opacity expose this via the
-  endpoint_smoothing flag; the vector fill painter passes it, layer styles
-  keep their default.
 
 ### Stroke rasterization (winding, lattice, bounds)
 

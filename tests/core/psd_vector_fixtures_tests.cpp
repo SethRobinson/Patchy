@@ -118,12 +118,12 @@ void psd_shape_gradient_fixture_parses_and_renders() {
   CHECK(gradient.type == patchy::LayerStyleGradientType::Linear);
   CHECK(std::fabs(gradient.color_stops[0].midpoint - 0.30F) < 0.005F);
   CHECK(std::fabs(gradient.alpha_stops[1].opacity - 0.42F) < 0.005F);
-  // Calibrated geometry (docs/vector-tools.md): center-chord span + the
-  // catmull-rom smoothness ease on color AND opacity. The remaining ~1.2 mean
-  // is Photoshop's non-uniform parametrization of unevenly spaced stops,
-  // which stays a documented residual.
-  check_flatten_matches_reference(document, "photoshop-shape-gradient.bmp", "psd_vector_gradient", 1.5, 12,
-                                  0.75);
+  // Calibrated geometry (docs/gradients.md, "Gradient fill layer geometry"):
+  // center-chord span, corner sampling and whole-pixel ends, plus the
+  // catmull-rom smoothness ease on color AND opacity: mean 0.29 against
+  // Photoshop (it was 1.22 with center sampling).
+  check_flatten_matches_reference(document, "photoshop-shape-gradient.bmp", "psd_vector_gradient", 0.4, 8,
+                                  0.35);
 }
 
 void psd_shape_pattern_fixture_parses_and_renders() {

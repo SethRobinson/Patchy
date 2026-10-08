@@ -37,6 +37,15 @@ Gradient Overlay `GrFl` and gradient Stroke `FrFX` share the definition codec bu
 Factory reset writes a copied library entry first. In-memory gradients change only
 after the save succeeds, so a write failure leaves the current library intact.
 
+## Gradient fill layer geometry
+
+Gradient Fill layers and gradient-filled shapes (`GradientSpanBasis::CenterChord` in `gradient_position`) span the center chord of the aligned bounds (docs/vector-tools.md). Photoshop 2026 COM probes (October 2026; 95 fills, 4x4 to 64x64 and non-square canvases, five types, scale and offsets) pinned two further rules for Linear, Reflected and Radial:
+
+- Each pixel samples at its top-left corner (x, y), not its center. On a 4x4 canvas the half pixel is an eighth of the ramp.
+- At 100% scale with no offset the ramp runs between the chord ends truncated to whole pixels: Linear between both truncated ends, Reflected and Radial from the truncated center to the truncated far end. The effective angle follows those integer points, so a nominal 30-degree reflected fill runs at 45 degrees on 4x4, 36.87 on 8x8, 32 on 16x16 and 30.7 on 64x64. Every such probe matches within 1/255. Scaled or offset fills keep the continuous ends, which fit those probes better.
+
+Not modeled: Angle and Diamond (they keep center sampling), and offsets on very small canvases (no candidate rule fit a 16x8 probe). This geometry is what took `photoshop-shape-gradient.psd` from mean error 1.22 to 0.29 against Photoshop and fixed psd-tools' `colormodes/4x4_*` files.
+
 ## Noise gradients in PSD fill layers
 
 A Gradient Fill layer or shape stroke may carry a noise (`ClNs`) gradient. Photoshop's PSDs store the channel ranges `Mnm `/`Mxm ` as doubles (79.9988 for 80), where GRD files use longs; the reader accepts both. `gradient_object` (src/psd/psd_vector.cpp) writes the noise form with Photoshop's keys and order (`Nm`, `GrdF`, `ShTr`, `VctC`, `ClrS`, `RndS`, `Smth`, `Mnm`, `Mxm`) and no stop lists. A noise gradient is never "healed" for missing transparency stops: writing it as a stop gradient left an empty `Clrs` list and Photoshop dropped the fill layer on open (psd-tools' `gradients/noise-gradient-*.psd`, found by Testy in October 2026; Photoshop 2026 opens the regenerated file clean with all three layers still Gradient Fill).

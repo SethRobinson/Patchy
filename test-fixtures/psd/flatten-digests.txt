@@ -62,7 +62,7 @@ fe4ec469d4f39325 photoshop-saved-paths.psd
 020f37ab73705bf5 photoshop-shape-boolean.psd
 b3ae1cce498dd16a photoshop-shape-feather.psd
 1f1d1239b7381f25 photoshop-shape-first-ops.psd
-bb2d8e2794a03819 photoshop-shape-gradient.psd
+8dc0d900807008ea photoshop-shape-gradient.psd
 d92d8e4b3e001513 photoshop-shape-live-rect.psd
 ac08986158b2bf56 photoshop-shape-pattern.psd
 8c1dd51eb6355d53 photoshop-shape-solid.psd

@@ -1015,8 +1015,16 @@ float gradient_position(const LayerStyleGradient& gradient, Rect bounds, std::in
     center_x = std::floor(center_x) + 0.5F;
     center_y = std::floor(center_y) + 0.5F;
   }
-  const auto px = static_cast<float>(x) + 0.5F;
-  const auto py = static_cast<float>(y) + 0.5F;
+  // GdFl fill layers sample each pixel at its top-left CORNER (x, y), not its center
+  // (Photoshop 2026 probes, October 2026: 0/45/90-degree fills on 4..64 px canvases
+  // match exactly only that way; on a 4x4 canvas the half-pixel is an eighth of the ramp).
+  const bool fill_layer_geometry = basis == GradientSpanBasis::CenterChord &&
+                                   (gradient.type == LayerStyleGradientType::Linear ||
+                                    gradient.type == LayerStyleGradientType::Reflected ||
+                                    gradient.type == LayerStyleGradientType::Radial);
+  const auto sample_offset = fill_layer_geometry ? 0.0F : 0.5F;
+  const auto px = static_cast<float>(x) + sample_offset;
+  const auto py = static_cast<float>(y) + sample_offset;
   const auto radians = gradient.angle_degrees * kPi / 180.0F;
   const auto local_x =
       (px - center_x) * std::cos(radians) - (py - center_y) * std::sin(radians);
@@ -1060,6 +1068,44 @@ float gradient_position(const LayerStyleGradient& gradient, Rect bounds, std::in
   // share the anchors but keep their un-truncated center-chord span (pinned
   // separately, docs/vector-tools.md).
   const auto scale = std::max(0.01F, gradient.scale);
+  // At 100% scale with no offset, Photoshop places a fill layer's gradient like a
+  // Gradient-tool drag whose end points are the center chord's ends TRUNCATED to whole
+  // pixels (Linear: both ends; Reflected and Radial: the center and the far end), so
+  // the effective angle and length follow those integer points: a nominal 30-degree
+  // reflected fill runs at 45 degrees on a 4x4 canvas, 36.87 on 8x8, 32 on 16x16 and
+  // 30.7 on 64x64 (probes within 1/255; psd-tools' colormodes/4x4_* files). Scaled or
+  // offset fills keep the continuous ends (closer on the probes; small canvases with an
+  // offset are not modeled). Angle and Diamond keep the center sampling above.
+  if (fill_layer_geometry && scale == 1.0F && gradient.offset_x_percent == 0.0F &&
+      gradient.offset_y_percent == 0.0F) {
+    const auto half_x = projected_span * 0.5F * std::cos(radians);
+    const auto half_y = -projected_span * 0.5F * std::sin(radians);
+    const auto end_x = std::floor(center_x + half_x);
+    const auto end_y = std::floor(center_y + half_y);
+    const auto start_x = gradient.type == LayerStyleGradientType::Linear ? std::floor(center_x - half_x)
+                                                                         : std::floor(center_x);
+    const auto start_y = gradient.type == LayerStyleGradientType::Linear ? std::floor(center_y - half_y)
+                                                                         : std::floor(center_y);
+    const auto vx = end_x - start_x;
+    const auto vy = end_y - start_y;
+    const auto length_squared = vx * vx + vy * vy;
+    if (length_squared > 0.0F) {
+      const auto dx = px - start_x;
+      const auto dy = py - start_y;
+      float position = 0.0F;
+      if (gradient.type == LayerStyleGradientType::Linear) {
+        position = (dx * vx + dy * vy) / length_squared;
+      } else if (gradient.type == LayerStyleGradientType::Reflected) {
+        position = std::abs(dx * vx + dy * vy) / length_squared;
+      } else {
+        position = std::sqrt((dx * dx + dy * dy) / length_squared);
+      }
+      if (gradient.reverse) {
+        position = 1.0F - position;
+      }
+      return clamp_unit(position);
+    }
+  }
   const auto quantize_span = basis == GradientSpanBasis::LayerProjection;
   const auto raw_half = projected_span * scale * 0.5F;
   // The whole-pixel half-ramp is shared by every point-mapped type: the

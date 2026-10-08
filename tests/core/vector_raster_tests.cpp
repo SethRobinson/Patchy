@@ -1315,8 +1315,54 @@ void raster_shape_feather_softens_edge_and_density_floors_alpha() {
   CHECK(dense.pixels.pixel(24, 24)[3] == 255);
 }
 
+// Photoshop 2026 gradient fill probes (docs/gradients.md, "Gradient fill layer
+// geometry"): corner sampling and whole-pixel chord ends. Positions are read off
+// Photoshop's black-to-white renders through the eased ramp, so they are exact here.
+void gradient_fill_layer_geometry_matches_photoshop_probes() {
+  patchy::LayerStyleGradient gradient;
+  gradient.color_stops = {{0.0F, patchy::RgbColor{0, 0, 0}, 0.5F}, {1.0F, patchy::RgbColor{255, 255, 255}, 0.5F}};
+  gradient.alpha_stops = {{0.0F, 1.0F, 0.5F}, {1.0F, 1.0F, 0.5F}};
+  const auto position = [&gradient](patchy::Rect bounds, int x, int y) {
+    return patchy::gradient_position(gradient, bounds, x, y, patchy::GradientSpanBasis::CenterChord);
+  };
+  const auto close_to = [](float a, float b) { return std::abs(a - b) < 1e-4F; };
+  // Linear at 0 degrees on 4x4: x / 4 (pixel corners, not centers).
+  gradient.type = patchy::LayerStyleGradientType::Linear;
+  gradient.angle_degrees = 0.0F;
+  const auto box4 = patchy::Rect::from_size(4, 4);
+  for (int x = 0; x < 4; ++x) {
+    CHECK(close_to(position(box4, x, 2), static_cast<float>(x) / 4.0F));
+  }
+  // Reflected at 30 degrees on 4x4: the truncated far end makes it a 45-degree ramp,
+  // |x - y| / 4 (Photoshop's 0, 52, 128, 203 row).
+  gradient.type = patchy::LayerStyleGradientType::Reflected;
+  gradient.angle_degrees = 30.0F;
+  for (int y = 0; y < 4; ++y) {
+    for (int x = 0; x < 4; ++x) {
+      CHECK(close_to(position(box4, x, y), static_cast<float>(std::abs(x - y)) / 4.0F));
+    }
+  }
+  // 8x8: the far end (8, 1.69) truncates to (8, 1), so the zero line runs through
+  // (1, 0) and the center (4, 4), a 36.87-degree ramp.
+  const auto box8 = patchy::Rect::from_size(8, 8);
+  CHECK(close_to(position(box8, 1, 0), 0.0F));
+  CHECK(close_to(position(box8, 4, 4), 0.0F));
+  CHECK(position(box8, 0, 0) > 0.0F);
+  // Radial at 0 degrees on 8x8: distance from the corner-sampled center over 4.
+  gradient.type = patchy::LayerStyleGradientType::Radial;
+  gradient.angle_degrees = 0.0F;
+  CHECK(close_to(position(box8, 4, 4), 0.0F));
+  CHECK(close_to(position(box8, 6, 4), 0.5F));
+  CHECK(close_to(position(box8, 7, 0), 1.0F));
+  // Layer-style overlays keep their own (pixel-center, projected-span) geometry.
+  gradient.type = patchy::LayerStyleGradientType::Reflected;
+  gradient.angle_degrees = 30.0F;
+  CHECK(!close_to(patchy::gradient_position(gradient, box4, 0, 0, patchy::GradientSpanBasis::LayerProjection), 0.0F));
+}
+
 std::vector<patchy::test::TestCase> vector_raster_tests() {
   return {
+      {"gradient_fill_layer_geometry_matches_photoshop_probes", gradient_fill_layer_geometry_matches_photoshop_probes},
       {"raster_shape_feather_softens_edge_and_density_floors_alpha",
        raster_shape_feather_softens_edge_and_density_floors_alpha},
       {"raster_axis_aligned_rect_coverage_is_exact", raster_axis_aligned_rect_coverage_is_exact},

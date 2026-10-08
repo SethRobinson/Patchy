@@ -62,7 +62,7 @@ c7876c8727301ce5 84830b21713419a9 photoshop-shadow-conceals.psd
 7ab29ec9183697c5 020f37ab73705bf5 photoshop-shape-boolean.psd
 d744db6b9d11f468 b3ae1cce498dd16a photoshop-shape-feather.psd
 640bd2df57164b25 1f1d1239b7381f25 photoshop-shape-first-ops.psd
-df9ef81f9987b96d bb2d8e2794a03819 photoshop-shape-gradient.psd
+5386db9512026fee 8dc0d900807008ea photoshop-shape-gradient.psd
 47916a4b22705a01 d92d8e4b3e001513 photoshop-shape-live-rect.psd
 55aebce64a43ded0 ac08986158b2bf56 photoshop-shape-pattern.psd
 f6d5a6e903ff35df 8c1dd51eb6355d53 photoshop-shape-solid.psd
