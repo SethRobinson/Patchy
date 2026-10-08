@@ -182,9 +182,13 @@ Each phase lands as verified commits; the gate stays off until Phase 9.
    - 32-bit Luminosity is the PDF SetLum without ClipColor (negatives survive).
    The eyedropper picks deep documents from the deep render; layer thumbnails read
    any depth (`display_rgba8_at`). Large deep renders and flattens split into strips
-   under the 8-bit rules (`PATCHY_RENDER_SINGLE_THREADED` included). Open in Phase 3:
-   Testy's `deepRender` from Patchy's 16-bit export (the cache-free leg's composed
-   `render.png` must then keep 16 bits), and the recovery store at depth.
+   under the 8-bit rules (`PATCHY_RENDER_SINGLE_THREADED` included). The recovery
+   store writes the same PSB writer and reopens through the normal loader, so it keeps
+   depth whenever the gate is on. Testy's Patchy driver splits a 16-bit PNG export into
+   `render16.png` (the precision metric) and an 8-bit `render.png`
+   (`analyze.split_deep_png`). A deep target caches one `DeepAdjuster` per adjustment
+   pass, keyed by `adjustment_pass_serial` as well as the settings address: stacked
+   adjustment layers reuse one stack slot for their settings.
 4. **Layer operations and transforms.** Merge, flatten, duplicate, rasterize at depth,
    transforms, warp, liquify, crop, canvas size, copy/paste and Files as Layers across
    depths (convert on entry).
@@ -195,7 +199,9 @@ Each phase lands as verified commits; the gate stays off until Phase 9.
    destructive adjustments. 8BF plug-ins at 16 bits where the host contract allows.
    Surface Blur, Median and Dust & Scratches keep their no-histogram designs at every
    depth (docs/patent-research.md).
-7. **UI.** Image > Mode depth items (new permanent action ids), New Document depth,
+7. **UI.** Image > Mode > 8/16/32 Bits/Channel is in (`image.mode_8_bit`,
+   `image.mode_16_bit`, `image.mode_32_bit`; shown while the gate is on; undoable;
+   Indexed only at 8 bits). Still to do: New Document depth,
    picker/Info/histogram precision, deep Levels/Curves histograms, 32-bit preview
    exposure, conversion dialog for 32 to lower depths. All text through tr() and every
    catalog.

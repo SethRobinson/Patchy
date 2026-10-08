@@ -18676,6 +18676,42 @@ Baked into images: %1.</source>
         <source>Bicubic Automatic</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>&amp;8 Bits/Channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;16 Bits/Channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;32 Bits/Channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Convert to 8 Bits/Channel before converting to Indexed color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Convert to RGB Color before changing the bit depth</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>8 Bits/Channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>16 Bits/Channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>32 Bits/Channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Converted to %1</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>

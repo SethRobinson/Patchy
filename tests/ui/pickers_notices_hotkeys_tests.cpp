@@ -2,6 +2,7 @@
 #include "ui/qt_paths.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/document_depth.hpp"
+#include "core/pixel_depth.hpp"
 #include "core/contour_presets.hpp"
 #include "core/gradient_presets.hpp"
 #include "core/layer_metadata.hpp"
@@ -1280,6 +1281,47 @@ void ui_alt_color_pick_shows_rgb_status_and_updates_open_color_panel() {
   QApplication::processEvents();
 }
 
+void ui_image_mode_converts_bit_depth_with_undo() {
+  // Image > Mode > 8/16/32 Bits/Channel: shown while deep editing is on, converts every
+  // buffer, keeps Indexed (8-bit only) out of reach, and undoes.
+  patchy::set_deep_editing_override(true);
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* to8 = require_action(window, "imageMode8BitAction");
+    auto* to16 = require_action(window, "imageMode16BitAction");
+    auto* to32 = require_action(window, "imageMode32BitAction");
+    CHECK(to8->isVisible() && to16->isVisible() && to32->isVisible());
+    CHECK(to8->isChecked());
+    to16->trigger();
+    QApplication::processEvents();
+    CHECK(patchy::ui::MainWindowTestAccess::document(window).color_state().bit_depth == patchy::BitDepth::UInt16);
+    CHECK(patchy::document_depth_problems(patchy::ui::MainWindowTestAccess::document(window)).empty());
+    CHECK(to16->isChecked() && !to8->isChecked());
+    CHECK(!require_action(window, "imageModeIndexedAction")->isEnabled());
+    to32->trigger();
+    QApplication::processEvents();
+    CHECK(patchy::ui::MainWindowTestAccess::document(window).color_state().bit_depth == patchy::BitDepth::Float32);
+    CHECK(patchy::document_depth_problems(patchy::ui::MainWindowTestAccess::document(window)).empty());
+    require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+    QApplication::processEvents();
+    CHECK(patchy::ui::MainWindowTestAccess::document(window).color_state().bit_depth == patchy::BitDepth::UInt16);
+    CHECK(to16->isChecked());
+    require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+    QApplication::processEvents();
+    CHECK(patchy::ui::MainWindowTestAccess::document(window).color_state().bit_depth == patchy::BitDepth::UInt8);
+    CHECK(to8->isChecked());
+    CHECK(require_action(window, "imageModeIndexedAction")->isEnabled());
+  }
+  patchy::set_deep_editing_override(false);
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    CHECK(!require_action(window, "imageMode16BitAction")->isVisible());
+  }
+  patchy::set_deep_editing_override(std::nullopt);
+}
+
 void ui_deep_document_render_strips_match_the_sequential_render() {
   // The display render of a large 16-bit document splits into strips; the assembled
   // image must be the sequential render.
@@ -2342,6 +2384,7 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_alt_left_click_samples_foreground_color", ui_alt_left_click_samples_foreground_color},
       {"ui_alt_color_pick_shows_rgb_status_and_updates_open_color_panel",
        ui_alt_color_pick_shows_rgb_status_and_updates_open_color_panel},
+      {"ui_image_mode_converts_bit_depth_with_undo", ui_image_mode_converts_bit_depth_with_undo},
       {"ui_deep_document_render_strips_match_the_sequential_render",
        ui_deep_document_render_strips_match_the_sequential_render},
       {"ui_eyedropper_picks_the_composite_of_a_16_bit_document", ui_eyedropper_picks_the_composite_of_a_16_bit_document},

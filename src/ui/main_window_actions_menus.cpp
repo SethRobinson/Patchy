@@ -18,6 +18,7 @@
 #include "core/layer_render_utils.hpp"
 #include "core/layer_tree.hpp"
 #include "core/palette_presets.hpp"
+#include "core/pixel_depth.hpp"
 #include "core/pattern_presets.hpp"
 #include "core/pixel_tools.hpp"
 #include "formats/palette_io.hpp"
@@ -1280,6 +1281,35 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   image_mode_group->setExclusive(true);
   image_mode_group->addAction(image_mode_rgb_action_);
   image_mode_group->addAction(image_mode_indexed_action_);
+  // Bits per channel (docs/high-bit-depth.md). Shown while deep editing is on.
+  auto* depth_separator = image_mode_menu->addSeparator();
+  depth_separator->setObjectName(QStringLiteral("imageModeDepthSeparator"));
+  auto* image_depth_group = new QActionGroup(this);
+  image_depth_group->setExclusive(true);
+  const auto add_depth_action = [this, image_mode_menu, image_depth_group](
+                                    const char* source, const char* object_name, const char* hotkey_id,
+                                    BitDepth depth) {
+    auto* action = image_mode_menu->addAction(tr(source));
+    bind_action_text(action, source);
+    action->setObjectName(QString::fromLatin1(object_name));
+    action->setCheckable(true);
+    image_depth_group->addAction(action);
+    register_hotkey(action, hotkey_id);
+    connect(action, &QAction::triggered, this, [this, depth] { convert_document_bit_depth(depth); });
+    register_document_action(action);
+    return action;
+  };
+  image_mode_8_bit_action_ = add_depth_action(QT_TR_NOOP("&8 Bits/Channel"), "imageMode8BitAction",
+                                              "image.mode_8_bit", BitDepth::UInt8);
+  image_mode_16_bit_action_ = add_depth_action(QT_TR_NOOP("&16 Bits/Channel"), "imageMode16BitAction",
+                                               "image.mode_16_bit", BitDepth::UInt16);
+  image_mode_32_bit_action_ = add_depth_action(QT_TR_NOOP("&32 Bits/Channel"), "imageMode32BitAction",
+                                               "image.mode_32_bit", BitDepth::Float32);
+  image_mode_8_bit_action_->setChecked(true);
+  for (auto* action : {depth_separator, image_mode_8_bit_action_, image_mode_16_bit_action_,
+                       image_mode_32_bit_action_}) {
+    action->setVisible(deep_editing_enabled());
+  }
   snap_layer_to_palette_action_ = image_menu->addAction(tr("Snap &Layer to Palette"));
   bind_action_text(snap_layer_to_palette_action_, QT_TR_NOOP("Snap &Layer to Palette"));
   snap_layer_to_palette_action_->setObjectName(QStringLiteral("imageSnapLayerToPaletteAction"));

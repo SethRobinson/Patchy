@@ -200,6 +200,60 @@ void deep_compositor_agrees_with_8_bit_on_masks_groups_clips_and_adjustments() {
   }
 }
 
+void deep_compositor_applies_each_stacked_adjustment_with_its_own_settings() {
+  // Consecutive adjustment layers (psd-tools' threshold_16bits_rgb.psd stacks four
+  // masked Thresholds): each must run with its own settings, at 16 and 32 bits alike.
+  Document document(kWidth, kHeight, PixelFormat::rgb8());
+  document.add_pixel_layer("Base", ramp(false, false));
+  const auto add = [&document](AdjustmentSettings settings, bool masked) {
+    Layer adjustment(document.allocate_layer_id(), "Adjustment", LayerKind::Adjustment);
+    configure_adjustment_layer(adjustment, settings);
+    adjustment.set_bounds(Rect::from_size(kWidth, kHeight));
+    if (masked) {
+      LayerMask mask;
+      mask.bounds = Rect::from_size(kWidth, kHeight);
+      mask.pixels = PixelBuffer(kWidth, kHeight, PixelFormat::gray8());
+      for (int y = 0; y < kHeight; ++y) {
+        for (int x = 0; x < kWidth; ++x) {
+          mask.pixels.pixel(x, y)[0] = x < kWidth / 2 ? 255 : 0;
+        }
+      }
+      adjustment.set_mask(mask);
+    }
+    document.add_layer(std::move(adjustment));
+  };
+  AdjustmentSettings high;
+  high.kind = AdjustmentKind::Threshold;
+  high.threshold.level = 200;
+  AdjustmentSettings invert;
+  invert.kind = AdjustmentKind::Invert;
+  AdjustmentSettings low;
+  low.kind = AdjustmentKind::Threshold;
+  low.threshold.level = 60;
+  add(high, true);
+  add(invert, false);
+  add(low, false);
+  const auto agreement = compare_deep_with_8_bit(document, 2);
+  CHECK(agreement.over <= 0.02);
+  auto linear = document;
+  convert_document_depth(linear, BitDepth::Float32);
+  const auto flat = Compositor{}.flatten_rgba_deep(linear);
+  // The right half saw Invert then Threshold 60 only: its result is the 8-bit one.
+  const auto flat8 = Compositor{}.flatten_rgb8(document);
+  std::vector<float> row(static_cast<std::size_t>(kWidth) * 4U);
+  int mismatched = 0;
+  for (int y = 0; y < kHeight; ++y) {
+    load_rgba_row(flat, y, 0, kWidth, DeepDomain::Encoded, row);
+    for (int x = kWidth / 2; x < kWidth; ++x) {
+      for (int c = 0; c < 3; ++c) {
+        const auto deep = row[static_cast<std::size_t>(x) * 4U + static_cast<std::size_t>(c)];
+        mismatched += std::abs(deep - flat8.pixel(x, y)[c]) > 128.0F ? 1 : 0;
+      }
+    }
+  }
+  CHECK(mismatched <= kHeight);
+}
+
 void deep_compositor_keeps_precision_8_bits_cannot_hold() {
   // A 16-bit ramp under a 50% Normal layer: the deep flatten keeps every level the 8-bit
   // one would collapse.
@@ -544,6 +598,8 @@ std::vector<patchy::test::TestCase> deep_compositor_tests() {
       {"deep_compositor_agrees_with_8_bit_on_every_blend_mode", deep_compositor_agrees_with_8_bit_on_every_blend_mode},
       {"deep_compositor_agrees_with_8_bit_on_masks_groups_clips_and_adjustments",
        deep_compositor_agrees_with_8_bit_on_masks_groups_clips_and_adjustments},
+      {"deep_compositor_applies_each_stacked_adjustment_with_its_own_settings",
+       deep_compositor_applies_each_stacked_adjustment_with_its_own_settings},
       {"deep_compositor_keeps_precision_8_bits_cannot_hold", deep_compositor_keeps_precision_8_bits_cannot_hold},
       {"deep_hue_saturation_matches_photoshop_16_bit_samples", deep_hue_saturation_matches_photoshop_16_bit_samples},
       {"deep_flatten_strips_match_the_sequential_walk", deep_flatten_strips_match_the_sequential_walk},

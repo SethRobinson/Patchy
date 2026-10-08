@@ -18669,6 +18669,42 @@ Y: %2
         <source>Bicubic Automatic</source>
         <translation>쌍입방 자동</translation>
     </message>
+    <message>
+        <source>&amp;8 Bits/Channel</source>
+        <translation>8비트/채널(&amp;8)</translation>
+    </message>
+    <message>
+        <source>&amp;16 Bits/Channel</source>
+        <translation>16비트/채널(&amp;1)</translation>
+    </message>
+    <message>
+        <source>&amp;32 Bits/Channel</source>
+        <translation>32비트/채널(&amp;3)</translation>
+    </message>
+    <message>
+        <source>Convert to 8 Bits/Channel before converting to Indexed color</source>
+        <translation>인덱스 색상으로 변환하기 전에 8비트/채널로 변환하세요</translation>
+    </message>
+    <message>
+        <source>Convert to RGB Color before changing the bit depth</source>
+        <translation>비트 심도를 변경하기 전에 RGB 색상으로 변환하세요</translation>
+    </message>
+    <message>
+        <source>8 Bits/Channel</source>
+        <translation>8비트/채널</translation>
+    </message>
+    <message>
+        <source>16 Bits/Channel</source>
+        <translation>16비트/채널</translation>
+    </message>
+    <message>
+        <source>32 Bits/Channel</source>
+        <translation>32비트/채널</translation>
+    </message>
+    <message>
+        <source>Converted to %1</source>
+        <translation>%1(으)로 변환했습니다</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>

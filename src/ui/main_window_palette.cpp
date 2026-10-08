@@ -6,7 +6,9 @@
 #include "ui/main_window.hpp"
 #include "formats/webp_animation_io.hpp"
 
+#include "core/document_depth.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/pixel_depth.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/layer_tree.hpp"
 #include "core/palette_presets.hpp"
@@ -711,6 +713,11 @@ void MainWindow::convert_document_to_indexed() {
   if (!has_active_document()) {
     return;
   }
+  if (std::as_const(document()).color_state().bit_depth != BitDepth::UInt8) {
+    show_status_error(tr("Convert to 8 Bits/Channel before converting to Indexed color"));
+    refresh_palette_panel();
+    return;
+  }
   if (document_contains_smart_objects(std::as_const(document()))) {
     show_status_error(
         tr("Rasterize Smart Objects before changing palette pixels"));
@@ -991,6 +998,70 @@ void MainWindow::refresh_palette_panel() {
   }
   refresh_palette_mode_chip();
   refresh_color_buttons();
+  refresh_bit_depth_actions();
+}
+
+void MainWindow::refresh_bit_depth_actions() {
+  if (image_mode_8_bit_action_ == nullptr) {
+    return;
+  }
+  const auto depth = has_active_document() ? std::as_const(document()).color_state().bit_depth : BitDepth::UInt8;
+  const bool indexed = has_active_document() && std::as_const(document()).palette_editing().has_value();
+  const bool shown = deep_editing_enabled();
+  if (auto* menu = qobject_cast<QMenu*>(image_mode_8_bit_action_->parent()); menu != nullptr) {
+    for (auto* action : menu->actions()) {
+      if (action->objectName() == QStringLiteral("imageModeDepthSeparator")) {
+        action->setVisible(shown);
+      }
+    }
+  }
+  for (auto* action : {image_mode_8_bit_action_, image_mode_16_bit_action_, image_mode_32_bit_action_}) {
+    const QSignalBlocker blocker(action);
+    action->setVisible(shown);
+  }
+  {
+    const QSignalBlocker b8(image_mode_8_bit_action_);
+    const QSignalBlocker b16(image_mode_16_bit_action_);
+    const QSignalBlocker b32(image_mode_32_bit_action_);
+    image_mode_8_bit_action_->setChecked(depth == BitDepth::UInt8);
+    image_mode_16_bit_action_->setChecked(depth == BitDepth::UInt16);
+    image_mode_32_bit_action_->setChecked(depth == BitDepth::Float32);
+  }
+  // Indexed color is 8-bit only, as in Photoshop.
+  image_mode_16_bit_action_->setEnabled(has_active_document() && !indexed);
+  image_mode_32_bit_action_->setEnabled(has_active_document() && !indexed);
+  if (image_mode_indexed_action_ != nullptr) {
+    image_mode_indexed_action_->setEnabled(has_active_document() && depth == BitDepth::UInt8);
+  }
+}
+
+void MainWindow::convert_document_bit_depth(BitDepth depth) {
+  if (!has_active_document()) {
+    return;
+  }
+  auto& doc = document();
+  const auto current = std::as_const(doc).color_state().bit_depth;
+  if (current == depth) {
+    refresh_bit_depth_actions();
+    return;
+  }
+  if (depth != BitDepth::UInt8 && std::as_const(doc).palette_editing().has_value()) {
+    show_status_error(tr("Convert to RGB Color before changing the bit depth"));
+    refresh_bit_depth_actions();
+    return;
+  }
+  const auto label = depth == BitDepth::UInt8    ? tr("8 Bits/Channel")
+                     : depth == BitDepth::UInt16 ? tr("16 Bits/Channel")
+                                                 : tr("32 Bits/Channel");
+  push_undo_snapshot(label);
+  convert_document_depth(doc, depth);
+  if (canvas_ != nullptr) {
+    canvas_->document_changed();
+  }
+  refresh_layer_list();
+  refresh_document_info();
+  refresh_bit_depth_actions();
+  statusBar()->showMessage(tr("Converted to %1").arg(label));
 }
 
 void MainWindow::refresh_palette_mode_chip() {

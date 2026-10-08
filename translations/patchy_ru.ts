@@ -18781,6 +18781,42 @@ Y: %2
         <source>Bicubic Automatic</source>
         <translation>Бикубическая, автоматически</translation>
     </message>
+    <message>
+        <source>&amp;8 Bits/Channel</source>
+        <translation>&amp;8 бит/канал</translation>
+    </message>
+    <message>
+        <source>&amp;16 Bits/Channel</source>
+        <translation>&amp;16 бит/канал</translation>
+    </message>
+    <message>
+        <source>&amp;32 Bits/Channel</source>
+        <translation>&amp;32 бит/канал</translation>
+    </message>
+    <message>
+        <source>Convert to 8 Bits/Channel before converting to Indexed color</source>
+        <translation>Перед преобразованием в индексированные цвета преобразуйте в 8 бит/канал</translation>
+    </message>
+    <message>
+        <source>Convert to RGB Color before changing the bit depth</source>
+        <translation>Перед изменением битовой глубины преобразуйте в цвет RGB</translation>
+    </message>
+    <message>
+        <source>8 Bits/Channel</source>
+        <translation>8 бит/канал</translation>
+    </message>
+    <message>
+        <source>16 Bits/Channel</source>
+        <translation>16 бит/канал</translation>
+    </message>
+    <message>
+        <source>32 Bits/Channel</source>
+        <translation>32 бит/канал</translation>
+    </message>
+    <message>
+        <source>Converted to %1</source>
+        <translation>Преобразовано в %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>

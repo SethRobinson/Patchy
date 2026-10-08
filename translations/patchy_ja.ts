@@ -18669,6 +18669,42 @@ Baked into images: %1.</source>
         <source>Bicubic Automatic</source>
         <translation>バイキュービック法(自動)</translation>
     </message>
+    <message>
+        <source>&amp;8 Bits/Channel</source>
+        <translation>8 bit/チャンネル(&amp;8)</translation>
+    </message>
+    <message>
+        <source>&amp;16 Bits/Channel</source>
+        <translation>16 bit/チャンネル(&amp;1)</translation>
+    </message>
+    <message>
+        <source>&amp;32 Bits/Channel</source>
+        <translation>32 bit/チャンネル(&amp;3)</translation>
+    </message>
+    <message>
+        <source>Convert to 8 Bits/Channel before converting to Indexed color</source>
+        <translation>インデックスカラーに変換する前に 8 bit/チャンネルに変換してください</translation>
+    </message>
+    <message>
+        <source>Convert to RGB Color before changing the bit depth</source>
+        <translation>ビット数を変更する前に RGB カラーに変換してください</translation>
+    </message>
+    <message>
+        <source>8 Bits/Channel</source>
+        <translation>8 bit/チャンネル</translation>
+    </message>
+    <message>
+        <source>16 Bits/Channel</source>
+        <translation>16 bit/チャンネル</translation>
+    </message>
+    <message>
+        <source>32 Bits/Channel</source>
+        <translation>32 bit/チャンネル</translation>
+    </message>
+    <message>
+        <source>Converted to %1</source>
+        <translation>%1 に変換しました</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>

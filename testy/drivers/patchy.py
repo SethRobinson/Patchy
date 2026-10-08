@@ -37,6 +37,12 @@ def export(exe: Path, input_path: Path, output_path: Path, append_text: str | No
         arguments += ["--append-text", append_text]
     result = _run(exe, arguments)
     result["ok"] = result["exitCode"] == 0 and output_path.exists() and output_path.stat().st_size > 0
+    if result["ok"] and output_path.suffix.lower() == ".png":
+        # A 16/32-bit document exports a 16-bit PNG (deep editing on): keep it as
+        # <stem>16.png for the precision metric, and an 8-bit render.png as before.
+        import analyze
+
+        analyze.split_deep_png(output_path)
     # patchy.exe ran and reported a verdict (the -1 above is this driver's own sentinel
     # for a process that never got that far). That is news about the file, not evidence
     # that Patchy is broken, so the orchestrator's circuit breaker skips it.
@@ -70,6 +76,10 @@ def render_text_afresh(exe: Path, input_path: Path, output_path: Path, rerender_
                 pass
     ok = (result["exitCode"] == 0 and bool(answer.get("exported"))
           and output_path.exists() and output_path.stat().st_size > 0)
+    if ok and output_path.suffix.lower() == ".png":
+        import analyze
+
+        analyze.split_deep_png(output_path)
     error = "" if ok else (result.get("stderr") or " | ".join(lines[-3:]) or f"exit {result['exitCode']}")
     return {"ok": ok, "done": list(answer.get("done") or []), "failed": list(answer.get("failed") or []),
             "smartDone": list(answer.get("smartDone") or []),

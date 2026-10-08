@@ -18781,6 +18781,42 @@ Y: %2
         <source>Bicubic Automatic</source>
         <translation>Dwusześcienna automatyczna</translation>
     </message>
+    <message>
+        <source>&amp;8 Bits/Channel</source>
+        <translation>&amp;8 bitów/kanał</translation>
+    </message>
+    <message>
+        <source>&amp;16 Bits/Channel</source>
+        <translation>&amp;16 bitów/kanał</translation>
+    </message>
+    <message>
+        <source>&amp;32 Bits/Channel</source>
+        <translation>&amp;32 bity/kanał</translation>
+    </message>
+    <message>
+        <source>Convert to 8 Bits/Channel before converting to Indexed color</source>
+        <translation>Przed konwersją na kolory indeksowane przekonwertuj na 8 bitów/kanał</translation>
+    </message>
+    <message>
+        <source>Convert to RGB Color before changing the bit depth</source>
+        <translation>Przed zmianą głębi bitowej przekonwertuj na kolory RGB</translation>
+    </message>
+    <message>
+        <source>8 Bits/Channel</source>
+        <translation>8 bitów/kanał</translation>
+    </message>
+    <message>
+        <source>16 Bits/Channel</source>
+        <translation>16 bitów/kanał</translation>
+    </message>
+    <message>
+        <source>32 Bits/Channel</source>
+        <translation>32 bity/kanał</translation>
+    </message>
+    <message>
+        <source>Converted to %1</source>
+        <translation>Przekonwertowano na %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>

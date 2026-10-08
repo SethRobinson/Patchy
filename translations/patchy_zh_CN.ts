@@ -18669,6 +18669,42 @@ Baked into images: %1.</source>
         <source>Bicubic Automatic</source>
         <translation>两次立方（自动）</translation>
     </message>
+    <message>
+        <source>&amp;8 Bits/Channel</source>
+        <translation>8 位/通道(&amp;8)</translation>
+    </message>
+    <message>
+        <source>&amp;16 Bits/Channel</source>
+        <translation>16 位/通道(&amp;1)</translation>
+    </message>
+    <message>
+        <source>&amp;32 Bits/Channel</source>
+        <translation>32 位/通道(&amp;3)</translation>
+    </message>
+    <message>
+        <source>Convert to 8 Bits/Channel before converting to Indexed color</source>
+        <translation>转换为索引颜色前请先转换为 8 位/通道</translation>
+    </message>
+    <message>
+        <source>Convert to RGB Color before changing the bit depth</source>
+        <translation>更改位深度前请先转换为 RGB 颜色</translation>
+    </message>
+    <message>
+        <source>8 Bits/Channel</source>
+        <translation>8 位/通道</translation>
+    </message>
+    <message>
+        <source>16 Bits/Channel</source>
+        <translation>16 位/通道</translation>
+    </message>
+    <message>
+        <source>32 Bits/Channel</source>
+        <translation>32 位/通道</translation>
+    </message>
+    <message>
+        <source>Converted to %1</source>
+        <translation>已转换为 %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>

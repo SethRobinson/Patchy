@@ -18725,6 +18725,42 @@ In Bilder umgewandelt: %1.</translation>
         <source>Bicubic Automatic</source>
         <translation>Bikubisch automatisch</translation>
     </message>
+    <message>
+        <source>&amp;8 Bits/Channel</source>
+        <translation>&amp;8-Bit-Kanal</translation>
+    </message>
+    <message>
+        <source>&amp;16 Bits/Channel</source>
+        <translation>&amp;16-Bit-Kanal</translation>
+    </message>
+    <message>
+        <source>&amp;32 Bits/Channel</source>
+        <translation>&amp;32-Bit-Kanal</translation>
+    </message>
+    <message>
+        <source>Convert to 8 Bits/Channel before converting to Indexed color</source>
+        <translation>Vor dem Konvertieren in indizierte Farbe in 8-Bit-Kanal konvertieren</translation>
+    </message>
+    <message>
+        <source>Convert to RGB Color before changing the bit depth</source>
+        <translation>Vor dem Ändern der Bittiefe in RGB-Farbe konvertieren</translation>
+    </message>
+    <message>
+        <source>8 Bits/Channel</source>
+        <translation>8-Bit-Kanal</translation>
+    </message>
+    <message>
+        <source>16 Bits/Channel</source>
+        <translation>16-Bit-Kanal</translation>
+    </message>
+    <message>
+        <source>32 Bits/Channel</source>
+        <translation>32-Bit-Kanal</translation>
+    </message>
+    <message>
+        <source>Converted to %1</source>
+        <translation>In %1 konvertiert</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>

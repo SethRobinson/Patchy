@@ -579,6 +579,23 @@ def write_png16_rgb(path: Path, rgb: np.ndarray) -> None:
                            + chunk(b"IDAT", zlib.compress(rows, 6)) + chunk(b"IEND", b""))
 
 
+def split_deep_png(path: Path) -> Path | None:
+    """An editor's 16-bit PNG render becomes two files: the 16-bit original moves to
+    `<stem>16.png` beside it (what the 16-bit precision metric reads) and `path` is
+    rewritten as its 8-bit narrowing, round(v / 257), so every 8-bit metric sees the
+    same kind of file as before. Returns the 16-bit path, or None for an 8-bit PNG."""
+    path = Path(path)
+    if png_bit_depth(path) != 16:
+        return None
+    rgba = read_png16_rgba(path)
+    deep = path.with_name(path.stem + "16.png")
+    deep.unlink(missing_ok=True)
+    path.replace(deep)
+    narrow = np.clip(np.rint(rgba * 255.0), 0, 255).astype(np.uint8)
+    Image.fromarray(narrow, "RGBA").save(path)
+    return deep
+
+
 def _load_deep_over_white(path: Path, size: tuple[int, int]) -> tuple[np.ndarray, int, tuple[int, int]]:
     """RGB over white in 16-bit levels (float64 0..65535), the PNG's bit depth, and its
     native size. A size mismatch is resized like the 8-bit comparison does."""
@@ -899,6 +916,17 @@ def _selftest() -> int:
               "the 8-bit metrics cannot see that loss")
         check(compare_deep_renders(eight, deep_truth, deep_size)["state"] == "not measured",
               "an 8-bit reference is not measured")
+        export = work_dir / "export.png"
+        write_png16_rgb(export, deep)
+        moved = split_deep_png(export)
+        check(moved is not None and moved.name == "export16.png" and png_bit_depth(moved) == 16
+              and png_bit_depth(export) == 8, "a 16-bit export splits into export16.png and an 8-bit export.png")
+        check(compare_deep_renders(deep_truth, moved, deep_size)["rmse"] == 0.0,
+              "...keeping the 16-bit samples")
+        narrow = np.asarray(Image.open(export).convert("RGB"), dtype=np.float64)
+        check(np.array_equal(narrow, np.clip(np.rint(deep / 257.0), 0, 255)),
+              "...and narrowing the 8-bit one as round(v / 257)")
+        check(split_deep_png(export) is None, "an 8-bit PNG is left alone")
 
         print("6. cost")
         started = time.perf_counter()

@@ -27,6 +27,11 @@
 
 namespace patchy::render_detail {
 
+// Counts adjustment-layer passes on this thread. A deep target caches the DeepAdjuster
+// it builds for a pass; the settings object's address alone cannot key that cache,
+// because consecutive layers' settings reuse the same stack slot.
+inline thread_local std::uint64_t adjustment_pass_serial = 0;
+
 inline Rect paint_bounds_for_render(const Layer& layer, const PixelBuffer& pixels, Rect bounds,
                                     bool aligned, int effect_padding = 0) {
   if (const auto* appearance = raster_view_appearance(layer.id())) {
@@ -2592,6 +2597,7 @@ void composite_adjustment_layer(Target& destination, const Layer& layer, Rect cl
   // adjustment then lands whole on a dithered subset of the pixels.
   const auto dissolve = layer.blend_mode() == BlendMode::Dissolve;
   const auto domain = target_domain(destination);
+  ++adjustment_pass_serial;
   std::optional<DeepAdjuster> deep_adjuster;
   if constexpr (kDeep) {
     if (has_blend_if) {
@@ -4012,9 +4018,10 @@ private:
 
   const DeepAdjuster& deep_adjuster(const AdjustmentSettings& settings) {
     // Adjustment layers hand the same settings object for every pixel of one pass.
-    if (adjuster_settings_ != &settings || !adjuster_.has_value()) {
+    if (adjuster_settings_ != &settings || adjuster_pass_ != adjustment_pass_serial || !adjuster_.has_value()) {
       adjuster_.emplace(settings, domain_);
       adjuster_settings_ = &settings;
+      adjuster_pass_ = adjustment_pass_serial;
     }
     return *adjuster_;
   }
@@ -4027,6 +4034,7 @@ private:
   bool frozen_{false};
   DeepDomain domain_{DeepDomain::Encoded};
   const AdjustmentSettings* adjuster_settings_{nullptr};
+  std::uint64_t adjuster_pass_{0};
   std::optional<DeepAdjuster> adjuster_{};
 };
 

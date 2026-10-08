@@ -513,6 +513,9 @@ private:
   void save_palette_to_file();
   void convert_document_to_indexed();
   void convert_document_to_rgb();
+  // Image > Mode > 8/16/32 Bits/Channel (docs/high-bit-depth.md): undoable.
+  void convert_document_bit_depth(BitDepth depth);
+  void refresh_bit_depth_actions();
   void snap_layers_to_palette(bool active_layer_only);
   void refresh_palette_panel();
   void refresh_palette_mode_chip();
@@ -2180,6 +2183,9 @@ private:
   bool palette_compliance_clean_{true};
   QAction* image_mode_rgb_action_{nullptr};
   QAction* image_mode_indexed_action_{nullptr};
+  QAction* image_mode_8_bit_action_{nullptr};
+  QAction* image_mode_16_bit_action_{nullptr};
+  QAction* image_mode_32_bit_action_{nullptr};
   QAction* snap_image_to_palette_action_{nullptr};
   QAction* snap_layer_to_palette_action_{nullptr};
   QAction* filter_convert_smart_filters_action_{nullptr};
