@@ -16,6 +16,7 @@
 #include "ui/canvas_widget_shared.hpp"
 #include "core/layer_tree.hpp"
 #include "core/palette_presets.hpp"
+#include "core/pixel_depth.hpp"
 #include "core/pattern_presets.hpp"
 #include "core/pixel_tools.hpp"
 #include "formats/palette_io.hpp"
@@ -1309,7 +1310,8 @@ QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int docu
     }
   }
 
-  if (!pixels.empty() && pixels.format().bit_depth == BitDepth::UInt8 && pixels.format().channels >= 3) {
+  const bool eight_bit = pixels.format().bit_depth == BitDepth::UInt8;
+  if (!pixels.empty() && pixels.format().channels >= 3) {
     for (int y = 0; y < tile.height(); ++y) {
       const auto source_y = preview.source_y(y, tile.height());
       if (source_y < 0 || source_y >= pixels.height()) {
@@ -1320,8 +1322,10 @@ QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int docu
         if (source_x < 0 || source_x >= pixels.width()) {
           continue;
         }
-        const auto* px = pixels.pixel(source_x, source_y);
-        const auto alpha = pixels.format().channels >= 4 ? static_cast<int>(px[3]) : 255;
+        // 16/32-bit layers preview through their display-encoded bytes.
+        const auto deep = eight_bit ? std::array<std::uint8_t, 4>{} : display_rgba8_at(pixels, source_x, source_y);
+        const auto* px = eight_bit ? pixels.pixel(source_x, source_y) : deep.data();
+        const auto alpha = eight_bit && pixels.format().channels < 4 ? 255 : static_cast<int>(px[3]);
         const auto base = image.pixelColor(x, y);
         image.setPixelColor(x, y,
                             QColor((static_cast<int>(px[0]) * alpha + base.red() * (255 - alpha)) / 255,

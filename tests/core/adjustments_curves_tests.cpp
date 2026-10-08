@@ -1255,6 +1255,34 @@ std::vector<std::uint8_t> test_hue2_payload(bool colorize, int colorize_hue, int
   return writer.bytes();
 }
 
+void adjustment_levels_gamma_matches_photoshop_toe() {
+  // Photoshop 2026's destructive Levels on an 8-bit gray ramp (inputs 0..255, outputs
+  // 0..255). Above gamma 1 its curve leaves black on a cubic toe instead of the plain
+  // power x^(1/gamma), which would give 8, 12, 16 for inputs 1, 2, 3 at gamma 1.6.
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::Levels;
+  const auto run = [&settings](int gamma_percent, std::uint8_t input) {
+    settings.levels.gamma_percent = gamma_percent;
+    return static_cast<int>(patchy::apply_adjustment_to_color(patchy::RgbColor{input, input, input}, settings).red);
+  };
+  const std::array<std::pair<int, int>, 12> gamma_160{{{1, 3}, {2, 6}, {3, 9}, {4, 12}, {6, 17}, {8, 23},
+                                                        {12, 33}, {16, 42}, {24, 58}, {32, 70}, {64, 107},
+                                                        {128, 166}}};
+  for (const auto& [input, expected] : gamma_160) {
+    CHECK(run(160, static_cast<std::uint8_t>(input)) == expected);
+  }
+  const std::array<std::pair<int, int>, 12> gamma_300{{{1, 8}, {2, 16}, {3, 23}, {4, 30}, {6, 44}, {8, 56},
+                                                        {12, 78}, {16, 95}, {24, 116}, {32, 128}, {64, 161},
+                                                        {128, 203}}};
+  for (const auto& [input, expected] : gamma_300) {
+    CHECK(std::abs(run(300, static_cast<std::uint8_t>(input)) - expected) <= 1);
+  }
+  // Below gamma 1 there is no toe: the plain power, exactly.
+  CHECK(std::abs(patchy::levels_gamma_curve(0.25, 0.5) - 0.0625) < 1e-12);
+  CHECK(patchy::levels_gamma_curve(0.0, 1.6) == 0.0);
+  CHECK(std::abs(patchy::levels_gamma_curve(1.0, 1.6) - 1.0) < 1e-12);
+}
+
 void adjustment_hue_saturation_colorize_matches_photoshop_reference() {
   patchy::AdjustmentSettings settings;
   settings.kind = patchy::AdjustmentKind::HueSaturation;
@@ -3040,6 +3068,7 @@ std::vector<patchy::test::TestCase> adjustments_curves_tests() {
        psd_native_levels_adjustment_imports_without_patchy_block},
       {"psd_native_levels_overrides_stale_patchy_fallback",
        psd_native_levels_overrides_stale_patchy_fallback},
+      {"adjustment_levels_gamma_matches_photoshop_toe", adjustment_levels_gamma_matches_photoshop_toe},
       {"adjustment_hue_saturation_colorize_matches_photoshop_reference",
        adjustment_hue_saturation_colorize_matches_photoshop_reference},
       {"adjustment_hue_saturation_master_matches_photoshop_reference",

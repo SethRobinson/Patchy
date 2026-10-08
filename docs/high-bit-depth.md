@@ -1,9 +1,10 @@
 # High bit depth: 16-bit and 32-bit (HDR) editing
 
-Status (October 9, 2026): Phases 0-2 done (PNG 16 export pending); Phase 3 in progress. Patchy still edits in 8 bits: deep files
-convert at decode (docs/file-formats.md, "16-bit and 32-bit PSD/PSB import") and every
-writer emits 8 bits. This document is the plan of record and the rules the work must
-follow. Update it as each phase lands; keep it current-state.
+Status (October 9, 2026): Phases 0-2 done; Phase 3's compositor done, its display and
+tool loose ends open (below). With the gate off (the default) Patchy still edits in 8
+bits: deep files convert at decode (docs/file-formats.md, "16-bit and 32-bit PSD/PSB
+import"). This document is the plan of record and the rules the work must follow.
+Update it as each phase lands; keep it current-state.
 
 ## Goal and acceptance
 
@@ -62,6 +63,14 @@ The 32-bit row is the cost of compositing converted 8-bit sRGB layers where Phot
 composites linear light: opacity, masks, gradients, adjustments and most blend modes
 come out wrong. The psd-tools corpus barely shows it because its 32-bit files are simple.
 
+With the deep compositor (`score_patchy.py --deep`, gate on): 8-bit byte 0.9993
+(Levels' toe, below), 16-bit byte 0.9996 and 16-bit precise 0.9778, 32-bit byte
+0.9995 and perceptual 1.0; every document keeps its depth. Remaining 16-bit precision
+gaps: the gradient fill (interpolation within two 16-bit steps), the effects scene (the
+same 148 pixels the 8-bit render misses: outside-stroke corners and the shadow beside
+them; its byte match is 0.9819 against the baseline's 0.9822, two pixels) and
+Exposure (98%).
+
 ## Decisions (agreed with Seth, October 8, 2026)
 
 - **One depth per document**, as in Photoshop. Layers, masks, saved channels and
@@ -69,6 +78,9 @@ come out wrong. The psd-tools corpus barely shows it because its 32-bit files ar
   conversion is an undoable document operation.
 - **The 8-bit path is not touched.** Its integer math, calibrated rounding and every
   byte-stability canary stay as they are. Never re-pin an 8-bit canary for this work.
+  The one kind of exception: a Photoshop mismatch the deep corpus exposes in math both
+  depths share is fixed for 8 bits too, with a test pinned to Photoshop's 8-bit output
+  (Levels' gamma toe, October 2026; no canary moved).
 - **Storage vs compute.** 16-bit stores full-range u16 (0..65535, lossless file round
   trip). 32-bit stores linear-light f32, unbounded like Photoshop. Both deep depths
   compute through ONE float path: rows widen to float, process, narrow on store.
@@ -140,13 +152,38 @@ Each phase lands as verified commits; the gate stays off until Phase 9.
      display setting is off" alert; it is not about the file.
    `python scripts\dev\deep\ps_check_writes.py` re-saves every corpus document
    through patchy.exe and opens it in Photoshop: all 77 open and render identical to
-   the originals (16-bit precision 100%). Still to do here: PNG 16 export (so Testy's
-   `deepRender` measures Patchy's own render; the cache-free leg's composed
-   `render.png` must then keep 16 bits) and the recovery store at depth.
-3. **Deep compositor.** Color type becomes a template parameter of the compositor;
-   float targets, float blend math (32-bit follows Photoshop's mode list), float
-   adjustments (no 256-entry LUTs), float effects, Blend If on deep values. Display
-   narrows to RGBA8888; the eyedropper composites at depth.
+   the originals (16-bit precision 100%). The recovery store at depth is still open
+   (Phase 3's list).
+3. **Deep compositor** (compositor done; `tests/core/deep_compositor_tests.cpp`).
+   `render/layer_compositor.hpp` is templated on the target's color type
+   (`render/composite_color.hpp`: `target_color_t`, `DeepRgb` floats on the deep scale);
+   the 8-bit instantiation is the historical code, byte for byte. Deep blend math is
+   `core/blend_math_deep`, deep adjustments `core/adjustment_deep` (continuous
+   transfers, no 256-entry LUTs; Curves as splines). Effects and gradient colors stay
+   8-bit parameters, widened per target (`deep_from_byte`); gradient fill layers render
+   a deep raster (`deep_gradient_fill_raster`, linear-light interpolation at 32 bits).
+   Encoded targets clamp to 0..255 on store; Linear targets keep any finite value,
+   negatives included. `Compositor::flatten_rgba_deep` feeds the display
+   (`render_document_rect` narrows) and PNG/TIFF export (16-bit RGBA64). Photoshop
+   2026 rules the corpus pinned:
+   - Levels above gamma 1 is not the plain power near black: below
+     t = 2^(-g - 1/(g-1)) it is a cubic Hermite toe leaving black at slope 2^g and
+     meeting x^(1/g) in value and slope at t (`levels_gamma_curve`, all depths; ramps
+     at gamma 1.2 to 9.99 match within 3/65535 up to gamma 3).
+   - 32-bit Levels maps linear values: (v - black)/(white - black) through a signed
+     power, unclamped (negative below the black point). 32-bit Curves applies to the
+     linear value times 255.
+   - 16-bit Posterize buckets floor(v16 * levels / 65536).
+   - Deep Hue/Saturation (`hue_saturation_transfer`): the lightness percent is exact,
+     the hue rotation unrounded (h * 4.25 wheel steps), and saturation uses its own
+     multipliers (`kDeepSaturationScale`, probed per percent; +20 is 318/256 where 8
+     bits use 1.2473). At 32 bits there is no gamut limit and no clamp.
+   - 32-bit Luminosity is the PDF SetLum without ClipColor (negatives survive).
+   Open in Phase 3: the eyedropper at depth (`compose_document_pixel`), canvas caches
+   and thumbnails from the deep render, parallel strip rendering for deep documents,
+   the PSD writer's composite from the deep flatten (it still narrows a shallow copy),
+   Testy's `deepRender` from Patchy's 16-bit export (the cache-free leg's composed
+   `render.png` must then keep 16 bits), and the recovery store at depth.
 4. **Layer operations and transforms.** Merge, flatten, duplicate, rasterize at depth,
    transforms, warp, liquify, crop, canvas size, copy/paste and Files as Layers across
    depths (convert on entry).

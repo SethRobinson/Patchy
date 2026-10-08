@@ -18,6 +18,7 @@
 
 #include "core/pixel_buffer.hpp"
 
+#include <array>
 #include <cstdint>
 #include <optional>
 #include <span>
@@ -77,6 +78,12 @@ void store_coverage_row(PixelBuffer& buffer, std::int32_t y, std::int32_t x, std
 
 // One sample of a coverage buffer (any depth) as 0..1.
 [[nodiscard]] float coverage_at(const PixelBuffer& buffer, std::int32_t x, std::int32_t y);
+// The alpha of one pixel of a color buffer (any depth) as 0..1; 1 without an alpha channel.
+[[nodiscard]] float pixel_alpha_at(const PixelBuffer& buffer, std::int32_t x, std::int32_t y);
+// One pixel of a color buffer (any depth) as display-encoded RGBA bytes: 8-bit samples
+// as they are, 16-bit narrowed, 32-bit clamped and sRGB-encoded. For previews.
+[[nodiscard]] std::array<std::uint8_t, 4> display_rgba8_at(const PixelBuffer& buffer, std::int32_t x,
+                                                         std::int32_t y);
 
 // A copy of `source` at `depth`. Color: 8<->16 exact (v * 257, (v + 128) / 257); to
 // 32-bit decodes sRGB; from 32-bit clamps to 0..1 and encodes sRGB (32 -> 8 uses the

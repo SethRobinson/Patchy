@@ -22,10 +22,9 @@ double midtone_for_gamma(double normalized_mean, int gamma_percent) {
 std::uint8_t levels_transfer(std::uint8_t value, const LevelsRecord& record) {
   const auto input_range = static_cast<double>(record.white_input - record.black_input);
   const auto gamma = static_cast<double>(record.gamma_percent) / 100.0;
-  const auto inverse_gamma = gamma <= 0.0 ? 1.0 : 1.0 / gamma;
   const auto normalized = std::clamp(
       (static_cast<double>(value) - static_cast<double>(record.black_input)) / input_range, 0.0, 1.0);
-  const auto leveled = std::pow(normalized, inverse_gamma);
+  const auto leveled = gamma <= 0.0 ? normalized : levels_gamma_curve(normalized, gamma);
   const auto output = static_cast<double>(record.black_output) +
                       leveled * static_cast<double>(record.white_output - record.black_output);
   return static_cast<std::uint8_t>(std::clamp(std::lround(static_cast<float>(output)), 0L, 255L));

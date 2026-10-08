@@ -1,6 +1,7 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/qt_paths.hpp"
 #include "core/adjustment_layer.hpp"
+#include "core/document_depth.hpp"
 #include "core/contour_presets.hpp"
 #include "core/gradient_presets.hpp"
 #include "core/layer_metadata.hpp"
@@ -1279,6 +1280,33 @@ void ui_alt_color_pick_shows_rgb_status_and_updates_open_color_panel() {
   QApplication::processEvents();
 }
 
+void ui_eyedropper_picks_the_composite_of_a_16_bit_document() {
+  // A 16-bit document's layers are not 8-bit, so the eyedropper picks from the deep
+  // render; it must see the same composite as the 8-bit document it came from.
+  patchy::Document document(48, 16, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Base", solid_pixels(48, 16, patchy::PixelFormat::rgba8(), QColor(200, 40, 10)));
+  auto& top = document.add_pixel_layer("Top", solid_pixels(48, 16, patchy::PixelFormat::rgba8(), QColor(20, 200, 90)));
+  top.set_blend_mode(patchy::BlendMode::Multiply);
+  top.set_opacity(0.5F);
+  const QPoint sample(30, 8);
+  const auto expected = patchy::ui::qimage_from_document_rect(document, QRect(sample, QSize(1, 1)), true).pixelColor(0, 0);
+  patchy::convert_document_depth(document, patchy::BitDepth::UInt16);
+  CHECK(document.color_state().bit_depth == patchy::BitDepth::UInt16);
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(192, 64);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Eyedropper);
+  canvas.set_primary_color(QColor(1, 2, 3));
+  canvas.show();
+  QApplication::processEvents();
+  const auto point = canvas.widget_position_for_document_point(sample);
+  send_mouse(canvas, QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton);
+  CHECK(color_close(canvas.primary_color(), expected, 1));
+  CHECK(!color_close(canvas.primary_color(), QColor(1, 2, 3), 8));
+}
+
 void ui_eyedropper_starts_in_gray_area_and_drags_to_document_color() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2286,6 +2314,7 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_alt_left_click_samples_foreground_color", ui_alt_left_click_samples_foreground_color},
       {"ui_alt_color_pick_shows_rgb_status_and_updates_open_color_panel",
        ui_alt_color_pick_shows_rgb_status_and_updates_open_color_panel},
+      {"ui_eyedropper_picks_the_composite_of_a_16_bit_document", ui_eyedropper_picks_the_composite_of_a_16_bit_document},
       {"ui_eyedropper_starts_in_gray_area_and_drags_to_document_color",
        ui_eyedropper_starts_in_gray_area_and_drags_to_document_color},
       {"ui_photoshop_shortcuts_are_registered", ui_photoshop_shortcuts_are_registered},

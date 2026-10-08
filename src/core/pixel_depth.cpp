@@ -298,6 +298,29 @@ float coverage_at(const PixelBuffer& buffer, std::int32_t x, std::int32_t y) {
   return 0.0F;
 }
 
+float pixel_alpha_at(const PixelBuffer& buffer, std::int32_t x, std::int32_t y) {
+  const auto format = buffer.format();
+  if (format.channels < 4) {
+    return 1.0F;
+  }
+  const auto* sample = buffer.pixel(x, y) + 3U * bytes_per_channel(format.bit_depth);
+  switch (format.bit_depth) {
+    case BitDepth::UInt8:
+      return static_cast<float>(*sample) / 255.0F;
+    case BitDepth::UInt16:
+      return static_cast<float>(read_u16(sample)) / 65535.0F;
+    case BitDepth::Float32:
+      return std::clamp(finite_or_zero(read_f32(sample)), 0.0F, 1.0F);
+  }
+  return 1.0F;
+}
+
+std::array<std::uint8_t, 4> display_rgba8_at(const PixelBuffer& buffer, std::int32_t x, std::int32_t y) {
+  std::array<float, 4> values{};
+  load_rgba_row(buffer, y, x, 1, DeepDomain::Encoded, values);
+  return {round_u8(values[0]), round_u8(values[1]), round_u8(values[2]), round_u8(values[3])};
+}
+
 PixelBuffer convert_pixel_buffer_depth(const PixelBuffer& source, BitDepth depth, SampleKind kind) {
   const auto from = source.format().bit_depth;
   if (from == depth || source.empty()) {

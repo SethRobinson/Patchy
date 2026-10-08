@@ -93,9 +93,11 @@ endif()
 
 add_library(patchy_core
   src/core/gradient_presets.cpp
+  src/core/adjustment_deep.cpp
   src/core/adjustment_layer.cpp
   src/core/ink_space.cpp
   src/core/blend_math.cpp
+  src/core/blend_math_deep.cpp
   src/core/brush_dynamics.cpp
   src/core/brush_tip.cpp
   src/core/contour_presets.cpp
@@ -1706,6 +1708,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/composite_corpus_tests.cpp
     tests/core/compositor_blend_if_tests.cpp
     tests/core/compositor_layer_styles_tests.cpp
+    tests/core/deep_compositor_tests.cpp
     tests/core/document_model_tests.cpp
     tests/core/document_ops_filters_tests.cpp
     tests/core/flat_formats_bmp_tests.cpp

@@ -1996,6 +1996,12 @@ QColor CanvasWidget::compose_document_pixel(std::int32_t x, std::int32_t y) cons
   if (document_ == nullptr) {
     return Qt::transparent;
   }
+  // The per-layer sampler below reads 8-bit pixels only; a 16/32-bit document picks
+  // from the deep compositor's render of that one pixel (docs/high-bit-depth.md).
+  if (document_->color_state().bit_depth != BitDepth::UInt8) {
+    const auto image = qimage_from_document_rect(*document_, QRect(x, y, 1, 1), true);
+    return image.isNull() ? QColor(Qt::transparent) : image.pixelColor(0, 0);
+  }
 
   for (const auto& layer : document_->layers()) {
     compose_layer_pixel(layer, x, y, out, out_alpha);

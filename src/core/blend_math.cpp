@@ -896,6 +896,78 @@ RgbColor gradient_color(const LayerStyleGradient& gradient, float position,
   return stops.back().color;
 }
 
+std::array<double, 3> gradient_color_precise(const LayerStyleGradient& gradient, float position,
+                                             bool endpoint_smoothing, bool linear_light) {
+  const auto as_output = [linear_light](RgbColor color) {
+    const auto channel = [linear_light](std::uint8_t value) {
+      return linear_light ? srgb_to_linear(value / 255.0) * 255.0 : static_cast<double>(value);
+    };
+    return std::array<double, 3>{channel(color.red), channel(color.green), channel(color.blue)};
+  };
+  if (gradient.form == GradientDefinitionForm::Noise || gradient.color_stops.empty() ||
+      gradient.interpolation == GradientInterpolationMethod::Perceptual) {
+    return as_output(gradient_color(gradient, position, endpoint_smoothing));
+  }
+  const auto& stops = gradient.color_stops;
+  if (position <= stops.front().location) {
+    return as_output(stops.front().color);
+  }
+  if (position >= stops.back().location) {
+    return as_output(stops.back().color);
+  }
+  for (std::size_t index = 1; index < stops.size(); ++index) {
+    const auto& right = stops[index];
+    const auto& left = stops[index - 1U];
+    if (position > right.location) {
+      continue;
+    }
+    const auto span = std::max(0.0001F, right.location - left.location);
+    auto t = (position - left.location) / span;
+    if (right.midpoint != 0.5F) {
+      t = midpoint_remap(t, right.midpoint);
+    }
+    // The stop values in the interpolation space: linear light for the Linear method or
+    // a linear-light document, display-encoded otherwise.
+    const bool interpolate_linear = linear_light || gradient.interpolation == GradientInterpolationMethod::Linear;
+    const auto value = [interpolate_linear](std::uint8_t byte) {
+      return interpolate_linear ? srgb_to_linear(byte / 255.0) * 255.0 : static_cast<double>(byte);
+    };
+    std::array<double, 3> result{};
+    if (gradient.interpolation == GradientInterpolationMethod::Linear) {
+      const std::array<std::uint8_t, 3> a{left.color.red, left.color.green, left.color.blue};
+      const std::array<std::uint8_t, 3> b{right.color.red, right.color.green, right.color.blue};
+      for (std::size_t c = 0; c < 3U; ++c) {
+        result[c] = value(a[c]) + (value(b[c]) - value(a[c])) * t;
+      }
+    } else {
+      const auto previous = index > 1 ? stops[index - 2U].color : left.color;
+      const auto next = index + 1U < stops.size() ? stops[index + 1U].color : right.color;
+      const auto smoothness =
+          stops.size() > 2U || endpoint_smoothing ? static_cast<double>(gradient.smoothness) / 4096.0 : 0.0;
+      const std::array<std::array<std::uint8_t, 4>, 3> points{
+          std::array<std::uint8_t, 4>{previous.red, left.color.red, right.color.red, next.red},
+          std::array<std::uint8_t, 4>{previous.green, left.color.green, right.color.green, next.green},
+          std::array<std::uint8_t, 4>{previous.blue, left.color.blue, right.color.blue, next.blue}};
+      for (std::size_t c = 0; c < 3U; ++c) {
+        const auto p0 = value(points[c][0]);
+        const auto p1 = value(points[c][1]);
+        const auto p2 = value(points[c][2]);
+        const auto p3 = value(points[c][3]);
+        const auto linear = p1 + (p2 - p1) * t;
+        const auto cubic = catmull_rom(p0, p1, p2, p3, t);
+        result[c] = std::clamp(linear + (cubic - linear) * smoothness, 0.0, linear_light ? 1.0e9 : 255.0);
+      }
+    }
+    if (interpolate_linear && !linear_light) {
+      for (auto& channel : result) {
+        channel = linear_to_srgb(channel / 255.0) * 255.0;
+      }
+    }
+    return result;
+  }
+  return as_output(stops.back().color);
+}
+
 RgbColor apply_gradient_dither(const LayerStyleGradient& gradient, RgbColor color,
                                std::int32_t x, std::int32_t y) {
   if (!gradient.dither) {

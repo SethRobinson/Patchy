@@ -241,6 +241,14 @@ private:
 
 }  // namespace
 
+PixelBuffer Compositor::flatten_rgba_deep(const Document& document) const {
+  const auto canvas = Rect::from_size(document.width(), document.height());
+  render_detail::DeepCompositeTarget target(canvas, false, deep_domain_for(document.color_state().bit_depth));
+  render_detail::composite_layers(target, document.layers(), canvas, nullptr, true, nullptr,
+                                  &document.metadata().patterns);
+  return target.to_pixel_buffer();
+}
+
 PixelBuffer Compositor::flatten_rgb8(const Document& document, std::vector<std::uint8_t>* merged_alpha) const {
   PixelBuffer output(document.width(), document.height(), PixelFormat::rgb8());
   output.clear(0);

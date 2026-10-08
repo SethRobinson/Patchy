@@ -315,6 +315,9 @@ struct AdjustmentSettings {
 // (clamp_byte) while the UI preview's map_levels_value lrounds the double,
 // and the two differ by 1/255 on real inputs (e.g. value 4, record
 // {0,45,121%,0,255} -> 35 vs 34).
+// The gamma stage every Levels transfer shares: normalized 0..1 in and out, gamma > 0
+// (Photoshop's power curve with its near-black toe; see the definition).
+[[nodiscard]] double levels_gamma_curve(double normalized, double gamma);
 [[nodiscard]] LevelsRecord clamp_levels_record(LevelsRecord record);
 [[nodiscard]] LevelsRecord levels_master_record(LevelsAdjustment settings);
 void set_levels_master_record(LevelsAdjustment& settings, LevelsRecord record);
@@ -352,6 +355,23 @@ void set_curve_points_for_channel(CurvesAdjustment& curves, CurvesChannel channe
 // 300 16-bit ramp captures; see docs/ps-compat.md "Modern Brightness/Contrast".
 [[nodiscard]] std::uint8_t brightness_contrast_channel_value(std::uint8_t value, int brightness, int contrast,
                                                              bool use_legacy);
+
+// Continuous forms of the transfers above for 16 and 32-bit documents
+// (core/adjustment_deep.hpp): the same formulas on the 0..255 scale without the final
+// rounding. The 8-bit functions above do not go through these.
+[[nodiscard]] double levels_record_transfer(double value, LevelsRecord record);
+[[nodiscard]] double brightness_contrast_transfer(double value, int brightness, int contrast, bool use_legacy);
+[[nodiscard]] double exposure_transfer(double value, ExposureAdjustment settings);
+// Photoshop's deep (16 and 32-bit) Hue/Saturation as a continuous map of 0..255
+// values: apply_hue_saturation's 1530-step wheel and in-gamut chroma limit, with the
+// deep rules Photoshop 2026 uses instead of its 8-bit ones (exact lightness percent,
+// unrounded hue rotation, its own saturation multipliers; docs/high-bit-depth.md).
+// With unbounded set there is no chroma limit and no 0..255 clamp, as in Photoshop's
+// 32-bit Hue/Saturation (deep corpus adj-huesat-32). nullopt for Colorize, which has
+// no continuous form here.
+[[nodiscard]] std::optional<std::array<double, 3>> hue_saturation_transfer(std::array<double, 3> color,
+                                                                           const HueSaturationAdjustment& settings,
+                                                                           bool unbounded);
 
 [[nodiscard]] bool layer_is_adjustment(const Layer& layer);
 [[nodiscard]] std::string adjustment_kind_key(AdjustmentKind kind);

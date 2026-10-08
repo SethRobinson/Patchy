@@ -32,8 +32,10 @@ import testy  # noqa: E402
 TIMEOUT_SECONDS = 180
 
 
-def run_patchy(exe: Path, source: Path, output: Path, settings: Path) -> str | None:
+def run_patchy(exe: Path, source: Path, output: Path, settings: Path, deep: bool) -> str | None:
     env = dict(os.environ, PATCHY_NO_SINGLE_INSTANCE="1", PATCHY_SETTINGS_DIR=str(settings))
+    if deep:
+        env["PATCHY_DEEP_EDITING"] = "1"
     try:
         completed = subprocess.run([str(exe), str(source), "--export", str(output)],
                                    capture_output=True, text=True, timeout=TIMEOUT_SECONDS, env=env)
@@ -44,7 +46,7 @@ def run_patchy(exe: Path, source: Path, output: Path, settings: Path) -> str | N
     return None
 
 
-def score(entry: dict, corpus: Path, out_dir: Path, exe: Path, worker: int) -> dict:
+def score(entry: dict, corpus: Path, out_dir: Path, exe: Path, worker: int, deep: bool) -> dict:
     scene, depth = entry["scene"], entry["depth"]
     files = entry["files"]
     psd = corpus / files["psd"]
@@ -55,7 +57,7 @@ def score(entry: dict, corpus: Path, out_dir: Path, exe: Path, worker: int) -> d
     result: dict = {"scene": scene, "depth": depth}
     render = folder / "patchy.png"
     resave = folder / "patchy-resave.psd"
-    error = run_patchy(exe, psd, render, settings)
+    error = run_patchy(exe, psd, render, settings, deep)
     if error:
         result["error"] = error
         return result
@@ -68,7 +70,7 @@ def score(entry: dict, corpus: Path, out_dir: Path, exe: Path, worker: int) -> d
         deep = analyze.compare_deep_renders(corpus / files["render16"], render, size)
         result["deep"] = deep.get("accuracy")
         result["deepRmse"] = deep.get("rmse")
-    error = run_patchy(exe, psd, resave, settings)
+    error = run_patchy(exe, psd, resave, settings, deep)
     if error:
         result["resaveError"] = error
     else:
@@ -82,16 +84,23 @@ def main() -> int:
     parser.add_argument("--corpus", type=Path, default=ROOT / "local-test-fixtures" / "deep")
     parser.add_argument("--label", default="current")
     parser.add_argument("--jobs", type=int, default=4)
+    parser.add_argument("--deep", action="store_true", help="run patchy.exe with PATCHY_DEEP_EDITING=1")
+    parser.add_argument("--scenes", default="", help="comma-separated scene names (default: all)")
+    parser.add_argument("--depths", default="", help="comma-separated depths (default: all)")
     args = parser.parse_args()
     manifest = json.loads((args.corpus / "manifest.json").read_text(encoding="utf-8"))
-    entries = [e for e in manifest["entries"].values() if e.get("ok")]
+    scenes = {s for s in args.scenes.split(",") if s}
+    depths = {int(d) for d in args.depths.split(",") if d}
+    entries = [e for e in manifest["entries"].values()
+               if e.get("ok") and (not scenes or e["scene"] in scenes) and (not depths or e["depth"] in depths)]
     entries.sort(key=lambda e: (e["depth"], e["scene"]))
     out_dir = ROOT / "build" / "test-output" / "deep-score" / args.label
     out_dir.mkdir(parents=True, exist_ok=True)
 
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        results = list(pool.map(lambda pair: score(pair[1], args.corpus, out_dir, args.exe, pair[0] % args.jobs),
-                                enumerate(entries)))
+        results = list(pool.map(
+            lambda pair: score(pair[1], args.corpus, out_dir, args.exe, pair[0] % args.jobs, args.deep),
+            enumerate(entries)))
 
     totals: dict = {}
     for r in results:

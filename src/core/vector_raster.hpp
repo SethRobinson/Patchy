@@ -5,6 +5,7 @@
 
 #include <array>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -103,6 +104,14 @@ void update_vector_shape_raster(Layer& layer, Rect canvas, const PatternStore* p
 // has visible alpha is not re-baked): works out the effect silhouette from the shape
 // and stores it beside those pixels, or clears it when coverage and alpha agree.
 void refresh_vector_shape_effect_matte(Layer& layer, Rect canvas, const PatternStore* patterns = nullptr);
+
+// 16 and 32-bit rendering (docs/high-bit-depth.md): a gradient-only shape's pixels at
+// `depth`, over the layer's own bounds, with unrounded gradient colors (interpolated in
+// linear light for 32-bit) and unrounded stop opacity. Fill layers and gradient shapes
+// without a stroke, feather, density or parts qualify (an unaligned gradient only when
+// the fill covers its whole bake domain); null for everything else, whose 8-bit raster
+// the deep compositor reads instead. Cached by content revision.
+[[nodiscard]] std::shared_ptr<const PixelBuffer> deep_gradient_fill_raster(const Layer& layer, BitDepth depth);
 // Regenerates the vector mask's grayscale cache from its path.
 void update_vector_mask_raster(Layer& layer, Rect canvas);
 

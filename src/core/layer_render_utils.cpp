@@ -3,12 +3,14 @@
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/pixel_buffer.hpp"
+#include "core/pixel_depth.hpp"
 #include "core/vector_shape.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <condition_variable>
 #include <cstdlib>
+#include <cstring>
 #include <list>
 #include <mutex>
 #include <unordered_map>
@@ -173,10 +175,18 @@ std::shared_ptr<const FeatheredLayerMask> compute_feathered_layer_mask(const Lay
   const auto inside = intersect_rect(
       domain, Rect{mask.bounds.x, mask.bounds.y, std::min(mask.bounds.width, mask.pixels.width()),
                    std::min(mask.bounds.height, mask.pixels.height())});
+  const bool deep = mask.pixels.format().bit_depth != BitDepth::UInt8;
   for (std::int32_t y = inside.y; y < inside.y + inside.height; ++y) {
-    const auto* source = mask.pixels.row(y - mask.bounds.y).data() + (inside.x - mask.bounds.x);
     auto* out = plane.data() + static_cast<std::size_t>(y - domain.y) * static_cast<std::size_t>(width) +
                 static_cast<std::size_t>(inside.x - domain.x);
+    if (deep) {
+      for (std::int32_t x = 0; x < inside.width; ++x) {
+        out[x] = static_cast<std::uint16_t>(std::lround(
+            coverage_at(mask.pixels, inside.x - mask.bounds.x + x, y - mask.bounds.y) * 65535.0F));
+      }
+      continue;
+    }
+    const auto* source = mask.pixels.row(y - mask.bounds.y).data() + (inside.x - mask.bounds.x);
     for (std::int32_t x = 0; x < inside.width; ++x) {
       out[x] = static_cast<std::uint16_t>(source[x] * 257U);
     }
@@ -185,6 +195,12 @@ std::shared_ptr<const FeatheredLayerMask> compute_feathered_layer_mask(const Lay
   auto result = std::make_shared<FeatheredLayerMask>();
   result->offset_x = domain.x - mask.bounds.x;
   result->offset_y = domain.y - mask.bounds.y;
+  if (deep) {
+    // A 16/32-bit mask keeps the blur's 16-bit result (docs/high-bit-depth.md).
+    result->pixels = PixelBuffer(width, height, with_bit_depth(PixelFormat::gray8(), BitDepth::UInt16));
+    std::memcpy(result->pixels.data().data(), plane.data(), plane.size() * sizeof(std::uint16_t));
+    return result;
+  }
   result->pixels = PixelBuffer(width, height, PixelFormat::gray8());
   for (std::int32_t y = 0; y < height; ++y) {
     auto* out = result->pixels.row(y).data();
@@ -346,11 +362,32 @@ Rect layer_pixel_bounds(const Layer& layer) {
 }
 
 std::optional<Rect> visible_alpha_local_bounds(const PixelBuffer& pixels) {
-  if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8) {
+  if (pixels.empty()) {
     return std::nullopt;
   }
   if (pixels.format().channels < 4) {
     return Rect::from_size(pixels.width(), pixels.height());
+  }
+  if (pixels.format().bit_depth != BitDepth::UInt8) {
+    // 16/32-bit layers (docs/high-bit-depth.md): any nonzero alpha.
+    std::int32_t min_x = pixels.width();
+    std::int32_t min_y = pixels.height();
+    std::int32_t max_x = -1;
+    std::int32_t max_y = -1;
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        if (pixel_alpha_at(pixels, x, y) > 0.0F) {
+          min_x = std::min(min_x, x);
+          max_x = std::max(max_x, x);
+          min_y = std::min(min_y, y);
+          max_y = y;
+        }
+      }
+    }
+    if (max_x < min_x || max_y < min_y) {
+      return std::nullopt;
+    }
+    return Rect{min_x, min_y, max_x - min_x + 1, max_y - min_y + 1};
   }
 
   const auto width = pixels.width();
@@ -865,7 +902,7 @@ float layer_mask_alpha_at(const Layer& layer, std::int32_t x, std::int32_t y) {
 std::shared_ptr<const FeatheredLayerMask> feathered_layer_mask(const Layer& layer) {
   const auto& mask = layer.mask();
   if (!mask.has_value() || !(mask->feather > 0.05) || mask->pixels.empty() ||
-      mask->pixels.format() != PixelFormat::gray8()) {
+      mask->pixels.format().channels != 1) {
     return nullptr;
   }
   return feathered_mask_cache().fetch_or_compute(
@@ -921,7 +958,7 @@ float layer_mask_alpha_at(const Layer& layer, std::int32_t x, std::int32_t y, Re
     const auto density = static_cast<float>(mask->density) / 255.0F;
     return vector_alpha * (static_cast<float>(value) / 255.0F * density + (1.0F - density));
   };
-  if (mask->pixels.empty() || mask->pixels.format() != PixelFormat::gray8()) {
+  if (mask->pixels.empty() || mask->pixels.format().channels != 1) {
     return masked(mask->default_color);
   }
   const auto feathered = feathered_layer_mask(layer);
@@ -938,6 +975,15 @@ float layer_mask_alpha_at(const Layer& layer, std::int32_t x, std::int32_t y, Re
   const auto local_y = y - mask_bounds.y;
   if (local_x < 0 || local_y < 0 || local_x >= pixels.width() || local_y >= pixels.height()) {
     return masked(mask->default_color);
+  }
+  if (pixels.format().bit_depth != BitDepth::UInt8) {
+    // A 16/32-bit mask or its 16-bit feather (docs/high-bit-depth.md), at full precision.
+    const auto coverage = coverage_at(pixels, local_x, local_y);
+    if (mask->density == 255) {
+      return vector_alpha * coverage;
+    }
+    const auto density = static_cast<float>(mask->density) / 255.0F;
+    return vector_alpha * (coverage * density + (1.0F - density));
   }
   return masked(*pixels.pixel(local_x, local_y));
 }
@@ -981,6 +1027,22 @@ std::vector<float> layer_alpha_mask(const PixelBuffer& source, const Layer& laye
     return mask;
   }
 
+  if (format.bit_depth != BitDepth::UInt8) {
+    // 16/32-bit sources (docs/high-bit-depth.md).
+    for (std::int32_t y = draw_top; y < draw_bottom; ++y) {
+      const auto sy = y + sample_offset_y - bounds.y;
+      auto* output = mask.data() + static_cast<std::size_t>(y - mask_bounds.y) * width + (draw_left - mask_bounds.x);
+      for (std::int32_t x = draw_left; x < draw_right; ++x) {
+        const auto sx = x + sample_offset_x - bounds.x;
+        const auto mask_alpha =
+            layer_mask_bounds.has_value()
+                ? layer_mask_alpha_at(layer, x + sample_offset_x, y + sample_offset_y, *layer_mask_bounds)
+                : layer_mask_alpha_at(layer, x + sample_offset_x, y + sample_offset_y);
+        *output++ = pixel_alpha_at(source, sx, sy) * mask_alpha;
+      }
+    }
+    return mask;
+  }
   const auto* bytes = source.data().data();
   const auto stride = source.stride_bytes();
   for (std::int32_t y = draw_top; y < draw_bottom; ++y) {

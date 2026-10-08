@@ -218,6 +218,31 @@ bool levels_record_has_effect(LevelsRecord record) {
          record.black_output != 0 || record.white_output != 255;
 }
 
+// Photoshop's Levels gamma curve, normalized 0..1 in and out. Above 1 the plain power
+// x^(1/gamma) has an infinite slope at black; Photoshop replaces it below
+// t = 2^(-gamma - 1/(gamma - 1)) with a cubic Hermite segment that leaves black at slope
+// 2^gamma and meets the power curve in value and slope at t. Fitted on Photoshop 2026
+// ramps at gamma 1.2 to 9.99, 8 and 16-bit (docs/high-bit-depth.md): within 3/65535
+// up to gamma 3, where the plain power is off by up to 9072/65535 near black.
+double photoshop_levels_gamma(double normalized, double gamma) {
+  if (gamma <= 1.0) {
+    return std::pow(normalized, 1.0 / gamma);
+  }
+  const auto inverse_gamma = 1.0 / gamma;
+  const auto toe_end = std::exp2(-gamma - 1.0 / (gamma - 1.0));
+  if (normalized >= toe_end) {
+    return std::pow(normalized, inverse_gamma);
+  }
+  const auto end_value = std::pow(toe_end, inverse_gamma);
+  const auto end_slope = inverse_gamma * end_value / toe_end;
+  const auto start_slope = std::exp2(gamma);
+  const auto u = normalized / toe_end;
+  const auto u2 = u * u;
+  const auto u3 = u2 * u;
+  return (u3 - 2.0 * u2 + u) * toe_end * start_slope + (3.0 * u2 - 2.0 * u3) * end_value +
+         (u3 - u2) * toe_end * end_slope;
+}
+
 // One Levels record as a real-valued transfer; an identity record returns its input
 // untouched so a master-only adjustment stays bit-identical to a single stage.
 double levels_value(double value, LevelsRecord record) {
@@ -227,9 +252,8 @@ double levels_value(double value, LevelsRecord record) {
   }
   const auto input_range = static_cast<double>(record.white_input - record.black_input);
   const auto gamma = static_cast<double>(record.gamma_percent) / 100.0;
-  const auto inverse_gamma = gamma <= 0.0 ? 1.0 : 1.0 / gamma;
   const auto normalized = std::clamp((value - static_cast<double>(record.black_input)) / input_range, 0.0, 1.0);
-  const auto leveled = std::pow(normalized, inverse_gamma);
+  const auto leveled = gamma <= 0.0 ? normalized : photoshop_levels_gamma(normalized, gamma);
   return static_cast<double>(record.black_output) +
          leveled * static_cast<double>(record.white_output - record.black_output);
 }
@@ -1085,6 +1109,225 @@ std::uint8_t brightness_contrast_channel_value(std::uint8_t value, int brightnes
   }
   const auto raw = (static_cast<double>(value) - 127.5) * (100.0 + c) / 100.0 + 127.5;
   return static_cast<std::uint8_t>(std::clamp(std::lround(raw) + b, 0L, 255L));
+}
+
+namespace {
+
+// Photoshop 2026's master saturation multiplier for 16-bit documents, indexed
+// delta + 100: not its 8-bit table (kMasterSaturationScale). Negative percents are
+// exactly (256 + trunc(2.56 * delta)) / 256, +1..+49 are whole 256ths, the rest were
+// measured on chroma ramps (relative error below 0.1%; +99 is 255/4, +100 is 128).
+constexpr std::array<double, 201> kDeepSaturationScale = {
+    0.000000, 0.011719, 0.023438, 0.031250, 0.042969, 0.050781,
+    0.062500, 0.070312, 0.082031, 0.093750, 0.101562, 0.113281,
+    0.121094, 0.132812, 0.140625, 0.152344, 0.160156, 0.171875,
+    0.183594, 0.191406, 0.203125, 0.210938, 0.222656, 0.230469,
+    0.242188, 0.250000, 0.261719, 0.273438, 0.281250, 0.292969,
+    0.300781, 0.312500, 0.320312, 0.332031, 0.343750, 0.351562,
+    0.363281, 0.371094, 0.382812, 0.390625, 0.402344, 0.410156,
+    0.421875, 0.433594, 0.441406, 0.453125, 0.460938, 0.472656,
+    0.480469, 0.492188, 0.500000, 0.511719, 0.523438, 0.531250,
+    0.542969, 0.550781, 0.562500, 0.570312, 0.582031, 0.593750,
+    0.601562, 0.613281, 0.621094, 0.632812, 0.640625, 0.652344,
+    0.660156, 0.671875, 0.683594, 0.691406, 0.703125, 0.710938,
+    0.722656, 0.730469, 0.742188, 0.750000, 0.761719, 0.773438,
+    0.781250, 0.792969, 0.800781, 0.812500, 0.820312, 0.832031,
+    0.843750, 0.851562, 0.863281, 0.871094, 0.882812, 0.890625,
+    0.902344, 0.910156, 0.921875, 0.933594, 0.941406, 0.953125,
+    0.960938, 0.972656, 0.980469, 0.992188, 1.000000, 1.007812,
+    1.019531, 1.027344, 1.039062, 1.046875, 1.062500, 1.070312,
+    1.082031, 1.093750, 1.105469, 1.117188, 1.132812, 1.148438,
+    1.156250, 1.171875, 1.183594, 1.199219, 1.210938, 1.230469,
+    1.242188, 1.261719, 1.273438, 1.292969, 1.304688, 1.328125,
+    1.347656, 1.363281, 1.382812, 1.398438, 1.421875, 1.437500,
+    1.464844, 1.480469, 1.507812, 1.523438, 1.554688, 1.570312,
+    1.601562, 1.632812, 1.652344, 1.687500, 1.710938, 1.746094,
+    1.769531, 1.804688, 1.832031, 1.875000, 1.902344, 1.945312,
+    1.992240, 2.023492, 2.070372, 2.105531, 2.160224, 2.195383,
+    2.253980, 2.296957, 2.359462, 2.402432, 2.472753, 2.523539,
+    2.601674, 2.683712, 2.738405, 2.832167, 2.894674, 3.000155,
+    3.070476, 3.187685, 3.265814, 3.398644, 3.492405, 3.640865,
+    3.750289, 3.922154, 4.109675, 4.250369, 4.473016, 4.633206,
+    4.901786, 5.097000, 5.421123, 5.663295, 6.069502, 6.374434,
+    6.889676, 7.284091, 7.967697, 8.791667, 9.440196, 10.623992,
+    11.588521, 13.416667, 14.998611, 18.209514, 21.249023, 28.330537,
+    36.424342, 63.750000, 128.000000,
+};
+
+double wheel_position_continuous(const std::array<double, 3>& color) {
+  const auto red = color[0];
+  const auto green = color[1];
+  const auto blue = color[2];
+  const auto maximum = std::max({red, green, blue});
+  const auto minimum = std::min({red, green, blue});
+  const auto span = maximum - minimum;
+  if (span <= 0.0) {
+    return 0.0;
+  }
+  const auto ramp = [span](double middle, double low) { return 255.0 * (middle - low) / span; };
+  if (red == maximum && blue == minimum) {
+    return ramp(green, blue);
+  }
+  if (green == maximum && blue == minimum) {
+    return 510.0 - ramp(red, blue);
+  }
+  if (green == maximum && red == minimum) {
+    return 510.0 + ramp(blue, red);
+  }
+  if (blue == maximum && red == minimum) {
+    return 1020.0 - ramp(green, red);
+  }
+  if (blue == maximum && green == minimum) {
+    return 1020.0 + ramp(red, green);
+  }
+  return 1530.0 - ramp(blue, green);
+}
+
+std::array<double, 3> reconstruct_continuous(double light, double half_chroma, int sector, double interpolant,
+                                             bool unbounded) {
+  auto q = light + half_chroma;
+  auto p = light - half_chroma;
+  if (!unbounded) {
+    q = std::min(255.0, q);
+    p = std::max(0.0, p);
+  }
+  const auto mid = p + (q - p) * interpolant / 255.0;
+  switch (sector) {
+    case 0:
+      return {q, mid, p};
+    case 1:
+      return {mid, q, p};
+    case 2:
+      return {p, q, mid};
+    case 3:
+      return {p, mid, q};
+    case 4:
+      return {mid, p, q};
+    default:
+      return {q, p, mid};
+  }
+}
+
+}  // namespace
+
+std::optional<std::array<double, 3>> hue_saturation_transfer(std::array<double, 3> color,
+                                                             const HueSaturationAdjustment& settings,
+                                                             bool unbounded) {
+  if (settings.colorize) {
+    return std::nullopt;
+  }
+  const auto hue_shift = std::clamp(settings.hue_shift, -180, 180);
+  const auto saturation_delta = std::clamp(settings.saturation_delta, -100, 100);
+  const auto lightness_delta = std::clamp(settings.lightness_delta, -100, 100);
+  std::array<double, 6> band_weights{};
+  if (settings.any_band_has_effect()) {
+    const auto wheel = wheel_position_continuous(color);
+    int sector = 0;
+    double interpolant = 0.0;
+    photoshop_wheel_split(wheel, sector, interpolant);
+    auto maximum = std::max({color[0], color[1], color[2]});
+    auto minimum = std::min({color[0], color[1], color[2]});
+    double lightness = 0.0;
+    for (std::size_t index = 0; index < settings.bands.size(); ++index) {
+      const auto& band = settings.bands[index];
+      if (!band.has_effect()) {
+        continue;
+      }
+      band_weights[index] = hue_saturation_band_weight(wheel / 4.25, band);
+      lightness += band_weights[index] * std::clamp(band.lightness_delta, -100, 100);
+    }
+    if (lightness > 0.0) {
+      minimum += (maximum - minimum) * std::min(lightness, 100.0) / 100.0;
+    } else if (lightness < 0.0) {
+      maximum += (minimum - maximum) * std::min(-lightness, 100.0) / 100.0;
+    }
+    color = reconstruct_continuous((maximum + minimum) * 0.5, (maximum - minimum) * 0.5, sector, interpolant,
+                                   unbounded);
+  }
+  // The lightness slider per channel; at depth the percent is exact (8 bits quantize
+  // it to whole bytes).
+  const auto fraction = static_cast<double>(std::abs(lightness_delta)) / 100.0;
+  std::array<double, 3> lit{};
+  for (std::size_t c = 0; c < 3U; ++c) {
+    const auto value = color[c];
+    lit[c] = lightness_delta > 0   ? value + (255.0 - value) * fraction
+             : lightness_delta < 0 ? value * (1.0 - fraction)
+                                   : value;
+  }
+  const auto maximum = std::max({lit[0], lit[1], lit[2]});
+  const auto minimum = std::min({lit[0], lit[1], lit[2]});
+  if (maximum == minimum) {
+    return lit;
+  }
+  const auto light = (maximum + minimum) * 0.5;
+  const auto half = (maximum - minimum) * 0.5;
+  auto band_saturation_offset = 0.0;
+  auto rotation = static_cast<double>(hue_shift) * 4.25;
+  for (std::size_t index = 0; index < settings.bands.size(); ++index) {
+    const auto weight = band_weights[index];
+    if (weight <= 0.0) {
+      continue;
+    }
+    const auto& band = settings.bands[index];
+    const auto band_saturation = std::clamp(band.saturation_delta, -100, 100);
+    if (band_saturation != 0) {
+      band_saturation_offset +=
+          weight * (kDeepSaturationScale[static_cast<std::size_t>(band_saturation + 100)] - 1.0);
+    }
+    const auto band_hue = std::clamp(band.hue_shift, -180, 180);
+    if (band_hue != 0) {
+      rotation += weight * static_cast<double>(band_hue) * 4.25;
+    }
+  }
+  const auto ratio = kDeepSaturationScale[static_cast<std::size_t>(saturation_delta + 100)] *
+                     std::max(0.0, 1.0 + band_saturation_offset);
+  auto half_chroma = half * ratio;
+  if (!unbounded) {
+    half_chroma = std::min(half_chroma, std::max(std::min(light, 255.0 - light), half));
+  }
+  int sector = 0;
+  double interpolant = 0.0;
+  photoshop_wheel_split(wheel_position_continuous(lit) + rotation, sector, interpolant);
+  return reconstruct_continuous(light, half_chroma, sector, interpolant, unbounded);
+}
+
+double levels_gamma_curve(double normalized, double gamma) {
+  return photoshop_levels_gamma(normalized, gamma);
+}
+
+double levels_record_transfer(double value, LevelsRecord record) {
+  return levels_value(value, record);
+}
+
+double brightness_contrast_transfer(double value, int brightness, int contrast, bool use_legacy) {
+  if (!use_legacy) {
+    const auto b = std::clamp(brightness, -kModernBrightnessRange, kModernBrightnessRange);
+    const auto c = std::clamp(contrast, kModernContrastMin, kModernContrastMax);
+    return 255.0 * modern_contrast_value(c, modern_brightness_value(b, std::clamp(value / 255.0, 0.0, 1.0)));
+  }
+  const auto b = static_cast<double>(std::clamp(brightness, -100, 100));
+  const auto c = std::clamp(contrast, -100, 100);
+  if (c == 0) {
+    return std::clamp(value + b, 0.0, 255.0);
+  }
+  if (c >= 100) {
+    return value + b >= 127.0 ? 255.0 : 0.0;
+  }
+  if (c > 0) {
+    return std::clamp((value + b - 127.5) * 100.0 / (100.0 - c) + 127.5, 0.0, 255.0);
+  }
+  return std::clamp((value - 127.5) * (100.0 + c) / 100.0 + 127.5 + b, 0.0, 255.0);
+}
+
+double exposure_transfer(double value, ExposureAdjustment settings) {
+  settings = clamp_exposure(settings);
+  constexpr double kDisplayGamma = 2.2;
+  const auto linear = std::pow(std::clamp(value / 255.0, 0.0, 1.0), kDisplayGamma);
+  const auto exposed = linear * std::pow(2.0, static_cast<double>(settings.exposure_hundredths) / 100.0) +
+                       static_cast<double>(settings.offset_ten_thousandths) / 10000.0;
+  const auto corrected =
+      std::pow(std::max(0.0, exposed), 100.0 / static_cast<double>(settings.gamma_hundredths));
+  return 255.0 * std::pow(std::clamp(corrected, 0.0, 1.0), 1.0 / kDisplayGamma);
 }
 
 bool layer_is_adjustment(const Layer& layer) {

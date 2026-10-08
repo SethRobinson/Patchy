@@ -91,10 +91,10 @@ double map_levels_real(double value, LevelsRecord record) {
   record = clamp_levels_record(record);
   const auto input_range = static_cast<double>(record.white_input - record.black_input);
   const auto gamma = static_cast<double>(record.gamma_percent) / 100.0;
-  const auto inverse_gamma = gamma <= 0.0 ? 1.0 : 1.0 / gamma;
   const auto output_range = static_cast<double>(record.white_output - record.black_output);
   const auto normalized = std::clamp((value - static_cast<double>(record.black_input)) / input_range, 0.0, 1.0);
-  return static_cast<double>(record.black_output) + std::pow(normalized, inverse_gamma) * output_range;
+  const auto leveled = gamma <= 0.0 ? normalized : levels_gamma_curve(normalized, gamma);
+  return static_cast<double>(record.black_output) + leveled * output_range;
 }
 
 std::uint8_t levels_byte(double value) {

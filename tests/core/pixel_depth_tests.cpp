@@ -252,6 +252,21 @@ void depth_problems_name_the_buffers_that_break_the_invariant() {
   CHECK(problems[0] == "layer 'Pasted' is 8-bit");
 }
 
+void display_bytes_match_the_8_bit_reading_at_every_depth() {
+  // Previews (layer thumbnails) read any depth as display bytes; for content that came
+  // from 8 bits that is the original byte at every depth.
+  const auto source = every_byte_rgba();
+  for (const auto depth : {BitDepth::UInt8, BitDepth::UInt16, BitDepth::Float32}) {
+    const auto deep = convert_pixel_buffer_depth(source, depth, SampleKind::Color);
+    for (std::int32_t x = 0; x < source.width(); ++x) {
+      const auto bytes = display_rgba8_at(deep, x, 0);
+      for (int c = 0; c < 4; ++c) {
+        CHECK(bytes[static_cast<std::size_t>(c)] == source.pixel(x, 0)[c]);
+      }
+    }
+  }
+}
+
 void deep_editing_gate_can_be_overridden() {
   set_deep_editing_override(true);
   CHECK(deep_editing_enabled());
@@ -274,6 +289,8 @@ std::vector<patchy::test::TestCase> pixel_depth_tests() {
        document_depth_conversion_covers_every_buffer_and_round_trips},
       {"pixel_depth_problems_name_the_buffers_that_break_the_invariant",
        depth_problems_name_the_buffers_that_break_the_invariant},
+      {"pixel_depth_display_bytes_match_the_8_bit_reading_at_every_depth",
+       display_bytes_match_the_8_bit_reading_at_every_depth},
       {"pixel_depth_gate_can_be_overridden", deep_editing_gate_can_be_overridden},
   };
 }

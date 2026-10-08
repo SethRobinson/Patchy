@@ -4,10 +4,14 @@
 #include "core/blend_math.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/pattern_sampler.hpp"
+#include "core/pixel_depth.hpp"
 
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <map>
+#include <mutex>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -1109,6 +1113,70 @@ void update_vector_shape_raster(Layer& layer, Rect canvas, const PatternStore* p
   updated.effect_matte_cache = std::move(raster.matte_pixels);
   layer.set_vector_shape(std::move(updated));
   layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
+}
+
+std::shared_ptr<const PixelBuffer> deep_gradient_fill_raster(const Layer& layer, BitDepth depth) {
+  const auto* shape = layer.vector_shape();
+  const auto bounds = layer.bounds();
+  if (shape == nullptr || depth == BitDepth::UInt8 || bounds.empty() || !shape->parts.empty() ||
+      shape->fill.kind != VectorFillKind::Gradient || !shape->stroke.fill_enabled || shape->feather > 0.05 ||
+      shape->density != 255 || shape->path_inverted ||
+      (shape->stroke.enabled && shape->stroke.width > 0.0 && shape->stroke.opacity > 0.0 &&
+       shape->stroke.content.kind != VectorFillKind::None && !shape->path.empty() && !shape->path_disabled)) {
+    return nullptr;
+  }
+  const bool full_canvas = shape->path.empty() || shape->path_disabled;
+  if (!shape->fill.gradient.align_with_layer && !full_canvas) {
+    return nullptr;
+  }
+  // Keyed like the other render caches: the content revision changes with every edit of
+  // the shape or its pixels, the bounds with a move.
+  using Key = std::tuple<std::uint64_t, std::int32_t, std::int32_t, std::int32_t, std::int32_t, int>;
+  static std::mutex mutex;
+  static std::map<Key, std::shared_ptr<const PixelBuffer>> cache;
+  const Key key{layer.content_revision(), bounds.x, bounds.y, bounds.width, bounds.height, static_cast<int>(depth)};
+  {
+    const std::lock_guard lock(mutex);
+    if (const auto found = cache.find(key); found != cache.end()) {
+      return found->second;
+    }
+  }
+  VectorRasterOptions options;
+  options.clip = bounds;
+  const auto coverage = full_canvas ? rasterize_vector_path(VectorPath{}, options)
+                                    : rasterize_vector_path(shape->path, options);
+  if (coverage.bounds.x != bounds.x || coverage.bounds.y != bounds.y || coverage.bounds.width != bounds.width ||
+      coverage.bounds.height != bounds.height) {
+    return nullptr;  // not the geometry the 8-bit raster baked
+  }
+  const auto linear = depth == BitDepth::Float32;
+  const auto domain = deep_domain_for(depth);
+  PixelBuffer pixels(bounds.width, bounds.height, with_bit_depth(PixelFormat::rgba8(), depth));
+  std::vector<float> row(static_cast<std::size_t>(bounds.width) * 4U);
+  for (std::int32_t y = 0; y < bounds.height; ++y) {
+    const auto* cov_row = coverage.pixels.row(y).data();
+    for (std::int32_t x = 0; x < bounds.width; ++x) {
+      const auto document_x = bounds.x + x;
+      const auto document_y = bounds.y + y;
+      const auto position = gradient_position(shape->fill.gradient, bounds, document_x, document_y,
+                                              GradientSpanBasis::CenterChord);
+      const auto color = gradient_color_precise(shape->fill.gradient, position, true, linear);
+      const auto opacity = gradient_stop_opacity(shape->fill.gradient, position, true);
+      auto* px = row.data() + static_cast<std::size_t>(x) * 4U;
+      px[0] = static_cast<float>(color[0]);
+      px[1] = static_cast<float>(color[1]);
+      px[2] = static_cast<float>(color[2]);
+      px[3] = static_cast<float>(cov_row[x]) * opacity;
+    }
+    store_rgba_row(pixels, y, 0, bounds.width, domain, row);
+  }
+  auto result = std::make_shared<const PixelBuffer>(std::move(pixels));
+  const std::lock_guard lock(mutex);
+  if (cache.size() >= 64U) {
+    cache.clear();
+  }
+  cache.emplace(key, result);
+  return result;
 }
 
 void refresh_vector_shape_effect_matte(Layer& layer, Rect canvas, const PatternStore* patterns) {
