@@ -110,6 +110,9 @@ The large quarantine keeps long-ago frees poisoned for the whole run, so the hos
 
 ## Platform-specific site inventory (keep current)
 
+- Windows Explorer branding: `src/app/patchy.rc.in` embeds the display name and
+  project version in every app build; the installer registers the same
+  `Patchy Image Editor` name. See [Windows packaging](../packaging/windows/README.md#open-with).
 - `main_window_chrome.cpp` + the `use_custom_window_chrome()` call sites in `main_window.cpp` (frameless flag, chrome controls).
 - `psd_document_io.cpp` DirectWrite font resolution + wide-string helpers (portable heuristic fallback).
 - `layer_list_widget.cpp` drag-wheel low-level mouse hook (degrades gracefully).

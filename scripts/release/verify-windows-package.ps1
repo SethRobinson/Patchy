@@ -148,7 +148,7 @@ try {
         $friendlyName = (Get-ItemProperty -Path $applicationKey).FriendlyAppName
         $command = (Get-ItemProperty -Path (Join-Path $applicationKey "shell\open\command")).'(default)'
         $types = @((Get-Item -Path (Join-Path $applicationKey "SupportedTypes")).GetValueNames())
-        if ($friendlyName -ne "Patchy") {
+        if ($friendlyName -ne "Patchy Image Editor") {
             $openWithProblem = "FriendlyAppName is '$friendlyName'"
         } elseif ($command -notmatch '^"[^"]+\\patchy\.exe" "%1"$') {
             $openWithProblem = "command is $command"
@@ -190,6 +190,18 @@ $listed = @(Get-Content -LiteralPath $manifestPath | Where-Object { $_ -ne "" })
 $actual = @(Get-ChildItem -LiteralPath $appDir -Recurse -File | ForEach-Object { $_.FullName.Substring($prefix.Length) })
 $difference = @(Compare-Object -ReferenceObject $listed -DifferenceObject $actual)
 Write-Step ($difference.Count -eq 0) "zip contents match the install manifest ($($actual.Count) files)" $(if ($difference.Count) { (($difference | Select-Object -First 5 | ForEach-Object { $_.SideIndicator + " " + $_.InputObject }) -join "; ") } else { "" })
+
+# 4b. Explorer must also have a friendly name for portable copies, which never run
+#     the installer. Read the actual executable resource, not the source template.
+$appVersion = [Diagnostics.FileVersionInfo]::GetVersionInfo((Join-Path $appDir "patchy.exe"))
+$metadataOk = $appVersion.FileDescription -eq "Patchy Image Editor" -and
+    $appVersion.ProductName -eq "Patchy" -and
+    $appVersion.FileVersion -eq $Version -and
+    $appVersion.ProductVersion -eq $Version -and
+    $appVersion.OriginalFilename -eq "patchy.exe"
+Write-Step $metadataOk "executable display name and version" $(if (-not $metadataOk) {
+    "description='$($appVersion.FileDescription)', product='$($appVersion.ProductName)', file version='$($appVersion.FileVersion)', product version='$($appVersion.ProductVersion)', original name='$($appVersion.OriginalFilename)'"
+} else { "" })
 
 # 5. The tree is self-contained. Every import of every executable and DLL must be in the
 #    tree or be part of Windows. Redistributables found only in System32 do not count: the

@@ -1549,11 +1549,24 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       add_dependencies(patchy-mcp patchy_check_translation_runtime)
     endif()
     if(WIN32)
-      target_sources(patchy PRIVATE src/app/patchy.rc)
+      # VERSIONINFO requires four decimal components. Release names such as
+      # 1.08 keep their spelling in strings, but must not become octal RC literals.
+      set(PATCHY_WINDOWS_VERSION_PARTS)
+      foreach(component MAJOR MINOR PATCH TWEAK)
+        string(REGEX REPLACE "^0+" "" part "${PROJECT_VERSION_${component}}")
+        if(part STREQUAL "")
+          set(part 0)
+        endif()
+        list(APPEND PATCHY_WINDOWS_VERSION_PARTS "${part}")
+      endforeach()
+      list(JOIN PATCHY_WINDOWS_VERSION_PARTS "," PATCHY_WINDOWS_VERSION)
+      set(PATCHY_WINDOWS_RESOURCE "${CMAKE_CURRENT_BINARY_DIR}/generated/patchy.rc")
+      configure_file(src/app/patchy.rc.in "${PATCHY_WINDOWS_RESOURCE}" @ONLY)
+      target_sources(patchy PRIVATE "${PATCHY_WINDOWS_RESOURCE}")
       # The resource compiler's dependency scan follows #include only, not the
       # ICON statement, so a changed icon left a stale patchy.rc.res (and the
       # old taskbar/Explorer icon) in every existing build tree.
-      set_source_files_properties(src/app/patchy.rc PROPERTIES
+      set_source_files_properties("${PATCHY_WINDOWS_RESOURCE}" PROPERTIES
         OBJECT_DEPENDS "${PROJECT_SOURCE_DIR}/src/app/patchy.ico")
     endif()
     if(APPLE)

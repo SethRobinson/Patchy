@@ -50,7 +50,7 @@ The installer copies a signed `UninstallPatchy.exe` into the installed app folde
 
 The installer lists Patchy under Explorer's "Open with" for the image types it opens (the `$PatchyOpenWithExtensions` list in `InstallPatchy.ps1`; PDF is left out). It writes, all under `HKCU\Software\Classes`:
 
-- `Applications\patchy.exe` (`FriendlyAppName`, `shell\open\command`, `SupportedTypes`), which names the app;
+- `Applications\patchy.exe` (`FriendlyAppName` = `Patchy Image Editor`, `shell\open\command`, `SupportedTypes`), which names the app;
 - the `Patchy.Image` ProgID (a persisted identifier) with the same open command;
 - a `Patchy.Image` value in each extension's `OpenWithProgids` list. This is what puts Patchy in the "Open with" submenu: the `Applications` key alone only reaches "Choose another app" (measured with `SHAssocEnumHandlers` on Windows 11, October 2026).
 
@@ -60,6 +60,13 @@ This registration must stay passive: no extension's default value, `UserChoice`,
 
 The uninstaller removes all of it when the registered command points into the install being removed, taking only its own value out of each `OpenWithProgids` list and deleting an extension key only when that leaves it empty. On the Windows offload host an install followed by an uninstall left the `HKCU\Software\Classes` extension keys identical to before. The portable zip registers nothing.
 
+Every Windows app build embeds `FileDescription = Patchy Image Editor` and
+`ProductName = Patchy` in its version resource, so a portable copy also has a display
+name when chosen through Explorer. These are fixed product branding, independent
+of the in-app language. `src/app/patchy.rc.in` is configured from the CMake project
+version; preserve the textual version (for example `1.07`) while normalizing the
+four numeric resource components to decimal (`1,7,0,0`).
+
 ## Package verification
 
 After signing, `build-release.bat` runs `scripts\release\verify-windows-package.ps1` on the finished installer and zip. Nothing is installed: no install folder, shortcut, or registry key is touched, apart from a `HKCU\Software\PatchyVerify-<guid>` scratch key the "Open with" check writes and deletes. It:
@@ -68,6 +75,8 @@ After signing, `build-release.bat` runs `scripts\release\verify-windows-package.
 - runs the unpacked `InstallPatchy.ps1` with the launcher's arguments plus `-SmokeTest`, which builds the whole wizard, shows it invisibly, and closes it. A wizard that cannot open fails here (issue 55);
 - runs it again with `-OpenWithCheckRoot <scratch key>`, which writes the "Open with" registration under that key instead of the real Classes tree, and checks the name, the command, the type list, and that an extension gets the ProgID in `OpenWithProgids` with no default value;
 - unpacks the zip and compares it with `PatchyInstallManifest.txt`;
+- checks the unpacked executable's display name, product name, original filename,
+  and file/product versions against the package version;
 - reads the imports of every executable and DLL with `dumpbin` and requires each one to be in the package or part of Windows. Qt and Visual C++ runtime DLLs must be in the package even when the build machine has copies in System32;
 - runs `packaging\package-selftest.js` on the unpacked `patchy.exe` with only Windows on `PATH`: every image format plugin writes and reads a file, the bundled font is listed, the scripts, translations, AI kit and TLS plugin are present, and a 32-bit and a 64-bit legacy plug-in run through their hosts;
 - runs the unpacked `patchy-mcp.exe --check`.

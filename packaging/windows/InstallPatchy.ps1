@@ -492,7 +492,7 @@ function Register-PatchyOpenWith {
         Set-ItemProperty -Path $commandKey -Name "(default)" -Value $command
     }
     New-Item -Path $supportedTypesKey -Force | Out-Null
-    New-ItemProperty -Path $applicationKey -Name "FriendlyAppName" -Value "Patchy" -PropertyType String -Force | Out-Null
+    New-ItemProperty -Path $applicationKey -Name "FriendlyAppName" -Value "Patchy Image Editor" -PropertyType String -Force | Out-Null
     foreach ($extension in $PatchyOpenWithExtensions) {
         New-ItemProperty -Path $supportedTypesKey -Name ".$extension" -Value "" -PropertyType String -Force | Out-Null
         $progIdsKey = Join-Path $ClassesRoot ".$extension\OpenWithProgids"
