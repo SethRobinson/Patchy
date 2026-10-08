@@ -1,6 +1,7 @@
 #include "core/document.hpp"
 
 #include "core/layer_render_utils.hpp"
+#include "core/pixel_depth.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
@@ -172,7 +173,8 @@ DocumentChannel& Document::add_channel(DocumentChannel channel) {
     throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "Document channel ids must be unique"));
   }
   const auto& pixels = std::as_const(channel).pixels();
-  if (pixels.format() != PixelFormat::gray8()) {
+  if (pixels.format() != with_bit_depth(PixelFormat::gray8(), pixels.format().bit_depth)) {
+    // Any depth (16/32-bit documents keep deep channels, docs/high-bit-depth.md).
     throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "Document channels must use 8-bit grayscale pixels"));
   }
   if (pixels.width() != width_ || pixels.height() != height_) {

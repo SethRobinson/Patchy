@@ -8893,6 +8893,14 @@ RGB：%2, %3, %4</translation>
         <source>Pixel dimensions are locked. Only the print resolution and the print size change.</source>
         <translation>像素尺寸已鎖定。只有列印解析度與列印尺寸會更改。</translation>
     </message>
+    <message>
+        <source>Pixel row access is outside the buffer</source>
+        <translation>像素列存取超出緩衝區範圍</translation>
+    </message>
+    <message>
+        <source>RGBA rows need a color buffer</source>
+        <translation>RGBA 列需要色彩緩衝區</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

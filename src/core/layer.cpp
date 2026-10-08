@@ -513,7 +513,8 @@ void Layer::set_pixels(PixelBuffer pixels) {
 }
 
 void Layer::set_mask(LayerMask mask) {
-  if (mask.pixels.format() != PixelFormat::gray8()) {
+  // Any depth: 16/32-bit documents keep deep masks (docs/high-bit-depth.md).
+  if (mask.pixels.format().channels != 1 || mask.pixels.format().color_mode != ColorMode::Grayscale) {
     throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "Layer masks must use 8-bit grayscale pixels"));
   }
   if (mask.bounds.width != mask.pixels.width() || mask.bounds.height != mask.pixels.height()) {

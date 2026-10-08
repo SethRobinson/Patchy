@@ -1,5 +1,6 @@
 #include "core/document_channel.hpp"
 
+#include "core/pixel_depth.hpp"
 #include "support/translate_noop.hpp"
 
 #include <atomic>
@@ -22,7 +23,8 @@ std::uint64_t next_document_channel_revision() noexcept {
 }
 
 void validate_channel_pixels(const PixelBuffer& pixels) {
-  if (pixels.format() != PixelFormat::gray8()) {
+  if (pixels.format() != with_bit_depth(PixelFormat::gray8(), pixels.format().bit_depth)) {
+    // Any depth (16/32-bit documents keep deep channels, docs/high-bit-depth.md).
     throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "Document channels must use 8-bit grayscale pixels"));
   }
 }

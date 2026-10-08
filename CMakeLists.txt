@@ -101,6 +101,7 @@ add_library(patchy_core
   src/core/contour_presets.cpp
   src/core/document.cpp
   src/core/document_channel.cpp
+  src/core/document_depth.cpp
   src/core/document_memory.cpp
   src/core/document_recovery_store.cpp
   src/support/atomic_file_write.cpp
@@ -127,6 +128,7 @@ add_library(patchy_core
   src/core/pattern_resource.cpp
   src/core/photo_divide.cpp
   src/core/pixel_buffer.cpp
+  src/core/pixel_depth.cpp
   src/core/pixel_tools.cpp
   src/core/quick_select.cpp
   src/core/rect_utils.cpp
@@ -1721,6 +1723,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/pat_asl_abr_tests.cpp
     tests/core/pattern_styles_fixtures_tests.cpp
     tests/core/photo_divide_tests.cpp
+    tests/core/pixel_depth_tests.cpp
     tests/core/pixel_tools_tests.cpp
     tests/core/psd_core_io_tests.cpp
     tests/core/psd_structure_tests.cpp

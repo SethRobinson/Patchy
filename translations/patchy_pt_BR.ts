@@ -8923,6 +8923,14 @@ RGB: %2, %3, %4</translation>
         <source>Pixel dimensions are locked. Only the print resolution and the print size change.</source>
         <translation>As dimensões em pixels estão travadas. Só a resolução e o tamanho de impressão mudam.</translation>
     </message>
+    <message>
+        <source>Pixel row access is outside the buffer</source>
+        <translation>O acesso à linha de pixels está fora do buffer</translation>
+    </message>
+    <message>
+        <source>RGBA rows need a color buffer</source>
+        <translation>Linhas RGBA precisam de um buffer de cor</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
