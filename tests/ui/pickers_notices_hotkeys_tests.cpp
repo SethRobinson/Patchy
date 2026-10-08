@@ -510,6 +510,13 @@ void ui_dialog_position_memory_restores_last_position() {
     saved_position = dialog.pos();
     dialog.close();
     QApplication::processEvents();
+    // Reusing the same dialog must retain the position saved by its first
+    // opening, even when the second opening needs no user move.
+    dialog.show();
+    QApplication::processEvents();
+    CHECK((dialog.pos() - saved_position).manhattanLength() <= 2);
+    dialog.close();
+    QApplication::processEvents();
   }
 
   {
@@ -690,6 +697,104 @@ void ui_message_boxes_and_marked_dialogs_ignore_position_memory() {
     settings.remove(group);
     settings.sync();
   }
+}
+
+void ui_message_boxes_stay_inside_screen_with_offscreen_parent() {
+  const auto* screen = QApplication::primaryScreen();
+  CHECK(screen != nullptr);
+  const auto available = screen->availableGeometry();
+  QWidget parent;
+  parent.resize(420, 260);
+  parent.show();
+  QApplication::processEvents();
+
+  // Every edge, a corner, and an owner wholly outside the screen. The final
+  // message-box size and native title bar must fit, not just its size hint.
+  const std::vector<QPoint> positions{
+      QPoint(available.left() - parent.width() + 20, available.center().y()),
+      QPoint(available.right() - 20, available.center().y()),
+      QPoint(available.center().x(), available.top() - parent.height() + 20),
+      QPoint(available.center().x(), available.bottom() - 20),
+      available.bottomRight() - QPoint(20, 20),
+      available.bottomRight() + QPoint(100, 100)};
+  for (const auto position : positions) {
+    parent.move(position);
+    QApplication::processEvents();
+    for (const auto icon : {QMessageBox::Warning, QMessageBox::Information, QMessageBox::Critical}) {
+      QMessageBox box(icon, QStringLiteral("Save changes?"),
+                      QStringLiteral("Save changes to Untitled-1 before closing?"),
+                      QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel, &parent);
+      patchy::ui::remember_dialog_position(box);
+      box.show();
+      QApplication::processEvents();
+      const auto frame = box.frameGeometry();
+      const auto dialog_available = box.screen()->availableGeometry();
+      box.reject();
+      CHECK(dialog_available.contains(frame));
+    }
+  }
+}
+
+void ui_dialog_position_memory_clamps_native_frame_without_remembering_placement() {
+  const auto* screen = QApplication::primaryScreen();
+  CHECK(screen != nullptr);
+  const auto available = screen->availableGeometry();
+  const auto group = QStringLiteral("dialogPositions/patchyDialogFrameClampTest");
+  auto settings = patchy::ui::app_settings();
+  settings.remove(group);
+
+  QWidget parent;
+  parent.resize(420, 260);
+  parent.move(available.bottomRight() - QPoint(20, 20));
+  parent.show();
+  QApplication::processEvents();
+  for (const bool remembered : {false, true}) {
+    if (remembered) {
+      settings.setValue(group + QStringLiteral("/pos"), available.bottomRight() - QPoint(20, 20));
+      settings.setValue(group + QStringLiteral("/moved"), true);
+      settings.sync();
+    }
+    QDialog dialog(&parent);
+    dialog.setObjectName(QStringLiteral("patchyDialogFrameClampTest"));
+    dialog.resize(240, 120);
+    patchy::ui::remember_dialog_position(dialog);
+    dialog.show();
+    QApplication::processEvents();
+    const auto frame = dialog.frameGeometry();
+    const auto dialog_available = dialog.screen()->availableGeometry();
+    dialog.reject();
+    settings.sync();
+    CHECK(dialog_available.contains(frame));
+    CHECK(settings.value(group + QStringLiteral("/moved"), false).toBool() == remembered);
+  }
+  settings.remove(group);
+}
+
+void ui_message_box_expanded_details_stay_inside_screen() {
+  QMessageBox box(QMessageBox::Warning, QStringLiteral("Warning"), QStringLiteral("Details are available."),
+                  QMessageBox::Ok);
+  box.setDetailedText(QStringLiteral("Additional information about this warning."));
+  patchy::ui::remember_dialog_position(box);
+  box.show();
+  QApplication::processEvents();
+  const auto available = box.screen()->availableGeometry();
+  box.move(QPoint(available.left() + 10, available.bottom() - box.frameGeometry().height() + 1));
+  QApplication::processEvents();
+  const int collapsed_height = box.frameGeometry().height();
+  bool clicked_details = false;
+  for (auto* button : box.buttons()) {
+    if (box.buttonRole(button) == QMessageBox::ActionRole) {
+      button->click();
+      clicked_details = true;
+      break;
+    }
+  }
+  QApplication::processEvents();
+  const auto expanded_frame = box.frameGeometry();
+  box.reject();
+  CHECK(clicked_details);
+  CHECK(expanded_frame.height() > collapsed_height);
+  CHECK(available.contains(expanded_frame));
 }
 
 void ui_dirty_state_marks_tabs_and_undo_restores_saved_revision() {
@@ -2143,6 +2248,11 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
        ui_progress_dialogs_ignore_position_memory_and_center_on_parent},
       {"ui_message_boxes_and_marked_dialogs_ignore_position_memory",
        ui_message_boxes_and_marked_dialogs_ignore_position_memory},
+      {"ui_message_boxes_stay_inside_screen_with_offscreen_parent",
+       ui_message_boxes_stay_inside_screen_with_offscreen_parent},
+      {"ui_message_box_expanded_details_stay_inside_screen", ui_message_box_expanded_details_stay_inside_screen},
+      {"ui_dialog_position_memory_clamps_native_frame_without_remembering_placement",
+       ui_dialog_position_memory_clamps_native_frame_without_remembering_placement},
       {"ui_dirty_state_marks_tabs_and_undo_restores_saved_revision",
        ui_dirty_state_marks_tabs_and_undo_restores_saved_revision},
       {"ui_compatibility_report_flags_psd_text_placeholders",

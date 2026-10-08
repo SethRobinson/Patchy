@@ -1951,6 +1951,11 @@ void ui_save_prompt_uses_save_dont_save_cancel_with_letter_hotkeys() {
 
   patchy::ui::MainWindow window;
   show_window(window);
+  CHECK(window.screen() != nullptr);
+  // Closing a partly offscreen main window must leave every prompt button
+  // reachable, including the native frame below the message-box content.
+  window.move(window.screen()->availableGeometry().bottomRight() - QPoint(80, 80));
+  QApplication::processEvents();
   auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
   CHECK(tabs != nullptr);
 
@@ -1964,9 +1969,11 @@ void ui_save_prompt_uses_save_dont_save_cancel_with_letter_hotkeys() {
   // the button layout. The prompt runs a nested event loop, hence the timer.
   bool prompt_seen = false;
   bool buttons_are_save_dont_save_cancel = false;
+  bool prompt_is_inside_screen = false;
   const auto dismiss_prompt_with_key = [&](int key) {
     prompt_seen = false;
     buttons_are_save_dont_save_cancel = false;
+    prompt_is_inside_screen = false;
     auto* dismiss_timer = new QTimer(&window);
     dismiss_timer->setInterval(10);
     QObject::connect(dismiss_timer, &QTimer::timeout, &window, [&, key, dismiss_timer] {
@@ -1975,6 +1982,8 @@ void ui_save_prompt_uses_save_dont_save_cancel_with_letter_hotkeys() {
         return;
       }
       prompt_seen = true;
+      prompt_is_inside_screen = dialog->screen() != nullptr &&
+                                dialog->screen()->availableGeometry().contains(dialog->frameGeometry());
       auto* save = dialog->button(QMessageBox::Save);
       auto* discard = dialog->button(QMessageBox::Discard);
       buttons_are_save_dont_save_cancel =
@@ -2005,6 +2014,7 @@ void ui_save_prompt_uses_save_dont_save_cancel_with_letter_hotkeys() {
     QApplication::processEvents();
     CHECK(prompt_seen);
     CHECK(buttons_are_save_dont_save_cancel);
+    CHECK(prompt_is_inside_screen);
     CHECK(tabs->count() == tabs_before_close - 1);
   };
   const auto reopen = [&] {

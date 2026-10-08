@@ -809,6 +809,15 @@ QSize dialog_placement_size(const QDialog& dialog) {
   return size;
 }
 
+QSize dialog_placement_frame_size(const QDialog& dialog) {
+  // Before show(), use the size hint. Once visible, QMessageBox has chosen
+  // its actual size and the platform has supplied the title bar and borders.
+  if (dialog.isVisible()) {
+    return dialog.frameGeometry().size();
+  }
+  return dialog_placement_size(dialog) + (dialog.frameGeometry().size() - dialog.size());
+}
+
 QRect dialog_owner_geometry(const QDialog& dialog) {
   if (auto* parent = dialog.parentWidget(); parent != nullptr) {
     if (auto* owner = parent->window(); owner != nullptr && owner != &dialog && owner->frameGeometry().isValid()) {
@@ -831,7 +840,7 @@ QRect dialog_owner_geometry(const QDialog& dialog) {
 }
 
 QPoint clamped_dialog_position(const QDialog& dialog, QPoint position) {
-  const auto size = dialog_placement_size(dialog);
+  const auto size = dialog_placement_frame_size(dialog);
   QScreen* screen = QGuiApplication::screenAt(position + QPoint(size.width() / 2, size.height() / 2));
   if (screen == nullptr && dialog.parentWidget() != nullptr) {
     screen = dialog.parentWidget()->screen();
@@ -853,7 +862,7 @@ QPoint clamped_dialog_position(const QDialog& dialog, QPoint position) {
 
 QPoint centered_dialog_position(const QDialog& dialog) {
   const auto owner = dialog_owner_geometry(dialog);
-  const auto size = dialog_placement_size(dialog);
+  const auto size = dialog_placement_frame_size(dialog);
   return clamped_dialog_position(
       dialog, owner.center() - QPoint(size.width() / 2, size.height() / 2));
 }
@@ -878,7 +887,7 @@ bool restore_dialog_position(QDialog& dialog) {
   // dialog away from the app: fall back to centering on the owner instead.
   if (auto* parent = dialog.parentWidget(); parent != nullptr) {
     if (auto* owner_screen = parent->window()->screen(); owner_screen != nullptr) {
-      const QRect remembered(stored_position.toPoint(), dialog_placement_size(dialog));
+      const QRect remembered(stored_position.toPoint(), dialog_placement_frame_size(dialog));
       if (!remembered.intersects(owner_screen->availableGeometry())) {
         return false;
       }
@@ -975,11 +984,11 @@ void clamp_dialog_to_screen(QDialog& dialog) {
 }
 #endif
 
-void place_dialog(QDialog& dialog) {
+void place_dialog(QDialog& dialog, bool remember_position) {
 #ifdef Q_OS_WASM
   clamp_dialog_to_screen(dialog);
 #endif
-  if (!restore_dialog_position(dialog)) {
+  if (!remember_position || !restore_dialog_position(dialog)) {
     dialog.move(centered_dialog_position(dialog));
   }
 }
@@ -1019,8 +1028,9 @@ bool has_remembered_dialog_position(const QDialog& dialog) {
 
 class DialogPositionMemoryFilter final : public QObject {
 public:
-  explicit DialogPositionMemoryFilter(QDialog& dialog, bool had_remembered_position, QObject* parent)
-      : QObject(parent), dialog_(dialog), had_remembered_position_(had_remembered_position),
+  explicit DialogPositionMemoryFilter(QDialog& dialog, bool remember_position, bool had_remembered_position)
+      : QObject(&dialog), dialog_(dialog), remember_position_(remember_position),
+        had_remembered_position_(had_remembered_position),
         placement_position_(dialog.pos()) {}
 
 protected:
@@ -1028,19 +1038,32 @@ protected:
     switch (event->type()) {
       case QEvent::Show:
         shown_ = true;
+        had_remembered_position_ = remember_position_ && has_remembered_dialog_position(dialog_);
+        initial_placement_pending_ = true;
+        user_moved_ = false;
         placement_position_ = dialog_.pos();
+        schedule_placement();
+        break;
+      case QEvent::Resize:
+        if (shown_) {
+          schedule_placement();
+        }
         break;
       case QEvent::Move:
-        if (shown_ && (dialog_.pos() - placement_position_).manhattanLength() > 2) {
+        if (shown_ && !initial_placement_pending_ && !placing_ &&
+            (dialog_.pos() - placement_position_).manhattanLength() > 2) {
           user_moved_ = true;
         }
         break;
       case QEvent::Close:
       case QEvent::Hide:
-        if (user_moved_) {
-          save_dialog_position(dialog_);
-        } else if (!had_remembered_position_) {
-          clear_dialog_position(dialog_);
+        shown_ = false;
+        if (remember_position_) {
+          if (user_moved_) {
+            save_dialog_position(dialog_);
+          } else if (!had_remembered_position_) {
+            clear_dialog_position(dialog_);
+          }
         }
         break;
       default:
@@ -1050,10 +1073,41 @@ protected:
   }
 
 private:
+  void schedule_placement() {
+    if (placement_scheduled_) {
+      return;
+    }
+    placement_scheduled_ = true;
+    // A Show filter runs before QMessageBox::showEvent finishes sizing the
+    // box. Recheck on the next turn, including native frame margins. Resize
+    // also covers a message box growing when its Details section opens.
+    QTimer::singleShot(0, this, [this] {
+      placement_scheduled_ = false;
+      if (!shown_ || !dialog_.isVisible()) {
+        return;
+      }
+      placing_ = true;
+      if (initial_placement_pending_) {
+        place_dialog(dialog_, remember_position_);
+      } else {
+        dialog_.move(clamped_dialog_position(dialog_, dialog_.pos()));
+      }
+      placing_ = false;
+      initial_placement_pending_ = false;
+      if (!user_moved_) {
+        placement_position_ = dialog_.pos();
+      }
+    });
+  }
+
   QDialog& dialog_;
-  const bool had_remembered_position_;
+  const bool remember_position_;
+  bool had_remembered_position_;
   bool shown_{false};
   bool user_moved_{false};
+  bool initial_placement_pending_{false};
+  bool placement_scheduled_{false};
+  bool placing_{false};
   QPoint placement_position_;
 };
 
@@ -1789,20 +1843,16 @@ void remember_dialog_position(QDialog& dialog) {
   // Message boxes (the save prompt, every question) and dialogs marked with
   // mark_dialog_always_centered (About) follow the same rule (Seth, October
   // 2026). Any position an older build saved under their names is dropped here.
-  if (qobject_cast<QProgressDialog*>(&dialog) != nullptr || qobject_cast<QMessageBox*>(&dialog) != nullptr ||
-      dialog.property(kDialogAlwaysCenteredProperty).toBool()) {
+  const bool remember_position = qobject_cast<QProgressDialog*>(&dialog) == nullptr &&
+                                 qobject_cast<QMessageBox*>(&dialog) == nullptr &&
+                                 !dialog.property(kDialogAlwaysCenteredProperty).toBool();
+  if (!remember_position) {
     clear_dialog_position(dialog);
-#ifdef Q_OS_WASM
-    clamp_dialog_to_screen(dialog);
-#endif
-    dialog.move(centered_dialog_position(dialog));
-    dialog.setProperty(kDialogPositionMemoryInstalledProperty, true);
-    return;
   }
 
-  const auto had_remembered_position = has_remembered_dialog_position(dialog);
-  place_dialog(dialog);
-  dialog.installEventFilter(new DialogPositionMemoryFilter(dialog, had_remembered_position, &dialog));
+  const auto had_remembered_position = remember_position && has_remembered_dialog_position(dialog);
+  place_dialog(dialog, remember_position);
+  dialog.installEventFilter(new DialogPositionMemoryFilter(dialog, remember_position, had_remembered_position));
   dialog.setProperty(kDialogPositionMemoryInstalledProperty, true);
 }
 

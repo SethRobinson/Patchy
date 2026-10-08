@@ -183,6 +183,8 @@ void set_dialog_position_memory_id(QDialog& dialog, const QString& id);
 // Opts a dialog out of position memory: it centers on its owner every time
 // and drops any saved position (what About and every message box want).
 void mark_dialog_always_centered(QDialog& dialog);
+// Places the complete window frame inside the available screen area, then
+// rechecks after Show/Resize when Qt has finalized its size and frame margins.
 void remember_dialog_position(QDialog& dialog);
 int exec_dialog(QDialog& dialog);
 int run_non_modal_dialog(QDialog& dialog);
