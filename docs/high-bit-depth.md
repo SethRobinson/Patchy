@@ -181,9 +181,10 @@ Each phase lands as verified commits; the gate stays off until Phase 9.
      bits use 1.2473). At 32 bits there is no gamut limit and no clamp.
    - 32-bit Luminosity is the PDF SetLum without ClipColor (negatives survive).
    The eyedropper picks deep documents from the deep render; layer thumbnails read
-   any depth (`display_rgba8_at`). Open in Phase 3: parallel strip rendering for deep
-   documents, Testy's `deepRender` from Patchy's 16-bit export (the cache-free leg's
-   composed `render.png` must then keep 16 bits), and the recovery store at depth.
+   any depth (`display_rgba8_at`). Large deep renders and flattens split into strips
+   under the 8-bit rules (`PATCHY_RENDER_SINGLE_THREADED` included). Open in Phase 3:
+   Testy's `deepRender` from Patchy's 16-bit export (the cache-free leg's composed
+   `render.png` must then keep 16 bits), and the recovery store at depth.
 4. **Layer operations and transforms.** Merge, flatten, duplicate, rasterize at depth,
    transforms, warp, liquify, crop, canvas size, copy/paste and Files as Layers across
    depths (convert on entry).

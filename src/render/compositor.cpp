@@ -10,6 +10,7 @@
 #include <array>
 #include <cstring>
 #include <future>
+#include <optional>
 #include <stdexcept>
 #include <thread>
 #include <vector>
@@ -243,10 +244,42 @@ private:
 
 PixelBuffer Compositor::flatten_rgba_deep(const Document& document) const {
   const auto canvas = Rect::from_size(document.width(), document.height());
-  render_detail::DeepCompositeTarget target(canvas, false, deep_domain_for(document.color_state().bit_depth));
-  render_detail::composite_layers(target, document.layers(), canvas, nullptr, true, nullptr,
-                                  &document.metadata().patterns);
-  return target.to_pixel_buffer();
+  const auto domain = deep_domain_for(document.color_state().bit_depth);
+  const auto flatten_strip = [&document, domain](Rect clip) {
+    render_detail::DeepCompositeTarget target(clip, false, domain);
+    render_detail::composite_layers(target, document.layers(), clip, nullptr, true, nullptr,
+                                    &document.metadata().patterns);
+    return target.to_pixel_buffer();
+  };
+  // Strips under flatten_rgb8's rules (below): clip compositing equals a full walk.
+  const auto area = static_cast<std::int64_t>(document.width()) * static_cast<std::int64_t>(document.height());
+  const auto strips = max_blocking_fanout_workers(
+      std::clamp(std::min(document.height() / 128, patchy::hardware_worker_threads()), 1, 16));
+  if (strips < 2 || area < 4'000'000 || environment_variable_is_set("PATCHY_RENDER_SINGLE_THREADED")) {
+    return flatten_strip(canvas);
+  }
+  struct StripJob {
+    Rect clip{};
+    std::future<PixelBuffer> pixels;
+  };
+  std::vector<StripJob> jobs;
+  const auto rows_per_strip = (document.height() + strips - 1) / strips;
+  for (std::int32_t start = 0; start < document.height(); start += rows_per_strip) {
+    const Rect clip{0, start, document.width(), std::min(rows_per_strip, document.height() - start)};
+    jobs.push_back(StripJob{clip, std::async(std::launch::async, flatten_strip, clip)});
+  }
+  std::optional<PixelBuffer> output;
+  for (auto& job : jobs) {
+    const auto strip = job.pixels.get();
+    if (!output.has_value()) {
+      output.emplace(document.width(), document.height(), strip.format());
+    }
+    for (std::int32_t row = 0; row < strip.height(); ++row) {
+      const auto source = strip.row(row);
+      std::memcpy(output->row(job.clip.y + row).data(), source.data(), source.size());
+    }
+  }
+  return std::move(*output);
 }
 
 PixelBuffer Compositor::flatten_rgb8(const Document& document, std::vector<std::uint8_t>* merged_alpha) const {

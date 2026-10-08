@@ -17,6 +17,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -395,6 +396,54 @@ void deep_hue_saturation_matches_photoshop_16_bit_samples() {
   }
 }
 
+void set_single_threaded_render(bool on) {
+#ifdef _WIN32
+  _putenv_s("PATCHY_RENDER_SINGLE_THREADED", on ? "1" : "");
+#else
+  if (on) {
+    setenv("PATCHY_RENDER_SINGLE_THREADED", "1", 1);
+  } else {
+    unsetenv("PATCHY_RENDER_SINGLE_THREADED");
+  }
+#endif
+}
+
+void deep_flatten_strips_match_the_sequential_walk() {
+  // A flatten big enough to split into strips: the assembled buffer must be the
+  // sequential one, sample for sample, at 16 and 32 bits.
+  for (const auto depth : {BitDepth::UInt16, BitDepth::Float32}) {
+    Document document(2400, 2000, PixelFormat::rgb8());
+    PixelBuffer base(2400, 2000, PixelFormat::rgba8());
+    PixelBuffer top(2400, 2000, PixelFormat::rgba8());
+    for (std::int32_t y = 0; y < 2000; ++y) {
+      for (std::int32_t x = 0; x < 2400; ++x) {
+        auto* b = base.pixel(x, y);
+        b[0] = static_cast<std::uint8_t>(x % 256);
+        b[1] = static_cast<std::uint8_t>(y % 256);
+        b[2] = 90;
+        b[3] = 255;
+        auto* t = top.pixel(x, y);
+        t[0] = 250;
+        t[1] = static_cast<std::uint8_t>((x + y) % 256);
+        t[2] = 40;
+        t[3] = static_cast<std::uint8_t>(y % 256);
+      }
+    }
+    document.add_pixel_layer("Base", base);
+    auto& layer = document.add_pixel_layer("Top", top);
+    layer.set_blend_mode(BlendMode::Multiply);
+    layer.set_opacity(0.7F);
+    convert_document_depth(document, depth);
+    const auto parallel = Compositor{}.flatten_rgba_deep(document);
+    set_single_threaded_render(true);
+    const auto sequential = Compositor{}.flatten_rgba_deep(document);
+    set_single_threaded_render(false);
+    CHECK(parallel.format() == sequential.format());
+    CHECK(parallel.byte_size() == sequential.byte_size());
+    CHECK(std::memcmp(parallel.data().data(), sequential.data().data(), parallel.byte_size()) == 0);
+  }
+}
+
 void deep_compositor_matches_photoshop_corpus_if_available() {
   const auto root = patchy::test::source_root_path() / "local-test-fixtures" / "deep";
   if (!std::filesystem::exists(root / "manifest.json")) {
@@ -497,6 +546,7 @@ std::vector<patchy::test::TestCase> deep_compositor_tests() {
        deep_compositor_agrees_with_8_bit_on_masks_groups_clips_and_adjustments},
       {"deep_compositor_keeps_precision_8_bits_cannot_hold", deep_compositor_keeps_precision_8_bits_cannot_hold},
       {"deep_hue_saturation_matches_photoshop_16_bit_samples", deep_hue_saturation_matches_photoshop_16_bit_samples},
+      {"deep_flatten_strips_match_the_sequential_walk", deep_flatten_strips_match_the_sequential_walk},
       {"deep_compositor_matches_photoshop_corpus_if_available", deep_compositor_matches_photoshop_corpus_if_available},
   };
 }

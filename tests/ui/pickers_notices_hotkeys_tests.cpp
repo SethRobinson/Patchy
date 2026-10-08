@@ -1280,6 +1280,34 @@ void ui_alt_color_pick_shows_rgb_status_and_updates_open_color_panel() {
   QApplication::processEvents();
 }
 
+void ui_deep_document_render_strips_match_the_sequential_render() {
+  // The display render of a large 16-bit document splits into strips; the assembled
+  // image must be the sequential render.
+  patchy::Document document(2400, 2000, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer base(2400, 2000, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < 2000; ++y) {
+    for (std::int32_t x = 0; x < 2400; ++x) {
+      auto* px = base.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(x % 256);
+      px[1] = static_cast<std::uint8_t>(y % 256);
+      px[2] = static_cast<std::uint8_t>((x * 7 + y) % 256);
+      px[3] = static_cast<std::uint8_t>(128 + (x + y) % 128);
+    }
+  }
+  document.add_pixel_layer("Base", base);
+  auto& top = document.add_pixel_layer("Top", solid_pixels(2400, 2000, patchy::PixelFormat::rgba8(), QColor(30, 200, 90)));
+  top.set_blend_mode(patchy::BlendMode::Screen);
+  top.set_opacity(0.4F);
+  patchy::convert_document_depth(document, patchy::BitDepth::UInt16);
+  const QRect all(0, 0, 2400, 2000);
+  const auto parallel = patchy::ui::qimage_from_document_rect(document, all, true);
+  qputenv("PATCHY_RENDER_SINGLE_THREADED", "1");
+  const auto sequential = patchy::ui::qimage_from_document_rect(document, all, true);
+  qunsetenv("PATCHY_RENDER_SINGLE_THREADED");
+  CHECK(!parallel.isNull());
+  CHECK(parallel == sequential);
+}
+
 void ui_eyedropper_picks_the_composite_of_a_16_bit_document() {
   // A 16-bit document's layers are not 8-bit, so the eyedropper picks from the deep
   // render; it must see the same composite as the 8-bit document it came from.
@@ -2314,6 +2342,8 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_alt_left_click_samples_foreground_color", ui_alt_left_click_samples_foreground_color},
       {"ui_alt_color_pick_shows_rgb_status_and_updates_open_color_panel",
        ui_alt_color_pick_shows_rgb_status_and_updates_open_color_panel},
+      {"ui_deep_document_render_strips_match_the_sequential_render",
+       ui_deep_document_render_strips_match_the_sequential_render},
       {"ui_eyedropper_picks_the_composite_of_a_16_bit_document", ui_eyedropper_picks_the_composite_of_a_16_bit_document},
       {"ui_eyedropper_starts_in_gray_area_and_drags_to_document_color",
        ui_eyedropper_starts_in_gray_area_and_drags_to_document_color},

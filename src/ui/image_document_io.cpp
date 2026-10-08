@@ -1195,15 +1195,47 @@ QImage render_document_rect_deep(const Document& document, Rect clip, bool prese
   auto* masks = render_detail::raster_view_context == nullptr && DocumentStyleMaskProvider::enabled()
                     ? &mask_provider
                     : nullptr;
-  render_detail::DeepCompositeTarget target(clip, false, deep_domain_for(document.color_state().bit_depth));
-  render_detail::composite_sibling_layers(
-      target, document.layers(), clip, overrides, false, masks,
-      [&](render_detail::DeepCompositeTarget& layer_target, const Layer& layer) {
-        render_detail::composite_layer(layer_target, layer, clip, overrides, false, masks, nullptr,
-                                       &document.metadata().patterns);
-      },
-      &document.metadata().patterns);
-  return deep_target_to_image(target, preserve_alpha);
+  const auto domain = deep_domain_for(document.color_state().bit_depth);
+  const auto render_strip = [&document, overrides, masks, domain, preserve_alpha](Rect strip_clip) {
+    render_detail::DeepCompositeTarget target(strip_clip, false, domain);
+    render_detail::composite_sibling_layers(
+        target, document.layers(), strip_clip, overrides, false, masks,
+        [&](render_detail::DeepCompositeTarget& layer_target, const Layer& layer) {
+          render_detail::composite_layer(layer_target, layer, strip_clip, overrides, false, masks, nullptr,
+                                         &document.metadata().patterns);
+        },
+        &document.metadata().patterns);
+    return deep_target_to_image(target, preserve_alpha);
+  };
+  // Large renders split into strips composited concurrently, under the 8-bit path's
+  // rules (render_document_rect below): clip rendering equals full rendering, so the
+  // assembled image is the sequential one.
+  const auto clip_area = static_cast<std::int64_t>(clip.width) * static_cast<std::int64_t>(clip.height);
+  const auto strips = max_blocking_fanout_workers(
+      std::clamp(std::min(clip.height / 128, patchy::hardware_worker_threads()), 1, 16));
+  if (render_detail::raster_view_context != nullptr || strips < 2 || clip_area < 4'000'000 ||
+      qEnvironmentVariableIsSet("PATCHY_RENDER_SINGLE_THREADED")) {
+    return render_strip(clip);
+  }
+  struct StripJob {
+    Rect clip{};
+    std::future<QImage> image;
+  };
+  std::vector<StripJob> jobs;
+  const auto rows_per_strip = (clip.height + strips - 1) / strips;
+  for (std::int32_t start = 0; start < clip.height; start += rows_per_strip) {
+    const Rect strip_clip{clip.x, clip.y + start, clip.width, std::min(rows_per_strip, clip.height - start)};
+    jobs.push_back(StripJob{strip_clip, std::async(std::launch::async, render_strip, strip_clip)});
+  }
+  QImage image(clip.width, clip.height, preserve_alpha ? QImage::Format_RGBA8888 : QImage::Format_RGB888);
+  for (auto& job : jobs) {
+    const auto strip = job.image.get();
+    const auto row_bytes = static_cast<std::size_t>(strip.width()) * (preserve_alpha ? 4U : 3U);
+    for (std::int32_t row = 0; row < strip.height(); ++row) {
+      std::memcpy(image.scanLine(job.clip.y - clip.y + row), strip.constScanLine(row), row_bytes);
+    }
+  }
+  return image;
 }
 
 QImage render_document_rect(const Document& document, QRect document_rect, bool preserve_alpha,
