@@ -11,11 +11,13 @@ True 16-bit and 32-bit float documents, with no feature lost and Testy scores eq
 better. 16-bit lands first as a complete milestone; 32-bit linear HDR follows on the
 same float path.
 
-Baseline to beat: Testy run 2026-10-06 (psd-tools corpus, 309 files, Patchy 57ba855c):
-opened 309/309, render 0.8786, visual 0.8980, native 1.0, bad saves 0. The 29 deep
-files matched (perceptual bad fraction at most 10%) on 21 of 29. Every deep file was
-saved at 8 bits, which Testy could not see until Phase 0 (`saveDepth`, `deepRender`,
-`deepRoundtrip`; docs/testy-scoring.md).
+Baseline to beat: Testy run 20261009-001848 (psd-tools corpus, 309 files, Photoshop
+and Patchy, release build of 089007f7): opened 309/309, render 0.8786, visual 0.8978,
+native 1.0, bad saves 0, deep saves kept depth 0/29, 16-bit precision 0.2825 (render)
+and 0.3131 (resave). The published 2026-10-06 run (57ba855c) differs only in visual
+0.8980: Photoshop's fresh 16-bit reference of `colormodes/4x4_16bit_rgb.psd` moved one
+of its 16 pixels. The 29 deep files match (perceptual bad fraction at most 10%) on 21.
+The Photoshop column is the control: 100% everywhere, depth kept 29/29.
 
 The deep subset list for quick runs is `testy/corpus/deep-local.txt` (gitignored;
 regenerate by filtering `corpus/psd-tools.txt` on `testy.file_traits(...)["depth"]`).
