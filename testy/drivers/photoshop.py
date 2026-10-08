@@ -74,6 +74,10 @@ _PROBE_JSX = r"""
 
   var INPUT = new File(%(input)s);
   var RENDER_PNG = %(render_png)s;
+  // A 16-bit document also gets its render saved at 16 bits here, for the deep
+  // precision comparison (analyze.compare_deep_renders).
+  var RENDER16_PNG = %(render16_png)s;
+  var deepStatus = 'skipped';
   var RESAVE_PSD = %(resave_psd)s;
 
   function q(s) {
@@ -184,8 +188,10 @@ _PROBE_JSX = r"""
   // values with no profile (an editor that color-manages correctly then reads as
   // wrong), a 16-bit one a format the comparison misreads, and a Bitmap one cannot
   // be rendered at all (no direct Bitmap-to-RGB change, no Copy Merged). Each step
-  // is best effort; 32-bit keeps Photoshop's own conversion on save.
-  function normalizeForPng(dup) {
+  // is best effort; 32-bit keeps Photoshop's own conversion on save. A 16-bit
+  // document is saved to deepPath (when given) in sRGB at 16 bits first, just before
+  // the drop to 8 bits, so both renders are the same picture.
+  function normalizeForPng(dup, deepPath) {
     try { if (dup.mode == DocumentMode.BITMAP) { dup.changeMode(ChangeMode.GRAYSCALE); } } catch (e1) {}
     try { if (dup.mode != DocumentMode.RGB) { dup.changeMode(ChangeMode.RGB); } } catch (e2) {}
     if (dup.bitsPerChannel != BitsPerChannelType.THIRTYTWO) {
@@ -193,9 +199,24 @@ _PROBE_JSX = r"""
         dup.convertProfile('sRGB IEC61966-2.1', Intent.RELATIVECOLORIMETRIC, true, false);
       } catch (e3) {}
     }
+    if (deepPath !== null && dup.bitsPerChannel == BitsPerChannelType.SIXTEEN) {
+      try {
+        dup.saveAs(new File(deepPath), pngOptions(), true, Extension.LOWERCASE);
+        deepStatus = 'ok';
+      } catch (e5) { deepStatus = 'deep-render-error: ' + e5; }
+    }
     try {
       if (dup.bitsPerChannel == BitsPerChannelType.SIXTEEN) { dup.bitsPerChannel = BitsPerChannelType.EIGHT; }
     } catch (e4) {}
+  }
+
+  // Bits per channel as a number (Bitmap documents are 1).
+  function depthOf(doc) {
+    var bits = String(doc.bitsPerChannel);
+    if (bits == 'BitsPerChannelType.ONE') { return 1; }
+    if (bits == 'BitsPerChannelType.SIXTEEN') { return 16; }
+    if (bits == 'BitsPerChannelType.THIRTYTWO') { return 32; }
+    return 8;
   }
 
   // Photoshop shows a type layer from the raster cached in the file until the text
@@ -302,7 +323,7 @@ _PROBE_JSX = r"""
       if (freshText) { refreshText(dup, dup.layers, freshText); }
       if (freshSmart) { refreshSmartObjects(dup, dup.layers, freshSmart); }
       dup.flatten();
-      normalizeForPng(dup);
+      normalizeForPng(dup, RENDER16_PNG);
       dup.saveAs(new File(pngPath), pngOptions(), true, Extension.LOWERCASE);
       dup.close(SaveOptions.DONOTSAVECHANGES);
       return 'ok';
@@ -395,6 +416,8 @@ _PROBE_JSX = r"""
     for (var m = 0; m < missingFonts.length; m++) { missingJson.push(q(missingFonts[m])); }
     var result = '{"ok":true,"width":' + opened.width.as('px') + ',"height":' + opened.height.as('px') +
       ',"resolution":' + opened.resolution +
+      ',"depth":' + depthOf(opened) +
+      ',"deepRender":' + q(deepStatus) +
       ',"render":' + q(renderStatus) +
       ',"resave":' + q(resaveStatus) +
       ',"textFontsMissing":' + (textFontsMissing === null ? 'null' : q(textFontsMissing)) +
@@ -434,6 +457,14 @@ def _js_path(path: Path | None) -> str:
     if path is None:
         return "null"
     return _js_string(str(path).replace("%", "%25"))
+
+
+def deep_render_path(render_png: Path | None) -> Path | None:
+    """Where a probe writes the 16-bit render of a 16-bit document, beside the 8-bit
+    one: render.png -> render16.png, roundtrip.png -> roundtrip16.png."""
+    if render_png is None:
+        return None
+    return render_png.with_name(render_png.stem + "16" + render_png.suffix)
 
 
 def _kill_photoshop() -> None:
@@ -611,6 +642,7 @@ class PhotoshopDriver:
         jsx = _PROBE_JSX % {
             "input": _js_path(psd_path),
             "render_png": _js_path(render_png),
+            "render16_png": _js_path(deep_render_path(render_png)),
             "resave_psd": _js_path(resave_psd),
         }
         # The guard answers modal alerts Photoshop raises behind the blocked COM call

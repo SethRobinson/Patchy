@@ -502,6 +502,15 @@ function lossSummary(n) {
   return out;
 }
 
+// lossSummary plus a lost bit depth: a 16-bit file saved as 8-bit keeps every layer
+// and still loses its extra precision (cell.saveDepth, read from the two headers).
+function cellLosses(cell) {
+  const out = lossSummary(cell.native);
+  const d = cell.saveDepth;
+  if (d && !d.kept) out.push({ lost: 1, total: 1, label: "bit depth (" + d.original + " to " + d.resaved + "-bit)" });
+  return out;
+}
+
 function lossText(losses) {
   return losses.map(l => l.lost + "/" + l.total + " " + l.label).join(", ");
 }
@@ -561,7 +570,7 @@ function cellSummary(cell, psCell) {
     severity = badFraction > Math.max(SEVERE_MISMATCH, poorMatchLimit()) ? 2 : 1;
   }
   if (cell.resaveRejected) { notes.push("saves corrupted .psd"); severity = 2; }
-  const losses = lossSummary(cell.native);
+  const losses = cellLosses(cell);
   const lossLine = losses.length
     ? '<div class="flag">lost: ' + lossText(losses.slice(0, 3)) +
       (losses.length > 3 ? " +" + (losses.length - 3) + " more" : "") + "</div>"
@@ -796,6 +805,7 @@ function render() {
 
   const agg = {};
   editors.forEach(k => agg[k] = { opened: 0, total: 0, badSaves: 0, acc: [], vis: [], native: [], text: [0, 0], adj: [0, 0], smart: [0, 0], fx: [0, 0], textFiles: [],
+                                   depth: [0, 0], deepRoundtrip: [],
                                    textTally: { scores: [], files: 0, noRender: 0, noSave: 0 } });
   renderKnownToggle();
   scoredFiles().forEach(f => editors.forEach(k => {
@@ -805,6 +815,8 @@ function render() {
     a.total++;
     if (c.state === "done" && c.opens !== "fail") a.opened++;
     if (c.resaveRejected) a.badSaves++;
+    if (c.saveDepth && c.saveDepth.original > 8) { a.depth[1]++; if (c.saveDepth.kept) a.depth[0]++; }
+    if (c.deepRoundtrip && c.deepRoundtrip.state === "done") a.deepRoundtrip.push(c.deepRoundtrip.accuracy);
     if (c.renderMetrics) a.acc.push(c.renderMetrics.accuracy);
     if (c.renderMetrics && c.renderMetrics.perceptual) a.vis.push(c.renderMetrics.perceptual.accuracy);
     if (!c.renderMetrics && refusedWithReference(f, c)) { a.acc.push(0); a.vis.push(0); }
@@ -876,11 +888,14 @@ function render() {
     // cells, rolled up. Red the moment it is not 0.
     rows.push(["bad .psd saves", !a.total ? "-"
       : a.badSaves ? '<span class="bad-text">' + a.badSaves + "</span>" : "0"]);
-    [["text", "text kept"], ["adj", "adjustments"], ["smart", "smart objects"], ["fx", "live effects"]].forEach(([key, label]) => {
+    [["text", "text kept"], ["adj", "adjustments"], ["smart", "smart objects"], ["fx", "live effects"],
+     ["depth", "16/32-bit saves kept depth"]].forEach(([key, label]) => {
       const v = a[key];
       if (v[1]) rows.push([label, v[0] < v[1] ? '<span class="bad-text">' + v[0] + "/" + v[1] + "</span>"
                                               : v[0] + "/" + v[1]]);
     });
+    const deepRt = mean(a.deepRoundtrip);
+    if (deepRt != null) rows.push(["16-bit precision after save", pct(deepRt)]);
     return '<div class="card"><h3>' + esc(e.displayName || k) + '</h3><div class="ver">' +
       esc(editorVersionLabel(k)) + "</div>" +
       rows.map(r => '<div class="row"><span>' + r[0] + "</span><b>" + r[1] + "</b></div>").join("") +
@@ -1072,13 +1087,15 @@ function openDetail(fi, ek, keep) {
     textZeroReasons(cell).filter(r => r.kind === "save").forEach(r => {
       html += '<div class="loss-banner"><b>' + esc(r.long) + "</b></div>";
     });
-    const losses = lossSummary(n);
+    const losses = cellLosses(cell);
     if (losses.length) {
       const changed = n.changedLayers || [];
       const gone = changed.filter(c => c.became == null).length;
       const converted = changed.filter(c => c.became != null).length;
       let detail;
-      if (!gone && !converted)
+      if (!gone && !converted && !lossSummary(n).length)
+        detail = "every object kept its kind; the file was saved at a lower bit depth";
+      else if (!gone && !converted)
         detail = "every object kept its kind; the losses are attributes stripped from surviving layers";
       else
         detail = (gone ? gone + " gone from the file entirely" : "") +
@@ -1114,6 +1131,23 @@ function openDetail(fi, ek, keep) {
     html += "<h3>Round trip back into Photoshop</h3><table><tr><th>Byte match vs original</th><th>Perceptual match</th><th>Pixels off</th></tr>" +
       "<tr><td>" + pct(cell.roundtripRender.accuracy) + "</td><td>" + (rp ? pct(rp.accuracy) : "-") +
       "</td><td>" + pct(cell.roundtripRender.badFraction) + "</td></tr></table>";
+  }
+  // 16-bit files: precision at 16 bits against Photoshop's 16-bit render, which the
+  // 8-bit metrics above cannot see (analyze.compare_deep_renders).
+  const deepRows = [["render", cell.deepRender], ["resave reopened in Photoshop", cell.deepRoundtrip]]
+    .filter(([, d]) => d && d.state === "done");
+  if (deepRows.length || cell.saveDepth) {
+    html += "<h3>Bit depth and 16-bit precision</h3>";
+    if (cell.saveDepth)
+      html += '<div class="nums">.psd save: ' + cell.saveDepth.resaved + "-bit (original " +
+        cell.saveDepth.original + "-bit)" + (cell.saveDepth.kept ? "" :
+        ' <span class="bad-text">bit depth lost</span>') + "</div>";
+    if (deepRows.length)
+      html += "<table><tr><th>Compared</th><th>Precise pixels</th><th>RMSE</th><th>Worst</th><th>Bits</th></tr>" +
+        deepRows.map(([label, d]) => "<tr><td>" + label + "</td><td>" + pct(d.accuracy) + "</td><td>" +
+          d.rmse.toFixed(3) + "</td><td>" + d.maxError.toFixed(2) + "</td><td>" + d.editorBits + "</td></tr>").join("") +
+        "</table>" + '<div class="nums">RMSE and worst error are in 8-bit steps; a pixel is precise within ' +
+        (deepRows[0][1].tolerance || 64) + " 16-bit levels (a quarter step).</div>";
   }
   document.getElementById("detail-body").innerHTML = html;
   document.getElementById("detail").classList.add("open");

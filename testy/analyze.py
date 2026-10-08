@@ -418,6 +418,211 @@ def compose_scored_render(output_png: Path, base_png: Path, placeholders: list[t
     scored.save(output_png)
 
 
+# ---------------------------------------------------------------------------
+# Deep precision (16-bit files)
+#
+# The metrics above work on 8-bit sRGB, where an editor that edits a 16-bit file in
+# 8 bits loses nothing visible. For 16-bit files Photoshop also saves a 16-bit
+# reference render (render16.png), and this comparison measures at that precision.
+# An 8-bit render is compared too (scaled by 257): its rounding is exactly the loss
+# being measured. Pillow reads 16-bit RGB(A) PNGs as 8-bit, so they are decoded here.
+# ---------------------------------------------------------------------------
+
+# A pixel is imprecise when a channel differs by more than this many 16-bit levels
+# over white: a quarter of one 8-bit step. An 8-bit render of a smooth 16-bit image
+# misses it on most pixels (7 in 8 for three independent channels); Photoshop's own
+# 15-bit internal math, or a float pipeline rounding back to 16 bits, stays within a
+# few levels.
+DEEP_TOLERANCE = 64
+
+
+def _png_chunks(data: bytes):
+    import struct
+
+    if data[:8] != b"\x89PNG\r\n\x1a\n":
+        raise ValueError("not a PNG")
+    offset = 8
+    while offset + 8 <= len(data):
+        length, kind = struct.unpack(">I4s", data[offset:offset + 8])
+        yield kind, data[offset + 8:offset + 8 + length]
+        offset += 12 + length
+
+
+def png_bit_depth(path: Path) -> int | None:
+    """Bits per sample from the IHDR chunk (8 or 16 for the renders here)."""
+    try:
+        with open(path, "rb") as handle:
+            head = handle.read(33)
+        if len(head) < 33 or head[12:16] != b"IHDR":
+            return None
+        return head[24]
+    except OSError:
+        return None
+
+
+def read_png16_rgba(path: Path) -> np.ndarray:
+    """A 16-bit gray/gray+alpha/RGB/RGBA PNG as float64 RGBA in 0..1. Embedded
+    profiles are ignored: every 16-bit render here is sRGB. OpenCV decodes it when
+    installed (optional; much faster on large renders), else the decoder below."""
+    try:
+        import cv2
+    except ImportError:
+        cv2 = None
+    if cv2 is not None:
+        decoded = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
+        if decoded is not None and decoded.dtype == np.uint16:
+            values = decoded.astype(np.float64) / 65535.0
+            if values.ndim == 2:
+                values = values[:, :, None]
+            channels = values.shape[2]
+            height, width = values.shape[:2]
+            if channels == 1:
+                return np.concatenate([np.repeat(values, 3, axis=2), np.ones((height, width, 1))], axis=2)
+            if channels == 2:
+                return np.concatenate([np.repeat(values[:, :, :1], 3, axis=2), values[:, :, 1:2]], axis=2)
+            if channels == 3:
+                return np.concatenate([values[:, :, ::-1], np.ones((height, width, 1))], axis=2)
+            return np.concatenate([values[:, :, 2::-1], values[:, :, 3:4]], axis=2)
+    return _decode_png16_rgba(path)
+
+
+def _decode_png16_rgba(path: Path) -> np.ndarray:
+    """The dependency-free decoder: non-interlaced 16-bit PNGs, every filter type."""
+    import zlib
+
+    data = Path(path).read_bytes()
+    header = None
+    compressed = bytearray()
+    for kind, body in _png_chunks(data):
+        if kind == b"IHDR":
+            header = body
+        elif kind == b"IDAT":
+            compressed += body
+        elif kind == b"IEND":
+            break
+    if header is None:
+        raise ValueError(f"{path}: no IHDR")
+    width = int.from_bytes(header[0:4], "big")
+    height = int.from_bytes(header[4:8], "big")
+    depth, color_type, interlace = header[8], header[9], header[12]
+    channels = {0: 1, 2: 3, 4: 2, 6: 4}.get(color_type)
+    if depth != 16 or channels is None or interlace != 0:
+        raise ValueError(f"{path}: not a plain 16-bit PNG (depth {depth}, type {color_type})")
+    bpp = 2 * channels
+    stride = width * bpp
+    raw = np.frombuffer(zlib.decompress(bytes(compressed)), dtype=np.uint8)
+    rows = raw.reshape(height, stride + 1)
+    out = np.zeros((height, stride), dtype=np.uint8)
+    previous = np.zeros((width, bpp), dtype=np.int32)
+    for y in range(height):
+        kind = int(rows[y, 0])
+        line = rows[y, 1:].astype(np.int32).reshape(width, bpp)
+        if kind == 0:
+            current = line
+        elif kind == 1:
+            # Sub: each byte adds the reconstructed byte one pixel left, which is a
+            # running sum per byte lane.
+            current = np.cumsum(line, axis=0) & 0xFF
+        elif kind == 2:
+            current = (line + previous) & 0xFF
+        elif kind in (3, 4):
+            # Average and Paeth depend on the reconstructed left neighbour, so they
+            # run pixel by pixel (vectorized across the pixel's bytes).
+            current = np.zeros((width, bpp), dtype=np.int32)
+            left = np.zeros(bpp, dtype=np.int32)
+            upper_left = np.zeros(bpp, dtype=np.int32)
+            for x in range(width):
+                up = previous[x]
+                if kind == 3:
+                    predictor = (left + up) >> 1
+                else:
+                    estimate = left + up - upper_left
+                    pa = np.abs(estimate - left)
+                    pb = np.abs(estimate - up)
+                    pc = np.abs(estimate - upper_left)
+                    predictor = np.where((pa <= pb) & (pa <= pc), left,
+                                         np.where(pb <= pc, up, upper_left))
+                left = (line[x] + predictor) & 0xFF
+                current[x] = left
+                upper_left = up
+        else:
+            raise ValueError(f"{path}: bad PNG filter {kind}")
+        out[y] = current.reshape(stride)
+        previous = current
+    samples = out.reshape(height, width * channels, 2)
+    values = (samples[:, :, 0].astype(np.float64) * 256.0 + samples[:, :, 1]) / 65535.0
+    values = values.reshape(height, width, channels)
+    if channels == 1:
+        return np.concatenate([np.repeat(values, 3, axis=2), np.ones((height, width, 1))], axis=2)
+    if channels == 2:
+        return np.concatenate([np.repeat(values[:, :, :1], 3, axis=2), values[:, :, 1:2]], axis=2)
+    if channels == 3:
+        return np.concatenate([values, np.ones((height, width, 1))], axis=2)
+    return values
+
+
+def write_png16_rgb(path: Path, rgb: np.ndarray) -> None:
+    """A 16-bit RGB PNG from integer samples 0..65535 (self-tests and fixtures)."""
+    import struct
+    import zlib
+
+    samples = np.clip(np.rint(rgb), 0, 65535).astype(">u2")
+    height, width = samples.shape[:2]
+    rows = b"".join(b"\x00" + samples[y].tobytes() for y in range(height))
+
+    def chunk(kind: bytes, body: bytes) -> bytes:
+        return (struct.pack(">I", len(body)) + kind + body
+                + struct.pack(">I", zlib.crc32(kind + body) & 0xFFFFFFFF))
+
+    header = struct.pack(">IIBBBBB", width, height, 16, 2, 0, 0, 0)
+    Path(path).write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header)
+                           + chunk(b"IDAT", zlib.compress(rows, 6)) + chunk(b"IEND", b""))
+
+
+def _load_deep_over_white(path: Path, size: tuple[int, int]) -> tuple[np.ndarray, int, tuple[int, int]]:
+    """RGB over white in 16-bit levels (float64 0..65535), the PNG's bit depth, and its
+    native size. A size mismatch is resized like the 8-bit comparison does."""
+    bits = png_bit_depth(path) or 8
+    if bits == 16:
+        rgba = read_png16_rgba(path)
+        native = (rgba.shape[1], rgba.shape[0])
+        if native != tuple(size):
+            image = Image.fromarray(np.clip(np.rint(rgba * 255.0), 0, 255).astype(np.uint8), "RGBA")
+            rgba = np.asarray(image.resize(size, Image.BILINEAR), dtype=np.float64) / 255.0
+    else:
+        image = load_srgb_rgba(path)
+        native = image.size
+        if image.size != tuple(size):
+            image = image.resize(size, Image.BILINEAR)
+        rgba = np.asarray(image, dtype=np.float64) / 255.0
+    alpha = rgba[:, :, 3:4]
+    rgb = rgba[:, :, :3] * alpha + (1.0 - alpha)
+    return rgb * 65535.0, bits, native
+
+
+def compare_deep_renders(truth_png: Path, editor_png: Path, document_size: tuple[int, int]) -> dict:
+    """Precision of `editor_png` against a 16-bit reference: RMSE and worst error in
+    8-bit steps (one step = 257 levels), and the fraction of pixels whose worst channel
+    is more than DEEP_TOLERANCE 16-bit levels off."""
+    truth, truth_bits, _ = _load_deep_over_white(truth_png, document_size)
+    if truth_bits != 16:
+        return {"state": "not measured", "reason": "the reference render is not 16-bit"}
+    editor, editor_bits, editor_native = _load_deep_over_white(editor_png, document_size)
+    diff = np.abs(truth - editor)
+    worst = diff.max(axis=2)
+    bad_fraction = float((worst > DEEP_TOLERANCE).mean())
+    return {
+        "state": "done",
+        "editorBits": editor_bits,
+        "rmse": round(float(math.sqrt(float((diff ** 2).mean()))) / 257.0, 4),
+        "maxError": round(float(worst.max()) / 257.0, 3),
+        "badFraction": round(bad_fraction, 5),
+        "accuracy": round(max(0.0, 1.0 - bad_fraction), 4),
+        "tolerance": DEEP_TOLERANCE,
+        "sizeMismatch": tuple(editor_native) != tuple(document_size),
+    }
+
+
 def _load_over_white(path: Path, size: tuple[int, int] | None) -> tuple[np.ndarray, tuple[int, int]]:
     image = load_srgb_rgba(path)
     native_size = image.size
@@ -659,7 +864,43 @@ def _selftest() -> int:
         check(capped["badFraction"] == full["badFraction"],
               "the strict metric is unaffected by the cap")
 
-        print("4. cost")
+        print("5. 16-bit precision: decoding and the deep comparison")
+        deep_size = (300, 200)
+        yy, xx = np.mgrid[0:deep_size[1], 0:deep_size[0]].astype(np.float64)
+        deep = np.stack([xx / (deep_size[0] - 1) * 65535.0,
+                         yy / (deep_size[1] - 1) * 65535.0,
+                         (xx + yy) / (deep_size[0] + deep_size[1] - 2) * 40000.0 + 9000.0], axis=2)
+        deep = np.rint(deep)
+        deep_truth = work_dir / "deep_truth.png"
+        write_png16_rgb(deep_truth, deep)
+        filtered = work_dir / "deep_filtered.png"
+        _write_png16_filtered(filtered, deep)
+        check(np.array_equal(np.rint(_decode_png16_rgba(filtered)[:, :, :3] * 65535.0), deep),
+              "the decoder undoes every PNG filter type exactly")
+        check(np.array_equal(np.rint(read_png16_rgba(filtered)[:, :, :3] * 65535.0), deep),
+              "read_png16_rgba (OpenCV when installed) agrees")
+        check(png_bit_depth(deep_truth) == 16, "png_bit_depth reads 16")
+        same = compare_deep_renders(deep_truth, filtered, deep_size)
+        check(same["state"] == "done" and same["badFraction"] == 0.0 and same["rmse"] == 0.0
+              and same["editorBits"] == 16, "an identical 16-bit render is exact")
+        noisy = work_dir / "deep_noisy.png"
+        jitter = np.random.default_rng(7).integers(-3, 4, deep.shape)
+        write_png16_rgb(noisy, deep + jitter)
+        result = compare_deep_renders(deep_truth, noisy, deep_size)
+        check(result["badFraction"] == 0.0, "a few 16-bit levels of noise stay precise")
+        eight = work_dir / "deep_8bit.png"
+        Image.fromarray(np.clip(np.rint(deep / 257.0), 0, 255).astype(np.uint8)).save(eight)
+        result = compare_deep_renders(deep_truth, eight, deep_size)
+        check(result["editorBits"] == 8 and 0.8 < result["badFraction"] < 0.95,
+              f"an 8-bit render of it is imprecise on {result['badFraction'] * 100:.0f}% of pixels")
+        check(result["maxError"] <= 0.51 and 0.2 < result["rmse"] < 0.35,
+              f"...by rounding only (rmse {result['rmse']}, worst {result['maxError']} steps)")
+        check(compare_renders(deep_truth, eight, deep_size, [])["badFraction"] == 0.0,
+              "the 8-bit metrics cannot see that loss")
+        check(compare_deep_renders(eight, deep_truth, deep_size)["state"] == "not measured",
+              "an 8-bit reference is not measured")
+
+        print("6. cost")
         started = time.perf_counter()
         compare_renders(truth_png, defect_png, _SELFTEST_SIZE, objects)
         uncapped_seconds = time.perf_counter() - started
@@ -670,6 +911,46 @@ def _selftest() -> int:
 
     print("FAILED: " + "; ".join(failures) if failures else "all checks passed")
     return 1 if failures else 0
+
+
+def _write_png16_filtered(path: Path, rgb: np.ndarray) -> None:
+    """A 16-bit RGB PNG whose rows cycle through all five filter types, so the
+    self-test exercises every branch of the decoder."""
+    import struct
+    import zlib
+
+    samples = np.clip(np.rint(rgb), 0, 65535).astype(">u2")
+    height, width = samples.shape[:2]
+    bpp = 6
+    previous = np.zeros(width * bpp, dtype=np.int32)
+    body = bytearray()
+    for y in range(height):
+        current = np.frombuffer(samples[y].tobytes(), dtype=np.uint8).astype(np.int32)
+        kind = y % 5
+        left = np.concatenate([np.zeros(bpp, dtype=np.int32), current[:-bpp]])
+        upper_left = np.concatenate([np.zeros(bpp, dtype=np.int32), previous[:-bpp]])
+        if kind == 0:
+            filtered = current
+        elif kind == 1:
+            filtered = current - left
+        elif kind == 2:
+            filtered = current - previous
+        elif kind == 3:
+            filtered = current - ((left + previous) >> 1)
+        else:
+            estimate = left + previous - upper_left
+            pa, pb, pc = np.abs(estimate - left), np.abs(estimate - previous), np.abs(estimate - upper_left)
+            filtered = current - np.where((pa <= pb) & (pa <= pc), left, np.where(pb <= pc, previous, upper_left))
+        body += bytes([kind]) + (filtered & 0xFF).astype(np.uint8).tobytes()
+        previous = current
+
+    def chunk(kind: bytes, payload: bytes) -> bytes:
+        return (struct.pack(">I", len(payload)) + kind + payload
+                + struct.pack(">I", zlib.crc32(kind + payload) & 0xFFFFFFFF))
+
+    header = struct.pack(">IIBBBBB", width, height, 16, 2, 0, 0, 0)
+    Path(path).write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header)
+                           + chunk(b"IDAT", zlib.compress(bytes(body), 6)) + chunk(b"IEND", b""))
 
 
 def make_thumbnail(source_png: Path, out_png: Path, max_width: int = 480) -> None:

@@ -261,6 +261,38 @@ class RerunTests(unittest.TestCase):
         (self.runs / 'not.psd').write_bytes(b'not a psd at all, but long enough')
         self.assertIsNone(testy.file_traits(self.runs / 'not.psd'))
 
+    def test_saved_bit_depth_is_read_from_both_headers(self):
+        def psd(name, depth):
+            path = self.runs / name
+            path.write_bytes(b'8BPS' + (1).to_bytes(2, 'big') + bytes(6) + (3).to_bytes(2, 'big') + bytes(8)
+                             + depth.to_bytes(2, 'big') + (3).to_bytes(2, 'big') + bytes(32))
+            return path
+
+        self.assertEqual(testy.psd_header_depth(psd('d16.psd', 16)), 16)
+        self.assertIsNone(testy.psd_header_depth(self.runs / 'missing.psd'))
+        self.assertEqual(testy.save_depth_record(16, psd('r8.psd', 8)),
+                         {'original': 16, 'resaved': 8, 'kept': False})
+        self.assertEqual(testy.save_depth_record(16, psd('r16.psd', 16))['kept'], True)
+        # Saving deeper than the original loses nothing.
+        self.assertEqual(testy.save_depth_record(8, psd('r16b.psd', 16))['kept'], True)
+        self.assertIsNone(testy.save_depth_record(None, psd('r16c.psd', 16)))
+        (self.runs / 'junk.psd').write_bytes(b'x' * 40)
+        self.assertIsNone(testy.save_depth_record(16, self.runs / 'junk.psd'))
+        # The summary counts deep files only, and averages the 16-bit precision legs.
+        deep_cell = lambda kept, accuracy: dict(state='done', opens='ok',
+            saveDepth=dict(original=16, resaved=16 if kept else 8, kept=kept),
+            deepRoundtrip=dict(state='done', accuracy=accuracy))
+        status = dict(run=dict(editorOrder=['patchy'], name='r', patchyGit='x'), files=[
+            dict(cells=dict(patchy=deep_cell(True, 1.0))),
+            dict(cells=dict(patchy=deep_cell(False, 0.2))),
+            dict(cells=dict(patchy=dict(state='done', opens='ok',
+                                        saveDepth=dict(original=8, resaved=8, kept=True)))),
+        ])
+        summary = testy.Runner.summarize_status(status)['editors']['patchy']
+        self.assertEqual((summary['depthKept'], summary['depthTotal']), (1, 2))
+        self.assertAlmostEqual(summary['deepRoundtrip'], 0.6)
+        self.assertIsNone(summary['deepRender'])
+
     def test_psdtools_column_is_opt_in_and_names_missing_packages(self):
         from drivers import psdtools
         self.assertNotIn('psdtools', testy.DEFAULT_EDITORS)
@@ -653,7 +685,9 @@ class RerunTests(unittest.TestCase):
         self.assertEqual(testy.reference_space_key({"depth": 8, "mode": 3, "text": True}), "-freshtext2")
         self.assertEqual(testy.reference_space_key({"depth": 8, "mode": 3, "smart": True}), "-freshsmart1")
         self.assertEqual(testy.reference_space_key({"depth": 16, "mode": 3, "text": True, "smart": True}),
-                         "-srgb1-freshtext2-freshsmart1")
+                         "-srgb1-freshtext2-freshsmart1-deep1")
+        # Only 16-bit files get the 16-bit renders, so only they are measured afresh.
+        self.assertEqual(testy.reference_space_key({"depth": 32, "mode": 3}), "-srgb1")
         # A linked smart object has nothing in the file to render from: never stripped.
         self.assertNotIn(b"SoLE", psd_sections.CACHED_LAYER_KEYS["smart"])
         self.assertIn(b"SoLd", psd_sections.CACHED_LAYER_KEYS["smart"])
@@ -801,6 +835,15 @@ assert(zeroed[0].long.includes('can only show the pixels Photoshop cached'));
 assert(zeroed[1].long.includes('1 of 1 Photoshop text object(s) did not come back as text'));
 assert(zeroed[1].long.includes('1/2'));
 assert(replayNote(legCell({state:'not measured', reason:'could not open'}), 'gimp').includes('not measured'));
+"""
+        losses = script.split('const LOSS_LABELS', 1)[1].split('function cellSummary', 1)[0]
+        test_js += 'const LOSS_LABELS' + losses + """
+const fullKeep = {perCategory:{raster:{kept:2,total:2}}, attributes:{blend:{kept:2,total:2}}};
+assert.deepEqual(cellLosses({native:fullKeep}), []);
+assert.deepEqual(cellLosses({native:fullKeep, saveDepth:{original:16,resaved:16,kept:true}}), []);
+assert.equal(lossText(cellLosses({native:fullKeep, saveDepth:{original:16,resaved:8,kept:false}})),
+  '1/1 bit depth (16 to 8-bit)');
+assert.equal(cellLosses({saveDepth:{original:32,resaved:8,kept:false}}).length, 1);
 """
         standing = script.split('function standingRows', 1)[1].split('let groupFilter', 1)[0]
         test_js += 'function standingRows' + standing + """

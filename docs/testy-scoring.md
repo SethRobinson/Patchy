@@ -72,13 +72,35 @@ scripted re-renders below force the same engines without changing the document, 
 they cover every editor with the same metric. `patchy.exe --append-text` remains a
 product CLI flag; Testy no longer uses it.)
 
+- **Bit depth kept** (`cell.saveDepth`) - the depth in the resaved .psd's header
+  against the original's (`save_depth_record` in testy.py; no Photoshop needed, so
+  cached resaves are read too). A 16 or 32-bit file saved at a lower depth shows
+  "lost: 1/1 bit depth (16 to 8-bit)" even when every layer survived; a deeper save
+  counts as kept. It is not folded into `nativeScore` (history stays comparable);
+  the summary card and history line carry `depthKept`/`depthTotal` over deep files.
+- **16-bit precision** (16-bit files only; `analyze.compare_deep_renders`). The
+  Photoshop probe saves a second render at 16 bits (`render16.png`, `roundtrip16.png`,
+  written by `normalizeForPng` just before its drop to 8 bits, so both are the same
+  picture). `deepRender` compares the editor's render to the 16-bit reference (its own
+  `render16.png` when it wrote one, as the Photoshop column does, else its 8-bit
+  render); `deepRoundtrip` compares Photoshop's render of the editor's resave to it
+  (`roundtrip16.png` when the resave is still 16-bit, else the 8-bit `roundtrip.png`,
+  whose rounding is the loss), which needs no 16-bit export from the editor. A pixel is precise within
+  `DEEP_TOLERANCE` (64 levels, a quarter 8-bit step); RMSE and worst error are in
+  8-bit steps. An 8-bit render or save of a smooth 16-bit image misses on about 7 of 8
+  pixels by rounding alone, which the 8-bit metrics cannot see. 16-bit PNGs decode
+  through OpenCV when installed, else a built-in decoder (Pillow reads 16-bit RGB as
+  8-bit). 32-bit files have no precision leg yet. 16-bit files carry `-deep1` in
+  their cache keys.
+
 The Photoshop column doubles as a control: ~100% render accuracy and full native
 preservation validate the pipeline itself.
 
 
 ## The reference render
 
-- Photoshop's reference PNG is always 8-bit sRGB. `normalizeForPng` in
+- Photoshop's scored reference PNG is always 8-bit sRGB (16-bit files also get the
+  `render16.png` precision reference above). `normalizeForPng` in
   `drivers/photoshop.py` converts Bitmap to Grayscale, any non-RGB mode to RGB, the
   document profile to sRGB (relative colorimetric, black point compensation; skipped
   for 32-bit), and 16-bit to 8-bit. Without it a grayscale or CMYK file's reference

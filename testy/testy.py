@@ -1102,6 +1102,29 @@ def file_traits(path: Path) -> dict | None:
     return traits
 
 
+def psd_header_depth(path: Path) -> int | None:
+    """Bits per channel from a PSD/PSB header, or None for anything else."""
+    try:
+        with open(path, "rb") as handle:
+            header = handle.read(26)
+    except OSError:
+        return None
+    if len(header) < 26 or header[:4] != b"8BPS":
+        return None
+    return int.from_bytes(header[22:24], "big")
+
+
+def save_depth_record(original_depth: int | None, resave_psd: Path) -> dict | None:
+    """Did the editor's .psd save keep the document's bit depth? Read from the two
+    headers, so it needs no Photoshop and works on cached resaves. A deeper save
+    (8-bit written as 16) loses nothing and counts as kept; a 16-bit file saved as
+    8-bit has lost its extra precision even when every layer survived."""
+    resaved = psd_header_depth(resave_psd)
+    if original_depth is None or resaved is None:
+        return None
+    return {"original": original_depth, "resaved": resaved, "kept": resaved >= original_depth}
+
+
 def refused_with_reference(entry: dict, cell: dict) -> bool:
     """The editor refused a file Photoshop rendered: a zero for the render averages.
     Harness failures (timeouts, a dead app, breaker skips) are not the editor's
@@ -1136,6 +1159,8 @@ def reference_space_key(traits: dict | None) -> str:
         key += "-freshtext2"  # the reference re-renders text; its manifest lists every face used
     if traits.get("smart"):
         key += "-freshsmart1"  # and embedded smart objects from their contents
+    if traits.get("depth") == 16:
+        key += "-deep1"  # the probe also saves 16-bit renders (render16.png, roundtrip16.png)
     return key
 
 
@@ -1286,15 +1311,17 @@ class Runner:
 
         if result_path.exists() and not self.args.fresh:
             result = json.loads(result_path.read_text(encoding="utf-8"))
-            if (cache_dir / "render.png").exists():
-                shutil.copyfile(cache_dir / "render.png", gt_dir / "render.png")
+            for name in ("render.png", "render16.png"):
+                if (cache_dir / name).exists():
+                    shutil.copyfile(cache_dir / name, gt_dir / name)
         else:
             result = self.ps.probe(staged.original, gt_dir / "render.png")
             if result.get("ok"):
                 cache_dir.mkdir(parents=True, exist_ok=True)
                 result_path.write_text(json.dumps(result), encoding="utf-8")
-                if (gt_dir / "render.png").exists():
-                    shutil.copyfile(gt_dir / "render.png", cache_dir / "render.png")
+                for name in ("render.png", "render16.png"):
+                    if (gt_dir / name).exists():
+                        shutil.copyfile(gt_dir / name, cache_dir / name)
         if result.get("ok"):
             # (Ground truth cached before the appended-text leg was retired calls it
             # mutateSkipped; only its missing-fonts reason still means anything.)
@@ -1332,6 +1359,8 @@ class Runner:
             thumb = _thumb(gt_dir / "render.png", gt_dir / "render_thumb.png")
             if thumb:
                 artifacts["renderThumb"] = self._rel(gt_dir / thumb)
+        if (gt_dir / "render16.png").exists():
+            artifacts["render16"] = self._rel(gt_dir / "render16.png")
         entry["groundTruth"] = {
             "state": "done",
             "render": result.get("render"),
@@ -1470,10 +1499,24 @@ class Runner:
             if (cell_dir / "heatmap.png").exists():
                 artifacts["heatmap"] = self._rel(cell_dir / "heatmap.png")
             self._apply_text_render_rule(cell)
+            truth_render16 = truth_render.with_name("render16.png")
+            if truth_render16.exists():
+                # An editor that also wrote a 16-bit render (Photoshop's own column) is
+                # measured on it; otherwise its render is 8-bit, and its rounding is
+                # the precision this measures.
+                own16 = cell_dir / "render16.png"
+                cell["deepRender"] = analyze.compare_deep_renders(
+                    truth_render16, own16 if own16.exists() else render_png, document_size)
+            if (cell_dir / "render16.png").exists():
+                artifacts["render16"] = self._rel(cell_dir / "render16.png")
 
         if trap_png.exists():
             cell["trapSentinelFraction"] = round(analyze.sentinel_fraction(trap_png), 4)
 
+        if resave_psd.exists():
+            depth = save_depth_record((entry.get("traits") or {}).get("depth"), resave_psd)
+            if depth is not None:
+                cell["saveDepth"] = depth
         if resave_psd.exists() and truth is not None:
             cell["stage"] = "reopening resave in Photoshop"
             self.push()
@@ -1495,6 +1538,19 @@ class Runner:
                         cell["roundtripRender"] = analyze.compare_renders(
                             truth_render, cell_dir / "roundtrip.png", document_size, [], None
                         )
+                # The precision a save kept: Photoshop's render of the editor's resave
+                # against its 16-bit render of the original. A resave still at 16 bits
+                # gets a 16-bit render (roundtrip16.png); one saved at 8 bits renders at
+                # 8, and that rounding is exactly the loss.
+                truth_render16 = truth_render.with_name("render16.png")
+                deep_resave = cell_dir / "roundtrip16.png"
+                if deep_resave.exists():
+                    artifacts["roundtrip16"] = self._rel(deep_resave)
+                else:
+                    deep_resave = cell_dir / "roundtrip.png"
+                if deep_resave.exists() and truth_render16.exists() and document_size[0]:
+                    cell["deepRoundtrip"] = analyze.compare_deep_renders(
+                        truth_render16, deep_resave, document_size)
             else:
                 cell["native"] = {"error": f"Photoshop could not open the resave: {roundtrip.get('error')}"}
                 # A Photoshop that never started has not rejected anything: blaming the
@@ -1811,6 +1867,13 @@ class Runner:
                 cell["renderMetrics"] = analyze.compare_renders(
                     truth_render, render_png, document_size, truth["layers"], None
                 )
+        # Cells cached before saved bit depth was measured: read it from the cached
+        # resave's header.
+        if "saveDepth" not in cell and (cell_dir / "resave.psd").exists():
+            depth = save_depth_record((entry.get("traits") or {}).get("depth"), cell_dir / "resave.psd")
+            if depth is not None:
+                cell["saveDepth"] = depth
+                changed = True
         # Cells compared under older layer-pairing rules: compare again from the stored
         # manifest of the resave (no editor or Photoshop run needed).
         native = cell.get("native")
@@ -2069,12 +2132,13 @@ class Runner:
                     "nocache_fontkept.psd", "nocache_fontkept.psb",
                     "nocache_plain_fontkept.psd", "nocache_plain_fontkept.psb",
                     "nocache_plain_textkept.psd", "nocache_plain_textkept.psb")
-    SCRUB_TRUTH = ("render.png", "render_thumb.png", "mutated.png", "mutated_thumb.png",
-                   "manifest.json")
+    SCRUB_TRUTH = ("render.png", "render_thumb.png", "render16.png", "mutated.png",
+                   "mutated_thumb.png", "manifest.json")
     SCRUB_CELL = ("render.png", "render_thumb.png", "render_as_opened.png", "nocache.png",
                   "nocache_plain.png", "nocache_resave.psd", "nocache_unused.png", "resave.psd", "trap.png",
                   "trap_thumb.png", "mutated.png", "mutated_thumb.png", "heatmap.png",  # mutated*: older runs
-                  "roundtrip.png", "roundtrip_thumb.png", "roundtrip_manifest.json")
+                  "roundtrip.png", "roundtrip_thumb.png", "roundtrip_manifest.json",
+                  "render16.png", "roundtrip16.png")
 
     def _apply_scan_policy(self, index: int) -> None:
         """After every cell of a file finished: flag it, or scrub a passing file."""
@@ -2471,6 +2535,11 @@ class Runner:
             render_scores: list[float] = []
             visual_scores: list[float] = []
             native_scores: list[float] = []
+            # Deep (16/32-bit) files only: saves that kept the bit depth, and the
+            # 16-bit precision of the render and of Photoshop's render of the resave.
+            depth_kept = depth_total = 0
+            deep_render: list[float] = []
+            deep_roundtrip: list[float] = []
             for entry in self.status["files"]:
                 cell = entry["cells"].get(editor_key)
                 if not cell or cell.get("state") in ("pending", "running", "skipped"):
@@ -2493,6 +2562,14 @@ class Runner:
                 native = cell.get("native")
                 if native and "nativeScore" in native:
                     native_scores.append(native["nativeScore"])
+                save_depth = cell.get("saveDepth")
+                if save_depth and save_depth.get("original", 8) > 8:
+                    depth_total += 1
+                    depth_kept += 1 if save_depth.get("kept") else 0
+                for key, scores in (("deepRender", deep_render), ("deepRoundtrip", deep_roundtrip)):
+                    deep = cell.get(key)
+                    if deep and deep.get("state") == "done":
+                        scores.append(deep["accuracy"])
             aggregate[editor_key] = {
                 "opened": opened,
                 "total": total,
@@ -2503,6 +2580,10 @@ class Runner:
                 # False when no cell produced a resave score (an editor without that
                 # leg, or a run that never got one): "native" is then a placeholder 0.
                 "nativeMeasured": bool(native_scores),
+                "depthKept": depth_kept,
+                "depthTotal": depth_total,
+                "deepRender": sum(deep_render) / len(deep_render) if deep_render else None,
+                "deepRoundtrip": sum(deep_roundtrip) / len(deep_roundtrip) if deep_roundtrip else None,
             }
         return aggregate
 
@@ -2547,6 +2628,9 @@ class Runner:
                 +
                 f"opened {a['opened']}/{a['total']}"
                 + (f"   bad .psd saves {a['badSaves']}" if a["badSaves"] else "")
+                + (f"   deep saves kept depth {a['depthKept']}/{a['depthTotal']}" if a["depthTotal"] else "")
+                + (f"   16-bit precise {a['deepRoundtrip'] * 100:.1f}% (resave)"
+                   if a["deepRoundtrip"] is not None else "")
             )
         if self.scan_threshold is not None:
             flagged = [e for e in self.status["files"] if e.get("scan", {}).get("flagged")]
