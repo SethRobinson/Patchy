@@ -4,13 +4,26 @@ Read this before adding tests, changing test infrastructure, diagnosing suite-on
 
 ## Suite organization
 
-The core suite is one binary split across `tests/core/*_tests.cpp`, one TU per thematic group. Each TU ends with a `<group>_tests()` registration function; `tests/core/main.cpp` concatenates them in a fixed order. Never use static self-registration because cross-TU initialization order would reorder the suite. Append tests to the correct group registration vector. Shared Qt-free helpers live in `tests/core/core_test_support.{hpp,cpp}` and `psd_test_support.{hpp,cpp}` under `namespace patchy::test`; move shared helpers there rather than copying them.
+The core binary groups tests in `tests/core/*_tests.cpp`. Each TU exports `<group>_tests()`; `tests/core/main.cpp` concatenates registrations in fixed order. Append to the appropriate vector; never use static self-registration (cross-TU order varies). Move shared Qt-free helpers into `tests/core/core_test_support.{hpp,cpp}` or `psd_test_support.{hpp,cpp}`, namespace `patchy::test`; do not duplicate them.
 
-The UI suite follows the same design in `tests/ui/*_tests.cpp`. Registrations are declared in `tests/ui/ui_test_groups.hpp` and concatenated by `tests/ui/main.cpp` in a load-bearing order: contact-sheet and README tests consume artifacts written earlier, and QSettings state intentionally crosses tests. Shared helpers live in `tests/ui/ui_test_support.{hpp,cpp}` under `namespace patchy::test::ui`. `MainWindowTestAccess` in `tests/ui/ui_test_access.hpp` is befriended by its qualified name in `main_window.hpp`.
+The UI suite uses `tests/ui/*_tests.cpp`, declarations in `tests/ui/ui_test_groups.hpp`, and fixed ordering in `tests/ui/main.cpp`: contact-sheet/README tests consume earlier artifacts, and QSettings state crosses tests. Helpers: `tests/ui/ui_test_support.{hpp,cpp}`, namespace `patchy::test::ui`. `MainWindowTestAccess` (`tests/ui/ui_test_access.hpp`) is befriended by qualified name in `main_window.hpp`.
 
-Unicode and special-character path tests (`unicode_path_tests` in both suites, plus `ui_script_io_round_trips_unicode_path`) share their file names through `tests/unicode_path_names.hpp`. Spell non-ASCII in those names and in any Qt-free TU as `\u`/`\U` escapes inside `u8""` literals: `patchy_core_tests` compiles without `-utf-8` (only Qt-linked targets inherit it), so raw UTF-8 bytes would be read through the ANSI code page and raise C4819.
+Both suites' `unicode_path_tests` and `ui_script_io_round_trips_unicode_path` share names in `tests/unicode_path_names.hpp`. In names and Qt-free TUs, spell non-ASCII as `\u`/`\U` escapes in `u8""`: only Qt-linked targets inherit `-utf-8`; raw bytes in core tests use the ANSI code page and raise C4819.
 
-Groups that outgrew ~3,000 lines are split into part files (`<group>_tests_<theme>.cpp`, each exporting `<group>_tests_partN()`); the original `<group>_tests.cpp` stays as a small aggregator whose exported function concatenates the parts in the original registration order, so the suite order is unchanged. Add a new test to the correct part file's registration vector, keeping the group's overall order intact. Helpers shared by two or more parts of one group live in that group's `<group>_test_support.{hpp,cpp}` (moved, never copied); helpers used by one part stay in that part's anonymous namespace. `patchy_core_tests` has no `/bigobj`, so core part files must stay under ~3,000 lines.
+Recursive cleanup uses `tests/test_scratch_remove.hpp` (UI wrapper:
+`remove_test_scratch_dir`). Targets must be strictly below `test-artifacts`,
+`qttest`, `.qttest`, or system-temp `patchy*`; roots are protected. Resolve parent
+links before checking containment; remove final links without their targets.
+Node uses host path APIs ([wasm.md](wasm.md)), failing closed on resolution errors
+and dangling parents. Core filter `test_scratch_remove` covers missing/Unicode
+paths and link safety; unavailable symlink creation reports a capability skip.
+
+Split groups exceeding ~3,000 lines into `<group>_tests_<theme>.cpp`, exporting
+`<group>_tests_partN()`. Keep `<group>_tests.cpp` as an aggregator preserving the
+original registration order; append new tests to the appropriate part's vector.
+Move helpers shared across parts into `<group>_test_support.{hpp,cpp}`; single-part
+helpers stay anonymous. Core parts must stay under ~3,000 lines: the target has no
+`/bigobj`.
 
 Local-fixture tests skip on a remote machine until `local-test-fixtures` is copied there, because that directory is deliberately untracked. Sync it from the repo root with `tar -cf - local-test-fixtures | ssh <host> 'tar -xf - -C ~/patchy/src'` (Git Bash; macOS tar drops four `__MACOSX/._*` AppleDouble entries, which are not test inputs). The snapshot checkout leaves untracked files alone, so one sync persists across later `remote-build.ps1` runs. Read the per-platform consequences in [platform.md](platform.md) before doing this: a synced corpus turns previously skipped text tests into failures and one hang. The repository-wide fixture sourcing rule lives in `AGENTS.md`.
 
