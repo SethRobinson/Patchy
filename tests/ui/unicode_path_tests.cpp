@@ -126,7 +126,7 @@ void ui_unicode_write_flat_image_file_every_extension() {
   QStringList expected{palette_name};
 
   const std::vector<const char*> extensions = {"png", "jpg", "bmp", "gif", "ico", "cur", "tga",
-                                               "pcx", "lbm", "tif", "webp", "pdf"};
+                                               "pcx", "lbm", "tif", "webp", "pdf", "dds"};
   for (const auto* extension : extensions) {
     const auto name = combined_name(extension);
     const auto path = dir + QLatin1Char('/') + name;

@@ -8631,10 +8631,6 @@ RGB: %2, %3, %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>File-format and automation plug-ins are not supported; only filter (.8bf) plug-ins run.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>This plug-in is not a filter; only filter (.8bf) plug-ins run.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -8923,6 +8919,134 @@ RGB: %2, %3, %4</source>
     </message>
     <message>
         <source>PSD channel depth does not match the document</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Palettized DDS textures are not supported</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>YUV DDS textures are not supported</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bump-map (signed) DDS textures are not supported</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>DDS pixel format has no colour or alpha channel masks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>DDS pixel format bit masks do not fit the pixel size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Not a DDS texture: the &apos;DDS &apos; signature is missing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>DDS texture is truncated: the header is incomplete</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>DDS header has an unexpected size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>DDS pixel format block has an unexpected size</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>DDS texture has an unknown resource dimension</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>DDS texture is truncated: the pixel data is shorter than the header promises</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The file marks its alpha channel as unused; it was ignored</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The file marks its alpha channel as custom data; it was read as straight alpha</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Premultiplied alpha was converted to straight alpha</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>16-bit channels were converted to 8 bits</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Floating-point HDR pixels were tone mapped to 8 bits</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Two-channel BC5 texture: the blue channel was set to 0</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Alpha-only texture opened as white with its alpha channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Each cubemap face imported as its own layer; only the first is visible</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Each volume slice imported as its own layer; only the first is visible</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Each array element imported as its own layer; only the first is visible</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cannot write an empty document as a DDS texture</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>File-format and automation plug-ins are not supported; only filter (.8bf) plug-ins run. DDS textures open natively through File &gt; Open.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>DDS Texture Options</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Automatic (BC1 when opaque, BC3 with transparency)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Uncompressed 32-bit (A8R8G8B8, lossless)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>BC1 / DXT1 (smallest, 1-bit transparency)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>BC3 / DXT5 (compressed, full transparency)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Compression:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Generate mipmaps</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>BC1 and BC3 are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. Mipmaps are generated down to 1x1 with a box filter.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>DirectDraw Surface</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

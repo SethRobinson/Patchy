@@ -18,6 +18,7 @@
 #include "filters/builtin_filters.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "formats/ico_document_io.hpp"
+#include "formats/dds_document_io.hpp"
 #include "formats/rttex_document_io.hpp"
 #include "plugins/legacy_photoshop_adapter.hpp"
 #include "psd/psd_document_io.hpp"
@@ -688,6 +689,14 @@ ImageSaveOptions MainWindow::image_save_defaults_for_document() {
     }
     if (const auto found = values.find(rttex::kMetadataForceAlpha); found != values.end() && found->second == "1") {
       options.rttex_force_alpha = true;
+    }
+    // A document opened from .dds keeps its source's compression (a BC3 file saves back as
+    // BC3 with its alpha) and whether it carried a mip chain.
+    if (const auto found = values.find(dds::kMetadataCompression); found != values.end()) {
+      options.dds_compression = dds::compression_from_token(found->second).value_or(options.dds_compression);
+    }
+    if (const auto found = values.find(dds::kMetadataMipmaps); found != values.end()) {
+      options.dds_mipmaps = found->second == "1";
     }
   }
   return options;

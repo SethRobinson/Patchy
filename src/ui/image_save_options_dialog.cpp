@@ -2,6 +2,7 @@
 #include "ui/image_save_options_dialog.hpp"
 
 #include "formats/jxr_document_io.hpp"
+#include "formats/dds_document_io.hpp"
 #include "formats/rttex_document_io.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/color_panel.hpp"
@@ -81,6 +82,19 @@ bool is_jxr_extension(const QString& extension) {
 
 bool is_rttex_extension(const QString& extension) {
   return rttex::is_rttex_extension(normalized_save_extension(extension).toStdString());
+}
+
+bool is_dds_extension(const QString& extension) {
+  return dds::is_dds_extension(normalized_save_extension(extension).toStdString());
+}
+
+QString dds_compression_key(dds::Compression compression) {
+  const auto token = dds::compression_token(compression);
+  return QString::fromLatin1(token.data(), static_cast<qsizetype>(token.size()));
+}
+
+dds::Compression dds_compression_from_key(const QString& key, dds::Compression fallback) {
+  return dds::compression_from_token(key.toStdString()).value_or(fallback);
 }
 
 // The Proton texture tokens live with the codec so the settings keys, the dialog, and the
@@ -596,7 +610,7 @@ std::optional<ExportSectionWidgets> finish_options_dialog(QVBoxLayout* content, 
 bool image_save_options_apply_to_extension(const QString& extension) {
   return is_jpeg_extension(extension) || is_webp_extension(extension) || is_bmp_extension(extension) ||
          is_ico_extension(extension) || is_cur_extension(extension) || is_pdf_extension(extension) ||
-         is_jxr_extension(extension) || is_rttex_extension(extension);
+         is_jxr_extension(extension) || is_rttex_extension(extension) || is_dds_extension(extension);
 }
 
 void populate_pdf_image_quality_combo(QComboBox& combo, const QString& current_id) {
@@ -698,6 +712,11 @@ ImageSaveOptions load_image_save_option_defaults() {
   options.rttex_force_alpha =
       settings.value(QStringLiteral("saveOptions/rttexForceAlpha"), options.rttex_force_alpha).toBool();
   options.rttex_compress = settings.value(QStringLiteral("saveOptions/rttexCompress"), options.rttex_compress).toBool();
+  options.dds_compression = dds_compression_from_key(
+      settings.value(QStringLiteral("saveOptions/ddsCompression"), dds_compression_key(options.dds_compression))
+          .toString(),
+      options.dds_compression);
+  options.dds_mipmaps = settings.value(QStringLiteral("saveOptions/ddsMipmaps"), options.dds_mipmaps).toBool();
   return options;
 }
 
@@ -733,6 +752,8 @@ void save_image_save_option_defaults(const ImageSaveOptions& options) {
   settings.setValue(QStringLiteral("saveOptions/rttexForceSquare"), options.rttex_force_square);
   settings.setValue(QStringLiteral("saveOptions/rttexForceAlpha"), options.rttex_force_alpha);
   settings.setValue(QStringLiteral("saveOptions/rttexCompress"), options.rttex_compress);
+  settings.setValue(QStringLiteral("saveOptions/ddsCompression"), dds_compression_key(options.dds_compression));
+  settings.setValue(QStringLiteral("saveOptions/ddsMipmaps"), options.dds_mipmaps);
 }
 
 std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const QString& extension,
@@ -1048,6 +1069,56 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     options.rttex_force_square = force_square->isChecked();
     options.rttex_force_alpha = force_alpha->isChecked();
     options.rttex_compress = compress->isChecked();
+    if (section.has_value()) {
+      apply_export_section(options, *section);
+    }
+    return options;
+  }
+  if (is_dds_extension(extension)) {
+    QDialog dialog(parent);
+    dialog.setObjectName(QStringLiteral("ddsSaveOptionsDialog"));
+    auto* content = create_options_dialog_chrome(dialog, QObject::tr("DDS Texture Options"));
+    dialog.resize(460, 300);
+
+    auto* form = new QFormLayout();
+    form->setContentsMargins(0, 0, 0, 0);
+    form->setHorizontalSpacing(10);
+    form->setVerticalSpacing(8);
+
+    auto* compression = new QComboBox(&dialog);
+    compression->setObjectName(QStringLiteral("ddsCompressionCombo"));
+    compression->addItem(QObject::tr("Automatic (BC1 when opaque, BC3 with transparency)"),
+                         dds_compression_key(dds::Compression::Automatic));
+    compression->addItem(QObject::tr("Uncompressed 32-bit (A8R8G8B8, lossless)"),
+                         dds_compression_key(dds::Compression::Uncompressed));
+    compression->addItem(QObject::tr("BC1 / DXT1 (smallest, 1-bit transparency)"),
+                         dds_compression_key(dds::Compression::Bc1));
+    compression->addItem(QObject::tr("BC3 / DXT5 (compressed, full transparency)"),
+                         dds_compression_key(dds::Compression::Bc3));
+    compression->setCurrentIndex(std::max(0, compression->findData(dds_compression_key(options.dds_compression))));
+    form->addRow(new QLabel(QObject::tr("Compression:"), &dialog), compression);
+    content->addLayout(form);
+
+    auto* mipmaps = new QCheckBox(QObject::tr("Generate mipmaps"), &dialog);
+    mipmaps->setObjectName(QStringLiteral("ddsMipmapsCheck"));
+    mipmaps->setChecked(options.dds_mipmaps);
+    content->addWidget(mipmaps);
+
+    auto* note = new QLabel(
+        QObject::tr("BC1 and BC3 are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below "
+                    "50 percent alpha become fully transparent. Mipmaps are generated down to 1x1 with a box "
+                    "filter."),
+        &dialog);
+    note->setObjectName(QStringLiteral("ddsSaveNote"));
+    note->setWordWrap(true);
+    content->addWidget(note);
+    const auto section = finish_options_dialog(content, dialog, for_export, extension, document_size);
+
+    if (exec_dialog(dialog) != QDialog::Accepted) {
+      return std::nullopt;
+    }
+    options.dds_compression = dds_compression_from_key(compression->currentData().toString(), options.dds_compression);
+    options.dds_mipmaps = mipmaps->isChecked();
     if (section.has_value()) {
       apply_export_section(options, *section);
     }

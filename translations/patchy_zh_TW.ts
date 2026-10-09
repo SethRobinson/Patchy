@@ -8612,10 +8612,6 @@ RGB：%2, %3, %4</translation>
         <translation>不支援的外掛程式架構；只能執行 32 位元和 64 位元 x86 外掛程式。</translation>
     </message>
     <message>
-        <source>File-format and automation plug-ins are not supported; only filter (.8bf) plug-ins run.</source>
-        <translation>不支援檔案格式和自動化外掛程式；只能執行濾鏡 (.8bf) 外掛程式。</translation>
-    </message>
-    <message>
         <source>This plug-in is not a filter; only filter (.8bf) plug-ins run.</source>
         <translation>此外掛程式不是濾鏡；只能執行濾鏡 (.8bf) 外掛程式。</translation>
     </message>
@@ -8904,6 +8900,134 @@ RGB：%2, %3, %4</translation>
     <message>
         <source>PSD channel depth does not match the document</source>
         <translation>PSD 色版位元深度與文件不符</translation>
+    </message>
+    <message>
+        <source>Palettized DDS textures are not supported</source>
+        <translation>不支援調色盤格式的 DDS 紋理</translation>
+    </message>
+    <message>
+        <source>YUV DDS textures are not supported</source>
+        <translation>不支援 YUV 格式的 DDS 紋理</translation>
+    </message>
+    <message>
+        <source>Bump-map (signed) DDS textures are not supported</source>
+        <translation>不支援凹凸貼圖（有符號）格式的 DDS 紋理</translation>
+    </message>
+    <message>
+        <source>DDS pixel format has no colour or alpha channel masks</source>
+        <translation>DDS 像素格式沒有顏色或 Alpha 色版遮罩</translation>
+    </message>
+    <message>
+        <source>DDS pixel format bit masks do not fit the pixel size</source>
+        <translation>DDS 像素格式的位元遮罩超出了像素大小</translation>
+    </message>
+    <message>
+        <source>Not a DDS texture: the &apos;DDS &apos; signature is missing</source>
+        <translation>不是 DDS 紋理：缺少 &apos;DDS &apos; 簽章</translation>
+    </message>
+    <message>
+        <source>DDS texture is truncated: the header is incomplete</source>
+        <translation>DDS 紋理被截斷：檔頭不完整</translation>
+    </message>
+    <message>
+        <source>DDS header has an unexpected size</source>
+        <translation>DDS 檔頭的大小異常</translation>
+    </message>
+    <message>
+        <source>DDS pixel format block has an unexpected size</source>
+        <translation>DDS 像素格式區塊的大小異常</translation>
+    </message>
+    <message>
+        <source>DDS texture has an unknown resource dimension</source>
+        <translation>DDS 紋理的資源維度未知</translation>
+    </message>
+    <message>
+        <source>DDS texture is truncated: the pixel data is shorter than the header promises</source>
+        <translation>DDS 紋理被截斷：像素資料比檔頭宣告的要短</translation>
+    </message>
+    <message>
+        <source>The file marks its alpha channel as unused; it was ignored</source>
+        <translation>檔案將其 Alpha 色版標記為未使用，已忽略</translation>
+    </message>
+    <message>
+        <source>The file marks its alpha channel as custom data; it was read as straight alpha</source>
+        <translation>檔案將其 Alpha 色版標記為自訂資料，已按直接 Alpha 讀取</translation>
+    </message>
+    <message>
+        <source>Premultiplied alpha was converted to straight alpha</source>
+        <translation>預乘 Alpha 已轉換為直接 Alpha</translation>
+    </message>
+    <message>
+        <source>16-bit channels were converted to 8 bits</source>
+        <translation>16 位元色版已轉換為 8 位元</translation>
+    </message>
+    <message>
+        <source>Floating-point HDR pixels were tone mapped to 8 bits</source>
+        <translation>浮點 HDR 像素已透過色調對應轉換為 8 位元</translation>
+    </message>
+    <message>
+        <source>Two-channel BC5 texture: the blue channel was set to 0</source>
+        <translation>雙色版 BC5 紋理：藍色色版已設為 0</translation>
+    </message>
+    <message>
+        <source>Alpha-only texture opened as white with its alpha channel</source>
+        <translation>僅含 Alpha 的紋理已作為帶 Alpha 色版的白色開啟</translation>
+    </message>
+    <message>
+        <source>Each cubemap face imported as its own layer; only the first is visible</source>
+        <translation>立方體貼圖的每個面已分別匯入為圖層，僅第一個可見</translation>
+    </message>
+    <message>
+        <source>Each volume slice imported as its own layer; only the first is visible</source>
+        <translation>體積紋理的每個切片已分別匯入為圖層，僅第一個可見</translation>
+    </message>
+    <message>
+        <source>Each array element imported as its own layer; only the first is visible</source>
+        <translation>紋理陣列的每個元素已分別匯入為圖層，僅第一個可見</translation>
+    </message>
+    <message>
+        <source>Cannot write an empty document as a DDS texture</source>
+        <translation>無法將空白文件寫入為 DDS 紋理</translation>
+    </message>
+    <message>
+        <source>File-format and automation plug-ins are not supported; only filter (.8bf) plug-ins run. DDS textures open natively through File &gt; Open.</source>
+        <translation>不支援檔案格式和自動化外掛程式；只能執行濾鏡 (.8bf) 外掛程式。 DDS 紋理可直接透過「檔案 &gt; 開啟」開啟。</translation>
+    </message>
+    <message>
+        <source>DDS Texture Options</source>
+        <translation>DDS 紋理選項</translation>
+    </message>
+    <message>
+        <source>Automatic (BC1 when opaque, BC3 with transparency)</source>
+        <translation>自動（不透明用 BC1，有透明度用 BC3）</translation>
+    </message>
+    <message>
+        <source>Uncompressed 32-bit (A8R8G8B8, lossless)</source>
+        <translation>未壓縮 32 位元（A8R8G8B8，無損）</translation>
+    </message>
+    <message>
+        <source>BC1 / DXT1 (smallest, 1-bit transparency)</source>
+        <translation>BC1 / DXT1（最小，1 位元透明度）</translation>
+    </message>
+    <message>
+        <source>BC3 / DXT5 (compressed, full transparency)</source>
+        <translation>BC3 / DXT5（壓縮，完整透明度）</translation>
+    </message>
+    <message>
+        <source>Compression:</source>
+        <translation>壓縮：</translation>
+    </message>
+    <message>
+        <source>Generate mipmaps</source>
+        <translation>產生 Mipmap</translation>
+    </message>
+    <message>
+        <source>BC1 and BC3 are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. Mipmaps are generated down to 1x1 with a box filter.</source>
+        <translation>BC1 和 BC3 是有損的 4x4 區塊壓縮格式。BC1 只保留 1 位元透明度：Alpha 低於 50% 的像素會變為完全透明。Mipmap 使用盒狀濾鏡產生至 1x1。</translation>
+    </message>
+    <message>
+        <source>DirectDraw Surface</source>
+        <translation>DirectDraw Surface</translation>
     </message>
 </context>
 <context>

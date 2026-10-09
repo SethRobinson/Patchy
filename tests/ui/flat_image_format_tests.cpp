@@ -52,6 +52,7 @@
 #include "formats/tga_document_io.hpp"
 #include "ui/image_document_io.hpp"
 #include "formats/jxr_document_io.hpp"
+#include "formats/dds_document_io.hpp"
 #include "formats/rttex_document_io.hpp"
 #include "ui/image_save_options_dialog.hpp"
 #include "ui/layer_list_widget.hpp"
@@ -1571,6 +1572,209 @@ void ui_rttex_save_options_persist_and_dialog_prefills_from_source() {
   settings.sync();
 }
 
+
+void ui_dds_opens_and_saves_as_a_read_write_format() {
+  ensure_artifact_dir();
+  const auto fixture =
+      QString::fromStdWString(patchy::test::committed_format_fixture_path("dds", "pillow-a8r8g8b8-9x7.dds").wstring());
+  CHECK(QFileInfo::exists(fixture));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, fixture);
+  QApplication::processEvents();
+
+  // The translucent texture opens at the untagged 72 PPI with its alpha promoted to an
+  // editable document-alpha mask, exactly like every other flat format with transparency.
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(document.width() == 9);
+  CHECK(document.height() == 7);
+  CHECK(std::as_const(document).layers().size() == 1);
+  const auto& layer = std::as_const(document).layers().front();
+  CHECK(layer.name() == "Background");
+  CHECK(layer.pixels().format() == patchy::PixelFormat::rgb8());
+  CHECK(layer.mask().has_value());
+  CHECK(patchy::layer_mask_is_document_alpha(layer));
+  CHECK(layer.mask()->pixels.pixel(0, 0)[0] == 0);
+  CHECK(layer.mask()->pixels.pixel(4, 3)[0] == 127);
+  CHECK(layer.mask()->pixels.pixel(8, 0)[0] == 255);
+  CHECK(layer.pixels().pixel(0, 0)[0] == 250);  // the colour under zero alpha survives the import
+  CHECK(document.print_settings().horizontal_ppi == 72.0);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_path(window) == fixture);
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  // The source was uncompressed, so a plain Save keeps it uncompressed and lossless.
+  const auto defaults = patchy::ui::MainWindowTestAccess::image_save_defaults(window);
+  CHECK(defaults.dds_compression == patchy::dds::Compression::Uncompressed);
+  CHECK(!defaults.dds_mipmaps);
+
+  // The registry handler has a writer, so Save writes the file in place instead of routing to
+  // Save As; the reopened file keeps every colour and the whole alpha mask.
+  const QString saved = QStringLiteral("test-artifacts/dds_round_trip.dds");
+  QFile::remove(saved);
+  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, saved, defaults));
+  CHECK(QFileInfo::exists(saved));
+
+  patchy::ui::MainWindow reopened;
+  show_window(reopened);
+  patchy::ui::MainWindowTestAccess::open_document_path(reopened, saved);
+  QApplication::processEvents();
+  auto& round_tripped = patchy::ui::MainWindowTestAccess::document(reopened);
+  CHECK(round_tripped.width() == 9);
+  CHECK(round_tripped.height() == 7);
+  const auto& second = std::as_const(round_tripped).layers().front();
+  CHECK(second.mask().has_value());
+  for (std::int32_t y = 0; y < 7; ++y) {
+    for (std::int32_t x = 0; x < 9; ++x) {
+      CHECK(second.mask()->pixels.pixel(x, y)[0] == layer.mask()->pixels.pixel(x, y)[0]);
+      if (layer.mask()->pixels.pixel(x, y)[0] == 0) {
+        continue;  // colours under zero alpha do not survive a flatten
+      }
+      for (int channel = 0; channel < 3; ++channel) {
+        CHECK(second.pixels().pixel(x, y)[channel] == layer.pixels().pixel(x, y)[channel]);
+      }
+    }
+  }
+}
+
+void ui_dds_bc3_source_resaves_as_bc3_with_alpha_intact() {
+  ensure_artifact_dir();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(
+      window, QString::fromStdWString(
+                  patchy::test::committed_format_fixture_path("dds", "pillow-dxt5-16x16.dds").wstring()));
+  QApplication::processEvents();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto& layer = std::as_const(document).layers().front();
+  CHECK(layer.mask().has_value());
+  CHECK(patchy::layer_mask_is_document_alpha(layer));
+
+  // A BC3 source prefills BC3, so Save keeps the compression and its 8-bit alpha.
+  const auto prefilled = patchy::ui::MainWindowTestAccess::image_save_defaults(window);
+  CHECK(prefilled.dds_compression == patchy::dds::Compression::Bc3);
+  const QString saved = QStringLiteral("test-artifacts/dds_bc3_resave.dds");
+  QFile::remove(saved);
+  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, saved, prefilled));
+  QFile saved_file(saved);
+  CHECK(saved_file.open(QIODevice::ReadOnly));
+  const QByteArray bytes = saved_file.readAll();
+  CHECK(bytes.size() > 128);
+  CHECK(std::memcmp(bytes.constData() + 84, "DXT5", 4) == 0);
+
+  const auto decoded = patchy::dds::read_dds(
+      std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(bytes.constData()), bytes.size()));
+  CHECK(decoded.document.layers().front().pixels().format() == patchy::PixelFormat::rgba8());
+  int alpha_max_error = 0;
+  for (std::int32_t y = 0; y < 16; ++y) {
+    for (std::int32_t x = 0; x < 16; ++x) {
+      const int expected = layer.mask()->pixels.pixel(x, y)[0];
+      const int actual = decoded.document.layers().front().pixels().pixel(x, y)[3];
+      alpha_max_error = std::max(alpha_max_error, std::abs(actual - expected));
+    }
+  }
+  // Pillow encoded the fixture's mixed blocks (a transparent bottom row under high alpha) in
+  // BC3's 6-level alpha mode with explicit 0 and 255; stb_dxt re-encodes them in the 8-level
+  // mode spread over the whole range, so those blocks move by up to 18 (docs/dds.md).
+  CHECK(alpha_max_error <= 20);
+}
+
+void ui_dds_save_options_persist_and_dialog_prefills_from_source() {
+  auto settings = patchy::ui::app_settings();
+  settings.remove(QStringLiteral("saveOptions"));
+  settings.sync();
+
+  auto defaults = patchy::ui::load_image_save_option_defaults();
+  CHECK(defaults.dds_compression == patchy::dds::Compression::Automatic);
+  CHECK(!defaults.dds_mipmaps);
+  CHECK(patchy::ui::image_save_options_apply_to_extension(QStringLiteral("dds")));
+  CHECK(patchy::ui::image_save_options_apply_to_extension(QStringLiteral(".DDS")));
+
+  // Persisted under the permanent saveOptions/dds* keys; a bogus token falls back.
+  defaults.dds_compression = patchy::dds::Compression::Bc1;
+  defaults.dds_mipmaps = true;
+  patchy::ui::save_image_save_option_defaults(defaults);
+  CHECK(settings.value(QStringLiteral("saveOptions/ddsCompression")).toString() == QStringLiteral("bc1"));
+  CHECK(settings.value(QStringLiteral("saveOptions/ddsMipmaps")).toBool());
+  const auto reloaded = patchy::ui::load_image_save_option_defaults();
+  CHECK(reloaded.dds_compression == patchy::dds::Compression::Bc1);
+  CHECK(reloaded.dds_mipmaps);
+  settings.setValue(QStringLiteral("saveOptions/ddsCompression"), QStringLiteral("bogus"));
+  settings.sync();
+  CHECK(patchy::ui::load_image_save_option_defaults().dds_compression == patchy::dds::Compression::Automatic);
+  settings.remove(QStringLiteral("saveOptions"));
+  settings.sync();
+
+  // The dialog carries the documented object names and hands back the chosen values.
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&saw_dialog] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("ddsSaveOptionsDialog"));
+    CHECK(dialog != nullptr);
+    auto* compression = dialog->findChild<QComboBox*>(QStringLiteral("ddsCompressionCombo"));
+    auto* mipmaps = dialog->findChild<QCheckBox*>(QStringLiteral("ddsMipmapsCheck"));
+    CHECK(compression != nullptr);
+    CHECK(mipmaps != nullptr);
+    CHECK(compression->count() == 4);
+    CHECK(compression->currentData().toString() == QStringLiteral("auto"));
+    compression->setCurrentIndex(compression->findData(QStringLiteral("bc3")));
+    mipmaps->setChecked(true);
+    saw_dialog = true;
+    dialog->accept();
+  });
+  const auto chosen = patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("dds"),
+                                                            patchy::ui::load_image_save_option_defaults());
+  CHECK(saw_dialog);
+  CHECK(chosen.has_value());
+  CHECK(chosen->dds_compression == patchy::dds::Compression::Bc3);
+  CHECK(chosen->dds_mipmaps);
+
+  // A mipmapped BC1 source prefills both the compression and the mipmap checkbox.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(
+      window, QString::fromStdWString(
+                  patchy::test::committed_format_fixture_path("dds", "synth-dxt1-mipmapped-16x16.dds").wstring()));
+  QApplication::processEvents();
+  const auto prefilled = patchy::ui::MainWindowTestAccess::image_save_defaults(window);
+  CHECK(prefilled.dds_compression == patchy::dds::Compression::Bc1);
+  CHECK(prefilled.dds_mipmaps);
+
+  settings.remove(QStringLiteral("saveOptions"));
+  settings.sync();
+}
+
+void ui_dds_cubemap_import_is_layered_and_save_routes_to_save_as() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto fixture = QString::fromStdWString(
+      patchy::test::committed_format_fixture_path("dds", "synth-cubemap-a8r8g8b8-4x4.dds").wstring());
+  patchy::ui::MainWindowTestAccess::open_document_path(window, fixture);
+  QApplication::processEvents();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(std::as_const(document).layers().size() == 6);
+  CHECK(std::as_const(document).layers().front().name() == "+X");
+  CHECK(std::as_const(document).layers().front().visible());
+  CHECK(!std::as_const(document).layers()[1].visible());
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_path(window) == fixture);
+
+  // Six layers cannot survive a flat .dds save, so Save routes to Save As with a .psd default
+  // instead of silently flattening over the cubemap (the Photoshop-style guard).
+  bool saw_dialog = false;
+  QString default_name;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("saveAsFileDialog")));
+    CHECK(dialog != nullptr);
+    const auto selected = dialog->selectedFiles();
+    if (!selected.isEmpty()) {
+      default_name = QFileInfo(selected.first()).fileName();
+    }
+    saw_dialog = true;
+    dialog->reject();
+  });
+  CHECK(!patchy::ui::MainWindowTestAccess::save_document(window));
+  CHECK(saw_dialog);
+  CHECK(default_name == QStringLiteral("synth-cubemap-a8r8g8b8-4x4.psd"));
+}
+
 void ui_export_trim_keeps_document_alpha_mask_colors() {
   ensure_artifact_dir();
   // An opaque RGB layer whose document-alpha mask reveals a 3x2 block with one hidden pixel
@@ -2124,6 +2328,7 @@ void ui_export_options_sections_do_not_clip_labels() {
       {QStringLiteral("bmp"), QStringLiteral("bmpSaveOptionsDialog")},
       {QStringLiteral("jxr"), QStringLiteral("jxrSaveOptionsDialog")},
       {QStringLiteral("rttex"), QStringLiteral("rttexSaveOptionsDialog")},
+      {QStringLiteral("dds"), QStringLiteral("ddsSaveOptionsDialog")},
       {QStringLiteral("pdf"), QStringLiteral("pdfSaveOptionsDialog")},
       {QStringLiteral("tga"), QStringLiteral("exportScaleOptionsDialog")},
   };
@@ -2396,6 +2601,12 @@ std::vector<patchy::test::TestCase> flat_image_format_tests() {
       {"ui_rttex_jpeg_save_round_trips_through_qt_encoder", ui_rttex_jpeg_save_round_trips_through_qt_encoder},
       {"ui_rttex_save_options_persist_and_dialog_prefills_from_source",
        ui_rttex_save_options_persist_and_dialog_prefills_from_source},
+      {"ui_dds_opens_and_saves_as_a_read_write_format", ui_dds_opens_and_saves_as_a_read_write_format},
+      {"ui_dds_bc3_source_resaves_as_bc3_with_alpha_intact", ui_dds_bc3_source_resaves_as_bc3_with_alpha_intact},
+      {"ui_dds_save_options_persist_and_dialog_prefills_from_source",
+       ui_dds_save_options_persist_and_dialog_prefills_from_source},
+      {"ui_dds_cubemap_import_is_layered_and_save_routes_to_save_as",
+       ui_dds_cubemap_import_is_layered_and_save_routes_to_save_as},
       {"ui_export_trim_keeps_document_alpha_mask_colors", ui_export_trim_keeps_document_alpha_mask_colors},
       {"ui_animated_gif_export_trims_frames_to_union_bounds", ui_animated_gif_export_trims_frames_to_union_bounds},
       {"ui_webp_animation_import_export_unicode_round_trip", ui_webp_animation_import_export_unicode_round_trip},

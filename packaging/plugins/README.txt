@@ -12,7 +12,8 @@ own settings dialog and preview.
 
 Notes:
 - Only filter plug-ins (.8bf) run. File-format (.8bi) and automation (.8li)
-  plug-ins are listed as unsupported.
+  plug-ins are listed as unsupported. DDS textures need no plug-in: Patchy
+  opens and saves .dds files natively.
 - Plug-ins are Windows programs. The macOS and Linux builds of Patchy cannot
   run them.
 - Each plug-in runs in a separate helper program (patchy-8bf-host32.exe or

@@ -8612,10 +8612,6 @@ Mixed selection</source>
         <translation>サポートされていないプラグインのアーキテクチャです。32 ビットと 64 ビットの x86 プラグインのみ実行できます。</translation>
     </message>
     <message>
-        <source>File-format and automation plug-ins are not supported; only filter (.8bf) plug-ins run.</source>
-        <translation>ファイル形式プラグインと自動化プラグインはサポートされていません。フィルタープラグイン (.8bf) のみ実行できます。</translation>
-    </message>
-    <message>
         <source>This plug-in is not a filter; only filter (.8bf) plug-ins run.</source>
         <translation>このプラグインはフィルターではありません。フィルタープラグイン (.8bf) のみ実行できます。</translation>
     </message>
@@ -8904,6 +8900,134 @@ Mixed selection</source>
     <message>
         <source>PSD channel depth does not match the document</source>
         <translation>PSD チャンネルのビット深度がドキュメントと一致しません</translation>
+    </message>
+    <message>
+        <source>Palettized DDS textures are not supported</source>
+        <translation>パレット形式の DDS テクスチャには対応していません</translation>
+    </message>
+    <message>
+        <source>YUV DDS textures are not supported</source>
+        <translation>YUV 形式の DDS テクスチャには対応していません</translation>
+    </message>
+    <message>
+        <source>Bump-map (signed) DDS textures are not supported</source>
+        <translation>バンプマップ (符号付き) 形式の DDS テクスチャには対応していません</translation>
+    </message>
+    <message>
+        <source>DDS pixel format has no colour or alpha channel masks</source>
+        <translation>DDS のピクセル形式に色マスクもアルファチャンネルマスクもありません</translation>
+    </message>
+    <message>
+        <source>DDS pixel format bit masks do not fit the pixel size</source>
+        <translation>DDS のピクセル形式のビットマスクがピクセルサイズに収まりません</translation>
+    </message>
+    <message>
+        <source>Not a DDS texture: the &apos;DDS &apos; signature is missing</source>
+        <translation>DDS テクスチャではありません: シグネチャ &apos;DDS &apos; がありません</translation>
+    </message>
+    <message>
+        <source>DDS texture is truncated: the header is incomplete</source>
+        <translation>DDS テクスチャが途中で切れています: ヘッダーが不完全です</translation>
+    </message>
+    <message>
+        <source>DDS header has an unexpected size</source>
+        <translation>DDS ヘッダーのサイズが想定外です</translation>
+    </message>
+    <message>
+        <source>DDS pixel format block has an unexpected size</source>
+        <translation>DDS のピクセル形式ブロックのサイズが想定外です</translation>
+    </message>
+    <message>
+        <source>DDS texture has an unknown resource dimension</source>
+        <translation>DDS テクスチャのリソース次元が不明です</translation>
+    </message>
+    <message>
+        <source>DDS texture is truncated: the pixel data is shorter than the header promises</source>
+        <translation>DDS テクスチャが途中で切れています: ピクセルデータがヘッダーの指定より短いです</translation>
+    </message>
+    <message>
+        <source>The file marks its alpha channel as unused; it was ignored</source>
+        <translation>ファイルはアルファチャンネルを未使用と示しているため、無視しました</translation>
+    </message>
+    <message>
+        <source>The file marks its alpha channel as custom data; it was read as straight alpha</source>
+        <translation>ファイルはアルファチャンネルをカスタムデータと示していますが、通常のアルファとして読み込みました</translation>
+    </message>
+    <message>
+        <source>Premultiplied alpha was converted to straight alpha</source>
+        <translation>乗算済みアルファを通常のアルファに変換しました</translation>
+    </message>
+    <message>
+        <source>16-bit channels were converted to 8 bits</source>
+        <translation>16 ビットのチャンネルを 8 ビットに変換しました</translation>
+    </message>
+    <message>
+        <source>Floating-point HDR pixels were tone mapped to 8 bits</source>
+        <translation>浮動小数点 HDR ピクセルをトーンマッピングで 8 ビットに変換しました</translation>
+    </message>
+    <message>
+        <source>Two-channel BC5 texture: the blue channel was set to 0</source>
+        <translation>2 チャンネルの BC5 テクスチャ: 青チャンネルを 0 にしました</translation>
+    </message>
+    <message>
+        <source>Alpha-only texture opened as white with its alpha channel</source>
+        <translation>アルファのみのテクスチャを、アルファチャンネル付きの白として開きました</translation>
+    </message>
+    <message>
+        <source>Each cubemap face imported as its own layer; only the first is visible</source>
+        <translation>キューブマップの各面を個別のレイヤーとして読み込みました。表示されるのは最初の面だけです</translation>
+    </message>
+    <message>
+        <source>Each volume slice imported as its own layer; only the first is visible</source>
+        <translation>ボリュームの各スライスを個別のレイヤーとして読み込みました。表示されるのは最初のスライスだけです</translation>
+    </message>
+    <message>
+        <source>Each array element imported as its own layer; only the first is visible</source>
+        <translation>テクスチャ配列の各要素を個別のレイヤーとして読み込みました。表示されるのは最初の要素だけです</translation>
+    </message>
+    <message>
+        <source>Cannot write an empty document as a DDS texture</source>
+        <translation>空のドキュメントは DDS テクスチャとして書き出せません</translation>
+    </message>
+    <message>
+        <source>File-format and automation plug-ins are not supported; only filter (.8bf) plug-ins run. DDS textures open natively through File &gt; Open.</source>
+        <translation>ファイル形式プラグインと自動化プラグインはサポートされていません。フィルタープラグイン (.8bf) のみ実行できます。 DDS テクスチャはファイル &gt; 開くから直接開けます。</translation>
+    </message>
+    <message>
+        <source>DDS Texture Options</source>
+        <translation>DDS テクスチャのオプション</translation>
+    </message>
+    <message>
+        <source>Automatic (BC1 when opaque, BC3 with transparency)</source>
+        <translation>自動 (不透明なら BC1、透明部分があれば BC3)</translation>
+    </message>
+    <message>
+        <source>Uncompressed 32-bit (A8R8G8B8, lossless)</source>
+        <translation>非圧縮 32 ビット (A8R8G8B8、可逆)</translation>
+    </message>
+    <message>
+        <source>BC1 / DXT1 (smallest, 1-bit transparency)</source>
+        <translation>BC1 / DXT1 (最小、1 ビット透明)</translation>
+    </message>
+    <message>
+        <source>BC3 / DXT5 (compressed, full transparency)</source>
+        <translation>BC3 / DXT5 (圧縮、フル透明)</translation>
+    </message>
+    <message>
+        <source>Compression:</source>
+        <translation>圧縮:</translation>
+    </message>
+    <message>
+        <source>Generate mipmaps</source>
+        <translation>ミップマップを生成</translation>
+    </message>
+    <message>
+        <source>BC1 and BC3 are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. Mipmaps are generated down to 1x1 with a box filter.</source>
+        <translation>BC1 と BC3 は非可逆の 4x4 ブロック形式です。BC1 は 1 ビットの透明度しか保持せず、アルファが 50 パーセント未満のピクセルは完全に透明になります。ミップマップはボックスフィルターで 1x1 まで生成されます。</translation>
+    </message>
+    <message>
+        <source>DirectDraw Surface</source>
+        <translation>DirectDraw Surface</translation>
     </message>
 </context>
 <context>

@@ -8639,10 +8639,6 @@ RGB: %2, %3, %4</translation>
         <translation>Architettura del plug-in non supportata; vengono eseguiti solo plug-in x86 a 32 e 64 bit.</translation>
     </message>
     <message>
-        <source>File-format and automation plug-ins are not supported; only filter (.8bf) plug-ins run.</source>
-        <translation>I plug-in per formati di file e di automazione non sono supportati; vengono eseguiti solo plug-in filtro (.8bf).</translation>
-    </message>
-    <message>
         <source>This plug-in is not a filter; only filter (.8bf) plug-ins run.</source>
         <translation>Questo plug-in non è un filtro; vengono eseguiti solo plug-in filtro (.8bf).</translation>
     </message>
@@ -8934,6 +8930,134 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>PSD channel depth does not match the document</source>
         <translation>La profondità del canale PSD non corrisponde al documento</translation>
+    </message>
+    <message>
+        <source>Palettized DDS textures are not supported</source>
+        <translation>Le texture DDS con palette non sono supportate</translation>
+    </message>
+    <message>
+        <source>YUV DDS textures are not supported</source>
+        <translation>Le texture DDS YUV non sono supportate</translation>
+    </message>
+    <message>
+        <source>Bump-map (signed) DDS textures are not supported</source>
+        <translation>Le texture DDS bump map (con segno) non sono supportate</translation>
+    </message>
+    <message>
+        <source>DDS pixel format has no colour or alpha channel masks</source>
+        <translation>Il formato pixel DDS non ha maschere di colore o del canale alfa</translation>
+    </message>
+    <message>
+        <source>DDS pixel format bit masks do not fit the pixel size</source>
+        <translation>Le maschere di bit del formato pixel DDS non rientrano nella dimensione del pixel</translation>
+    </message>
+    <message>
+        <source>Not a DDS texture: the &apos;DDS &apos; signature is missing</source>
+        <translation>Non è una texture DDS: manca la firma &apos;DDS &apos;</translation>
+    </message>
+    <message>
+        <source>DDS texture is truncated: the header is incomplete</source>
+        <translation>La texture DDS è troncata: l&apos;intestazione è incompleta</translation>
+    </message>
+    <message>
+        <source>DDS header has an unexpected size</source>
+        <translation>L&apos;intestazione DDS ha una dimensione imprevista</translation>
+    </message>
+    <message>
+        <source>DDS pixel format block has an unexpected size</source>
+        <translation>Il blocco del formato pixel DDS ha una dimensione imprevista</translation>
+    </message>
+    <message>
+        <source>DDS texture has an unknown resource dimension</source>
+        <translation>La texture DDS ha una dimensione di risorsa sconosciuta</translation>
+    </message>
+    <message>
+        <source>DDS texture is truncated: the pixel data is shorter than the header promises</source>
+        <translation>La texture DDS è troncata: i dati dei pixel sono più corti di quanto indica l&apos;intestazione</translation>
+    </message>
+    <message>
+        <source>The file marks its alpha channel as unused; it was ignored</source>
+        <translation>Il file contrassegna il canale alfa come inutilizzato; è stato ignorato</translation>
+    </message>
+    <message>
+        <source>The file marks its alpha channel as custom data; it was read as straight alpha</source>
+        <translation>Il file contrassegna il canale alfa come dati personalizzati; è stato letto come alfa diretto</translation>
+    </message>
+    <message>
+        <source>Premultiplied alpha was converted to straight alpha</source>
+        <translation>L&apos;alfa premoltiplicato è stato convertito in alfa diretto</translation>
+    </message>
+    <message>
+        <source>16-bit channels were converted to 8 bits</source>
+        <translation>I canali a 16 bit sono stati convertiti a 8 bit</translation>
+    </message>
+    <message>
+        <source>Floating-point HDR pixels were tone mapped to 8 bits</source>
+        <translation>I pixel HDR in virgola mobile sono stati mappati tonalmente a 8 bit</translation>
+    </message>
+    <message>
+        <source>Two-channel BC5 texture: the blue channel was set to 0</source>
+        <translation>Texture BC5 a due canali: il canale blu è stato impostato a 0</translation>
+    </message>
+    <message>
+        <source>Alpha-only texture opened as white with its alpha channel</source>
+        <translation>La texture solo alfa è stata aperta come bianco con il suo canale alfa</translation>
+    </message>
+    <message>
+        <source>Each cubemap face imported as its own layer; only the first is visible</source>
+        <translation>Ogni faccia della cubemap è stata importata come livello separato; solo la prima è visibile</translation>
+    </message>
+    <message>
+        <source>Each volume slice imported as its own layer; only the first is visible</source>
+        <translation>Ogni sezione del volume è stata importata come livello separato; solo la prima è visibile</translation>
+    </message>
+    <message>
+        <source>Each array element imported as its own layer; only the first is visible</source>
+        <translation>Ogni elemento dell&apos;array è stato importato come livello separato; solo il primo è visibile</translation>
+    </message>
+    <message>
+        <source>Cannot write an empty document as a DDS texture</source>
+        <translation>Impossibile scrivere un documento vuoto come texture DDS</translation>
+    </message>
+    <message>
+        <source>File-format and automation plug-ins are not supported; only filter (.8bf) plug-ins run. DDS textures open natively through File &gt; Open.</source>
+        <translation>I plug-in per formati di file e di automazione non sono supportati; vengono eseguiti solo plug-in filtro (.8bf). Le texture DDS si aprono nativamente da File &gt; Apri.</translation>
+    </message>
+    <message>
+        <source>DDS Texture Options</source>
+        <translation>Opzioni texture DDS</translation>
+    </message>
+    <message>
+        <source>Automatic (BC1 when opaque, BC3 with transparency)</source>
+        <translation>Automatico (BC1 se opaco, BC3 con trasparenza)</translation>
+    </message>
+    <message>
+        <source>Uncompressed 32-bit (A8R8G8B8, lossless)</source>
+        <translation>Non compresso a 32 bit (A8R8G8B8, senza perdita)</translation>
+    </message>
+    <message>
+        <source>BC1 / DXT1 (smallest, 1-bit transparency)</source>
+        <translation>BC1 / DXT1 (più compatto, trasparenza a 1 bit)</translation>
+    </message>
+    <message>
+        <source>BC3 / DXT5 (compressed, full transparency)</source>
+        <translation>BC3 / DXT5 (compresso, trasparenza completa)</translation>
+    </message>
+    <message>
+        <source>Compression:</source>
+        <translation>Compressione:</translation>
+    </message>
+    <message>
+        <source>Generate mipmaps</source>
+        <translation>Genera mipmap</translation>
+    </message>
+    <message>
+        <source>BC1 and BC3 are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. Mipmaps are generated down to 1x1 with a box filter.</source>
+        <translation>BC1 e BC3 sono formati a blocchi 4x4 con perdita. BC1 conserva solo una trasparenza a 1 bit: i pixel sotto il 50 per cento di alfa diventano completamente trasparenti. Le mipmap vengono generate fino a 1x1 con un filtro box.</translation>
+    </message>
+    <message>
+        <source>DirectDraw Surface</source>
+        <translation>DirectDraw Surface</translation>
     </message>
 </context>
 <context>

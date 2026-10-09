@@ -4,7 +4,7 @@ Read before changing format I/O, open/save filters, notices, or alpha/mask impor
 
 ## Registry and dispatch
 
-- `builtin_format_registry()` (format_registry.cpp, function-local static) is the single instance. `load_document_from_path` (main_window.cpp) consults it BEFORE the QImageReader fallback; a throwing registry read still falls back to Qt where a Qt plugin exists, but if Qt also fails the REGISTRY error is reported. Handlers may be read-only (`write == nullptr`) and may carry a `sniff` check; sniffing disambiguates `.ase` (Aseprite magic 0xA5E0 at offset 4 vs Adobe `ASEF` swatches).
+- `builtin_format_registry()` (format_registry.cpp, function-local static) is the single instance. `load_document_from_path` (main_window.cpp) consults it BEFORE the QImageReader fallback; a throwing registry read still falls back to Qt where a Qt plugin exists, but if Qt also fails the REGISTRY error is reported. Handlers may be read-only (`write == nullptr`) and may carry a `sniff` check, used by the smart-object classifier (`.ase` Aseprite vs Adobe `ASEF` swatches); the open path matches by extension.
 - One filter table: `file_format_entries()` (main_window_files.cpp) generates open/save/export filters, `is_supported_image_extension`, `save_file_filter_for_path`, and `path_with_default_extension`. Display names sit in `QT_TRANSLATE_NOOP("QObject", ...)` and are shown through `translate_data_text` ([localization.md](localization.md)).
 - A new format needs one table row, one registry row, one writer branch. A new openable extension also goes in `$PatchyOpenWithExtensions` (packaging/windows/InstallPatchy.ps1), the Windows "Open with" list; PDF is left out of it on purpose.
 
@@ -34,8 +34,9 @@ Everything reads AND writes except camera raw, HEIF/HEIC, and .af (read-only); J
 - ILBM/PBM: ByteRun1 via the shared `psd::decode_packbits`/`encode_packbits_row` (psd_descriptor.{hpp,cpp}); EHB supported, HAM rejected; writer emits planar ILBM with masking type 2.
 - GIF and animated WebP: [animation.md](animation.md) owns import, export, timing, loop counts, codec isolation and scripted animation.
 - PNG/JPEG/TIFF and still WebP: Qt readers/writers. WebP options retain quality (`saveOptions/webpQuality`, default 75) and lossless (`saveOptions/webpLossless`; quality 100 also means lossless).
-- JPEG XR (.jxr/.wdp/.hdp): read AND write through the in-box WIC codec, Windows only (no Store package, no vendored codec); the filter row is gated on `jxr::is_available()` so no other platform offers it, and the registry row carries a WRITER, which is what keeps Save on .jxr instead of routing to Save As. Float/HDR frames (NVIDIA captures are 32-bit float scRGB) tone map to 8-bit with a knee curve rather than clamping. Full record, including the curve calibration and why a filmic curve was rejected: [jxr.md](jxr.md).
+- JPEG XR (.jxr/.wdp/.hdp): read AND write through the in-box WIC codec, Windows only (no Store package, no vendored codec); the filter row is gated on `jxr::is_available()` so no other platform offers it, and the registry row carries a WRITER, which is what keeps Save on .jxr instead of routing to Save As. Float/HDR frames tone map to 8-bit with a knee curve rather than clamping. Full record: [jxr.md](jxr.md).
 - Proton `.rttex` (Seth's Proton SDK textures): read and write everywhere. An optional RTPACK zlib wrapper around raw 8888/888/4444/565 pixels stored bottom-up at a power-of-two padded size, or an embedded JPEG (alpha-free images only); opens at the true size; PVRTC rejected. Options, session-metadata prefill, and the RTPack parity table: [rttex.md](rttex.md).
+- DDS `.dds`: read and write everywhere (vendored bcdec and stb_dxt); BC1-BC7, masked, 16-bit and float sources, faces/slices/elements as layers; writes A8R8G8B8, DXT1 or DXT5 with optional mipmaps: [dds.md](dds.md).
 
 ## Camera raw (CR2/CR3/NEF/ARW/RAF/DNG, ...)
 
@@ -56,7 +57,7 @@ Read-only; decoded only by an OS- or browser-supplied decoder. **Never ship a so
 
 ## .af (Affinity)
 
-Read-only importer; registry id `patchy.formats.af`, sniff on magic `00 FF 4B 41`; the filter row claims `.af` plus 2.x `.afphoto/.afdesign/.afpub`. The full format record (container/FAT resolution, legal method boundary, tier model, placement/vector/text/effects mapping, blend-mode approximations, Erase folding, fixtures) moved to [af-format.md](af-format.md); field-level wire layouts are documented in af_document_io.cpp beside each parser.
+Read-only importer; registry id `patchy.formats.af`, sniff on magic `00 FF 4B 41`; the filter row claims `.af` plus 2.x `.afphoto/.afdesign/.afpub`. The full format record moved to [af-format.md](af-format.md); field-level wire layouts are documented in af_document_io.cpp beside each parser.
 
 ## PDF
 
@@ -118,7 +119,7 @@ Layer styles: imported `lfx2`/`lrFX` blocks stay byte-identical until that layer
 
 ## Fixtures and verification
 
-Committed fixtures: `test-fixtures/<format>/` (provenance in NOTICE-THIRD-PARTY.md); adversarial files are synthesized in-test. The PSD set includes `photoshop-satin-default.psd`, `photoshop-layer-style-4a-roundtrip.psd` (PS-resaved acceptance), and `photoshop-blend-if-4b-roundtrip.psd` + `-render.bmp` (native Blend If + render acceptance). Verify writers with independent decoders (Pillow, Qt, real Aseprite, a Python ILBM reader, Photoshop COM).
+Committed fixtures: `test-fixtures/<format>/` (provenance in NOTICE-THIRD-PARTY.md); adversarial files are synthesized in-test. The PSD set includes PS-resaved acceptance files for layer styles and Blend If (`photoshop-*-roundtrip.psd` plus `-render.bmp`). Verify writers with independent decoders (Pillow, Qt, real Aseprite, a Python ILBM reader, Photoshop COM).
 
 ## PSB (large document format) read + write
 

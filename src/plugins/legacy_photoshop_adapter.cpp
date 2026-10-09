@@ -155,7 +155,7 @@ LegacyPhotoshopPluginProbe LegacyPhotoshopAdapter::probe(const std::filesystem::
     return result;
   }
   if (kind != LegacyPhotoshopPluginKind::Filter8bf) {
-    result.reason = PATCHY_TRANSLATE_NOOP("QObject", "File-format and automation plug-ins are not supported; only filter (.8bf) plug-ins run.");
+    result.reason = PATCHY_TRANSLATE_NOOP("QObject", "File-format and automation plug-ins are not supported; only filter (.8bf) plug-ins run. DDS textures open natively through File > Open.");
     return result;
   }
   if (result.pipl.found && result.pipl.kind != 0 && !result.pipl.is_filter()) {

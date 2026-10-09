@@ -2312,10 +2312,6 @@
         <translation>지원되지 않는 플러그인 아키텍처. 32비트 및 64비트 x86 플러그인만 실행됩니다.</translation>
     </message>
     <message>
-        <source>File-format and automation plug-ins are not supported; only filter (.8bf) plug-ins run.</source>
-        <translation>파일 형식 및 자동화 플러그인은 지원되지 않습니다. 필터(.8bf) 플러그인만 실행됩니다.</translation>
-    </message>
-    <message>
         <source>This plug-in is not a filter; only filter (.8bf) plug-ins run.</source>
         <translation>이 플러그인은 필터가 아닙니다. 필터(.8bf) 플러그인만 실행됩니다.</translation>
     </message>
@@ -8904,6 +8900,134 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>PSD channel depth does not match the document</source>
         <translation>PSD 채널의 비트 심도가 문서와 일치하지 않습니다</translation>
+    </message>
+    <message>
+        <source>Palettized DDS textures are not supported</source>
+        <translation>팔레트 방식 DDS 텍스처는 지원되지 않습니다</translation>
+    </message>
+    <message>
+        <source>YUV DDS textures are not supported</source>
+        <translation>YUV DDS 텍스처는 지원되지 않습니다</translation>
+    </message>
+    <message>
+        <source>Bump-map (signed) DDS textures are not supported</source>
+        <translation>범프 맵(부호 있는) DDS 텍스처는 지원되지 않습니다</translation>
+    </message>
+    <message>
+        <source>DDS pixel format has no colour or alpha channel masks</source>
+        <translation>DDS 픽셀 형식에 색상 또는 알파 채널 마스크가 없습니다</translation>
+    </message>
+    <message>
+        <source>DDS pixel format bit masks do not fit the pixel size</source>
+        <translation>DDS 픽셀 형식의 비트 마스크가 픽셀 크기에 맞지 않습니다</translation>
+    </message>
+    <message>
+        <source>Not a DDS texture: the &apos;DDS &apos; signature is missing</source>
+        <translation>DDS 텍스처가 아닙니다: &apos;DDS &apos; 시그니처가 없습니다</translation>
+    </message>
+    <message>
+        <source>DDS texture is truncated: the header is incomplete</source>
+        <translation>DDS 텍스처가 잘렸습니다: 헤더가 불완전합니다</translation>
+    </message>
+    <message>
+        <source>DDS header has an unexpected size</source>
+        <translation>DDS 헤더의 크기가 예상과 다릅니다</translation>
+    </message>
+    <message>
+        <source>DDS pixel format block has an unexpected size</source>
+        <translation>DDS 픽셀 형식 블록의 크기가 예상과 다릅니다</translation>
+    </message>
+    <message>
+        <source>DDS texture has an unknown resource dimension</source>
+        <translation>DDS 텍스처의 리소스 차원을 알 수 없습니다</translation>
+    </message>
+    <message>
+        <source>DDS texture is truncated: the pixel data is shorter than the header promises</source>
+        <translation>DDS 텍스처가 잘렸습니다: 픽셀 데이터가 헤더에 명시된 것보다 짧습니다</translation>
+    </message>
+    <message>
+        <source>The file marks its alpha channel as unused; it was ignored</source>
+        <translation>파일이 알파 채널을 사용하지 않음으로 표시하여 무시했습니다</translation>
+    </message>
+    <message>
+        <source>The file marks its alpha channel as custom data; it was read as straight alpha</source>
+        <translation>파일이 알파 채널을 사용자 지정 데이터로 표시하여 일반(스트레이트) 알파로 읽었습니다</translation>
+    </message>
+    <message>
+        <source>Premultiplied alpha was converted to straight alpha</source>
+        <translation>미리 곱해진 알파를 일반(스트레이트) 알파로 변환했습니다</translation>
+    </message>
+    <message>
+        <source>16-bit channels were converted to 8 bits</source>
+        <translation>16비트 채널을 8비트로 변환했습니다</translation>
+    </message>
+    <message>
+        <source>Floating-point HDR pixels were tone mapped to 8 bits</source>
+        <translation>부동 소수점 HDR 픽셀을 톤 매핑하여 8비트로 변환했습니다</translation>
+    </message>
+    <message>
+        <source>Two-channel BC5 texture: the blue channel was set to 0</source>
+        <translation>2채널 BC5 텍스처: 파란색 채널을 0으로 설정했습니다</translation>
+    </message>
+    <message>
+        <source>Alpha-only texture opened as white with its alpha channel</source>
+        <translation>알파 전용 텍스처를 알파 채널이 있는 흰색으로 열었습니다</translation>
+    </message>
+    <message>
+        <source>Each cubemap face imported as its own layer; only the first is visible</source>
+        <translation>큐브맵의 각 면을 개별 레이어로 가져왔습니다. 첫 번째 면만 표시됩니다</translation>
+    </message>
+    <message>
+        <source>Each volume slice imported as its own layer; only the first is visible</source>
+        <translation>볼륨의 각 슬라이스를 개별 레이어로 가져왔습니다. 첫 번째 슬라이스만 표시됩니다</translation>
+    </message>
+    <message>
+        <source>Each array element imported as its own layer; only the first is visible</source>
+        <translation>배열의 각 요소를 개별 레이어로 가져왔습니다. 첫 번째 요소만 표시됩니다</translation>
+    </message>
+    <message>
+        <source>Cannot write an empty document as a DDS texture</source>
+        <translation>빈 문서는 DDS 텍스처로 쓸 수 없습니다</translation>
+    </message>
+    <message>
+        <source>File-format and automation plug-ins are not supported; only filter (.8bf) plug-ins run. DDS textures open natively through File &gt; Open.</source>
+        <translation>파일 형식 및 자동화 플러그인은 지원되지 않습니다. 필터(.8bf) 플러그인만 실행됩니다. DDS 텍스처는 파일 &gt; 열기에서 바로 열 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>DDS Texture Options</source>
+        <translation>DDS 텍스처 옵션</translation>
+    </message>
+    <message>
+        <source>Automatic (BC1 when opaque, BC3 with transparency)</source>
+        <translation>자동(불투명하면 BC1, 투명도가 있으면 BC3)</translation>
+    </message>
+    <message>
+        <source>Uncompressed 32-bit (A8R8G8B8, lossless)</source>
+        <translation>비압축 32비트(A8R8G8B8, 무손실)</translation>
+    </message>
+    <message>
+        <source>BC1 / DXT1 (smallest, 1-bit transparency)</source>
+        <translation>BC1 / DXT1(가장 작음, 1비트 투명도)</translation>
+    </message>
+    <message>
+        <source>BC3 / DXT5 (compressed, full transparency)</source>
+        <translation>BC3 / DXT5(압축, 전체 투명도)</translation>
+    </message>
+    <message>
+        <source>Compression:</source>
+        <translation>압축:</translation>
+    </message>
+    <message>
+        <source>Generate mipmaps</source>
+        <translation>밉맵 생성</translation>
+    </message>
+    <message>
+        <source>BC1 and BC3 are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. Mipmaps are generated down to 1x1 with a box filter.</source>
+        <translation>BC1과 BC3은 손실 압축 4x4 블록 형식입니다. BC1은 1비트 투명도만 유지하므로 알파가 50퍼센트 미만인 픽셀은 완전히 투명해집니다. 밉맵은 박스 필터로 1x1까지 생성됩니다.</translation>
+    </message>
+    <message>
+        <source>DirectDraw Surface</source>
+        <translation>DirectDraw Surface</translation>
     </message>
 </context>
 <context>

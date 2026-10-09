@@ -26,6 +26,7 @@
 #include "formats/heif_document_io.hpp"
 #include "formats/jxr_document_io.hpp"
 #include "formats/raw_document_io.hpp"
+#include "formats/dds_document_io.hpp"
 #include "formats/rttex_document_io.hpp"
 #include "formats/svg_document_io.hpp"
 #include "plugins/legacy_photoshop_adapter.hpp"
@@ -664,6 +665,13 @@ const QList<FileFormatEntry>& file_format_entries() {
       rttex_extensions.push_back(QString::fromStdString(extension));
     }
     list.push_back({QT_TRANSLATE_NOOP("QObject", "Proton Texture"), rttex_extensions, rttex_extensions, true, true});
+    // DDS textures read and write everywhere too: the block decoder and encoder are vendored
+    // into the formats library, so no platform codec is involved.
+    QStringList dds_extensions;
+    for (const auto& extension : dds::dds_extensions()) {
+      dds_extensions.push_back(QString::fromStdString(extension));
+    }
+    list.push_back({QT_TRANSLATE_NOOP("QObject", "DirectDraw Surface"), dds_extensions, dds_extensions, true, true});
     return list;
   }();
   return entries;
@@ -1158,7 +1166,8 @@ OpenDocumentResult load_document_from_path(QString path) {
       // BMP/HEIF/camera-raw record real densities and keep what their reader set.
       static const std::set<std::string> kDensitylessFormats = {
           "patchy.formats.ico", "patchy.formats.tga", "patchy.formats.aseprite",
-          "patchy.formats.pcx", "patchy.formats.ilbm", "patchy.formats.rttex"};
+          "patchy.formats.pcx", "patchy.formats.ilbm", "patchy.formats.rttex",
+          "patchy.formats.dds"};
       if (kDensitylessFormats.contains(handler->identifier)) {
         opened.print_settings().horizontal_ppi = kUntaggedImportPpi;
         opened.print_settings().vertical_ppi = kUntaggedImportPpi;

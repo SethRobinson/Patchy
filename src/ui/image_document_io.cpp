@@ -23,6 +23,7 @@
 #include "formats/image_density_probe.hpp"
 #include "formats/jxr_document_io.hpp"
 #include "formats/pcx_document_io.hpp"
+#include "formats/dds_document_io.hpp"
 #include "formats/rttex_document_io.hpp"
 #include "formats/tga_document_io.hpp"
 #include "core/rect_utils.hpp"
@@ -2366,6 +2367,13 @@ void write_flat_image_file(const Document& document, const QString& path, const 
     rttex_options.force_alpha = options.rttex_force_alpha;
     rttex_options.compress = options.rttex_compress;
     rttex::write_rttex_file(document, to_filesystem_path(path), rttex_options, notices);
+    return;
+  }
+  if (dds::is_dds_extension(lower)) {
+    dds::WriteOptions dds_options;
+    dds_options.compression = options.dds_compression;
+    dds_options.generate_mipmaps = options.dds_mipmaps;
+    dds::write_dds_file(document, to_filesystem_path(path), dds_options, notices);
     return;
   }
   if (lower == "gif") {

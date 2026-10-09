@@ -2,6 +2,7 @@
 
 #include "core/document.hpp"
 #include "formats/bmp_document_io.hpp"
+#include "formats/dds_document_io.hpp"
 #include "formats/rttex_document_io.hpp"
 
 #include <QColor>
@@ -118,6 +119,11 @@ struct ImageSaveOptions {
   bool rttex_force_square{false};
   bool rttex_force_alpha{false};
   bool rttex_compress{true};
+  // DDS texture: block compression choice (Automatic = BC1 when opaque, BC3 with
+  // transparency) and whether to write a mip chain. Persist as saveOptions/ddsCompression
+  // and saveOptions/ddsMipmaps.
+  dds::Compression dds_compression{dds::Compression::Automatic};
+  bool dds_mipmaps{false};
 };
 
 struct RenderedDocumentPatch {

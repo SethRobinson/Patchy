@@ -9,6 +9,7 @@
 #include "formats/jxr_document_io.hpp"
 #include "formats/pcx_document_io.hpp"
 #include "formats/raw_document_io.hpp"
+#include "formats/dds_document_io.hpp"
 #include "formats/rttex_document_io.hpp"
 #include "formats/svg_document_io.hpp"
 #include "formats/tga_document_io.hpp"
@@ -155,6 +156,15 @@ void register_builtin_formats(FormatRegistry& registry) {
                              [](std::span<const std::uint8_t> bytes) { return rttex::read_rttex(bytes); },
                              [](const Document& document) { return rttex::write_rttex(document); },
                              [](std::span<const std::uint8_t> bytes) { return rttex::sniff(bytes); }});
+  // DirectDraw Surface textures: masked uncompressed and BC1-BC7 block formats read on every
+  // platform through the vendored bcdec; the writer emits A8R8G8B8, DXT1 or DXT5 with an
+  // optional mip chain (docs/dds.md). Patchy's own codec, so nothing gates the row.
+  registry.register_handler({"patchy.formats.dds",
+                             "DirectDraw Surface",
+                             dds::dds_extensions(),
+                             [](std::span<const std::uint8_t> bytes) { return dds::read_dds(bytes); },
+                             [](const Document& document) { return dds::write_dds(document); },
+                             [](std::span<const std::uint8_t> bytes) { return dds::sniff(bytes); }});
   // Affinity's native container is a read-only source (write stays null). The 2.x
   // .afphoto/.afdesign/.afpub generations share the .af magic and wire grammar, so
   // one handler covers them all; pre-2.x files that fail the tree parse fall back

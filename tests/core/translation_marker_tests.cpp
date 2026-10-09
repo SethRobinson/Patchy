@@ -40,7 +40,7 @@ constexpr std::string_view kMarkedCalls[] = {
 constexpr std::string_view kScannedDirectories[] = {"core", "formats", "psd", "filters",
                                                     "render", "plugins", "color", "support"};
 
-constexpr std::string_view kVendoredDirectories[] = {"zstd", "miniz", "libheif", "libraw", "stb", "lcms2"};
+constexpr std::string_view kVendoredDirectories[] = {"zstd", "miniz", "libheif", "libraw", "stb", "bcdec", "lcms2"};
 
 bool is_vendored(const fs::path& path) {
   for (const auto& part : path) {
