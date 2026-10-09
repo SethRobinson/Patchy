@@ -303,6 +303,12 @@ public:
     return window.sessions_.size();
   }
 
+  // The menu-bar region that acts as the window title bar (shared by the Win32
+  // HTCAPTION hit test and the Qt-level drag fallback), in menu-bar coordinates.
+  static bool title_bar_drag_area_contains(const MainWindow& window, QPoint menu_bar_position) {
+    return window.title_bar_drag_area_contains(menu_bar_position);
+  }
+
   // Sessions in creation order (the multi-page PDF open adds one per page).
   static Document& session_document(MainWindow& window, std::size_t index) {
     return window.sessions_.at(index)->document;

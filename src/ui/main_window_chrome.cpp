@@ -559,9 +559,10 @@ bool MainWindow::nativeEvent(const QByteArray& event_type, void* message, qintpt
       return true;
     }
     if (nc_message->message == WM_GETMINMAXINFO) {
-      // Qt maximizes this frameless window itself (plain resize to the work area, never a
-      // native zoom), but OS-initiated maximizes — drag-to-top snap, Win+Up — go through
-      // DefWindowProc, whose default for a caption-less window is the full monitor. That
+      // Qt maximizes this frameless window itself from the maximize button (plain resize to
+      // the work area, never a native zoom), but OS-initiated maximizes (title-bar
+      // double-click via HTCAPTION, drag-to-top snap, Win+Up) go through DefWindowProc,
+      // whose default for a caption-less window is the full monitor. That
       // hides the taskbar and, combined with the WM_NCCALCSIZE handling below, exposed a
       // white non-client ring around the screen. Publish the work area as the maximize
       // geometry so the OS path lands exactly where Qt's own maximize does. ptMaxPosition
@@ -581,11 +582,12 @@ bool MainWindow::nativeEvent(const QByteArray& event_type, void* message, qintpt
     if (nc_message->message == WM_NCCALCSIZE && nc_message->wParam != FALSE) {
       // Strip the entire non-client area so the client fills the window (no native frame,
       // hence no white top line). When maximized, the window rect depends on who initiated
-      // the maximize: Qt-initiated (maximize button, double-click) expands past the work
-      // area by the resize-frame thickness on every side, while an OS-initiated snap
-      // (drag-to-top, Win+Up) places the window exactly on the work area. Insetting by the
-      // frame thickness only suits the former — after a snap it shrank the client inside
-      // the work area, exposing the white non-client frame as a ring around the screen.
+      // the maximize: Qt-initiated (maximize button) expands past the work area by the
+      // resize-frame thickness on every side, while an OS-initiated maximize (title-bar
+      // double-click, drag-to-top snap, Win+Up) places the window exactly on the work
+      // area. Insetting by the frame thickness only suits the former — after a snap it
+      // shrank the client inside the work area, exposing the white non-client frame as a
+      // ring around the screen.
       // Pin the client rect to the monitor work area instead, which is correct for both.
       // Normal and fullscreen states keep the full window (no adjustment).
       if (IsZoomed(nc_message->hwnd) != 0) {
@@ -608,13 +610,41 @@ bool MainWindow::nativeEvent(const QByteArray& event_type, void* message, qintpt
       return true;
     }
   }
-  if (message != nullptr && result != nullptr && !isMaximized() && !isFullScreen()) {
+  if (message != nullptr && result != nullptr && !isFullScreen()) {
     auto* native_message = static_cast<MSG*>(message);
-    if (native_message->message == WM_NCHITTEST) {
+    if (native_message->message == WM_NCHITTEST && native_message->hwnd != nullptr) {
+      const auto x = GET_X_LPARAM(native_message->lParam);
+      const auto y = GET_Y_LPARAM(native_message->lParam);
+
+      // The menu bar doubles as the title bar. Answering HTCAPTION there hands the OS
+      // the whole title-bar contract: drag (with snap and the restore-on-drag of a
+      // maximized window), double-click to maximize/restore, and the system menu on
+      // right-click. Earlier builds emulated this in Qt from the menu-bar press, which
+      // restored a maximized window on a plain click. Menu titles and the window
+      // controls stay HTCLIENT so Qt keeps their clicks. Physical screen pixels map to
+      // widget coordinates through the client origin and the window's scale factor
+      // (the frameless client rect is the whole window, and while maximized it is
+      // pinned to the work area by WM_NCCALCSIZE, so the client origin is the only
+      // reliable anchor).
+      if (auto* bar = menuBar(); bar != nullptr && bar->isVisible()) {
+        POINT client_origin{0, 0};
+        if (ClientToScreen(native_message->hwnd, &client_origin) != 0) {
+          const qreal scale = devicePixelRatioF() > 0 ? devicePixelRatioF() : 1.0;
+          const QPoint window_position(qRound((x - client_origin.x) / scale), qRound((y - client_origin.y) / scale));
+          const QPoint bar_position = bar->mapFrom(this, window_position);
+          // The resize borders win over the caption while the window is restored, as on a
+          // native frame; a maximized window has no resize borders.
+          const bool on_resize_border =
+              !isMaximized() && resize_edges_for_window_position(size(), window_position) != Qt::Edges{};
+          if (!on_resize_border && bar->rect().contains(bar_position) && title_bar_drag_area_contains(bar_position)) {
+            *result = HTCAPTION;
+            return true;
+          }
+        }
+      }
+
       RECT window_rect;
-      if (native_message->hwnd != nullptr && GetWindowRect(native_message->hwnd, &window_rect) != 0) {
-        const auto x = GET_X_LPARAM(native_message->lParam);
-        const auto y = GET_Y_LPARAM(native_message->lParam);
+      if (!isMaximized() && GetWindowRect(native_message->hwnd, &window_rect) != 0) {
         const bool left = x >= window_rect.left && x < window_rect.left + kWindowResizeBorder;
         const bool right = x < window_rect.right && x >= window_rect.right - kWindowResizeBorder;
         const bool top = y >= window_rect.top && y < window_rect.top + kWindowResizeBorder;
@@ -673,6 +703,20 @@ void MainWindow::showEvent(QShowEvent* event) {
     // settled before we re-sync Qt's geometry to the real client rect.
     QTimer::singleShot(0, this, [this] { resync_native_frame_geometry(); });
   }
+}
+
+bool MainWindow::title_bar_drag_area_contains(QPoint menu_bar_position) const {
+  const auto* bar = menuBar();
+  if (bar == nullptr || bar->actionAt(menu_bar_position) != nullptr) {
+    return false;
+  }
+  if (window_chrome_controls_ != nullptr) {
+    const QRect controls_rect(window_chrome_controls_->pos(), window_chrome_controls_->size());
+    if (controls_rect.contains(menu_bar_position)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 void MainWindow::restore_maximized_under_cursor(QPoint global_cursor) {

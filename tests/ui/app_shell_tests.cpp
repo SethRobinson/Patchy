@@ -3875,6 +3875,80 @@ void ui_frameless_window_edges_resize() {
   CHECK(window.width() >= expanded.width() + 45);
 }
 
+void ui_maximized_title_bar_click_keeps_window_maximized() {
+  if (!patchy::ui::MainWindow::use_custom_window_chrome()) {
+    std::cout << "[SKIP] native window frame owns the title bar on this platform\n";
+    return;
+  }
+  // The Qt-level title-bar fallback (the real Windows window answers HTCAPTION instead, see
+  // MainWindow::nativeEvent) must follow the native contract: a click or a sub-threshold
+  // wiggle leaves a maximized window maximized, a real drag restores it, and a double-click
+  // toggles the state.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.showMaximized();
+  QApplication::processEvents();
+  CHECK(window.isMaximized());
+
+  auto* bar = window.menuBar();
+  CHECK(bar != nullptr);
+  CHECK(!bar->actions().isEmpty());
+  auto* controls = window.findChild<QWidget*>(QStringLiteral("windowChromeControls"));
+  CHECK(controls != nullptr);
+  // The offscreen screen is small, so a maximized menu bar may have titles running up to
+  // the window controls; find a real blank spot (the badge gutter before the first title
+  // also counts, it is transparent for mouse events) rather than assuming one past the
+  // last title.
+  QPoint blank(-1, bar->height() / 2);
+  for (int x = controls->x() - 1; x >= 0; --x) {
+    if (bar->actionAt(QPoint(x, blank.y())) == nullptr) {
+      blank.setX(x);
+      break;
+    }
+  }
+  CHECK(blank.x() >= 0);
+  CHECK(bar->actionAt(blank) == nullptr);
+
+  send_mouse(*bar, QEvent::MouseButtonPress, blank, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*bar, QEvent::MouseButtonRelease, blank, Qt::LeftButton, Qt::NoButton);
+  CHECK(window.isMaximized());
+
+  const QPoint wiggle = blank + QPoint(2, 1);
+  send_mouse(*bar, QEvent::MouseButtonPress, blank, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*bar, QEvent::MouseMove, wiggle, Qt::NoButton, Qt::LeftButton);
+  send_mouse(*bar, QEvent::MouseButtonRelease, wiggle, Qt::LeftButton, Qt::NoButton);
+  CHECK(window.isMaximized());
+
+  const QPoint dragged = blank + QPoint(QApplication::startDragDistance() * 4, 30);
+  send_mouse(*bar, QEvent::MouseButtonPress, blank, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*bar, QEvent::MouseMove, dragged, Qt::NoButton, Qt::LeftButton);
+  CHECK(!window.isMaximized());
+  send_mouse(*bar, QEvent::MouseButtonRelease, dragged, Qt::LeftButton, Qt::NoButton);
+  CHECK(!window.isMaximized());
+
+  const auto double_click = [&] {
+    send_mouse(*bar, QEvent::MouseButtonPress, blank, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*bar, QEvent::MouseButtonRelease, blank, Qt::LeftButton, Qt::NoButton);
+    send_mouse(*bar, QEvent::MouseButtonDblClick, blank, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*bar, QEvent::MouseButtonRelease, blank, Qt::LeftButton, Qt::NoButton);
+  };
+  double_click();
+  CHECK(window.isMaximized());
+  double_click();
+  CHECK(!window.isMaximized());
+
+  // Menu titles and the window controls are not title bar: a maximized window keeps its
+  // state when they are pressed through the same path.
+  window.showMaximized();
+  QApplication::processEvents();
+  CHECK(window.isMaximized());
+  const QPoint on_controls = controls->pos() + QPoint(controls->width() / 2, controls->height() / 2);
+  CHECK(!patchy::ui::MainWindowTestAccess::title_bar_drag_area_contains(window, on_controls));
+  CHECK(!patchy::ui::MainWindowTestAccess::title_bar_drag_area_contains(
+      window, bar->actionGeometry(bar->actions().constFirst()).center()));
+  CHECK(patchy::ui::MainWindowTestAccess::title_bar_drag_area_contains(window, blank));
+}
+
 void ui_right_edge_scrollbars_remain_draggable() {
   patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
   for (int index = 0; index < 48; ++index) {
@@ -5178,6 +5252,7 @@ std::vector<patchy::test::TestCase> app_shell_tests() {
       {"ui_about_dialog_shows_memory_row", ui_about_dialog_shows_memory_row},
       {"ui_app_data_migration_merges_legacy_folder", ui_app_data_migration_merges_legacy_folder},
       {"ui_frameless_window_edges_resize", ui_frameless_window_edges_resize},
+      {"ui_maximized_title_bar_click_keeps_window_maximized", ui_maximized_title_bar_click_keeps_window_maximized},
       {"ui_right_edge_scrollbars_remain_draggable", ui_right_edge_scrollbars_remain_draggable},
       {"ui_single_instance_socket_names_the_server_process", ui_single_instance_socket_names_the_server_process},
       {"ui_second_instance_brings_window_and_modal_dialog_forward",

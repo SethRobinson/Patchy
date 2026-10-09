@@ -453,6 +453,11 @@ private:
   void resync_native_frame_geometry();
   void restore_maximized_under_cursor(QPoint global_cursor);
   void restore_window_from_maximize();
+  // True where a press on the menu bar acts as the window title bar: not over a menu
+  // title and not over the minimize/maximize/close controls. Shared by the Win32
+  // WM_NCHITTEST path (HTCAPTION, so the OS owns drag, double-click and snap) and the
+  // Qt-level fallback in eventFilter (offscreen platform).
+  [[nodiscard]] bool title_bar_drag_area_contains(QPoint menu_bar_position) const;
   void clamp_window_to_available_screen();
   void save_window_geometry() const;
   bool restore_window_geometry();
@@ -2508,6 +2513,10 @@ private:
   QRect chrome_resize_start_geometry_;
   bool chrome_dragging_{false};
   QPoint chrome_drag_position_;
+  // Qt-level title-bar press on a maximized window: the restore waits until the pointer
+  // travels past the drag threshold, so a plain click leaves the window maximized.
+  bool chrome_drag_awaiting_restore_{false};
+  QPoint chrome_drag_press_global_;
   // Set at the top of ~MainWindow, before members are destroyed. Teardown-time focus
   // changes (the window close delivers a focus-out while child widgets are still alive)
   // otherwise run the inline-text-editor commit path against destroyed members. Read

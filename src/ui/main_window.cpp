@@ -8148,28 +8148,31 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
   }
 
   if (watched == menuBar()) {
-    auto* bar = menuBar();
     if (event->type() == QEvent::Resize || event->type() == QEvent::Show) {
       position_window_chrome_controls();
     }
 
-    const auto is_chrome_drag_area = [this, bar](const QPoint& position) {
-      if (bar->actionAt(position) != nullptr) {
-        return false;
+    // On a real Windows window the title-bar area answers WM_NCHITTEST with HTCAPTION
+    // (MainWindow::nativeEvent), so the OS handles drag, double-click and the
+    // restore-on-drag of a maximized window and none of these events arrive. This
+    // Qt-level path is the fallback for platforms without that hit test (the offscreen
+    // test platform) and mirrors the native rules: a plain click never changes the window
+    // state, a double-click toggles maximize, and a drag that leaves the drag threshold on
+    // a maximized window restores it under the cursor and keeps dragging.
+    const auto begin_title_bar_drag = [this](QPoint global_position) {
+      chrome_drag_position_ = global_position - frameGeometry().topLeft();
+      chrome_dragging_ = true;
+      if (auto* handle = windowHandle(); handle != nullptr && handle->startSystemMove()) {
+        chrome_dragging_ = false;
       }
-      if (window_chrome_controls_ != nullptr) {
-        const QRect controls_rect(window_chrome_controls_->pos(), window_chrome_controls_->size());
-        if (controls_rect.contains(position)) {
-          return false;
-        }
-      }
-      return true;
     };
 
     switch (event->type()) {
       case QEvent::MouseButtonDblClick: {
         auto* mouse_event = static_cast<QMouseEvent*>(event);
-        if (mouse_event->button() == Qt::LeftButton && is_chrome_drag_area(mouse_event->pos())) {
+        if (mouse_event->button() == Qt::LeftButton && title_bar_drag_area_contains(mouse_event->pos())) {
+          chrome_drag_awaiting_restore_ = false;
+          chrome_dragging_ = false;
           isMaximized() ? restore_window_from_maximize() : showMaximized();
           mouse_event->accept();
           return true;
@@ -8178,18 +8181,18 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
       }
       case QEvent::MouseButtonPress: {
         auto* mouse_event = static_cast<QMouseEvent*>(event);
-        if (mouse_event->button() == Qt::LeftButton && is_chrome_drag_area(mouse_event->pos())) {
-          // Dragging the title bar of a maximized window must restore it first. Letting the
-          // OS system-move a maximized window leaves Qt's isMaximized() stale, which then
-          // disables our edge-resize hit-testing until the next explicit state change. Restore
-          // under the cursor (like a native title bar) so the state stays in sync.
+        if (mouse_event->button() == Qt::LeftButton && title_bar_drag_area_contains(mouse_event->pos())) {
+          const QPoint global_position = mouse_event->globalPosition().toPoint();
           if (isMaximized()) {
-            restore_maximized_under_cursor(mouse_event->globalPosition().toPoint());
-          }
-          chrome_drag_position_ = mouse_event->globalPosition().toPoint() - frameGeometry().topLeft();
-          chrome_dragging_ = true;
-          if (auto* handle = windowHandle(); handle != nullptr && handle->startSystemMove()) {
+            // Like a native title bar: the window stays maximized until the pointer moves
+            // past the drag threshold. The restore happens in MouseMove, which also keeps
+            // Qt's isMaximized() in sync (a system move of a maximized window would not).
+            chrome_drag_awaiting_restore_ = true;
+            chrome_drag_press_global_ = global_position;
             chrome_dragging_ = false;
+          } else {
+            chrome_drag_awaiting_restore_ = false;
+            begin_title_bar_drag(global_position);
           }
           mouse_event->accept();
           return true;
@@ -8198,9 +8201,26 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
       }
       case QEvent::MouseMove: {
         auto* mouse_event = static_cast<QMouseEvent*>(event);
-        if (chrome_dragging_ && (mouse_event->buttons() & Qt::LeftButton) != 0) {
+        if ((mouse_event->buttons() & Qt::LeftButton) == 0) {
+          break;
+        }
+        const QPoint global_position = mouse_event->globalPosition().toPoint();
+        if (chrome_drag_awaiting_restore_) {
+          if ((global_position - chrome_drag_press_global_).manhattanLength() < QApplication::startDragDistance()) {
+            mouse_event->accept();
+            return true;
+          }
+          chrome_drag_awaiting_restore_ = false;
+          if (isMaximized()) {
+            restore_maximized_under_cursor(global_position);
+          }
+          begin_title_bar_drag(global_position);
+          mouse_event->accept();
+          return true;
+        }
+        if (chrome_dragging_) {
           if (!isMaximized() && !isFullScreen()) {
-            move(mouse_event->globalPosition().toPoint() - chrome_drag_position_);
+            move(global_position - chrome_drag_position_);
           }
           mouse_event->accept();
           return true;
@@ -8209,6 +8229,7 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
       }
       case QEvent::MouseButtonRelease:
         chrome_dragging_ = false;
+        chrome_drag_awaiting_restore_ = false;
         break;
       default:
         break;
