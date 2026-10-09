@@ -406,6 +406,12 @@ void CanvasWidget::set_document_internal(Document* document, bool preserve_frame
     render_cache_diagnostics_ = {};
   }
   const bool keep_normal_composite_cache = preserve_frame && normal_composite_unchanged;
+  if (!keep_normal_composite_cache) {
+    // An in-flight background refresh snapshotted the outgoing document
+    // state; its completion must not install that frame over the incoming
+    // one (a repaint no longer marks a current-generation refresh pending).
+    cancel_async_render_cache_refresh();
+  }
   render_cache_dirty_ = keep_normal_composite_cache ? render_cache_was_dirty : true;
   if (!preserve_frame && document_ != nullptr && document_->metadata().psd_flat_composite.has_value()) {
     const auto& flat_composite = *document_->metadata().psd_flat_composite;

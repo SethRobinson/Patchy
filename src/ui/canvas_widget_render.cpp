@@ -820,7 +820,15 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
       // what stops big documents (>= overlay scale) from flashing checkerboard
       // on every full invalidation (add layer, undo, blend change, ...).
       if (async_render_cache_in_flight_) {
-        async_render_cache_pending_ = true;
+        // Only an invalidation that outdated the running snapshot (its
+        // generation bumped) needs a second pass. A plain repaint must
+        // not mark it pending: the badge animation repaints every 80 ms,
+        // so a refresh slower than the badge delay (Undo after a filter
+        // on a 16-bit photo) was discarded and restarted at every
+        // completion, spinning "Processing..." forever.
+        if (async_render_cache_in_flight_generation_ != async_render_cache_generation_) {
+          async_render_cache_pending_ = true;
+        }
       } else {
         start_async_render_cache_refresh();
       }
@@ -1236,6 +1244,7 @@ void CanvasWidget::start_async_render_cache_refresh() {
   async_render_cache_pending_ = false;
   note_background_refresh_state();
   const auto generation = ++async_render_cache_generation_;
+  async_render_cache_in_flight_generation_ = generation;
   auto* app = QApplication::instance();
   QPointer<CanvasWidget> widget(this);
   run_tracked_background_worker([app, widget, generation, snapshot_size, document_snapshot = std::move(document_snapshot)] {

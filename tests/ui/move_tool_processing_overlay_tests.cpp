@@ -4871,6 +4871,55 @@ void ui_move_deferred_commit_yields_to_undo() {
   CHECK(images_equal_rgba(restored, scene.reference_image()));
 }
 
+// A full background refresh that outlives the badge delay must still land.
+// The badge animation repaints the canvas every 80 ms, and each repaint used
+// to mark the in-flight refresh pending, so every completion discarded its
+// frame and restarted: Undo after a filter on a 16-bit photo (a recomposite
+// slower than the 1 s badge delay) spun "Processing..." forever.
+void ui_background_refresh_lands_while_processing_badge_animates() {
+  patchy::Document document(96, 96, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background",
+                           solid_pixels(96, 96, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  // Enough layers for the deferred full-refresh route (kDeferFullRefreshMinLayers).
+  for (int index = 0; index < 200; ++index) {
+    document.add_layer(patchy::Layer(document.allocate_layer_id(), "Layer " + std::to_string(index),
+                                    solid_pixels(1, 1, patchy::PixelFormat::rgba8(), QColor(80, 140, 210))));
+  }
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(document), QStringLiteral("Badge Refresh"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  const auto settle = [canvas](std::chrono::milliseconds budget) {
+    const auto deadline = std::chrono::steady_clock::now() + budget;
+    while (!canvas->render_settled() && std::chrono::steady_clock::now() < deadline) {
+      QApplication::processEvents();
+      QThread::msleep(5);
+    }
+    return canvas->render_settled();
+  };
+  QApplication::processEvents();
+  canvas->force_refresh();
+  CHECK(settle(std::chrono::seconds(30)));
+
+  EnvironmentVariableRestorer restore_overlay_delay{"PATCHY_PROCESSING_OVERLAY_DELAY_MS"};
+  EnvironmentVariableRestorer restore_render_delay{"PATCHY_PROCESSING_RENDER_TEST_DELAY_MS"};
+  qputenv("PATCHY_PROCESSING_OVERLAY_DELAY_MS", QByteArray("0"));
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray("300"));
+
+  const auto before = canvas->render_cache_diagnostics();
+  canvas->document_changed();  // the full invalidation an Undo issues
+  QApplication::processEvents();
+  CHECK(!canvas->render_settled());
+  // Room for several worker passes: the refresh lands once while the badge
+  // keeps animating (and repainting) over it.
+  CHECK(settle(std::chrono::milliseconds(1500)));
+  const auto after = canvas->render_cache_diagnostics();
+  CHECK(after.full_refreshes == before.full_refreshes + 1);
+  CHECK(after.processing_overlay_frames > before.processing_overlay_frames);
+  CHECK(!canvas->background_refresh_overlay_visible());
+  qputenv("PATCHY_PROCESSING_RENDER_TEST_DELAY_MS", QByteArray("0"));
+}
+
 // Readers that need exact pixels (the Magic Wand with Sample All Layers reads
 // the composite) wait for the pending job instead of sampling the stale region.
 void ui_move_deferred_commit_serves_exact_pixels_to_readers() {
@@ -5112,6 +5161,8 @@ std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests() {
       {"ui_move_deferred_commit_shows_processing_badge_after_delay",
        ui_move_deferred_commit_shows_processing_badge_after_delay},
       {"ui_move_deferred_commit_yields_to_undo", ui_move_deferred_commit_yields_to_undo},
+      {"ui_background_refresh_lands_while_processing_badge_animates",
+       ui_background_refresh_lands_while_processing_badge_animates},
       {"ui_move_deferred_commit_serves_exact_pixels_to_readers",
        ui_move_deferred_commit_serves_exact_pixels_to_readers},
       {"ui_move_second_drag_while_commit_pending_merges_jobs",

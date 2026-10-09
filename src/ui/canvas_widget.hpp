@@ -2233,6 +2233,10 @@ private:
   bool async_render_cache_explicit_hold_{false};
   bool async_render_cache_start_queued_{false};
   std::uint64_t async_render_cache_generation_{0};
+  // The generation the in-flight refresh snapshotted at. It trails
+  // async_render_cache_generation_ once an invalidation outdated that
+  // snapshot; only then does a repaint mark the refresh pending.
+  std::uint64_t async_render_cache_in_flight_generation_{0};
   std::vector<QImage> display_mip_cache_{};
   QSize display_mip_source_size_{};
   QPoint last_mouse_position_{};
