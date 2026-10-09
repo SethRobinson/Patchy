@@ -1518,9 +1518,11 @@ void ui_deep_document_render_strips_match_the_sequential_render() {
   patchy::convert_document_depth(document, patchy::BitDepth::UInt16);
   const QRect all(0, 0, 2400, 2000);
   const auto parallel = patchy::ui::qimage_from_document_rect(document, all, true);
-  qputenv("PATCHY_RENDER_SINGLE_THREADED", "1");
-  const auto sequential = patchy::ui::qimage_from_document_rect(document, all, true);
-  qunsetenv("PATCHY_RENDER_SINGLE_THREADED");
+  const auto sequential = [&] {
+    const EnvironmentVariableRestorer restore_single_threaded("PATCHY_RENDER_SINGLE_THREADED");
+    qputenv("PATCHY_RENDER_SINGLE_THREADED", "1");
+    return patchy::ui::qimage_from_document_rect(document, all, true);
+  }();
   CHECK(!parallel.isNull());
   CHECK(parallel == sequential);
 }

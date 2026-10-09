@@ -98,6 +98,7 @@
 
 namespace {
 
+using patchy::test::ui::EnvironmentVariableRestorer;
 using patchy::test::ui::remove_test_scratch_dir;
 using patchy::test::ui::save_widget_artifact;
 using patchy::test::ui::show_window;
@@ -747,6 +748,7 @@ private:
 // A script that has already been working long enough to raise the stop panel
 // must not create its canvas window underneath it.
 void ui_script_canvas_window_dismisses_stop_panel() {
+  const EnvironmentVariableRestorer restore_busy_delay("PATCHY_SCRIPT_BUSY_DELAY_MS");
   qputenv("PATCHY_SCRIPT_BUSY_DELAY_MS", "0");
   {
     patchy::ui::MainWindow window;
@@ -781,13 +783,13 @@ void ui_script_canvas_window_dismisses_stop_panel() {
     host.stop_active_run();
     wait_for_run_end(host);
   }
-  qunsetenv("PATCHY_SCRIPT_BUSY_DELAY_MS");
 }
 
 // While a script owns an open canvas window, a slow frame callback must not
 // raise the stop panel over it (same blocking hazard, plus a game behind an
 // application-modal panel is unplayable on every platform).
 void ui_script_canvas_window_suppresses_stop_panel() {
+  const EnvironmentVariableRestorer restore_busy_delay("PATCHY_SCRIPT_BUSY_DELAY_MS");
   qputenv("PATCHY_SCRIPT_BUSY_DELAY_MS", "0");
   {
     patchy::ui::MainWindow window;
@@ -819,7 +821,6 @@ void ui_script_canvas_window_suppresses_stop_panel() {
     host.stop_active_run();
     wait_for_run_end(host);
   }
-  qunsetenv("PATCHY_SCRIPT_BUSY_DELAY_MS");
 }
 
 void ui_script_undo_disable_skips_history() {
@@ -868,6 +869,7 @@ void ui_script_timer_keeps_run_alive() {
 }
 
 void ui_script_watchdog_interrupts_infinite_loop() {
+  const EnvironmentVariableRestorer restore_timeout("PATCHY_SCRIPT_TIMEOUT_MS");
   qputenv("PATCHY_SCRIPT_TIMEOUT_MS", QByteArray("300"));
   {
     patchy::ui::MainWindow window;
@@ -878,23 +880,26 @@ void ui_script_watchdog_interrupts_infinite_loop() {
     CHECK(host.last_run_had_error());
     CHECK(backlog_contains(window, QStringLiteral("no activity")));
   }
-  qunsetenv("PATCHY_SCRIPT_TIMEOUT_MS");
 }
 
 // The watchdog measures INACTIVITY, not runtime: a script that keeps making
 // API calls outlives any number of windows (a contact sheet may run for
 // hours), while total silence still dies (the test above).
 void ui_script_watchdog_allows_busy_scripts() {
-  qputenv("PATCHY_SCRIPT_TIMEOUT_MS", QByteArray("300"));
+  const EnvironmentVariableRestorer restore_timeout("PATCHY_SCRIPT_TIMEOUT_MS");
+  // The window is generous so a loaded machine (a release run beside a build)
+  // cannot stretch one ~50 ms ping gap past it; the run still lasts more than
+  // two windows, so only inactivity, never total runtime, can be measured.
+  qputenv("PATCHY_SCRIPT_TIMEOUT_MS", QByteArray("1500"));
   {
     patchy::ui::MainWindow window;
     show_window(window);
-    // ~1.2 s of wall-clock work (four windows deep) with a console ping every
-    // ~50 ms; each ping feeds the watchdog, so the run must complete.
+    // ~3.2 s of wall-clock work with a console ping every ~50 ms; each ping
+    // feeds the watchdog, so the run must complete.
     CHECK(run_script(window, QStringLiteral(R"JS(
       var start = Date.now();
       var pings = 0;
-      while (Date.now() - start < 1200) {
+      while (Date.now() - start < 3200) {
         var t = Date.now();
         while (Date.now() - t < 50) {}
         console.log('ping ' + (++pings));
@@ -903,7 +908,6 @@ void ui_script_watchdog_allows_busy_scripts() {
     )JS")));
     CHECK(backlog_contains(window, QStringLiteral("busy-done")));
   }
-  qunsetenv("PATCHY_SCRIPT_TIMEOUT_MS");
 }
 
 void ui_script_console_and_error_line_numbers() {
@@ -2750,6 +2754,7 @@ void ui_sound_build_tone_wav_shape() {
 // the suite silent while the full path (clamps, include-style resolution, WAV
 // validation, error text naming the file) still runs.
 void ui_script_play_tone_and_sound_offscreen() {
+  const EnvironmentVariableRestorer restore_no_sound("PATCHY_NO_SOUND");
   qputenv("PATCHY_NO_SOUND", "1");
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2787,7 +2792,6 @@ void ui_script_play_tone_and_sound_offscreen() {
   CHECK(backlog_contains(window, QStringLiteral("missing-error=Error: playSound")));
   CHECK(backlog_contains(window, QStringLiteral("no-such-file.wav")));
   CHECK(backlog_contains(window, QStringLiteral("not a .wav file")));
-  qunsetenv("PATCHY_NO_SOUND");
 }
 
 void ui_script_fancy_background_runs_standalone() {
@@ -3084,6 +3088,7 @@ void ui_script_show_options_dialog_description_and_folder() {
 // burst ends; script timers defer instead of re-entering the mid-evaluation
 // engine while the pump processes events.
 void ui_script_busy_overlay_and_timer_guard() {
+  const EnvironmentVariableRestorer restore_busy_delay("PATCHY_SCRIPT_BUSY_DELAY_MS");
   qputenv("PATCHY_SCRIPT_BUSY_DELAY_MS", "0");
   {
     patchy::ui::MainWindow window;
@@ -3110,7 +3115,6 @@ void ui_script_busy_overlay_and_timer_guard() {
     CHECK(canvas->render_cache_diagnostics().processing_overlays_shown > overlays_before);
     CHECK(!canvas->processing_overlay_visible());
   }
-  qunsetenv("PATCHY_SCRIPT_BUSY_DELAY_MS");
 }
 
 // The hover card (driven directly; real hover timing needs a live pointer):
@@ -3154,6 +3158,7 @@ void ui_script_manager_hover_card_shows_details() {
 // undo box checked interrupts the run and rolls the document back to its
 // pre-script state.
 void ui_script_stop_panel_confirm_and_undo() {
+  const EnvironmentVariableRestorer restore_busy_delay("PATCHY_SCRIPT_BUSY_DELAY_MS");
   qputenv("PATCHY_SCRIPT_BUSY_DELAY_MS", "0");
   {
     patchy::ui::MainWindow window;
@@ -3269,12 +3274,12 @@ void ui_script_stop_panel_confirm_and_undo() {
     CHECK(layer_named(patchy::ui::MainWindowTestAccess::document(window), "slow-earlier-layer") == nullptr);
     CHECK(layer_named(patchy::ui::MainWindowTestAccess::document(window), "stop-slow-layer") == nullptr);
   }
-  qunsetenv("PATCHY_SCRIPT_BUSY_DELAY_MS");
 }
 
 // The busy overlay and stop panel step aside while the script shows its own
 // modal (alert here): ModalWatchdogPause ends the indicator on entry.
 void ui_script_busy_panel_yields_to_script_dialogs() {
+  const EnvironmentVariableRestorer restore_busy_delay("PATCHY_SCRIPT_BUSY_DELAY_MS");
   qputenv("PATCHY_SCRIPT_BUSY_DELAY_MS", "0");
   {
     patchy::ui::MainWindow window;
@@ -3311,7 +3316,6 @@ void ui_script_busy_panel_yields_to_script_dialogs() {
     CHECK(!panel_visible_during_alert);
     CHECK(backlog_contains(window, QStringLiteral("after-alert")));
   }
-  qunsetenv("PATCHY_SCRIPT_BUSY_DELAY_MS");
 }
 
 // The @cli header directive and the command builder behind the Script
