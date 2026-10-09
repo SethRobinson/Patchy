@@ -237,9 +237,9 @@ Each phase lands as verified commits; the gate stays off until Phase 9.
    `deep_filter_support` (filters/filter_engine.hpp) decides how a filter runs:
    - Deep kernels (`filters/deep_filters.cpp`: the 8-bit math in float without its
      intermediate rounding; Gaussian, High Pass and Unsharp share the calibrated line
-     kernels through `filter_plane_with_photoshop_kernel`). Both depths: Gaussian, Box
-     and Radial Blur, Unsharp Mask, Pixel Mosaic, Twirl, Wave, Pinch/Bloat, Clouds
-     (mixed in the display encoding). 16 bits only, since their constants assume
+     kernels through `filter_plane_with_photoshop_kernel`). Both depths: Gaussian, Box,
+     Radial and Motion Blur (the exact tap kernel at every distance), Unsharp Mask,
+     Pixel Mosaic, Twirl, Wave, Pinch/Bloat, Clouds (mixed in the display encoding). 16 bits only, since their constants assume
      encoded values: Invert, Brightness/Contrast, Grayscale, Desaturate, Sepia,
      Threshold, Posterize, Vignette, High Pass, Sharpen, Emboss, Add Noise.
    - Every other filter on 16 bits runs on an 8-bit copy and folds the change back
@@ -257,7 +257,7 @@ Each phase lands as verified commits; the gate stays off until Phase 9.
      HDR color, values above 1.0 included.
    Smart objects render their contents at 8 bits in every document, so their Smart
    Filters run at 8 bits. Still to do: Smart Filters at depth, native 16-bit
-   8BF (check the SDK's 16-bit sample range), 32-bit Motion Blur and Add Noise, deep
+   8BF (check the SDK's 16-bit sample range), 32-bit Add Noise, deep
    kernels for the 8-bit-copy filters. Surface Blur, Median and Dust & Scratches keep
    their no-histogram designs at every depth (docs/patent-research.md).
 7. **UI.** Image > Mode > 8/16/32 Bits/Channel (`image.mode_8_bit`,

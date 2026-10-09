@@ -5,6 +5,7 @@
 #include "core/layer_render_utils.hpp"
 #include "core/pattern_sampler.hpp"
 #include "core/pixel_depth.hpp"
+#include "core/rect_utils.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -1088,6 +1089,38 @@ Rect shape_bake_domain(const VectorShapeContent& content, Rect canvas) {
               static_cast<std::int32_t>(y1 - y0)};
 }
 
+// A fill layer without a vector mask aligns its gradient to the layer's bounds, which in
+// Photoshop are its user mask's visible samples: gradient-fill.psd's 32-bit layer spans
+// the mask's 44,6..60,100, not the canvas (Testy, October 2026). Nullopt when the layer
+// has a path, no enabled mask, or a mask that shows the layer outside its rectangle.
+[[nodiscard]] std::optional<Rect> fill_layer_mask_bounds(const Layer& layer, const VectorShapeContent& shape, Rect canvas) {
+  const auto& mask = layer.mask();
+  if ((!shape.path.empty() && !shape.path_disabled) || !mask.has_value() || mask->disabled ||
+      mask->default_color != 0 || mask->pixels.empty()) {
+    return std::nullopt;
+  }
+  std::int32_t min_x = mask->pixels.width();
+  std::int32_t min_y = mask->pixels.height();
+  std::int32_t max_x = -1;
+  std::int32_t max_y = -1;
+  for (std::int32_t y = 0; y < mask->pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < mask->pixels.width(); ++x) {
+      if (coverage_at(mask->pixels, x, y) > 0.0F) {
+        min_x = std::min(min_x, x);
+        max_x = std::max(max_x, x);
+        min_y = std::min(min_y, y);
+        max_y = std::max(max_y, y);
+      }
+    }
+  }
+  if (max_x < min_x) {
+    return std::nullopt;
+  }
+  const auto visible = intersect_rect(
+      Rect{mask->bounds.x + min_x, mask->bounds.y + min_y, max_x - min_x + 1, max_y - min_y + 1}, canvas);
+  return visible.empty() ? std::nullopt : std::optional<Rect>(visible);
+}
+
 }  // namespace
 
 void update_vector_shape_raster(Layer& layer, Rect canvas, const PatternStore* patterns) {
@@ -1097,10 +1130,14 @@ void update_vector_shape_raster(Layer& layer, Rect canvas, const PatternStore* p
   }
   const auto domain = shape_bake_domain(*shape, canvas);
   // Paint geometry (unaligned gradients, pattern phase) stays on the canvas.
-  const VectorPaintBounds paint_bounds{canvas, std::nullopt, std::nullopt};
+  const auto mask_bounds = shape->fill.kind == VectorFillKind::Gradient && shape->fill.gradient.align_with_layer
+                               ? fill_layer_mask_bounds(layer, *shape, canvas)
+                               : std::nullopt;
+  const VectorPaintBounds paint_bounds{canvas, mask_bounds, std::nullopt};
   const bool extended = domain.x != canvas.x || domain.y != canvas.y || domain.width != canvas.width ||
                         domain.height != canvas.height;
-  auto raster = rasterize_vector_shape(*shape, domain, patterns, &layer, extended ? &paint_bounds : nullptr);
+  auto raster = rasterize_vector_shape(*shape, domain, patterns, &layer,
+                                       extended || mask_bounds.has_value() ? &paint_bounds : nullptr);
   layer.set_pixels(std::move(raster.pixels));
   layer.set_bounds(raster.bounds);
   // The split planes ride the content so the compositor can apply interior
@@ -1151,6 +1188,8 @@ std::shared_ptr<const PixelBuffer> deep_gradient_fill_raster(const Layer& layer,
   }
   const auto linear = depth == BitDepth::Float32;
   const auto domain = deep_domain_for(depth);
+  // The 8-bit bake's alignment (fill_layer_mask_bounds above).
+  const auto gradient_bounds = fill_layer_mask_bounds(layer, *shape, bounds).value_or(bounds);
   PixelBuffer pixels(bounds.width, bounds.height, with_bit_depth(PixelFormat::rgba8(), depth));
   std::vector<float> row(static_cast<std::size_t>(bounds.width) * 4U);
   for (std::int32_t y = 0; y < bounds.height; ++y) {
@@ -1158,7 +1197,7 @@ std::shared_ptr<const PixelBuffer> deep_gradient_fill_raster(const Layer& layer,
     for (std::int32_t x = 0; x < bounds.width; ++x) {
       const auto document_x = bounds.x + x;
       const auto document_y = bounds.y + y;
-      const auto position = gradient_position(shape->fill.gradient, bounds, document_x, document_y,
+      const auto position = gradient_position(shape->fill.gradient, gradient_bounds, document_x, document_y,
                                               GradientSpanBasis::CenterChord);
       const auto color = gradient_color_precise(shape->fill.gradient, position, true, linear);
       const auto opacity = gradient_stop_opacity(shape->fill.gradient, position, true);

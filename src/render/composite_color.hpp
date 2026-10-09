@@ -70,10 +70,15 @@ template <typename Target>
   if (domain == DeepDomain::Encoded) {
     return DeepRgb{static_cast<float>(color.red), static_cast<float>(color.green), static_cast<float>(color.blue)};
   }
-  const auto decode = [](std::uint8_t value) {
-    return static_cast<float>(srgb_decode(static_cast<double>(value) / 255.0) * 255.0);
-  };
-  return DeepRgb{decode(color.red), decode(color.green), decode(color.blue)};
+  // Effect and gradient colors convert per pixel: decode each byte value once.
+  static const auto decoded = [] {
+    std::array<float, 256> table{};
+    for (std::size_t value = 0; value < table.size(); ++value) {
+      table[value] = static_cast<float>(srgb_decode(static_cast<double>(value) / 255.0) * 255.0);
+    }
+    return table;
+  }();
+  return DeepRgb{decoded[color.red], decoded[color.green], decoded[color.blue]};
 }
 
 [[nodiscard]] inline DeepChannels deep_channels(DeepRgb color) noexcept {

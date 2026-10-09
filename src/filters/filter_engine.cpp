@@ -1975,6 +1975,11 @@ void execute_deep_builtin_filter(const FilterRegistry &registry,
     deep_sharpen(image,
                  std::clamp(filter_value(invocation, "amount", 100), 0, 300),
                  progress);
+  } else if (identifier == "patchy.filters.motion_blur") {
+    deep_motion_blur(image,
+                     std::clamp(filter_value(invocation, "angle", 0), -360, 360),
+                     std::clamp(filter_value(invocation, "distance", 12), 1, 2000),
+                     progress);
   } else if (identifier == "patchy.filters.radial_blur") {
     deep_radial_blur(
         image, std::clamp(filter_value(invocation, "amount", 35), 0, 100),

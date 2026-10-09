@@ -56,6 +56,10 @@ void deep_high_pass(DeepImage& image, double radius, const FilterProgress* progr
 void deep_unsharp_mask(DeepImage& image, double amount_percent, double radius, int threshold,
                        const FilterProgress* progress);
 void deep_sharpen(DeepImage& image, int amount_percent, const FilterProgress* progress);
+// The Motion Blur primitive's exact tap kernel (distance + 1 bilinear samples along the
+// direction quantized to 1/65536 px, alpha-weighted, edges clamped) in double, at every
+// distance; rows run in parallel.
+void deep_motion_blur(DeepImage& image, int angle_degrees, int distance, const FilterProgress* progress);
 // Centers are buffer coordinates.
 void deep_radial_blur(DeepImage& image, int amount, int samples, double center_x, double center_y,
                       const FilterProgress* progress);

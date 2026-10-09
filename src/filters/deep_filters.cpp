@@ -1,11 +1,13 @@
 #include "filters/deep_filters.hpp"
 
+#include "core/worker_budget.hpp"
 #include "filters/smart_filter_renderer.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <future>
 #include <span>
 #include <utility>
 
@@ -18,10 +20,11 @@ constexpr double kDeepFilterPi = 3.14159265358979323846;
 // Filters with a deep kernel at both depths. 32-bit documents get only these: the
 // blurs, Unsharp Mask, Pixel Mosaic, the geometric distortions and Clouds, which mean the
 // same thing on linear light (Photoshop's 32-bit filter set is similarly limited).
-constexpr std::array<std::string_view, 9> kLinearSafeFilters{
+constexpr std::array<std::string_view, 10> kLinearSafeFilters{
     "patchy.filters.gaussian_blur", "patchy.filters.box_blur",    "patchy.filters.radial_blur",
     "patchy.filters.unsharp_mask",  "patchy.filters.pixelate",    "patchy.filters.twirl",
-    "patchy.filters.wave",          "patchy.filters.pinch_bloat", "patchy.filters.clouds"};
+    "patchy.filters.wave",          "patchy.filters.pinch_bloat", "patchy.filters.clouds",
+    "patchy.filters.motion_blur"};
 
 // Further deep kernels for 16-bit (display-encoded) documents: point and neighborhood
 // math whose 8-bit constants (mid gray 128, the luminance weights) assume encoded values.
@@ -339,6 +342,76 @@ void deep_sharpen(DeepImage& image, int amount_percent, const FilterProgress* pr
     }
   }
   report_deep_filter_progress(progress, image.height, image.height, FilterProgressStage::Sharpening);
+}
+
+void deep_motion_blur(DeepImage& image, int angle_degrees, int distance, const FilterProgress* progress) {
+  const auto width = image.width;
+  const auto height = image.height;
+  if (width <= 0 || height <= 0 || distance <= 0) {
+    return;
+  }
+  // motion_blur_line's quantized direction, so the 8-bit and deep blurs sample the same
+  // positions.
+  constexpr std::int64_t kScale = 65536;
+  const auto radians = static_cast<double>(angle_degrees) * kDeepFilterPi / 180.0;
+  const auto step_x = static_cast<std::int64_t>(std::llround(std::cos(radians) * static_cast<double>(kScale)));
+  const auto step_y = static_cast<std::int64_t>(std::llround(-std::sin(radians) * static_cast<double>(kScale)));
+  const auto first_sample = -distance / 2;
+  const auto last_sample = first_sample + distance;
+  const auto sample_count = static_cast<double>(last_sample - first_sample + 1);
+  const auto maximum_x = static_cast<std::int64_t>(width - 1) * kScale;
+  const auto maximum_y = static_cast<std::int64_t>(height - 1) * kScale;
+  const auto source = image;
+  const auto blur_rows = [&](std::int32_t begin, std::int32_t end) {
+    for (auto y = begin; y < end; ++y) {
+      for (std::int32_t x = 0; x < width; ++x) {
+        std::array<double, 3> color{};
+        double alpha = 0.0;
+        for (auto sample = first_sample; sample <= last_sample; ++sample) {
+          const auto sample_x = std::clamp<std::int64_t>(
+              static_cast<std::int64_t>(x) * kScale + static_cast<std::int64_t>(sample) * step_x, 0, maximum_x);
+          const auto sample_y = std::clamp<std::int64_t>(
+              static_cast<std::int64_t>(y) * kScale + static_cast<std::int64_t>(sample) * step_y, 0, maximum_y);
+          const auto x0 = static_cast<std::int32_t>(sample_x / kScale);
+          const auto y0 = static_cast<std::int32_t>(sample_y / kScale);
+          const auto x1 = std::min(width - 1, x0 + 1);
+          const auto y1 = std::min(height - 1, y0 + 1);
+          const auto tx = static_cast<double>(sample_x % kScale) / static_cast<double>(kScale);
+          const auto ty = static_cast<double>(sample_y % kScale) / static_cast<double>(kScale);
+          const std::array<double, 4> weights{(1.0 - tx) * (1.0 - ty), tx * (1.0 - ty), (1.0 - tx) * ty, tx * ty};
+          const std::array<const float*, 4> pixels{source.at(x0, y0), source.at(x1, y0), source.at(x0, y1),
+                                                   source.at(x1, y1)};
+          for (std::size_t corner = 0; corner < 4U; ++corner) {
+            const auto alpha_weight = static_cast<double>(pixels[corner][3]) / 255.0 * weights[corner];
+            alpha += alpha_weight;
+            for (std::size_t c = 0; c < 3U; ++c) {
+              color[c] += static_cast<double>(pixels[corner][c]) * alpha_weight;
+            }
+          }
+        }
+        auto* dst = image.at(x, y);
+        for (std::size_t c = 0; c < 3U; ++c) {
+          dst[c] = alpha > 0.0 ? static_cast<float>(color[c] / alpha) : 0.0F;
+        }
+        dst[3] = static_cast<float>(alpha / sample_count * 255.0);
+      }
+    }
+  };
+  // Rows split across workers; each writes only its own rows. Only this thread reports
+  // progress (and so may throw FilterCancelled), after every worker has finished.
+  // max_blocking_fanout_workers is 0 where nothing may block on a worker (wasm main thread).
+  const auto workers =
+      std::max(1, max_blocking_fanout_workers(std::clamp(std::min(height / 16, hardware_worker_threads()), 1, 16)));
+  const auto rows_per_job = (height + workers - 1) / workers;
+  std::vector<std::future<void>> jobs;
+  for (std::int32_t start = rows_per_job; start < height; start += rows_per_job) {
+    jobs.push_back(std::async(std::launch::async, blur_rows, start, std::min(height, start + rows_per_job)));
+  }
+  blur_rows(0, std::min(height, rows_per_job));
+  for (auto& job : jobs) {
+    job.get();
+  }
+  report_deep_filter_progress(progress, height, height, FilterProgressStage::Blurring);
 }
 
 void deep_radial_blur(DeepImage& image, int amount, int samples, double center_x, double center_y,
