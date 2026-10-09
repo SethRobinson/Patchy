@@ -321,6 +321,70 @@ class RerunTests(unittest.TestCase):
             result = psdtools.export(self.runs / 'in.psd', rendered)
         self.assertEqual((result['ok'], result['note']), (True, 'fell back'))
 
+    def test_photocraft_column_is_default_and_maps_cli_exit_codes(self):
+        from drivers import photocraft
+        self.assertIn('photocraft', testy.DEFAULT_EDITORS)
+        self.assertIn('photocraft', testy.KNOWN_CELL_DIRS)
+        self.assertEqual(testy.TEXT_RENDER_BASIS['photocraft'][0], 'open')
+        exe = self.runs / 'photocraft-cli.exe'
+        exe.write_bytes(b'')
+        with mock.patch.dict(testy.config.LOCAL, {'editors': {'photocraft': str(exe)}}), \
+                mock.patch.object(photocraft, 'version', return_value='0.5.0 (e5e3e3975, 2026-10-08)'):
+            info = testy.config.discover_editors('hash')['photocraft']
+        self.assertTrue(info.available)
+        self.assertEqual((info.exe, info.display_name, info.version),
+                         (exe, 'PhotoCraft', '0.5.0 (e5e3e3975, 2026-10-08)'))
+        version_out = mock.Mock(returncode=0, stdout='photocraft-cli 0.5.0 (e5e3e3975, 2026-10-08)\n')
+        with mock.patch.object(photocraft.subprocess, 'run', return_value=version_out):
+            self.assertEqual(photocraft.version(exe), '0.5.0 (e5e3e3975, 2026-10-08)')
+
+        def process(returncode, stderr='', output=None, hang=False):
+            proc = mock.Mock(returncode=returncode, pid=1)
+            def communicate(timeout=None):
+                if hang and timeout is not None:
+                    raise photocraft.subprocess.TimeoutExpired('photocraft-cli', timeout)
+                if output is not None:
+                    output.write_bytes(b'psd')
+                return '', stderr
+            proc.communicate.side_effect = communicate
+            return proc
+
+        rendered = self.runs / 'out.psd'
+        ok = process(0, 'warning: 2 layer(s) flattened; layers, masks and blend modes are not kept\n'
+                        'warning: font "Foo" is not installed\n', output=rendered)
+        with mock.patch.object(photocraft.subprocess, 'Popen', return_value=ok):
+            result = photocraft.export(exe, self.runs / 'in.psd', rendered)
+        self.assertEqual((result['ok'], result['fileRejected'], result['note']),
+                         (True, False, 'font "Foo" is not installed'))
+        refused = process(1, 'error: codec: unrecognized image format\n')
+        with mock.patch.object(photocraft.subprocess, 'Popen', return_value=refused):
+            result = photocraft.export(exe, self.runs / 'in.psd', self.runs / 'missing.png')
+        self.assertEqual((result['ok'], result['fileRejected'], result['stderr']),
+                         (False, True, 'codec: unrecognized image format'))
+        # A hang or crash is news about PhotoCraft, not the file: the breaker counts it.
+        hung = process(None, hang=True)
+        with mock.patch.object(photocraft.subprocess, 'Popen', return_value=hung), \
+                mock.patch.object(photocraft.subprocess, 'run') as taskkill:
+            result = photocraft.export(exe, self.runs / 'in.psd', self.runs / 'missing.png')
+        self.assertEqual((result['ok'], result['fileRejected'], result['exitCode']), (False, False, -1))
+        self.assertIn('/t', taskkill.call_args.args[0])
+        crashed = process(-1073741819)
+        with mock.patch.object(photocraft.subprocess, 'Popen', return_value=crashed):
+            result = photocraft.export(exe, self.runs / 'in.psd', self.runs / 'missing.png')
+        self.assertEqual((result['fileRejected'], result['stderr']),
+                         (False, 'PhotoCraft crashed (exit 0xC0000005)'))
+        # The cache-free leg's text re-layout: a document without type layers refuses the
+        # command, and gets a plain render instead.
+        afresh = self.runs / 'afresh.png'
+        no_type = process(1, 'error: `type.updateAllTextLayers`: command `type.updateAllTextLayers` is not '
+                             'available right now: the document has no type layers\n')
+        with mock.patch.object(photocraft.subprocess, 'Popen',
+                               side_effect=[no_type, process(0, output=afresh)]) as popen:
+            result = photocraft.render_text_afresh(exe, self.runs / 'in.psd', afresh)
+        self.assertTrue(result['ok'])
+        self.assertEqual([call.args[0][1] for call in popen.call_args_list], ['run', 'convert'])
+        self.assertIn('type.updateAllTextLayers', popen.call_args_list[0].args[0])
+
     def test_cache_stripper_empties_cached_layers_and_only_those(self):
         import psd_sections
 
@@ -487,8 +551,11 @@ class RerunTests(unittest.TestCase):
     def test_a_blank_text_layer_only_counts_against_editors_known_to_draw_text(self):
         # Photoshop itself shows nothing for a type layer whose cache is gone, so an
         # editor is marked down for one only when its text engine is known to run.
-        for editor in ("patchy", "krita", "affinity", "gimp", "psdtools", "photopea", "photodemon"):
+        for editor in ("patchy", "krita", "affinity", "gimp", "psdtools", "photopea", "photodemon",
+                       "photocraft"):
             self.assertIn("TEXT", testy.BLANK_IS_FAILURE[editor])
+        # PhotoCraft draws nothing from an embedded document's data on open, like Photoshop.
+        self.assertNotIn("SMARTOBJECT", testy.BLANK_IS_FAILURE["photocraft"])
         # An editor Testy knows nothing about is never marked down for a blank text layer.
         self.assertEqual(testy.BLANK_IS_FAILURE.get("some-new-editor", ()), ())
         # Patchy's text keeps its cache and is re-rendered by script (layer.rerenderText).

@@ -93,7 +93,7 @@ The CLI remains for scripted use:
 python testy\testy.py [--files a.psd b.psd] [--corpus list.txt] [--editors ...]
 ```
 
-A default run goes through Photoshop, Patchy, Krita, GIMP, PhotoDemon, and Photopea,
+A default run goes through Photoshop, Patchy, Krita, GIMP, PhotoDemon, Photopea, and PhotoCraft,
 refreshes the Patchy release build first (when configured), serves a live dashboard,
 and leaves the frozen report + `results.json` in `testy/runs/<timestamp>/`. The
 server root is the same control panel. Clicking a file
@@ -120,7 +120,7 @@ Useful flags:
 
 - `--files a.psd b.psd` - explicit file list instead of the corpus.
 - `--corpus <file>` - corpus list (one path per line, relative to the repo root).
-- `--editors photoshop,patchy,krita,gimp,photodemon,photopea,affinity` - which columns
+- `--editors photoshop,patchy,krita,gimp,photodemon,photopea,photocraft,affinity` - which columns
   to run. Affinity is opt-in: enable the app's connector once in Affinity's settings
   (it serves the local MCP endpoint); with it off, Affinity
   cells fail with an actionable message and the rest runs. `psdtools` (opt-in) is
@@ -259,6 +259,19 @@ rules and the "never mark an editor down for the harness's mistake" safeguards.
   existence; GIMP-Error lines naming the real cause reach stderr either way. A
   timeout kills the process tree via `taskkill /t` (batches execute in a separate
   script-fu plug-in process).
+- PhotoCraft (open source, Rust) runs its stock console CLI, one process per leg:
+  `photocraft-cli.exe convert <in> <out>` (format by extension). Discovery tries
+  `../PhotoCraft/photocraft-cli.exe` (the portable zip unpacked beside this
+  repository) before the Program Files install, or a `photocraft` path in
+  config.local.json; the version comes from `--version` (the exes carry no
+  ProductVersion). Exit 1 is PhotoCraft refusing the file (counts as `fileRejected`),
+  anything else nonzero a crash. stderr warnings other than the "layer(s) flattened"
+  notice become driver notes. A 16/32-bit document exports a 16-bit PNG, split like
+  Patchy's. 0.5.0 shows a type layer's stored pixels and draws nothing for one
+  without them, so the cache-free leg runs `photocraft-cli run <in> --cmd
+  type.updateAllTextLayers --out <png>` (a plain convert when the document has no
+  type layers, which the command refuses); its cells carry `-textafresh1`. Nothing
+  in the CLI redraws a smart object, so a blank one is not measured.
 - Photopea (web) runs in a headless Chrome via selenium: `testy/photopea_host.html`
   iframes photopea.com and drives it through the official postMessage API. The host
   page fetches the staged PSD same-origin and posts the bytes as an ArrayBuffer
@@ -392,7 +405,7 @@ testy/
   win_dialogs.py     modal-dialog guard for scripted apps (--selftest included)
   drivers/           one per editor: photoshop (COM, --selftest included), patchy
                      (+ patchy_text_afresh.js), krita (+ krita_scripts/), gimp,
-                     photodemon, photopea, affinity, psdtools; winproc.py (error-dialog
+                     photodemon, photopea, photocraft, affinity, psdtools; winproc.py (error-dialog
                      suppression)
   index.html         run-index landing page (server root)
   photopea_host.html the Photopea embedding/automation page

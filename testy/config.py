@@ -97,6 +97,14 @@ PHOTODEMON_CANDIDATES = [
     REPO_ROOT.parent / "PhotoDemon" / "PhotoDemon.exe",
 ]
 
+# The portable zip unpacked next to this repository comes first (the release under
+# test, independent of whatever the installer last put in Program Files).
+PHOTOCRAFT_CANDIDATES = [
+    REPO_ROOT.parent / "PhotoCraft" / "photocraft-cli.exe",
+    Path(os.path.expandvars(r"%ProgramFiles%\PhotoCraft\photocraft-cli.exe")),
+    Path(os.path.expandvars(r"%LOCALAPPDATA%\Programs\PhotoCraft\photocraft-cli.exe")),
+]
+
 AFFINITY_CANDIDATES = [
     Path(os.path.expandvars(r"%LOCALAPPDATA%\Microsoft\WindowsApps\Affinity.exe")),
 ]
@@ -182,6 +190,17 @@ def discover_editors(patchy_git_hash: str) -> dict[str, EditorInfo]:
         photodemon.version = f"{_file_version(photodemon.exe)} (testy CLI build)"
         photodemon.notes.append("locally patched build with /testy-export")
     editors["photodemon"] = photodemon
+
+    photocraft = EditorInfo("photocraft", "PhotoCraft",
+                            _configured_editor_path("photocraft")
+                            or _first_existing(PHOTOCRAFT_CANDIDATES))
+    if photocraft.exe is not None:
+        from drivers import photocraft as photocraft_driver
+
+        photocraft.available = True
+        # The exes carry no ProductVersion; the CLI reports its own.
+        photocraft.version = photocraft_driver.version(photocraft.exe) or _file_version(photocraft.exe)
+    editors["photocraft"] = photocraft
 
     affinity = EditorInfo("affinity", "Affinity",
                           _configured_editor_path("affinity") or _first_existing(AFFINITY_CANDIDATES))

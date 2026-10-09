@@ -190,6 +190,9 @@ The leg must never mark an editor down for the harness's own mistake:
   `LayerKind.TEXT` layers are touched; reading `textItem` on any other layer makes
   the script engine hang without answering. A text layer the edit did not reach is
   not measured.
+- **PhotoCraft** 0.5.0 shows cached text and draws nothing for a type layer without
+  pixels, so its stripped render goes through `photocraft.render_text_afresh`
+  (Type > Update All Text Layers, then export; one CLI call).
 - **Photopea is handed the fonts the text uses.** It runs in a browser with only its
   own web fonts, so text in a font installed here (the one Photoshop drew the
   reference with) was laid out in a substitute. `fonts.py` finds this machine's file
@@ -219,7 +222,8 @@ The leg must never mark an editor down for the harness's own mistake:
 Measured on open, caches removed: Affinity redraws text, shapes and
 fills; Patchy redraws shapes and fills (text and smart objects through its script); Krita redraws text and gradient fills but nothing for
 vector-masked solid fills; Photopea redraws shapes, fills and smart objects, and
-text after the scripted edit; psd-tools redraws shapes and fills only; GIMP and
+text after the scripted edit; PhotoCraft redraws shapes and fills, and text after
+Update All Text Layers; psd-tools redraws shapes and fills only; GIMP and
 PhotoDemon draw nothing. Cell cache keys carry `-nocache11`.
 
 ## The two text rules that score 0%
@@ -251,7 +255,8 @@ cache-free leg found a type layer it draws nothing for, or `TEXT_RENDER_BASIS` s
 "replay": the editor only ever shows the baked pixels) or cannot save them back into
 the .psd as text (`textNotSaved`). Otherwise the file scores what the editor's own
 text render scored: the scored render of that file, for editors that lay text out on
-open or after Testy's scripted re-render ("open": Patchy, Krita, Affinity, Photopea).
+open or after Testy's scripted re-render ("open": Patchy, Krita, Affinity, Photopea,
+PhotoCraft).
 Every editor is measured with the same metric. An editor that fails every file reads "0% (FAIL *)", and the
 marks are explained under the list ("Cannot save text objects back out into the .psd
 as text", "Cannot render psd text objects, only uses the baked pixels saved in the

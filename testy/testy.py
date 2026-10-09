@@ -48,6 +48,7 @@ import staging
 from drivers import gimp as gimp_driver
 from drivers import krita as krita_driver
 from drivers import patchy as patchy_driver
+from drivers import photocraft as photocraft_driver
 from drivers import photodemon as photodemon_driver
 from drivers.photoshop import PhotoshopDriver
 
@@ -85,6 +86,10 @@ BLANK_IS_FAILURE = {
     # PhotoDemon's PSD importer (pdPSD.cls) creates every layer as PDL_Image and never
     # reads the 'TySh' block, so a PSD type layer is only ever its cached pixels there.
     "photodemon": ("TEXT", "SMARTOBJECT"),
+    # PhotoCraft's text after the scripted Update All Text Layers (drivers/photocraft.py).
+    # A smart object keeps the record's pixels and nothing in the CLI redraws it, as in
+    # Photoshop, so a blank one is not measured.
+    "photocraft": ("TEXT",),
 }
 NOT_MEASURED_REASON = {
     "TEXT": "this editor may only lay text out after an edit made inside the app, which Testy cannot make",
@@ -123,6 +128,7 @@ TEXT_RENDER_BASIS = {
     "photopea": ("open", "Photopea's text is laid out afresh by a scripted edit that changes nothing, "
                          "with the document's fonts handed to it"),
     "photodemon": ("replay", "PhotoDemon imports PSD text layers as the rasters Photoshop cached"),
+    "photocraft": ("open", "PhotoCraft's text is laid out afresh by Type > Update All Text Layers"),
 }
 # Help an editor gets from Testy for the text score, stated on the Standing card so the
 # number is read for what it is.
@@ -134,7 +140,7 @@ TEXT_HELP_NOTES = {
 # its driver is background-UIA best-effort and the app's cold-start timing is flaky,
 # so default runs stay fast and reliable without it. (Aseprite was verified to have no
 # PSD I/O at all and removed from the roster entirely.)
-DEFAULT_EDITORS = ["photoshop", "patchy", "krita", "gimp", "photodemon", "photopea"]
+DEFAULT_EDITORS = ["photoshop", "patchy", "krita", "gimp", "photodemon", "photopea", "photocraft"]
 # psdtools is opt-in too: a Python PSD library, not an editor, measured for its layer
 # compositor and for what a load-then-save keeps (see drivers/psdtools.py).
 OPT_IN_EDITORS = ["affinity", "psdtools"]
@@ -1429,6 +1435,8 @@ class Runner:
             version_key += "-settled1"  # exported through the script that waits for rendering
         if editor_key == "photopea" and (entry.get("traits") or {}).get("text"):
             version_key += "-fonts1"  # Photopea is now handed the fonts the text uses
+        if editor_key == "photocraft" and (entry.get("traits") or {}).get("text"):
+            version_key += "-textafresh1"  # stripped text laid out by Update All Text Layers
         cache_dir = config.CACHE_DIR / (
             f"cell-{staged.sha1}-{editor_key}-{_version_slug(version_key)}-{self.suffix}"
         )
@@ -1595,6 +1603,11 @@ class Runner:
             return bool(gimp_driver.export(info.exe, source, output)["ok"]), {}
         if editor_key == "photodemon":
             return bool(photodemon_driver.export(info.exe, source, output)["ok"]), {}
+        if editor_key == "photocraft":
+            # Type > Update All Text Layers is the no-op edit that makes it lay text out
+            # (skipped where a missing font keeps the text's cache in the copy).
+            run = photocraft_driver.render_text_afresh if rerender_text else photocraft_driver.export
+            return bool(run(info.exe, source, output)["ok"]), {}
         if editor_key == "psdtools":
             from drivers import psdtools as psdtools_driver
 
@@ -2047,6 +2060,33 @@ class Runner:
                 cell["driverNotes"] = notes
             return
 
+        if editor_key == "photocraft":
+            # photocraft-cli convert: one open+export per leg, like PhotoDemon. A failed
+            # PNG leg means the PSD IMPORT failed; a failed resave after a good render
+            # means the PSD EXPORT did. Warnings (missing fonts) become driver notes.
+            notes = []
+            exported = photocraft_driver.export(info.exe, staged.original, render_png)
+            if exported["note"]:
+                notes.append(f"render: {exported['note']}")
+            if not exported["ok"]:
+                detail = exported["stderr"] or f"exit {exported['exitCode']}, no output"
+                cell.update({"state": "failed", "opens": "fail",
+                             "error": f"failed to open the PSD (PhotoCraft import error; {detail})"})
+                self._note_file_rejection(cell, exported)
+                return
+            cell["opens"] = "ok"
+            resaved = photocraft_driver.export(info.exe, staged.original, resave_psd)
+            if resaved["note"]:
+                notes.append(f"resave: {resaved['note']}")
+            if not resaved["ok"]:
+                detail = resaved["stderr"] or f"exit {resaved['exitCode']}, no output"
+                cell["resaveError"] = f"opened, but PhotoCraft's PSD export failed ({detail})"
+            if staged.trap is not None:
+                photocraft_driver.export(info.exe, staged.trap, trap_png)
+            if notes:
+                cell["driverNotes"] = notes
+            return
+
         if editor_key == "photopea":
             from drivers import photopea as photopea_driver
 
@@ -2138,7 +2178,9 @@ class Runner:
                   "nocache_plain.png", "nocache_resave.psd", "nocache_unused.png", "resave.psd", "trap.png",
                   "trap_thumb.png", "mutated.png", "mutated_thumb.png", "heatmap.png",  # mutated*: older runs
                   "roundtrip.png", "roundtrip_thumb.png", "roundtrip_manifest.json",
-                  "render16.png", "roundtrip16.png")
+                  "render16.png", "roundtrip16.png",
+                  # 16-bit originals of the other legs' renders (analyze.split_deep_png)
+                  "trap16.png", "nocache16.png", "nocache_plain16.png")
 
     def _apply_scan_policy(self, index: int) -> None:
         """After every cell of a file finished: flag it, or scrub a passing file."""
