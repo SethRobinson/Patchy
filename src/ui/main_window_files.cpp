@@ -3572,7 +3572,8 @@ bool MainWindow::save_document_as() {
       image_save_options_apply_to_extension(extension)) {
     auto defaults = image_save_defaults_for_document();
     defaults.pdf_editable_layers = pdf_editable_layers.value_or(false);
-    image_options = prompt_image_save_options(this, extension, defaults);
+    image_options = prompt_image_save_options(this, extension, defaults, /*for_export*/ false, QSize(),
+                                              &std::as_const(document()));
     if (!image_options.has_value()) {
       return false;
     }
@@ -3887,8 +3888,8 @@ void MainWindow::export_flat_image() {
                                                 has_visible_top_level_layer(std::as_const(document())),
                                                 document_size);
       } else {
-        image_options =
-            prompt_image_save_options(this, extension, defaults, /*for_export*/ true, document_size);
+        image_options = prompt_image_save_options(this, extension, defaults, /*for_export*/ true, document_size,
+                                                  &std::as_const(document()));
       }
       if (!image_options.has_value()) {
         return;

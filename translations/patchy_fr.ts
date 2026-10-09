@@ -9112,12 +9112,88 @@ RVB : %2, %3, %4</translation>
         <translation>Générer les mipmaps</translation>
     </message>
     <message>
-        <source>The BC formats are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. BC4 stores grayscale only and BC5 the red and green channels; both drop transparency. Mipmaps are generated down to 1x1 with a box filter.</source>
-        <translation>Les formats BC sont des formats par blocs 4x4 avec perte. BC1 ne conserve qu&apos;une transparence 1 bit : les pixels sous 50 pour cent d&apos;alpha deviennent entièrement transparents. BC4 ne stocke que des niveaux de gris et BC5 les canaux rouge et vert ; tous deux abandonnent la transparence. Les mipmaps sont générés jusqu&apos;à 1x1 avec un filtre boîte.</translation>
-    </message>
-    <message>
         <source>DirectDraw Surface</source>
         <translation>DirectDraw Surface</translation>
+    </message>
+    <message>
+        <source>Uncompressed</source>
+        <translation>Non compressé</translation>
+    </message>
+    <message>
+        <source>Mipmap preview failed</source>
+        <translation>Échec de l&apos;aperçu des mipmaps</translation>
+    </message>
+    <message>
+        <source>Mipmap Preview</source>
+        <translation>Aperçu des mipmaps</translation>
+    </message>
+    <message>
+        <source>Every level is written: this is what the texture will sample at each size.</source>
+        <translation>Tous les niveaux sont écrits : c&apos;est ce que la texture échantillonnera à chaque taille.</translation>
+    </message>
+    <message>
+        <source>Only level 0 is written with the current mipmap choice; the smaller levels show what Generate mipmaps would add.</source>
+        <translation>Avec le choix de mipmaps actuel, seul le niveau 0 est écrit ; les niveaux plus petits montrent ce que Générer les mipmaps ajouterait.</translation>
+    </message>
+    <message>
+        <source>Zoom:</source>
+        <translation>Zoom :</translation>
+    </message>
+    <message>
+        <source>%1%</source>
+        <translation>%1%</translation>
+    </message>
+    <message>
+        <source>Level %1: %2 x %3, %4</source>
+        <translation>Niveau %1 : %2 x %3, %4</translation>
+    </message>
+    <message>
+        <source>(shown at %1%)</source>
+        <translation>(affiché à %1%)</translation>
+    </message>
+    <message>
+        <source>Automatic (%1, as the opened file)</source>
+        <translation>Automatique (%1, comme le fichier ouvert)</translation>
+    </message>
+    <message>
+        <source>Automatic (generate mipmaps)</source>
+        <translation>Automatique (générer les mipmaps)</translation>
+    </message>
+    <message>
+        <source>Automatic (generate, as the opened file)</source>
+        <translation>Automatique (générer, comme le fichier ouvert)</translation>
+    </message>
+    <message>
+        <source>Automatic (none, as the opened file)</source>
+        <translation>Automatique (aucun, comme le fichier ouvert)</translation>
+    </message>
+    <message>
+        <source>No mipmaps</source>
+        <translation>Pas de mipmaps</translation>
+    </message>
+    <message>
+        <source>Preview Mipmaps...</source>
+        <translation>Aperçu des mipmaps...</translation>
+    </message>
+    <message>
+        <source>Shows every mip level encoded with the chosen compression, decoded the way a game will sample it.</source>
+        <translation>Affiche chaque niveau de mip encodé avec la compression choisie et décodé tel qu&apos;un jeu l&apos;échantillonnera.</translation>
+    </message>
+    <message>
+        <source>Mipmaps:</source>
+        <translation>Mipmaps :</translation>
+    </message>
+    <message>
+        <source>The BC formats are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. BC4 stores grayscale only and BC5 the red and green channels; both drop transparency. Mipmaps are generated down to 1x1 with a box filter; Automatic skips them only for a file opened from .dds that had none.</source>
+        <translation>Les formats BC sont des formats par blocs 4x4 avec pertes. BC1 ne conserve qu&apos;1 bit de transparence : les pixels sous 50 pour cent d&apos;alpha deviennent entièrement transparents. BC4 ne stocke que des niveaux de gris et BC5 les canaux rouge et vert ; les deux abandonnent la transparence. Les mipmaps sont générés jusqu&apos;à 1x1 avec un filtre boîte ; Automatique ne les omet que pour un fichier ouvert depuis un .dds qui n&apos;en avait pas.</translation>
+    </message>
+    <message>
+        <source>%1: one level, %2 x %3, %4 of texture data.</source>
+        <translation>%1 : un niveau, %2 x %3, %4 de données de texture.</translation>
+    </message>
+    <message>
+        <source>%1: %2 mip levels, %3 x %4 down to %5 x %6, %7 of texture data.</source>
+        <translation>%1 : %2 niveaux de mip, %3 x %4 jusqu'à %5 x %6, %7 de données de texture.</translation>
     </message>
 </context>
 <context>

@@ -9082,12 +9082,88 @@ RGB：%2, %3, %4</translation>
         <translation>生成 Mipmap</translation>
     </message>
     <message>
-        <source>The BC formats are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. BC4 stores grayscale only and BC5 the red and green channels; both drop transparency. Mipmaps are generated down to 1x1 with a box filter.</source>
-        <translation>BC 格式是有损的 4x4 块压缩格式。BC1 只保留 1 位透明度：Alpha 低于 50% 的像素会变为完全透明。BC4 只保存灰度，BC5 只保存红色和绿色通道，两者都会丢弃透明度。Mipmap 使用盒式滤波生成至 1x1。</translation>
-    </message>
-    <message>
         <source>DirectDraw Surface</source>
         <translation>DirectDraw Surface</translation>
+    </message>
+    <message>
+        <source>Uncompressed</source>
+        <translation>未压缩</translation>
+    </message>
+    <message>
+        <source>Mipmap preview failed</source>
+        <translation>Mipmap 预览失败</translation>
+    </message>
+    <message>
+        <source>Mipmap Preview</source>
+        <translation>Mipmap 预览</translation>
+    </message>
+    <message>
+        <source>Every level is written: this is what the texture will sample at each size.</source>
+        <translation>所有级别都会写入：这就是纹理在每个尺寸下采样到的内容。</translation>
+    </message>
+    <message>
+        <source>Only level 0 is written with the current mipmap choice; the smaller levels show what Generate mipmaps would add.</source>
+        <translation>按当前的 Mipmap 选项只写入级别 0；较小的级别显示“生成 Mipmap”会添加的内容。</translation>
+    </message>
+    <message>
+        <source>Zoom:</source>
+        <translation>缩放：</translation>
+    </message>
+    <message>
+        <source>%1%</source>
+        <translation>%1%</translation>
+    </message>
+    <message>
+        <source>Level %1: %2 x %3, %4</source>
+        <translation>级别 %1：%2 x %3，%4</translation>
+    </message>
+    <message>
+        <source>(shown at %1%)</source>
+        <translation>（按 %1% 显示）</translation>
+    </message>
+    <message>
+        <source>Automatic (%1, as the opened file)</source>
+        <translation>自动（%1，与打开的文件相同）</translation>
+    </message>
+    <message>
+        <source>Automatic (generate mipmaps)</source>
+        <translation>自动（生成 Mipmap）</translation>
+    </message>
+    <message>
+        <source>Automatic (generate, as the opened file)</source>
+        <translation>自动（生成，与打开的文件相同）</translation>
+    </message>
+    <message>
+        <source>Automatic (none, as the opened file)</source>
+        <translation>自动（无，与打开的文件相同）</translation>
+    </message>
+    <message>
+        <source>No mipmaps</source>
+        <translation>无 Mipmap</translation>
+    </message>
+    <message>
+        <source>Preview Mipmaps...</source>
+        <translation>预览 Mipmap...</translation>
+    </message>
+    <message>
+        <source>Shows every mip level encoded with the chosen compression, decoded the way a game will sample it.</source>
+        <translation>显示以所选压缩编码、并按游戏采样方式解码后的每个 Mip 级别。</translation>
+    </message>
+    <message>
+        <source>Mipmaps:</source>
+        <translation>Mipmap：</translation>
+    </message>
+    <message>
+        <source>The BC formats are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. BC4 stores grayscale only and BC5 the red and green channels; both drop transparency. Mipmaps are generated down to 1x1 with a box filter; Automatic skips them only for a file opened from .dds that had none.</source>
+        <translation>BC 格式是有损的 4x4 块格式。BC1 只保留 1 位透明度：Alpha 低于 50% 的像素会变为完全透明。BC4 只存储灰度，BC5 只存储红色和绿色通道；两者都会丢弃透明度。Mipmap 用盒式滤波生成到 1x1；只有从没有 Mipmap 的 .dds 打开的文件，自动才会跳过生成。</translation>
+    </message>
+    <message>
+        <source>%1: one level, %2 x %3, %4 of texture data.</source>
+        <translation>%1：1 个级别，%2 x %3，纹理数据 %4。</translation>
+    </message>
+    <message>
+        <source>%1: %2 mip levels, %3 x %4 down to %5 x %6, %7 of texture data.</source>
+        <translation>%1：%2 个 Mip 级别，从 %3 x %4 到 %5 x %6，纹理数据 %7。</translation>
     </message>
 </context>
 <context>

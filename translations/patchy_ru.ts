@@ -9142,12 +9142,88 @@ RGB: %2, %3, %4</translation>
         <translation>Создавать мип-уровни</translation>
     </message>
     <message>
-        <source>The BC formats are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. BC4 stores grayscale only and BC5 the red and green channels; both drop transparency. Mipmaps are generated down to 1x1 with a box filter.</source>
-        <translation>Форматы BC являются блочными форматами 4x4 с потерями. BC1 сохраняет только 1-битную прозрачность: пиксели с альфой ниже 50 процентов становятся полностью прозрачными. BC4 хранит только оттенки серого, а BC5 только красный и зелёный каналы; оба отбрасывают прозрачность. Мип-уровни создаются до 1x1 усредняющим (box) фильтром.</translation>
-    </message>
-    <message>
         <source>DirectDraw Surface</source>
         <translation>DirectDraw Surface</translation>
+    </message>
+    <message>
+        <source>Uncompressed</source>
+        <translation>Без сжатия</translation>
+    </message>
+    <message>
+        <source>Mipmap preview failed</source>
+        <translation>Не удалось построить предпросмотр мип-уровней</translation>
+    </message>
+    <message>
+        <source>Mipmap Preview</source>
+        <translation>Предпросмотр мип-уровней</translation>
+    </message>
+    <message>
+        <source>Every level is written: this is what the texture will sample at each size.</source>
+        <translation>Записываются все уровни: именно это текстура будет выбирать на каждом размере.</translation>
+    </message>
+    <message>
+        <source>Only level 0 is written with the current mipmap choice; the smaller levels show what Generate mipmaps would add.</source>
+        <translation>При текущем выборе мип-уровней записывается только уровень 0; меньшие уровни показывают, что добавит «Создавать мип-уровни».</translation>
+    </message>
+    <message>
+        <source>Zoom:</source>
+        <translation>Масштаб:</translation>
+    </message>
+    <message>
+        <source>%1%</source>
+        <translation>%1%</translation>
+    </message>
+    <message>
+        <source>Level %1: %2 x %3, %4</source>
+        <translation>Уровень %1: %2 x %3, %4</translation>
+    </message>
+    <message>
+        <source>(shown at %1%)</source>
+        <translation>(показано в масштабе %1%)</translation>
+    </message>
+    <message>
+        <source>Automatic (%1, as the opened file)</source>
+        <translation>Автоматически (%1, как в открытом файле)</translation>
+    </message>
+    <message>
+        <source>Automatic (generate mipmaps)</source>
+        <translation>Автоматически (создавать мип-уровни)</translation>
+    </message>
+    <message>
+        <source>Automatic (generate, as the opened file)</source>
+        <translation>Автоматически (создавать, как в открытом файле)</translation>
+    </message>
+    <message>
+        <source>Automatic (none, as the opened file)</source>
+        <translation>Автоматически (без них, как в открытом файле)</translation>
+    </message>
+    <message>
+        <source>No mipmaps</source>
+        <translation>Без мип-уровней</translation>
+    </message>
+    <message>
+        <source>Preview Mipmaps...</source>
+        <translation>Предпросмотр мип-уровней...</translation>
+    </message>
+    <message>
+        <source>Shows every mip level encoded with the chosen compression, decoded the way a game will sample it.</source>
+        <translation>Показывает каждый мип-уровень, закодированный выбранным сжатием и декодированный так, как его будет выбирать игра.</translation>
+    </message>
+    <message>
+        <source>Mipmaps:</source>
+        <translation>Мип-уровни:</translation>
+    </message>
+    <message>
+        <source>The BC formats are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. BC4 stores grayscale only and BC5 the red and green channels; both drop transparency. Mipmaps are generated down to 1x1 with a box filter; Automatic skips them only for a file opened from .dds that had none.</source>
+        <translation>Форматы BC: блочные форматы 4x4 с потерями. BC1 сохраняет только 1 бит прозрачности: пиксели с альфой ниже 50 процентов становятся полностью прозрачными. BC4 хранит только оттенки серого, а BC5 только красный и зелёный каналы; оба отбрасывают прозрачность. Мип-уровни строятся до 1x1 box-фильтром; «Автоматически» пропускает их только для файла, открытого из .dds без них.</translation>
+    </message>
+    <message>
+        <source>%1: one level, %2 x %3, %4 of texture data.</source>
+        <translation>%1: один уровень, %2 x %3, %4 данных текстуры.</translation>
+    </message>
+    <message>
+        <source>%1: %2 mip levels, %3 x %4 down to %5 x %6, %7 of texture data.</source>
+        <translation>%1: мип-уровней: %2, от %3 x %4 до %5 x %6, %7 данных текстуры.</translation>
     </message>
 </context>
 <context>

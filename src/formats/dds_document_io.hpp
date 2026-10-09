@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <map>
 #include <optional>
 #include <span>
 #include <string>
@@ -30,12 +31,13 @@ namespace patchy::dds {
 // box-filtered mip chain.
 
 // Session-only document metadata the reader stamps so a re-save keeps the source file's
-// shape (MainWindow::image_save_defaults_for_document prefills from these, the way the
-// .rttex import does). The compression token matches the saveOptions/ddsCompression
+// shape: MainWindow::image_save_defaults_for_document carries them as the SourceShape the
+// Automatic choices resolve against (the user's persisted choice stays Automatic, the way
+// the .rttex import does not). The compression token matches the saveOptions/ddsCompression
 // values and is never "auto": the reader maps every source to its nearest export choice.
 // Nothing persists them into any file.
 inline constexpr const char* kMetadataCompression = "patchy.dds.compression";    // uncompressed|bc1|bc3|bc4|bc5|bc7
-inline constexpr const char* kMetadataMipmaps = "patchy.dds.mipmaps";            // 1 when the source had a mip chain
+inline constexpr const char* kMetadataMipmaps = "patchy.dds.mipmaps";            // 1 when the source had a mip chain, else 0
 inline constexpr const char* kMetadataSourceFormat = "patchy.dds.sourceFormat";  // informational, e.g. "DXT5"
 
 // Wire layout, exposed so tests pin it by name. Everything is little-endian.
@@ -248,6 +250,43 @@ struct WriteOptions {
 // Compatibility contracts: never renamed.
 [[nodiscard]] std::string_view compression_token(Compression compression) noexcept;
 [[nodiscard]] std::optional<Compression> compression_from_token(std::string_view token) noexcept;
+
+// The save dialog's mipmap choice. Automatic follows the file the document was opened
+// from (no chain when that .dds had none) and writes a chain for every other document.
+// Tokens "auto"|"on"|"off" persist as saveOptions/ddsMipmapMode: append-only, never renamed.
+enum class MipmapChoice { Automatic, Generate, None };
+[[nodiscard]] std::string_view mipmap_choice_token(MipmapChoice choice) noexcept;
+[[nodiscard]] std::optional<MipmapChoice> mipmap_choice_from_token(std::string_view token) noexcept;
+
+// What the reader recorded about the .dds a document was opened from (kMetadataCompression
+// and kMetadataMipmaps); both empty for a document that did not come from a .dds.
+struct SourceShape {
+  std::optional<Compression> compression;  // never Automatic
+  std::optional<bool> mipmaps;
+};
+[[nodiscard]] SourceShape source_shape_from_metadata(const std::map<std::string, std::string>& metadata);
+// Automatic keeps the opened file's compression (a BC3 texture saves back as BC3 with its
+// alpha) and otherwise stays Automatic for write_dds's alpha rule; an explicit choice
+// passes through.
+[[nodiscard]] Compression resolve_compression(Compression choice, const SourceShape& source) noexcept;
+// Automatic matches the opened file's chain (none when it had none) and generates one for
+// a document with no .dds source; Generate and None pass through.
+[[nodiscard]] bool resolve_mipmaps(MipmapChoice choice, const SourceShape& source) noexcept;
+
+// What a reader will sample from a save: each level the writer would store, encoded in
+// the chosen compression and decoded again with the reader's own decoder, so block
+// artifacts, BC1 cut-outs, BC4's gray and BC5's red-and-green show exactly as a game sees
+// them (Uncompressed is the identity). `byte_size` is the level's payload in the file.
+struct PreviewLevel {
+  PixelBuffer rgba8;
+  std::uint64_t byte_size{0};
+};
+struct Preview {
+  Compression compression{Compression::Bc1};  // the resolved format: Automatic goes through the alpha rule
+  std::vector<PreviewLevel> levels;            // level 0 first; the whole chain down to 1x1 when `mipmaps`
+};
+// Flattens like write_dds. Throws like write_dds on an empty document.
+[[nodiscard]] Preview preview_levels(const Document& document, Compression compression, bool mipmaps);
 
 // Flattens through flatten_document_rgba8 (so a single masked layer carrying the
 // document-alpha marker exports non-destructively) and writes one 2D texture with a

@@ -9082,12 +9082,88 @@ RGB: %2, %3, %4</translation>
         <translation>밉맵 생성</translation>
     </message>
     <message>
-        <source>The BC formats are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. BC4 stores grayscale only and BC5 the red and green channels; both drop transparency. Mipmaps are generated down to 1x1 with a box filter.</source>
-        <translation>BC 형식은 손실 압축 4x4 블록 형식입니다. BC1은 1비트 투명도만 유지하므로 알파가 50퍼센트 미만인 픽셀은 완전히 투명해집니다. BC4는 회색조만, BC5는 빨간색과 초록색 채널만 저장하며 둘 다 투명도를 버립니다. 밉맵은 박스 필터로 1x1까지 생성됩니다.</translation>
-    </message>
-    <message>
         <source>DirectDraw Surface</source>
         <translation>DirectDraw Surface</translation>
+    </message>
+    <message>
+        <source>Uncompressed</source>
+        <translation>비압축</translation>
+    </message>
+    <message>
+        <source>Mipmap preview failed</source>
+        <translation>밉맵 미리 보기 실패</translation>
+    </message>
+    <message>
+        <source>Mipmap Preview</source>
+        <translation>밉맵 미리 보기</translation>
+    </message>
+    <message>
+        <source>Every level is written: this is what the texture will sample at each size.</source>
+        <translation>모든 레벨이 기록됩니다. 각 크기에서 텍스처가 샘플링하는 내용입니다.</translation>
+    </message>
+    <message>
+        <source>Only level 0 is written with the current mipmap choice; the smaller levels show what Generate mipmaps would add.</source>
+        <translation>현재 밉맵 선택으로는 레벨 0만 기록됩니다. 작은 레벨은 밉맵 생성이 추가할 내용을 보여 줍니다.</translation>
+    </message>
+    <message>
+        <source>Zoom:</source>
+        <translation>줌:</translation>
+    </message>
+    <message>
+        <source>%1%</source>
+        <translation>%1%</translation>
+    </message>
+    <message>
+        <source>Level %1: %2 x %3, %4</source>
+        <translation>레벨 %1: %2 x %3, %4</translation>
+    </message>
+    <message>
+        <source>(shown at %1%)</source>
+        <translation>(%1%로 표시)</translation>
+    </message>
+    <message>
+        <source>Automatic (%1, as the opened file)</source>
+        <translation>자동(%1, 연 파일과 동일)</translation>
+    </message>
+    <message>
+        <source>Automatic (generate mipmaps)</source>
+        <translation>자동(밉맵 생성)</translation>
+    </message>
+    <message>
+        <source>Automatic (generate, as the opened file)</source>
+        <translation>자동(생성, 연 파일과 동일)</translation>
+    </message>
+    <message>
+        <source>Automatic (none, as the opened file)</source>
+        <translation>자동(없음, 연 파일과 동일)</translation>
+    </message>
+    <message>
+        <source>No mipmaps</source>
+        <translation>밉맵 없음</translation>
+    </message>
+    <message>
+        <source>Preview Mipmaps...</source>
+        <translation>밉맵 미리 보기...</translation>
+    </message>
+    <message>
+        <source>Shows every mip level encoded with the chosen compression, decoded the way a game will sample it.</source>
+        <translation>선택한 압축으로 인코딩하고 게임이 샘플링하는 방식대로 디코딩한 각 밉 레벨을 표시합니다.</translation>
+    </message>
+    <message>
+        <source>Mipmaps:</source>
+        <translation>밉맵:</translation>
+    </message>
+    <message>
+        <source>The BC formats are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. BC4 stores grayscale only and BC5 the red and green channels; both drop transparency. Mipmaps are generated down to 1x1 with a box filter; Automatic skips them only for a file opened from .dds that had none.</source>
+        <translation>BC 형식은 손실이 있는 4x4 블록 형식입니다. BC1은 1비트 투명도만 유지하므로 알파가 50퍼센트 미만인 픽셀은 완전히 투명해집니다. BC4는 회색조만, BC5는 빨간색과 초록색 채널만 저장하며 둘 다 투명도를 버립니다. 밉맵은 박스 필터로 1x1까지 생성됩니다. 자동은 밉맵이 없는 .dds에서 연 파일에 대해서만 생성을 건너뜁니다.</translation>
+    </message>
+    <message>
+        <source>%1: one level, %2 x %3, %4 of texture data.</source>
+        <translation>%1: 레벨 1개, %2 x %3, 텍스처 데이터 %4.</translation>
+    </message>
+    <message>
+        <source>%1: %2 mip levels, %3 x %4 down to %5 x %6, %7 of texture data.</source>
+        <translation>%1: 밉 레벨 %2개, %3 x %4부터 %5 x %6까지, 텍스처 데이터 %7.</translation>
     </message>
 </context>
 <context>

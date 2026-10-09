@@ -735,14 +735,11 @@ ImageSaveOptions MainWindow::image_save_defaults_for_document() {
     if (const auto found = values.find(rttex::kMetadataForceAlpha); found != values.end() && found->second == "1") {
       options.rttex_force_alpha = true;
     }
-    // A document opened from .dds keeps its source's compression (a BC3 file saves back as
-    // BC3 with its alpha) and whether it carried a mip chain.
-    if (const auto found = values.find(dds::kMetadataCompression); found != values.end()) {
-      options.dds_compression = dds::compression_from_token(found->second).value_or(options.dds_compression);
-    }
-    if (const auto found = values.find(dds::kMetadataMipmaps); found != values.end()) {
-      options.dds_mipmaps = found->second == "1";
-    }
+    // A document opened from .dds carries its source's shape (compression and whether it
+    // had a mip chain) for the Automatic choices to resolve against: a BC3 file saves back
+    // as BC3 with its alpha and a file without mipmaps gets none, while the user's own
+    // persisted choice stays Automatic.
+    options.dds_source = dds::source_shape_from_metadata(values);
   }
   return options;
 }

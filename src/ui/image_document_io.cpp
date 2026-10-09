@@ -2583,8 +2583,8 @@ void write_flat_image_file(const Document& document, const QString& path, const 
   }
   if (dds::is_dds_extension(lower)) {
     dds::WriteOptions dds_options;
-    dds_options.compression = options.dds_compression;
-    dds_options.generate_mipmaps = options.dds_mipmaps;
+    dds_options.compression = dds::resolve_compression(options.dds_compression, options.dds_source);
+    dds_options.generate_mipmaps = dds::resolve_mipmaps(options.dds_mipmaps, options.dds_source);
     dds::write_dds_file(document, to_filesystem_path(path), dds_options, notices);
     return;
   }
