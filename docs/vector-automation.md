@@ -18,7 +18,7 @@ services for libraries, selection, targets, and deferred refresh. `ScriptPathObj
 resolves an owning session and decimal-string ID on each access.
 
 Reuse native live generators, affine geometry, boolean groups, resources, and
-rasterizers. `vector_operations.cpp` contains shared UI/script selection coverage,
+rasterizers. `src/ui/vector_operations.cpp` contains shared UI/script selection coverage,
 tracing/fitting, brush polyline sampling, and mask baking. These functions own no
 history. Polygon/Star UI and scripts share `generate_polygon_subpath`; drag angles
 stay in radians. Raster path fills use the native writer through `paint_pixel_block`.
@@ -145,6 +145,13 @@ expectedState, busy, Stop, activity status, preview, and disconnect stay shared.
 `ui_script_vector` covers native live geometry, detached snapshots, partial edits,
 group annotations/holes, transforms/order, invalid input/locks/read revisions,
 masks/conversions, brush closing behavior, paints/resource collision adoption,
-PSD/SVG Unicode output, and Undo/Redo. `ui_mcp_vector` covers targets, stale tokens,
-and fresh previews. Also run existing scripting/vector/MCP/theme/hotkey filters
-and the full core suite because shared core tools are touched.
+PSD/SVG Unicode output, and Undo/Redo (`tests/ui/vector_scripting_tests.cpp`).
+`ui_mcp_vector` (`tests/ui/mcp_tests.cpp`) covers discovery, targets, stale tokens,
+and fresh previews; `tests/mcp_client_tests.py` checks the advertised capabilities.
+Binding changes also run the scripting, vector, and MCP filters; changes to shared
+core vector code widen to the full core suite (AGENTS.md).
+
+The point-editing commands have their own bindings, documented with the UI in
+[vector-commands.md](vector-commands.md): `layer.simplifyPath`,
+`doc.combineShapes`, and `layer.ungroup`; tracing (`layer.traceToShapes`) is in
+[image-trace.md](image-trace.md).

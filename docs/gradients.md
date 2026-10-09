@@ -10,6 +10,7 @@ Layer-style placement adds Linear, Radial, Angle, Reflected, and Diamond geometr
 - Perceptual interpolates in OKLab.
 - Linear interpolates in linear-light RGB.
 - Noise and dither use fixed integer hashing. Do not replace this with a standard-library random distribution because output must remain identical across toolchains.
+- Deep layers: the Gradient tool paints float colors through `EditOptions::deep_primary` (no banding), and gradient fill layers render a deep raster (`deep_gradient_fill_raster`, linear-light interpolation at 32 bits); see [high-bit-depth.md](high-bit-depth.md).
 
 `gradient_position` is the shared point-mapped-style geometry function; Shape Burst does not go through it (the stroke renderer derives its position from the band's Euclidean distance field, `stroke_alpha_mask`'s optional plane). Linear and Reflected spans use the layer rectangle projected onto the selected angle, so 90-degree gradients span the layer height rather than its width. For `Align with Layer`, Gradient Overlay and gradient Stroke use the source's nonzero-alpha bounds; PSD channel padding must not compress the visible range. The local alpha bounds are cached by the layer's globally unique pixel revision because finding them is an O(width * height) scan. Transient render pixel overrides bypass that cache. `gradient_color`, `gradient_stop_opacity`, and `gradient_color_dithered` are shared by layer effects and preset thumbnails.
 
@@ -28,7 +29,7 @@ The quick picker (`src/ui/gradient_preset_popup.{hpp,cpp}`) and Gradient Manager
 
 ## Stop editor widget
 
-`GradientStopsEditorWidget` is callback-driven: it never mutates its own stop vectors; hosts copy-and-sort, and must never sort the working vectors in place - an in-flight tag or midpoint drag holds an index into them. Photoshop `Mdpn` belongs to the destination/right stop; the first stop's midpoint is unused.
+`GradientStopsEditorWidget` is callback-driven: it never mutates its own stop vectors; hosts copy-and-sort, and must never sort the working vectors in place: an in-flight tag or midpoint drag holds an index into them. Photoshop `Mdpn` belongs to the destination/right stop; the first stop's midpoint is unused.
 
 ## PSD layer effects
 
@@ -42,9 +43,9 @@ after the save succeeds, so a write failure leaves the current library intact.
 Gradient Fill layers and gradient-filled shapes (`GradientSpanBasis::CenterChord` in `gradient_position`) span the center chord of the aligned bounds (docs/vector-tools.md). Photoshop 2026 COM probes (October 2026; 95 fills, 4x4 to 64x64 and non-square canvases, five types, scale and offsets) pinned two further rules for Linear, Reflected and Radial:
 
 - Each pixel samples at its top-left corner (x, y), not its center. On a 4x4 canvas the half pixel is an eighth of the ramp.
-- At 100% scale with no offset the ramp runs between the chord ends truncated to whole pixels: Linear between both truncated ends, Reflected and Radial from the truncated center to the truncated far end. The effective angle follows those integer points, so a nominal 30-degree reflected fill runs at 45 degrees on 4x4, 36.87 on 8x8, 32 on 16x16 and 30.7 on 64x64. Every such probe matches within 1/255. Scaled or offset fills keep the continuous ends, which fit those probes better.
+- At 100% scale with no offset the ramp runs between the chord ends truncated to whole pixels: Linear between both truncated ends, Reflected and Radial from the truncated center to the truncated far end. The effective angle follows those integer points, so a nominal 30-degree reflected fill runs at 45 degrees on 4x4, 36.87 on 8x8, 32 on 16x16 and 30.7 on 64x64. Every such probe matches within 1/255. Scaled or offset fills keep the continuous ends, which fit those probes better. `gradient_fill_layer_geometry_matches_photoshop_probes` (tests/core/vector_raster_tests.cpp) pins both rules.
 
-A fill layer without a vector mask aligns to the layer's bounds, which in Photoshop are its user mask's visible samples when the mask hides the rest of the canvas (default color 0): psd-tools' 32-bit `gradient-fill.psd` ramps over the mask's rows 6..100, not the 150-pixel canvas (`fill_layer_mask_bounds` in src/core/vector_raster.cpp; at 32 bits the result now matches Photoshop within 2 levels).
+A fill layer without a vector mask aligns to the layer's bounds, which in Photoshop are its user mask's visible samples when the mask hides the rest of the canvas (default color 0): psd-tools' 32-bit `gradient-fill.psd` ramps over the mask's rows 6..100, not the 150-pixel canvas (`fill_layer_mask_bounds` in src/core/vector_raster.cpp, pinned by `gradient_fill_layer_aligns_to_its_mask_bounds`; at 32 bits the result matches Photoshop within 2 levels).
 
 Not modeled: Angle and Diamond (they keep center sampling), and offsets on very small canvases (no candidate rule fit a 16x8 probe). This geometry is what took `photoshop-shape-gradient.psd` from mean error 1.22 to 0.29 against Photoshop and fixed psd-tools' `colormodes/4x4_*` files.
 

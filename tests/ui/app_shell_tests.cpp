@@ -3686,6 +3686,8 @@ void ui_about_dialog_shows_labeled_external_links() {
     CHECK(contributors->text().contains(QStringLiteral(">ifloppy</a>")));
     CHECK(contributors->text().contains(QStringLiteral("href=\"https://github.com/lucastucious\"")));
     CHECK(contributors->text().contains(QStringLiteral(">lucastucious</a>")));
+    CHECK(contributors->text().contains(QStringLiteral("href=\"https://github.com/Oppa-YA\"")));
+    CHECK(contributors->text().contains(QStringLiteral(">Oppa-YA</a>")));
     CHECK(!contributors->text().contains(QLatin1Char('@')));
 
     auto* settings_caption = dialog->findChild<QLabel*>(QStringLiteral("splashSettingsCaption"));

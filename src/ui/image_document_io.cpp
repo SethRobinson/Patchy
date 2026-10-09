@@ -3,6 +3,7 @@
 #include "ui/qt_paths.hpp"
 
 #include "core/blend_math.hpp"
+#include "core/document_depth.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/resample.hpp"
 #include "core/worker_budget.hpp"
@@ -2514,7 +2515,28 @@ void write_qimage_atomically(const QImage& image, const QString& path, const std
   }
 }
 
+// The native flat writers, the animated GIF/WebP writers and the export-transform
+// stand-in composite at 8 bits per channel, so a 16/32-bit document reaches them
+// narrowed. PNG and TIFF keep deep samples; JPEG, WebP, PDF and the other Qt-encoded
+// formats narrow the deep composite in flat_export_qimage.
+[[nodiscard]] bool flat_writer_needs_8bit_document(const std::string& lower, std::string_view extension,
+                                                   const ImageSaveOptions& options) {
+  return export_transform_requested(options) || lower == "gif" || (lower == "webp" && options.webp_animate) ||
+         lower == "tga" || lower == "pcx" || lower == "lbm" || lower == "iff" || lower == "bbm" ||
+         lower == "ico" || lower == "cur" || jxr::is_jxr_extension(lower) || rttex::is_rttex_extension(lower) ||
+         dds::is_dds_extension(lower) || is_bmp_extension(extension);
+}
+
 }  // namespace
+
+const Document& document_for_8bit_writer(const Document& document, std::optional<Document>& narrowed) {
+  if (document.color_state().bit_depth == BitDepth::UInt8) {
+    return document;
+  }
+  narrowed.emplace(document);
+  convert_document_depth(*narrowed, BitDepth::UInt8);
+  return *narrowed;
+}
 
 void write_flat_image_file(const Document& document, const QString& path, const QString& extension,
                            const ImageSaveOptions& options, std::vector<std::string>* notices) {
@@ -2527,6 +2549,12 @@ void write_flat_image_file(const Document& document, const QString& path, const 
                                  options.pdf_jpeg_quality};
     pdf_options.keep_original_image_data = options.pdf_keep_original_images;
     write_pdf_document_file(document, path, pdf_options, notices);
+    return;
+  }
+  if (document.color_state().bit_depth != BitDepth::UInt8 &&
+      flat_writer_needs_8bit_document(lower, extension_bytes, options)) {
+    std::optional<Document> narrowed;
+    write_flat_image_file(document_for_8bit_writer(document, narrowed), path, extension, options, notices);
     return;
   }
   if (lower == "webp" && options.webp_animate) {

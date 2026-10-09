@@ -131,8 +131,10 @@ Persisted defaults (`saveOptions/*`, compatibility contracts, never renamed):
 `rttexEncoding` (`rgba8`|`rgba4444`|`jpeg`), `rttexJpegQuality` (1..100, default 90),
 `rttexPowerOfTwo` (`pad`|`stretch`|`none`), `rttexForceSquare`, `rttexForceAlpha`,
 `rttexCompress` (default true). The token helpers live with the codec
-(`rttex::encoding_token` and friends) so the settings, the dialog, and the metadata below
-cannot disagree.
+(`rttex::encoding_token` and friends), wrapped for the UI by `ui/image_save_option_keys.hpp`,
+so the settings, the dialog, the script API and the metadata below cannot disagree.
+Scripts pass `{encoding, quality, powerOfTwo, forceSquare, forceAlpha, compress}` to
+`doc.saveAs`/`exportAs` with the same tokens (docs/scripting.md "Explicit save options").
 
 The reader stamps session-only document metadata (`patchy.rttex.encoding`,
 `patchy.rttex.powerOfTwo` = `pad` when both texture sides are powers of two else `none`,
@@ -145,7 +147,7 @@ Save As and Export raise `rttexSaveOptionsDialog` (encoding, JPEG quality greyed
 JPEG is selected, texture size, force square, force alpha, compress). The row is in
 `file_format_entries()` unconditionally: the codec is Patchy's own, so every platform reads
 and writes. The format stays out of `save_extension_preserves_layers`, so a layered
-document keeps the flatten warning and save-a-copy semantics.
+document keeps the flatten warning and save-a-copy semantics. Textures are 8-bit only.
 
 ## Tests and fixtures
 

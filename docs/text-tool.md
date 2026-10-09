@@ -35,9 +35,9 @@ render: click and caret share a layout and agree even when it is wrong).
 request / face width class, so asking a Condensed face (width class 75, Futura Bold Condensed BT)
 for stretch 100 stretches it 133 percent. Every advance-ratio reference in main_window.cpp
 (`set_stretch_for_advance_ratio`, `scale_font_width`, `dominant_run_width_residual`, the
-pixel-aligned glyph drawer) measures against AnyStretch; measuring against 100 made the
-Photoshop-layout residual stretch Title02's tracked, unstretched WWW.COCKPITMASTER.COM line a
-third wider than the caret layout (September 28, 2026, `ui_title02_tracked_legacy_text_caret_matches_glyphs_if_available`,
+pixel-aligned glyph drawer) measures against AnyStretch; measuring against 100 stretches an
+unstretched condensed line a third wider than the caret layout
+(`ui_title02_tracked_legacy_text_caret_matches_glyphs_if_available`,
 `ui_psd_text_tracking_click_lands_on_glyphs`).
 
 Mouse hit-testing goes through the same plan; `QTextEdit::cursorForPosition` must never resolve a
@@ -226,15 +226,13 @@ to `mergeCurrentCharFormat`, which only formats the NEXT typed character.
 The PSD writer sends Photoshop one paragraph `/AutoLeading` fraction per layer
 (`kLayerMetadataTextAutoLeading`, recorded by `text_layout_metrics_for_plan` at render time):
 Qt's baseline pitch between the first paragraph's first two lines (else the first line's height)
-over the largest run size on those same lines. Dividing by the layer's largest run instead wrote
-0.35 for a layer whose 49 px lines sat around a 155 px spacer paragraph, and Photoshop stacked
-the 49 px lines 17 px apart. Test: `ui_script_text_auto_leading_ignores_spacer_paragraphs`.
-Photoshop paragraph list styles (bullets, numbering) are not modeled; scripted posters type a
-bullet character into the line instead.
+over the largest run size on those same lines, never the layer's largest run (a large spacer
+paragraph elsewhere would shrink the fraction and Photoshop would stack the other lines too
+tightly). Test: `ui_script_text_auto_leading_ignores_spacer_paragraphs`.
 
 ## Font resolution
 
-Lives in [font-resolution.md](font-resolution.md): how a display family name becomes a Qt font (family, family + face, the Windows registry rescue, the DirectWrite name lookup for full and PostScript names), why only Regular and Bold flatten onto flags, the GDI-name rule the PSD reader follows, and the exact-size rule that keeps re-edits from drifting. Read it before touching `render_text_font_for_display_family`, `available_text_family_style_match`, or `psd_text_read.cpp`'s DirectWrite resolver.
+Lives in [font-resolution.md](font-resolution.md) (display name to Qt font, flag flattening, the PSD reader's GDI-name rule, the exact-size rule). Read it before touching `render_text_font_for_display_family`, `available_text_family_style_match`, or `psd_text_read.cpp`'s DirectWrite resolver.
 
 ## Character panel
 
@@ -252,7 +250,7 @@ Lives in [font-resolution.md](font-resolution.md): how a display family name bec
 - Same session model as the Character panel: during inline editing a change merges into the block formats of the paragraphs the selection touches (a bare caret edits its own paragraph); with no session it applies to every paragraph of every selected unlocked text layer through the hidden-session path, one Type undo step. Block margins live in editor pixels (document px times the canvas zoom, divided by a PSD-frame session's display scale, the same conversion leading uses).
 - The panel reads the caret's paragraph in a session, else the active layer's first paragraph from a 1:1 render document. `textParagraphDialog` and `textParagraphButton` are exempt from the focus-loss auto-commit via `is_text_option_widget`; `sync_text_character_dialog_from_editor` and the alignment-button sync also refresh it.
 - Scripting: `layer.textParagraph` (read the first paragraph, set merges into every paragraph) and the `paragraph` option of `addTextLayer`, document pixels ([scripting.md](scripting.md)). Tests: `ui_text_paragraph_panel_sets_indents_and_spacing`, `ui_script_text_paragraph_reads_and_sets_metrics`.
-- Lists (bullets, numbering) are not here: Photoshop stores them only in its Txt2 block, which Patchy does not author yet ([txt2.md](txt2.md)).
+- Lists (bullets, numbering) are not modeled: Photoshop stores them only in its Txt2 block, and Patchy's Txt2 writer authors no list style ([txt2.md](txt2.md), "Lists"). Scripted posters type a bullet character into the line instead.
 
 ## Vertical text and paragraph direction
 
@@ -295,7 +293,7 @@ the session contract.
 ## Document geometry operations follow the text transform
 
 Every operation that remaps document space (Image Size, Canvas Size, Crop to Selection, Rotate
-Left/Right, Rotate Arbitrary, layer Flip Horizontal/Vertical, Shift Seams) composes its matrix
+Left/Right/Arbitrary, layer Flip Horizontal/Vertical, Shift Seams) composes its matrix
 onto each text layer's `patchy.text.transform` (`compose_text_layer_transform`,
 document_geometry.cpp) BEFORE mutating the layer, so the implicit case can materialize
 translate(bounds) from pre-operation bounds. A layer with no stored transform gets one only under

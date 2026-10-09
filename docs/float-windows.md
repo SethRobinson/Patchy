@@ -26,7 +26,7 @@ activates the session by id). `ui_window_menu_lists_open_documents` pins it.
   `DocumentFloatWindow::moveEvent` notifies `handle_float_window_drag_moved`, which arms
   a 150 ms settle timer ONLY while the left button is held (so programmatic moves from
   creation/Tile/Cascade never dock anything); when the moves stop and the button is up,
-  `maybe_dock_float_at(QCursor::pos())` checks `float_dock_zone_global()` (the tab bar's
+  `maybe_dock_float_at(window, QCursor::pos())` checks `float_dock_zone_global()` (the tab bar's
   strip, or the tab widget's top strip when no tabs remain). The candidate is tracked by
   session id, never a window pointer. While the drag hovers the zone, a translucent
   palette-Highlight overlay (`floatDockHighlight`, mouse-transparent, lazily created)
@@ -35,8 +35,8 @@ activates the session by id). `ui_window_menu_lists_open_documents` pins it.
   Tile and Cascade first float every document, then lay the float windows out over the
   DOCUMENT WORKSPACE (`document_workspace_global()`: the tab-widget area, so the tool
   palette, options bar, and panels stay visible; falls back to the screen's work area
-  when the workspace is degenerate or the window is minimized) as a near-square grid /
-  36 px staggered stack at 60% size. New floats also spawn cascaded from the workspace's
+  when the workspace is degenerate) as a near-square grid / staggered stack at 60% size,
+  restoring a minimized main window first so the workspace rect is real. New floats also spawn cascaded from the workspace's
   corner. The active document's window is raised last and stays active.
   `set_frame_geometry` compensates for native frame margins so tiled windows do not
   overlap their title bars (offscreen reports no frame and degrades to plain
@@ -62,8 +62,7 @@ activates the session by id). `ui_window_menu_lists_open_documents` pins it.
   press on a canvas activates its document through the MouseButtonPress/TabletPress
   branch instead: the canvas may already hold focus, so `mousePressEvent`'s `setFocus`
   alone fires no FocusIn. Layers-panel buttons take `Qt::NoFocus` for the same reason.
-  `ui_float_activation_survives_main_window_refocus` pins it (September 2026: New Layer
-  landed in the tabbed document after a float was clicked).
+  `ui_float_activation_survives_main_window_refocus` pins it.
 - A QTabWidget always has a current tab, but while a float holds the active document no
   tab IS the active document. `refresh_document_tab_active_state` (called at the end of
   `activate_document_canvas`) sets `documentTabsInactive` on the document tab bar

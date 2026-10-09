@@ -1,9 +1,8 @@
 # Photoshop text render calibration
 
 The Photoshop layout/measurement model for type layers: engine units, leading, tracking,
-faux bold/italic, whole-pixel glyph folding, and the run-format columns. Split from
-[text-tool.md](text-tool.md), which owns the inline-editor session machinery; the
-line-plan renderer contract also lives there.
+faux bold/italic, whole-pixel glyph folding, and the run-format columns. The session
+machinery and the line-plan renderer contract are in [text-tool.md](text-tool.md).
 
 ## Photoshop text model (type layers)
 
@@ -57,47 +56,44 @@ ink). The renderer shears the drawn line about its own baseline instead (`faux_i
 the raster's right bleed.
 
 - **The shear is per LINE, not per run.** `QTextLine::draw` draws a whole line, so
-  `line_is_entirely_faux_italic` gates it and a line whose runs disagree stays upright. Per-run
-  would mean redrawing through `QTextLine::glyphRuns()` + `QPainter::drawGlyphRun`, reapplying
-  colour, the faux-bold outline and selection per run, and moving every pinned pixel baseline in
-  the suite. Known gap; faux italic is layer-level across the corpus.
+  `line_is_entirely_faux_italic` gates it and a line whose runs disagree stays upright (known
+  gap; per-run would mean drawing through `QTextLine::glyphRuns()` with colour, faux bold and
+  selection reapplied per run). Faux italic is layer-level across the corpus.
 - `ui_faux_italic_shears_the_rendered_glyphs` pins it on "HH" (vertical stems only): upright ink
   starts at the same column top and bottom, sheared ink ~8px further right at the top of a 64px cap.
 
 ## Glyph sizes fold only to whole pixels
 
 Qt rasterizes glyphs at whole pixel sizes only: `QFont::setPixelSize` takes an int, and a
-fractional `setPointSizeF` quantizes to the same whole pixel (measured -- 16.2px and 16px report
+fractional `setPointSizeF` quantizes to the same whole pixel (measured: 16.2px and 16px report
 an identical advance). So `render_text_pixels_with_local_rect` folds a transform's vertical scale
 into the glyph sizes only as far as the nearest whole pixel and leaves the remainder in
 `document_transform`, which the rasterizer applies exactly because these lines are drawn THROUGH
 the matrix rather than resampled after the fact. `dominant_text_run_size` picks the size that
 lands exactly (the largest run, vertical glyph scale included).
 
-Folding the whole scale rounds the text off Photoshop's size for some layers only (Dungeon
-Scroll: 18 x 0.9 = 16.2 became 16 while 14.44444 x 0.9 = 13.0 never moved); the remainder in the
-matrix also agrees with the caret, which lays out at the raw size under the full transform.
+Folding the whole scale would round the text off Photoshop's size for some layers only (Dungeon
+Scroll: 18 x 0.9 = 16.2 becomes 16 while 14.44444 x 0.9 = 13.0 does not move); the remainder in
+the matrix also agrees with the caret, which lays out at the raw size under the full transform.
 
-The fold runs for every Photoshop-layout render, scaling transform or not (September 2026): a
-run's FontSize x VerticalScale is fractional on its own (issue 20's "ethode": 1086.61 x 0.93 =
-1010.55, rendered at 1011), and the width has the same problem one level up. HorizontalScale /
-VerticalScale becomes `QFont::setStretch`, a whole percent, so 0.95 / 0.93 = 102.15% rendered at
-102% and the 1080 px word came out a pixel narrow at its far edge with the "M" (0.96 / 0.93,
-103.2%) the same. `dominant_run_width_residual` measures the dominant run's real advance ratio
+The fold runs for every Photoshop-layout render, scaling transform or not: a run's FontSize x
+VerticalScale is fractional on its own (issue 20: 1086.61 x 0.93 = 1010.55), and the width has
+the same problem one level up. HorizontalScale / VerticalScale becomes `QFont::setStretch`, a
+whole percent (0.95 / 0.93 = 102.15% renders at 102%, a pixel narrow at the far edge of a
+1080 px word). `dominant_run_width_residual` measures the dominant run's real advance ratio
 (what the stretch delivered, on whatever engine) against the ratio the runs ask for and
 pre-scales the matrix's local x axis by the shortfall. Both residuals are render-only: the stored
 transform and the TySh never carry them, and a layer whose sizes and ratio are already whole
-renders byte-identically to before. Measured on the reporter's file, the unchanged re-render of
-both layers now matches Photoshop's raster with no edge fringe.
-`ui_dungeon_scroll_psd_text_commit_keeps_placement_if_available` pins both against Photoshop's
-rasters; both renderers put the raster at the anchor rounded to a whole pixel (next section).
+renders byte-identically. `ui_dungeon_scroll_psd_text_commit_keeps_placement_if_available` pins
+both against Photoshop's rasters; both renderers put the raster at the anchor rounded to a whole
+pixel (next section).
 
 - **Text renders UNHINTED**: PS never runs TrueType hinting; every antialiased `/AntiAlias` mode maps to `QFont::PreferNoHinting` (`configure_text_font_smoothing`); mode 0/None keeps `NoAntialias` + full hinting, which fattens stems on small-print-era fonts and shifts advances into collisions.
 - **Imported type layers keep Photoshop's raster until edited** (`should_regenerate_imported_text_preview`, psd_text_write.cpp): a missing font never changes appearance on open. Rasters are kept even under big effects; regenerate only when the stored preview is visibly NOT any run's declared fill color (baked-in effect pixels would corrupt the live outer-effect contour), or when the type block is Patchy-authored. Editing a kept raster warns before substituting fonts; `--append-text` substitutes silently. **Continuing past that warning really substitutes**: `substituted_text_family` (what `QFontInfo` resolves the missing family to, then the UI font, then the original when nothing installed can draw the text) moves the session's base family and `substitute_missing_document_font_families` every run, blank paragraphs' block char formats included. Otherwise the commit stores the missing name back over a raster drawn in the substitute and the layer stays badged. The editable PDF export is the one reader that re-lays-out a kept raster without an edit (real text placed on the raster's ink, missing fonts substituted unless asked for pixels; see [pdf.md](pdf.md)).
-- **Black/Heavy faces (weight >= 800, DirectWrite or font database)** resolve to their FULL face name so the family+style matcher finds the real face (family+bold renders Bold, ~15% narrower); the bold flag stays set for fallback. Never feed such a name raw to the font combo: `QFont("Arial Black")` resolves to Tahoma; use `text_font_combo_font_for_family`.
+- **Black/Heavy faces (weight >= 800, DirectWrite or font database)** keep their face in the stored name (`family + " " + face`, "Arial Black"; rules in [font-resolution.md](font-resolution.md)) so the real face renders (family+bold renders Bold, ~15% narrower); the bold flag stays set for fallback. Never feed such a name raw to the font combo: `QFont("Arial Black")` resolves to Tahoma; use `text_font_combo_font_for_family`.
 - **Rotated point-text anchoring**: committed placement pins the TEXT-SPACE anchor (justification fraction along the reading axis, first-line side on the stack axis), never a fixed document corner; the CS-era document-bounds fallback pins the corresponding fractional point of the source ink box.
 - **Scaled BOX text**: runs and box dims (`patchy.text.box_width/height`, from `/BoxBounds`) are engine units, but a PSD-frame edit session works in DOCUMENT space; the render call's `layout_scale` folds the transform's vertical scale into glyph sizes WITHOUT scaling box dims, and commit stores frame dims divided back to raw units so runs, box and transform stay one coordinate system.
-- Committing a transformed point-text layer re-renders CRISP through the aligned transform even when the font is substituted (resampling delivers the same glyphs blurry). The first re-edit after conversion settles placement by a few pixels; later cycles are identical.
+- Committing a transformed point-text layer re-renders CRISP through the aligned transform even when the font is substituted (never a blurry resample). The first re-edit after conversion settles placement by a few pixels; later cycles are identical.
 - Known gaps: LeadingType 1 (Japanese top-to-top), per-run BaselineShift, VerticalScale x auto leading under a folded transform; box-text RE-edits resample when the residual still has a linear part (rotation, aspect): Free Transform and Image Size fold a uniform scale into the size and frame dims, so those re-edits commit crisp, while the commit-time crisp path stays point-text only.
 
 ## Patchy text re-renders where Patchy drew it
@@ -159,7 +155,7 @@ stale inset. Pinned by `psd_writer_box_text_baseline_inset_moves_box_bounds`,
 `psd_writer_point_text_first_baseline_beats_ink_bottom`, `psd_writer_qt_natural_auto_leading_fraction`
 and `ui_text_commit_records_photoshop_baseline_metrics_and_round_trips_psd` (Arial 96 px, box +
 point + two-line; writes `test-artifacts/text_baseline_check.psd` for the COM read-back).
-**Acceptance (COM, September 2026)**: Photoshop 27.9 re-laid out that artifact's three layers
+**Acceptance (COM)**: Photoshop 27.9 re-laid out that artifact's three layers
 within 1 px of Patchy's ink on every edge, and a headless re-save of the 268 px `door_test.psd`
 re-rendered within 1 px of Patchy's rows (the original file had been 50 px up).
 Older Patchy PSDs get the keys on open: `record_text_layout_metrics_for_reopened_text` lays each
@@ -208,11 +204,12 @@ is missing raises the modal substitution prompt) and `psd_vertical_*captures*` i
   tx = right - bleed - em/2, ty = top + bleed + fraction x (height - 2 x bleed).
 - **`/Tracking` is written as an integer.** Photoshop's engine re-lays out a layer with a
   negative float tracking (`-305.000000`) as "the result would be too big", every edit failing;
-  `-305` and positive floats work (COM bisect on a user file, September 2026).
+  `-305` and positive floats work (COM bisect on a user file;
+  `psd_vertical_tracking_bug_file_resaves_with_integer_tracking_if_available`).
 
 ## Pixel grid and fractional anchors
 
-PS 27.9 COM captures (September 2026): "Hg", Arial 48 px, Sharp, placed at x or y 100.0 / 100.3 /
+PS 27.9 COM captures: "Hg", Arial 48 px, Sharp, placed at x or y 100.0 / 100.3 /
 100.5 / 100.7, plus 10-degree rotated and 150% scaled variants; two are committed as
 `test-fixtures/psd/photoshop-text-anchor-{whole,half}.psd` (x 100.0 and 100.5).
 
@@ -225,15 +222,14 @@ PS 27.9 COM captures (September 2026): "Hg", Arial 48 px, Sharp, placed at x or 
   the justification offset in document space, so for left-aligned text it is the anchor: x 100.3
   renders byte-identically to 100.0, and 100.5 and 100.7 identically to each other; y likewise
   (100.5 is the 100.0 raster shifted one row), rotated and scaled layers included. Centered and
-  right-justified text does NOT round the anchor: the September 2026 sweep (`local-test-fixtures/
+  right-justified text does NOT round the anchor: the alignment sweep (`local-test-fixtures/
   psd/ps2026_text_anchor_just/`, `capture_anchor_just.jsx`: left/center/right x 100.0/.3/.5/.7 x
   scale 100%/90%, plus Bookman "Pause" replicas of the Dungeon Scroll buttons) puts the centered
   "Hg" (advance box +-30.68) at column 72 for 100.0 but 73 for 100.3 (start 69.32 -> 69, 69.62 ->
   70), scaled 90% at 75 then 76, and right-justified at 42 for all four (start 38.64..39.34 -> 39).
   Every case, "Pause" at tx 305.35 included (column 286, the game file's own), fits
-  round(anchor + line offset) + left side bearing; none fits round(anchor). Rounding the anchor of
-  scaled centered text shifted the Dungeon Scroll buttons 2 px and rendered them a pixel narrow.
-  Three places apply it. `build_text_render_plan` snaps dy and, for an axis-aligned transform,
+  round(anchor + line offset) + left side bearing; none fits round(anchor) (rounding the anchor of
+  scaled centered text shifts the Dungeon Scroll buttons 2 px). Three places apply it. `build_text_render_plan` snaps dy and, for an axis-aligned transform,
   keeps the fractional line start for the per-glyph rounding below (`round_line_starts` moves
   whole lines only where glyphs are not aligned individually; rotated or sheared transforms and
   the vertical/drawContents fallbacks keep the anchor snap). The session override that places an
@@ -269,9 +265,8 @@ PS 27.9 COM captures (September 2026): "Hg", Arial 48 px, Sharp, placed at x or 
   every pinned raster untouched. Local (0, 0) stays the line start / first line top, so the
   transform still names the pen and the buffer starts at transform + `local_rect.topLeft()`
   (`rendered_text_bounds_for_editor`, the resample offset in commit and preview, the SVG and
-  Affinity placements); the PSD pins convert buffer-space ink to local space before comparing.
-  Issue 20 was the clipped case: the cut edge landed on Photoshop's ink column and slid
-  "éthode" 9 px left on an unchanged apply. Pinned by
+  Affinity placements); the PSD pins convert buffer-space ink to local space before comparing
+  (clipping the overhang slides the text by the bearing on an unchanged apply, issue 20). Pinned by
   `ui_point_text_render_keeps_glyph_overhang` (Arial Italic "jf": transform at the pen, re-entry
   byte-identical, TySh tx at the pen) and, with the reporter's file and font in the local
   fixtures, `ui_la_methode_psd_text_commit_keeps_glyph_overhang_if_available` (ink within 1 px of
@@ -291,7 +286,8 @@ PS 27.9 COM captures (September 2026): "Hg", Arial 48 px, Sharp, placed at x or 
   **Glyph images are drawn from the unstretched face through an explicit x scale** equal to the
   advance ratio the engine delivered: FreeType (the offscreen suite) stretches images and
   advances for a stretched QFont, DirectWrite (a Windows window) stretches the advances only,
-  so the 103% "M" was 3% narrow on screen with every pin green (September 2026). Rotated or
+  so a stretched glyph drawn through the QFont is narrow on screen while every offscreen pin
+  passes. Rotated or
   sheared transforms and the drawContents fallback keep `QTextLine::draw` (their stretch is
   still engine-dependent, a known gap; so is vertical type). Pinned by
   `ui_psd_left_text_commit_rounds_each_glyph_like_photoshop` on the whole/half fixtures: the
@@ -311,15 +307,16 @@ PS 27.9 COM captures (September 2026): "Hg", Arial 48 px, Sharp, placed at x or 
   layer back as `orientation:vertical` with bounds [-54.4, -32, 16, 32] (its own convention for
   centred two-column text), and a forced type re-render landed the two columns within 4 px of
   Patchy's ink (`readback_patchy.jsx`). A warning-enabled open was not checked (it needs the
-  desktop); `/ParagraphDirection` acceptance is unverified.
+  desktop); Photoshop's reading of an authored paragraph direction is unverified.
 
 ## Paragraph direction (right-to-left)
 
 `patchy.text.paragraph_runs` v4 appends column 9 (`auto`/`ltr`/`rtl`), written only when a
 paragraph carries an explicit direction. Photoshop keeps its `directionType` OUTSIDE the TySh
-(September 2026 captures: `rtl_hebrew_dir_rtl.psd` and `_ltr.psd` differ only in bounds; the DOM
-reads it back from the document-level Txt2 resource), so a Patchy-authored PSD can only express
-it through the Middle Eastern composer's `/ParagraphDirection` paragraph key (1 = RTL, 0 = LTR,
-written only for explicit directions; read back into the v4 column). Whether Photoshop's Latin
-composer honours that key on a foreign file is unverified. Photoshop's default engine already
-reorders Hebrew and shapes Arabic (captures `rtl_mixed.png`, `rtl_arabic_left.png`), as Qt does.
+(captures `rtl_hebrew_dir_rtl.psd` and `_ltr.psd` differ only in bounds; the DOM reads it back
+from the document-level Txt2 resource). Patchy writes it in both places: the authored Txt2
+paragraph sheet's `/33` (1 = RTL, else 0; [txt2.md](txt2.md)) and, only for an explicit
+direction, the Middle Eastern composer's `/ParagraphDirection` TySh paragraph key (1 = RTL,
+0 = LTR), which the reader maps back into the v4 column. Whether Photoshop honours either on a
+Patchy-authored file is unverified. Photoshop's default engine already reorders Hebrew and shapes
+Arabic (captures `rtl_mixed.png`, `rtl_arabic_left.png`), as Qt does.

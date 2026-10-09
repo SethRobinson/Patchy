@@ -43,8 +43,8 @@ Preferences > Application: "Automatically save recovery information every" with 
 candidate session on the UI thread (a `Document` copy shares pixel storage copy-on-write;
 the live side detaches on its next edit, the worker only reads through `const Document&`),
 then one `run_tracked_background_worker` job writes them in sequence:
-`psd::DocumentIo::write_layered_rgb8(snapshot, WriteOptions{true})` (PSB, so any size fits)
-and `recovery::write_entry`. Completion posts back through a queued `invokeMethod` on the
+`psd::DocumentIo::write_layered_rgb8(snapshot, WriteOptions{true})` (PSB, so any size fits;
+the writer keeps the document's bit depth) and `recovery::write_entry`. Completion posts back through a queued `invokeMethod` on the
 application with a `QPointer<MainWindow>`; `finish_recovery_write` stores the marks, and
 removes the copy of any session that was closed or saved during the write (its close or
 save already removed the previous copy, so the fresh one must not resurrect it). Errors go
@@ -84,7 +84,7 @@ Both files are written through `write_file_bytes_atomically`.
   releases the shared pointer last, the window or a still-running write. A crash never
   reaches the destructor, which is the whole point. One quit path skips the destructor
   on purpose: when a tracked worker is still blocked in the OS 10 s after the event loop
-  returned, `main.cpp` calls `discard_recovery_folder_for_forced_exit` (timer stopped,
+  returned, `main.cpp` (and `mcp_server.cpp`) calls `discard_recovery_folder_for_forced_exit` (timer stopped,
   entries deleted; on Windows the open lock file survives as a lock-only folder that the
   next start sweeps) and ends the process without destructors.
 - Startup (`src/app/main.cpp`, interactive path only, not stress/export/run-script/
@@ -98,6 +98,10 @@ Both files are written through `write_file_bytes_atomically`.
   rewrite an identical copy). A file that fails to open stays where it is and the status
   bar reports the count. `patchy-mcp` with a visible workspace runs the timer like the GUI;
   hidden connectors do not.
+- Deleting an instance folder goes through `RecoveryInstanceFolder::remove_folder`, which
+  refuses a blank or relative path or a name that is not `<pid>-<msecs>`, so a
+  `PATCHY_RECOVERY_DIR` pointed at a user folder can never be wiped. Keep that guard on any
+  new recursive delete here.
 - Concurrent instances are real (`PATCHY_NO_SINGLE_INSTANCE`, the test binaries, the
   connector), which is why liveness is per folder and never "files exist".
 - wasm: compiled out (`Q_OS_WASM`). MEMFS is recreated per page load, so there is nothing
@@ -127,18 +131,17 @@ instead of test-only hooks.
 `src/support/atomic_file_write.hpp` writes `<name>.<pid>-<counter>.patchy-tmp` beside the
 target, flushes, and renames it over the target (MSVC's `rename` is `MoveFileExW` with
 `MOVEFILE_REPLACE_EXISTING`; POSIX `rename` replaces). The temporary file is removed on
-every failure path. Callers: `psd::write_file_bytes` (every PSD/PSB write; it used to skip
-the write check entirely), `formats::write_file_bytes` (BMP, TGA, PCX, ICO, ILBM, Aseprite,
-GIF, JPEG XR, SVG, RTTEX), and the recovery store. `write_flat_image_file`
+every failure path. Callers: `psd::write_file_bytes` (every PSD/PSB write), `formats::write_file_bytes` (BMP,
+TGA, PCX, ICO, ILBM, Aseprite, GIF, JPEG XR, SVG, RTTEX, DDS), the animated WebP writer, and
+the recovery store. `write_flat_image_file`
 (PNG, JPEG, WebP, TIFF and the other `QImageWriter` formats) goes through `QSaveFile` with
 an explicit format instead, since `QImageWriter` on a device cannot infer it from a suffix.
 The PDF writers (`QPdfWriter(path)` and the image-page writer) still write in place.
 
-Semantics that changed on purpose: a target another process holds open with a share-deny
-lock (Windows) now fails at the rename and reports "Could not write", where the old
-truncating open sometimes succeeded and destroyed the file; a symlink target is replaced by
-a regular file; the new file takes the directory's default permissions rather than the old
-file's. The byte canaries pin encoder bytes, not the write path, and are unaffected.
+Deliberate semantics: a target another process holds open with a share-deny lock (Windows)
+fails at the rename and reports "Could not write" rather than truncating the file; a
+symlink target is replaced by a regular file; the new file takes the directory's default
+permissions rather than the old file's. The byte canaries pin encoder bytes, not the write path, and are unaffected.
 
 ## Tests
 

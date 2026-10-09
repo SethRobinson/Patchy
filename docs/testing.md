@@ -25,7 +25,9 @@ Move helpers shared across parts into `<group>_test_support.{hpp,cpp}`; single-p
 helpers stay anonymous. Core parts must stay under ~3,000 lines: the target has no
 `/bigobj`.
 
-Local-fixture tests skip on a remote machine until `local-test-fixtures` is copied there, because that directory is deliberately untracked. Sync it from the repo root with `tar -cf - local-test-fixtures | ssh <host> 'tar -xf - -C ~/patchy/src'` (Git Bash; macOS tar drops four `__MACOSX/._*` AppleDouble entries, which are not test inputs). The snapshot checkout leaves untracked files alone, so one sync persists across later `remote-build.ps1` runs. Read the per-platform consequences in [platform.md](platform.md) before doing this: a synced corpus turns previously skipped text tests into failures and one hang. The repository-wide fixture sourcing rule lives in `AGENTS.md`.
+Local-fixture tests skip on a remote machine until `local-test-fixtures` is copied there, because that directory is deliberately untracked. Sync it from the repo root with `tar -cf - local-test-fixtures | ssh <host> 'tar -xf - -C ~/patchy/src'` (Git Bash; macOS tar drops four `__MACOSX/._*` AppleDouble entries, which are not test inputs). The snapshot checkout leaves untracked files alone, so one sync persists across later `remote-build.ps1` runs. A synced corpus enables the face-gated text tests; the gates and per-platform tolerances in [platform.md](platform.md) keep them passing (a test that reaches a missing face raises an unanswerable Missing Font prompt and hangs). The repository-wide fixture sourcing rule lives in `AGENTS.md`.
+
+The harnesses turn deep editing off by default (`set_deep_editing_default(false)`), so tests written for 8-bit opening keep their meaning; deep tests set `set_deep_editing_override` ([high-bit-depth.md](high-bit-depth.md)).
 
 The composite corpus digest baselines live next to the PSDs they pin. The committed
 fixtures' baselines, `test-fixtures/psd/flatten-digests.txt` and `render-digests.txt`,
@@ -82,20 +84,19 @@ Offscreen does not clear `QApplication::keyboardModifiers()` after synthetic key
 - The test binaries can exit 0 even when tests fail. Never trust the exit code alone; grep the output for `[FAIL]` to judge a run. Both runners print `[PASS]` on stdout and `[FAIL]` on stderr, so when a run is captured to files, grep the stderr capture (a stdout-only grep reports zero failures for any run).
 - Never let a driver lambda (a `QTimer::singleShot` body or any slot) throw across Qt event dispatch; Qt does not support it, and on macOS the suite aborts in the CFRunLoop frames. Wrap the driver body in try/catch and pass `std::current_exception()` to `patchy::ui::unwind_non_modal_dialog_loop` when the code under test is parked in `run_non_modal_dialog`. `ui_filter_gallery_unwinding_call_disarms_in_flight_renders` is the reference.
 - Clicking a layer-row content or mask thumbnail may rebuild and delete the row widget between press and release. Use `click_layer_row_thumbnail(...)`, which refetches the widget for both events; never retain the old pointer.
-- If the UI suite dies with an access violation, read the symbolized stack appended by the dbghelp vectored handler in `tests/ui/main.cpp`. It also writes `test-artifacts/crash-<pid>.dmp`; when the walk prints no frames (a fault inside the heap manager), symbolize it offline against `build\release` (October 2026).
+- If the UI suite dies with an access violation, read the symbolized stack appended by the dbghelp vectored handler in `tests/ui/main.cpp`. It also writes `test-artifacts/crash-<pid>.dmp`; when the walk prints no frames (a fault inside the heap manager), symbolize it offline against `build\release`.
 - A crash that occurs only in the full ordered suite is usually an order-dependent heap error. Use the `linux-asan` procedure in [platform.md](platform.md); never reorder or skip tests to conceal it.
 - Tests that enable `imports/showPsdWarningsAndInfo` need a repeating QTimer notice dismisser. A one-shot can fire during open progress and leave the suite hung; see [file-formats.md](file-formats.md) under Import notices.
 - Platform-specific skips and their reasons are maintained in [platform.md](platform.md).
 
 ## README screenshots
 
-`scripts\make-readme-screenshots.ps1` regenerates `docs/images/screenshots/`. Two pipelines:
-
-The current showcase, per-image inputs, and regeneration commands are listed in
+`scripts\make-readme-screenshots.ps1` regenerates `docs/images/screenshots/`. The current
+showcase, per-image inputs, and regeneration commands are listed in
 [readme-showcase.md](readme-showcase.md). KPT is an explicit driver scene
 (`-Scene plugin_kpt5`, or `-IncludeLegacyPlugins` for a full run) using an isolated
-portable host and fixture copy. It combines direct Patchy and plug-in window
-captures; neither source is a desktop screenshot.
+portable host and fixture copy; it combines direct Patchy and plug-in window captures.
+Two pipelines:
 
 - **Script-driven scenes** (`scripts/dev/readme-shots/*.js`, listed in the driver's
   `$jsScenes` table): a fresh unattended `patchy.exe --run-script` run stages the UI with the
@@ -135,25 +136,17 @@ radius in both places or the two pipelines drift.
 
 ## Native visual QA and app-driving commands
 
-Automation confined to Patchy is authorized, including scripted clicks, typing, and
-captures of Patchy windows and its hosted plug-in windows, such as KPT. No additional
-permission is needed. This does not authorize desktop screenshots, global mouse or
-keyboard input, interaction with other applications, or taking control of Seth's
-desktop. Captures must come directly from the intended application windows, not from
-a desktop screenshot cropped afterward. Adobe Photoshop COM remains authorized for
-capture, verification, and acceptance as specified in AGENTS.md.
+The permission rule is in AGENTS.md: automation confined to Patchy and its hosted
+plug-in windows (KPT included) is authorized; desktop screenshots (even cropped),
+global input (`SendInput`, cursor moves), Computer Use, and other applications need
+explicit authorization in the current request, and an MCP wrapper does not change
+that. Drive Patchy through its scripting, CLI, MCP, or messages targeted to its own
+windows; `patchy.ui.captureWindow`, `QWidget::grab`, and the plug-in helper's
+`PrintWindow` capture only the intended windows.
 
-Use Patchy's scripting, CLI, MCP, or messages targeted to its own widgets/windows.
-`patchy.ui.captureWindow`, `QWidget::grab`, and the plug-in helper's `PrintWindow`
-capture only the intended windows. Targeted clicks and typing in the helper's KPT
-window are permitted; global cursor movement, `SendInput`, and desktop-wide Computer
-Use still require explicit authorization in the current request. An MCP wrapper does
-not make those desktop actions authorized.
-
-Keep unattended runs in task-owned instances with isolated settings. Prefer offscreen
-work where possible; when native windows are needed, keep them bounded and avoid
-disrupting other applications. Permission for Patchy input does not authorize discarding
-unsaved work, closing the user's running app/connector, or stopping unrelated processes.
+Keep unattended runs in task-owned instances with isolated settings, offscreen where
+possible. Permission for Patchy input never covers discarding unsaved work, closing
+the user's running app/connector, or stopping unrelated processes.
 
 `patchy-mcp --attach` connects to an already-running interactive Patchy; use it
 only when authorized to control that workspace. For automated attachment tests,
@@ -211,12 +204,9 @@ with owned headless and MCP processes. The UI filters `ui_unicode_recent_history
 and `ui_vector_preview_action_persistence` cover history merging/live refresh and
 the restored preview preference's menu/Preferences synchronization.
 
-Use Patchy's command-line control surfaces and inspect their window captures directly;
-the permission boundary above applies to native QA as well as screenshot generation.
-
 `patchy.exe --screenshot <out.png>` captures the running instance without raising or focusing it. Add `--screenshot-widget <qtObjectName>` and/or `--screenshot-rect x,y,w,h` to narrow the capture, and combine it with positional files to open a document. The invoking process exits immediately, so poll for the output. If no instance is running, Patchy opens, waits about 1.5 seconds, captures, and exits with code 0 on success or 3 on failure. Add `--language <code>` (with `--headless`, so no running instance is reused) to capture a specific UI language without changing the saved preference; see [localization.md](localization.md). Never run `patchy.exe --help` or `--version` during verification: the Windows GUI build has no console, so Qt shows them in a message box that pops over whatever Seth is doing.
 
-`patchy.exe --stress-test[=quick|small|standard|huge] [--stress-report-dir <dir>]` builds the deterministic performance scene and exits. Reports default to `%APPDATA%\Patchy\stress-reports\`; read `stress-latest.json`. Use quick at 1024 px for iteration and standard at 4096 px for full-scale measurements. Meaningful timings require a real screen. See [performance.md](performance.md).
+`patchy.exe --stress-test[=quick|small|standard|huge] [--stress-report-dir <dir>] [--stress-depth 16|32]` builds the deterministic performance scene (optionally converted to 16 or 32 bits) and exits. Reports default to `%APPDATA%\Patchy\stress-reports\`; read `stress-latest.json`. Use quick at 1024 px for iteration and standard at 4096 px for full-scale measurements. Meaningful timings require a real screen. See [performance.md](performance.md).
 
 `patchy.exe --headless ...` runs any of those modes with no display (Qt's offscreen platform). It never forwards to a running instance, so the exit code and the `--script-output` file belong to the run itself; prompts are suppressed and sound is muted. Prefer it for unattended `--run-script` runs from tooling and agents. Leave it off when a capture must show the real platform and its installed fonts (the offscreen platform sees only bundled fonts; on Windows a headless run loads the installed fonts from the registry on the first text request instead).
 
@@ -261,7 +251,7 @@ cmd /s /c '<repo>\scripts\vs-env.bat -arch=x64 -host_arch=x64 >nul && cl /nologo
 
 On any Wayland session Qt drags a dock with a real `QDrag` (`QMainWindowLayout::needsPlatformDrag`), so every enabled `acceptDrops` widget under the cursor sees DragEnter/DragMove carrying `application/x-qt-mainwindowdrag-window`. Windows, macOS, X11 and the offscreen suite never take this path. KWin also attaches the dock through `xdg_toplevel_drag_v1`; mutter 46 does not.
 
-**Never repolish a widget from inside its own event filter.** `installEventFilter` puts a filter ahead of the ones already installed, and KDE's Breeze style installs filters in `polish()`. A filter that calls `style()->unpolish/polish` on the watched widget is therefore moved behind Qt's loop cursor and runs again for the same event; doing it unconditionally never ends. Issue 62: the layer action buttons' drag filter repolished on every drag event and froze the 1.04 Flatpak on KDE. Change the property only when it differs and repolish one event-loop hop later (`handle_layer_action_button_drag_event`; `ui_layer_action_button_foreign_drag_never_repolishes_in_filter` uses a filter-installing proxy style in place of Breeze). The hang needs Breeze, which only loads in the Flatpak (KDE runtime) with `XDG_CURRENT_DESKTOP=KDE`, and enabled buttons, which need an open document. KWin's "not responding, terminate" sends SIGABRT, so such a coredump shows the main thread at an arbitrary PC: it is a hang, not an abort.
+**Never repolish a widget from inside its own event filter.** `installEventFilter` puts a filter ahead of the ones already installed, and KDE's Breeze style installs filters in `polish()`. A filter that calls `style()->unpolish/polish` on the watched widget is therefore moved behind Qt's loop cursor and runs again for the same event; doing it unconditionally never ends. Issue 62: the layer action buttons' drag filter repolished on every drag event and froze the Flatpak on KDE. Change the property only when it differs and repolish one event-loop hop later (`handle_layer_action_button_drag_event`; `ui_layer_action_button_foreign_drag_never_repolishes_in_filter` uses a filter-installing proxy style in place of Breeze). The hang needs Breeze, which only loads in the Flatpak (KDE runtime) with `XDG_CURRENT_DESKTOP=KDE`, and enabled buttons, which need an open document. KWin's "not responding, terminate" sends SIGABRT, so such a coredump shows the main thread at an arbitrary PC: it is a hang, not an abort.
 
 KDE rig on the Linux build host, with no root and no desktop control:
 
@@ -271,4 +261,4 @@ KDE rig on the Linux build host, with no root and no desktop control:
 
 GNOME variant: `gnome-shell --headless --wayland --no-x11 --unsafe-mode --virtual-monitor 1600x1000 --wayland-display <name>` under `dbus-run-session` (without `--no-x11` the shell deadlocks in PulseAudio's X11 lookup), driven through `org.gnome.Mutter.RemoteDesktop` and `org.gnome.Shell.Eval`/`Screenshot`. Observed there and not yet fixed: after a dock is dropped floating, the next press-drag anywhere resizes that floating dock (`handle_dock_group_window_event`), apparently because the drag consumed the release.
 
-Stop every rig process by the PID recorded at launch. A name-based kill (`pgrep -n -x gnome-shell`) took down the host's own desktop shell in October 2026.
+Stop every rig process by the PID recorded at launch. A name-based kill (`pgrep -n -x gnome-shell`) once took down the host's own desktop shell.

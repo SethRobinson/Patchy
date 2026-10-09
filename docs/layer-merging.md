@@ -24,7 +24,7 @@ produce one vector output merge immediately; groups and mixed selections open
 All three options work together. The readout reports output leaf counts and
 removed layers. Merge is disabled only when the choices cannot change anything.
 Cancel leaves revisions, saved bytes, dirty state and history unchanged.
-Bitmap-only Merge Down keeps its existing flattening behavior without a dialog.
+Bitmap-only Merge Down flattens without a dialog.
 When source layer effects require separate layers, the dialog lists those layers
 and explains that turning off vector preservation rasterizes merged artwork.
 The explanation also applies when every selected layer is a vector.
@@ -71,6 +71,8 @@ transparent areas and partial coverage from pixels, masks and layer/group opacit
 Visible opaque backgrounds remain opaque. Source layers retain their visibility.
 Copy rendering uses the same worker and delayed processing overlay as Merge Down;
 preparation and resource duplication finish before undo and document mutation.
+In 16/32-bit documents raster merges and bitmap copies render at the document's
+depth (`ScopedDocumentDepthRender`; [high-bit-depth.md](high-bit-depth.md)).
 
 ## Vector representation and editing
 
@@ -141,8 +143,8 @@ readable and serve as runtime annotations. They are **never emitted**: Photoshop
 warns about unknown per-layer keys. Saving a legacy merged file migrates its markers
 to resource 4211. A foreign editor's unrepresentable child changes preserve native
 groups rather than losing artwork. A changed Fill opacity uses an inner Normal
-group (chosen when folders were believed to ignore Fill; see ps-compat.md). Object-level styles follow native group
-semantics in other PSD readers.
+group (role 2 above). Object-level styles follow native group semantics in other
+PSD readers.
 
 Native live-shape annotations follow remapped group ids. Unmodeled Custom live
 annotations cannot follow reassigned indices and are dropped during merging;

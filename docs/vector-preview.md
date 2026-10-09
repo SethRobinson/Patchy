@@ -2,9 +2,9 @@
 
 View > Dynamic Vector Preview and Preferences > Application > Dynamic Vector
 Preview control the same application view preference. It starts off, persists as
-`view/vectorPreview`, and applies across document tabs. The command remains
-`view.vector_preview`, with no default shortcut. Renaming the label does not
-change existing settings or scripts.
+`view/vectorPreview`, and applies across document tabs. The command is
+`view.vector_preview`, with no default shortcut. The setting key and command id
+are permanent; the visible label is not part of either.
 Loading the preference synchronizes the View action before it can be used;
 Preferences and the first menu toggle after startup reflect the live canvas state.
 
@@ -21,8 +21,10 @@ Raster content retains its document-pixel detail. Text, Smart Objects, applied
 Smart Filter previews and unparsed vector records use their existing pixel
 representation; the mode does not substitute fonts or re-open embedded documents.
 Those layers can coexist with sharp vectors without disabling the view or showing
-a mixed-content warning. Documents with no renderable vector geometry simply use
-their normal view. Palette and non-RGB8 documents also retain their normal view.
+a mixed-content warning. Documents with no renderable vector geometry use
+their normal view. Palette documents and anything other than 8-bit RGB (16/32-bit
+and non-RGB documents) also keep the normal view (`vector_preview_renderer.cpp`
+checks the document format).
 
 Above one physical screen pixel per document pixel, vector geometry uses zoom
 times device pixel ratio. Lower scales keep the existing display mips. Editing
@@ -33,10 +35,10 @@ remain on top.
 
 The view does not edit document paths, bounds, cached pixels, revisions, history,
 dirty state or output. Document previews and exports retain document resolution.
-Window captures include Dynamic Vector Preview and wait up to 60 seconds for it
-to settle; an expired wait returns false. Scripts can toggle
-`app.runCommand("view.vector_preview")`, change `patchy.ui.zoom`, and call
-`patchy.ui.captureWindow(path)`. Connector command restrictions still apply.
+Window captures (`save_debug_screenshot`) include Dynamic Vector Preview and wait
+up to 60 seconds for `render_settled()`; an expired wait returns false. Scripts
+can toggle `app.runCommand("view.vector_preview")`, change `patchy.ui.zoom`, and
+call `patchy.ui.captureWindow(path)`. Connector command restrictions still apply.
 
 ## Status messages
 
@@ -61,31 +63,28 @@ feather halos so neighboring pixels contribute to the visible tile's result.
 Raster layers and raster masks sample their original pixels; vector masks
 regenerate their coverage at the display scale.
 
-The document bake (`update_vector_shape_raster`) is not clipped to the canvas
-either: `shape_bake_domain` extends it to the shape's padded path hull, like a
-pixel layer keeps pixels past the edge (a shape transformed onto the pasteboard
-used to bake to nothing, which the Move tool could not grab; a half-off shape
-kept only its on-canvas half). Coverage buffers are sized to the shape, so a
-far-off shape costs its own size. Disabled, inverted, and subtract-first paths
-(coverage fills the whole clip) and hulls over max(16 Mpx, 4x the canvas) keep
-the canvas. The extended bake passes `VectorPaintBounds{canvas}` so unaligned
-gradients and pattern phase keep their canvas geometry and on-canvas pixels are
-unchanged; aligned gradients follow the whole shape, as in Photoshop
-(`update_vector_shape_raster_keeps_off_canvas_shape`,
-`ui_shape_moved_off_canvas_by_free_transform_moves_back`).
+Merged vector layers expand their independent paints into temporary native vector
+nodes when a scene is built. Parts retain their own paint anchors, stroke sizes
+and opacity. Their combined tile uses the original pixel layer properties,
+including Fill and clipping; tile bounds and raster budgets apply normally. See
+[layer-merging.md](layer-merging.md).
+Compound tiles use the group silhouette compositor over the complete padded
+rectangle. The buffer and its bounds must cover the same area, including negative
+viewport coordinates. Clipping that intermediate to the viewport loses effect
+halos and makes its bounds disagree with its pixels
+(`ui_vector_preview_compound_effect_halos_match_cropped_view`).
 
 `VectorPaintBounds` separates a vector raster clip from the full paint coordinates,
 so gradients do not restart at tile edges. Unpainted native path coverage anchors
-gradients with transparent stops; painted
-alpha bounds remain the reference for interior layer effects. These temporary
-native coverage rasters also pass the preview budget check.
-`render/raster_view_context.hpp` provides
-scoped, thread-local full-layer paint bounds to the existing compositor, including
-the separate fill bounds used by interior effects on stroked shapes. Styled
-groups anchor paints to their native child silhouette, including child masks;
-this temporary native raster is budgeted before allocation. Normal
-renders have no context and retain their existing behavior. Preview compositor
-calls run synchronously on their owning worker and bypass persistent style and style-mask
+gradients with transparent stops; painted alpha bounds remain the reference for
+interior layer effects. These temporary native coverage rasters also pass the
+preview budget check. `render/raster_view_context.hpp` provides scoped,
+thread-local full-layer paint bounds to the existing compositor, including the
+separate fill bounds used by interior effects on stroked shapes. Styled groups
+anchor paints to their native child silhouette, including child masks; this
+temporary native raster is budgeted before allocation. Normal renders have no
+context and retain their existing behavior. Preview compositor calls run
+synchronously on their owning worker and bypass persistent style and style-mask
 caches, so temporary tile masks cannot pollute document caches.
 
 Raster reservations cover retained/new viewport frames, tile layers, split planes,
@@ -103,6 +102,21 @@ closed canvases, tracked workers participate in shutdown, and `render_settled()`
 includes pending preview work. Unchanged repaints only reuse cached results.
 Builds without background threads keep the normal view.
 
+## Document shape bake past the canvas
+
+The document bake (`update_vector_shape_raster`) is not clipped to the canvas
+either: `shape_bake_domain` (core/vector_raster.cpp) extends it to the shape's
+padded path hull, like a pixel layer keeps pixels past the edge, so a shape
+moved onto the pasteboard keeps its pixels and stays grabbable. Coverage
+buffers are sized to the shape, so a far-off shape costs its own size.
+Disabled, inverted, and subtract-first paths (coverage fills the whole clip)
+and hulls over max(16 Mpx, 4x the canvas) keep the canvas. The extended bake
+passes `VectorPaintBounds{canvas}` so unaligned gradients and pattern phase
+keep their canvas geometry and on-canvas pixels are unchanged; aligned
+gradients follow the whole shape, as in Photoshop
+(`update_vector_shape_raster_keeps_off_canvas_shape`,
+`ui_shape_moved_off_canvas_by_free_transform_moves_back`).
+
 ## Verification
 
 `ui_vector_preview` covers tile/full-render equality, fractional pan and zoom,
@@ -112,18 +126,8 @@ cancellation, cache reuse, canvas lifetime, scripts, Preferences/menu persistenc
 status-message suppression and unchanged document output/history.
 
 The optional fixture is
-`local-test-fixtures/vector-preview/Little-Everywhere.psd`. Paired pixel/vector
-captures cover native, enlarged, fractional and maximum zoom. Repeat with
-`QT_SCALE_FACTOR=2` for display density. Test-owned offscreen canvases require no
-desktop input or attachment to the user's application.
-
-Merged vector layers expand their independent paints into temporary native vector
-nodes when a scene is built. Parts retain their own paint anchors, stroke sizes
-and opacity. Their combined tile uses the original pixel layer properties,
-including Fill and clipping; tile bounds and raster budgets apply normally. See
-[layer-merging.md](layer-merging.md).
-Compound tiles use the group silhouette compositor over the complete padded
-rectangle. The buffer and its bounds must cover the same area, including negative
-viewport coordinates. Clipping that intermediate to the viewport loses effect
-halos and makes its bounds disagree with its pixels. The cropped-view regression
-`ui_vector_preview_compound_effect_halos_match_cropped_view` covers this contract.
+`local-test-fixtures/vector-preview/Little-Everywhere.psd` (also read by
+`tests/ui/layer_merge_tests.cpp`). Paired pixel/vector captures cover native,
+enlarged, fractional and maximum zoom. Repeat with `QT_SCALE_FACTOR=2` for
+display density. Test-owned offscreen canvases require no desktop input or
+attachment to the user's application.

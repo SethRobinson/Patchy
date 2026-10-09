@@ -33,8 +33,8 @@ logical DPI (96 on Windows, varies with scaling) and indistinguishable from a re
   untagged PNG scales like Photoshop (72), not like the screen (96).
 - Registry formats: BMP maps zero pels-per-meter to 72 (bmp_document_io.cpp); the WIC HEIF
   reader treats WIC's exactly-96x96 "no density" default as untagged -> 72; formats whose
-  containers have no density concept (ico/tga/aseprite/pcx/ilbm) are stamped 72 in
-  `load_document_from_path`. Clipboard documents are 72 (Photoshop's Clipboard preset).
+  containers have no density concept (ico/tga/aseprite/pcx/ilbm/rttex/dds,
+  `kDensitylessFormats`) are stamped 72 in `load_document_from_path`. Clipboard documents are 72 (Photoshop's Clipboard preset).
 - Qt's PNG/JPEG/TIFF writers always embed the density from `apply_document_resolution`,
   so Patchy-saved flat images are tagged and round-trip exactly.
 
@@ -150,8 +150,8 @@ surfaced as Default units in Preferences > Units & Grids and via right-click on 
 gesture; CanvasWidget shows the menu and reports through
 `set_ruler_unit_change_requested_callback`, MainWindow owns the preference and pushes it
 to every canvas in `apply_canvas_aid_settings`). `CanvasWidget::draw_rulers` picks 1-2-5
-tick steps in unit space via `ruler_tick_steps`; the Pixels unit reproduces the historical
-pixel ruler exactly (subdivisions never go below one pixel). Horizontal ruler uses
+tick steps in unit space via `ruler_tick_steps`; the Pixels unit keeps the plain
+pixel ruler (subdivisions never go below one pixel). Horizontal ruler uses
 horizontal_ppi, vertical uses vertical_ppi. Guides and the grid stay pixel-based; a guide drag's position readout reads in the ruler unit ([tools.md](tools.md)). The doc
 info line shows the physical size in the ruler unit (inches while the unit is px/percent).
 
@@ -160,8 +160,8 @@ info line shows the physical size in the ruler unit (inches while the unit is px
 hRes/vRes are ALWAYS pixels/inch (fixed 16.16); the four unit fields are display-only.
 Ground truth (July 2026 COM probe): a 144 PPI file byte-patched to hResUnit=2 (px/cm)
 still opens in Photoshop at resolution 144, and toggling Photoshop's ruler units between
-saves does not change the resource at all (PS 2026 writes 1/1/1/1). The old reader
-multiplied by 2.54 for unit 2 and misread px/cm-display files; do not reintroduce that.
+saves does not change the resource at all (PS 2026 writes 1/1/1/1). Never multiply by
+2.54 for unit 2: that misreads px/cm-display files.
 The four unit fields are captured into `DocumentPrintSettings` and written back on save
 (defaults of 1 reproduce the historical bytes, so the writer canaries hold). Pinned by
 `psd_resolution_resource_units_are_display_only`.
@@ -187,9 +187,9 @@ the stock spin-box typing rules.
 Every px-native field that converts typed units needs a context provider carrying the
 document PPI (`MainWindow::document_unit_context_provider(horizontal)` for live fields, a
 `DocumentFieldUnits` snapshot through `document_field_context` for modal dialogs). A field
-without one converts at 300 PPI, which is wrong on every other document; until issue 53
-the feather, corner radius, magnetic lasso width, pattern offset, tolerance and grid
-spacing fields all did that. `ui_feather_field_typed_unit_uses_document_ppi`.
+without one converts at 300 PPI, which is wrong on every other document (the feather,
+corner radius, magnetic lasso width, pattern offset, tolerance and grid spacing fields
+all carry one). `ui_feather_field_typed_unit_uses_document_ppi`.
 
 A switchable field (`set_display_unit_switchable`) adopts a typed unit as its display unit,
 Photoshop-style: `value()` stays native, `textFromValue` converts for display, a plain
@@ -240,8 +240,7 @@ PPI. Coverage: the `unit_spin_box` UI test group, `ui_transform_fields_accept_un
 ## Known limits / future work
 
 Type unit preference (pt vs px for the text tool), Info-panel cursor/selection readouts in
-ruler units, remembering Image Size's Resample checkbox state and Canvas Size's Relative checkbox
-(Photoshop does; Seth chose units only, September 2026; the Image Size resampling method is
-remembered since October 2026), physical presets in Image Size's
-Fit To combo, and reading PCX header DPI (unreliable in the wild; Photoshop ignores it
-too) are deliberately not implemented yet.
+ruler units, remembering Image Size's Resample checkbox and Canvas Size's Relative checkbox
+(Photoshop does; Seth chose to remember only the units and the resampling method),
+physical presets in Image Size's Fit To combo, and reading PCX header DPI (unreliable in
+the wild; Photoshop ignores it too) are deliberately not implemented yet.

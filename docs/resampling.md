@@ -34,18 +34,16 @@ Separable two-pass filter with per-axis weight tables (`build_axis_weights`):
 - Output index i samples the source around `center = (i + 0.5) * source / target`.
 - On a reduction the kernel widens by the scale (`filter_scale = max(1, source / target)`), so
   the output averages its footprint instead of aliasing. That is what makes "Sharper
-  (reduction)" a real choice; the old point-sampled bilinear kept pure alternating columns
-  through a 2:1 reduction.
+  (reduction)" a real choice.
 - Taps outside the buffer are dropped and the remaining weights renormalized. For a bilinear
   enlargement this is byte-identical to clamp-to-edge sampling, which keeps the export resize
   pin (`ui_export_resize_resamples_bilinear_to_target`: 2 -> 4 of 0/100 gives 0, 25, 75, 100).
 - Every bit depth: channels are read as doubles from UInt8, UInt16 (native memcpy) or Float32
-  and written back rounded and clamped for the integer depths (floats unclamped). Deep
-  documents used to fall back to nearest.
+  and written back rounded and clamped for the integer depths (floats unclamped).
 - Alpha: a buffer with one channel more than its color mode's color channels (RGBA, gray +
   alpha) interpolates premultiplied and un-premultiplies against the stored alpha on write; a
-  fully transparent result is black, like Free Transform's commit. The old straight-alpha
-  bilinear darkened fringes toward transparent black.
+  fully transparent result is black, like Free Transform's commit. Straight-alpha
+  interpolation would darken fringes toward transparent black.
 - The vertical pass streams: horizontally resampled source rows live in a window that advances
   with the output row, so memory is `max_taps` rows, never the whole image.
 - Deterministic: fixed summation order, no threads inside. The Image Size caller already runs
@@ -58,12 +56,12 @@ stretch mode (`rttex_document_io.cpp`).
 ## Free Transform
 
 Free Transform (`src/ui/canvas_widget_transform.cpp`) keeps its own inverse-mapping samplers
-over a QImage (arbitrary affine, 8-bit RGBA and gray8, point-sampled; no kernel widening on
-a reduction, unlike `resample_pixels`). Its options-bar combo offers Photoshop's six choices
+over a QImage (arbitrary affine; 8-bit layers as RGBA8888, 16/32-bit layers in float through
+the same kernels, see [high-bit-depth.md](high-bit-depth.md); point-sampled, so no kernel
+widening on a reduction, unlike `resample_pixels`). Its options-bar combo offers Photoshop's six choices
 in Photoshop's order: Nearest Neighbor, Bilinear, Bicubic, Bicubic Smoother, Bicubic Sharper,
 Bicubic Automatic. `CanvasWidget::TransformInterpolation` is persisted as an integer under
-`tools/transformInterpolation`, so the enum is append-only (Smoother, Sharper and Automatic
-were appended in October 2026; an unknown value loads as Bicubic). The cubic taps come from
+`tools/transformInterpolation`, so the enum is append-only (an unknown value loads as Bicubic). The cubic taps come from
 `cubic_tap_weight`: Bicubic keeps `patchy::cubic_weight` (the pinned literal Catmull-Rom),
 Smoother and Sharper read their (B, C) from `resample_kernel`, so the kernels are Image
 Size's. Automatic is resolved per resample by output area over source area
@@ -78,8 +76,8 @@ The preview (`imageSizePreview`) shows the method, not just the size: the flatte
 pixels) is resampled by `resample_pixels` to the target size fitted into the box with the
 chosen method on every size or method change (`image_size_preview_pixmap`, called from
 `update_summary`). Automatic resolves from the real document and target sizes. Nearest
-Neighbor therefore previews as blocks and the cubics as their blur; a Qt smooth scale of
-the current pixels used to show every method as a blur (`ui_image_size_dialog_preview_follows_method`).
+Neighbor therefore previews as blocks and the cubics as their blur
+(`ui_image_size_dialog_preview_follows_method`).
 
 Resample on: the method combo is enabled and the choice is applied and remembered. Resample
 off: pixel dimensions lock to the document (Photoshop semantics, docs/resolution-units.md),

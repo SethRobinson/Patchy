@@ -352,7 +352,7 @@ void set_curve_points_for_channel(CurvesAdjustment& curves, CurvesChannel channe
 // adjustment layer round-trips as a native Photoshop record, so it must
 // render Photoshop's math, like the Levels dual-formula precedent. The
 // modern (use_legacy false) model is the full closed form recovered from
-// 300 16-bit ramp captures; see docs/ps-compat.md "Modern Brightness/Contrast".
+// 300 16-bit ramp captures; see docs/adjustments-calibration.md "Modern Brightness/Contrast".
 [[nodiscard]] std::uint8_t brightness_contrast_channel_value(std::uint8_t value, int brightness, int contrast,
                                                              bool use_legacy);
 

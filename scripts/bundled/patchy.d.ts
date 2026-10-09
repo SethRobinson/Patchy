@@ -397,7 +397,8 @@ interface PatchyLayer {
   applyFilter(filterId: string, params?: Record<string, number | boolean | string>): void;
   /**
    * Runs a legacy Photoshop filter plug-in (an id from patchy.plugins.list()) on this
-   * layer, limited to the document selection, as one undoable edit. {dialog: false}
+   * 8 or 16-bit layer (16 bits go through an 8-bit copy; a 32-bit layer throws), limited
+   * to the document selection, as one undoable edit. {dialog: false}
    * skips the plug-in's own settings dialog and reuses its last (or default) settings
    * (a plug-in that opens its dialog anyway gets its OK pressed); unattended runs never
    * show it. {captureDialog: "<png path>"} saves an image of the plug-in's dialog while

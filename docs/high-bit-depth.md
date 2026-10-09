@@ -1,12 +1,16 @@
 # High bit depth: 16-bit and 32-bit (HDR) editing
 
-Status (October 9, 2026): deep editing is on by default. 16 and 32-bit files open at
-their depth, and File > New and Image > Mode offer 8, 16 and 32 bits.
-`PATCHY_DEEP_EDITING=0` turns it off: deep files then convert to 8 bits at decode, as
-before (docs/file-formats.md, "16-bit and 32-bit PSD/PSB import"). The test harnesses
-keep the old default (`set_deep_editing_default(false)` in both test mains); deep tests
-override the gate. Open items are listed per phase below. This document is the plan of
-record and the rules the work must follow; keep it current-state.
+Deep editing is on by default: 16 and 32-bit files open at their depth, and File > New
+and Image > Mode offer 8, 16 and 32 bits (16 only on the web build). The gate is
+`deep_editing_enabled()` (core/pixel_depth.hpp): an override
+(`set_deep_editing_override`: tests, the deep stress run) beats `PATCHY_DEEP_EDITING`,
+which beats the default (`set_deep_editing_default`, true in the app). There is no
+preference. `PATCHY_DEEP_EDITING=0` turns it off: deep files then convert to 8 bits at
+decode (docs/file-formats.md, "16-bit and 32-bit PSD/PSB import") and the Bit Depth
+choices are hidden. Both test mains call `set_deep_editing_default(false)` so tests
+written for 8-bit opening keep their meaning; deep tests override the gate. Open items
+are listed per phase below. This document holds the rules deep work must follow;
+code comments cite its phase numbers, so keep them.
 
 ## Goal and acceptance
 
@@ -65,7 +69,9 @@ The 32-bit row is the cost of compositing converted 8-bit sRGB layers where Phot
 composites linear light: opacity, masks, gradients, adjustments and most blend modes
 come out wrong. The psd-tools corpus barely shows it because its 32-bit files are simple.
 
-With the deep compositor (`score_patchy.py --deep`, gate on): 8-bit byte 0.9993
+The scorer inherits the environment, and `--deep` only forces `PATCHY_DEEP_EDITING=1`:
+with the gate on by default, a run without it is deep too, so reproduce the 8-bit
+baseline with `PATCHY_DEEP_EDITING=0` set. With the deep compositor (gate on): 8-bit byte 0.9993
 (Levels' toe, below), 16-bit byte 0.9996 and 16-bit precise 0.9778, 32-bit byte
 0.9995 and perceptual 1.0; every document keeps its depth. Remaining 16-bit precision
 gaps: the gradient fill (interpolation within two 16-bit steps), the effects scene (the
@@ -86,16 +92,16 @@ Exposure (98%).
 - **Storage vs compute.** 16-bit stores full-range u16 (0..65535, lossless file round
   trip). 32-bit stores linear-light f32, unbounded like Photoshop. Both deep depths
   compute through ONE float path: rows widen to float, process, narrow on store.
-  16-bit floats are display-encoded 0..1; 32-bit floats are linear scene values.
+  Floats run on the "deep scale" (255 = full scale, so 8-bit formulas carry over;
+  16-bit v reads as v / 257): display-encoded for 16 bits, linear scene values for 32
+  bits (1.0 stored = 255 on the deep scale).
 - **Typed access only.** Deep code goes through a typed row layer (load/store per
   depth, deterministic conversions); it never indexes `PixelBuffer::row()` bytes.
-- **Developed behind a gate** (`PATCHY_DEEP_EDITING`, environment plus a hidden
-  preference). Off by default until the parity checklist passes; main stays
-  releasable at every commit.
+- **The gate stays.** `PATCHY_DEEP_EDITING=0` must keep giving the old 8-bit opening
+  path, and main stays releasable at every commit.
 - **Unsupported means visibly disabled, never silently wrong.** Each filter,
   adjustment and tool declares the depths it supports; deep documents show the rest
-  disabled with a tooltip, as Photoshop does in 32-bit. The gate does not flip while a
-  16-bit capability is missing.
+  disabled with a tooltip, as Photoshop does in 32-bit.
 - **Display.** The canvas stays an 8-bit image. 16-bit narrows at the display
   boundary. 32-bit gets a view exposure/gamma control that changes the display only.
   Native HDR monitor output is a later, separate phase.
@@ -109,26 +115,17 @@ Exposure (98%).
   the canvas draws through a small display seam. Optional later phases: a QRhi display
   presenter (native HDR on Windows), then a GPU compositor for deep documents.
 
-## What exists to build on
-
-- `BitDepth {UInt8, UInt16, Float32}` and `PixelFormat::rgb16()/rgbf32()`
-  (src/core/pixel_buffer.hpp); untyped copy-on-write byte storage.
-- `DocumentColorState::bit_depth` (src/core/document.hpp), set but unused.
-- Depth-generic helpers: `read_channel`/`write_channel`/`alpha_scale`
-  (src/core/resample.cpp); photo_divide and image_trace handle deep buffers.
-- PSD deep decode, zip prediction, `Lr16`/`Lr32` parsing (src/psd/psd_channel_data.cpp).
-- Float alpha, coverage, mask and effect planes inside src/render/layer_compositor.hpp;
-  only color planes and targets are 8-bit.
-- The raw developer runs at u16 internally (raw_tone).
-
 ## Phases
 
-Each phase lands as verified commits; the gate stays off until Phase 9.
+Code comments cite these phase numbers. Each phase lands as verified commits.
 
-0. **Measurement** (done, October 9, 2026). Testy measures saved depth and 16-bit
-   precision (docs/testy-scoring.md); the deep fixture corpus and its scorer exist
-   (below).
-1. **Core primitives** (done). `core/pixel_depth.hpp`: the gate, exact sample
+0. **Measurement** (done). Testy measures saved depth and 16-bit precision
+   (docs/testy-scoring.md); the deep fixture corpus and its scorer are described above.
+1. **Core primitives** (done). `BitDepth {UInt8, UInt16, Float32}` and
+   `PixelFormat::rgb16()/rgbf32()` (core/pixel_buffer.hpp) over untyped copy-on-write
+   bytes; the document's depth is `DocumentColorState::bit_depth`. Depth-generic
+   helpers: `read_channel`/`write_channel`/`alpha_scale` (core/resample.cpp).
+   `core/pixel_depth.hpp`: the gate, exact sample
    conversions, typed float rows (`load_rgba_row`/`store_rgba_row`, coverage rows),
    `convert_pixel_buffer_depth`. `core/document_depth.hpp`: `convert_document_depth`
    and `document_depth_problems` (authoritative buffers: pixel layers without vector
@@ -155,8 +152,7 @@ Each phase lands as verified commits; the gate stays off until Phase 9.
      display setting is off" alert; it is not about the file.
    `python scripts\dev\deep\ps_check_writes.py` re-saves every corpus document
    through patchy.exe and opens it in Photoshop: all 77 open and render identical to
-   the originals (16-bit precision 100%). The recovery store at depth is still open
-   (Phase 3's list).
+   the originals (16-bit precision 100%).
 3. **Deep compositor** (compositor done; `tests/core/deep_compositor_tests.cpp`).
    `render/layer_compositor.hpp` is templated on the target's color type
    (`render/composite_color.hpp`: `target_color_t`, `DeepRgb` floats on the deep scale);
@@ -286,19 +282,25 @@ Each phase lands as verified commits; the gate stays off until Phase 9.
    (throws for other values, with the gate off, or on Indexed documents);
    `getPixels`/`setPixels` stay RGBA8 and convert at the boundary. Export: PNG and TIFF
    keep 16 bits (`deep_export_qimage`); a 32-bit document writes float TIFF with its
-   linear values (`float_export_qimage`). Still to do: JXR float native, HEIF 10-bit,
-   raw at 16 bits, deep .af import, OpenEXR and Radiance .hdr (licensing check first).
-9. **Memory, performance, platforms, flip the gate** (in progress). The history budget
+   linear values (`float_export_qimage`); the other writers are 8-bit. JPEG, WebP and
+   PDF narrow the deep composite (`flat_export_qimage`); the native flat writers (BMP,
+   TGA, DDS, GIF, PCX, ICO/CUR, IFF, RTTEX, JXR), animated GIF/WebP, any export
+   transform, and the layered SVG and Aseprite writers receive a copy converted like
+   Image > Mode > 8 Bits/Channel (`document_for_8bit_writer`, ui/image_document_io.hpp),
+   because they composite at 8 bits and would otherwise fail.
+   Still to do: JXR float native, DDS 16-bit and float sources at depth (they open tone
+   mapped or narrowed: docs/dds.md), HEIF 10-bit, raw at 16 bits, deep .af import,
+   OpenEXR and Radiance .hdr (licensing check first).
+9. **Memory, performance, platforms** (gate on by default; in progress). The history budget
    counts real buffer bytes (`accumulate_unique_pixel_bytes`), so deep layers weigh 2x
    or 4x. `patchy.exe --stress-test=quick --stress-depth 16|32` runs the whole stress
    scenario on deep documents (filters a 32-bit document lacks are skipped and listed
-   in the report's warnings). October 9, 2026, offscreen quick preset: 8 bits 42.6 s,
+   in the report's warnings). Offscreen quick preset (October 2026): 8 bits 42.6 s,
    16 bits 92.9 s, 32 bits 93.2 s, no failures; the 16-bit scene PSD opens in
    Photoshop without a prompt. The web build stops at 16 bits
    (`depth_supported_on_platform`): 32-bit files open converted to 16 with an import
    note, and Image > Mode, New Document and `convertBitDepth` offer no 32. Still to
-   do: deep compositor speed, the gate decision, a full Testy run against the
-   baseline.
+   do: deep compositor speed, a full Testy run against the baseline.
 
 ### Photoshop's 32-bit blend modes
 

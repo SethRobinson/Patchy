@@ -1,6 +1,6 @@
 # Document channels
 
-Patchy keeps Photoshop document channels separate from layer masks. `Layer::mask()` remains the one raster mask applied to a layer. Saved alpha and spot channels live in `Document::channels()` as ordered, full-canvas, 8-bit grayscale `DocumentChannel` objects.
+Patchy keeps Photoshop document channels separate from layer masks. `Layer::mask()` remains the one raster mask applied to a layer. Saved alpha and spot channels live in `Document::channels()` as ordered, full-canvas grayscale `DocumentChannel` objects at the document's bit depth (8, 16, or 32 bits; [high-bit-depth.md](high-bit-depth.md)).
 
 ## Model and editing rules
 
@@ -18,7 +18,7 @@ The wire layout (final image-data plane order, the negative-layer-count merged-t
 
 ## Photoshop 2026 ground truth
 
-`test-fixtures/psd/photoshop-saved-channels.psd` is authored by Photoshop 2026. It contains two duplicate-named alpha channels with different inversion modes and one Unicode-named spot channel, each with distinct display metadata and pinned pixel samples. The core regression test imports it and writes a Patchy counterpart.
+`test-fixtures/psd/photoshop-saved-channels.psd` is authored by Photoshop 2026. It contains two duplicate-named alpha channels with different inversion modes and one Unicode-named spot channel, each with distinct display metadata and pinned pixel samples. The core test `psd_photoshop_saved_channels_fixture_imports_and_resaves` imports it and writes a Patchy counterpart.
 
 Photoshop 2026 opens that counterpart with the same channel count, order, names, kinds, colors, opacity or solidity, and sample bytes. It can save and reopen the file without changing those values. The fixture also pins Photoshop's resource-1053 behavior: the two alpha identifiers are present and the spot channel has no identifier entry.
 
@@ -40,10 +40,10 @@ A saved alpha read from PSD/PSB always becomes a document channel, including cha
 - Ctrl-clicking a layer or layer-mask thumbnail keeps its exact soft alpha. Marching ants follow the 50% boundary, while saving the selection copies mask rows or hard-region spans directly instead of probing a complex region once per canvas pixel.
 - Save and Save As warn before a non-PSD/PSB format discards saved channels. Export is always an explicitly flattened operation and does not warn.
 
-Deferred work: editable component channels, multiple simultaneous overlays, channel-options editing, spot separations, multichannel/CMYK/Lab document modes, 16/32-bit channel editing, vector masks, and PSD real-user-mask channel `-3`.
-The PSD reader ignores `-3` payloads by their declared byte length and keeps the
-supported `-2` rendered mask plane. It must not decode `-3` against the layer
-bounds because the separate real mask can have different dimensions. This also
-accepts the compression-marker-only `-3` records found in older files.
+Not implemented: editable component channels, multiple simultaneous overlays, channel-options editing, spot separations, and multichannel/CMYK/Lab document modes.
 
-Group raster masks: PSD import stores a group's mask, the layered writer emits the folder record's mask block and `-2` channel (mask-less groups keep their historical zero-channel records, so writer canaries are unaffected), Add Layer Mask works on groups, and the compositor applies group masks on the default pass-through path: the mask attenuates each child contribution in place via `GroupMaskedTarget` (layer_compositor.hpp), so interior adjustments still reach the backdrop below the group and nested group masks multiply. Apply Layer Mask stays pixel-only. Still open: zero-area placeholder masks (the empty white mask on every Photoshop adjustment layer) are not materialized on import and vanish on resave, which Testy reports as lost `userMask` attributes even though nothing visible changes.
+## Layer mask planes in PSD
+
+- The real-user-mask channel `-3` is sized by the mask record's own real-mask rect, never the layer bounds (the two can differ). A `-3` plane without that rect is skipped by its declared byte length, which also accepts the compression-marker-only `-3` records of older files. Raster and parameterized vector mask layout is in [vector-tools.md](vector-tools.md).
+- Zero-area `-2`/`-3` masks (the empty white mask on every Photoshop adjustment layer) load as empty LayerMasks whose default color supplies the coverage and are written back; see [vector-tools.md](vector-tools.md).
+- Group raster masks: PSD import stores a group's mask, the layered writer emits the folder record's mask block and `-2` channel (mask-less groups keep their zero-channel records, so writer canaries are unaffected), Add Layer Mask works on groups, and the compositor applies group masks on the default pass-through path: the mask attenuates each child contribution in place via `GroupMaskedTarget` (layer_compositor.hpp), so interior adjustments still reach the backdrop below the group and nested group masks multiply. Apply Layer Mask stays pixel-only.

@@ -273,7 +273,7 @@ std::size_t remove_layers_outside_canvas(Document& document, Rect canvas);
 [[nodiscard]] bool crop_document(Document& document, Rect crop, EditColor extension_color);
 // Rotated crop: the box is `crop` rotated by angle_degrees about its center in
 // document space, and committing straightens it (result pixel q samples the
-// document at center + R(angle) * (q - result_center), bilinear for 8-bit).
+// document at center + R(angle) * (q - result_center), bilinear at every depth).
 // Text transforms, smart-object placements, and vector data ride the same
 // affine. Angles under 0.01 degrees take the exact unrotated path.
 [[nodiscard]] bool crop_document(Document& document, Rect crop, double angle_degrees,

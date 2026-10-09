@@ -1,11 +1,5 @@
 # Local AI control
 
-Native vector automation uses `execute_script` with additive API 1 methods.
-`get_info` advertises vector capabilities; `get_state` includes compact shape,
-mask, path/revision, and target discovery, covered by attached state tokens.
-`get_help` topics `vector-art`, `edit-shape`, and `paths-masks` serve examples from
-the connected installation. See [vector-automation.md](vector-automation.md).
-
 Desktop packages include a native `patchy-mcp` stdio connector and an installable
 `patchy-control` skill. Agents can create documents, paint, inspect images, revise
 layers in later requests, and save editable PSDs. No Python or Node runtime is
@@ -160,10 +154,10 @@ contain PNG MCP image content plus text and `structuredContent` metadata.
 | Tool | Purpose |
 |---|---|
 | `get_info` | Versions, capabilities, actual display mode/visibility, skill directory, trust model |
-| `get_help` | Workflow, API, guide, reference-art workflow, or one of three examples |
+| `get_help` | One `topic` (default `workflow`): `workflow`, `api` (patchy.d.ts), `guide`, `reference-art`, `painting-guide`, or a runnable example (`pixel-art`, `painting`, `edit-document`, `vector-art`, `edit-shape`, `paths-masks`, `brush-swatches`, `fur-strokes`, `wet-paint`, `brush-library`, `timed-brush`) |
 | `get_state` | Documents, layer hierarchy, IDs, dimensions, selection, modified state, history, state token |
 | `execute_script` | Fresh JavaScript globals over persistent documents; JSON result and separate logs |
-| `draw_strokes` | Native Brush/Eraser batch targeting document/layer IDs |
+| `draw_strokes` | Native Brush, Eraser or Mixer Brush batch targeting document/layer IDs |
 | `get_preview` | Fresh canvas PNG with crop/scale metadata and state token, or the connected window capture |
 | `undo`, `redo` | Restore one document history step |
 
@@ -228,6 +222,9 @@ Connected means a client is attached, not that the AI is computing or has finish
 
 The additive API remains version 1. Read the packaged TypeScript reference and
 [scripting guide](../scripts/bundled/scripting-guide.md) for signatures and examples.
+Native vector automation goes through `execute_script`; `get_info` advertises vector
+capabilities and `get_state` includes compact shape, mask, path/revision and target
+discovery, covered by attached state tokens ([vector-automation.md](vector-automation.md)).
 
 - Document `id` and layer `id` are decimal strings, avoiding JavaScript number
   precision loss. A document ID is valid until close in its owning Patchy process;
@@ -266,6 +263,10 @@ The additive API remains version 1. Read the packaged TypeScript reference and
   privileges. Connector sessions reject `app.runCommand` and interactive script
   canvases; use explicit document APIs. Existing unattended option dialogs return
   their defaults/argument overrides. No permission dialog appears on the desktop.
+- `patchy.scripts.install(relativePath, source, {hotkey})` writes a script into the
+  user scripts folder and binds its key as a Preferences override, which is how an
+  agent answers "make a script that does X and put it on a key" (the workflow's
+  "Scripts on hotkeys" section; [scripting.md](scripting.md) "Script hotkeys").
 
 `src/ui/script_automation.cpp` owns state, lookup, preview, history, and batch
 validation. `src/ui/canvas_widget_script_stroke.cpp` owns the direct native stroke
@@ -279,8 +280,9 @@ names with `setPalette`/`loadPalette`, then embeds them with native PSD saving.
 The workflow, API reference, and guide require all PSD output to open in
 Photoshop without warnings or errors, including optional Patchy metadata;
 the canonical contract is in [ps-compat.md](ps-compat.md#required-compatibility-contract).
-Its examples create layered pixel art, pressure paint,
-and an accent layer in an existing file. The alternative entry point is
+The `get_help` examples (`mcp_help_result` in `ui/mcp_session.cpp` maps each topic to a
+file in the kit) cover pixel art, pressure painting, editing an existing file, vector
+art, shapes, paths and masks, and the brush library. The alternative entry point is
 `patchy --headless --run-script file.js --script-arg key=value`; see
 [scripting.md](scripting.md) for output capture and process lifetime.
 

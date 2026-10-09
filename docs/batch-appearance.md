@@ -83,10 +83,11 @@ their existing routing; Palette forwarding into an open picker still works.
 
 ## Implementation boundaries
 
-`appearance_properties.*` supplies typed property accessors, equality, and edit
-capture. `AppearanceEdits` holds ordered value-owning operations; only
-consecutive writes to the same property coalesce. Structural operations retain
-their position relative to parameter edits. Dialog synchronization never
+`src/ui/appearance_properties.*` supplies typed property accessors, equality, and
+edit capture. `AppearanceEdits` (`src/ui/appearance_edits.*`) holds ordered
+value-owning operations; only consecutive writes to the same property coalesce.
+The dialogs are `shape_appearance_dialog.*` and `layer_style_dialog.*`.
+Structural operations retain their position relative to parameter edits. Dialog synchronization never
 captures user intent. Single-layer dialog callers remain supported.
 
 Previews start from each target's baseline. Shape raster batches use the

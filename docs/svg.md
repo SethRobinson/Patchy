@@ -1,18 +1,19 @@
 # SVG import and export
 
-Feature deep-dive for the SVG interchange path (July 2026). SVG opens as
-editable shape layers and saves/exports with vectors preserved; everything the
-format cannot express degrades to embedded raster with an import/export note.
-Unlike PSD work, SVG is an open W3C standard: consulting the spec text is fine
-(the no-spec-text method rule is Adobe-specific), and there is no byte-pinning
-against Photoshop output. No new patent surface: parsing and writing SVG is
-not image tracing (which stays excluded per docs/vector-tools.md).
+SVG opens as editable shape layers and saves/exports with vectors preserved;
+everything the format cannot express degrades to embedded raster with an
+import/export notice. SVG is an open W3C standard: consulting the spec text is
+fine (the no-spec-text method rule is Adobe-specific), and there is no
+byte-pinning against Photoshop output. Parsing and writing SVG adds no patent
+surface: it is not image tracing, which is a separate feature with its own
+boundary ([image-trace.md](image-trace.md), "Vector tracing" in
+[legal-constraints.md](legal-constraints.md)).
 
 ## Code map
 
 All Qt-free, in src/formats/ (patchy_formats):
 
-- `svg_xml.{hpp,cpp}` - minimal XML DOM: elements/attributes, comments, CDATA,
+- `svg_xml.{hpp,cpp}`: minimal XML DOM: elements/attributes, comments, CDATA,
   processing instructions, DOCTYPE with internal-subset `<!ENTITY>` expansion
   (old Illustrator exports reference namespace URIs as `&ns_svg;`), the
   predefined + numeric character references, namespace resolution (SVG/xlink
@@ -20,9 +21,9 @@ All Qt-free, in src/formats/ (patchy_formats):
   verbatim so consumers can skip them), UTF-8/UTF-16/declared-Latin-1 input.
   Hand-written deliberately: lightweight parsers do not expand DTD entities.
   Hard caps: 250k nodes, depth 512, 8 MB entity expansion.
-- `svg_document_io.hpp` - public API (`svg::DocumentIo::read/write/write_file`,
-  `svg_extensions()` = {.svg, .svgz}, `sniff`).
-- `vector_export_plan.{hpp,cpp}` - the target-independent export policy shared
+- `svg_document_io.hpp`: public API (`svg::DocumentIo::read/write/write_file`,
+  the `baked_content` dry run, `svg_extensions()` = {.svg, .svgz}, `sniff`).
+- `vector_export_plan.{hpp,cpp}`: the target-independent export policy shared
   with editable PDF export (docs/pdf.md): combine classification, the common
   shape/group representability checks, the sibling-unit walk with the barrier
   rule (parameterized by which blend modes the target expresses), gradient
@@ -46,7 +47,7 @@ post-open passes (below), `MainWindow::define_custom_shape_from_svg_*`
 ## Import (what maps to what)
 
 - **Order**: SVG paints first-to-last; `layers()[0]` composites first. The
-  mapping is identity - no reversal anywhere.
+  mapping is identity, with no reversal anywhere.
 - **Canvas**: physical width/height units (in/cm/mm/pt/pc) -> CSS 96 px/in and
   96 PPI print metadata; unitless/percent/absent -> viewBox user units at the
   untagged-import 72 PPI; neither -> 300x150 (the CSS replaced-element
@@ -56,15 +57,18 @@ post-open passes (below), `MainWindow::define_custom_shape_from_svg_*`
   reader sets its own PPI.
 - **Structure**: `<g>`/nested `<svg>` -> Group folders (opacity, blend,
   display:none -> hidden); `<a>` is a transparent container; `<use>` clones
-  (cycle-guarded, depth 32; symbol/svg targets instantiate like `<g>`);
+  (cycle-guarded, depth 32, at most 20000 instantiations per file so
+  sibling references cannot grow exponentially; symbol/svg targets instantiate
+  like `<g>`);
   `<switch>` takes the first child whose conditionals pass (requiredExtensions/
   -Features fail when present; systemLanguage passes on an "en" entry). Names:
   id, else `<title>`, else Photoshop-style counters ("Rectangle 1", ...).
-- **Styling**: real cascade order - presentation attributes < stylesheet rules
+- **Styling**: real cascade order: presentation attributes < stylesheet rules
   (type < .class < #id, later wins ties; the flat-selector subset Illustrator
   emits) < inline style. fill/stroke/etc. inherit; opacity, display, and
   mix-blend-mode reset per element. Colors: #hex 3/4/6/8, rgb()/rgba(),
-  hsl()/hsla(), the 147 named colors, currentColor. Paint values keep their
+  hsl()/hsla(), the CSS named colors (rebeccapurple included), transparent,
+  currentColor. Paint values keep their
   case (url(#SVGID_1_) ids are case-sensitive).
 - **Shapes**: rect (+uniform rx) / circle / ellipse -> live shapes; a plain
   stroked line -> the live Line quad with the stroke paint as fill (the
@@ -77,7 +81,7 @@ post-open passes (below), `MainWindow::define_custom_shape_from_svg_*`
   rule). nonzero (the SVG default) -> winding decomposition: each subpath its
   own Add group, opposite-winding contained subpaths become Subtract groups
   (holes and unions both correct; a self-intersecting single subpath keeps
-  even-odd semantics - the one approximation).
+  even-odd semantics, the one approximation).
 - **Opacity**: layer opacity = element opacity x fill-opacity x solid-fill
   alpha; stroke opacity divides that back out (a stroke more opaque than its
   fill clamps, with a notice).
@@ -136,7 +140,7 @@ post-open passes (below), `MainWindow::define_custom_shape_from_svg_*`
   metadata, the standard text pattern) with font family/size/bold/italic/
   color; the Qt-free reader stores the baseline point + text-anchor under
   patchy.svg.* keys plus kLayerMetadataSvgPendingText, and
-  `MainWindow::render_pending_svg_text_layers` (main_window.cpp - it needs
+  `MainWindow::render_pending_svg_text_layers` (main_window.cpp; it needs
   the text pipeline) renders and positions them post-open on the main thread.
   textPath/x-arrays/textLength reduce to plain text with a notice.
 - **Images**: data-URI PNG/JPEG -> pixel layers; bytes ride
@@ -144,7 +148,7 @@ post-open passes (below), `MainWindow::define_custom_shape_from_svg_*`
   (main_window_shared.cpp) decodes on the open worker (QImage decode is
   thread-safe; fonts are not, hence the two-pass split). External file
   references are skipped with a notice.
-- **Robustness fallback**: unparseable XML or > 2000 drawables throws; the
+- **Raster fallback**: unparseable XML or > 2000 drawables throws; the
   existing QImageReader fallback (the qsvg plugin, shipped by
   scripts\release\build-release.bat) rasterizes, and the open path adds an "imported as
   flattened raster" notice naming the reason. The alpha-promotion pass is
@@ -181,16 +185,17 @@ emit native `<rect>`/`<ellipse>`/`<line>` (round-trips back to live).
 - Vector masks -> `<clipPath>` (inverted via canvas-rect + evenodd; density/
   feather/disabled -> rasterize). Raster masks -> luminance `<mask>` with a
   default_color backing rect.
-- Everything else rasterizes through the real compositor into cropped
-  base64-PNG `<image>` chunks with notices: text/pixel/smart-object layers
+- Everything else rasterizes through the real compositor into cropped 8-bit
+  base64-PNG `<image>` chunks with notices (a 16/32-bit document's chunks are
+  composited at 8 bits): text/pixel/smart-object layers
   individually (blend/opacity/display reapplied as CSS so compositing stays
   correct); clipping runs as one chunk; adjustment layers and CSS-inexpressible
   blend modes are barriers that merge everything below them at that sibling
   level into one flattened chunk (a pass-through group containing a barrier
   propagates it to its parent level; non-pass-through groups isolate theirs
   and emit style="isolation:isolate" to match Photoshop's group isolation).
-- Output is deterministic (two writes are byte-identical): std::to_chars
-  numbers, sequential def ids, layer names as sanitized unique element ids
+- Output is deterministic (two writes are byte-identical): classic-locale
+  %.15g numbers, index-ordered walks, sequential def ids, layer names as sanitized unique element ids
   (which is how names round-trip).
 
 ## UI behavior
@@ -219,11 +224,12 @@ emit native `<rect>`/`<ellipse>`/`<line>` (round-trips back to live).
   exemption of `flat_save_discards_layers` still applies first. Writer notices
   ride the save/export status message.
 - File > Export > Flat Image routes svg to the same structure-preserving writer and
-  skips the raster options prompt (vectors scale client-side).
+  skips the raster options prompt (vectors scale client-side). Divide Scanned
+  Photos and Export Documents to Folder leave svg out of their format lists.
 - Edit > Define Custom Shape from SVG File: one stampable library shape per
   file (geometry merged, paint ignored, unit-normalized, combine ops
-  preserved so holes keep cutting) named from the file stem - the Photoshop
-  Shapes-panel behavior. Needs no open document.
+  preserved so holes keep cutting) named from the file stem (the Photoshop
+  Shapes-panel behavior). Needs no open document.
 - Edit > Paste detects clipboard SVG (image/svg+xml data or `<svg>` text)
   and pastes editable shape layers (one "Paste shape" undo entry, names kept
   unless colliding, shapes re-baked against the target canvas). Parse
@@ -235,8 +241,8 @@ emit native `<rect>`/`<ellipse>`/`<line>` (round-trips back to live).
   text (the Illustrator/Figma/Inkscape convention); the internal layer
   clipboard is dropped so Paste reads it back in place. Notices ride the
   status message. Test: `ui_svg_copy_as_svg_round_trips_shape_layer`.
-- File > Place Embedded, Place Linked, Relink to File and `doc.addSmartObject`
-  accept svg: it becomes a smart object with Photoshop's `SVG ` filetype and
+- File > Place Embedded, File > Place Linked, Layer > Smart Objects >
+  Relink to File, and `doc.addSmartObject` accept svg: it becomes a smart object with Photoshop's `SVG ` filetype and
   Type 1 (vector) placement, classified ReadOnly for editing and rasterized
   through the qsvg plugin at the placement's own scale, so every size stays
   sharp (`render_smart_object_vector_contents`; see
@@ -244,13 +250,13 @@ emit native `<rect>`/`<ellipse>`/`<line>` (round-trips back to live).
 
 ## Tests and fixtures
 
-- tests/core/svg_tests.cpp - XML parser edge cases, d-grammar, cascade,
+- tests/core/svg_tests.cpp: XML parser edge cases, d-grammar, cascade,
   gradients (placement under viewBox scale, group and element transforms, and
   the canvas-anchored re-export), patterns (tile size, anchor, and baked pixels
   under viewBox scale, group and element transforms, both unit modes, rotation,
   mirror, and the export round trip), fill-rule decomposition, clip/mask, units/PPI, svgz (gzip built
   in-test), the 2000-element fallback, export determinism/round-trip/raster
-  chunking. tests/ui/svg_ui_tests.cpp - editable open, a QSvgRenderer
+  chunking. tests/ui/svg_ui_tests.cpp: editable open, a QSvgRenderer
   cross-check (independent renderer, mean-delta tolerance), the text
   positioning pass, data-URI images, the no-warning in-place save of a
   shape-only file plus reopen parity, the named flatten warning for a text
@@ -261,11 +267,11 @@ emit native `<rect>`/`<ellipse>`/`<line>` (round-trips back to live).
 
 ## Photoshop parity notes
 
-Photoshop 27.8 (COM-probed July 2026, dialogs suppressed) opens an SVG through
+Photoshop 27.8 (COM-probed, dialogs suppressed) opens an SVG through
 its classic Rasterize-SVG path: one flat ArtLayer at the rasterize-dialog
 size (a Patchy-exported 240x160 file opened as a single 1000x667 raster).
 Patchy's editable-shape-layer import is deliberately richer than that. SVG
-files are not byte-pinned against Photoshop - the format is an open standard
+files are not byte-pinned against Photoshop: the format is an open standard
 and fidelity is judged against independent renderers (the qsvg cross-check
 test) instead. The acceptance check is that Patchy-exported SVG opens in
 Photoshop without error; `svg_fixture_reexport_writes_artifact` writes

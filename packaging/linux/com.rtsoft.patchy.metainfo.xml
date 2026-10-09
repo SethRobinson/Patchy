@@ -132,6 +132,17 @@
     <control>tablet</control>
   </supports>
   <releases>
+    <release version="1.08" date="2026-10-10">
+      <description>
+        <ul>
+          <li>16-bit and 32-bit editing: PSD, PSB, PNG and TIFF open and save at their bit depth, and Image &gt; Mode switches between 8, 16 and 32 bits per channel</li>
+          <li>DDS textures: open BC1 to BC7 files and save uncompressed, DXT1, DXT5, BC4, BC5 or BC7 with optional mipmaps</li>
+          <li>Text inside shapes, saved as native Photoshop area text</li>
+          <li>Gradient fill layers match Photoshop's placement more closely</li>
+          <li>Scripting: per-format save options, per-script hotkeys, and a Quick Export DDS example</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.07" date="2026-10-07">
       <description>
         <ul>

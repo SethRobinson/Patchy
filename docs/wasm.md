@@ -183,10 +183,8 @@ onto setTimeout before qtloader runs (harness below).
   kit stays on Asyncify.
 - **Codegen: compile `-msimd128`, link `-O3`, `-sMALLOC=dlmalloc`.** SIMD wins
   5-16% on compute steps (canaries stay byte-identical) and `-O3` beats `-Os`
-  at runtime. Mimalloc was 5-8% faster in a warm stress A/B, but the exact 350
-  MB C2Kyoto PSD drives it to wasm32's 4 GB ceiling and `std::bad_alloc`; the
-  threaded dlmalloc build opens it. `PATCHY_WASM_ALLOCATOR=mimalloc` remains a
-  benchmark option.
+  at runtime. `PATCHY_WASM_ALLOCATOR=mimalloc` is a benchmark option only
+  (it exhausts wasm32's 4 GB on the 350 MB C2Kyoto PSD; [wasm-memory.md](wasm-memory.md)).
 - **QtQuick is excluded** (Qt6::Qml is linked for QJSEngine only):
   `QT_QML_MODULE_NO_IMPORT_SCAN TRUE` plus
   `qt_import_plugins(patchy EXCLUDE_BY_TYPE qmltooling)`, both required (the
@@ -213,7 +211,9 @@ onto setTimeout before qtloader runs (harness below).
   dropped `.pdf` still enters the open pipeline and gets the stub's
   marker-tagged error, which the open-failed box turns into a "Get the
   Desktop Version" download button (see [pdf.md](pdf.md)).
-  Single-instance QLocalServer
+  Deep editing stops at 16 bits (`depth_supported_on_platform`): 32-bit
+  files open converted to 16 and Image > Mode and New Document offer no 32
+  ([high-bit-depth.md](high-bit-depth.md)). Single-instance QLocalServer
   off. Update check off (the site redeploy is the update mechanism; the
   GitHub fetch would fail CORS). Script sounds no-op. Scanner import off.
   File > Export > Layers as Image Sequence hidden. Multi-file pickers degrade
@@ -270,8 +270,7 @@ Three platform findings constrain the shape; do not regress them:
   250 ms QTimer drains it into `MainWindow::handle_web_file_drop`, one MEMFS
   path at a time. Qt 6.10's own drop listeners are inert for external drops
   (deferred handlers see a neutered `dataTransfer`; `accept_open_file_drag`
-  rejects the `blob://placeholder` preview urls), so no double-open. The
-  desktop `QDropEvent` path is untouched.
+  rejects the `blob://placeholder` preview urls), so no double-open.
 - **A raw JS-to-wasm export call must never lead to a nested event loop.**
   JS (promise callbacks, hand-registered listeners) must not call a wasm
   export whose C++ path can suspend: that entry runs outside Qt's
@@ -299,7 +298,7 @@ Other step-3 decisions:
   `/presets/<subdir>` in MEMFS and vanish on reload while the seeding stamps
   persist, so `stored_default_asset_version` (main_window_tool_options.cpp)
   treats every wasm session as unseeded. Defaults return each reload; user
-  presets last one session (persistence is a future candidate). Preset and
+  presets last one session. Preset and
   palette import/export goes through the shared `get_open_file_name` /
   `get_save_file_name` wrappers plus `offer_browser_download_for_saved_file`;
   only the scripting `getExistingDirectory` pickers still browse MEMFS (a
@@ -323,12 +322,10 @@ Other step-3 decisions:
 
 ### Browser UI fit
 
-- **Desktop download card:** below New Document / Open, highlighting more
-  features, speed and system fonts. The themed, keyboard-accessible button opens
-  the GitHub README's download section in a new tab. Text retranslates live;
-  labels and the button caption wrap. Short windows scroll the content above a
-  fixed footer. Privacy and font-upload guidance follows the card. Desktop
-  start panels keep their existing layout.
+- **Desktop download card** (web start panel only): below New Document / Open;
+  its button opens the GitHub README's download section in a new tab. Text
+  retranslates live and wraps; short windows scroll the content above a fixed
+  footer. Privacy and font-upload guidance follows the card.
 - **Interface scale comes from the shell page, never QT_SCALE_FACTOR.** The
   wasm plugin takes pointer events from raw `offsetX`/`clientX` without
   applying Qt's high-DPI factor, so any factor but 1 renders scaled yet
@@ -345,7 +342,7 @@ Other step-3 decisions:
   (`LayerListWidget::scroll_by_wheel_delta`); applying the delta raw scrolls
   ~120 rows per notch. Stock Qt widgets are unaffected.
 - **Float windows are disabled.** No window manager, no `startSystemMove`: a
-  floated document covered the canvas with no way back.
+  floated document would cover the canvas with no way back.
   `MainWindow::float_document_session` no-ops on wasm and is the single
   funnel for every entry point. The window-arrangement actions stay
   registered but hidden (hotkey-id stability, like Print); the tab tear-off
@@ -355,10 +352,8 @@ Other step-3 decisions:
   `keep_dialog_above_parent_window` (dialog_utils.cpp) registers every
   dialog `run_non_modal_dialog` shows and restacks a window's registered
   dialogs above it one event-loop turn after a press or activation reaches
-  it, walking the parent chain. Do not bring back
-  `Qt::WindowStaysOnBottomHint` on the main window: 6.10 honors transient
-  parents, and the hint sent main-window-parented dialogs to the bottom
-  zone, invisible.
+  it, walking the parent chain. Never set `Qt::WindowStaysOnBottomHint` on
+  the main window: it sends main-window-parented dialogs to the bottom zone.
 - **Modal dialogs are raised when they block.** The compositor inserts a
   modal directly above its transient parent (usually the bottom-most main
   window), so a modal opened under a higher non-modal dialog sits beneath
@@ -372,7 +367,9 @@ Other step-3 decisions:
   rescue an off-screen button row). When even the layout minimum exceeds the
   canvas, `install_dialog_overflow_scroll` moves the content into a
   `QScrollArea` (`dialogOverflowScroll`); dark-chrome dialogs keep the title
-  bar fixed. The clamp runs at placement time only. This is also why dialogs
+  bar fixed. The size clamp runs at initial placement only; the later
+  Show/Resize recheck (every platform, [ui-conventions.md](ui-conventions.md))
+  only moves the frame back on screen. This is also why dialogs
   are shown through `exec_dialog`/`run_non_modal_dialog`, never a bare
   `QDialog::exec`.
 - **Right-dock panel toggles repaint the whole window.** The wasm backing
@@ -385,8 +382,8 @@ Other step-3 decisions:
   visible as blocked, the key path drops events for blocked windows (the
   mouse path does not), and the wasm plugin never clears the flag when the
   modal hides: the window paints and takes clicks but never receives a
-  keystroke again. Script canvas windows hit this when the app-modal script
-  stop panel was up at creation time. Guards (script host): `createCanvas`
+  keystroke again (script canvas windows created under the stop panel).
+  Guards (script host): `createCanvas`
   calls `dismiss_busy_indicator()` before creating the window;
   `pump_progress_indicator` will not raise the stop panel while the run owns
   an open canvas window; interactive helpers pause via `ModalWatchdogPause`.
@@ -423,8 +420,8 @@ Consequences (do not regress):
   `min(hardwareConcurrency,16)+16` workers (page-overridable; see
   `PATCHY_WASM_POOL` above). The CMYK site and both strip renderers cap at
   16 workers. `PTHREAD_POOL_SIZE_STRICT` stays unset: overflow lazily spawns
-  (fine from worker threads) instead of aborting a visitor's session. Worker
-  stacks are 4 MB; LibRaw decode and full compositor walks run there.
+  (fine from worker threads) instead of aborting the session. Worker stacks
+  are 4 MB (LibRaw decode and full compositor walks run there).
 - Headroom alone is insufficient once busy workers shrink the idle pool
   below a blocking join's fan-out. `max_blocking_fanout_workers`
   (core/worker_budget.{hpp,cpp}) clamps every main-thread blocking fan-out
@@ -436,16 +433,16 @@ Consequences (do not regress):
   `launch_async` the main thread publishes `idle - 3` in a
   `BlockingFanoutBudgetScope` (core/worker_budget), so
   `max_blocking_fanout_workers` also clamps worker-thread callers and the
-  awaited compute never needs a lazy spawn mid-wait (the free-transform
-  release's chained worker fan-outs otherwise park the tab).
+  awaited compute never needs a lazy spawn mid-wait (chained worker
+  fan-outs such as the free-transform release otherwise park the tab).
 - Main-thread waits suspend in an event loop.
   `wait_for_processing_operation` (canvas_widget_render.cpp) waits in a
   nested QEventLoop woken by a 100 ms poll QTimer on threaded wasm, so
   workers return to the pool, lazy spawns complete, and the processing
   overlay paints. Not 16 ms: `operation_ready` itself blocks up to 16 ms, so
-  a 16 ms interval starved the loop. `run_filter_compute_with_progress`
-  (main_window_shared) is the same shape for all five commit sites
-  (destructive filter, Filter Gallery, Liquify, Levels, Curves); the
+  a 16 ms interval starves the loop. `run_filter_compute_with_progress`
+  (main_window_shared) is the same shape for the destructive filter, Filter
+  Gallery, Liquify, Levels, Curves, and Divide Scanned Photos computes; the
   progress dialog paints and can cancel. Desktop keeps the on-thread
   compute.
 - Callers reachable from paintEvent, or running when the pool is dry,
@@ -469,8 +466,8 @@ holds the events its caller counted.
 
 **No `processEvents` pump runs mid-operation on wasm.** The browser gets no
 paint or input turn until the main thread suspends in an idle event loop; a
-pump only dispatches Qt timers into the running operation, which once froze
-a tab past recovery on a slow script. Three pumps are compiled out under
+pump only dispatches Qt timers into the running operation and can freeze a
+tab past recovery. Three pumps are compiled out under
 `Q_OS_WASM`: the script busy-indicator pump (`pump_progress_indicator`,
 script_engine.cpp), the processing-overlay tick, and the overlay-show pump
 (`show_processing_overlay`), both canvas_widget_render.cpp. Long
@@ -484,8 +481,8 @@ platform (see [filters.md](filters.md)); it matters most on wasm.
 
 Single-threaded builds: `should_defer_full_refresh_to_async` /
 `should_defer_first_render_to_async` (canvas_widget_render.cpp) return false
-when `kBackgroundWorkRunsInline` (background_workers.hpp): deferring to an
-inline worker composed the frame inside paintEvent anyway.
+when `kBackgroundWorkRunsInline` (background_workers.hpp), since an inline
+worker would compose the frame inside paintEvent anyway.
 
 ## Release deployment (rtsoft.com/patchy)
 

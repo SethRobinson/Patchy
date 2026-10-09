@@ -1,6 +1,6 @@
 # Vector tools: pen paths, shape layers, vector masks, Paths panel
 
-References: [scripting](vector-automation.md), [preview](vector-preview.md), [merging](layer-merging.md), [open strokes](open-path-strokes.md).
+References: [scripting](vector-automation.md), [preview](vector-preview.md), [merging](layer-merging.md), [open strokes](open-path-strokes.md), [point editing and commands](vector-commands.md), [fixture inventory and known render divergences](vector-fixtures.md).
 
 PS 27.8 COM probes: `local-test-fixtures/vector-probe/`.
 Rules: docs/legal-constraints.md.
@@ -8,63 +8,60 @@ Rules: docs/legal-constraints.md.
 ## Shape tools (Line / Rectangle / Ellipse)
 
 Shape | Path | Pixels persists as `tools/vectorToolMode` (default Shape).
-Shape drags preview options-bar fill/stroke at draw time
-for the Content target; mask/channel/quick-mask targets always rasterize.
-Release creates a shape layer from live parameters (rect, rounded rect via
-Radius, ellipse, line with Weight) and the options-bar paints. Stroke
-alignment defaults to Inside, like PS. Combine (New Layer / Add / Subtract /
-Intersect / Exclude) appends a group with that op to the active shape layer.
-Path mode appends the same subpaths to the work path; Pixels keeps the legacy
-raster commit byte-identical.
+Shape drags preview options-bar fill/stroke at draw time for the Content
+target; mask/channel/quick-mask targets always rasterize. Release creates a
+shape layer from live parameters (rect, rounded rect via Radius, ellipse,
+line with Weight) and the options-bar paints. Stroke alignment defaults to
+Inside, like PS. Combine (New Layer / Add / Subtract / Intersect / Exclude)
+appends a group with that op to the active shape layer. Path mode appends the
+same subpaths to the work path; Pixels keeps the legacy raster commit
+byte-identical.
 
 Fill/Stroke popups (No Fill / Solid / Gradient / Pattern) use app-wide
 `VectorFill` mirrors. Gradient picks resolve FG/BG stops immediately; patterns
 enter the document store at commit (`ensure_vector_fill_patterns`, honoring
 the Patt-block refusal below). Kind and preset ids persist under
 vectorFill*/vectorStrokePaint* keys; gradient/pattern PLACEMENT resets each
-launch. Selected shapes share property edits and corner radii, with mixed-value
-markers and one undo per gesture; see [batch appearance](batch-appearance.md).
-The controls also serve Path Select / Direct Select and next-shape defaults.
-Stroke controls remain enabled when any eligible target has a stroke.
-Appearance... ends the row. Position and size edits require one selected layer.
+launch. The controls also serve Path Select / Direct Select and next-shape
+defaults; stroke controls stay enabled when any eligible target has a
+stroke; multi-shape edits: [batch appearance](batch-appearance.md).
 
 A bare click (no drag) with Rectangle, Ellipse, Polygon, or Custom Shape
 opens the Create <Shape> dialog (shape_create_dialog.cpp): Width, Height,
-From Center (the click is the top-left corner, else the center), and
-per-corner radii for rectangles prefilled from the options-bar Radius. The
-result commits exactly like a drag (mode routing, Combine, vector-mask
-target, naming) through `commit_live_shape` / `handle_vector_path_committed`;
-values are remembered per tool for the session. The click test is a release on
-the press's own document pixel; any real extent commits as a drag. Line has
-no dialog (Photoshop has none), a Fixed Size style click still places its
-W x H, and Pixels mode keeps its legacy click. The options-bar W / H spins
-(`vectorShapeWidthSpin`/`vectorShapeHeightSpin`, link button for proportional
-edits) mirror the active shape layer's path bounds: shape tools show them in
-Shape mode only (disabled until a shape layer is active), Path Select /
-Direct Select and Move only with an editable shape layer
-(`ui_shape_size_row_shows_in_shape_mode_only`). A debounced edit scales the
-shape about its top-left through `transform_layer_vector_data` (live shapes
-stay live; one "Shape size" undo per edit). The Properties panel repeats the
-row (`propertiesShapeSizePanel`, one line) for an active
-editable shape layer; both share
-`handle_vector_shape_size_value_changed`
+From Center (checked, the click is the center; otherwise the top-left
+corner), and per-corner radii for rectangles prefilled from the options-bar
+Radius. The result commits exactly like a drag (mode routing, Combine,
+vector-mask target, naming); values are remembered per tool for the
+session. The click test is a release on the press's own document pixel; any
+real extent commits as a drag. Line has no dialog (Photoshop has none), a
+Fixed Size style click still places its W x H, and Pixels mode keeps its
+legacy click.
+
+The options-bar W / H spins (`vectorShapeWidthSpin`/`vectorShapeHeightSpin`,
+link button for proportional edits) mirror the active shape layer's path
+bounds: shape tools show them in Shape mode only (disabled until a shape
+layer is active), Path Select / Direct Select and Move only with an editable
+shape layer (`ui_shape_size_row_shows_in_shape_mode_only`). A debounced edit
+scales the shape about its top-left through `transform_layer_vector_data`
+(live shapes stay live; one "Shape size" undo per edit). The Properties panel
+repeats the row (`propertiesShapeSizePanel`) for an active editable shape
+layer; both share `handle_vector_shape_size_value_changed`
 (`ui_shape_size_controls_follow_move_and_properties_selection`).
 
 ## Pen tool
 
-Pen (P): click adds a corner, drag pulls symmetric handles (Alt breaks the pair), clicking
-the first anchor closes and commits, Enter commits the open path (it fills
-its implied chord, the PS open-subpath rule), Backspace pops the last
-anchor, Escape cancels; tool switches commit, document switches cancel.
-Shape mode turns the committed path into a shape layer (or extends the
-active one per Combine); other modes route to the work path. The overlay
+Pen (P): click adds a corner, drag pulls symmetric handles (Alt breaks the
+pair), clicking the first anchor closes and commits, Enter commits the open
+path (it fills its implied chord, the PS open-subpath rule), Backspace pops
+the last anchor, Escape cancels; tool switches commit, document switches
+cancel. Shape mode turns the committed path into a shape layer (or extends
+the active one per Combine); other modes route to the work path. The overlay
 draws in canvas_widget_vector_tools.cpp (canvas_widget_pen.cpp is TABLET
 input, not this tool).
 
-A badge crosshair cursor shows the click action (insert/delete/convert/
-close); one classifier (`pen_hover_hit_raw`, narrowed per tool and by the
-Auto Add/Delete option) drives cursor, click editor, and right-click menu
-([vector-commands.md](vector-commands.md)). Holding Ctrl acts as Direct
+A badge cursor shows the click action; the hover classifier, Auto
+Add/Delete, and the anchor tools are in [vector-commands.md](vector-commands.md).
+Holding Ctrl acts as Direct
 Select: with no session it latches the gesture onto the path-edit handlers
 (one "Edit path" undo entry); mid-session it drags an in-progress anchor
 without adding one. Ctrl clicks never insert, delete, close, or extend;
@@ -76,27 +73,26 @@ Polygon drags center-out with Sides and a Star inset percent (0 = plain);
 Custom Shape stamps a library shape into the drag rect (Shift keeps it
 square). Both are vector-only: the combo greys out Pixels (and the Pen) and
 shows the effective mode (Path) without changing it. They write plain paths
-(PS's polygon/custom origination descriptors: unprobed). The Line tool gains
+(PS's polygon/custom origination descriptors: unprobed). The Line tool has
 arrow start/end checkboxes (head width 5x, length 10x the weight, PS's
 proportions) encoded through the probed keyOriginLine arrow keys. The
-CustomShapeLibrary (JSON sidecars under settings/shapes, unit-box paths, v1
-text codec) ships 17 builtins: ids shape.builtin.* are append-only, geometry
-is code-authoritative (restore_default_shapes rewrites drifted builtin
-sidecars, keeping user renames). Edit > Define Custom Shape from Path adds a
-user entry.
+CustomShapeLibrary (JSON sidecars in a `shapes` folder beside the settings
+file, unit-box paths, v1 text codec) ships 17 builtins: ids shape.builtin.*
+are append-only, geometry is code-authoritative (restore_default_shapes
+rewrites drifted builtin sidecars, keeping user renames). Edit > Define
+Custom Shape from Path adds a user entry.
 
 ## Path editing (Path Select / Direct Select)
 
 Path Select (A, black arrow) selects and drags whole shape groups. Direct
-Select (Shift+A from the Path Select tool, white arrow) works per anchor: click or marquee selects,
-drag moves anchors or handle knobs (smooth pairs mirror; a collapsed handle
-on its corner anchor is not grabbable), Shift adds, arrows nudge (1 px,
-Shift 10 px, coalesced per burst), Delete removes selected anchors (subpaths
-under two anchors disappear), Escape deselects. With a selection, the
-options-bar Combine box rewrites the selected shapes' op in place. The Pen
-doubles as the point editor: click a segment to insert an anchor (exact de
-Casteljau split), click an anchor to delete it, Alt+click toggles
-corner/smooth. Any direct edit drops the touched groups' live-shape
+Select (white arrow; Shift+A cycles the A flyout) works per anchor: click or
+marquee selects, drag moves anchors or handle knobs (smooth pairs mirror; a
+collapsed handle on its corner anchor is not grabbable), Shift adds, arrows
+nudge (1 px, Shift 10 px, coalesced per burst), Delete removes selected
+anchors (subpaths under two anchors disappear), Escape deselects. With a
+selection, the options-bar Combine box rewrites the selected shapes' op in
+place. The Pen doubles as the point editor (insert by exact de Casteljau
+split, delete, Alt+click converts). Any direct edit drops the touched groups' live-shape
 annotations (PS's keyShapeInvalidated rule) and re-rasterizes; the target is
 the active shape layer, else the work path.
 
@@ -107,23 +103,23 @@ density and disabled-cross conventions). Click targets the mask path for
 pen/path tools (raster painting refuses), Ctrl-click loads the coverage as a
 selection, Alt-click toggles the grayscale view, Shift-click disables.
 Layer > Vector Mask: Reveal All (empty path = full coverage), Hide All
-(inverted empty path), Current Path (copies the work path), Delete,
-Disable, Rasterize (bakes coverage, density and any raster mask multiplied
-in, into the layer mask). While the vector-mask target is active, shape
-drags and pen commits append subpaths to the mask path.
+(inverted empty path), Current Path (copies the work path), Delete, Disable,
+Rasterize (bakes coverage, density and any raster mask multiplied in, into
+the layer mask). While the vector-mask target is active, shape drags and pen
+commits append subpaths to the mask path.
 
 ## Paths panel
 
-Tabs with Channels. Rows: saved paths (filled coverage thumbnails so
-boolean holes read, 1 px outline), the work path (italic, last), and a
-transient row for the active layer's shape or vector-mask path. Selecting a
-row targets it for pen/path tools (outranking the layer/work-path fallback);
-empty-space click deselects. Double-click saves the work path: inline
-rename, row moves to the END (DocumentPath::set_kind drops the stale 1025
-source so the writer allocates a saved-range id;
-psd_work_path_saved_as_named_round_trips). Ctrl-click (Cmd on macOS) loads
-a row's path as a selection without changing targeting; Ctrl+Enter on the
-CANVAS does the same for the targeted row (a canvas key, not a shortcut).
+Tabs with Channels. Rows: saved paths (filled coverage thumbnails so boolean
+holes read, 1 px outline), the work path (italic, last), and a transient row
+for the active layer's shape or vector-mask path. Selecting a row targets it
+for pen/path tools (outranking the layer/work-path fallback); empty-space
+click deselects. Double-click saves the work path: inline rename, row moves
+to the END (DocumentPath::set_kind drops the stale 1025 source so the writer
+allocates a saved-range id; psd_work_path_saved_as_named_round_trips).
+Ctrl-click (Cmd on macOS) loads a row's path as a selection without changing
+targeting; Ctrl+Enter on the CANVAS does the same for the targeted row (a
+canvas key, not a shortcut).
 
 Saved rows drag-reorder among themselves (frame-breaking drops revert); the
 writer assigns the sorted saved-range id set by document order so reorders
@@ -132,26 +128,24 @@ Writer invariants: new paths allocate ABOVE the highest stored id, ids
 outside 2000..2997 never enter the saved set, path-range entries normalize
 to ascending id order after upserts.
 
-While any row is selected its outline draws with EVERY tool;
-anchors/handles stay path-tool-only. A layer-owned outline follows its
-layer's Move drag or Free Transform preview
-([interactive-previews.md](interactive-previews.md)). Under a path tool the
-overlay also outlines every Layers-panel-selected shape layer with hollow
-anchors (`set_panel_selected_layer_ids`, pushed from
-`refresh_layer_controls`); only the target path gets filled anchors,
-handles, and edits. View > Show Target Path (Ctrl+Shift+H, view.target_path)
-hides the overlay without touching targeting (not persisted; a
-path-transform session always draws its box). Ctrl+H (view.selection_edges,
-PS's Extras toggle) hides it with the selection edges; a new selection
-re-shows both (ui_ctrl_h_hides_path_points_with_selection_edges).
-Canvas-side edits refresh rows and thumbnails live. The context menu's
-Clipping Path entry designates ONE saved path as the document clipping path
-(resource 2999; name underlines; exclusive). Work-path draws and layer
-activation auto-select/target their rows; activating a layer with its own
-path drops a stale work/saved-path target (vector-commands.md). Dismissal
-(empty click, or Escape once no anchor is selected) sticks per layer until
-the layer changes, the row is re-clicked, or a new drag commits; a path tool
-still draws its edit-target fallback afterward.
+A selected row's outline draws with EVERY tool; anchors/handles stay
+path-tool-only. A layer-owned outline follows its layer's Move drag or Free
+Transform preview ([interactive-previews.md](interactive-previews.md)). Under
+a path tool the overlay also outlines every Layers-panel-selected shape layer
+with hollow anchors (`set_panel_selected_layer_ids`); only the target path
+gets filled anchors, handles, and edits. View > Show Target Path
+(Ctrl+Shift+H, view.target_path, not persisted) hides the overlay without
+touching targeting; a path-transform session always draws its box. Ctrl+H
+(view.selection_edges, PS's Extras toggle) hides it with the selection edges;
+a new selection re-shows both
+(ui_ctrl_h_hides_path_points_with_selection_edges). The context menu's
+Clipping Path entry makes ONE saved path the document clipping path
+(resource 2999; name underlines). Work-path draws and layer activation
+auto-select/target their rows; activating a layer with its own path drops a
+stale work/saved-path target (vector-commands.md). Dismissal (empty click, or
+Escape with no anchor selected) sticks per layer until the layer changes, the
+row is re-clicked, or a new drag commits; a path tool still draws its
+edit-target fallback.
 
 Footer commands (row commands need a selected row; the panel refreshes on
 selectionChanged AND currentItemChanged;
@@ -160,14 +154,14 @@ ui_paths_panel_actions_follow_row_selection pins it):
 - New Path: empty, immediately targeted.
 - Fill Path: persisted dialog; FG/BG color or a PATTERN with
   Scale/Angle/Offset/Align-with-layer rows (shared PatternTileSampler; Align
-  anchors at the layer's effects reference point) plus opacity; raster-only; palette mode
-  snaps via snap_pixel_to_palette.
+  anchors at the layer's effects reference point) plus opacity; raster-only;
+  palette mode snaps via snap_pixel_to_palette.
 - Stroke Path: replays the flattened path through the BRUSH ENGINE as
   synthetic input (one "Stroke path" undo); Simulate Pressure sends tablet
   events with a sine taper; open subpaths get no implied chord.
 - Make Selection: feather (triple box blur), anti-alias, combine ops.
-- Make Work Path from Selection: tolerance 0.5-10 px (persisted); traces
-  the hard selection, fits via core/path_fit (Douglas-Peucker corners +
+- Make Work Path from Selection: tolerance 0.5-10 px (persisted); traces the
+  hard selection, fits via core/path_fit (Douglas-Peucker corners +
   Schneider cubics); outer loops Add, holes Subtract.
 - Delete Path; Duplicate Path in the row context menu ("<name> copy").
 
@@ -183,51 +177,55 @@ width never scales and the box hugs the ink, so the path maps onto the box
 inset by the stroke overhang (`shape_free_transform_delta`); the drag
 preview still stretches the stroke. Live-shape annotations survive positive
 axis-aligned scale + translate and drop otherwise (keyShapeInvalidated
-rule). Saved and work paths ride document ops. Warp refuses on vector layers.
+rule). Saved and work paths ride document ops. Warp refuses on shape layers
+and vector masks (convert to a smart object or rasterize first).
 
 ## Appearance editing and fill layers
 
-The Shape Appearance dialog opens from the vector badge, the layer context
-menu (a shape row's double-click opens Layer Style, like every row), the
-canvas right-click menu's shape section ([tools.md](tools.md)), the
-options-bar Appearance... button (Shape mode, or Path / Direct Select on an
-editable shape), Layer > Shape > Shape Appearance... (`layer.shape_appearance`),
-the Properties panel's Edit Appearance... button, and a Path Select / Direct
-Select double-click on the shape's geometry. Reset restores the factory
-appearance, fill in the foreground color (geometry stays). Controls: paint kind,
-width, alignment, caps, joins, dash presets (Custom keeps PSD dash arrays).
-`pattern_linked` anchors at the effects reference point when on and document
-origin when off; offsets add either way (PatternTileSampler).
+The Shape Appearance dialog opens from the vector badge, the layer and
+canvas context menus ([tools.md](tools.md); a shape row's double-click opens
+Layer Style, like every row), the options-bar Appearance... button, Layer >
+Shape > Shape Appearance... (`layer.shape_appearance`), the Properties
+panel's Edit Appearance..., and a Path Select / Direct Select double-click on
+the shape's geometry. Reset restores the factory appearance, fill in the
+foreground color (geometry stays). Controls: paint kind, width, alignment, caps, joins, dash presets
+(Custom keeps PSD dash arrays). `pattern_linked` anchors at the effects
+reference point when on and document origin when off; offsets add either way
+(PatternTileSampler).
 
-Geometry requires one modeled origination covering every subpath: rect bounds
-and radii, ellipse bounds, or line endpoints/weight. A radius makes a rect rounded.
-Chain buttons bracket their linked rows between labels and fields:
-`shapeGeometryLinkButton` keeps W/H in the ratio captured when switched on;
-`shapeGeometryRadiusLinkButton` edits all four radii together, on by default
-only when the corners agree. generate_live_shape_subpaths keeps live
-parameters. Dialogs are the patent-cleared route; on-canvas gizmos stay
-excluded. It also edits layer Opacity and Fill opacity, the stroke's own
-opacity (vstk strokeStyleOpacity), and Feather / Density (Edge group); all
-PSD-native, one "Shape appearance" undo entry.
+Geometry requires one modeled origination covering every subpath: rect
+bounds and radii, ellipse bounds, or line endpoints/weight. A radius makes a
+rect rounded. Chain buttons bracket their linked rows between labels and
+fields: `shapeGeometryLinkButton` keeps W/H in the ratio captured when
+switched on; `shapeGeometryRadiusLinkButton` edits all four radii together,
+on by default only when the corners agree. Dialogs are the patent-cleared
+route; on-canvas gizmos stay excluded. The dialog also edits layer Opacity and Fill opacity,
+the stroke's own opacity (vstk strokeStyleOpacity), and Feather / Density
+(Edge group); all PSD-native, one "Shape appearance" undo entry.
 
 Edits preview live and restore on cancel or exception; a PSD-read
 gradient/pattern stroke stays untouched unless re-picked. The preview
 rasterizes on a worker: the vector MODEL applies synchronously, baked pixels
 lag, requests coalesce, the pattern anchor rides a scratch layer; accept
-commits the in-flight result (60s timeout fallback). Layer > New Fill Layer
-creates Solid Color, Gradient (FG-to-BG linear), and Pattern fill layers as
-shape layers with an empty path (whole canvas); a TARGETED Paths-panel row
-becomes the new layer's shape path (PS's "current path" rule,
-build_fill_layer), and selections become raster masks. Library patterns
-adopt into the document store on use.
+commits the in-flight result (60 s timeout fallback).
 
-New Gradient/Pattern Fill stages the layer; one history entry, only on OK.
-Cancel restores the original document, active layer and pattern store
-included. Changing a path transform's layer, selection, path, or edit
-target cancels it. Sub-lattice dash lengths clamp to the raster lattice;
-excessive boundary counts fall back to a solid stroke.
+Layer > New Fill Layer creates Solid Color, Gradient (FG-to-BG linear), and
+Pattern fill layers as shape layers with an empty path (whole canvas); a
+TARGETED Paths-panel row becomes the new layer's shape path (PS's "current
+path" rule, build_fill_layer), and selections become raster masks. Library
+patterns adopt into the document store on use. New Gradient/Pattern Fill
+stages the layer; one history entry, only on OK. Cancel restores the
+original document, active layer and pattern store included. Changing a path
+transform's layer, selection, path, or edit target cancels it. Sub-lattice
+dash lengths clamp to the raster lattice; excessive boundary counts fall
+back to a solid stroke.
 
-## Photoshop file encodings (observed, PS 27.8 / July 2026)
+On 16/32-bit documents shape and fill layers keep regenerating their 8-bit
+bake, which the deep compositor reads, except gradient-only fills
+(`deep_gradient_fill_raster`: no stroke, feather, density or parts) that
+render at the document depth; see [high-bit-depth.md](high-bit-depth.md).
+
+## Photoshop file encodings (observed, PS 27.8)
 
 Codec: src/psd/psd_vector.cpp (vmsk/vsms, SoCo/GdFl/PtFl, vstk, vogk, path
 resources); model: src/core/vector_shape.hpp.
@@ -237,8 +235,8 @@ resources); model: src/core/vector_shape.hpp.
 - A shape layer is an ordinary layer record carrying a fill content block
   (`SoCo` solid / `GdFl` gradient / `PtFl` pattern) plus a `vmsk` vector
   mask block; live shapes add `vogk` (+ a 4-byte `vowv` = u32 2 beside it;
-  PS wrote vowv for rect and line kinds but not ellipse); stroked shapes add
-  `vstk`.
+  PS wrote vowv for rect and line kinds but not ellipse; Patchy writes it
+  with every vogk); stroked shapes add `vstk`.
 - **Two hard open-refusal rules** (byte bisection with COM open tests; the
   rule text and regression-test names live in ps-compat.md):
   1. Every `PtFl` fill or `vstk` stroke pattern id MUST resolve in the file's
@@ -251,8 +249,8 @@ resources); model: src/core/vector_shape.hpp.
 - Color channels are EMPTY: bounds (0,0,0,0), 2-byte compression markers
   including transparency -1. Readers rasterize vectors; writer:
   src/psd/psd_layer_records.cpp. Raster masks retain their own channels.
-- Layer record flags: bit 3 + **bit 4** (0x18). Bit 4 = "pixel data
-  irrelevant"; write it on shape/fill layers.
+- Layer record flags: bit 3 + **bit 4** (0x18; bit 4 = "pixel data
+  irrelevant"); write both on shape/fill layers.
 - `lnsr` = 'cont' for content layers ('bgnd' for Background). PS names:
   "Color Fill 1" (path-created), "Rectangle 1", "Ellipse 1", "Line 1".
 - A plain fill layer is the same structure with an empty or absent `vmsk`.
@@ -268,44 +266,41 @@ resources); model: src/core/vector_shape.hpp.
 
 - Payload: u32 version = 3, u32 flags (bit 0 invert, bit 1 not-linked, bit 2
   disabled), then 26-byte path records, padded to even length. `vsms` is a
-  legacy alternate (same payload; PS 27.8 writes `vmsk`): read both,
-  write vmsk.
+  legacy alternate (same payload; PS 27.8 writes `vmsk`): read both, write
+  vmsk.
 - Record order: one selector-6 record (fill rule; observed all zeros), one
-  selector-8 record (initial fill; u16 observed 0), then per subpath a
-  length record followed by its knot records.
+  selector-8 record (initial fill; u16 observed 0), then per subpath a length
+  record followed by its knot records.
 - Length record (selector 0 = closed, 3 = open), after the u16 selector: u16
   knot count; u16 combine op (**0 = xor, 1 = add/union, 2 = subtract,
   3 = intersect**); u16 fill-rule field (+6); 4 zero bytes; u32 shape-group
   index (0,1,2,... in file order; ties the group to its `vogk`
   keyOriginIndex); 10 zero bytes.
 - **Compound groups** (several contours sharing one group index: a donut,
-  Convert to Shape glyphs, custom-shape stamps; pinned 2026-09-26 by
-  byte-patched probes, PS 2026): the group's LEAD record carries the op and
-  the +6 field (1 = fill the group even-odd, 2 = nonzero winding; PS's own
-  compound shapes write 2); every CONTINUATION record carries op 0xFFFF and
-  +6 field 0. A continuation written with its own op and +6 field 1 is a
-  separate united contour: PS filled Patchy's donuts solid. The writer
-  emits the continuation form for any subpath sharing the previous
-  subpath's `shape_group` (lead: its op, +6 = 1, matching the renderer's
-  even-odd group rule); the reader gives a 0xFFFF continuation its lead's
-  op. PS resaves the +6 = 1 lead unchanged. Nonzero is not modeled: an
-  untouched +6 = 2 layer re-emits verbatim, an edited one regenerates as
-  even-odd (differs only for same-winding nested contours). Fixtures:
-  [vector-fixtures.md](vector-fixtures.md).
+  Convert to Shape glyphs, custom-shape stamps; pinned by byte-patched
+  probes): the group's LEAD record carries the op and the +6 field (1 = fill
+  the group even-odd, 2 = nonzero winding; PS's own compound shapes write 2);
+  every CONTINUATION record carries op 0xFFFF and +6 field 0. A continuation
+  written with its own op and +6 field 1 is a separate united contour: PS
+  fills such a donut solid. The writer emits the continuation form for any
+  subpath sharing the previous subpath's `shape_group` (lead: its op, +6 = 1,
+  matching the renderer's even-odd group rule); the reader gives a 0xFFFF
+  continuation its lead's op. PS resaves the +6 = 1 lead unchanged. Nonzero
+  is not modeled: an untouched +6 = 2 layer re-emits verbatim, an edited one
+  regenerates as even-odd (differs only for same-winding nested contours).
+  Fixtures: [vector-fixtures.md](vector-fixtures.md).
 - CS4-era files use the same grammar: leads op 1 / +6 = 2, cutouts UNSET
   (0xFFFF, +6 field 0), group index 0 on every record (Flat-filter-list.psd).
-  A 0xFFFF record whose group differs from the previous record's maps to
-  xor (parity fill). Pinned by
-  `psd_legacy_vmsk_unset_combine_op_fills_by_parity`; real-file coverage
-  rides `psd_16_bit_flat_filter_list_loads_if_available`.
+  A 0xFFFF record whose group differs from the previous record's maps to xor
+  (parity fill). Pinned by `psd_legacy_vmsk_unset_combine_op_fills_by_parity`;
+  real-file coverage rides `psd_16_bit_flat_filter_list_loads_if_available`.
 - Knot records: selector 1 (closed smooth/linked), 2 (closed corner), 4
   (open smooth), 5 (open corner). Three coordinate pairs, each (y then x),
   each value i32 8.24 fixed point as a FRACTION of the canvas dimension
-  (y/height, x/width). Pair order: **control toward the PREVIOUS anchor
-  (in), then the anchor, then the control toward the NEXT anchor (out)**,
-  pinned numerically against PS's live-ellipse knots and a
-  rule-distinguishing donut render. Corner knots store all three pairs equal
-  when no handles.
+  (y/height, x/width). Pair order: **control toward the PREVIOUS anchor (in),
+  then the anchor, then the control toward the NEXT anchor (out)**, pinned
+  numerically against PS's live-ellipse knots and a rule-distinguishing donut
+  render. Corner knots store all three pairs equal when no handles.
 
 ### Render semantics (pinned by fixture BMPs)
 
@@ -380,14 +375,15 @@ captured order (kind-dependent):
 Live-shape knot constructions (kappa handles, corner orders):
 src/core/vector_live_shapes.hpp.
 
-### GdFl gradient fill geometry (calibrated July 2026, probe5c/5d/5e)
+### GdFl gradient fill geometry (probe5c/5d/5e)
 
 - Linear span = the CENTER CHORD of the aligned bounds:
   min(w/|cos a|, h/|sin a|), centered on the bounds center (measured within
   0.5 px at angles 0/20/37/60/75/90). Layer-style overlays deliberately keep
   their corner-to-corner projection (GradientSpanBasis::LayerProjection);
-  the two agree at exact axis angles. Pixel sampling and the whole-pixel
-  ends: [gradients.md](gradients.md), "Gradient fill layer geometry".
+  the two agree at exact axis angles. Pixel-corner sampling, the whole-pixel
+  ends, and a maskless fill layer aligning to its user mask's visible bounds:
+  [gradients.md](gradients.md), "Gradient fill layer geometry".
 - Classic easing applies even to TWO-stop ramps: per-segment catmull-rom
   with duplicated virtual endpoints (f(t) = 0.5t + 1.5t^2 - t^3 for a plain
   2-stop ramp), scaled by smoothness/4096. The OPACITY ramp eases
@@ -396,8 +392,9 @@ src/core/vector_live_shapes.hpp.
 
 ### Stroke rasterization (winding, lattice, bounds)
 
-- Aligned dashes retain original-width caps; zero-length dots carry their path
-  tangent. Geometry, tests and residuals: [vector-fixtures.md](vector-fixtures.md).
+- Aligned dashes retain original-width caps; zero-length dots carry their
+  path tangent. Geometry, tests and residuals:
+  [vector-fixtures.md](vector-fixtures.md).
 - The stroker builds the band as a union of per-segment quads plus join/cap
   wedges under the nonzero rule; every loop must carry the SAME orientation
   (append_outline_loop normalizes by signed area), or an opposite-winding
@@ -410,10 +407,11 @@ src/core/vector_live_shapes.hpp.
   same adaptive flatten_cubic as fills. Pinned by
   stroke_bezier_circle_is_translation_stable,
   stroke_miter_spike_stays_in_bounds,
-  stroke_curve_is_insensitive_to_sub_quantum_anchor_jitter, stroke golden 3.
-- Known gap: whether PS reads `strokeStyleMiterLimit` 100 as an SVG-style
-  ratio (Patchy's reading; a bare doub, not #Prc) or a percentage; settle
-  with a COM probe of an acute mitered corner at limit 100 vs 4.
+  stroke_curve_is_insensitive_to_sub_quantum_anchor_jitter, and the
+  circle-nonlattice entry of stroke_golden_digests_are_stable.
+- Known gap: PS's `strokeStyleMiterLimit` 100 (a bare doub, not #Prc) may
+  be a percentage rather than the SVG-style ratio Patchy reads; settle with
+  a COM probe of an acute mitered corner at limit 100 vs 4.
 
 ### Interior effects vs the vector stroke
 
@@ -421,10 +419,10 @@ Overlays cover the fill plane only and the vector stroke composites above
 them; the calibration and renderer notes live in
 [layer-effects-render.md](layer-effects-render.md).
 
-PS's baked derived plane (mask flags bit 3) holds UNFEATHERED path
-coverage; the feather applies at render. Patchy bakes its own feathered
-cache: the raster mask's gaussian (mask_feather_blur) but NOT canvas-clamped:
-a path ending on the canvas edge fades there (photoshop-vector-mask-feather.psd).
+PS's baked derived plane (mask flags bit 3) holds UNFEATHERED path coverage;
+the feather applies at render. Patchy bakes its own feathered cache: the
+raster mask's gaussian (mask_feather_blur) but NOT canvas-clamped: a path
+ending on the canvas edge fades there (photoshop-vector-mask-feather.psd).
 
 ### Vector masks on layers (mask data section, channels)
 
@@ -442,15 +440,14 @@ a path ending on the canvas edge fades there (photoshop-vector-mask-feather.psd)
 - Density/feather use the parameters form: section flags bit 4, then a
   parameter flags byte (bit 0 user density u8, bit 1 user feather f64, bit 2
   vector density u8 raw, bit 3 vector feather f64 BE), values in that order.
-  With a vector parameter set PS ALSO bakes a derived plane into -2
-  (section flags bit 3, section rect = baked rect).
-- Raster + PARAMETERIZED vector mask (photoshop-both-masks-params.psd):
-  a 48-byte section. -2 is PS's COMBINED render (flags 0x18); the
-  painted mask is channel -3, sized by the real-user-mask fields (flags u8,
-  default u8, rect), which sit BEFORE the parameter byte (Adobe's spec says
-  after). Patchy loads -3 as the mask and drops -2. Real
-  fields need bit 3 or no bit 4 (PS reads Patchy's 40-byte painted
-  all-four form parameters-first).
+  With a vector parameter set PS ALSO bakes a derived plane into -2 (section
+  flags bit 3, section rect = baked rect).
+- Raster + PARAMETERIZED vector mask (photoshop-both-masks-params.psd): a
+  48-byte section. -2 is PS's COMBINED render (flags 0x18); the painted mask
+  is channel -3, sized by the real-user-mask fields (flags u8, default u8,
+  rect), which sit BEFORE the parameter byte (Adobe's spec says after).
+  Patchy loads -3 as the mask and drops -2. Real fields need bit 3 or no
+  bit 4 (PS reads Patchy's 40-byte painted all-four form parameters-first).
 - Raster-mask density/feather (photoshop-user-mask-params.psd): PS sets bits
   0/1 singly, pads the section to a multiple of 4, keeps -2 the PAINTED
   plane. Both apply at render (LayerMask::density/feather): density as the
@@ -479,32 +476,28 @@ Resource-id constants live in src/core/document_path.hpp.
 - PS re-sorts/upserts these like any resource; Patchy preserves unknown ones
   wholesale.
 - PSB: all vector keys use the 8BIM signature + 4-byte length form (none are
-  in the 8-byte LARGE_KEYS set). Fixture: photoshop-shape.psb.
-
-## Fixture inventory and known render divergences
-
-See [vector-fixtures.md](vector-fixtures.md).
+  in the 8-byte-length set, `tagged_block_length_is_u64` in
+  src/psd/psd_io_common.cpp). Fixture: photoshop-shape.psb.
 
 ## Patents and trademarks (assessed July 2026)
 
 Claim-level record: docs/patent-research.md. docs/legal-constraints.md binds
 this section.
 
-Cleared as expired prior art (reasoning, not legal advice): classic
-pen-tool bezier editing (Illustrator 88 era); shape layers with editable
-fill, vector clipping masks, combine ops, and vector masks (PS 6/7, patents
-expired ~2021-2024); boolean path combines, even-odd/nonzero fills, stroke
-dashing, caps/joins (decades-old techniques); selection-to-path conversion
-via boundary tracing, Douglas-Peucker (1973), and Schneider cubic fitting
-(1990; shipped in Photoshop 3, 1994).
+Cleared as expired prior art (reasoning, not legal advice): classic pen-tool
+bezier editing (Illustrator 88 era); shape layers with editable fill, vector
+clipping masks, combine ops, and vector masks (PS 6/7, patents expired
+~2021-2024); boolean path combines, even-odd/nonzero fills, stroke dashing,
+caps/joins (decades-old techniques); selection-to-path conversion via
+boundary tracing, Douglas-Peucker (1973), and Schneider cubic fitting (1990;
+shipped in Photoshop 3, 1994).
 
-Excluded pending their own review (do NOT build without a new patent
-check):
+Excluded pending their own review (do NOT build without a new patent check):
 
 - Curvature Pen tool (2018+) and any auto-fitting curve-through-points UX.
-- Edge-magnetic vector snapping. (Image tracing itself was cleared with
-  boundaries on 2026-08-23: docs/image-trace.md and the "Vector tracing"
-  bullet in docs/legal-constraints.md.)
+- Edge-magnetic vector snapping. (Image tracing itself is cleared with
+  boundaries: docs/image-trace.md and the "Vector tracing" bullet in
+  docs/legal-constraints.md.)
 - Snap-to-pixel "align edges" automatic pixel-grid fitting of vector renders
   (plain user-invoked grid/guide snapping of anchors is fine).
 - On-canvas live-shape gizmo widgets (in-canvas radius handles etc.);

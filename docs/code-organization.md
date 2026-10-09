@@ -4,17 +4,15 @@ Read this before moving functions, adding members to the large UI classes, split
 
 ## MainWindow
 
-Vector-preserving merge planning, output preparation, and its dialog live in `ui/layer_merge.{hpp,cpp}`; `MainWindow::merge_down` retains command selection and the internal text-render callback. See [layer-merging.md](layer-merging.md).
-
 `MainWindow` is one class declared in `src/ui/main_window.hpp`, with its implementation split by area:
 
-- `main_window_chrome.cpp` - frameless-window machinery, `configure_window_chrome()`, and `use_custom_window_chrome()`.
+- `main_window_chrome.cpp` - frameless-window machinery: `configure_window_chrome()`, `use_custom_window_chrome()`, the Windows `nativeEvent` title-bar hit test ([platform.md](platform.md)), resize edges, maximize/restore, and window geometry save/restore.
 - `main_window_palette.cpp` - palette-mode mutations, palette file I/O, panel/chip refresh, and compliance scanning.
 - `main_window_adjustments.cpp` - adjustment-layer creation, editing, previews, and the destructive posterize/threshold/brightness-contrast appliers. The four `apply_levels/curves/hue_saturation/color_balance_adjustment` members live here because their primary callers are the `new_*_adjustment_layer` flows; the destructive dialogs call across TUs through `main_window.hpp`.
 - `main_window_filters.cpp` - Smart Filter creation/editing/stack operations, the destructive Filter-menu `apply_filter` flow, Liquify, and the Filter Gallery, including the gallery's cancellable preview state machine.
 - `main_window_destructive_adjustments.cpp` - the destructive Levels, Curves, Hue/Saturation, and Color Balance dialog flows, driven by the shared async pixel-preview launcher in `main_window_shared`.
 - `main_window_actions.cpp` - the `create_actions()` orchestrator, translation binding, and retranslation machinery. The phase builders live in `main_window_actions_menus.cpp` (menu bar), `main_window_actions_tool_palette.cpp` (tool palette, `add_tool_action`, tool icons), and `main_window_actions_options_bar.cpp` (options bar, `FlowLayout`, option-bar widgets). Cross-phase state travels through `ActionBuildContext` in `main_window_actions_internal.hpp`, which no TU outside `main_window_actions*.cpp` may include; the context dies when `create_actions()` returns, so lambdas must never capture it. Construction order is the contract: menus, tool palette, options bar, translation binding, final refresh, and retranslation callbacks run in registration order.
-- `main_window_layer_ops.cpp` - clipboard operations, transform/warp dialogs, layer/folder operations, masks, layer styles and context menu, delete/move, merge-visible, fill/clear/stroke, selection geometry, flips, crop-to-selection, and canvas rotation. `rasterize_active_layers`, `rasterize_active_layer_styles`, and `merge_down` stay in `main_window.cpp` because they render text through the internal text pipeline.
+- `main_window_layer_ops.cpp` - clipboard operations, cross-document layer copies (`copy_layers_between_sessions`), transform/warp dialogs, layer/folder operations, masks, layer styles and context menu, delete/move, merge-visible, fill/clear/stroke, selection geometry, flips, crop-to-selection, and canvas rotation. `rasterize_active_layers`, `rasterize_active_layer_styles`, and `merge_down` stay in `main_window.cpp` because they render text through the internal text pipeline.
 - `main_window_tool_options.cpp` - preset-library accessors, brush-tip import/define, per-layer controls, colors and gradients, tool activation/settings, transform-session controls, options-bar registration, selection-mode buttons, and brush-control synchronization. `current_text_color` and `sync_text_options_from_active_editor` stay in `main_window.cpp` because they use internal text helpers.
 - `main_window_theme.cpp` - `photoshop_style()` and application-wide QSS, declared in `main_window_shared.hpp`.
 - `main_window_plugins.cpp` - legacy Photoshop plug-in folder scanning, the category submenu, and running a plug-in through the out-of-process host (`legacy_plugin_runner_win.cpp`); see docs/plugins.md.
@@ -29,9 +27,13 @@ Vector-preserving merge planning, output preparation, and its dialog live in `ui
 - `main_window_vector.cpp` - shape/fill layers, vector masks, work-path operations, and the shape-appearance preview.
 - `main_window_channels.cpp` - document channels, alpha channels, Quick Mask, and channel-panel refresh.
 - `main_window_paths.cpp` - the Paths panel, path thumbnails, and path/selection conversions.
-- `main_window_scripting.cpp` - the Scripts menu, script editor, and CLI script execution.
+- `main_window_scripting.cpp` - the Scripts menu, per-script commands and hotkeys (`refresh_script_commands`), the script context menu, the script editor, and CLI script execution ([scripting.md](scripting.md)).
+- `main_window_brush_automation.cpp` - the automation brush-preset library used by scripted and MCP strokes.
+- `main_window_recovery.cpp` - document recovery scheduling, writes, and orphaned-recovery handling ([document-recovery.md](document-recovery.md)).
 - `main_window_stress_test.cpp` - the stress-test runner and its CLI entry points.
 - `main_window_shared.{hpp,cpp}` - helpers used by more than one MainWindow TU, including the async pixel-preview state/launcher and the progress-dialog filter-progress adapter.
+
+Vector-preserving merge planning, output preparation, and its dialog live in `ui/layer_merge.{hpp,cpp}`; `MainWindow::merge_down` retains command selection and the internal text-render callback. See [layer-merging.md](layer-merging.md).
 
 Per-file helpers stay in an anonymous namespace. When a second TU needs one, move it to `main_window_shared`, declare it in the header, and remove the old definition. A duplicated helper with a static local forks its state; an extern declaration beside a same-name anonymous-namespace definition makes calls ambiguous. The split TUs deliberately repeat `main_window.cpp`'s complete include block.
 
@@ -39,7 +41,7 @@ Per-file helpers stay in an anonymous namespace. When a second TU needs one, mov
 
 ### Session lifetime and startup
 
-Startup creates no document. The start panel in `src/ui/start_panel.cpp` overlays `document_tabs_` only while `sessions_` is empty. `load_tool_settings()` runs once when the first document session is added because it needs a canvas. `MainWindow::begin_startup_update_check` is called only from `src/app/main.cpp`, so tests do not start network requests. `show_window` supplies the historical test document; use `show_window_empty` for real empty-workspace behavior.
+Startup creates no document. The start panel in `src/ui/start_panel.cpp` overlays `document_tabs_` only while `sessions_` is empty. `load_tool_settings()` runs once when the first document session is added because it needs a canvas. Only `src/app/main.cpp` calls `MainWindow::begin_startup_update_check`, never construction, so tests start no network request unless one calls it against a local manifest server. `show_window` supplies the historical test document; use `show_window_empty` for real empty-workspace behavior.
 
 `add_document_session` initializes history and hides the start panel before adding
 the tab with signals blocked, then explicitly calls `activate_document_canvas`
@@ -59,13 +61,13 @@ Session data must outlive canvas event delivery. `~MainWindow` detaches every ca
 `render/raster_view_context.hpp` scopes full paint bounds and transient style-mask
 behavior to a viewport renderer's compositor call; normal renders have no context.
 
-`CanvasWidget` is split into `canvas_widget_*.cpp` files for events, render, view, guides, selection, selection engines, brush, draw tools, transform, move, pen, vector tools, and cursors. Free transform and warp remain together in `canvas_widget_transform.cpp` because they share pending-session state. Promote cross-TU helpers to `canvas_widget_shared.{hpp,cpp}`.
+`CanvasWidget` is split into `canvas_widget_*.cpp` files for events, render, view, guides, selection, selection engines, brush, draw tools, crop, transform, move, pen, vector tools, Patch tool, Spot Healing, script strokes, and cursors. Free transform and warp remain together in `canvas_widget_transform.cpp` because they share pending-session state. Promote cross-TU helpers to `canvas_widget_shared.{hpp,cpp}`.
 
 `canvas_widget.cpp` keeps construction, document lifecycle, setters, smart-filter-mask targeting, callback plumbing, and picking helpers. Patent-constraint comments for Quick Select solve-on-release and Magnetic Lasso finish-time region construction stay verbatim with their functions in `canvas_widget_selection_engines.cpp`.
 
 ## PSD codec
 
-The PSD codec uses one TU per block family: `psd_channel_data`, `psd_image_resources`, `psd_adjustments`, `psd_layer_styles`, `psd_text_read`, `psd_text_write`, `psd_text_legacy` (the PS 5.x `tySh` record), `psd_layer_records`, `psd_smart_objects`, `psd_vector`, `psd_filter_effects`, and `psd_patterns`, with shared descriptor and big-endian primitives in `psd_descriptor` and `psd_binary`. `psd_layer_styles` owns the `psd_layer_effects.hpp` exports used by ASL I/O.
+The PSD codec uses one TU per block family: `psd_channel_data`, `psd_image_resources`, `psd_adjustments`, `psd_layer_styles`, `psd_text_read`, `psd_text_write`, `psd_text_legacy` (the PS 5.x `tySh` record), `psd_text_engine_block` (the document `Txt2` block, with its generated `psd_text_engine_template`; [txt2.md](txt2.md)), `engine_data` (EngineData parsing), `psd_layer_records`, `psd_smart_objects`, `psd_vector`, `psd_filter_effects`, and `psd_patterns`, with shared descriptor and big-endian primitives in `psd_descriptor` and `psd_binary`. `psd_layer_styles` owns the `psd_layer_effects.hpp` exports used by ASL I/O.
 
 Shared internal constants, record types, and declarations live in `psd_io_internal.hpp`; never include it outside `src/psd`. Shared plumbing definitions live in `psd_io_common.cpp`. `psd_document_io.cpp` keeps the read drivers and public `DocumentIo` API. The writer is byte-pinned, so any body change must satisfy the serialization canaries.
 

@@ -22,8 +22,8 @@ Component has carried a JPEG XR codec since Vista.
 
 Both the decoder (`CLSID_WICWmpDecoder`) and the encoder are in-box on every supported
 Windows, so unlike HEIF there is no Store package to probe, no missing-codec markers, no
-Store deep link, and no codec of Patchy's own. `patchy_formats` already linked
-`windowscodecs` and `ole32` for the HEIF reader, so this added no dependency.
+Store deep link, and no codec of Patchy's own. It shares `patchy_formats`' Windows link
+of `windowscodecs` and `ole32` with the HEIF reader.
 
 No other platform has a decoder and Qt ships no JPEG XR plugin, so `read_jxr` and
 `write_jxr` always throw there. The whole filter-table row is gated on
@@ -37,8 +37,8 @@ Files:
   pinned by tests on every platform.
 - `jxr_document_io_win.cpp`: WIC decode and encode.
 - `wic_com.hpp`: `ComPtr`, `CoInitGuard`, `hresult_text`, `create_srgb_transform`, shared
-  with `heif_document_io_win.cpp` (they were extracted from it). Windows-only, included
-  only from sources guarded by `WIN32` in CMakeLists.txt.
+  with `heif_document_io_win.cpp`. Windows-only, included only from sources guarded by
+  `WIN32` in CMakeLists.txt.
 
 `jxr::jxr_extensions()` is the single source of truth for the registry, the dialog table
 and the writer branch. `.wdp` and `.hdp` are the pre-standardization HD Photo extensions
@@ -53,7 +53,8 @@ pins the difference.
 
 Save As and Export raise a quality plus Lossless dialog, persisting `saveOptions/jxrQuality`
 (default 90) and `saveOptions/jxrLossless` (default false). Those keys are a compatibility
-contract; never rename them.
+contract; never rename them. Scripts pass `{quality, lossless}` to `doc.saveAs`/`exportAs`
+(docs/scripting.md "Explicit save options").
 
 Encoder details:
 
@@ -65,12 +66,14 @@ Encoder details:
   ordinary screenshot does not grow a pointless alpha plane.
 - `SetPixelFormat` negotiates: WIC may not honor the request, so pixels are packed to
   whatever it returns, not to what was asked for.
-- Output is always 8-bit. Patchy's pipeline holds nothing deeper, so a file opened from an
-  HDR capture is written back as the tone mapped image, which the dialog says out loud.
+- Output is always 8-bit, so a file opened from an HDR capture is written back as the tone
+  mapped image, which the dialog's `jxrSaveNote` says.
 
 ## The HDR tone map
 
-The reader splits on the frame's numeric representation, read through
+Every JPEG XR opens as an 8-bit document, also with deep editing on (native float JXR is
+open work in [high-bit-depth.md](high-bit-depth.md) Phase 8). The reader splits on the
+frame's numeric representation, read through
 `IWICPixelFormatInfo2::GetNumericRepresentation`. That is deliberately not a match against a
 list of float GUIDs: the query keeps working if the codec grows a format.
 
@@ -109,9 +112,9 @@ halves meet without a visible crease. The scale that satisfies both constraints 
 Alpha is linear coverage and takes neither the curve nor the sRGB transfer. Negative and NaN
 color components floor at 0; a NaN alpha sorts to opaque instead.
 
-The constants sit in one named block precisely so the natural follow-up, a Camera Raw-style
-develop dialog with exposure and ceiling sliders, can turn them into parameters without
-moving the math. Nothing else should hard-code them.
+The constants sit in one named block in jxr_document_io.cpp so a future develop dialog
+(exposure and ceiling sliders) can turn them into parameters without moving the math.
+Nothing else should hard-code them. DDS float sources reuse this curve ([dds.md](dds.md)).
 
 ## Tests and known gaps
 

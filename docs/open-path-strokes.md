@@ -12,10 +12,11 @@ The PSD writer must use a representation Photoshop renders with open ends.
 
 ## Native representation
 
-For solid, centered strokes on a shape with multiple subpaths and at least one
-open contour, `prepare_compound_vector_psd` expands a temporary document through
-`expand_open_path_strokes` in `core/vector_compound.cpp`. Compound vector parts
-expand first, so the same rule applies inside merged artwork. Saving does not
+For solid, centered, enabled strokes on an unlocked shape with an enabled path,
+multiple subpaths, and at least one open contour (`needs_open_path_strokes`),
+`prepare_compound_vector_psd` (psd_image_resources.cpp) expands a temporary
+document through `expand_open_path_strokes` in `core/vector_compound.cpp`.
+Compound vector parts expand first, so the same rule applies inside merged artwork. Saving does not
 change the source document, geometry, selection, layer ids, or history.
 
 The native group carries the original layer's properties. Shapes with enabled
@@ -31,8 +32,8 @@ existing compound-vector convention. All content remains editable in Photoshop.
 
 Photoshop 27.8 accepts 8000 native layer records but rejects 8001 with a
 composite-only fallback dialog, even under `DialogModes.NO`. Each folder adds
-two records. The writer checks this limit after expansion and refuses an
-oversized save before writing the destination. Dense line art depends on
+two records. The writer (psd_document_io.cpp) checks this limit after expansion
+and refuses an oversized save before writing the destination. Dense line art depends on
 omitting redundant stroke folders; the reader accepts both group layouts.
 
 This conversion currently covers solid centered strokes. Gradient/pattern
@@ -42,8 +43,8 @@ alignment. Photoshop/Patchy antialiasing can differ at stroke edges.
 
 ## Round trip and foreign edits
 
-The group association uses role 3 in the existing image resource 4211 (`PtcV`,
-version 1). No new resource id or private per-layer tag is written. The runtime
+The group association uses role 3 (`CompoundVectorGroupKind::OpenPathStrokes`)
+in the existing image resource 4211 (`PtcV`, version 1). No new resource id or private per-layer tag is written. The runtime
 marker `patchy.psd.openPathStrokes` is only layer metadata; the resource maps the
 native group `lyid` to the role. Older readers that do not know the role retain
 ordinary editable native groups.
@@ -64,7 +65,8 @@ stored with native layer opacity's 8-bit precision.
 
 `test-fixtures/psd/patchy-open-path-strokes.psd` is a small legacy Patchy-authored
 regression fixture containing single solid/dashed open paths, a closed control,
-and a pair of open paths on one layer. `psd_open_path_strokes_*` checks native
+and a pair of open paths on one layer. `psd_open_path_strokes_*`
+(tests/core/psd_vector_fixtures_tests.cpp) checks native
 single-contour stroke children, PSD/PSB restoration, source preservation,
 deterministic output, opacity, and safe handling of foreign edits.
 

@@ -16,7 +16,7 @@ For bug reports and feature requests, please [open an issue](https://github.com/
 
 ## Download
 
-**Latest release: 1.07** · October 7, 2026 · [Release notes](#whats-new) · [All releases](https://github.com/SethRobinson/Patchy/releases)
+**Latest release: 1.08** · October 10, 2026 · [Release notes](#whats-new) · [All releases](https://github.com/SethRobinson/Patchy/releases)
 
 Windows releases are code signed by Seth A. Robinson; the macOS app is signed and
 notarized (Robinson Technologies Corporation); the Linux Flatpak repository is GPG
@@ -89,8 +89,8 @@ See it in action.  Click an image for the full-size capture.
 | **Paint and retouch** | Pressure-aware brushes, Mixer Brush, stroke smoothing, healing, cloning, Patch, Remove Object, selections, and Liquify. |
 | **Text and vectors** | Rich and vertical text, paragraph controls, Warp Text, Pen paths, shape layers, vector masks, SVG, and image tracing. |
 | **PDF documents** | Import pages as editable text, vectors, and images on desktop; export single or multi-page PDFs with editable or flattened content. |
-| **Photos and other formats** | Camera Raw development, HEIC/HEIF photos, layered Affinity import, and common image formats. |
-| **Pixel art and game assets** | Named palettes, indexed export, seamless tiling, sprite sheets, image sequences, and animated GIF and WebP. |
+| **Photos and other formats** | 16-bit and 32-bit (HDR) editing, Camera Raw development, HEIC/HEIF photos, layered Affinity import, and common image formats. |
+| **Pixel art and game assets** | Named palettes, indexed export, seamless tiling, sprite sheets, image sequences, DDS textures, and animated GIF and WebP. |
 | **Extend your workflow** | Legacy Photoshop filters on Windows, JavaScript scripts, batch processing, command-line tools, and local MCP control. |
 
 [Full feature list and format support](docs/features.md) · [Scripting guide](scripts/bundled/scripting-guide.md) · [AI control setup](docs/ai-control.md)
@@ -119,11 +119,22 @@ renders and difference maps for all eight columns. Read the
 [full comparison and methodology](docs/psd-compatibility-benchmark.md) for the
 tables, per-folder results, scoring rules, and limitations.
 
-**Know the limits:** editing is RGB/RGBA 8-bit; there is no GPU acceleration or
-CMYK/Lab/16-bit/32-bit editing. Unsupported Smart Filters can remain preview-locked,
+**Know the limits:** editing is RGB at 8, 16, or 32 bits per channel (the browser
+build stops at 16). CMYK, Lab, and the other color modes convert to RGB on open, and
+there is no GPU acceleration. Unsupported Smart Filters can remain preview-locked,
 and Affinity import has format-specific limitations. See [current compatibility](docs/features.md#current-status).
 
 ## What's New
+
+### 1.08 - October 10, 2026
+
+- 16-bit and 32-bit editing: PSD, PSB, PNG and TIFF files open and save at their bit depth, and Image > Mode switches a document between 8, 16 and 32 bits per channel. Painting, retouching, transforms, layer operations, adjustment layers, HDR Toning, the Filter Gallery and 8BF plug-ins (16-bit) work at depth, with Photoshop's 32-bit blend mode rules. New documents still start at 8 bits, and the browser build stops at 16 bits
+- DDS textures: open BC1 to BC7 files, including cubemaps, volume and array textures, and save uncompressed, DXT1, DXT5, BC4, BC5 or BC7 with optional mipmaps. Automatic follows the opened file's format, and Preview Mipmaps shows every level ([issue 81](https://github.com/SethRobinson/Patchy/issues/81))
+- Text inside shapes: the Type tool flows paragraph text inside a closed path or shape, saved as native Photoshop area text ([issue 80](https://github.com/SethRobinson/Patchy/issues/80))
+- Gradient fill layers span their mask's visible area and land on the same pixel edges as Photoshop
+- Windows: a single click on the title bar no longer restores a maximized window; double-click or drag it instead ([issue 82](https://github.com/SethRobinson/Patchy/issues/82)). Dialogs now open inside the visible screen area
+- Scripting: `doc.saveAs` and `doc.exportAs` take per-format options (`exportAs` writes a copy), scripts can declare a default hotkey with `@hotkey` that Preferences can change, File > Scripts entries get the Script Manager's right-click menu, and `patchy.scripts.install`/`setHotkey` add a script and its key in one step. A Quick Export DDS example script is included
+- Web build: Safari now gets the same multithreaded build as other browsers
 
 ### 1.07 - October 7, 2026
 
@@ -132,23 +143,6 @@ and Affinity import has format-specific limitations. See [current compatibility]
 - Pressing Alt mid-drag draws a marquee or crop box from the center, and on Windows Alt+Space mid-drag slides the box instead of opening the window menu ([issue 78](https://github.com/SethRobinson/Patchy/issues/78))
 - The Shape Appearance dialog opens sized to all of its rows, without a scrollbar
 - Web build: copying an image to the clipboard works again in Chromium browsers
-
-### 1.06 - October 6, 2026
-
-- Crop tool: it frames the canvas when selected, adopts the current selection, and has a Style menu with a Size mode for typing an exact Width and Height. Alt resizes the box about its center and Space slides it during a handle drag ([issue 66](https://github.com/SethRobinson/Patchy/issues/66))
-- Move tool: Alt-drag duplicates the layer, Ctrl+click selects the layer under the pointer, the Auto-Select setting is remembered, and artwork on the pasteboard can be outlined and grabbed ([issue 69](https://github.com/SethRobinson/Patchy/issues/69), [issue 73](https://github.com/SethRobinson/Patchy/issues/73))
-- Zoom In/Out and Zoom tool clicks step along Photoshop's zoom levels, and 100% is one document pixel per screen pixel on scaled displays ([issue 77](https://github.com/SethRobinson/Patchy/issues/77), [issue 75](https://github.com/SethRobinson/Patchy/issues/75))
-- Changing the foreground color or picking with the Eyedropper recolors the selected shape ([issue 67](https://github.com/SethRobinson/Patchy/issues/67))
-- Text: the keypad Enter key commits the text and a triple click selects a line ([issue 71](https://github.com/SethRobinson/Patchy/issues/71), [issue 74](https://github.com/SethRobinson/Patchy/issues/74))
-- Closing a modified document offers Save, Don't Save, and Cancel ([issue 70](https://github.com/SethRobinson/Patchy/issues/70)), the color picker opens with the hex field selected ([issue 68](https://github.com/SethRobinson/Patchy/issues/68)), options-bar labels are plain text instead of chips ([issue 76](https://github.com/SethRobinson/Patchy/issues/76)), and double-clicking a New Document preset creates the document
-- PSD compatibility: Bitmap, Indexed, Duotone, Lab and Multichannel PSDs open by converting to RGB, adjustment layers in CMYK and grayscale documents apply to their own channels, and the Exposure adjustment layer is supported. Stroke effects on semi-transparent content, group Fill opacity, noise gradient fills, Divide, Levels and Posterize are closer to Photoshop ([issue 65](https://github.com/SethRobinson/Patchy/issues/65))
-- Selection Feather and Anti-alias are kept per tool and remembered between sessions ([issue 64](https://github.com/SethRobinson/Patchy/issues/64))
-- Layers above a layer being transformed stay visible during the drag ([issue 72](https://github.com/SethRobinson/Patchy/issues/72)), and clicking a blank area of the Layers panel deselects every layer
-- Scripting: `layer.rerenderText()` and `layer.rerenderSmartObject()`
-  
-- Testy V2 written, it's a more accurate way to test PSD compatibilty of various apps,, it's a WIP but you can see a run [here](https://www.rtsoft.com/testy/2026-10-06/).  
-
-- I added some people to the credits (Kevdoy had a TON of bug reports today), thanks folks!)  But then the credits got too big, so I moved them to the Help->About screen as being on the main screen actually hurt the real-estate needed to show more recent files.  If anybody is like "no, don't put me in the credits, jerk" just let me know.
 
 [Older releases](RELEASE-HISTORY.md)
 
@@ -196,7 +190,7 @@ I mean, that's kind the power of open source, amplified.
 
 Whatever AI you use (the smarter the better), tell it (or more likely, it's reading this right now) to read AGENTS.md before doing anything else. It contains the build and repository-wide rules, then routes feature work to the relevant document under `docs/`.
 
-There are 2600+ regression and benchmarking tests. AGENTS.md links agents to the testing guide that explains how to select and run them.  Due to the size of some of the test files I use they aren't all included, it will skip tests that require missing files.\
+There are 2800+ regression and benchmarking tests. AGENTS.md links agents to the testing guide that explains how to select and run them.  Due to the size of some of the test files I use they aren't all included, it will skip tests that require missing files.\
 \
 I probably don't want any major features coming from outside, as there are wrong and right ways to do things, some of it a bit subjective. Remember, you can always go crazy in your own fork, have some fun!\
 \
@@ -210,6 +204,6 @@ Also, note that certain features are crippled or not included due to Adobe paten
 
 Created by Seth A. Robinson - [Homepage](https://www.rtsoft.com/) | [Blog](https://www.codedojo.com/) | [Twitter](https://twitter.com/rtsoft) | [Bluesky](https://bsky.app/profile/rtsoft.com) | [Mastodon](https://mastodon.gamedev.place/@rtsoft)
 
-Incredible people who donated suggestions, bug reports, and code: [mcapogna](https://github.com/mcapogna), [csbun](https://github.com/csbun), [ifloppy](https://github.com/ifloppy), [lucastucious](https://github.com/lucastucious), [c-sanchez](https://github.com/c-sanchez), [egofree71](https://github.com/egofree71), [PorkingMane](https://github.com/PorkingMane), [alexanderadam](https://github.com/alexanderadam), [danielmigueltejedor](https://github.com/danielmigueltejedor), [ProShi](https://github.com/ProShi), [Kevdoy](https://github.com/Kevdoy), [popkc3](https://github.com/popkc3), [WinterTreat](https://github.com/WinterTreat), [jackpini](https://github.com/jackpini), and [fivetenth](https://github.com/fivetenth)
+Incredible people who donated suggestions, bug reports, and code: [mcapogna](https://github.com/mcapogna), [csbun](https://github.com/csbun), [ifloppy](https://github.com/ifloppy), [lucastucious](https://github.com/lucastucious), [c-sanchez](https://github.com/c-sanchez), [egofree71](https://github.com/egofree71), [PorkingMane](https://github.com/PorkingMane), [alexanderadam](https://github.com/alexanderadam), [danielmigueltejedor](https://github.com/danielmigueltejedor), [ProShi](https://github.com/ProShi), [Kevdoy](https://github.com/Kevdoy), [popkc3](https://github.com/popkc3), [WinterTreat](https://github.com/WinterTreat), [jackpini](https://github.com/jackpini), [fivetenth](https://github.com/fivetenth), [revae](https://github.com/revae), [RDR77](https://github.com/RDR77), and [Oppa-YA](https://github.com/Oppa-YA)
 
 Photo "akiko_cycling_okinawa" (seen in the screenshots) by Seth A. Robinson

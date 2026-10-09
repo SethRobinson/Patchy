@@ -1723,6 +1723,47 @@ void ui_free_transform_keeps_deep_layers_at_depth() {
   (void)free_transform_at_depth(patchy::BitDepth::Float32);
 }
 
+void ui_warp_transform_keeps_deep_layers_at_depth() {
+  // A committed warp of a 16/32-bit layer writes the layer back at the document's
+  // depth instead of narrowing it to 8 bits.
+  for (const auto depth : {patchy::BitDepth::UInt16, patchy::BitDepth::Float32}) {
+    patchy::Document document(96, 64, patchy::PixelFormat::rgba8());
+    document.add_pixel_layer("Background", solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(255, 255, 255)));
+    patchy::PixelBuffer content(96, 64, patchy::PixelFormat::rgba8());
+    content.clear(0);
+    for (std::int32_t y = 16; y < 48; ++y) {
+      for (std::int32_t x = 24; x < 72; ++x) {
+        auto* px = content.pixel(x, y);
+        px[0] = static_cast<std::uint8_t>(x * 3);
+        px[1] = static_cast<std::uint8_t>(y * 4);
+        px[2] = 150;
+        px[3] = 255;
+      }
+    }
+    const auto id = document.add_pixel_layer("Layer", content).id();
+    patchy::convert_document_depth(document, depth);
+    document.set_active_layer(id);
+
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(320, 240);
+    canvas.set_document(&document);
+    canvas.set_tool(patchy::ui::CanvasTool::Move);
+    canvas.show();
+    QApplication::processEvents();
+    CHECK(canvas.begin_warp_transform());
+    CHECK(canvas.warp_transform_active());
+    const auto corner = canvas.warp_handle_document_position(0);
+    canvas.set_warp_handle_document_position(0, corner + QPointF(-8.0, -6.0));
+    canvas.finish_warp_transform();
+    QApplication::processEvents();
+    CHECK(!canvas.warp_transform_active());
+    const auto& warped = *std::as_const(document).find_layer(id);
+    CHECK(warped.bounds().width > 96);
+    CHECK(warped.pixels().format().bit_depth == depth);
+    CHECK(patchy::document_depth_problems(document).empty());
+  }
+}
+
 // A soft brush stroke on a layer, then one on its mask, in a document at `depth`;
 // returns the layer and mask narrowed to 8 bits.
 std::pair<patchy::PixelBuffer, patchy::PixelBuffer> brush_strokes_at_depth(patchy::BitDepth depth) {
@@ -2984,6 +3025,7 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
        ui_deep_document_render_strips_match_the_sequential_render},
       {"ui_layer_operations_keep_deep_documents_at_depth", ui_layer_operations_keep_deep_documents_at_depth},
       {"ui_free_transform_keeps_deep_layers_at_depth", ui_free_transform_keeps_deep_layers_at_depth},
+      {"ui_warp_transform_keeps_deep_layers_at_depth", ui_warp_transform_keeps_deep_layers_at_depth},
       {"ui_brush_paints_deep_layers_and_masks_at_depth", ui_brush_paints_deep_layers_and_masks_at_depth},
       {"ui_retouch_tools_edit_deep_layers_at_depth", ui_retouch_tools_edit_deep_layers_at_depth},
       {"ui_eyedropper_picks_the_composite_of_a_16_bit_document", ui_eyedropper_picks_the_composite_of_a_16_bit_document},

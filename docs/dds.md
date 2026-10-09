@@ -76,6 +76,9 @@ Resolution order: a DX10 header wins, then a FourCC, then the bit masks.
   non-multiple-of-4 sizes (legal under DX10, and every small mip) never write outside the
   image. BC4 opens as gray; BC5 opens as red and green with blue 0 and a notice; SNORM
   values map -127..127 onto 0..255 (`((v + 127) * 255 + 127) / 254`).
+- **Depth**: every DDS opens as an 8-bit document, also with deep editing on
+  ([high-bit-depth.md](high-bit-depth.md)): 10- and 16-bit channels rescale to 8 bits,
+  and float sources tone map.
 - **Float sources** (half and float uncompressed, BC6H) are assumed linear with sRGB
   primaries and go through the JPEG XR HDR curve, `jxr::tone_map_scrgb_to_rgba8`
   ([jxr.md](jxr.md)), a strip of rows at a time (the curve is per pixel, so strips give
@@ -158,9 +161,9 @@ Photoshop plug-ins and every engine read it); BC7 exists only under a DX10 heade
   through RGBA and mode 5 gives alpha two index bits, so where colour and alpha vary in
   different directions inside a block, alpha lands within about 12 to 14 (BC3 gives 16 to 18
   on the same content); where alpha is flat or follows the colour it is near exact.
-  Weighting alpha higher or raising the uber level did not move those numbers (October
-  2026), so the defaults stay. bc7enc has no mode 4 (separate 3-bit alpha indices), which is
-  what would fix it.
+  Weighting alpha higher or raising the uber level does not move those numbers, so the
+  defaults stay. bc7enc has no mode 4 (separate 3-bit alpha indices), which is what would
+  fix it.
 - stb_dxt's endpoint search is a float power iteration and bc7enc's least-squares fits are
   float too. CMake compiles both TUs with `-ffp-contract=off` on GCC and Clang (MSVC's
   `/fp:precise` already forbids fused multiply-add) so every toolchain produces the same
@@ -191,11 +194,12 @@ Photoshop plug-ins and every engine read it); BC7 exists only under a DX10 heade
 Persisted defaults (`saveOptions/*`, compatibility contracts, never renamed):
 `ddsCompression` (`auto` | `uncompressed` | `bc1` | `bc3` | `bc4` | `bc5` | `bc7`, default
 `auto`) and `ddsMipmapMode` (`auto` | `on` | `off`, default `auto`). `ddsMipmaps`, the
-1.07 checkbox bool, is read only when `ddsMipmapMode` is absent (true migrates to `on`,
-false to `auto`) and is no longer written. The token helpers live with the codec
+first builds' checkbox bool, is read only when `ddsMipmapMode` is absent (true migrates
+to `on`, false to `auto`) and is no longer written. The token helpers live with the codec
 (`dds::compression_token`, `compression_from_token`, `mipmap_choice_token`,
-`mipmap_choice_from_token`) so the settings, the dialog and the metadata cannot disagree.
-Scripts pass the same tokens: `doc.exportAs("tex.dds", {compression: "bc3", mipmaps: "on"})`
+`mipmap_choice_from_token`), wrapped for the UI by `ui/image_save_option_keys.hpp`, so the
+settings, the dialog, the script API and the metadata cannot disagree. Scripts pass the
+same tokens: `doc.exportAs("tex.dds", {compression: "bc3", mipmaps: "on"})`
 (docs/scripting.md "Explicit save options"; the bundled `Utilities/quick-export-dds.js` is
 the example), with Automatic resolving against the opened file exactly as the dialog does.
 
@@ -298,7 +302,9 @@ the uncompressed files, exact cut-out alpha and PSNR above 30 dB for BC1, alpha 
 within 3 for BC4 and red/green within 3 with blue 0 for BC5 (stb_dxt uses only the 8-level alpha mode, so a block that
 mixes alpha 0 with high alpha can be off by up to 18; a smooth ramp stays within 4).
 
-Known gaps: no BC6H export (Patchy has no float pixels to feed it); BC7 uses modes 1 and
-6 only; cubemap, volume and array export (a save flattens to one 2D texture); palettized, YUV, bump-map and typeless non-block formats;
+Known gaps: no deep import or export (16-bit and float sources open at 8 bits, the writer
+is 8-bit) and so no BC6H export; BC7 has no mode 4 (bc7enc tries modes 1 and 6,
+plus 5 and 7 for alpha blocks); cubemap, volume and array export (a save flattens to one 2D
+texture); palettized, YUV, bump-map and typeless non-block formats;
 the header's pitch field is ignored on read; no sRGB-to-linear conversion for `_SRGB`
 variants (by design); mip levels beyond 0 are regenerated, never preserved.

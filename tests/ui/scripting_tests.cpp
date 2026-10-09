@@ -8,6 +8,7 @@
 
 #include "core/document.hpp"
 #include "core/document_depth.hpp"
+#include "ui/image_document_io.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/palette.hpp"
 #include "core/pixel_depth.hpp"
@@ -991,6 +992,72 @@ void ui_script_bit_depth_and_deep_filters() {
     CHECK(median_action != nullptr && !median_action->isEnabled());
     CHECK(gaussian_action != nullptr && gaussian_action->isEnabled());
     CHECK(patchy::document_depth_problems(patchy::ui::MainWindowTestAccess::document(window)).empty());
+  }
+  patchy::set_deep_editing_override(std::nullopt);
+}
+
+// 16/32-bit documents save to the 8-bit-only formats through a copy narrowed to 8 bits
+// (the native flat writers, SVG, Aseprite, and the export-transform stand-in), instead
+// of failing in a writer that composites at 8 bits.
+void ui_script_deep_documents_save_to_8_bit_formats() {
+  patchy::set_deep_editing_override(true);
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    QTemporaryDir directory;
+    CHECK(directory.isValid());
+    const auto base = directory.path() + QStringLiteral("/deep");
+    auto& host = window.script_engine_host();
+    patchy::ui::ScriptEngineHost::RunOptions options;
+    options.name = QStringLiteral("deep-saves");
+    options.args = QStringList{QStringLiteral("base=") + base};
+    const auto source = QStringLiteral(R"JS(
+      var p = patchy.args.base;
+      var exts = ['bmp', 'dds', 'tga', 'gif', 'pcx', 'ico', 'rttex', 'iff', 'svg', 'aseprite'];
+      [16, 32].forEach(function (bits) {
+        var d = app.newDocument(16, 16);
+        d.activeLayer.fill('#ff8000');
+        d.convertBitDepth(bits);
+        exts.forEach(function (ext) {
+          if (!d.exportAs(p + bits + '.' + ext)) throw Error(ext + ' at ' + bits + ' bits');
+        });
+        if (d.bitDepth !== bits) throw Error('exportAs changed the depth');
+        var back = app.open(p + bits + '.bmp');
+        var px = new Uint8Array(back.activeLayer.getPixels().data);
+        console.log('bmp' + bits + '=' + px[0] + ',' + px[1] + ',' + px[2]);
+      });
+    )JS");
+    (void)host.run_source(source, std::move(options));
+    wait_for_run_end(host);
+    CHECK(!host.run_active());
+    if (host.last_run_had_error()) {
+      for (const auto& line : host.message_backlog()) std::cerr << line.toStdString() << '\n';
+    }
+    CHECK(!host.last_run_had_error());
+    CHECK(backlog_contains(window, QStringLiteral("bmp16=255,128,0")));
+    CHECK(backlog_contains(window, QStringLiteral("bmp32=255,128,0")));
+
+    // An export transform (here Scale) builds an 8-bit stand-in, so it narrows too.
+    patchy::Document deep(8, 8, patchy::PixelFormat::rgba8());
+    patchy::PixelBuffer orange(8, 8, patchy::PixelFormat::rgba8());
+    for (std::int32_t y = 0; y < 8; ++y) {
+      for (std::int32_t x = 0; x < 8; ++x) {
+        auto* px = orange.pixel(x, y);
+        px[0] = 255;
+        px[1] = 128;
+        px[2] = 0;
+        px[3] = 255;
+      }
+    }
+    deep.add_pixel_layer("Layer", std::move(orange));
+    patchy::convert_document_depth(deep, patchy::BitDepth::UInt16);
+    patchy::ui::ImageSaveOptions scaled;
+    scaled.export_scale = 2;
+    const auto png_path = base + QStringLiteral("-scaled.png");
+    patchy::ui::write_flat_image_file(deep, png_path, QStringLiteral("png"), scaled);
+    const QImage png(png_path);
+    CHECK(png.width() == 16 && png.height() == 16);
+    CHECK(QColor(png.pixel(3, 3)) == QColor(255, 128, 0));
   }
   patchy::set_deep_editing_override(std::nullopt);
 }
@@ -4508,6 +4575,7 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_console_and_error_line_numbers", ui_script_console_and_error_line_numbers},
       {"ui_script_filters_and_text_layers", ui_script_filters_and_text_layers},
       {"ui_script_bit_depth_and_deep_filters", ui_script_bit_depth_and_deep_filters},
+      {"ui_script_deep_documents_save_to_8_bit_formats", ui_script_deep_documents_save_to_8_bit_formats},
       {"ui_script_text_size_is_zoom_independent", ui_script_text_size_is_zoom_independent},
       {"ui_script_text_font_option_applies", ui_script_text_font_option_applies},
       {"ui_script_text_face_ignores_the_options_bar_style", ui_script_text_face_ignores_the_options_bar_style},

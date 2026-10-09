@@ -66,6 +66,10 @@ macOS produces `build/mac-release/Patchy.app`; Linux produces
 `packaging/linux/make-flatpak.sh` create the distributable artifacts. Both test suites
 run offscreen on all three platforms (`QT_QPA_PLATFORM=offscreen`).
 
+## MSVC Release codegen
+
+CMakeLists.txt owns the MSVC Release codegen flags (`/Zi /GL` on compiles, `/DEBUG:FULL /INCREMENTAL:NO /LTCG` on links), so every configure emits `patchy.pdb` (for symbolizing WER dumps from `%LOCALAPPDATA%\CrashDumps`) and link-time optimized binaries. Never hand-edit `build\release\CMakeCache.txt`. To symbolize a dump from an older build, rebuild that commit in a temporary worktree; full links reproduce the binary layout.
+
 ## Windows Release Package
 
 Create local Windows release artifacts:
@@ -74,7 +78,7 @@ Create local Windows release artifacts:
 scripts\release\build-release.bat
 ```
 
-The script configures and builds the `release` preset, signs `build\release\patchy.exe`, the installer helper executables, and the installer when the local signing environment is available, deploys the minimum Qt runtime needed by the current app, copies third-party notices, and creates:
+The script configures and builds the `release` preset, signs `patchy.exe`, `patchy-mcp.exe`, the two legacy plug-in hosts, the installer helper executables, and the installer (signing is required; `PATCHY_ALLOW_UNSIGNED=1` allows a deliberately unsigned local build), deploys the minimum Qt runtime needed by the current app, copies third-party notices, and creates:
 
 ```text
 build\package\PatchyWindowsNoInstaller.zip

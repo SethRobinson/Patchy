@@ -80,7 +80,7 @@ this is not an English-word heuristic. WebAssembly runs the host catalog gate an
 the same corrected UI code, but does not execute the native runtime checker.
 
 Never hand-edit source strings or contexts in a `.ts` file, never add entries by hand, and
-never use `-no-obsolete`-free runs to keep dead entries: lupdate owns the structure,
+never run lupdate without `-no-obsolete` to keep dead entries: lupdate owns the structure,
 translators own the `<translation>` text.
 
 ## Making a string extractable

@@ -96,5 +96,3 @@ Click any image to inspect it at full size. These are captures of the real edito
     </td>
 </tr>
 </table>
-
-## 

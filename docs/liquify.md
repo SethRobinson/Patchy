@@ -22,11 +22,11 @@ selections; no full-resolution selection mask is allocated for the proxy.
 
 ## PSD and Smart Object behavior
 
-Liquify is currently a destructive pixel edit on an ordinary RGB/RGBA UInt8 layer. A PSD stores the resulting pixels through the normal layer channel path; no private Patchy resource or filter descriptor is added. Photoshop therefore sees the same raster result. Selection clipping, undo, palette compliance warnings, and subsequent PSD saves behave like other destructive pixel edits.
+Liquify is a destructive pixel edit on an editable RGB/RGBA pixel layer. The workspace always edits 8-bit pixels: a 16-bit layer is warped on an 8-bit copy and the change folds back at depth (`apply_eight_bit_edit_at_depth`, so untouched samples keep full precision), and 32-bit documents disable the command (`filter.liquify`; [high-bit-depth.md](high-bit-depth.md)). A PSD stores the resulting pixels through the normal layer channel path; no private Patchy resource or filter descriptor is added. Photoshop therefore sees the same raster result. Selection clipping, undo, palette compliance warnings, and subsequent PSD saves behave like other destructive pixel edits.
 
 Do not synthesize Photoshop's native Liquify Smart Filter descriptor. Its descriptor and render-cache shape have not been calibrated from clean-room output. Patchy refuses Liquify on a Smart Object and asks the user to rasterize first. An imported Smart Object containing an unsupported Photoshop Liquify entry remains on the existing byte-preserved, preview-locked path. This prevents a direct or partial edit from dropping unknown native fields or replacing Photoshop's stored preview.
 
-If native Smart Filter support is added later, first capture Photoshop-authored before/after PSDs that differ in one manual setting at a time, document the descriptor and FEid behavior in `docs/ps-compat.md`, and make the whole-stack support decision fail closed. Do not infer a descriptor from UI labels or copy Adobe specification prose.
+If native Smart Filter support is added later, first capture Photoshop-authored before/after PSDs that differ in one manual setting at a time, document the descriptor and FEid behavior in [smart-filters-native.md](smart-filters-native.md), and make the whole-stack support decision fail closed. Do not infer a descriptor from UI labels or copy Adobe specification prose.
 
 ## Patent boundary
 

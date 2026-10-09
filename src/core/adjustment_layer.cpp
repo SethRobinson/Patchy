@@ -291,7 +291,7 @@ RgbColor apply_curves(RgbColor color, const CurvesAdjustment& settings) {
 }
 
 // Photoshop 2026 Hue/Saturation, calibrated pixel-for-pixel against COM-rendered
-// probe files (docs/ps-compat.md "Hue/Saturation"). Colorize and the master
+// probe files (docs/adjustments-calibration.md "Hue/Saturation calibration"). Colorize and the master
 // sliders share three stages: the lightness slider blends a value toward
 // white/black and rounds, the hue lives on a 1530-step wheel, and the result is
 // rebuilt from an integer lightness plus a half-chroma spread with asymmetric
@@ -448,7 +448,7 @@ constexpr std::array<double, 101> kColorizeSaturationScale = {
 // Photoshop's effective master saturation multiplier per slider percent,
 // indexed delta + 100. Fitted by maximum-agreement interval overlap over the
 // full 32,640-entry (lightness, chroma) probe grid at hue 0 and lightness 0
-// (docs/ps-compat.md). No closed form reproduces it: -100 is exactly 0, 0 is
+// (docs/adjustments-calibration.md). No closed form reproduces it: -100 is exactly 0, 0 is
 // exactly 1, -50 lands on 0.5 and +50 on 2.0, but +40 and +60 sit measurably
 // below 1/(1 - s/100), so all 201 percents were probed. +100 is 128, NOT
 // unbounded: Photoshop leaves a chroma-1 midtone at half-saturation there.
@@ -976,7 +976,7 @@ namespace {
 
 // Photoshop 2026 modern-mode Brightness/Contrast, the full closed form
 // recovered from 300 16-bit (15-bit precision) plus 451 8-bit COM ramp
-// captures (July 2026, docs/ps-compat.md "Modern Brightness/Contrast").
+// captures (July 2026, docs/adjustments-calibration.md "Modern Brightness/Contrast").
 // Everything runs on the unit interval; each byte maps through
 // lround(255 * contrast(brightness(v / 255))).
 //

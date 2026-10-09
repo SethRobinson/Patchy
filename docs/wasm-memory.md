@@ -57,71 +57,43 @@ environment by app-env-pre.js, explicit URL keys winning).
 ## In-app relief (wasm memory never shrinks)
 
 History is byte-budgeted (256 MB on wasm, `history_memory_budget_bytes`,
-floor 3 states/session) and the style caches shrink to 96/48 MB under
-`Q_OS_WASM` (image_document_io.cpp).
+floor 3 states/session). Under `Q_OS_WASM` the baked styled-layer cache caps
+at 96 MB (image_document_io.cpp) and the style-mask LRU at 48 MB
+(`style_mask_cache_budget_bytes`, memory_info.cpp).
 
-## Safari 26 tab kill (August 2026; gone in Safari 26.6)
+## Safari 26 tab kill (fixed in Safari 26.6)
 
-Resolved browser-side. Retested October 8, 2026 on the mac build host (macOS
-and Safari 26.6.2) with the same unchanged toolchain (Qt 6.10.3, emsdk 4.0.7):
-the threaded build that August runs killed at 97 s / 19 GB survived `stress`
-`quick` to a clean exit (footprint peak 5.3 GB during the compile storm, then
-~1.9 GB) and a 15-minute `stress` `standard` run (peak 6.4 GB early, flat
-~4.2 GB after, no kill). Every browser now gets the threaded build; the
-WebKit warning notice, the `st/` artifact, and the shell page's ST routing
-were removed. iOS was not retested. If the kill returns, rerun
-`wasm-safari-memtest.ps1 -Mode stress` against older Safari first; the
-`wasm-release-st` preset still builds for comparison. The August record:
+Safari 26 before 26.6 killed the threaded build's tab under load. It was
+browser-side and is gone in macOS Safari 26.6.2 with the unchanged toolchain
+(Qt 6.10.3, emsdk 4.0.7): `stress` `quick` exits cleanly (footprint peak 5.3 GB
+during the compile storm, then ~1.9 GB) and a 15-minute `stress` `standard` run
+holds flat at ~4.2 GB after a 6.4 GB early peak. Every browser therefore gets
+the threaded build, with no WebKit notice or `st/` routing. iOS was not
+retested. If the kill returns, rerun `wasm-safari-memtest.ps1 -Mode stress`
+(see [performance.md](performance.md)); `wasm-release-st` still builds for
+comparison.
 
-Measured on the mac build host (macOS 26.3.1, Safari 26.x) with the memtest harness
-(see [performance.md](performance.md)): the app's WebContent process grows
-about 150 MB/s at IDLE with 400-1200% CPU and is killed by WebKit at
-roughly 2.5 minutes (footprint plateaued at 16 GB, ps rss reached 24 GB).
-The wasm side is innocent: patchyMemStats stays flat (512 MB heap, ~100 MB
-used), and the `footprint` category breakdown puts the growth in "WebKit
-malloc" (2.7 GB dirty 6 seconds after load), not the JS GC heap or JIT-code
-regions. Chrome on the same machine with the same page holds flat at
-~900 MB. The signature (concurrent compile threads burning CPU while
-allocating unboundedly, other browsers unaffected) matches public
-Safari/WebKit 26 reports against large wasm modules, e.g. onnxruntime issue
-26827, where sampling showed JSC::Wasm::parseAndCompileOMG looping in
-allocateStackByGraphColoring. A launchctl-env JSC_useOMGJIT=false test did
-not change the behavior, but env propagation into WebContent XPC was
-unverified, so tier attribution is open. iOS Safari deaths ~2 s after load
-are consistent with the same compile-side growth against a phone's jetsam
-budget and would be knob-independent (the memory-ladder and pool URL knobs
-cannot dodge it).
+What the investigation established, so it is not repeated:
 
-A/B results (same harness, idle vs `mode=stress`; sample(1) on the WebContent
-process put the CPU and allocations in JSC::B3::Air::Greedy::GreedyAllocator
-under parseAndCompileOMG, so the growth is Safari's optimizing wasm compiler,
-not the app): SIMD is not a factor (a no-SIMD -O3 build dies identically).
-The module has no megafunctions (43k functions, largest body 256 KB). Link
--O2 (67 MB) and -O1 (145 MB) both survive IDLE runs (compile storm 140 s with
-a 6.8 GB peak and 35 s with a 2.4 GB peak, then footprint settles), but both
-still die under a real workload: tier-up is execution-driven, hot functions
-reach OMG, and the allocator blows up at every opt level
-(`PATCHY_WASM_LINK_OPT` is a cache variable for building such variants; the
-shipped preset stays -O3). WebKit scrubs JSC_* environment variables from
-WebContent, so Safari's compiler tiers cannot be disabled externally. The
-decisive result: the SINGLE-THREADED baseline (build/wasm-st-baseline, old
-code vintage) survives a full 6-minute stress run (storm to 4.8 GB, then
-stable ~3.65 GB), so the pathology is specific to the shared-memory
-(threaded) module, matching the onnxruntime report where the non-threaded
-backend was fine.
-
-Follow-up probes (August 2026, after duplicate-boot contamination was fixed
-in the harness): the single-threaded hypothesis DID NOT SURVIVE current code.
-The old ST baseline that passed a stress run was built in June from older
-code, Qt 6.8.3, and emsdk 3.1.56; a current-code `wasm-release-st` build
-(Qt 6.10.3, emsdk 4.0.7) dies under workload exactly like the threaded one,
-as do ST -O2 and a build with the August compositor row kernels compiled
-optnone on wasm (the kernels are exonerated). Rebuilding CURRENT code on the
-June toolchain pair (Qt 6.8.3 wasm_singlethread + emsdk 3.1.56; the pairs
-are ABI-locked, embind signatures changed) is the one configuration where
-Safari's compiler CONVERGES: the storm peaks ~10 GB, recedes to under 4 GB,
-and no kill fires in 8 minutes; but under the stress workload the process
-then climbs again past 55 GB (uncharacterized: tier-up of hot functions or
-another browser-side sink; the ST app starves page JS, so only the process
-sampler sees it), so the old toolchain delays rather than removes the
-pathology.
+- **Signature.** The WebContent process grew ~150 MB/s even at IDLE with
+  400-1200% CPU until WebKit killed it (~2.5 minutes, footprint ~16 GB), while
+  `patchyMemStats` stayed flat (512 MB heap, ~100 MB used) and Chrome held
+  ~900 MB on the same page. `footprint` put the growth in "WebKit malloc";
+  sample(1) put CPU and allocations in `JSC::B3::Air::Greedy::GreedyAllocator`
+  under `parseAndCompileOMG`: Safari's optimizing wasm compiler, not the app
+  (the same signature as public WebKit 26 reports against large wasm modules,
+  e.g. onnxruntime issue 26827). iOS deaths ~2 s after load fit the same
+  compile-side growth against jetsam, which the memory-ladder and pool URL
+  knobs cannot dodge.
+- **Ruled out.** SIMD (a no-SIMD build dies identically); megafunctions (43k
+  functions, largest body 256 KB); link opt level (`-O2` and `-O1` survive
+  idle but die under workload, since tier-up is execution-driven;
+  `PATCHY_WASM_LINK_OPT` builds such variants, the shipped preset stays
+  `-O3`); the compositor row kernels (an optnone build dies too). WebKit
+  scrubs `JSC_*` variables from WebContent, so compiler tiers cannot be
+  disabled externally.
+- **Threading is not the cause.** A current-code `wasm-release-st` build dies
+  like the threaded one. Only the older Qt 6.8.3 + emsdk 3.1.56 toolchain pair
+  (ABI-locked; embind signatures changed) let the compile storm converge, and
+  under stress it then climbed past 55 GB anyway, so an old toolchain only
+  delays the pathology.

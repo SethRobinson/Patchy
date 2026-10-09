@@ -1,6 +1,6 @@
 # Testy: the PSD compatibility benchmark
 
-Testy (`testy/`) measures PSD compatibility against Adobe Photoshop 2026.
+Testy (`testy/`) measures PSD compatibility against Adobe Photoshop 2026: whether each editor opens a file, how closely its render matches Photoshop's, whether it composites layers itself, what native data and bit depth survive its PSD save, and for 16-bit files how precise its render is. What each measurement means is in [testy-scoring.md](testy-scoring.md); the public write-up of the latest published run is [psd-compatibility-benchmark.md](psd-compatibility-benchmark.md).
 
 ## Setup
 
@@ -133,10 +133,10 @@ Useful flags:
 - `--scan [PCT]` - scan mode; see below.
 - `--compare strict|perceptual` - which comparison drives scan flagging (default
   perceptual). Both numbers are always computed and shown either way; a resumed run
-  keeps the mode it started with, and runs from before this option flag strictly.
+  keeps the mode it started with, and runs recorded without a mode flag strictly.
 - `--exit-when-done`, `--no-browser`, `--no-serve`, `--port N` - dashboard behavior.
-- `--suffix "~TESTY~"` - a marker that is now only part of cache entry names (it was the
-  text the retired appended-text leg added).
+- `--suffix "~TESTY~"` - a marker that is only part of cache entry names (the argparse help
+  text still describes the retired appended-text leg).
 
 ## The psd-tools collection and the By folder table
 
@@ -164,10 +164,10 @@ each file's source into its path below the corpus folder, replaces this machine'
 folders inside error messages with `<run>`, `<patchy>` and `<home>`, and refuses to
 write if a local path is still left. It only ever replaces a folder an earlier export
 made (`testy-export.txt` marks it). Nothing is uploaded by the tool. Published runs live at
-`rtsoft.com/testy/<YYYY-MM-DD>/` (first one: 2026-10-06), only on Seth's go-ahead: pack the
-folder (`tar --force-local -czf ... --exclude=testy-export.txt .`, about 190 MB for 309 files),
-scp it to `rtsoft@rtsoft.com:www/testy/<date>/`, compare sha256 there, untar, delete the
-archive; one transfer instead of 17,000 small files. The published report requests
+`rtsoft.com/testy/<YYYY-MM-DD>/` and are uploaded only on Seth's explicit go-ahead (the upload
+target belongs in `agents_local.md`, never here): pack the folder (`tar --force-local -czf ...
+--exclude=testy-export.txt .`, about 190 MB for 309 files), copy the one archive to the host,
+compare sha256 there, untar, delete the archive; one transfer instead of 17,000 small files. The published report requests
 `../history.jsonl` once and gets a harmless 404 (the history section stays empty).
 
 ## Scan mode
@@ -205,7 +205,7 @@ and the cache-free leg that scores an editor on what it
 draws itself: all in [testy-scoring.md](testy-scoring.md), with the reference-render
 rules and the "never mark an editor down for the harness's mistake" safeguards.
 
-## Machine specifics (July 2026)
+## Editor drivers
 
 - Photoshop 2026 via COM (`Photoshop.Application`); techniques per docs/ps-compat.md.
   The driver opens each file once per probe: manifest walk (DOM + ActionManager by
@@ -231,7 +231,7 @@ rules and the "never mark an editor down for the harness's mistake" safeguards.
   `PhotoDemon_BatchSaveImage` with defaults, format by extension), writes a one-line
   phase report to `<out>.testy.txt` (the driver consumes and deletes it), and exits.
   The patch must NEVER be sent upstream: PhotoDemon has a strict no-LLM/no-AI
-  contribution policy. Builds compile with twinBASIC (`C:\Apps\twinBASIC`, Community
+  contribution policy. Builds compile with twinBASIC (Community
   edition, 32-bit; unattended builds are not licensed, so rebuilding after a patch
   change is a manual click in its IDE), and the exe must sit at the checkout root
   next to the `App\` folder or PhotoDemon refuses to start. Editor discovery
@@ -270,7 +270,7 @@ rules and the "never mark an editor down for the harness's mistake" safeguards.
 - A percent sign in a corpus file name is a hazard: ExtendScript's `new File(...)`
   URI-decodes its argument and the dashboard server unquotes request paths, so
   `%20` in a name became a space (Photoshop saw a missing file; Photopea's staged
-  fetch 404'd). Each boundary now encodes the path it hands over
+  fetch 404'd). Each boundary encodes the path it hands over
   (`drivers/photoshop.py`'s `_js_path`, `drivers/photopea.py`'s `_file_url`,
   `report.py`'s `artUrl`); the `/testy-upload` `name` deliberately stays raw (it
   rides a query parameter, already decoded exactly once). A run directory inherits
@@ -374,8 +374,12 @@ rules and the "never mark an editor down for the harness's mistake" safeguards.
 
 ```
 testy/
+  start-testy.bat    double-click launcher (dashboard + control panel)
   testy.py           orchestrator + dashboard server
+  serve.py           the dashboard alone, between runs (port from config, default 8901)
   config.py          editor discovery + versions
+  config.example.json  template for the gitignored config.local.json
+  fetch_psd_tools_corpus.py  pinned psd-tools corpus checkout + corpus list
   staging.py         run-dir copies: trap, cache-stripped and plain variants
   psd_sections.py    minimal PSD/PSB section walker (trap patching, cache stripping)
   analyze.py         render metrics, sentinel detection, heatmaps (--selftest included)
@@ -386,13 +390,17 @@ testy/
   export_static.py   one finished run as a folder a plain web host can serve
   affinity_js.py     MCP/JS client for the Affinity app (also reused by .af tooling)
   win_dialogs.py     modal-dialog guard for scripted apps (--selftest included)
-  drivers/           one per editor: photoshop (COM, --selftest included), patchy,
-                     krita, gimp, photodemon, photopea, affinity
+  drivers/           one per editor: photoshop (COM, --selftest included), patchy
+                     (+ patchy_text_afresh.js), krita (+ krita_scripts/), gimp,
+                     photodemon, photopea, affinity, psdtools; winproc.py (error-dialog
+                     suppression)
   index.html         run-index landing page (server root)
   photopea_host.html the Photopea embedding/automation page
   corpus/            gitignored: local corpus lists
   runs/<ts>/         gitignored: artifacts, results.json, report.html
   cache/             gitignored: ground-truth + cell cache
+  public/            gitignored: export_static.py output
+  published-runs/    committed image-free export of the August 2026 run
 ```
 
 `testy/runs/history.jsonl` accumulates one summary line per run; the report's "Past
@@ -401,6 +409,8 @@ runs" table reads it for the over-time view.
 ## Patchy CLI automation (product side)
 
 `patchy.exe <in> --export <out>` saves and exits unattended; set
-`PATCHY_SETTINGS_DIR` to isolate history/settings. `--append-text <s>` edits every
+`PATCHY_SETTINGS_DIR` to isolate history/settings. With deep editing on (the default), a
+16/32-bit document exports a 16-bit PNG; the Patchy driver splits it into `<stem>16.png` for
+the precision metric and an 8-bit narrowing for every other metric (`analyze.split_deep_png`). `--append-text <s>` edits every
 text layer before export, pinned by `ui_cli_append_text_rerenders_and_roundtrips`.
 Flags live in `src/app/main.cpp`; see [scripting.md](scripting.md).

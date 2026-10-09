@@ -114,6 +114,8 @@ Each program saves the staged document as a new PSD. Photoshop then reopens that
 
 For files Photoshop can reopen, Testy compares a layer manifest from the original with a manifest from the saved PSD. It checks layer kinds such as text, adjustment, Smart Object, group, fill, and raster layers, and attributes including live effects, masks, clipping, and blend settings. The data-kept score is the mean of each inspectable file's retained-object fraction.
 
+Testy now also records whether a save keeps a 16 or 32-bit file's bit depth and, for 16-bit files, how precisely the render matches Photoshop's 16-bit render. Those measurements came after this run and are not part of the tables above.
+
 ### The two text rules
 
 Text is the thing people assume survives, so two failures zero a file's score. When a program draws nothing for a Photoshop type layer and can only show the cached pixels, that file's render scores 0%. When any type layer of the original is no longer a type layer in the program's save, that file's data-kept score is 0%. The report shows the measured numbers alongside.

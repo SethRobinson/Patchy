@@ -3767,9 +3767,13 @@ bool CanvasWidget::prepare_warp_source() {
   if (layer == nullptr || warp_source_image_.isNull()) {
     return false;
   }
-  // resample_warped_rgba8 converts its source to RGBA8888 on every call;
-  // converting once here makes the per-move conversion a no-op.
-  warp_source_image_ = warp_source_image_.convertToFormat(QImage::Format_RGBA8888);
+  // resample_warped_rgba8 converts an 8-bit source to RGBA8888 on every call;
+  // converting once here makes the per-move conversion a no-op. A 16/32-bit
+  // layer image keeps its format: the resampler warps it in float and returns
+  // that format, so the commit writes the layer back at its own depth.
+  if (!deep_qimage_format(warp_source_image_.format()).has_value()) {
+    warp_source_image_ = warp_source_image_.convertToFormat(QImage::Format_RGBA8888);
+  }
   if (warp_base_cache_.isNull()) {
     // Hidden via render overrides (set_visible toggles bumped revisions and
     // cold-invalidated the style-mask caches), banded across workers, and at

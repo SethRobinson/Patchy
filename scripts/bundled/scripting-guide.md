@@ -314,7 +314,7 @@ Field types: `number`, `slider`, `checkbox`, `choice`, `text`, `color`, `folder`
 | Global | What it is |
 | --- | --- |
 | `app` | The application: documents, dialogs, commands. |
-| `patchy` | The namespace: `patchy.ui`, `patchy.io`, `patchy.args`, `patchy.isMainScript()`, `patchy.version`, `patchy.apiVersion`. |
+| `patchy` | The namespace: `patchy.ui`, `patchy.io`, `patchy.args`, `patchy.scripts`, `patchy.plugins`, `patchy.recovery`, `patchy.brushes`, `patchy.setResult()`, `patchy.isMainScript()`, `patchy.version`, `patchy.apiVersion`. |
 | `console` | `log`, `info`, `warn`, `error`; output goes to the Script Manager console and to `--script-output`. |
 | `setTimeout` / `setInterval` / `clearTimeout` / `clearInterval` / `requestAnimationFrame` | Timers, like in a browser. The run stays alive while timers are pending. |
 | `include(path)` | Runs another script file in the same scope. Relative paths resolve against the running script, then your user scripts folder, then the bundled scripts, so `include("Effects/fancy-background.js")` works from anywhere. Your script's `OPTIONS` object is protected: an included file's own OPTIONS block does not replace it. |
@@ -342,7 +342,7 @@ Field types: `number`, `slider`, `checkbox`, `choice`, `text`, `color`, `folder`
 | Member | Meaning |
 | --- | --- |
 | `doc.width` / `doc.height` / `doc.resolution` | Size in pixels and pixels per inch. |
-| `doc.bitDepth` / `doc.convertBitDepth(bits)` | Bits per channel (8, 16 or 32; 32 is floating point in linear light) and Image > Mode's conversion. Converting to 16 or 32 needs 16 and 32-bit editing to be on, and Indexed documents stay 8-bit. Pixel access (`getPixels`/`setPixels`) stays 8-bit RGBA at every depth. |
+| `doc.bitDepth` / `doc.convertBitDepth(bits)` | Bits per channel (8, 16 or 32; 32 is floating point in linear light) and Image > Mode's conversion. 16 and 32-bit files open at their depth; new documents start at 8 bits. Indexed documents stay 8-bit, and the web version stops at 16. Pixel access (`getPixels`/`setPixels`) stays 8-bit RGBA at every depth. Converting to 32 bits sets layers in blend modes Photoshop refuses at 32 bits (such as Screen and Overlay) to Normal, and setting one of those modes on a 32-bit document throws. |
 | `doc.name` / `doc.path` | Title and file path (empty until saved). |
 | `doc.layers` | Top-level layers, bottom to top. Groups expose `.children`. |
 | `doc.activeLayer` | Get or set the targeted layer. |
@@ -520,7 +520,7 @@ Colors everywhere are CSS-style strings: `"#rrggbb"`, `"#aarrggbb"`, or named co
 | `patchy.ui.showOptions(spec)` | The standard options dialog described above: defaults, `--script-arg` overrides, and unattended runs handled for you. |
 | `patchy.ui.showDialog(spec)` | The same form dialog without the override logic, for mid-script questions. |
 | `patchy.ui.createCanvas(options)` | Opens an interactive window with a `graphics` surface plus `onFrame`, key, and mouse callbacks. This is how the bundled games work; see `Games/pong.js` for a compact example. The run stays alive until the window closes. |
-| `patchy.ui.playTone(freq, ms, volume, wave)` | Plays a short synthesized blip (defaults 880 Hz, 120 ms, 0.5; wave `"sine"` or `"square"`). Fire-and-forget; great for game feedback - Pong uses it for paddle hits and scores. |
+| `patchy.ui.playTone(freq, ms, volume, wave)` | Plays a short synthesized blip (defaults 880 Hz, 120 ms, 0.5; wave `"sine"` or `"square"`). Fire-and-forget, for game feedback: Pong uses it for paddle hits and scores. |
 | `patchy.ui.playSound(path)` | Plays a `.wav` file (10 MB max). Relative paths resolve like `include()`. Throws if the file is missing or not a WAV. |
 | `patchy.ui.setWindowSize(w, h)` | Resizes the main window. Meant for automation that captures the app at a known size. |
 | `patchy.ui.setSidePanelWidth(px)` | Sets the width of the right panel stack (Layers/Channels/Paths). |
@@ -565,7 +565,7 @@ Windows builds run classic Photoshop filter plug-ins (`.8bf`, 32-bit and 64-bit)
 | `patchy.plugins.folders` | The added folders (persisted). Setting it rescans. |
 | `patchy.plugins.list()` | `{id, name, category, path, supported, reason, architecture}` for every plug-in file the last scan saw. |
 | `patchy.plugins.rescan()` | Rescans every folder and returns `list()`. |
-| `layer.applyPlugin(id, {dialog, captureDialog})` | Runs the plug-in on a pixel layer inside the selection, one undo step. `{dialog: false}` skips its settings dialog (last or default settings; a plug-in that opens one anyway gets its OK pressed); unattended runs never show it. `{captureDialog: "shot.png"}` saves an image of the plug-in's dialog while it is up (an unattended run shows the dialog for the capture and answers it itself). |
+| `layer.applyPlugin(id, {dialog, captureDialog})` | Runs the plug-in on an 8 or 16-bit pixel layer inside the selection, one undo step (a 16-bit layer goes through an 8-bit copy; 32-bit layers throw). `{dialog: false}` skips its settings dialog (last or default settings; a plug-in that opens one anyway gets its OK pressed); unattended runs never show it. `{captureDialog: "shot.png"}` saves an image of the plug-in's dialog while it is up (an unattended run shows the dialog for the capture and answers it itself). |
 
 ### The script library (patchy.scripts)
 
@@ -628,7 +628,7 @@ The easiest way to get a working command: select the script in the Script Manage
 
 ## Long-running scripts
 
-There is **no runtime limit**. A batch job may run for hours. The watchdog only stops a script that shows no sign of life (no pixel write, no file operation, no console output) for 2 minutes, which is what a stuck `while (true) {}` looks like. Inside heavy pure-JS computation, call `console.log` with progress now and then; that both feeds the watchdog and updates the busy panel.
+There is **no runtime limit**. A batch job may run for hours. The watchdog only stops a script that shows no sign of life (no call into Patchy at all: no pixel write, no file operation, no console output) for 2 minutes, which is what a stuck `while (true) {}` looks like. Inside heavy pure-JS computation, call `console.log` with progress now and then; that both feeds the watchdog and updates the busy panel.
 
 When a GUI run stays busy for more than half a second, Patchy shows a progress panel with the script's last console line and a Stop button, so users are never stuck staring at a frozen app. Stopping offers to undo the changes the script made so far.
 

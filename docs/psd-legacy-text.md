@@ -1,6 +1,6 @@
 # Photoshop 5.x type layers (the `tySh` record)
 
-Photoshop 5.0 and 5.5 stored a type layer's text in the per-layer tagged block `tySh` ("Type tool info" in Adobe's specification). Photoshop 6 replaced it with the descriptor plus EngineData block `TySh` that the rest of Patchy's text codec handles ([text-render-calibration.md](text-render-calibration.md), [txt2.md](txt2.md)). Modern Photoshop still opens the old record as editable text; Patchy does since September 2026 through `src/psd/psd_text_legacy.cpp`. Before that the reader matched the key but fed the payload to the TySh extractors, which found no EngineData, so every PS 5 type layer imported as plain pixels (Title02.psd, the Cockpit Master title screen, local fixture only).
+Photoshop 5.0 and 5.5 stored a type layer's text in the per-layer tagged block `tySh` ("Type tool info" in Adobe's specification). Photoshop 6 replaced it with the descriptor plus EngineData block `TySh` that the rest of Patchy's text codec handles ([text-render-calibration.md](text-render-calibration.md), [txt2.md](txt2.md)). Modern Photoshop still opens the old record as editable text, and so does Patchy, through `src/psd/psd_text_legacy.cpp`. Never route the payload to the TySh extractors: they find no EngineData and the layer imports as plain pixels. The calibration file is Title02.psd (the Cockpit Master title screen, local fixture only).
 
 ## Record layout
 
@@ -16,7 +16,7 @@ Decoded byte for byte from all six Title02.psd blocks; big-endian throughout. Th
 
 The style-section ambiguity is resolved by validation, not assumption: the reader parses the count-first layout and requires every style to name a known face and the text section behind it to be consistent (line unit sums within the character count, the color and anti-alias byte inside the block). When that fails it retries with a version word skipped, then finally accepts the count-first layout with unknown face marks, which fall back to the first face.
 
-## Units and calibration (Photoshop 2026 over COM, September 2026)
+## Units and calibration (Photoshop 2026 over COM)
 
 - **Size** is in engine units; the transform's scale turns it into document pixels, exactly the modern TySh convention. Title02's `WWW.COCKPITMASTER.COM` stores 23.31 under a 0.7722 transform and Photoshop reports 23.31 px for it; the copyright line stores 9 at identity. The run keeps the stored size and `patchy.psd.text.transform` keeps the matrix. At 72 ppi (Title02) PS 5 points equal pixels; files at other resolutions are unverified (no local sample), and the layer reader applies no resolution scaling.
 - **Tracking** is an em fraction in the record; Photoshop's Character panel and Patchy's run model use thousandths of an em, so 0.1 becomes 100 (COM read 100, 200 and 400 for Title02's 0.1, 0.2 and 0.4).
@@ -40,7 +40,7 @@ The style-section ambiguity is resolved by validation, not assumption: the reade
 
 An untouched legacy layer re-emits its original `tySh` bytes verbatim (no generated block is written for a `psd_raster_preview` layer whose transform is unchanged), so a round trip through Patchy leaves the file's text records byte-identical. An edited layer is written like any other regenerated type layer: a modern `TySh`, with the `tySh` dropped beside it.
 
-**A document that still carries a verbatim `tySh` gets no `Txt2` block** (`build_text_engine_block`, psd_document_io.cpp), unless the file already had one. Photoshop reads a `tySh` only through its old-text path, and the mere presence of a document-level text engine block switches the whole document to the new engine: a Title02 resave with the template block opened in Photoshop 2026 with every untouched type layer demoted to a plain NORMAL layer, and stripping that one block restored all six (COM readback, September 28, 2026). Without the block Photoshop reads the kept records and the regenerated `TySh` alike from their own bytes; it shows its usual "Some text layers might need to be updated" prompt, exactly as it does for the original file. Once every legacy layer has been edited, no `tySh` remains and the normal Txt2 authoring applies again.
+**A document that still carries a verbatim `tySh` gets no `Txt2` block** (`build_text_engine_block`, psd_document_io.cpp), unless the file already had one. Photoshop reads a `tySh` only through its old-text path, and the mere presence of a document-level text engine block switches the whole document to the new engine: a Title02 resave with the template block opened in Photoshop 2026 with every untouched type layer demoted to a plain NORMAL layer, and stripping that one block restored all six (COM readback). Without the block Photoshop reads the kept records and the regenerated `TySh` alike from their own bytes; it shows its usual "Some text layers might need to be updated" prompt, exactly as it does for the original file. Once every legacy layer has been edited, no `tySh` remains and the normal Txt2 authoring applies again. Until then, unless the file already had a block, a document holding area text refuses PSD/PSB save with an explicit error ([area-text.md](area-text.md)).
 
 ## Tests
 

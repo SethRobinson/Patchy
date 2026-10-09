@@ -136,7 +136,7 @@
     },
     {
       "name": "wasm-release-st",
-      "displayName": "WebAssembly app build (Qt for wasm, single-threaded; served to Safari, see docs/wasm-memory.md)",
+      "displayName": "WebAssembly app build (Qt for wasm, single-threaded; manual comparisons only, see docs/wasm-memory.md)",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/wasm-release-st",
       "toolchainFile": "${sourceDir}/.deps/Qt/6.10.3/wasm_singlethread/lib/cmake/Qt6/qt.toolchain.cmake",

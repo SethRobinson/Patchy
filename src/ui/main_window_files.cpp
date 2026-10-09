@@ -3772,12 +3772,15 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
                                                psd::WriteOptions{extension == QStringLiteral("psb")});
     } else if (extension == QStringLiteral("aseprite") || extension == QStringLiteral("ase")) {
       // Layered save: the Aseprite writer keeps the layer tree instead of flattening.
-      aseprite::DocumentIo::write_file(document(), to_filesystem_path(path));
+      std::optional<Document> narrowed;
+      aseprite::DocumentIo::write_file(document_for_8bit_writer(document(), narrowed), to_filesystem_path(path));
     } else if (extension == QStringLiteral("svg")) {
       // Structure-preserving vector write (never write_flat_image_file):
       // shape layers stay SVG vectors, the writer reports what it baked.
       std::vector<std::string> svg_notices;
-      svg::DocumentIo::write_file(document(), to_filesystem_path(path), &svg_notices);
+      std::optional<Document> narrowed;
+      svg::DocumentIo::write_file(document_for_8bit_writer(document(), narrowed), to_filesystem_path(path),
+                                  &svg_notices);
       export_notes_suffix = export_notes_suffix_for(svg_notices);
     } else {
       // Editable PDF keeps layers and reports what it baked, like the SVG writer.
@@ -3910,7 +3913,9 @@ void MainWindow::export_flat_image() {
       // The same structure-preserving writer as Save As: shape layers export
       // as real vectors even from the "flat" export flow.
       std::vector<std::string> svg_notices;
-      svg::DocumentIo::write_file(document(), to_filesystem_path(path), &svg_notices);
+      std::optional<Document> narrowed;
+      svg::DocumentIo::write_file(document_for_8bit_writer(document(), narrowed), to_filesystem_path(path),
+                                  &svg_notices);
       export_notes_suffix = export_notes_suffix_for(svg_notices);
     } else {
       std::vector<std::string> writer_notices;
@@ -4167,7 +4172,8 @@ std::optional<QStringList> MainWindow::export_document_sessions_to_folder(
                                                  psd::WriteOptions{extension == QStringLiteral("psb")});
       } else if (extension == QStringLiteral("aseprite") || extension == QStringLiteral("ase")) {
         // Layered too; unattended, so the Save As Fill Opacity warning does not apply.
-        aseprite::DocumentIo::write_file(page_document, to_filesystem_path(target));
+        std::optional<Document> narrowed;
+        aseprite::DocumentIo::write_file(document_for_8bit_writer(page_document, narrowed), to_filesystem_path(target));
       } else {
         write_flat_image_file(page_document, target, extension, image_options);
       }

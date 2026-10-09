@@ -3,7 +3,7 @@
 Font inventory, licensing rules, the wasm family aliases, and the drag-a-font
 feature. Read this before adding a bundled font, changing the alias table, or
 touching `src/ui/user_fonts.*`. The text tool's font resolution pipeline lives
-in [text-tool.md](text-tool.md); the wasm platform rules this feature obeys
+in [font-resolution.md](font-resolution.md); the wasm platform rules this feature obeys
 live in [wasm.md](wasm.md).
 
 ## Bundled fonts
@@ -57,17 +57,15 @@ text at all for that family, and re-importing it (in Patchy, Affinity, anywhere)
 shape layers instead of text.
 
 The rule that follows: **never register a font file for a family the system already
-installs.** `application_font()` (src/app/main.cpp) used to register
-`C:/Windows/Fonts/{arial,segoeui,calibri}*.ttf` unconditionally just to pick a UI font,
-which quietly turned every Arial / Segoe UI / Calibri text layer into outlines on editable
-PDF export while unregistered families (Consolas, Tahoma, ...) exported as real text.
-It now takes the first installed candidate family and registers nothing;
+installs.** Registering an installed family's file turns every text layer in that family
+into outlines on editable PDF export. `application_font()` (src/app/main.cpp) takes the
+first installed UI-font candidate (Arial, Segoe UI, Calibri) and registers nothing;
 `src/ui/ui_font.{hpp,cpp}` owns that decision and
 `ui_font_bootstrap_never_registers_installed_families` pins it. Only a Windows install
-carrying none of the three registers files, where having a UI font at all wins.
+carrying none of them registers the first candidate's files, where having a UI font at all wins.
 
 Bundled fonts (`load_bundled_fonts`) and user-added fonts are application fonts by
-nature - they are not installed - so text in those families still exports to PDF as
+nature (they are not installed), so text in those families still exports to PDF as
 outlines. That is a Qt limitation with no workaround short of writing the font
 programme into the file ourselves; see [pdf.md](pdf.md).
 
@@ -77,7 +75,8 @@ programme into the file ourselves; see [pdf.md](pdf.md).
 common system families to bundled stand-ins (Arial and Helvetica to Liberation
 Sans, Times New Roman to Liberation Serif, Courier New to Liberation Mono,
 Calibri to Carlito, Segoe UI/Tahoma/Verdana to Noto Sans, Georgia to Noto
-Serif, the common Japanese system families to Noto Sans JP). The one table is
+Serif, the common Japanese, Simplified Chinese and Traditional Chinese system
+families to Noto Sans JP, SC and TC). The one table is
 consumed twice, and the two consumers must stay in sync by construction:
 
 - `QFont::insertSubstitution` at startup (src/app/main.cpp), the
@@ -143,19 +142,17 @@ window registers them for immediate use and persists them:
   first step of `restore_user_fonts_at_startup`, before anything is registered).
   A FreeType font database (Linux, and the offscreen platform everywhere)
   opens the font file again whenever it builds a new engine, so deleting the
-  copy turned the font into another family the next time it was asked for at
-  a new size (October 2026: an Arabic layer in a removed Noto Naskh Arabic
-  came back as Noto Sans Arabic). Windows keeps the font data in memory and
-  never showed it. Adding a removed font again before the restart takes it off
+  copy turns the font into another family the next time it is asked for at
+  a new size. Windows keeps the font data in memory. Adding a removed font again before the restart takes it off
   the list. A file that cannot be deleted stays listed. Tests that register
   fonts from the store must not delete it afterwards for the same reason.
 - The font picker needs no manual refresh: `QFontComboBox` repopulates on
   `QGuiApplication::fontDatabaseChanged`, which `addApplicationFont` emits
   (pinned by `ui_user_fonts_add_persist_and_clear`).
 
-Tests: `tests/core/font_zip_tests.cpp` (extractor) and the two `ui_user_fonts`
-/ `ui_font_drop` cases in `tests/ui/text_editor_font_picker_tests.cpp`
-(registration, persistence, duplicates, invalid fonts, drop routing).
+Tests: `tests/core/font_zip_tests.cpp` (extractor) and the `ui_user_fonts_*` and
+`ui_font_drop_*` cases in `tests/ui/text_editor_font_picker_tests.cpp`
+(registration, persistence, duplicates, invalid fonts, store isolation, drop routing).
 `ui_bundled_web_fonts_register_and_create_engines` guards the whole
 `third_party/fonts-web` inventory but registers it in a child process
 (`--bundled-web-fonts-probe`) so the suite's font database stays clean; see
@@ -172,10 +169,9 @@ and macOS it deletes fonts the first is still drawing with.
 - The UI suite sets it for every test process (`tests/ui/main.cpp`):
   `test-artifacts/user-fonts/<pid>` with a `store.lock` held for the life of the process.
   At startup it removes the stores whose lock it can take, which are the ones left by
-  processes that have exited. Before October 2026 the suite used QStandardPaths' test-mode
-  app-data folder, one directory for every checkout and worktree on the machine; the full
-  UI suite failed `ui_user_fonts_add_persist_and_clear` during the 1.05 release while
-  another session's tests were running. `ui_user_fonts_store_is_private_to_the_process`
+  processes that have exited. Never point tests at QStandardPaths' test-mode app-data
+  folder: it is one directory shared by every checkout and worktree on the machine, so
+  concurrent suites break each other. `ui_user_fonts_store_is_private_to_the_process`
   pins the isolation and the Unicode read of the override.
 - Known limit, not fixed: two running Patchy instances (a second one needs
   `PATCHY_NO_SINGLE_INSTANCE=1`, `--headless`, or the MCP connector's own app) share the

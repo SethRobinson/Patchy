@@ -1,15 +1,15 @@
 # Vector commands and point-editing UI
 
-JavaScript bindings share native path fitting, selection coverage, stroke
-sampling, and mask baking through `vector_operations.cpp`. See
-[vector-automation.md](vector-automation.md) for the automation contract.
-
-Feature reference for the path point-editing surface added in August 2026
-and the vector commands that operate on existing shapes. The model, PSD
-encodings, and the Pen/Direct Select basics live in
+The path point-editing surface (classifier, anchor tools, selection, hints,
+context menu, path free transform) and the commands that operate on existing
+shapes (Simplify Path, Combine Shapes, Ungroup Layers). The model, PSD
+encodings, and Pen/Direct Select basics live in
 [vector-tools.md](vector-tools.md); legal boundaries in
-[legal-constraints.md](legal-constraints.md). Tests:
-`tests/ui/vector_point_editing_tests.cpp`.
+[legal-constraints.md](legal-constraints.md); the JavaScript contract in
+[vector-automation.md](vector-automation.md) (scripts and the UI share
+fitting, selection coverage, stroke sampling, and mask baking through
+`src/ui/vector_operations.cpp`). Tests:
+`tests/ui/vector_point_editing_tests.cpp`, `tests/ui/vector_commands_tests.cpp`.
 
 ## One classifier, three consumers
 
@@ -57,18 +57,20 @@ selection.
 
 ## Hints
 
-- Activation: picking a path tool shows a one-sentence gesture hint in the
-  status bar (`tool_activation_hint_source`, tool palette TU); other tools
-  keep showing their name. Tooltips for the same tools are two lines
-  (`tool_tooltip_source`, bound through `bind_tooltip`).
+- Activation: picking a path tool (or Move or Crop) shows a one-sentence
+  gesture hint in the status bar (`tool_activation_hint_source`,
+  main_window_actions_tool_palette.cpp); other tools show their name. The
+  same tools get a second tooltip line (`tool_tooltip_detail_source`, stored
+  as `kActionTooltipDetailProperty` and composed under "Name (Key)" by the
+  hotkey registry).
 - Hover: `update_path_hover_hint` (Pen family: add/delete/convert/close) and
   `update_path_select_hover_hint` (Path/Direct Select: anchor, handle,
   segment) emit through the status callback only on the transition INTO an
   actionable state and never on the way back, so confirmations shown by
   other code survive mouse motion. `set_tool` resets the memory.
-- Every path-tool hint lives in the status bar (Seth, August 2026: the old
-  options-bar gesture label duplicated the status hints and was removed).
-  The activation and hover hints name the Ctrl-drag select/move gesture.
+- Every path-tool hint lives in the status bar; the options bar carries no
+  gesture label. The activation and hover hints name the Ctrl-drag
+  select/move gesture.
 - Point count: `pathPointCountChip` (a permanent status-bar QLabel next to
   the mask/palette chips, so it survives `showMessage`) shows "%n points
   selected" once two or more anchors are selected under a per-point tool
@@ -97,8 +99,7 @@ split out of `handle_path_edit_move`). Pressing or releasing Shift with a
 stationary cursor replays the drag at the last raw pointer position from
 keyPressEvent/keyReleaseEvent. Shift at press keeps its additive-selection
 meaning; only move/key state during the drag drives the constraint. Handle
-drags and the Pen's in-session Ctrl anchor drag stay unconstrained. The
-status-bar chip shows the selected-point count (see Hints above).
+drags and the Pen's in-session Ctrl anchor drag stay unconstrained.
 
 The marquee drag takes Space and Shift like the selection marquee: Space held
 repositions the whole rect (its keyRelease branch deliberately skips
@@ -127,29 +128,30 @@ right button never pans); a release within `startDragDistance` opens
 `canvasPathContextMenu` (`show_path_context_menu`, public for tests, reached
 through `show_canvas_context_menu`, which falls back to the shared canvas menu
 when the path menu has no target), otherwise the gesture opened nothing.
-Entries (object names `pathMenu*Action`):
-Add Anchor Point (over a segment), Delete Anchor Point and Convert Point
-(over an anchor), Delete Selected Points and Deselect Points (with a
-selection), Free Transform Points (Direct Select with a selection) or Free
-Transform Path (Path/Direct Select only; the Pen family sees it disabled
-and keeps falling through to the layer transform). The menu uses the RAW
-hit, so it works with Auto Add/Delete off and under the anchor tools. No
-menu with no target path, during a Pen session, or in a path transform.
+Every entry is always listed and enabled by context (object names
+`pathMenu*Action`): Add Anchor Point (over a segment), Delete Anchor Point
+and Convert Point (over an anchor), Delete Selected Points and Deselect
+Points (with a selection), then Free Transform Points (Direct Select with a
+selection) or Free Transform Path, enabled for Path/Direct Select only (the
+Pen family sees it disabled and keeps falling through to the layer
+transform). The menu uses the RAW hit, so it works with Auto Add/Delete off
+and under the anchor tools. No menu with no target path, during a Pen
+session, or in a path transform.
 
 ## Paths panel retargeting
 
-`refresh_paths_panel` remembers the active layer of the previous refresh;
-when it changes to a layer whose transient row is a shape or vector-mask
-path, a targeted work/saved-path row is dropped so
-`path_edit_target_path` resolves to the new layer (Photoshop retargets on
-layer selection). The memory resets on a document switch so reused layer
-ids never look like a change. Explicit row clicks within one layer still
-stick. Trace Image to Shapes activates the frontmost traced shape for the
-same reason (a group has no path). The same refresh repaints the canvas on a
-layer change: a pure activation composites nothing, and the overlay (drawn
-from the active layer) otherwise stayed stale until an unrelated edit (Seth,
-August 2026: anchors appeared only after toggling Stroke;
-`ui_layer_row_click_shows_anchors_for_shape_layer` counts paint events).
+`refresh_paths_panel` remembers the active layer of the previous refresh
+(`paths_panel_last_active_layer_`); when it changes to a layer whose
+transient row is a shape or vector-mask path, a targeted work/saved-path row
+is dropped so `path_edit_target_path` resolves to the new layer (Photoshop
+retargets on layer selection). The memory resets on a document switch so
+reused layer ids never look like a change. Explicit row clicks within one
+layer still stick. Trace Image to Shapes activates the frontmost traced
+shape for the same reason (a group has no path). The same refresh repaints
+the canvas on a layer change: a pure activation composites nothing, and the
+overlay (drawn from the active layer) would otherwise stay stale until an
+unrelated edit (`ui_layer_row_click_shows_anchors_for_shape_layer` counts
+paint events).
 
 ## Simplify Path
 
@@ -173,9 +175,11 @@ through `CanvasWidget::replace_path_edit_target`, the un-armed half of
 `apply_path_edit`, under the preview edit lock; cancel restores the snapshot
 of the OWNING object (whole `Layer` or `DocumentPath`, so a saved path keeps
 its verbatim PSD bytes), accept restores then re-applies after one
-"Simplify path" undo entry. The dialog is non-modal; the commit re-validates
-the document identity and the target's existence first. Script:
-`layer.simplifyPath({tolerance, cornerAngle, snapCurvesToLines})`.
+"Simplify path" undo entry. The dialog is non-modal (`run_non_modal_dialog`);
+the commit re-validates the document identity and the target's existence
+first. Script: `layer.simplifyPath({tolerance, cornerAngle,
+snapCurvesToLines})` returns `{anchorsBefore, anchorsAfter}`. Tests: `path_simplify_*` in
+`tests/core/vector_shape_tests.cpp`.
 
 ## Combine Shapes
 
@@ -183,11 +187,11 @@ the document identity and the target's existence first. Script:
 Exclude Overlapping Shapes` (ids `layer.combine_unite`,
 `layer.combine_subtract`, `layer.combine_intersect`, `layer.combine_exclude`)
 merge the Layers-panel selection (`combine_shape_candidates`,
-`src/core/shape_combine`): two or more editable shape layers with paths, all
-siblings of one parent; folders expand to nothing (root ids only). Enable
-state follows the selection (`refresh_combine_shapes_action_states`, also on
-pure multi-selection changes). Semantics are the renderer's sequential
-combine: the BOTTOM-most layer is the base and keeps its id, name,
+`src/core/shape_combine`): two or more unlocked, editable shape layers with
+paths, all siblings of one parent; folders expand to nothing (root ids only).
+Enable state follows the selection (`refresh_combine_shapes_action_states`,
+also on pure multi-selection changes). Semantics are the renderer's
+sequential combine: the BOTTOM-most layer is the base and keeps its id, name,
 appearance, styles, masks, origination, and its groups' own ops; every group
 of each front layer is appended in stacking order with the chosen op (Add /
 Subtract / Intersect / Xor), groups renumbered from `next_shape_group()`.
@@ -197,8 +201,8 @@ Photoshop's per-component model; the Path Select Combine box retunes ops
 afterwards. One undo entry per command ("Unite shapes", "Subtract front
 shape", "Intersect shapes", "Exclude overlapping shapes"). Script:
 `doc.combineShapes([layers], "unite" | "subtract" | "intersect" | "exclude")`.
-Tests: `tests/core/vector_shape_tests.cpp` (fitter, simplify),
-`tests/core/vector_raster_tests.cpp` (combine truth table, refusals),
+Tests: `tests/core/vector_raster_tests.cpp` (`combine_shape_layers_truth_table`,
+`combine_shape_candidates_refuses_mixed_parents_locks_and_fill_layers`),
 `tests/ui/vector_commands_tests.cpp`.
 
 ## Ungroup Layers
@@ -207,13 +211,13 @@ Tests: `tests/core/vector_shape_tests.cpp` (fitter, simplify),
 `layerUngroupAction`; also in the Layers panel context menu when the active
 layer is a folder) releases every selected folder's layers into its parent
 at the folder's position, composite order unchanged (`ungroup_layer`,
-`src/core/layer_tree`). New Folder gained Photoshop's Ctrl+G at the same
-time, so the pair matches muscle memory. Photoshop's rule applies: the
-folder's own opacity, blend mode, masks, and style are dropped, and the
-status line says so when one was set. Lock All on the folder refuses. One
-"Ungroup layers" undo entry; the topmost released layer becomes active; the
-folder leaves the session's collapsed set. Script: `layer.ungroup()` returns
-the released layers top to bottom.
+`src/core/layer_tree`). New Folder (`layer.new_folder`) is Ctrl+G, so the
+pair matches Photoshop. Photoshop's rule applies: the folder's own opacity,
+blend mode, masks, and style are dropped, and the status line says so when
+one was set. Lock All on the folder refuses. One "Ungroup layers" undo
+entry; the topmost released layer becomes active; the folder leaves the
+session's collapsed set. Script: `layer.ungroup()` returns the released
+layers top to bottom.
 
 ## Copy as SVG
 
@@ -225,13 +229,17 @@ place.
 
 Ctrl+T with Path Select or Direct Select active (and a targetable path)
 starts a PATH transform session instead of the layer one: a rotated-box
-overlay over the path, or over the Direct Select anchor subset (PS's Free
-Transform Points), with the usual move/scale/rotate, arrow nudges,
-Enter/Esc, tool-switch commit, document-switch cancel. The commit is ONE
-apply_path_edit undo entry ("Transform path") routed to the active target
-(panel path, vector mask, shape layer with live annotations dropped, or
-work path), then re-rasterizes. Lives in canvas_widget_vector_tools.cpp
-(path_transform_*), separate from the pixel session; begin_path_transform
-is called ONLY from transform_active_layer_dialog. Corner-handle aspect
-locking and Shift share the pixel session's rules and predicate
+overlay over the path (the bezier hull, handles included), or over the
+Direct Select anchor subset (Photoshop's Free Transform Points), with the
+usual move/scale/rotate, arrow nudges, Enter/Esc, tool-switch commit,
+document-switch cancel. Ctrl+T during a session is a no-op. The commit is
+ONE `apply_path_edit` undo entry ("Transform path") routed to the active
+target (panel path, vector mask, shape layer with live annotations dropped,
+or work path), then re-rasterizes. Lives in canvas_widget_vector_tools.cpp
+(`path_transform_*`), separate from the pixel session. `begin_path_transform`
+has two callers: `MainWindow::transform_active_layer_dialog` (Ctrl+T, tried
+before the layer transform; the layer position lock does not apply to path
+geometry) and the path context menu. Never call it from
+`begin_free_transform`, whose internal callers stay layer-only. Corner-handle
+aspect locking and Shift share the pixel session's rules and predicate
 ([tools.md](tools.md)).

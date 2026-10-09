@@ -9,7 +9,7 @@ New Document dialog. A preview edit lock refuses it, like File > New.
 
 `create_clipboard_document` also serves New Document's Clipboard preset. It keeps
 the image's full pixel dimensions, including high-DPI clipboard images, and alpha,
-creates one Clipboard Image layer at (0, 0), assigns 72 PPI, fits oversized images
+creates an 8-bit document with one Clipboard Image layer at (0, 0), assigns 72 PPI, fits oversized images
 to the view, and marks the session modified so closing warns about unsaved work.
 It reads the system image rather than Patchy's private editable-layer payload.
 Text, file URLs without image data, and empty clipboards report the existing
@@ -39,10 +39,9 @@ Qt's write path either. The same backend serializes a copied image to PNG and
 calls `navigator.clipboard.write()` with a Blob built by qstdweb's
 `Blob::fromArrayBuffer`, which carries no MIME type. Chromium rejects a
 `ClipboardItem` whose Blob type does not match its key (`NotAllowedError: Type
-image/png does not match the blob's type`), Qt only prints "clipboard error" on
-the console, and the 1.06 web build could not copy an image out to any
-Chromium browser (Brave, October 2026). `set_system_clipboard_image` therefore
-also calls `wasm_clipboard::write_image_png` (`src/ui/clipboard_wasm.cpp`),
+image/png does not match the blob's type`) and Qt only prints "clipboard error" on
+the console, so Qt alone cannot copy an image out to a Chromium browser.
+`set_system_clipboard_image` therefore also calls `wasm_clipboard::write_image_png` (`src/ui/clipboard_wasm.cpp`),
 which encodes the PNG and writes it through a typed Blob from the same user
 gesture; Qt's own rejected write still logs its warning. The Qt clipboard is
 still set so the internal paste signature and the New Document Clipboard preset

@@ -36,7 +36,7 @@ touched; a SHA check at the end of every run proves it), and Testy records:
   the render means the editor displayed Photoshop's baked composite instead of
   compositing layers itself. Flattened files (zero layer records) get no trap: the
   composite is the only image data, so reading it is correct and even Photoshop
-  would trip the sentinel (noted in the detail panel; old cached cells are fixed
+  would trip the sentinel (noted in the detail panel; cached cells are corrected
   on reuse). Photoshop tripping its own trap means even the ground
   truth could not re-render the layers (missing fonts etc.) and fell back to the
   baked composite; another editor matching that is not a cheat (a neutral note says
@@ -65,13 +65,6 @@ touched; a SHA check at the end of every run proves it), and Testy records:
   Standing card's psd text handling, and the detail panel names the fonts. No font is
   silently replaced. The font inventory is part of the ground-truth and Patchy cache
   keys, so installing fonts invalidates old text results on the next run.
-
-(The old "forced text re-render" leg, which appended `~TESTY~` to every text layer in
-Photoshop and Patchy and compared those renders, was retired in October 2026: the
-scripted re-renders below force the same engines without changing the document, and
-they cover every editor with the same metric. `patchy.exe --append-text` remains a
-product CLI flag; Testy no longer uses it.)
-
 - **Bit depth kept** (`cell.saveDepth`) - the depth in the resaved .psd's header
   against the original's (`save_depth_record` in testy.py; no Photoshop needed, so
   cached resaves are read too). A 16 or 32-bit file saved at a lower depth shows
@@ -90,8 +83,9 @@ product CLI flag; Testy no longer uses it.)
   8-bit steps. An 8-bit render or save of a smooth 16-bit image misses on about 7 of 8
   pixels by rounding alone, which the 8-bit metrics cannot see. 16-bit PNGs decode
   through OpenCV when installed, else a built-in decoder (Pillow reads 16-bit RGB as
-  8-bit). 32-bit files have no precision leg yet. 16-bit files carry `-deep1` in
-  their cache keys.
+  8-bit). Patchy exports a 16/32-bit document as a 16-bit PNG, which its driver splits
+  into `render16.png` and an 8-bit `render.png` (`analyze.split_deep_png`). 32-bit files
+  have no precision leg yet. 16-bit files carry `-deep1` in their cache keys.
 
 The Photoshop column doubles as a control: ~100% render accuracy and full native
 preservation validate the pipeline itself.
@@ -104,7 +98,8 @@ preservation validate the pipeline itself.
   `drivers/photoshop.py` converts Bitmap to Grayscale, any non-RGB mode to RGB, the
   document profile to sRGB (relative colorimetric, black point compensation; skipped
   for 32-bit), and 16-bit to 8-bit. Without it a grayscale or CMYK file's reference
-  was in the document's own space and every editor scored against the wrong numbers.
+  would be in the document's own space and every editor would score against the wrong
+  numbers.
 - The comparison honors an embedded ICC profile in either render
   (`analyze.load_srgb_rgba`), so an editor that exports in the document space with
   the profile attached is not marked down for it.
@@ -159,8 +154,8 @@ with such layers the scored render comes from a copy with the caches removed.
 - The "plain" copy also renames the defining blocks to an unknown key (`tsTY`),
   leaving ordinary empty pixel layers. The two copies differ in nothing else, so a
   difference between an editor's two renders inside a layer's box is what the editor
-  drew for that layer; no difference means it drew nothing. (An earlier version hid
-  the layers instead; GIMP exports a different canvas when nothing is visible.)
+  drew for that layer; no difference means it drew nothing. Do not hide the layers
+  instead: GIMP exports a different canvas when nothing is visible.
 - `_no_cache_leg` renders the stripped copy (`nocache.png`), keeps the normal render
   as `render_as_opened.png`, and writes the scored `render.png`: the stripped render,
   with each layer the editor drew nothing for outlined and labeled ("Cannot render
@@ -175,9 +170,9 @@ The leg must never mark an editor down for the harness's own mistake:
   A blank one counts against an editor only where `BLANK_IS_FAILURE` says the editor
   is known to draw that kind from the layer's data (or to have no engine for it).
   Otherwise the box keeps the as-opened pixels and the layer is reported as "not
-  measured (cache shown)". No editor in the roster is in that state today: PhotoDemon
-  was until its source settled it (pdPSD.cls creates every PSD layer as `PDL_Image`
-  and never reads `TySh`, so it has no PSD text to lay out). Blank shape and fill
+  measured (cache shown)". No editor in the roster is in that state: PhotoDemon's
+  source settles its case (pdPSD.cls creates every PSD layer as `PDL_Image` and never
+  reads `TySh`, so it has no PSD text to lay out). Blank shape and fill
   layers always count: Photoshop draws those from the layer's data.
 - **Patchy's type layers and smart objects keep their cache and are re-rendered by
   script** (`TEXT_CACHE_KEPT`; the `*_textkept` staged copies strip everything else).
@@ -210,8 +205,8 @@ The leg must never mark an editor down for the harness's own mistake:
   pixels, voids the leg after one retry: `noCache.state` is "not measured" with the
   reason, and the cell stays scored as opened. So does an editor that cannot open the
   stripped copy. This caught Affinity exporting the previous file's document when
-  every staged copy was named `nocache.psd` (the driver now stages each copy under a
-  per-file name).
+  every staged copy shared one name, which is why the driver stages each copy under a
+  per-file name.
 - **An editor that falls back to the flat composite** when no layer has pixels
   (PhotoDemon) shows the sentinel. That is read as "drew nothing for the cached
   layers" (`showedComposite`), and the scored image is the as-opened render with
@@ -221,7 +216,7 @@ The leg must never mark an editor down for the harness's own mistake:
   composite the plain copy of `masks.psd` (a broadcast error inside its own code).
   That voids the leg for that cell, as above; it is never read as "cannot render".
 
-Measured on open, caches removed (October 2026): Affinity redraws text, shapes and
+Measured on open, caches removed: Affinity redraws text, shapes and
 fills; Patchy redraws shapes and fills (text and smart objects through its script); Krita redraws text and gradient fills but nothing for
 vector-masked solid fills; Photopea redraws shapes, fills and smart objects, and
 text after the scripted edit; psd-tools redraws shapes and fills only; GIMP and

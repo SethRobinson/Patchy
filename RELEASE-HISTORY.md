@@ -3,6 +3,23 @@
 Older Patchy release notes are collected here. The two most recent releases
 remain in [README.md](README.md#whats-new).
 
+## 1.06 - October 6, 2026
+
+- Crop tool: it frames the canvas when selected, adopts the current selection, and has a Style menu with a Size mode for typing an exact Width and Height. Alt resizes the box about its center and Space slides it during a handle drag ([issue 66](https://github.com/SethRobinson/Patchy/issues/66))
+- Move tool: Alt-drag duplicates the layer, Ctrl+click selects the layer under the pointer, the Auto-Select setting is remembered, and artwork on the pasteboard can be outlined and grabbed ([issue 69](https://github.com/SethRobinson/Patchy/issues/69), [issue 73](https://github.com/SethRobinson/Patchy/issues/73))
+- Zoom In/Out and Zoom tool clicks step along Photoshop's zoom levels, and 100% is one document pixel per screen pixel on scaled displays ([issue 77](https://github.com/SethRobinson/Patchy/issues/77), [issue 75](https://github.com/SethRobinson/Patchy/issues/75))
+- Changing the foreground color or picking with the Eyedropper recolors the selected shape ([issue 67](https://github.com/SethRobinson/Patchy/issues/67))
+- Text: the keypad Enter key commits the text and a triple click selects a line ([issue 71](https://github.com/SethRobinson/Patchy/issues/71), [issue 74](https://github.com/SethRobinson/Patchy/issues/74))
+- Closing a modified document offers Save, Don't Save, and Cancel ([issue 70](https://github.com/SethRobinson/Patchy/issues/70)), the color picker opens with the hex field selected ([issue 68](https://github.com/SethRobinson/Patchy/issues/68)), options-bar labels are plain text instead of chips ([issue 76](https://github.com/SethRobinson/Patchy/issues/76)), and double-clicking a New Document preset creates the document
+- PSD compatibility: Bitmap, Indexed, Duotone, Lab and Multichannel PSDs open by converting to RGB, adjustment layers in CMYK and grayscale documents apply to their own channels, and the Exposure adjustment layer is supported. Stroke effects on semi-transparent content, group Fill opacity, noise gradient fills, Divide, Levels and Posterize are closer to Photoshop ([issue 65](https://github.com/SethRobinson/Patchy/issues/65))
+- Selection Feather and Anti-alias are kept per tool and remembered between sessions ([issue 64](https://github.com/SethRobinson/Patchy/issues/64))
+- Layers above a layer being transformed stay visible during the drag ([issue 72](https://github.com/SethRobinson/Patchy/issues/72)), and clicking a blank area of the Layers panel deselects every layer
+- Scripting: `layer.rerenderText()` and `layer.rerenderSmartObject()`
+  
+- Testy V2 written, it's a more accurate way to test PSD compatibilty of various apps,, it's a WIP but you can see a run [here](https://www.rtsoft.com/testy/2026-10-06/).  
+
+- I added some people to the credits (Kevdoy had a TON of bug reports today), thanks folks!)  But then the credits got too big, so I moved them to the Help->About screen as being on the main screen actually hurt the real-estate needed to show more recent files.  If anybody is like "no, don't put me in the credits, jerk" just let me know.
+
 ## 1.05 - October 4, 2026
 
 - Linux: Patchy now updates through `flatpak update` and the software center, from a signed Flatpak repository ([issue 28](https://github.com/SethRobinson/Patchy/issues/28)). The Flatpak moved to the current KDE runtime, and iPhone HEIC photos open without installing an extra codec package

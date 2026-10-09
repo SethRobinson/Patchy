@@ -45,8 +45,8 @@ canaries.
   `sample_bicubic`, and the gray8 switch) take their cubic weights from `core/resample.hpp` but
   keep their own QImage inverse-mapping loops. They could sit on a core `sample_at(PixelBuffer,
   x, y, method)` once someone wants to re-pin `gray8_resample_identity_and_default_fill` and
-  `ui_group_transform_resamples_linked_masks`. (The combo's Smoother, Sharper and Automatic
-  entries landed in October 2026 through `cubic_tap_weight`; only the loops remain separate.)
+  `ui_group_transform_resamples_linked_masks`. The cubic variants already share
+  `cubic_tap_weight`; only the loops remain separate.
 - Share the destructive-adjustment guard, apply, and restore phases, the Smart Filter
   command guard preambles, and the remaining progress-dialog implementations through
   `main_window_shared`.
@@ -100,7 +100,7 @@ canaries.
 - `VisibleSizeGrip` (dialog_utils.cpp) paints a hardcoded light gray, chosen for the
   Dark scheme; it is not scheme-aware, so its strokes can lose contrast on Light's
   pale popups. Route the color through a theme role.
-- Styled GROUPS (July 2026 group layer effects) have no UI render cache: every
+- Styled groups have no UI render cache: every
   repaint re-flattens the group's children and re-runs the effect passes
   (`composite_document_layer` routes styled groups through `composite_layer`).
   Isolated groups always paid the flatten, so the new cost class is the effect
@@ -126,7 +126,8 @@ canaries.
 
 - `patchy_color` is referenced before its target definition. CMake accepts this, but
   the ordering is easy to break during target reorganization.
-- The absolute VS 18 cmake.exe path is hardcoded in three places (the AGENTS.md
-  handoff command, `scripts/run-tests.ps1`, and `scripts/make-readme-screenshots.ps1`),
-  against the vs-env.bat single-owner principle; only run-tests.ps1 falls back to a
-  PATH `cmake`.
+- The absolute VS 18 cmake.exe path is hardcoded in five places (the AGENTS.md
+  handoff command, `scripts/run-tests.ps1`, `scripts/make-readme-screenshots.ps1`,
+  `scripts/release/build-release.bat`, and `scripts/release/build-wasm.bat`), against
+  the vs-env.bat single-owner principle; make-readme-screenshots.ps1 and the AGENTS.md
+  command have no fallback to a PATH `cmake`.

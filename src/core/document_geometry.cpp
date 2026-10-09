@@ -496,8 +496,9 @@ struct RotatedCropMap {
 
 // Samples `source` (document-space `source_bounds`) into `destination`
 // (result-space `destination_bounds`) through the inverse crop mapping.
-// Bilinear with clamped edges for 8-bit (the convention a bilinear Image Size
-// enlargement shares, core/resample.cpp), nearest for other depths; destination pixels whose source
+// Bilinear with clamped edges (the convention a bilinear Image Size enlargement
+// shares, core/resample.cpp); 16/32-bit buffers that keep their format interpolate
+// floats in their own domain, other depth changes take nearest. Destination pixels whose source
 // point falls outside the buffer keep their pre-filled value. A 3->4 channel
 // promotion writes opaque alpha, like copy_resized_layer_pixel.
 void sample_rotated_crop_pixels(const PixelBuffer& source, Rect source_bounds, PixelBuffer& destination,

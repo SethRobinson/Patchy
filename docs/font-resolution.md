@@ -30,8 +30,8 @@ The text engine's font lookup and the PSD reader's naming rules. The session mac
 - **Messages name the cause.** `text_font_problems_for_layer` splits the same families into
   `not_installed` and `no_glyphs`. The thumbnail tooltip, the Missing Font dialog, the
   `addTextLayer` console warning and the PDF export note each say "has no glyphs for this text"
-  for an installed font, never "missing" or "not available": that wording sent a script author
-  looking for a font file that was already registered (October 2026). Tests:
+  for an installed font, never "missing" or "not available" (that wording sends users looking
+  for a font file that is already registered). Tests:
   `ui_text_layer_font_without_glyph_coverage_counts_as_missing`,
   `ui_script_text_font_without_glyphs_warns_with_the_real_cause`. The script warning comes from
   `ScriptEngineHost::edit_text_layer_session`, so every text setter reports it, including a
@@ -85,11 +85,10 @@ The text engine's font lookup and the PSD reader's naming rules. The session mac
   (`add_application_font_by_windows_names`, same module; used by the user-fonts store and the
   fixture-registering tests). Qt keeps ONE style per family + style name: the last face
   registered as "Futura" + "Bold" takes the slot. CoreText lists the Bitstream face under
-  Apple's family, so a user-font FUTURABC.TTF held the slot only until CoreText's lazy alias
-  population (the first request for any missing family in the process) re-registered every
-  system face and Apple's Futura Bold took it back; the index then truthfully found no face
-  carrying "Futura BdCn BT" and the layer fell to the substitute (the September 29, 2026 mac
-  "text" suite run, while the test alone passed). `windows_named_font_data` copies the font
+  Apple's family, so a user-font FUTURABC.TTF holds the slot only until CoreText's lazy alias
+  population (the first request for any missing family in the process) re-registers every
+  system face and Apple's Futura Bold takes it back; the index then finds no face carrying
+  "Futura BdCn BT" and the layer falls to the substitute. `windows_named_font_data` copies the font
   with its Macintosh `name` records removed when they name a different family than the Windows
   records (glyphs and every other table byte-identical, directory checksum and `head`
   adjustment refreshed), and the copy registers from memory, so CoreText derives
@@ -104,8 +103,8 @@ The text engine's font lookup and the PSD reader's naming rules. The session mac
   turned an untouched 60 px layer into 58 px at a 15% zoom. A whole-pixel exact size does not opt
   the runs into the Photoshop-layout columns. Test: `ui_script_text_size_survives_low_zoom_reedit`.
 - On wasm, `available_text_family_match` also resolves common system families through the bundled
-  metric-compatible alias table, and every text render appends a Noto Sans JP fallback family. See
-  [fonts.md](fonts.md).
+  metric-compatible alias table, and every text render appends the bundled CJK families in the UI
+  language's order (`wasm_cjk_fallback_families`). See [fonts.md](fonts.md).
 - **Only Regular (400) and Bold (700) survive being flattened into a family plus a bold flag.**
   The PSD reader keeps the real face for every other weight (`psd_text_read.cpp`): DirectWrite
   on Windows, the font database elsewhere (`src/ui/psd_font_resolver.hpp`), the suffix
@@ -149,11 +148,10 @@ A PS 5 type record names each face three ways: PostScript name, GDI family and s
 are used instead, with bold and italic parsed from the style string, because those are the names
 Windows lists the face under and the heuristic's humanized guess is not.
 
-Those GDI names are Windows names. With `local-test-fixtures/fonts/FUTURABC.TTF` registered,
+Those GDI names are Windows names: CoreText lists `FUTURABC.TTF` as "Futura" + "Bold", so on
+macOS the GDI family "Futura BdCn BT" is missing and a session would substitute a regular-width
+face. The name-table index above resolves the record's family (and its PostScript name) to the
+face Qt really holds, so the layer renders with the condensed face on every platform; the reader
+still stores the GDI names. Pinned with `local-test-fixtures/fonts/FUTURABC.TTF` by
 `ui_title02_tracked_legacy_text_caret_matches_glyphs_if_available` (Title02.psd,
-`FuturaBT-BoldCondensed` / `Futura BdCn BT`) rendered at the imported width on Windows and Linux
-but 23 percent wider on macOS (September 29, 2026): CoreText lists the file as "Futura" + "Bold",
-Qt warned that the family "Futura BdCn BT" was missing, and the session substituted a
-regular-width face. Tracking and size scaling were never involved. The name-table index above
-resolves the record's family (and its PostScript name) to the face Qt really holds, so the layer
-renders with the condensed face on every platform; the reader still stores the GDI names.
+`FuturaBT-BoldCondensed` / `Futura BdCn BT`).

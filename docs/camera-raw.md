@@ -12,7 +12,8 @@ packs are GPL.
 `raw_document_io.{hpp,cpp}` develops to 16-bit sRGB with an explicit sRGB transfer
 curve; LibRaw defaults to BT.709. `raw_tone.{hpp,cpp}` applies contrast, highlights,
 and shadows through one composed 65536-entry LUT, then saturation/vibrance, before
-rounded 8-bit output. The Natural profile runs first, on 16-bit sRGB. Shadow lift
+rounded 8-bit output. Raw files open as 8-bit documents, also with deep editing on (16-bit
+raw opening is open work in [high-bit-depth.md](high-bit-depth.md) Phase 8). The Natural profile runs first, on 16-bit sRGB. Shadow lift
 is pinned at black; the highlight ramp is not pinned at white, so -100 dims blown
 areas. Adjustment sliders default to zero independently of the selected profile.
 
@@ -96,7 +97,7 @@ wavelet/FBDD policy. Ordinary edits and saves retain version 1; untouched files
 remain byte-identical. Version 2 also retains its original rendering on ordinary
 edits. Reset, changing Profile, or changing Color noise selects the current
 processing version. The dialog explains this when opening older settings. Versions 2 and 3
-requires `profile` (`neutral`/`natural`) and integer `colorDenoisePasses` (0..4),
+require `profile` (`neutral`/`natural`) and integer `colorDenoisePasses` (0..4),
 including inactive Manual values. No hidden migration or per-camera settings cache.
 
 Open waits for matching accurate pixels, saves customized settings, and imports.

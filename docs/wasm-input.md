@@ -55,9 +55,9 @@ listeners sit on the window's client-area div). Three thieves:
   the canvas cannot recover: `QWasmWindow::requestActivateWindow()` skips
   DOM `focus()` whenever an input context exists (it always does), and
   `QWasmInputContext::updateInputElement()`, the only DOM-refocus path, runs
-  only when the Qt focus object CHANGES - which a click on the
-  already-focused canvas never does (clicking a focus-taking panel widget
-  does, which is why users found "click the Layers panel" revives hotkeys).
+  only when the Qt focus object CHANGES, which a click on the
+  already-focused canvas never does (clicking a focus-taking panel widget,
+  such as the Layers panel, does).
 
 Heals installed (all call `restore_qt_dom_focus()`, which refocuses Qt only
 when focus actually fell to the page body/html, so it never steals a
@@ -82,10 +82,8 @@ events are synchronous on wasm (`qwasmcompositor.cpp`), so
 still reports `isVisible() == false`. Its focus pass then rejects a focus
 widget that was set before exec()/show() (plain `isVisible()` check) and
 falls back to `focusNextPrevChild_helper`, whose `isVisibleTo()` check passes
-for the not-yet-shown siblings: focus lands one widget PAST the intended one.
-Image Size opened with Height focused instead of Width, the Width spin still
-showing its `selectAll()` highlight because it never actually held focus.
-Desktop platforms activate after the show and never see this state.
+for the not-yet-shown siblings: focus lands one widget PAST the intended one
+(Image Size would open with Height focused instead of Width). Desktop platforms activate after the show and never see this state.
 
 Guard: `WasmDialogInitialFocusGuard` (dialog_utils.cpp), installed app-wide
 by `ensure_wasm_dialog_guards()` from `exec_dialog`, `run_non_modal_dialog`,
@@ -101,8 +99,8 @@ pre-setting focus + selection before exec()/show(), unchanged.
 
 `QWasmSuspendResumeControl::sendPendingEvents()` (Qt 6.10) snapshots
 `pendingEvents.length`, then `shift()`s that many times, invoking one C++
-handler per event. A handler that nests an event loop - every slow-commit
-processing wait does - re-enters `sendPendingEvents` and drains the same
+handler per event. A handler that nests an event loop (every slow-commit
+processing wait does) re-enters `sendPendingEvents` and drains the same
 queue. When the outer call resumes, its stale count `shift()`s an empty
 queue and reads `["index"]` of `undefined`: the JS TypeError unwinds the
 resumed Asyncify stack, the main exec loop is lost, and the tab parks dead
@@ -128,11 +126,11 @@ nested loop (see above). CanvasWidget's input handlers drop user input
 while `processing_render_wait_active_`; mouse releases are parked and
 replayed after the outermost wait unwinds (a dropped release would leave
 the owning gesture latched), and ShortcutOverride is accepted so app-level
-hotkeys cannot fire into a half-committed operation. Without this, the Move
-release re-entered its own commit (mismatched deltas, ghost undo
-snapshots). MainWindow's canvas event filter obeys the same rule: it leaves
+hotkeys cannot fire into a half-committed operation (an unguarded Move
+release re-enters its own commit: mismatched deltas, ghost undo snapshots).
+MainWindow's canvas event filter obeys the same rule: it leaves
 `swallow_next_canvas_left_press_` untouched during a wait. The text
 click-off commit runs INSIDE the press delivery (focus walk -> focus-loss
-commit -> undo-snapshot wait), so the re-entrant release otherwise cleared
-the flag before its press resumed and one click off opened a new text
-session (`ui_text_click_off_commit_ignores_reentrant_release_during_wait`).
+commit -> undo-snapshot wait), so a re-entrant release would clear the flag
+before its press resumed and one click off would open a new text session
+(`ui_text_click_off_commit_ignores_reentrant_release_during_wait`).

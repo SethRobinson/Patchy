@@ -241,6 +241,11 @@ struct LayerPixelsOverrideSpec {
 // becomes the alpha channel, because compositing would erase the colors wherever the
 // mask is transparent. Shared by write_flat_image_file and the PDF writer.
 [[nodiscard]] QImage flat_export_qimage(const Document& document, bool preserve_alpha);
+// The document an 8-bit-only writer receives: `document` itself at 8 bits per channel,
+// otherwise a copy in `narrowed` converted like Image > Mode > 8 Bits/Channel. The flat
+// writers below call it themselves; the layered SVG and Aseprite writers go through it
+// at their call sites.
+[[nodiscard]] const Document& document_for_8bit_writer(const Document& document, std::optional<Document>& narrowed);
 // `notices` (optional) receives the structural losses of a writer that keeps layers
 // (today: editable PDF), one line each, for the save/export status message.
 void write_flat_image_file(const Document& document, const QString& path, const QString& extension,
