@@ -15,6 +15,7 @@ class Document;
 namespace patchy::ui {
 
 class ScriptEngineHost;
+struct ScriptScan;
 
 // The QObject wrappers the scripting engine exposes to JS (docs/scripting.md).
 // Lifetime rules: the singleton objects (app/io/ui) are parented to the host
@@ -384,6 +385,41 @@ public:
   Q_INVOKABLE QJSValue rescan();
 
 private:
+  ScriptEngineHost& host_;
+};
+
+// patchy.scripts: the script library (docs/scripting.md "Script hotkeys"): what the
+// Scripts menu lists, plus installing a script into the user folder and binding its
+// shortcut, so an agent can write a script and put it on a key in one run.
+class ScriptLibraryObject : public QObject {
+  Q_OBJECT
+  Q_PROPERTY(QString userFolder READ user_folder)
+  Q_PROPERTY(QString bundledFolder READ bundled_folder)
+
+public:
+  explicit ScriptLibraryObject(ScriptEngineHost& host);
+
+  [[nodiscard]] QString user_folder() const;
+  [[nodiscard]] QString bundled_folder() const;
+  // Every script of the merged scan: {name, fileName, relativePath, path, bundled,
+  // modified, description, author, hotkey, defaultHotkey, commandId}. Both rescan the
+  // folders and refresh the menu and hotkey commands.
+  Q_INVOKABLE QJSValue list();
+  Q_INVOKABLE QJSValue rescan();
+  // Writes source to <userFolder>/<relativePath>, rescans, binds options.hotkey when
+  // given, and returns the entry. Throws for a bad path, a write failure, or a shortcut
+  // Patchy cannot bind.
+  Q_INVOKABLE QJSValue install(const QString& relativePath, const QString& source,
+                               const QJSValue& options = QJSValue());
+  // The Preferences override for the script ("" clears it, restoring the @hotkey
+  // default); returns the shortcut in effect afterwards.
+  Q_INVOKABLE QString setHotkey(const QString& relativePath, const QString& shortcut);
+  Q_INVOKABLE QString getHotkey(const QString& relativePath);
+
+private:
+  [[nodiscard]] QJSValue entries_value(const ScriptScan& scan);
+  [[nodiscard]] QJSValue entry_value(const QString& relativePath);
+
   ScriptEngineHost& host_;
 };
 

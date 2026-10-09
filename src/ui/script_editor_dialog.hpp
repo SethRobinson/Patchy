@@ -66,6 +66,27 @@ class ScriptEditorDialog : public QDialog {
 public:
   ScriptEditorDialog(MainWindow& window, ScriptEngineHost& host);
 
+  // Loads a script into the editor (asking to discard unsaved edits first) and selects
+  // it in the tree: the Scripts menu's "Edit in Script Manager...".
+  void open_script(const QString& path);
+  // Rebuilds the tree after the script folders changed elsewhere, keeping the loaded
+  // script selected.
+  void refresh_tree_keeping_selection();
+
+  // The script operations shared with the Scripts menu's right-click menu
+  // (MainWindow::show_script_context_menu); the tree context menu wraps them with the
+  // dialog's console and selection handling.
+  static void show_cli_example_dialog(QWidget* parent, const QString& script_path);
+  // Writes the latest live script canvas (or the active document) as the script's icon
+  // under the user scripts root; `target` receives the PNG path. Returns the error
+  // sentence, empty on success.
+  static QString write_icon_from_current_window(ScriptEngineHost& host, const QString& relative_path,
+                                                QString* target);
+  // Asks, then deletes the user copy that shadows a bundled script. True when the copy
+  // is gone; `error` set when the delete failed (empty when the user declined).
+  static bool confirm_and_revert_override(QWidget* parent, const QString& user_copy_path,
+                                          const QString& bundled_path, QString* error);
+
 private slots:
   // Slots so tests can drive them (context menus and real hover timing cannot
   // be exercised offscreen).

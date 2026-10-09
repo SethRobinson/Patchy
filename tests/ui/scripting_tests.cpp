@@ -2213,6 +2213,155 @@ void ui_script_hotkey_ids_follow_relative_path() {
   CHECK(window.hotkey_registry().commands().size() == commands_before);
 }
 
+
+// Right-clicking a File > Scripts entry opens the Script Manager's script actions for it.
+void ui_scripts_menu_context_menu_offers_script_actions() {
+  remove_test_scratch_dir(patchy::ui::MainWindow::user_scripts_directory());
+  write_user_script(QStringLiteral("Mine/context.js"),
+                    QStringLiteral("// @name Context Script\nconsole.log('context script ran');\n"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* menu = window.findChild<QMenu*>(QStringLiteral("fileScriptsMenu"));
+  CHECK(menu != nullptr);
+  menu->popup(QPoint(0, 0));
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  QMenu* utilities_menu = nullptr;
+  for (auto* action : menu->actions()) {
+    if (action->menu() != nullptr && action->text() == QStringLiteral("Mine")) {
+      utilities_menu = action->menu();
+    }
+  }
+  CHECK(utilities_menu != nullptr);
+  QAction* quick_export = nullptr;
+  for (auto* action : utilities_menu->actions()) {
+    if (action->text() == QStringLiteral("Context Script")) {
+      quick_export = action;
+    }
+  }
+  CHECK(quick_export != nullptr);
+  utilities_menu->popup(window.mapToGlobal(QPoint(120, 120)));
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+
+  bool saw_context_menu = false;
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* context_menu = qobject_cast<QMenu*>(widget);
+      if (context_menu == nullptr || context_menu->objectName() != QStringLiteral("scriptMenuContextMenu")) {
+        continue;
+      }
+      QStringList names;
+      for (const auto* action : context_menu->actions()) {
+        if (!action->isSeparator()) {
+          names << action->objectName();
+        }
+      }
+      // A script that shadows nothing offers everything but Revert to Bundled.
+      const QStringList expected{QStringLiteral("scriptMenuRunAction"),    QStringLiteral("scriptMenuEditAction"),
+                                 QStringLiteral("scriptMenuRevealAction"), QStringLiteral("scriptMenuCliAction"),
+                                 QStringLiteral("scriptMenuHotkeyAction"), QStringLiteral("scriptMenuIconAction")};
+      CHECK(names == expected);
+      save_widget_artifact("scripts_menu_context_menu", *context_menu);
+      // Run goes through the same path as a left click.
+      context_menu->actions().first()->trigger();
+      context_menu->close();
+      saw_context_menu = true;
+      return;
+    }
+    CHECK(false);
+  });
+  const auto point = utilities_menu->actionGeometry(quick_export).center();
+  QContextMenuEvent context_event(QContextMenuEvent::Mouse, point, utilities_menu->mapToGlobal(point));
+  QApplication::sendEvent(utilities_menu, &context_event);
+  QApplication::processEvents();
+  CHECK(saw_context_menu);
+  wait_for_run_end(window.script_engine_host());
+  CHECK(backlog_contains(window, QStringLiteral("context script ran")));
+
+  // The right button never triggers the entry itself (a QMenu would run it on release).
+  utilities_menu->popup(window.mapToGlobal(QPoint(120, 120)));
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  bool triggered = false;
+  const auto connection = QObject::connect(quick_export, &QAction::triggered, [&triggered] { triggered = true; });
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (auto* context_menu = qobject_cast<QMenu*>(widget);
+          context_menu != nullptr && context_menu->objectName() == QStringLiteral("scriptMenuContextMenu")) {
+        context_menu->close();
+      }
+    }
+  });
+  QTest::mouseClick(utilities_menu, Qt::RightButton, Qt::NoModifier, point);
+  QApplication::processEvents();
+  QObject::disconnect(connection);
+  CHECK(!triggered);
+  utilities_menu->close();
+  menu->close();
+  remove_test_scratch_dir(patchy::ui::MainWindow::user_scripts_directory());
+}
+
+// patchy.scripts: an agent writes a script into the user folder and puts it on a key in
+// one call; the entry reports what the menu and Preferences now show.
+void ui_script_library_installs_and_binds_hotkey() {
+  remove_test_scratch_dir(patchy::ui::MainWindow::user_scripts_directory());
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("hotkeys"));
+    settings.sync();
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var before = patchy.scripts.list();
+    if (!before.some(function (e) { return e.relativePath === 'Games/pong.js' && e.bundled && e.commandId === 'script.Games%2Fpong.js'; })) {
+      throw Error('bundled pong missing from list');
+    }
+    if (patchy.scripts.userFolder.indexOf('\\') >= 0) throw Error('userFolder must use / separators');
+    var entry = patchy.scripts.install('Mine/agent made.js',
+      "// @name Agent Made\n// @hotkey Ctrl+Alt+F7\nconsole.log('agent made ran');\n",
+      {hotkey: 'Ctrl+Alt+F8'});
+    if (entry.name !== 'Agent Made' || entry.bundled || entry.modified) throw Error('entry ' + JSON.stringify(entry));
+    if (entry.defaultHotkey !== 'Ctrl+Alt+F7') throw Error('default ' + entry.defaultHotkey);
+    if (entry.hotkey !== 'Ctrl+Alt+F8') throw Error('override ' + entry.hotkey);
+    if (entry.commandId !== 'script.Mine%2Fagent%20made.js') throw Error('id ' + entry.commandId);
+    if (!patchy.io.fileExists(patchy.scripts.userFolder + '/Mine/agent made.js')) throw Error('file missing');
+    if (patchy.scripts.getHotkey('Mine/agent made.js') !== 'Ctrl+Alt+F8') throw Error('getHotkey');
+    // Clearing the override restores the @hotkey default.
+    if (patchy.scripts.setHotkey('Mine/agent made.js', '') !== 'Ctrl+Alt+F7') throw Error('clear');
+    var bad = [['../escape.js', 'x'], ['notes.txt', 'x'], ['/abs.js', 'x'], ['C:/abs.js', 'x'], ['Mine/../../up.js', 'x']];
+    bad.forEach(function (b) {
+      var threw = false;
+      try { patchy.scripts.install(b[0], b[1]); } catch (e) { threw = true; }
+      if (!threw) throw Error('accepted ' + b[0]);
+    });
+    var threw = false;
+    try { patchy.scripts.setHotkey('Mine/agent made.js', 'Return'); } catch (e) { threw = true; }
+    if (!threw) throw Error('accepted a reserved key');
+    threw = false;
+    try { patchy.scripts.setHotkey('Mine/nope.js', 'Ctrl+Alt+F6'); } catch (e) { threw = true; }
+    if (!threw) throw Error('bound a missing script');
+    patchy.scripts.setHotkey('Mine/agent made.js', 'Ctrl+Alt+F9');
+  )JS")));
+  const auto id = patchy::ui::script_hotkey_command_id(QStringLiteral("Mine/agent made.js"));
+  const auto* command = window.hotkey_registry().find_command(id);
+  CHECK(command != nullptr);
+  CHECK(command->action->shortcut() == QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_F9));
+  CHECK(command->default_shortcuts == QList<QKeySequence>{QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_F7)});
+  {
+    auto settings = patchy::ui::app_settings();
+    CHECK(settings.value(QStringLiteral("hotkeys/") + id).toString() == QStringLiteral("Ctrl+Alt+F9"));
+  }
+  // The bound action runs the installed script.
+  command->action->trigger();
+  wait_for_run_end(window.script_engine_host());
+  CHECK(backlog_contains(window, QStringLiteral("agent made ran")));
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("hotkeys"));
+    settings.sync();
+  }
+  remove_test_scratch_dir(patchy::ui::MainWindow::user_scripts_directory());
+}
+
 void ui_scripts_menu_lists_bundled_scripts() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -4389,6 +4538,8 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_hotkey_runs_user_script", ui_script_hotkey_runs_user_script},
       {"ui_script_hotkey_ids_follow_relative_path", ui_script_hotkey_ids_follow_relative_path},
       {"ui_scripts_menu_lists_bundled_scripts", ui_scripts_menu_lists_bundled_scripts},
+      {"ui_scripts_menu_context_menu_offers_script_actions", ui_scripts_menu_context_menu_offers_script_actions},
+      {"ui_script_library_installs_and_binds_hotkey", ui_script_library_installs_and_binds_hotkey},
       {"ui_script_editor_tree_shadow_override", ui_script_editor_tree_shadow_override},
       {"ui_script_manager_single_click_loads_and_preserves_edits",
        ui_script_manager_single_click_loads_and_preserves_edits},

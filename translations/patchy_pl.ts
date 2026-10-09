@@ -19109,6 +19109,38 @@ Y: %2
         <source>Saved copy %1</source>
         <translation>Zapisano kopię %1</translation>
     </message>
+    <message>
+        <source>Run</source>
+        <translation>Uruchom</translation>
+    </message>
+    <message>
+        <source>Edit in Script Manager...</source>
+        <translation>Edytuj w Menedżerze skryptów...</translation>
+    </message>
+    <message>
+        <source>Show in Folder</source>
+        <translation>Pokaż w folderze</translation>
+    </message>
+    <message>
+        <source>Command Line Example...</source>
+        <translation>Przykład wiersza poleceń...</translation>
+    </message>
+    <message>
+        <source>Assign Hotkey...</source>
+        <translation>Przypisz skrót klawiszowy...</translation>
+    </message>
+    <message>
+        <source>Set Icon from Current Window</source>
+        <translation>Ustaw ikonę z bieżącego okna</translation>
+    </message>
+    <message>
+        <source>Revert to Bundled</source>
+        <translation>Przywróć wersję dołączoną</translation>
+    </message>
+    <message>
+        <source>Saved icon to %1</source>
+        <translation>Zapisano ikonę w %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -20588,6 +20620,34 @@ Y: %2
     <message>
         <source>%1 needs an output path.</source>
         <translation>%1 wymaga ścieżki wyjściowej.</translation>
+    </message>
+    <message>
+        <source>patchy.scripts.install: options must be an object such as {hotkey: &quot;Ctrl+Alt+D&quot;}.</source>
+        <translation>patchy.scripts.install: opcje muszą być obiektem takim jak {hotkey: &quot;Ctrl+Alt+D&quot;}.</translation>
+    </message>
+    <message>
+        <source>patchy.scripts.install: hotkey must be a string such as &quot;Ctrl+Alt+D&quot;.</source>
+        <translation>patchy.scripts.install: hotkey musi być ciągiem znaków takim jak &quot;Ctrl+Alt+D&quot;.</translation>
+    </message>
+    <message>
+        <source>patchy.scripts: no script at &quot;%1&quot; (install it or call rescan() first).</source>
+        <translation>patchy.scripts: brak skryptu w &quot;%1&quot; (najpierw go zainstaluj lub wywołaj rescan()).</translation>
+    </message>
+    <message>
+        <source>patchy.scripts: &quot;%1&quot; is not a shortcut Patchy can bind (use Qt&apos;s portable spelling, such as &quot;Ctrl+Alt+D&quot;).</source>
+        <translation>patchy.scripts: &quot;%1&quot; nie jest skrótem, który Patchy może przypisać (użyj przenośnej pisowni Qt, np. &quot;Ctrl+Alt+D&quot;).</translation>
+    </message>
+    <message>
+        <source>patchy.scripts: the script path must be a .js file path inside the user scripts folder (&quot;Mine/export.js&quot;), not &quot;%1&quot;.</source>
+        <translation>patchy.scripts: ścieżka skryptu musi być ścieżką pliku .js w folderze skryptów użytkownika (&quot;Mine/export.js&quot;), a nie &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>patchy.scripts: could not create the folder for %1.</source>
+        <translation>patchy.scripts: nie można utworzyć folderu dla %1.</translation>
+    </message>
+    <message>
+        <source>patchy.scripts: could not write %1.</source>
+        <translation>patchy.scripts: nie można zapisać %1.</translation>
     </message>
 </context>
 <context>

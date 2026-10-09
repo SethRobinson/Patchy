@@ -1049,6 +1049,52 @@ interface PatchyIo {
  * a crash, reopens the copies on the next launch as "(Recovered)" documents. The web
  * build has no recovery store: enabled is false and every list is empty.
  */
+/** One script of the Scripts menu (bundled or yours). */
+interface PatchyScriptEntry {
+  /** The @name display name (the file base name without one). */
+  name: string;
+  fileName: string;
+  /** "/"-separated path below its root ("Utilities/quick-export-dds.js"); the key of
+   *  setHotkey/getHotkey and the basis of commandId. */
+  relativePath: string;
+  /** The file that runs: your copy when it shadows a bundled script. */
+  path: string;
+  bundled: boolean;
+  /** A bundled script shadowed by your edited copy. */
+  modified: boolean;
+  description: string;
+  author: string;
+  /** The shortcut in effect (Qt portable spelling such as "Ctrl+Alt+D"), "" when none. */
+  hotkey: string;
+  /** The script's own "// @hotkey" line, "" when absent. */
+  defaultHotkey: string;
+  /** The hotkey command id ("script." + the percent-encoded relativePath). */
+  commandId: string;
+}
+
+/** patchy.scripts: the script library, so a script (or an agent through MCP) can write a
+ *  script into the user folder and put it on a key in one run. */
+interface PatchyScripts {
+  /** The user scripts folder ("/" separators). Files below it appear in File > Scripts. */
+  readonly userFolder: string;
+  readonly bundledFolder: string;
+  /** Every script of the merged scan, bundled first. Rescans the folders and refreshes
+   *  the menu and hotkey commands, like rescan(). */
+  list(): PatchyScriptEntry[];
+  rescan(): PatchyScriptEntry[];
+  /** Writes source to userFolder/relativePath (a .js path below the folder, folders
+   *  created as needed), rescans, binds options.hotkey when given (a Preferences override,
+   *  which wins over a "// @hotkey" line in the source), and returns the entry. Throws
+   *  for a path outside the folder, a write failure, or a shortcut Patchy cannot bind. */
+  install(relativePath: string, source: string, options?: {hotkey?: string}): PatchyScriptEntry;
+  /** Sets the script's Preferences > Hotkeys override ("" clears it, restoring the
+   *  "// @hotkey" default) and returns the shortcut in effect afterwards, which is "" when
+   *  another override already owns the key. Throws for an unknown script or a shortcut
+   *  Patchy cannot bind. */
+  setHotkey(relativePath: string, shortcut: string): string;
+  getHotkey(relativePath: string): string;
+}
+
 interface PatchyPlugins {
   /**
    * The plug-ins folder next to the application ("/" separators), the place Plugins >
@@ -1107,6 +1153,7 @@ interface PatchyNamespace {
   readonly ui: PatchyUi;
   readonly recovery: PatchyRecovery;
   readonly plugins: PatchyPlugins;
+  readonly scripts: PatchyScripts;
   readonly brushes: PatchyBrushes;
   readonly apiVersion: number;
   readonly version: string;

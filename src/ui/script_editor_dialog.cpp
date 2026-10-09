@@ -833,48 +833,74 @@ void ScriptEditorDialog::show_tree_context_menu(const QPoint& position) {
   }
 }
 
+QString ScriptEditorDialog::write_icon_from_current_window(ScriptEngineHost& host, const QString& relative_path,
+                                                           QString* target) {
+  // Prefer a live script canvas window (a running game's frame beats the
+  // document behind it); otherwise the active document's composite.
+  QImage source = host.active_canvas_window_image();
+  if (source.isNull()) {
+    if (const auto* doc = host.session_document_const(host.active_session_id())) {
+      source = qimage_from_document(*doc, true);
+    }
+  }
+  if (source.isNull()) {
+    return tr("Open a document or a script window first, then set the icon from it.");
+  }
+  // Always lands under the user scripts root: a bundled script's shipped
+  // files stay pristine (the icon shadows them, like a Save does), and a user
+  // script's relative path puts the PNG right beside its .js.
+  const auto path = script_icon_write_target(MainWindow::user_scripts_directory(), relative_path);
+  if (target != nullptr) {
+    *target = path;
+  }
+  if (!write_script_icon(source, path)) {
+    return tr("Could not write %1").arg(QDir::toNativeSeparators(path));
+  }
+  return {};
+}
+
 void ScriptEditorDialog::set_script_icon_from_window(QTreeWidgetItem* item) {
   const auto relative = item->data(0, kScriptRelativePathRole).toString();
   if (relative.isEmpty()) {
     return;
   }
-  // Prefer a live script canvas window (a running game's frame beats the
-  // document behind it); otherwise the active document's composite.
-  QImage source = host_.active_canvas_window_image();
-  if (source.isNull()) {
-    if (const auto* doc = host_.session_document_const(host_.active_session_id())) {
-      source = qimage_from_document(*doc, true);
-    }
-  }
-  if (source.isNull()) {
-    append_console(2, tr("Open a document or a script window first, then set the icon from it."));
-    return;
-  }
-  // Always lands under the user scripts root: a bundled script's shipped
-  // files stay pristine (the icon shadows them, like a Save does), and a user
-  // script's relative path puts the PNG right beside its .js.
-  const auto target = script_icon_write_target(MainWindow::user_scripts_directory(), relative);
-  if (!write_script_icon(source, target)) {
-    append_console(2, tr("Could not write %1").arg(QDir::toNativeSeparators(target)));
+  QString target;
+  const auto error = write_icon_from_current_window(host_, relative, &target);
+  if (!error.isEmpty()) {
+    append_console(2, error);
     return;
   }
   append_console(0, tr("Saved icon to %1").arg(QDir::toNativeSeparators(target)));
   refresh_script_tree(item->data(0, kScriptPathRole).toString());
 }
 
-void ScriptEditorDialog::revert_override_to_bundled(const QString& user_copy_path,
-                                                    const QString& bundled_path) {
+bool ScriptEditorDialog::confirm_and_revert_override(QWidget* parent, const QString& user_copy_path,
+                                                     const QString& bundled_path, QString* error) {
   const auto answer = show_warning_message(
-      this, tr("Script Manager"),
+      parent, tr("Script Manager"),
       tr("Delete your modified copy of %1 and restore the bundled script?")
           .arg(QFileInfo(bundled_path).fileName()),
       QMessageBox::Yes | QMessageBox::No, QMessageBox::No,
       QStringLiteral("scriptEditorRevertMessageBox"));
   if (answer != QMessageBox::Yes) {
-    return;
+    return false;
   }
   if (!QFile::remove(user_copy_path)) {
-    append_console(2, tr("Could not delete %1").arg(QDir::toNativeSeparators(user_copy_path)));
+    if (error != nullptr) {
+      *error = tr("Could not delete %1").arg(QDir::toNativeSeparators(user_copy_path));
+    }
+    return false;
+  }
+  return true;
+}
+
+void ScriptEditorDialog::revert_override_to_bundled(const QString& user_copy_path,
+                                                    const QString& bundled_path) {
+  QString error;
+  if (!confirm_and_revert_override(this, user_copy_path, bundled_path, &error)) {
+    if (!error.isEmpty()) {
+      append_console(2, error);
+    }
     return;
   }
   if (current_path_ == user_copy_path) {
@@ -882,6 +908,16 @@ void ScriptEditorDialog::revert_override_to_bundled(const QString& user_copy_pat
   }
   refresh_script_tree(current_path_);
 }
+
+void ScriptEditorDialog::open_script(const QString& path) {
+  if (path.isEmpty() || !confirm_discard_changes()) {
+    return;
+  }
+  load_script(path);
+  refresh_script_tree(path);
+}
+
+void ScriptEditorDialog::refresh_tree_keeping_selection() { refresh_script_tree(current_path_); }
 
 void ScriptEditorDialog::load_script(const QString& path) {
   QFile file(path);
@@ -943,6 +979,10 @@ void ScriptEditorDialog::update_cli_button_enabled() {
 void ScriptEditorDialog::show_cli_example() { show_cli_example_for(cli_example_target_path()); }
 
 void ScriptEditorDialog::show_cli_example_for(const QString& script_path) {
+  show_cli_example_dialog(this, script_path);
+}
+
+void ScriptEditorDialog::show_cli_example_dialog(QWidget* parent, const QString& script_path) {
   if (script_path.isEmpty()) {
     return;
   }
@@ -969,7 +1009,7 @@ void ScriptEditorDialog::show_cli_example_for(const QString& script_path) {
   const auto display_name =
       meta.name.isEmpty() ? QFileInfo(script_path).fileName() : meta.name;
 
-  auto* dialog = new QDialog(this);
+  auto* dialog = new QDialog(parent);
   dialog->setAttribute(Qt::WA_DeleteOnClose);
   dialog->setObjectName(QStringLiteral("scriptEditorCliDialog"));
   dialog->setWindowTitle(tr("Command Line Example"));

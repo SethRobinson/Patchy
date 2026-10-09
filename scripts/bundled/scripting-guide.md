@@ -567,6 +567,27 @@ Windows builds run classic Photoshop filter plug-ins (`.8bf`, 32-bit and 64-bit)
 | `patchy.plugins.rescan()` | Rescans every folder and returns `list()`. |
 | `layer.applyPlugin(id, {dialog, captureDialog})` | Runs the plug-in on a pixel layer inside the selection, one undo step. `{dialog: false}` skips its settings dialog (last or default settings; a plug-in that opens one anyway gets its OK pressed); unattended runs never show it. `{captureDialog: "shot.png"}` saves an image of the plug-in's dialog while it is up (an unattended run shows the dialog for the capture and answers it itself). |
 
+### The script library (patchy.scripts)
+
+Scripts can manage scripts: list what the Scripts menu shows, write a new one into your scripts folder, and put it on a key. This is how an agent driving Patchy through MCP answers "make a script that does X and assign it to Ctrl+Alt+X":
+
+```js
+patchy.scripts.install("Mine/flatten-and-export.js",
+  "// @name Flatten and Export\n" +
+  "var d = app.activeDocument; if (d) d.exportAs(d.path.replace(/\\.[^.]+$/, '') + '.png');\n",
+  {hotkey: "Ctrl+Alt+X"});
+```
+
+| Member | Meaning |
+| --- | --- |
+| `patchy.scripts.userFolder`, `bundledFolder` | The two script folders ("/" separators). |
+| `patchy.scripts.list()` / `rescan()` | Every script, bundled first: `{name, fileName, relativePath, path, bundled, modified, description, author, hotkey, defaultHotkey, commandId}`. Both rescan the folders and refresh the menu and hotkey commands. |
+| `patchy.scripts.install(relativePath, source, {hotkey})` | Writes the file below `userFolder` (folders created as needed), rescans, binds the shortcut when given, and returns the entry. Throws for a path outside the folder, a non-.js name, a write failure, or a shortcut Patchy cannot bind. |
+| `patchy.scripts.setHotkey(relativePath, shortcut)` | The Preferences > Hotkeys override for the script (`""` clears it, restoring a `// @hotkey` line); returns the shortcut in effect, `""` when another override already owns the key. |
+| `patchy.scripts.getHotkey(relativePath)` | The shortcut in effect. |
+
+A `// @hotkey` line in the source is the script's default; `install`'s `hotkey` option is the override that always wins, which is the right choice for an agent, since the user sees and can change it under Preferences > Hotkeys > Scripts. Right-click any entry in File > Scripts for the same actions the Script Manager offers (Run, Edit in Script Manager, Show in Folder, Command Line Example, Assign Hotkey, Set Icon, Revert to Bundled).
+
 ### Command-line arguments (patchy.args)
 
 Each `--script-arg key=value` on the command line becomes `patchy.args.key` (always a string). `patchy.isMainScript()` is `true` in the script the user ran and `false` inside an `include()`d file, so one file can be both a library and a runnable script.

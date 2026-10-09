@@ -182,6 +182,10 @@ void bind_tooltip(QObject* object, const char* source);
 constexpr auto kRecentFoldersMenuProperty = "patchy.recentFoldersMenu";
 // Property naming the recent-files submenu pages so the event filter can find them.
 constexpr auto kRecentFilesMenuProperty = "patchy.recentFilesMenu";
+// A File > Scripts menu or one of its folder submenus: a right-click on a script entry
+// opens the script context menu (MainWindow::show_script_context_menu) instead of
+// triggering the entry.
+constexpr auto kScriptsMenuProperty = "patchy.scriptsMenu";
 
 // Photoshop-style brush resize: the step scales with the current size so big
 // brushes resize fast while small brushes keep 1-px precision. Growing scales

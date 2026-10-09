@@ -18997,6 +18997,38 @@ Baked into images: %1.</source>
         <source>Saved copy %1</source>
         <translation>已保存副本 %1</translation>
     </message>
+    <message>
+        <source>Run</source>
+        <translation>运行</translation>
+    </message>
+    <message>
+        <source>Edit in Script Manager...</source>
+        <translation>在脚本管理器中编辑...</translation>
+    </message>
+    <message>
+        <source>Show in Folder</source>
+        <translation>在文件夹中显示</translation>
+    </message>
+    <message>
+        <source>Command Line Example...</source>
+        <translation>命令行示例...</translation>
+    </message>
+    <message>
+        <source>Assign Hotkey...</source>
+        <translation>指定快捷键...</translation>
+    </message>
+    <message>
+        <source>Set Icon from Current Window</source>
+        <translation>从当前窗口设置图标</translation>
+    </message>
+    <message>
+        <source>Revert to Bundled</source>
+        <translation>恢复为内置版本</translation>
+    </message>
+    <message>
+        <source>Saved icon to %1</source>
+        <translation>已将图标存储到 %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -20474,6 +20506,34 @@ Baked into images: %1.</source>
     <message>
         <source>%1 needs an output path.</source>
         <translation>%1 需要一个输出路径。</translation>
+    </message>
+    <message>
+        <source>patchy.scripts.install: options must be an object such as {hotkey: &quot;Ctrl+Alt+D&quot;}.</source>
+        <translation>patchy.scripts.install：选项必须是类似 {hotkey: &quot;Ctrl+Alt+D&quot;} 的对象。</translation>
+    </message>
+    <message>
+        <source>patchy.scripts.install: hotkey must be a string such as &quot;Ctrl+Alt+D&quot;.</source>
+        <translation>patchy.scripts.install：hotkey 必须是类似 &quot;Ctrl+Alt+D&quot; 的字符串。</translation>
+    </message>
+    <message>
+        <source>patchy.scripts: no script at &quot;%1&quot; (install it or call rescan() first).</source>
+        <translation>patchy.scripts：&quot;%1&quot; 处没有脚本（请先安装或调用 rescan()）。</translation>
+    </message>
+    <message>
+        <source>patchy.scripts: &quot;%1&quot; is not a shortcut Patchy can bind (use Qt&apos;s portable spelling, such as &quot;Ctrl+Alt+D&quot;).</source>
+        <translation>patchy.scripts：&quot;%1&quot; 不是 Patchy 可以绑定的快捷键（请使用 Qt 的可移植写法，例如 &quot;Ctrl+Alt+D&quot;）。</translation>
+    </message>
+    <message>
+        <source>patchy.scripts: the script path must be a .js file path inside the user scripts folder (&quot;Mine/export.js&quot;), not &quot;%1&quot;.</source>
+        <translation>patchy.scripts：脚本路径必须是用户脚本文件夹内的 .js 文件路径（&quot;Mine/export.js&quot;），而不是 &quot;%1&quot;。</translation>
+    </message>
+    <message>
+        <source>patchy.scripts: could not create the folder for %1.</source>
+        <translation>patchy.scripts：无法为 %1 创建文件夹。</translation>
+    </message>
+    <message>
+        <source>patchy.scripts: could not write %1.</source>
+        <translation>patchy.scripts：无法写入 %1。</translation>
     </message>
 </context>
 <context>

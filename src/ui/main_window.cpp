@@ -8014,6 +8014,39 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
     }
   }
 
+  if (auto* scripts_menu = qobject_cast<QMenu*>(watched);
+      scripts_menu != nullptr && scripts_menu->property(kScriptsMenuProperty).toBool()) {
+    // Same shape as the recent-files menus above: a QMenu triggers its entry on ANY
+    // button's release, so the right button is swallowed and opens the context menu.
+    switch (event->type()) {
+      case QEvent::MouseButtonPress: {
+        auto* mouse_event = static_cast<QMouseEvent*>(event);
+        if (mouse_event->button() == Qt::RightButton) {
+          mouse_event->accept();
+          return true;
+        }
+        break;
+      }
+      case QEvent::MouseButtonRelease: {
+        auto* mouse_event = static_cast<QMouseEvent*>(event);
+        if (mouse_event->button() == Qt::RightButton) {
+          show_script_context_menu(scripts_menu, mouse_event->pos());
+          mouse_event->accept();
+          return true;
+        }
+        break;
+      }
+      case QEvent::ContextMenu: {
+        auto* context_event = static_cast<QContextMenuEvent*>(event);
+        show_script_context_menu(scripts_menu, context_event->pos());
+        context_event->accept();
+        return true;
+      }
+      default:
+        break;
+    }
+  }
+
   if (handle_layer_action_button_drag_event(watched, event)) {
     return true;
   }

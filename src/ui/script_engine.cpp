@@ -28,6 +28,7 @@
 #include "ui/localization.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/script_api.hpp"
+#include "ui/hotkey_editor.hpp"
 #include "ui/script_canvas_window.hpp"
 #include "ui/script_folders.hpp"
 #include "ui/smart_object_render.hpp"
@@ -54,6 +55,7 @@
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QJSEngine>
+#include <QSaveFile>
 #include <QJsonDocument>
 #include <QJsonArray>
 #include <QJSValueIterator>
@@ -123,6 +125,7 @@ constexpr const char* kBootstrapSource = R"JS(
     ui: g.__patchy_ui,
     recovery: g.__patchy_recovery,
     plugins: g.__patchy_plugins,
+    scripts: g.__patchy_scripts,
     apiVersion: g.app.apiVersion,
     version: g.app.version,
     args: g.__patchy_args,
@@ -389,6 +392,9 @@ void ScriptEngineHost::install_bindings(const RunOptions& options) {
   auto* plugins_object = new ScriptPluginsObject(*this);
   plugins_object->setParent(&engine);
   global.setProperty(QStringLiteral("__patchy_plugins"), engine.newQObject(plugins_object));
+  auto* scripts_object = new ScriptLibraryObject(*this);
+  scripts_object->setParent(&engine);
+  global.setProperty(QStringLiteral("__patchy_scripts"), engine.newQObject(scripts_object));
 
   const QJSValue bootstrap = engine.evaluate(QString::fromLatin1(kBootstrapSource),
                                              QStringLiteral("<patchy-bootstrap>"), 1);
@@ -1050,6 +1056,79 @@ bool ScriptEngineHost::save_session_to_path(std::int64_t session_id, const QStri
   return window_.save_document_to_path(
       path, std::move(options),
       MainWindow::SaveToPathPolicy{/*flatten_confirmed=*/true, /*scripted=*/true, export_copy});
+}
+
+ScriptScan ScriptEngineHost::rescan_script_library() {
+  pump_progress_indicator();
+  return window_.rescan_scripts();
+}
+
+QString ScriptEngineHost::script_hotkey(const QString& relative_path) const {
+  const auto* command = window_.hotkey_registry().find_command(script_hotkey_command_id(relative_path));
+  if (command == nullptr || command->action.isNull()) {
+    return {};
+  }
+  return command->action->shortcut().toString(QKeySequence::PortableText);
+}
+
+bool ScriptEngineHost::set_script_hotkey(const QString& relative_path, const QString& sequence_text, QString* error) {
+  const auto id = script_hotkey_command_id(relative_path);
+  if (window_.hotkey_registry().find_command(id) == nullptr) {
+    *error = tr("patchy.scripts: no script at \"%1\" (install it or call rescan() first).").arg(relative_path);
+    return false;
+  }
+  auto overrides = window_.hotkey_registry_.overrides();
+  const auto text = sequence_text.trimmed();
+  if (text.isEmpty()) {
+    overrides.remove(id);
+  } else {
+    const auto sequence = QKeySequence::fromString(text, QKeySequence::PortableText);
+    if (sequence.isEmpty() || sequence.count() != 1 ||
+        is_reserved_binding_key(sequence[0].key(), sequence[0].keyboardModifiers())) {
+      *error = tr("patchy.scripts: \"%1\" is not a shortcut Patchy can bind (use Qt's portable spelling, "
+                  "such as \"Ctrl+Alt+D\").")
+                   .arg(sequence_text);
+      return false;
+    }
+    overrides.insert(id, QList<QKeySequence>{sequence});
+  }
+  // Persists the delta and reapplies every action, exactly as Preferences > Hotkeys OK does.
+  window_.hotkey_registry_.apply_overrides(std::move(overrides));
+  return true;
+}
+
+bool ScriptEngineHost::install_script(const QString& relative_path, const QString& source, QString* error) {
+  pump_progress_indicator();
+  const auto relative = QDir::cleanPath(QDir::fromNativeSeparators(relative_path.trimmed()));
+  const QFileInfo relative_info(relative);
+  // Below the folder only: no absolute path on any platform (a leading "/" or a drive
+  // colon), no ".." segment, and a .js name.
+  if (relative.isEmpty() || relative_info.isAbsolute() || relative.startsWith(QLatin1Char('/')) ||
+      relative.contains(QLatin1Char(':')) || relative.startsWith(QLatin1String("../")) ||
+      relative == QLatin1String("..") || relative.contains(QLatin1String("/../")) ||
+      relative_info.suffix().compare(QLatin1String("js"), Qt::CaseInsensitive) != 0) {
+    *error = tr("patchy.scripts: the script path must be a .js file path inside the user scripts folder "
+                "(\"Mine/export.js\"), not \"%1\".")
+                 .arg(relative_path);
+    return false;
+  }
+  const auto target = QDir(MainWindow::user_scripts_directory()).absoluteFilePath(relative);
+  if (!QDir().mkpath(QFileInfo(target).absolutePath())) {
+    *error = tr("patchy.scripts: could not create the folder for %1.").arg(QDir::toNativeSeparators(target));
+    return false;
+  }
+  QSaveFile file(target);
+  if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+    *error = tr("patchy.scripts: could not write %1.").arg(QDir::toNativeSeparators(target));
+    return false;
+  }
+  file.write(source.toUtf8());
+  if (!file.commit()) {
+    *error = tr("patchy.scripts: could not write %1.").arg(QDir::toNativeSeparators(target));
+    return false;
+  }
+  window_.rescan_scripts();
+  return true;
 }
 
 std::optional<ImageSaveOptions> ScriptEngineHost::save_options_for_session(std::int64_t session_id) {

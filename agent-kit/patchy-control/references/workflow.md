@@ -127,9 +127,13 @@ or opening Photoshop with dialogs suppressed, does not verify warning-free
 opening. Report the checks actually performed; do not claim Photoshop testing
 unless it happened. This requirement does not authorize control of Photoshop.
 
-Save checkpoints before substantial revisions and final layered artwork with `doc.saveAs(path)`. Check its boolean result. Write a PNG with `doc.renderPreview(path, options)` when its bounded output size is appropriate; this preserves the PSD path and modified state. For full-resolution format export use `doc.exportAs(path)`, which currently has the same save-path behavior as `saveAs`; save the PSD last if both are used.
+Save checkpoints before substantial revisions and final layered artwork with `doc.saveAs(path)`. Check its boolean result. Write a PNG with `doc.renderPreview(path, options)` when its bounded output size is appropriate; this preserves the PSD path and modified state. For full-resolution format export use `doc.exportAs(path, options)`, which writes a copy and leaves the document's path and modified state alone; `options` sets the format's save options with no dialog (`{quality: 85}` for JPEG, `{compression: "bc3", mipmaps: "on"}` for DDS; `PatchySaveOptions` in the API reference lists every key).
 
 Return the editable file and preview paths. For exact-size deliverables specify both `maxWidth` and `maxHeight`; a 512x512 enlarged preview is not a 64x64 export. Isolated documents and undo history disappear when the connector exits. An attached disconnect leaves the user's documents open and never saves or closes them automatically. An open document is not a saved checkpoint. Save before upgrades or switching out of an isolated workspace; reconnect and re-query IDs and state. Scripts have the application's file privileges and should access only task-relevant files. The connector does not provide a filesystem sandbox or permission to control other applications.
+
+## Scripts on hotkeys
+
+When the user asks for a reusable action on a key ("make a script that exports this as BC3 DDS and put it on Ctrl+Alt+D"), write the script with `patchy.scripts.install(relativePath, source, {hotkey})` through `execute_script`: it lands in the user's scripts folder (so it appears under File > Scripts and survives updates), and the `hotkey` option binds the key as a Preferences > Hotkeys override the user can see and change. Give the script `// @name` and `// @description` header lines, make it work on `app.activeDocument` and alert "Open a document first." when none is open, and read `patchy.scripts.list()` first so the relative path and the key do not collide with an existing script (`hotkey` of each entry is the shortcut in effect). The call returns the entry; a `""` hotkey in it means another command already owns that key, so pick another or tell the user. `Utilities/quick-export-dds.js` in `patchy.scripts.bundledFolder` is the model for a one-keypress export.
 
 ## Examples and CLI
 

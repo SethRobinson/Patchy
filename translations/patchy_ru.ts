@@ -19109,6 +19109,38 @@ Y: %2
         <source>Saved copy %1</source>
         <translation>Копия %1 сохранена</translation>
     </message>
+    <message>
+        <source>Run</source>
+        <translation>Запустить</translation>
+    </message>
+    <message>
+        <source>Edit in Script Manager...</source>
+        <translation>Изменить в диспетчере скриптов...</translation>
+    </message>
+    <message>
+        <source>Show in Folder</source>
+        <translation>Показать в папке</translation>
+    </message>
+    <message>
+        <source>Command Line Example...</source>
+        <translation>Пример командной строки...</translation>
+    </message>
+    <message>
+        <source>Assign Hotkey...</source>
+        <translation>Назначить горячую клавишу...</translation>
+    </message>
+    <message>
+        <source>Set Icon from Current Window</source>
+        <translation>Установить значок из текущего окна</translation>
+    </message>
+    <message>
+        <source>Revert to Bundled</source>
+        <translation>Вернуться к пакету</translation>
+    </message>
+    <message>
+        <source>Saved icon to %1</source>
+        <translation>Значок сохранен в %1.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -20588,6 +20620,34 @@ Y: %2
     <message>
         <source>%1 needs an output path.</source>
         <translation>%1: нужен путь к выходному файлу.</translation>
+    </message>
+    <message>
+        <source>patchy.scripts.install: options must be an object such as {hotkey: &quot;Ctrl+Alt+D&quot;}.</source>
+        <translation>patchy.scripts.install: параметры должны быть объектом вида {hotkey: &quot;Ctrl+Alt+D&quot;}.</translation>
+    </message>
+    <message>
+        <source>patchy.scripts.install: hotkey must be a string such as &quot;Ctrl+Alt+D&quot;.</source>
+        <translation>patchy.scripts.install: hotkey должен быть строкой вида &quot;Ctrl+Alt+D&quot;.</translation>
+    </message>
+    <message>
+        <source>patchy.scripts: no script at &quot;%1&quot; (install it or call rescan() first).</source>
+        <translation>patchy.scripts: нет скрипта по пути &quot;%1&quot; (сначала установите его или вызовите rescan()).</translation>
+    </message>
+    <message>
+        <source>patchy.scripts: &quot;%1&quot; is not a shortcut Patchy can bind (use Qt&apos;s portable spelling, such as &quot;Ctrl+Alt+D&quot;).</source>
+        <translation>patchy.scripts: &quot;%1&quot; не является сочетанием клавиш, которое Patchy может назначить (используйте переносимую запись Qt, например &quot;Ctrl+Alt+D&quot;).</translation>
+    </message>
+    <message>
+        <source>patchy.scripts: the script path must be a .js file path inside the user scripts folder (&quot;Mine/export.js&quot;), not &quot;%1&quot;.</source>
+        <translation>patchy.scripts: путь скрипта должен быть путём к файлу .js внутри папки пользовательских скриптов (&quot;Mine/export.js&quot;), а не &quot;%1&quot;.</translation>
+    </message>
+    <message>
+        <source>patchy.scripts: could not create the folder for %1.</source>
+        <translation>patchy.scripts: не удалось создать папку для %1.</translation>
+    </message>
+    <message>
+        <source>patchy.scripts: could not write %1.</source>
+        <translation>patchy.scripts: не удалось записать %1.</translation>
     </message>
 </context>
 <context>

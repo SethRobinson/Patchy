@@ -114,6 +114,21 @@ constexpr char kDynamicScriptActionProperty[] = "patchy.scriptMenuEntry";
 constexpr char kScriptCommandIdProperty[] = "patchy.scriptCommandId";
 constexpr char kScriptPathProperty[] = "patchy.scriptPath";
 constexpr char kScriptHotkeyProperty[] = "patchy.scriptHotkey";
+// For the right-click menu: the relative path (icon target), the shadowed bundled
+// original (Revert to Bundled), and the @name display name (the Hotkeys page search).
+constexpr char kScriptRelativePathProperty[] = "patchy.scriptRelativePath";
+constexpr char kScriptBundledPathProperty[] = "patchy.scriptBundledPath";
+constexpr char kScriptDisplayNameProperty[] = "patchy.scriptDisplayName";
+
+// Right-clicks on the entries of `menu` open the script context menu.
+void configure_scripts_context_menu(QMenu* menu, QObject* filter) {
+  if (menu == nullptr || menu->property(kScriptsMenuProperty).toBool()) {
+    return;
+  }
+  menu->setProperty(kScriptsMenuProperty, true);
+  menu->setContextMenuPolicy(Qt::CustomContextMenu);
+  menu->installEventFilter(filter);
+}
 
 // Runs `script_path`, captures console output and errors, and writes them (plus
 // a final "[done]"/"[failed]" line) to output_path when the run fully
@@ -245,6 +260,7 @@ void MainWindow::refresh_script_commands(const ScriptScan& scan) {
             action->setObjectName(QStringLiteral("scriptAction.") + id);
             action->setProperty(kScriptCommandIdProperty, id);
             action->setProperty(kScriptHotkeyProperty, entry.hotkey);
+            action->setProperty(kScriptRelativePathProperty, entry.relative_path);
             connect(action, &QAction::triggered, this, [this, action] {
               run_script_from_menu(action->property(kScriptPathProperty).toString());
             });
@@ -268,6 +284,8 @@ void MainWindow::refresh_script_commands(const ScriptScan& scan) {
           action->setText(entry.is_override ? tr("%1 (modified)").arg(entry.display_name) : entry.display_name);
           action->setIcon(script_entry_icon(entry));
           action->setProperty(kScriptPathProperty, entry.path);
+          action->setProperty(kScriptBundledPathProperty, entry.bundled_path);
+          action->setProperty(kScriptDisplayNameProperty, entry.display_name);
         }
       };
   visit(scan.bundled);
@@ -288,12 +306,113 @@ void MainWindow::refresh_script_commands(const ScriptScan& scan) {
   }
 }
 
+ScriptScan MainWindow::rescan_scripts() {
+  auto scan = scan_scripts(bundled_scripts_directory(), user_scripts_directory());
+  refresh_script_commands(scan);
+  if (auto* dialog = qobject_cast<ScriptEditorDialog*>(script_editor_dialog_.data()); dialog != nullptr) {
+    dialog->refresh_tree_keeping_selection();
+  }
+  return scan;
+}
+
+void MainWindow::show_script_context_menu(QMenu* menu, const QPoint& position) {
+  if (menu == nullptr) {
+    return;
+  }
+  auto* action = menu->actionAt(position);
+  if (action == nullptr || !action->property(kScriptCommandIdProperty).isValid()) {
+    return;  // folder submenus, separators, the static entries
+  }
+  const auto path = action->property(kScriptPathProperty).toString();
+  const auto relative_path = action->property(kScriptRelativePathProperty).toString();
+  const auto bundled_path = action->property(kScriptBundledPathProperty).toString();
+  const auto display_name = action->property(kScriptDisplayNameProperty).toString();
+  // The chosen command replaces the menu trip, so the whole File > Scripts chain closes.
+  const auto close_menus = [this, menu] {
+    menu->close();
+    if (scripts_menu_ != nullptr) {
+      scripts_menu_->close();
+      if (auto* file_menu = qobject_cast<QMenu*>(scripts_menu_->parentWidget()); file_menu != nullptr) {
+        file_menu->close();
+      }
+    }
+  };
+
+  // Each entry carries its own handler (the recent-files pattern): a context menu
+  // action triggered programmatically, which is how tests drive it, never comes back
+  // from exec() on every platform.
+  QMenu context_menu(this);
+  context_menu.setObjectName(QStringLiteral("scriptMenuContextMenu"));
+  auto* run_action = context_menu.addAction(tr("Run"));
+  run_action->setObjectName(QStringLiteral("scriptMenuRunAction"));
+  connect(run_action, &QAction::triggered, this, [this, close_menus, path] {
+    close_menus();
+    run_script_from_menu(path);
+  });
+  auto* edit_action = context_menu.addAction(tr("Edit in Script Manager..."));
+  edit_action->setObjectName(QStringLiteral("scriptMenuEditAction"));
+  connect(edit_action, &QAction::triggered, this, [this, close_menus, path] {
+    close_menus();
+    open_script_editor();
+    if (auto* dialog = qobject_cast<ScriptEditorDialog*>(script_editor_dialog_.data()); dialog != nullptr) {
+      dialog->open_script(path);
+    }
+  });
+  auto* reveal_action = context_menu.addAction(tr("Show in Folder"));
+  reveal_action->setObjectName(QStringLiteral("scriptMenuRevealAction"));
+  connect(reveal_action, &QAction::triggered, this, [this, close_menus, path] {
+    close_menus();
+    reveal_path_in_file_explorer(path, /*is_file=*/true);
+  });
+  auto* cli_action = context_menu.addAction(tr("Command Line Example..."));
+  cli_action->setObjectName(QStringLiteral("scriptMenuCliAction"));
+  connect(cli_action, &QAction::triggered, this, [this, close_menus, path] {
+    close_menus();
+    ScriptEditorDialog::show_cli_example_dialog(this, path);
+  });
+  auto* hotkey_action = context_menu.addAction(tr("Assign Hotkey..."));
+  hotkey_action->setObjectName(QStringLiteral("scriptMenuHotkeyAction"));
+  connect(hotkey_action, &QAction::triggered, this, [this, close_menus, display_name] {
+    close_menus();
+    show_hotkey_preferences(display_name);
+  });
+  auto* icon_action = context_menu.addAction(tr("Set Icon from Current Window"));
+  icon_action->setObjectName(QStringLiteral("scriptMenuIconAction"));
+  connect(icon_action, &QAction::triggered, this, [this, close_menus, relative_path] {
+    close_menus();
+    QString target;
+    const auto error = ScriptEditorDialog::write_icon_from_current_window(script_engine_host(), relative_path, &target);
+    if (!error.isEmpty()) {
+      show_status_error(error);
+      return;
+    }
+    statusBar()->showMessage(tr("Saved icon to %1").arg(QDir::toNativeSeparators(target)));
+    rescan_scripts();
+  });
+  if (!bundled_path.isEmpty()) {
+    context_menu.addSeparator();
+    auto* revert_action = context_menu.addAction(tr("Revert to Bundled"));
+    revert_action->setObjectName(QStringLiteral("scriptMenuRevertAction"));
+    connect(revert_action, &QAction::triggered, this, [this, close_menus, path, bundled_path] {
+      close_menus();
+      QString error;
+      if (ScriptEditorDialog::confirm_and_revert_override(this, path, bundled_path, &error)) {
+        rescan_scripts();
+      } else if (!error.isEmpty()) {
+        show_status_error(error);
+      }
+    });
+  }
+  context_menu.exec(menu->mapToGlobal(position));
+}
+
 void MainWindow::rebuild_scripts_menu() {
   if (scripts_menu_ == nullptr) {
     return;
   }
   const auto scan = scan_scripts(bundled_scripts_directory(), user_scripts_directory());
   refresh_script_commands(scan);
+  configure_scripts_context_menu(scripts_menu_, this);  // top-level user scripts
   const auto actions = scripts_menu_->actions();
   for (auto* action : actions) {
     if (action->property(kDynamicScriptActionProperty).toBool()) {
@@ -317,6 +436,7 @@ void MainWindow::rebuild_scripts_menu() {
           if (entry.is_folder) {
             auto* submenu = menu->addMenu(script_folder_display_name(entry.name));
             submenu->menuAction()->setMenuRole(QAction::NoRole);  // submenus never merge on macOS (docs/platform.md)
+            configure_scripts_context_menu(submenu, this);
             if (mark) {
               submenu->menuAction()->setProperty(kDynamicScriptActionProperty, true);
             }

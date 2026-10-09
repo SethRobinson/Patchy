@@ -18997,6 +18997,38 @@ Y: %2
         <source>Saved copy %1</source>
         <translation>복사본 %1을(를) 저장했습니다</translation>
     </message>
+    <message>
+        <source>Run</source>
+        <translation>실행</translation>
+    </message>
+    <message>
+        <source>Edit in Script Manager...</source>
+        <translation>스크립트 관리자에서 편집...</translation>
+    </message>
+    <message>
+        <source>Show in Folder</source>
+        <translation>폴더에 표시</translation>
+    </message>
+    <message>
+        <source>Command Line Example...</source>
+        <translation>명령줄 예...</translation>
+    </message>
+    <message>
+        <source>Assign Hotkey...</source>
+        <translation>단축키 지정...</translation>
+    </message>
+    <message>
+        <source>Set Icon from Current Window</source>
+        <translation>현재 창에서 아이콘 설정</translation>
+    </message>
+    <message>
+        <source>Revert to Bundled</source>
+        <translation>번들로 되돌리기</translation>
+    </message>
+    <message>
+        <source>Saved icon to %1</source>
+        <translation>아이콘을 %1에 저장했습니다</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -20474,6 +20506,34 @@ Y: %2
     <message>
         <source>%1 needs an output path.</source>
         <translation>%1에는 출력 경로가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>patchy.scripts.install: options must be an object such as {hotkey: &quot;Ctrl+Alt+D&quot;}.</source>
+        <translation>patchy.scripts.install: 옵션은 {hotkey: &quot;Ctrl+Alt+D&quot;}와 같은 객체여야 합니다.</translation>
+    </message>
+    <message>
+        <source>patchy.scripts.install: hotkey must be a string such as &quot;Ctrl+Alt+D&quot;.</source>
+        <translation>patchy.scripts.install: hotkey는 &quot;Ctrl+Alt+D&quot;와 같은 문자열이어야 합니다.</translation>
+    </message>
+    <message>
+        <source>patchy.scripts: no script at &quot;%1&quot; (install it or call rescan() first).</source>
+        <translation>patchy.scripts: &quot;%1&quot;에 스크립트가 없습니다 (먼저 설치하거나 rescan()을 호출하세요).</translation>
+    </message>
+    <message>
+        <source>patchy.scripts: &quot;%1&quot; is not a shortcut Patchy can bind (use Qt&apos;s portable spelling, such as &quot;Ctrl+Alt+D&quot;).</source>
+        <translation>patchy.scripts: &quot;%1&quot;은(는) Patchy가 지정할 수 있는 단축키가 아닙니다 (&quot;Ctrl+Alt+D&quot;와 같은 Qt 이식 표기를 사용하세요).</translation>
+    </message>
+    <message>
+        <source>patchy.scripts: the script path must be a .js file path inside the user scripts folder (&quot;Mine/export.js&quot;), not &quot;%1&quot;.</source>
+        <translation>patchy.scripts: 스크립트 경로는 사용자 스크립트 폴더 안의 .js 파일 경로(&quot;Mine/export.js&quot;)여야 하며, &quot;%1&quot;은(는) 안 됩니다.</translation>
+    </message>
+    <message>
+        <source>patchy.scripts: could not create the folder for %1.</source>
+        <translation>patchy.scripts: %1의 폴더를 만들 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>patchy.scripts: could not write %1.</source>
+        <translation>patchy.scripts: %1을(를) 쓸 수 없습니다.</translation>
     </message>
 </context>
 <context>

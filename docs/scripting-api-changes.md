@@ -1,5 +1,12 @@
 # Scripting API compatibility
 
+2026-10-09 additive (API 1): `patchy.scripts` (`PatchyScripts` in patchy.d.ts): `userFolder`,
+`bundledFolder`, `list()` / `rescan()` (every script with its effective `hotkey`,
+`defaultHotkey` and `commandId`), `install(relativePath, source, {hotkey})` (writes below the
+user folder, rescans, binds the Preferences override), `setHotkey` / `getHotkey`. The File >
+Scripts entries gain the Script Manager's right-click menu. Pinned by
+`ui_script_library_installs_and_binds_hotkey` and `ui_scripts_menu_context_menu_offers_script_actions`.
+
 2026-10-09 additive (API 1): `doc.saveAs(path, options?)` and `doc.exportAs(path, options?)`
 take the format's save options (`PatchySaveOptions` in patchy.d.ts: JPEG/WebP/JXR/RTTEX
 `quality`, WebP/JXR/PDF `lossless`, DDS `compression` and `mipmaps`, ICO/CUR `sizes`,

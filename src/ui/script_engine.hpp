@@ -105,6 +105,7 @@ private:
 // vector reallocates). See docs/scripting.md.
 struct PdfExportOptions;
 struct ImageSaveOptions;
+struct ScriptScan;
 
 class ScriptEngineHost : public QObject {
   Q_OBJECT
@@ -195,6 +196,15 @@ public:
   // the per-document adjustments (DDS source shape, BMP palette depth, ICO sizes, CUR
   // hotspot, WebP loop count). Activates the session. Nullopt when it is gone.
   [[nodiscard]] std::optional<ImageSaveOptions> save_options_for_session(std::int64_t session_id);
+  // patchy.scripts: the script library (docs/scripting.md "Script hotkeys"). rescan
+  // registers freshly written files; the hotkey calls read and write the Preferences
+  // override under the script's command id ("" clears it, restoring the @hotkey default).
+  ScriptScan rescan_script_library();
+  [[nodiscard]] QString script_hotkey(const QString& relative_path) const;
+  bool set_script_hotkey(const QString& relative_path, const QString& sequence_text, QString* error);
+  // Writes `source` at <user scripts>/<relative_path> (a ".js" path below the folder)
+  // and rescans. False with *error set for a bad path or a write failure.
+  bool install_script(const QString& relative_path, const QString& source, QString* error);
   bool export_session_animated_webp(std::int64_t session_id, const QString& path,
                                     const ImageSaveOptions& options, QString* error);
   // app.exportPdf: the sessions as the pages of one PDF, in order. False with *error

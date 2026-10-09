@@ -40,6 +40,7 @@
 #include "ui/qt_paths.hpp"
 #include "ui/script_canvas_window.hpp"
 #include "ui/script_engine.hpp"
+#include "ui/script_folders.hpp"
 #include "ui/script_save_options.hpp"
 #include "ui/script_vector.hpp"
 #include "core/text_area.hpp"
@@ -2705,6 +2706,114 @@ QJSValue ScriptPluginsObject::rescan() {
   const ScriptApiCall api_call(host_);
   host_.rescan_legacy_plugins();
   return host_.legacy_plugin_list();
+}
+
+ScriptLibraryObject::ScriptLibraryObject(ScriptEngineHost& host) : host_(host) {}
+
+QString ScriptLibraryObject::user_folder() const {
+  return QDir::fromNativeSeparators(MainWindow::user_scripts_directory());
+}
+
+QString ScriptLibraryObject::bundled_folder() const {
+  return QDir::fromNativeSeparators(MainWindow::bundled_scripts_directory());
+}
+
+QJSValue ScriptLibraryObject::entries_value(const ScriptScan& scan) {
+  auto* engine = host_.engine();
+  auto result = engine->newArray();
+  quint32 index = 0;
+  const std::function<void(const std::vector<ScriptFolderEntry>&, bool)> visit =
+      [&](const std::vector<ScriptFolderEntry>& entries, bool bundled) {
+        for (const auto& entry : entries) {
+          if (entry.is_folder) {
+            visit(entry.children, bundled);
+            continue;
+          }
+          auto object = engine->newObject();
+          object.setProperty(QStringLiteral("name"), entry.display_name);
+          object.setProperty(QStringLiteral("fileName"), entry.file_name);
+          object.setProperty(QStringLiteral("relativePath"), entry.relative_path);
+          object.setProperty(QStringLiteral("path"), QDir::fromNativeSeparators(entry.path));
+          object.setProperty(QStringLiteral("bundled"), bundled);
+          object.setProperty(QStringLiteral("modified"), entry.is_override);
+          object.setProperty(QStringLiteral("description"), entry.description);
+          object.setProperty(QStringLiteral("author"), entry.author);
+          object.setProperty(QStringLiteral("hotkey"), host_.script_hotkey(entry.relative_path));
+          object.setProperty(QStringLiteral("defaultHotkey"), entry.hotkey);
+          object.setProperty(QStringLiteral("commandId"), script_hotkey_command_id(entry.relative_path));
+          result.setProperty(index++, object);
+        }
+      };
+  visit(scan.bundled, true);
+  visit(scan.user, false);
+  return result;
+}
+
+QJSValue ScriptLibraryObject::entry_value(const QString& relativePath) {
+  const auto entries = entries_value(host_.rescan_script_library());
+  const auto count = entries.property(QStringLiteral("length")).toUInt();
+  for (quint32 index = 0; index < count; ++index) {
+    auto entry = entries.property(index);
+    if (entry.property(QStringLiteral("relativePath")).toString() == relativePath) {
+      return entry;
+    }
+  }
+  return QJSValue(QJSValue::NullValue);
+}
+
+QJSValue ScriptLibraryObject::list() {
+  const ScriptApiCall api_call(host_);
+  return entries_value(host_.rescan_script_library());
+}
+
+QJSValue ScriptLibraryObject::rescan() {
+  const ScriptApiCall api_call(host_);
+  return entries_value(host_.rescan_script_library());
+}
+
+QJSValue ScriptLibraryObject::install(const QString& relativePath, const QString& source, const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
+  QString hotkey;
+  if (!options.isUndefined()) {
+    if (!options.isObject() || options.isArray() || options.isNull()) {
+      host_.throw_js_error(ScriptEngineHost::tr("patchy.scripts.install: options must be an object such as {hotkey: \"Ctrl+Alt+D\"}."));
+      return QJSValue(QJSValue::NullValue);
+    }
+    const auto value = options.property(QStringLiteral("hotkey"));
+    if (!value.isUndefined()) {
+      if (!value.isString()) {
+        host_.throw_js_error(ScriptEngineHost::tr("patchy.scripts.install: hotkey must be a string such as \"Ctrl+Alt+D\"."));
+        return QJSValue(QJSValue::NullValue);
+      }
+      hotkey = value.toString();
+    }
+  }
+  QString error;
+  if (!host_.install_script(relativePath, source, &error)) {
+    host_.throw_js_error(error);
+    return QJSValue(QJSValue::NullValue);
+  }
+  const auto relative = QDir::cleanPath(QDir::fromNativeSeparators(relativePath.trimmed()));
+  if (!hotkey.isEmpty() && !host_.set_script_hotkey(relative, hotkey, &error)) {
+    host_.throw_js_error(error);
+    return QJSValue(QJSValue::NullValue);
+  }
+  return entry_value(relative);
+}
+
+QString ScriptLibraryObject::setHotkey(const QString& relativePath, const QString& shortcut) {
+  const ScriptApiCall api_call(host_);
+  QString error;
+  if (!host_.set_script_hotkey(relativePath, shortcut, &error)) {
+    host_.throw_js_error(error);
+    return {};
+  }
+  return host_.script_hotkey(relativePath);
+}
+
+QString ScriptLibraryObject::getHotkey(const QString& relativePath) {
+  const ScriptApiCall api_call(host_);
+  return host_.script_hotkey(relativePath);
 }
 
 ScriptRecoveryObject::ScriptRecoveryObject(ScriptEngineHost& host) : host_(host) {}

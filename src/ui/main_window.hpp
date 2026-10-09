@@ -277,6 +277,9 @@ public:
   // docs/scripting.md "Script hotkeys". Runs at construction, on every Scripts menu
   // rebuild, on every Script Manager tree refresh, and before the Hotkeys page is built.
   void refresh_script_commands(const ScriptScan& scan);
+  // Scans the script folders, refreshes the commands, and rebuilds an open Script
+  // Manager tree: what every path that changes the folders calls afterwards.
+  ScriptScan rescan_scripts();
   enum class PreferencesPage { Application, Hotkeys };
   // Preferences opened on the Hotkeys page with its search field prefilled (the Script
   // Manager's "Assign Hotkey..." passes the script's display name).
@@ -913,6 +916,9 @@ private:
   void open_script_editor();
   void rebuild_scripts_menu();
   void run_script_from_menu(const QString& path);
+  // Right-click on a File > Scripts entry: the Script Manager's script actions (run,
+  // edit, show in folder, command line, hotkey, icon, revert) for that entry.
+  void show_script_context_menu(QMenu* menu, const QPoint& position);
   void browse_user_scripts_folder();
   // Legacy Photoshop plug-ins (main_window_plugins.cpp, docs/plugins.md). A
   // scan is a pure file read of each plug-in's property list; running one goes

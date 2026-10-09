@@ -19004,6 +19004,38 @@ Baked into images: %1.</source>
         <source>Saved copy %1</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Run</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit in Script Manager...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show in Folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Command Line Example...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Assign Hotkey...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Set Icon from Current Window</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Revert to Bundled</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Saved icon to %1</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -20481,6 +20513,34 @@ Baked into images: %1.</source>
     </message>
     <message>
         <source>%1 needs an output path.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>patchy.scripts.install: options must be an object such as {hotkey: &quot;Ctrl+Alt+D&quot;}.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>patchy.scripts.install: hotkey must be a string such as &quot;Ctrl+Alt+D&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>patchy.scripts: no script at &quot;%1&quot; (install it or call rescan() first).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>patchy.scripts: &quot;%1&quot; is not a shortcut Patchy can bind (use Qt&apos;s portable spelling, such as &quot;Ctrl+Alt+D&quot;).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>patchy.scripts: the script path must be a .js file path inside the user scripts folder (&quot;Mine/export.js&quot;), not &quot;%1&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>patchy.scripts: could not create the folder for %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>patchy.scripts: could not write %1.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

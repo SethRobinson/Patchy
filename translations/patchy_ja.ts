@@ -18997,6 +18997,38 @@ Baked into images: %1.</source>
         <source>Saved copy %1</source>
         <translation>コピー %1 を保存しました</translation>
     </message>
+    <message>
+        <source>Run</source>
+        <translation>実行</translation>
+    </message>
+    <message>
+        <source>Edit in Script Manager...</source>
+        <translation>スクリプトマネージャーで編集...</translation>
+    </message>
+    <message>
+        <source>Show in Folder</source>
+        <translation>フォルダーで表示</translation>
+    </message>
+    <message>
+        <source>Command Line Example...</source>
+        <translation>コマンドライン例...</translation>
+    </message>
+    <message>
+        <source>Assign Hotkey...</source>
+        <translation>ホットキーを割り当て...</translation>
+    </message>
+    <message>
+        <source>Set Icon from Current Window</source>
+        <translation>現在のウィンドウからアイコンを設定</translation>
+    </message>
+    <message>
+        <source>Revert to Bundled</source>
+        <translation>同梱版に戻す</translation>
+    </message>
+    <message>
+        <source>Saved icon to %1</source>
+        <translation>アイコンを %1 に保存しました</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -20474,6 +20506,34 @@ Baked into images: %1.</source>
     <message>
         <source>%1 needs an output path.</source>
         <translation>%1 には出力パスが必要です。</translation>
+    </message>
+    <message>
+        <source>patchy.scripts.install: options must be an object such as {hotkey: &quot;Ctrl+Alt+D&quot;}.</source>
+        <translation>patchy.scripts.install: オプションは {hotkey: &quot;Ctrl+Alt+D&quot;} のようなオブジェクトでなければなりません。</translation>
+    </message>
+    <message>
+        <source>patchy.scripts.install: hotkey must be a string such as &quot;Ctrl+Alt+D&quot;.</source>
+        <translation>patchy.scripts.install: hotkey は &quot;Ctrl+Alt+D&quot; のような文字列でなければなりません。</translation>
+    </message>
+    <message>
+        <source>patchy.scripts: no script at &quot;%1&quot; (install it or call rescan() first).</source>
+        <translation>patchy.scripts: &quot;%1&quot; にスクリプトがありません (先にインストールするか rescan() を呼んでください)。</translation>
+    </message>
+    <message>
+        <source>patchy.scripts: &quot;%1&quot; is not a shortcut Patchy can bind (use Qt&apos;s portable spelling, such as &quot;Ctrl+Alt+D&quot;).</source>
+        <translation>patchy.scripts: &quot;%1&quot; は Patchy が割り当てられるショートカットではありません (&quot;Ctrl+Alt+D&quot; のような Qt のポータブル表記を使ってください)。</translation>
+    </message>
+    <message>
+        <source>patchy.scripts: the script path must be a .js file path inside the user scripts folder (&quot;Mine/export.js&quot;), not &quot;%1&quot;.</source>
+        <translation>patchy.scripts: スクリプトのパスはユーザースクリプトフォルダー内の .js ファイルパス (&quot;Mine/export.js&quot;) でなければなりません。&quot;%1&quot; は使えません。</translation>
+    </message>
+    <message>
+        <source>patchy.scripts: could not create the folder for %1.</source>
+        <translation>patchy.scripts: %1 のフォルダーを作成できませんでした。</translation>
+    </message>
+    <message>
+        <source>patchy.scripts: could not write %1.</source>
+        <translation>patchy.scripts: %1 を書き込めませんでした。</translation>
     </message>
 </context>
 <context>
