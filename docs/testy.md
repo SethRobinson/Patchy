@@ -130,13 +130,16 @@ Useful flags:
   file hash + editor version; Patchy's key is a hash of patchy.exe itself).
 - `--resume runs\<ts>` - continue a paused/canceled/interrupted run directory, skipping
   completed work (implies `--no-build`, ignores `--files/--corpus/--editors`).
+- `--resume runs\<ts> --add-editors photocraft` - add columns to a finished non-scan run;
+  other columns, `finishedAt` and the Patchy build stay. New cells are scored against the
+  ground truth in `testy/cache` (never re-probed; a missing entry or changed source skips the
+  cell with the reason), the history line is replaced, and the header says "added <date>".
 - `--scan [PCT]` - scan mode; see below.
 - `--compare strict|perceptual` - which comparison drives scan flagging (default
   perceptual). Both numbers are always computed and shown either way; a resumed run
   keeps the mode it started with, and runs recorded without a mode flag strictly.
 - `--exit-when-done`, `--no-browser`, `--no-serve`, `--port N` - dashboard behavior.
-- `--suffix "~TESTY~"` - a marker that is only part of cache entry names (the argparse help
-  text still describes the retired appended-text leg).
+- `--suffix "~TESTY~"` - a marker that is only part of cache entry names.
 
 ## The psd-tools collection and the By folder table
 

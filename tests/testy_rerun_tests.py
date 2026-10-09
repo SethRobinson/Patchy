@@ -385,6 +385,90 @@ class RerunTests(unittest.TestCase):
         self.assertEqual([call.args[0][1] for call in popen.call_args_list], ['run', 'convert'])
         self.assertIn('type.updateAllTextLayers', popen.call_args_list[0].args[0])
 
+    def test_add_editors_measures_only_the_new_column_against_recorded_ground_truth(self):
+        import argparse
+        import types
+        root = self.runs / 'testy-root'
+        run_dir = root / 'runs' / '20261009-000000'
+        cache = root / 'cache'
+        run_dir.mkdir(parents=True)
+        sources = [self.runs / f'{name}.psd' for name in ('cached', 'uncached', 'changed')]
+        sha = {str(path): f'sha-{path.stem}' for path in sources}
+        for path in sources:
+            path.write_bytes(b'psd')
+        truth = dict(state='done', artifacts={})
+        patchy_cell = cell(.7)
+        status = dict(state='done', run=dict(name=run_dir.name, suffix='~TESTY~', compare='perceptual',
+            editorOrder=['photoshop', 'patchy'], startedAt='2026-10-09T00:00:00', finishedAt='2026-10-09T01:00:00',
+            patchyGit='old', sourcesUntouched=True),
+            editors=dict(photoshop=dict(displayName='Photoshop'), patchy=dict(displayName='Patchy', version='old')),
+            files=[dict(name=p.name, source=str(p), sha1=sha[str(p)], traits={}, groundTruth=dict(truth),
+                        cells=dict(photoshop=cell(1), patchy=copy.deepcopy(patchy_cell))) for p in sources])
+        (run_dir / 'status.json').write_text(json.dumps(status), encoding='utf-8')
+        history = root / 'runs' / 'history.jsonl'
+        history.write_text(json.dumps({'run': 'older'}) + '\n' + json.dumps({'run': run_dir.name}) + '\n',
+                           encoding='utf-8')
+        ps = mock.Mock(unavailable=False, unavailable_reason=None)
+        ps.version.return_value = '27.0'
+        ps.font_cache_key.return_value = 'fonts'
+        gt = cache / f'gt-sha-cached-27.0-~TESTY~-fontcheck1-fonts'
+        gt.mkdir(parents=True)
+        (gt / 'result.json').write_text(json.dumps(dict(ok=True, layers=[{'name': 'L'}])), encoding='utf-8')
+        (gt / 'render.png').write_bytes(b'png')
+        editors = {key: testy.config.EditorInfo(key, name, Path('x.exe'), version='v1', available=True)
+                   for key, name in (('photoshop', 'Photoshop'), ('patchy', 'Patchy'), ('photocraft', 'PhotoCraft'))}
+        args = argparse.Namespace(resume=str(run_dir), add_editors='photocraft', suffix='~TESTY~', scan=None,
+                                  compare='perceptual', fresh=False, no_build=False, server_url=None,
+                                  no_serve=True, no_browser=True, port=0, apply_to_run=None)
+        measured = []
+
+        def run_cell(runner, index, editor_key, staged, truth_result):
+            measured.append((runner.status['files'][index]['name'], editor_key, truth_result))
+            runner.status['files'][index]['cells'][editor_key].update(cell(.9))
+
+        def stage(source, _dir):
+            digest = 'sha-moved' if Path(source).stem == 'changed' else sha[str(source)]
+            return types.SimpleNamespace(sha1=digest, trap_error=None, trap_skipped=None, original=source)
+
+        with mock.patch.object(testy.config, 'discover_editors', return_value=editors), \
+                mock.patch.object(testy.config, 'CACHE_DIR', cache), \
+                mock.patch.object(testy.config, 'TESTY_ROOT', root), \
+                mock.patch.object(testy.config, 'RUNS_DIR', root / 'runs'), \
+                mock.patch.object(testy, 'PhotoshopDriver', return_value=ps), \
+                mock.patch.object(testy, 'git_hash', return_value='new'), \
+                mock.patch.object(testy.staging, 'stage_psd', side_effect=stage), \
+                mock.patch.object(testy.staging, 'sha1_of_file', side_effect=lambda p: sha[str(p)]), \
+                mock.patch.object(testy.Runner, 'run_cell', run_cell):
+            self.assertEqual(testy.Runner(args).run(), 0)
+            # Adding the same column again, or to an unfinished run, is refused.
+            with self.assertRaises(SystemExit):
+                testy.Runner(args)
+            args.add_editors = 'photocraft,krita'
+            done = json.loads((run_dir / 'status.json').read_text(encoding='utf-8'))
+            (run_dir / 'status.json').write_text(json.dumps({**done, 'state': 'paused'}), encoding='utf-8')
+            with self.assertRaises(SystemExit):
+                testy.Runner(args)
+        ps.probe.assert_not_called()  # Photoshop never renders a reference again
+        self.assertEqual(measured, [('cached.psd', 'photocraft', dict(ok=True, layers=[{'name': 'L'}],
+                                                                      textFontsMissing=None))])
+        self.assertTrue((run_dir / 'files' / 'cached' / '_truth' / 'render.png').exists())
+        files = done['files']
+        self.assertEqual(done['run']['editorOrder'], ['photoshop', 'patchy', 'photocraft'])
+        self.assertEqual([f['cells']['patchy'] for f in files], [patchy_cell] * 3)
+        self.assertEqual([f['groundTruth'] for f in files], [truth] * 3)
+        self.assertEqual(files[0]['cells']['photocraft']['state'], 'done')
+        self.assertEqual(files[1]['cells']['photocraft']['state'], 'skipped')
+        self.assertIn('no longer in testy/cache', files[1]['cells']['photocraft']['error'])
+        self.assertIn('source changed', files[2]['cells']['photocraft']['error'])
+        self.assertEqual((done['run']['finishedAt'], done['run']['patchyGit']), ('2026-10-09T01:00:00', 'old'))
+        self.assertNotIn('addingEditors', done['run'])
+        self.assertEqual(done['run']['addedEditors'][0]['editors'], ['photocraft'])
+        self.assertIn('addedAt', done['editors']['photocraft'])
+        lines = [json.loads(line) for line in history.read_text(encoding='utf-8').splitlines()]
+        self.assertEqual([line['run'] for line in lines], ['older', run_dir.name])
+        self.assertIn('photocraft', lines[1]['editors'])
+        self.assertEqual(lines[1]['editors']['photocraft']['opened'], 1)
+
     def test_cache_stripper_empties_cached_layers_and_only_those(self):
         import psd_sections
 

@@ -768,14 +768,18 @@ function render() {
     (corpusBytes ? ", " + fmtSize(corpusBytes) : "") + "  -  Patchy " + (S.run.patchyVersion || "?") +
     (S.run.compare === "perceptual" ? "  -  compare: perceptual" : "") +
     (S.run.scan ? "  -  scan mode: flag over " + S.run.scan.thresholdPct + "% " + compareWord + " difference" : "") +
-    (S.run.reruns && S.run.reruns.length ? "  -  partial refresh: " + S.run.reruns.length + " image rerun(s); build details on each row" : "");
+    (S.run.reruns && S.run.reruns.length ? "  -  partial refresh: " + S.run.reruns.length + " image rerun(s); build details on each row" : "") +
+    (S.run.addedEditors || []).map(a => "  -  " + a.editors.map(k => (S.editors[k] || {}).displayName || k).join(", ") +
+      " added " + a.at).join("");
 
   const editors = S.run.editorOrder;
   document.getElementById("matrix-head").innerHTML =
     "<tr><th>PSD</th>" + editors.map(k => {
       const e = S.editors[k] || {};
       return "<th>" + esc(e.displayName || k) +
-             '<div class="nums">' + esc(editorVersionLabel(k)) + "</div></th>";
+             '<div class="nums">' + esc(editorVersionLabel(k)) + "</div>" +
+             (e.addedAt ? '<div class="nums" title="Column added to this finished run, scored against its recorded Photoshop ground truth">added ' +
+              esc(e.addedAt.slice(0, 10)) + "</div>" : "") + "</th>";
     }).join("") + "</tr>";
 
   const groups = fileGroups(S.files);
@@ -1296,6 +1300,30 @@ def append_history(testy_root: Path, summary: dict) -> None:
     runs_dir.mkdir(parents=True, exist_ok=True)
     with open(runs_dir / "history.jsonl", "a", encoding="utf-8") as f:
         f.write(json.dumps(summary) + "\n")
+
+
+def replace_history(testy_root: Path, summary: dict) -> None:
+    """Swap the run's history line for `summary` (columns added to a finished run), so
+    the over-time view never lists one run twice; appended when it has no line."""
+    path = testy_root / "runs" / "history.jsonl"
+    lines = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+    revised, found = [], False
+    for line in lines:
+        try:
+            same = json.loads(line).get("run") == summary["run"]
+        except (ValueError, AttributeError):
+            same = False
+        if not same:
+            revised.append(line)
+        elif not found:
+            revised.append(json.dumps(summary))
+            found = True
+    if not found:
+        revised.append(json.dumps(summary))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text("\n".join(revised) + "\n", encoding="utf-8")
+    os.replace(temporary, path)
 
 
 def append_run_index(testy_root: Path, run_name: str) -> None:

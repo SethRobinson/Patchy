@@ -1193,7 +1193,7 @@ class Runner:
         if self.resume:
             self.run_dir = self._locate_resume_dir(args.resume)
             self.status = json.loads((self.run_dir / "status.json").read_text(encoding="utf-8"))
-            if self.status.get("state") == "done":
+            if self.status.get("state") == "done" and not getattr(args, "add_editors", None):
                 raise SystemExit(f"run {self.run_dir.name} already completed; nothing to resume")
             # Corpus, editors, and options come from the run's own status.json: the
             # paused session's caches must stay valid and a mid-run rebuild would
@@ -1211,6 +1211,12 @@ class Runner:
             self.run_dir = config.RUNS_DIR / _dt.datetime.now().strftime("%Y%m%d-%H%M%S")
         self.patchy_hash = git_hash()
         self.editors = config.discover_editors(self.patchy_hash)
+        requested = [e for e in (getattr(args, "add_editors", None) or "").split(",") if e]
+        if self.resume and requested:
+            self._begin_adding_editors(requested)
+        # Columns being added to a finished run (also set when such a run was paused and
+        # is resumed): they are scored against the run's recorded ground truth only.
+        self.adding: list[str] = list(self.status.get("run", {}).get("addingEditors") or [])
         if self.resume:
             self.editor_order = [e for e in self.status["run"]["editorOrder"] if e in self.editors]
         else:
@@ -1231,7 +1237,62 @@ class Runner:
                 return candidate.resolve()
         raise SystemExit(f"--resume: no run (status.json) found at {spec}")
 
+    def _begin_adding_editors(self, requested: list[str]) -> None:
+        """--add-editors: give a finished run new columns, measured now against the
+        Photoshop ground truth it already recorded. Every existing cell, row and total
+        stays as it is; the new cells start pending and the resume loop fills them."""
+        run = self.status["run"]
+        if self.status.get("state") != "done":
+            raise SystemExit(f"--add-editors: run {self.run_dir.name} is {self.status.get('state')}; "
+                             "resume it to completion first")
+        for key in requested:
+            if key not in {*DEFAULT_EDITORS, *OPT_IN_EDITORS} or key == "photoshop":
+                raise SystemExit(f"--add-editors: unknown editor '{key}'")
+            if key in run["editorOrder"] or requested.count(key) > 1:
+                raise SystemExit(f"--add-editors: '{key}' is already a column of this run "
+                                 "(use a row's Rerun to measure it again)")
+            info = self.editors.get(key)
+            if info is None or not info.available:
+                raise SystemExit(f"--add-editors: {key} is not available on this machine")
+        if run.get("scan"):
+            raise SystemExit("--add-editors: scan runs discarded the artifacts of passing files; "
+                             "start a new run instead")
+        now = _dt.datetime.now().isoformat(timespec="seconds")
+        run["editorOrder"] = [*run["editorOrder"], *requested]
+        run["addingEditors"] = requested
+        for key in requested:
+            self.status["editors"][key] = {**self._editor_status(key, self.editors[key]), "addedAt": now}
+        for entry in self.status["files"]:
+            for key in requested:
+                entry["cells"][key] = {"state": "pending"}
+        names = ", ".join(self.editors[key].display_name for key in requested)
+        run.setdefault("notes", []).append(
+            f"{names} added at {now}; the other columns were measured from {run.get('startedAt')} "
+            f"to {run.get('finishedAt')}")
+        log(f"adding {names} to {self.run_dir.name}; existing columns are kept as measured")
+
+    def _finish_adding_editors(self) -> None:
+        run = self.status["run"]
+        run.setdefault("addedEditors", []).append({
+            "editors": self.adding,
+            "at": _dt.datetime.now().isoformat(timespec="seconds"),
+            "versions": {key: self.editors[key].version for key in self.adding},
+        })
+        run.pop("addingEditors", None)
+
     # ---------- status plumbing ----------
+
+    @staticmethod
+    def _editor_status(key: str, info: config.EditorInfo) -> dict:
+        return {
+            "displayName": info.display_name,
+            "version": info.version,
+            "available": info.available,
+            "notes": info.notes,
+            "textBasis": TEXT_RENDER_BASIS.get(key, (None, None))[0],
+            "textBasisNote": TEXT_RENDER_BASIS.get(key, (None, None))[1],
+            "textHelpNote": TEXT_HELP_NOTES.get(key),
+        }
 
     def init_status(self, corpus: list[Path]) -> None:
         self.status = {
@@ -1248,18 +1309,7 @@ class Runner:
                 # and the public export credit them.
                 "corpus": fetch_psd_tools_corpus.corpus_credit(corpus),
             },
-            "editors": {
-                key: {
-                    "displayName": info.display_name,
-                    "version": info.version,
-                    "available": info.available,
-                    "notes": info.notes,
-                    "textBasis": TEXT_RENDER_BASIS.get(key, (None, None))[0],
-                    "textBasisNote": TEXT_RENDER_BASIS.get(key, (None, None))[1],
-                    "textHelpNote": TEXT_HELP_NOTES.get(key),
-                }
-                for key, info in self.editors.items()
-            },
+            "editors": {key: self._editor_status(key, info) for key, info in self.editors.items()},
             "files": [
                 {
                     "name": path.name,
@@ -1302,14 +1352,43 @@ class Runner:
 
     # ---------- ground truth ----------
 
+    def _ground_truth_cache_dir(self, entry: dict, staged: staging.StagedPsd) -> Path:
+        font_key = self.ps.font_cache_key()
+        return config.CACHE_DIR / (
+            f"gt-{staged.sha1}-{_version_slug(self.ps.version())}-{self.suffix}-fontcheck1-{font_key}"
+            f"{reference_space_key(entry.get('traits'))}")
+
+    def recorded_ground_truth(self, index: int, staged: staging.StagedPsd) -> tuple[dict | None, str]:
+        """--add-editors: the ground truth this run's other columns were scored against,
+        read back from testy/cache; Photoshop is never asked to render the file again,
+        so the new column cannot end up compared to a different reference. Returns
+        (result, error). A file whose ground truth failed gets (None, ""), the same
+        footing its other cells had. A cache that no longer has the entry (Photoshop
+        updated, fonts installed: the key names both) gives an error instead."""
+        entry = self.file_entry(index)
+        if entry.get("groundTruth", {}).get("state") != "done":
+            return None, ""
+        cache_dir = self._ground_truth_cache_dir(entry, staged)
+        result_path = cache_dir / "result.json"
+        if not result_path.exists():
+            return None, ("this run's Photoshop ground truth is no longer in testy/cache "
+                          "(Photoshop or the installed fonts changed since); start a new run")
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+        gt_dir = self.files_dir / artifact_dir_name(entry) / "_truth"
+        gt_dir.mkdir(parents=True, exist_ok=True)
+        for name in ("render.png", "render16.png"):
+            if (cache_dir / name).exists() and not (gt_dir / name).exists():
+                shutil.copyfile(cache_dir / name, gt_dir / name)
+        if not (gt_dir / "manifest.json").exists():
+            (gt_dir / "manifest.json").write_text(json.dumps(result["layers"], indent=1), encoding="utf-8")
+        result["textFontsMissing"] = text_fonts_missing(result)
+        return result, ""
+
     def ground_truth(self, index: int, staged: staging.StagedPsd) -> dict | None:
         entry = self.file_entry(index)
         gt_dir = self.files_dir / artifact_dir_name(entry) / "_truth"
         gt_dir.mkdir(parents=True, exist_ok=True)
-        font_key = self.ps.font_cache_key()
-        cache_dir = config.CACHE_DIR / (
-            f"gt-{staged.sha1}-{_version_slug(self.ps.version())}-{self.suffix}-fontcheck1-{font_key}"
-            f"{reference_space_key(entry.get('traits'))}")
+        cache_dir = self._ground_truth_cache_dir(entry, staged)
         result_path = cache_dir / "result.json"
 
         entry["groundTruth"] = {"state": "running", "stage": "Photoshop ground truth"}
@@ -2374,7 +2453,8 @@ class Runner:
         self.status["run"].pop("pausedAt", None)
         self.status["run"].setdefault("resumedAt", []).append(now)
         old_hash = self.status["run"].get("patchyGit")
-        if old_hash != self.patchy_hash:
+        # Adding columns measures no Patchy cell, so the run keeps the build it measured.
+        if old_hash != self.patchy_hash and not self.adding:
             note = (f"resumed at {now} with patchy git {self.patchy_hash}; "
                     f"cells finished earlier measured {old_hash}")
             log(f"WARNING: {note}")
@@ -2393,6 +2473,15 @@ class Runner:
                 entry["sizeBytes"] = _file_size(Path(entry["source"]))
             if "traits" not in entry:
                 entry["traits"] = file_traits(Path(entry["source"]))
+        self.push()
+
+    def _fail_pending_cells(self, entry: dict, error: str) -> None:
+        """A harness verdict, not the editor's: the cells stay out of the averages
+        and do not feed the circuit breaker."""
+        for cell in entry["cells"].values():
+            if cell.get("state") not in self.TERMINAL_CELL_STATES:
+                cell.clear()
+                cell.update({"state": "skipped", "error": error})
         self.push()
 
     def _file_complete(self, entry: dict) -> bool:
@@ -2503,14 +2592,26 @@ class Runner:
                     self._apply_scan_policy(index)
                 continue
             staged = staging.stage_psd(source, self.files_dir / artifact_dir_name(entry) / "_staged")
+            if self.adding and entry.get("sha1") and entry["sha1"] != staged.sha1:
+                log("    the source changed since this run measured it; not measured")
+                self._fail_pending_cells(entry, "the source changed since this run measured it; "
+                                                "start a new run for the changed file")
+                continue
             entry["sha1"] = staged.sha1
             if staged.trap_error:
                 entry["trapError"] = staged.trap_error
             if staged.trap_skipped:
                 entry["trapSkipped"] = staged.trap_skipped
-            truth = self.ground_truth(index, staged)
+            if self.adding:
+                truth, truth_error = self.recorded_ground_truth(index, staged)
+            else:
+                truth, truth_error = self.ground_truth(index, staged), ""
             if self.ps.unavailable:
                 return self._photoshop_unavailable_exit()
+            if truth_error:
+                log(f"    {truth_error}")
+                self._fail_pending_cells(entry, truth_error)
+                continue
             for editor_key in self.editor_order:
                 cell = entry["cells"][editor_key]
                 if cell.get("state") in self.TERMINAL_CELL_STATES:
@@ -2559,10 +2660,18 @@ class Runner:
         # run is finished, so the request is void and must not leak into a later run.
         (self.run_dir / PAUSE_FLAG).unlink(missing_ok=True)
         self.status["state"] = "done"
-        self.status["run"]["finishedAt"] = _dt.datetime.now().isoformat(timespec="seconds")
+        if self.adding:
+            # finishedAt stays the original columns' finish; the addition has its own record.
+            self._finish_adding_editors()
+        else:
+            self.status["run"]["finishedAt"] = _dt.datetime.now().isoformat(timespec="seconds")
         self.push()
         (self.run_dir / "results.json").write_text(json.dumps(self.status, indent=1), encoding="utf-8")
-        report.append_history(config.TESTY_ROOT, self._history_summary())
+        if self.adding:
+            # One line per run: the run's own Patchy build, now with the new columns.
+            report.replace_history(config.TESTY_ROOT, self.summarize_status(self.status))
+        else:
+            report.append_history(config.TESTY_ROOT, self._history_summary())
         if self.status["run"].get("rerunRequest"):
             rerun.apply(config.RUNS_DIR, self.run_dir, self.status["run"]["rerunRequest"],
                         summarize=self.summarize_status, scan_reasons=self.scan_reasons_for_status)
@@ -2693,7 +2802,7 @@ def main() -> int:
                         help="corpus list file (default: config.local.json's corpus_file/corpus_dir)")
     parser.add_argument("--editors", default=",".join(DEFAULT_EDITORS),
                         help="comma-separated editor keys to run")
-    parser.add_argument("--suffix", default=DEFAULT_SUFFIX, help="text appended by the forced re-render test")
+    parser.add_argument("--suffix", default=DEFAULT_SUFFIX, help="a marker that is only part of cache entry names")
     parser.add_argument("--scan", nargs="?", const=10.0, type=float, default=None, metavar="PCT",
                         help="scan mode: flag files whose render differs from Photoshop on more "
                              "than PCT%% of pixels (default 10) or that fail anything, and "
@@ -2710,6 +2819,10 @@ def main() -> int:
                         help="continue a paused/canceled/interrupted run directory "
                              "(runs\\<timestamp>), skipping completed work; corpus, "
                              "editors, and options come from its status.json")
+    parser.add_argument("--add-editors", default=None, metavar="KEYS",
+                        help="with --resume: add these comma-separated editor columns to a finished "
+                             "run, scored against the Photoshop ground truth it recorded; every "
+                             "existing column is kept as measured")
     parser.add_argument("--apply-to-run", default=None, help="apply a completed one-image rerun to this batch")
     parser.add_argument("--expected-entry", default=None, help=argparse.SUPPRESS)
     parser.add_argument("--port", type=int, default=config.PORT, help="dashboard port")
@@ -2721,6 +2834,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.scan is not None and not 0.0 <= args.scan <= 100.0:
         parser.error("--scan threshold must be a percentage between 0 and 100")
+    if args.add_editors and not args.resume:
+        parser.error("--add-editors needs --resume RUN_DIR (the finished run to extend)")
     global _in_process_run_active
     _in_process_run_active = True
     _interrupt_requested.clear()
