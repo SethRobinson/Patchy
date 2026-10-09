@@ -14,7 +14,6 @@
 
 #include <QBuffer>
 #include <QByteArray>
-#include <QFile>
 #include <QImage>
 #include <QImageWriter>
 #include <QMarginsF>
@@ -483,7 +482,8 @@ bool write_multipage_pdf_file(std::span<const Document* const> pages, const QStr
     return write_image_pages(pages, path, options, progress);
   }
 
-  QPdfWriter writer(path);
+  pdf_detail::QtPdfOutput output(path);
+  QPdfWriter writer(output.device());
   // The device resolution is fixed for the whole file (it only sets the painter's
   // logical grid), so it comes from page 1; every page maps its own pixel grid onto
   // its own sheet through the window/viewport pair below.
@@ -500,8 +500,7 @@ bool write_multipage_pdf_file(std::span<const Document* const> pages, const QStr
     const UiProfileScope page_scope("pdf_export.page", profile_detail);
     if (progress && !progress(static_cast<int>(index) + 1, static_cast<int>(pages.size()))) {
       painter.end();
-      QFile::remove(path);
-      return false;
+      return false;  // `output` removes the partial temporary; the destination is untouched
     }
     if (index > 0) {
       // A size set right before newPage() applies to the page it starts.
@@ -522,9 +521,7 @@ bool write_multipage_pdf_file(std::span<const Document* const> pages, const QStr
     const UiProfileScope profile_scope("pdf_export.finish");
     painter.end();
   }
-  if (text_drawn) {
-    pdf_detail::apply_text_merge_post_pass(path);
-  }
+  output.commit(text_drawn);
   return true;
 }
 

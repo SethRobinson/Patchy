@@ -1,5 +1,7 @@
 #pragma once
 
+#include "support/atomic_file_write.hpp"
+
 #include <array>
 #include <cstdint>
 #include <filesystem>
@@ -20,8 +22,10 @@
 // page, so a scanned multi-page document can be written at the size it came in at.
 //
 // Pages are written to disk as they arrive; only the object offsets are kept, so a
-// file of any page count costs one page of memory. Output is deterministic: no dates,
-// no ids, numbers formatted without the C locale.
+// file of any page count costs one page of memory. They go to a sibling temporary file
+// (support/atomic_file_write.hpp) that replaces the destination only in finish(), so a
+// crash, a full disk, or a cancel mid-export leaves an existing file untouched. Output
+// is deterministic: no dates, no ids, numbers formatted without the C locale.
 
 namespace patchy::pdf {
 
@@ -65,10 +69,11 @@ struct ImagePage {
 
 class ImageWriter {
 public:
-  // Opens `path` for writing and emits the header. Throws std::runtime_error when the
-  // file cannot be created.
+  // Creates the temporary file beside `path` and emits the header; `path` itself is not
+  // touched until finish(). Throws std::runtime_error when the file cannot be created.
   explicit ImageWriter(const std::filesystem::path& path);
-  // An unfinished file (finish() never ran, or abort() did) is removed.
+  // An unfinished file (finish() never ran, or abort() did) is removed and `path` keeps
+  // whatever it held before.
   ~ImageWriter();
   ImageWriter(const ImageWriter&) = delete;
   ImageWriter& operator=(const ImageWriter&) = delete;
@@ -76,10 +81,10 @@ public:
   // Throws std::runtime_error on a bad page, a write failure, or a file that has
   // outgrown the classic cross-reference table's ten-digit offsets.
   void add_page(const ImagePage& page);
-  // Writes the page tree, catalog, cross-reference table, and trailer. At least one
-  // page must have been added.
+  // Writes the page tree, catalog, cross-reference table, and trailer, then renames the
+  // finished file over `path`. At least one page must have been added.
   void finish();
-  // Closes and removes the file. Safe to call more than once.
+  // Closes and removes the temporary file. Safe to call more than once.
   void abort() noexcept;
 
   [[nodiscard]] int page_count() const noexcept { return static_cast<int>(page_objects_.size()); }
@@ -93,7 +98,8 @@ private:
   void write(std::string_view text);
   void write(const std::vector<std::uint8_t>& bytes);
 
-  std::filesystem::path path_;
+  // Declared before file_ so the stream closes before the temporary is removed.
+  AtomicFileReplacement replacement_;
   std::ofstream file_;
   std::uint64_t position_{0};
   // Byte offset of object N at index N; index 0 is the free-list head.

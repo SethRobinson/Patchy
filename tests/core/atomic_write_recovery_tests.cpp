@@ -142,6 +142,64 @@ void atomic_write_failed_rename_keeps_old_file_and_removes_temp() {
   CHECK(directory_holds_only(dir, {target}));
 }
 
+// The streaming form (PDF export): the target keeps its old bytes while the new file
+// is written beside it, a commit replaces it, and anything short of a commit leaves
+// the old file and no temporary.
+void atomic_write_streaming_replacement_commits_or_discards() {
+  const auto dir = fresh_artifact_dir("streaming");
+  const auto target = dir / unicode_path_piece(kUnicodeCombinedStem);
+  patchy::write_file_bytes_atomically(target, bytes_of("old"), "open failed", "write failed");
+  {
+    patchy::AtomicFileReplacement replacement(target);
+    CHECK(replacement.target_path() == target);
+    CHECK(replacement.temporary_path().parent_path() == dir);
+    std::ofstream(replacement.temporary_path(), std::ios::binary) << "abandoned";
+    CHECK(text_of(target) == "old");
+    // Destroyed without commit: a cancelled or failed export.
+  }
+  CHECK(text_of(target) == "old");
+  CHECK(directory_holds_only(dir, {target}));
+  {
+    patchy::AtomicFileReplacement replacement(target);
+    std::ofstream(replacement.temporary_path(), std::ios::binary) << "discarded";
+    replacement.discard();
+    replacement.discard();
+    CHECK(directory_holds_only(dir, {target}));
+  }
+  {
+    patchy::AtomicFileReplacement replacement(target);
+    std::ofstream(replacement.temporary_path(), std::ios::binary) << "new";
+    replacement.commit("write failed");
+    // A second commit is a caller bug, reported like a failed write.
+    bool threw = false;
+    try {
+      replacement.commit("write failed");
+    } catch (const std::runtime_error&) {
+      threw = true;
+    }
+    CHECK(threw);
+  }
+  CHECK(text_of(target) == "new");
+  CHECK(directory_holds_only(dir, {target}));
+  // A rename that cannot replace the target (a directory stands in its place) throws
+  // the write message and removes the temporary.
+  const auto blocked = dir / "blocked.pdf";
+  std::filesystem::create_directories(blocked / "child");
+  bool threw = false;
+  {
+    patchy::AtomicFileReplacement replacement(blocked);
+    std::ofstream(replacement.temporary_path(), std::ios::binary) << "x";
+    try {
+      replacement.commit("write message");
+    } catch (const std::runtime_error& error) {
+      threw = std::string(error.what()) == "write message";
+    }
+  }
+  CHECK(threw);
+  CHECK(std::filesystem::is_directory(blocked / "child"));
+  CHECK(directory_holds_only(dir, {target, blocked}));
+}
+
 void recovery_sidecar_round_trips_unicode_title_and_path() {
   patchy::recovery::RecoveryEntry entry;
   entry.file_stem = "17";
@@ -342,6 +400,7 @@ std::vector<patchy::test::TestCase> atomic_write_recovery_tests() {
       {"atomic_write_missing_directory_throws_and_keeps_nothing", atomic_write_missing_directory_throws_and_keeps_nothing},
       {"atomic_write_failed_rename_keeps_old_file_and_removes_temp",
        atomic_write_failed_rename_keeps_old_file_and_removes_temp},
+      {"atomic_write_streaming_replacement_commits_or_discards", atomic_write_streaming_replacement_commits_or_discards},
       {"recovery_sidecar_round_trips_unicode_title_and_path", recovery_sidecar_round_trips_unicode_title_and_path},
       {"recovery_scan_lists_psb_without_sidecar_as_untitled_and_ignores_strays",
        recovery_scan_lists_psb_without_sidecar_as_untitled_and_ignores_strays},

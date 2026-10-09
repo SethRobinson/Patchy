@@ -78,6 +78,8 @@
 #include "render/compositor.hpp"
 #include "synthetic_dng.hpp"
 #include "test_fonts.hpp"
+#include "ui/qt_paths.hpp"
+#include "unicode_path_names.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
 
@@ -2605,6 +2607,126 @@ void ui_pdf_export_image_pages_keep_order_and_cancel_cleanly() {
   CHECK(!patchy::ui::write_multipage_pdf_file(pages, cancelled_path, patchy::ui::PdfExportOptions{true}, nullptr,
                                               [](int page, int) { return page < 6; }));
   CHECK(!QFileInfo::exists(cancelled_path));
+}
+
+// Two visible pixel layers: an editable export of this cannot be one image, so it goes
+// through Qt's engine (QtPdfOutput) rather than the image writer.
+patchy::Document two_layer_pdf_page(const QColor& color) {
+  patchy::Document document(60, 40, patchy::PixelFormat::rgba8());
+  document.print_settings().horizontal_ppi = 72.0;
+  document.print_settings().vertical_ppi = 72.0;
+  document.add_pixel_layer("Base", solid_pixels(60, 40, patchy::PixelFormat::rgba8(), color));
+  document.add_pixel_layer("Top", solid_pixels(60, 40, patchy::PixelFormat::rgba8(), QColor(10, 10, 10, 96)));
+  return document;
+}
+
+// AGENTS.md "Never truncate a user's file in place": every PDF writer goes through a
+// sibling temporary file. A cancelled or failed export, through the image writer or Qt's
+// engine, leaves the file already at the destination byte for byte and no temporary;
+// a finished one replaces it.
+void ui_pdf_export_failure_keeps_existing_file() {
+  ensure_artifact_dir();
+  const auto dir = QFileInfo(QStringLiteral("test-artifacts")).absoluteFilePath() + QStringLiteral("/pdf-atomic");
+  remove_test_scratch_dir(dir);
+  CHECK(QDir().mkpath(dir));
+  const auto entries = [&dir] {
+    return QDir(dir).entryList(QDir::Files | QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden, QDir::Name);
+  };
+  const auto red = two_layer_pdf_page(QColor(200, 20, 30));
+  const auto blue = two_layer_pdf_page(QColor(30, 20, 200));
+  const auto path = dir + QStringLiteral("/existing.pdf");
+  patchy::ui::write_pdf_document_file(red, path, patchy::ui::PdfExportOptions{true});
+  const QByteArray original = read_file_bytes(path);
+  CHECK(original.startsWith("%PDF-"));
+
+  std::array<const patchy::Document*, 2> pages{&blue, &blue};
+  const auto cancel_on_page_two = [](int page, int) { return page < 2; };
+  // Image writer (flat) and Qt's engine (editable, two layers), each cancelled mid-file.
+  CHECK(!patchy::ui::write_multipage_pdf_file(pages, path, patchy::ui::PdfExportOptions{true}, nullptr,
+                                              cancel_on_page_two));
+  CHECK(read_file_bytes(path) == original);
+  CHECK(!patchy::ui::write_multipage_pdf_file(pages, path, patchy::ui::PdfExportOptions{true, true}, nullptr,
+                                              cancel_on_page_two));
+  CHECK(read_file_bytes(path) == original);
+  CHECK(entries() == QStringList{QStringLiteral("existing.pdf")});
+
+  // A destination the rename cannot replace (a folder stands in its place) fails through
+  // both engines, keeps the folder, and leaves no temporary.
+  const auto blocked = dir + QStringLiteral("/blocked.pdf");
+  CHECK(QDir().mkpath(blocked + QStringLiteral("/child")));
+  const auto throws = [](auto&& call) {
+    try {
+      call();
+    } catch (const std::exception&) {
+      return true;
+    }
+    return false;
+  };
+  CHECK(throws([&] { patchy::ui::write_pdf_document_file(blue, blocked, patchy::ui::PdfExportOptions{true}); }));
+  CHECK(throws([&] {
+    patchy::ui::write_pdf_document_file(blue, blocked, patchy::ui::PdfExportOptions{true, true});
+  }));
+  CHECK(throws([&] {
+    patchy::ui::write_multipage_pdf_file(pages, blocked, patchy::ui::PdfExportOptions{true, true});
+  }));
+  CHECK(QFileInfo(blocked + QStringLiteral("/child")).isDir());
+  // A missing folder cannot even hold the temporary.
+  const auto missing = dir + QStringLiteral("/missing/out.pdf");
+  CHECK(throws([&] { patchy::ui::write_pdf_document_file(blue, missing, patchy::ui::PdfExportOptions{true}); }));
+  CHECK(throws([&] {
+    patchy::ui::write_pdf_document_file(blue, missing, patchy::ui::PdfExportOptions{true, true});
+  }));
+  CHECK(entries() == (QStringList{QStringLiteral("blocked.pdf"), QStringLiteral("existing.pdf")}));
+
+  // Finished exports replace the file, through the flat-save entry point and both engines.
+  patchy::ui::ImageSaveOptions save_options;
+  save_options.pdf_lossless = true;
+  patchy::ui::write_flat_image_file(blue, path, QStringLiteral("pdf"), save_options);
+  const QByteArray flat = read_file_bytes(path);
+  CHECK(flat.startsWith("%PDF-") && flat != original);
+  CHECK(patchy::ui::write_multipage_pdf_file(pages, path, patchy::ui::PdfExportOptions{true, true}));
+  QPdfDocument reader;
+  CHECK(reader.load(path) == QPdfDocument::Error::None);
+  CHECK(reader.pageCount() == 2);
+  reader.close();
+  CHECK(entries() == (QStringList{QStringLiteral("blocked.pdf"), QStringLiteral("existing.pdf")}));
+}
+
+// AGENTS.md: every file-writing entry point gets a Unicode-path test. The temporary
+// file takes the destination's name plus a suffix, so it must survive the same names.
+void ui_pdf_export_writes_unicode_paths() {
+  const auto dir = patchy::test::unicode_artifact_dir(u8"pdf-export");
+  const auto page = two_layer_pdf_page(QColor(20, 160, 40));
+  std::array<const patchy::Document*, 2> pages{&page, &page};
+  std::vector<std::filesystem::path> expected;
+  for (const auto stem : patchy::test::kUnicodePathStems) {
+    const auto base = dir / patchy::test::unicode_path_piece(stem);
+    auto flat = base;
+    flat += ".pdf";
+    auto editable = base;
+    editable += " editable.pdf";
+    auto multipage = base;
+    multipage += " pages.pdf";
+    patchy::ui::write_pdf_document_file(page, patchy::ui::to_qstring(flat), patchy::ui::PdfExportOptions{true});
+    patchy::ui::write_pdf_document_file(page, patchy::ui::to_qstring(editable),
+                                        patchy::ui::PdfExportOptions{true, true});
+    CHECK(patchy::ui::write_multipage_pdf_file(pages, patchy::ui::to_qstring(multipage),
+                                               patchy::ui::PdfExportOptions{true, true}));
+    for (const auto& path : {flat, editable, multipage}) {
+      QPdfDocument reader;
+      CHECK(reader.load(patchy::ui::to_qstring(path)) == QPdfDocument::Error::None);
+      CHECK(reader.pageCount() == (path == multipage ? 2 : 1));
+      expected.push_back(path);
+    }
+  }
+  auto printed = dir / patchy::test::unicode_path_piece(patchy::test::kUnicodeCombinedStem);
+  printed += " print.pdf";
+  auto settings = patchy::ui::default_print_settings(page, std::nullopt);
+  CHECK(patchy::ui::write_print_pdf(patchy::ui::to_qstring(printed), page, settings,
+                                    patchy::ui::default_print_page_layout(), QStringLiteral("page.psd")));
+  CHECK(read_file_bytes(patchy::ui::to_qstring(printed)).startsWith("%PDF-"));
+  expected.push_back(printed);
+  CHECK(patchy::test::directory_holds_only(dir, expected));
 }
 
 // The preset ids are persisted and scripted. The older saveOptions/pdfLossless bool was
@@ -5776,6 +5898,8 @@ std::vector<patchy::test::TestCase> import_print_resolution_tests() {
       {"ui_pdf_export_image_pages_pick_codec_and_channels", ui_pdf_export_image_pages_pick_codec_and_channels},
       {"ui_pdf_export_editable_routes_single_raster_pages_to_image_writer", ui_pdf_export_editable_routes_single_raster_pages_to_image_writer},
       {"ui_pdf_export_image_pages_keep_order_and_cancel_cleanly", ui_pdf_export_image_pages_keep_order_and_cancel_cleanly},
+      {"ui_pdf_export_failure_keeps_existing_file", ui_pdf_export_failure_keeps_existing_file},
+      {"ui_pdf_export_writes_unicode_paths", ui_pdf_export_writes_unicode_paths},
       {"ui_pdf_image_quality_presets_and_settings", ui_pdf_image_quality_presets_and_settings},
       {"ui_pdf_options_dialog_offers_image_quality_presets", ui_pdf_options_dialog_offers_image_quality_presets},
       {"ui_pdf_pass_through_keeps_original_image_bytes", ui_pdf_pass_through_keeps_original_image_bytes},

@@ -8,6 +8,7 @@
 #include "formats/pdf_text_merge.hpp"
 #include "formats/vector_export_plan.hpp"
 #include "ui/edit_conversions.hpp"
+#include "ui/qt_paths.hpp"
 #include "ui/text_layer_painter.hpp"
 #include "ui/ui_profile.hpp"
 
@@ -491,7 +492,8 @@ void write_editable_pdf_document_file(const Document& document, const QString& p
   if (document.width() <= 0 || document.height() <= 0) {
     throw std::runtime_error("The document could not be rendered for PDF export.");
   }
-  QPdfWriter writer(path);
+  QtPdfOutput output(path);
+  QPdfWriter writer(output.device());
   configure_document_page(writer, document);
 
   QPainter painter;
@@ -503,9 +505,28 @@ void write_editable_pdf_document_file(const Document& document, const QString& p
   painter.end();
   // The pass rewrites glyph runs; a file with no text has none, and reading a large
   // image-only file back just to find that out is slow.
-  if (text_drawn) {
-    apply_text_merge_post_pass(path);
+  output.commit(text_drawn);
+}
+
+QtPdfOutput::QtPdfOutput(const QString& path) : replacement_(to_filesystem_path(path)) {
+  file_.setFileName(to_qstring(replacement_.temporary_path()));
+  if (!file_.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+    throw std::runtime_error("The PDF file could not be opened for writing.");
   }
+}
+
+void QtPdfOutput::commit(bool merge_text) {
+  // QPdfEngine never reports a failed write (a full disk), but QFile records it.
+  const bool flushed = file_.flush();
+  const bool written = flushed && file_.error() == QFileDevice::NoError;
+  file_.close();
+  if (!written || file_.error() != QFileDevice::NoError) {
+    throw std::runtime_error("The PDF file could not be written.");
+  }
+  if (merge_text) {
+    apply_text_merge_post_pass(file_.fileName());
+  }
+  replacement_.commit("The PDF file could not be written.");
 }
 
 void apply_text_merge_post_pass(const QString& path) {
@@ -526,8 +547,12 @@ void apply_text_merge_post_pass(const QString& path) {
   if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
     throw std::runtime_error("The PDF file could not be rewritten after export.");
   }
-  file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qint64>(bytes.size()));
+  const auto size = static_cast<qint64>(bytes.size());
+  const bool rewritten = file.write(reinterpret_cast<const char*>(bytes.data()), size) == size && file.flush();
   file.close();
+  if (!rewritten || file.error() != QFileDevice::NoError) {
+    throw std::runtime_error("The PDF file could not be rewritten after export.");
+  }
 }
 
 }  // namespace patchy::ui::pdf_detail
