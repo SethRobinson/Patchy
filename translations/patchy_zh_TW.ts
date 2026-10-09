@@ -9022,12 +9022,32 @@ RGB：%2, %3, %4</translation>
         <translation>產生 Mipmap</translation>
     </message>
     <message>
-        <source>BC1 and BC3 are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. Mipmaps are generated down to 1x1 with a box filter.</source>
-        <translation>BC1 和 BC3 是有損的 4x4 區塊壓縮格式。BC1 只保留 1 位元透明度：Alpha 低於 50% 的像素會變為完全透明。Mipmap 使用盒狀濾鏡產生至 1x1。</translation>
-    </message>
-    <message>
         <source>DirectDraw Surface</source>
         <translation>DirectDraw Surface</translation>
+    </message>
+    <message>
+        <source>BC4 keeps one channel: the image was saved as its grayscale luminance without transparency</source>
+        <translation>BC4 只保留一個色版：影像已儲存為無透明度的灰階亮度</translation>
+    </message>
+    <message>
+        <source>BC5 keeps the red and green channels only: blue and transparency were dropped</source>
+        <translation>BC5 只保留紅色和綠色色版：藍色和透明度已捨棄</translation>
+    </message>
+    <message>
+        <source>BC7 (best quality, full transparency, DX10 header)</source>
+        <translation>BC7（最佳品質，完整透明度，DX10 檔頭）</translation>
+    </message>
+    <message>
+        <source>BC4 / ATI1 (grayscale, one channel)</source>
+        <translation>BC4 / ATI1（灰階，單一色版）</translation>
+    </message>
+    <message>
+        <source>BC5 / ATI2 (red and green channels, normal maps)</source>
+        <translation>BC5 / ATI2（紅色和綠色色版，法線貼圖）</translation>
+    </message>
+    <message>
+        <source>The BC formats are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. BC4 stores grayscale only and BC5 the red and green channels; both drop transparency. Mipmaps are generated down to 1x1 with a box filter.</source>
+        <translation>BC 格式是有損的 4x4 區塊壓縮格式。BC1 只保留 1 位元透明度：Alpha 低於 50% 的像素會變為完全透明。BC4 只保存灰階，BC5 只保存紅色和綠色色版，兩者都會捨棄透明度。Mipmap 使用盒狀濾鏡產生至 1x1。</translation>
     </message>
 </context>
 <context>

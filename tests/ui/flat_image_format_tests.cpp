@@ -1713,7 +1713,7 @@ void ui_dds_save_options_persist_and_dialog_prefills_from_source() {
     auto* mipmaps = dialog->findChild<QCheckBox*>(QStringLiteral("ddsMipmapsCheck"));
     CHECK(compression != nullptr);
     CHECK(mipmaps != nullptr);
-    CHECK(compression->count() == 4);
+    CHECK(compression->count() == 7);
     CHECK(compression->currentData().toString() == QStringLiteral("auto"));
     compression->setCurrentIndex(compression->findData(QStringLiteral("bc3")));
     mipmaps->setChecked(true);

@@ -9022,12 +9022,32 @@ Mixed selection</source>
         <translation>ミップマップを生成</translation>
     </message>
     <message>
-        <source>BC1 and BC3 are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. Mipmaps are generated down to 1x1 with a box filter.</source>
-        <translation>BC1 と BC3 は非可逆の 4x4 ブロック形式です。BC1 は 1 ビットの透明度しか保持せず、アルファが 50 パーセント未満のピクセルは完全に透明になります。ミップマップはボックスフィルターで 1x1 まで生成されます。</translation>
-    </message>
-    <message>
         <source>DirectDraw Surface</source>
         <translation>DirectDraw Surface</translation>
+    </message>
+    <message>
+        <source>BC4 keeps one channel: the image was saved as its grayscale luminance without transparency</source>
+        <translation>BC4 は 1 チャンネルのみ保持します: 画像は透明度なしのグレースケール輝度として保存されました</translation>
+    </message>
+    <message>
+        <source>BC5 keeps the red and green channels only: blue and transparency were dropped</source>
+        <translation>BC5 は赤と緑のチャンネルのみ保持します: 青と透明度は破棄されました</translation>
+    </message>
+    <message>
+        <source>BC7 (best quality, full transparency, DX10 header)</source>
+        <translation>BC7 (最高画質、フル透明、DX10 ヘッダー)</translation>
+    </message>
+    <message>
+        <source>BC4 / ATI1 (grayscale, one channel)</source>
+        <translation>BC4 / ATI1 (グレースケール、1 チャンネル)</translation>
+    </message>
+    <message>
+        <source>BC5 / ATI2 (red and green channels, normal maps)</source>
+        <translation>BC5 / ATI2 (赤と緑のチャンネル、法線マップ)</translation>
+    </message>
+    <message>
+        <source>The BC formats are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. BC4 stores grayscale only and BC5 the red and green channels; both drop transparency. Mipmaps are generated down to 1x1 with a box filter.</source>
+        <translation>BC 形式は非可逆の 4x4 ブロック形式です。BC1 は 1 ビットの透明度しか保持せず、アルファが 50 パーセント未満のピクセルは完全に透明になります。BC4 はグレースケールのみ、BC5 は赤と緑のチャンネルのみを保存し、どちらも透明度を破棄します。ミップマップはボックスフィルターで 1x1 まで生成されます。</translation>
     </message>
 </context>
 <context>

@@ -9052,12 +9052,32 @@ RGB: %2, %3, %4</translation>
         <translation>Generar mipmaps</translation>
     </message>
     <message>
-        <source>BC1 and BC3 are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. Mipmaps are generated down to 1x1 with a box filter.</source>
-        <translation>BC1 y BC3 son formatos de bloques 4x4 con pérdidas. BC1 solo conserva transparencia de 1 bit: los píxeles con menos del 50 por ciento de alfa pasan a ser totalmente transparentes. Los mipmaps se generan hasta 1x1 con un filtro de caja.</translation>
-    </message>
-    <message>
         <source>DirectDraw Surface</source>
         <translation>DirectDraw Surface</translation>
+    </message>
+    <message>
+        <source>BC4 keeps one channel: the image was saved as its grayscale luminance without transparency</source>
+        <translation>BC4 conserva un canal: la imagen se ha guardado como su luminancia en escala de grises sin transparencia</translation>
+    </message>
+    <message>
+        <source>BC5 keeps the red and green channels only: blue and transparency were dropped</source>
+        <translation>BC5 conserva solo los canales rojo y verde: el azul y la transparencia se han descartado</translation>
+    </message>
+    <message>
+        <source>BC7 (best quality, full transparency, DX10 header)</source>
+        <translation>BC7 (máxima calidad, transparencia completa, encabezado DX10)</translation>
+    </message>
+    <message>
+        <source>BC4 / ATI1 (grayscale, one channel)</source>
+        <translation>BC4 / ATI1 (escala de grises, un canal)</translation>
+    </message>
+    <message>
+        <source>BC5 / ATI2 (red and green channels, normal maps)</source>
+        <translation>BC5 / ATI2 (canales rojo y verde, mapas de normales)</translation>
+    </message>
+    <message>
+        <source>The BC formats are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. BC4 stores grayscale only and BC5 the red and green channels; both drop transparency. Mipmaps are generated down to 1x1 with a box filter.</source>
+        <translation>Los formatos BC son formatos de bloques 4x4 con pérdidas. BC1 solo conserva transparencia de 1 bit: los píxeles con menos del 50 por ciento de alfa pasan a ser totalmente transparentes. BC4 guarda solo escala de grises y BC5 los canales rojo y verde; ambos descartan la transparencia. Los mipmaps se generan hasta 1x1 con un filtro de caja.</translation>
     </message>
 </context>
 <context>

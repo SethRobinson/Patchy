@@ -24,16 +24,17 @@ namespace patchy::dds {
 // Patchy reads mip 0 of every image (faces, slices and elements become layers, the first
 // visible), decodes the masked uncompressed formats generically from their bit masks, the
 // block-compressed BC1-BC7 formats through the vendored bcdec, and tone maps float and
-// BC6H sources through the JPEG XR HDR curve. It writes one 2D texture with a legacy
-// header: uncompressed A8R8G8B8, BC1 (DXT1, 1-bit transparency) or BC3 (DXT5), with an
-// optional box-filtered mip chain.
+// BC6H sources through the JPEG XR HDR curve. It writes one 2D texture: uncompressed
+// A8R8G8B8, BC1 (DXT1, 1-bit transparency), BC3 (DXT5), BC4 (ATI1, grayscale), BC5 (ATI2,
+// red and green) with a legacy header, or BC7 under a DX10 header, each with an optional
+// box-filtered mip chain.
 
 // Session-only document metadata the reader stamps so a re-save keeps the source file's
 // shape (MainWindow::image_save_defaults_for_document prefills from these, the way the
 // .rttex import does). The compression token matches the saveOptions/ddsCompression
 // values and is never "auto": the reader maps every source to its nearest export choice.
 // Nothing persists them into any file.
-inline constexpr const char* kMetadataCompression = "patchy.dds.compression";    // uncompressed|bc1|bc3
+inline constexpr const char* kMetadataCompression = "patchy.dds.compression";    // uncompressed|bc1|bc3|bc4|bc5|bc7
 inline constexpr const char* kMetadataMipmaps = "patchy.dds.mipmaps";            // 1 when the source had a mip chain
 inline constexpr const char* kMetadataSourceFormat = "patchy.dds.sourceFormat";  // informational, e.g. "DXT5"
 
@@ -232,17 +233,19 @@ struct SourceFormat {
 
 // Automatic: BC1 when every flattened pixel is opaque, BC3 otherwise (what the NVIDIA
 // tools pick). Uncompressed: 32-bit A8R8G8B8, lossless. Bc1: DXT1 with 1-bit transparency
-// (alpha below 128 cuts the texel out). Bc3: DXT5 with 8-bit interpolated alpha.
-// Append-only: Bc7 is the reserved next value (a DX10 header with DXGI 98).
-enum class Compression { Automatic, Uncompressed, Bc1, Bc3 };
+// (alpha below 128 cuts the texel out). Bc3: DXT5 with 8-bit interpolated alpha. Bc4: ATI1,
+// one channel (the image's luminance), opaque. Bc5: ATI2, the red and green channels only
+// (normal maps), opaque. Bc7: a DX10 header with DXGI 98, full RGBA at the highest quality
+// (the vendored bc7enc, modes 1 and 6). Append-only.
+enum class Compression { Automatic, Uncompressed, Bc1, Bc3, Bc4, Bc5, Bc7 };
 
 struct WriteOptions {
   Compression compression{Compression::Automatic};
   bool generate_mipmaps{false};  // a box-filtered chain down to 1x1
 };
 
-// The settings/metadata tokens ("auto"|"uncompressed"|"bc1"|"bc3"). Compatibility
-// contracts: never renamed.
+// The settings/metadata tokens ("auto"|"uncompressed"|"bc1"|"bc3"|"bc4"|"bc5"|"bc7").
+// Compatibility contracts: never renamed.
 [[nodiscard]] std::string_view compression_token(Compression compression) noexcept;
 [[nodiscard]] std::optional<Compression> compression_from_token(std::string_view token) noexcept;
 
@@ -277,6 +280,14 @@ void unpremultiply_rgba8_in_place(std::span<std::uint8_t> rgba);
 void encode_bc1_block(const std::uint8_t* rgba, bool punch_through, std::uint8_t* out);
 // stb_dxt's BC3 block: 8 alpha bytes then the 8-byte colour block.
 void encode_bc3_block(const std::uint8_t* rgba, std::uint8_t* out);
+// stb_dxt's BC4 block (8 bytes) of the texels' luminance (Rec. 601 integer weights), and its
+// BC5 block (16 bytes) of the red then the green channel.
+void encode_bc4_block(const std::uint8_t* rgba, std::uint8_t* out);
+void encode_bc5_block(const std::uint8_t* rgba, std::uint8_t* out);
+// bc7enc's BC7 block (16 bytes): mode 6 for blocks with alpha, modes 1 or 6 otherwise.
+void encode_bc7_block(const std::uint8_t* rgba, std::uint8_t* out);
+// Rec. 601 luminance with integer weights, (r * 299 + g * 587 + b * 114 + 500) / 1000.
+[[nodiscard]] std::uint8_t luminance8(std::uint8_t r, std::uint8_t g, std::uint8_t b) noexcept;
 // True when any of the 16 texels has alpha below 128.
 [[nodiscard]] bool bc1_block_has_cutout(const std::uint8_t* rgba) noexcept;
 // Bit-exact IEEE binary16 to binary32 (subnormals, infinities and NaN included).

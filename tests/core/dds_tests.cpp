@@ -251,7 +251,11 @@ void dds_extensions_sniff_and_registry_routing() {
   CHECK(dds::compression_token(Compression::Uncompressed) == "uncompressed");
   CHECK(dds::compression_token(Compression::Bc1) == "bc1");
   CHECK(dds::compression_token(Compression::Bc3) == "bc3");
-  for (const auto compression : {Compression::Automatic, Compression::Uncompressed, Compression::Bc1, Compression::Bc3}) {
+  CHECK(dds::compression_token(Compression::Bc4) == "bc4");
+  CHECK(dds::compression_token(Compression::Bc5) == "bc5");
+  CHECK(dds::compression_token(Compression::Bc7) == "bc7");
+  for (const auto compression : {Compression::Automatic, Compression::Uncompressed, Compression::Bc1, Compression::Bc3,
+                                 Compression::Bc4, Compression::Bc5, Compression::Bc7}) {
     CHECK(dds::compression_from_token(dds::compression_token(compression)) == compression);
   }
   CHECK(!dds::compression_from_token("bogus").has_value());
@@ -572,7 +576,7 @@ void dds_bc2_bc3_bc4_bc5_decode_hand_built_blocks() {
   check_rgba(pixel_at(result.document, 0, 0), {255, 255, 255, 255}, 0);
   check_rgba(pixel_at(result.document, 1, 0), {0, 0, 0, 255}, 0);
   check_rgba(pixel_at(result.document, 2, 0), {219, 219, 219, 255}, 1);
-  CHECK(metadata_value(result.document, dds::kMetadataCompression) == "bc1");
+  CHECK(metadata_value(result.document, dds::kMetadataCompression) == "bc4");
 
   // BC5: red block then green block, blue forced to 0 with a notice.
   bytes = build_header(fourcc_spec(dds::kFourCcAti2, 4, 4));
@@ -701,7 +705,7 @@ void dds_reads_committed_fixtures() {
       {"pillow-dxt5-16x16.dds", 16, 16, 4, "bc3", "DXT5", 1,
        {{0, 0, {255, 8, 16, 0}}, {0, 15, {76, 140, 131, 0}}, {8, 8, {117, 160, 181, 146}}, {15, 0, {82, 67, 134, 255}},
         {15, 15, {231, 207, 8, 0}}}},
-      {"pillow-bc5-typeless-8x8.dds", 8, 8, 3, "bc1", "BC5_UNORM", 1,
+      {"pillow-bc5-typeless-8x8.dds", 8, 8, 3, "bc5", "BC5_UNORM", 1,
        {{0, 0, {201, 44, 0, 255}}, {0, 7, {27, 166, 0, 255}}, {4, 4, {139, 205, 0, 255}}, {7, 0, {51, 44, 0, 255}},
         {7, 7, {51, 166, 0, 255}}}},
       {"synth-dxt2-premultiplied-8x8.dds", 8, 8, 4, "bc3", "DXT2", 2,
@@ -749,10 +753,10 @@ void dds_reads_committed_fixtures() {
       {"synth-dxt1-mipmapped-16x16.dds", 16, 16, 4, "bc1", "DXT1", 1,
        {{0, 0, {255, 8, 16, 255}}, {0, 15, {46, 78, 126, 255}}, {8, 8, {126, 164, 189, 255}}, {15, 0, {90, 71, 140, 255}},
         {15, 15, {164, 144, 24, 255}}}},
-      {"texconv-bc7-16x16.dds", 16, 16, 4, "bc3", "BC7_UNORM", 1,
+      {"texconv-bc7-16x16.dds", 16, 16, 4, "bc7", "BC7_UNORM", 1,
        {{0, 0, {150, 118, 4, 28}}, {0, 15, {31, 150, 119, 7}}, {8, 8, {57, 235, 165, 140}}, {15, 0, {20, 20, 134, 239}},
         {15, 15, {91, 133, 62, 3}}}},
-      {"texconv-bc4-8x8.dds", 8, 8, 3, "bc1", "BC4U", 1,
+      {"texconv-bc4-8x8.dds", 8, 8, 3, "bc4", "BC4U", 1,
        {{0, 0, {84, 84, 84, 255}}, {0, 7, {111, 111, 111, 255}}, {4, 4, {62, 62, 62, 255}}, {7, 0, {23, 23, 23, 255}},
         {7, 7, {134, 134, 134, 255}}}},
   };
@@ -852,7 +856,7 @@ void dds_float_sources_tone_map_like_jpeg_xr() {
   CHECK(bc6h.document.width() == 8);
   CHECK(channel_count(bc6h.document) == 3);
   CHECK(metadata_value(bc6h.document, dds::kMetadataSourceFormat) == "BC6H_UF16");
-  CHECK(metadata_value(bc6h.document, dds::kMetadataCompression) == "bc1");
+  CHECK(metadata_value(bc6h.document, dds::kMetadataCompression) == "bc7");
   CHECK(has_notice(bc6h.notices, "tone mapped"));
   struct GraySample {
     int x;
@@ -992,6 +996,126 @@ void dds_uncompressed_writer_layout_matches_spec() {
   const auto bc3 = dds::write_dds(document, options);
   CHECK(u32_at(bc3, 84) == dds::kFourCcDxt5);
   CHECK(bc3.size() == dds::kFileHeaderBytes + (2U + 1U + 1U) * 16U);  // 5x3, 2x1, 1x1: one block each below 4 px
+
+  // BC4 and BC5 take the legacy ATI1/ATI2 spellings; BC7 needs the DX10 header (DXGI 98,
+  // 2D, one array element, alpha mode unknown) and its pixels start at 148.
+  options.generate_mipmaps = false;
+  options.compression = Compression::Bc4;
+  const auto bc4 = dds::write_dds(document, options);
+  CHECK(u32_at(bc4, 84) == dds::kFourCcAti1);
+  CHECK(u32_at(bc4, 20) == 16);
+  CHECK(bc4.size() == dds::kFileHeaderBytes + 2U * 8U);
+  options.compression = Compression::Bc5;
+  const auto bc5 = dds::write_dds(document, options);
+  CHECK(u32_at(bc5, 84) == dds::kFourCcAti2);
+  CHECK(bc5.size() == dds::kFileHeaderBytes + 2U * 16U);
+  options.compression = Compression::Bc7;
+  const auto bc7 = dds::write_dds(document, options);
+  CHECK(u32_at(bc7, 84) == dds::kFourCcDx10);
+  CHECK(u32_at(bc7, 20) == 32);
+  CHECK(u32_at(bc7, 128) == dds::kDxgiBc7Unorm);
+  CHECK(u32_at(bc7, 132) == dds::kResourceDimensionTexture2D);
+  CHECK(u32_at(bc7, 136) == 0);
+  CHECK(u32_at(bc7, 140) == 1);
+  CHECK(u32_at(bc7, 144) == 0);
+  CHECK(bc7.size() == dds::kFileHeaderBytes + dds::kDx10HeaderSize + 2U * 16U);
+  const auto bc7_header = dds::parse_header(bc7);
+  CHECK(bc7_header.data_offset == 148);
+  CHECK(dds::resolve_source_format(bc7_header).name == "BC7_UNORM");
+}
+
+void dds_bc7_bc4_bc5_writers_round_trip() {
+  // BC7 keeps full RGBA at high quality: a smooth translucent gradient comes back well above
+  // the BC3 bound, alpha within a few levels, and the file reopens with the bc7 token.
+  const auto translucent = smooth_document(16, 16, /*translucent*/ true);
+  WriteOptions bc7;
+  bc7.compression = Compression::Bc7;
+  const auto decoded7 = dds::read_dds(dds::write_dds(translucent, bc7));
+  CHECK(channel_count(decoded7.document) == 4);
+  CHECK(metadata_value(decoded7.document, dds::kMetadataCompression) == "bc7");
+  CHECK(metadata_value(decoded7.document, dds::kMetadataSourceFormat) == "BC7_UNORM");
+  int alpha_max_error = 0;
+  double squared_error = 0.0;
+  int counted = 0;
+  for (std::int32_t y = 0; y < 16; ++y) {
+    for (std::int32_t x = 0; x < 16; ++x) {
+      const auto expected = pixel_at(translucent, x, y);
+      const auto actual = pixel_at(decoded7.document, x, y);
+      // BC7 shares one index line between colour and alpha (mode 6) or gives alpha two index
+      // bits (mode 5), so where colour and alpha vary in different directions inside a block,
+      // as in this gradient, alpha lands within about 12: better than BC3's 16 to 18 on the
+      // same content, not exact.
+      alpha_max_error = std::max(alpha_max_error, std::abs(actual[3] - expected[3]));
+      if (expected[3] > 0) {
+        for (int channel = 0; channel < 3; ++channel) {
+          const double delta = actual[channel] - expected[channel];
+          squared_error += delta * delta;
+          ++counted;
+        }
+      }
+    }
+  }
+  const double psnr = 10.0 * std::log10(255.0 * 255.0 / std::max(squared_error / std::max(1, counted), 1e-9));
+  std::cout << "  BC7 colour PSNR " << psnr << " dB, alpha max error " << alpha_max_error << "\n";
+  CHECK(psnr >= 33.0);
+  CHECK(alpha_max_error <= 16);
+
+  // BC4 stores the luminance; the file reopens as gray within the 8-level block quantization.
+  const auto opaque = smooth_document(16, 16, /*translucent*/ false);
+  WriteOptions bc4;
+  bc4.compression = Compression::Bc4;
+  std::vector<std::string> notices;
+  const auto bytes4 = dds::write_dds(opaque, bc4, &notices);
+  CHECK(has_notice(notices, "BC4 keeps one channel"));
+  const auto decoded4 = dds::read_dds(bytes4);
+  CHECK(channel_count(decoded4.document) == 3);
+  CHECK(metadata_value(decoded4.document, dds::kMetadataCompression) == "bc4");
+  CHECK(metadata_value(decoded4.document, dds::kMetadataSourceFormat) == "ATI1");
+  for (std::int32_t y = 0; y < 16; y += 3) {
+    for (std::int32_t x = 0; x < 16; x += 5) {
+      const auto source = pixel_at(opaque, x, y);
+      const int gray = dds::luminance8(static_cast<std::uint8_t>(source[0]), static_cast<std::uint8_t>(source[1]),
+                                       static_cast<std::uint8_t>(source[2]));
+      const auto actual = pixel_at(decoded4.document, x, y);
+      CHECK(actual[0] == actual[1] && actual[1] == actual[2]);
+      CHECK(std::abs(actual[0] - gray) <= 3);
+    }
+  }
+  CHECK(dds::luminance8(255, 255, 255) == 255);
+  CHECK(dds::luminance8(0, 0, 0) == 0);
+  CHECK(dds::luminance8(255, 0, 0) == 76);
+  // A gray opaque source produces no BC4 notice.
+  patchy::Document gray_document(4, 4, patchy::PixelFormat::rgb8());
+  patchy::PixelBuffer gray_pixels(4, 4, patchy::PixelFormat::rgba8());
+  std::fill(gray_pixels.data().begin(), gray_pixels.data().end(), std::uint8_t{90});
+  for (std::int32_t i = 0; i < 16; ++i) {
+    gray_pixels.pixel(i % 4, i / 4)[3] = 255;
+  }
+  gray_document.add_pixel_layer("Background", std::move(gray_pixels));
+  notices.clear();
+  (void)dds::write_dds(gray_document, bc4, &notices);
+  CHECK(notices.empty());
+
+  // BC5 keeps red and green; blue reads back as 0 with the two-channel notice.
+  WriteOptions bc5;
+  bc5.compression = Compression::Bc5;
+  notices.clear();
+  const auto bytes5 = dds::write_dds(opaque, bc5, &notices);
+  CHECK(has_notice(notices, "BC5 keeps the red and green channels only"));
+  const auto decoded5 = dds::read_dds(bytes5);
+  CHECK(channel_count(decoded5.document) == 3);
+  CHECK(metadata_value(decoded5.document, dds::kMetadataCompression) == "bc5");
+  CHECK(metadata_value(decoded5.document, dds::kMetadataSourceFormat) == "ATI2");
+  CHECK(has_notice(decoded5.notices, "BC5"));
+  for (std::int32_t y = 0; y < 16; y += 3) {
+    for (std::int32_t x = 0; x < 16; x += 5) {
+      const auto source = pixel_at(opaque, x, y);
+      const auto actual = pixel_at(decoded5.document, x, y);
+      CHECK(std::abs(actual[0] - source[0]) <= 3);
+      CHECK(std::abs(actual[1] - source[1]) <= 3);
+      CHECK(actual[2] == 0);
+    }
+  }
 }
 
 void dds_uncompressed_writer_round_trips_translucent_gradient_exactly() {
@@ -1232,6 +1356,9 @@ void dds_writer_bytes_are_stable() {
       {"bc1 opaque", 0x6586865beef202d0ULL, Compression::Bc1, false, false},
       {"bc1 cut-out", 0x88c397c251894c36ULL, Compression::Bc1, false, true},
       {"bc3+mips", 0x070038e35b2c463bULL, Compression::Bc3, true, true},
+      {"bc7", 0x62400dd6c26584f1ULL, Compression::Bc7, false, true},
+      {"bc4", 0x91b0a0ee19c5542eULL, Compression::Bc4, false, false},
+      {"bc5+mips", 0x5669a0d962f6580dULL, Compression::Bc5, true, false},
   };
   std::vector<std::uint64_t> hashes;
   for (const auto& pin : pins) {
@@ -1292,6 +1419,9 @@ void dds_writes_inspection_artifacts() {
       {"bc1-cutout.dds", &translucent, Compression::Bc1, false},
       {"bc3-translucent.dds", &translucent, Compression::Bc3, false},
       {"bc3-translucent-mips.dds", &translucent, Compression::Bc3, true},
+      {"bc7-translucent.dds", &translucent, Compression::Bc7, false},
+      {"bc4-opaque.dds", &opaque, Compression::Bc4, false},
+      {"bc5-opaque.dds", &opaque, Compression::Bc5, false},
   };
   for (const auto& variant : variants) {
     WriteOptions options;
@@ -1357,6 +1487,7 @@ std::vector<patchy::test::TestCase> dds_tests() {
       {"dds_float_sources_tone_map_like_jpeg_xr", dds_float_sources_tone_map_like_jpeg_xr},
       {"dds_mips_cubemaps_volumes_and_arrays_import_as_layers", dds_mips_cubemaps_volumes_and_arrays_import_as_layers},
       {"dds_uncompressed_writer_layout_matches_spec", dds_uncompressed_writer_layout_matches_spec},
+      {"dds_bc7_bc4_bc5_writers_round_trip", dds_bc7_bc4_bc5_writers_round_trip},
       {"dds_uncompressed_writer_round_trips_translucent_gradient_exactly",
        dds_uncompressed_writer_round_trips_translucent_gradient_exactly},
       {"dds_bc1_cutout_rule_and_automatic_compression", dds_bc1_cutout_rule_and_automatic_compression},

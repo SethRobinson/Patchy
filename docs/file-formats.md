@@ -36,7 +36,7 @@ Everything reads AND writes except camera raw, HEIF/HEIC, and .af (read-only); J
 - PNG/JPEG/TIFF and still WebP: Qt readers/writers. WebP options retain quality (`saveOptions/webpQuality`, default 75) and lossless (`saveOptions/webpLossless`; quality 100 also means lossless).
 - JPEG XR (.jxr/.wdp/.hdp): read AND write through the in-box WIC codec, Windows only (no Store package, no vendored codec); the filter row is gated on `jxr::is_available()` so no other platform offers it, and the registry row carries a WRITER, which is what keeps Save on .jxr instead of routing to Save As. Float/HDR frames tone map to 8-bit with a knee curve rather than clamping. Full record: [jxr.md](jxr.md).
 - Proton `.rttex` (Seth's Proton SDK textures): read and write everywhere. An optional RTPACK zlib wrapper around raw 8888/888/4444/565 pixels stored bottom-up at a power-of-two padded size, or an embedded JPEG (alpha-free images only); opens at the true size; PVRTC rejected. Options, session-metadata prefill, and the RTPack parity table: [rttex.md](rttex.md).
-- DDS `.dds`: read and write everywhere (vendored bcdec and stb_dxt); BC1-BC7, masked, 16-bit and float sources, faces/slices/elements as layers; writes A8R8G8B8, DXT1 or DXT5 with optional mipmaps: [dds.md](dds.md).
+- DDS `.dds`: read and write everywhere (vendored bcdec and stb_dxt); BC1-BC7, masked, 16-bit and float sources, faces/slices/elements as layers; writes A8R8G8B8, DXT1, DXT5, BC4, BC5 or BC7 with optional mipmaps: [dds.md](dds.md).
 
 ## Camera raw (CR2/CR3/NEF/ARW/RAF/DNG, ...)
 

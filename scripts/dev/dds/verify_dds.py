@@ -70,6 +70,19 @@ def main():
             colour = psnr(got, want, 3, skip_transparent=128)
             alpha_ok = all((g[3] == 255) == (w[3] >= 128) and g[3] in (0, 255) for g, w in zip(got, want))
             ok = check(name, colour >= 30.0 and alpha_ok, f"colour PSNR {colour:.1f} dB, cut-out alpha exact: {alpha_ok}") and ok
+        elif name.startswith("bc7"):
+            colour = psnr(got, want, 3, skip_transparent=1)
+            alpha_error = max(abs(g[3] - w[3]) for g, w in zip(got, want))
+            # Blocks mixing the transparent bottom row with high alpha land within about 14.
+            ok = check(name, colour >= 35.0 and alpha_error <= 16, f"colour PSNR {colour:.1f} dB, alpha max error {alpha_error}") and ok
+        elif name.startswith("bc4"):
+            # Pillow decodes ATI1 as a gray image; compare with the source luminance.
+            gray_error = max(abs(g[0] - ((w[0] * 299 + w[1] * 587 + w[2] * 114 + 500) // 1000)) for g, w in zip(got, want))
+            ok = check(name, gray_error <= 3, f"gray max error {gray_error}") and ok
+        elif name.startswith("bc5"):
+            rg_error = max(max(abs(g[0] - w[0]), abs(g[1] - w[1])) for g, w in zip(got, want))
+            blue_zero = all(g[2] == 0 for g in got)
+            ok = check(name, rg_error <= 3 and blue_zero, f"red/green max error {rg_error}, blue zero: {blue_zero}") and ok
         elif name.startswith("bc3"):
             colour = psnr(got, want, 3, skip_transparent=1)
             alpha_error = max(abs(g[3] - w[3]) for g, w in zip(got, want))

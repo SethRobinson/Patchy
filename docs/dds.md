@@ -2,7 +2,7 @@
 
 Full record for the DDS texture reader and writer. Read this before touching
 `dds_document_io.*`, the `saveOptions/dds*` keys, the `patchy.dds.*` session metadata, or
-the vendored `bcdec` and `stb_dxt` sources. Registry and filter-table wiring rules live in
+the vendored `bcdec`, `stb_dxt` and `bc7enc` sources. Registry and filter-table wiring rules live in
 [file-formats.md](file-formats.md). The feature exists because the NVIDIA and Intel DDS
 Photoshop plug-ins are `.8bi` format plug-ins, which the legacy host never runs
 (GitHub issue 81); Patchy reads and writes DDS itself instead, on every platform.
@@ -123,17 +123,19 @@ Alpha is a first-class requirement of this format (Seth, October 2026):
 
 ## Writer
 
-One 2D texture with a legacy header (no DX10 header: Pillow, texconv, the Photoshop
-plug-ins and every engine read it). `Compression` is append-only: `Automatic`,
-`Uncompressed`, `Bc1`, `Bc3`; `Bc7` is the reserved next value (a DX10 header with DXGI 98
-and a future BC7 encoder).
+One 2D texture. `Compression` is append-only: `Automatic`, `Uncompressed`, `Bc1`, `Bc3`,
+`Bc4`, `Bc5`, `Bc7`. Everything but BC7 takes a legacy header (Pillow, texconv, the
+Photoshop plug-ins and every engine read it); BC7 exists only under a DX10 header.
 
 - Header flags `CAPS | HEIGHT | WIDTH | PIXELFORMAT`, plus `PITCH` (uncompressed, `width *
   4`) or `LINEARSIZE` (level 0's block bytes), plus `MIPMAPCOUNT` with the level count when
   mipmaps are written (otherwise the count field is 0). Caps `TEXTURE`, plus `COMPLEX |
   MIPMAP` with mipmaps. Pixel format: `A8R8G8B8` (flags 0x41, 32 bits, masks R 0x00FF0000
   G 0x0000FF00 B 0x000000FF A 0xFF000000) for Uncompressed, including fully opaque images
-  (one header shape); FourCC `DXT1` or `DXT5` for the block formats.
+  (one header shape); FourCC `DXT1`, `DXT5`, `ATI1` (BC4) or `ATI2` (BC5), the legacy
+  spellings every reader knows (texconv writes `BC4U`, which Patchy also reads); `DX10` for
+  BC7, followed by the 20-byte DX10 header (DXGI 98 BC7_UNORM, 2D, miscFlag 0, arraySize 1,
+  miscFlags2 0 as texconv writes it), so BC7 pixels start at 148.
 - Uncompressed rows are top-down B, G, R, A bytes. Block levels are 4x4 blocks row-major;
   texels outside a level (partial edge blocks, levels below 4 px) repeat the nearest edge
   texel before encoding so they never pull the endpoints toward black.
@@ -143,12 +145,28 @@ and a future BC7 encoder).
   below alpha 128 goes to Patchy's own encoder: a range fit over the opaque texels
   (bounding-box endpoints packed to 565, `c0 <= c1` selects the mode), palette c0, c1,
   their midpoint, and index 3 for every cut-out texel. Integer math only.
-- stb_dxt's endpoint search is a float power iteration. CMake compiles its TU with
-  `-ffp-contract=off` on GCC and Clang (MSVC's `/fp:precise` already forbids fused
-  multiply-add) so every toolchain produces the same bytes; `dds_writer_bytes_are_stable`
-  pins four writes by FNV-1a hash and the mac and linux remote runs check the pin. If a
-  toolchain ever disagrees, the fallback is to route every block through the integer
-  range-fit encoder.
+- BC4 and BC5 blocks come from stb_dxt too (`stb_compress_bc4_block`, `stb_compress_bc5_block`,
+  integer math). BC4 stores the flattened image's luminance (`dds::luminance8`, Rec. 601
+  integer weights `(r * 299 + g * 587 + b * 114 + 500) / 1000`); BC5 stores the red and green
+  channels. Both drop transparency; a notice says so when the image had colour (BC4), blue
+  (BC5) or any translucency, and nothing when the input already fit the format.
+- BC7 blocks come from the vendored `bc7enc` (`src/formats/bc7enc/bc7enc.c`, Richard
+  Geldreich, MIT or public domain): modes 1 and 6 (mode 6 for every block with alpha), uber
+  level 1, linear weights so alpha counts as much as colour, `bc7enc_compress_block_init`
+  called once from the writer thread, modes 5 and 7 tried for alpha blocks as bc7enc's
+  defaults do. On a smooth gradient BC7 lands above 35 dB. Alpha: mode 6 runs one index line
+  through RGBA and mode 5 gives alpha two index bits, so where colour and alpha vary in
+  different directions inside a block, alpha lands within about 12 to 14 (BC3 gives 16 to 18
+  on the same content); where alpha is flat or follows the colour it is near exact.
+  Weighting alpha higher or raising the uber level did not move those numbers (October
+  2026), so the defaults stay. bc7enc has no mode 4 (separate 3-bit alpha indices), which is
+  what would fix it.
+- stb_dxt's endpoint search is a float power iteration and bc7enc's least-squares fits are
+  float too. CMake compiles both TUs with `-ffp-contract=off` on GCC and Clang (MSVC's
+  `/fp:precise` already forbids fused multiply-add) so every toolchain produces the same
+  bytes; `dds_writer_bytes_are_stable` pins seven writes by FNV-1a hash and the mac and
+  linux remote runs check the pin. If a toolchain ever disagrees, the fallback is to route
+  every block through the integer range-fit encoder.
 - Mipmaps: `generate_mip_chain` box-filters down to 1x1. Each side halves (never below 1);
   the last destination column and row absorb an odd leftover source column or row (5
   wide becomes 2 texels averaging columns {0, 1} and {2, 3, 4}); colours average
@@ -160,21 +178,22 @@ and a future BC7 encoder).
 ## Settings, metadata, and the save flow
 
 Persisted defaults (`saveOptions/*`, compatibility contracts, never renamed):
-`ddsCompression` (`auto` | `uncompressed` | `bc1` | `bc3`, default `auto`) and `ddsMipmaps`
-(default false). The token helpers live with the codec (`dds::compression_token` and
+`ddsCompression` (`auto` | `uncompressed` | `bc1` | `bc3` | `bc4` | `bc5` | `bc7`, default
+`auto`) and `ddsMipmaps` (default false). The token helpers live with the codec (`dds::compression_token` and
 `compression_from_token`) so the settings, the dialog and the metadata cannot disagree.
 
 The reader stamps session-only document metadata: `patchy.dds.compression` (the nearest
 export choice for the source: `uncompressed` for masked, 16-bit and float sources, `bc1`
-for BC1, BC4, BC5 and BC6H, `bc3` for BC2, BC3 and BC7; never `auto`), `patchy.dds.mipmaps`
+for BC1, `bc3` for BC2 and BC3, `bc4`, `bc5` and `bc7` for their own formats, `bc7` for
+BC6H since HDR has no export; never `auto`), `patchy.dds.mipmaps`
 (`1` when the file carried more than one level) and `patchy.dds.sourceFormat` (the name,
 informational). `MainWindow::image_save_defaults_for_document` reads the first two, so a
 plain Save keeps a BC3 texture as BC3 with its alpha and Save As prefills the dialog, and
 a mipmapped source prefills the checkbox. Nothing serializes `DocumentMetadata::values`
 into any file.
 
-Save As and Export raise `ddsSaveOptionsDialog` (`ddsCompressionCombo` with the four
-choices in enum order, `ddsMipmapsCheck`, `ddsSaveNote`), plus the shared export section
+Save As and Export raise `ddsSaveOptionsDialog` (`ddsCompressionCombo` with the seven
+choices, Automatic through BC3 then BC7, BC4, BC5, `ddsMipmapsCheck`, `ddsSaveNote`), plus the shared export section
 on Export. The row is in `file_format_entries()` unconditionally and the registry handler
 carries a writer, so Save on a document opened from .dds writes in place. The format stays
 out of `save_extension_preserves_layers`, so a layered document keeps the flatten warning
@@ -192,7 +211,8 @@ signed), BC5 blocks, the un-premultiply rule and the four alpha modes, every com
 fixture against Pillow's values, the half-float ramp against `jxr::tone_map_scrgb_to_rgba8`,
 BC6H against Pillow's decode through the tone map, cubemap, volume, array and partial
 cubemap layering, the writer's header layout, an exact uncompressed round trip, the BC1
-cut-out rule and Automatic, BC3 alpha within 8 on a smooth ramp and colour PSNR above 30 dB, the mip filter
+cut-out rule and Automatic, BC3 alpha within 8 on a smooth ramp and colour PSNR above 30 dB, BC7 above 33 dB
+with alpha within 16, the BC4 luminance and BC5 red/green round trips with their notices, the mip filter
 rules, the byte canary, a Unicode path round trip, the inspection artifacts and the local
 fixture sweep. `tests/ui/flat_image_format_tests.cpp` (filter `ui_dds`) covers the
 open-and-save-in-place flow with the document-alpha mask, the BC3 re-save keeping alpha,
@@ -223,11 +243,12 @@ Writer cross-check: `dds_writes_inspection_artifacts` leaves one texture per com
 (with and without mipmaps) plus the flattened smooth-gradient sources as BMP under `test-artifacts/dds/`
 beside the core test binary; `python -I scripts/dev/dds/verify_dds.py
 build/release/test-artifacts/dds` decodes them with Pillow and demands identical pixels for
-the uncompressed files, exact cut-out alpha and PSNR above 30 dB for BC1, and alpha within
-20 plus PSNR above 30 dB for BC3 (stb_dxt uses only the 8-level alpha mode, so a block that
+the uncompressed files, exact cut-out alpha and PSNR above 30 dB for BC1, alpha within
+20 plus PSNR above 30 dB for BC3, PSNR above 35 dB with alpha within 16 for BC7, luminance
+within 3 for BC4 and red/green within 3 with blue 0 for BC5 (stb_dxt uses only the 8-level alpha mode, so a block that
 mixes alpha 0 with high alpha can be off by up to 18; a smooth ramp stays within 4).
 
-Known gaps: no BC4, BC5, BC6H or BC7 export; cubemap, volume and array export (a save
-flattens to one 2D texture); palettized, YUV, bump-map and typeless non-block formats;
+Known gaps: no BC6H export (Patchy has no float pixels to feed it); BC7 uses modes 1 and
+6 only; cubemap, volume and array export (a save flattens to one 2D texture); palettized, YUV, bump-map and typeless non-block formats;
 the header's pitch field is ignored on read; no sRGB-to-linear conversion for `_SRGB`
 variants (by design); mip levels beyond 0 are regenerated, never preserved.

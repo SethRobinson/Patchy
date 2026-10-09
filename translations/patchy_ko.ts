@@ -9022,12 +9022,32 @@ RGB: %2, %3, %4</translation>
         <translation>밉맵 생성</translation>
     </message>
     <message>
-        <source>BC1 and BC3 are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. Mipmaps are generated down to 1x1 with a box filter.</source>
-        <translation>BC1과 BC3은 손실 압축 4x4 블록 형식입니다. BC1은 1비트 투명도만 유지하므로 알파가 50퍼센트 미만인 픽셀은 완전히 투명해집니다. 밉맵은 박스 필터로 1x1까지 생성됩니다.</translation>
-    </message>
-    <message>
         <source>DirectDraw Surface</source>
         <translation>DirectDraw Surface</translation>
+    </message>
+    <message>
+        <source>BC4 keeps one channel: the image was saved as its grayscale luminance without transparency</source>
+        <translation>BC4는 채널 하나만 유지합니다: 이미지가 투명도 없는 회색조 휘도로 저장되었습니다</translation>
+    </message>
+    <message>
+        <source>BC5 keeps the red and green channels only: blue and transparency were dropped</source>
+        <translation>BC5는 빨간색과 초록색 채널만 유지합니다: 파란색과 투명도가 제거되었습니다</translation>
+    </message>
+    <message>
+        <source>BC7 (best quality, full transparency, DX10 header)</source>
+        <translation>BC7(최고 품질, 전체 투명도, DX10 헤더)</translation>
+    </message>
+    <message>
+        <source>BC4 / ATI1 (grayscale, one channel)</source>
+        <translation>BC4 / ATI1(회색조, 단일 채널)</translation>
+    </message>
+    <message>
+        <source>BC5 / ATI2 (red and green channels, normal maps)</source>
+        <translation>BC5 / ATI2(빨간색과 초록색 채널, 노멀 맵)</translation>
+    </message>
+    <message>
+        <source>The BC formats are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. BC4 stores grayscale only and BC5 the red and green channels; both drop transparency. Mipmaps are generated down to 1x1 with a box filter.</source>
+        <translation>BC 형식은 손실 압축 4x4 블록 형식입니다. BC1은 1비트 투명도만 유지하므로 알파가 50퍼센트 미만인 픽셀은 완전히 투명해집니다. BC4는 회색조만, BC5는 빨간색과 초록색 채널만 저장하며 둘 다 투명도를 버립니다. 밉맵은 박스 필터로 1x1까지 생성됩니다.</translation>
     </message>
 </context>
 <context>

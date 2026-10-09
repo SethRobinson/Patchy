@@ -96,12 +96,13 @@ if(MSVC)
   set_source_files_properties(
     src/formats/stb/stb_dxt_impl.c
     src/formats/bcdec/bcdec_impl.c
+    src/formats/bc7enc/bc7enc.c
     PROPERTIES COMPILE_OPTIONS /wd4244
   )
 endif()
-# stb_dxt's endpoint search runs a float power iteration. Fused multiply-add would
-# round differently per toolchain and change the DDS writer's bytes (pinned by
-# dds_writer_bytes_are_stable), so contraction is off for that one vendored TU.
+# stb_dxt's endpoint search and bc7enc's least-squares fits run in float. Fused
+# multiply-add would round differently per toolchain and change the DDS writer's bytes
+# (pinned by dds_writer_bytes_are_stable), so contraction is off for those vendored TUs.
 # MSVC's default /fp:precise already forbids contraction.
 # bcdec writes its partition tables as binary literals, a C23 feature that clang and GCC
 # flag as an extension under the default C standard, so that one TU compiles as C23.
@@ -113,6 +114,11 @@ if(NOT MSVC)
   set_source_files_properties(
     src/formats/bcdec/bcdec_impl.c
     PROPERTIES COMPILE_OPTIONS "-std=gnu2x"
+  )
+  # bc7enc declares its init function without a prototype and keeps a few unused helpers.
+  set_source_files_properties(
+    src/formats/bc7enc/bc7enc.c
+    PROPERTIES COMPILE_OPTIONS "-ffp-contract=off;-Wno-strict-prototypes;-Wno-unused-function"
   )
 endif()
 
@@ -540,6 +546,7 @@ add_library(patchy_formats
   src/formats/stb/stb_image_impl.c
   src/formats/stb/stb_dxt_impl.c
   src/formats/bcdec/bcdec_impl.c
+  src/formats/bc7enc/bc7enc.c
   src/formats/zstd/zstddeclib.c
 )
 # patchy_libraw stays PRIVATE: only raw_document_io.cpp touches LibRaw types; the public
@@ -650,7 +657,7 @@ if(PATCHY_BUILD_APP)
          "${PROJECT_SOURCE_DIR}/src/*.hpp"
          "${PROJECT_SOURCE_DIR}/src/*.mm")
     list(FILTER PATCHY_LUPDATE_SOURCES EXCLUDE REGEX
-         "/src/(formats/(zstd|miniz|libheif|libraw|stb|bcdec)|color/lcms2)/")
+         "/src/(formats/(zstd|miniz|libheif|libraw|stb|bcdec|bc7enc)|color/lcms2)/")
     list(SORT PATCHY_LUPDATE_SOURCES)
     set(PATCHY_LUPDATE_OPTIONS
       -locations none

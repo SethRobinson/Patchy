@@ -1095,6 +1095,11 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
                          dds_compression_key(dds::Compression::Bc1));
     compression->addItem(QObject::tr("BC3 / DXT5 (compressed, full transparency)"),
                          dds_compression_key(dds::Compression::Bc3));
+    compression->addItem(QObject::tr("BC7 (best quality, full transparency, DX10 header)"),
+                         dds_compression_key(dds::Compression::Bc7));
+    compression->addItem(QObject::tr("BC4 / ATI1 (grayscale, one channel)"), dds_compression_key(dds::Compression::Bc4));
+    compression->addItem(QObject::tr("BC5 / ATI2 (red and green channels, normal maps)"),
+                         dds_compression_key(dds::Compression::Bc5));
     compression->setCurrentIndex(std::max(0, compression->findData(dds_compression_key(options.dds_compression))));
     form->addRow(new QLabel(QObject::tr("Compression:"), &dialog), compression);
     content->addLayout(form);
@@ -1105,9 +1110,9 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     content->addWidget(mipmaps);
 
     auto* note = new QLabel(
-        QObject::tr("BC1 and BC3 are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below "
-                    "50 percent alpha become fully transparent. Mipmaps are generated down to 1x1 with a box "
-                    "filter."),
+        QObject::tr("The BC formats are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below "
+                    "50 percent alpha become fully transparent. BC4 stores grayscale only and BC5 the red and green "
+                    "channels; both drop transparency. Mipmaps are generated down to 1x1 with a box filter."),
         &dialog);
     note->setObjectName(QStringLiteral("ddsSaveNote"));
     note->setWordWrap(true);

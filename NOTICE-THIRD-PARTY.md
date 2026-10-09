@@ -110,6 +110,14 @@ the DDS reader, compiled with `BCDEC_BC4BC5_PRECISE` for the signed BC4/BC5 vari
 bcdec is dual-licensed MIT / Unlicense; Patchy uses it under the MIT license, included
 at `src/formats/bcdec/LICENSE`.
 
+## bc7enc
+
+`src/formats/bc7enc/` vendors bc7enc by Richard Geldreich, Jr.
+(https://github.com/richgel999/bc7enc), the BC7 block encoder (modes 1 and 6) behind the
+DDS writer, built with floating-point contraction disabled so every toolchain produces the
+same blocks. bc7enc is dual-licensed MIT / public domain; Patchy uses it under the MIT
+license, included at `src/formats/bc7enc/LICENSE`.
+
 ## Zstandard
 
 `src/formats/zstd/` vendors the decompression half of Zstandard 1.5.7

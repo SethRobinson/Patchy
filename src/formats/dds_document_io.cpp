@@ -10,6 +10,7 @@
 // The precise entry points carry the signed/unsigned flag; bcdec_impl.c defines the same
 // macro so the declarations match the compiled bodies.
 #define BCDEC_BC4BC5_PRECISE
+#include "formats/bc7enc/bc7enc.h"
 #include "formats/bcdec/bcdec.h"
 #include "formats/stb/stb_dxt.h"
 
@@ -715,21 +716,51 @@ void append_uncompressed_level(std::vector<std::uint8_t>& payload, const PixelBu
   }
 }
 
+[[nodiscard]] std::uint32_t written_block_bytes(Compression compression) noexcept {
+  switch (compression) {
+    case Compression::Bc1:
+    case Compression::Bc4:
+      return 8;
+    case Compression::Bc3:
+    case Compression::Bc5:
+    case Compression::Bc7:
+      return 16;
+    case Compression::Automatic:
+    case Compression::Uncompressed:
+      break;
+  }
+  return 0;
+}
+
 void append_block_level(std::vector<std::uint8_t>& payload, const PixelBuffer& rgba8, Compression compression) {
   const auto blocks_x = (rgba8.width() + 3) / 4;
   const auto blocks_y = (rgba8.height() + 3) / 4;
   std::array<std::uint8_t, 64> block{};
   std::array<std::uint8_t, 16> encoded{};
+  const auto bytes = written_block_bytes(compression);
   for (std::int32_t by = 0; by < blocks_y; ++by) {
     for (std::int32_t bx = 0; bx < blocks_x; ++bx) {
       gather_block(rgba8, bx, by, block.data());
-      if (compression == Compression::Bc3) {
-        encode_bc3_block(block.data(), encoded.data());
-        payload.insert(payload.end(), encoded.begin(), encoded.end());
-      } else {
-        encode_bc1_block(block.data(), bc1_block_has_cutout(block.data()), encoded.data());
-        payload.insert(payload.end(), encoded.begin(), encoded.begin() + 8);
+      switch (compression) {
+        case Compression::Bc3:
+          encode_bc3_block(block.data(), encoded.data());
+          break;
+        case Compression::Bc4:
+          encode_bc4_block(block.data(), encoded.data());
+          break;
+        case Compression::Bc5:
+          encode_bc5_block(block.data(), encoded.data());
+          break;
+        case Compression::Bc7:
+          encode_bc7_block(block.data(), encoded.data());
+          break;
+        case Compression::Bc1:
+        case Compression::Automatic:
+        case Compression::Uncompressed:
+          encode_bc1_block(block.data(), bc1_block_has_cutout(block.data()), encoded.data());
+          break;
       }
+      payload.insert(payload.end(), encoded.begin(), encoded.begin() + bytes);
     }
   }
 }
@@ -1130,15 +1161,21 @@ FormatReadResult read_dds(std::span<const std::uint8_t> bytes) {
   Compression nearest = Compression::Uncompressed;
   switch (format.kind) {
     case SourceFormat::Kind::Bc1:
-    case SourceFormat::Kind::Bc4:
-    case SourceFormat::Kind::Bc5:
-    case SourceFormat::Kind::Bc6h:
       nearest = Compression::Bc1;
       break;
     case SourceFormat::Kind::Bc2:
     case SourceFormat::Kind::Bc3:
-    case SourceFormat::Kind::Bc7:
       nearest = Compression::Bc3;
+      break;
+    case SourceFormat::Kind::Bc4:
+      nearest = Compression::Bc4;
+      break;
+    case SourceFormat::Kind::Bc5:
+      nearest = Compression::Bc5;
+      break;
+    case SourceFormat::Kind::Bc6h:  // HDR has no export; BC7 is the nearest DX10 block format
+    case SourceFormat::Kind::Bc7:
+      nearest = Compression::Bc7;
       break;
     case SourceFormat::Kind::Masked:
     case SourceFormat::Kind::Rgba16:
@@ -1167,6 +1204,12 @@ std::string_view compression_token(Compression compression) noexcept {
       return "bc1";
     case Compression::Bc3:
       return "bc3";
+    case Compression::Bc4:
+      return "bc4";
+    case Compression::Bc5:
+      return "bc5";
+    case Compression::Bc7:
+      return "bc7";
     case Compression::Automatic:
       break;
   }
@@ -1185,6 +1228,15 @@ std::optional<Compression> compression_from_token(std::string_view token) noexce
   }
   if (token == "bc3") {
     return Compression::Bc3;
+  }
+  if (token == "bc4") {
+    return Compression::Bc4;
+  }
+  if (token == "bc5") {
+    return Compression::Bc5;
+  }
+  if (token == "bc7") {
+    return Compression::Bc7;
   }
   return std::nullopt;
 }
@@ -1271,6 +1323,45 @@ void encode_bc3_block(const std::uint8_t* rgba, std::uint8_t* out) {
   stb_compress_dxt_block(out, rgba, 1, STB_DXT_HIGHQUAL);
 }
 
+std::uint8_t luminance8(std::uint8_t r, std::uint8_t g, std::uint8_t b) noexcept {
+  return static_cast<std::uint8_t>((static_cast<std::uint32_t>(r) * 299U + static_cast<std::uint32_t>(g) * 587U +
+                                    static_cast<std::uint32_t>(b) * 114U + 500U) /
+                                   1000U);
+}
+
+void encode_bc4_block(const std::uint8_t* rgba, std::uint8_t* out) {
+  std::array<std::uint8_t, 16> gray{};
+  for (int texel = 0; texel < 16; ++texel) {
+    gray[static_cast<std::size_t>(texel)] = luminance8(rgba[texel * 4], rgba[texel * 4 + 1], rgba[texel * 4 + 2]);
+  }
+  stb_compress_bc4_block(out, gray.data());
+}
+
+void encode_bc5_block(const std::uint8_t* rgba, std::uint8_t* out) {
+  std::array<std::uint8_t, 32> red_green{};
+  for (int texel = 0; texel < 16; ++texel) {
+    red_green[static_cast<std::size_t>(texel) * 2U] = rgba[texel * 4];
+    red_green[static_cast<std::size_t>(texel) * 2U + 1U] = rgba[texel * 4 + 1];
+  }
+  stb_compress_bc5_block(out, red_green.data());
+}
+
+void encode_bc7_block(const std::uint8_t* rgba, std::uint8_t* out) {
+  // bc7enc builds its lookup tables once; the writer runs on one thread, so a function-local
+  // static is enough. Linear (not perceptual) weights keep every channel, alpha included,
+  // equally important, which is what a texture round trip wants.
+  static const bool initialized = [] {
+    bc7enc_compress_block_init();
+    return true;
+  }();
+  (void)initialized;
+  bc7enc_compress_block_params params;
+  bc7enc_compress_block_params_init(&params);
+  bc7enc_compress_block_params_init_linear_weights(&params);
+  params.m_uber_level = 1;
+  (void)bc7enc_compress_block(out, rgba, &params);
+}
+
 std::vector<std::uint8_t> write_dds(const Document& document, const WriteOptions& options,
                                     std::vector<std::string>* notices) {
   if (document.width() <= 0 || document.height() <= 0) {
@@ -1303,6 +1394,21 @@ std::vector<std::uint8_t> write_dds(const Document& document, const WriteOptions
     notices->push_back("BC1 keeps only 1-bit transparency: " + std::to_string(partial_alpha_pixels) +
                        " partially transparent pixels were cut out at 50 percent");
   }
+  if (notices != nullptr && (compression == Compression::Bc4 || compression == Compression::Bc5)) {
+    bool colourful = false;
+    bool has_blue = false;
+    const auto data = flat.data();
+    for (std::size_t offset = 0; offset + 3 < data.size(); offset += 4) {
+      colourful = colourful || data[offset] != data[offset + 1] || data[offset + 1] != data[offset + 2];
+      has_blue = has_blue || data[offset + 2] != 0;
+    }
+    if (compression == Compression::Bc4 && (colourful || any_translucent)) {
+      notices->push_back(PATCHY_TRANSLATE_NOOP("QObject", "BC4 keeps one channel: the image was saved as its grayscale luminance without transparency"));
+    }
+    if (compression == Compression::Bc5 && (has_blue || any_translucent)) {
+      notices->push_back(PATCHY_TRANSLATE_NOOP("QObject", "BC5 keeps the red and green channels only: blue and transparency were dropped"));
+    }
+  }
 
   std::vector<PixelBuffer> levels;
   if (options.generate_mipmaps) {
@@ -1330,7 +1436,7 @@ std::vector<std::uint8_t> write_dds(const Document& document, const WriteOptions
     pitch_or_linear_size = width * 4U;
   } else {
     flags |= kFlagLinearSize;
-    pitch_or_linear_size = ((width + 3U) / 4U) * ((height + 3U) / 4U) * (compression == Compression::Bc1 ? 8U : 16U);
+    pitch_or_linear_size = ((width + 3U) / 4U) * ((height + 3U) / 4U) * written_block_bytes(compression);
   }
   std::uint32_t caps = kCapsTexture;
   if (level_count > 1) {
@@ -1361,7 +1467,26 @@ std::vector<std::uint8_t> write_dds(const Document& document, const WriteOptions
     writer.write_u32(0xff000000U);
   } else {
     writer.write_u32(kPixelFormatFourCc);
-    writer.write_u32(compression == Compression::Bc1 ? kFourCcDxt1 : kFourCcDxt5);
+    std::uint32_t code = kFourCcDxt1;
+    switch (compression) {
+      case Compression::Bc3:
+        code = kFourCcDxt5;
+        break;
+      case Compression::Bc4:
+        code = kFourCcAti1;  // the legacy spelling every reader knows (texconv, Pillow, the old plug-ins)
+        break;
+      case Compression::Bc5:
+        code = kFourCcAti2;
+        break;
+      case Compression::Bc7:
+        code = kFourCcDx10;  // BC7 exists only under a DX10 header
+        break;
+      case Compression::Bc1:
+      case Compression::Automatic:
+      case Compression::Uncompressed:
+        break;
+    }
+    writer.write_u32(code);
     for (int index = 0; index < 5; ++index) {
       writer.write_u32(0);
     }
@@ -1371,6 +1496,13 @@ std::vector<std::uint8_t> write_dds(const Document& document, const WriteOptions
   writer.write_u32(0);  // caps3
   writer.write_u32(0);  // caps4
   writer.write_u32(0);  // reserved2
+  if (compression == Compression::Bc7) {
+    writer.write_u32(kDxgiBc7Unorm);
+    writer.write_u32(kResourceDimensionTexture2D);
+    writer.write_u32(0);  // miscFlag
+    writer.write_u32(1);  // arraySize
+    writer.write_u32(0);  // miscFlags2: alpha mode unknown, the way texconv writes it
+  }
   writer.write_bytes(payload);
   return std::move(writer.bytes());
 }
