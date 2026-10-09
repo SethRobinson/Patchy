@@ -10652,6 +10652,17 @@ void MainWindow::edit_text_layer(LayerId id) {
   if (canvas_ == nullptr || !has_active_document() || preview_dialog_edit_locked()) {
     return;
   }
+  const auto saved_zoom = canvas_->zoom();
+  const auto saved_pan = canvas_->view_pan();
+  const auto restore_view = [canvas = canvas_, saved_zoom, saved_pan] {
+    if (canvas == nullptr) {
+      return;
+    }
+    if (std::abs(canvas->zoom() - saved_zoom) >= 0.0001) {
+      canvas->set_zoom(saved_zoom);
+    }
+    canvas->set_view_pan(saved_pan);
+  };
   finish_active_text_editor();
   const auto* layer = std::as_const(document()).find_layer(id);
   if (layer == nullptr || !layer_is_text(*layer)) {
