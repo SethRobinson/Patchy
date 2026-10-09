@@ -1337,6 +1337,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
     action->setObjectName(object_name);
     action->setIcon(simple_icon(label.left(3).toUpper()));
     register_hotkey(action, identifier, shortcut);
+    action->setProperty("patchy.filterIdentifier", identifier);
     connect(action, &QAction::triggered, this, [this, identifier] { apply_filter(identifier); });
     register_document_action(action);
     return action;
@@ -1593,6 +1594,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
                        ->addAction(escape_qaction_ampersands(display_name));
     action->setObjectName(filter_action_object_name(identifier));
     action->setProperty("patchy.channelViewBlocked", true);
+    action->setProperty("patchy.filterIdentifier", identifier);
     action->setIcon(simple_icon(display_name.left(3).toUpper()));
     action->setStatusTip(tr("Apply %1 to the active layer").arg(display_name));
     refresh_action_tooltip(action);

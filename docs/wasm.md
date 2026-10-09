@@ -11,12 +11,12 @@ All three configurations use Emscripten 4.0.7:
 - **`wasm-release`**: the full app with static Qt 6.10.3 `wasm_multithread`,
   Asyncify and pthreads. File I/O, drops and settings are browser-backed.
   Real worker threads require COOP/COEP headers (see deployment).
-- **`wasm-release-st`**: the same app with the 6.10.3 single-thread kit
-  (`PATCHY_WASM_SINGLETHREAD=ON`: no pthreads, pool, or shared memory). Manual
-  comparisons only: releases ship the threaded build to every browser,
-  Safari included ([wasm-memory.md](wasm-memory.md)). Provision with `setup-qt-wasm.ps1 -WasmArch wasm_singlethread`. The ST kit
-  declares `QThread::loopLevel()` without defining it (an ST-only link error);
-  `canvas_widget_move.cpp` reads `QThreadData` via `Qt6::CorePrivate` instead.
+- **`wasm-release-st`**: 6.10.3 single-thread kit, `PATCHY_WASM_SINGLETHREAD=ON`
+  (no pthreads, pool or shared memory). Manual comparisons only; releases use
+  threads even on Safari ([wasm-memory.md](wasm-memory.md)). Provision with
+  `setup-qt-wasm.ps1 -WasmArch wasm_singlethread`. ST lacks the declared
+  `QThread::loopLevel()` definition; `canvas_widget_move.cpp` instead reads
+  `QThreadData` through `Qt6::CorePrivate`.
 
 Stress/A-B harness: [performance.md](performance.md).
 
@@ -35,17 +35,15 @@ packages omit `bin\`).
 
 ## Configure and build (wasm-core)
 
-Same wrapper pattern as the Windows release preset: `scripts\vs-env.bat`
-supplies cmake and ninja, `emsdk_env.bat` supplies emcc. Run from the repo
-root in PowerShell or cmd, never a POSIX shell:
+From the repo root in PowerShell/cmd, never a POSIX shell: `scripts\vs-env.bat`
+supplies cmake/ninja; `emsdk_env.bat` supplies emcc.
 
 ```powershell
 cmd /s /c 'call .deps\emsdk\emsdk_env.bat >nul 2>&1 && call scripts\vs-env.bat -arch=x64 -host_arch=x64 >nul && "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\CMake\bin\cmake.exe" --preset wasm-core'
 ```
 
-Build with the same wrapper and `--build --preset wasm-core`. Output:
-`build\wasm-core\patchy_core_tests.js` + `.wasm`. The zero-warning rule
-applies.
+Build: same wrapper, `--build --preset wasm-core`, zero warnings. Output:
+`build\wasm-core\patchy_core_tests.js` + `.wasm`.
 
 ## Running the suite
 
@@ -53,20 +51,17 @@ applies.
 pwsh -File scripts\wasm\run-core-tests.ps1
 ```
 
-Takes the usual name-substring filter as the first argument; runs the
-emsdk-bundled node from `build\wasm-core`, so `test-artifacts/` lands there.
-`ctest` also works there (the preset pins `CMAKE_CROSSCOMPILING_EMULATOR`).
+Accepts a name-substring filter; runs bundled node from `build\wasm-core`,
+with `test-artifacts/` there. `ctest` uses the pinned `CMAKE_CROSSCOMPILING_EMULATOR`.
 
-Canaries match native output. Expected `[SKIP]`s:
-one absent local fixture, two HEIC tests (node has no `VideoDecoder`), and
-`af_modern_embeds_are_center_anchored_if_available` (fixture beyond the
-wasm32 address space). The engine libraries carry no wasm `#ifdef`s; the one
-guard, in `tests/core/main.cpp`, skips the crash-stack reporter.
+Canaries match native output. Expected `[SKIP]`s: absent local fixtures, two
+HEIC tests (node lacks `VideoDecoder`), and
+`af_modern_embeds_are_center_anchored_if_available` (beyond wasm32's address
+space). `tests/core/main.cpp` skips the native crash-stack reporter on wasm.
 
-`psd_testy_legacy_fills_and_masks_round_trip_if_available` checks both imports.
-C2Kyoto's 415-layer save exceeds wasm32's 4 GB limit, so its save/readback
-requires 64-bit pointers. Icon and synthetic legacy-fill/mask round trips
-run fully on every platform.
+`psd_testy_legacy_fills_and_masks_round_trip_if_available` checks both imports;
+C2Kyoto's 415-layer save/readback requires 64-bit pointers (wasm32's 4 GB limit).
+Icon and synthetic legacy-fill/mask round trips run on every platform.
 
 ## wasm-core preset decisions (all in CMakePresets.json)
 
@@ -87,6 +82,11 @@ run fully on every platform.
   (`lexically_relative`, `lexically_normal`) for pure string work on paths you
   built. `fs::copy_file` onto an existing file fails ("Bad file descriptor"):
   remove the target first.
+  Test cleanup uses Node `path`/`fs`: musl rejects Windows cwd paths and cannot
+  remove directory links. Resolve host-absolute targets/temp roots and parent
+  links; retain missing suffixes/final leaves, check containment, then use `rmSync`.
+  Refuse resolution errors/dangling parents; never fall back lexically.
+  Native suites retain standard-filesystem cleanup.
 - Memory: growth to 4 GB, 256 MB initial, 8 MB stack (LibRaw's dcraw-derived
   decoders carry large stack locals; the 64 KB default is far too small),
   1 MB worker stacks.

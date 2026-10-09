@@ -944,10 +944,6 @@
         <translation>內建基礎濾鏡僅支援 UInt8 緩衝區</translation>
     </message>
     <message>
-        <source>Filter previews support UInt8 buffers only</source>
-        <translation>濾鏡預覽僅支援 UInt8 緩衝區</translation>
-    </message>
-    <message>
         <source>Unknown catalogued filter identifier</source>
         <translation>未知的已編目濾鏡識別碼</translation>
     </message>
@@ -8902,6 +8898,50 @@ RGB：%2, %3, %4</translation>
         <translation>PSD 色版位元深度與文件不符</translation>
     </message>
     <message>
+        <source>8 Bits/Channel</source>
+        <translation>8 位元/色版</translation>
+    </message>
+    <message>
+        <source>16 Bits/Channel</source>
+        <translation>16 位元/色版</translation>
+    </message>
+    <message>
+        <source>32 Bits/Channel</source>
+        <translation>32 位元/色版</translation>
+    </message>
+    <message>
+        <source>Bit Depth</source>
+        <translation>位元深度</translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents</source>
+        <translation>此濾鏡在 32 位元文件中無法使用</translation>
+    </message>
+    <message>
+        <source>HDR Toning</source>
+        <translation>HDR 色調</translation>
+    </message>
+    <message>
+        <source>Exposure and Gamma</source>
+        <translation>曝光度和 Gamma</translation>
+    </message>
+    <message>
+        <source>Gamma</source>
+        <translation>Gamma</translation>
+    </message>
+    <message>
+        <source>Bits per channel for the stress test documents: 8, 16, or 32.</source>
+        <translation>壓力測試文件的每色版位元數：8、16 或 32。</translation>
+    </message>
+    <message>
+        <source>The 32-bit image was converted to 16 bits per channel: the web version edits up to 16.</source>
+        <translation>32 位元影像已轉換為每色版 16 位元：網頁版最多編輯 16 位元。</translation>
+    </message>
+    <message>
+        <source>This document&apos;s preserved text engine cannot store new area text.</source>
+        <translation>此文件保留的文字引擎無法儲存新的形狀內文字。</translation>
+    </message>
+    <message>
         <source>Palettized DDS textures are not supported</source>
         <translation>不支援調色盤格式的 DDS 紋理</translation>
     </message>
@@ -8990,6 +9030,14 @@ RGB：%2, %3, %4</translation>
         <translation>無法將空白文件寫入為 DDS 紋理</translation>
     </message>
     <message>
+        <source>BC4 keeps one channel: the image was saved as its grayscale luminance without transparency</source>
+        <translation>BC4 只保留一個色版：影像已儲存為無透明度的灰階亮度</translation>
+    </message>
+    <message>
+        <source>BC5 keeps the red and green channels only: blue and transparency were dropped</source>
+        <translation>BC5 只保留紅色和綠色色版：藍色和透明度已捨棄</translation>
+    </message>
+    <message>
         <source>File-format and automation plug-ins are not supported; only filter (.8bf) plug-ins run. DDS textures open natively through File &gt; Open.</source>
         <translation>不支援檔案格式和自動化外掛程式；只能執行濾鏡 (.8bf) 外掛程式。 DDS 紋理可直接透過「檔案 &gt; 開啟」開啟。</translation>
     </message>
@@ -9014,26 +9062,6 @@ RGB：%2, %3, %4</translation>
         <translation>BC3 / DXT5（壓縮，完整透明度）</translation>
     </message>
     <message>
-        <source>Compression:</source>
-        <translation>壓縮：</translation>
-    </message>
-    <message>
-        <source>Generate mipmaps</source>
-        <translation>產生 Mipmap</translation>
-    </message>
-    <message>
-        <source>DirectDraw Surface</source>
-        <translation>DirectDraw Surface</translation>
-    </message>
-    <message>
-        <source>BC4 keeps one channel: the image was saved as its grayscale luminance without transparency</source>
-        <translation>BC4 只保留一個色版：影像已儲存為無透明度的灰階亮度</translation>
-    </message>
-    <message>
-        <source>BC5 keeps the red and green channels only: blue and transparency were dropped</source>
-        <translation>BC5 只保留紅色和綠色色版：藍色和透明度已捨棄</translation>
-    </message>
-    <message>
         <source>BC7 (best quality, full transparency, DX10 header)</source>
         <translation>BC7（最佳品質，完整透明度，DX10 檔頭）</translation>
     </message>
@@ -9046,8 +9074,20 @@ RGB：%2, %3, %4</translation>
         <translation>BC5 / ATI2（紅色和綠色色版，法線貼圖）</translation>
     </message>
     <message>
+        <source>Compression:</source>
+        <translation>壓縮：</translation>
+    </message>
+    <message>
+        <source>Generate mipmaps</source>
+        <translation>產生 Mipmap</translation>
+    </message>
+    <message>
         <source>The BC formats are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. BC4 stores grayscale only and BC5 the red and green channels; both drop transparency. Mipmaps are generated down to 1x1 with a box filter.</source>
         <translation>BC 格式是有損的 4x4 區塊壓縮格式。BC1 只保留 1 位元透明度：Alpha 低於 50% 的像素會變為完全透明。BC4 只保存灰階，BC5 只保存紅色和綠色色版，兩者都會捨棄透明度。Mipmap 使用盒狀濾鏡產生至 1x1。</translation>
+    </message>
+    <message>
+        <source>DirectDraw Surface</source>
+        <translation>DirectDraw Surface</translation>
     </message>
 </context>
 <context>
@@ -18849,6 +18889,30 @@ Baked into images: %1.</source>
         <source>Converted to %1</source>
         <translation>已轉換為 %1</translation>
     </message>
+    <message>
+        <source>32-bit preview exposure in stops. It changes the display, not the pixels.</source>
+        <translation>32 位元預覽曝光度（級）。只改變顯示，不改變像素。</translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents</source>
+        <translation>此濾鏡在 32 位元文件中無法使用</translation>
+    </message>
+    <message>
+        <source>Linear RGB: %1, %2, %3</source>
+        <translation>線性 RGB：%1, %2, %3</translation>
+    </message>
+    <message>
+        <source>Exposure: </source>
+        <translation>曝光度：</translation>
+    </message>
+    <message>
+        <source>This text boundary is preserved but cannot be edited.</source>
+        <translation>此文字邊界會保留，但無法編輯。</translation>
+    </message>
+    <message>
+        <source>%1 Text Boundary</source>
+        <translation>%1 文字邊界</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -20290,6 +20354,30 @@ Baked into images: %1.</source>
     <message>
         <source>resizeImage method must be one of %1.</source>
         <translation>resizeImage 的 method 必須是 %1 之一。</translation>
+    </message>
+    <message>
+        <source>convertBitDepth takes 8, 16 or 32.</source>
+        <translation>convertBitDepth 只接受 8、16 或 32。</translation>
+    </message>
+    <message>
+        <source>16 and 32-bit editing is not enabled.</source>
+        <translation>未啟用 16 位元和 32 位元編輯。</translation>
+    </message>
+    <message>
+        <source>Indexed documents are 8-bit only.</source>
+        <translation>索引色文件僅支援 8 位元。</translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents.</source>
+        <translation>此濾鏡在 32 位元文件中無法使用。</translation>
+    </message>
+    <message>
+        <source>The web version edits up to 16 bits per channel.</source>
+        <translation>網頁版最多編輯每色版 16 位元。</translation>
+    </message>
+    <message>
+        <source>Blend mode %1 is not available in 32-bit documents.</source>
+        <translation>混合模式 %1 在 32 位元文件中無法使用。</translation>
     </message>
 </context>
 <context>

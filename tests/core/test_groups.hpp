@@ -55,3 +55,4 @@ std::vector<patchy::test::TestCase> atomic_write_recovery_tests();
 std::vector<patchy::test::TestCase> pixel_depth_tests();
 std::vector<patchy::test::TestCase> psd_deep_io_tests();
 std::vector<patchy::test::TestCase> deep_compositor_tests();
+std::vector<patchy::test::TestCase> deep_filter_tests();

@@ -283,6 +283,28 @@ PixelBuffer Compositor::flatten_rgba_deep(const Document& document) const {
 }
 
 PixelBuffer Compositor::flatten_rgb8(const Document& document, std::vector<std::uint8_t>* merged_alpha) const {
+  if (document.color_state().bit_depth != BitDepth::UInt8) {
+    // 16/32-bit documents (docs/high-bit-depth.md): the deep flatten's display values.
+    // (The 8-bit walk skips deep layers.)
+    const auto rgba =
+        convert_pixel_buffer_depth(flatten_rgba_deep(document), BitDepth::UInt8, SampleKind::Color);
+    PixelBuffer output(rgba.width(), rgba.height(), PixelFormat::rgb8());
+    if (merged_alpha != nullptr) {
+      merged_alpha->assign(static_cast<std::size_t>(rgba.width()) * static_cast<std::size_t>(rgba.height()), 0);
+    }
+    for (std::int32_t y = 0; y < rgba.height(); ++y) {
+      const auto* source = rgba.row(y).data();
+      auto* destination = output.row(y).data();
+      for (std::int32_t x = 0; x < rgba.width(); ++x) {
+        std::memcpy(destination + static_cast<std::size_t>(x) * 3U, source + static_cast<std::size_t>(x) * 4U, 3U);
+        if (merged_alpha != nullptr) {
+          (*merged_alpha)[static_cast<std::size_t>(y) * static_cast<std::size_t>(rgba.width()) +
+                          static_cast<std::size_t>(x)] = source[static_cast<std::size_t>(x) * 4U + 3U];
+        }
+      }
+    }
+    return output;
+  }
   PixelBuffer output(document.width(), document.height(), PixelFormat::rgb8());
   output.clear(0);
   const auto canvas = Rect::from_size(document.width(), document.height());

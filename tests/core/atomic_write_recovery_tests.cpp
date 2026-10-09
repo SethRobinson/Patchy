@@ -10,12 +10,18 @@
 #include "test_harness.hpp"
 #include "unicode_path_names.hpp"
 
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <stdexcept>
 #include <string>
 #include <vector>
+
+#if defined(_WIN32)
+#include <winerror.h>
+#endif
 
 using patchy::test::directory_holds_only;
 using patchy::test::kUnicodeCombinedStem;
@@ -41,6 +47,49 @@ std::vector<std::uint8_t> bytes_of(const std::string& text) {
 std::string text_of(const std::filesystem::path& path) {
   const auto bytes = read_binary_file(path);
   return std::string(bytes.begin(), bytes.end());
+}
+
+bool scratch_remove_refuses(const std::filesystem::path& path) {
+  try {
+    (void)patchy::test::remove_test_scratch_tree(path);
+  } catch (const std::runtime_error&) {
+    return true;
+  }
+  return false;
+}
+
+std::filesystem::path scratch_host_absolute(const std::filesystem::path& path) {
+#if defined(__EMSCRIPTEN__)
+  // musl getcwd rejects a Windows cwd because it does not start with '/'.
+  std::error_code error;
+  const auto absolute = patchy::test::resolve_node_test_scratch_path(path, true, error);
+  CHECK(!error);
+  return absolute;
+#else
+  return std::filesystem::absolute(path);
+#endif
+}
+
+// Non-recursive cleanup of the test-owned roots that the recursive guard protects.
+bool remove_scratch_entry(const std::filesystem::path& path) {
+#if defined(__EMSCRIPTEN__)
+  const auto text = path.u8string();
+  return EM_ASM_INT({
+    try {
+      const fs = require('fs');
+      const path = UTF8ToString(arguments[0]);
+      if (fs.lstatSync(path).isDirectory()) fs.rmdirSync(path);
+      else fs.unlinkSync(path);
+      return 1;
+    } catch (e) {
+      return e.code === 'ENOENT' ? 1 : 0;
+    }
+  }, text.c_str()) != 0;
+#else
+  std::error_code error;
+  std::filesystem::remove(path, error);
+  return !error;
+#endif
 }
 
 }  // namespace
@@ -181,22 +230,21 @@ void recovery_write_entry_creates_instance_dir_under_unicode_root() {
 // The guarded recursive delete every test uses refuses a blank path and anything not
 // strictly below a test-artifacts or qttest folder, and deletes what is below one.
 void test_scratch_remove_refuses_paths_outside_scratch_roots() {
-  const auto refuses = [](const std::filesystem::path& path) {
-    try {
-      (void)patchy::test::remove_test_scratch_tree(path);
-    } catch (const std::runtime_error&) {
-      return true;
-    }
-    return false;
-  };
+  const auto refuses = scratch_remove_refuses;
   CHECK(refuses(std::filesystem::path()));
   CHECK(refuses(std::filesystem::path(".")));
+  CHECK(refuses(std::filesystem::path("/")));
   CHECK(refuses(std::filesystem::path("scratch-remove-guard")));
   CHECK(refuses(std::filesystem::path("test-artifacts")));
   CHECK(refuses(std::filesystem::path("test-artifacts/")));
   CHECK(refuses(std::filesystem::path("test-artifacts/..")));
   CHECK(refuses(std::filesystem::path("test-artifacts/scratch-remove-guard/../..")));
-  CHECK(!patchy::test::is_below_test_scratch_root(std::filesystem::current_path()));
+  const auto cwd = scratch_host_absolute(".");
+  CHECK(refuses(cwd));
+  CHECK(refuses(cwd.root_path()));
+  CHECK(refuses(std::filesystem::path("qttest")));
+  CHECK(refuses(std::filesystem::path(".qttest/")));
+  CHECK(!patchy::test::is_below_test_scratch_root(cwd));
 
   const auto dir = std::filesystem::path("test-artifacts") / "scratch-remove-guard";
   std::filesystem::create_directories(dir / "child");
@@ -217,7 +265,75 @@ void test_scratch_remove_refuses_paths_outside_scratch_roots() {
   std::filesystem::create_directories(owned / "child");
   CHECK(patchy::test::remove_test_scratch_tree(owned / "child"));
   CHECK(!std::filesystem::exists(owned / "child"));
-  std::filesystem::remove(owned);
+  CHECK(remove_scratch_entry(owned));
+}
+
+void test_scratch_remove_handles_unicode_absolute_and_missing_paths() {
+  const auto root = std::filesystem::path("test-artifacts") / "scratch-remove-paths";
+  CHECK(patchy::test::remove_test_scratch_tree(root));
+  const auto child = root / unicode_path_piece(kUnicodeDirName) / "child";
+  CHECK(patchy::test::remove_test_scratch_tree(child));  // all parents are missing
+  CHECK(!std::filesystem::exists(root));
+  for (int pass = 0; pass != 2; ++pass) {
+    std::filesystem::create_directories(child);
+    std::ofstream(child / "sentinel.txt") << "owned";
+    const auto target = pass == 0 ? child : scratch_host_absolute(child);
+    CHECK(patchy::test::remove_test_scratch_tree(target / ""));  // trailing separator
+    CHECK(!std::filesystem::exists(child));
+    CHECK(std::filesystem::exists(child.parent_path()));
+    CHECK(patchy::test::remove_test_scratch_tree(target));  // already gone
+  }
+  CHECK(patchy::test::remove_test_scratch_tree(root));
+}
+
+void test_scratch_remove_preserves_symlink_targets() {
+  namespace fs = std::filesystem;
+  const auto root = fs::path("test-artifacts") / "scratch-remove-links";
+  CHECK(patchy::test::remove_test_scratch_tree(root));
+  // Deliberately outside every allowed scratch root, but still a test-owned sibling
+  // in the build directory. Cleanup uses only non-recursive removes of owned entries.
+  const auto outside = scratch_host_absolute(".") /
+      ("scratch-remove-outside-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+  CHECK(fs::create_directory(outside));
+  struct Cleanup {
+    fs::path root;
+    fs::path outside;
+    ~Cleanup() {
+      for (const auto& path : {root / "link", root / "dangling", root,
+                               outside / "child" / "sentinel.txt", outside / "child", outside}) {
+        (void)remove_scratch_entry(path);
+      }
+    }
+  } cleanup{root, outside};
+  fs::create_directories(root);
+  fs::create_directories(outside / "child");
+  std::ofstream(outside / "child" / "sentinel.txt") << "keep";
+  std::error_code error;
+  fs::create_directory_symlink(outside, root / "link", error);
+  bool symlinks_unavailable = error == std::errc::permission_denied || error == std::errc::operation_not_permitted ||
+      error == std::errc::function_not_supported || error == std::errc::operation_not_supported;
+#if defined(_WIN32)
+  // MSVC does not map this missing privilege to a generic permission error.
+  symlinks_unavailable = symlinks_unavailable ||
+      error == std::error_code(ERROR_PRIVILEGE_NOT_HELD, std::system_category());
+#endif
+  if (symlinks_unavailable) {
+    std::cout << "[SKIP] test_scratch_remove_preserves_symlink_targets: directory symlinks unavailable: "
+              << error.message() << '\n';
+    return;
+  }
+  CHECK(!error);
+  CHECK(scratch_remove_refuses(root / "link" / "child"));
+  CHECK(text_of(outside / "child" / "sentinel.txt") == "keep");
+  CHECK(patchy::test::remove_test_scratch_tree(root / "link"));
+  CHECK(!fs::is_symlink(fs::symlink_status(root / "link")));
+  CHECK(text_of(outside / "child" / "sentinel.txt") == "keep");
+#if defined(__EMSCRIPTEN__)
+  // The Node adapter must distinguish a missing parent from a dangling parent link.
+  fs::create_directory_symlink(outside / "missing", root / "dangling");
+  CHECK(scratch_remove_refuses(root / "dangling" / "child"));
+  CHECK(patchy::test::remove_test_scratch_tree(root / "dangling"));
+#endif
 }
 
 std::vector<patchy::test::TestCase> atomic_write_recovery_tests() {
@@ -233,5 +349,8 @@ std::vector<patchy::test::TestCase> atomic_write_recovery_tests() {
        recovery_write_entry_creates_instance_dir_under_unicode_root},
       {"test_scratch_remove_refuses_paths_outside_scratch_roots",
        test_scratch_remove_refuses_paths_outside_scratch_roots},
+      {"test_scratch_remove_handles_unicode_absolute_and_missing_paths",
+       test_scratch_remove_handles_unicode_absolute_and_missing_paths},
+      {"test_scratch_remove_preserves_symlink_targets", test_scratch_remove_preserves_symlink_targets},
   };
 }

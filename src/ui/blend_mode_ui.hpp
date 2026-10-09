@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/layer.hpp"
+#include "core/pixel_buffer.hpp"
 
 #include <QString>
 
@@ -20,5 +21,8 @@ enum class BlendModeMenu : std::uint8_t { Layer, Filter };
 // step it like Up/Down (Qt handles only Up/Down on a combo box), both closed
 // and with the list open.
 void add_blend_mode_items(QComboBox* combo, BlendModeMenu menu = BlendModeMenu::Layer);
+// Disables the layer blend modes a document of `depth` cannot use (32-bit documents,
+// blend_mode_supported_at_depth) and re-enables the rest; Qt's stepping skips them.
+void enable_blend_mode_items_for_depth(QComboBox* combo, BitDepth depth);
 
 }  // namespace patchy::ui

@@ -2,6 +2,7 @@
 
 #include "core/document.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/pixel_depth.hpp"
 #include "core/smart_object.hpp"
 #include "core/vector_shape.hpp"
 #include "psd/psd_filter_effects.hpp"
@@ -1017,8 +1018,30 @@ std::optional<Layer> clone_layer_tree_with_document_ids(
 // Promoted from main_window.cpp's anonymous namespace: used by the
 // document-dialog TU and by the layer/selection commands that stayed in
 // main_window.cpp.
+PixelBuffer coverage_at_document_depth(const Document& document, PixelBuffer coverage) {
+  const auto depth = document.color_state().bit_depth;
+  if (coverage.empty() || coverage.format().bit_depth == depth) {
+    return coverage;
+  }
+  return convert_pixel_buffer_depth(coverage, depth, SampleKind::Coverage);
+}
+
 PixelBuffer make_solid_pixels(std::int32_t width, std::int32_t height, QColor color, PixelFormat format) {
   PixelBuffer pixels(width, height, format);
+  if (format.bit_depth != BitDepth::UInt8 && format.channels >= 3) {
+    // 16/32-bit: the 8-bit color at the buffer's depth (docs/high-bit-depth.md).
+    std::vector<float> row(static_cast<std::size_t>(std::max(0, width)) * 4U);
+    for (std::size_t i = 0; i < row.size(); i += 4U) {
+      row[i] = static_cast<float>(color.red());
+      row[i + 1U] = static_cast<float>(color.green());
+      row[i + 2U] = static_cast<float>(color.blue());
+      row[i + 3U] = static_cast<float>(color.alpha());
+    }
+    for (std::int32_t y = 0; y < height && width > 0; ++y) {
+      store_rgba_row(pixels, y, 0, width, DeepDomain::Encoded, row);
+    }
+    return pixels;
+  }
   for (std::int32_t y = 0; y < height; ++y) {
     for (std::int32_t x = 0; x < width; ++x) {
       auto* px = pixels.pixel(x, y);

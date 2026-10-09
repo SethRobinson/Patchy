@@ -1,5 +1,18 @@
 # Scripting API compatibility
 
+2026-10-09 additive (API 1): `addTextLayer(text, {area})` creates area text from one
+closed `PatchyVectorPath` in document coordinates. `area` and `box` are mutually
+exclusive. `layer.textArea` reads a detached boundary snapshot or `null`; assigning
+a boundary reflows through the text session, and assigning `null` converts it to
+box text. Source shapes remain independent. See docs/area-text.md.
+
+2026-10-09 additive (API 1): `doc.bitDepth` (8, 16 or 32) and `doc.convertBitDepth(bits)`
+(Image > Mode's conversion; throws for other values, while 16 and 32-bit editing is off,
+or on an Indexed document). On 16 and 32-bit documents `getPixels` and `setPixels` stay
+RGBA8 and convert at the boundary, `fill` and `fillRect` write at the document's depth,
+and `applyFilter` runs at depth, throwing for a filter a 32-bit document does not offer.
+See docs/high-bit-depth.md; pinned by `ui_script_bit_depth_and_deep_filters`.
+
 2026-10-07 additive (API 1): `doc.resizeImage(width, height, {method})` takes a resampling
 method id: `"automatic"` (default), `"nearest"`, `"bilinear"`, `"bicubic"`, `"bicubicSmoother"`,
 `"bicubicSharper"`; an unknown id throws. Behavioral correction in the same change: a resize

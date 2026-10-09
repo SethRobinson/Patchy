@@ -944,10 +944,6 @@
         <translation>I filtri integrati di base supportano solo buffer UInt8</translation>
     </message>
     <message>
-        <source>Filter previews support UInt8 buffers only</source>
-        <translation>Le anteprime dei filtri supportano solo buffer UInt8</translation>
-    </message>
-    <message>
         <source>Unknown catalogued filter identifier</source>
         <translation>Identificatore di filtro catalogato sconosciuto</translation>
     </message>
@@ -8932,6 +8928,50 @@ RGB: %2, %3, %4</translation>
         <translation>La profondità del canale PSD non corrisponde al documento</translation>
     </message>
     <message>
+        <source>8 Bits/Channel</source>
+        <translation>8 bit/canale</translation>
+    </message>
+    <message>
+        <source>16 Bits/Channel</source>
+        <translation>16 bit/canale</translation>
+    </message>
+    <message>
+        <source>32 Bits/Channel</source>
+        <translation>32 bit/canale</translation>
+    </message>
+    <message>
+        <source>Bit Depth</source>
+        <translation>Profondità di bit</translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents</source>
+        <translation>Questo filtro non è disponibile nei documenti a 32 bit</translation>
+    </message>
+    <message>
+        <source>HDR Toning</source>
+        <translation>Tonalità HDR</translation>
+    </message>
+    <message>
+        <source>Exposure and Gamma</source>
+        <translation>Esposizione e gamma</translation>
+    </message>
+    <message>
+        <source>Gamma</source>
+        <translation>Gamma</translation>
+    </message>
+    <message>
+        <source>Bits per channel for the stress test documents: 8, 16, or 32.</source>
+        <translation>Bit per canale dei documenti del test di stress: 8, 16 o 32.</translation>
+    </message>
+    <message>
+        <source>The 32-bit image was converted to 16 bits per channel: the web version edits up to 16.</source>
+        <translation>L&apos;immagine a 32 bit è stata convertita a 16 bit per canale: la versione web modifica fino a 16 bit.</translation>
+    </message>
+    <message>
+        <source>This document&apos;s preserved text engine cannot store new area text.</source>
+        <translation>Il motore di testo conservato in questo documento non può salvare nuovo testo all’interno delle forme.</translation>
+    </message>
+    <message>
         <source>Palettized DDS textures are not supported</source>
         <translation>Le texture DDS con palette non sono supportate</translation>
     </message>
@@ -9020,6 +9060,14 @@ RGB: %2, %3, %4</translation>
         <translation>Impossibile scrivere un documento vuoto come texture DDS</translation>
     </message>
     <message>
+        <source>BC4 keeps one channel: the image was saved as its grayscale luminance without transparency</source>
+        <translation>BC4 conserva un solo canale: l&apos;immagine è stata salvata come luminanza in scala di grigi senza trasparenza</translation>
+    </message>
+    <message>
+        <source>BC5 keeps the red and green channels only: blue and transparency were dropped</source>
+        <translation>BC5 conserva solo i canali rosso e verde: il blu e la trasparenza sono stati scartati</translation>
+    </message>
+    <message>
         <source>File-format and automation plug-ins are not supported; only filter (.8bf) plug-ins run. DDS textures open natively through File &gt; Open.</source>
         <translation>I plug-in per formati di file e di automazione non sono supportati; vengono eseguiti solo plug-in filtro (.8bf). Le texture DDS si aprono nativamente da File &gt; Apri.</translation>
     </message>
@@ -9044,26 +9092,6 @@ RGB: %2, %3, %4</translation>
         <translation>BC3 / DXT5 (compresso, trasparenza completa)</translation>
     </message>
     <message>
-        <source>Compression:</source>
-        <translation>Compressione:</translation>
-    </message>
-    <message>
-        <source>Generate mipmaps</source>
-        <translation>Genera mipmap</translation>
-    </message>
-    <message>
-        <source>DirectDraw Surface</source>
-        <translation>DirectDraw Surface</translation>
-    </message>
-    <message>
-        <source>BC4 keeps one channel: the image was saved as its grayscale luminance without transparency</source>
-        <translation>BC4 conserva un solo canale: l&apos;immagine è stata salvata come luminanza in scala di grigi senza trasparenza</translation>
-    </message>
-    <message>
-        <source>BC5 keeps the red and green channels only: blue and transparency were dropped</source>
-        <translation>BC5 conserva solo i canali rosso e verde: il blu e la trasparenza sono stati scartati</translation>
-    </message>
-    <message>
         <source>BC7 (best quality, full transparency, DX10 header)</source>
         <translation>BC7 (qualità massima, trasparenza completa, intestazione DX10)</translation>
     </message>
@@ -9076,8 +9104,20 @@ RGB: %2, %3, %4</translation>
         <translation>BC5 / ATI2 (canali rosso e verde, normal map)</translation>
     </message>
     <message>
+        <source>Compression:</source>
+        <translation>Compressione:</translation>
+    </message>
+    <message>
+        <source>Generate mipmaps</source>
+        <translation>Genera mipmap</translation>
+    </message>
+    <message>
         <source>The BC formats are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. BC4 stores grayscale only and BC5 the red and green channels; both drop transparency. Mipmaps are generated down to 1x1 with a box filter.</source>
         <translation>I formati BC sono formati a blocchi 4x4 con perdita. BC1 conserva solo una trasparenza a 1 bit: i pixel sotto il 50 per cento di alfa diventano completamente trasparenti. BC4 memorizza solo la scala di grigi e BC5 i canali rosso e verde; entrambi scartano la trasparenza. Le mipmap vengono generate fino a 1x1 con un filtro box.</translation>
+    </message>
+    <message>
+        <source>DirectDraw Surface</source>
+        <translation>DirectDraw Surface</translation>
     </message>
 </context>
 <context>
@@ -18905,6 +18945,30 @@ Convertiti in immagini: %1.</translation>
         <source>Converted to %1</source>
         <translation>Convertito in %1</translation>
     </message>
+    <message>
+        <source>32-bit preview exposure in stops. It changes the display, not the pixels.</source>
+        <translation>Esposizione di anteprima a 32 bit in stop. Cambia la visualizzazione, non i pixel.</translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents</source>
+        <translation>Questo filtro non è disponibile nei documenti a 32 bit</translation>
+    </message>
+    <message>
+        <source>Linear RGB: %1, %2, %3</source>
+        <translation>RGB lineare: %1, %2, %3</translation>
+    </message>
+    <message>
+        <source>Exposure: </source>
+        <translation>Esposizione: </translation>
+    </message>
+    <message>
+        <source>This text boundary is preserved but cannot be edited.</source>
+        <translation>Questo contorno del testo viene conservato, ma non può essere modificato.</translation>
+    </message>
+    <message>
+        <source>%1 Text Boundary</source>
+        <translation>Contorno del testo %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -20347,6 +20411,30 @@ Convertiti in immagini: %1.</translation>
     <message>
         <source>resizeImage method must be one of %1.</source>
         <translation>Il metodo di resizeImage deve essere uno tra %1.</translation>
+    </message>
+    <message>
+        <source>convertBitDepth takes 8, 16 or 32.</source>
+        <translation>convertBitDepth accetta 8, 16 o 32.</translation>
+    </message>
+    <message>
+        <source>16 and 32-bit editing is not enabled.</source>
+        <translation>La modifica a 16 e 32 bit non è attivata.</translation>
+    </message>
+    <message>
+        <source>Indexed documents are 8-bit only.</source>
+        <translation>I documenti in scala di colore sono solo a 8 bit.</translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents.</source>
+        <translation>Questo filtro non è disponibile nei documenti a 32 bit.</translation>
+    </message>
+    <message>
+        <source>The web version edits up to 16 bits per channel.</source>
+        <translation>La versione web modifica fino a 16 bit per canale.</translation>
+    </message>
+    <message>
+        <source>Blend mode %1 is not available in 32-bit documents.</source>
+        <translation>Il metodo di fusione %1 non è disponibile nei documenti a 32 bit.</translation>
     </message>
 </context>
 <context>

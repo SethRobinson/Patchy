@@ -948,10 +948,6 @@
         <translation>스타터 내장 필터는 UInt8 버퍼만 지원합니다.</translation>
     </message>
     <message>
-        <source>Filter previews support UInt8 buffers only</source>
-        <translation>필터 미리 보기는 UInt8 버퍼만 지원합니다.</translation>
-    </message>
-    <message>
         <source>Unknown catalogued filter identifier</source>
         <translation>알 수 없는 카탈로그 필터 식별자</translation>
     </message>
@@ -8902,6 +8898,50 @@ RGB: %2, %3, %4</translation>
         <translation>PSD 채널의 비트 심도가 문서와 일치하지 않습니다</translation>
     </message>
     <message>
+        <source>8 Bits/Channel</source>
+        <translation>8비트/채널</translation>
+    </message>
+    <message>
+        <source>16 Bits/Channel</source>
+        <translation>16비트/채널</translation>
+    </message>
+    <message>
+        <source>32 Bits/Channel</source>
+        <translation>32비트/채널</translation>
+    </message>
+    <message>
+        <source>Bit Depth</source>
+        <translation>비트 심도</translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents</source>
+        <translation>이 필터는 32비트 문서에서 사용할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>HDR Toning</source>
+        <translation>HDR 토닝</translation>
+    </message>
+    <message>
+        <source>Exposure and Gamma</source>
+        <translation>노출 및 감마</translation>
+    </message>
+    <message>
+        <source>Gamma</source>
+        <translation>감마</translation>
+    </message>
+    <message>
+        <source>Bits per channel for the stress test documents: 8, 16, or 32.</source>
+        <translation>스트레스 테스트 문서의 채널당 비트 수: 8, 16 또는 32.</translation>
+    </message>
+    <message>
+        <source>The 32-bit image was converted to 16 bits per channel: the web version edits up to 16.</source>
+        <translation>32비트 이미지를 채널당 16비트로 변환했습니다. 웹 버전은 16비트까지 편집합니다.</translation>
+    </message>
+    <message>
+        <source>This document&apos;s preserved text engine cannot store new area text.</source>
+        <translation>이 문서에 보존된 텍스트 엔진은 새로운 도형 안의 텍스트를 저장할 수 없습니다.</translation>
+    </message>
+    <message>
         <source>Palettized DDS textures are not supported</source>
         <translation>팔레트 방식 DDS 텍스처는 지원되지 않습니다</translation>
     </message>
@@ -8990,6 +9030,14 @@ RGB: %2, %3, %4</translation>
         <translation>빈 문서는 DDS 텍스처로 쓸 수 없습니다</translation>
     </message>
     <message>
+        <source>BC4 keeps one channel: the image was saved as its grayscale luminance without transparency</source>
+        <translation>BC4는 채널 하나만 유지합니다: 이미지가 투명도 없는 회색조 휘도로 저장되었습니다</translation>
+    </message>
+    <message>
+        <source>BC5 keeps the red and green channels only: blue and transparency were dropped</source>
+        <translation>BC5는 빨간색과 초록색 채널만 유지합니다: 파란색과 투명도가 제거되었습니다</translation>
+    </message>
+    <message>
         <source>File-format and automation plug-ins are not supported; only filter (.8bf) plug-ins run. DDS textures open natively through File &gt; Open.</source>
         <translation>파일 형식 및 자동화 플러그인은 지원되지 않습니다. 필터(.8bf) 플러그인만 실행됩니다. DDS 텍스처는 파일 &gt; 열기에서 바로 열 수 있습니다.</translation>
     </message>
@@ -9014,26 +9062,6 @@ RGB: %2, %3, %4</translation>
         <translation>BC3 / DXT5(압축, 전체 투명도)</translation>
     </message>
     <message>
-        <source>Compression:</source>
-        <translation>압축:</translation>
-    </message>
-    <message>
-        <source>Generate mipmaps</source>
-        <translation>밉맵 생성</translation>
-    </message>
-    <message>
-        <source>DirectDraw Surface</source>
-        <translation>DirectDraw Surface</translation>
-    </message>
-    <message>
-        <source>BC4 keeps one channel: the image was saved as its grayscale luminance without transparency</source>
-        <translation>BC4는 채널 하나만 유지합니다: 이미지가 투명도 없는 회색조 휘도로 저장되었습니다</translation>
-    </message>
-    <message>
-        <source>BC5 keeps the red and green channels only: blue and transparency were dropped</source>
-        <translation>BC5는 빨간색과 초록색 채널만 유지합니다: 파란색과 투명도가 제거되었습니다</translation>
-    </message>
-    <message>
         <source>BC7 (best quality, full transparency, DX10 header)</source>
         <translation>BC7(최고 품질, 전체 투명도, DX10 헤더)</translation>
     </message>
@@ -9046,8 +9074,20 @@ RGB: %2, %3, %4</translation>
         <translation>BC5 / ATI2(빨간색과 초록색 채널, 노멀 맵)</translation>
     </message>
     <message>
+        <source>Compression:</source>
+        <translation>압축:</translation>
+    </message>
+    <message>
+        <source>Generate mipmaps</source>
+        <translation>밉맵 생성</translation>
+    </message>
+    <message>
         <source>The BC formats are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. BC4 stores grayscale only and BC5 the red and green channels; both drop transparency. Mipmaps are generated down to 1x1 with a box filter.</source>
         <translation>BC 형식은 손실 압축 4x4 블록 형식입니다. BC1은 1비트 투명도만 유지하므로 알파가 50퍼센트 미만인 픽셀은 완전히 투명해집니다. BC4는 회색조만, BC5는 빨간색과 초록색 채널만 저장하며 둘 다 투명도를 버립니다. 밉맵은 박스 필터로 1x1까지 생성됩니다.</translation>
+    </message>
+    <message>
+        <source>DirectDraw Surface</source>
+        <translation>DirectDraw Surface</translation>
     </message>
 </context>
 <context>
@@ -18849,6 +18889,30 @@ Y: %2
         <source>Converted to %1</source>
         <translation>%1(으)로 변환했습니다</translation>
     </message>
+    <message>
+        <source>32-bit preview exposure in stops. It changes the display, not the pixels.</source>
+        <translation>32비트 미리 보기 노출(스톱 단위). 픽셀이 아닌 표시만 바꿉니다.</translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents</source>
+        <translation>이 필터는 32비트 문서에서 사용할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Linear RGB: %1, %2, %3</source>
+        <translation>선형 RGB: %1, %2, %3</translation>
+    </message>
+    <message>
+        <source>Exposure: </source>
+        <translation>노출: </translation>
+    </message>
+    <message>
+        <source>This text boundary is preserved but cannot be edited.</source>
+        <translation>이 텍스트 경계는 보존되지만 편집할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>%1 Text Boundary</source>
+        <translation>%1 텍스트 경계</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -20290,6 +20354,30 @@ Y: %2
     <message>
         <source>resizeImage method must be one of %1.</source>
         <translation>resizeImage의 method는 %1 중 하나여야 합니다.</translation>
+    </message>
+    <message>
+        <source>convertBitDepth takes 8, 16 or 32.</source>
+        <translation>convertBitDepth에는 8, 16 또는 32를 지정합니다.</translation>
+    </message>
+    <message>
+        <source>16 and 32-bit editing is not enabled.</source>
+        <translation>16비트 및 32비트 편집이 활성화되어 있지 않습니다.</translation>
+    </message>
+    <message>
+        <source>Indexed documents are 8-bit only.</source>
+        <translation>인덱스 색상 문서는 8비트만 지원합니다.</translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents.</source>
+        <translation>이 필터는 32비트 문서에서 사용할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>The web version edits up to 16 bits per channel.</source>
+        <translation>웹 버전은 채널당 16비트까지 편집합니다.</translation>
+    </message>
+    <message>
+        <source>Blend mode %1 is not available in 32-bit documents.</source>
+        <translation>혼합 모드 %1은(는) 32비트 문서에서 사용할 수 없습니다.</translation>
     </message>
 </context>
 <context>

@@ -253,12 +253,59 @@ void psd_deep_photoshop_corpus_reads_and_round_trips_if_available() {
 
 }  // namespace
 
+// Photoshop 2026 refuses to open a 32-bit file with a layer in Color Burn, Linear Burn,
+// Screen, Color Dodge, Overlay, the Lights, Hard Mix or Exclusion, and its conversion
+// to 32 bits sets them to Normal (probed over COM, October 2026). Patchy converts the
+// same way, and the writer never writes them at 32 bits.
+void psd_deep_32_bit_blend_modes_follow_photoshop() {
+  for (int index = static_cast<int>(BlendMode::Normal); index <= static_cast<int>(BlendMode::Dissolve); ++index) {
+    const auto mode = static_cast<BlendMode>(index);
+    CHECK(blend_mode_supported_at_depth(mode, BitDepth::UInt8));
+    CHECK(blend_mode_supported_at_depth(mode, BitDepth::UInt16));
+  }
+  for (const auto mode : {BlendMode::Screen, BlendMode::Overlay, BlendMode::ColorBurn, BlendMode::LinearBurn,
+                          BlendMode::ColorDodge, BlendMode::SoftLight, BlendMode::HardLight, BlendMode::VividLight,
+                          BlendMode::LinearLight, BlendMode::PinLight, BlendMode::HardMix, BlendMode::Exclusion}) {
+    CHECK(!blend_mode_supported_at_depth(mode, BitDepth::Float32));
+  }
+  for (const auto mode : {BlendMode::Normal, BlendMode::Dissolve, BlendMode::Darken, BlendMode::Multiply,
+                          BlendMode::DarkerColor, BlendMode::Lighten, BlendMode::LinearDodge, BlendMode::LighterColor,
+                          BlendMode::Difference, BlendMode::Subtract, BlendMode::Divide, BlendMode::Hue,
+                          BlendMode::Saturation, BlendMode::Color, BlendMode::Luminosity, BlendMode::PassThrough}) {
+    CHECK(blend_mode_supported_at_depth(mode, BitDepth::Float32));
+  }
+
+  auto document = make_deep_document(BitDepth::UInt16);
+  document.layers()[0].set_blend_mode(BlendMode::Multiply);
+  document.layers()[1].set_blend_mode(BlendMode::Overlay);
+  auto sixteen = document;
+  convert_document_depth(sixteen, BitDepth::UInt8);
+  CHECK(sixteen.layers()[1].blend_mode() == BlendMode::Overlay);
+  convert_document_depth(document, BitDepth::Float32);
+  CHECK(document.layers()[0].blend_mode() == BlendMode::Multiply);
+  CHECK(document.layers()[1].blend_mode() == BlendMode::Normal);
+
+  // A mode set after the conversion (an older layer pasted in, a hand edit) is written as
+  // Normal so Photoshop still opens the file; 16 bits keep it.
+  document.layers()[1].set_blend_mode(BlendMode::Screen);
+  psd::ReadOptions options;
+  options.keep_bit_depth = true;
+  const auto read = psd::DocumentIo::read(psd::DocumentIo::write_layered_rgb8(document), options);
+  CHECK(read.layers()[0].blend_mode() == BlendMode::Multiply);
+  CHECK(read.layers()[1].blend_mode() == BlendMode::Normal);
+  auto deep16 = make_deep_document(BitDepth::UInt16);
+  deep16.layers()[1].set_blend_mode(BlendMode::Screen);
+  const auto read16 = psd::DocumentIo::read(psd::DocumentIo::write_layered_rgb8(deep16), options);
+  CHECK(read16.layers()[1].blend_mode() == BlendMode::Screen);
+}
+
 std::vector<patchy::test::TestCase> psd_deep_io_tests() {
   return {
       {"psd_deep_composite_is_written_at_depth", psd_deep_composite_is_written_at_depth},
       {"psd_deep_16_bit_document_round_trips_exactly", psd_deep_16_bit_document_round_trips_exactly},
       {"psd_deep_32_bit_document_round_trips_exactly", psd_deep_32_bit_document_round_trips_exactly},
       {"psd_deep_gate_off_reads_8_bit_as_before", psd_deep_gate_off_reads_8_bit_as_before},
+      {"psd_deep_32_bit_blend_modes_follow_photoshop", psd_deep_32_bit_blend_modes_follow_photoshop},
       {"psd_deep_photoshop_corpus_reads_and_round_trips_if_available",
        psd_deep_photoshop_corpus_reads_and_round_trips_if_available},
   };

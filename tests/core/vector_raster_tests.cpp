@@ -4,6 +4,7 @@
 #include "core/pattern_resource.hpp"
 #include "core/vector_live_shapes.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/pixel_depth.hpp"
 #include "core/shape_combine.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
@@ -1360,9 +1361,69 @@ void gradient_fill_layer_geometry_matches_photoshop_probes() {
   CHECK(!close_to(patchy::gradient_position(gradient, box4, 0, 0, patchy::GradientSpanBasis::LayerProjection), 0.0F));
 }
 
+// A gradient fill layer without a vector mask aligns to the layer's bounds, which its
+// user mask decides when the mask hides the rest of the canvas: Photoshop's
+// gradient-fill.psd (32-bit) spans the mask's visible rows 6..100, not the canvas. The
+// 8-bit bake and the deep raster agree.
+void gradient_fill_layer_aligns_to_its_mask_bounds() {
+  constexpr int kSize = 40;
+  patchy::Layer layer(1, "Gradient Fill 1", patchy::PixelBuffer());
+  patchy::VectorShapeContent content;
+  content.fill.kind = patchy::VectorFillKind::Gradient;
+  content.fill.gradient.type = patchy::LayerStyleGradientType::Linear;
+  content.fill.gradient.angle_degrees = 90.0F;  // bottom (first stop) to top
+  content.fill.gradient.align_with_layer = true;
+  content.fill.gradient.color_stops = {{0.0F, patchy::RgbColor{0, 0, 0}, 0.5F},
+                                       {1.0F, patchy::RgbColor{255, 255, 255}, 0.5F}};
+  content.fill.gradient.alpha_stops = {{0.0F, 1.0F, 0.5F}, {1.0F, 1.0F, 0.5F}};
+  layer.set_vector_shape(content);
+  layer.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+  patchy::PixelBuffer mask(kSize, kSize, patchy::PixelFormat::gray8());
+  mask.clear(0);
+  for (int y = 10; y < 30; ++y) {
+    for (int x = 15; x < 25; ++x) {
+      mask.pixel(x, y)[0] = 255;
+    }
+  }
+  layer.set_mask(patchy::LayerMask{patchy::Rect::from_size(kSize, kSize), mask, 0, false});
+  const auto canvas = patchy::Rect::from_size(kSize, kSize);
+  patchy::update_vector_shape_raster(layer, canvas, nullptr);
+  const auto& pixels = layer.pixels();
+  const auto value_at = [&](int y) {
+    return static_cast<int>(pixels.pixel(20 - layer.bounds().x, y - layer.bounds().y)[0]);
+  };
+  // The ramp runs over the mask's rows 10..29: nearly black at its bottom, nearly white
+  // at its top, where the canvas-wide ramp would sit near the middle.
+  CHECK(value_at(29) < 40);
+  CHECK(value_at(10) > 215);
+  CHECK(value_at(20) > 100 && value_at(20) < 160);
+
+  // A mask that shows the canvas outside it keeps the canvas alignment.
+  auto revealed = layer;
+  auto revealed_mask = *revealed.mask();
+  revealed_mask.default_color = 255;
+  revealed.set_mask(revealed_mask);
+  patchy::update_vector_shape_raster(revealed, canvas, nullptr);
+  const auto canvas_value = static_cast<int>(
+      revealed.pixels().pixel(20 - revealed.bounds().x, 29 - revealed.bounds().y)[0]);
+  CHECK(canvas_value > 40);
+
+  // The 16-bit raster spans the same rows.
+  const auto deep = patchy::deep_gradient_fill_raster(layer, patchy::BitDepth::UInt16);
+  CHECK(deep != nullptr);
+  if (deep != nullptr) {
+    const auto deep_at = [&](int y) {
+      return patchy::load_pixel(deep->format(), deep->pixel(20 - layer.bounds().x, y - layer.bounds().y))[0];
+    };
+    CHECK(std::abs(deep_at(29) - static_cast<float>(value_at(29))) < 2.0F);
+    CHECK(std::abs(deep_at(10) - static_cast<float>(value_at(10))) < 2.0F);
+  }
+}
+
 std::vector<patchy::test::TestCase> vector_raster_tests() {
   return {
       {"gradient_fill_layer_geometry_matches_photoshop_probes", gradient_fill_layer_geometry_matches_photoshop_probes},
+      {"gradient_fill_layer_aligns_to_its_mask_bounds", gradient_fill_layer_aligns_to_its_mask_bounds},
       {"raster_shape_feather_softens_edge_and_density_floors_alpha",
        raster_shape_feather_softens_edge_and_density_floors_alpha},
       {"raster_axis_aligned_rect_coverage_is_exact", raster_axis_aligned_rect_coverage_is_exact},

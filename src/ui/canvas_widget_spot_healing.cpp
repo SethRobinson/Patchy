@@ -543,6 +543,19 @@ CanvasWidget::RemoveObjectResult CanvasWidget::remove_object_in_selection(const 
 QRect CanvasWidget::heal_mask_from_surroundings(QRect bounds, const std::vector<std::uint8_t>& mask,
                                                 const QImage& snapshot, const SpotHealSourceMap& source_map,
                                                 Layer& layer, bool clip_to_selection) {
+  if (std::as_const(layer).pixels().format().bit_depth != BitDepth::UInt8) {
+    // 16/32-bit layers heal a narrowed copy; only the healed pixels come back at
+    // 8-bit precision (NarrowedLayerEdit).
+    QRect healed;
+    {
+      const NarrowedLayerEdit narrowed(layer, {});
+      healed = heal_mask_from_surroundings(bounds, mask, snapshot, source_map, layer, clip_to_selection);
+    }
+    if (!healed.isEmpty()) {
+      active_edit_target_changed_impl(QRegion(healed), DocumentChangeReason::BrushStrokeFinished);
+    }
+    return healed;
+  }
   const auto width = bounds.width();
   const auto height = bounds.height();
   begin_processing_operation();

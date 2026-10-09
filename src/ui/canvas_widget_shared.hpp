@@ -20,6 +20,7 @@
 
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <chrono>
 #include <cstdio>
 #include <optional>
@@ -69,6 +70,29 @@ std::uint8_t mask_value_from_color(QColor color);
 
 // Coverage-weighted blend of a mask value over the current one.
 std::uint8_t blend_mask_value(std::uint8_t current, std::uint8_t value, float coverage);
+// Runs an 8-bit retouch (Spot Healing, Remove Object, Patch) on a 16/32-bit layer
+// (docs/high-bit-depth.md): construction swaps in the layer narrowed to 8 bits;
+// destruction writes back, at the layer's depth, only the pixels the edit changed, so
+// every other pixel keeps its full precision, then calls `changed` once.
+class NarrowedLayerEdit {
+public:
+  NarrowedLayerEdit(Layer& layer, std::function<void()> changed);
+  ~NarrowedLayerEdit();
+  NarrowedLayerEdit(const NarrowedLayerEdit&) = delete;
+  NarrowedLayerEdit& operator=(const NarrowedLayerEdit&) = delete;
+
+private:
+  Layer& layer_;
+  std::function<void()> changed_;
+  PixelBuffer deep_;
+  PixelBuffer narrowed_before_;
+  Rect bounds_before_{};
+};
+// blend_mask_value on the mask sample at `px` in a gray buffer of `format`, at its depth
+// (16/32-bit masks blend in float, docs/high-bit-depth.md).
+void blend_mask_at(PixelFormat format, std::uint8_t* px, std::uint8_t value, float coverage);
+// The mask sample at `px` as 0..255 (any depth).
+[[nodiscard]] float mask_sample_at(PixelFormat format, const std::uint8_t* px);
 
 // Normalized QRect spanned by two corner points; shared by the selection TU
 // and the shape/draw and event code still in canvas_widget.cpp.

@@ -1,6 +1,8 @@
 #include "filters/filter_registry.hpp"
 
 #include "core/blend_math.hpp"
+#include "core/blend_math_deep.hpp"
+#include "core/pixel_depth.hpp"
 #include "filters/filter_support.hpp"
 #include "support/translate_noop.hpp"
 
@@ -222,6 +224,47 @@ FilterRenderResult blend_recipe_result(FilterRenderResult before,
   const auto color_channels =
       std::min<std::uint16_t>(destination.format().channels, 3);
   const auto has_alpha = destination.format().channels >= 4;
+  if (destination.format().bit_depth != BitDepth::UInt8) {
+    // 16/32-bit results (docs/high-bit-depth.md): the same premultiplied
+    // interpolation in float.
+    const auto format = destination.format();
+    const auto domain = deep_domain_for(format.bit_depth);
+    const auto pixel_size = bytes_per_pixel(format);
+    const auto effect =
+        static_cast<float>(effect_weight) / static_cast<float>(kOpacityScale);
+    for (std::int32_t y = 0; y < destination.height(); ++y) {
+      auto *destination_row = destination.row(y).data();
+      const auto *source_row = std::as_const(source).row(y).data();
+      for (std::int32_t x = 0; x < destination.width(); ++x) {
+        auto *dst = destination_row + static_cast<std::size_t>(x) * pixel_size;
+        const auto src_values =
+            load_pixel(format, source_row + static_cast<std::size_t>(x) * pixel_size);
+        auto dst_values = load_pixel(format, dst);
+        const auto source_alpha = src_values[3] / 255.0F;
+        const auto destination_alpha = dst_values[3] / 255.0F;
+        DeepChannels effect_rgb{src_values[0], src_values[1], src_values[2]};
+        if (blend_mode != BlendMode::Normal && source_alpha > 0.0F &&
+            destination_alpha > 0.0F) {
+          effect_rgb = blend_rgb_deep(
+              effect_rgb, {dst_values[0], dst_values[1], dst_values[2]},
+              blend_mode, domain);
+        }
+        const auto alpha = destination_alpha * (1.0F - effect) +
+                           source_alpha * effect;
+        for (std::size_t c = 0; c < 3U; ++c) {
+          dst_values[c] =
+              alpha > 0.0F
+                  ? (dst_values[c] * destination_alpha * (1.0F - effect) +
+                     effect_rgb[c] * source_alpha * effect) /
+                        alpha
+                  : 0.0F;
+        }
+        dst_values[3] = alpha * 255.0F;
+        store_pixel(format, dst, dst_values);
+      }
+    }
+    return FilterRenderResult{std::move(destination), bounds};
+  }
   for (std::int32_t y = 0; y < destination.height(); ++y) {
     for (std::int32_t x = 0; x < destination.width(); ++x) {
       auto *dst = destination.pixel(x, y);
@@ -297,9 +340,11 @@ Rect trim_transparent_border(PixelBuffer &buffer, Rect bounds,
   std::int32_t min_y = buffer.height();
   std::int32_t max_x = -1;
   std::int32_t max_y = -1;
+  const auto deep = buffer.format().bit_depth != BitDepth::UInt8;
   for (std::int32_t y = 0; y < buffer.height(); ++y) {
     for (std::int32_t x = 0; x < buffer.width(); ++x) {
-      if (buffer.pixel(x, y)[3] != 0) {
+      if (deep ? pixel_alpha_at(buffer, x, y) > 0.0F
+               : std::as_const(buffer).pixel(x, y)[3] != 0) {
         min_x = std::min(min_x, x);
         min_y = std::min(min_y, y);
         max_x = std::max(max_x, x);

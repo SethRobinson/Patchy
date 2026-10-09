@@ -2,9 +2,20 @@
 
 #include "filters/filter_registry.hpp"
 
+#include <cstdint>
 #include <string_view>
 
 namespace patchy {
+
+// How a catalogued filter runs on a layer of a given depth (docs/high-bit-depth.md).
+// 8-bit layers are always Native.
+enum class DeepFilterSupport : std::uint8_t {
+  Native,             // computed at the layer's depth
+  EightBitPrecision,  // computed on an 8-bit copy; the change is folded back at depth
+  Unsupported         // not offered at this depth (shown disabled)
+};
+
+[[nodiscard]] DeepFilterSupport deep_filter_support(std::string_view filter_id, BitDepth depth);
 
 // Returns the built-in catalog entry for identifier, or an empty metadata
 // record when identifier is not a built-in filter.

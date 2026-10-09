@@ -7,8 +7,10 @@
 // command-line example and scripting-guide viewer surfaces work.
 
 #include "core/document.hpp"
+#include "core/document_depth.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/palette.hpp"
+#include "core/pixel_depth.hpp"
 #include "formats/document_flatten.hpp"
 #include "formats/webp_animation_io.hpp"
 #include <QImageReader>
@@ -931,6 +933,66 @@ void ui_script_filters_and_text_layers() {
   CHECK(backlog_contains(window, QStringLiteral("inverted=0,255,255")));
   CHECK(backlog_contains(window, QStringLiteral("text=true,Scripted Text")));
   CHECK(backlog_contains(window, QStringLiteral("bad-mode-threw=true")));
+}
+
+// doc.bitDepth / convertBitDepth and filters on 16/32-bit layers
+// (docs/high-bit-depth.md): a deep kernel (Invert), the 8-bit-precision path on 16
+// bits (Median), Median refused on 32 bits, and the Filter menu following the depth.
+void ui_script_bit_depth_and_deep_filters() {
+  patchy::set_deep_editing_override(true);
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    CHECK(run_script(window, QStringLiteral(R"JS(
+      var doc = app.activeDocument;
+      console.log('depth-start=' + doc.bitDepth);
+      doc.convertBitDepth(16);
+      console.log('depth-after=' + doc.bitDepth);
+      var layer = doc.addLayer('Deep');
+      layer.fill('#336699');
+      layer.applyFilter('patchy.filters.invert');
+      var view = new Uint8Array(layer.getPixels().data);
+      console.log('deep-inverted=' + view[0] + ',' + view[1] + ',' + view[2]);
+      layer.applyFilter('patchy.filters.median');
+      var bad = false;
+      try { doc.convertBitDepth(12); } catch (error) { bad = true; }
+      console.log('bad-bits=' + bad);
+    )JS")));
+    CHECK(backlog_contains(window, QStringLiteral("depth-start=8")));
+    CHECK(backlog_contains(window, QStringLiteral("depth-after=16")));
+    CHECK(backlog_contains(window, QStringLiteral("deep-inverted=204,153,102")));
+    CHECK(backlog_contains(window, QStringLiteral("bad-bits=true")));
+    const auto& document = patchy::ui::MainWindowTestAccess::document(window);
+    const auto* deep_layer = layer_named(document, "Deep");
+    CHECK(deep_layer != nullptr && deep_layer->pixels().format().bit_depth == patchy::BitDepth::UInt16);
+    const auto find_action = [&window](const QString& name) { return window.findChild<QAction*>(name); };
+    auto* median_action = find_action(QStringLiteral("filterAction_patchy_filters_median"));
+    auto* gaussian_action = find_action(QStringLiteral("filterAction_patchy_filters_gaussian_blur"));
+    CHECK(median_action != nullptr && gaussian_action != nullptr);
+    CHECK(median_action != nullptr && median_action->isEnabled());
+
+    CHECK(run_script(window, QStringLiteral(R"JS(
+      var doc = app.activeDocument;
+      doc.convertBitDepth(32);
+      var layer = doc.activeLayer;
+      var threw = false;
+      try { layer.applyFilter('patchy.filters.median'); } catch (error) { threw = true; }
+      console.log('median32-threw=' + threw);
+      layer.applyFilter('patchy.filters.gaussian_blur', {radius: 2});
+      console.log('depth32=' + doc.bitDepth);
+      var screenThrew = false;
+      try { layer.blendMode = 'screen'; } catch (error) { screenThrew = true; }
+      layer.blendMode = 'multiply';
+      console.log('screen32-threw=' + screenThrew + ' mode=' + layer.blendMode);
+    )JS")));
+    CHECK(backlog_contains(window, QStringLiteral("median32-threw=true")));
+    CHECK(backlog_contains(window, QStringLiteral("depth32=32")));
+    CHECK(backlog_contains(window, QStringLiteral("screen32-threw=true mode=multiply")));
+    CHECK(median_action != nullptr && !median_action->isEnabled());
+    CHECK(gaussian_action != nullptr && gaussian_action->isEnabled());
+    CHECK(patchy::document_depth_problems(patchy::ui::MainWindowTestAccess::document(window)).empty());
+  }
+  patchy::set_deep_editing_override(std::nullopt);
 }
 
 // addTextLayer's size is document pixels: the committed raster must not depend
@@ -4009,6 +4071,7 @@ std::vector<patchy::test::TestCase> scripting_tests() {
        ui_script_busy_panel_yields_to_script_dialogs},
       {"ui_script_console_and_error_line_numbers", ui_script_console_and_error_line_numbers},
       {"ui_script_filters_and_text_layers", ui_script_filters_and_text_layers},
+      {"ui_script_bit_depth_and_deep_filters", ui_script_bit_depth_and_deep_filters},
       {"ui_script_text_size_is_zoom_independent", ui_script_text_size_is_zoom_independent},
       {"ui_script_text_font_option_applies", ui_script_text_font_option_applies},
       {"ui_script_text_face_ignores_the_options_bar_style", ui_script_text_face_ignores_the_options_bar_style},

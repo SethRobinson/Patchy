@@ -340,7 +340,8 @@ void MainWindow::new_levels_adjustment_layer() {
   const PixelBuffer* histogram_source = nullptr;
   if (restore_active_layer.has_value()) {
     const auto& read_only_document = std::as_const(document());
-    if (const auto* layer = read_only_document.find_layer(*restore_active_layer); editable_rgb8_layer(layer)) {
+    if (const auto* layer = read_only_document.find_layer(*restore_active_layer);
+        editable_rgb_layer_any_depth(layer)) {
       histogram_source = &layer->pixels();
     }
   }
@@ -619,11 +620,14 @@ Layer MainWindow::build_adjustment_layer(QString label, const AdjustmentSettings
   const auto selection = canvas_->selected_document_region();
   const auto selection_rect = selection.boundingRect().intersected(QRect(0, 0, doc.width(), doc.height()));
   if (!selection.isEmpty() && !selection_rect.isEmpty()) {
-    layer.set_mask(LayerMask{to_core_rect(selection_rect), selection_mask_pixels(*canvas_, selection_rect), 0, false});
+    layer.set_mask(LayerMask{to_core_rect(selection_rect),
+                             coverage_at_document_depth(doc, selection_mask_pixels(*canvas_, selection_rect)), 0,
+                             false});
   } else {
     PixelBuffer mask_pixels(doc.width(), doc.height(), PixelFormat::gray8());
     mask_pixels.clear(255);
-    layer.set_mask(LayerMask{Rect::from_size(doc.width(), doc.height()), std::move(mask_pixels), 255, false});
+    layer.set_mask(LayerMask{Rect::from_size(doc.width(), doc.height()),
+                             coverage_at_document_depth(doc, std::move(mask_pixels)), 255, false});
   }
   return layer;
 }

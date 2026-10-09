@@ -8,6 +8,8 @@
 // NOTE: canvas_widget_pen.cpp is TABLET INPUT (pressure, tilt, pen buttons),
 // not this vector Pen tool.
 #include "ui/canvas_widget.hpp"
+#include "core/text_area.hpp"
+#include "ui/main_window_shared.hpp"
 
 #include "core/document_path.hpp"
 #include "core/vector_live_shapes.hpp"
@@ -606,6 +608,19 @@ void CanvasWidget::notify_path_selection_changed() {
   }
 }
 
+const VectorPath* CanvasWidget::text_area_edit_target_path() const {
+  if (!document_) return nullptr;
+  const auto active = std::as_const(*document_).active_layer_id();
+  const auto* layer = active ? std::as_const(*document_).find_layer(*active) : nullptr;
+  if (!layer || !layer->metadata().contains(kLayerMetadataTextArea) || text_geometry_is_protected(*layer)) return nullptr;
+  if (text_area_path_layer_ != active || text_area_path_revision_ != layer->render_revision()) {
+    text_area_path_cache_ = text_area_in_document(*layer);
+    text_area_path_layer_ = active;
+    text_area_path_revision_ = layer->render_revision();
+  }
+  return text_area_path_cache_ ? &*text_area_path_cache_ : nullptr;
+}
+
 const VectorPath* CanvasWidget::path_edit_target_path() const {
   if (layer_edit_target_ == LayerEditTarget::VectorMask) {
     if (const auto* layer = vector_mask_target_layer(); layer != nullptr) {
@@ -619,6 +634,7 @@ const VectorPath* CanvasWidget::path_edit_target_path() const {
       return &path->path();
     }
   }
+  if (const auto* area = text_area_edit_target_path()) return area;
   if (const auto* layer = path_edit_target_layer(); layer != nullptr) {
     return &layer->vector_shape()->path;
   }
@@ -723,6 +739,28 @@ void CanvasWidget::replace_path_edit_target(VectorPath path, const std::vector<i
         path_edited_callback_();
       }
     }
+    return;
+  }
+  if (text_area_edit_target_path()) {
+    auto* layer = document_->find_layer(*document_->active_layer_id());
+    if (!layer || !valid_text_area(path) || !vector_lock_reason(std::as_const(*layer)).empty()) return;
+    const auto affine = text_area_transform(std::as_const(*layer));
+    bool invertible = false;
+    const auto inverse = QTransform(affine[0], affine[1], affine[2], affine[3], affine[4], affine[5]).inverted(&invertible);
+    if (!invertible) return;
+    transform_vector_path(path, {inverse.m11(), inverse.m12(), inverse.m21(), inverse.m22(), inverse.dx(), inverse.dy()});
+    if (!valid_text_area(path)) return;
+    const auto original = *layer;
+    const auto old_rect = to_qrect(layer_bounds_with_effects(std::as_const(*layer), layer->bounds()));
+    layer->metadata()[kLayerMetadataTextArea] = serialize_vector_path(path);
+    layer->metadata()[kLayerMetadataTextRasterStatus] = "patchy_raster";
+    layer->metadata()[kLayerMetadataTextLayoutMode] = kTextLayoutModePhotoshop;
+    const auto bounds = path.bounds();
+    layer->metadata()[kLayerMetadataTextBoxWidth] = std::to_string(std::max(16, static_cast<int>(std::ceil(bounds->right))));
+    layer->metadata()[kLayerMetadataTextBoxHeight] = std::to_string(std::max(16, static_cast<int>(std::ceil(bounds->bottom))));
+    if (!rerender_text_layer_through_stored_transform(*layer)) { *layer = original; return; }
+    document_changed_effect_bounds(old_rect.united(to_qrect(layer_bounds_with_effects(std::as_const(*layer), layer->bounds()))));
+    if (path_edited_callback_) path_edited_callback_();
     return;
   }
   if (auto* layer = path_edit_target_layer(); layer != nullptr) {

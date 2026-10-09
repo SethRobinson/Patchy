@@ -4,6 +4,7 @@
 // blocks and the shape of what Patchy authors.
 #include "core/document.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/text_area.hpp"
 #include "psd/engine_data.hpp"
 #include "psd/psd_document_io.hpp"
 #include "psd/psd_text_engine_block.hpp"
@@ -305,8 +306,162 @@ void text_engine_retyped_layer_replaces_its_object_in_place() {
   CHECK(text_index_of(appended_bytes, static_cast<int>(text_layers[0])) == 2);
 }
 
+void text_engine_area_frames_preserve_native_contours() {
+  using namespace patchy;
+  using namespace patchy::psd;
+  for (const auto* name : {"photoshop-area-triangle.psd", "photoshop-area-concave.psd", "photoshop-area-ellipse.psd"}) {
+    const auto bytes = read_all(test::committed_psd_fixture_path(name));
+    const auto payload = text_engine_payload(bytes);
+    CHECK(payload.has_value());
+    if (!payload) continue;
+    const auto engine = TextEngineBlock::parse(*payload);
+    CHECK(engine.has_value());
+    if (!engine) continue;
+    const auto geometry = engine->object_geometry(0);
+    CHECK(geometry.kind == TextFrameGeometry::Kind::Area);
+    CHECK(geometry.area.has_value());
+    if (!geometry.area) continue;
+    const auto& anchors = geometry.area->subpaths.front().anchors;
+    if (std::string_view(name) == "photoshop-area-triangle.psd") {
+      CHECK(anchors.size() == 3);
+      CHECK(anchors.front().anchor_x == 250.0);
+      CHECK(anchors.front().anchor_y == 0.0);
+      CHECK(anchors[1].anchor_x == 500.0 && anchors[1].anchor_y == 400.0);
+    } else if (std::string_view(name) == "photoshop-area-concave.psd") {
+      CHECK(anchors.size() == 8);
+      CHECK(anchors[4].anchor_x == 320.0 && anchors[4].anchor_y == 150.0);
+    } else {
+      CHECK(anchors.size() == 4);
+      CHECK(std::abs(anchors.front().out_x - 388.0712) < 0.001);
+    }
+    auto document = DocumentIo::read(bytes);
+    auto text = std::find_if(document.layers().begin(), document.layers().end(), [](const Layer& l) {
+      return layer_is_text(l);
+    });
+    CHECK(text != document.layers().end());
+    if (text == document.layers().end()) continue;
+    CHECK(text_area_for_layer(*text) == geometry.area);
+    CHECK(!text_geometry_is_protected(*text));
+    // Untouched geometry retains its native frame. Editing causes both the layer
+    // and document text object to be authored from the same local boundary.
+    for (bool edited : {false, true}) {
+      if (edited) {
+        text->metadata()[kLayerMetadataTextRasterStatus] = "patchy_raster";
+        text->metadata()[kLayerMetadataText] = "Edited area";
+      }
+      const auto saved = DocumentIo::write_layered_rgb8(document);
+      const auto saved_payload = text_engine_payload(saved);
+      CHECK(saved_payload.has_value());
+      if (!saved_payload) continue;
+      const auto saved_engine = TextEngineBlock::parse(*saved_payload);
+      CHECK(saved_engine.has_value());
+      if (!saved_engine) continue;
+      const auto saved_area = saved_engine->object_geometry(0).area;
+      CHECK(saved_area.has_value());
+      CHECK(saved_area == geometry.area);
+    }
+  }
+}
+
+void text_engine_area_frames_reject_unrecognized_geometry() {
+  using namespace patchy::psd;
+  auto engine = TextEngineBlock::from_template();
+  TextEngineInputs input;
+  input.text = "Area\r";
+  input.boxed = true;
+  engine.append_object(input);
+  CHECK(engine.object_geometry(0).kind == TextFrameGeometry::Kind::Box);
+  auto* marker = engine.root().at_path({"0", "8", "0", "0", "0", "2", "6"});
+  CHECK(marker != nullptr);
+  if (!marker) return;
+  *marker = engine_list_of({engine_number(-3), engine_number(-3)});
+  // The box writer's legacy repeated-corner format isn't a closed cubic stream.
+  CHECK(engine.object_geometry(0).kind == TextFrameGeometry::Kind::Unsupported);
+  *marker = engine_list_of({engine_number(-4), engine_number(-4)});
+  CHECK(engine.object_geometry(0).kind == TextFrameGeometry::Kind::Unsupported);
+}
+
+void text_engine_named_frames_keep_point_and_box_editable() {
+  using namespace patchy::psd;
+  const std::string source = R"ED(
+    /DocumentResources << /TextFrameSet << /Resources [
+      << /Resource << /Data << /TextOnPathTRange [-1 -1] >> >> >>
+      << /Resource << /Data << /TextOnPathTRange [-2 -2] >> >> >>
+      << /Resource << /Data << /TextOnPathTRange [0 100] >> >> >>
+    ] >> >>
+    /DocumentObjects << /TextObjects [
+      << /View << /Frames [ << /Resource 1 >> ] >> >>
+      << /View << /Frames [ << /Resource 0 >> ] >> >>
+      << /View << /Frames [ << /Resource 2 >> ] >> >>
+    ] >>
+  )ED";
+  const auto bytes = std::span(reinterpret_cast<const std::uint8_t*>(source.data()), source.size());
+  const auto frames = read_text_frame_geometries(bytes);
+  CHECK(frames.size() == 3);
+  CHECK(frames[0].kind == TextFrameGeometry::Kind::Box);
+  CHECK(frames[1].kind == TextFrameGeometry::Kind::Point);
+  CHECK(frames[2].kind == TextFrameGeometry::Kind::Unsupported);
+}
+
+void text_engine_area_overflow_and_protected_rasters() {
+  using namespace patchy;
+  using namespace patchy::psd;
+  auto document=DocumentIo::read_file(test::committed_psd_fixture_path("photoshop-area-empty.psd"));
+  auto text=std::find_if(document.layers().begin(),document.layers().end(),[](const Layer& l){return layer_is_text(l);});
+  CHECK(text!=document.layers().end());if(text==document.layers().end())return;
+  const auto area=text_area_for_layer(*text);CHECK(area.has_value());
+  const auto blank=[](const Layer& layer) {
+    const auto& pixels=layer.pixels();
+    for(int y=0;y<pixels.height();++y) for(int x=0;x<pixels.width();++x)
+      if(pixels.pixel(x,y)[3]!=0)return false;
+    return true;
+  };
+  CHECK(blank(*text));
+  text->metadata()[kLayerMetadataText]="";
+  text->metadata()[kLayerMetadataTextRasterStatus]="patchy_raster";
+  const auto saved=DocumentIo::write_layered_rgb8(document);
+  auto reopened=DocumentIo::read(saved);
+  auto layer=std::find_if(reopened.layers().begin(),reopened.layers().end(),[](const Layer& l){return layer_is_text(l);});
+  CHECK(layer!=reopened.layers().end());if(layer==reopened.layers().end())return;
+  CHECK(text_area_for_layer(*layer)==area);
+  CHECK(layer->metadata().at(kLayerMetadataText).empty());
+  CHECK(blank(*layer));
+
+  // Unknown native geometry is kept and protected, including a blank saved
+  // raster. It must never become a rectangular placeholder on import.
+  for(auto& resource:reopened.metadata().unknown_psd_resources) if(resource.key=="Txt2") {
+    auto engine=TextEngineBlock::parse(resource.payload);CHECK(engine.has_value());if(!engine)continue;
+    *engine->root().at_path({"0","8","0","0","0","2","6"})=engine_list_of({engine_number(-4),engine_number(-4)});
+    resource.payload=engine->serialize();
+  }
+  layer->metadata()[kLayerMetadataTextRasterStatus]="psd_raster_preview";
+  const auto protected_doc=DocumentIo::read(DocumentIo::write_layered_rgb8(reopened));
+  for(const auto& candidate:protected_doc.layers()) if(layer_is_text(candidate)) {
+    CHECK(text_geometry_is_protected(candidate));
+    CHECK(blank(candidate));
+  }
+  CHECK(!parse_vector_path("v1 0 0 999999999"));
+  CHECK(!parse_vector_path("v1 0 0 1 S 1 1 0 999999999"));
+
+  // An engine we cannot author must not silently discard a newly added area
+  // boundary. The writer fails before producing replacement file bytes.
+  auto legacy = DocumentIo::read_file(test::committed_psd_fixture_path("photoshop-area-triangle.psd"));
+  for (auto& block : legacy.metadata().unknown_psd_resources) if (block.key == "Txt2") {
+    const std::string named = "/DocumentResources << >> /DocumentObjects << >>";
+    block.payload.assign(named.begin(), named.end());
+  }
+  bool refused = false;
+  try { (void)DocumentIo::write_layered_rgb8(legacy); }
+  catch (const std::runtime_error&) { refused = true; }
+  CHECK(refused);
+}
+
 std::vector<patchy::test::TestCase> text_engine_block_tests() {
   return {
+      {"text_engine_area_frames_preserve_native_contours", text_engine_area_frames_preserve_native_contours},
+      {"text_engine_named_frames_keep_point_and_box_editable", text_engine_named_frames_keep_point_and_box_editable},
+      {"text_engine_area_frames_reject_unrecognized_geometry", text_engine_area_frames_reject_unrecognized_geometry},
+      {"text_engine_area_overflow_and_protected_rasters", text_engine_area_overflow_and_protected_rasters},
       {"text_engine_photoshop_blocks_round_trip_byte_exact", text_engine_photoshop_blocks_round_trip_byte_exact},
       {"text_engine_syntax_parses_and_authors_tokens", text_engine_syntax_parses_and_authors_tokens},
       {"text_engine_patchy_born_document_writes_a_block", text_engine_patchy_born_document_writes_a_block},

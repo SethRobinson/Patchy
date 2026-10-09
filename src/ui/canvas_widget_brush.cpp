@@ -9,6 +9,7 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/canvas_widget_shared.hpp"
 
+#include "core/pixel_depth.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
@@ -1322,6 +1323,10 @@ std::array<std::uint8_t, 4> CanvasWidget::brush_stroke_original_pixel(std::int32
   const auto& snapshot = *brush_stroke_layer_snapshot_;
   const auto& pixels = snapshot.pixels;
   if (snapshot.bounds.contains(x, y) && !pixels.empty()) {
+    if (pixels.format().bit_depth != BitDepth::UInt8 && pixels.format().channels >= 3) {
+      // 16/32-bit: the display bytes (deep strokes read brush_stroke_original_deep).
+      return display_rgba8_at(pixels, x - snapshot.bounds.x, y - snapshot.bounds.y);
+    }
     const auto* source = pixels.pixel(x - snapshot.bounds.x, y - snapshot.bounds.y);
     const auto channels = pixels.format().channels;
     if (channels >= 3) {
@@ -1336,6 +1341,69 @@ std::array<std::uint8_t, 4> CanvasWidget::brush_stroke_original_pixel(std::int32
     return {255, 255, 255, 255};
   }
   return {0, 0, 0, 0};
+}
+
+// 16/32-bit strokes (docs/high-bit-depth.md): render_brush_stroke_pixel_from_snapshot_target's
+// arithmetic on the stroke-start pixel at its depth, without byte rounding. 32-bit layers
+// blend in linear light, so the 8-bit paint colors decode first.
+bool CanvasWidget::render_brush_stroke_pixel_deep(std::int32_t x, std::int32_t y, std::uint8_t* pixel,
+                                                  EditColor primary, EditColor secondary,
+                                                  bool lock_transparent_pixels, float target_alpha,
+                                                  bool erase) const {
+  const auto& snapshot = *brush_stroke_layer_snapshot_;
+  const auto format = snapshot.pixels.format();
+  const bool linear = format.bit_depth == BitDepth::Float32;
+  std::array<float, 4> original{0.0F, 0.0F, 0.0F, 0.0F};
+  if (snapshot.bounds.contains(x, y) && !snapshot.pixels.empty()) {
+    original = load_pixel(format, snapshot.pixels.pixel(x - snapshot.bounds.x, y - snapshot.bounds.y));
+  } else if (snapshot.background_extension) {
+    original = {255.0F, 255.0F, 255.0F, 255.0F};
+  }
+  const auto channels = format.channels;
+  const auto locked_alpha = lock_transparent_pixels && channels >= 4;
+  if ((erase && locked_alpha) || (locked_alpha && original[3] <= 0.0F)) {
+    return false;
+  }
+  const auto color_of = [linear](EditColor color) {
+    const auto channel = [linear](std::uint8_t v) {
+      return linear ? static_cast<float>(srgb_decode(static_cast<double>(v) / 255.0) * 255.0) : static_cast<float>(v);
+    };
+    return std::array<float, 3>{channel(color.r), channel(color.g), channel(color.b)};
+  };
+  const auto before = load_pixel(format, pixel);
+  auto value = original;
+  if (erase) {
+    if (channels >= 4) {
+      value[3] = original[3] * (1.0F - target_alpha);
+    } else {
+      const auto background = color_of(secondary);
+      for (std::size_t c = 0; c < 3U; ++c) {
+        value[c] = background[c] * target_alpha + original[c] * (1.0F - target_alpha);
+      }
+    }
+  } else {
+    const auto paint = color_of(primary);
+    if (channels >= 4 && !locked_alpha) {
+      const auto destination_alpha = original[3] / 255.0F;
+      const auto out_alpha = target_alpha + destination_alpha * (1.0F - target_alpha);
+      if (out_alpha <= 0.0F) {
+        return false;
+      }
+      for (std::size_t c = 0; c < 3U; ++c) {
+        value[c] = destination_alpha <= 0.0F
+                       ? paint[c]
+                       : (paint[c] * target_alpha + original[c] * destination_alpha * (1.0F - target_alpha)) / out_alpha;
+      }
+      value[3] = out_alpha * 255.0F;
+    } else {
+      for (std::size_t c = 0; c < 3U; ++c) {
+        value[c] = target_alpha >= 0.999F ? paint[c] : paint[c] * target_alpha + original[c] * (1.0F - target_alpha);
+      }
+      value[3] = original[3];
+    }
+  }
+  store_pixel(format, pixel, value);
+  return load_pixel(format, pixel) != before;
 }
 
 const PaletteSnapContext* CanvasWidget::palette_snap_context() const {
@@ -1472,6 +1540,11 @@ bool CanvasWidget::render_brush_stroke_pixel_from_snapshot_target(
     EditColor primary, EditColor secondary, bool lock_transparent_pixels, float target_alpha,
     bool erase) const {
   target_alpha = std::clamp(target_alpha, 0.0F, 1.0F);
+  if (brush_stroke_layer_snapshot_.has_value() &&
+      brush_stroke_layer_snapshot_->pixels.format().bit_depth != BitDepth::UInt8) {
+    return render_brush_stroke_pixel_deep(x, y, pixel, primary, secondary, lock_transparent_pixels,
+                                          target_alpha, erase);
+  }
   const auto original = brush_stroke_original_pixel(x, y);
   const auto locked_alpha = lock_transparent_pixels && channels >= 4;
   if ((erase && locked_alpha) || (locked_alpha && original[3] == 0)) {
@@ -1638,7 +1711,7 @@ QRect CanvasWidget::finalize_pending_wet_edges(QRect dirty) {
       const auto primary = primary_found != brush_stroke_wet_edge_primary_.end()
                                ? primary_found->second
                                : edit_color(primary_color_);
-      auto* pixel = row.data() + static_cast<std::size_t>(x - bounds.x) * channels;
+      auto* pixel = row.data() + static_cast<std::size_t>(x - bounds.x) * static_cast<std::size_t>(bytes_per_pixel(pixels.format()));
       if (render_brush_stroke_pixel_from_snapshot_target(
               x, y, pixel, channels, primary, secondary, locked,
               std::clamp(alpha_found->second * wet_factor, 0.0F, 1.0F), false)) {
@@ -2056,7 +2129,7 @@ QRect CanvasWidget::draw_mask_brush_segment(QPointF from, QPointF to, bool erase
       coverage *= opacity;
 
       auto* value = target->pixels->pixel(document_point.x() - bounds.x(), document_point.y() - bounds.y());
-      *value = blend_mask_value(*value, paint_value, coverage);
+      blend_mask_at(target->pixels->format(), value, paint_value, coverage);
       dirty = dirty.united(QRect(document_point, QSize(1, 1)));
     });
     return dirty;
@@ -2120,7 +2193,7 @@ QRect CanvasWidget::draw_mask_brush_segment(QPointF from, QPointF to, bool erase
       coverage *= opacity;
 
       auto* value = target->pixels->pixel(x - bounds.x(), y - bounds.y());
-      *value = blend_mask_value(*value, paint_value, coverage);
+      blend_mask_at(target->pixels->format(), value, paint_value, coverage);
       dirty = dirty.united(QRect(document_point, QSize(1, 1)));
     }
     tick_processing_operation();
@@ -2161,8 +2234,11 @@ QRect CanvasWidget::local_adjustment_brush_segment(QPoint from, QPoint to) {
   const auto& snapshot = *brush_stroke_layer_snapshot_;
   const auto& source_pixels = snapshot.pixels;
   const auto channels = source_pixels.format().channels;
-  if (source_pixels.empty() || source_pixels.format().bit_depth != BitDepth::UInt8 || channels < 3) {
+  if (source_pixels.empty() || channels < 3) {
     return {};
+  }
+  if (source_pixels.format().bit_depth != BitDepth::UInt8) {
+    return local_adjustment_brush_segment_deep(from, to);
   }
 
   const auto brush = effective_brush_input();
@@ -2348,6 +2424,167 @@ QRect CanvasWidget::local_adjustment_brush_segment(QPoint from, QPoint to) {
   return dirty;
 }
 
+// local_adjustment_brush_segment for 16/32-bit layers (docs/high-bit-depth.md): the same
+// fixed local operations on unrounded values. 32-bit layers adjust their display-encoded
+// values (and decode the result), so the tools behave as they do at 8 and 16 bits.
+QRect CanvasWidget::local_adjustment_brush_segment_deep(QPoint from, QPoint to) {
+  auto* layer = active_pixel_layer();
+  if (document_ == nullptr || layer == nullptr || !brush_stroke_layer_snapshot_.has_value()) {
+    return {};
+  }
+  const auto& snapshot = *brush_stroke_layer_snapshot_;
+  const auto& source_pixels = snapshot.pixels;
+  const auto format = source_pixels.format();
+  const bool linear = format.bit_depth == BitDepth::Float32;
+  const auto brush = effective_brush_input();
+  const auto radius = std::max(1, brush.size) / 2;
+  const auto layer_rect = to_qrect(snapshot.bounds);
+  const auto document_rect = QRect(0, 0, document_->width(), document_->height());
+  auto stroke_rect = QRect(std::min(from.x(), to.x()) - radius, std::min(from.y(), to.y()) - radius,
+                           std::abs(to.x() - from.x()) + radius * 2 + 1, std::abs(to.y() - from.y()) + radius * 2 + 1)
+                         .intersected(document_rect)
+                         .intersected(layer_rect);
+  if (stroke_rect.isEmpty()) {
+    return {};
+  }
+  const auto encode = [linear](float value) {
+    return linear ? srgb_encode(static_cast<double>(value) / 255.0) * 255.0 : static_cast<double>(value);
+  };
+  const auto decode = [linear](double value) {
+    return static_cast<float>(linear ? srgb_decode(std::clamp(value, 0.0, 255.0) / 255.0) * 255.0
+                                     : std::clamp(value, 0.0, 255.0));
+  };
+  const auto source_pixel = [&](int document_x, int document_y) {
+    const auto x = std::clamp(document_x, layer_rect.left(), layer_rect.right()) - snapshot.bounds.x;
+    const auto y = std::clamp(document_y, layer_rect.top(), layer_rect.bottom()) - snapshot.bounds.y;
+    const auto values = load_pixel(format, source_pixels.pixel(x, y));
+    return std::array<double, 4>{encode(values[0]), encode(values[1]), encode(values[2]),
+                                 static_cast<double>(values[3])};
+  };
+  // Same patent boundary as the 8-bit path: fixed local operations only.
+  const auto adjusted_source_pixel = [&](QPoint point) {
+    const auto center = source_pixel(point.x(), point.y());
+    std::array<double, 3> result{center[0], center[1], center[2]};
+    if (tool_ == CanvasTool::BlurBrush || tool_ == CanvasTool::SharpenBrush) {
+      constexpr std::array<int, 3> kGaussian{1, 2, 1};
+      std::array<double, 3> premultiplied{};
+      double alpha_weight = 0.0;
+      for (int offset_y = -1; offset_y <= 1; ++offset_y) {
+        for (int offset_x = -1; offset_x <= 1; ++offset_x) {
+          const auto sample = source_pixel(point.x() + offset_x, point.y() + offset_y);
+          const auto weight = static_cast<double>(kGaussian[static_cast<std::size_t>(offset_x + 1)] *
+                                                  kGaussian[static_cast<std::size_t>(offset_y + 1)]);
+          const auto alpha = sample[3] / 255.0;
+          alpha_weight += weight * alpha;
+          for (std::size_t channel = 0; channel < premultiplied.size(); ++channel) {
+            premultiplied[channel] += weight * alpha * sample[channel];
+          }
+        }
+      }
+      if (alpha_weight <= std::numeric_limits<double>::epsilon()) {
+        return result;
+      }
+      for (std::size_t channel = 0; channel < result.size(); ++channel) {
+        const auto blurred = premultiplied[channel] / alpha_weight;
+        result[channel] = tool_ == CanvasTool::BlurBrush ? blurred : center[channel] * 2.0 - blurred;
+      }
+      return result;
+    }
+    const auto lightness = (54.0 * center[0] + 183.0 * center[1] + 19.0 * center[2]) / (256.0 * 255.0);
+    if (tool_ == CanvasTool::Dodge || tool_ == CanvasTool::Burn) {
+      double range_weight = 1.0;
+      switch (local_tone_range_) {
+        case LocalToneRange::Shadows:
+          range_weight = 1.0 - lightness;
+          break;
+        case LocalToneRange::Midtones:
+          range_weight = 1.0 - std::abs(lightness * 2.0 - 1.0);
+          break;
+        case LocalToneRange::Highlights:
+          range_weight = lightness;
+          break;
+      }
+      const auto source_lightness = lightness * 255.0;
+      const auto target_lightness = tool_ == CanvasTool::Dodge
+                                        ? source_lightness + (255.0 - source_lightness) * range_weight
+                                        : source_lightness * (1.0 - range_weight);
+      for (std::size_t channel = 0; channel < result.size(); ++channel) {
+        const auto value = center[channel];
+        result[channel] = local_protect_tones_ ? value + (target_lightness - source_lightness)
+                                               : (tool_ == CanvasTool::Dodge ? value + (255.0 - value) * range_weight
+                                                                             : value * (1.0 - range_weight));
+      }
+      return result;
+    }
+    if (tool_ == CanvasTool::Sponge) {
+      const auto maximum = std::max({center[0], center[1], center[2]});
+      const auto minimum = std::min({center[0], center[1], center[2]});
+      const auto saturation = (maximum - minimum) / 255.0;
+      const auto vibrance_scale = sponge_vibrance_ ? 1.0 - saturation : 1.0;
+      const auto luma = lightness * 255.0;
+      const auto chroma_scale = sponge_mode_ == SpongeMode::Saturate ? 1.0 + vibrance_scale : 1.0 - vibrance_scale;
+      for (std::size_t channel = 0; channel < result.size(); ++channel) {
+        result[channel] = luma + (center[channel] - luma) * chroma_scale;
+      }
+    }
+    return result;
+  };
+
+  auto& pixels = layer->pixels();
+  const auto strength = static_cast<float>(local_adjustment_strength_) / 100.0F;
+  QRect dirty;
+  const auto adjust_pixel = [&](QPoint point, float coverage) {
+    if (!stroke_rect.contains(point) || !selection_allows(point)) {
+      return;
+    }
+    if (has_selection()) {
+      coverage *= static_cast<float>(selection_alpha_at(point)) / 255.0F;
+    }
+    coverage = coverage <= 0.0F ? 0.0F : capped_stroke_coverage(point.x(), point.y(), coverage, strength);
+    if (coverage <= 0.0F) {
+      return;
+    }
+    auto* destination = pixels.pixel(point.x() - snapshot.bounds.x, point.y() - snapshot.bounds.y);
+    const auto before = load_pixel(format, destination);
+    if (format.channels >= 4 && before[3] <= 0.0F) {
+      return;
+    }
+    const auto adjusted = adjusted_source_pixel(point);
+    const auto amount = static_cast<double>(strength * coverage);
+    auto value = before;
+    for (std::size_t channel = 0; channel < adjusted.size(); ++channel) {
+      value[channel] = decode(std::clamp(adjusted[channel], 0.0, 255.0) * amount + encode(before[channel]) * (1.0 - amount));
+    }
+    store_pixel(format, destination, value);
+    if (load_pixel(format, destination) != before) {
+      dirty = dirty.united(QRect(point, QSize(1, 1)));
+    }
+  };
+  if (radius == 0) {
+    visit_pixel_line(from, to, [&](QPoint point) { adjust_pixel(point, 1.0F); });
+    return dirty;
+  }
+  const auto dx = static_cast<double>(to.x() - from.x());
+  const auto dy = static_cast<double>(to.y() - from.y());
+  const auto segment_length_squared = dx * dx + dy * dy;
+  for (int y = stroke_rect.top(); y <= stroke_rect.bottom(); ++y) {
+    for (int x = stroke_rect.left(); x <= stroke_rect.right(); ++x) {
+      const auto along = segment_length_squared <= std::numeric_limits<double>::epsilon()
+                             ? 0.0
+                             : std::clamp((static_cast<double>(x - from.x()) * dx +
+                                           static_cast<double>(y - from.y()) * dy) /
+                                              segment_length_squared,
+                                          0.0, 1.0);
+      const auto coverage = brush_shape_coverage(static_cast<double>(x) - (static_cast<double>(from.x()) + dx * along),
+                                                 static_cast<double>(y) - (static_cast<double>(from.y()) + dy * along),
+                                                 radius, brush.softness, brush.roundness, brush.angle_degrees);
+      adjust_pixel(QPoint(x, y), coverage);
+    }
+    tick_processing_operation();
+  }
+  return dirty;
+}
+
 void CanvasWidget::set_clone_source(QPoint point) {
   if (!document_contains(point)) {
     return;
@@ -2381,6 +2618,9 @@ QRect CanvasWidget::clone_brush_at(QPoint point) {
 
 QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
   auto* layer = active_pixel_layer();
+  if (document_ != nullptr && layer != nullptr && std::as_const(*layer).pixels().format().bit_depth != BitDepth::UInt8) {
+    return clone_brush_segment_deep(from, to);
+  }
   if (document_ == nullptr || layer == nullptr || clone_source_cache_.isNull() ||
       layer->pixels().format().bit_depth != BitDepth::UInt8 || layer->pixels().format().channels < 3) {
     return {};
@@ -2581,6 +2821,151 @@ QRect CanvasWidget::clone_brush_segment(QPoint from, QPoint to) {
         patchy::snap_pixel_to_palette(dst, channels, *palette_snap);
       }
       dirty = dirty.united(QRect(document_point, QSize(1, 1)));
+    }
+    tick_processing_operation();
+  }
+  return dirty;
+}
+
+// clone_brush_segment for 16/32-bit layers (docs/high-bit-depth.md): the same stamp and
+// frequency-separation healing on the depth-native source (clone_source_deep_), in float.
+QRect CanvasWidget::clone_brush_segment_deep(QPoint from, QPoint to) {
+  auto* layer = active_pixel_layer();
+  const auto& source = clone_source_deep_;
+  if (document_ == nullptr || layer == nullptr || source.empty() || std::as_const(*layer).pixels().format().channels < 3) {
+    return {};
+  }
+  const auto brush = effective_brush_input();
+  const auto healing = tool_ == CanvasTool::Healing;
+  const auto tone_radius = std::max(1, (brush.size * (9 - std::clamp(healing_diffusion_, 1, 7)) + 15) / 16);
+  const auto radius = std::max(1, brush.size) / 2;
+  const auto document_rect = QRect(0, 0, document_->width(), document_->height());
+  auto stroke_rect = QRect(std::min(from.x(), to.x()) - radius, std::min(from.y(), to.y()) - radius,
+                           std::abs(to.x() - from.x()) + radius * 2 + 1, std::abs(to.y() - from.y()) + radius * 2 + 1)
+                         .intersected(document_rect);
+  if (stroke_rect.isEmpty()) {
+    return {};
+  }
+  const auto lock_transparent_pixels = active_layer_locks_transparent_pixels();
+  if (!lock_transparent_pixels) {
+    patchy::expand_layer_to_include_rect(*layer, to_core_rect(stroke_rect));
+  }
+  auto& pixels = layer->pixels();
+  const auto bounds = layer->bounds();
+  const auto format = pixels.format();
+  stroke_rect = stroke_rect.intersected(to_qrect(bounds));
+  if (stroke_rect.isEmpty()) {
+    return {};
+  }
+  const auto sample = [&source](int x, int y) {
+    x = std::clamp(x, 0, source.width() - 1);
+    y = std::clamp(y, 0, source.height() - 1);
+    return load_pixel(source.format(), source.pixel(x, y));
+  };
+  // healing_ring_tone on float samples: the alpha-weighted mean of eight ring points.
+  const auto ring_tone = [&](QPoint center) {
+    constexpr std::array<std::array<int, 2>, 8> kDirections{{
+        {{-1, -1}}, {{0, -1}}, {{1, -1}}, {{-1, 0}}, {{1, 0}}, {{-1, 1}}, {{0, 1}}, {{1, 1}},
+    }};
+    std::array<double, 3> sum{};
+    double alpha_weight = 0.0;
+    for (const auto& direction : kDirections) {
+      const auto value = sample(center.x() + direction[0] * tone_radius, center.y() + direction[1] * tone_radius);
+      const auto alpha = static_cast<double>(value[3]) / 255.0;
+      alpha_weight += alpha;
+      for (std::size_t c = 0; c < 3U; ++c) {
+        sum[c] += static_cast<double>(value[c]) * alpha;
+      }
+    }
+    if (alpha_weight > std::numeric_limits<double>::epsilon()) {
+      for (auto& channel : sum) {
+        channel /= alpha_weight;
+      }
+      return sum;
+    }
+    const auto value = sample(center.x(), center.y());
+    return std::array<double, 3>{value[0], value[1], value[2]};
+  };
+  const auto opacity = static_cast<float>(brush.opacity) / 100.0F;
+  const auto dx = static_cast<double>(to.x() - from.x());
+  const auto dy = static_cast<double>(to.y() - from.y());
+  const auto segment_length_squared = dx * dx + dy * dy;
+  QRect dirty;
+  for (int y = stroke_rect.top(); y <= stroke_rect.bottom(); ++y) {
+    for (int x = stroke_rect.left(); x <= stroke_rect.right(); ++x) {
+      const auto along = segment_length_squared <= 0.0
+                             ? 0.0
+                             : std::clamp((static_cast<double>(x - from.x()) * dx + static_cast<double>(y - from.y()) * dy) /
+                                              segment_length_squared,
+                                          0.0, 1.0);
+      auto coverage = brush_shape_coverage(static_cast<double>(x) - (static_cast<double>(from.x()) + dx * along),
+                                           static_cast<double>(y) - (static_cast<double>(from.y()) + dy * along),
+                                           radius, brush.softness, brush.roundness, brush.angle_degrees);
+      const QPoint document_point(x, y);
+      if (coverage <= 0.0F || !selection_allows(document_point)) {
+        continue;
+      }
+      if (has_selection()) {
+        coverage *= static_cast<float>(selection_alpha_at(document_point)) / 255.0F;
+        if (coverage <= 0.0F) {
+          continue;
+        }
+      }
+      const auto source_point = document_point + clone_source_offset_;
+      if (source_point.x() < 0 || source_point.y() < 0 || source_point.x() >= source.width() ||
+          source_point.y() >= source.height()) {
+        continue;
+      }
+      auto* dst = pixels.pixel(x - bounds.x, y - bounds.y);
+      const auto before = load_pixel(format, dst);
+      if (lock_transparent_pixels && format.channels >= 4 && before[3] <= 0.0F) {
+        continue;
+      }
+      coverage = capped_stroke_coverage(x, y, coverage, opacity);
+      if (coverage <= 0.0F) {
+        continue;
+      }
+      auto src = sample(source_point.x(), source_point.y());
+      if (healing) {
+        const auto source_tone = ring_tone(source_point);
+        const auto destination_tone = ring_tone(document_point);
+        for (std::size_t c = 0; c < 3U; ++c) {
+          // Display-encoded (16-bit) values clamp to full scale as the 8-bit path does;
+          // 32-bit linear light is unbounded above.
+          const auto healed = std::max(0.0, destination_tone[c] + static_cast<double>(src[c]) - source_tone[c]);
+          src[c] = static_cast<float>(format.bit_depth == BitDepth::Float32 ? healed : std::min(healed, 255.0));
+        }
+      }
+      const auto amount = std::clamp(opacity * coverage, 0.0F, 1.0F);
+      auto value = before;
+      if (format.channels >= 4 && !lock_transparent_pixels) {
+        // blend_straight_rgba in float.
+        const auto source_alpha = src[3] / 255.0F;
+        const auto destination_alpha = before[3] / 255.0F;
+        const auto out_alpha = source_alpha * amount + destination_alpha * (1.0F - amount);
+        if (amount >= 0.999F) {
+          value = src;
+        } else if (out_alpha <= 0.0F) {
+          value = {src[0], src[1], src[2], 0.0F};
+        } else {
+          for (std::size_t c = 0; c < 3U; ++c) {
+            value[c] = (src[c] * source_alpha * amount + before[c] * destination_alpha * (1.0F - amount)) / out_alpha;
+          }
+          value[3] = out_alpha * 255.0F;
+        }
+      } else {
+        const auto effective = amount * (src[3] / 255.0F);
+        if (effective <= 0.0F) {
+          continue;
+        }
+        for (std::size_t c = 0; c < 3U; ++c) {
+          value[c] = src[c] * effective + before[c] * (1.0F - effective);
+        }
+      }
+      store_pixel(format, dst, value);
+      if (load_pixel(format, dst) != before) {
+        dirty = dirty.united(QRect(document_point, QSize(1, 1)));
+      }
     }
     tick_processing_operation();
   }

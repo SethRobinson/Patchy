@@ -519,6 +519,8 @@ Document render_layer_merge(const Document& document, const LayerMergePlan& plan
       } else if (node.rasterize) {
         Document scratch(document.width(), document.height(), document.format());
         scratch.metadata().patterns = document.metadata().patterns;
+        // 16/32-bit documents merge at their depth (docs/high-bit-depth.md).
+        scratch.color_state().bit_depth = document.color_state().bit_depth;
         Rect bounds;
         for (const auto id : node.sources) {
           const auto& source = *document.find_layer(id);
@@ -532,11 +534,12 @@ Document render_layer_merge(const Document& document, const LayerMergePlan& plan
         bounds = intersect_rect(bounds, Rect::from_size(document.width(), document.height()));
         PixelBuffer pixels;
         if (!bounds.empty()) {
+          const ScopedDocumentDepthRender depth_render;
           const auto image = qimage_from_document_rect(scratch, QRect(bounds.x, bounds.y, bounds.width, bounds.height), true);
           if (image.isNull()) {
             throw std::runtime_error("Could not render merged pixels");
           }
-          pixels = pixels_from_image_rgba(image);
+          pixels = pixels_from_image_at_depth(image, document.color_state().bit_depth);
         }
         output = Layer(base.id(), base.name(), std::move(pixels));
         output.set_bounds(bounds);

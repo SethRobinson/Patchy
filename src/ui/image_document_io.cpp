@@ -1156,13 +1156,63 @@ void apply_document_resolution(QImage& image, const Document& document) {
   image.setDotsPerMeterY(dots_per_meter_from_ppi(document.print_settings().vertical_ppi));
 }
 
+}  // namespace
+
+namespace {
+thread_local bool g_document_depth_render = false;
+}  // namespace
+
+ScopedDocumentDepthRender::ScopedDocumentDepthRender() noexcept : previous_(g_document_depth_render) {
+  g_document_depth_render = true;
+}
+
+ScopedDocumentDepthRender::~ScopedDocumentDepthRender() {
+  g_document_depth_render = previous_;
+}
+
+namespace {
+
 // 16/32-bit documents (docs/high-bit-depth.md): the layers composite at the document's
 // depth, then narrow to the 8-bit image every display and export consumer takes. A
 // Linear (32-bit) value is encoded to sRGB on the way; "over white" mattes in the
 // document's own domain, as an 8-bit render mattes in its.
-QImage deep_target_to_image(const render_detail::DeepCompositeTarget& target, bool preserve_alpha) {
+QImage deep_target_to_image(const render_detail::DeepCompositeTarget& target, bool preserve_alpha,
+                            bool at_depth = false, float display_scale = 1.0F) {
   const auto rect = target.rect();
   const auto linear = target.deep_domain() == DeepDomain::Linear;
+  if (at_depth) {
+    // ScopedDocumentDepthRender: the composite at its own depth and domain. "Over
+    // white" mattes in the document's domain, as the display image below does.
+    QImage deep(rect.width, rect.height,
+                linear ? QImage::Format_RGBA32FPx4 : (preserve_alpha ? QImage::Format_RGBA64 : QImage::Format_RGBX64));
+    for (std::int32_t y = 0; y < rect.height; ++y) {
+      auto* line = deep.scanLine(y);
+      for (std::int32_t x = 0; x < rect.width; ++x) {
+        const auto sample = target.sample_color(rect.x + x, rect.y + y);
+        const auto alpha = clamp_unit(sample.alpha);
+        const std::array<float, 3> color =
+            preserve_alpha ? std::array<float, 3>{sample.color.red, sample.color.green, sample.color.blue}
+                           : std::array<float, 3>{sample.color.red * alpha + 255.0F * (1.0F - alpha),
+                                                  sample.color.green * alpha + 255.0F * (1.0F - alpha),
+                                                  sample.color.blue * alpha + 255.0F * (1.0F - alpha)};
+        const auto out_alpha = preserve_alpha ? alpha : 1.0F;
+        if (linear) {
+          auto* px = reinterpret_cast<float*>(line) + static_cast<std::size_t>(x) * 4U;
+          px[0] = color[0] / 255.0F;
+          px[1] = color[1] / 255.0F;
+          px[2] = color[2] / 255.0F;
+          px[3] = out_alpha;
+        } else {
+          auto* px = reinterpret_cast<std::uint16_t*>(line) + static_cast<std::size_t>(x) * 4U;
+          for (std::size_t c = 0; c < 3U; ++c) {
+            px[c] = static_cast<std::uint16_t>(std::clamp(color[c] * 257.0F + 0.5F, 0.0F, 65535.0F));
+          }
+          px[3] = static_cast<std::uint16_t>(std::clamp(out_alpha * 65535.0F + 0.5F, 0.0F, 65535.0F));
+        }
+      }
+    }
+    return deep;
+  }
   QImage image(rect.width, rect.height, preserve_alpha ? QImage::Format_RGBA8888 : QImage::Format_RGB888);
   const auto encode = [linear](float value) {
     const auto encoded = linear ? static_cast<float>(srgb_encode(value / 255.0) * 255.0) : value;
@@ -1171,7 +1221,11 @@ QImage deep_target_to_image(const render_detail::DeepCompositeTarget& target, bo
   for (std::int32_t y = 0; y < rect.height; ++y) {
     auto* row = image.scanLine(y);
     for (std::int32_t x = 0; x < rect.width; ++x) {
-      const auto sample = target.sample_color(rect.x + x, rect.y + y);
+      auto sample = target.sample_color(rect.x + x, rect.y + y);
+      // The 32-bit preview exposure (display values only).
+      sample.color.red *= display_scale;
+      sample.color.green *= display_scale;
+      sample.color.blue *= display_scale;
       const auto alpha = clamp_unit(sample.alpha);
       if (preserve_alpha) {
         auto* px = row + static_cast<std::size_t>(x) * 4U;
@@ -1197,7 +1251,14 @@ QImage render_document_rect_deep(const Document& document, Rect clip, bool prese
                     ? &mask_provider
                     : nullptr;
   const auto domain = deep_domain_for(document.color_state().bit_depth);
-  const auto render_strip = [&document, overrides, masks, domain, preserve_alpha](Rect strip_clip) {
+  // Read on this thread: the strips below run on others.
+  const auto at_depth = g_document_depth_render;
+  const auto exposure = document.color_state().view_exposure_stops;
+  const auto display_scale = domain == DeepDomain::Linear && std::isfinite(exposure) && exposure != 0.0F
+                                 ? static_cast<float>(std::exp2(static_cast<double>(exposure)))
+                                 : 1.0F;
+  const auto render_strip = [&document, overrides, masks, domain, preserve_alpha, at_depth,
+                             display_scale](Rect strip_clip) {
     render_detail::DeepCompositeTarget target(strip_clip, false, domain);
     render_detail::composite_sibling_layers(
         target, document.layers(), strip_clip, overrides, false, masks,
@@ -1206,7 +1267,7 @@ QImage render_document_rect_deep(const Document& document, Rect clip, bool prese
                                          &document.metadata().patterns);
         },
         &document.metadata().patterns);
-    return deep_target_to_image(target, preserve_alpha);
+    return deep_target_to_image(target, preserve_alpha, at_depth, display_scale);
   };
   // Large renders split into strips composited concurrently, under the 8-bit path's
   // rules (render_document_rect below): clip rendering equals full rendering, so the
@@ -1228,10 +1289,16 @@ QImage render_document_rect_deep(const Document& document, Rect clip, bool prese
     const Rect strip_clip{clip.x, clip.y + start, clip.width, std::min(rows_per_strip, clip.height - start)};
     jobs.push_back(StripJob{strip_clip, std::async(std::launch::async, render_strip, strip_clip)});
   }
-  QImage image(clip.width, clip.height, preserve_alpha ? QImage::Format_RGBA8888 : QImage::Format_RGB888);
+  std::vector<QImage> strip_images;
+  strip_images.reserve(jobs.size());
   for (auto& job : jobs) {
-    const auto strip = job.image.get();
-    const auto row_bytes = static_cast<std::size_t>(strip.width()) * (preserve_alpha ? 4U : 3U);
+    strip_images.push_back(job.image.get());
+  }
+  QImage image(clip.width, clip.height, strip_images.front().format());
+  for (std::size_t index = 0; index < jobs.size(); ++index) {
+    const auto& job = jobs[index];
+    const auto& strip = strip_images[index];
+    const auto row_bytes = static_cast<std::size_t>(strip.width()) * static_cast<std::size_t>(strip.depth() / 8);
     for (std::int32_t row = 0; row < strip.height(); ++row) {
       std::memcpy(image.scanLine(job.clip.y - clip.y + row), strip.constScanLine(row), row_bytes);
     }
@@ -1474,6 +1541,26 @@ std::vector<RenderedDocumentPatch> render_document_region(
 
 }  // namespace
 
+PixelBuffer pixels_from_image_native(const QImage& image) {
+  const auto format = image.format();
+  const bool float_image = format == QImage::Format_RGBA32FPx4 || format == QImage::Format_RGBA32FPx4_Premultiplied ||
+                           format == QImage::Format_RGBX32FPx4 || format == QImage::Format_RGBA16FPx4 ||
+                           format == QImage::Format_RGBA16FPx4_Premultiplied || format == QImage::Format_RGBX16FPx4;
+  const bool sixteen_bit = format == QImage::Format_RGBA64 || format == QImage::Format_RGBA64_Premultiplied ||
+                           format == QImage::Format_RGBX64;
+  if (float_image || sixteen_bit) {
+    const auto converted = image.convertToFormat(float_image ? QImage::Format_RGBA32FPx4 : QImage::Format_RGBA64);
+    PixelBuffer pixels(converted.width(), converted.height(),
+                       with_bit_depth(PixelFormat::rgba8(), float_image ? BitDepth::Float32 : BitDepth::UInt16));
+    const auto row_bytes = static_cast<std::size_t>(converted.width()) * (float_image ? 16U : 8U);
+    for (int y = 0; y < converted.height(); ++y) {
+      std::memcpy(pixels.row(y).data(), converted.constScanLine(y), row_bytes);
+    }
+    return pixels;
+  }
+  return pixels_from_image_rgba(image);
+}
+
 PixelBuffer pixels_from_image_rgba(const QImage& image) {
   const auto converted = image.convertToFormat(QImage::Format_RGBA8888);
   PixelBuffer pixels(converted.width(), converted.height(), PixelFormat::rgba8());
@@ -1485,6 +1572,14 @@ PixelBuffer pixels_from_image_rgba(const QImage& image) {
     std::memcpy(pixels.row(y).data(), converted.constScanLine(y), row_bytes);
   }
   return pixels;
+}
+
+PixelBuffer pixels_from_image_at_depth(const QImage& image, BitDepth depth) {
+  auto pixels = pixels_from_image_native(image);
+  if (pixels.format().bit_depth == depth) {
+    return pixels;
+  }
+  return convert_pixel_buffer_depth(pixels, depth, SampleKind::Color);
 }
 
 std::optional<std::pair<double, double>> explicit_qimage_density_ppi(const QImage& image) {
@@ -1525,9 +1620,64 @@ void apply_imported_image_density(Document& document, std::span<const std::uint8
   settings.vertical_ppi = kUntaggedImportPpi;
 }
 
+namespace {
+
+// The depth a decoded image keeps while deep editing is on (docs/high-bit-depth.md):
+// 16-bit formats (PNG 16, TIFF 16) open as 16-bit documents, float formats (float TIFF,
+// HDR plug-ins) as 32-bit ones whose values are taken as linear light.
+std::optional<BitDepth> deep_import_depth(const QImage& image) {
+  if (!deep_editing_enabled()) {
+    return std::nullopt;
+  }
+  switch (image.format()) {
+    case QImage::Format_RGBA64:
+    case QImage::Format_RGBA64_Premultiplied:
+    case QImage::Format_RGBX64:
+    case QImage::Format_Grayscale16:
+      return BitDepth::UInt16;
+    case QImage::Format_RGBA16FPx4:
+    case QImage::Format_RGBA16FPx4_Premultiplied:
+    case QImage::Format_RGBX16FPx4:
+    case QImage::Format_RGBA32FPx4:
+    case QImage::Format_RGBA32FPx4_Premultiplied:
+    case QImage::Format_RGBX32FPx4:
+      return BitDepth::Float32;
+    default:
+      return std::nullopt;
+  }
+}
+
+}  // namespace
+
 Document document_from_qimage(const QImage& image, std::string layer_name) {
   if (image.isNull()) {
     throw std::invalid_argument("Cannot import a null image");
+  }
+  if (const auto depth = deep_import_depth(image); depth.has_value()) {
+    const auto has_alpha = image.hasAlphaChannel();
+    const auto native = image.convertToFormat(*depth == BitDepth::Float32 ? QImage::Format_RGBA32FPx4
+                                                                          : QImage::Format_RGBA64);
+    auto rgba = pixels_from_image_native(native);
+    auto pixels = rgba;
+    if (!has_alpha) {
+      // An opaque image keeps three channels, as the 8-bit import does.
+      pixels = PixelBuffer(rgba.width(), rgba.height(), with_bit_depth(PixelFormat::rgb8(), *depth));
+      const auto domain = *depth == BitDepth::Float32 ? DeepDomain::Linear : DeepDomain::Encoded;
+      std::vector<float> row(static_cast<std::size_t>(rgba.width()) * 4U);
+      for (int y = 0; y < rgba.height(); ++y) {
+        load_rgba_row(rgba, y, 0, rgba.width(), domain, row);
+        store_rgba_row(pixels, y, 0, rgba.width(), domain, row);
+      }
+    }
+    if (layer_name.empty()) {
+      layer_name = QObject::tr("Imported Image").toStdString();
+    }
+    Document document(native.width(), native.height(), pixels.format());
+    document.color_state().bit_depth = *depth;
+    document.print_settings().horizontal_ppi = ppi_from_dots_per_meter(image.dotsPerMeterX());
+    document.print_settings().vertical_ppi = ppi_from_dots_per_meter(image.dotsPerMeterY());
+    document.add_pixel_layer(std::move(layer_name), std::move(pixels));
+    return document;
   }
 
   const auto has_alpha = image.hasAlphaChannel();
@@ -1601,13 +1751,48 @@ bool promote_flat_alpha_to_layer_mask(Document& document) {
 
   const PixelBuffer& pixels = layer.pixels();
   const auto format = pixels.format();
-  if (format.channels != 4 || format.bit_depth != BitDepth::UInt8) {
+  if (format.channels != 4) {
     return false;
   }
 
   const auto width = pixels.width();
   const auto height = pixels.height();
   if (width <= 0 || height <= 0) {
+    return false;
+  }
+  if (format.bit_depth != BitDepth::UInt8) {
+    // 16/32-bit imports (docs/high-bit-depth.md): the same promotion with the mask and
+    // the opaque RGB at the document's depth.
+    const auto domain = format.bit_depth == BitDepth::Float32 ? DeepDomain::Linear : DeepDomain::Encoded;
+    float min_alpha = 1.0F;
+    float max_alpha = 0.0F;
+    for (std::int32_t y = 0; y < height; ++y) {
+      for (std::int32_t x = 0; x < width; ++x) {
+        const auto alpha = pixel_alpha_at(pixels, x, y);
+        min_alpha = std::min(min_alpha, alpha);
+        max_alpha = std::max(max_alpha, alpha);
+      }
+    }
+    PixelBuffer deep_rgb(width, height, with_bit_depth(PixelFormat::rgb8(), format.bit_depth));
+    PixelBuffer deep_mask(width, height, with_bit_depth(PixelFormat::gray8(), format.bit_depth));
+    std::vector<float> row(static_cast<std::size_t>(width) * 4U);
+    std::vector<float> coverage(static_cast<std::size_t>(width));
+    for (std::int32_t y = 0; y < height; ++y) {
+      load_rgba_row(pixels, y, 0, width, domain, row);
+      for (std::int32_t x = 0; x < width; ++x) {
+        coverage[static_cast<std::size_t>(x)] = row[static_cast<std::size_t>(x) * 4U + 3U];
+      }
+      store_rgba_row(deep_rgb, y, 0, width, domain, row);
+      store_coverage_row(deep_mask, y, 0, width, coverage);
+    }
+    layer.set_pixels(std::move(deep_rgb));
+    document.set_format(with_bit_depth(PixelFormat::rgb8(), format.bit_depth));
+    if (max_alpha > 0.0F && min_alpha < 1.0F) {
+      layer.set_mask(LayerMask{Rect::from_size(width, height), std::move(deep_mask), /*default_color*/ 255,
+                               /*disabled*/ false});
+      set_layer_mask_is_document_alpha(layer, true);
+      return true;
+    }
     return false;
   }
 
@@ -2232,6 +2417,8 @@ void install_rttex_jpeg_codec() {
   });
 }
 
+namespace {
+
 // A 16 or 32-bit document's flatten as a 16-bit image (docs/high-bit-depth.md), for the
 // formats Qt writes at 16 bits (PNG, TIFF): display-encoded, 32-bit values clamped to 0..1
 // and encoded to sRGB (PNG holds no floats). Without alpha it mattes over white in the
@@ -2259,6 +2446,31 @@ QImage deep_export_qimage(const Document& document, bool preserve_alpha) {
   }
   return image;
 }
+
+// A 32-bit document's flatten as a float image for TIFF (docs/high-bit-depth.md): the
+// linear values as they are, above 1.0 included (Photoshop's 32-bit TIFF). Without alpha
+// it mattes over white in linear light.
+QImage float_export_qimage(const Document& document, bool preserve_alpha) {
+  const auto flat = Compositor{}.flatten_rgba_deep(document);
+  QImage image(flat.width(), flat.height(), preserve_alpha ? QImage::Format_RGBA32FPx4 : QImage::Format_RGBX32FPx4);
+  std::vector<float> row(static_cast<std::size_t>(std::max(0, flat.width())) * 4U);
+  for (std::int32_t y = 0; y < flat.height(); ++y) {
+    load_rgba_row(flat, y, 0, flat.width(), DeepDomain::Linear, row);
+    auto* out = reinterpret_cast<float*>(image.scanLine(y));
+    for (std::int32_t x = 0; x < flat.width(); ++x) {
+      const auto* px = row.data() + static_cast<std::size_t>(x) * 4U;
+      const auto alpha = std::clamp(px[3] / 255.0F, 0.0F, 1.0F);
+      for (int c = 0; c < 3; ++c) {
+        const auto value = preserve_alpha ? px[c] : px[c] * alpha + 255.0F * (1.0F - alpha);
+        out[x * 4 + c] = std::isfinite(value) ? value / 255.0F : 0.0F;
+      }
+      out[x * 4 + 3] = preserve_alpha ? alpha : 1.0F;
+    }
+  }
+  return image;
+}
+
+}  // namespace
 
 QImage flat_export_qimage(const Document& document, bool preserve_alpha) {
   // A single masked layer is exported non-destructively to alpha-capable formats: keep the
@@ -2423,7 +2635,13 @@ void write_flat_image_file(const Document& document, const QString& path, const 
     return;
   }
 
-  // 16 and 32-bit documents keep 16 bits in the formats that hold them.
+  // 32-bit documents keep their floats in TIFF; 16 and 32-bit documents keep 16 bits in
+  // PNG (and 16-bit TIFF).
+  if ((lower == "tif" || lower == "tiff") && document.color_state().bit_depth == BitDepth::Float32) {
+    write_qimage_atomically(float_export_qimage(document, image_format_preserves_alpha(extension_bytes)), path,
+                            lower, -1);
+    return;
+  }
   if ((lower == "png" || lower == "tif" || lower == "tiff") && document.color_state().bit_depth != BitDepth::UInt8) {
     write_qimage_atomically(deep_export_qimage(document, image_format_preserves_alpha(extension_bytes)), path, lower,
                             -1);

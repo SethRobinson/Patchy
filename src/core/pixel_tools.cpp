@@ -1,5 +1,6 @@
 #include "core/pixel_tools.hpp"
 
+#include "core/pixel_depth.hpp"
 #include "core/pixel_tools_internal.hpp"
 
 #include <algorithm>
@@ -614,6 +615,23 @@ struct TipDabTransform {
   return layer;
 }
 
+// The layer the painting writes (write_pixel) take: an 8-bit editable layer, or a 16/32-bit
+// color pixel layer, which write_pixel blends in float.
+[[nodiscard]] Layer* paintable_layer(Document& document, LayerId layer_id) noexcept {
+  if (auto* layer = editable_layer(document, layer_id); layer != nullptr) {
+    return layer;
+  }
+  return pixel_layer_any_depth(document, layer_id);
+}
+
+[[nodiscard]] Layer* pixel_layer_any_depth(Document& document, LayerId layer_id) noexcept {
+  auto* layer = document.find_layer(layer_id);
+  if (layer == nullptr || layer->kind() != LayerKind::Pixel || std::as_const(*layer).pixels().format().channels < 3) {
+    return nullptr;
+  }
+  return layer;
+}
+
 [[nodiscard]] const Layer* editable_layer(const Document& document, LayerId layer_id) noexcept {
   const auto* layer = document.find_layer(layer_id);
   if (layer == nullptr || layer->kind() != LayerKind::Pixel) {
@@ -691,6 +709,81 @@ void for_each_clear_candidate(const Layer& layer, Rect affected, const EditOptio
   for (const auto& rect : options.selection_scan_rects) {
     scan_rect(rect);
   }
+}
+
+// 16/32-bit layers (docs/high-bit-depth.md): write_pixel_blend's arithmetic on one pixel
+// at its depth, without the byte rounding. 32-bit layers blend in linear light, so the
+// 8-bit paint colors decode first.
+bool write_pixel_blend_deep(PixelBuffer& pixels, std::uint8_t* px, const EditOptions& options, bool erase,
+                            float coverage) {
+  coverage = std::clamp(coverage, 0.0F, 1.0F);
+  if (coverage <= 0.0F) {
+    return false;
+  }
+  const auto format = pixels.format();
+  const bool linear = format.bit_depth == BitDepth::Float32;
+  const auto channels = format.channels;
+  const auto before = load_pixel(format, px);
+  auto value = before;
+  const auto color_of = [linear](EditColor color) {
+    const auto channel = [linear](std::uint8_t v) {
+      return linear ? static_cast<float>(srgb_decode(static_cast<double>(v) / 255.0) * 255.0) : static_cast<float>(v);
+    };
+    return std::array<float, 3>{channel(color.r), channel(color.g), channel(color.b)};
+  };
+  const auto locked_alpha = options.lock_transparent_pixels && channels >= 4;
+  if (locked_alpha && value[3] <= 0.0F) {
+    return true;
+  }
+  const auto store = [&]() {
+    store_pixel(format, px, value);
+    return load_pixel(format, px) != before;
+  };
+  if (erase) {
+    const auto erase_alpha = (static_cast<float>(std::clamp<int>(options.primary.a, 1, 255)) / 255.0F) * coverage;
+    if (channels >= 4) {
+      if (locked_alpha) {
+        return false;
+      }
+      value[3] *= 1.0F - erase_alpha;
+    } else {
+      const auto background = color_of(options.secondary);
+      for (std::size_t c = 0; c < 3U; ++c) {
+        value[c] = background[c] * erase_alpha + value[c] * (1.0F - erase_alpha);
+      }
+    }
+    return store();
+  }
+  std::array<float, 3> paint{};
+  float paint_alpha = static_cast<float>(std::clamp<int>(options.primary.a, 1, 255));
+  if (options.deep_primary.has_value()) {
+    paint = {(*options.deep_primary)[0], (*options.deep_primary)[1], (*options.deep_primary)[2]};
+    paint_alpha = std::clamp((*options.deep_primary)[3], 0.0F, 255.0F);
+  } else {
+    paint = color_of(options.primary);
+  }
+  const auto source_alpha = paint_alpha / 255.0F * coverage;
+  if (channels >= 4 && !locked_alpha && value[3] <= 0.0F) {
+    value = {paint[0], paint[1], paint[2], source_alpha * 255.0F};
+    return store();
+  }
+  if (channels >= 4 && !locked_alpha) {
+    const auto destination_alpha = value[3] / 255.0F;
+    const auto out_alpha = source_alpha + destination_alpha * (1.0F - source_alpha);
+    if (out_alpha <= 0.0F) {
+      return false;
+    }
+    for (std::size_t c = 0; c < 3U; ++c) {
+      value[c] = (paint[c] * source_alpha + value[c] * destination_alpha * (1.0F - source_alpha)) / out_alpha;
+    }
+    value[3] = out_alpha * 255.0F;
+    return store();
+  }
+  // Locked transparency, or no alpha channel: the color mixes, the alpha stays.
+  for (std::size_t c = 0; c < 3U; ++c) {
+    value[c] = source_alpha >= 0.999F ? paint[c] : paint[c] * source_alpha + value[c] * (1.0F - source_alpha);
+  }
+  return store();
 }
 
 bool write_pixel_blend(PixelBuffer& pixels, std::uint8_t* px, const EditOptions& options, bool erase,
@@ -794,6 +887,10 @@ bool write_pixel_blend(PixelBuffer& pixels, std::uint8_t* px, const EditOptions&
 // palette with 0/255 alpha. See core/palette.hpp.
 bool write_pixel(PixelBuffer& pixels, std::uint8_t* px, const EditOptions& options, bool erase,
                  float coverage = 1.0F) {
+  if (pixels.format().bit_depth != BitDepth::UInt8) {
+    // Indexed color is 8-bit only, so a deep layer never palette-snaps.
+    return write_pixel_blend_deep(pixels, px, options, erase, coverage);
+  }
   const auto* snap = options.palette_snap;
   if (snap == nullptr || snap->lut == nullptr || snap->lut->empty()) {
     return write_pixel_blend(pixels, px, options, erase, coverage);
@@ -837,6 +934,20 @@ void ensure_alpha_for_erase(Layer& layer) {
   }
 
   const auto old_bounds = layer.bounds();
+  if (source.format().bit_depth != BitDepth::UInt8 && source.format().channels >= 3) {
+    // 16/32-bit: the same promotion at the layer's depth (alpha opaque).
+    const auto domain =
+        source.format().bit_depth == BitDepth::Float32 ? DeepDomain::Linear : DeepDomain::Encoded;
+    PixelBuffer rgba(source.width(), source.height(), with_bit_depth(PixelFormat::rgba8(), source.format().bit_depth));
+    std::vector<float> row(static_cast<std::size_t>(source.width()) * 4U);
+    for (std::int32_t y = 0; y < source.height(); ++y) {
+      load_rgba_row(source, y, 0, source.width(), domain, row);
+      store_rgba_row(rgba, y, 0, source.width(), domain, row);
+    }
+    layer.set_pixels(std::move(rgba));
+    layer.set_bounds(old_bounds);
+    return;
+  }
   PixelBuffer rgba(source.width(), source.height(), PixelFormat::rgba8());
   for (std::int32_t y = 0; y < source.height(); ++y) {
     for (std::int32_t x = 0; x < source.width(); ++x) {
@@ -1063,11 +1174,11 @@ EditColor mixer_brush_dab_color(MixerBrushState& state, double x, double y, int 
 [[nodiscard]] PixelFormat canvas_resized_format_for_layer(const Layer& layer, const PixelBuffer& source,
                                                           EditColor extension_color = EditColor{255, 255, 255,
                                                                                                  255}) noexcept {
-  if (source.format().bit_depth != BitDepth::UInt8 || source.format().channels < 3) {
+  if (source.format().channels < 3) {
     return source.format();
   }
   if (source.format().channels >= 4 || layer.name() != "Background" || extension_color.a < 255) {
-    return PixelFormat::rgba8();
+    return with_bit_depth(PixelFormat::rgba8(), source.format().bit_depth);
   }
   return source.format();
 }
@@ -1075,8 +1186,21 @@ EditColor mixer_brush_dab_color(MixerBrushState& state, double x, double y, int 
 void fill_resized_layer_background(PixelBuffer& pixels, const Layer& layer,
                                    EditColor extension_color = EditColor{255, 255, 255, 255}) {
   pixels.clear(0);
-  if (layer.name() != "Background" || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3 ||
-      pixels.empty()) {
+  if (layer.name() != "Background" || pixels.format().channels < 3 || pixels.empty()) {
+    return;
+  }
+  if (pixels.format().bit_depth != BitDepth::UInt8) {
+    // 16/32-bit: the 8-bit extension color at the buffer's depth.
+    std::vector<float> row(static_cast<std::size_t>(pixels.width()) * 4U);
+    for (std::size_t i = 0; i < row.size(); i += 4U) {
+      row[i] = extension_color.r;
+      row[i + 1U] = extension_color.g;
+      row[i + 2U] = extension_color.b;
+      row[i + 3U] = extension_color.a;
+    }
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      store_rgba_row(pixels, y, 0, pixels.width(), DeepDomain::Encoded, row);
+    }
     return;
   }
 
@@ -1109,6 +1233,16 @@ void copy_resized_layer_pixel(const PixelBuffer& source, PixelBuffer& destinatio
     return;
   }
 
+  if (source.format().bit_depth == destination.format().bit_depth && source.format().channels >= 3 &&
+      destination.format().channels >= 4 && source.format().channels < 4) {
+    // A 16/32-bit 3-to-4 channel promotion: colors as they are, alpha opaque.
+    const auto domain =
+        source.format().bit_depth == BitDepth::Float32 ? DeepDomain::Linear : DeepDomain::Encoded;
+    std::array<float, 4> values{};
+    load_rgba_row(source, sy, sx, 1, domain, values);
+    store_rgba_row(destination, dy, dx, 1, domain, values);
+    return;
+  }
   const auto bytes = std::min(bytes_per_pixel(source.format()), bytes_per_pixel(destination.format()));
   std::copy(src, src + bytes, dst);
 }
@@ -1122,7 +1256,7 @@ Rect render_shape(Document& document, LayerId layer_id, Rect rect, const EditOpt
   if (rect.empty()) {
     return {};
   }
-  auto* layer = editable_layer(document, layer_id);
+  auto* layer = paintable_layer(document, layer_id);
   if (layer == nullptr) {
     return {};
   }
@@ -1146,7 +1280,7 @@ Rect render_shape(Document& document, LayerId layer_id, Rect rect, const EditOpt
 
   auto& pixels = layer->pixels();
   const auto bounds = layer->bounds();
-  const auto channels = pixels.format().channels;
+  const auto pixel_bytes = bytes_per_pixel(pixels.format());
   affected = intersect_rect(affected, bounds);
   if (affected.empty()) {
     return {};
@@ -1164,7 +1298,7 @@ Rect render_shape(Document& document, LayerId layer_id, Rect rect, const EditOpt
       if (coverage <= 0.0F) {
         continue;
       }
-      auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * channels;
+      auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * pixel_bytes;
       wrote = write_pixel(pixels, px, options, erase, coverage) || wrote;
     }
     report_edit_progress(options);
@@ -1224,6 +1358,47 @@ EditColor gradient_color_at(const std::vector<GradientStop>& sorted_stops, float
   return apply_opacity(sorted_stops.back().color);
 }
 
+// gradient_color_at for 16/32-bit layers: the same stops and opacity without the byte
+// rounding, as straight RGBA on the deep scale; `linear` interpolates linear light.
+std::array<float, 4> gradient_color_at_deep(const std::vector<GradientStop>& sorted_stops, float opacity, bool reverse,
+                                           double position, bool linear) {
+  if (sorted_stops.empty()) {
+    return {};
+  }
+  position = std::clamp(reverse ? 1.0 - position : position, 0.0, 1.0);
+  opacity = std::clamp(opacity, 0.0F, 1.0F);
+  const auto channel = [linear](std::uint8_t value) {
+    return linear ? srgb_decode(static_cast<double>(value) / 255.0) * 255.0 : static_cast<double>(value);
+  };
+  const auto as_deep = [&](EditColor color) {
+    return std::array<double, 4>{channel(color.r), channel(color.g), channel(color.b), static_cast<double>(color.a)};
+  };
+  std::array<double, 4> mixed{};
+  if (position <= sorted_stops.front().location) {
+    mixed = as_deep(sorted_stops.front().color);
+  } else if (position >= sorted_stops.back().location) {
+    mixed = as_deep(sorted_stops.back().color);
+  } else {
+    mixed = as_deep(sorted_stops.back().color);
+    for (std::size_t index = 1; index < sorted_stops.size(); ++index) {
+      const auto& right = sorted_stops[index];
+      const auto& left = sorted_stops[index - 1U];
+      if (position <= right.location) {
+        const auto span = std::max(0.0001F, right.location - left.location);
+        const auto t = std::clamp((position - left.location) / static_cast<double>(span), 0.0, 1.0);
+        const auto a = as_deep(left.color);
+        const auto b = as_deep(right.color);
+        for (std::size_t c = 0; c < 4U; ++c) {
+          mixed[c] = a[c] + (b[c] - a[c]) * t;
+        }
+        break;
+      }
+    }
+  }
+  return {static_cast<float>(mixed[0]), static_cast<float>(mixed[1]), static_cast<float>(mixed[2]),
+          static_cast<float>(mixed[3] * opacity)};
+}
+
 void expand_layer_to_include_rect(Layer& layer, Rect document_rect) {
   document_rect = normalized_rect(document_rect);
   if (document_rect.empty()) {
@@ -1263,7 +1438,7 @@ void expand_layer_to_include_rect(Layer& layer, Rect document_rect) {
 Rect paint_tip_dab(Document& document, LayerId layer_id, double x, double y, const EditOptions& options,
                    bool erase, const TipDabTransform& transform, float opacity_multiplier,
                    const BrushDabVariation* variation = nullptr) {
-  auto* layer = editable_layer(document, layer_id);
+  auto* layer = paintable_layer(document, layer_id);
   if (layer == nullptr || options.brush_tip == nullptr || options.brush_tip->empty()) {
     return {};
   }
@@ -1283,6 +1458,7 @@ Rect paint_tip_dab(Document& document, LayerId layer_id, double x, double y, con
   auto& pixels = layer->pixels();
   const auto bounds = layer->bounds();
   const auto channels = pixels.format().channels;
+  const auto pixel_bytes = bytes_per_pixel(pixels.format());
   auto dab_options = options;
   if (!erase && variation != nullptr && options.brush_dynamics.color_dynamics_enabled) {
     dab_options.primary = color_dynamics_color(options, *variation);
@@ -1336,7 +1512,7 @@ Rect paint_tip_dab(Document& document, LayerId layer_id, double x, double y, con
         continue;
       }
 
-      auto* px = row.data() + static_cast<std::size_t>(local_x) * channels;
+      auto* px = row.data() + static_cast<std::size_t>(local_x) * pixel_bytes;
       const auto changed =
           options.stroke_pixel_writer
               ? options.stroke_pixel_writer(px_doc, py, px, channels, effective_coverage,
@@ -1357,7 +1533,7 @@ Rect paint_brush_dab(Document& document, LayerId layer_id, double x, double y, c
     return paint_tip_dab(document, layer_id, x, y, options, erase, tip_dab_transform(options), 1.0F);
   }
 
-  auto* layer = editable_layer(document, layer_id);
+  auto* layer = paintable_layer(document, layer_id);
   if (layer == nullptr) {
     return {};
   }
@@ -1374,6 +1550,7 @@ Rect paint_brush_dab(Document& document, LayerId layer_id, double x, double y, c
   auto& pixels = layer->pixels();
   const auto bounds = layer->bounds();
   const auto channels = pixels.format().channels;
+  const auto pixel_bytes = bytes_per_pixel(pixels.format());
   auto dab_options = options;
   if (!erase && options.dab_primary_provider) {
     dab_options.primary = options.dab_primary_provider(x, y, dab_options.primary);
@@ -1409,7 +1586,7 @@ Rect paint_brush_dab(Document& document, LayerId layer_id, double x, double y, c
         continue;
       }
 
-      auto* px = row.data() + static_cast<std::size_t>(local_x) * channels;
+      auto* px = row.data() + static_cast<std::size_t>(local_x) * pixel_bytes;
       const auto changed =
           options.stroke_pixel_writer
               ? options.stroke_pixel_writer(px_doc, py, px, channels, effective_coverage,
@@ -1545,7 +1722,7 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double
     return paint_tip_segment(document, layer_id, x0, y0, x1, y1, options, erase, state);
   }
 
-  auto* layer = editable_layer(document, layer_id);
+  auto* layer = paintable_layer(document, layer_id);
   if (layer == nullptr) {
     return {};
   }
@@ -1593,6 +1770,7 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double
     auto& pixels = layer->pixels();
     const auto bounds = layer->bounds();
     const auto channels = pixels.format().channels;
+    const auto pixel_bytes = bytes_per_pixel(pixels.format());
     Rect dirty;
     visit_pixel_line(start_x, start_y, end_x, end_y, [&](std::int32_t px_doc, std::int32_t py) {
       if (!canvas_rect(document).contains(px_doc, py)) {
@@ -1612,7 +1790,7 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double
       }
 
       auto row = pixels.row(local_y);
-      auto* px = row.data() + static_cast<std::size_t>(local_x) * channels;
+      auto* px = row.data() + static_cast<std::size_t>(local_x) * pixel_bytes;
       const auto changed =
           options.stroke_pixel_writer
               ? options.stroke_pixel_writer(px_doc, py, px, channels, effective_coverage,
@@ -1643,6 +1821,7 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double
   auto& pixels = layer->pixels();
   const auto bounds = layer->bounds();
   const auto channels = pixels.format().channels;
+  const auto pixel_bytes = bytes_per_pixel(pixels.format());
   const auto dx = x1 - x0;
   const auto dy = y1 - y0;
   const auto segment_length_squared = dx * dx + dy * dy;
@@ -1684,7 +1863,7 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double
       }
       const auto effective_coverage = coverage * selected_coverage;
 
-      auto* px = row.data() + static_cast<std::size_t>(local_x) * channels;
+      auto* px = row.data() + static_cast<std::size_t>(local_x) * pixel_bytes;
       const auto changed =
           options.stroke_pixel_writer
               ? options.stroke_pixel_writer(px_doc, py, px, channels, effective_coverage,
@@ -1711,8 +1890,154 @@ Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0,
   return smudge_brush_segment(document, layer_id, x0, y0, x1, y1, options, state);
 }
 
+namespace {
+
+// smudge_brush_segment for 16/32-bit layers: the same carried-sample smear on float
+// samples, without byte rounding (docs/high-bit-depth.md).
+std::array<float, 4> sample_layer_deep(const Layer& layer, std::int32_t document_x, std::int32_t document_y) {
+  const auto bounds = layer.bounds();
+  if (!bounds.contains(document_x, document_y)) {
+    return {0.0F, 0.0F, 0.0F, 0.0F};
+  }
+  const auto& pixels = layer.pixels();
+  return load_pixel(pixels.format(), pixels.pixel(document_x - bounds.x, document_y - bounds.y));
+}
+
+void capture_smudge_sample_deep(SmudgeState& state, const Layer& layer, std::int32_t center_x, std::int32_t center_y,
+                                int radius) {
+  state.diameter = radius * 2 + 1;
+  state.sample_deep.assign(static_cast<std::size_t>(state.diameter) * static_cast<std::size_t>(state.diameter) * 4U, 0.0F);
+  for (int y = 0; y < state.diameter; ++y) {
+    for (int x = 0; x < state.diameter; ++x) {
+      const auto color = sample_layer_deep(layer, center_x + x - radius, center_y + y - radius);
+      std::copy(color.begin(), color.end(),
+                state.sample_deep.begin() + static_cast<std::ptrdiff_t>((y * state.diameter + x) * 4));
+    }
+  }
+  state.initialized = true;
+}
+
+Rect smudge_brush_segment_deep(Document& document, Layer& layer, std::int32_t x0, std::int32_t y0, std::int32_t x1,
+                               std::int32_t y1, const EditOptions& options, SmudgeState& state) {
+  const auto dx = x1 - x0;
+  const auto dy = y1 - y0;
+  const auto radius = std::max(1, options.brush_size) / 2;
+  const auto diameter = radius * 2 + 1;
+  if (dx == 0 && dy == 0) {
+    capture_smudge_sample_deep(state, layer, x0, y0, radius);
+    return {};
+  }
+  auto stroke_rect = intersect_rect(Rect{std::min(x0, x1) - radius, std::min(y0, y1) - radius,
+                                         std::abs(dx) + diameter, std::abs(dy) + diameter},
+                                    canvas_rect(document));
+  if (options.selection.has_value()) {
+    stroke_rect = intersect_rect(stroke_rect, *options.selection);
+  }
+  if (stroke_rect.empty()) {
+    return {};
+  }
+  if (!options.lock_transparent_pixels) {
+    expand_layer_to_include_rect(layer, stroke_rect);
+  }
+  stroke_rect = intersect_rect(stroke_rect, layer.bounds());
+  if (stroke_rect.empty()) {
+    return {};
+  }
+  auto& pixels = layer.pixels();
+  const auto bounds = layer.bounds();
+  const auto format = pixels.format();
+  const auto strength = static_cast<float>(std::clamp<int>(options.primary.a, 1, 255)) / 255.0F;
+  if (!state.initialized || state.diameter != diameter || state.sample_deep.empty()) {
+    capture_smudge_sample_deep(state, layer, x0, y0, radius);
+  }
+  Rect dirty;
+  const auto stamp_at = [&](std::int32_t center_x, std::int32_t center_y) {
+    const auto dab_rect = intersect_rect(Rect{center_x - radius, center_y - radius, diameter, diameter}, stroke_rect);
+    if (dab_rect.empty()) {
+      return;
+    }
+    const auto coverage_at = [&](std::int32_t x, std::int32_t y) {
+      const auto ox = x - center_x;
+      const auto oy = y - center_y;
+      return brush_coverage(static_cast<double>(ox * ox + oy * oy), radius, options.brush_softness) *
+             selection_coverage(options, x, y);
+    };
+    for (std::int32_t py = dab_rect.y; py < dab_rect.y + dab_rect.height; ++py) {
+      for (std::int32_t px_doc = dab_rect.x; px_doc < dab_rect.x + dab_rect.width; ++px_doc) {
+        const auto coverage = coverage_at(px_doc, py);
+        if (coverage <= 0.0F || (options.stroke_pixel_gate && !options.stroke_pixel_gate(px_doc, py))) {
+          continue;
+        }
+        auto* dst = pixels.pixel(px_doc - bounds.x, py - bounds.y);
+        const auto before = load_pixel(format, dst);
+        if (options.lock_transparent_pixels && format.channels >= 4 && before[3] <= 0.0F) {
+          continue;
+        }
+        const auto* src = state.sample_deep.data() +
+                          static_cast<std::size_t>(((py - (center_y - radius)) * state.diameter +
+                                                    (px_doc - (center_x - radius))) * 4);
+        const auto amount = std::clamp(strength * coverage, 0.0F, 1.0F);
+        auto value = before;
+        for (std::size_t c = 0; c < 3U; ++c) {
+          value[c] = src[c] * amount + before[c] * (1.0F - amount);
+        }
+        if (format.channels >= 4 && !options.lock_transparent_pixels) {
+          value[3] = src[3] * amount + before[3] * (1.0F - amount);
+        }
+        store_pixel(format, dst, value);
+        if (load_pixel(format, dst) != before) {
+          dirty = unite_rect(dirty, Rect{px_doc, py, 1, 1});
+        }
+      }
+    }
+    const auto pickup = std::clamp(1.0F - strength, 0.0F, 1.0F);
+    if (pickup <= 0.0F) {
+      return;
+    }
+    for (std::int32_t py = dab_rect.y; py < dab_rect.y + dab_rect.height; ++py) {
+      for (std::int32_t px_doc = dab_rect.x; px_doc < dab_rect.x + dab_rect.width; ++px_doc) {
+        const auto coverage = coverage_at(px_doc, py);
+        if (coverage <= 0.0F) {
+          continue;
+        }
+        const auto current = sample_layer_deep(layer, px_doc, py);
+        auto* sample = state.sample_deep.data() +
+                       static_cast<std::size_t>(((py - (center_y - radius)) * state.diameter +
+                                                 (px_doc - (center_x - radius))) * 4);
+        const auto amount = std::clamp(pickup * coverage, 0.0F, 1.0F);
+        for (std::size_t c = 0; c < 4U; ++c) {
+          sample[c] = current[c] * amount + sample[c] * (1.0F - amount);
+        }
+      }
+    }
+  };
+  const auto distance = std::sqrt(static_cast<double>(dx) * dx + static_cast<double>(dy) * dy);
+  const auto spacing = std::max(1.0, static_cast<double>(radius) * 0.2);
+  const auto steps = std::max(1, static_cast<int>(std::ceil(distance / spacing)));
+  auto last_x = std::numeric_limits<std::int32_t>::min();
+  auto last_y = std::numeric_limits<std::int32_t>::min();
+  for (int step = 1; step <= steps; ++step) {
+    const auto t = static_cast<double>(step) / static_cast<double>(steps);
+    const auto center_x = static_cast<std::int32_t>(std::lround(static_cast<double>(x0) + static_cast<double>(dx) * t));
+    const auto center_y = static_cast<std::int32_t>(std::lround(static_cast<double>(y0) + static_cast<double>(dy) * t));
+    if (last_x == center_x && last_y == center_y) {
+      continue;
+    }
+    stamp_at(center_x, center_y);
+    last_x = center_x;
+    last_y = center_y;
+  }
+  return dirty;
+}
+
+}  // namespace
+
 Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0, std::int32_t x1,
                           std::int32_t y1, const EditOptions& options, SmudgeState& state) {
+  if (auto* deep = paintable_layer(document, layer_id);
+      deep != nullptr && std::as_const(*deep).pixels().format().bit_depth != BitDepth::UInt8) {
+    return smudge_brush_segment_deep(document, *deep, x0, y0, x1, y1, options, state);
+  }
   const auto dx = x1 - x0;
   const auto dy = y1 - y0;
   if (dx == 0 && dy == 0) {
@@ -2012,7 +2337,7 @@ bool color_within_tolerance(const std::uint8_t* a, const std::uint8_t* b, std::u
 }
 
 Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32_t y, const EditOptions& options) {
-  auto* layer = editable_layer(document, layer_id);
+  auto* layer = paintable_layer(document, layer_id);
   if (layer == nullptr || !canvas_rect(document).contains(x, y) || !selection_allows(options, x, y)) {
     return {};
   }
@@ -2028,13 +2353,28 @@ Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32
   }
 
   const auto channels = pixels.format().channels;
+  const auto pixel_bytes = bytes_per_pixel(pixels.format());
   const auto has_alpha = channels >= 4;
   std::array<std::uint8_t, 4> target{};
   const auto* start_pixel = pixels.pixel(local_start_x, local_start_y);
   for (std::uint16_t channel = 0; channel < channels && channel < target.size(); ++channel) {
     target[channel] = start_pixel[channel];
   }
-  if (options.lock_transparent_pixels && has_alpha && target[3] == 0) {
+  // 16/32-bit layers (docs/high-bit-depth.md) compare display-encoded values on the
+  // deep scale, so the tolerance means the same as on an 8-bit layer.
+  const bool deep = pixels.format().bit_depth != BitDepth::UInt8;
+  const auto encoded_pixel = [&pixels](const std::uint8_t* px) {
+    auto values = load_pixel(pixels.format(), px);
+    if (pixels.format().bit_depth == BitDepth::Float32) {
+      for (std::size_t c = 0; c < 3U; ++c) {
+        values[c] = static_cast<float>(srgb_encode(static_cast<double>(values[c]) / 255.0) * 255.0);
+      }
+    }
+    return values;
+  };
+  const auto deep_target = deep ? encoded_pixel(start_pixel) : std::array<float, 4>{};
+  const auto deep_start_alpha = deep ? load_pixel(pixels.format(), start_pixel)[3] : 0.0F;
+  if (options.lock_transparent_pixels && has_alpha && (deep ? deep_start_alpha <= 0.0F : target[3] == 0)) {
     return {};
   }
 
@@ -2045,6 +2385,28 @@ Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32
   const auto tolerance = std::clamp(options.flood_tolerance, 0, 255);
   const auto matches = [&](std::int32_t local_x, std::int32_t local_y) {
     const auto* px = pixels.pixel(local_x, local_y);
+    if (deep) {
+      const auto value = encoded_pixel(px);
+      if (options.lock_transparent_pixels && has_alpha && load_pixel(pixels.format(), px)[3] <= 0.0F) {
+        return false;
+      }
+      const auto compared = std::min<std::size_t>(channels, 4U);
+      if (tolerance <= 0) {
+        for (std::size_t c = 0; c < compared; ++c) {
+          if (value[c] != deep_target[c]) {
+            return false;
+          }
+        }
+        return true;
+      }
+      double distance_squared = 0.0;
+      for (std::size_t c = 0; c < compared; ++c) {
+        const auto delta = static_cast<double>(value[c]) - static_cast<double>(deep_target[c]);
+        distance_squared += delta * delta;
+      }
+      const auto limit = static_cast<double>(std::min(tolerance, 255));
+      return distance_squared <= limit * limit * 4.0;
+    }
     if (options.lock_transparent_pixels && has_alpha && px[3] == 0) {
       return false;
     }
@@ -2145,7 +2507,7 @@ Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32
       if (coverage <= 0.0F) {
         continue;
       }
-      auto* px = row.data() + static_cast<std::size_t>(local_x) * channels;
+      auto* px = row.data() + static_cast<std::size_t>(local_x) * pixel_bytes;
       if (write_pixel(pixels, px, options, false, coverage)) {
         dirty = unite_rect(dirty, Rect{doc_x, doc_y, 1, 1});
       }
@@ -2155,7 +2517,7 @@ Rect flood_fill(Document& document, LayerId layer_id, std::int32_t x, std::int32
 }
 
 Rect fill_rect(Document& document, LayerId layer_id, Rect rect, const EditOptions& options) {
-  auto* layer = editable_layer(document, layer_id);
+  auto* layer = paintable_layer(document, layer_id);
   if (layer == nullptr) {
     return {};
   }
@@ -2170,7 +2532,7 @@ Rect fill_rect(Document& document, LayerId layer_id, Rect rect, const EditOption
 
   auto& pixels = layer->pixels();
   const auto bounds = layer->bounds();
-  const auto channels = pixels.format().channels;
+  const auto pixel_bytes = bytes_per_pixel(pixels.format());
   affected = intersect_rect(affected, bounds);
   if (affected.empty()) {
     return {};
@@ -2203,7 +2565,7 @@ Rect fill_rect(Document& document, LayerId layer_id, Rect rect, const EditOption
           continue;
         }
       }
-      auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * channels;
+      auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * pixel_bytes;
       write_pixel(pixels, px, options, false, coverage);
     }
     report_edit_progress(options);
@@ -2211,7 +2573,50 @@ Rect fill_rect(Document& document, LayerId layer_id, Rect rect, const EditOption
   return affected;
 }
 
+namespace {
+
+// A color pixel layer at 16 or 32 bits (docs/high-bit-depth.md): Clear runs on float rows.
+const Layer* deep_pixel_layer(const Document& document, LayerId layer_id) noexcept {
+  const auto* layer = document.find_layer(layer_id);
+  if (layer == nullptr || layer->kind() != LayerKind::Pixel) {
+    return nullptr;
+  }
+  const auto format = layer->pixels().format();
+  return format.channels >= 3 && format.bit_depth != BitDepth::UInt8 ? layer : nullptr;
+}
+
+// Clear's erase strength at one pixel: the foreground alpha times the selection coverage.
+float deep_clear_strength(const EditOptions& options, float coverage) noexcept {
+  return (static_cast<float>(std::clamp<int>(options.primary.a, 1, 255)) / 255.0F) * std::clamp(coverage, 0.0F, 1.0F);
+}
+
+Rect deep_clear_change_bounds(const Document& document, const Layer& layer, Rect rect, const EditOptions& options) {
+  if (options.lock_transparent_pixels) {
+    return {};
+  }
+  const auto affected = clear_affected_rect(document, layer, rect, options);
+  const auto& pixels = layer.pixels();
+  const auto bounds = layer.bounds();
+  Rect changed;
+  for (std::int32_t y = affected.y; y < affected.y + affected.height; ++y) {
+    for (std::int32_t x = affected.x; x < affected.x + affected.width; ++x) {
+      if (selection_coverage(options, x, y) <= 0.0F) {
+        continue;
+      }
+      if (pixel_alpha_at(pixels, x - bounds.x, y - bounds.y) > 0.0F) {
+        changed = unite_rect(changed, Rect{x, y, 1, 1});
+      }
+    }
+  }
+  return changed;
+}
+
+}  // namespace
+
 Rect clear_rect_change_bounds(const Document& document, LayerId layer_id, Rect rect, const EditOptions& options) {
+  if (const auto* deep = deep_pixel_layer(document, layer_id); deep != nullptr) {
+    return deep_clear_change_bounds(document, *deep, rect, options);
+  }
   const auto* layer = editable_layer(document, layer_id);
   if (layer == nullptr) {
     return {};
@@ -2234,6 +2639,28 @@ Rect clear_rect_change_bounds(const Document& document, LayerId layer_id, Rect r
 }
 
 Rect clear_rect(Document& document, LayerId layer_id, Rect rect, const EditOptions& options) {
+  if (deep_pixel_layer(std::as_const(document), layer_id) != nullptr) {
+    auto* deep = document.find_layer(layer_id);
+    const auto changed = deep_clear_change_bounds(document, std::as_const(*deep), rect, options);
+    if (changed.empty()) {
+      return {};
+    }
+    ensure_alpha_for_erase(*deep);
+    auto& pixels = deep->pixels();
+    const auto bounds = deep->bounds();
+    const auto domain = pixels.format().bit_depth == BitDepth::Float32 ? DeepDomain::Linear : DeepDomain::Encoded;
+    std::vector<float> row(static_cast<std::size_t>(changed.width) * 4U);
+    for (std::int32_t y = changed.y; y < changed.y + changed.height; ++y) {
+      load_rgba_row(pixels, y - bounds.y, changed.x - bounds.x, changed.width, domain, row);
+      for (std::int32_t x = changed.x; x < changed.x + changed.width; ++x) {
+        const auto strength = deep_clear_strength(options, selection_coverage(options, x, y));
+        row[static_cast<std::size_t>(x - changed.x) * 4U + 3U] *= 1.0F - strength;
+      }
+      store_rgba_row(pixels, y - bounds.y, changed.x - bounds.x, changed.width, domain, row);
+      report_edit_progress(options);
+    }
+    return changed;
+  }
   auto* layer = editable_layer(document, layer_id);
   if (layer == nullptr) {
     return {};
@@ -2287,14 +2714,18 @@ Rect clear_rect(Document& document, LayerId layer_id, Rect rect, const EditOptio
 
 Rect draw_gradient(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0, std::int32_t x1,
                    std::int32_t y1, const EditOptions& options, const GradientOptions& gradient) {
-  auto* layer = editable_layer(document, layer_id);
+  auto* layer = paintable_layer(document, layer_id);
   if (layer == nullptr) {
     return {};
   }
 
   auto& pixels = layer->pixels();
   const auto bounds = layer->bounds();
-  const auto channels = pixels.format().channels;
+  const auto pixel_bytes = bytes_per_pixel(pixels.format());
+  // 16/32-bit layers take the gradient color unrounded (no 8-bit banding); 32-bit ones
+  // interpolate in linear light (docs/high-bit-depth.md).
+  const bool deep = pixels.format().bit_depth != BitDepth::UInt8;
+  const bool linear = pixels.format().bit_depth == BitDepth::Float32;
   auto affected = intersect_rect(bounds, canvas_rect(document));
   if (options.selection.has_value()) {
     affected = intersect_rect(affected, *options.selection);
@@ -2334,12 +2765,20 @@ Rect draw_gradient(Document& document, LayerId layer_id, std::int32_t x0, std::i
                   : (((static_cast<double>(x - x0) * dx) + (static_cast<double>(y - y0) * dy)) / length_squared);
           break;
       }
-      const auto color = gradient_color_at(stops, gradient.opacity, gradient.reverse, t);
-      if (color.a == 0) {
-        continue;
+      if (deep) {
+        const auto color = gradient_color_at_deep(stops, gradient.opacity, gradient.reverse, t, linear);
+        if (color[3] <= 0.0F) {
+          continue;
+        }
+        gradient_options.deep_primary = color;
+      } else {
+        const auto color = gradient_color_at(stops, gradient.opacity, gradient.reverse, t);
+        if (color.a == 0) {
+          continue;
+        }
+        gradient_options.primary = color;
       }
-      gradient_options.primary = color;
-      auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * channels;
+      auto* px = row.data() + static_cast<std::size_t>(x - bounds.x) * pixel_bytes;
       write_pixel(pixels, px, gradient_options, false, selected_coverage);
     }
     report_edit_progress(options);

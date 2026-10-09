@@ -3,7 +3,29 @@
 #include "core/smart_filter.hpp"
 #include "filters/filter_registry.hpp"
 
+#include <cstdint>
+#include <vector>
+
 namespace patchy {
+
+// The calibrated separable line filters behind the Gaussian Blur, High Pass and
+// Unsharp Mask primitives below, for float pipelines (16/32-bit filters,
+// docs/high-bit-depth.md): filters every row and then every column of the
+// single-channel `plane` (width * height samples) in place, repeating edge
+// samples, without the byte rounding the RGBA8 primitives apply between passes.
+enum class PhotoshopLineKernel : std::uint8_t { Gaussian, HighPass, Unsharp };
+void filter_plane_with_photoshop_kernel(std::vector<float> &plane,
+                                        std::int32_t width,
+                                        std::int32_t height, double radius,
+                                        PhotoshopLineKernel kernel);
+
+// Add Noise's position-hashed delta for one lane (0..2 per channel, 3 for
+// monochromatic noise) on the 0..255 scale, before the RGBA8 primitive rounds
+// it.
+[[nodiscard]] double add_noise_delta(std::int32_t x, std::int32_t y,
+                                     std::int32_t seed, std::uint32_t lane,
+                                     double amount_percent,
+                                     bool gaussian) noexcept;
 
 // Photoshop-calibrated primitives shared by destructive filters and native
 // Smart Filters. Inputs and outputs retain the supplied bounds and require

@@ -44,6 +44,8 @@ Gradient Fill layers and gradient-filled shapes (`GradientSpanBasis::CenterChord
 - Each pixel samples at its top-left corner (x, y), not its center. On a 4x4 canvas the half pixel is an eighth of the ramp.
 - At 100% scale with no offset the ramp runs between the chord ends truncated to whole pixels: Linear between both truncated ends, Reflected and Radial from the truncated center to the truncated far end. The effective angle follows those integer points, so a nominal 30-degree reflected fill runs at 45 degrees on 4x4, 36.87 on 8x8, 32 on 16x16 and 30.7 on 64x64. Every such probe matches within 1/255. Scaled or offset fills keep the continuous ends, which fit those probes better.
 
+A fill layer without a vector mask aligns to the layer's bounds, which in Photoshop are its user mask's visible samples when the mask hides the rest of the canvas (default color 0): psd-tools' 32-bit `gradient-fill.psd` ramps over the mask's rows 6..100, not the 150-pixel canvas (`fill_layer_mask_bounds` in src/core/vector_raster.cpp; at 32 bits the result now matches Photoshop within 2 levels).
+
 Not modeled: Angle and Diamond (they keep center sampling), and offsets on very small canvases (no candidate rule fit a 16x8 probe). This geometry is what took `photoshop-shape-gradient.psd` from mean error 1.22 to 0.29 against Photoshop and fixed psd-tools' `colormodes/4x4_*` files.
 
 ## Noise gradients in PSD fill layers

@@ -1,5 +1,7 @@
 # Photoshop's Txt2 text engine block
 
+Area-frame contour encoding and measured flow rules are in [area-text.md](area-text.md).
+
 The document-level `Txt2` tagged block (global section, after the layer info and the global
 layer mask) holds one text object per type layer, addressed by the layer's TySh `TextIndex`.
 Photoshop trusts it over the per-layer TySh EngineData ([ps-compat.md](ps-compat.md)). This

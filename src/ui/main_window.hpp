@@ -519,6 +519,7 @@ private:
   void snap_layers_to_palette(bool active_layer_only);
   void refresh_palette_panel();
   void refresh_palette_mode_chip();
+  void refresh_hdr_exposure_control();
   void maybe_offer_indexed_palette_adoption();
   // The Affinity "Image" layer import choice (keep embedded smart objects or
   // convert to plain pixel layers); asks unless imports/afImageLayers decides.
@@ -946,7 +947,10 @@ private:
   void clear_internal_clipboard_on_external_change();
   void transform_active_layer_dialog();
   void warp_transform_active_layer();
-  void add_text_at(QPoint document_point, QRect requested_text_box = {}, bool show_editor = true);
+  void add_text_at(QPoint document_point, QRect requested_text_box = {}, bool show_editor = true,
+                   std::optional<patchy::VectorPath> requested_area = std::nullopt,
+                   std::optional<LayerId> target_text_layer = std::nullopt);
+  void set_text_editor_area(QTextEdit& editor, const std::optional<patchy::VectorPath>& document_area);
   void edit_text_layer(LayerId id);
   void cancel_text_editor(QTextEdit* editor, std::optional<LayerId> layer_id);
   void commit_text_editor(QTextEdit* editor, QPoint document_point, std::optional<LayerId> layer_id);
@@ -2087,6 +2091,7 @@ private:
   QPointer<QDialog> text_character_dialog_;
   QLabel* text_character_hint_label_{nullptr};
   QLabel* path_point_count_chip_{nullptr};
+  QDoubleSpinBox* hdr_exposure_spin_{nullptr};
   QCheckBox* text_character_auto_leading_{nullptr};
   UnitSpinBox* text_character_leading_spin_{nullptr};
   QSpinBox* text_character_tracking_spin_{nullptr};

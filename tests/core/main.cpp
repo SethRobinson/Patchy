@@ -2,6 +2,8 @@
 
 #include "test_harness.hpp"
 
+#include "core/pixel_depth.hpp"
+
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
@@ -104,6 +106,8 @@ extern "C" void report_fatal_signal(int signal_number, siginfo_t* info, void*) {
 
 int main(int argc, char** argv) {
   patchy::test::suppress_crash_dialogs();
+  // Tests written for 8-bit opening keep it; deep tests override the gate themselves.
+  patchy::set_deep_editing_default(false);
 #ifdef _WIN32
   AddVectoredExceptionHandler(1, report_access_violation);
 #elif !defined(__EMSCRIPTEN__)
@@ -181,6 +185,7 @@ int main(int argc, char** argv) {
            pixel_depth_tests,
            psd_deep_io_tests,
            deep_compositor_tests,
+           deep_filter_tests,
        }) {
     auto group = registration();
     tests.insert(tests.end(), std::make_move_iterator(group.begin()),

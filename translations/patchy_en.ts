@@ -944,10 +944,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Filter previews support UInt8 buffers only</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Unknown catalogued filter identifier</source>
         <translation type="unfinished"></translation>
     </message>
@@ -8922,6 +8918,50 @@ RGB: %2, %3, %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>8 Bits/Channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>16 Bits/Channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>32 Bits/Channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bit Depth</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>HDR Toning</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exposure and Gamma</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gamma</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bits per channel for the stress test documents: 8, 16, or 32.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The 32-bit image was converted to 16 bits per channel: the web version edits up to 16.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This document&apos;s preserved text engine cannot store new area text.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Palettized DDS textures are not supported</source>
         <translation type="unfinished"></translation>
     </message>
@@ -9010,6 +9050,14 @@ RGB: %2, %3, %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>BC4 keeps one channel: the image was saved as its grayscale luminance without transparency</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>BC5 keeps the red and green channels only: blue and transparency were dropped</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>File-format and automation plug-ins are not supported; only filter (.8bf) plug-ins run. DDS textures open natively through File &gt; Open.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -9034,26 +9082,6 @@ RGB: %2, %3, %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Compression:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Generate mipmaps</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>DirectDraw Surface</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>BC4 keeps one channel: the image was saved as its grayscale luminance without transparency</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>BC5 keeps the red and green channels only: blue and transparency were dropped</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>BC7 (best quality, full transparency, DX10 header)</source>
         <translation type="unfinished"></translation>
     </message>
@@ -9066,7 +9094,19 @@ RGB: %2, %3, %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Compression:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Generate mipmaps</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>The BC formats are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. BC4 stores grayscale only and BC5 the red and green channels; both drop transparency. Mipmaps are generated down to 1x1 with a box filter.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>DirectDraw Surface</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -18856,6 +18896,30 @@ Baked into images: %1.</source>
         <source>Converted to %1</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>32-bit preview exposure in stops. It changes the display, not the pixels.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Linear RGB: %1, %2, %3</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exposure: </source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This text boundary is preserved but cannot be edited.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 Text Boundary</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -20297,6 +20361,30 @@ Baked into images: %1.</source>
     </message>
     <message>
         <source>resizeImage method must be one of %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>convertBitDepth takes 8, 16 or 32.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>16 and 32-bit editing is not enabled.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Indexed documents are 8-bit only.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The web version edits up to 16 bits per channel.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blend mode %1 is not available in 32-bit documents.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

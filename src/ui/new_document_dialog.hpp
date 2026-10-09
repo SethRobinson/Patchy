@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/pixel_buffer.hpp"
+
 #include <QColor>
 #include <QImage>
 #include <QtCore/qnamespace.h>
@@ -22,6 +24,9 @@ struct NewDocumentSettings {
   std::int32_t height{768};
   double resolution_ppi{72.0};
   QColor background{Qt::white};
+  // The document's bits per channel (docs/high-bit-depth.md); offered while deep
+  // editing is on, 8 otherwise.
+  BitDepth bit_depth{BitDepth::UInt8};
   bool from_clipboard{false};
   QImage clipboard_image;
 };

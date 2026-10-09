@@ -36,6 +36,9 @@ struct StressTestOptions {
   // scene document open. CLI runs quit instead.
   bool interactive{false};
   bool quit_when_done{false};
+  // 16 or 32 runs the scenario on 16 or 32-bit documents (docs/high-bit-depth.md;
+  // deep editing is switched on for the run). Step ids and baselines are the 8-bit ones.
+  int bit_depth{8};
 };
 
 struct StressStepResult {
@@ -62,6 +65,7 @@ struct StressReport {
   QString app_version;
   QString build_type;  // "release" / "debug"
   QString preset_token;
+  int bit_depth{8};
   QString os;
   QString cpu_name;
   QString qt_version;

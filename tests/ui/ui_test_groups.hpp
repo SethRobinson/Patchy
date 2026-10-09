@@ -36,6 +36,7 @@ std::vector<patchy::test::TestCase> text_editor_font_picker_tests();
 std::vector<patchy::test::TestCase> psd_text_import_tests();
 std::vector<patchy::test::TestCase> text_transform_commit_tests();
 std::vector<patchy::test::TestCase> text_vertical_rtl_tests();
+std::vector<patchy::test::TestCase> text_area_tests();
 std::vector<patchy::test::TestCase> flat_image_format_tests();
 std::vector<patchy::test::TestCase> smart_filter_tests();
 std::vector<patchy::test::TestCase> smart_object_tests();

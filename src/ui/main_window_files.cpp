@@ -10,7 +10,9 @@
 #include "ui/qt_paths.hpp"
 
 #include "core/blend_math.hpp"
+#include "core/document_depth.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/pixel_depth.hpp"
 #include "core/smart_object.hpp"
 #include "core/text_warp.hpp"
 #include "core/warp_mesh.hpp"
@@ -1220,6 +1222,11 @@ OpenDocumentResult load_document_from_path(QString path) {
   // a document alpha channel on resave. SVG is excluded for the same structural
   // reason: its layers own their transparency, and the promotion's set_pixels would
   // clobber a lone placed <image> layer's offset bounds.
+  if (opened.color_state().bit_depth == BitDepth::Float32 && !depth_supported_on_platform(BitDepth::Float32)) {
+    convert_document_depth(opened, BitDepth::UInt16);
+    import_notices.push_back(
+        QObject::tr("The 32-bit image was converted to 16 bits per channel: the web version edits up to 16."));
+  }
   if (!opened.metadata().values.contains("psd.version") && !is_svg_extension(extension)) {
     promote_flat_alpha_to_layer_mask(opened);
   }

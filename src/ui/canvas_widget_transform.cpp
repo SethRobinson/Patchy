@@ -7,6 +7,8 @@
 // Pure function moves from canvas_widget.cpp; behavior must stay identical.
 
 #include "ui/canvas_widget.hpp"
+
+#include "core/pixel_depth.hpp"
 #include "ui/canvas_widget_shared.hpp"
 
 #include "core/vector_shape.hpp"
@@ -204,6 +206,27 @@ bool transform_preview_needs_compositing(const Document& document, const Layer& 
 // Smallest sub-rect of a gray8 mask buffer holding every pixel that differs
 // from `default_color`; empty when the whole buffer reads as the default.
 QRect non_default_mask_local_rect(const PixelBuffer& pixels, std::uint8_t default_color) {
+  if (pixels.format().bit_depth != BitDepth::UInt8) {
+    // 16/32-bit masks: compare the samples on the deep scale.
+    int deep_left = pixels.width();
+    int deep_right = -1;
+    int deep_top = -1;
+    int deep_bottom = -1;
+    std::vector<float> row(static_cast<std::size_t>(pixels.width()));
+    const auto background = static_cast<float>(default_color);
+    for (int y = 0; y < pixels.height(); ++y) {
+      load_coverage_row(pixels, y, 0, pixels.width(), row);
+      for (int x = 0; x < pixels.width(); ++x) {
+        if (row[static_cast<std::size_t>(x)] != background) {
+          deep_left = std::min(deep_left, x);
+          deep_right = std::max(deep_right, x);
+          deep_top = deep_top < 0 ? y : deep_top;
+          deep_bottom = y;
+        }
+      }
+    }
+    return deep_right < deep_left ? QRect() : QRect(QPoint(deep_left, deep_top), QPoint(deep_right, deep_bottom));
+  }
   int left = pixels.width();
   int right = -1;
   int top = -1;
@@ -242,8 +265,8 @@ QRect non_default_mask_local_rect(const PixelBuffer& pixels, std::uint8_t defaul
 // (CanvasWidget::transform_linked_mask_source) so no drag frame rescans it.
 std::optional<TransformLinkedMaskSource> linked_mask_source(const Layer& layer) {
   const auto& stored_mask = layer.mask();
-  if (!stored_mask.has_value() || stored_mask->pixels.empty() ||
-      stored_mask->pixels.format() != PixelFormat::gray8() || !layer_mask_linked(layer)) {
+  if (!stored_mask.has_value() || stored_mask->pixels.empty() || stored_mask->pixels.format().channels != 1U ||
+      !layer_mask_linked(layer)) {
     return std::nullopt;
   }
   TransformLinkedMaskSource source;
@@ -259,10 +282,12 @@ std::optional<TransformLinkedMaskSource> linked_mask_source(const Layer& layer) 
     source.pixels = stored_mask->pixels;  // copy-on-write share, no copy
     return source;
   }
-  PixelBuffer cropped(keep.width(), keep.height(), PixelFormat::gray8());
+  PixelBuffer cropped(keep.width(), keep.height(), stored_mask->pixels.format());
+  const auto sample_bytes = bytes_per_pixel(stored_mask->pixels.format());
   for (int y = 0; y < keep.height(); ++y) {
     const auto source_row = stored_mask->pixels.row(keep.y() + y);
-    std::copy_n(source_row.begin() + keep.x(), keep.width(), cropped.row(y).begin());
+    std::copy_n(source_row.begin() + static_cast<std::ptrdiff_t>(keep.x() * sample_bytes),
+                static_cast<std::size_t>(keep.width()) * sample_bytes, cropped.row(y).begin());
   }
   source.pixels = std::move(cropped);
   return source;
@@ -533,6 +558,14 @@ PremultipliedSample premultiplied_pixel(const QImage& image, int x, int y) {
   if (x < 0 || y < 0 || x >= image.width() || y >= image.height()) {
     return {};
   }
+  if (image.format() == QImage::Format_RGBA32FPx4) {
+    // 16/32-bit layers (docs/high-bit-depth.md): the same premultiplied sample on the
+    // 0..255 scale, from straight float values (linear ones may exceed 1).
+    const auto* pixel = reinterpret_cast<const float*>(image.constScanLine(y)) + static_cast<std::size_t>(x) * 4U;
+    const auto alpha = static_cast<double>(std::clamp(pixel[3], 0.0F, 1.0F)) * 255.0;
+    return PremultipliedSample{static_cast<double>(pixel[0]) * alpha, static_cast<double>(pixel[1]) * alpha,
+                               static_cast<double>(pixel[2]) * alpha, alpha};
+  }
   const auto* pixel = image.constScanLine(y) + x * 4;
   const auto alpha = static_cast<double>(pixel[3]);
   return PremultipliedSample{static_cast<double>(pixel[0]) * alpha / 255.0,
@@ -631,6 +664,23 @@ std::uint8_t clamp_sample_channel(double value) {
   return static_cast<std::uint8_t>(std::clamp(std::lround(value), 0L, 255L));
 }
 
+// The straight deep format a 16/32-bit layer image comes back in (qimage_from_pixel_buffer
+// makes Format_RGBA64 or Format_RGBA32FPx4); nullopt for 8-bit images.
+std::optional<QImage::Format> deep_qimage_format(QImage::Format format) {
+  switch (format) {
+    case QImage::Format_RGBA64:
+    case QImage::Format_RGBA64_Premultiplied:
+    case QImage::Format_RGBX64:
+      return QImage::Format_RGBA64;
+    case QImage::Format_RGBA32FPx4:
+    case QImage::Format_RGBA32FPx4_Premultiplied:
+    case QImage::Format_RGBX32FPx4:
+      return QImage::Format_RGBA32FPx4;
+    default:
+      return std::nullopt;
+  }
+}
+
 }  // namespace
 
 // Declared in canvas_widget.hpp: shared with the smart-object preview renderer, so it
@@ -638,14 +688,20 @@ std::uint8_t clamp_sample_channel(double value) {
 TransformedImage resample_transformed_rgba8(const QImage& source, const QTransform& source_to_document,
                                             CanvasWidget::TransformInterpolation interpolation) {
   interpolation = resolve_automatic_interpolation(interpolation, std::abs(source_to_document.determinant()));
-  const auto converted = source.convertToFormat(QImage::Format_RGBA8888);
+  // A 16/32-bit layer's image (qimage_from_pixel_buffer) resamples in float and comes
+  // back in its own format, so pixels_from_image_native restores the layer's depth.
+  const auto deep_format = deep_qimage_format(source.format());
+  const auto converted = source.convertToFormat(deep_format.has_value() ? QImage::Format_RGBA32FPx4
+                                                                        : QImage::Format_RGBA8888);
   const auto mapped = source_to_document.mapRect(QRectF(0.0, 0.0, converted.width(), converted.height()));
   const auto left = static_cast<int>(std::floor(mapped.left()));
   const auto top = static_cast<int>(std::floor(mapped.top()));
   const auto right = static_cast<int>(std::ceil(mapped.right()));
   const auto bottom = static_cast<int>(std::ceil(mapped.bottom()));
-  QImage transformed(std::max(1, right - left), std::max(1, bottom - top), QImage::Format_RGBA8888);
+  QImage transformed(std::max(1, right - left), std::max(1, bottom - top),
+                     deep_format.has_value() ? QImage::Format_RGBA32FPx4 : QImage::Format_RGBA8888);
   transformed.fill(Qt::transparent);
+  const bool deep = deep_format.has_value();
 
   bool invertible = false;
   const auto document_to_source = source_to_document.inverted(&invertible);
@@ -662,7 +718,7 @@ TransformedImage resample_transformed_rgba8(const QImage& source, const QTransfo
   auto* transformed_bits = transformed.bits();
   const auto transformed_stride = static_cast<std::size_t>(transformed.bytesPerLine());
   const auto resample_rows = [&converted, &document_to_source, interpolation, transformed_bits, transformed_stride,
-                              left, top, width = transformed.width()](int row_begin, int row_end) {
+                              left, top, deep, width = transformed.width()](int row_begin, int row_end) {
     for (int y = row_begin; y < row_end; ++y) {
       auto* row = transformed_bits + static_cast<std::size_t>(y) * transformed_stride;
       for (int x = 0; x < width; ++x) {
@@ -684,6 +740,20 @@ TransformedImage resample_transformed_rgba8(const QImage& source, const QTransfo
             break;
         }
 
+        if (deep) {
+          auto* pixel = reinterpret_cast<float*>(row) + static_cast<std::size_t>(x) * 4U;
+          const auto alpha = std::clamp(sample.a, 0.0, 255.0);
+          pixel[3] = static_cast<float>(alpha / 255.0);
+          // Un-premultiplied; overshoot below 0 clamps as the 8-bit path does, values
+          // above full scale stay (32-bit linear light is unbounded).
+          const auto unpremultiply = [alpha](double value) {
+            return alpha <= 0.0 ? 0.0F : static_cast<float>(std::max(0.0, value / alpha));
+          };
+          pixel[0] = unpremultiply(sample.r);
+          pixel[1] = unpremultiply(sample.g);
+          pixel[2] = unpremultiply(sample.b);
+          continue;
+        }
         auto* pixel = row + x * 4;
         const auto alpha = clamp_sample_channel(sample.a);
         pixel[3] = alpha;
@@ -723,12 +793,19 @@ TransformedImage resample_transformed_rgba8(const QImage& source, const QTransfo
   }
 
   const auto bounds = Rect{left, top, transformed.width(), transformed.height()};
+  if (deep_format.has_value() && *deep_format != QImage::Format_RGBA32FPx4) {
+    transformed = transformed.convertToFormat(*deep_format);
+  }
   return TransformedImage{std::move(transformed), bounds};
 }
 
 TransformedImage resample_warped_rgba8(const QImage& source, const WarpSurfaceGrid& grid,
                                        CanvasWidget::TransformInterpolation interpolation) {
-  const auto converted = source.convertToFormat(QImage::Format_RGBA8888);
+  // 16/32-bit layer images warp in float and come back in their own format, as in
+  // resample_transformed_rgba8.
+  const auto deep_format = deep_qimage_format(source.format());
+  const auto converted = source.convertToFormat(deep_format.has_value() ? QImage::Format_RGBA32FPx4
+                                                                        : QImage::Format_RGBA8888);
   const auto [min_x_it, max_x_it] = std::minmax_element(grid.doc_xs.begin(), grid.doc_xs.end());
   const auto [min_y_it, max_y_it] = std::minmax_element(grid.doc_ys.begin(), grid.doc_ys.end());
   if (min_x_it == grid.doc_xs.end() || min_y_it == grid.doc_ys.end()) {
@@ -738,7 +815,8 @@ TransformedImage resample_warped_rgba8(const QImage& source, const WarpSurfaceGr
   const auto top = static_cast<int>(std::floor(*min_y_it)) - 1;
   const auto right = static_cast<int>(std::ceil(*max_x_it)) + 1;
   const auto bottom = static_cast<int>(std::ceil(*max_y_it)) + 1;
-  QImage transformed(std::max(1, right - left), std::max(1, bottom - top), QImage::Format_RGBA8888);
+  QImage transformed(std::max(1, right - left), std::max(1, bottom - top),
+                     deep_format.has_value() ? QImage::Format_RGBA32FPx4 : QImage::Format_RGBA8888);
   transformed.fill(Qt::transparent);
   std::vector<std::uint8_t> covered(static_cast<std::size_t>(transformed.width()) * transformed.height(), 0);
   // A warp has no single scale; its output extent over the source extent stands in.
@@ -791,6 +869,19 @@ TransformedImage resample_warped_rgba8(const QImage& source, const WarpSurfaceGr
           const double source_y = (1.0 - t) * ((1.0 - s) * grid.source_ys[i00] + s * grid.source_ys[i10]) +
                                   t * ((1.0 - s) * grid.source_ys[i01] + s * grid.source_ys[i11]);
           const auto sample = sample_at(QPointF(source_x, source_y));
+          if (deep_format.has_value()) {
+            auto* deep_pixel = reinterpret_cast<float*>(row) + static_cast<std::size_t>(px - left) * 4U;
+            const auto deep_alpha = std::clamp(sample.a, 0.0, 255.0);
+            const auto unpremultiply = [deep_alpha](double value) {
+              return deep_alpha <= 0.0 ? 0.0F : static_cast<float>(std::max(0.0, value / deep_alpha));
+            };
+            deep_pixel[0] = unpremultiply(sample.r);
+            deep_pixel[1] = unpremultiply(sample.g);
+            deep_pixel[2] = unpremultiply(sample.b);
+            deep_pixel[3] = static_cast<float>(deep_alpha / 255.0);
+            coverage_row[px - left] = 1;
+            continue;
+          }
           auto* pixel = row + static_cast<std::ptrdiff_t>(px - left) * 4;
           const auto alpha = clamp_sample_channel(sample.a);
           pixel[3] = alpha;
@@ -809,6 +900,9 @@ TransformedImage resample_warped_rgba8(const QImage& source, const WarpSurfaceGr
     }
   }
   const auto bounds = Rect{left, top, transformed.width(), transformed.height()};
+  if (deep_format.has_value() && *deep_format != QImage::Format_RGBA32FPx4) {
+    transformed = transformed.convertToFormat(*deep_format);
+  }
   return TransformedImage{std::move(transformed), bounds};
 }
 
@@ -822,8 +916,18 @@ TransformedMask resample_transformed_gray8(const PixelBuffer& source, std::uint8
   const auto top = static_cast<int>(std::floor(mapped.top()));
   const auto right = static_cast<int>(std::ceil(mapped.right()));
   const auto bottom = static_cast<int>(std::ceil(mapped.bottom()));
-  PixelBuffer transformed(std::max(1, right - left), std::max(1, bottom - top), PixelFormat::gray8());
-  transformed.clear(default_color);
+  // A 16/32-bit mask resamples on its float samples and stays at its depth.
+  const bool deep = source.format().bit_depth != BitDepth::UInt8;
+  PixelBuffer transformed(std::max(1, right - left), std::max(1, bottom - top),
+                          deep ? source.format() : PixelFormat::gray8());
+  if (deep) {
+    const std::vector<float> background(static_cast<std::size_t>(transformed.width()), static_cast<float>(default_color));
+    for (int y = 0; y < transformed.height(); ++y) {
+      store_coverage_row(transformed, y, 0, transformed.width(), background);
+    }
+  } else {
+    transformed.clear(default_color);
+  }
   const auto bounds = Rect{left, top, transformed.width(), transformed.height()};
   interpolation = resolve_automatic_interpolation(interpolation, std::abs(source_to_document.determinant()));
 
@@ -835,10 +939,22 @@ TransformedMask resample_transformed_gray8(const PixelBuffer& source, std::uint8
 
   const auto* source_bits = source.data().data();
   const auto source_stride = source.stride_bytes();
-  const auto sample_gray = [source_bits, source_stride, source_width, source_height, default_color](int x,
-                                                                                                    int y) {
+  std::vector<float> deep_plane;
+  if (deep) {
+    deep_plane.resize(static_cast<std::size_t>(source_width) * static_cast<std::size_t>(source_height));
+    for (int y = 0; y < source_height; ++y) {
+      load_coverage_row(source, y, 0, source_width,
+                        std::span<float>(deep_plane).subspan(static_cast<std::size_t>(y) * source_width, source_width));
+    }
+  }
+  const auto* deep_samples = deep_plane.data();
+  const auto sample_gray = [source_bits, source_stride, source_width, source_height, default_color, deep,
+                            deep_samples](int x, int y) {
     if (x < 0 || y < 0 || x >= source_width || y >= source_height) {
       return static_cast<double>(default_color);
+    }
+    if (deep) {
+      return static_cast<double>(deep_samples[static_cast<std::size_t>(y) * source_width + x]);
     }
     return static_cast<double>(
         source_bits[static_cast<std::size_t>(y) * source_stride + static_cast<std::size_t>(x)]);
@@ -850,9 +966,10 @@ TransformedMask resample_transformed_gray8(const PixelBuffer& source, std::uint8
   // concurrent data() calls from workers would race on the copy-on-write bytes.
   auto* transformed_bits = transformed.data().data();
   const auto transformed_stride = transformed.stride_bytes();
+  const auto deep_depth = transformed.format().bit_depth;
   const auto resample_rows = [&sample_gray, &document_to_source, interpolation, transformed_bits,
-                              transformed_stride, left, top, source_width, source_height, default_color,
-                              width = transformed.width()](int row_begin, int row_end) {
+                              transformed_stride, left, top, source_width, source_height, default_color, deep,
+                              deep_depth, width = transformed.width()](int row_begin, int row_end) {
     for (int y = row_begin; y < row_end; ++y) {
       auto* row = transformed_bits + static_cast<std::size_t>(y) * transformed_stride;
       for (int x = 0; x < width; ++x) {
@@ -899,6 +1016,17 @@ TransformedMask resample_transformed_gray8(const PixelBuffer& source, std::uint8
             }
             break;
           }
+        }
+        if (deep) {
+          const auto clamped = std::clamp(value, 0.0, 255.0);
+          if (deep_depth == BitDepth::Float32) {
+            const auto stored = static_cast<float>(clamped / 255.0);
+            std::memcpy(row + static_cast<std::size_t>(x) * 4U, &stored, sizeof(stored));
+          } else {
+            const auto stored = static_cast<std::uint16_t>(std::lround(clamped * 257.0));
+            std::memcpy(row + static_cast<std::size_t>(x) * 2U, &stored, sizeof(stored));
+          }
+          continue;
         }
         row[x] = clamp_sample_channel(value);
       }
@@ -1822,7 +1950,7 @@ void CanvasWidget::refresh_transform_multi_preview_cache(bool processing_wait) {
       if (transformed_result.image.isNull()) {
         continue;
       }
-      transformed_pixels.push_back(pixels_from_image_rgba(transformed_result.image));
+      transformed_pixels.push_back(pixels_from_image_native(transformed_result.image));
       overrides.push_back(LayerPixelsOverrideSpec{job.id, transformed_result.bounds, &transformed_pixels.back()});
       auto with_effects = layer_bounds_with_effects(*job.layer, transformed_result.bounds);
       if (!with_effects.empty() && job.ancestor_effect_padding > 0) {
@@ -1913,7 +2041,7 @@ void CanvasWidget::refresh_transform_composited_preview_cache(bool processing_wa
     if (transformed_result.image.isNull()) {
       return {};
     }
-    const auto transformed_pixels = pixels_from_image_rgba(transformed_result.image);
+    const auto transformed_pixels = pixels_from_image_native(transformed_result.image);
     const QRect canvas_rect(0, 0, document->width(), document->height());
     const auto patch_rect =
         to_qrect(layer_bounds_with_effects(*layer, transformed_result.bounds)).intersected(canvas_rect);
@@ -3004,7 +3132,7 @@ void CanvasWidget::commit_free_transform() {
   }
   bool smart_filter_rerender_failed = false;
   if (changed) {
-    layer->set_pixels(pixels_from_image_rgba(transformed));
+    layer->set_pixels(pixels_from_image_native(transformed));
     layer->set_bounds(new_bounds);
     if (text_layer) {
       const auto delta = affine_from_qtransform(free_transform_delta(
@@ -3188,7 +3316,7 @@ void CanvasWidget::commit_free_transform_multi() {
           delta;
       const auto transformed_result =
           resample_transformed_rgba8(target.source_image, source_to_document, transform_interpolation_);
-      layer->set_pixels(pixels_from_image_rgba(transformed_result.image));
+      layer->set_pixels(pixels_from_image_native(transformed_result.image));
       layer->set_bounds(transformed_result.bounds);
       if (text_layer) {
         layer->metadata()[kLayerMetadataTextTransform] = serialize_layer_affine_transform(
@@ -3699,7 +3827,7 @@ void CanvasWidget::refresh_warp_preview_cache() {
   if (layer == nullptr) {
     return;
   }
-  const auto warped_pixels = pixels_from_image_rgba(warped.image);
+  const auto warped_pixels = pixels_from_image_native(warped.image);
   // Region-limited over the base cache (which excludes the layer): the warped
   // content only contributes inside its own effect bounds, so recompositing
   // the whole document per handle move - the warp drag's dominant cost - is
@@ -3884,7 +4012,7 @@ bool CanvasWidget::bake_warp_into_layer(Layer& layer, const WarpMeshGrid& mesh,
   if (grid.has_value()) {
     const auto baked = resample_warped_rgba8(source_image, *grid, transform_interpolation_);
     if (!baked.image.isNull()) {
-      layer.set_pixels(pixels_from_image_rgba(baked.image));
+      layer.set_pixels(pixels_from_image_native(baked.image));
       layer.set_bounds(baked.bounds);
       new_bounds = baked.bounds;
       baked_pixels = true;

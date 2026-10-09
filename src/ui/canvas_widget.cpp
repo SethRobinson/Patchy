@@ -3,6 +3,8 @@
 #include "ui/canvas_alt_space_filter.hpp"
 #include "ui/canvas_widget_shared.hpp"
 
+#include "core/pixel_depth.hpp"
+#include "render/compositor.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
@@ -17,6 +19,8 @@
 #include "ui/qt_geometry.hpp"
 #include "ui/smart_object_render.hpp"
 #include "ui/tool_cursors.hpp"
+#include "ui/text_area_layout.hpp"
+#include "core/text_area.hpp"
 
 #include <QApplication>
 #include <QCursor>
@@ -175,8 +179,12 @@ const Layer* topmost_text_layer_at_recursive(const std::vector<Layer>& layers, Q
       }
       continue;
     }
-    if (layer_is_text(layer) && layer.bounds().contains(document_point.x(), document_point.y())) {
-      return &layer;
+    if (layer_is_text(layer)) {
+      if (const auto area = text_area_in_document(layer)) {
+        if (TextAreaGeometry(*area).contains(document_point)) return &layer;
+      } else if (layer.bounds().contains(document_point.x(), document_point.y())) {
+        return &layer;
+      }
     }
   }
   return nullptr;
@@ -199,13 +207,25 @@ bool expand_mask_to_include_rect(LayerMask& mask, QRect document_rect, QSize can
     return false;
   }
 
-  PixelBuffer next(expanded.width(), expanded.height(), PixelFormat::gray8());
-  next.clear(mask.default_color);
-  if (!mask.pixels.empty() && mask.pixels.format() == PixelFormat::gray8()) {
+  // A 16/32-bit mask grows at its depth (docs/high-bit-depth.md).
+  const auto format = !mask.pixels.empty() && mask.pixels.format().channels == 1U ? mask.pixels.format()
+                                                                                   : PixelFormat::gray8();
+  PixelBuffer next(expanded.width(), expanded.height(), format);
+  if (format.bit_depth == BitDepth::UInt8) {
+    next.clear(mask.default_color);
+  } else {
+    const std::vector<float> fill(static_cast<std::size_t>(expanded.width()), static_cast<float>(mask.default_color));
+    for (int y = 0; y < expanded.height(); ++y) {
+      store_coverage_row(next, y, 0, expanded.width(), fill);
+    }
+  }
+  if (!mask.pixels.empty() && mask.pixels.format() == format) {
     const auto copy_rect = current.intersected(expanded);
+    const auto sample_bytes = bytes_per_pixel(format);
     for (int y = copy_rect.top(); y <= copy_rect.bottom(); ++y) {
       for (int x = copy_rect.left(); x <= copy_rect.right(); ++x) {
-        *next.pixel(x - expanded.x(), y - expanded.y()) = *mask.pixels.pixel(x - current.x(), y - current.y());
+        const auto* from = std::as_const(mask.pixels).pixel(x - current.x(), y - current.y());
+        std::copy(from, from + sample_bytes, next.pixel(x - expanded.x(), y - expanded.y()));
       }
     }
   }
@@ -805,6 +825,38 @@ bool CanvasWidget::retouch_sample_all_layers() const noexcept {
   return retouch_sample_all_layers_;
 }
 
+PixelBuffer CanvasWidget::retouch_source_deep() {
+  if (document_ == nullptr) {
+    return {};
+  }
+  if (retouch_sample_all_layers_) {
+    return Compositor{}.flatten_rgba_deep(*document_);
+  }
+  const auto* layer = active_pixel_layer();
+  const auto depth = document_->color_state().bit_depth;
+  PixelBuffer source(document_->width(), document_->height(), with_bit_depth(PixelFormat::rgba8(), depth));
+  source.clear(0);
+  if (layer == nullptr || !layer->visible() || layer->opacity() <= 0.0F) {
+    return source;
+  }
+  // active_layer_sample_image at depth: the layer's own colors, alpha times its mask
+  // and opacity.
+  const auto& pixels = std::as_const(*layer).pixels();
+  if (pixels.empty() || pixels.format().channels < 3) {
+    return source;
+  }
+  const auto bounds = layer->bounds();
+  const auto area = intersect_rect(bounds, Rect::from_size(document_->width(), document_->height()));
+  for (std::int32_t y = area.y; y < area.y + area.height; ++y) {
+    for (std::int32_t x = area.x; x < area.x + area.width; ++x) {
+      auto value = load_pixel(pixels.format(), pixels.pixel(x - bounds.x, y - bounds.y));
+      value[3] *= layer_mask_alpha_at(*layer, x, y) * layer->opacity();
+      store_pixel(source.format(), source.pixel(x, y), value);
+    }
+  }
+  return source;
+}
+
 QImage CanvasWidget::retouch_source_snapshot() {
   if (document_ == nullptr) {
     return QImage();
@@ -1390,7 +1442,8 @@ std::optional<CanvasWidget::GrayscaleEditTarget> CanvasWidget::active_grayscale_
     return std::nullopt;
   }
   auto& pixels = channel->pixels();
-  if (pixels.format() != PixelFormat::gray8() || pixels.width() != document_->width() ||
+  // Saved channels follow the document's depth; mask writes blend at any depth.
+  if (pixels.format().channels != 1U || pixels.width() != document_->width() ||
       pixels.height() != document_->height()) {
     return std::nullopt;
   }
@@ -1488,6 +1541,36 @@ Layer* CanvasWidget::topmost_text_layer_at(QPoint document_point) const noexcept
   return const_cast<Layer*>(topmost_text_layer_at_recursive(std::as_const(*document_).layers(), document_point));
 }
 
+std::optional<VectorPath> CanvasWidget::text_area_at(QPoint document_point) const {
+  if (!document_ || topmost_text_layer_at(document_point)) return std::nullopt;
+  const auto pick = [&](const VectorPath& source) -> std::optional<VectorPath> {
+    for (const auto& subpath : source.subpaths) {
+      VectorPath area;
+      area.subpaths.push_back(subpath);
+      area.subpaths.front().op = PathCombineOp::Xor;
+      area.subpaths.front().shape_group = 0;
+      if (valid_text_area(area) && TextAreaGeometry(area).contains(QPointF(document_point))) return area;
+    }
+    return std::nullopt;
+  };
+  if (target_path_visible_) {
+    if (const auto* target = path_edit_target_path()) {
+      if (auto area = pick(*target)) return area;
+    }
+  }
+  const auto visit = [&](auto&& self, const std::vector<Layer>& layers) -> std::optional<VectorPath> {
+    for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
+      if (!it->visible()) continue;
+      if (auto area = self(self, it->children())) return area;
+      if (const auto* shape = it->vector_shape(); shape && !shape->path_disabled && !shape->path_inverted) {
+        if (auto area = pick(shape->path)) return area;
+      }
+    }
+    return std::nullopt;
+  };
+  return visit(visit, std::as_const(*document_).layers());
+}
+
 void CanvasWidget::activate_layer(Layer& layer) {
   if (document_ == nullptr) {
     return;
@@ -1550,6 +1633,14 @@ void CanvasWidget::emit_info_for_widget_position(QPoint widget_position) const {
   info.inside_document = document_contains(document_point);
   if (info.inside_document) {
     info.color = compose_document_pixel(document_point.x(), document_point.y());
+    if (document_ != nullptr && document_->color_state().bit_depth == BitDepth::Float32) {
+      const ScopedDocumentDepthRender at_depth;
+      const auto image = qimage_from_document_rect(*document_, QRect(document_point, QSize(1, 1)), true);
+      if (image.format() == QImage::Format_RGBA32FPx4) {
+        const auto* px = reinterpret_cast<const float*>(image.constScanLine(0));
+        info.linear_color = std::array<float, 3>{px[0], px[1], px[2]};
+      }
+    }
   }
   if (document_ != nullptr && selecting_) {
     info.active_rect = marquee_selection_region(selection_start_, selection_current_).boundingRect();

@@ -16,7 +16,9 @@
 #include "core/pixel_tools.hpp"
 #include "core/vector_shape.hpp"
 #include "formats/palette_io.hpp"
+#include "core/pixel_depth.hpp"
 #include "filters/builtin_filters.hpp"
+#include "filters/filter_engine.hpp"
 #include "filters/smart_filter_recipe_mapping.hpp"
 #include "filters/smart_filter_renderer.hpp"
 #include "formats/bmp_document_io.hpp"
@@ -1385,13 +1387,14 @@ void MainWindow::editable_smart_filter_dialog(
       stack.mask.enabled = true;
       stack.mask.linked = false;
       if (canvas_->has_selection()) {
-        stack.mask.pixels = canvas_->selection_as_grayscale();
+        stack.mask.pixels = coverage_at_document_depth(doc, canvas_->selection_as_grayscale());
         stack.mask.default_color = 0U;
         stack.mask.extend_with_white = false;
       } else {
         stack.mask.pixels =
             PixelBuffer(doc.width(), doc.height(), PixelFormat::gray8());
         stack.mask.pixels.clear(255U);
+        stack.mask.pixels = coverage_at_document_depth(doc, std::move(stack.mask.pixels));
         stack.mask.default_color = 255U;
         stack.mask.extend_with_white = true;
       }
@@ -1994,7 +1997,7 @@ bool MainWindow::commit_smart_filter_mask_edit(
   auto candidate = *current;
   candidate.mask.bounds = Rect::from_size(target_session->document.width(),
                                           target_session->document.height());
-  candidate.mask.pixels = std::move(pixels);
+  candidate.mask.pixels = coverage_at_document_depth(target_session->document, std::move(pixels));
   if (!commit_smart_filter_stack_edit(
           *target_session, source_canvas, layer_id, std::move(candidate), {},
           undo_text, tr("Updated Smart Filter mask"),
@@ -2233,9 +2236,16 @@ void MainWindow::apply_filter(const QString& identifier) {
   }
   auto* layer = doc.find_layer(*active);
   if (layer == nullptr || layer->kind() != LayerKind::Pixel ||
-      std::as_const(*layer).pixels().format().bit_depth != BitDepth::UInt8 ||
       std::as_const(*layer).pixels().format().channels < 3) {
     show_status_error(tr("Select an editable RGB pixel layer"));
+    return;
+  }
+  // 16/32-bit layers run the filter at their depth (docs/high-bit-depth.md); a
+  // 32-bit document offers only the filters that mean the same on linear light.
+  if (deep_filter_support(identifier.toStdString(),
+                          std::as_const(*layer).pixels().format().bit_depth) ==
+      DeepFilterSupport::Unsupported) {
+    show_status_error(tr("This filter is not available in 32-bit documents"));
     return;
   }
   if (layer_id_locks_image_pixels(*active)) {
@@ -2566,7 +2576,11 @@ void MainWindow::auto_all_adjustments() {
     return;
   }
   auto* layer = doc.find_layer(*active);
-  if (!editable_rgb8_layer(layer)) {
+  const auto auto_all_layer = [](const Layer* candidate) {
+    return editable_rgb_layer_any_depth(candidate) &&
+           std::as_const(*candidate).pixels().format().bit_depth != BitDepth::Float32;
+  };
+  if (!auto_all_layer(layer)) {
     show_status_error(tr("Select an editable RGB pixel layer"));
     return;
   }
@@ -2579,7 +2593,7 @@ void MainWindow::auto_all_adjustments() {
     return;
   }
   layer = doc.find_layer(*active);
-  if (!editable_rgb8_layer(layer)) {
+  if (!auto_all_layer(layer)) {
     show_status_error(tr("Select an editable RGB pixel layer"));
     return;
   }
@@ -2689,7 +2703,11 @@ void MainWindow::liquify_dialog() {
   }
   const auto& read_only_doc = std::as_const(doc);
   const auto* source_layer = read_only_doc.find_layer(*active);
-  if (!editable_rgb8_layer(source_layer)) {
+  const auto liquify_layer = [](const Layer* candidate) {
+    return editable_rgb_layer_any_depth(candidate) &&
+           std::as_const(*candidate).pixels().format().bit_depth != BitDepth::Float32;
+  };
+  if (!liquify_layer(source_layer)) {
     show_status_error(tr("Select an editable RGB pixel layer"));
     return;
   }
@@ -2707,7 +2725,7 @@ void MainWindow::liquify_dialog() {
     return;
   }
   source_layer = read_only_doc.find_layer(*active);
-  if (!editable_rgb8_layer(source_layer)) {
+  if (!liquify_layer(source_layer)) {
     show_status_error(tr("Select an editable RGB pixel layer"));
     return;
   }
@@ -2715,7 +2733,13 @@ void MainWindow::liquify_dialog() {
   const auto original_pixels = source_layer->pixels();
   const auto bounds = source_layer->bounds();
   const auto selection = canvas_->selected_document_region();
-  const auto mesh = request_liquify(this, original_pixels, bounds, selection, document_field_units().ppi);
+  // A 16-bit layer is warped on its 8-bit copy and the change folded back at depth
+  // (docs/high-bit-depth.md).
+  const auto deep_source = original_pixels.format().bit_depth != BitDepth::UInt8;
+  const auto dialog_pixels =
+      deep_source ? convert_pixel_buffer_depth(original_pixels, BitDepth::UInt8, SampleKind::Color)
+                  : original_pixels;
+  const auto mesh = request_liquify(this, dialog_pixels, bounds, selection, document_field_units().ppi);
   if (!mesh.has_value()) {
     statusBar()->showMessage(tr("Cancelled Liquify"));
     return;
@@ -2746,9 +2770,26 @@ void MainWindow::liquify_dialog() {
         }
       },
       [&](FilterProgress& filter_progress) {
-        rendered = mesh->render(original_pixels, [&filter_progress](int completed, int total) {
+        const auto update = [&filter_progress](int completed, int total) {
           return filter_progress.update(completed, total, FilterProgressStage::Distorting);
+        };
+        if (!deep_source) {
+          rendered = mesh->render(original_pixels, update);
+          return;
+        }
+        auto deep = original_pixels;
+        bool cancelled = false;
+        apply_eight_bit_edit_at_depth(deep, [&](PixelBuffer& narrowed) {
+          auto warped = mesh->render(narrowed, update);
+          if (warped.has_value()) {
+            narrowed = std::move(*warped);
+          } else {
+            cancelled = true;
+          }
         });
+        if (!cancelled) {
+          rendered = std::move(deep);
+        }
       });
   if (!rendered.has_value()) {
     statusBar()->showMessage(tr("Cancelled Liquify"));
@@ -2815,7 +2856,13 @@ void MainWindow::visual_filter_gallery_dialog() {
   // the user only opened and cancelled the gallery.
   const auto& source_document = std::as_const(target_session->document);
   const auto* source_layer = source_document.find_layer(*active);
-  if (!editable_rgb8_layer(source_layer)) {
+  // 16-bit layers run the Look at depth (docs/high-bit-depth.md); 32-bit documents
+  // do not offer the gallery.
+  const auto gallery_layer = [](const Layer* candidate) {
+    return editable_rgb_layer_any_depth(candidate) &&
+           std::as_const(*candidate).pixels().format().bit_depth != BitDepth::Float32;
+  };
+  if (!gallery_layer(source_layer)) {
     show_status_error(tr("Select an editable RGB pixel layer"));
     return;
   }
@@ -2829,7 +2876,7 @@ void MainWindow::visual_filter_gallery_dialog() {
     return;
   }
   source_layer = source_document.find_layer(*active);
-  if (!editable_rgb8_layer(source_layer)) {
+  if (!gallery_layer(source_layer)) {
     show_status_error(tr("Select an editable RGB pixel layer"));
     return;
   }
@@ -2896,6 +2943,8 @@ void MainWindow::visual_filter_gallery_dialog() {
       native_new_stack_mask.default_color = 255U;
       native_new_stack_mask.extend_with_white = true;
     }
+    native_new_stack_mask.pixels =
+        coverage_at_document_depth(source_document, std::move(native_new_stack_mask.pixels));
     const auto parent_document_dir =
         target_session->path.isEmpty()
             ? QString()

@@ -1,5 +1,7 @@
 #include "ui/canvas_widget.hpp"
 #include "core/adjustment_layer.hpp"
+#include "core/document_depth.hpp"
+#include "core/pixel_depth.hpp"
 #include "core/contour_presets.hpp"
 #include "core/gradient_presets.hpp"
 #include "core/layer_metadata.hpp"
@@ -576,6 +578,71 @@ void ui_filter_gallery_live_canvas_latest_off_on_and_cancel_restore_exact() {
   CHECK(!canvas->edit_locked());
   CHECK(layer_list->isEnabled());
   CHECK(tabs->tabBar()->isEnabled());
+}
+
+// A 16-bit layer takes a Look at depth (docs/high-bit-depth.md): the applied pixels are
+// the registry's 16-bit render; a 32-bit document does not offer the gallery.
+void ui_filter_gallery_applies_looks_to_16_bit_layers() {
+  GallerySettingsRestorer gallery_settings;
+  patchy::set_deep_editing_override(true);
+  {
+    patchy::LayerId layer_id{};
+    patchy::Rect bounds;
+    patchy::PixelBuffer original_pixels;
+    auto document = make_filter_gallery_document(layer_id, bounds, original_pixels);
+    patchy::convert_document_depth(document, patchy::BitDepth::UInt16);
+    const auto deep_original = std::as_const(document).find_layer(layer_id)->pixels();
+    CHECK(deep_original.format().bit_depth == patchy::BitDepth::UInt16);
+    patchy::ui::MainWindow window;
+    window.add_document_session(std::move(document), QStringLiteral("Gallery Deep"));
+    show_window(window);
+    CHECK(require_action(window, "filterGalleryAction")->isEnabled());
+
+    patchy::FilterRegistry registry;
+    patchy::register_builtin_filters(registry);
+    auto sepia = registry.default_invocation("patchy.filters.sepia");
+    set_filter_integer(sepia, "amount", 64);
+    patchy::Rect expected_bounds = bounds;
+    const auto expected_pixels = patchy::ui::build_filter_preview_pixels(
+        deep_original, QRegion(), bounds, registry, patchy::ui::FilterPreviewSettings{true, sepia}, nullptr,
+        &expected_bounds);
+    CHECK(expected_pixels.format().bit_depth == patchy::BitDepth::UInt16);
+
+    bool accepted_filter = false;
+    QTimer::singleShot(0, [&] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      auto* looks = dialog->findChild<QListWidget*>(QStringLiteral("filterGalleryLooksList"));
+      auto* parameters = dialog->findChild<QWidget*>(QStringLiteral("filterGalleryParameters"));
+      auto* buttons = dialog->findChild<QDialogButtonBox*>(QStringLiteral("filterGalleryButtonBox"));
+      CHECK(looks != nullptr && parameters != nullptr && buttons != nullptr);
+      looks->setCurrentRow(6);
+      QApplication::processEvents();
+      auto* amount = parameters->findChild<QSpinBox*>(QStringLiteral("filterAmountSpin"));
+      CHECK(amount != nullptr);
+      if (amount != nullptr) {
+        amount->setValue(64);
+      }
+      accepted_filter = true;
+      buttons->button(QDialogButtonBox::Ok)->click();
+    });
+    require_action(window, "filterGalleryAction")->trigger();
+    CHECK(accepted_filter);
+    const auto& read_document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    const auto* layer = read_document.find_layer(layer_id);
+    CHECK(layer != nullptr);
+    CHECK(layer != nullptr && layer->pixels().format().bit_depth == patchy::BitDepth::UInt16);
+    CHECK(layer != nullptr && patchy::ui::pixel_buffers_equal(layer->pixels(), expected_pixels));
+    CHECK(patchy::document_depth_problems(read_document).empty());
+
+    require_action(window, "imageMode32BitAction")->trigger();
+    QApplication::processEvents();
+    CHECK(!require_action(window, "filterGalleryAction")->isEnabled());
+  }
+  patchy::set_deep_editing_override(std::nullopt);
 }
 
 void ui_filter_gallery_original_noop_and_selected_apply_undo_redo() {
@@ -2289,6 +2356,7 @@ std::vector<patchy::test::TestCase> destructive_filters_gallery_tests_part2() {
        ui_filter_gallery_photo_looks_layout_thumbnails_controls_zoom_and_before},
       {"ui_filter_gallery_live_canvas_latest_off_on_and_cancel_restore_exact",
        ui_filter_gallery_live_canvas_latest_off_on_and_cancel_restore_exact},
+      {"ui_filter_gallery_applies_looks_to_16_bit_layers", ui_filter_gallery_applies_looks_to_16_bit_layers},
       {"ui_filter_gallery_original_noop_and_selected_apply_undo_redo",
        ui_filter_gallery_original_noop_and_selected_apply_undo_redo},
       {"ui_filter_gallery_categories_have_stable_tokens_and_exact_members",

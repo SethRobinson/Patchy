@@ -1,10 +1,12 @@
 # High bit depth: 16-bit and 32-bit (HDR) editing
 
-Status (October 9, 2026): Phases 0-2 done; Phase 3's compositor done, its display and
-tool loose ends open (below). With the gate off (the default) Patchy still edits in 8
-bits: deep files convert at decode (docs/file-formats.md, "16-bit and 32-bit PSD/PSB
-import"). This document is the plan of record and the rules the work must follow.
-Update it as each phase lands; keep it current-state.
+Status (October 9, 2026): deep editing is on by default. 16 and 32-bit files open at
+their depth, and File > New and Image > Mode offer 8, 16 and 32 bits.
+`PATCHY_DEEP_EDITING=0` turns it off: deep files then convert to 8 bits at decode, as
+before (docs/file-formats.md, "16-bit and 32-bit PSD/PSB import"). The test harnesses
+keep the old default (`set_deep_editing_default(false)` in both test mains); deep tests
+override the gate. Open items are listed per phase below. This document is the plan of
+record and the rules the work must follow; keep it current-state.
 
 ## Goal and acceptance
 
@@ -189,29 +191,126 @@ Each phase lands as verified commits; the gate stays off until Phase 9.
    (`analyze.split_deep_png`). A deep target caches one `DeepAdjuster` per adjustment
    pass, keyed by `adjustment_pass_serial` as well as the settings address: stacked
    adjustment layers reuse one stack slot for their settings.
-4. **Layer operations and transforms.** Merge, flatten, duplicate, rasterize at depth,
-   transforms, warp, liquify, crop, canvas size, copy/paste and Files as Layers across
-   depths (convert on entry).
-5. **Painting and retouch tools.** The pixel_tools write path, the canvas brush engine,
-   fill, gradient (no 8-bit dither), clone/heal/spot heal/patch/Remove Object, smudge,
-   mixer, dodge/burn/sponge, blur/sharpen, history brush, pattern stamp.
-6. **Adjustments and filters.** Every filter, smart filters, Filter Gallery, liquify,
-   destructive adjustments. 8BF plug-ins at 16 bits where the host contract allows.
-   Surface Blur, Median and Dust & Scratches keep their no-histogram designs at every
-   depth (docs/patent-research.md).
-7. **UI.** Image > Mode > 8/16/32 Bits/Channel is in (`image.mode_8_bit`,
-   `image.mode_16_bit`, `image.mode_32_bit`; shown while the gate is on; undoable;
-   Indexed only at 8 bits). Still to do: New Document depth,
-   picker/Info/histogram precision, deep Levels/Curves histograms, 32-bit preview
-   exposure, conversion dialog for 32 to lower depths. All text through tr() and every
-   catalog.
-8. **Other formats and the script API.** PNG 16 read, TIFF 16/32, JXR float native,
-   HEIF 10-bit, raw at 16 bits, deep .af import, OpenEXR and Radiance .hdr (licensing
-   check first). `document.bitDepth`, `document.convertBitDepth()`, deep
-   `getPixels`/`setPixels` (d.ts, guide, change log).
-9. **Memory, performance, platforms, flip the gate.** History budget and style caches
-   under 2x/4x pixels, a deep stress preset (new step ids appended), wasm, mac/linux
-   builds, then both full suites and a full Testy run against the baseline.
+4. **Layer operations and transforms** (done except Liquify, which is Phase 6;
+   `pixel_depth_geometry_operations_keep_deep_buffers_at_depth`,
+   `ui_layer_operations_keep_deep_documents_at_depth`,
+   `ui_free_transform_keeps_deep_layers_at_depth`). Rules:
+   - Pixel buffers move as whole pixels (`bytes_per_pixel`), never a byte per channel,
+     and new masks, channels and layers take the source's or the document's depth
+     (`coverage_at_document_depth`, `with_bit_depth`). Rotate, crop, rotated crop
+     (float bilinear), Rotate Arbitrary, Canvas Size, Shift Seams and flips cover
+     layers, masks and channels.
+   - Renders that become layer pixels (merge, Merge Visible, rasterize, multi-layer
+     copy, Copy Merged, the merge dialog) build their scratch document at the
+     document's depth, render under `ScopedDocumentDepthRender` (deep renders then
+     return `Format_RGBA64` or linear `Format_RGBA32FPx4`) and convert with
+     `pixels_from_image_at_depth`. `pixels_from_image_rgba` keeps its 8-bit contract
+     for loaders; `pixels_from_image_native` is the depth-preserving inverse of
+     `qimage_from_pixel_buffer`. Display and export callers use
+     `display_qimage_from_pixel_buffer` (32-bit sRGB-encoded).
+   - Free Transform and Warp resample deep layer images in float through the same
+     kernels (`premultiplied_pixel` reads `Format_RGBA32FPx4`) and return the source
+     format; masks resample on float samples. Bicubic undershoot clamps at 0; linear
+     values above 1 are kept.
+   - Layers entering another document convert (`convert_layer_depth`): cross-document
+     drags and copies, Files as Layers, layer pastes, raster pastes. Selections stay
+     8-bit: deep channels, masks and composites load narrowed.
+   - Clear and Cut erase deep layers on float rows (alpha times one minus the
+     foreground alpha times coverage); Apply and Invert Layer Mask work at depth.
+5. **Painting and retouch tools** (done; `pixel_depth_painting_writes_deep_layers_at_depth`,
+   `ui_brush_paints_deep_layers_and_masks_at_depth`, `ui_retouch_tools_edit_deep_layers_at_depth`).
+   `write_pixel` dispatches deep layers to `write_pixel_blend_deep` (the 8-bit blend in
+   float; 32-bit blends linear light with decoded paint colors) and the brush stroke
+   compositor to `render_brush_stroke_pixel_deep`; callers address pixels by
+   `bytes_per_pixel`, never `channels`. Brush, Pencil, Mixer, Pattern Stamp, Eraser,
+   Paint Bucket (tolerance on display-encoded values), Gradient (float colors through
+   `EditOptions::deep_primary`, no banding), Line/Rectangle/Ellipse, Edit > Fill and
+   Stroke Selection, Smudge (`SmudgeState::sample_deep`), Dodge/Burn/Sponge/Blur/Sharpen
+   (`local_adjustment_brush_segment_deep`; 32-bit adjusts display-encoded values),
+   Clone and Healing (`clone_source_deep_`, `retouch_source_deep`; healed 16-bit values
+   clamp at full scale like the 8-bit path) and every mask or saved-channel edit
+   (`blend_mask_at`) run at depth. Spot Healing, Remove Object and Patch heal a
+   narrowed copy (`NarrowedLayerEdit`): only the healed pixels come back at 8-bit
+   precision, every other pixel keeps its depth. Known gap: a float membrane solver
+   would make those fills full precision.
+6. **Adjustments and filters** (partly done; `tests/core/deep_filter_tests.cpp`,
+   `ui_script_bit_depth_and_deep_filters`). Destructive Levels, Curves, Hue/Saturation
+   and Color Balance run `DeepAdjuster` at depth (`apply_adjustment_to_deep_pixels`).
+   `deep_filter_support` (filters/filter_engine.hpp) decides how a filter runs:
+   - Deep kernels (`filters/deep_filters.cpp`: the 8-bit math in float without its
+     intermediate rounding; Gaussian, High Pass and Unsharp share the calibrated line
+     kernels through `filter_plane_with_photoshop_kernel`). Both depths: Gaussian, Box,
+     Radial and Motion Blur (the exact tap kernel at every distance), Unsharp Mask,
+     Pixel Mosaic, Twirl, Wave, Pinch/Bloat, Clouds (mixed in the display encoding). 16 bits only, since their constants assume
+     encoded values: Invert, Brightness/Contrast, Grayscale, Desaturate, Sepia,
+     Threshold, Posterize, Vignette, High Pass, Sharpen, Emboss, Add Noise.
+   - Every other filter on 16 bits runs on an 8-bit copy and folds the change back
+     (`apply_eight_bit_edit_at_depth`, core/pixel_depth): unchanged samples keep their
+     precision, changed ones move by the 8-bit change (an edit to 0 or 255 lands
+     exactly). Liquify and Auto All take the same path.
+   - 32-bit documents disable the rest, Liquify and Auto All (menu actions off in
+     `update_document_action_state` through the actions' `patchy.filterIdentifier`;
+     script `applyFilter` throws). 8BF plug-ins run on 16-bit layers through the same
+     8-bit copy and refuse 32-bit ones. The Filter Gallery takes 16-bit layers (its
+     previews draw from display values: `make_filter_preview_proxy` and
+     `exact_render_to_proxy` narrow) and is disabled at 32 bits.
+   - Oracle: every filter on a 16-bit copy of an 8-bit image narrows back within 3
+     levels (exactly, on the 8-bit-copy path); offered 32-bit filters keep a uniform
+     HDR color, values above 1.0 included.
+   Smart objects render their contents at 8 bits in every document, so their Smart
+   Filters run at 8 bits. Still to do: Smart Filters at depth, native 16-bit
+   8BF (check the SDK's 16-bit sample range), 32-bit Add Noise, deep
+   kernels for the 8-bit-copy filters. Surface Blur, Median and Dust & Scratches keep
+   their no-histogram designs at every depth (docs/patent-research.md).
+7. **UI.** Image > Mode > 8/16/32 Bits/Channel (`image.mode_8_bit`,
+   `image.mode_16_bit`, `image.mode_32_bit`; shown while deep editing is on; undoable;
+   Indexed only at 8 bits). Leaving 32 bits asks for HDR Toning (`hdrToningDialog`,
+   Photoshop's Exposure and Gamma method: `tone_map_linear_document` maps pixel layers'
+   linear color to (v * 2^exposure)^(1/gamma) before the conversion; Patchy's own
+   reading of the method, not probed against Photoshop). New Document has a Bit Depth
+   row while deep editing is on (`newDocumentBitDepthCombo`); like Photoshop it starts
+   at 8 bits every time (the old `newDocument/lastBitDepth` key is no longer read).
+   32-bit documents show a status-bar preview exposure
+   (`hdrPreviewExposureSpin`, `DocumentColorState::view_exposure_stops`): it scales
+   linear values whenever a 32-bit composite narrows to display values (canvas,
+   thumbnails, 8-bit exports, the eyedropper), is never saved, and undo keeps the
+   current value. The Info readout adds the linear values on 32-bit documents.
+   Histograms (Levels, Curves) and every `flatten_rgb8` consumer read a deep document's
+   display values: `flatten_rgb8` returns the deep flatten narrowed (the 8-bit walk
+   skips deep layers). Still to do: Info/picker values in 16-bit units, a histogram
+   panel at depth. All text through tr() and every catalog.
+8. **Other formats and the script API** (partly done). With the gate on, a 16-bit or
+   float QImage from a loader (PNG 16, TIFF) opens at 16 or 32 bits
+   (`document_from_qimage`, `deep_import_depth`), and the flat-alpha promotion keeps
+   the mask and color at depth. Script API: `doc.bitDepth`, `doc.convertBitDepth(bits)`
+   (throws for other values, with the gate off, or on Indexed documents);
+   `getPixels`/`setPixels` stay RGBA8 and convert at the boundary. Export: PNG and TIFF
+   keep 16 bits (`deep_export_qimage`); a 32-bit document writes float TIFF with its
+   linear values (`float_export_qimage`). Still to do: JXR float native, HEIF 10-bit,
+   raw at 16 bits, deep .af import, OpenEXR and Radiance .hdr (licensing check first).
+9. **Memory, performance, platforms, flip the gate** (in progress). The history budget
+   counts real buffer bytes (`accumulate_unique_pixel_bytes`), so deep layers weigh 2x
+   or 4x. `patchy.exe --stress-test=quick --stress-depth 16|32` runs the whole stress
+   scenario on deep documents (filters a 32-bit document lacks are skipped and listed
+   in the report's warnings). October 9, 2026, offscreen quick preset: 8 bits 42.6 s,
+   16 bits 92.9 s, 32 bits 93.2 s, no failures; the 16-bit scene PSD opens in
+   Photoshop without a prompt. The web build stops at 16 bits
+   (`depth_supported_on_platform`): 32-bit files open converted to 16 with an import
+   note, and Image > Mode, New Document and `convertBitDepth` offer no 32. Still to
+   do: deep compositor speed, the gate decision, a full Testy run against the
+   baseline.
+
+### Photoshop's 32-bit blend modes
+
+Photoshop 2026 refuses to open a 32-bit PSD ("open options are incorrect") with a layer
+or group in Color Burn, Linear Burn, Screen, Color Dodge, Overlay, Soft, Hard, Vivid,
+Linear or Pin Light, Hard Mix or Exclusion; its own conversion to 32 bits (Don't Merge)
+sets those layers to Normal. Layer-effect blend modes are not affected. Patchy follows
+it (`blend_mode_supported_at_depth`): `convert_layer` substitutes Normal on the way to
+32 bits, the Layers panel and Layer Style blend menus disable the modes on 32-bit
+documents, script `blendMode` throws, and the PSD writer writes Normal for any that
+slip through (`writable_layer_blend_mode`). Pinned by
+`psd_deep_32_bit_blend_modes_follow_photoshop`.
 
 ## Verification rules
 

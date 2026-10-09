@@ -57,6 +57,8 @@
 #include "ui/default_brush_tips.hpp"
 #include "ui/compatibility_report.hpp"
 #include "ui/image_document_io.hpp"
+#include "core/document_depth.hpp"
+#include "core/pixel_depth.hpp"
 #include "ui/image_save_options_dialog.hpp"
 #include "ui/modifier_names.hpp"
 #include "ui/raw_develop_dialog.hpp"
@@ -375,19 +377,61 @@ std::uint8_t layer_mask_value_at(const Layer& layer, std::int32_t x, std::int32_
   if (!mask.has_value() || mask->disabled) {
     return 255;
   }
-  if (mask->pixels.empty() || mask->pixels.format() != PixelFormat::gray8()) {
+  if (mask->pixels.empty() || mask->pixels.format().channels != 1U) {
     return mask->default_color;
   }
   if (!mask->bounds.contains(x, y)) {
     return mask->default_color;
   }
+  if (mask->pixels.format().bit_depth != BitDepth::UInt8) {
+    return static_cast<std::uint8_t>(
+        std::lround(coverage_at(mask->pixels, x - mask->bounds.x, y - mask->bounds.y) * 255.0F));
+  }
   return *mask->pixels.pixel(x - mask->bounds.x, y - mask->bounds.y);
+}
+
+// The layer mask at a document point as 0..1, at the mask's own precision.
+float layer_mask_coverage_at(const Layer& layer, std::int32_t x, std::int32_t y) {
+  const auto& mask = layer.mask();
+  if (!mask.has_value() || mask->disabled) {
+    return 1.0F;
+  }
+  if (mask->pixels.empty() || mask->pixels.format().channels != 1U || !mask->bounds.contains(x, y)) {
+    return static_cast<float>(mask->default_color) / 255.0F;
+  }
+  return coverage_at(mask->pixels, x - mask->bounds.x, y - mask->bounds.y);
 }
 
 void apply_selection_mask(PixelBuffer& pixels, Rect document_rect, const CanvasWidget& canvas);
 
 PixelBuffer copy_pixels_from_layer(const Layer& layer, Rect document_rect, const CanvasWidget* canvas = nullptr) {
   const auto& source = layer.pixels();
+  if (!source.empty() && source.format().channels >= 3 && source.format().bit_depth != BitDepth::UInt8) {
+    // 16/32-bit (docs/high-bit-depth.md): the same copy on float rows at the layer's depth.
+    const auto depth = source.format().bit_depth;
+    const auto domain = depth == BitDepth::Float32 ? DeepDomain::Linear : DeepDomain::Encoded;
+    PixelBuffer deep(document_rect.width, document_rect.height, with_bit_depth(PixelFormat::rgba8(), depth));
+    deep.clear(0);
+    const auto bounds = layer.bounds();
+    const auto first = std::max(document_rect.x, bounds.x);
+    const auto last = std::min(document_rect.x + document_rect.width, bounds.x + source.width());
+    std::vector<float> row(static_cast<std::size_t>(std::max(0, last - first)) * 4U);
+    for (std::int32_t y = 0; y < document_rect.height && last > first; ++y) {
+      const auto sy = document_rect.y + y - bounds.y;
+      if (sy < 0 || sy >= source.height()) {
+        continue;
+      }
+      load_rgba_row(source, sy, first - bounds.x, last - first, domain, row);
+      for (std::int32_t x = first; x < last; ++x) {
+        row[static_cast<std::size_t>(x - first) * 4U + 3U] *= layer_mask_coverage_at(layer, x, document_rect.y + y);
+      }
+      store_rgba_row(deep, y, first - document_rect.x, last - first, domain, row);
+    }
+    if (canvas != nullptr) {
+      apply_selection_mask(deep, document_rect, *canvas);
+    }
+    return deep;
+  }
   PixelBuffer copied(document_rect.width, document_rect.height, PixelFormat::rgba8());
   copied.clear(0);
   if (source.empty() || source.format().bit_depth != BitDepth::UInt8 || source.format().channels < 3) {
@@ -420,8 +464,22 @@ PixelBuffer copy_pixels_from_layer(const Layer& layer, Rect document_rect, const
 }
 
 void apply_selection_mask(PixelBuffer& pixels, Rect document_rect, const CanvasWidget& canvas) {
-  if (!canvas.has_selection() || pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 ||
-      pixels.format().channels < 4) {
+  if (!canvas.has_selection() || pixels.empty() || pixels.format().channels < 4) {
+    return;
+  }
+  if (pixels.format().bit_depth != BitDepth::UInt8) {
+    // 16/32-bit: alpha times the selection's coverage, on float rows.
+    const auto domain =
+        pixels.format().bit_depth == BitDepth::Float32 ? DeepDomain::Linear : DeepDomain::Encoded;
+    std::vector<float> row(static_cast<std::size_t>(pixels.width()) * 4U);
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      load_rgba_row(pixels, y, 0, pixels.width(), domain, row);
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        const auto selected = canvas.selection_alpha_at(QPoint(document_rect.x + x, document_rect.y + y));
+        row[static_cast<std::size_t>(x) * 4U + 3U] *= static_cast<float>(selected) / 255.0F;
+      }
+      store_rgba_row(pixels, y, 0, pixels.width(), domain, row);
+    }
     return;
   }
 
@@ -558,7 +616,20 @@ std::vector<const Layer*> find_layers_top_to_bottom(const std::vector<Layer>& la
 }
 
 bool has_visible_pixels(const PixelBuffer& pixels) {
-  if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8) {
+  if (pixels.empty()) {
+    return false;
+  }
+  if (pixels.format().bit_depth != BitDepth::UInt8) {
+    if (pixels.format().channels < 4) {
+      return pixels.format().channels >= 3;
+    }
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        if (pixel_alpha_at(pixels, x, y) > 0.0F) {
+          return true;
+        }
+      }
+    }
     return false;
   }
   if (pixels.format().channels < 4) {
@@ -609,12 +680,14 @@ std::optional<LayerCopyPixels> collect_layer_copy_pixels(const Document& documen
     copied = copy_pixels_from_layer(*layers_to_copy.front(), copy_rect, &canvas);
   } else {
     Document selected_document(document.width(), document.height(), document.format());
+    selected_document.color_state().bit_depth = document.color_state().bit_depth;
     for (const auto* layer : layers_to_copy) {
       selected_document.add_layer(*layer);
     }
+    const ScopedDocumentDepthRender depth_render;
     const auto image =
         qimage_from_document(selected_document, true).copy(QRect(copy_rect.x, copy_rect.y, copy_rect.width, copy_rect.height));
-    copied = pixels_from_image_rgba(image);
+    copied = pixels_from_image_at_depth(image, document.color_state().bit_depth);
     apply_selection_mask(copied, copy_rect, canvas);
   }
 
@@ -959,17 +1032,19 @@ void MainWindow::copy_selection() {
     copied = copy_pixels_from_layer(*layers_to_copy.front(), copy_rect, canvas_);
   } else {
     Document selected_document(document().width(), document().height(), document().format());
+    selected_document.color_state().bit_depth = std::as_const(document()).color_state().bit_depth;
     for (const auto* layer : layers_to_copy) {
       selected_document.add_layer(*layer);
     }
+    const ScopedDocumentDepthRender depth_render;
     const auto image =
         qimage_from_document(selected_document, true).copy(QRect(copy_rect.x, copy_rect.y, copy_rect.width, copy_rect.height));
-    copied = pixels_from_image_rgba(image);
+    copied = pixels_from_image_at_depth(image, std::as_const(document()).color_state().bit_depth);
     apply_selection_mask(copied, copy_rect, *canvas_);
   }
 
   clipboard_ = ClipboardPayload{std::move(copied), QPoint(copy_rect.x, copy_rect.y)};
-  set_system_clipboard_image(qimage_from_pixel_buffer(clipboard_->pixels));
+  set_system_clipboard_image(display_qimage_from_pixel_buffer(clipboard_->pixels));
   statusBar()->showMessage(
       tr("Copied %1 layer(s), %2 x %3 px")
           .arg(static_cast<qulonglong>(layers_to_copy.size()))
@@ -990,9 +1065,14 @@ void MainWindow::copy_merged() {
     return;
   }
 
-  const auto image = qimage_from_document(document(), true).copy(QRect(copy_rect.x, copy_rect.y, copy_rect.width, copy_rect.height));
-  clipboard_ = ClipboardPayload{pixels_from_image_rgba(image), QPoint(copy_rect.x, copy_rect.y)};
-  set_system_clipboard_image(image);
+  const auto depth = std::as_const(document()).color_state().bit_depth;
+  QImage image;
+  {
+    const ScopedDocumentDepthRender depth_render;
+    image = qimage_from_document(document(), true).copy(QRect(copy_rect.x, copy_rect.y, copy_rect.width, copy_rect.height));
+  }
+  clipboard_ = ClipboardPayload{pixels_from_image_at_depth(image, depth), QPoint(copy_rect.x, copy_rect.y)};
+  set_system_clipboard_image(depth == BitDepth::UInt8 ? image : display_qimage_from_pixel_buffer(clipboard_->pixels));
   statusBar()->showMessage(tr("Copied merged %1 x %2 px").arg(copy_rect.width).arg(copy_rect.height));
 }
 
@@ -1143,6 +1223,7 @@ void MainWindow::paste_clipboard(bool in_place) {
       }
       pasted->set_name(next_duplicate_name(it->name(), existing_names));
       existing_names.insert(pasted->name());
+      convert_layer_depth(*pasted, std::as_const(doc).color_state().bit_depth);
       const auto pasted_id = pasted->id();
       insert_layer_after_anchor(doc, std::move(*pasted), anchor_id);
       anchor_id = pasted_id;
@@ -1183,6 +1264,10 @@ void MainWindow::paste_clipboard(bool in_place) {
       return;
     }
     pixels = pixels_from_image_rgba(image);
+  }
+  // Pixels from another document or another app join this document at its depth.
+  if (const auto depth = std::as_const(document()).color_state().bit_depth; pixels.format().bit_depth != depth) {
+    pixels = convert_pixel_buffer_depth(pixels, depth, SampleKind::Color);
   }
 
   const auto view_center = canvas_->document_point_for_widget_position(
@@ -1279,7 +1364,8 @@ void MainWindow::add_layer() {
 
   push_undo_snapshot(tr("New layer"));
   auto layer_pixels =
-      make_solid_pixels(doc.width(), doc.height(), QColor(0, 0, 0, 0), PixelFormat::rgba8());
+      make_solid_pixels(doc.width(), doc.height(), QColor(0, 0, 0, 0),
+                        with_bit_depth(PixelFormat::rgba8(), std::as_const(doc).color_state().bit_depth));
   Layer layer(doc.allocate_layer_id(), name.toStdString(), std::move(layer_pixels));
   const auto layer_id = layer.id();
   layer.set_opacity(1.0F);
@@ -1443,12 +1529,13 @@ void MainWindow::add_layer_mask() {
   push_undo_snapshot(tr("Add layer mask"));
   const auto before = layer_render_bounds(*layer);
   if (from_selection) {
-    auto mask_pixels = selection_mask_pixels(*canvas_, selection_rect);
+    auto mask_pixels = coverage_at_document_depth(doc, selection_mask_pixels(*canvas_, selection_rect));
     layer->set_mask(LayerMask{to_core_rect(selection_rect), std::move(mask_pixels), 0, false});
   } else {
     PixelBuffer mask_pixels(doc.width(), doc.height(), PixelFormat::gray8());
     mask_pixels.clear(255);
-    layer->set_mask(LayerMask{Rect{0, 0, doc.width(), doc.height()}, std::move(mask_pixels), 255, false});
+    layer->set_mask(LayerMask{Rect{0, 0, doc.width(), doc.height()},
+                              coverage_at_document_depth(doc, std::move(mask_pixels)), 255, false});
   }
   const auto after = layer_render_bounds(*layer);
   canvas_->invalidate_mask_display();
@@ -1752,7 +1839,18 @@ void MainWindow::invert_active_layer_mask() {
   push_undo_snapshot(tr("Invert layer mask"));
   auto& mask = *layer->mask();
   mask.default_color = static_cast<std::uint8_t>(255 - mask.default_color);
-  if (!mask.pixels.empty()) {
+  if (!mask.pixels.empty() && mask.pixels.format().bit_depth == BitDepth::Float32) {
+    // 32-bit masks hold floats: invert the values, not their bytes.
+    std::vector<float> row(static_cast<std::size_t>(mask.pixels.width()));
+    for (std::int32_t y = 0; y < mask.pixels.height(); ++y) {
+      load_coverage_row(mask.pixels, y, 0, mask.pixels.width(), row);
+      for (auto& value : row) {
+        value = 255.0F - value;
+      }
+      store_coverage_row(mask.pixels, y, 0, mask.pixels.width(), row);
+    }
+  } else if (!mask.pixels.empty()) {
+    // 8 and 16 bits: complementing every byte complements the sample (65535 - v).
     for (auto& value : mask.pixels.data()) {
       value = static_cast<std::uint8_t>(255 - value);
     }
@@ -1783,8 +1881,7 @@ void MainWindow::apply_active_layer_mask() {
     return;
   }
   const auto& source_pixels = std::as_const(*layer).pixels();
-  if (layer->kind() != LayerKind::Pixel || source_pixels.format().bit_depth != BitDepth::UInt8 ||
-      source_pixels.format().channels < 3) {
+  if (layer->kind() != LayerKind::Pixel || source_pixels.format().channels < 3) {
     show_status_error(tr("Apply mask supports editable 8-bit pixel layers"));
     return;
   }
@@ -1793,7 +1890,21 @@ void MainWindow::apply_active_layer_mask() {
   auto& pixels = layer->pixels();
   const auto bounds = layer->bounds();
   const auto channels = pixels.format().channels;
-  if (channels >= 4) {
+  if (pixels.format().bit_depth != BitDepth::UInt8) {
+    // 16/32-bit (docs/high-bit-depth.md): alpha times the mask's coverage on float rows.
+    const auto depth = pixels.format().bit_depth;
+    const auto domain = depth == BitDepth::Float32 ? DeepDomain::Linear : DeepDomain::Encoded;
+    PixelBuffer rgba(pixels.width(), pixels.height(), with_bit_depth(PixelFormat::rgba8(), depth));
+    std::vector<float> row(static_cast<std::size_t>(pixels.width()) * 4U);
+    for (std::int32_t y = 0; y < pixels.height(); ++y) {
+      load_rgba_row(pixels, y, 0, pixels.width(), domain, row);
+      for (std::int32_t x = 0; x < pixels.width(); ++x) {
+        row[static_cast<std::size_t>(x) * 4U + 3U] *= layer_mask_coverage_at(*layer, bounds.x + x, bounds.y + y);
+      }
+      store_rgba_row(rgba, y, 0, pixels.width(), domain, row);
+    }
+    pixels = std::move(rgba);
+  } else if (channels >= 4) {
     for (std::int32_t y = 0; y < pixels.height(); ++y) {
       for (std::int32_t x = 0; x < pixels.width(); ++x) {
         auto* px = pixels.pixel(x, y);
@@ -2026,6 +2137,8 @@ std::vector<LayerId> MainWindow::copy_layers_between_documents(const Document& s
       clone->set_name(next_duplicate_name(it->name(), existing_names));
     }
     existing_names.insert(clone->name());
+    // Layers join the target at its depth (docs/high-bit-depth.md).
+    convert_layer_depth(*clone, target_document.color_state().bit_depth);
     clones_bottom_to_top.push_back(std::move(*clone));
   }
   for (const auto& smart_source : payload.smart_object_sources) {
@@ -2454,7 +2567,7 @@ void MainWindow::edit_active_layer_style() {
       &gradient_library(),
       {static_cast<std::uint8_t>(fg.red()), static_cast<std::uint8_t>(fg.green()), static_cast<std::uint8_t>(fg.blue())},
       {static_cast<std::uint8_t>(bg.red()), static_cast<std::uint8_t>(bg.green()), static_cast<std::uint8_t>(bg.blue())},
-      &context);
+      &context, std::as_const(doc).color_state().bit_depth);
   const auto available = doc.metadata().patterns;
   restore();
   bool changed = false;
@@ -3184,7 +3297,10 @@ void MainWindow::merge_visible_to_new_layer() {
       prepared.add_layer(std::move(*copy));
     } else {
       // Keep canvas transparency and partial coverage in the copied pixels.
-      auto future = launch_async([source] { return pixels_from_image_rgba(qimage_from_document(source, true)); });
+      auto future = launch_async([source] {
+        const ScopedDocumentDepthRender depth_render;
+        return pixels_from_image_at_depth(qimage_from_document(source, true), source.color_state().bit_depth);
+      });
       if (target) {
         target->wait_for_processing_operation([&future] {
           return future.wait_for(std::chrono::milliseconds(16)) == std::future_status::ready;

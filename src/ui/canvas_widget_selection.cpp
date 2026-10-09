@@ -8,6 +8,7 @@
 // function moves from canvas_widget.cpp; behavior must stay identical.
 
 #include "ui/canvas_widget.hpp"
+#include "core/pixel_depth.hpp"
 #include "ui/canvas_widget_shared.hpp"
 
 #include "core/adjustment_layer.hpp"
@@ -516,7 +517,12 @@ void CanvasWidget::select_layer_opaque_pixels(LayerId layer_id) {
       const auto source_y = selection_bounds.y() + y - layer_bounds.y();
       const auto source_x = selection_bounds.x() - layer_bounds.x();
       const auto source = pixels.row(source_y);
-      if (channels >= 4U) {
+      if (channels >= 4U && pixels.format().bit_depth != BitDepth::UInt8) {
+        // 16/32-bit layers: their alpha at the selection's 8 bits.
+        for (int x = 0; x < selection_bounds.width(); ++x) {
+          destination[x] = static_cast<std::uint8_t>(std::lround(pixel_alpha_at(pixels, source_x + x, source_y) * 255.0F));
+        }
+      } else if (channels >= 4U) {
         for (int x = 0; x < selection_bounds.width(); ++x) {
           destination[x] = source[(static_cast<std::size_t>(source_x + x) * channels) + 3U];
         }
@@ -556,7 +562,18 @@ void CanvasWidget::select_layer_mask_pixels(LayerId layer_id) {
     for (int y = 0; y < alpha.height(); ++y) {
       std::fill_n(alpha.scanLine(y), alpha.width(), mask.default_color);
     }
-    if (!mask.pixels.empty() && mask.pixels.format() == PixelFormat::gray8()) {
+    if (!mask.pixels.empty() && mask.pixels.format().channels == 1U &&
+        mask.pixels.format().bit_depth != BitDepth::UInt8) {
+      // A 16/32-bit mask: its coverage at the selection's 8 bits.
+      const auto copy_bounds = stored_bounds.intersected(selection_bounds);
+      for (int y = copy_bounds.top(); y <= copy_bounds.bottom(); ++y) {
+        auto* destination = alpha.scanLine(y - selection_bounds.y());
+        for (int x = copy_bounds.left(); x <= copy_bounds.right(); ++x) {
+          destination[x - selection_bounds.x()] = static_cast<std::uint8_t>(
+              std::lround(coverage_at(mask.pixels, x - stored_bounds.x(), y - stored_bounds.y()) * 255.0F));
+        }
+      }
+    } else if (!mask.pixels.empty() && mask.pixels.format() == PixelFormat::gray8()) {
       const auto copy_bounds = stored_bounds.intersected(selection_bounds);
       for (int y = copy_bounds.top(); y <= copy_bounds.bottom(); ++y) {
         const auto source = mask.pixels.row(y - stored_bounds.y());
@@ -613,7 +630,7 @@ QRect CanvasWidget::fill_active_layer_mask(QColor color) {
       for (int y = clipped.top(); y <= clipped.bottom(); ++y) {
         for (int x = clipped.left(); x <= clipped.right(); ++x) {
           auto* px = target->pixels->pixel(x - bounds.x(), y - bounds.y());
-          *px = blend_mask_value(*px, value, 1.0F);
+          blend_mask_at(target->pixels->format(), px, value, 1.0F);
         }
         tick_processing_operation();
       }
@@ -636,7 +653,7 @@ QRect CanvasWidget::fill_active_layer_mask(QColor color) {
         continue;
       }
       auto* px = target->pixels->pixel(x - bounds.x(), y - bounds.y());
-      *px = blend_mask_value(*px, value, coverage);
+      blend_mask_at(target->pixels->format(), px, value, coverage);
       dirty = dirty.united(QRect(document_point, QSize(1, 1)));
     }
     tick_processing_operation();

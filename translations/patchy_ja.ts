@@ -6446,10 +6446,6 @@ Mixed selection</source>
         <translation>スターター内蔵フィルターは UInt8 バッファーのみに対応しています。</translation>
     </message>
     <message>
-        <source>Filter previews support UInt8 buffers only</source>
-        <translation>フィルタープレビューは UInt8 バッファーのみに対応しています。</translation>
-    </message>
-    <message>
         <source>Unknown catalogued filter identifier</source>
         <translation>不明なカタログ登録フィルター識別子です。</translation>
     </message>
@@ -8902,6 +8898,50 @@ Mixed selection</source>
         <translation>PSD チャンネルのビット深度がドキュメントと一致しません</translation>
     </message>
     <message>
+        <source>8 Bits/Channel</source>
+        <translation>8 bit/チャンネル</translation>
+    </message>
+    <message>
+        <source>16 Bits/Channel</source>
+        <translation>16 bit/チャンネル</translation>
+    </message>
+    <message>
+        <source>32 Bits/Channel</source>
+        <translation>32 bit/チャンネル</translation>
+    </message>
+    <message>
+        <source>Bit Depth</source>
+        <translation>ビット数</translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents</source>
+        <translation>このフィルターは 32 ビットのドキュメントでは使用できません</translation>
+    </message>
+    <message>
+        <source>HDR Toning</source>
+        <translation>HDR トーン</translation>
+    </message>
+    <message>
+        <source>Exposure and Gamma</source>
+        <translation>露光量とガンマ</translation>
+    </message>
+    <message>
+        <source>Gamma</source>
+        <translation>ガンマ</translation>
+    </message>
+    <message>
+        <source>Bits per channel for the stress test documents: 8, 16, or 32.</source>
+        <translation>ストレステスト用ドキュメントのチャンネルあたりのビット数: 8、16、32 のいずれか。</translation>
+    </message>
+    <message>
+        <source>The 32-bit image was converted to 16 bits per channel: the web version edits up to 16.</source>
+        <translation>32 ビット画像をチャンネルあたり 16 ビットに変換しました。Web 版で編集できるのは 16 ビットまでです。</translation>
+    </message>
+    <message>
+        <source>This document&apos;s preserved text engine cannot store new area text.</source>
+        <translation>このドキュメントに保持されているテキストエンジンのデータでは、新しい図形内テキストを保存できません。</translation>
+    </message>
+    <message>
         <source>Palettized DDS textures are not supported</source>
         <translation>パレット形式の DDS テクスチャには対応していません</translation>
     </message>
@@ -8990,6 +9030,14 @@ Mixed selection</source>
         <translation>空のドキュメントは DDS テクスチャとして書き出せません</translation>
     </message>
     <message>
+        <source>BC4 keeps one channel: the image was saved as its grayscale luminance without transparency</source>
+        <translation>BC4 は 1 チャンネルのみ保持します: 画像は透明度なしのグレースケール輝度として保存されました</translation>
+    </message>
+    <message>
+        <source>BC5 keeps the red and green channels only: blue and transparency were dropped</source>
+        <translation>BC5 は赤と緑のチャンネルのみ保持します: 青と透明度は破棄されました</translation>
+    </message>
+    <message>
         <source>File-format and automation plug-ins are not supported; only filter (.8bf) plug-ins run. DDS textures open natively through File &gt; Open.</source>
         <translation>ファイル形式プラグインと自動化プラグインはサポートされていません。フィルタープラグイン (.8bf) のみ実行できます。 DDS テクスチャはファイル &gt; 開くから直接開けます。</translation>
     </message>
@@ -9014,26 +9062,6 @@ Mixed selection</source>
         <translation>BC3 / DXT5 (圧縮、フル透明)</translation>
     </message>
     <message>
-        <source>Compression:</source>
-        <translation>圧縮:</translation>
-    </message>
-    <message>
-        <source>Generate mipmaps</source>
-        <translation>ミップマップを生成</translation>
-    </message>
-    <message>
-        <source>DirectDraw Surface</source>
-        <translation>DirectDraw Surface</translation>
-    </message>
-    <message>
-        <source>BC4 keeps one channel: the image was saved as its grayscale luminance without transparency</source>
-        <translation>BC4 は 1 チャンネルのみ保持します: 画像は透明度なしのグレースケール輝度として保存されました</translation>
-    </message>
-    <message>
-        <source>BC5 keeps the red and green channels only: blue and transparency were dropped</source>
-        <translation>BC5 は赤と緑のチャンネルのみ保持します: 青と透明度は破棄されました</translation>
-    </message>
-    <message>
         <source>BC7 (best quality, full transparency, DX10 header)</source>
         <translation>BC7 (最高画質、フル透明、DX10 ヘッダー)</translation>
     </message>
@@ -9046,8 +9074,20 @@ Mixed selection</source>
         <translation>BC5 / ATI2 (赤と緑のチャンネル、法線マップ)</translation>
     </message>
     <message>
+        <source>Compression:</source>
+        <translation>圧縮:</translation>
+    </message>
+    <message>
+        <source>Generate mipmaps</source>
+        <translation>ミップマップを生成</translation>
+    </message>
+    <message>
         <source>The BC formats are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. BC4 stores grayscale only and BC5 the red and green channels; both drop transparency. Mipmaps are generated down to 1x1 with a box filter.</source>
         <translation>BC 形式は非可逆の 4x4 ブロック形式です。BC1 は 1 ビットの透明度しか保持せず、アルファが 50 パーセント未満のピクセルは完全に透明になります。BC4 はグレースケールのみ、BC5 は赤と緑のチャンネルのみを保存し、どちらも透明度を破棄します。ミップマップはボックスフィルターで 1x1 まで生成されます。</translation>
+    </message>
+    <message>
+        <source>DirectDraw Surface</source>
+        <translation>DirectDraw Surface</translation>
     </message>
 </context>
 <context>
@@ -18849,6 +18889,30 @@ Baked into images: %1.</source>
         <source>Converted to %1</source>
         <translation>%1 に変換しました</translation>
     </message>
+    <message>
+        <source>32-bit preview exposure in stops. It changes the display, not the pixels.</source>
+        <translation>32 ビットプレビューの露光量 (段)。表示のみを変更し、ピクセルは変更しません。</translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents</source>
+        <translation>このフィルターは 32 ビットのドキュメントでは使用できません</translation>
+    </message>
+    <message>
+        <source>Linear RGB: %1, %2, %3</source>
+        <translation>リニア RGB: %1, %2, %3</translation>
+    </message>
+    <message>
+        <source>Exposure: </source>
+        <translation>露光量: </translation>
+    </message>
+    <message>
+        <source>This text boundary is preserved but cannot be edited.</source>
+        <translation>このテキスト境界は保持されますが、編集できません。</translation>
+    </message>
+    <message>
+        <source>%1 Text Boundary</source>
+        <translation>%1 のテキスト境界</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -20290,6 +20354,30 @@ Baked into images: %1.</source>
     <message>
         <source>resizeImage method must be one of %1.</source>
         <translation>resizeImage の method は %1 のいずれかでなければなりません。</translation>
+    </message>
+    <message>
+        <source>convertBitDepth takes 8, 16 or 32.</source>
+        <translation>convertBitDepth には 8、16、32 のいずれかを指定してください。</translation>
+    </message>
+    <message>
+        <source>16 and 32-bit editing is not enabled.</source>
+        <translation>16 ビットと 32 ビットの編集は有効になっていません。</translation>
+    </message>
+    <message>
+        <source>Indexed documents are 8-bit only.</source>
+        <translation>インデックスカラーのドキュメントは 8 ビットのみです。</translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents.</source>
+        <translation>このフィルターは 32 ビットのドキュメントでは使用できません。</translation>
+    </message>
+    <message>
+        <source>The web version edits up to 16 bits per channel.</source>
+        <translation>Web 版で編集できるのはチャンネルあたり 16 ビットまでです。</translation>
+    </message>
+    <message>
+        <source>Blend mode %1 is not available in 32-bit documents.</source>
+        <translation>描画モード %1 は 32 ビットのドキュメントでは使用できません。</translation>
     </message>
 </context>
 <context>

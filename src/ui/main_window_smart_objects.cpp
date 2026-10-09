@@ -333,7 +333,7 @@ void map_unpacked_layer_tree(Document& document, Layer& layer, const QTransform&
     const auto resampled = resample_transformed_rgba8(
         qimage_from_pixel_buffer(std::as_const(layer).pixels()),
         QTransform::fromTranslate(old_bounds.x, old_bounds.y) * mapping, interpolation);
-    layer.set_pixels(pixels_from_image_rgba(resampled.image));
+    layer.set_pixels(pixels_from_image_native(resampled.image));
     layer.set_bounds(resampled.bounds);
     if (text_layer) {
       const LayerAffineTransform outer{matrix[0], matrix[1], matrix[2], matrix[3], matrix[4], matrix[5]};
@@ -1624,7 +1624,7 @@ bool MainWindow::convert_layers_to_smart_object(const std::vector<LayerId>& sele
     refresh_layer_list();
     return false;
   }
-  Layer replacement(top_id, top_name, pixels_from_image_rgba(preview));
+  Layer replacement(top_id, top_name, pixels_from_image_at_depth(preview, std::as_const(doc).color_state().bit_depth));
   replacement.set_bounds(content);
   const auto placed_instance = generate_smart_object_uuid();
   set_layer_smart_object_metadata(replacement, placement, placed_instance, "SoLd", "",
@@ -2084,7 +2084,8 @@ std::optional<LayerId> MainWindow::place_file_as_smart_object(DocumentSession& t
   }
   // add_pixel_layer requires full-canvas buffers; placed layers carry tight bounds.
   const auto layer_name = options.name.isEmpty() ? info.completeBaseName() : options.name;
-  Layer placed_layer(doc.allocate_layer_id(), layer_name.toStdString(), pixels_from_image_rgba(rendered->image));
+  Layer placed_layer(doc.allocate_layer_id(), layer_name.toStdString(),
+                     pixels_from_image_at_depth(rendered->image, std::as_const(doc).color_state().bit_depth));
   placed_layer.set_bounds(rendered->bounds);
   const auto placed_instance = generate_smart_object_uuid();
   // A linked layer carries the same descriptor under the 'SoLE' key and stays

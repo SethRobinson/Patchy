@@ -11,6 +11,7 @@
 #include "ui/background_workers.hpp"
 
 #include "core/blend_math.hpp"
+#include "core/document_depth.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/smart_object.hpp"
 #include "core/text_warp.hpp"
@@ -465,7 +466,7 @@ QPixmap image_size_preview_pixmap(const PixelBuffer& source, QSize preview_size,
     const auto resolved = resolve_automatic_resample_method(method, document_size.width(), document_size.height(),
                                                             target_size.width(), target_size.height());
     const auto fitted = target_size.scaled(preview_size, Qt::KeepAspectRatio).expandedTo(QSize(1, 1));
-    const auto image = qimage_from_pixel_buffer(resample_pixels(source, fitted.width(), fitted.height(), resolved));
+    const auto image = display_qimage_from_pixel_buffer(resample_pixels(source, fitted.width(), fitted.height(), resolved));
     const QPoint position((preview_size.width() - image.width()) / 2, (preview_size.height() - image.height()) / 2);
     painter.drawImage(position, image);
   }
@@ -1424,7 +1425,7 @@ void MainWindow::create_clipboard_document(const QImage& image, QString history_
     return;
   }
 
-  auto pixels = pixels_from_image_rgba(image);
+  auto pixels = pixels_from_image_at_depth(image, BitDepth::UInt8);
   Document new_document(pixels.width(), pixels.height(), PixelFormat::rgba8());
   // Photoshop's Clipboard preset convention: pasted pixels carry no reliable density.
   new_document.print_settings().horizontal_ppi = kUntaggedImportPpi;
@@ -1456,6 +1457,16 @@ void MainWindow::create_new_document() {
   }
   reset_document(settings->width, settings->height, settings->background, tr("New document"),
                  settings->resolution_ppi);
+  if (settings->bit_depth != BitDepth::UInt8 && has_active_document()) {
+    // A fresh document: the conversion is part of creating it, not an undo step.
+    convert_document_depth(document(), settings->bit_depth);
+    if (canvas_ != nullptr) {
+      canvas_->document_changed();
+    }
+    refresh_layer_list();
+    refresh_document_info();
+    refresh_bit_depth_actions();
+  }
   // Only the dialog path fits: reset_document is also the startup path, where the
   // canvas only has its pre-layout default size and a fit would stick a bogus zoom.
   fit_new_document_view(canvas_);

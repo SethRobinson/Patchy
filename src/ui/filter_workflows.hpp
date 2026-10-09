@@ -194,6 +194,9 @@ struct CanvasFilterSource {
     const PixelBuffer& original, Rect bounds, Rect canvas_bounds);
 [[nodiscard]] bool pixel_buffers_equal(const PixelBuffer& lhs, const PixelBuffer& rhs);
 [[nodiscard]] bool editable_rgb8_layer(const Layer* layer);
+// A color pixel layer at any depth: Levels, Curves, Hue/Saturation and Color Balance
+// apply to 16/32-bit layers too (docs/high-bit-depth.md).
+[[nodiscard]] bool editable_rgb_layer_any_depth(const Layer* layer);
 void apply_levels_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& selection, LevelsSettings settings,
                             const FilterProgress* progress = nullptr);
 void apply_curves_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& selection, CurvesSettings settings,

@@ -9,6 +9,7 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/canvas_widget_shared.hpp"
 
+#include "core/pixel_depth.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
@@ -1166,7 +1167,7 @@ QRect CanvasWidget::draw_mask_gradient(QPoint from, QPoint to) {
       }
       const auto value = mask_value_from_color(QColor(color.r, color.g, color.b));
       auto* px = target->pixels->pixel(x - bounds.x(), y - bounds.y());
-      *px = blend_mask_value(*px, value, coverage);
+      blend_mask_at(target->pixels->format(), px, value, coverage);
       dirty = dirty.united(QRect(document_point, QSize(1, 1)));
     }
     tick_processing_operation();
@@ -1260,7 +1261,7 @@ QRect CanvasWidget::render_mask_shape(QRect rect, bool erase, patchy::ShapeKind 
         continue;
       }
       auto* px = target->pixels->pixel(x - bounds.x(), y - bounds.y());
-      *px = blend_mask_value(*px, value, coverage);
+      blend_mask_at(target->pixels->format(), px, value, coverage);
       dirty = dirty.united(QRect(document_point, QSize(1, 1)));
     }
     tick_processing_operation();
@@ -1290,11 +1291,19 @@ QRect CanvasWidget::flood_fill_mask(QPoint start) {
   // flood (one gray channel); the mask value is written verbatim, as mask painting does.
   const auto target = *pixels->pixel(local_start.x(), local_start.y());
   const auto replacement = mask_value_from_color(primary_color_);
-  if (target == replacement) {
+  // 16/32-bit masks compare and write their samples on the 0..255 scale at their depth.
+  const auto format = pixels->format();
+  const bool deep = format.bit_depth != BitDepth::UInt8;
+  const auto deep_target = mask_sample_at(format, pixels->pixel(local_start.x(), local_start.y()));
+  if (deep ? deep_target == static_cast<float>(replacement) : target == replacement) {
     return {};
   }
   const auto tolerance = std::clamp(fill_tolerance_, 0, 255);
   const auto matches = [&](int local_x, int local_y) {
+    if (deep) {
+      const auto delta = std::abs(mask_sample_at(format, pixels->pixel(local_x, local_y)) - deep_target);
+      return tolerance <= 0 ? delta == 0.0F : delta * delta <= static_cast<float>(tolerance * tolerance * 4);
+    }
     return patchy::color_within_tolerance(pixels->pixel(local_x, local_y), &target, 1, tolerance);
   };
   enum : std::uint8_t { kUnvisited = 0, kInRegion = 1, kRejected = 2 };
@@ -1312,7 +1321,7 @@ QRect CanvasWidget::flood_fill_mask(QPoint start) {
   };
   QRect dirty;
   const auto write = [&](int local_x, int local_y) {
-    *pixels->pixel(local_x, local_y) = replacement;
+    blend_mask_at(format, pixels->pixel(local_x, local_y), replacement, 1.0F);
     dirty = dirty.united(QRect(QPoint(bounds.x() + local_x, bounds.y() + local_y), QSize(1, 1)));
   };
   if (fill_contiguous_) {

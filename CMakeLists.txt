@@ -418,6 +418,8 @@ add_library(patchy_filters
   src/filters/auto_levels_math.cpp
   src/filters/auto_levels_math.hpp
   src/filters/builtin_filters.cpp
+  src/filters/deep_filters.cpp
+  src/filters/deep_filters.hpp
   src/filters/filter_engine.cpp
   src/filters/filter_registry.cpp
   src/filters/filter_support.hpp
@@ -1235,6 +1237,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/theme_qss.cpp
       src/ui/text_layout.hpp
       src/ui/text_layout.cpp
+      src/ui/text_area_layout.cpp
+      src/ui/text_area_layout.hpp
       src/ui/tile_preview_window.hpp
       src/ui/tile_preview_window.cpp
       src/ui/animation_preview_window.hpp
@@ -1744,6 +1748,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/compositor_blend_if_tests.cpp
     tests/core/compositor_layer_styles_tests.cpp
     tests/core/deep_compositor_tests.cpp
+    tests/core/deep_filter_tests.cpp
     tests/core/document_model_tests.cpp
     tests/core/document_ops_filters_tests.cpp
     tests/core/flat_formats_bmp_tests.cpp
@@ -1865,6 +1870,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/text_transform_commit_tests_psd_commit.cpp
       tests/ui/text_transform_commit_tests_flip.cpp
       tests/ui/text_vertical_rtl_tests.cpp
+      tests/ui/text_area_tests.cpp
       tests/ui/flat_image_format_tests.cpp
       tests/ui/smart_filter_tests.cpp
       tests/ui/smart_filter_tests_flows.cpp

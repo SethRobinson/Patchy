@@ -19,10 +19,16 @@ namespace {
 // -1 = no override (follow PATCHY_DEEP_EDITING), 0 = off, 1 = on.
 std::atomic<int> g_deep_editing_override{-1};
 
-bool deep_editing_from_environment() {
-  static const bool enabled = [] {
+std::atomic<bool> g_deep_editing_default{true};
+
+// Unset (or empty) leaves the decision to the default.
+std::optional<bool> deep_editing_from_environment() {
+  static const std::optional<bool> enabled = []() -> std::optional<bool> {
     const auto value = environment_variable("PATCHY_DEEP_EDITING");
-    return value.has_value() && !value->empty() && *value != "0";
+    if (!value.has_value() || value->empty()) {
+      return std::nullopt;
+    }
+    return *value != "0";
   }();
   return enabled;
 }
@@ -112,7 +118,11 @@ bool deep_editing_enabled() {
   if (forced >= 0) {
     return forced != 0;
   }
-  return deep_editing_from_environment();
+  return deep_editing_from_environment().value_or(g_deep_editing_default.load(std::memory_order_relaxed));
+}
+
+void set_deep_editing_default(bool enabled) {
+  g_deep_editing_default.store(enabled, std::memory_order_relaxed);
 }
 
 void set_deep_editing_override(std::optional<bool> enabled) {
@@ -315,6 +325,47 @@ float pixel_alpha_at(const PixelBuffer& buffer, std::int32_t x, std::int32_t y) 
   return 1.0F;
 }
 
+std::array<float, 4> load_pixel(PixelFormat format, const std::uint8_t* px) noexcept {
+  std::array<float, 4> values{0.0F, 0.0F, 0.0F, 255.0F};
+  const auto sample_bytes = bytes_per_channel(format.bit_depth);
+  for (std::size_t c = 0; c < std::min<std::size_t>(format.channels, 4U); ++c) {
+    const auto* sample = px + c * sample_bytes;
+    switch (format.bit_depth) {
+      case BitDepth::UInt8:
+        values[c] = static_cast<float>(*sample);
+        break;
+      case BitDepth::UInt16:
+        values[c] = static_cast<float>(read_u16(sample)) / 257.0F;
+        break;
+      case BitDepth::Float32: {
+        const auto raw = finite_or_zero(read_f32(sample));
+        values[c] = c < 3U ? raw * 255.0F : std::clamp(raw, 0.0F, 1.0F) * 255.0F;
+        break;
+      }
+    }
+  }
+  return values;
+}
+
+void store_pixel(PixelFormat format, std::uint8_t* px, const std::array<float, 4>& values) noexcept {
+  const auto sample_bytes = bytes_per_channel(format.bit_depth);
+  for (std::size_t c = 0; c < std::min<std::size_t>(format.channels, 4U); ++c) {
+    auto* sample = px + c * sample_bytes;
+    const auto value = finite_or_zero(values[c]);
+    switch (format.bit_depth) {
+      case BitDepth::UInt8:
+        *sample = round_u8(value);
+        break;
+      case BitDepth::UInt16:
+        write_u16(sample, round_u16(value));
+        break;
+      case BitDepth::Float32:
+        write_f32(sample, c < 3U ? value / 255.0F : std::clamp(value / 255.0F, 0.0F, 1.0F));
+        break;
+    }
+  }
+}
+
 std::array<std::uint8_t, 4> display_rgba8_at(const PixelBuffer& buffer, std::int32_t x, std::int32_t y) {
   std::array<float, 4> values{};
   load_rgba_row(buffer, y, x, 1, DeepDomain::Encoded, values);
@@ -369,6 +420,63 @@ PixelBuffer convert_pixel_buffer_depth(const PixelBuffer& source, BitDepth depth
     }
   }
   return result;
+}
+
+void apply_eight_bit_edit_at_depth(PixelBuffer& pixels, const std::function<void(PixelBuffer&)>& edit) {
+  const auto depth = pixels.format().bit_depth;
+  if (depth == BitDepth::UInt8) {
+    edit(pixels);
+    return;
+  }
+  const auto before = convert_pixel_buffer_depth(pixels, BitDepth::UInt8, SampleKind::Color);
+  auto after = before;
+  edit(after);
+  if (after.width() != before.width() || after.height() != before.height() ||
+      after.format().channels != before.format().channels) {
+    pixels = convert_pixel_buffer_depth(after, depth, SampleKind::Color);
+    return;
+  }
+  const auto format = pixels.format();
+  const auto channels = static_cast<std::size_t>(std::min<std::uint16_t>(format.channels, 4));
+  const auto linear = depth == BitDepth::Float32;
+  const auto pixel_size = bytes_per_pixel(format);
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    const auto* before_row = before.row(y).data();
+    const auto* after_row = after.row(y).data();
+    const auto row_bytes = static_cast<std::size_t>(pixels.width()) * channels;
+    if (std::equal(before_row, before_row + row_bytes, after_row)) {
+      continue;
+    }
+    auto* deep_row = pixels.row(y).data();
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto offset = static_cast<std::size_t>(x) * channels;
+      if (std::equal(before_row + offset, before_row + offset + channels, after_row + offset)) {
+        continue;
+      }
+      auto* px = deep_row + static_cast<std::size_t>(x) * pixel_size;
+      auto values = load_pixel(format, px);
+      for (std::size_t c = 0; c < channels; ++c) {
+        const auto target = after_row[offset + c];
+        const auto delta = static_cast<int>(target) - static_cast<int>(before_row[offset + c]);
+        if (delta == 0) {
+          continue;
+        }
+        // The change happened on display-encoded values, so it moves the encoded value;
+        // an edit to the maximum or minimum lands there exactly.
+        const auto color_in_linear = linear && c < 3U;
+        const auto encoded =
+            color_in_linear
+                ? static_cast<float>(srgb_encode(static_cast<double>(values[c]) / 255.0) * 255.0)
+                : values[c];
+        const auto moved = target == 255U ? 255.0F
+                           : target == 0U ? 0.0F
+                                          : std::clamp(encoded + static_cast<float>(delta), 0.0F, 255.0F);
+        values[c] = color_in_linear ? static_cast<float>(srgb_decode(static_cast<double>(moved) / 255.0) * 255.0)
+                                    : moved;
+      }
+      store_pixel(format, px, values);
+    }
+  }
 }
 
 }  // namespace patchy

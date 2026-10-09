@@ -2,6 +2,13 @@
 
 The text engine's font lookup and the PSD reader's naming rules. The session machinery and the Character panel are in [text-tool.md](text-tool.md); the Photoshop layout model in [text-render-calibration.md](text-render-calibration.md).
 
+- **Authored area frames use PostScript face names in both native font lists.** On
+  platforms without DirectWrite, the area writer asks the installed Qt resolver for
+  the rendered face's OpenType name id 6. `Arial` is a display family; Photoshop
+  requires `ArialMT` to recompose it without a missing-font prompt. The resolver is
+  shared by `TySh` and `Txt2`; ordinary point/box serialization keeps its established
+  output. Test: `ui_text_area_psd_uses_postscript_font_names` covers all four flag faces.
+
 - **Characters the run's face cannot draw move to the face that draws them** on every edit
   (`substitute_uncovered_characters_in_editor`, the textChanged hook): kana typed into Arial
   commit as their own run in the Japanese family `QRawFont::fromFont(font, system)` resolves.

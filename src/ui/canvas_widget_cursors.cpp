@@ -411,7 +411,25 @@ void CanvasWidget::update_tool_cursor() {
     return;
   }
   if (tool_ == CanvasTool::Text) {
-    setCursor(Qt::IBeamCursor);
+    if (text_area_at(document_position(last_mouse_position_))) {
+      static const QCursor area_cursor = [] {
+        QPixmap pixmap(25, 25);
+        pixmap.fill(Qt::transparent);
+        QPainter painter(&pixmap);
+        painter.setRenderHint(QPainter::Antialiasing);
+        for (const auto& pen : {QPen(Qt::white, 3.0), QPen(Qt::black, 1.0)}) {
+          painter.setPen(pen);
+          painter.drawEllipse(QRectF(2, 2, 20, 20));
+          painter.drawLine(12, 6, 12, 18);
+          painter.drawLine(9, 6, 15, 6);
+          painter.drawLine(9, 18, 15, 18);
+        }
+        return QCursor(pixmap, 12, 12);
+      }();
+      setCursor(area_cursor);
+    } else {
+      setCursor(Qt::IBeamCursor);
+    }
     return;
   }
   if (tool_ == CanvasTool::Zoom) {

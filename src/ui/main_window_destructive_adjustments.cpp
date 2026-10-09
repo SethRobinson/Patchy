@@ -247,7 +247,7 @@ void MainWindow::levels_dialog() {
     return;
   }
   auto* layer = doc.find_layer(*active);
-  if (!editable_rgb8_layer(layer)) {
+  if (!editable_rgb_layer_any_depth(layer)) {
     show_status_error(tr("Select an editable RGB pixel layer"));
     return;
   }
@@ -264,7 +264,7 @@ void MainWindow::levels_dialog() {
     return;
   }
   layer = doc.find_layer(*active);
-  if (!editable_rgb8_layer(layer)) {
+  if (!editable_rgb_layer_any_depth(layer)) {
     show_status_error(tr("Select an editable RGB pixel layer"));
     return;
   }
@@ -403,7 +403,7 @@ void MainWindow::curves_dialog() {
     return;
   }
   auto* layer = doc.find_layer(*active);
-  if (!editable_rgb8_layer(layer)) {
+  if (!editable_rgb_layer_any_depth(layer)) {
     show_status_error(tr("Select an editable RGB pixel layer"));
     return;
   }
@@ -420,7 +420,7 @@ void MainWindow::curves_dialog() {
     return;
   }
   layer = doc.find_layer(*active);
-  if (!editable_rgb8_layer(layer)) {
+  if (!editable_rgb_layer_any_depth(layer)) {
     show_status_error(tr("Select an editable RGB pixel layer"));
     return;
   }
@@ -564,7 +564,7 @@ void MainWindow::hue_saturation_dialog() {
     return;
   }
   auto* layer = doc.find_layer(*active);
-  if (!editable_rgb8_layer(layer)) {
+  if (!editable_rgb_layer_any_depth(layer)) {
     show_status_error(tr("Select an editable RGB pixel layer"));
     return;
   }
@@ -577,7 +577,7 @@ void MainWindow::hue_saturation_dialog() {
     return;
   }
   layer = doc.find_layer(*active);
-  if (!editable_rgb8_layer(layer)) {
+  if (!editable_rgb_layer_any_depth(layer)) {
     show_status_error(tr("Select an editable RGB pixel layer"));
     return;
   }
@@ -668,7 +668,7 @@ void MainWindow::color_balance_dialog() {
     return;
   }
   auto* layer = doc.find_layer(*active);
-  if (!editable_rgb8_layer(layer)) {
+  if (!editable_rgb_layer_any_depth(layer)) {
     show_status_error(tr("Select an editable RGB pixel layer"));
     return;
   }
@@ -681,7 +681,7 @@ void MainWindow::color_balance_dialog() {
     return;
   }
   layer = doc.find_layer(*active);
-  if (!editable_rgb8_layer(layer)) {
+  if (!editable_rgb_layer_any_depth(layer)) {
     show_status_error(tr("Select an editable RGB pixel layer"));
     return;
   }

@@ -49,6 +49,7 @@
 #include "formats/ico_document_io.hpp"
 #include "formats/tga_document_io.hpp"
 #include "ui/image_document_io.hpp"
+#include "ui/measurement_units.hpp"
 #include "ui/image_save_options_dialog.hpp"
 #include "ui/layer_list_widget.hpp"
 #include "ui/layer_style_dialog.hpp"
@@ -1322,6 +1323,179 @@ void ui_image_mode_converts_bit_depth_with_undo() {
   patchy::set_deep_editing_override(std::nullopt);
 }
 
+// File > New offers Bit Depth while deep editing is on (the default in the app): the
+// chosen depth makes the document, every new dialog starts at 8 bits again (as in
+// Photoshop), and the row is hidden when deep editing is off.
+void ui_new_document_dialog_creates_the_chosen_bit_depth() {
+  const auto answer_new_document = [](int bits, bool expect_row, int* remembered) {
+    QTimer::singleShot(0, [bits, expect_row, remembered] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("patchyNewDocumentDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("newDocumentBitDepthCombo"));
+      CHECK(combo != nullptr);
+      if (combo == nullptr) {
+        dialog->reject();
+        return;
+      }
+      CHECK(combo->isVisible() == expect_row);
+      if (remembered != nullptr) {
+        *remembered = combo->currentData().toInt();
+      }
+      if (expect_row) {
+        CHECK(combo->findData(16) >= 0 && combo->findData(32) >= 0);
+        combo->setCurrentIndex(combo->findData(bits));
+        dialog->grab().save(QStringLiteral("test-artifacts/ui_new_document_bit_depth.png"));
+        // The memory estimate follows the depth: 64 x 48 RGBA is 12K at 8 bits.
+        auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentWidthSpin"));
+        auto* height = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentHeightSpin"));
+        auto* unit = dialog->findChild<QComboBox*>(QStringLiteral("newDocumentUnitCombo"));
+        unit->setCurrentIndex(unit->findData(static_cast<int>(patchy::ui::MeasurementUnit::Pixels)));
+        width->setValue(64);
+        height->setValue(48);
+        QApplication::processEvents();
+        const auto expected = bits == 32 ? QStringLiteral("48.0K") : bits == 16 ? QStringLiteral("24.0K")
+                                                                                : QStringLiteral("12.0K");
+        bool found = false;
+        for (const auto* label : dialog->findChildren<QLabel*>()) {
+          found = found || label->text().contains(expected);
+        }
+        CHECK(found);
+      }
+      auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentWidthSpin"));
+      auto* height = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentHeightSpin"));
+      auto* unit = dialog->findChild<QComboBox*>(QStringLiteral("newDocumentUnitCombo"));
+      if (unit != nullptr) {
+        unit->setCurrentIndex(unit->findData(static_cast<int>(patchy::ui::MeasurementUnit::Pixels)));
+      }
+      if (width != nullptr && height != nullptr) {
+        width->setValue(64);
+        height->setValue(48);
+      }
+      dialog->accept();
+    });
+  };
+  patchy::set_deep_editing_override(true);
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    answer_new_document(16, true, nullptr);
+    require_action(window, "fileNewAction")->trigger();
+    QApplication::processEvents();
+    const auto& sixteen = patchy::ui::MainWindowTestAccess::document(window);
+    CHECK(sixteen.color_state().bit_depth == patchy::BitDepth::UInt16);
+    CHECK(sixteen.width() == 64 && sixteen.height() == 48);
+    CHECK(patchy::document_depth_problems(sixteen).empty());
+    CHECK(require_action(window, "imageMode16BitAction")->isChecked());
+
+    int remembered = 0;
+    answer_new_document(32, true, &remembered);
+    require_action(window, "fileNewAction")->trigger();
+    QApplication::processEvents();
+    CHECK(remembered == 8);
+    CHECK(patchy::ui::MainWindowTestAccess::document(window).color_state().bit_depth == patchy::BitDepth::Float32);
+    CHECK(require_action(window, "imageMode32BitAction")->isChecked());
+    CHECK(window.findChild<QDoubleSpinBox*>(QStringLiteral("hdrPreviewExposureSpin"))->isVisible());
+
+  }
+  patchy::set_deep_editing_override(false);
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    answer_new_document(8, false, nullptr);
+    require_action(window, "fileNewAction")->trigger();
+    QApplication::processEvents();
+    CHECK(patchy::ui::MainWindowTestAccess::document(window).color_state().bit_depth == patchy::BitDepth::UInt8);
+  }
+  patchy::set_deep_editing_override(std::nullopt);
+}
+
+// Leaving 32 bits asks for HDR Toning (Exposure and Gamma): Cancel keeps the document
+// at 32 bits, OK tones every pixel layer and converts.
+void ui_image_mode_from_32_bits_asks_for_hdr_toning() {
+  patchy::set_deep_editing_override(true);
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* to16 = require_action(window, "imageMode16BitAction");
+    require_action(window, "imageMode32BitAction")->trigger();
+    QApplication::processEvents();
+    const auto& document = patchy::ui::MainWindowTestAccess::document(window);
+    CHECK(document.color_state().bit_depth == patchy::BitDepth::Float32);
+    CHECK(!document.layers().empty());
+    const auto& base = document.layers().front();
+    const auto before = patchy::load_pixel(base.pixels().format(), base.pixels().pixel(0, 0));
+
+    // The 32-bit preview exposure darkens the display, not the pixels, and survives undo.
+    auto* exposure = window.findChild<QDoubleSpinBox*>(QStringLiteral("hdrPreviewExposureSpin"));
+    CHECK(exposure != nullptr && exposure->isVisible());
+    const auto display_red = [&window] {
+      return patchy::ui::qimage_from_document_rect(patchy::ui::MainWindowTestAccess::document(window),
+                                                   QRect(0, 0, 1, 1), true)
+          .pixelColor(0, 0)
+          .red();
+    };
+    const auto plain_red = display_red();
+    if (exposure != nullptr) {
+      exposure->setValue(-2.0);
+    }
+    QApplication::processEvents();
+    const auto expected_red = static_cast<int>(std::lround(
+        patchy::srgb_encode(std::min(1.0, static_cast<double>(before[0]) / 255.0 * 0.25)) * 255.0));
+    CHECK(std::abs(display_red() - expected_red) <= 1);
+    CHECK(display_red() < plain_red || plain_red == 0);
+    const auto& still = patchy::ui::MainWindowTestAccess::document(window).layers().front();
+    CHECK(patchy::load_pixel(still.pixels().format(), still.pixels().pixel(0, 0)) == before);
+    if (exposure != nullptr) {
+      exposure->setValue(0.0);
+    }
+
+    const auto answer_toning = [](bool accept, double exposure) {
+      QTimer::singleShot(0, [accept, exposure] {
+        auto* dialog = find_top_level_dialog(QStringLiteral("hdrToningDialog"));
+        CHECK(dialog != nullptr);
+        if (dialog == nullptr) {
+          return;
+        }
+        auto* spin = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("hdrToningExposureSpin"));
+        CHECK(spin != nullptr);
+        if (spin != nullptr) {
+          spin->setValue(exposure);
+        }
+        if (accept) {
+          dialog->accept();
+        } else {
+          dialog->reject();
+        }
+      });
+    };
+    answer_toning(false, 0.0);
+    to16->trigger();
+    QApplication::processEvents();
+    CHECK(patchy::ui::MainWindowTestAccess::document(window).color_state().bit_depth ==
+          patchy::BitDepth::Float32);
+    CHECK(!to16->isChecked());
+
+    answer_toning(true, -1.0);
+    to16->trigger();
+    QApplication::processEvents();
+    const auto& converted = patchy::ui::MainWindowTestAccess::document(window);
+    CHECK(converted.color_state().bit_depth == patchy::BitDepth::UInt16);
+    CHECK(exposure != nullptr && !exposure->isVisible());
+    CHECK(patchy::document_depth_problems(converted).empty());
+    const auto& toned = converted.layers().front();
+    const auto after = patchy::load_pixel(toned.pixels().format(), toned.pixels().pixel(0, 0));
+    for (std::size_t c = 0; c < 3U; ++c) {
+      const auto expected =
+          patchy::srgb_encode(std::min(1.0, static_cast<double>(before[c]) / 255.0 * 0.5)) * 255.0;
+      CHECK(std::abs(static_cast<double>(after[c]) - expected) < 0.01);
+    }
+  }
+  patchy::set_deep_editing_override(std::nullopt);
+}
+
 void ui_deep_document_render_strips_match_the_sequential_render() {
   // The display render of a large 16-bit document splits into strips; the assembled
   // image must be the sequential render.
@@ -1348,6 +1522,380 @@ void ui_deep_document_render_strips_match_the_sequential_render() {
   qunsetenv("PATCHY_RENDER_SINGLE_THREADED");
   CHECK(!parallel.isNull());
   CHECK(parallel == sequential);
+}
+
+// Runs New Layer, Merge Down, Copy Merged + Paste and Clear in a document at `depth` and
+// returns the resulting layers narrowed to 8 bits, checking the depth invariant on the way.
+std::vector<patchy::PixelBuffer> run_layer_operations_at_depth(patchy::BitDepth depth) {
+  using patchy::ui::MainWindowTestAccess;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  const auto width = doc.width();
+  const auto height = doc.height();
+  patchy::PixelBuffer base(width, height, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer top(width, height, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      auto* b = base.pixel(x, y);
+      b[0] = static_cast<std::uint8_t>(x % 256);
+      b[1] = static_cast<std::uint8_t>(y % 256);
+      b[2] = 120;
+      b[3] = 255;
+      auto* t = top.pixel(x, y);
+      t[0] = 230;
+      t[1] = static_cast<std::uint8_t>((x + y) % 256);
+      t[2] = 40;
+      t[3] = static_cast<std::uint8_t>(80 + (x % 160));
+    }
+  }
+  doc.add_pixel_layer("Base", base);
+  auto& top_layer = doc.add_pixel_layer("Top", top);
+  top_layer.set_blend_mode(patchy::BlendMode::Multiply);
+  top_layer.set_opacity(0.6F);
+  const auto top_id = top_layer.id();
+  patchy::convert_document_depth(doc, depth);
+  doc.set_active_layer(top_id);
+  MainWindowTestAccess::refresh_layer_ui(window);
+  canvas->document_changed();
+  QApplication::processEvents();
+
+  // New Layer takes the document's depth.
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  CHECK(std::as_const(doc).find_layer(doc.active_layer_id().value_or(0))->pixels().format().bit_depth == depth);
+  CHECK(patchy::document_depth_problems(doc).empty());
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  doc.set_active_layer(top_id);
+  MainWindowTestAccess::refresh_layer_ui(window);
+
+  // Merge Down composites at depth into the layer below.
+  require_action(window, "layerMergeDownAction")->trigger();
+  CHECK(process_events_until([&] { return std::as_const(doc).find_layer(top_id) == nullptr; }, 15000));
+  CHECK(patchy::document_depth_problems(doc).empty());
+
+  // Copy Merged of a selection, pasted back as a layer at the document's depth.
+  patchy::PixelBuffer selection(width, height, patchy::PixelFormat::gray8());
+  selection.clear(0);
+  for (std::int32_t y = 20; y < 50; ++y) {
+    for (std::int32_t x = 30; x < 90; ++x) {
+      selection.pixel(x, y)[0] = 255;
+    }
+  }
+  canvas->replace_selection_from_grayscale(selection, QStringLiteral("Select"));
+  require_action(window, "editCopyMergedAction")->trigger();
+  require_action(window, "editPasteAction")->trigger();
+  QApplication::processEvents();
+  const auto* pasted = std::as_const(doc).find_layer(doc.active_layer_id().value_or(0));
+  CHECK(pasted != nullptr && pasted->pixels().format().bit_depth == depth);
+  CHECK(pasted->pixels().width() == 60 && pasted->pixels().height() == 30);
+  CHECK(patchy::document_depth_problems(doc).empty());
+
+  // Clear a selected band of the merged layer.
+  const auto merged_id = std::as_const(doc).layers()[std::as_const(doc).layers().size() - 2].id();
+  doc.set_active_layer(merged_id);
+  MainWindowTestAccess::refresh_layer_ui(window);
+  canvas->replace_selection_from_grayscale(selection, QStringLiteral("Select"));
+  require_action(window, "layerClearAction")->trigger();
+  QApplication::processEvents();
+  const auto* cleared = std::as_const(doc).find_layer(merged_id);
+  CHECK(cleared != nullptr);
+  CHECK(patchy::pixel_alpha_at(cleared->pixels(), 40 - cleared->bounds().x, 30 - cleared->bounds().y) == 0.0F);
+  CHECK(patchy::pixel_alpha_at(cleared->pixels(), 10 - cleared->bounds().x, 10 - cleared->bounds().y) > 0.0F);
+  CHECK(patchy::document_depth_problems(doc).empty());
+
+  std::vector<patchy::PixelBuffer> layers;
+  for (const auto& layer : std::as_const(doc).layers()) {
+    layers.push_back(patchy::convert_pixel_buffer_depth(layer.pixels(), patchy::BitDepth::UInt8,
+                                                        patchy::SampleKind::Color));
+  }
+  return layers;
+}
+
+void ui_layer_operations_keep_deep_documents_at_depth() {
+  // The same operations on an 8-bit document and on its 16-bit conversion end in the
+  // same layers, within a level (the deep composite rounds once, at the end).
+  const auto eight = run_layer_operations_at_depth(patchy::BitDepth::UInt8);
+  const auto sixteen = run_layer_operations_at_depth(patchy::BitDepth::UInt16);
+  CHECK(eight.size() == sixteen.size());
+  for (std::size_t i = 0; i < std::min(eight.size(), sixteen.size()); ++i) {
+    CHECK(eight[i].width() == sixteen[i].width() && eight[i].height() == sixteen[i].height());
+    CHECK(eight[i].format() == sixteen[i].format());
+    int worst = 0;
+    for (std::size_t b = 0; b < std::min(eight[i].byte_size(), sixteen[i].byte_size()); ++b) {
+      worst = std::max(worst, std::abs(static_cast<int>(eight[i].data()[b]) - static_cast<int>(sixteen[i].data()[b])));
+    }
+    if (worst > 1) {
+      std::cerr << "layer " << i << ": worst " << worst << "\n";
+    }
+    CHECK(worst <= 1);
+  }
+  // 32 bits runs the same operations; its values differ by design (linear compositing).
+  const auto thirty_two = run_layer_operations_at_depth(patchy::BitDepth::Float32);
+  CHECK(thirty_two.size() == eight.size());
+}
+
+// Free Transform (scale and rotate, committed) of a masked layer in a document at
+// `depth`; returns the layer and its mask narrowed to 8 bits.
+std::pair<patchy::PixelBuffer, patchy::PixelBuffer> free_transform_at_depth(patchy::BitDepth depth) {
+  patchy::Document document(96, 64, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(255, 255, 255)));
+  patchy::PixelBuffer content(96, 64, patchy::PixelFormat::rgba8());
+  content.clear(0);
+  for (std::int32_t y = 16; y < 48; ++y) {
+    for (std::int32_t x = 24; x < 72; ++x) {
+      auto* px = content.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(x * 3);
+      px[1] = static_cast<std::uint8_t>(y * 4);
+      px[2] = 150;
+      px[3] = static_cast<std::uint8_t>(120 + x);
+    }
+  }
+  auto& layer = document.add_pixel_layer("Layer", content);
+  patchy::LayerMask mask;
+  mask.bounds = patchy::Rect::from_size(96, 64);
+  mask.pixels = patchy::PixelBuffer(96, 64, patchy::PixelFormat::gray8());
+  for (std::int32_t y = 0; y < 64; ++y) {
+    for (std::int32_t x = 0; x < 96; ++x) {
+      mask.pixels.pixel(x, y)[0] = static_cast<std::uint8_t>(x * 2 + y);
+    }
+  }
+  layer.set_mask(mask);
+  const auto id = layer.id();
+  patchy::convert_document_depth(document, depth);
+  document.set_active_layer(id);
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(320, 240);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.set_transform_interpolation(patchy::ui::CanvasWidget::TransformInterpolation::Bilinear);
+  canvas.show();
+  QApplication::processEvents();
+  CHECK(canvas.begin_free_transform());
+  const auto state = canvas.transform_controls_state();
+  CHECK(state.has_value());
+  CHECK(canvas.set_transform_controls_state(state->reference_position, 140.0, 80.0, 21.0));
+  canvas.finish_free_transform();
+  QApplication::processEvents();
+  CHECK(!canvas.free_transform_active());
+  const auto& transformed = *std::as_const(document).find_layer(id);
+  CHECK(transformed.pixels().format().bit_depth == depth);
+  CHECK(transformed.mask().has_value() && transformed.mask()->pixels.format().bit_depth == depth);
+  CHECK(patchy::document_depth_problems(document).empty());
+  return {patchy::convert_pixel_buffer_depth(transformed.pixels(), patchy::BitDepth::UInt8, patchy::SampleKind::Color),
+          patchy::convert_pixel_buffer_depth(transformed.mask()->pixels, patchy::BitDepth::UInt8,
+                                             patchy::SampleKind::Coverage)};
+}
+
+void ui_free_transform_keeps_deep_layers_at_depth() {
+  // The 16-bit transform resamples in float and the 8-bit one in bytes: they agree
+  // within a level (alpha-weighted colors of nearly transparent edge pixels aside).
+  const auto eight = free_transform_at_depth(patchy::BitDepth::UInt8);
+  const auto sixteen = free_transform_at_depth(patchy::BitDepth::UInt16);
+  CHECK(eight.first.width() == sixteen.first.width() && eight.first.height() == sixteen.first.height());
+  int color_worst = 0;
+  int alpha_worst = 0;
+  for (std::int32_t y = 0; y < std::min(eight.first.height(), sixteen.first.height()); ++y) {
+    for (std::int32_t x = 0; x < std::min(eight.first.width(), sixteen.first.width()); ++x) {
+      const auto* a = eight.first.pixel(x, y);
+      const auto* b = sixteen.first.pixel(x, y);
+      alpha_worst = std::max(alpha_worst, std::abs(static_cast<int>(a[3]) - static_cast<int>(b[3])));
+      if (a[3] >= 32 && b[3] >= 32) {
+        for (int c = 0; c < 3; ++c) {
+          color_worst = std::max(color_worst, std::abs(static_cast<int>(a[c]) - static_cast<int>(b[c])));
+        }
+      }
+    }
+  }
+  CHECK(alpha_worst <= 1);
+  CHECK(color_worst <= 2);
+  CHECK(eight.second.width() == sixteen.second.width() && eight.second.height() == sixteen.second.height());
+  int mask_worst = 0;
+  for (std::size_t i = 0; i < std::min(eight.second.byte_size(), sixteen.second.byte_size()); ++i) {
+    mask_worst = std::max(mask_worst, std::abs(static_cast<int>(eight.second.data()[i]) -
+                                               static_cast<int>(sixteen.second.data()[i])));
+  }
+  CHECK(mask_worst <= 1);
+  (void)free_transform_at_depth(patchy::BitDepth::Float32);
+}
+
+// A soft brush stroke on a layer, then one on its mask, in a document at `depth`;
+// returns the layer and mask narrowed to 8 bits.
+std::pair<patchy::PixelBuffer, patchy::PixelBuffer> brush_strokes_at_depth(patchy::BitDepth depth) {
+  patchy::Document document(80, 48, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(80, 48, patchy::PixelFormat::rgba8(), QColor(255, 255, 255)));
+  patchy::PixelBuffer content(80, 48, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < 48; ++y) {
+    for (std::int32_t x = 0; x < 80; ++x) {
+      auto* px = content.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(x * 3);
+      px[1] = 90;
+      px[2] = static_cast<std::uint8_t>(y * 5);
+      px[3] = static_cast<std::uint8_t>(x < 40 ? 255 : 120);
+    }
+  }
+  auto& layer = document.add_pixel_layer("Layer", content);
+  patchy::LayerMask mask;
+  mask.bounds = patchy::Rect::from_size(80, 48);
+  mask.pixels = patchy::PixelBuffer(80, 48, patchy::PixelFormat::gray8());
+  mask.pixels.clear(200);
+  layer.set_mask(mask);
+  const auto id = layer.id();
+  patchy::convert_document_depth(document, depth);
+  document.set_active_layer(id);
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(320, 200);
+  canvas.set_document(&document);
+  canvas.set_zoom(1.0);
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  canvas.set_primary_color(QColor(30, 160, 220));
+  canvas.set_brush_size(11);
+  canvas.set_brush_softness(80);
+  canvas.set_brush_opacity(70);
+  canvas.show();
+  QApplication::processEvents();
+  const auto stroke = [&canvas](QPoint from, QPoint to) {
+    const auto a = canvas.widget_position_for_document_point(from);
+    const auto b = canvas.widget_position_for_document_point(to);
+    send_mouse(canvas, QEvent::MouseButtonPress, a, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(canvas, QEvent::MouseMove, (a + b) / 2, Qt::NoButton, Qt::LeftButton);
+    send_mouse(canvas, QEvent::MouseMove, b, Qt::NoButton, Qt::LeftButton);
+    send_mouse(canvas, QEvent::MouseButtonRelease, b, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+  stroke(QPoint(8, 10), QPoint(70, 36));
+  canvas.set_layer_edit_target(patchy::ui::CanvasWidget::LayerEditTarget::Mask);
+  canvas.set_primary_color(QColor(0, 0, 0));
+  stroke(QPoint(10, 40), QPoint(72, 6));
+  const auto& painted = *std::as_const(document).find_layer(id);
+  CHECK(painted.pixels().format().bit_depth == depth);
+  CHECK(painted.mask().has_value() && painted.mask()->pixels.format().bit_depth == depth);
+  CHECK(patchy::document_depth_problems(document).empty());
+  return {patchy::convert_pixel_buffer_depth(painted.pixels(), patchy::BitDepth::UInt8, patchy::SampleKind::Color),
+          patchy::convert_pixel_buffer_depth(painted.mask()->pixels, patchy::BitDepth::UInt8,
+                                             patchy::SampleKind::Coverage)};
+}
+
+void ui_brush_paints_deep_layers_and_masks_at_depth() {
+  const auto eight = brush_strokes_at_depth(patchy::BitDepth::UInt8);
+  const auto sixteen = brush_strokes_at_depth(patchy::BitDepth::UInt16);
+  const auto worst = [](const patchy::PixelBuffer& a, const patchy::PixelBuffer& b) {
+    if (a.byte_size() != b.byte_size()) {
+      return 999;
+    }
+    int result = 0;
+    for (std::size_t i = 0; i < a.byte_size(); ++i) {
+      result = std::max(result, std::abs(static_cast<int>(a.data()[i]) - static_cast<int>(b.data()[i])));
+    }
+    return result;
+  };
+  const auto layer_worst = worst(eight.first, sixteen.first);
+  const auto mask_worst = worst(eight.second, sixteen.second);
+  if (layer_worst > 1 || mask_worst > 1) {
+    std::cerr << "brush at 16 bits: layer worst " << layer_worst << ", mask worst " << mask_worst << "\n";
+  }
+  CHECK(layer_worst <= 1);
+  CHECK(mask_worst <= 1);
+  // Both strokes landed: brush-colored layer pixels, and mask values below the 200 fill.
+  const auto landed = [](const std::pair<patchy::PixelBuffer, patchy::PixelBuffer>& result) {
+    int brushed = 0;
+    for (std::int32_t y = 0; y < result.first.height(); ++y) {
+      for (std::int32_t x = 0; x < result.first.width(); ++x) {
+        const auto* px = result.first.pixel(x, y);
+        brushed += std::abs(px[0] - 30) < 20 && std::abs(px[1] - 160) < 20 && std::abs(px[2] - 220) < 20 ? 1 : 0;
+      }
+    }
+    int masked = 0;
+    for (const auto value : result.second.data()) {
+      masked += value < 150 ? 1 : 0;
+    }
+    return brushed > 40 && masked > 40;
+  };
+  CHECK(landed(eight));
+  CHECK(landed(sixteen));
+  (void)brush_strokes_at_depth(patchy::BitDepth::Float32);
+}
+
+// One stroke of `tool` on a textured layer in a document at `depth`; returns the layer
+// narrowed to 8 bits. Clone and Healing take an Alt-click source first.
+patchy::PixelBuffer retouch_stroke_at_depth(patchy::ui::CanvasTool tool, patchy::BitDepth depth) {
+  patchy::Document document(72, 48, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer content(72, 48, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < 48; ++y) {
+    for (std::int32_t x = 0; x < 72; ++x) {
+      auto* px = content.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>((x * 7 + y * 3) % 256);
+      px[1] = static_cast<std::uint8_t>((x * 2 + y * 9) % 256);
+      px[2] = static_cast<std::uint8_t>(80 + (x + y) % 120);
+      px[3] = 255;
+    }
+  }
+  auto& layer = document.add_pixel_layer("Layer", content);
+  const auto id = layer.id();
+  patchy::convert_document_depth(document, depth);
+  document.set_active_layer(id);
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(300, 200);
+  canvas.set_document(&document);
+  canvas.set_zoom(1.0);
+  canvas.set_tool(tool);
+  canvas.set_brush_size(9);
+  canvas.set_brush_softness(50);
+  canvas.set_brush_opacity(80);
+  canvas.show();
+  QApplication::processEvents();
+  if (tool == patchy::ui::CanvasTool::Clone || tool == patchy::ui::CanvasTool::Healing) {
+    const auto source = canvas.widget_position_for_document_point(QPoint(12, 12));
+    send_mouse(canvas, QEvent::MouseButtonPress, source, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+    send_mouse(canvas, QEvent::MouseButtonRelease, source, Qt::LeftButton, Qt::NoButton, Qt::AltModifier);
+  }
+  const auto a = canvas.widget_position_for_document_point(QPoint(30, 20));
+  const auto b = canvas.widget_position_for_document_point(QPoint(60, 34));
+  send_mouse(canvas, QEvent::MouseButtonPress, a, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, (a + b) / 2, Qt::NoButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, b, Qt::NoButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, b, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  const auto& edited = *std::as_const(document).find_layer(id);
+  CHECK(edited.pixels().format().bit_depth == depth);
+  CHECK(patchy::document_depth_problems(document).empty());
+  return patchy::convert_pixel_buffer_depth(edited.pixels(), patchy::BitDepth::UInt8, patchy::SampleKind::Color);
+}
+
+void ui_retouch_tools_edit_deep_layers_at_depth() {
+  // Each retouch tool at 16 bits matches its 8-bit stroke within a few levels (the deep
+  // path rounds once; the smear and blur tools carry values between dabs) and changes
+  // the layer; 32 bits runs too.
+  using patchy::ui::CanvasTool;
+  for (const auto tool : {CanvasTool::Smudge, CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
+                          CanvasTool::BlurBrush, CanvasTool::SharpenBrush, CanvasTool::Clone, CanvasTool::Healing,
+                          CanvasTool::SpotHealing}) {
+    const auto eight = retouch_stroke_at_depth(tool, patchy::BitDepth::UInt8);
+    const auto sixteen = retouch_stroke_at_depth(tool, patchy::BitDepth::UInt16);
+    const auto original = retouch_stroke_at_depth(CanvasTool::Eyedropper, patchy::BitDepth::UInt8);
+    int worst = 0;
+    int changed = 0;
+    for (std::size_t i = 0; i < std::min(eight.byte_size(), sixteen.byte_size()); ++i) {
+      worst = std::max(worst, std::abs(static_cast<int>(eight.data()[i]) - static_cast<int>(sixteen.data()[i])));
+    }
+    for (std::size_t i = 0; i < std::min(sixteen.byte_size(), original.byte_size()); ++i) {
+      changed += sixteen.data()[i] != original.data()[i] ? 1 : 0;
+    }
+    // Smudge's 8-bit path re-rounds its carried sample on every dab, so its error grows
+    // along the stroke; the deep one carries floats.
+    const int allowed = tool == CanvasTool::Smudge ? 6 : 3;
+    if (worst > allowed || changed == 0) {
+      std::cerr << "tool " << static_cast<int>(tool) << ": worst " << worst << ", changed " << changed << "\n";
+    }
+    CHECK(eight.byte_size() == sixteen.byte_size());
+    CHECK(worst <= allowed);
+    CHECK(changed > 0);
+    (void)retouch_stroke_at_depth(tool, patchy::BitDepth::Float32);
+  }
 }
 
 void ui_eyedropper_picks_the_composite_of_a_16_bit_document() {
@@ -2385,8 +2933,14 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_alt_color_pick_shows_rgb_status_and_updates_open_color_panel",
        ui_alt_color_pick_shows_rgb_status_and_updates_open_color_panel},
       {"ui_image_mode_converts_bit_depth_with_undo", ui_image_mode_converts_bit_depth_with_undo},
+      {"ui_image_mode_from_32_bits_asks_for_hdr_toning", ui_image_mode_from_32_bits_asks_for_hdr_toning},
+      {"ui_new_document_dialog_creates_the_chosen_bit_depth", ui_new_document_dialog_creates_the_chosen_bit_depth},
       {"ui_deep_document_render_strips_match_the_sequential_render",
        ui_deep_document_render_strips_match_the_sequential_render},
+      {"ui_layer_operations_keep_deep_documents_at_depth", ui_layer_operations_keep_deep_documents_at_depth},
+      {"ui_free_transform_keeps_deep_layers_at_depth", ui_free_transform_keeps_deep_layers_at_depth},
+      {"ui_brush_paints_deep_layers_and_masks_at_depth", ui_brush_paints_deep_layers_and_masks_at_depth},
+      {"ui_retouch_tools_edit_deep_layers_at_depth", ui_retouch_tools_edit_deep_layers_at_depth},
       {"ui_eyedropper_picks_the_composite_of_a_16_bit_document", ui_eyedropper_picks_the_composite_of_a_16_bit_document},
       {"ui_eyedropper_starts_in_gray_area_and_drags_to_document_color",
        ui_eyedropper_starts_in_gray_area_and_drags_to_document_color},

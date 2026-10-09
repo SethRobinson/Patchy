@@ -161,7 +161,8 @@ std::string normalize_photoshop_text(std::string_view text) {
 
 }  // namespace
 
-std::optional<std::string> extract_engine_data_text(std::span<const std::uint8_t> payload) {
+std::optional<std::string> extract_engine_data_text(std::span<const std::uint8_t> payload,
+                                                  bool allow_descriptor_fallback) {
   constexpr std::string_view marker = "/Text";
   const auto begin = reinterpret_cast<const char*>(payload.data());
   const auto end = begin + payload.size();
@@ -203,6 +204,24 @@ std::optional<std::string> extract_engine_data_text(std::span<const std::uint8_t
       }
     }
     found = std::search(cursor, end, marker.begin(), marker.end());
+  }
+  if (!allow_descriptor_fallback) return std::nullopt;
+  // Fully overflowed Photoshop area text has only a terminal paragraph in
+  // EngineData's Editor/Text. The TySh descriptor still carries the complete
+  // story (photoshop-area-empty.psd), including when the story itself is empty.
+  try {
+    BigEndianReader reader(payload);
+    if (reader.remaining() >= 56U && reader.read_u16() == 1U) {
+      reader.skip(48U);
+      if (reader.read_u16() == 50U && reader.read_u32() == 16U) {
+        const auto descriptor = read_descriptor(reader);
+        if (const auto* text = descriptor_value(descriptor, "Txt ");
+            text && text->type == DescriptorValue::Type::String) {
+          return normalize_photoshop_text(text->string_value);
+        }
+      }
+    }
+  } catch (const std::exception&) {
   }
   return std::nullopt;
 }

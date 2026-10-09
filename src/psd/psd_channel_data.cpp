@@ -7,6 +7,7 @@
 
 #include "color/color_management.hpp"
 #include "core/adjustment_layer.hpp"
+#include "core/document_depth.hpp"
 #include "formats/miniz/miniz.h"
 #include "core/layer_metadata.hpp"
 #include "core/pixel_depth.hpp"
@@ -422,6 +423,11 @@ ScopedLinearDescriptorColors::ScopedLinearDescriptorColors(bool linear) noexcept
 
 ScopedLinearDescriptorColors::~ScopedLinearDescriptorColors() {
   g_linear_descriptor_colors = previous_;
+}
+
+BlendMode writable_layer_blend_mode(BlendMode mode) noexcept {
+  return g_linear_descriptor_colors && !blend_mode_supported_at_depth(mode, BitDepth::Float32) ? BlendMode::Normal
+                                                                                                : mode;
 }
 
 double descriptor_rgb_component(std::uint8_t encoded) noexcept {
