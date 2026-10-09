@@ -8971,6 +8971,10 @@ RGB: %2, %3, %4</translation>
         <source>The 32-bit image was converted to 16 bits per channel: the web version edits up to 16.</source>
         <translation>Das 32-Bit-Bild wurde in 16 Bit pro Kanal umgewandelt: Die Webversion bearbeitet höchstens 16 Bit.</translation>
     </message>
+    <message>
+        <source>This document&apos;s preserved text engine cannot store new area text.</source>
+        <translation>Die erhaltenen Textdaten dieses Dokuments können keinen neuen Text innerhalb von Formen speichern.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -18812,6 +18816,14 @@ In Bilder umgewandelt: %1.</translation>
     <message>
         <source>Exposure: </source>
         <translation>Belichtung: </translation>
+    </message>
+    <message>
+        <source>This text boundary is preserved but cannot be edited.</source>
+        <translation>Diese Textbegrenzung bleibt erhalten, kann aber nicht bearbeitet werden.</translation>
+    </message>
+    <message>
+        <source>%1 Text Boundary</source>
+        <translation>%1 Textbegrenzung</translation>
     </message>
 </context>
 <context>

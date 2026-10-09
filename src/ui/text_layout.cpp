@@ -965,16 +965,27 @@ int TextLineGeometry::position_at(QPointF local_point) const {
   }
   const auto* best = &lines_.front();
   qreal best_distance = std::numeric_limits<qreal>::max();
+  qreal best_horizontal_distance = std::numeric_limits<qreal>::max();
   for (const auto& entry : lines_) {
     const auto top = entry.block_origin.y() + entry.line.y();
     const auto bottom = top + std::max<qreal>(1.0, entry.line.height());
     const qreal distance = local_point.y() < top    ? top - local_point.y()
                            : local_point.y() > bottom ? local_point.y() - bottom
                                                       : 0.0;
-    if (distance < best_distance) {
+    const auto left = entry.block_origin.x() + entry.line.x();
+    const auto right = left + entry.line.width();
+    const qreal horizontal = std::max({left - local_point.x(), local_point.x() - right, 0.0});
+    const auto baseline = top + entry.line.ascent();
+    const auto best_baseline = best->block_origin.y() + best->line.y() + best->line.ascent();
+    // Area spans share a baseline. Keep ordinary overlapping lines' existing
+    // vertical tie-break, and use x only to distinguish spans of the same row.
+    const bool same_row = std::abs(baseline - best_baseline) < 0.01;
+    if (distance < best_distance ||
+        (distance == best_distance && same_row && horizontal < best_horizontal_distance)) {
       best_distance = distance;
+      best_horizontal_distance = horizontal;
       best = &entry;
-      if (distance == 0.0) {
+      if (distance == 0.0 && horizontal == 0.0) {
         break;
       }
     }

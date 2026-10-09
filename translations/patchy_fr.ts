@@ -8971,6 +8971,10 @@ RVB : %2, %3, %4</translation>
         <source>The 32-bit image was converted to 16 bits per channel: the web version edits up to 16.</source>
         <translation>L&apos;image 32 bits a été convertie en 16 bits par couche : la version web modifie jusqu&apos;à 16 bits.</translation>
     </message>
+    <message>
+        <source>This document&apos;s preserved text engine cannot store new area text.</source>
+        <translation>Le moteur de texte conservé de ce document ne permet pas d’enregistrer de nouveau texte dans des formes.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -18813,6 +18817,14 @@ Convertis en images : %1.</translation>
         <source>Exposure: </source>
         <translation>Exposition : </translation>
     </message>
+    <message>
+        <source>This text boundary is preserved but cannot be edited.</source>
+        <translation>Cette limite de texte est conservée, mais ne peut pas être modifiée.</translation>
+    </message>
+    <message>
+        <source>%1 Text Boundary</source>
+        <translation>Limite du texte %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -20278,7 +20290,7 @@ Convertis en images : %1.</translation>
     </message>
     <message>
         <source>Blend mode %1 is not available in 32-bit documents.</source>
-        <translation>Le mode de fusion %1 n'est pas disponible dans les documents 32 bits.</translation>
+        <translation>Le mode de fusion %1 n&apos;est pas disponible dans les documents 32 bits.</translation>
     </message>
 </context>
 <context>

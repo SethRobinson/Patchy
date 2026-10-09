@@ -213,7 +213,7 @@ std::optional<VectorPath> parse_vector_path(std::string_view text) {
   const auto initial_fill = parse_long_token(cursor);
   const auto subpath_count = parse_long_token(cursor);
   if (!fill_rule.has_value() || !initial_fill.has_value() || !subpath_count.has_value() ||
-      *subpath_count < 0) {
+      *subpath_count < 0 || static_cast<std::size_t>(*subpath_count) > text.size() / 10U) {
     return std::nullopt;
   }
   path.fill_rule_value = static_cast<std::uint16_t>(*fill_rule);
@@ -229,7 +229,8 @@ std::optional<VectorPath> parse_vector_path(std::string_view text) {
     const auto group = parse_long_token(cursor);
     const auto anchor_count = parse_long_token(cursor);
     if (!closed.has_value() || !op.has_value() || !group.has_value() || !anchor_count.has_value() ||
-        *op < 0 || *op > 3 || *anchor_count < 0) {
+        *op < 0 || *op > 3 || *anchor_count < 0 ||
+        static_cast<std::size_t>(*anchor_count) > text.size() / 16U) {
       return std::nullopt;
     }
     subpath.closed = *closed != 0;

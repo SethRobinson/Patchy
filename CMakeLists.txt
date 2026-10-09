@@ -1202,6 +1202,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/theme_qss.cpp
       src/ui/text_layout.hpp
       src/ui/text_layout.cpp
+      src/ui/text_area_layout.cpp
+      src/ui/text_area_layout.hpp
       src/ui/tile_preview_window.hpp
       src/ui/tile_preview_window.cpp
       src/ui/animation_preview_window.hpp
@@ -1832,6 +1834,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/text_transform_commit_tests_psd_commit.cpp
       tests/ui/text_transform_commit_tests_flip.cpp
       tests/ui/text_vertical_rtl_tests.cpp
+      tests/ui/text_area_tests.cpp
       tests/ui/flat_image_format_tests.cpp
       tests/ui/smart_filter_tests.cpp
       tests/ui/smart_filter_tests_flows.cpp

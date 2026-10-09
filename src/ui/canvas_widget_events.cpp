@@ -920,6 +920,12 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       update();
       return;
     }
+    if (text_area_at(document_point)) {
+      if (text_requested_callback_) text_requested_callback_(document_point, QRect());
+      event->accept();
+      update();
+      return;
+    }
     dragging_text_rect_ = true;
     text_rect_start_ = snapped_document_point(document_point);
     text_rect_current_ = text_rect_start_;

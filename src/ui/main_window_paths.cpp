@@ -139,6 +139,9 @@ const VectorPath* MainWindow::resolved_row_path(int kind, DocumentPathId id, QSt
         layer->vector_mask() != nullptr) {
       return &layer->vector_mask()->path;
     }
+    if (canvas_ != nullptr) {
+      if (const auto* area = canvas_->text_area_edit_target_path()) return area;
+    }
     if (layer_is_vector_shape(*layer)) {
       return &layer->vector_shape()->path;
     }
@@ -203,7 +206,10 @@ void MainWindow::refresh_paths_panel() {
     if (const auto* layer = doc.find_layer(*active); layer != nullptr) {
       const VectorPath* layer_path = nullptr;
       QString label;
-      if (layer_is_vector_shape(*layer)) {
+      if (canvas_ != nullptr && canvas_->text_area_edit_target_path() != nullptr) {
+        layer_path = canvas_->text_area_edit_target_path();
+        label = tr("%1 Text Boundary").arg(QString::fromStdString(layer->name()));
+      } else if (layer_is_vector_shape(*layer)) {
         layer_path = &layer->vector_shape()->path;
         label = tr("%1 Shape Path").arg(QString::fromStdString(layer->name()));
       } else if (layer->vector_mask() != nullptr) {

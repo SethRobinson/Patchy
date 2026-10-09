@@ -40,6 +40,8 @@
 #include "ui/qt_paths.hpp"
 #include "ui/script_canvas_window.hpp"
 #include "ui/script_engine.hpp"
+#include "ui/script_vector.hpp"
+#include "core/text_area.hpp"
 
 #include <QColor>
 #include <QCoreApplication>
@@ -721,6 +723,27 @@ QJSValue ScriptLayerObject::text_box() const {
   object.setProperty(QStringLiteral("width"), box.width());
   object.setProperty(QStringLiteral("height"), box.height());
   return object;
+}
+
+QJSValue ScriptLayerObject::text_area() const {
+  return script_vector::guarded(host_, [&]() -> QJSValue {
+    const auto& layer = script_vector::layer(host_, session_id_, layer_id_);
+    const auto area = text_area_in_document(layer);
+    return area ? script_vector::to_js(host_, script_vector::path_json(*area)) : QJSValue(QJSValue::NullValue);
+  });
+}
+
+void ScriptLayerObject::set_text_area(const QJSValue& value) {
+  script_vector::guarded(host_, [&] {
+    std::optional<VectorPath> area;
+    if (!value.isNull()) {
+      area = script_vector::parse_path(script_vector::object(value), false);
+      if (!valid_text_area(*area)) script_vector::invalid(QStringLiteral("textArea.closedContour"));
+    }
+    const auto& layer = script_vector::layer(host_, session_id_, layer_id_, true);
+    if (!layer_is_text(layer) || text_geometry_is_protected(layer)) script_vector::invalid(QStringLiteral("textArea.layer"));
+    if (!host_.set_text_layer_area(session_id_, layer_id_, area)) script_vector::invalid(QStringLiteral("textArea"));
+  });
 }
 
 QString ScriptLayerObject::text_align() const {
@@ -2004,6 +2027,16 @@ QJSValue ScriptDocumentObject::addTextLayer(const QJSValue& text, const QJSValue
       }
       params.box = QSize(static_cast<int>(std::lround(width.toNumber())),
                          static_cast<int>(std::lround(height.toNumber())));
+    }
+    if (const auto area = options.property(QStringLiteral("area")); !area.isUndefined() && !area.isNull()) {
+      try {
+        if (params.box.isValid()) script_vector::invalid(QStringLiteral("area/box"));
+        params.area = script_vector::parse_path(script_vector::object(area), false);
+        if (!valid_text_area(*params.area)) script_vector::invalid(QStringLiteral("area.closedContour"));
+      } catch (const std::exception& error) {
+        host_.throw_js_error(ScriptEngineHost::tr("Invalid vector option or target: %1.").arg(QString::fromUtf8(error.what())));
+        return QJSValue();
+      }
     }
     if (const auto align = options.property(QStringLiteral("align")); align.isString()) {
       params.align = align.toString();

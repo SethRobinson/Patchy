@@ -19,6 +19,8 @@
 #include "ui/qt_geometry.hpp"
 #include "ui/smart_object_render.hpp"
 #include "ui/tool_cursors.hpp"
+#include "ui/text_area_layout.hpp"
+#include "core/text_area.hpp"
 
 #include <QApplication>
 #include <QCursor>
@@ -177,8 +179,12 @@ const Layer* topmost_text_layer_at_recursive(const std::vector<Layer>& layers, Q
       }
       continue;
     }
-    if (layer_is_text(layer) && layer.bounds().contains(document_point.x(), document_point.y())) {
-      return &layer;
+    if (layer_is_text(layer)) {
+      if (const auto area = text_area_in_document(layer)) {
+        if (TextAreaGeometry(*area).contains(document_point)) return &layer;
+      } else if (layer.bounds().contains(document_point.x(), document_point.y())) {
+        return &layer;
+      }
     }
   }
   return nullptr;
@@ -1533,6 +1539,36 @@ Layer* CanvasWidget::topmost_text_layer_at(QPoint document_point) const noexcept
   }
 
   return const_cast<Layer*>(topmost_text_layer_at_recursive(std::as_const(*document_).layers(), document_point));
+}
+
+std::optional<VectorPath> CanvasWidget::text_area_at(QPoint document_point) const {
+  if (!document_ || topmost_text_layer_at(document_point)) return std::nullopt;
+  const auto pick = [&](const VectorPath& source) -> std::optional<VectorPath> {
+    for (const auto& subpath : source.subpaths) {
+      VectorPath area;
+      area.subpaths.push_back(subpath);
+      area.subpaths.front().op = PathCombineOp::Xor;
+      area.subpaths.front().shape_group = 0;
+      if (valid_text_area(area) && TextAreaGeometry(area).contains(QPointF(document_point))) return area;
+    }
+    return std::nullopt;
+  };
+  if (target_path_visible_) {
+    if (const auto* target = path_edit_target_path()) {
+      if (auto area = pick(*target)) return area;
+    }
+  }
+  const auto visit = [&](auto&& self, const std::vector<Layer>& layers) -> std::optional<VectorPath> {
+    for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
+      if (!it->visible()) continue;
+      if (auto area = self(self, it->children())) return area;
+      if (const auto* shape = it->vector_shape(); shape && !shape->path_disabled && !shape->path_inverted) {
+        if (auto area = pick(shape->path)) return area;
+      }
+    }
+    return std::nullopt;
+  };
+  return visit(visit, std::as_const(*document_).layers());
 }
 
 void CanvasWidget::activate_layer(Layer& layer) {

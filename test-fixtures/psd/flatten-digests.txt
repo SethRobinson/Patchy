@@ -2,6 +2,12 @@
 7b0b17b25ffc630d patchy-compound-group.psd
 82b3b2f76a478139 patchy-gradient-empty-transparency.psd
 d416c48ba5c4bc3d patchy-open-path-strokes.psd
+6d1499fa39f1e029 photoshop-area-concave.psd
+a22fb8a07898c0ab photoshop-area-ellipse.psd
+4b632b0e690e6ec5 photoshop-area-empty.psd
+3ec1085a4fdb654b photoshop-area-mixed.psd
+9dbd3a2a84e5509a photoshop-area-triangle.psd
+29c729b20ec93c20 photoshop-area-vertical.psd
 db597474773a16b5 photoshop-bevel-default.psd
 4f9d639a6c4e7af3 photoshop-bevel-gloss.psd
 e7fc2129dee6f178 photoshop-bevel-smooth.psd

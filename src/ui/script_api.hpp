@@ -53,6 +53,7 @@ class ScriptLayerObject : public QObject {
   Q_PROPERTY(QString textFont READ text_font)
   Q_PROPERTY(QJSValue textRuns READ text_runs)
   Q_PROPERTY(QJSValue textBox READ text_box)
+  Q_PROPERTY(QJSValue textArea READ text_area WRITE set_text_area)
   Q_PROPERTY(QString textAlign READ text_align WRITE set_text_align)
   Q_PROPERTY(QJSValue textParagraph READ text_paragraph WRITE set_text_paragraph)
 
@@ -112,6 +113,8 @@ public:
   // the content with formatted runs through the same session as `text`.
   [[nodiscard]] QJSValue text_runs() const;
   [[nodiscard]] QJSValue text_box() const;
+  [[nodiscard]] QJSValue text_area() const;
+  void set_text_area(const QJSValue& area);
   [[nodiscard]] QString text_align() const;
   void set_text_align(const QString& align);
   [[nodiscard]] QJSValue text_paragraph() const;

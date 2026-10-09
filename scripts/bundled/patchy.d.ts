@@ -328,6 +328,8 @@ interface PatchyLayer {
   readonly textRuns: PatchyTextRunInfo[];
   /** Text layers: the paragraph box {width, height}, or null for point text. */
   readonly textBox: { width: number; height: number } | null;
+  /** Detached boundary in document pixels. One closed contour; null converts area text to box text. */
+  textArea: PatchyVectorPath | null;
   /** Text layers: the first paragraph's alignment; setting it aligns every paragraph and re-renders. */
   textAlign: 'left' | 'center' | 'right' | 'justify';
   /**
@@ -627,6 +629,8 @@ interface PatchyDocument {
     orientation?: 'horizontal' | 'vertical';
     direction?: 'auto' | 'ltr' | 'rtl';
     box?: { width: number; height: number };
+    /** Copy a closed contour in document coordinates. Mutually exclusive with box; x/y are ignored. */
+    area?: PatchyVectorPath;
     align?: 'left' | 'center' | 'right' | 'justify';
     paragraph?: { firstLineIndent?: number; startIndent?: number; endIndent?: number; spaceBefore?: number; spaceAfter?: number };
   }): PatchyLayer;

@@ -947,7 +947,10 @@ private:
   void clear_internal_clipboard_on_external_change();
   void transform_active_layer_dialog();
   void warp_transform_active_layer();
-  void add_text_at(QPoint document_point, QRect requested_text_box = {}, bool show_editor = true);
+  void add_text_at(QPoint document_point, QRect requested_text_box = {}, bool show_editor = true,
+                   std::optional<patchy::VectorPath> requested_area = std::nullopt,
+                   std::optional<LayerId> target_text_layer = std::nullopt);
+  void set_text_editor_area(QTextEdit& editor, const std::optional<patchy::VectorPath>& document_area);
   void edit_text_layer(LayerId id);
   void cancel_text_editor(QTextEdit* editor, std::optional<LayerId> layer_id);
   void commit_text_editor(QTextEdit* editor, QPoint document_point, std::optional<LayerId> layer_id);

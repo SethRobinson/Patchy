@@ -936,6 +936,8 @@ public:
   // The path the pen/path tools currently edit (panel > vector mask > shape
   // layer > work path); null when nothing is targetable.
   [[nodiscard]] const patchy::VectorPath* path_edit_target_path() const;
+  [[nodiscard]] std::optional<patchy::VectorPath> text_area_at(QPoint document_point) const;
+  [[nodiscard]] const patchy::VectorPath* text_area_edit_target_path() const;
   // Replaces the targeted path (same target rules) and re-rasterizes WITHOUT
   // arming an undo entry: preview dialogs apply through this and own the
   // snapshot. `touched_groups` lose their live-shape annotations.
@@ -1802,6 +1804,9 @@ private:
   // Pen's Ctrl latch is held, the actual tool otherwise.
   [[nodiscard]] CanvasTool path_edit_tool() const noexcept;
   [[nodiscard]] patchy::Layer* path_edit_target_layer() const;
+  mutable std::optional<patchy::VectorPath> text_area_path_cache_;
+  mutable std::optional<patchy::LayerId> text_area_path_layer_;
+  mutable std::uint64_t text_area_path_revision_{0};
   [[nodiscard]] patchy::Layer* vector_mask_target_layer() const;
   void apply_path_edit(patchy::VectorPath path, const QString& label,
                        const std::vector<int>& touched_groups);

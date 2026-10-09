@@ -8941,6 +8941,10 @@ RGB: %2, %3, %4</translation>
         <source>The 32-bit image was converted to 16 bits per channel: the web version edits up to 16.</source>
         <translation>32비트 이미지를 채널당 16비트로 변환했습니다. 웹 버전은 16비트까지 편집합니다.</translation>
     </message>
+    <message>
+        <source>This document&apos;s preserved text engine cannot store new area text.</source>
+        <translation>이 문서에 보존된 텍스트 엔진은 새로운 도형 안의 텍스트를 저장할 수 없습니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -18756,6 +18760,14 @@ Y: %2
     <message>
         <source>Exposure: </source>
         <translation>노출: </translation>
+    </message>
+    <message>
+        <source>This text boundary is preserved but cannot be edited.</source>
+        <translation>이 텍스트 경계는 보존되지만 편집할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>%1 Text Boundary</source>
+        <translation>%1 텍스트 경계</translation>
     </message>
 </context>
 <context>

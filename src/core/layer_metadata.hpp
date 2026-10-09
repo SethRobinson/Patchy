@@ -21,6 +21,10 @@ inline constexpr const char* kLayerMetadataTextHtml = "patchy.text.html";
 inline constexpr const char* kLayerMetadataTextRuns = "patchy.text.runs";
 inline constexpr const char* kLayerMetadataTextParagraphRuns = "patchy.text.paragraph_runs";
 inline constexpr const char* kLayerMetadataTextFlow = "patchy.text.flow";
+// Area text keeps flow="box" for the existing frame/transform machinery.
+inline constexpr const char* kLayerMetadataTextArea = "patchy.text.area";
+// Unrecognized native geometry: preserve its data and pixels, prohibit reflow.
+inline constexpr const char* kLayerMetadataTextGeometryProtected = "patchy.text.geometry_protected";
 inline constexpr const char* kLayerMetadataTextBoxWidth = "patchy.text.box_width";
 inline constexpr const char* kLayerMetadataTextBoxHeight = "patchy.text.box_height";
 inline constexpr const char* kLayerMetadataTextFont = "patchy.text.font";

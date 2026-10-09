@@ -1,9 +1,11 @@
 #include "psd/psd_text_engine_block.hpp"
+#include "core/text_area.hpp"
 
 #include "psd/psd_io_internal.hpp"
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <utility>
 
 namespace patchy::psd {
@@ -243,8 +245,131 @@ int TextEngineBlock::font_index(const std::string& postscript_name) {
   return static_cast<int>(fonts->list.size() - 1U);
 }
 
+TextFrameGeometry TextEngineBlock::object_geometry(std::size_t index) const {
+  const auto fi = object_frame_index(index);
+  const auto* frame_list = root_.at_path({"0", "8", "0"});
+  if (!fi || !frame_list || !frame_list->is_list() || *fi >= frame_list->list.size()) return {};
+  const auto& frame = frame_list->list[*fi];
+  const auto* marker = frame.at_path({"0", "2", "6"});
+  if (!marker || !marker->is_list() || marker->list.size() != 2) return {};
+  const auto mode = marker->list[0].number();
+  if (!mode || marker->list[1].number() != mode) return {};
+  if (*mode == -1.0) return {TextFrameGeometry::Kind::Point, std::nullopt};
+  if (*mode == -2.0) return {TextFrameGeometry::Kind::Box, std::nullopt};
+  if (*mode != -3.0) return {};
+  const auto* coords = frame.at_path({"0", "1", "0"});
+  if (!coords || !coords->is_list() || coords->list.size() < 16 ||
+      coords->list.size() % 8 != 0 || coords->list.size() > 800000) return {};
+  std::vector<double> values;
+  values.reserve(coords->list.size());
+  for (const auto& node : coords->list) {
+    const auto value = node.number();
+    if (!value || !std::isfinite(*value) || std::abs(*value) > 1000000.0) return {};
+    values.push_back(*value);
+  }
+  VectorPath area;
+  auto& sub = area.subpaths.emplace_back();
+  sub.op = PathCombineOp::Xor;
+  for (std::size_t i = 0; i < values.size(); i += 8) {
+    const auto previous = (i + values.size() - 8) % values.size();
+    if (std::abs(values[i] - values[previous + 6]) > 0.0001 ||
+        std::abs(values[i + 1] - values[previous + 7]) > 0.0001) return {};
+    sub.anchors.push_back({values[i], values[i + 1], values[previous + 4], values[previous + 5],
+                           values[i + 2], values[i + 3], false});
+  }
+  // Photoshop may store absolute source-path coordinates plus a frame-local
+  // affine. The TySh transform is applied later, exactly once, by the renderer.
+  if (const auto* matrix = frame.at_path({"0", "2", "2"})) {
+    if (!matrix->is_list() || matrix->list.size() != 6) return {};
+    std::array<double, 6> affine{};
+    for (std::size_t i = 0; i < affine.size(); ++i) {
+      const auto value = matrix->list[i].number();
+      if (!value || !std::isfinite(*value)) return {};
+      affine[i] = *value;
+    }
+    transform_vector_path(area, affine);
+  }
+  if (!valid_text_area(area)) return {};
+  return {TextFrameGeometry::Kind::Area, std::move(area)};
+}
+
+std::vector<TextFrameGeometry> read_text_frame_geometries(std::span<const std::uint8_t> payload) {
+  std::vector<TextFrameGeometry> result;
+  if (const auto engine = TextEngineBlock::parse(payload)) {
+    result.reserve(engine->object_count());
+    for (std::size_t i = 0; i < engine->object_count(); ++i) result.push_back(engine->object_geometry(i));
+    return result;
+  }
+  // Photoshop 6-era blocks use names instead of the modern numeric key map.
+  // Dungeon Scroll's point frames use TextOnPathTRange [-1 -1]. Leaving these
+  // editable preserves the established legacy typography and raster behavior.
+  const auto root = parse_engine_data(payload, true);
+  const auto* objects = root ? root->at_path({"DocumentObjects", "TextObjects"}) : nullptr;
+  const auto* frames = root ? root->at_path({"DocumentResources", "TextFrameSet", "Resources"}) : nullptr;
+  if (!objects || !objects->is_list() || !frames || !frames->is_list()) return result;
+  for (const auto& object : objects->list) {
+    TextFrameGeometry geometry;
+    const auto* frame_index = object.at_path({"View", "Frames", "0", "Resource"});
+    const auto index = frame_index ? frame_index->integer() : std::nullopt;
+    if (index && *index >= 0 && static_cast<std::size_t>(*index) < frames->list.size()) {
+      const auto* marker = frames->list[static_cast<std::size_t>(*index)].at_path({"Resource", "Data", "TextOnPathTRange"});
+      if (marker && marker->is_list() && marker->list.size() == 2) {
+        const auto mode = marker->list[0].number();
+        if (mode && marker->list[1].number() == mode) {
+          if (*mode == -1.0) geometry.kind = TextFrameGeometry::Kind::Point;
+          if (*mode == -2.0) geometry.kind = TextFrameGeometry::Kind::Box;
+        }
+      }
+    }
+    result.push_back(std::move(geometry));
+  }
+  return result;
+}
+
+void import_text_frame_geometry(Document& document) {
+  const auto& blocks = std::as_const(document).metadata().unknown_psd_resources;
+  const auto found = std::find_if(blocks.begin(), blocks.end(), [](const auto& b) { return b.key == "Txt2"; });
+  if (found == blocks.end()) return;
+  const auto frames = read_text_frame_geometries(found->payload);
+  const auto visit = [&](auto&& self, std::vector<Layer>& layers) -> void {
+    for (auto& layer : layers) {
+      const auto& metadata = std::as_const(layer).metadata();
+      if (const auto i = metadata.find(kLayerMetadataPsdTextIndex); i != metadata.end()) {
+        char* end = nullptr;
+        const auto index = std::strtoll(i->second.c_str(), &end, 10);
+        // A regenerated layer beside a verbatim legacy engine uses the existing
+        // writer's deliberately unaddressed 100000+n TySh index.
+        if (index >= kRegeneratedTextIndexBase && static_cast<std::size_t>(index) >= frames.size()) continue;
+        auto geometry = end != i->second.c_str() && *end == '\0' && index >= 0 &&
+                            static_cast<std::size_t>(index) < frames.size()
+                                  ? frames[static_cast<std::size_t>(index)]
+                                  : TextFrameGeometry{};
+        if (geometry.kind == TextFrameGeometry::Kind::Area) {
+          // Native frames carry cubic coordinates, not the editor's handle-link
+          // flags. Restore those private flags only when the native contour is
+          // exactly the one Patchy saved; native geometry always wins.
+          if (const auto stored = text_area_for_layer(std::as_const(layer)); stored &&
+              stored->subpaths.front().anchors.size() == geometry.area->subpaths.front().anchors.size()) {
+            auto linked = *geometry.area;
+            for (std::size_t a = 0; a < linked.subpaths.front().anchors.size(); ++a)
+              linked.subpaths.front().anchors[a].smooth = stored->subpaths.front().anchors[a].smooth;
+            if (linked == *stored) geometry.area = std::move(linked);
+          }
+          layer.metadata()[kLayerMetadataTextArea] = serialize_vector_path(*geometry.area);
+          layer.metadata()[kLayerMetadataTextFlow] = "box";
+          layer.metadata().erase(kLayerMetadataTextGeometryProtected);
+        } else if (geometry.kind == TextFrameGeometry::Kind::Unsupported) {
+          layer.metadata()[kLayerMetadataTextGeometryProtected] = "true";
+        }
+      }
+      self(self, layer.children());
+    }
+  };
+  visit(visit, document.layers());
+}
+
 EngineNode TextEngineBlock::author_frame(const TextEngineInputs& inputs) const {
-  const double k = inputs.boxed ? 2.0 : 1.0;
+  const double k = inputs.area ? 3.0 : inputs.boxed ? 2.0 : 1.0;
   auto settings = engine_dict();
   if (inputs.boxed) {
     settings.set("0", engine_integer(1));
@@ -253,14 +378,26 @@ EngineNode TextEngineBlock::author_frame(const TextEngineInputs& inputs) const {
     settings.set("1", engine_integer(2));
   }
   settings.set("6", engine_list_of({engine_number(-k), engine_number(-k)}));
-  if (inputs.boxed) {
+  if (inputs.boxed && !inputs.area) {
     settings.set("10", engine_dict_of({{"0", engine_integer(2)}, {"1", engine_number(0.0)}}));
   }
   settings.set("11", engine_dict_of({{"4", engine_integer(static_cast<long long>(-k))},
                                      {"18", engine_number(-k)},
                                      {"22", engine_number(0.025)}}));
   auto frame = engine_dict();
-  if (inputs.boxed) {
+  if (inputs.area) {
+    auto path = engine_list();
+    const auto& anchors = inputs.area->subpaths.front().anchors;
+    for (std::size_t i = 0; i < anchors.size(); ++i) {
+      const auto& a = anchors[i];
+      const auto& b = anchors[(i + 1) % anchors.size()];
+      for (double v : {a.anchor_x, a.anchor_y, a.out_x, a.out_y,
+                       b.in_x, b.in_y, b.anchor_x, b.anchor_y}) {
+        path.list.push_back(engine_number(v));
+      }
+    }
+    frame.set("1", engine_dict_of({{"0", std::move(path)}}));
+  } else if (inputs.boxed) {
     // The box path: four corners, each written four times (the point and its handles).
     const double w = std::max(1.0, std::isfinite(inputs.box_width) ? inputs.box_width : 1.0);
     const double h = std::max(1.0, std::isfinite(inputs.box_height) ? inputs.box_height : 1.0);

@@ -13,6 +13,7 @@
 #include "core/smart_object.hpp"
 #include "core/style_contour.hpp"
 #include "core/text_warp.hpp"
+#include "core/text_area.hpp"
 #include "formats/acv_curves_io.hpp"
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
@@ -25,6 +26,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <bit>
 #include <cmath>
 #include <cstdio>
@@ -56,6 +58,14 @@
 #endif
 
 namespace patchy::psd {
+
+namespace {
+std::atomic<AreaTextFontResolver> area_text_font_resolver{nullptr};
+}
+
+void set_area_text_font_resolver(AreaTextFontResolver resolver) {
+  area_text_font_resolver.store(resolver, std::memory_order_relaxed);
+}
 
 namespace {
 
@@ -951,7 +961,7 @@ std::optional<std::vector<std::uint8_t>> photoshop_type_tool_payload_from_templa
     if (block.key != "TySh" && block.key != "tySh") {
       continue;
     }
-    const auto old_text = extract_engine_data_text(block.payload);
+    const auto old_text = extract_engine_data_text(block.payload, text_area_for_layer(layer).has_value());
     if (!old_text.has_value()) {
       continue;
     }
@@ -1095,7 +1105,7 @@ double point_text_baseline_offset(const Layer& layer, const PsdTextGeometry& geo
 }
 
 double box_text_baseline_inset(const Layer& layer) {
-  if (layer_text_is_vertical(layer)) {
+  if (layer_text_is_vertical(layer) || text_area_for_layer(layer)) {
     return 0.0;
   }
   const auto stored = layer_metadata_value(layer, kLayerMetadataTextBoxBaselineInset);
@@ -1390,9 +1400,19 @@ std::string photoshop_font_name_for_run(std::string_view family, std::string_vie
 }
 #endif
 
+std::string authored_font_name(std::string_view family, std::string_view style, bool bold, bool italic,
+                               bool area) {
+  if (area) {
+    if (const auto resolver = area_text_font_resolver.load(std::memory_order_relaxed)) {
+      if (auto name = resolver(family, style, bold, italic); name && !name->empty()) return *name;
+    }
+  }
+  return photoshop_font_name_for_run(family, style, bold, italic);
+}
+
 int font_index_for_run(std::vector<std::string>& fonts, std::string_view family, std::string_view style,
-                       bool bold, bool italic) {
-  const auto photoshop_name = photoshop_font_name_for_run(family, style, bold, italic);
+                       bool bold, bool italic, bool area) {
+  const auto photoshop_name = authored_font_name(family, style, bold, italic, area);
   for (std::size_t index = 0; index < fonts.size(); ++index) {
     if (fonts[index] == photoshop_name) {
       return static_cast<int>(index);
@@ -1603,14 +1623,14 @@ std::string engine_rendered_shape(bool boxed_text, const PsdTextBoundsD& box_bou
 
 std::vector<std::uint8_t> engine_data_for_text(std::string_view text, std::span<const PsdTextStyleRun> runs,
                                                std::span<const PsdTextParagraphRun> paragraph_runs, bool boxed_text,
-                                               const PsdTextBoundsD& box_bounds, int anti_alias, bool vertical) {
+                                               const PsdTextBoundsD& box_bounds, int anti_alias, bool vertical, bool area) {
   const auto engine_text = photoshop_engine_text(text);
   const auto engine_units = static_cast<int>(utf8_to_utf16(engine_text).size());
   std::vector<std::string> fonts{"AdobeInvisFont"};
   std::vector<int> font_indices;
   font_indices.reserve(runs.size());
   for (const auto& run : runs) {
-    font_indices.push_back(font_index_for_run(fonts, run.family, run.style, run.bold, run.italic));
+    font_indices.push_back(font_index_for_run(fonts, run.family, run.style, run.bold, run.italic, area));
   }
   if (fonts.size() == 1U) {
     fonts.push_back("Arial");
@@ -1883,10 +1903,16 @@ void override_text_index_in_payload(std::vector<std::uint8_t>& payload, std::int
 
 std::optional<TextEngineInputs> text_engine_inputs_for_layer(const Layer& layer, const Rect& bounds) {
   const auto text = layer_metadata_value(layer, kLayerMetadataText);
-  if (!text.has_value() || text->empty()) {
+  if (!text.has_value() || (text->empty() && !text_area_for_layer(layer))) {
     return std::nullopt;
   }
   auto runs = text_runs_for_layer(layer, *text);
+  if (runs.empty() && text->empty()) {
+    auto run = fallback_text_run_from_metadata(layer);
+    run.start = 0;
+    run.length = 1;  // the native story's terminal paragraph character
+    runs.push_back(std::move(run));
+  }
   if (runs.empty()) {
     return std::nullopt;
   }
@@ -1925,9 +1951,10 @@ std::optional<TextEngineInputs> text_engine_inputs_for_layer(const Layer& layer,
     }
   }
   inputs.vertical = layer_text_is_vertical(layer);
+  inputs.area = text_area_for_layer(layer);
   inputs.run_font_names.reserve(runs.size());
   for (const auto& run : runs) {
-    inputs.run_font_names.push_back(photoshop_font_name_for_run(run.family, run.style, run.bold, run.italic));
+    inputs.run_font_names.push_back(authored_font_name(run.family, run.style, run.bold, run.italic, inputs.area.has_value()));
   }
   inputs.runs = std::move(runs);
   inputs.paragraph_runs = std::move(paragraph_runs);
@@ -1936,7 +1963,7 @@ std::optional<TextEngineInputs> text_engine_inputs_for_layer(const Layer& layer,
 
 bool text_layer_keeps_photoshop_type_block(const Layer& layer) {
   const auto text = layer_metadata_value(layer, kLayerMetadataText);
-  return text.has_value() && !text->empty() && should_preserve_imported_text_geometry(layer) &&
+  return text.has_value() && (!text->empty() || text_area_for_layer(layer)) && should_preserve_imported_text_geometry(layer) &&
          photoshop_type_tool_payload_from_template(layer, *text).has_value();
 }
 
@@ -1944,7 +1971,7 @@ std::optional<std::vector<std::uint8_t>> photoshop_type_tool_payload_for_layer(c
                                                                                const Rect& bounds,
                                                                                std::optional<std::int32_t> text_index_override) {
   const auto text = layer_metadata_value(layer, kLayerMetadataText);
-  if (!text.has_value() || text->empty()) {
+  if (!text.has_value() || (text->empty() && !text_area_for_layer(layer))) {
     return std::nullopt;
   }
   if (should_preserve_imported_text_geometry(layer)) {
@@ -1978,7 +2005,7 @@ std::optional<std::vector<std::uint8_t>> photoshop_type_tool_payload_for_layer(c
   const auto anti_alias_metadata = layer_metadata_value(layer, kLayerMetadataTextAntiAlias);
   const auto anti_alias = anti_alias_metadata.has_value() ? parse_int_or(*anti_alias_metadata, 3) : 3;
   const auto engine_data = engine_data_for_text(*text, runs, paragraph_runs, boxed_text, geometry.box_bounds,
-                                                anti_alias, geometry.vertical);
+                                                anti_alias, geometry.vertical, text_area_for_layer(layer).has_value());
   const auto descriptor_text = photoshop_engine_text(*text);
 
   const auto build_payload = [&](std::span<const std::uint8_t> engine_bytes) {

@@ -11,6 +11,7 @@
 #include "core/smart_object.hpp"
 #include "core/style_contour.hpp"
 #include "core/text_warp.hpp"
+#include "core/text_area.hpp"
 #include "formats/acv_curves_io.hpp"
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
@@ -57,11 +58,6 @@
 
 namespace patchy::psd {
 
-// TextIndex of the first regenerated type layer in a document that keeps a Photoshop 'Txt2'
-// block: beyond any text object Photoshop indexes contiguously from 0 (a 999 probe already
-// read the layer from its TySh), and far from indices Patchy preserves.
-inline constexpr std::int32_t kRegeneratedTextIndexBase = 100000;
-
 namespace {
 
 // Rebuilds the document-level text engine block for this save (docs/txt2.md). Starts from the
@@ -77,7 +73,7 @@ std::optional<std::vector<std::uint8_t>> build_text_engine_block(std::vector<Enc
   for (auto& encoded : encoded_layers) {
     if (encoded.layer != nullptr && encoded.kind == EncodedLayerKind::Pixel && layer_is_text(*encoded.layer)) {
       const auto text = encoded.layer->metadata().find(kLayerMetadataText);
-      if (text != encoded.layer->metadata().end() && !text->second.empty()) {
+      if (text != encoded.layer->metadata().end() && (!text->second.empty() || text_area_for_layer(*encoded.layer))) {
         text_layers.push_back(&encoded);
       }
     }
@@ -98,7 +94,13 @@ std::optional<std::vector<std::uint8_t>> build_text_engine_block(std::vector<Enc
   });
   const bool has_preserved_block = std::any_of(global_blocks.begin(), global_blocks.end(),
                                                [](const UnknownPsdBlock& block) { return block.key == "Txt2"; });
+  const bool has_area_text = std::any_of(text_layers.begin(), text_layers.end(), [](const auto* encoded) {
+    return text_area_for_layer(*encoded->layer).has_value();
+  });
   if (keeps_legacy_type_record && !has_preserved_block) {
+    if (has_area_text) {
+      throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "This document's preserved text engine cannot store new area text."));
+    }
     return std::nullopt;
   }
   std::optional<TextEngineBlock> block;
@@ -106,6 +108,9 @@ std::optional<std::vector<std::uint8_t>> build_text_engine_block(std::vector<Enc
     if (global.key == "Txt2") {
       block = TextEngineBlock::parse(global.payload);
       if (!block.has_value()) {
+        if (has_area_text) {
+          throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "This document's preserved text engine cannot store new area text."));
+        }
         return std::nullopt;
       }
       break;
@@ -548,6 +553,52 @@ Layer clone_layer_with_document_ids(Document& document, const Layer& source) {
   return cloned;
 }
 
+// Area frames live after the layer records. Inspect that directory before any
+// placeholder/effect-matte regeneration, which cannot compose an area boundary.
+struct ImportedTextFrames {
+  bool present{false};
+  std::vector<TextFrameGeometry> frames;
+  bool preserve_raster(const LayerRecord& record) const {
+    if (!present || !record.text_geometry) return false;
+    const auto index = record.text_geometry->text_index;
+    // Patchy's old-text fallback deliberately uses an unaddressed object index;
+    // in that case the TySh is the authority, not an unknown native frame.
+    if (index >= kRegeneratedTextIndexBase && static_cast<std::size_t>(index) >= frames.size()) return false;
+    const auto kind = index >= 0 && static_cast<std::size_t>(index) < frames.size()
+                                          ? frames[static_cast<std::size_t>(index)].kind
+                                          : TextFrameGeometry::Kind::Unsupported;
+    return kind == TextFrameGeometry::Kind::Area || kind == TextFrameGeometry::Kind::Unsupported;
+  }
+};
+
+ImportedTextFrames inspect_text_frames(std::span<const std::uint8_t> section, bool large_document) {
+  BigEndianReader reader(section);
+  if (reader.remaining() < (large_document ? 8U : 4U)) return {};
+  const auto layer_size = large_document ? reader.read_u64() : static_cast<std::uint64_t>(reader.read_u32());
+  if (layer_size > reader.remaining()) return {};
+  reader.skip(static_cast<std::size_t>(layer_size));
+  if ((layer_size % 2U) && reader.remaining()) reader.skip(1);
+  if (reader.remaining() < 4U) return {};
+  const auto mask_size = reader.read_u32();
+  if (mask_size > reader.remaining()) return {};
+  reader.skip(mask_size);
+  while (reader.remaining() >= 12U) {
+    const auto signature = read_signature(reader);
+    if (signature != std::array<char,4>{'8','B','I','M'} && signature != std::array<char,4>{'8','B','6','4'}) break;
+    const auto raw_key = read_signature(reader);
+    const std::string key(raw_key.begin(), raw_key.end());
+    const bool wide = signature == std::array<char,4>{'8','B','6','4'} ||
+                      (large_document && tagged_block_length_is_u64(key));
+    if (wide && reader.remaining() < 8U) break;
+    const auto size = wide ? reader.read_u64() : static_cast<std::uint64_t>(reader.read_u32());
+    if (size > reader.remaining()) break;
+    if (key == "Txt2") return {true, read_text_frame_geometries(reader.read_bytes(static_cast<std::size_t>(size)))};
+    reader.skip(static_cast<std::size_t>(size));
+    reader.skip(std::min<std::size_t>((4U - size % 4U) % 4U, reader.remaining()));
+  }
+  return {};
+}
+
 // Decodes a layer-info payload starting at the layer-count i16. This is the body of
 // the standard layer info section, and byte-identical inside the Lr16/Lr32/Layr
 // global tagged blocks that carry the layers of 16/32-bit files.
@@ -558,7 +609,8 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
                                            const CmykColorConverter& source_colors,
                                            bool& has_merged_transparency,
                                            std::vector<std::string>* notices,
-                                           std::size_t* damaged_rows, bool keep_depth) {
+                                           std::size_t* damaged_rows, bool keep_depth,
+                                           const ImportedTextFrames& text_frames) {
   has_merged_transparency = false;
   int unrendered_color_balance_count = 0;
   // A deep file kept at its depth: color, transparency and mask planes are stored at
@@ -581,7 +633,8 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
   // Using the same name keeps a resave recognizably the same layer.
   int ordinary_layer_number = 0;
   for (std::uint16_t i = 0; i < layer_count; ++i) {
-    records.push_back(read_layer_record(layer_reader, large_document, cmyk_converter));
+    records.push_back(read_layer_record(layer_reader, large_document, cmyk_converter,
+                                        text_frames.frames, text_frames.present));
     auto& record = records.back();
     if (record.section_divider_type == 0U) {
       ++ordinary_layer_number;
@@ -787,10 +840,11 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
 
     bool text_placeholder_rendered = false;
     bool text_regenerated_rendered = false;
-    if (record.text.has_value() && !has_visible_alpha(pixels)) {
+    const bool preserve_text_raster = text_frames.preserve_raster(record);
+    if (!preserve_text_raster && record.text.has_value() && !has_visible_alpha(pixels)) {
       pixels = render_placeholder_text(*record.text, width, height);
       text_placeholder_rendered = true;
-    } else if (should_regenerate_imported_text_preview(record, pixels)) {
+    } else if (!preserve_text_raster && should_regenerate_imported_text_preview(record, pixels)) {
       if (auto regenerated = render_regenerated_imported_text_pixels(record, width, height);
           regenerated.has_value() && has_visible_alpha(*regenerated)) {
         pixels = std::move(*regenerated);
@@ -1249,7 +1303,8 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
                                const CmykColorConverter& source_colors,
                                bool& has_merged_transparency,
                                std::vector<std::string>* notices,
-                               std::size_t* damaged_rows, bool keep_depth) {
+                               std::size_t* damaged_rows, bool keep_depth,
+                               const ImportedTextFrames& text_frames) {
   has_merged_transparency = false;
   const auto layer_info_length = large_document
                                      ? read_section_length_u64(layer_reader, "layer info")
@@ -1261,7 +1316,7 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
   const auto layer_info_end = layer_reader.position() + static_cast<std::size_t>(layer_info_length);
   auto layers = read_layer_info_records(layer_reader, canvas_width, canvas_height, source_color_mode, depth,
                                         global_light_angle, global_light_altitude, large_document, source_colors,
-                                        has_merged_transparency, notices, damaged_rows, keep_depth);
+                                        has_merged_transparency, notices, damaged_rows, keep_depth, text_frames);
   if (layer_reader.position() < layer_info_end) {
     layer_reader.skip(layer_info_end - layer_reader.position());
   }
@@ -1554,11 +1609,12 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
 
   if (layer_mask_length > 0) {
     auto layer_mask_payload = reader.read_bytes(static_cast<std::size_t>(layer_mask_length));
+    const auto text_frames = inspect_text_frames(layer_mask_payload, header.large_document);
     BigEndianReader layer_reader(layer_mask_payload);
     auto layers = read_layers(layer_reader, document.width(), document.height(), header.color_mode,
                               header.depth, global_light_angle, global_light_altitude, header.large_document,
                               source_colors, has_merged_transparency, options.notices, &damaged_rows,
-                              keep_depth);
+                              keep_depth, text_frames);
     const auto add_layer = [&document](const Layer& source) {
       document.add_layer(clone_layer_with_document_ids(document, source));
     };
@@ -1621,7 +1677,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
         auto deep_layers = read_layer_info_records(
             block_reader, document.width(), document.height(), header.color_mode, header.depth,
             global_light_angle, global_light_altitude, header.large_document, source_colors,
-            has_merged_transparency, options.notices, &damaged_rows, keep_depth);
+            has_merged_transparency, options.notices, &damaged_rows, keep_depth, text_frames);
         // Always Photoshop's bottom-to-top order: legacy Patchy never wrote these
         // blocks, so the legacy-order heuristic used for the standard section
         // could only misfire here.
@@ -1760,6 +1816,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
   }
   collapse_compound_vector_groups(document);
   parse_document_path_resources(document, image_resources);
+  import_text_frame_geometry(document);
 
   document.metadata().values["psd.version"] = header.large_document ? "PSB" : "PSD";
   document.metadata().values["psd.color_mode"] = color_mode_name(header.color_mode);

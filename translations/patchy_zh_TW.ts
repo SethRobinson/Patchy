@@ -8941,6 +8941,10 @@ RGB：%2, %3, %4</translation>
         <source>The 32-bit image was converted to 16 bits per channel: the web version edits up to 16.</source>
         <translation>32 位元影像已轉換為每色版 16 位元：網頁版最多編輯 16 位元。</translation>
     </message>
+    <message>
+        <source>This document&apos;s preserved text engine cannot store new area text.</source>
+        <translation>此文件保留的文字引擎無法儲存新的形狀內文字。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -18756,6 +18760,14 @@ Baked into images: %1.</source>
     <message>
         <source>Exposure: </source>
         <translation>曝光度：</translation>
+    </message>
+    <message>
+        <source>This text boundary is preserved but cannot be edited.</source>
+        <translation>此文字邊界會保留，但無法編輯。</translation>
+    </message>
+    <message>
+        <source>%1 Text Boundary</source>
+        <translation>%1 文字邊界</translation>
     </message>
 </context>
 <context>

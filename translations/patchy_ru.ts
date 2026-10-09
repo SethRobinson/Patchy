@@ -9001,6 +9001,10 @@ RGB: %2, %3, %4</translation>
         <source>The 32-bit image was converted to 16 bits per channel: the web version edits up to 16.</source>
         <translation>32-битное изображение преобразовано в 16 бит на канал: веб-версия редактирует не более 16 бит.</translation>
     </message>
+    <message>
+        <source>This document&apos;s preserved text engine cannot store new area text.</source>
+        <translation>Сохранённый текстовый движок этого документа не поддерживает сохранение нового текста внутри фигур.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -18868,6 +18872,14 @@ Y: %2
     <message>
         <source>Exposure: </source>
         <translation>Экспозиция: </translation>
+    </message>
+    <message>
+        <source>This text boundary is preserved but cannot be edited.</source>
+        <translation>Эта граница текста сохраняется, но её нельзя редактировать.</translation>
+    </message>
+    <message>
+        <source>%1 Text Boundary</source>
+        <translation>Граница текста %1</translation>
     </message>
 </context>
 <context>

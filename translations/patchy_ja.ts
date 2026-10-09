@@ -8941,6 +8941,10 @@ Mixed selection</source>
         <source>The 32-bit image was converted to 16 bits per channel: the web version edits up to 16.</source>
         <translation>32 ビット画像をチャンネルあたり 16 ビットに変換しました。Web 版で編集できるのは 16 ビットまでです。</translation>
     </message>
+    <message>
+        <source>This document&apos;s preserved text engine cannot store new area text.</source>
+        <translation>このドキュメントに保持されているテキストエンジンのデータでは、新しい図形内テキストを保存できません。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -18756,6 +18760,14 @@ Baked into images: %1.</source>
     <message>
         <source>Exposure: </source>
         <translation>露光量: </translation>
+    </message>
+    <message>
+        <source>This text boundary is preserved but cannot be edited.</source>
+        <translation>このテキスト境界は保持されますが、編集できません。</translation>
+    </message>
+    <message>
+        <source>%1 Text Boundary</source>
+        <translation>%1 のテキスト境界</translation>
     </message>
 </context>
 <context>

@@ -11,6 +11,7 @@
 #include "ui/script_engine.hpp"
 
 #include "core/layer_metadata.hpp"
+#include "core/text_area.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/layer_tree.hpp"
 #include "core/palette.hpp"
@@ -2049,7 +2050,8 @@ bool ScriptEngineHost::edit_text_layer_session(std::int64_t session_id, LayerId 
     return false;
   }
   const auto* layer = std::as_const(session->document).find_layer(layer_id);
-  if (layer == nullptr || !layer_is_text(*layer) || window_.layer_id_locks_image_pixels(layer_id)) {
+  if (layer == nullptr || !layer_is_text(*layer) || text_geometry_is_protected(*layer) ||
+      window_.layer_id_locks_image_pixels(layer_id)) {
     return false;
   }
   window_.activate_document_session(*session);
@@ -2065,7 +2067,7 @@ bool ScriptEngineHost::edit_text_layer_session(std::int64_t session_id, LayerId 
   const auto bounds = layer->bounds();
   const QPoint anchor(bounds.x + std::max(1, bounds.width) / 2, bounds.y + std::max(1, bounds.height) / 2);
   session->document.set_active_layer(layer_id);
-  window_.add_text_at(anchor);
+  window_.add_text_at(anchor, {}, true, std::nullopt, layer_id);
   QTextEdit* editor = wait_for_inline_text_editor(session->canvas);
   if (editor == nullptr) {
     return false;
@@ -2197,7 +2199,7 @@ std::optional<LayerId> ScriptEngineHost::add_text_layer(std::int64_t session_id,
   // A valid box opens the session as paragraph text (the Type tool's drag), wrapping at the
   // box width; point text otherwise.
   const QRect box = params.box.isValid() ? QRect(params.position, params.box) : QRect();
-  window_.add_text_at(params.position, box);
+  window_.add_text_at(params.position, box, true, params.area);
   QTextEdit* editor = wait_for_inline_text_editor(session->canvas);
   if (editor == nullptr) {
     return std::nullopt;
@@ -2484,6 +2486,26 @@ bool ScriptEngineHost::set_text_layer_paragraph(std::int64_t session_id, LayerId
     all.select(QTextCursor::Document);
     editor.setTextCursor(all);
     window_.apply_text_paragraph_metrics_to_editor(editor, metrics);
+  });
+}
+
+bool ScriptEngineHost::set_text_layer_area(std::int64_t session_id, LayerId layer_id,
+                                           const std::optional<VectorPath>& area) {
+  if (area && !valid_text_area(*area)) return false;
+  if (area) {
+    const auto* session = window_.session_with_id(session_id);
+    const auto* layer = session ? session->document.find_layer(layer_id) : nullptr;
+    if (!layer) return false;
+    const auto t = text_area_transform(*layer);
+    const auto determinant = t[0] * t[3] - t[1] * t[2];
+    if (!std::isfinite(determinant) || std::abs(determinant) < 1e-12) return false;
+    auto local = *area;
+    transform_vector_path(local, {t[3]/determinant,-t[1]/determinant,-t[2]/determinant,t[0]/determinant,
+        (t[2]*t[5]-t[3]*t[4])/determinant,(t[1]*t[4]-t[0]*t[5])/determinant});
+    if (!valid_text_area(local)) return false;
+  }
+  return edit_text_layer_session(session_id, layer_id, "layer.textArea", [this, &area](QTextEdit& editor) {
+    window_.set_text_editor_area(editor, area);
   });
 }
 

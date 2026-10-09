@@ -486,7 +486,8 @@ EncodedLayer encode_group(const Layer& layer, bool large_document, BitDepth dept
 }  // namespace
 
 LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
-                              const CmykColorConverter& cmyk) {
+                              const CmykColorConverter& cmyk, std::span<const TextFrameGeometry> text_frames,
+                              bool has_text_engine) {
   LayerRecord record;
   bool saw_lfx2_block = false;
   std::optional<std::size_t> lrfx_block_index;
@@ -629,7 +630,14 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
         record.text_patchy_generated_type_block =
             record.text_patchy_generated_type_block || payload_has_patchy_generated_text_signature(text_payload);
         if (!record.text.has_value()) {
-          record.text = extract_engine_data_text(text_payload);
+          const auto geometry = extract_type_tool_geometry(text_payload);
+          const auto frame = geometry && geometry->text_index >= 0 &&
+                                 static_cast<std::size_t>(geometry->text_index) < text_frames.size()
+                                 ? text_frames[static_cast<std::size_t>(geometry->text_index)]
+                                 : TextFrameGeometry{};
+          const bool native_area = has_text_engine &&
+              (frame.kind == TextFrameGeometry::Kind::Area || frame.kind == TextFrameGeometry::Kind::Unsupported);
+          record.text = extract_engine_data_text(text_payload, native_area);
         }
         if (!record.text_size.has_value()) {
           record.text_size = extract_engine_data_font_size(text_payload);

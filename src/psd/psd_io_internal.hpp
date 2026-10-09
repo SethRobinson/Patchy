@@ -685,7 +685,8 @@ std::optional<LayerStyle> parse_patchy_layer_style(std::span<const std::uint8_t>
 // mask/blending-ranges/name and the tagged-block walk) and the write/encode
 // pipeline for the layer info section (definitions in psd_layer_records.cpp).
 LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
-                              const CmykColorConverter& cmyk);
+                              const CmykColorConverter& cmyk, std::span<const TextFrameGeometry> text_frames,
+                              bool has_text_engine);
 // synthesized_photoshop_layer_id: nonzero writes a fresh 'lyid' block for a
 // smart-object layer that has none preserved (see write_layer_record).
 void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bool strip_smart_object_blocks,
@@ -793,7 +794,8 @@ std::vector<std::uint8_t> image_resources_for_document(const Document& document,
 // (runs metadata v1-v3 are persistence contracts), the placeholder preview
 // renderer, and TySh descriptor-geometry extraction (definitions in
 // psd_text_read.cpp).
-std::optional<std::string> extract_engine_data_text(std::span<const std::uint8_t> payload);
+std::optional<std::string> extract_engine_data_text(std::span<const std::uint8_t> payload,
+                                                  bool allow_descriptor_fallback = false);
 std::optional<int> extract_engine_data_font_size(std::span<const std::uint8_t> payload);
 std::optional<RgbColor> extract_engine_data_fill_color(std::span<const std::uint8_t> payload,
                                                        const CmykColorConverter& cmyk);

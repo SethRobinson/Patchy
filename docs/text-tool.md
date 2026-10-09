@@ -1,6 +1,6 @@
 # Text tool and Character panel
 
-The inline text editor's session machinery, commit/cancel semantics, and the Character panel. The Photoshop layout/measurement model (engine units, leading, faux faces, run-format columns) lives in [text-render-calibration.md](text-render-calibration.md); Warp Text is in [warp.md](warp.md), offscreen font registration in [testing.md](testing.md).
+Text sessions, commit/cancel and the Character panel. See [text-render-calibration.md](text-render-calibration.md) for typography, [area-text.md](area-text.md) for shape boundaries, [warp.md](warp.md) for Warp Text and [testing.md](testing.md) for font registration.
 
 Do NOT split the remaining text code out of main_window.cpp as a pure file move: the render pipeline is shared between too many members; design a module with its own header instead.
 

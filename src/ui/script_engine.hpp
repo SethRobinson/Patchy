@@ -329,6 +329,7 @@ public:
     QString orientation;  // "horizontal" / "vertical"; empty = horizontal
     QString direction;    // "auto" / "ltr" / "rtl"; empty = auto
     QSize box;            // valid = a paragraph text box of that size at `position` (wrapping)
+    std::optional<VectorPath> area;  // text-owned contour in document pixels
     QString align;        // "left" / "center" / "right" / "justify"; empty = the default
     TextParagraphMetrics paragraph;  // indents and spacing in document px; unset fields keep the defaults
   };
@@ -354,6 +355,7 @@ public:
   [[nodiscard]] std::vector<TextRunInfo> text_layer_runs(std::int64_t session_id, LayerId layer_id) const;
   // The paragraph text box size, invalid for point text.
   [[nodiscard]] QSize text_layer_box(std::int64_t session_id, LayerId layer_id) const;
+  bool set_text_layer_area(std::int64_t session_id, LayerId layer_id, const std::optional<VectorPath>& area);
   // The first paragraph's alignment name ("left" when nothing is recorded); the setter aligns
   // every paragraph.
   [[nodiscard]] QString text_layer_align(std::int64_t session_id, LayerId layer_id) const;

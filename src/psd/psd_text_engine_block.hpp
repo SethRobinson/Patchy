@@ -9,14 +9,23 @@
 
 #include "psd/engine_data.hpp"
 #include "psd/psd_text_runs.hpp"
+#include "core/vector_shape.hpp"
+#include "core/document.hpp"
 
 #include <cstdint>
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace patchy::psd {
+
+// The GUI supplies native face names for newly authored area frames on platforms
+// without DirectWrite. Ordinary point/box output keeps its established codec.
+using AreaTextFontResolver = std::optional<std::string> (*)(std::string_view family,
+    std::string_view style, bool bold, bool italic);
+void set_area_text_font_resolver(AreaTextFontResolver resolver);
 
 // What one type layer's text object is authored from (document pixels, the TySh engine units).
 struct TextEngineInputs {
@@ -30,7 +39,25 @@ struct TextEngineInputs {
   double box_width{0.0};
   double box_height{0.0};
   bool vertical{false};
+  std::optional<VectorPath> area;
 };
+
+struct TextFrameGeometry {
+  enum class Kind { Point, Box, Area, Unsupported };
+  Kind kind{Kind::Unsupported};
+  std::optional<VectorPath> area;
+};
+
+// Unaddressed TySh index for regenerated text beside a verbatim legacy engine,
+// beyond the contiguous native object indices (the 999 probe already used TySh).
+inline constexpr std::int32_t kRegeneratedTextIndexBase = 100000;
+
+// Geometry directory only. Recognizes the older named-key point/box frames too,
+// without changing the writer's verbatim preservation of that engine format.
+std::vector<TextFrameGeometry> read_text_frame_geometries(std::span<const std::uint8_t> payload);
+
+// Called after layers and document-level blocks have both been decoded.
+void import_text_frame_geometry(Document& document);
 
 // The Photoshop 2026 resources and document settings Patchy authors into (no objects, no
 // frames, FontSet = AdobeInvisFont + MyriadPro-Regular). Generated: psd_text_engine_template.cpp.
@@ -47,6 +74,7 @@ class TextEngineBlock {
   [[nodiscard]] std::optional<std::string> object_text(std::size_t index) const;
   // The frame index an object's view references, or nullopt.
   [[nodiscard]] std::optional<std::size_t> object_frame_index(std::size_t index) const;
+  [[nodiscard]] TextFrameGeometry object_geometry(std::size_t index) const;
 
   // Authors a text object from the inputs and stores it at `index` (replacing the object and
   // its frame there, or appending when `index` is past the end); fonts join the FontSet as
