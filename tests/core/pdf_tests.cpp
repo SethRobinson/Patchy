@@ -2109,9 +2109,17 @@ void pdf_image_writer_flate_page_imports_as_an_image() {
   CHECK(result.document.height() == 40);
 }
 
+// The number of entries in `dir`: a stray temporary shows up as one too many.
+std::size_t directory_entry_count(const std::filesystem::path& dir) {
+  return static_cast<std::size_t>(
+      std::distance(std::filesystem::directory_iterator(dir), std::filesystem::directory_iterator()));
+}
+
 void pdf_image_writer_removes_unfinished_files_and_refuses_bad_pages() {
-  std::filesystem::create_directories("test-artifacts");
-  const std::filesystem::path path = "test-artifacts/pdf_image_writer_unfinished.pdf";
+  const std::filesystem::path dir = "test-artifacts/pdf_image_writer_unfinished";
+  patchy::test::remove_test_scratch_tree(dir);
+  std::filesystem::create_directories(dir);
+  const auto path = dir / "unfinished.pdf";
   {
     patchy::pdf::ImageWriter writer(path);
     patchy::pdf::ImagePage page;
@@ -2119,10 +2127,13 @@ void pdf_image_writer_removes_unfinished_files_and_refuses_bad_pages() {
     page.height_points = 10.0;
     page.image = fake_jpeg_stream(4, 4, 0x55);
     writer.add_page(page);
-    CHECK(std::filesystem::exists(path));
+    // The pages stream into a temporary beside the destination, never the destination.
+    CHECK(!std::filesystem::exists(path));
+    CHECK(directory_entry_count(dir) == 1U);
     // No finish(): a cancelled or failed export must not leave half a file behind.
   }
   CHECK(!std::filesystem::exists(path));
+  CHECK(directory_entry_count(dir) == 0U);
   {
     patchy::pdf::ImageWriter writer(path);
     writer.abort();
@@ -2149,8 +2160,58 @@ void pdf_image_writer_removes_unfinished_files_and_refuses_bad_pages() {
     CHECK(writer_call_throws([&] { writer.finish(); }));  // no pages
   }
   CHECK(!std::filesystem::exists(path));
+  CHECK(directory_entry_count(dir) == 0U);
   // A directory that does not exist cannot be opened.
   CHECK(writer_call_throws([&] { patchy::pdf::ImageWriter(std::filesystem::path("test-artifacts/no-such-dir/x.pdf")); }));
+}
+
+// AGENTS.md "Never truncate a user's file in place": an export that is abandoned,
+// aborted, or fails on a bad page leaves the file already at the destination byte for
+// byte, and a finished one replaces it with no temporary left behind.
+void pdf_image_writer_keeps_existing_file_until_finished() {
+  const std::filesystem::path dir = "test-artifacts/pdf_image_writer_keeps_existing";
+  patchy::test::remove_test_scratch_tree(dir);
+  std::filesystem::create_directories(dir);
+  const auto path = dir / "existing.pdf";
+  const auto write_one_page = [&](std::uint8_t seed) {
+    patchy::pdf::ImageWriter writer(path);
+    patchy::pdf::ImagePage page;
+    page.width_points = 10.0;
+    page.height_points = 10.0;
+    page.image = fake_jpeg_stream(4, 4, seed);
+    writer.add_page(page);
+    writer.finish();
+  };
+  write_one_page(0x10);
+  const auto original = read_whole_file(path);
+  CHECK(!original.empty());
+  {
+    patchy::pdf::ImageWriter writer(path);
+    patchy::pdf::ImagePage page;
+    page.width_points = 10.0;
+    page.height_points = 10.0;
+    page.image = fake_jpeg_stream(4, 4, 0x20);
+    writer.add_page(page);
+    CHECK(read_whole_file(path) == original);
+  }
+  CHECK(read_whole_file(path) == original);
+  {
+    patchy::pdf::ImageWriter writer(path);
+    writer.abort();
+  }
+  CHECK(read_whole_file(path) == original);
+  {
+    patchy::pdf::ImageWriter writer(path);
+    patchy::pdf::ImagePage bad;  // no image: add_page throws, as a failed encode would
+    CHECK(writer_call_throws([&] { writer.add_page(bad); }));
+  }
+  CHECK(read_whole_file(path) == original);
+  CHECK(directory_entry_count(dir) == 1U);
+  write_one_page(0x30);
+  const auto replaced = read_whole_file(path);
+  CHECK(replaced != original);
+  CHECK(replaced.size() == original.size());
+  CHECK(directory_entry_count(dir) == 1U);
 }
 
 // AGENTS.md: every file-writing entry point gets a Unicode-path test.
@@ -2172,14 +2233,27 @@ void pdf_image_writer_writes_unicode_paths() {
     auto file = patchy::pdf::File::open(read_whole_file(path), nullptr);
     CHECK(file.has_value() && file->pages().size() == 1);
   }
-  // An unfinished file under a Unicode name is removed by the same path it was made by.
+  // An unfinished file under a Unicode name is removed by the same path it was made by,
+  // and a finished file already there keeps its bytes.
   auto abandoned = dir / patchy::test::unicode_path_piece(patchy::test::kUnicodeCombinedStem);
   abandoned += ".pdf";
+  std::vector<std::filesystem::path> expected;
+  for (const auto stem : patchy::test::kUnicodePathStems) {
+    auto path = dir / patchy::test::unicode_path_piece(stem);
+    path += ".pdf";
+    expected.push_back(path);
+  }
   {
     patchy::pdf::ImageWriter writer(abandoned);
-    CHECK(std::filesystem::exists(abandoned));
+    CHECK(!std::filesystem::exists(abandoned));
   }
   CHECK(!std::filesystem::exists(abandoned));
+  const auto first_bytes = read_whole_file(expected.front());
+  {
+    patchy::pdf::ImageWriter writer(expected.front());
+  }
+  CHECK(read_whole_file(expected.front()) == first_bytes);
+  CHECK(patchy::test::directory_holds_only(dir, expected));
 }
 
 
@@ -2478,6 +2552,7 @@ std::vector<patchy::test::TestCase> pdf_tests() {
       {"pdf_image_writer_round_trips_through_the_reader", pdf_image_writer_round_trips_through_the_reader},
       {"pdf_image_writer_flate_page_imports_as_an_image", pdf_image_writer_flate_page_imports_as_an_image},
       {"pdf_image_writer_removes_unfinished_files_and_refuses_bad_pages", pdf_image_writer_removes_unfinished_files_and_refuses_bad_pages},
+      {"pdf_image_writer_keeps_existing_file_until_finished", pdf_image_writer_keeps_existing_file_until_finished},
       {"pdf_image_writer_writes_unicode_paths", pdf_image_writer_writes_unicode_paths},
       {"pdf_page_reader_matches_single_page_reads", pdf_page_reader_matches_single_page_reads},
       {"pdf_probe_captures_a_full_page_scan", pdf_probe_captures_a_full_page_scan},

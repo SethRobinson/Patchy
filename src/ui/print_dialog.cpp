@@ -6,6 +6,8 @@
 #include "ui/measurement_units.hpp"
 #include "ui/print_internal.hpp"
 #include "ui/localization.hpp"
+#include "ui/qt_paths.hpp"
+#include "support/atomic_file_write.hpp"
 
 #include <QCheckBox>
 #include <QComboBox>
@@ -766,11 +768,26 @@ bool write_print_pdf(const QString& path, const Document& document, const PrintS
   if (path.isEmpty()) {
     return false;
   }
-  QPrinter printer(QPrinter::HighResolution);
-  printer.setOutputFormat(QPrinter::PdfFormat);
-  printer.setOutputFileName(path);
-  configure_printer(printer, page_layout, document_name);
-  return paint_printer_page(printer, document, settings);
+  // Printed into a sibling temporary file that replaces `path` only once the page is
+  // complete, so a failed print never truncates an existing file (AGENTS.md). The
+  // temporary's suffix is not .pdf, which is why the format is set first.
+  // The printer is scoped so its engine has closed the file before the rename.
+  AtomicFileReplacement replacement(to_filesystem_path(path));
+  {
+    QPrinter printer(QPrinter::HighResolution);
+    printer.setOutputFormat(QPrinter::PdfFormat);
+    printer.setOutputFileName(to_qstring(replacement.temporary_path()));
+    configure_printer(printer, page_layout, document_name);
+    if (!paint_printer_page(printer, document, settings)) {
+      return false;
+    }
+  }
+  try {
+    replacement.commit("The PDF file could not be written.");
+  } catch (const std::exception&) {
+    return false;
+  }
+  return true;
 }
 
 void run_page_setup_dialog(QWidget* parent, QPageLayout* page_layout) {

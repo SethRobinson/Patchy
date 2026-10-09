@@ -6,7 +6,6 @@
 #include <cmath>
 #include <cstring>
 #include <stdexcept>
-#include <system_error>
 
 namespace patchy::pdf {
 namespace {
@@ -50,8 +49,8 @@ std::string format_pdf_number(double value) {
   return text;
 }
 
-ImageWriter::ImageWriter(const std::filesystem::path& path) : path_(path) {
-  file_.open(path_, std::ios::binary | std::ios::trunc);
+ImageWriter::ImageWriter(const std::filesystem::path& path) : replacement_(path) {
+  file_.open(replacement_.temporary_path(), std::ios::binary | std::ios::trunc);
   if (!file_) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "The PDF file could not be opened for writing."));
   }
@@ -74,8 +73,7 @@ void ImageWriter::abort() noexcept {
   }
   open_ = false;
   file_.close();
-  std::error_code ignored;
-  std::filesystem::remove(path_, ignored);
+  replacement_.discard();
 }
 
 void ImageWriter::write(std::string_view text) {
@@ -246,12 +244,13 @@ void ImageWriter::finish() {
         " 0 R /Info " + std::to_string(info_object) + " 0 R >>\nstartxref\n" + std::to_string(xref_position) +
         "\n%%EOF\n");
   file_.flush();
-  if (!file_) {
+  file_.close();
+  if (file_.fail()) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "The PDF file could not be written."));
   }
-  file_.close();
-  finished_ = true;
   open_ = false;
+  replacement_.commit(PATCHY_TRANSLATE_NOOP("QObject", "The PDF file could not be written."));
+  finished_ = true;
 }
 
 }  // namespace patchy::pdf

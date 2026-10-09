@@ -136,7 +136,17 @@ TGA, PCX, ICO, ILBM, Aseprite, GIF, JPEG XR, SVG, RTTEX, DDS), the animated WebP
 the recovery store. `write_flat_image_file`
 (PNG, JPEG, WebP, TIFF and the other `QImageWriter` formats) goes through `QSaveFile` with
 an explicit format instead, since `QImageWriter` on a device cannot infer it from a suffix.
-The PDF writers (`QPdfWriter(path)` and the image-page writer) still write in place.
+
+Writers that stream to disk or hand a path to a library use `AtomicFileReplacement` (same
+header, same temporary name): write `temporary_path()`, close it, `commit()` renames it
+over the target; without a commit the destructor removes the temporary. Callers: the PDF
+image-page writer (`pdf::ImageWriter`, pages stream into the temporary and `finish()`
+commits), the Qt-engine PDF writers through `pdf_detail::QtPdfOutput` (`QPdfWriter` on a
+`QFile` device opened on the temporary, so a failed write is caught from `QFile::error()`;
+the text-merge pass rewrites the temporary before the commit), and Print > Save PDF
+(`write_print_pdf`, `QPrinter` output file name set to the temporary; QPrinter reports no
+write errors, so only a crash or a failed paint is covered there). A cancelled multi-page
+export therefore keeps the previous file instead of deleting it.
 
 Deliberate semantics: a target another process holds open with a share-deny lock (Windows)
 fails at the rename and reports "Could not write" rather than truncating the file; a
@@ -147,7 +157,8 @@ permissions rather than the old file's. The byte canaries pin encoder bytes, not
 
 Core (`patchy_core_tests`, filters `atomic_write` and `recovery`; group
 `atomic_write_recovery_tests`): replace-existing with no temporary left, missing directory
-throws and keeps nothing, failed rename keeps the target and removes the temporary, sidecar
+throws and keeps nothing, failed rename keeps the target and removes the temporary, the
+streaming replacement's commit/discard/destructor (and `pdf_image_writer_keeps_existing`), sidecar
 round trip with Unicode and CRLF input, directory scan with strays, Unicode instance root.
 
 UI (`patchy_ui_visual_tests`, filters `ui_recovery`, `ui_flat_save`, `ui_preferences_recovery`;
@@ -156,4 +167,6 @@ sidecar, the `(revision, state_id)` rule across undo/redo/edit, discard on save 
 the modal-dialog busy skip and the enabled toggle on a 50 ms timer, orphan detection through
 a dead-pid lock and `recoverAll`, a live instance's folder never reported, Unicode roots and
 titles, the atomic flat and PSD save (overwrite leaves no temporary, a missing folder fails
-and keeps the old files), and the Preferences row plus the scripting setters.
+and keeps the old files), and the Preferences row plus the scripting setters. PDF:
+`ui_pdf_export_failure_keeps_existing_file` and `ui_pdf_export_writes_unicode_paths`
+(filter `ui_pdf_export`).
