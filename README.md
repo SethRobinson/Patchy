@@ -133,8 +133,9 @@ and Affinity import has format-specific limitations. See [current compatibility]
 - Text inside shapes: the Type tool flows paragraph text inside a closed path or shape, saved as native Photoshop area text ([issue 80](https://github.com/SethRobinson/Patchy/issues/80))
 - Gradient fill layers span their mask's visible area and land on the same pixel edges as Photoshop
 - Windows: a single click on the title bar no longer restores a maximized window; double-click or drag it instead ([issue 82](https://github.com/SethRobinson/Patchy/issues/82)). Dialogs now open inside the visible screen area
-- Scripting: `doc.saveAs` and `doc.exportAs` take per-format options (`exportAs` writes a copy), scripts can declare a default hotkey with `@hotkey` that Preferences can change, File > Scripts entries get the Script Manager's right-click menu, and `patchy.scripts.install`/`setHotkey` add a script and its key in one step. A Quick Export DDS example script is included
-- Web build: Safari now gets the same multithreaded build as other browsers
+- Scripting: You can now right click a script and assign it a hotkey, it's really simple. (Hotkey dialog works too) So it's now possible to script a missing feature via script and assign it a hotkey to make it feel like a native feature.  I added a "Save as DDS" script to demonstrate this, this could be useful if you wanted specific save options but didn't want to deal with the dialog each time.
+- Web build: Safari now gets the same multithreaded build as other browsers, the latest Safari fixed its bugs so everything works fine on it now
+- We now properly save thumbnail/preview images inside of psd/psb files, this speeds up thumbnail generation in File Explorer and other places
 
 ### 1.07 - October 7, 2026
 
