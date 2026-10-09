@@ -3,6 +3,7 @@
 // the gate.
 
 #include "core/document.hpp"
+#include "core/environment.hpp"
 #include "core/document_depth.hpp"
 #include "core/pixel_depth.hpp"
 #include "core/pixel_tools.hpp"
@@ -454,6 +455,16 @@ void deep_editing_gate_can_be_overridden() {
   set_deep_editing_override(false);
   CHECK(!deep_editing_enabled());
   set_deep_editing_override(std::nullopt);
+  // Without PATCHY_DEEP_EDITING the default decides: on in the app, off in this harness.
+  if (!environment_variable("PATCHY_DEEP_EDITING").has_value()) {
+    CHECK(!deep_editing_enabled());
+    set_deep_editing_default(true);
+    CHECK(deep_editing_enabled());
+    set_deep_editing_override(false);
+    CHECK(!deep_editing_enabled());
+    set_deep_editing_override(std::nullopt);
+    set_deep_editing_default(false);
+  }
 }
 
 // Exposure and Gamma toning before a 32-bit document leaves 32 bits:

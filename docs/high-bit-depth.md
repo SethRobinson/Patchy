@@ -1,10 +1,12 @@
 # High bit depth: 16-bit and 32-bit (HDR) editing
 
-Status (October 9, 2026): Phases 0-2 done; Phase 3's compositor done, its display and
-tool loose ends open (below). With the gate off (the default) Patchy still edits in 8
-bits: deep files convert at decode (docs/file-formats.md, "16-bit and 32-bit PSD/PSB
-import"). This document is the plan of record and the rules the work must follow.
-Update it as each phase lands; keep it current-state.
+Status (October 9, 2026): deep editing is on by default. 16 and 32-bit files open at
+their depth, and File > New and Image > Mode offer 8, 16 and 32 bits.
+`PATCHY_DEEP_EDITING=0` turns it off: deep files then convert to 8 bits at decode, as
+before (docs/file-formats.md, "16-bit and 32-bit PSD/PSB import"). The test harnesses
+keep the old default (`set_deep_editing_default(false)` in both test mains); deep tests
+override the gate. Open items are listed per phase below. This document is the plan of
+record and the rules the work must follow; keep it current-state.
 
 ## Goal and acceptance
 
@@ -261,13 +263,14 @@ Each phase lands as verified commits; the gate stays off until Phase 9.
    kernels for the 8-bit-copy filters. Surface Blur, Median and Dust & Scratches keep
    their no-histogram designs at every depth (docs/patent-research.md).
 7. **UI.** Image > Mode > 8/16/32 Bits/Channel (`image.mode_8_bit`,
-   `image.mode_16_bit`, `image.mode_32_bit`; shown while the gate is on; undoable;
+   `image.mode_16_bit`, `image.mode_32_bit`; shown while deep editing is on; undoable;
    Indexed only at 8 bits). Leaving 32 bits asks for HDR Toning (`hdrToningDialog`,
    Photoshop's Exposure and Gamma method: `tone_map_linear_document` maps pixel layers'
    linear color to (v * 2^exposure)^(1/gamma) before the conversion; Patchy's own
    reading of the method, not probed against Photoshop). New Document has a Bit Depth
-   row while the gate is on (`newDocumentBitDepthCombo`, remembered as
-   `newDocument/lastBitDepth`). 32-bit documents show a status-bar preview exposure
+   row while deep editing is on (`newDocumentBitDepthCombo`); like Photoshop it starts
+   at 8 bits every time (the old `newDocument/lastBitDepth` key is no longer read).
+   32-bit documents show a status-bar preview exposure
    (`hdrPreviewExposureSpin`, `DocumentColorState::view_exposure_stops`): it scales
    linear values whenever a 32-bit composite narrows to display values (canvas,
    thumbnails, 8-bit exports, the eyedropper), is never saved, and undo keeps the

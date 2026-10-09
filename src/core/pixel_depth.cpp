@@ -19,10 +19,16 @@ namespace {
 // -1 = no override (follow PATCHY_DEEP_EDITING), 0 = off, 1 = on.
 std::atomic<int> g_deep_editing_override{-1};
 
-bool deep_editing_from_environment() {
-  static const bool enabled = [] {
+std::atomic<bool> g_deep_editing_default{true};
+
+// Unset (or empty) leaves the decision to the default.
+std::optional<bool> deep_editing_from_environment() {
+  static const std::optional<bool> enabled = []() -> std::optional<bool> {
     const auto value = environment_variable("PATCHY_DEEP_EDITING");
-    return value.has_value() && !value->empty() && *value != "0";
+    if (!value.has_value() || value->empty()) {
+      return std::nullopt;
+    }
+    return *value != "0";
   }();
   return enabled;
 }
@@ -112,7 +118,11 @@ bool deep_editing_enabled() {
   if (forced >= 0) {
     return forced != 0;
   }
-  return deep_editing_from_environment();
+  return deep_editing_from_environment().value_or(g_deep_editing_default.load(std::memory_order_relaxed));
+}
+
+void set_deep_editing_default(bool enabled) {
+  g_deep_editing_default.store(enabled, std::memory_order_relaxed);
 }
 
 void set_deep_editing_override(std::optional<bool> enabled) {

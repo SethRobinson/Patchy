@@ -457,8 +457,8 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   if (deep_editing_enabled()) {
     add_row_label(QObject::tr("Bit Depth"), 4);
     grid->addWidget(bit_depth, 4, 1, 1, 2);
-    const auto remembered = app_settings().value(QStringLiteral("newDocument/lastBitDepth"), 8).toInt();
-    bit_depth->setCurrentIndex(std::max(0, bit_depth->findData(remembered)));
+    // Every new document starts at 8 bits, as in Photoshop; the choice is not remembered.
+    bit_depth->setCurrentIndex(0);
   } else {
     bit_depth->hide();
   }
@@ -526,7 +526,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     }
     return QObject::tr("%1K").arg(bytes / 1024.0, 0, 'f', 1);
   };
-  const auto update_summary = [&state, &current_preset_name, summary, format_pixel_bytes] {
+  const auto update_summary = [&state, &current_preset_name, summary, format_pixel_bytes, bit_depth] {
     // Bullet built from its code point: the sources build without /utf-8, so a raw
     // non-ASCII character in a literal would depend on the system codepage.
     const QString separator = QStringLiteral("  ") + QChar(0x2022) + QStringLiteral("  ");
@@ -537,11 +537,14 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     if (std::max(ratio_width, ratio_height) <= 20) {
       dimensions_line += separator + QStringLiteral("%1:%2").arg(ratio_width).arg(ratio_height);
     }
-    // A per-layer memory estimate at rgba8; deliberately simple (documents open with
-    // two layers and formats vary), it exists to make huge sizes register as huge.
+    // A per-layer memory estimate at RGBA and the chosen depth (2 or 4 bytes a channel
+    // at 16 and 32 bits); deliberately simple (documents open with two layers and
+    // formats vary), it exists to make huge sizes register as huge.
+    const auto bytes_per_channel = std::max(1, bit_depth->currentData().toInt() / 8);
     dimensions_line += separator +
                        format_pixel_bytes(static_cast<double>(state.pixel_width) *
-                                          static_cast<double>(state.pixel_height) * 4.0);
+                                          static_cast<double>(state.pixel_height) * 4.0 *
+                                          static_cast<double>(bytes_per_channel));
     const auto physical_line = QObject::tr("%1 x %2 in at %3 ppi")
                                    .arg(state.pixel_width / state.ppi, 0, 'f', 2)
                                    .arg(state.pixel_height / state.ppi, 0, 'f', 2)
@@ -799,6 +802,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     set_fields_enabled(true);
     update_summary();
   }
+  QObject::connect(bit_depth, &QComboBox::currentIndexChanged, &dialog, [update_summary](int) { update_summary(); });
 
   append_themed_style(dialog, new_document_dialog_style());
   dialog.resize(724, 470);
@@ -817,9 +821,6 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     settings.setValue(QStringLiteral("lastHeight"), state.pixel_height);
     settings.setValue(QStringLiteral("lastPpi"), state.ppi);
     settings.setValue(QStringLiteral("lastBackground"), background_color);
-    if (deep_editing_enabled()) {
-      settings.setValue(QStringLiteral("lastBitDepth"), bit_depth->currentData().toInt());
-    }
     settings.endGroup();
     remember_dialog_unit(QStringLiteral("newDocument/lastUnit"), current_unit());
     remember_resolution_unit(QStringLiteral("newDocument/lastResolutionUnit"), resolution_unit->currentIndex());

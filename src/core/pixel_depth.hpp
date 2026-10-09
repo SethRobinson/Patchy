@@ -28,11 +28,15 @@ namespace patchy {
 
 inline constexpr float kDeepScale = 255.0F;
 
-// The deep-editing gate. Off by default; PATCHY_DEEP_EDITING=1 (or the hidden
-// preference, through set_deep_editing_override) turns it on. While it is off, deep
-// files convert to 8 bits on open exactly as before.
+// The deep-editing gate. On by default (October 9, 2026): 16 and 32-bit files open at
+// their depth and Image > Mode and New Document offer 16 and 32 bits.
+// PATCHY_DEEP_EDITING=0 turns it off, and then deep files convert to 8 bits on open
+// exactly as before. An override (tests, the deep stress run) beats both.
 [[nodiscard]] bool deep_editing_enabled();
 void set_deep_editing_override(std::optional<bool> enabled);
+// The gate when neither PATCHY_DEEP_EDITING nor an override decides. The test harnesses
+// set it off so tests written for 8-bit opening keep their meaning; deep tests override.
+void set_deep_editing_default(bool enabled);
 
 // Whether this build edits documents at `depth`. The web build stops at 16 bits (its
 // memory budget): 32-bit files open converted to 16 and Image > Mode offers no 32.

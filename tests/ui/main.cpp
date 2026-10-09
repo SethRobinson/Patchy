@@ -8,6 +8,7 @@
 #include "test_fonts.hpp"
 #include "test_harness.hpp"
 
+#include "core/pixel_depth.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/background_workers.hpp"
 #include "ui/localization.hpp"
@@ -157,6 +158,8 @@ extern "C" void report_fatal_signal(int signal_number, siginfo_t* info, void*) {
 
 int main(int argc, char* argv[]) {
   patchy::test::suppress_crash_dialogs();
+  // Tests written for 8-bit opening keep it; deep tests override the gate themselves.
+  patchy::set_deep_editing_default(false);
 #ifdef Q_OS_WIN
   AddVectoredExceptionHandler(1, report_access_violation);
 #else

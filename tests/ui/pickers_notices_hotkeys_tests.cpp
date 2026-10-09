@@ -49,6 +49,7 @@
 #include "formats/ico_document_io.hpp"
 #include "formats/tga_document_io.hpp"
 #include "ui/image_document_io.hpp"
+#include "ui/measurement_units.hpp"
 #include "ui/image_save_options_dialog.hpp"
 #include "ui/layer_list_widget.hpp"
 #include "ui/layer_style_dialog.hpp"
@@ -1318,6 +1319,95 @@ void ui_image_mode_converts_bit_depth_with_undo() {
     patchy::ui::MainWindow window;
     show_window(window);
     CHECK(!require_action(window, "imageMode16BitAction")->isVisible());
+  }
+  patchy::set_deep_editing_override(std::nullopt);
+}
+
+// File > New offers Bit Depth while deep editing is on (the default in the app): the
+// chosen depth makes the document, every new dialog starts at 8 bits again (as in
+// Photoshop), and the row is hidden when deep editing is off.
+void ui_new_document_dialog_creates_the_chosen_bit_depth() {
+  const auto answer_new_document = [](int bits, bool expect_row, int* remembered) {
+    QTimer::singleShot(0, [bits, expect_row, remembered] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("patchyNewDocumentDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("newDocumentBitDepthCombo"));
+      CHECK(combo != nullptr);
+      if (combo == nullptr) {
+        dialog->reject();
+        return;
+      }
+      CHECK(combo->isVisible() == expect_row);
+      if (remembered != nullptr) {
+        *remembered = combo->currentData().toInt();
+      }
+      if (expect_row) {
+        CHECK(combo->findData(16) >= 0 && combo->findData(32) >= 0);
+        combo->setCurrentIndex(combo->findData(bits));
+        dialog->grab().save(QStringLiteral("test-artifacts/ui_new_document_bit_depth.png"));
+        // The memory estimate follows the depth: 64 x 48 RGBA is 12K at 8 bits.
+        auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentWidthSpin"));
+        auto* height = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentHeightSpin"));
+        auto* unit = dialog->findChild<QComboBox*>(QStringLiteral("newDocumentUnitCombo"));
+        unit->setCurrentIndex(unit->findData(static_cast<int>(patchy::ui::MeasurementUnit::Pixels)));
+        width->setValue(64);
+        height->setValue(48);
+        QApplication::processEvents();
+        const auto expected = bits == 32 ? QStringLiteral("48.0K") : bits == 16 ? QStringLiteral("24.0K")
+                                                                                : QStringLiteral("12.0K");
+        bool found = false;
+        for (const auto* label : dialog->findChildren<QLabel*>()) {
+          found = found || label->text().contains(expected);
+        }
+        CHECK(found);
+      }
+      auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentWidthSpin"));
+      auto* height = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentHeightSpin"));
+      auto* unit = dialog->findChild<QComboBox*>(QStringLiteral("newDocumentUnitCombo"));
+      if (unit != nullptr) {
+        unit->setCurrentIndex(unit->findData(static_cast<int>(patchy::ui::MeasurementUnit::Pixels)));
+      }
+      if (width != nullptr && height != nullptr) {
+        width->setValue(64);
+        height->setValue(48);
+      }
+      dialog->accept();
+    });
+  };
+  patchy::set_deep_editing_override(true);
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    answer_new_document(16, true, nullptr);
+    require_action(window, "fileNewAction")->trigger();
+    QApplication::processEvents();
+    const auto& sixteen = patchy::ui::MainWindowTestAccess::document(window);
+    CHECK(sixteen.color_state().bit_depth == patchy::BitDepth::UInt16);
+    CHECK(sixteen.width() == 64 && sixteen.height() == 48);
+    CHECK(patchy::document_depth_problems(sixteen).empty());
+    CHECK(require_action(window, "imageMode16BitAction")->isChecked());
+
+    int remembered = 0;
+    answer_new_document(32, true, &remembered);
+    require_action(window, "fileNewAction")->trigger();
+    QApplication::processEvents();
+    CHECK(remembered == 8);
+    CHECK(patchy::ui::MainWindowTestAccess::document(window).color_state().bit_depth == patchy::BitDepth::Float32);
+    CHECK(require_action(window, "imageMode32BitAction")->isChecked());
+    CHECK(window.findChild<QDoubleSpinBox*>(QStringLiteral("hdrPreviewExposureSpin"))->isVisible());
+
+  }
+  patchy::set_deep_editing_override(false);
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    answer_new_document(8, false, nullptr);
+    require_action(window, "fileNewAction")->trigger();
+    QApplication::processEvents();
+    CHECK(patchy::ui::MainWindowTestAccess::document(window).color_state().bit_depth == patchy::BitDepth::UInt8);
   }
   patchy::set_deep_editing_override(std::nullopt);
 }
@@ -2844,6 +2934,7 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
        ui_alt_color_pick_shows_rgb_status_and_updates_open_color_panel},
       {"ui_image_mode_converts_bit_depth_with_undo", ui_image_mode_converts_bit_depth_with_undo},
       {"ui_image_mode_from_32_bits_asks_for_hdr_toning", ui_image_mode_from_32_bits_asks_for_hdr_toning},
+      {"ui_new_document_dialog_creates_the_chosen_bit_depth", ui_new_document_dialog_creates_the_chosen_bit_depth},
       {"ui_deep_document_render_strips_match_the_sequential_render",
        ui_deep_document_render_strips_match_the_sequential_render},
       {"ui_layer_operations_keep_deep_documents_at_depth", ui_layer_operations_keep_deep_documents_at_depth},

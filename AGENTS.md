@@ -132,7 +132,7 @@ Read the linked document before working on the feature; it owns the detailed con
 - **Mixer Brush pickup engine and stroke Smoothing:** [docs/mixer.md](docs/mixer.md) and [docs/legal-constraints.md](docs/legal-constraints.md).
 - **Healing Brush, Spot Healing, Patch tool, Remove Object (dialog, variations, tone match), and retouch Sample All Layers:** [docs/healing.md](docs/healing.md) and [docs/legal-constraints.md](docs/legal-constraints.md).
 - **Palette mode:** [docs/palette-mode.md](docs/palette-mode.md).
-- **16/32-bit editing (gated):** [docs/high-bit-depth.md](docs/high-bit-depth.md); 8-bit output stays byte-identical.
+- **16/32-bit editing (on; `PATCHY_DEEP_EDITING=0` off):** [docs/high-bit-depth.md](docs/high-bit-depth.md).
 - **File formats, PSB, Camera Raw, Affinity, HEIF/HEIC, and flat-image alpha:** [docs/file-formats.md](docs/file-formats.md).
 - **JPEG XR (.jxr) and the HDR tone map:** [docs/jxr.md](docs/jxr.md), plus the no-vendored-codec rule in [docs/legal-constraints.md](docs/legal-constraints.md).
 - **Proton textures (.rttex):** [docs/rttex.md](docs/rttex.md).
