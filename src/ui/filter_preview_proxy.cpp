@@ -1,5 +1,6 @@
 #include "ui/filter_preview_proxy.hpp"
 
+#include "core/pixel_depth.hpp"
 #include "ui/background_workers.hpp"
 #include "ui/filter_workflows.hpp"
 
@@ -123,8 +124,14 @@ FilterPreviewProxy make_filter_preview_proxy(const PixelBuffer& source,
                                              const QRegion& selection,
                                              int maximum_dimension) {
   FilterPreviewProxy proxy;
-  if (source.empty() || source.format().bit_depth != BitDepth::UInt8 ||
-      source.format().channels < 3) {
+  if (!source.empty() && source.format().bit_depth != BitDepth::UInt8) {
+    // The dialog's small preview of a 16/32-bit layer is drawn from its display
+    // values (docs/high-bit-depth.md).
+    return make_filter_preview_proxy(
+        convert_pixel_buffer_depth(source, BitDepth::UInt8, SampleKind::Color),
+        bounds, selection, maximum_dimension);
+  }
+  if (source.empty() || source.format().channels < 3) {
     return proxy;
   }
   const auto largest = std::max(source.width(), source.height());

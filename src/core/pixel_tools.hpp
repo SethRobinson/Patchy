@@ -26,6 +26,10 @@ struct EditColor {
 enum class BrushShape : std::uint8_t { Round, Square };
 
 struct EditOptions {
+  // A 16/32-bit layer's paint color when it is finer than `primary` (the gradient
+  // tool's interpolated color), straight RGBA on the deep scale in the layer's domain;
+  // unset means `primary` (docs/high-bit-depth.md).
+  std::optional<std::array<float, 4>> deep_primary;
   EditColor primary{};
   EditColor secondary{255, 255, 255, 255};
   int brush_size{12};
@@ -120,6 +124,9 @@ struct SmudgeState {
   std::int32_t diameter{0};
   bool initialized{false};
   std::vector<std::uint8_t> sample_rgba;
+  // The same carried sample for a 16/32-bit layer: straight RGBA floats on the deep scale
+  // in the layer's domain (docs/high-bit-depth.md).
+  std::vector<float> sample_deep;
 };
 
 // Mixer Brush design boundary (claim review 2026-08-14, docs/patent-research.md): the pickup

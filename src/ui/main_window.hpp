@@ -519,6 +519,7 @@ private:
   void snap_layers_to_palette(bool active_layer_only);
   void refresh_palette_panel();
   void refresh_palette_mode_chip();
+  void refresh_hdr_exposure_control();
   void maybe_offer_indexed_palette_adoption();
   // The Affinity "Image" layer import choice (keep embedded smart objects or
   // convert to plain pixel layers); asks unless imports/afImageLayers decides.
@@ -2087,6 +2088,7 @@ private:
   QPointer<QDialog> text_character_dialog_;
   QLabel* text_character_hint_label_{nullptr};
   QLabel* path_point_count_chip_{nullptr};
+  QDoubleSpinBox* hdr_exposure_spin_{nullptr};
   QCheckBox* text_character_auto_leading_{nullptr};
   UnitSpinBox* text_character_leading_spin_{nullptr};
   QSpinBox* text_character_tracking_spin_{nullptr};

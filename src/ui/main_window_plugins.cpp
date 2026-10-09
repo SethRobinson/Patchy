@@ -9,6 +9,7 @@
 #include "ui/qt_paths.hpp"
 
 #include "core/layer_metadata.hpp"
+#include "core/pixel_depth.hpp"
 #include "core/layer_tree.hpp"
 #include "plugins/legacy_photoshop_adapter.hpp"
 #include "ui/action_icons.hpp"
@@ -510,7 +511,7 @@ void MainWindow::run_legacy_plugin(QString identifier, bool show_dialog) {
     return;
   }
   const auto& source_pixels = layer->pixels();
-  if (source_pixels.format().bit_depth != BitDepth::UInt8 || source_pixels.format().channels < 3) {
+  if (source_pixels.format().bit_depth == BitDepth::Float32 || source_pixels.format().channels < 3) {
     show_status_error(tr("Select an editable 8-bit pixel layer before running the plug-in"));
     return;
   }
@@ -592,7 +593,13 @@ MainWindow::LegacyPluginApplyStatus MainWindow::apply_legacy_plugin(DocumentSess
   if (layer == nullptr || layer->kind() != LayerKind::Pixel) {
     return fail(tr("Select an editable 8-bit pixel layer before running the plug-in"));
   }
-  const auto& source = std::as_const(*layer).pixels();
+  const auto& layer_pixels = std::as_const(*layer).pixels();
+  // A 16-bit layer (docs/high-bit-depth.md) runs the plug-in on its 8-bit copy; the
+  // change folds back at depth below. 32-bit layers stay unsupported.
+  const auto deep_layer = layer_pixels.format().bit_depth == BitDepth::UInt16;
+  const auto narrowed =
+      deep_layer ? convert_pixel_buffer_depth(layer_pixels, BitDepth::UInt8, SampleKind::Color) : PixelBuffer{};
+  const auto& source = deep_layer ? narrowed : layer_pixels;
   if (source.empty() || source.format().bit_depth != BitDepth::UInt8 || source.format().channels < 3) {
     return fail(tr("Select an editable 8-bit pixel layer before running the plug-in"));
   }
@@ -810,21 +817,28 @@ MainWindow::LegacyPluginApplyStatus MainWindow::apply_legacy_plugin(DocumentSess
   if (layer == nullptr) {
     return fail(tr("The layer no longer exists."));
   }
-  auto& pixels = layer->pixels();
-  (void)pixels.data();  // detach shared storage once before the writes
-  for (int y = local.top(); y < local.top() + local.height(); ++y) {
-    auto row = pixels.row(y);
-    for (int x = local.left(); x < local.left() + local.width(); ++x) {
-      const auto index = (static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x));
-      const auto* out = output.data() + index * static_cast<std::size_t>(planes);
-      auto* px = row.data() + static_cast<std::size_t>(x) * static_cast<std::size_t>(channels);
-      px[0] = out[0];
-      px[1] = out[1];
-      px[2] = out[2];
-      if (planes == 4 && channels >= 4 && !run.protect_alpha) {
-        px[3] = out[3];
+  const auto write_output = [&](PixelBuffer& pixels) {
+    (void)pixels.data();  // detach shared storage once before the writes
+    for (int y = local.top(); y < local.top() + local.height(); ++y) {
+      auto row = pixels.row(y);
+      for (int x = local.left(); x < local.left() + local.width(); ++x) {
+        const auto index =
+            (static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x));
+        const auto* out = output.data() + index * static_cast<std::size_t>(planes);
+        auto* px = row.data() + static_cast<std::size_t>(x) * static_cast<std::size_t>(channels);
+        px[0] = out[0];
+        px[1] = out[1];
+        px[2] = out[2];
+        if (planes == 4 && channels >= 4 && !run.protect_alpha) {
+          px[3] = out[3];
+        }
       }
     }
+  };
+  if (std::as_const(*layer).pixels().format().bit_depth == BitDepth::UInt8) {
+    write_output(layer->pixels());
+  } else {
+    apply_eight_bit_edit_at_depth(layer->pixels(), write_output);
   }
   if (session.canvas != nullptr) {
     session.canvas->document_changed(filter_rect);

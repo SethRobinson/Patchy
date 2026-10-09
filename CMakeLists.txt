@@ -387,6 +387,8 @@ add_library(patchy_filters
   src/filters/auto_levels_math.cpp
   src/filters/auto_levels_math.hpp
   src/filters/builtin_filters.cpp
+  src/filters/deep_filters.cpp
+  src/filters/deep_filters.hpp
   src/filters/filter_engine.cpp
   src/filters/filter_registry.cpp
   src/filters/filter_support.hpp
@@ -1709,6 +1711,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/compositor_blend_if_tests.cpp
     tests/core/compositor_layer_styles_tests.cpp
     tests/core/deep_compositor_tests.cpp
+    tests/core/deep_filter_tests.cpp
     tests/core/document_model_tests.cpp
     tests/core/document_ops_filters_tests.cpp
     tests/core/flat_formats_bmp_tests.cpp

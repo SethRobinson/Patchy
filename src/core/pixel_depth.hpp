@@ -20,6 +20,7 @@
 
 #include <array>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <span>
 
@@ -80,6 +81,12 @@ void store_coverage_row(PixelBuffer& buffer, std::int32_t y, std::int32_t x, std
 [[nodiscard]] float coverage_at(const PixelBuffer& buffer, std::int32_t x, std::int32_t y);
 // The alpha of one pixel of a color buffer (any depth) as 0..1; 1 without an alpha channel.
 [[nodiscard]] float pixel_alpha_at(const PixelBuffer& buffer, std::int32_t x, std::int32_t y);
+// One pixel at `px` of a color buffer in `format` (3 or 4 channels, any depth) as
+// straight RGBA on the deep scale in the buffer's own domain (no transfer: 16-bit
+// values / 257, 32-bit linear values * 255; alpha 255 without an alpha channel), and
+// the store back (16 bits rounds and clamps, 32-bit color is kept as is, alpha clamps).
+[[nodiscard]] std::array<float, 4> load_pixel(PixelFormat format, const std::uint8_t* px) noexcept;
+void store_pixel(PixelFormat format, std::uint8_t* px, const std::array<float, 4>& values) noexcept;
 // One pixel of a color buffer (any depth) as display-encoded RGBA bytes: 8-bit samples
 // as they are, 16-bit narrowed, 32-bit clamped and sRGB-encoded. For previews.
 [[nodiscard]] std::array<std::uint8_t, 4> display_rgba8_at(const PixelBuffer& buffer, std::int32_t x,
@@ -90,5 +97,11 @@ void store_coverage_row(PixelBuffer& buffer, std::int32_t y, std::int32_t x, std
 // PSD reader's linear_to_srgb8, so a converted document matches an imported one).
 // Coverage and the alpha channel scale linearly. Same depth returns a shared copy.
 [[nodiscard]] PixelBuffer convert_pixel_buffer_depth(const PixelBuffer& source, BitDepth depth, SampleKind kind);
+
+// The 8-bit-precision path for edits without a deep implementation (16-bit filters,
+// Liquify; docs/high-bit-depth.md): `edit` runs on an 8-bit copy of a color buffer and
+// every sample it changed moves by the same amount at depth, so untouched samples keep
+// their full precision and changed ones land within the 8-bit result's precision.
+void apply_eight_bit_edit_at_depth(PixelBuffer& pixels, const std::function<void(PixelBuffer&)>& edit);
 
 }  // namespace patchy

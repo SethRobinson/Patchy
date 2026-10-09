@@ -948,10 +948,6 @@
         <translation>스타터 내장 필터는 UInt8 버퍼만 지원합니다.</translation>
     </message>
     <message>
-        <source>Filter previews support UInt8 buffers only</source>
-        <translation>필터 미리 보기는 UInt8 버퍼만 지원합니다.</translation>
-    </message>
-    <message>
         <source>Unknown catalogued filter identifier</source>
         <translation>알 수 없는 카탈로그 필터 식별자</translation>
     </message>
@@ -8904,6 +8900,38 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>PSD channel depth does not match the document</source>
         <translation>PSD 채널의 비트 심도가 문서와 일치하지 않습니다</translation>
+    </message>
+    <message>
+        <source>8 Bits/Channel</source>
+        <translation>8비트/채널</translation>
+    </message>
+    <message>
+        <source>16 Bits/Channel</source>
+        <translation>16비트/채널</translation>
+    </message>
+    <message>
+        <source>32 Bits/Channel</source>
+        <translation>32비트/채널</translation>
+    </message>
+    <message>
+        <source>Bit Depth</source>
+        <translation>비트 심도</translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents</source>
+        <translation>이 필터는 32비트 문서에서 사용할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>HDR Toning</source>
+        <translation>HDR 토닝</translation>
+    </message>
+    <message>
+        <source>Exposure and Gamma</source>
+        <translation>노출 및 감마</translation>
+    </message>
+    <message>
+        <source>Gamma</source>
+        <translation>감마</translation>
     </message>
 </context>
 <context>
@@ -18705,6 +18733,22 @@ Y: %2
         <source>Converted to %1</source>
         <translation>%1(으)로 변환했습니다</translation>
     </message>
+    <message>
+        <source>32-bit preview exposure in stops. It changes the display, not the pixels.</source>
+        <translation>32비트 미리 보기 노출(스톱 단위). 픽셀이 아닌 표시만 바꿉니다.</translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents</source>
+        <translation>이 필터는 32비트 문서에서 사용할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Linear RGB: %1, %2, %3</source>
+        <translation>선형 RGB: %1, %2, %3</translation>
+    </message>
+    <message>
+        <source>Exposure: </source>
+        <translation>노출: </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -20146,6 +20190,22 @@ Y: %2
     <message>
         <source>resizeImage method must be one of %1.</source>
         <translation>resizeImage의 method는 %1 중 하나여야 합니다.</translation>
+    </message>
+    <message>
+        <source>convertBitDepth takes 8, 16 or 32.</source>
+        <translation>convertBitDepth에는 8, 16 또는 32를 지정합니다.</translation>
+    </message>
+    <message>
+        <source>16 and 32-bit editing is not enabled.</source>
+        <translation>16비트 및 32비트 편집이 활성화되어 있지 않습니다.</translation>
+    </message>
+    <message>
+        <source>Indexed documents are 8-bit only.</source>
+        <translation>인덱스 색상 문서는 8비트만 지원합니다.</translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents.</source>
+        <translation>이 필터는 32비트 문서에서 사용할 수 없습니다.</translation>
     </message>
 </context>
 <context>

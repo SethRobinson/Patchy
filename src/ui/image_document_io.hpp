@@ -140,7 +140,28 @@ void apply_imported_image_density(Document& document, std::span<const std::uint8
 // mask, move that alpha into an editable grayscale layer mask and make the layer pixels
 // opaque RGB. Returns true when a mask was created. Multi-layer documents are left intact.
 bool promote_flat_alpha_to_layer_mask(Document& document);
+// An rgba8 PixelBuffer from any image (deep images narrow through Qt's conversion).
 [[nodiscard]] PixelBuffer pixels_from_image_rgba(const QImage& image);
+// An RGBA PixelBuffer at the image's own depth: 16-bit QImage formats give rgba16
+// pixels, float formats rgbaf32 (their values taken as linear), everything else rgba8
+// (docs/high-bit-depth.md). The inverse of qimage_from_pixel_buffer.
+[[nodiscard]] PixelBuffer pixels_from_image_native(const QImage& image);
+// pixels_from_image_native converted to `depth` (8-bit images widen exactly; deep
+// images narrow by the document conversion rules).
+[[nodiscard]] PixelBuffer pixels_from_image_at_depth(const QImage& image, BitDepth depth);
+// While one is alive on this thread, renders of 16/32-bit documents return images at
+// the document's depth (Format_RGBA64 / Format_RGBA32FPx4 with linear values) instead
+// of the 8-bit display image, for callers that turn a render back into layer pixels.
+class ScopedDocumentDepthRender {
+public:
+  ScopedDocumentDepthRender() noexcept;
+  ~ScopedDocumentDepthRender();
+  ScopedDocumentDepthRender(const ScopedDocumentDepthRender&) = delete;
+  ScopedDocumentDepthRender& operator=(const ScopedDocumentDepthRender&) = delete;
+
+private:
+  bool previous_;
+};
 [[nodiscard]] QImage qimage_from_document(const Document& document, bool preserve_alpha);
 // Renders one layer alone at the document's size, so opacity/blend/styles come out
 // exactly as the compositor draws them against an empty backdrop (sprite-sheet and

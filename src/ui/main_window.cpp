@@ -17,6 +17,7 @@
 #include "core/pixel_tools.hpp"
 #include "formats/palette_io.hpp"
 #include "filters/builtin_filters.hpp"
+#include "filters/filter_engine.hpp"
 #include "formats/aseprite_document_io.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "formats/heif_document_io.hpp"
@@ -6898,13 +6899,17 @@ std::optional<RasterizedLayerPixels> render_rasterized_layer_pixels(const Docume
   }
 
   Document raster_document(document.width(), document.height(), document.format());
+  // A 16/32-bit document rasterizes at its depth (docs/high-bit-depth.md).
+  const auto depth = document.color_state().bit_depth;
+  raster_document.color_state().bit_depth = depth;
   raster_document.add_layer(std::move(layer));
+  const ScopedDocumentDepthRender depth_render;
   const auto image =
       qimage_from_document_rect(raster_document, QRect(bounds.x, bounds.y, bounds.width, bounds.height), true);
   if (image.isNull()) {
     return std::nullopt;
   }
-  return RasterizedLayerPixels{pixels_from_image_rgba(image), bounds};
+  return RasterizedLayerPixels{pixels_from_image_at_depth(image, depth), bounds};
 }
 
 std::optional<Layer> renderable_merge_layer_copy(const Layer& source) {
@@ -7327,6 +7332,31 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   statusBar()->addPermanentWidget(path_point_count_chip_);
   path_point_count_chip_->hide();
   register_retranslation([this] { refresh_path_point_count_chip(); });
+  // 32-bit documents (docs/high-bit-depth.md): Photoshop's preview exposure, which
+  // changes the display only.
+  hdr_exposure_spin_ = new QDoubleSpinBox(statusBar());
+  hdr_exposure_spin_->setObjectName(QStringLiteral("hdrPreviewExposureSpin"));
+  hdr_exposure_spin_->setRange(-20.0, 20.0);
+  hdr_exposure_spin_->setDecimals(2);
+  hdr_exposure_spin_->setSingleStep(0.25);
+  configure_toolbar_spinbox(hdr_exposure_spin_, 130);
+  bind_tooltip(hdr_exposure_spin_,
+               QT_TRANSLATE_NOOP("patchy::ui::MainWindow",
+                                 "32-bit preview exposure in stops. It changes the display, not the pixels."));
+  connect(hdr_exposure_spin_, &QDoubleSpinBox::valueChanged, this, [this](double stops) {
+    if (!has_active_document() || canvas_ == nullptr) {
+      return;
+    }
+    auto& state = document().color_state();
+    if (state.bit_depth != BitDepth::Float32 || state.view_exposure_stops == static_cast<float>(stops)) {
+      return;
+    }
+    state.view_exposure_stops = static_cast<float>(stops);
+    canvas_->document_changed();
+  });
+  statusBar()->addPermanentWidget(hdr_exposure_spin_);
+  hdr_exposure_spin_->hide();
+  register_retranslation([this] { refresh_hdr_exposure_control(); });
   palette_compliance_timer_ = new QTimer(this);
   palette_compliance_timer_->setSingleShot(true);
   palette_compliance_timer_->setInterval(400);
@@ -11531,7 +11561,7 @@ void MainWindow::render_pending_pdf_image_layers(Document& target) {
       if (!rendered.has_value()) {
         continue;
       }
-      layer.set_pixels(pixels_from_image_rgba(rendered->image));
+      layer.set_pixels(pixels_from_image_at_depth(rendered->image, target.color_state().bit_depth));
       layer.set_bounds(rendered->bounds);
       metadata[kLayerMetadataSmartObjectRasterStatus] = kSmartObjectRasterStatusPatchy;
     }
@@ -11864,6 +11894,9 @@ void MainWindow::merge_down() {
   Rect affected;
   Document merge_document(doc.width(), doc.height(), doc.format());
   merge_document.metadata().patterns = std::as_const(doc).metadata().patterns;
+  // A 16/32-bit document merges at its depth (docs/high-bit-depth.md).
+  const auto merge_depth = std::as_const(doc).color_state().bit_depth;
+  merge_document.color_state().bit_depth = merge_depth;
   LayerId target_id = 0;
   for (const auto id : merge_list) {
     const auto* layer = std::as_const(doc).find_layer(id);
@@ -11909,6 +11942,7 @@ void MainWindow::merge_down() {
   }
 
   auto image_future = launch_async([merge_document = std::move(merge_document), merge_bounds] {
+    const ScopedDocumentDepthRender depth_render;
     return qimage_from_document_rect(merge_document, QRect(merge_bounds.x, merge_bounds.y, merge_bounds.width, merge_bounds.height), true);
   });
   if (processing_canvas) {
@@ -11927,7 +11961,7 @@ void MainWindow::merge_down() {
     statusBar()->showMessage(tr("Nothing to merge down"));
     return;
   }
-  auto merged_pixels = pixels_from_image_rgba(image);
+  auto merged_pixels = pixels_from_image_at_depth(image, merge_depth);
 
   merge_edit_lock.release();
   push_undo_snapshot(tr("Merge down"));
@@ -13711,6 +13745,43 @@ void MainWindow::update_document_action_state() {
   }
   refresh_add_layer_mask_button_state();
   update_legacy_plugin_repeat_actions();
+  // 16/32-bit documents (docs/high-bit-depth.md): a 32-bit document offers only the
+  // filters with a linear-light kernel, and the Filter Gallery and 8BF plug-ins are
+  // 8-bit only for now.
+  const auto document_depth =
+      has_document ? std::as_const(document()).color_state().bit_depth : BitDepth::UInt8;
+  // Indexed color is 8-bit only (refresh_bit_depth_actions; the loop above re-enabled them).
+  if (image_mode_indexed_action_ != nullptr && document_depth != BitDepth::UInt8) {
+    image_mode_indexed_action_->setEnabled(false);
+  }
+  if (has_document && std::as_const(document()).palette_editing().has_value()) {
+    for (auto* action : {image_mode_16_bit_action_, image_mode_32_bit_action_}) {
+      if (action != nullptr) {
+        action->setEnabled(false);
+      }
+    }
+  }
+  if (document_depth != BitDepth::UInt8) {
+    for (auto* action : document_actions_) {
+      const auto filter_id = action != nullptr ? action->property("patchy.filterIdentifier").toString() : QString();
+      if (!filter_id.isEmpty() &&
+          deep_filter_support(filter_id.toStdString(), document_depth) == DeepFilterSupport::Unsupported) {
+        action->setEnabled(false);
+      }
+    }
+    for (const auto& command : hotkey_registry_.commands()) {
+      if (command.action == nullptr) {
+        continue;
+      }
+      const bool unavailable =
+          command.id == QStringLiteral("filter.gallery") ||
+          (document_depth == BitDepth::Float32 &&
+           (command.id == QStringLiteral("filter.liquify") || command.id == QStringLiteral("image.auto_all")));
+      if (unavailable) {
+        command.action->setEnabled(false);
+      }
+    }
+  }
   const bool quick_mask_view =
       canvas_ != nullptr && canvas_->quick_mask_active();
   const bool smart_filter_mask_view =

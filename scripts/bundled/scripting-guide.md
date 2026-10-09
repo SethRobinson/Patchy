@@ -330,6 +330,7 @@ Field types: `number`, `slider`, `checkbox`, `choice`, `text`, `color`, `folder`
 | Member | Meaning |
 | --- | --- |
 | `doc.width` / `doc.height` / `doc.resolution` | Size in pixels and pixels per inch. |
+| `doc.bitDepth` / `doc.convertBitDepth(bits)` | Bits per channel (8, 16 or 32; 32 is floating point in linear light) and Image > Mode's conversion. Converting to 16 or 32 needs 16 and 32-bit editing to be on, and Indexed documents stay 8-bit. Pixel access (`getPixels`/`setPixels`) stays 8-bit RGBA at every depth. |
 | `doc.name` / `doc.path` | Title and file path (empty until saved). |
 | `doc.layers` | Top-level layers, bottom to top. Groups expose `.children`. |
 | `doc.activeLayer` | Get or set the targeted layer. |

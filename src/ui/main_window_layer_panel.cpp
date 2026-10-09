@@ -4166,6 +4166,14 @@ void MainWindow::update_canvas_info(CanvasInfoState info) {
           {static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()), static_cast<std::uint8_t>(color.blue())});
       if (!name.empty()) { color_line = QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size())) + QLatin1Char('\n') + color_line; }
     }
+    if (info.linear_color.has_value()) {
+      // 32-bit documents (docs/high-bit-depth.md): the linear values, as Photoshop's
+      // Info panel shows them.
+      color_line += QLatin1Char('\n') + tr("Linear RGB: %1, %2, %3")
+                                            .arg((*info.linear_color)[0], 0, 'f', 4)
+                                            .arg((*info.linear_color)[1], 0, 'f', 4)
+                                            .arg((*info.linear_color)[2], 0, 'f', 4);
+    }
   }
 
   QString rect_line = tr("Rect: -");

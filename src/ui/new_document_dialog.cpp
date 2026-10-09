@@ -9,6 +9,7 @@
 #include "ui/theme_palette.hpp"
 
 #include "ui/app_settings.hpp"
+#include "core/pixel_depth.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/measurement_units.hpp"
@@ -445,6 +446,20 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   background_row->addWidget(background, 1);
   background_row->addWidget(background_swatch, 0);
   grid->addLayout(background_row, 3, 1, 1, 2);
+  // Bits per channel, while deep editing is on (docs/high-bit-depth.md).
+  auto* bit_depth = new QComboBox(&dialog);
+  bit_depth->setObjectName(QStringLiteral("newDocumentBitDepthCombo"));
+  bit_depth->addItem(QObject::tr("8 Bits/Channel"), 8);
+  bit_depth->addItem(QObject::tr("16 Bits/Channel"), 16);
+  bit_depth->addItem(QObject::tr("32 Bits/Channel"), 32);
+  if (deep_editing_enabled()) {
+    add_row_label(QObject::tr("Bit Depth"), 4);
+    grid->addWidget(bit_depth, 4, 1, 1, 2);
+    const auto remembered = app_settings().value(QStringLiteral("newDocument/lastBitDepth"), 8).toInt();
+    bit_depth->setCurrentIndex(std::max(0, bit_depth->findData(remembered)));
+  } else {
+    bit_depth->hide();
+  }
 
   auto* summary = new QLabel(&dialog);
   summary->setObjectName(QStringLiteral("newDocumentSummaryLabel"));
@@ -800,13 +815,23 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     settings.setValue(QStringLiteral("lastHeight"), state.pixel_height);
     settings.setValue(QStringLiteral("lastPpi"), state.ppi);
     settings.setValue(QStringLiteral("lastBackground"), background_color);
+    if (deep_editing_enabled()) {
+      settings.setValue(QStringLiteral("lastBitDepth"), bit_depth->currentData().toInt());
+    }
     settings.endGroup();
     remember_dialog_unit(QStringLiteral("newDocument/lastUnit"), current_unit());
     remember_resolution_unit(QStringLiteral("newDocument/lastResolutionUnit"), resolution_unit->currentIndex());
   }
-  return NewDocumentSettings{state.pixel_width,   state.pixel_height,
-                             state.ppi,           background_color,
-                             clipboard_selected,  clipboard_selected ? QApplication::clipboard()->image() : QImage()};
+  const auto chosen_bits = deep_editing_enabled() ? bit_depth->currentData().toInt() : 8;
+  return NewDocumentSettings{state.pixel_width,
+                             state.pixel_height,
+                             state.ppi,
+                             background_color,
+                             chosen_bits == 32   ? BitDepth::Float32
+                             : chosen_bits == 16 ? BitDepth::UInt16
+                                                 : BitDepth::UInt8,
+                             clipboard_selected,
+                             clipboard_selected ? QApplication::clipboard()->image() : QImage()};
 }
 
 }  // namespace patchy::ui

@@ -19,6 +19,7 @@
 #include "ui/action_icons.hpp"
 #include "ui/app_settings.hpp"
 #include "render/compositor.hpp"
+#include "core/pixel_depth.hpp"
 #include "ui/blend_mode_ui.hpp"
 #include "ui/brush_dynamics_popup.hpp"
 #include "ui/brush_presets.hpp"
@@ -518,7 +519,8 @@ void MainWindow::create_alpha_channel() {
     const auto id = doc.allocate_channel_id();
     const auto name = doc.next_alpha_channel_name();
     push_undo_snapshot(tr("New channel"));
-    doc.add_channel(DocumentChannel(id, name, DocumentChannelKind::Alpha, std::move(pixels)));
+    doc.add_channel(DocumentChannel(id, name, DocumentChannelKind::Alpha,
+                                    coverage_at_document_depth(doc, std::move(pixels))));
     set_channel_edit_target(ChannelPanel::RowKind::Alpha, id, false, false);
     statusBar()->showMessage(tr("Created channel %1").arg(QString::fromStdString(name)));
   } catch (const std::exception& error) {
@@ -540,7 +542,8 @@ void MainWindow::save_selection_as_channel() {
     const auto id = doc.allocate_channel_id();
     const auto name = doc.next_alpha_channel_name();
     push_undo_snapshot(tr("Save selection as channel"));
-    doc.add_channel(DocumentChannel(id, name, DocumentChannelKind::Alpha, std::move(pixels)));
+    doc.add_channel(DocumentChannel(id, name, DocumentChannelKind::Alpha,
+                                    coverage_at_document_depth(doc, std::move(pixels))));
     set_channel_edit_target(ChannelPanel::RowKind::Alpha, id, false, false);
     statusBar()->showMessage(tr("Saved selection as %1").arg(QString::fromStdString(name)));
   } catch (const std::exception& error) {
@@ -576,11 +579,36 @@ void MainWindow::load_channel_as_selection(ChannelPanel::RowKind kind, ChannelId
       return;
     }
     selection_pixels = &channel->pixels();
+    if (channel->pixels().format().bit_depth != BitDepth::UInt8) {
+      // Selections are 8-bit: a 16/32-bit channel loads narrowed.
+      derived_pixels = convert_pixel_buffer_depth(channel->pixels(), BitDepth::UInt8, SampleKind::Coverage);
+      selection_pixels = &derived_pixels;
+    }
     name = QString::fromStdString(channel->name());
   } else {
     const auto& doc = static_cast<const Document&>(document());
     std::vector<std::uint8_t> merged_alpha;
-    const auto flattened = Compositor{}.flatten_rgb8(doc, &merged_alpha);
+    PixelBuffer flattened;
+    if (doc.color_state().bit_depth == BitDepth::UInt8) {
+      flattened = Compositor{}.flatten_rgb8(doc, &merged_alpha);
+    } else {
+      // 16/32-bit (docs/high-bit-depth.md): the deep composite at the selection's 8 bits.
+      const auto rgba = convert_pixel_buffer_depth(Compositor{}.flatten_rgba_deep(doc), BitDepth::UInt8,
+                                                   SampleKind::Color);
+      flattened = PixelBuffer(doc.width(), doc.height(), PixelFormat::rgb8());
+      merged_alpha.resize(static_cast<std::size_t>(doc.width()) * static_cast<std::size_t>(doc.height()));
+      for (int y = 0; y < doc.height(); ++y) {
+        for (int x = 0; x < doc.width(); ++x) {
+          const auto* from = rgba.pixel(x, y);
+          auto* to = flattened.pixel(x, y);
+          to[0] = from[0];
+          to[1] = from[1];
+          to[2] = from[2];
+          merged_alpha[static_cast<std::size_t>(y) * static_cast<std::size_t>(doc.width()) +
+                       static_cast<std::size_t>(x)] = from[3];
+        }
+      }
+    }
     derived_pixels = PixelBuffer(doc.width(), doc.height(), PixelFormat::gray8());
     for (int y = 0; y < doc.height(); ++y) {
       const auto source = flattened.row(y);

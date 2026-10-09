@@ -840,7 +840,8 @@ Layer MainWindow::build_fill_layer(const VectorFill& fill, const QString& name) 
       selection.boundingRect().intersected(QRect(0, 0, doc.width(), doc.height()));
   if (!selection.isEmpty() && !selection_rect.isEmpty()) {
     layer.set_mask(LayerMask{to_core_rect(selection_rect),
-                             selection_mask_pixels(*canvas_, selection_rect), 0, false});
+                             coverage_at_document_depth(doc, selection_mask_pixels(*canvas_, selection_rect)), 0,
+                             false});
   }
   return layer;
 }

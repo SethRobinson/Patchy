@@ -1,8 +1,11 @@
 #include "ui/edit_conversions.hpp"
 
+#include "core/pixel_depth.hpp"
+
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <vector>
 
 namespace patchy::ui {
 
@@ -12,6 +15,27 @@ EditColor edit_color(QColor color) {
 }
 
 QImage qimage_from_pixel_buffer(const PixelBuffer& pixels) {
+  if (!pixels.empty() && pixels.format().channels >= 3 && pixels.format().bit_depth != BitDepth::UInt8) {
+    // 16/32-bit: the same values in a deep QImage (straight alpha), no transfer.
+    const bool linear = pixels.format().bit_depth == BitDepth::Float32;
+    QImage deep(pixels.width(), pixels.height(), linear ? QImage::Format_RGBA32FPx4 : QImage::Format_RGBA64);
+    std::vector<float> row(static_cast<std::size_t>(pixels.width()) * 4U);
+    for (int y = 0; y < pixels.height(); ++y) {
+      load_rgba_row(pixels, y, 0, pixels.width(), linear ? DeepDomain::Linear : DeepDomain::Encoded, row);
+      if (linear) {
+        auto* dst = reinterpret_cast<float*>(deep.scanLine(y));
+        for (std::size_t i = 0; i < row.size(); ++i) {
+          dst[i] = row[i] / 255.0F;
+        }
+      } else {
+        auto* dst = reinterpret_cast<std::uint16_t*>(deep.scanLine(y));
+        for (std::size_t i = 0; i < row.size(); ++i) {
+          dst[i] = static_cast<std::uint16_t>(std::clamp(row[i] * 257.0F + 0.5F, 0.0F, 65535.0F));
+        }
+      }
+    }
+    return deep;
+  }
   QImage image(pixels.width(), pixels.height(), QImage::Format_RGBA8888);
   image.fill(Qt::transparent);
   if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3) {
@@ -42,6 +66,22 @@ QImage qimage_from_pixel_buffer(const PixelBuffer& pixels) {
         std::memcpy(dst + static_cast<std::size_t>(x) * 4U,
                     src.data() + static_cast<std::size_t>(x) * channels, 4U);
       }
+    }
+  }
+  return image;
+}
+
+QImage display_qimage_from_pixel_buffer(const PixelBuffer& pixels) {
+  if (pixels.empty() || pixels.format().channels < 3 || pixels.format().bit_depth == BitDepth::UInt8) {
+    return qimage_from_pixel_buffer(pixels);
+  }
+  QImage image(pixels.width(), pixels.height(), QImage::Format_RGBA8888);
+  std::vector<float> row(static_cast<std::size_t>(pixels.width()) * 4U);
+  for (int y = 0; y < pixels.height(); ++y) {
+    load_rgba_row(pixels, y, 0, pixels.width(), DeepDomain::Encoded, row);
+    auto* dst = image.scanLine(y);
+    for (std::size_t i = 0; i < row.size(); ++i) {
+      dst[i] = static_cast<std::uint8_t>(std::clamp(row[i] + 0.5F, 0.0F, 255.0F));
     }
   }
   return image;

@@ -23,6 +23,10 @@ struct DocumentColorState {
   BitDepth bit_depth{BitDepth::UInt8};
   std::vector<std::uint8_t> embedded_icc_profile;
   std::string ocio_view;
+  // 32-bit preview exposure in stops (docs/high-bit-depth.md): scales linear values
+  // whenever a 32-bit composite narrows to display values. A view setting: never
+  // saved, and undo keeps the current one.
+  float view_exposure_stops{0.0F};
 };
 
 struct DocumentMetadata {

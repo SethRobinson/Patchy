@@ -6446,10 +6446,6 @@ Mixed selection</source>
         <translation>スターター内蔵フィルターは UInt8 バッファーのみに対応しています。</translation>
     </message>
     <message>
-        <source>Filter previews support UInt8 buffers only</source>
-        <translation>フィルタープレビューは UInt8 バッファーのみに対応しています。</translation>
-    </message>
-    <message>
         <source>Unknown catalogued filter identifier</source>
         <translation>不明なカタログ登録フィルター識別子です。</translation>
     </message>
@@ -8904,6 +8900,38 @@ Mixed selection</source>
     <message>
         <source>PSD channel depth does not match the document</source>
         <translation>PSD チャンネルのビット深度がドキュメントと一致しません</translation>
+    </message>
+    <message>
+        <source>8 Bits/Channel</source>
+        <translation>8 bit/チャンネル</translation>
+    </message>
+    <message>
+        <source>16 Bits/Channel</source>
+        <translation>16 bit/チャンネル</translation>
+    </message>
+    <message>
+        <source>32 Bits/Channel</source>
+        <translation>32 bit/チャンネル</translation>
+    </message>
+    <message>
+        <source>Bit Depth</source>
+        <translation>ビット数</translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents</source>
+        <translation>このフィルターは 32 ビットのドキュメントでは使用できません</translation>
+    </message>
+    <message>
+        <source>HDR Toning</source>
+        <translation>HDR トーン</translation>
+    </message>
+    <message>
+        <source>Exposure and Gamma</source>
+        <translation>露光量とガンマ</translation>
+    </message>
+    <message>
+        <source>Gamma</source>
+        <translation>ガンマ</translation>
     </message>
 </context>
 <context>
@@ -18705,6 +18733,22 @@ Baked into images: %1.</source>
         <source>Converted to %1</source>
         <translation>%1 に変換しました</translation>
     </message>
+    <message>
+        <source>32-bit preview exposure in stops. It changes the display, not the pixels.</source>
+        <translation>32 ビットプレビューの露光量 (段)。表示のみを変更し、ピクセルは変更しません。</translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents</source>
+        <translation>このフィルターは 32 ビットのドキュメントでは使用できません</translation>
+    </message>
+    <message>
+        <source>Linear RGB: %1, %2, %3</source>
+        <translation>リニア RGB: %1, %2, %3</translation>
+    </message>
+    <message>
+        <source>Exposure: </source>
+        <translation>露光量: </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -20146,6 +20190,22 @@ Baked into images: %1.</source>
     <message>
         <source>resizeImage method must be one of %1.</source>
         <translation>resizeImage の method は %1 のいずれかでなければなりません。</translation>
+    </message>
+    <message>
+        <source>convertBitDepth takes 8, 16 or 32.</source>
+        <translation>convertBitDepth には 8、16、32 のいずれかを指定してください。</translation>
+    </message>
+    <message>
+        <source>16 and 32-bit editing is not enabled.</source>
+        <translation>16 ビットと 32 ビットの編集は有効になっていません。</translation>
+    </message>
+    <message>
+        <source>Indexed documents are 8-bit only.</source>
+        <translation>インデックスカラーのドキュメントは 8 ビットのみです。</translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents.</source>
+        <translation>このフィルターは 32 ビットのドキュメントでは使用できません。</translation>
     </message>
 </context>
 <context>

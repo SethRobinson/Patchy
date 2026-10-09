@@ -944,10 +944,6 @@
         <translation>入门内置滤镜仅支持 UInt8 缓冲区</translation>
     </message>
     <message>
-        <source>Filter previews support UInt8 buffers only</source>
-        <translation>滤镜预览仅支持 UInt8 缓冲区</translation>
-    </message>
-    <message>
         <source>Unknown catalogued filter identifier</source>
         <translation>未知的已编目滤镜标识符</translation>
     </message>
@@ -8904,6 +8900,38 @@ RGB：%2, %3, %4</translation>
     <message>
         <source>PSD channel depth does not match the document</source>
         <translation>PSD 通道位深度与文档不一致</translation>
+    </message>
+    <message>
+        <source>8 Bits/Channel</source>
+        <translation>8 位/通道</translation>
+    </message>
+    <message>
+        <source>16 Bits/Channel</source>
+        <translation>16 位/通道</translation>
+    </message>
+    <message>
+        <source>32 Bits/Channel</source>
+        <translation>32 位/通道</translation>
+    </message>
+    <message>
+        <source>Bit Depth</source>
+        <translation>位深度</translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents</source>
+        <translation>此滤镜在 32 位文档中不可用</translation>
+    </message>
+    <message>
+        <source>HDR Toning</source>
+        <translation>HDR 色调</translation>
+    </message>
+    <message>
+        <source>Exposure and Gamma</source>
+        <translation>曝光度和灰度系数</translation>
+    </message>
+    <message>
+        <source>Gamma</source>
+        <translation>灰度系数</translation>
     </message>
 </context>
 <context>
@@ -18705,6 +18733,22 @@ Baked into images: %1.</source>
         <source>Converted to %1</source>
         <translation>已转换为 %1</translation>
     </message>
+    <message>
+        <source>32-bit preview exposure in stops. It changes the display, not the pixels.</source>
+        <translation>32 位预览曝光度（档）。只改变显示，不改变像素。</translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents</source>
+        <translation>此滤镜在 32 位文档中不可用</translation>
+    </message>
+    <message>
+        <source>Linear RGB: %1, %2, %3</source>
+        <translation>线性 RGB：%1, %2, %3</translation>
+    </message>
+    <message>
+        <source>Exposure: </source>
+        <translation>曝光度：</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -20146,6 +20190,22 @@ Baked into images: %1.</source>
     <message>
         <source>resizeImage method must be one of %1.</source>
         <translation>resizeImage 的 method 必须是 %1 之一。</translation>
+    </message>
+    <message>
+        <source>convertBitDepth takes 8, 16 or 32.</source>
+        <translation>convertBitDepth 只接受 8、16 或 32。</translation>
+    </message>
+    <message>
+        <source>16 and 32-bit editing is not enabled.</source>
+        <translation>未启用 16 位和 32 位编辑。</translation>
+    </message>
+    <message>
+        <source>Indexed documents are 8-bit only.</source>
+        <translation>索引颜色文档仅支持 8 位。</translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents.</source>
+        <translation>此滤镜在 32 位文档中不可用。</translation>
     </message>
 </context>
 <context>

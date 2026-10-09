@@ -16,6 +16,9 @@ namespace patchy {
 [[nodiscard]] Rect normalized_rect(Rect rect) noexcept;
 [[nodiscard]] Layer* editable_layer(Document& document, LayerId layer_id) noexcept;
 [[nodiscard]] const Layer* editable_layer(const Document& document, LayerId layer_id) noexcept;
+// A color pixel layer at any depth: for operations that move whole pixels (flips)
+// rather than paint through the 8-bit write path.
+[[nodiscard]] Layer* pixel_layer_any_depth(Document& document, LayerId layer_id) noexcept;
 [[nodiscard]] PixelFormat canvas_resized_format_for_layer(const Layer& layer, const PixelBuffer& source,
                                                           EditColor extension_color) noexcept;
 void fill_resized_layer_background(PixelBuffer& pixels, const Layer& layer, EditColor extension_color);

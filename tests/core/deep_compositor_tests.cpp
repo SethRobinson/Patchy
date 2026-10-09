@@ -498,6 +498,41 @@ void deep_flatten_strips_match_the_sequential_walk() {
   }
 }
 
+// The 8-bit flatten of a 16 or 32-bit document (histograms, palette extraction, style
+// thumbnails) is the deep flatten's display values, not an empty walk over layers the
+// 8-bit compositor cannot read.
+void deep_documents_flatten_to_display_values_at_8_bits() {
+  const auto document = two_layer_document(BlendMode::Multiply, 0.8F, 1.0F);
+  std::vector<std::uint8_t> alpha8;
+  const auto flat8 = Compositor{}.flatten_rgb8(document, &alpha8);
+  for (const auto depth : {BitDepth::UInt16, BitDepth::Float32}) {
+    auto deep_document = document;
+    convert_document_depth(deep_document, depth);
+    std::vector<std::uint8_t> deep_alpha;
+    const auto flat = Compositor{}.flatten_rgb8(deep_document, &deep_alpha);
+    CHECK(flat.format() == PixelFormat::rgb8());
+    CHECK(deep_alpha.size() == alpha8.size());
+    const auto expected = convert_pixel_buffer_depth(Compositor{}.flatten_rgba_deep(deep_document), BitDepth::UInt8,
+                                                     SampleKind::Color);
+    bool same = true;
+    int worst_vs_8_bit = 0;
+    for (int y = 0; y < kHeight; ++y) {
+      for (int x = 0; x < kWidth; ++x) {
+        for (int c = 0; c < 3; ++c) {
+          same = same && flat.pixel(x, y)[c] == expected.pixel(x, y)[c];
+          worst_vs_8_bit = std::max(worst_vs_8_bit, std::abs(flat.pixel(x, y)[c] - flat8.pixel(x, y)[c]));
+        }
+        same = same && deep_alpha[static_cast<std::size_t>(y * kWidth + x)] == expected.pixel(x, y)[3];
+      }
+    }
+    CHECK(same);
+    // 16 bits agrees with the 8-bit flatten; 32 bits multiplies in linear light.
+    if (depth == BitDepth::UInt16) {
+      CHECK(worst_vs_8_bit <= 2);
+    }
+  }
+}
+
 void deep_compositor_matches_photoshop_corpus_if_available() {
   const auto root = patchy::test::source_root_path() / "local-test-fixtures" / "deep";
   if (!std::filesystem::exists(root / "manifest.json")) {
@@ -603,6 +638,7 @@ std::vector<patchy::test::TestCase> deep_compositor_tests() {
       {"deep_compositor_keeps_precision_8_bits_cannot_hold", deep_compositor_keeps_precision_8_bits_cannot_hold},
       {"deep_hue_saturation_matches_photoshop_16_bit_samples", deep_hue_saturation_matches_photoshop_16_bit_samples},
       {"deep_flatten_strips_match_the_sequential_walk", deep_flatten_strips_match_the_sequential_walk},
+      {"deep_documents_flatten_to_display_values_at_8_bits", deep_documents_flatten_to_display_values_at_8_bits},
       {"deep_compositor_matches_photoshop_corpus_if_available", deep_compositor_matches_photoshop_corpus_if_available},
   };
 }

@@ -944,10 +944,6 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Filter previews support UInt8 buffers only</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Unknown catalogued filter identifier</source>
         <translation type="unfinished"></translation>
     </message>
@@ -8923,6 +8919,38 @@ RGB: %2, %3, %4</source>
     </message>
     <message>
         <source>PSD channel depth does not match the document</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>8 Bits/Channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>16 Bits/Channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>32 Bits/Channel</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bit Depth</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>HDR Toning</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exposure and Gamma</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gamma</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -18712,6 +18740,22 @@ Baked into images: %1.</source>
         <source>Converted to %1</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>32-bit preview exposure in stops. It changes the display, not the pixels.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Linear RGB: %1, %2, %3</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Exposure: </source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -20153,6 +20197,22 @@ Baked into images: %1.</source>
     </message>
     <message>
         <source>resizeImage method must be one of %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>convertBitDepth takes 8, 16 or 32.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>16 and 32-bit editing is not enabled.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Indexed documents are 8-bit only.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

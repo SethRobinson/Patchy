@@ -218,6 +218,51 @@ namespace patchy::ui {
 
 namespace {
 
+struct HdrToning {
+  double exposure{0.0};
+  double gamma{1.0};
+};
+
+// Image > Mode from 32 bits to 16 or 8 (docs/high-bit-depth.md): Photoshop's HDR Toning
+// prompt, with its Exposure and Gamma method. The defaults convert exactly as opening a
+// 32-bit file at a lower depth does.
+std::optional<HdrToning> request_hdr_toning(QWidget* parent) {
+  QDialog dialog(parent);
+  dialog.setObjectName(QStringLiteral("hdrToningDialog"));
+  dialog.setWindowTitle(QObject::tr("HDR Toning"));
+  auto* layout = new QVBoxLayout(&dialog);
+  auto* form = new QFormLayout();
+  auto* method = new QComboBox(&dialog);
+  method->setObjectName(QStringLiteral("hdrToningMethodCombo"));
+  method->addItem(QObject::tr("Exposure and Gamma"));
+  form->addRow(QObject::tr("Method"), method);
+  auto* exposure = new QDoubleSpinBox(&dialog);
+  exposure->setObjectName(QStringLiteral("hdrToningExposureSpin"));
+  exposure->setRange(-20.0, 20.0);
+  exposure->setDecimals(2);
+  exposure->setSingleStep(0.1);
+  exposure->setValue(0.0);
+  configure_dialog_spinbox(exposure);
+  form->addRow(QObject::tr("Exposure"), exposure);
+  auto* gamma = new QDoubleSpinBox(&dialog);
+  gamma->setObjectName(QStringLiteral("hdrToningGammaSpin"));
+  gamma->setRange(0.1, 9.99);
+  gamma->setDecimals(2);
+  gamma->setSingleStep(0.01);
+  gamma->setValue(1.0);
+  configure_dialog_spinbox(gamma);
+  form->addRow(QObject::tr("Gamma"), gamma);
+  layout->addLayout(form);
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+  layout->addWidget(buttons);
+  QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+  if (exec_dialog(dialog) != QDialog::Accepted) {
+    return std::nullopt;
+  }
+  return HdrToning{exposure->value(), gamma->value()};
+}
+
 // Recursion helpers for palette-mode document walks: groups recurse, adjustment
 // layers have no pixels of their own, everything else with a color buffer counts.
 // layer_converted (optional) fires after each converted layer so long operations
@@ -999,6 +1044,7 @@ void MainWindow::refresh_palette_panel() {
   refresh_palette_mode_chip();
   refresh_color_buttons();
   refresh_bit_depth_actions();
+  refresh_hdr_exposure_control();
 }
 
 void MainWindow::refresh_bit_depth_actions() {
@@ -1053,7 +1099,18 @@ void MainWindow::convert_document_bit_depth(BitDepth depth) {
   const auto label = depth == BitDepth::UInt8    ? tr("8 Bits/Channel")
                      : depth == BitDepth::UInt16 ? tr("16 Bits/Channel")
                                                  : tr("32 Bits/Channel");
+  std::optional<HdrToning> toning;
+  if (current == BitDepth::Float32) {
+    toning = request_hdr_toning(this);
+    if (!toning.has_value()) {
+      refresh_bit_depth_actions();
+      return;
+    }
+  }
   push_undo_snapshot(label);
+  if (toning.has_value()) {
+    tone_map_linear_document(doc, toning->exposure, toning->gamma);
+  }
   convert_document_depth(doc, depth);
   if (canvas_ != nullptr) {
     canvas_->document_changed();
@@ -1061,7 +1118,24 @@ void MainWindow::convert_document_bit_depth(BitDepth depth) {
   refresh_layer_list();
   refresh_document_info();
   refresh_bit_depth_actions();
+  refresh_hdr_exposure_control();
+  update_document_action_state();
   statusBar()->showMessage(tr("Converted to %1").arg(label));
+}
+
+void MainWindow::refresh_hdr_exposure_control() {
+  if (hdr_exposure_spin_ == nullptr) {
+    return;
+  }
+  const bool shown =
+      has_active_document() && std::as_const(document()).color_state().bit_depth == BitDepth::Float32;
+  hdr_exposure_spin_->setVisible(shown);
+  if (!shown) {
+    return;
+  }
+  hdr_exposure_spin_->setPrefix(tr("Exposure: "));
+  const QSignalBlocker blocker(hdr_exposure_spin_);
+  hdr_exposure_spin_->setValue(std::as_const(document()).color_state().view_exposure_stops);
 }
 
 void MainWindow::refresh_palette_mode_chip() {

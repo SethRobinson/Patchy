@@ -2693,29 +2693,10 @@ void radial_blur_write_pixel(PixelBuffer &pixels, std::int32_t x,
     return input;
   }
   auto result = input;
-  const auto range =
-      std::clamp(amount_percent, kMinimumAddNoiseAmount, kMaximumAddNoiseAmount) *
-      2.55;
-  const auto lane_base =
-      static_cast<std::uint32_t>(
-          std::clamp(seed, kMinimumAddNoiseSeed, kMaximumAddNoiseSeed)) *
-      16U;
-  const auto unit_from_hash = [](std::uint32_t hash) {
-    return static_cast<double>(hash) * (2.0 / 4294967295.0) - 1.0;
-  };
   const auto delta_for_lane = [&](std::int32_t x, std::int32_t y,
                                   std::uint32_t lane) {
-    if (!gaussian) {
-      return std::lround(
-          unit_from_hash(add_noise_hash(x, y, lane_base + lane * 4U)) * range);
-    }
-    // Sum of four uniforms: a deterministic gaussian approximation with no
-    // transcendental calls (those vary across toolchains).
-    double sum = 0.0;
-    for (std::uint32_t sample = 1; sample <= 4U; ++sample) {
-      sum += unit_from_hash(add_noise_hash(x, y, lane_base + lane * 4U + sample));
-    }
-    return std::lround(sum * 0.5 * range);
+    return std::lround(
+        add_noise_delta(x, y, seed, lane, amount_percent, gaussian));
   };
   const auto clamp_byte = [](long value) {
     return static_cast<std::uint8_t>(std::clamp(value, 0L, 255L));
@@ -2970,6 +2951,75 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
 }
 
 } // namespace
+
+void filter_plane_with_photoshop_kernel(std::vector<float> &plane,
+                                        std::int32_t width,
+                                        std::int32_t height, double radius,
+                                        PhotoshopLineKernel kernel) {
+  if (width <= 0 || height <= 0 ||
+      plane.size() != static_cast<std::size_t>(width) *
+                          static_cast<std::size_t>(height)) {
+    return;
+  }
+  const auto margin =
+      static_cast<int>(std::ceil(kGaussianMarginScale * radius));
+  const auto plan =
+      kernel == PhotoshopLineKernel::HighPass
+          ? make_high_pass_line_plan(radius, margin)
+          : kernel == PhotoshopLineKernel::Unsharp
+                ? make_unsharp_line_plan(radius, margin)
+                : make_gaussian_line_plan(radius, margin);
+  std::vector<double> values(static_cast<std::size_t>(width));
+  std::vector<double> scratch;
+  for (std::int32_t y = 0; y < height; ++y) {
+    auto *row = plane.data() + static_cast<std::size_t>(y) *
+                                   static_cast<std::size_t>(width);
+    std::copy(row, row + width, values.begin());
+    filter_gaussian_line(values, scratch, plan);
+    for (std::int32_t x = 0; x < width; ++x) {
+      row[x] = static_cast<float>(values[static_cast<std::size_t>(x)]);
+    }
+  }
+  values.resize(static_cast<std::size_t>(height));
+  for (std::int32_t x = 0; x < width; ++x) {
+    for (std::int32_t y = 0; y < height; ++y) {
+      values[static_cast<std::size_t>(y)] =
+          plane[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
+                static_cast<std::size_t>(x)];
+    }
+    filter_gaussian_line(values, scratch, plan);
+    for (std::int32_t y = 0; y < height; ++y) {
+      plane[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
+            static_cast<std::size_t>(x)] =
+          static_cast<float>(values[static_cast<std::size_t>(y)]);
+    }
+  }
+}
+
+double add_noise_delta(std::int32_t x, std::int32_t y, std::int32_t seed,
+                       std::uint32_t lane, double amount_percent,
+                       bool gaussian) noexcept {
+  const auto range = std::clamp(amount_percent, kMinimumAddNoiseAmount,
+                                kMaximumAddNoiseAmount) *
+                     2.55;
+  const auto lane_base =
+      static_cast<std::uint32_t>(
+          std::clamp(seed, kMinimumAddNoiseSeed, kMaximumAddNoiseSeed)) *
+      16U;
+  const auto unit_from_hash = [](std::uint32_t hash) {
+    return static_cast<double>(hash) * (2.0 / 4294967295.0) - 1.0;
+  };
+  if (!gaussian) {
+    return unit_from_hash(add_noise_hash(x, y, lane_base + lane * 4U)) * range;
+  }
+  // Sum of four uniforms: a deterministic gaussian approximation with no
+  // transcendental calls (those vary across toolchains).
+  double sum = 0.0;
+  for (std::uint32_t sample = 1; sample <= 4U; ++sample) {
+    sum += unit_from_hash(add_noise_hash(x, y, lane_base + lane * 4U + sample));
+  }
+  return sum * 0.5 * range;
+}
 
 FilterRenderResult render_photoshop_gaussian_blur(
     const PixelBuffer &pixels, Rect bounds, double radius_pixels,

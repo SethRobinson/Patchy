@@ -23,6 +23,17 @@ namespace patchy {
 // PSD reader has always used). Layer revisions bump, so render caches refresh.
 void convert_document_depth(Document& document, BitDepth depth);
 
+// HDR toning for a 32-bit document about to convert to 16 or 8 bits, Photoshop's
+// Exposure and Gamma method: every color sample of every 32-bit layer tree becomes
+// (v * 2^exposure)^(1 / gamma) in linear light (negatives clamp to 0). Masks, channels
+// and alpha are untouched. Exposure 0 and gamma 1 change nothing; other documents are
+// left alone.
+void tone_map_linear_document(Document& document, double exposure_stops, double gamma);
+
+// One layer tree's buffers (pixels, masks, smart filter masks) converted to `depth` by
+// the same rules: for a layer entering a document of another depth.
+void convert_layer_depth(Layer& layer, BitDepth depth);
+
 // Buffers that break the invariant above, one plain description each ("layer
 // 'Name' is 8-bit"); empty when the document is consistent. For tests and debug
 // checks.

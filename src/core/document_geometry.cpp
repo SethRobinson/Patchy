@@ -9,6 +9,7 @@
 #include "core/blend_math.hpp"
 #include "core/document_path.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/pixel_depth.hpp"
 #include "core/pixel_tools_internal.hpp"
 #include "core/rect_utils.hpp"
 #include "core/resample.hpp"
@@ -30,6 +31,58 @@
 namespace patchy {
 
 namespace {
+
+// Any-depth buffer helpers (docs/high-bit-depth.md): pixels move as whole pixels
+// (bytes_per_pixel), never one byte per channel, and new buffers take the source's
+// format, so a 16 or 32-bit mask or channel stays at its depth.
+PixelBuffer copy_buffer_region(const PixelBuffer& source, std::int32_t x, std::int32_t y, std::int32_t width,
+                               std::int32_t height) {
+  PixelBuffer region(width, height, source.format());
+  const auto pixel_bytes = bytes_per_pixel(source.format());
+  for (std::int32_t row = 0; row < height; ++row) {
+    const auto from = source.row(y + row).subspan(static_cast<std::size_t>(x) * pixel_bytes,
+                                                  static_cast<std::size_t>(width) * pixel_bytes);
+    auto to = region.row(row);
+    std::copy(from.begin(), from.end(), to.begin());
+  }
+  return region;
+}
+
+PixelBuffer rotated_buffer_clockwise(const PixelBuffer& source) {
+  PixelBuffer rotated(source.height(), source.width(), source.format());
+  const auto pixel_bytes = bytes_per_pixel(source.format());
+  for (std::int32_t y = 0; y < source.height(); ++y) {
+    for (std::int32_t x = 0; x < source.width(); ++x) {
+      const auto* src = source.pixel(x, y);
+      std::copy(src, src + pixel_bytes, rotated.pixel(source.height() - 1 - y, x));
+    }
+  }
+  return rotated;
+}
+
+PixelBuffer rotated_buffer_counterclockwise(const PixelBuffer& source) {
+  PixelBuffer rotated(source.height(), source.width(), source.format());
+  const auto pixel_bytes = bytes_per_pixel(source.format());
+  for (std::int32_t y = 0; y < source.height(); ++y) {
+    for (std::int32_t x = 0; x < source.width(); ++x) {
+      const auto* src = source.pixel(x, y);
+      std::copy(src, src + pixel_bytes, rotated.pixel(y, source.width() - 1 - x));
+    }
+  }
+  return rotated;
+}
+
+// Every sample of a single-channel buffer set to `value` (0..255 coverage) at its depth.
+void fill_coverage(PixelBuffer& buffer, std::uint8_t value) {
+  if (buffer.format().bit_depth == BitDepth::UInt8 || buffer.empty()) {
+    buffer.clear(value);
+    return;
+  }
+  const std::vector<float> row(static_cast<std::size_t>(buffer.width()), static_cast<float>(value));
+  for (std::int32_t y = 0; y < buffer.height(); ++y) {
+    store_coverage_row(buffer, y, 0, buffer.width(), row);
+  }
+}
 
 void crop_layer_mask_to_rect(Layer& layer, Rect crop);
 void rotate_layer_mask_clockwise(Layer& layer, std::int32_t document_height);
@@ -96,18 +149,7 @@ void rotate_layer_clockwise(Layer& layer, std::int32_t document_height) {
     return;
   }
 
-  auto& old_pixels = layer.pixels();
-  PixelBuffer rotated(old_pixels.height(), old_pixels.width(), old_pixels.format());
-  const auto channels = old_pixels.format().channels;
-  for (std::int32_t y = 0; y < old_pixels.height(); ++y) {
-    for (std::int32_t x = 0; x < old_pixels.width(); ++x) {
-      const auto* src = old_pixels.pixel(x, y);
-      auto* dst = rotated.pixel(old_pixels.height() - 1 - y, x);
-      std::copy(src, src + channels, dst);
-    }
-  }
-
-  layer.set_pixels(std::move(rotated));
+  layer.set_pixels(rotated_buffer_clockwise(std::as_const(layer).pixels()));
   layer.set_bounds(Rect{document_height - old_bounds.y - old_bounds.height, old_bounds.x, old_bounds.height,
                         old_bounds.width});
 }
@@ -129,18 +171,7 @@ void rotate_layer_counterclockwise(Layer& layer, std::int32_t document_width) {
     return;
   }
 
-  auto& old_pixels = layer.pixels();
-  PixelBuffer rotated(old_pixels.height(), old_pixels.width(), old_pixels.format());
-  const auto channels = old_pixels.format().channels;
-  for (std::int32_t y = 0; y < old_pixels.height(); ++y) {
-    for (std::int32_t x = 0; x < old_pixels.width(); ++x) {
-      const auto* src = old_pixels.pixel(x, y);
-      auto* dst = rotated.pixel(y, old_pixels.width() - 1 - x);
-      std::copy(src, src + channels, dst);
-    }
-  }
-
-  layer.set_pixels(std::move(rotated));
+  layer.set_pixels(rotated_buffer_counterclockwise(std::as_const(layer).pixels()));
   layer.set_bounds(Rect{old_bounds.y, document_width - old_bounds.x - old_bounds.width, old_bounds.height,
                         old_bounds.width});
 }
@@ -187,21 +218,12 @@ void crop_layer_mask_to_rect(Layer& layer, Rect crop) {
   const auto intersection = intersect_rect(old_bounds, crop);
   if (intersection.empty()) {
     mask->bounds = {};
-    mask->pixels = PixelBuffer(0, 0, PixelFormat::gray8());
+    mask->pixels = PixelBuffer(0, 0, mask->pixels.format());
     return;
   }
 
-  PixelBuffer cropped(intersection.width, intersection.height, PixelFormat::gray8());
-  for (std::int32_t y = 0; y < intersection.height; ++y) {
-    const auto source_y = intersection.y - old_bounds.y + y;
-    const auto source_x = intersection.x - old_bounds.x;
-    auto source = mask->pixels.row(source_y).subspan(static_cast<std::size_t>(source_x),
-                                                     static_cast<std::size_t>(intersection.width));
-    auto destination = cropped.row(y);
-    std::copy(source.begin(), source.end(), destination.begin());
-  }
-
-  mask->pixels = std::move(cropped);
+  mask->pixels = copy_buffer_region(std::as_const(mask->pixels), intersection.x - old_bounds.x,
+                                    intersection.y - old_bounds.y, intersection.width, intersection.height);
   mask->bounds = Rect{intersection.x - crop.x, intersection.y - crop.y, intersection.width, intersection.height};
 }
 
@@ -212,14 +234,7 @@ void rotate_layer_mask_clockwise(Layer& layer, std::int32_t document_height) {
   }
 
   const auto old_bounds = mask->bounds;
-  PixelBuffer rotated(mask->pixels.height(), mask->pixels.width(), PixelFormat::gray8());
-  for (std::int32_t y = 0; y < mask->pixels.height(); ++y) {
-    for (std::int32_t x = 0; x < mask->pixels.width(); ++x) {
-      *rotated.pixel(mask->pixels.height() - 1 - y, x) = *mask->pixels.pixel(x, y);
-    }
-  }
-
-  mask->pixels = std::move(rotated);
+  mask->pixels = rotated_buffer_clockwise(std::as_const(mask->pixels));
   mask->bounds = Rect{document_height - old_bounds.y - old_bounds.height, old_bounds.x, old_bounds.height,
                       old_bounds.width};
 }
@@ -231,14 +246,7 @@ void rotate_layer_mask_counterclockwise(Layer& layer, std::int32_t document_widt
   }
 
   const auto old_bounds = mask->bounds;
-  PixelBuffer rotated(mask->pixels.height(), mask->pixels.width(), PixelFormat::gray8());
-  for (std::int32_t y = 0; y < mask->pixels.height(); ++y) {
-    for (std::int32_t x = 0; x < mask->pixels.width(); ++x) {
-      *rotated.pixel(y, mask->pixels.width() - 1 - x) = *mask->pixels.pixel(x, y);
-    }
-  }
-
-  mask->pixels = std::move(rotated);
+  mask->pixels = rotated_buffer_counterclockwise(std::as_const(mask->pixels));
   mask->bounds = Rect{old_bounds.y, document_width - old_bounds.x - old_bounds.width, old_bounds.height,
                       old_bounds.width};
 }
@@ -344,21 +352,12 @@ void shift_layer_mask_to_canvas(Layer& layer, CanvasResizeOffset offset, std::in
   const auto clipped = intersect_rect(shifted_bounds, Rect{0, 0, width, height});
   if (clipped.empty() || mask->pixels.empty()) {
     mask->bounds = {};
-    mask->pixels = PixelBuffer(0, 0, PixelFormat::gray8());
+    mask->pixels = PixelBuffer(0, 0, mask->pixels.format());
     return;
   }
 
-  PixelBuffer shifted(clipped.width, clipped.height, PixelFormat::gray8());
-  for (std::int32_t y = 0; y < clipped.height; ++y) {
-    const auto source_y = clipped.y - shifted_bounds.y + y;
-    const auto source_x = clipped.x - shifted_bounds.x;
-    const auto source =
-        mask->pixels.row(source_y).subspan(static_cast<std::size_t>(source_x), static_cast<std::size_t>(clipped.width));
-    auto destination = shifted.row(y);
-    std::copy(source.begin(), source.end(), destination.begin());
-  }
-
-  mask->pixels = std::move(shifted);
+  mask->pixels = copy_buffer_region(std::as_const(mask->pixels), clipped.x - shifted_bounds.x,
+                                    clipped.y - shifted_bounds.y, clipped.width, clipped.height);
   mask->bounds = clipped;
 }
 
@@ -508,6 +507,12 @@ void sample_rotated_crop_pixels(const PixelBuffer& source, Rect source_bounds, P
   }
   const auto bilinear = source.format().bit_depth == BitDepth::UInt8 &&
                         destination.format().bit_depth == BitDepth::UInt8;
+  const auto deep = source.format().bit_depth != BitDepth::UInt8 &&
+                    source.format().bit_depth == destination.format().bit_depth &&
+                    (source.format().channels >= 3) == (destination.format().channels >= 3);
+  const auto gray = source.format().channels < 3;
+  const auto domain =
+      source.format().bit_depth == BitDepth::Float32 ? DeepDomain::Linear : DeepDomain::Encoded;
   const auto source_channels = source.format().channels;
   const auto destination_channels = destination.format().channels;
   const auto shared_channels = std::min(source_channels, destination_channels);
@@ -525,6 +530,39 @@ void sample_rotated_crop_pixels(const PixelBuffer& source, Rect source_bounds, P
         continue;
       }
       auto* dst = destination.pixel(x, y);
+      if (deep) {
+        // 16/32-bit: bilinear on float samples in the buffer's own domain, so no
+        // transfer is applied (Encoded for 16 bits, Linear for 32).
+        const auto sample_x = local_x - 0.5;
+        const auto sample_y = local_y - 0.5;
+        const auto x0 = std::clamp(static_cast<std::int32_t>(std::floor(sample_x)), 0, source.width() - 1);
+        const auto x1 = std::clamp(x0 + 1, 0, source.width() - 1);
+        const auto tx = static_cast<float>(std::clamp(sample_x - static_cast<double>(x0), 0.0, 1.0));
+        const auto y0 = std::clamp(static_cast<std::int32_t>(std::floor(sample_y)), 0, source.height() - 1);
+        const auto y1 = std::clamp(y0 + 1, 0, source.height() - 1);
+        const auto ty = static_cast<float>(std::clamp(sample_y - static_cast<double>(y0), 0.0, 1.0));
+        std::array<float, 4> corners[4]{};
+        const std::array<std::pair<std::int32_t, std::int32_t>, 4> at{{{x0, y0}, {x1, y0}, {x0, y1}, {x1, y1}}};
+        for (std::size_t i = 0; i < 4U; ++i) {
+          if (gray) {
+            load_coverage_row(source, at[i].second, at[i].first, 1, std::span<float>(corners[i]).first(1));
+          } else {
+            load_rgba_row(source, at[i].second, at[i].first, 1, domain, corners[i]);
+          }
+        }
+        std::array<float, 4> mixed{};
+        for (std::size_t c = 0; c < 4U; ++c) {
+          const auto top = corners[0][c] * (1.0F - tx) + corners[1][c] * tx;
+          const auto bottom = corners[2][c] * (1.0F - tx) + corners[3][c] * tx;
+          mixed[c] = top * (1.0F - ty) + bottom * ty;
+        }
+        if (gray) {
+          store_coverage_row(destination, y, x, 1, std::span<const float>(mixed).first(1));
+        } else {
+          store_rgba_row(destination, y, x, 1, domain, mixed);
+        }
+        continue;
+      }
       if (!bilinear) {
         const auto sx = std::clamp(static_cast<std::int32_t>(local_x), 0, source.width() - 1);
         const auto sy = std::clamp(static_cast<std::int32_t>(local_y), 0, source.height() - 1);
@@ -567,11 +605,11 @@ void crop_layer_mask_rotated(Layer& layer, Rect crop, const RotatedCropMap& map)
   const auto destination_bounds = intersect_rect(rotated_crop_bounds(mask->bounds, map), result_canvas);
   if (destination_bounds.empty() || mask->pixels.empty()) {
     mask->bounds = {};
-    mask->pixels = PixelBuffer(0, 0, PixelFormat::gray8());
+    mask->pixels = PixelBuffer(0, 0, mask->pixels.format());
     return;
   }
-  PixelBuffer rotated(destination_bounds.width, destination_bounds.height, PixelFormat::gray8());
-  rotated.clear(mask->default_color);
+  PixelBuffer rotated(destination_bounds.width, destination_bounds.height, mask->pixels.format());
+  fill_coverage(rotated, mask->default_color);
   sample_rotated_crop_pixels(mask->pixels, mask->bounds, rotated, destination_bounds, map);
   mask->pixels = std::move(rotated);
   mask->bounds = destination_bounds;
@@ -596,8 +634,7 @@ void crop_layer_to_rect_rotated(Layer& layer, Rect crop, const RotatedCropMap& m
 
   const auto old_bounds = layer.bounds();
   const auto& source = std::as_const(layer).pixels();
-  if (layer.name() == "Background" && source.format().bit_depth == BitDepth::UInt8 &&
-      source.format().channels >= 3) {
+  if (layer.name() == "Background" && source.format().channels >= 3) {
     // Canvas-sized rebuild with the canvas-resize fill rules under the exposed
     // corners, mirroring the expanding path.
     PixelBuffer rotated(crop.width, crop.height, canvas_resized_format_for_layer(layer, source, extension_color));
@@ -627,8 +664,8 @@ void crop_layer_to_rect_rotated(Layer& layer, Rect crop, const RotatedCropMap& m
 
 void crop_document_channel_rotated(DocumentChannel& channel, Rect crop, const RotatedCropMap& map) {
   const auto& source = std::as_const(channel).pixels();
-  PixelBuffer rotated(crop.width, crop.height, PixelFormat::gray8());
-  rotated.clear(channel.kind() == DocumentChannelKind::Spot ? 255 : 0);
+  PixelBuffer rotated(crop.width, crop.height, source.format());
+  fill_coverage(rotated, channel.kind() == DocumentChannelKind::Spot ? 255 : 0);
   sample_rotated_crop_pixels(source, Rect{0, 0, source.width(), source.height()}, rotated,
                              Rect::from_size(crop.width, crop.height), map);
   channel.set_pixels(std::move(rotated));
@@ -749,8 +786,9 @@ void resize_document_channel_image(DocumentChannel& channel, std::int32_t width,
 void resize_document_channel_canvas(DocumentChannel& channel, std::int32_t width, std::int32_t height,
                                     CanvasResizeOffset offset) {
   const auto& source = std::as_const(channel).pixels();
-  PixelBuffer resized(width, height, PixelFormat::gray8());
-  resized.clear(channel.kind() == DocumentChannelKind::Spot ? 255 : 0);
+  PixelBuffer resized(width, height, source.format());
+  fill_coverage(resized, channel.kind() == DocumentChannelKind::Spot ? 255 : 0);
+  const auto pixel_bytes = bytes_per_pixel(source.format());
   for (std::int32_t source_y = 0; source_y < source.height(); ++source_y) {
     const auto destination_y = source_y + offset.y;
     if (destination_y < 0 || destination_y >= height) {
@@ -761,44 +799,23 @@ void resize_document_channel_canvas(DocumentChannel& channel, std::int32_t width
       if (destination_x < 0 || destination_x >= width) {
         continue;
       }
-      *resized.pixel(destination_x, destination_y) = *source.pixel(source_x, source_y);
+      const auto* src = source.pixel(source_x, source_y);
+      std::copy(src, src + pixel_bytes, resized.pixel(destination_x, destination_y));
     }
   }
   channel.set_pixels(std::move(resized));
 }
 
 void crop_document_channel(DocumentChannel& channel, Rect crop) {
-  const auto& source = std::as_const(channel).pixels();
-  PixelBuffer cropped(crop.width, crop.height, PixelFormat::gray8());
-  for (std::int32_t y = 0; y < crop.height; ++y) {
-    const auto source_row = source.row(crop.y + y).subspan(static_cast<std::size_t>(crop.x),
-                                                           static_cast<std::size_t>(crop.width));
-    auto destination_row = cropped.row(y);
-    std::copy(source_row.begin(), source_row.end(), destination_row.begin());
-  }
-  channel.set_pixels(std::move(cropped));
+  channel.set_pixels(copy_buffer_region(std::as_const(channel).pixels(), crop.x, crop.y, crop.width, crop.height));
 }
 
 void rotate_document_channel_clockwise(DocumentChannel& channel) {
-  const auto& source = std::as_const(channel).pixels();
-  PixelBuffer rotated(source.height(), source.width(), PixelFormat::gray8());
-  for (std::int32_t y = 0; y < source.height(); ++y) {
-    for (std::int32_t x = 0; x < source.width(); ++x) {
-      *rotated.pixel(source.height() - 1 - y, x) = *source.pixel(x, y);
-    }
-  }
-  channel.set_pixels(std::move(rotated));
+  channel.set_pixels(rotated_buffer_clockwise(std::as_const(channel).pixels()));
 }
 
 void rotate_document_channel_counterclockwise(DocumentChannel& channel) {
-  const auto& source = std::as_const(channel).pixels();
-  PixelBuffer rotated(source.height(), source.width(), PixelFormat::gray8());
-  for (std::int32_t y = 0; y < source.height(); ++y) {
-    for (std::int32_t x = 0; x < source.width(); ++x) {
-      *rotated.pixel(y, source.width() - 1 - x) = *source.pixel(x, y);
-    }
-  }
-  channel.set_pixels(std::move(rotated));
+  channel.set_pixels(rotated_buffer_counterclockwise(std::as_const(channel).pixels()));
 }
 
 }  // namespace
@@ -981,25 +998,13 @@ void transform_document_vector_data(Document& document, const std::array<double,
 }
 
 Rect flip_layer_horizontal(Document& document, LayerId layer_id) {
-  auto* layer = editable_layer(document, layer_id);
+  auto* layer = pixel_layer_any_depth(document, layer_id);
   if (layer == nullptr) {
     return {};
   }
 
-  auto& pixels = layer->pixels();
-  const auto channels = pixels.format().channels;
   const auto bounds = layer->bounds();
-  std::vector<std::uint8_t> temp(channels);
-  for (std::int32_t y = 0; y < pixels.height(); ++y) {
-    auto row = pixels.row(y);
-    for (std::int32_t x = 0; x < pixels.width() / 2; ++x) {
-      auto* left = row.data() + static_cast<std::size_t>(x) * channels;
-      auto* right = row.data() + static_cast<std::size_t>(pixels.width() - 1 - x) * channels;
-      std::copy(left, left + channels, temp.begin());
-      std::copy(right, right + channels, left);
-      std::copy(temp.begin(), temp.end(), right);
-    }
-  }
+  flip_pixels_horizontal(layer->pixels());
   flip_layer_mask_horizontal(*layer, bounds);
   const double center_x = bounds.x + bounds.width / 2.0;
   compose_text_layer_transform(*layer, {-1.0, 0.0, 0.0, 1.0, 2.0 * center_x, 0.0});
@@ -1009,7 +1014,7 @@ Rect flip_layer_horizontal(Document& document, LayerId layer_id) {
 }
 
 Rect flip_layer_vertical(Document& document, LayerId layer_id) {
-  auto* layer = editable_layer(document, layer_id);
+  auto* layer = pixel_layer_any_depth(document, layer_id);
   if (layer == nullptr) {
     return {};
   }
@@ -1321,17 +1326,21 @@ void wrap_offset_layer_mask(Layer& layer, std::int32_t width, std::int32_t heigh
   if (!mask.has_value()) {
     return;
   }
-  PixelBuffer plane(width, height, PixelFormat::gray8());
-  plane.clear(mask->default_color);
+  PixelBuffer plane(width, height, mask->pixels.format());
+  fill_coverage(plane, mask->default_color);
   if (!mask->pixels.empty()) {
+    const auto pixel_bytes = bytes_per_pixel(mask->pixels.format());
     const auto intersection = intersect_rect(mask->bounds, Rect{0, 0, width, height});
     for (std::int32_t y = 0; y < intersection.height; ++y) {
       const auto source_row =
-          mask->pixels.row(intersection.y - mask->bounds.y + y)
-              .subspan(static_cast<std::size_t>(intersection.x - mask->bounds.x),
-                       static_cast<std::size_t>(intersection.width));
-      auto destination_row = plane.row(intersection.y + y).subspan(static_cast<std::size_t>(intersection.x),
-                                                                   static_cast<std::size_t>(intersection.width));
+          std::as_const(mask->pixels)
+              .row(intersection.y - mask->bounds.y + y)
+              .subspan(static_cast<std::size_t>(intersection.x - mask->bounds.x) * pixel_bytes,
+                       static_cast<std::size_t>(intersection.width) * pixel_bytes);
+      auto destination_row =
+          plane.row(intersection.y + y)
+              .subspan(static_cast<std::size_t>(intersection.x) * pixel_bytes,
+                       static_cast<std::size_t>(intersection.width) * pixel_bytes);
       std::copy(source_row.begin(), source_row.end(), destination_row.begin());
     }
   }

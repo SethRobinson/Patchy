@@ -1,6 +1,8 @@
 #include "ui/filter_workflows.hpp"
 #include "ui/measurement_units.hpp"
 
+#include "core/adjustment_deep.hpp"
+#include "core/pixel_depth.hpp"
 #include "core/rect_utils.hpp"
 #include "core/worker_budget.hpp"
 #include "formats/acv_curves_io.hpp"
@@ -13,6 +15,7 @@
 #include "ui/filter_parameter_panel.hpp"
 #include "ui/filter_preview_proxy.hpp"
 #include "ui/filter_workflows_internal.hpp"
+#include "ui/main_window_shared.hpp"
 #include "ui/zoomable_image_preview.hpp"
 #include "ui/theme_qss.hpp"
 #include "ui/localization.hpp"
@@ -1083,9 +1086,51 @@ bool editable_rgb8_layer(const Layer* layer) {
          layer->pixels().format().channels >= 3;
 }
 
+bool editable_rgb_layer_any_depth(const Layer* layer) {
+  return layer != nullptr && layer->kind() == LayerKind::Pixel && std::as_const(*layer).pixels().format().channels >= 3;
+}
+
+namespace {
+
+// 16/32-bit destructive adjustments (docs/high-bit-depth.md): the adjustment layer's
+// Photoshop-calibrated deep transfer (DeepAdjuster) on every selected pixel, in the
+// buffer's own domain (32-bit Levels and Curves work on linear values, as in Photoshop);
+// alpha is left untouched.
+void apply_adjustment_to_deep_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& selection,
+                                     const AdjustmentSettings& settings, const FilterProgress* progress) {
+  const auto format = pixels.format();
+  const DeepAdjuster adjuster(settings, format.bit_depth == BitDepth::Float32 ? DeepDomain::Linear
+                                                                               : DeepDomain::Encoded);
+  const auto pixel_bytes = bytes_per_pixel(format);
+  const auto apply_span = [&](std::int32_t y, std::int32_t x_begin, std::int32_t x_end) {
+    auto* px = pixels.row(y).data() + static_cast<std::size_t>(x_begin) * pixel_bytes;
+    for (std::int32_t x = x_begin; x < x_end; ++x, px += pixel_bytes) {
+      auto value = load_pixel(format, px);
+      const auto adjusted = adjuster.apply({value[0], value[1], value[2]});
+      value[0] = adjusted[0];
+      value[1] = adjusted[1];
+      value[2] = adjusted[2];
+      store_pixel(format, px, value);
+    }
+  };
+  if (apply_row_spans_in_parallel(pixels, selection, progress, apply_span)) {
+    return;
+  }
+  for_each_selected_row_span(pixels, bounds, selection, progress, apply_span);
+}
+
+}  // namespace
+
 void apply_levels_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& selection, LevelsSettings settings,
                             const FilterProgress* progress) {
   settings = clamp_levels_settings(settings);
+  if (pixels.format().bit_depth != BitDepth::UInt8) {
+    AdjustmentSettings adjustment;
+    adjustment.kind = AdjustmentKind::Levels;
+    adjustment.levels = sanitized_levels_adjustment(settings);
+    apply_adjustment_to_deep_pixels(pixels, bounds, selection, adjustment, progress);
+    return;
+  }
   const auto luts = build_levels_luts(settings);
   const auto pixel_bytes = bytes_per_pixel(pixels.format());
 
@@ -1106,6 +1151,13 @@ void apply_levels_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& sel
 
 void apply_curves_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegion& selection, CurvesSettings settings,
                             const FilterProgress* progress) {
+  if (pixels.format().bit_depth != BitDepth::UInt8) {
+    AdjustmentSettings adjustment;
+    adjustment.kind = AdjustmentKind::Curves;
+    adjustment.curves = settings;
+    apply_adjustment_to_deep_pixels(pixels, bounds, selection, adjustment, progress);
+    return;
+  }
   const auto lut = build_curves_lut(settings);
 
   for_each_selected_pixel(pixels, bounds, selection, progress, [&](std::int32_t x, std::int32_t y) {
@@ -1127,6 +1179,10 @@ void apply_hue_saturation_to_pixels(PixelBuffer& pixels, Rect bounds, const QReg
   AdjustmentSettings adjustment;
   adjustment.kind = AdjustmentKind::HueSaturation;
   adjustment.hue_saturation = to_hue_saturation_adjustment(settings);
+  if (pixels.format().bit_depth != BitDepth::UInt8) {
+    apply_adjustment_to_deep_pixels(pixels, bounds, selection, adjustment, progress);
+    return;
+  }
   const auto pixel_bytes = bytes_per_pixel(pixels.format());
 
   const auto apply_span = [&](std::int32_t y, std::int32_t x_begin, std::int32_t x_end) {
@@ -1154,6 +1210,25 @@ void apply_color_balance_to_pixels(PixelBuffer& pixels, Rect bounds, const QRegi
   const auto green_delta =
       static_cast<int>(std::round(static_cast<double>(settings.magenta_green) * 255.0 / 100.0));
   const auto blue_delta = static_cast<int>(std::round(static_cast<double>(settings.yellow_blue) * 255.0 / 100.0));
+  if (pixels.format().bit_depth != BitDepth::UInt8) {
+    // 16/32-bit: the same per-channel offsets on display-encoded values.
+    const auto format = pixels.format();
+    const bool linear = format.bit_depth == BitDepth::Float32;
+    const std::array<float, 3> deltas{static_cast<float>(red_delta), static_cast<float>(green_delta),
+                                      static_cast<float>(blue_delta)};
+    for_each_selected_pixel(pixels, bounds, selection, progress, [&](std::int32_t x, std::int32_t y) {
+      auto* px = pixels.pixel(x, y);
+      auto value = load_pixel(format, px);
+      for (std::size_t c = 0; c < 3U; ++c) {
+        const auto encoded = linear ? static_cast<float>(srgb_encode(static_cast<double>(value[c]) / 255.0) * 255.0)
+                                    : value[c];
+        const auto shifted = std::clamp(encoded + deltas[c], 0.0F, 255.0F);
+        value[c] = linear ? static_cast<float>(srgb_decode(static_cast<double>(shifted) / 255.0) * 255.0) : shifted;
+      }
+      store_pixel(format, px, value);
+    });
+    return;
+  }
 
   for_each_selected_pixel(pixels, bounds, selection, progress, [&](std::int32_t x, std::int32_t y) {
     auto* px = pixels.pixel(x, y);

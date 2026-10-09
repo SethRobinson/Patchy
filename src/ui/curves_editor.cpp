@@ -1,5 +1,6 @@
 #include "ui/curves_editor.hpp"
 
+#include "core/pixel_depth.hpp"
 #include "ui/dialog_utils.hpp"
 
 #include <QFocusEvent>
@@ -111,6 +112,13 @@ const std::array<std::uint32_t, 256>& histogram_for_channel(const CurvesHistogra
 CurvesHistograms curves_histograms_from_pixels(const PixelBuffer* source,
                                                std::span<const std::uint8_t> external_alpha) {
   CurvesHistograms result;
+  if (source != nullptr && !source->empty() && source->format().bit_depth != BitDepth::UInt8 &&
+      source->format().channels >= 3) {
+    // 16/32-bit sources (docs/high-bit-depth.md): 256 bins of the display values, as
+    // Photoshop's deep histograms show.
+    const auto narrowed = convert_pixel_buffer_depth(*source, BitDepth::UInt8, SampleKind::Color);
+    return curves_histograms_from_pixels(&narrowed, external_alpha);
+  }
   if (source == nullptr || source->empty() || source->format().bit_depth != BitDepth::UInt8 ||
       source->format().channels < 3) {
     return result;

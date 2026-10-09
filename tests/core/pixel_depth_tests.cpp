@@ -5,10 +5,15 @@
 #include "core/document.hpp"
 #include "core/document_depth.hpp"
 #include "core/pixel_depth.hpp"
+#include "core/pixel_tools.hpp"
 #include "core/smart_filter.hpp"
 #include "support/srgb_transfer.hpp"
 #include "test_harness.hpp"
 
+#include <algorithm>
+#include <functional>
+#include <iostream>
+#include <string>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -267,12 +272,234 @@ void display_bytes_match_the_8_bit_reading_at_every_depth() {
   }
 }
 
+// A document with an opaque Background, a translucent layer with a gradient mask, and a
+// saved channel: every buffer the geometry operations move.
+Document geometry_document() {
+  Document document(24, 16, PixelFormat::rgb8());
+  PixelBuffer background(24, 16, PixelFormat::rgb8());
+  PixelBuffer top(20, 12, PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < 16; ++y) {
+    for (std::int32_t x = 0; x < 24; ++x) {
+      auto* b = background.pixel(x, y);
+      b[0] = static_cast<std::uint8_t>(x * 10);
+      b[1] = static_cast<std::uint8_t>(y * 15);
+      b[2] = static_cast<std::uint8_t>((x + y) * 5);
+      if (x < 20 && y < 12) {
+        auto* t = top.pixel(x, y);
+        t[0] = static_cast<std::uint8_t>(250 - x * 7);
+        t[1] = static_cast<std::uint8_t>(40 + y * 9);
+        t[2] = 90;
+        t[3] = static_cast<std::uint8_t>(60 + x * 9);
+      }
+    }
+  }
+  document.add_pixel_layer("Background", background);
+  auto& layer = document.add_pixel_layer("Top", PixelBuffer(24, 16, PixelFormat::rgba8()));
+  layer.pixels() = top;
+  layer.set_bounds(Rect{3, 2, 20, 12});
+  LayerMask mask;
+  mask.bounds = Rect{1, 1, 18, 13};
+  mask.default_color = 255;
+  mask.pixels = PixelBuffer(18, 13, PixelFormat::gray8());
+  for (std::int32_t y = 0; y < 13; ++y) {
+    for (std::int32_t x = 0; x < 18; ++x) {
+      mask.pixels.pixel(x, y)[0] = static_cast<std::uint8_t>(x * 14 + y);
+    }
+  }
+  layer.set_mask(mask);
+  PixelBuffer channel(24, 16, PixelFormat::gray8());
+  for (std::int32_t y = 0; y < 16; ++y) {
+    for (std::int32_t x = 0; x < 24; ++x) {
+      channel.pixel(x, y)[0] = static_cast<std::uint8_t>(255 - x * 9 - y);
+    }
+  }
+  document.add_channel(DocumentChannel(document.allocate_channel_id(), "Alpha 1", DocumentChannelKind::Alpha, channel));
+  return document;
+}
+
+// Largest sample difference between an 8-bit buffer and a deep one narrowed to 8 bits;
+// -1 when their shapes differ.
+bool same_rect(Rect a, Rect b) {
+  return a.x == b.x && a.y == b.y && a.width == b.width && a.height == b.height;
+}
+
+int narrowed_difference(const PixelBuffer& eight, const PixelBuffer& deep, SampleKind kind) {
+  if (eight.width() != deep.width() || eight.height() != deep.height() ||
+      eight.format().channels != deep.format().channels) {
+    return -1;
+  }
+  const auto narrowed = convert_pixel_buffer_depth(deep, BitDepth::UInt8, kind);
+  int worst = 0;
+  for (std::size_t i = 0; i < eight.byte_size(); ++i) {
+    worst = std::max(worst, std::abs(static_cast<int>(eight.data()[i]) - static_cast<int>(narrowed.data()[i])));
+  }
+  return worst;
+}
+
+void geometry_operations_keep_deep_buffers_at_depth() {
+  using Operation = std::function<void(Document&)>;
+  const std::vector<std::pair<const char*, Operation>> operations{
+      {"rotate clockwise", [](Document& d) { rotate_document_clockwise(d); }},
+      {"rotate counterclockwise", [](Document& d) { rotate_document_counterclockwise(d); }},
+      {"crop", [](Document& d) { CHECK(crop_document(d, Rect{2, 3, 15, 10})); }},
+      {"crop past the canvas", [](Document& d) { CHECK(crop_document(d, Rect{-3, -2, 30, 20}, EditColor{200, 30, 30, 255})); }},
+      {"rotated crop", [](Document& d) { CHECK(crop_document(d, Rect{2, 2, 18, 12}, 17.0, EditColor{255, 255, 255, 255})); }},
+      {"rotate arbitrary", [](Document& d) { CHECK(rotate_document_arbitrary(d, 23.0, EditColor{10, 20, 30, 255})); }},
+      {"canvas size", [](Document& d) { resize_canvas_and_layers(d, 30, 21, CanvasAnchor::Center, EditColor{40, 50, 60, 255}, true); }},
+      {"canvas size keeping layers", [](Document& d) { resize_canvas_and_layers(d, 30, 21, CanvasAnchor::BottomRight); }},
+      {"shift seams", [](Document& d) { wrap_offset_document(d, 7, 5); }},
+      {"flip horizontal", [](Document& d) { (void)flip_layer_horizontal(d, d.layers()[1].id()); }},
+      {"flip vertical", [](Document& d) { (void)flip_layer_vertical(d, d.layers()[1].id()); }},
+  };
+  for (const auto depth : {BitDepth::UInt16, BitDepth::Float32}) {
+    for (const auto& [name, operation] : operations) {
+      auto eight = geometry_document();
+      auto deep = geometry_document();
+      convert_document_depth(deep, depth);
+      operation(eight);
+      operation(deep);
+      const auto problems = document_depth_problems(deep);
+      // Rotated resampling interpolates at different precisions; everything else
+      // moves whole pixels and must agree exactly.
+      const bool resampled = std::string(name) == "rotated crop" || std::string(name) == "rotate arbitrary";
+      const int allowed = resampled ? 1 : 0;
+      bool ok = problems.empty() && eight.width() == deep.width() && eight.height() == deep.height();
+      for (std::size_t i = 0; ok && i < eight.layers().size(); ++i) {
+        const auto& a = std::as_const(eight).layers()[i];
+        const auto& b = std::as_const(deep).layers()[i];
+        ok = same_rect(a.bounds(), b.bounds());
+        const auto color = narrowed_difference(a.pixels(), b.pixels(), SampleKind::Color);
+        ok = ok && color >= 0 && color <= allowed;
+        if (a.mask().has_value()) {
+          ok = ok && b.mask().has_value() && same_rect(a.mask()->bounds, b.mask()->bounds) &&
+               b.mask()->pixels.format().bit_depth == (b.mask()->pixels.empty() ? b.mask()->pixels.format().bit_depth : depth);
+          const auto mask = narrowed_difference(a.mask()->pixels, b.mask()->pixels, SampleKind::Coverage);
+          ok = ok && mask >= 0 && mask <= allowed;
+        }
+      }
+      const auto channel = narrowed_difference(eight.channels()[0].pixels(), deep.channels()[0].pixels(),
+                                               SampleKind::Coverage);
+      ok = ok && channel >= 0 && channel <= allowed;
+      if (!ok) {
+        std::cerr << name << " at " << (depth == BitDepth::UInt16 ? 16 : 32) << " bits: deep result differs ("
+                  << problems.size() << " depth problems)\n";
+      }
+      CHECK(ok);
+    }
+  }
+}
+
+void painting_writes_deep_layers_at_depth() {
+  // Each painting write on an 8-bit layer and on its 16-bit conversion: the deep result,
+  // narrowed, matches within a level (it rounds once instead of per write), the layer
+  // stays at its depth, and 32 bits paints too.
+  using Operation = std::function<Rect(Document&, LayerId)>;
+  EditOptions options;
+  options.primary = EditColor{200, 60, 30, 180};
+  options.secondary = EditColor{20, 40, 220, 255};
+  options.brush_size = 9;
+  options.brush_softness = 70;
+  const std::vector<std::pair<const char*, Operation>> operations{
+      {"dab", [&](Document& d, LayerId id) { return paint_brush_dab(d, id, 12.3, 8.7, options, false); }},
+      {"segment", [&](Document& d, LayerId id) { return paint_brush_segment(d, id, 2.0, 3.0, 21.0, 13.5, options, false); }},
+      {"erase", [&](Document& d, LayerId id) { return paint_brush_segment(d, id, 3.0, 12.0, 20.0, 2.0, options, true); }},
+      {"fill", [&](Document& d, LayerId id) {
+         auto fill = options;
+         fill.selection = Rect{4, 3, 11, 7};
+         return fill_rect(d, id, Rect{0, 0, 24, 16}, fill);
+       }},
+      {"flood", [&](Document& d, LayerId id) {
+         auto flood = options;
+         flood.flood_tolerance = 40;
+         return flood_fill(d, id, 5, 5, flood);
+       }},
+      {"gradient", [&](Document& d, LayerId id) {
+         GradientOptions gradient;
+         gradient.stops = {GradientStop{0.0F, EditColor{10, 200, 30, 255}}, GradientStop{1.0F, EditColor{240, 20, 90, 120}}};
+         return draw_gradient(d, id, 1, 2, 22, 14, options, gradient);
+       }},
+      {"ellipse", [&](Document& d, LayerId id) {
+         auto shape = options;
+         shape.fill_shapes = true;
+         return draw_ellipse(d, id, Rect{3, 2, 15, 11}, shape, false);
+       }},
+  };
+  for (const auto& [name, operation] : operations) {
+    auto eight = geometry_document();
+    auto deep = geometry_document();
+    convert_document_depth(deep, BitDepth::UInt16);
+    auto linear = geometry_document();
+    convert_document_depth(linear, BitDepth::Float32);
+    const auto id = eight.layers()[1].id();
+    const auto rect8 = operation(eight, id);
+    const auto rect16 = operation(deep, deep.layers()[1].id());
+    const auto rect32 = operation(linear, linear.layers()[1].id());
+    bool ok = !rect8.empty() && !rect16.empty() && !rect32.empty() && document_depth_problems(deep).empty() &&
+              document_depth_problems(linear).empty();
+    const auto& a = std::as_const(eight).layers()[1];
+    const auto& b = std::as_const(deep).layers()[1];
+    ok = ok && same_rect(a.bounds(), b.bounds());
+    const auto difference = narrowed_difference(a.pixels(), b.pixels(), SampleKind::Color);
+    ok = ok && difference >= 0 && difference <= 1;
+    if (!ok) {
+      std::cerr << name << ": 16-bit painting differs (worst " << difference << ")\n";
+    }
+    CHECK(ok);
+  }
+}
+
 void deep_editing_gate_can_be_overridden() {
   set_deep_editing_override(true);
   CHECK(deep_editing_enabled());
   set_deep_editing_override(false);
   CHECK(!deep_editing_enabled());
   set_deep_editing_override(std::nullopt);
+}
+
+// Exposure and Gamma toning before a 32-bit document leaves 32 bits:
+// (v * 2^exposure)^(1/gamma) on pixel layers' color, alpha and masks untouched, and
+// no change at exposure 0, gamma 1 or on other depths.
+void hdr_toning_maps_linear_color_only() {
+  Document document(2, 1, PixelFormat::rgba8());
+  PixelBuffer pixels(2, 1, PixelFormat::rgba8());
+  pixels.pixel(0, 0)[0] = 255;
+  pixels.pixel(0, 0)[1] = 128;
+  pixels.pixel(0, 0)[2] = 0;
+  pixels.pixel(0, 0)[3] = 200;
+  pixels.pixel(1, 0)[0] = 64;
+  pixels.pixel(1, 0)[1] = 64;
+  pixels.pixel(1, 0)[2] = 64;
+  pixels.pixel(1, 0)[3] = 255;
+  auto& layer = document.add_pixel_layer("Toned", pixels);
+  PixelBuffer mask(2, 1, PixelFormat::gray8());
+  mask.clear(90);
+  layer.set_mask(LayerMask{Rect::from_size(2, 1), mask, 255, false});
+  convert_document_depth(document, BitDepth::Float32);
+  const auto read = [&document](std::int32_t x) {
+    const auto& buffer = document.layers().front().pixels();
+    return load_pixel(buffer.format(), buffer.pixel(x, 0));
+  };
+  const auto before0 = read(0);
+  const auto before1 = read(1);
+  tone_map_linear_document(document, 0.0, 1.0);
+  CHECK(read(0) == before0 && read(1) == before1);
+  tone_map_linear_document(document, 1.0, 2.0);
+  const auto after0 = read(0);
+  const auto after1 = read(1);
+  for (std::size_t c = 0; c < 3U; ++c) {
+    const auto expect0 = std::sqrt(static_cast<double>(before0[c]) / 255.0 * 2.0) * 255.0;
+    const auto expect1 = std::sqrt(static_cast<double>(before1[c]) / 255.0 * 2.0) * 255.0;
+    CHECK(std::abs(after0[c] - expect0) < 0.01);
+    CHECK(std::abs(after1[c] - expect1) < 0.01);
+  }
+  CHECK(after0[3] == before0[3]);
+  CHECK(std::abs(coverage_at(document.layers().front().mask()->pixels, 0, 0) - 90.0F / 255.0F) < 1e-6F);
+  auto eight = document;
+  convert_document_depth(eight, BitDepth::UInt8);
+  const auto& eight_pixels = eight.layers().front().pixels();
+  const std::vector<std::uint8_t> eight_before(eight_pixels.data().begin(), eight_pixels.data().end());
+  tone_map_linear_document(eight, 2.0, 1.5);
+  CHECK(std::equal(eight_before.begin(), eight_before.end(), eight.layers().front().pixels().data().begin()));
 }
 
 }  // namespace
@@ -291,6 +518,10 @@ std::vector<patchy::test::TestCase> pixel_depth_tests() {
        depth_problems_name_the_buffers_that_break_the_invariant},
       {"pixel_depth_display_bytes_match_the_8_bit_reading_at_every_depth",
        display_bytes_match_the_8_bit_reading_at_every_depth},
+      {"pixel_depth_geometry_operations_keep_deep_buffers_at_depth",
+       geometry_operations_keep_deep_buffers_at_depth},
+      {"pixel_depth_painting_writes_deep_layers_at_depth", painting_writes_deep_layers_at_depth},
+      {"pixel_depth_hdr_toning_maps_linear_color_only", hdr_toning_maps_linear_color_only},
       {"pixel_depth_gate_can_be_overridden", deep_editing_gate_can_be_overridden},
   };
 }

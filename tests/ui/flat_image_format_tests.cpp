@@ -4,6 +4,8 @@
 #include "unicode_path_names.hpp"
 #include "ui/canvas_widget.hpp"
 #include "core/adjustment_layer.hpp"
+#include "core/document_depth.hpp"
+#include "core/pixel_depth.hpp"
 #include "core/contour_presets.hpp"
 #include "core/gradient_presets.hpp"
 #include "core/layer_metadata.hpp"
@@ -231,6 +233,76 @@ void ui_qimage_import_export_preserves_alpha_and_formats() {
   CHECK(patchy::ui::qimage_from_document(document, false).save(QStringLiteral("test-artifacts/format_flat.jpg")));
   CHECK(patchy::ui::qimage_from_document(document, false).save(QStringLiteral("test-artifacts/format_flat.bmp")));
   CHECK(QImage(QStringLiteral("test-artifacts/format_alpha.png")).pixelColor(0, 0).alpha() == 128);
+}
+
+// With deep editing on, a 16-bit PNG opens as a 16-bit document with its samples intact,
+// a float image as a 32-bit one (values above 1.0 kept), and the flat-alpha promotion
+// keeps both the mask and the color at depth (docs/high-bit-depth.md, Phase 8).
+void ui_deep_images_import_at_their_depth() {
+  ensure_artifact_dir();
+  QImage source(4, 2, QImage::Format_RGBA64);
+  for (int y = 0; y < 2; ++y) {
+    for (int x = 0; x < 4; ++x) {
+      source.setPixelColor(x, y, QColor::fromRgba64(0x1234, 0x8001, 0xfffe, x == 3 ? 0x7fff : 0xffff));
+    }
+  }
+  const auto path = QStringLiteral("test-artifacts/deep_import_16.png");
+  CHECK(source.save(path));
+  const QImage loaded(path);
+  CHECK(loaded.format() == QImage::Format_RGBA64 || loaded.format() == QImage::Format_RGBA64_Premultiplied);
+
+  patchy::set_deep_editing_override(true);
+  auto document = patchy::ui::document_from_qimage(loaded, "Deep");
+  CHECK(document.color_state().bit_depth == patchy::BitDepth::UInt16);
+  CHECK(patchy::document_depth_problems(document).empty());
+  const auto& pixels = document.layers().front().pixels();
+  CHECK(pixels.format().bit_depth == patchy::BitDepth::UInt16);
+  const auto values = patchy::load_pixel(pixels.format(), pixels.pixel(0, 0));
+  CHECK(std::abs(values[0] * 257.0F - static_cast<float>(0x1234)) < 0.5F);
+  CHECK(std::abs(values[1] * 257.0F - static_cast<float>(0x8001)) < 0.5F);
+  CHECK(patchy::ui::promote_flat_alpha_to_layer_mask(document));
+  const auto& promoted = document.layers().front();
+  CHECK(promoted.mask().has_value());
+  CHECK(promoted.mask().has_value() && promoted.mask()->pixels.format().bit_depth == patchy::BitDepth::UInt16);
+  CHECK(promoted.pixels().format().channels == 3 &&
+        promoted.pixels().format().bit_depth == patchy::BitDepth::UInt16);
+  const auto rgb = patchy::load_pixel(promoted.pixels().format(), promoted.pixels().pixel(3, 1));
+  CHECK(std::abs(rgb[2] * 257.0F - static_cast<float>(0xfffe)) < 0.5F);
+  CHECK(promoted.mask().has_value() &&
+        std::abs(patchy::coverage_at(promoted.mask()->pixels, 3, 1) - 32767.0F / 65535.0F) < 1.0F / 65535.0F);
+  CHECK(patchy::document_depth_problems(document).empty());
+
+  QImage hdr(2, 1, QImage::Format_RGBX32FPx4);
+  hdr.setPixelColor(0, 0, QColor::fromRgbF(0.25F, 0.5F, 1.0F));
+  auto* row = reinterpret_cast<float*>(hdr.scanLine(0));
+  row[4] = 2.5F;  // above 1.0: kept as linear light
+  row[5] = 0.1F;
+  row[6] = 0.0F;
+  row[7] = 1.0F;
+  const auto hdr_document = patchy::ui::document_from_qimage(hdr, "HDR");
+  CHECK(hdr_document.color_state().bit_depth == patchy::BitDepth::Float32);
+  const auto& hdr_pixels = hdr_document.layers().front().pixels();
+  CHECK(hdr_pixels.format().channels == 3);
+  CHECK(std::abs(patchy::load_pixel(hdr_pixels.format(), hdr_pixels.pixel(1, 0))[0] - 2.5F * 255.0F) < 0.01F);
+  // A 32-bit document saves TIFF as floats (values above 1.0 kept) and reopens at 32 bits.
+  const auto tiff_path = QStringLiteral("test-artifacts/deep_export_32.tif");
+  patchy::ui::write_flat_image_file(hdr_document, tiff_path, QStringLiteral("tif"));
+  const QImage tiff(tiff_path);
+  CHECK(tiff.format() == QImage::Format_RGBA32FPx4 || tiff.format() == QImage::Format_RGBX32FPx4 ||
+        tiff.format() == QImage::Format_RGBA32FPx4_Premultiplied);
+  const auto reopened = patchy::ui::document_from_qimage(tiff, "Reopened");
+  CHECK(reopened.color_state().bit_depth == patchy::BitDepth::Float32);
+  const auto& reopened_pixels = reopened.layers().front().pixels();
+  CHECK(std::abs(patchy::load_pixel(reopened_pixels.format(), reopened_pixels.pixel(1, 0))[0] - 2.5F * 255.0F) <
+        0.01F);
+  CHECK(std::abs(patchy::load_pixel(reopened_pixels.format(), reopened_pixels.pixel(0, 0))[1] - 0.5F * 255.0F) <
+        0.01F);
+
+  patchy::set_deep_editing_override(false);
+  const auto eight_bit = patchy::ui::document_from_qimage(loaded, "Eight");
+  CHECK(eight_bit.color_state().bit_depth == patchy::BitDepth::UInt8);
+  CHECK(eight_bit.layers().front().pixels().format().bit_depth == patchy::BitDepth::UInt8);
+  patchy::set_deep_editing_override(std::nullopt);
 }
 
 void ui_qimage_import_export_writes_tiff_and_webp() {
@@ -2372,6 +2444,7 @@ void ui_webp_animation_options_and_empty_layers() {
 std::vector<patchy::test::TestCase> flat_image_format_tests() {
   return {
       {"ui_qimage_import_export_preserves_alpha_and_formats", ui_qimage_import_export_preserves_alpha_and_formats},
+      {"ui_deep_images_import_at_their_depth", ui_deep_images_import_at_their_depth},
       {"ui_qimage_import_export_writes_tiff_and_webp", ui_qimage_import_export_writes_tiff_and_webp},
       {"ui_image_save_options_write_bmp_alpha_and_jpeg_quality",
        ui_image_save_options_write_bmp_alpha_and_jpeg_quality},

@@ -197,6 +197,7 @@ class ScriptDocumentObject : public QObject {
   Q_PROPERTY(QString name READ name)
   Q_PROPERTY(QString path READ path)
   Q_PROPERTY(double resolution READ resolution)
+  Q_PROPERTY(int bitDepth READ bit_depth)
   Q_PROPERTY(QJSValue layers READ layers)
   Q_PROPERTY(QJSValue activeLayer READ active_layer WRITE set_active_layer)
   Q_PROPERTY(QJSValue selection READ selection)
@@ -224,6 +225,7 @@ public:
   [[nodiscard]] QString name() const;
   [[nodiscard]] QString path() const;
   [[nodiscard]] double resolution() const;
+  [[nodiscard]] int bit_depth() const;
   [[nodiscard]] QJSValue layers() const;
   [[nodiscard]] QJSValue active_layer() const;
   void set_active_layer(const QJSValue& layer);
@@ -270,6 +272,7 @@ public:
   // `options.method`: a resample id (core/resample.hpp), default "automatic".
   Q_INVOKABLE void resizeImage(int width, int height, const QJSValue& options = QJSValue());
   Q_INVOKABLE void resizeCanvas(int width, int height);
+  Q_INVOKABLE void convertBitDepth(int bits);
   Q_INVOKABLE void crop(int x, int y, int width, int height);
   Q_INVOKABLE bool saveAs(const QString& path);
   Q_INVOKABLE bool exportAs(const QString& path);

@@ -3,7 +3,10 @@
 #include "core/pixel_depth.hpp"
 #include "core/smart_filter.hpp"
 
+#include <algorithm>
+#include <cmath>
 #include <utility>
+#include <vector>
 
 namespace patchy {
 namespace {
@@ -67,7 +70,47 @@ void collect_layer_problems(const Layer& layer, BitDepth depth, std::vector<std:
   }
 }
 
+void tone_map_layer(Layer& layer, float scale, double inverse_gamma) {
+  const auto& pixels = std::as_const(layer).pixels();
+  // Pixel layers only: text, shape and smart object rasters regenerate from their source.
+  if (layer.kind() == LayerKind::Pixel && !pixels.empty() && pixels.format().bit_depth == BitDepth::Float32 &&
+      pixels.format().channels >= 3) {
+    auto toned = pixels;
+    std::vector<float> row(static_cast<std::size_t>(toned.width()) * 4U);
+    for (std::int32_t y = 0; y < toned.height(); ++y) {
+      load_rgba_row(toned, y, 0, toned.width(), DeepDomain::Linear, row);
+      for (std::size_t i = 0; i < row.size(); i += 4U) {
+        for (std::size_t c = 0; c < 3U; ++c) {
+          const auto value = std::max(0.0, static_cast<double>(row[i + c]) / 255.0 * scale);
+          row[i + c] = static_cast<float>(std::pow(value, inverse_gamma) * 255.0);
+        }
+      }
+      store_rgba_row(toned, y, 0, toned.width(), DeepDomain::Linear, row);
+    }
+    layer.pixels() = std::move(toned);
+  }
+  for (auto& child : layer.children()) {
+    tone_map_layer(child, scale, inverse_gamma);
+  }
+}
+
 }  // namespace
+
+void tone_map_linear_document(Document& document, double exposure_stops, double gamma) {
+  if (document.color_state().bit_depth != BitDepth::Float32 || !std::isfinite(exposure_stops) ||
+      !std::isfinite(gamma) || gamma <= 0.0 || (exposure_stops == 0.0 && gamma == 1.0)) {
+    return;
+  }
+  const auto scale = static_cast<float>(std::exp2(exposure_stops));
+  const auto inverse_gamma = 1.0 / gamma;
+  for (auto& layer : document.layers()) {
+    tone_map_layer(layer, scale, inverse_gamma);
+  }
+}
+
+void convert_layer_depth(Layer& layer, BitDepth depth) {
+  convert_layer(layer, depth);
+}
 
 BitDepth document_bit_depth(const Document& document) noexcept {
   return document.color_state().bit_depth;

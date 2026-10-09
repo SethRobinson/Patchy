@@ -818,6 +818,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     }
     if (begin_edit(healing ? tr("Healing brush") : tr("Clone stamp"))) {
       clone_source_cache_ = retouch_source_snapshot();
+      clone_source_deep_ = document_->color_state().bit_depth != BitDepth::UInt8 ? retouch_source_deep()
+                                                                                 : PixelBuffer{};
       if (!clone_aligned_ || !clone_aligned_offset_set_) {
         clone_source_offset_ = clone_source_point_ - document_point;
         clone_aligned_offset_set_ = clone_aligned_;
@@ -2269,6 +2271,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     painting_ = false;
     last_stroke_end_document_ = last_document_position_f_;
     clone_source_cache_ = QImage();
+    clone_source_deep_ = PixelBuffer{};
     smudge_state_ = {};
     mixer_brush_state_ = {};
     reset_brush_smoothing();
@@ -3776,6 +3779,7 @@ void CanvasWidget::focusOutEvent(QFocusEvent* event) {
     clear_brush_stroke_tracking();
   }
   clone_source_cache_ = QImage();
+  clone_source_deep_ = PixelBuffer{};
   smudge_state_ = {};
   mixer_brush_state_ = {};
   reset_brush_smoothing();
@@ -3950,7 +3954,10 @@ bool CanvasWidget::begin_edit(QString label) {
   // Format check through const: the non-const pixels() accessor bumps all
   // three revisions on access, so a REJECTED edit (non-8-bit layer) must not
   // invalidate the layer's caches. Accepted edits bump when they write.
-  if (layer == nullptr || std::as_const(*layer).pixels().format().bit_depth != BitDepth::UInt8) {
+  // Every pixel edit started here writes 16/32-bit layers at depth (write_pixel, the
+  // brush stroke compositor, the retouch tools; docs/high-bit-depth.md): only a color
+  // layer is required.
+  if (layer == nullptr || std::as_const(*layer).pixels().format().channels < 3) {
     report_status_error(tr("Select an editable 8-bit pixel layer first"));
     return false;
   }
@@ -3997,8 +4004,8 @@ bool CanvasWidget::can_begin_pixel_edit(bool report) {
   auto* layer = active_pixel_layer();
   // Const access only: a rejected precheck must not bump layer revisions
   // (same rule as begin_edit above).
-  if (layer == nullptr || std::as_const(*layer).pixels().format().bit_depth != BitDepth::UInt8 ||
-      std::as_const(*layer).pixels().format().channels < 3) {
+  // Spot Healing and Remove Object run at any depth (NarrowedLayerEdit, docs/high-bit-depth.md).
+  if (layer == nullptr || std::as_const(*layer).pixels().format().channels < 3) {
     if (report) {
       report_status_error(tr("Select an editable 8-bit pixel layer first"));
     }

@@ -944,10 +944,6 @@
         <translation>Los filtros integrados iniciales solo admiten búferes UInt8</translation>
     </message>
     <message>
-        <source>Filter previews support UInt8 buffers only</source>
-        <translation>Las previsualizaciones de filtros solo admiten búferes UInt8</translation>
-    </message>
-    <message>
         <source>Unknown catalogued filter identifier</source>
         <translation>Identificador de filtro catalogado desconocido</translation>
     </message>
@@ -8934,6 +8930,38 @@ RGB: %2, %3, %4</translation>
     <message>
         <source>PSD channel depth does not match the document</source>
         <translation>La profundidad del canal PSD no coincide con la del documento</translation>
+    </message>
+    <message>
+        <source>8 Bits/Channel</source>
+        <translation>8 bits/canal</translation>
+    </message>
+    <message>
+        <source>16 Bits/Channel</source>
+        <translation>16 bits/canal</translation>
+    </message>
+    <message>
+        <source>32 Bits/Channel</source>
+        <translation>32 bits/canal</translation>
+    </message>
+    <message>
+        <source>Bit Depth</source>
+        <translation>Profundidad de bits</translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents</source>
+        <translation>Este filtro no está disponible en documentos de 32 bits</translation>
+    </message>
+    <message>
+        <source>HDR Toning</source>
+        <translation>Tonificación HDR</translation>
+    </message>
+    <message>
+        <source>Exposure and Gamma</source>
+        <translation>Exposición y gamma</translation>
+    </message>
+    <message>
+        <source>Gamma</source>
+        <translation>Gamma</translation>
     </message>
 </context>
 <context>
@@ -18761,6 +18789,22 @@ Convertido en imágenes: %1.</translation>
         <source>Converted to %1</source>
         <translation>Convertido a %1</translation>
     </message>
+    <message>
+        <source>32-bit preview exposure in stops. It changes the display, not the pixels.</source>
+        <translation>Exposición de previsualización de 32 bits en pasos. Cambia la visualización, no los píxeles.</translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents</source>
+        <translation>Este filtro no está disponible en documentos de 32 bits</translation>
+    </message>
+    <message>
+        <source>Linear RGB: %1, %2, %3</source>
+        <translation>RGB lineal: %1, %2, %3</translation>
+    </message>
+    <message>
+        <source>Exposure: </source>
+        <translation>Exposición: </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -20203,6 +20247,22 @@ Convertido en imágenes: %1.</translation>
     <message>
         <source>resizeImage method must be one of %1.</source>
         <translation>El método de resizeImage debe ser uno de %1.</translation>
+    </message>
+    <message>
+        <source>convertBitDepth takes 8, 16 or 32.</source>
+        <translation>convertBitDepth acepta 8, 16 o 32.</translation>
+    </message>
+    <message>
+        <source>16 and 32-bit editing is not enabled.</source>
+        <translation>La edición de 16 y 32 bits no está activada.</translation>
+    </message>
+    <message>
+        <source>Indexed documents are 8-bit only.</source>
+        <translation>Los documentos indexados solo admiten 8 bits.</translation>
+    </message>
+    <message>
+        <source>This filter is not available in 32-bit documents.</source>
+        <translation>Este filtro no está disponible en documentos de 32 bits.</translation>
     </message>
 </context>
 <context>

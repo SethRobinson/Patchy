@@ -6,6 +6,9 @@
 // mutations run prepare_mutation() first so the run's single undo entry exists.
 
 #include "ui/script_api.hpp"
+
+#include "core/document_depth.hpp"
+#include "core/pixel_depth.hpp"
 #include "ui/image_document_io.hpp"
 #include "formats/animation_timing.hpp"
 #include "formats/webp_animation_io.hpp"
@@ -67,7 +70,18 @@ constexpr int kMaxScriptDimension = 30000;
 
 void promote_script_rgb_pixels(Layer& layer) {
   const auto& source = std::as_const(layer).pixels();
-  if (source.format() != PixelFormat::rgb8() || source.empty()) {
+  if (source.format().channels != 3 || source.empty()) {
+    return;
+  }
+  if (source.format().bit_depth != BitDepth::UInt8) {
+    // 16/32-bit layers (docs/high-bit-depth.md) gain alpha at their depth.
+    PixelBuffer rgba(source.width(), source.height(), with_bit_depth(PixelFormat::rgba8(), source.format().bit_depth));
+    for (int y = 0; y < source.height(); ++y) {
+      for (int x = 0; x < source.width(); ++x) {
+        store_pixel(rgba.format(), rgba.pixel(x, y), load_pixel(source.format(), source.pixel(x, y)));
+      }
+    }
+    layer.set_pixels(std::move(rgba));
     return;
   }
   PixelBuffer rgba(source.width(), source.height(), PixelFormat::rgba8());
@@ -80,6 +94,27 @@ void promote_script_rgb_pixels(Layer& layer) {
     }
   }
   layer.set_pixels(std::move(rgba));
+}
+
+// A script color as one RGBA pixel of `format`: 8-bit bytes as they are, 16-bit on the
+// deep scale, 32-bit decoded to linear light (docs/high-bit-depth.md).
+std::vector<std::uint8_t> script_fill_pixel(PixelFormat format, const QColor& color) {
+  std::vector<std::uint8_t> bytes(bytes_per_pixel(format));
+  std::array<float, 4> values{static_cast<float>(color.red()), static_cast<float>(color.green()),
+                              static_cast<float>(color.blue()), static_cast<float>(color.alpha())};
+  if (format.bit_depth == BitDepth::Float32) {
+    for (std::size_t c = 0; c < 3U; ++c) {
+      values[c] = static_cast<float>(srgb_decode(static_cast<double>(values[c]) / 255.0) * 255.0);
+    }
+  }
+  store_pixel(format, bytes.data(), values);
+  return bytes;
+}
+
+// A fresh RGBA buffer for an empty layer, at the document's depth.
+PixelBuffer script_fresh_pixels(const Document* document, int width, int height) {
+  const auto depth = document != nullptr ? document->color_state().bit_depth : BitDepth::UInt8;
+  return PixelBuffer(width, height, with_bit_depth(PixelFormat::rgba8(), depth));
 }
 
 // Script-facing blend mode ids. Append-only and aligned with the BlendMode
@@ -890,31 +925,23 @@ void ScriptLayerObject::fill(const QString& color) {
   }
   if (std::as_const(*layer).pixels().empty()) {
     const QRect box = target.boundingRect();
-    PixelBuffer fresh(box.width(), box.height(), PixelFormat::rgba8());
-    layer->set_pixels(std::move(fresh));
+    layer->set_pixels(script_fresh_pixels(document, box.width(), box.height()));
     layer->set_bounds(Rect{box.x(), box.y(), box.width(), box.height()});
   }
   const auto bounds = std::as_const(*layer).bounds();
   promote_script_rgb_pixels(*layer);
   auto& pixels = layer->pixels();
-  if (pixels.format().channels != 4 || pixels.format().bit_depth != BitDepth::UInt8) {
+  if (pixels.format().channels != 4) {
     host_.throw_js_error(ScriptEngineHost::tr("fill supports 8-bit RGB and RGBA layers only."));
     return;
   }
-  const std::array<std::uint8_t, 4> rgba{static_cast<std::uint8_t>(parsed.red()),
-                                         static_cast<std::uint8_t>(parsed.green()),
-                                         static_cast<std::uint8_t>(parsed.blue()),
-                                         static_cast<std::uint8_t>(parsed.alpha())};
+  const auto fill_pixel = script_fill_pixel(pixels.format(), parsed);
   for (const QRect& rect : target) {
     const QRect layer_rect =
         rect.intersected(QRect(bounds.x, bounds.y, pixels.width(), pixels.height()));
     for (int y = layer_rect.top(); y <= layer_rect.bottom(); ++y) {
       for (int x = layer_rect.left(); x <= layer_rect.right(); ++x) {
-        auto* px = pixels.pixel(x - bounds.x, y - bounds.y);
-        px[0] = rgba[0];
-        px[1] = rgba[1];
-        px[2] = rgba[2];
-        px[3] = rgba[3];
+        std::copy(fill_pixel.begin(), fill_pixel.end(), pixels.pixel(x - bounds.x, y - bounds.y));
       }
     }
   }
@@ -952,33 +979,25 @@ void ScriptLayerObject::fillRect(int x, int y, int width, int height, const QStr
   }
   parsed = host_.palette_snap_color(session_id_, parsed);
   if (std::as_const(*layer).pixels().empty()) {
-    PixelBuffer fresh(width, height, PixelFormat::rgba8());
-    layer->set_pixels(std::move(fresh));
+    layer->set_pixels(script_fresh_pixels(host_.session_document_const(session_id_), width, height));
     layer->set_bounds(Rect{x, y, width, height});
   }
   const auto bounds = std::as_const(*layer).bounds();
   promote_script_rgb_pixels(*layer);
   auto& pixels = layer->pixels();
-  if (pixels.format().channels != 4 || pixels.format().bit_depth != BitDepth::UInt8) {
+  if (pixels.format().channels != 4) {
     host_.throw_js_error(ScriptEngineHost::tr("fillRect supports 8-bit RGB and RGBA layers only."));
     return;
   }
+  const auto fill_pixel = script_fill_pixel(pixels.format(), parsed);
   const QRect target = QRect(x, y, width, height)
                            .intersected(QRect(bounds.x, bounds.y, pixels.width(), pixels.height()));
   if (target.isEmpty()) {
     return;
   }
-  const std::array<std::uint8_t, 4> rgba{static_cast<std::uint8_t>(parsed.red()),
-                                         static_cast<std::uint8_t>(parsed.green()),
-                                         static_cast<std::uint8_t>(parsed.blue()),
-                                         static_cast<std::uint8_t>(parsed.alpha())};
   for (int py = target.top(); py <= target.bottom(); ++py) {
     for (int px = target.left(); px <= target.right(); ++px) {
-      auto* pixel = pixels.pixel(px - bounds.x, py - bounds.y);
-      pixel[0] = rgba[0];
-      pixel[1] = rgba[1];
-      pixel[2] = rgba[2];
-      pixel[3] = rgba[3];
+      std::copy(fill_pixel.begin(), fill_pixel.end(), pixels.pixel(px - bounds.x, py - bounds.y));
     }
   }
   host_.note_pixels_changed(session_id_, target);
@@ -1241,7 +1260,12 @@ QJSValue ScriptLayerObject::getPixels() {
   if (layer == nullptr) {
     return QJSValue();
   }
-  const auto& pixels = layer->pixels();
+  const auto& stored = layer->pixels();
+  // 16/32-bit layers read as their display values, RGBA8 like every other layer
+  // (docs/high-bit-depth.md).
+  const auto pixels = stored.format().bit_depth != BitDepth::UInt8 && stored.format().channels >= 3
+                          ? convert_pixel_buffer_depth(stored, BitDepth::UInt8, SampleKind::Color)
+                          : stored;
   const bool is_rgba8 =
       pixels.format().channels == 4 && pixels.format().bit_depth == BitDepth::UInt8;
   const bool is_rgb8 =
@@ -1313,6 +1337,11 @@ void ScriptLayerObject::setPixels(const QJSValue& imageData) {
   PixelBuffer pixels(width, height, PixelFormat::rgba8());
   std::copy(data.begin(), data.end(), reinterpret_cast<char*>(pixels.data().data()));
   host_.palette_snap_buffer(session_id_, pixels);
+  // A 16/32-bit document takes the RGBA8 data at its depth.
+  if (const auto* document = host_.session_document_const(session_id_);
+      document != nullptr && document->color_state().bit_depth != BitDepth::UInt8) {
+    pixels = convert_pixel_buffer_depth(pixels, document->color_state().bit_depth, SampleKind::Color);
+  }
   const QJSValue x_value = imageData.property(QStringLiteral("x"));
   const QJSValue y_value = imageData.property(QStringLiteral("y"));
   const int x = x_value.isNumber() ? x_value.toInt() : old_bounds.x;
@@ -1568,6 +1597,16 @@ int ScriptDocumentObject::height() const {
 QString ScriptDocumentObject::name() const { const ScriptApiCall api_call(host_); return host_.session_title(session_id_); }
 
 QString ScriptDocumentObject::path() const { const ScriptApiCall api_call(host_); return host_.session_file_path(session_id_); }
+
+int ScriptDocumentObject::bit_depth() const {
+  const ScriptApiCall api_call(host_);
+  const auto* document = read_document();
+  if (document == nullptr) {
+    return 0;
+  }
+  const auto depth = document->color_state().bit_depth;
+  return depth == BitDepth::Float32 ? 32 : depth == BitDepth::UInt16 ? 16 : 8;
+}
 
 double ScriptDocumentObject::resolution() const {
   const ScriptApiCall api_call(host_);
@@ -2169,6 +2208,36 @@ void ScriptDocumentObject::resizeCanvas(int width, int height) {
     return;
   }
   document->resize_canvas(width, height);
+  host_.note_structure_changed(session_id_);
+}
+
+void ScriptDocumentObject::convertBitDepth(int bits) {
+  const ScriptApiCall api_call(host_);
+  if (bits != 8 && bits != 16 && bits != 32) {
+    host_.throw_js_error(ScriptEngineHost::tr("convertBitDepth takes 8, 16 or 32."));
+    return;
+  }
+  if (bits != 8 && !deep_editing_enabled()) {
+    host_.throw_js_error(ScriptEngineHost::tr("16 and 32-bit editing is not enabled."));
+    return;
+  }
+  const auto* current = read_document();
+  if (current == nullptr) {
+    return;
+  }
+  const auto depth = bits == 32 ? BitDepth::Float32 : bits == 16 ? BitDepth::UInt16 : BitDepth::UInt8;
+  if (current->color_state().bit_depth == depth) {
+    return;
+  }
+  if (depth != BitDepth::UInt8 && current->palette_editing().has_value()) {
+    host_.throw_js_error(ScriptEngineHost::tr("Indexed documents are 8-bit only."));
+    return;
+  }
+  auto* document = write_document();
+  if (document == nullptr) {
+    return;
+  }
+  convert_document_depth(*document, depth);
   host_.note_structure_changed(session_id_);
 }
 

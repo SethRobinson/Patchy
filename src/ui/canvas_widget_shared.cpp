@@ -4,6 +4,8 @@
 
 #include "ui/canvas_widget_shared.hpp"
 
+#include "core/pixel_depth.hpp"
+
 #include "core/blend_math.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/layer_render_utils.hpp"
@@ -21,6 +23,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstring>
 #include <cstdint>
 #include <limits>
 #include <vector>
@@ -42,8 +45,9 @@ bool layer_has_movable_pixels(const Layer& layer) {
       stack->support == SmartFilterStackSupport::Unsupported) {
     return false;
   }
+  // Any depth: moving and transforming handle 16/32-bit pixels (docs/high-bit-depth.md).
   const auto& pixels = layer.pixels();
-  return !pixels.empty() && pixels.format().bit_depth == BitDepth::UInt8 && pixels.format().channels >= 3;
+  return !pixels.empty() && pixels.format().channels >= 3;
 }
 
 bool move_layer_requires_smart_filter_rerender(const Layer& layer) {
@@ -54,7 +58,7 @@ bool move_layer_requires_smart_filter_rerender(const Layer& layer) {
 
 std::optional<QRect> opaque_pixel_local_rect(const Layer& layer) {
   const auto& pixels = layer.pixels();
-  if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3) {
+  if (pixels.empty() || pixels.format().channels < 3) {
     return std::nullopt;
   }
   const auto bounds = visible_alpha_local_bounds(layer);
@@ -75,7 +79,7 @@ bool pixel_layer_contains_document_point(const Layer& layer, QPoint document_poi
     return false;
   }
   const auto& pixels = layer.pixels();
-  if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3) {
+  if (pixels.empty() || pixels.format().channels < 3) {
     return false;
   }
   const auto bounds = layer.bounds();
@@ -88,7 +92,10 @@ bool pixel_layer_contains_document_point(const Layer& layer, QPoint document_poi
     return false;
   }
   if (require_visible_pixel) {
-    const auto source_alpha = pixels.format().channels >= 4 ? pixels.pixel(local_x, local_y)[3] : 255;
+    const auto source_alpha =
+        pixels.format().bit_depth == BitDepth::UInt8
+            ? (pixels.format().channels >= 4 ? pixels.pixel(local_x, local_y)[3] : 255)
+            : static_cast<int>(std::lround(pixel_alpha_at(pixels, local_x, local_y) * 255.0F));
     const auto mask_alpha =
         static_cast<int>(std::round(layer_mask_alpha_at(layer, document_point.x(), document_point.y()) * 255.0F));
     if (std::min(static_cast<int>(source_alpha), mask_alpha) < 8) {
@@ -155,6 +162,88 @@ std::uint8_t blend_mask_value(std::uint8_t current, std::uint8_t value, float co
       std::clamp(static_cast<int>(std::lround(static_cast<float>(value) * coverage +
                                               static_cast<float>(current) * (1.0F - coverage))),
                  0, 255));
+}
+
+NarrowedLayerEdit::NarrowedLayerEdit(Layer& layer, std::function<void()> changed)
+    : layer_(layer), changed_(std::move(changed)) {
+  deep_ = std::as_const(layer).pixels();
+  bounds_before_ = layer.bounds();
+  narrowed_before_ = convert_pixel_buffer_depth(deep_, BitDepth::UInt8, SampleKind::Color);
+  layer.pixels() = narrowed_before_;
+}
+
+NarrowedLayerEdit::~NarrowedLayerEdit() {
+  const auto after = std::as_const(layer_).pixels();
+  const auto bounds = layer_.bounds();
+  const auto depth = deep_.format().bit_depth;
+  const bool linear = depth == BitDepth::Float32;
+  PixelBuffer result(after.width(), after.height(), with_bit_depth(after.format(), depth));
+  result.clear(0);
+  const auto widened = [linear, &after](std::int32_t x, std::int32_t y) {
+    auto value = load_pixel(after.format(), after.pixel(x, y));
+    if (linear) {
+      for (std::size_t c = 0; c < 3U; ++c) {
+        value[c] = static_cast<float>(srgb_decode(static_cast<double>(value[c]) / 255.0) * 255.0);
+      }
+    }
+    return value;
+  };
+  for (std::int32_t y = 0; y < after.height(); ++y) {
+    for (std::int32_t x = 0; x < after.width(); ++x) {
+      const auto document_x = bounds.x + x;
+      const auto document_y = bounds.y + y;
+      const auto old_x = document_x - bounds_before_.x;
+      const auto old_y = document_y - bounds_before_.y;
+      const bool inside = old_x >= 0 && old_y >= 0 && old_x < deep_.width() && old_y < deep_.height();
+      std::array<float, 4> value{};
+      if (inside && load_pixel(after.format(), after.pixel(x, y)) ==
+                        load_pixel(narrowed_before_.format(), narrowed_before_.pixel(old_x, old_y))) {
+        value = load_pixel(deep_.format(), deep_.pixel(old_x, old_y));
+      } else {
+        value = widened(x, y);
+      }
+      store_pixel(result.format(), result.pixel(x, y), value);
+    }
+  }
+  layer_.pixels() = std::move(result);
+  if (changed_) {
+    changed_();
+  }
+}
+
+void blend_mask_at(PixelFormat format, std::uint8_t* px, std::uint8_t value, float coverage) {
+  if (format.bit_depth == BitDepth::UInt8) {
+    *px = blend_mask_value(*px, value, coverage);
+    return;
+  }
+  coverage = std::clamp(coverage, 0.0F, 1.0F);
+  const auto current = mask_sample_at(format, px);
+  const auto blended = static_cast<float>(value) * coverage + current * (1.0F - coverage);
+  if (format.bit_depth == BitDepth::UInt16) {
+    const auto stored = static_cast<std::uint16_t>(std::clamp(std::lround(blended * 257.0F), 0L, 65535L));
+    std::memcpy(px, &stored, sizeof(stored));
+  } else {
+    const auto stored = std::clamp(blended / 255.0F, 0.0F, 1.0F);
+    std::memcpy(px, &stored, sizeof(stored));
+  }
+}
+
+float mask_sample_at(PixelFormat format, const std::uint8_t* px) {
+  switch (format.bit_depth) {
+    case BitDepth::UInt8:
+      return static_cast<float>(*px);
+    case BitDepth::UInt16: {
+      std::uint16_t value = 0;
+      std::memcpy(&value, px, sizeof(value));
+      return static_cast<float>(value) / 257.0F;
+    }
+    case BitDepth::Float32: {
+      float value = 0.0F;
+      std::memcpy(&value, px, sizeof(value));
+      return std::clamp(std::isfinite(value) ? value : 0.0F, 0.0F, 1.0F) * 255.0F;
+    }
+  }
+  return 0.0F;
 }
 
 float brush_coverage(double distance_squared, int radius, int softness) {
@@ -271,7 +360,27 @@ QImage active_layer_sample_image(const Layer& layer, QSize document_size) {
   }
 
   const auto& pixels = layer.pixels();
-  if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3) {
+  if (pixels.empty() || pixels.format().channels < 3) {
+    return image;
+  }
+  if (pixels.format().bit_depth != BitDepth::UInt8) {
+    // 16/32-bit: sample the display bytes (the picker reads 8-bit colors).
+    const auto deep_bounds = layer_pixel_bounds(layer);
+    const auto deep_rect = to_qrect(deep_bounds).intersected(QRect(QPoint(), document_size));
+    for (int y = deep_rect.top(); y <= deep_rect.bottom() && !deep_rect.isEmpty(); ++y) {
+      auto* output = image.scanLine(y) + static_cast<std::size_t>(deep_rect.left()) * 4U;
+      for (int x = deep_rect.left(); x <= deep_rect.right(); ++x) {
+        const auto bytes = display_rgba8_at(pixels, x - deep_bounds.x, y - deep_bounds.y);
+        const auto alpha = static_cast<float>(bytes[3]) / 255.0F * layer_mask_alpha_at(layer, x, y) * layer.opacity();
+        if (alpha > 0.0F) {
+          output[0] = bytes[0];
+          output[1] = bytes[1];
+          output[2] = bytes[2];
+          output[3] = clamp_byte(alpha * 255.0F);
+        }
+        output += 4;
+      }
+    }
     return image;
   }
 

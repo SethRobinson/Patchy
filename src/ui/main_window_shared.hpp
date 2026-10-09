@@ -396,6 +396,9 @@ struct DestructiveAdjustmentPreviewHooks {
 make_destructive_adjustment_preview_state(DestructiveAdjustmentPreviewHooks hooks);
 
 // Solid-color pixel buffer for new layers/documents.
+// A coverage plane (mask, channel, smart filter mask) built at 8 bits, at `document`'s
+// depth: masks and channels follow the document (docs/high-bit-depth.md).
+[[nodiscard]] PixelBuffer coverage_at_document_depth(const Document& document, PixelBuffer coverage);
 [[nodiscard]] PixelBuffer make_solid_pixels(std::int32_t width, std::int32_t height, QColor color,
                                             PixelFormat format);
 

@@ -579,6 +579,8 @@ interface PatchyDocument {
   readonly path: string;
   /** Pixels per inch. */
   readonly resolution: number;
+  /** Bits per channel: 8, 16 or 32 (32 is floating point, linear light). */
+  readonly bitDepth: 8 | 16 | 32;
   /** Top-level layers, bottom to top; groups expose .children. */
   readonly layers: PatchyLayer[];
   /**
@@ -703,6 +705,9 @@ interface PatchyDocument {
    *  throws. Text layers and smart objects re-render from their sources afterwards. */
   resizeImage(width: number, height: number, options?: {method?: PatchyResampleMethod}): void;
   resizeCanvas(width: number, height: number): void;
+  /** Image > Mode > 8/16/32 Bits/Channel: converts every layer, mask and channel.
+   *  16 and 32 need deep editing to be on; Indexed documents stay 8-bit. */
+  convertBitDepth(bits: 8 | 16 | 32): void;
   /** Crops to the canvas intersection; throws if the rectangle is outside the canvas. */
   crop(x: number, y: number, width: number, height: number): void;
   /** Saves to the path; the format follows the extension (.psd, .png, ...).

@@ -2,6 +2,7 @@
 
 #include "core/adjustment_layer.hpp"
 #include "filters/auto_levels_math.hpp"
+#include "filters/deep_filters.hpp"
 #include "filters/filter_support.hpp"
 #include "filters/rgba_filter_staging.hpp"
 #include "filters/smart_filter_renderer.hpp"
@@ -1805,9 +1806,271 @@ void apply_child_filter(
 void execute_builtin_filter(const FilterRegistry &registry,
                             const FilterInvocation &invocation,
                             PixelBuffer &pixels,
+                            const FilterProgress *progress);
+
+// 16 and 32-bit layers (docs/high-bit-depth.md): the deep kernels in
+// deep_filters.cpp, or on 16 bits the 8-bit filter folded back at depth.
+void execute_deep_builtin_filter(const FilterRegistry &registry,
+                                 const FilterInvocation &invocation,
+                                 PixelBuffer &pixels,
+                                 const FilterProgress *progress) {
+  if (pixels.format().channels < 3 || pixels.empty()) {
+    return;
+  }
+  const auto identifier = std::string_view(invocation.filter_id);
+  const auto support =
+      deep_filter_support(identifier, pixels.format().bit_depth);
+  if (support == DeepFilterSupport::Unsupported) {
+    throw std::invalid_argument(PATCHY_TRANSLATE_NOOP(
+        "QObject", "This filter is not available in 32-bit documents"));
+  }
+  if (support == DeepFilterSupport::EightBitPrecision) {
+    apply_eight_bit_edit_at_depth(pixels, [&](PixelBuffer &narrowed) {
+      execute_builtin_filter(registry, invocation, narrowed, progress);
+    });
+    return;
+  }
+
+  auto image = load_deep_image(pixels);
+  const auto original = image;
+  const auto for_each_pixel = [&image, progress](FilterProgressStage stage,
+                                                 auto &&body) {
+    for (std::int32_t y = 0; y < image.height; ++y) {
+      report_deep_filter_progress(progress, y, image.height, stage);
+      for (std::int32_t x = 0; x < image.width; ++x) {
+        body(x, y, image.at(x, y));
+      }
+    }
+    report_deep_filter_progress(progress, image.height, image.height, stage);
+  };
+  const auto luminance = [](const float *px) {
+    return (px[0] * 30.0F + px[1] * 59.0F + px[2] * 11.0F) / 100.0F;
+  };
+  const auto center_x = [&](double percent) {
+    return filter_center_coordinate(
+        image.width, std::clamp(percent, 0.0, 100.0));
+  };
+  const auto center_y = [&](double percent) {
+    return filter_center_coordinate(
+        image.height, std::clamp(percent, 0.0, 100.0));
+  };
+  constexpr auto kFiltering = FilterProgressStage::Filtering;
+
+  if (identifier == "patchy.filters.invert") {
+    for_each_pixel(kFiltering, [](std::int32_t, std::int32_t, float *px) {
+      for (std::size_t c = 0; c < 3U; ++c) {
+        px[c] = 255.0F - px[c];
+      }
+    });
+    deep_blend_with_original(image, original,
+                             filter_value(invocation, "amount", 100));
+  } else if (identifier == "patchy.filters.brightness_contrast") {
+    const auto brightness = static_cast<float>(
+        std::clamp(filter_value(invocation, "brightness", 0), -100, 100));
+    const auto factor = 1.0F + static_cast<float>(std::clamp(
+                                   filter_value(invocation, "contrast", 0),
+                                   -100, 100)) /
+                                   100.0F;
+    for_each_pixel(kFiltering, [&](std::int32_t, std::int32_t, float *px) {
+      for (std::size_t c = 0; c < 3U; ++c) {
+        px[c] = (px[c] - 128.0F) * factor + 128.0F + brightness;
+      }
+    });
+  } else if (identifier == "patchy.filters.grayscale" ||
+             identifier == "patchy.filters.desaturate") {
+    for_each_pixel(kFiltering, [&](std::int32_t, std::int32_t, float *px) {
+      const auto value = std::clamp(luminance(px), 0.0F, 255.0F);
+      px[0] = value;
+      px[1] = value;
+      px[2] = value;
+    });
+    deep_blend_with_original(image, original,
+                             filter_value(invocation, "amount", 100));
+  } else if (identifier == "patchy.filters.sepia") {
+    for_each_pixel(kFiltering, [](std::int32_t, std::int32_t, float *px) {
+      const auto r = px[0];
+      const auto g = px[1];
+      const auto b = px[2];
+      px[0] = std::min(255.0F, (r * 393.0F + g * 769.0F + b * 189.0F) / 1000.0F);
+      px[1] = std::min(255.0F, (r * 349.0F + g * 686.0F + b * 168.0F) / 1000.0F);
+      px[2] = std::min(255.0F, (r * 272.0F + g * 534.0F + b * 131.0F) / 1000.0F);
+    });
+    deep_blend_with_original(image, original,
+                             filter_value(invocation, "amount", 100));
+  } else if (identifier == "patchy.filters.threshold") {
+    const auto threshold = static_cast<float>(
+        std::clamp(filter_value(invocation, "threshold", 128), 0, 255));
+    for_each_pixel(kFiltering, [&](std::int32_t, std::int32_t, float *px) {
+      // The 8-bit filter floors the integer luminance, which compares the
+      // same against a whole-number threshold.
+      const auto value = luminance(px) >= threshold ? 255.0F : 0.0F;
+      px[0] = value;
+      px[1] = value;
+      px[2] = value;
+    });
+  } else if (identifier == "patchy.filters.posterize") {
+    const auto levels =
+        std::clamp(filter_value(invocation, "levels", 4), 2, 255);
+    for_each_pixel(kFiltering, [levels](std::int32_t, std::int32_t, float *px) {
+      for (std::size_t c = 0; c < 3U; ++c) {
+        // The Posterize adjustment's 16-bit buckets (core/adjustment_deep).
+        const auto scaled =
+            static_cast<double>(px[c]) * 257.0 * levels / 65536.0;
+        const auto bucket = std::clamp(
+            static_cast<int>(std::floor(scaled)), 0, levels - 1);
+        px[c] = static_cast<float>(bucket) * 255.0F /
+                static_cast<float>(levels - 1);
+      }
+    });
+  } else if (identifier == "patchy.filters.vignette") {
+    const auto strength = static_cast<double>(
+        std::clamp(filter_value(invocation, "strength", 55), 0, 100));
+    const auto cx = center_x(filter_number(invocation, "center_x", 50.0));
+    const auto cy = center_y(filter_number(invocation, "center_y", 50.0));
+    const auto far_x =
+        std::max(cx, static_cast<double>(image.width - 1) - cx);
+    const auto far_y =
+        std::max(cy, static_cast<double>(image.height - 1) - cy);
+    const auto max_distance = std::sqrt(far_x * far_x + far_y * far_y);
+    if (max_distance > 0.0) {
+      for_each_pixel(FilterProgressStage::ApplyingVignette,
+                     [&](std::int32_t x, std::int32_t y, float *px) {
+                       const auto dx = static_cast<double>(x) - cx;
+                       const auto dy = static_cast<double>(y) - cy;
+                       const auto distance =
+                           std::sqrt(dx * dx + dy * dy) / max_distance;
+                       const auto darken = static_cast<float>(
+                           1.0 - strength / 100.0 *
+                                     std::clamp(distance * distance, 0.0,
+                                                1.0));
+                       for (std::size_t c = 0; c < 3U; ++c) {
+                         px[c] *= darken;
+                       }
+                     });
+    }
+  } else if (identifier == "patchy.filters.box_blur") {
+    deep_box_blur(image,
+                  std::clamp(filter_value(invocation, "radius", 1), 1,
+                             kBoxBlurMaximumRadius),
+                  progress);
+  } else if (identifier == "patchy.filters.gaussian_blur") {
+    deep_gaussian_blur(
+        image,
+        std::clamp(filter_number(invocation, "radius", 2.0),
+                   kGaussianBlurMinimumRadius, kGaussianBlurMaximumRadius),
+        progress);
+  } else if (identifier == "patchy.filters.high_pass") {
+    deep_high_pass(
+        image,
+        std::clamp(filter_number(invocation, "radius", 10.0), 0.1, 1000.0),
+        progress);
+  } else if (identifier == "patchy.filters.unsharp_mask") {
+    deep_unsharp_mask(
+        image,
+        std::clamp(filter_number(invocation, "amount", 150.0), 1.0, 500.0),
+        std::clamp(filter_number(invocation, "radius", 2.0), 0.1, 1000.0),
+        std::clamp(filter_value(invocation, "threshold", 8), 0, 255),
+        progress);
+  } else if (identifier == "patchy.filters.sharpen") {
+    deep_sharpen(image,
+                 std::clamp(filter_value(invocation, "amount", 100), 0, 300),
+                 progress);
+  } else if (identifier == "patchy.filters.radial_blur") {
+    deep_radial_blur(
+        image, std::clamp(filter_value(invocation, "amount", 35), 0, 100),
+        std::clamp(filter_value(invocation, "samples", 16), 4, 32),
+        center_x(filter_number(invocation, "center_x", 50.0)),
+        center_y(filter_number(invocation, "center_y", 50.0)), progress);
+  } else if (identifier == "patchy.filters.pixelate") {
+    deep_pixelate(
+        image, std::clamp(filter_value(invocation, "block_size", 4), 2, 200),
+        progress);
+  } else if (identifier == "patchy.filters.emboss") {
+    deep_emboss(image,
+                std::clamp(filter_value(invocation, "angle", 135), -360, 360),
+                std::clamp(filter_value(invocation, "height", 2), 1, 100),
+                std::clamp(filter_value(invocation, "amount", 100), 0, 500),
+                progress);
+  } else if (identifier == "patchy.filters.twirl") {
+    deep_twirl(image,
+               std::clamp(filter_value(invocation, "angle", 180), -720, 720),
+               std::clamp(filter_value(invocation, "radius", 100), 1, 100),
+               center_x(filter_number(invocation, "center_x", 50.0)),
+               center_y(filter_number(invocation, "center_y", 50.0)),
+               progress);
+  } else if (identifier == "patchy.filters.wave") {
+    deep_wave(image,
+              std::clamp(filter_value(invocation, "amplitude", 12), 0, 999),
+              std::clamp(filter_value(invocation, "wavelength", 48), 4, 999),
+              std::clamp(filter_value(invocation, "phase", 0), 0, 360),
+              progress);
+  } else if (identifier == "patchy.filters.pinch_bloat") {
+    deep_pinch_bloat(
+        image, std::clamp(filter_value(invocation, "amount", 35), -100, 100),
+        std::clamp(filter_value(invocation, "radius", 100), 1, 100),
+        center_x(filter_number(invocation, "center_x", 50.0)),
+        center_y(filter_number(invocation, "center_y", 50.0)), progress);
+  } else if (identifier == "patchy.filters.clouds") {
+    const auto scale =
+        std::clamp(filter_value(invocation, "scale", 96), 12, 512);
+    const auto detail = std::clamp(filter_value(invocation, "detail", 6), 1, 8);
+    const auto contrast =
+        std::clamp(filter_value(invocation, "contrast", 40), 0, 100);
+    const auto seed = std::clamp(filter_value(invocation, "seed", 1), 1, 9999);
+    const std::array<double, 3> foreground{
+        static_cast<double>(invocation.foreground.red),
+        static_cast<double>(invocation.foreground.green),
+        static_cast<double>(invocation.foreground.blue)};
+    const std::array<double, 3> background{
+        static_cast<double>(invocation.background.red),
+        static_cast<double>(invocation.background.green),
+        static_cast<double>(invocation.background.blue)};
+    const auto linear = image.domain == DeepDomain::Linear;
+    for_each_pixel(
+        FilterProgressStage::GeneratingClouds,
+        [&](std::int32_t x, std::int32_t y, float *px) {
+          const auto amount =
+              filter_cloud_noise(x, y, scale, detail, contrast, seed);
+          for (std::size_t c = 0; c < 3U; ++c) {
+            // Mixed in the display encoding like the 8-bit filter, so the
+            // clouds look the same at every depth.
+            const auto mixed =
+                background[c] * (1.0 - amount) + foreground[c] * amount;
+            px[c] = static_cast<float>(
+                linear ? srgb_decode(mixed / 255.0) * 255.0 : mixed);
+          }
+          px[3] = 255.0F;
+        });
+  } else if (identifier == "patchy.filters.add_noise") {
+    const auto amount =
+        std::clamp(filter_number(invocation, "amount", 12.5), 0.1, 400.0);
+    const auto gaussian =
+        filter_option(invocation, "distribution", "uniform") == "gaussian";
+    const auto monochromatic =
+        filter_boolean(invocation, "monochromatic", false);
+    const auto seed =
+        std::clamp(filter_value(invocation, "seed", 1), 0, 999999999);
+    for_each_pixel(FilterProgressStage::AddingGrain,
+                   [&](std::int32_t x, std::int32_t y, float *px) {
+                     for (std::uint32_t c = 0; c < 3U; ++c) {
+                       px[c] += static_cast<float>(add_noise_delta(
+                           x, y, seed, monochromatic ? 3U : c, amount,
+                           gaussian));
+                     }
+                   });
+  } else {
+    throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "Unknown catalogued filter identifier"));
+  }
+  store_deep_image(pixels, image);
+}
+
+void execute_builtin_filter(const FilterRegistry &registry,
+                            const FilterInvocation &invocation,
+                            PixelBuffer &pixels,
                             const FilterProgress *progress) {
   if (pixels.format().bit_depth != BitDepth::UInt8) {
-    throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "Filter previews support UInt8 buffers only"));
+    execute_deep_builtin_filter(registry, invocation, pixels, progress);
+    return;
   }
   if (pixels.format().channels < 3 || pixels.empty()) {
     return;

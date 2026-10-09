@@ -15,6 +15,7 @@
 #include "core/layer_tree.hpp"
 #include "core/palette.hpp"
 #include "core/smart_object.hpp"
+#include "filters/filter_engine.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/dialog_utils.hpp"
@@ -2587,6 +2588,11 @@ bool ScriptEngineHost::apply_filter_to_layer(std::int64_t session_id, LayerId la
   }
   if (std::as_const(*layer).pixels().empty()) {
     return true;  // nothing to filter
+  }
+  if (deep_filter_support(normalized->filter_id, std::as_const(*layer).pixels().format().bit_depth) ==
+      DeepFilterSupport::Unsupported) {
+    throw_js_error(tr("This filter is not available in 32-bit documents."));
+    return false;
   }
   if (!prepare_mutation(session_id)) {
     return false;

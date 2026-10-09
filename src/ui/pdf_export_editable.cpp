@@ -328,7 +328,7 @@ struct Writer {
     if (!bounds.has_value()) {
       return;  // nothing visible, nothing to embed
     }
-    const QImage image = qimage_from_pixel_buffer(vector_export::crop_pixels(pixels, *bounds));
+    const QImage image = display_qimage_from_pixel_buffer(vector_export::crop_pixels(pixels, *bounds));
     log_ui_profile("pdf_export.raster_chunk_flatten",
                    std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - flatten_started).count());
     const UiProfileScope profile_scope("pdf_export.raster_chunk_draw");

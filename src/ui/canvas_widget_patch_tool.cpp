@@ -225,6 +225,14 @@ void CanvasWidget::commit_patch_tool_drag() {
   if (layer == nullptr) {
     return;
   }
+  // 16/32-bit layers patch a narrowed copy; only the patched pixels come back at 8-bit
+  // precision (NarrowedLayerEdit), and the canvas refreshes after the merge.
+  std::optional<NarrowedLayerEdit> narrowed;
+  if (std::as_const(*layer).pixels().format().bit_depth != BitDepth::UInt8) {
+    narrowed.emplace(*layer, [this, destination_bounds] {
+      active_edit_target_changed_impl(QRegion(destination_bounds), DocumentChangeReason::BrushStrokeFinished);
+    });
+  }
 
   begin_processing_operation();
   const auto lock_transparent_pixels = active_layer_locks_transparent_pixels();

@@ -165,6 +165,8 @@ struct CanvasInfoState {
   bool inside_document{false};
   QPoint document_point{};
   QColor color{Qt::transparent};
+  // 32-bit documents: the composite's linear-light RGB (1.0 = full), unclamped.
+  std::optional<std::array<float, 3>> linear_color{};
   std::optional<QRect> active_rect{};
   QString active_rect_label{};
 };
@@ -1696,6 +1698,9 @@ private:
                                                    float flow);
   void install_brush_stroke_compositor(EditOptions& options, bool erase);
   void ensure_brush_stroke_layer_snapshot(LayerId layer_id, const Layer& layer);
+  bool render_brush_stroke_pixel_deep(std::int32_t x, std::int32_t y, std::uint8_t* pixel, EditColor primary,
+                                      EditColor secondary, bool lock_transparent_pixels, float target_alpha,
+                                      bool erase) const;
   [[nodiscard]] std::array<std::uint8_t, 4> brush_stroke_original_pixel(std::int32_t x,
                                                                         std::int32_t y) const;
   [[nodiscard]] bool write_brush_stroke_pixel_from_snapshot(std::int32_t x, std::int32_t y,
@@ -1736,6 +1741,9 @@ private:
   [[nodiscard]] QRect draw_mask_brush_at(QPoint point, bool erase);
   [[nodiscard]] QRect smudge_brush_segment(QPoint from, QPoint to);
   [[nodiscard]] QRect local_adjustment_brush_segment(QPoint from, QPoint to);
+  [[nodiscard]] QRect local_adjustment_brush_segment_deep(QPoint from, QPoint to);
+  [[nodiscard]] QRect clone_brush_segment_deep(QPoint from, QPoint to);
+  [[nodiscard]] PixelBuffer retouch_source_deep();
   void set_clone_source(QPoint point);
   [[nodiscard]] bool begin_pattern_stamp_stroke(QPoint point);
   [[nodiscard]] QRect clone_brush_segment(QPoint from, QPoint to);
@@ -2698,6 +2706,9 @@ private:
   double brush_stroke_distance_since_last_stamp_{0.0};
   patchy::SmudgeState smudge_state_;
   QImage clone_source_cache_{};
+  // The Clone/Healing source of a 16/32-bit document at its depth (canvas-sized RGBA,
+  // native domain), beside the 8-bit cache above (docs/high-bit-depth.md).
+  PixelBuffer clone_source_deep_{};
   bool clone_source_set_{false};
   bool clone_aligned_{true};
   bool clone_aligned_offset_set_{false};

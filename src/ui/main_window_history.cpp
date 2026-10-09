@@ -447,6 +447,8 @@ void MainWindow::rotate_history_state(DocumentSession& target_session, bool back
                                       CanvasWidget::SelectionSnapshot& live_selection) {
   auto& from = backward ? target_session.undo_stack : target_session.redo_stack;
   auto& to = backward ? target_session.redo_stack : target_session.undo_stack;
+  // The 32-bit preview exposure is a view setting: history keeps the current one.
+  const auto view_exposure = target_session.document.color_state().view_exposure_stops;
   // Braced-init evaluation is left to right, so the document moves out before
   // revision/label are read; both history hops are moves (a copy here is a
   // full multi-hundred-MB Document duplication on large canvases).
@@ -455,6 +457,7 @@ void MainWindow::rotate_history_state(DocumentSession& target_session, bool back
       std::move(target_session.current_state_label), target_session.current_state_id});
   auto& restored = from.back();
   target_session.document = std::move(restored.document);
+  target_session.document.color_state().view_exposure_stops = view_exposure;
   target_session.revision = restored.revision;
   live_selection = std::move(restored.selection);
   target_session.current_state_label = std::move(restored.label);
