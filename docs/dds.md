@@ -195,6 +195,9 @@ Persisted defaults (`saveOptions/*`, compatibility contracts, never renamed):
 false to `auto`) and is no longer written. The token helpers live with the codec
 (`dds::compression_token`, `compression_from_token`, `mipmap_choice_token`,
 `mipmap_choice_from_token`) so the settings, the dialog and the metadata cannot disagree.
+Scripts pass the same tokens: `doc.exportAs("tex.dds", {compression: "bc3", mipmaps: "on"})`
+(docs/scripting.md "Explicit save options"; the bundled `Utilities/quick-export-dds.js` is
+the example), with Automatic resolving against the opened file exactly as the dialog does.
 
 The reader stamps session-only document metadata: `patchy.dds.compression` (the nearest
 export choice for the source: `uncompressed` for masked, 16-bit and float sources, `bc1`

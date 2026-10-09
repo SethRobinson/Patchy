@@ -20,6 +20,11 @@ namespace patchy::ui {
 
 class HotkeyCaptureEdit;
 
+// Keys the canvas (or the editor dialog itself) consumes positionally; binding them
+// app-wide would break core interactions, so the capture field refuses them and a
+// script's @hotkey directive naming one is ignored.
+[[nodiscard]] bool is_reserved_binding_key(int key, Qt::KeyboardModifiers modifiers);
+
 // The Hotkeys tab of the preferences dialog. Edits are staged locally and
 // only reach the registry (settings + live actions) through commit().
 class HotkeyEditorPanel final : public QWidget {
@@ -29,6 +34,8 @@ public:
   HotkeyEditorPanel(HotkeyRegistry& registry, QMenuBar* menu_bar, QWidget* parent = nullptr);
 
   void commit();
+  // Fills the search field (Script Manager's "Assign Hotkey..." lands on the script's row).
+  void set_search_text(const QString& text);
 
 private:
   struct Row {

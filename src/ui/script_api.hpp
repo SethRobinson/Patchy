@@ -277,8 +277,8 @@ public:
   Q_INVOKABLE void resizeCanvas(int width, int height);
   Q_INVOKABLE void convertBitDepth(int bits);
   Q_INVOKABLE void crop(int x, int y, int width, int height);
-  Q_INVOKABLE bool saveAs(const QString& path);
-  Q_INVOKABLE bool exportAs(const QString& path);
+  Q_INVOKABLE bool saveAs(const QString& path, const QJSValue& options = QJSValue());
+  Q_INVOKABLE bool exportAs(const QString& path, const QJSValue& options = QJSValue());
   Q_INVOKABLE bool exportAnimatedWebp(const QString& path, const QJSValue& options = QJSValue());
   Q_INVOKABLE void close();
   Q_INVOKABLE void activate();
@@ -288,6 +288,7 @@ public:
 private:
   [[nodiscard]] const Document* read_document() const;
   [[nodiscard]] Document* write_document();
+  bool save_to_path(const QString& method, const QString& path, const QJSValue& options, bool export_copy);
 
   ScriptEngineHost& host_;
   std::int64_t session_id_{0};

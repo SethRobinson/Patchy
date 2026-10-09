@@ -217,6 +217,16 @@ int main(int argc, char* argv[]) {
   if (qEnvironmentVariableIsEmpty("PATCHY_RECOVERY_DIR")) {
     qputenv("PATCHY_RECOVERY_DIR", QDir::current().filePath(QStringLiteral("test-artifacts/recovery")).toUtf8());
   }
+  // Every MainWindow registers the user scripts' hotkey commands at construction, so the
+  // suite must never see a developer's real scripts folder (a @hotkey there would change
+  // the default-shortcut assertions). Per process, like the font store below.
+  if (qEnvironmentVariableIsEmpty("PATCHY_USER_SCRIPTS_DIR")) {
+    qputenv("PATCHY_USER_SCRIPTS_DIR",
+            QDir::current()
+                .filePath(QStringLiteral("test-artifacts/user-scripts/") +
+                          QString::number(QCoreApplication::applicationPid()))
+                .toUtf8());
+  }
   // The dropped-font store is private to this PROCESS. It used to be QStandardPaths'
   // test-mode app-data folder, one directory shared by every checkout and worktree on the
   // machine. A process keeps the store files it registered open until it exits, so a second

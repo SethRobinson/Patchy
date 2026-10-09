@@ -40,6 +40,7 @@
 #include "ui/qt_paths.hpp"
 #include "ui/script_canvas_window.hpp"
 #include "ui/script_engine.hpp"
+#include "ui/script_save_options.hpp"
 #include "ui/script_vector.hpp"
 #include "core/text_area.hpp"
 
@@ -2300,15 +2301,43 @@ void ScriptDocumentObject::crop(int x, int y, int width, int height) {
   host_.note_structure_changed(session_id_);
 }
 
-bool ScriptDocumentObject::saveAs(const QString& path) {
+bool ScriptDocumentObject::saveAs(const QString& path, const QJSValue& options) {
   const ScriptApiCall api_call(host_);
+  return save_to_path(QStringLiteral("saveAs"), path, options, /*export_copy=*/false);
+}
+
+bool ScriptDocumentObject::exportAs(const QString& path, const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
+  return save_to_path(QStringLiteral("exportAs"), path, options, /*export_copy=*/true);
+}
+
+bool ScriptDocumentObject::save_to_path(const QString& method, const QString& path, const QJSValue& options,
+                                        bool export_copy) {
   if (read_document() == nullptr) {
     return false;
   }
-  return host_.save_session_to_path(session_id_, path);
+  if (path.trimmed().isEmpty()) {
+    host_.throw_js_error(ScriptEngineHost::tr("%1 needs an output path.").arg(method));
+    return false;
+  }
+  std::optional<ImageSaveOptions> save_options;
+  if (!options.isUndefined()) {
+    // Explicit choices start from the per-document defaults (never the session's remembered
+    // options) so that an unspecified key follows the user's defaults and a specified one
+    // always wins.
+    save_options = host_.save_options_for_session(session_id_);
+    if (!save_options.has_value()) {
+      return false;
+    }
+    const auto error =
+        apply_script_image_save_options(method, QFileInfo(path).suffix(), options, *save_options);
+    if (!error.isEmpty()) {
+      host_.throw_js_error(error);
+      return false;
+    }
+  }
+  return host_.save_session_to_path(session_id_, path, std::move(save_options), export_copy);
 }
-
-bool ScriptDocumentObject::exportAs(const QString& path) { const ScriptApiCall api_call(host_); return saveAs(path); }
 
 bool ScriptDocumentObject::exportAnimatedWebp(const QString& path, const QJSValue& options) {
   const ScriptApiCall api_call(host_);

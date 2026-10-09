@@ -1064,6 +1064,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/image_trace_dialog.hpp
       src/ui/activity_spinner.cpp
       src/ui/image_trace_dialog.cpp
+      src/ui/image_save_option_keys.hpp
+      src/ui/image_save_option_keys.cpp
       src/ui/image_save_options_dialog.cpp
       src/ui/layer_style_dialog.cpp
       src/ui/layer_list_widget.cpp
@@ -1182,6 +1184,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/js_syntax_highlighter.cpp
       src/ui/script_api.hpp
       src/ui/script_api.cpp
+      src/ui/script_save_options.hpp
+      src/ui/script_save_options.cpp
       src/ui/script_vector.hpp
       src/ui/script_vector.cpp
       src/ui/script_vector_paints.cpp

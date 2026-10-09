@@ -15,10 +15,9 @@ change.
 
 - `src/ui/script_engine.{hpp,cpp}`: `ScriptEngineHost`, the engine owner. Run lifecycle,
   bootstrap prelude (console/timers/include/the `patchy` namespace), watchdog, undo and
-  refresh integration, and every MainWindow-facing service the wrappers call
-  (including the interactive helpers: alert/prompt/pickers/`showDialog`/`runCommand`).
-  `ScriptEngineHost` is a friend of MainWindow; the wrappers never touch MainWindow
-  directly.
+  refresh integration, and every MainWindow-facing service the wrappers call (the
+  interactive helpers included). It is a friend of MainWindow; the wrappers never touch
+  MainWindow directly.
 - `src/ui/script_api.{hpp,cpp}`: the QObject wrappers JS sees (`app`, documents, layers,
   selection, `patchy.io`, `patchy.ui`, `patchy.recovery`, `patchy.plugins`; the last one
   and `layer.applyPlugin` front the legacy 8BF host, see [plugins.md](plugins.md)).
@@ -29,24 +28,19 @@ change.
   presets; see [brush-automation.md](brush-automation.md).
 - `src/ui/script_canvas_window.{hpp,cpp}`: interactive script windows (games/demos).
 - `src/ui/script_editor_dialog.{hpp,cpp}` + `src/ui/js_syntax_highlighter.{hpp,cpp}`: the
-  Script Manager UI (folder tree, shadow-override saves, context menu, and the run
-  status area: spinner, "Running... 13s" readout and stop button during a run, "Ready"
-  otherwise; the elapsed clock is dialog-local and restarts when run_state_changed
-  reports a run became active). The C:\ toolbar button and the "Command Line
-  Example..." context entry open the copyable-command dialog (below); Help opens the
-  scripting guide. A single click or arrow-key step loads a tree script; with unsaved
-  edits, selection changes never load or prompt, and switching goes through activation
-  (double-click/Enter), which asks to discard. New (toolbar button, and New Script on
-  every folder row's context menu) seeds a runnable starter template, left unmodified
+  Script Manager UI (folder tree, shadow-override saves, context menu, run status area
+  with a dialog-local elapsed clock and stop button). The C:\ toolbar button and the
+  "Command Line Example..." context entry open the copyable-command dialog (below); Help
+  opens the guide. A single click loads a tree script; with unsaved edits, selection
+  changes never load or prompt, and switching goes through activation (double-click/
+  Enter), which asks to discard. New seeds a runnable starter template, left unmodified
   so an untouched template never guards or prompts.
 - `src/ui/markdown_viewer_dialog.{hpp,cpp}`: the reusable read-only Markdown viewer
   (QTextBrowser via setSource; relative images resolve against the .md file, anchors
   are repainted in the accent blue because the importer's default is unreadable on
-  dark). `MainWindow::open_scripting_guide()` (main_window_scripting.cpp) owns the
-  single instance, shared by Help > Scripting Guide (`help.scripting_guide`) and the
-  Script Manager's Help button. Help > Set up AI Control
-  (`help.ai_setup`, `MainWindow::open_ai_setup_dialog()`) is the sibling entry for the
-  MCP connector; see [ai-control.md](ai-control.md).
+  dark). `MainWindow::open_scripting_guide()` owns the single instance shared by Help >
+  Scripting Guide (`help.scripting_guide`) and the Script Manager's Help button. Help > Set
+  up AI Control (`help.ai_setup`) is the MCP connector's sibling; see [ai-control.md](ai-control.md).
 - `src/ui/script_folders.{hpp,cpp}`: the script browser model - recursive bundled/user
   folder scans and the shadow-override merge, shared by the File > Scripts menu and the
   editor tree.
@@ -93,16 +87,18 @@ Header directives live in the `//` comment block at the top of a script and are 
   placeholder for active-document scripts and nothing for `@window` scripts, so every
   script gets a working example. Utilities scripts that take `--script-arg` options
   carry `@cli` lines; simple active-document effects rely on the fallback.
+- `// @hotkey Ctrl+Alt+D` - the script's DEFAULT shortcut (one PortableText sequence; a
+  key `is_reserved_binding_key` refuses is ignored); see "Script hotkeys". Bundled scripts
+  never carry one (`ui_hotkey_defaults_have_no_conflicts` registers them all).
 
-A same-stem 128x128 PNG is the script icon, displayed at 32px in the tree and
-96px in its hover card; missing icons use `script_generic_icon`. User PNGs override
-bundled icons independently of script overrides. "Set Icon from Current Window"
-uses `script_icon_write_target`/`write_script_icon` to center-crop and scale the
-latest live script canvas, or the active document composite. The tree delegate in
-script_editor_dialog.cpp paints name, filename, modified tag and window badge;
-`item->text(0)` remains the display name. Its slot-driven `ScriptHoverCard`
-Qt::ToolTip window shows icon, name, author, description and filename/badges after
-about 350ms. Tree refresh clears hover state; rows have no plain tooltip.
+A same-stem 128x128 PNG is the script icon (32px in the tree, 96px in the hover card;
+missing icons use `script_generic_icon`). User PNGs override bundled icons independently
+of script overrides. "Set Icon from Current Window" (`script_icon_write_target` /
+`write_script_icon`) center-crops the latest live script canvas or the active document.
+The tree delegate paints name, filename, modified tag and window badge; `item->text(0)`
+remains the display name. The slot-driven `ScriptHoverCard` shows icon, name, author,
+description and filename/badges after about 350ms; tree refresh clears hover state, and
+rows have no plain tooltip.
 
 Every bundled script carries `@name`/`@description`/`@author`, and every one has a
 committed icon PNG, procedural artwork generated by `scripts/dev/make-script-icons.js`
@@ -114,20 +110,19 @@ directives, extend the generator, and re-run it (its header comment shows the co
 Every bundled script with tweakable behavior follows one shape, and new scripts should
 too:
 
-1. A clearly-marked `var OPTIONS = {...}` block at the top of the file holds the
-   defaults with one comment per key.
+1. A clearly-marked `var OPTIONS = {...}` block at the top holds the defaults, one
+   comment per key.
 2. The script calls `patchy.ui.showOptions({title, description, fields})` with the
-   fields seeded from OPTIONS. `description` renders as wrapped instructions above the
-   form, so scripts that need input explain what to pick.
+   fields seeded from OPTIONS; `description` renders as instructions above the form.
 3. showOptions implements "defaults unless overridden": matching `--script-arg
    key=value` tokens override the field defaults (coerced by field type; a bare token
    turns a checkbox on), unattended runs return the effective values WITHOUT a dialog,
    and GUI runs show the dialog seeded with them (null = cancelled, exit quietly).
 
 "Unattended" is `ScriptEngineHost::unattended_run()`: app-wide CLI automation mode OR
-the per-run `RunOptions.unattended` flag, which `run_script_command`/`run_cli_script`
-set for every `--run-script` execution, INCLUDING requests forwarded to a running GUI
-instance, so automation never blocks on a dialog. Every interactive helper honors it.
+the per-run `RunOptions.unattended` flag, set for every `--run-script` execution
+INCLUDING requests forwarded to a running GUI instance, so automation never blocks on a
+dialog. Every interactive helper honors it.
 
 The form dialog (shared by showDialog/showOptions, `run_form_dialog` in
 script_engine.cpp) also supports `folder` and `file` field types (path line edit +
@@ -139,19 +134,17 @@ save-version stay instant too.
 
 Save on a bundled script never touches the shipped file (read-only installs; app updates
 would clobber edits): the editor writes a user copy at the SAME relative path under the
-user scripts folder (`Games/breakout.js` -> `<user scripts>/Games/breakout.js`). The scan
-merge (`scan_scripts`) then shows that copy in place of the bundled entry - tagged
-"(modified)" in the menu and tree - and it is what runs from the menu, the editor, and
-`include()`. "My Scripts" lists only non-overriding user scripts. Revert to Bundled
-(tree context menu) deletes the copy. Keep this override-by-relative-path rule intact
-everywhere a bundled script is resolved.
+user scripts folder. The scan merge (`scan_scripts`) shows that copy in place of the
+bundled entry, tagged "(modified)", and it is what runs from the menu, the editor, and
+`include()`. "My Scripts" lists only non-overriding user scripts; Revert to Bundled
+deletes the copy. Keep this override-by-relative-path rule intact everywhere a bundled
+script is resolved.
 
 ## Engine rules (binding design decisions)
 
 - **One run at a time, on the UI thread.** A run stays alive until the synchronous
-  evaluation AND every timer and script canvas window are done. A fresh QJSEngine is
-  created per run and destroyed at run end, so nothing leaks between runs and stored
-  QJSValues die with their engine (canvas windows drop theirs in teardown first).
+  evaluation AND every timer and script canvas window are done. A fresh QJSEngine per
+  run means stored QJSValues die with their engine (canvas windows drop theirs first).
 - **One undo entry per run and session by default.** The first mutation a run makes to a session
   pushes one "Script: name" snapshot (`prepare_mutation`); everything after rides it, so
   a 60fps animation undoes to its pre-script state in one step. Scripts can opt out for
@@ -169,43 +162,35 @@ everywhere a bundled script is resolved.
   event-loop turn repaints the canvas (region or full) and refreshes panels for the
   active session only. Structure changes (add/remove/reorder/rename) rebuild the layer
   panel; pixel-only changes refresh thumbnails.
-  Visible MCP/CLI runs also present completed edits periodically. `patchy.ui.present`
-  provides explicit frames and optional pacing. CLI runs have a status-bar Stop
-  control despite being unattended. See [automation-feedback.md](automation-feedback.md).
-  `patchy.ui.paused` parks visible automation after a native edit. Browsing stays
-  available while working; paused manual edits split script Undo groups. See the
-  API scope and resume safety rules in [automation-feedback.md](automation-feedback.md).
+  Visible MCP/CLI runs also present completed edits periodically (`patchy.ui.present`
+  gives explicit frames and pacing; CLI runs have a status-bar Stop control). See
+  [automation-feedback.md](automation-feedback.md).
+  `patchy.ui.paused` parks visible automation after a native edit; paused manual edits
+  split script Undo groups (API scope and resume safety: automation-feedback.md).
 - **The watchdog measures INACTIVITY, never total runtime.** Legitimate scripts run for
-  hours; a blanket runtime limit is wrong by design.
-  A helper thread arms around every evaluate and callback, and every hot service call
-  feeds it (a lock-free atomic in `pump_progress_indicator`); it calls
-  `QJSEngine::setInterrupted` only when a script made NO API call - no pixel write,
-  file operation, or console output - for the whole window (default 2 minutes;
-  `PATCHY_SCRIPT_TIMEOUT_MS` overrides the window, which the tests use). That is the
-  only possible defense against `while (true) {}`: a frozen UI thread cannot show any
-  prompt. Pure-JS computation that goes silent longer than the window still dies -
-  the documented convention is to log or write progress periodically (every heavy
-  bundled script does; the same calls drive the busy overlay). Connector-owned
-  runs instead use a throttled UI progress callback under the MCP input guard,
-  allowing the status-bar Stop button without a modal panel. Never remove the
-  arm/disarm pairing around a new entry point into script code; route new callback
-  invocations through `call_script_callback`.
-- **Reentrancy: never destroy the engine from inside script code.** Timer slots and
-  window event filters run callbacks; a failing callback schedules a deferred finish
-  (`schedule_completion_check` / the deferred `finish_run` path) instead of tearing down
-  from inside itself. Stop during evaluation only interrupts; the evaluate caller
-  finishes the run.
+  hours; a blanket runtime limit is wrong by design. A helper thread arms around every
+  evaluate and callback, every hot service call feeds it (a lock-free atomic in
+  `pump_progress_indicator`), and it calls `QJSEngine::setInterrupted` only when a script
+  made NO API call for the whole window (default 2 minutes; `PATCHY_SCRIPT_TIMEOUT_MS`
+  overrides it, which the tests use): the only defense against `while (true) {}`, since
+  a frozen UI thread cannot prompt. Silent pure-JS computation still dies, so heavy
+  scripts log or write progress periodically. Connector-owned runs instead use a
+  throttled UI progress callback under the MCP input guard (status-bar Stop, no modal
+  panel). Never remove the arm/disarm pairing around a new entry point into script
+  code; route new callback invocations through `call_script_callback`.
+- **Reentrancy: never destroy the engine from inside script code.** A failing timer or
+  window-event callback schedules a deferred finish (`schedule_completion_check`) instead
+  of tearing down from inside itself. Stop during evaluation only interrupts; the
+  evaluate caller finishes the run.
 - **The automatic busy indicator pumps events mid-evaluation - keep the guards.**
   `pump_progress_indicator()` (called at the hot service entry points: prepare_mutation,
   note_*_changed, open/create/save/close session, apply_filter, add_text_layer,
   consoleEmit; it also feeds the watchdog, unconditionally) engages once the CURRENT
-  synchronous burst (the main evaluate or one callback, timed by `burst_clock` and
-  restarted per burst so a game of short frames never trips it) exceeds 500 ms
-  (`PATCHY_SCRIPT_BUSY_DELAY_MS` overrides; skipped for unattended runs): the active
-  canvas's processing overlay PLUS the application-modal `ScriptStopPanel` (script
-  name, elapsed, last console line, refreshed per pump), then pumps
-  `processEvents(AllEvents)`; modality leaves the panel's Stop button as the only
-  reachable control while the script owns the UI thread.
+  synchronous burst (the main evaluate or one callback, timed by `burst_clock`,
+  restarted per burst) exceeds 500 ms (`PATCHY_SCRIPT_BUSY_DELAY_MS` overrides; skipped
+  for unattended runs): the canvas processing overlay plus the application-modal
+  `ScriptStopPanel`, then `processEvents(AllEvents)`; modality leaves the panel's Stop
+  button as the only reachable control while the script owns the UI thread.
   Stop opens a NON-BLOCKING confirm ("Stop 'name'?" with an "Undo the changes it made"
   checkbox, shown only when the run pushed undo snapshots); the job keeps working
   while the user decides (never exec a nested loop from the panel's handler: a
@@ -228,39 +213,31 @@ everywhere a bundled script is resolved.
   (setPixels REPLACES the layer's pixels: re-send the whole buffer, never strips).
 - **Palette mode**: `setPixels` and `fill` snap to the document palette like tools
   (`apply_palette_to_pixels`, dither None, the editing alpha threshold); `applyFilter`
-  stays advisory, as interactive filters are. `doc.getPalette/setPalette/loadPalette/
-  savePalette` expose palette metadata and file I/O; set/load validate before Undo, keep
-  layer pixels, and default to enabled mode. The host assigns globally unique palette
-  revisions, syncs indexed export metadata, and invalidates canvas and panel. Disabled
-  mode keeps an attached table; getters read const and return copies. PNG save/export
-  uses the indexed writer; previews stay truecolor. Optional parallel `names` arrays
-  carry color labels through GPL, PSD and indexed PNG. See [palette-mode.md](palette-mode.md).
+  stays advisory. `doc.getPalette/setPalette/loadPalette/savePalette` validate before
+  Undo, keep layer pixels, and default to enabled mode; getters read const and return
+  copies. PNG save/export uses the indexed writer; previews stay truecolor. Parallel
+  `names` arrays carry color labels through GPL, PSD and indexed PNG. See
+  [palette-mode.md](palette-mode.md).
 - **Text layers go through the real pipeline.** `addTextLayer` and the `text` setter
   drive actual inline-editor sessions (the `cli_append_text_to_text_layers` technique),
   so rasters render through the normal commit path. `addTextLayer` clears the active
   layer first so `add_text_at` cannot latch onto an existing text layer. Its `size` is
-  the text height in DOCUMENT PIXELS: the inline editor's font lives in editor pixels
-  (document px * canvas zoom), so the script path must set `setPixelSize(size * zoom)` -
-  a point-sized font commits at a zoom-dependent size (pinned by
-  `ui_script_text_size_is_zoom_independent`). Its `font` goes through
-  `apply_text_family_to_editor` (the font picker's path): the commit reads the session
-  family, not the char format (pinned by `ui_script_text_font_option_applies`). The `text` setter replaces the selection
-  in one `insertText(text, format)` with the first character's format, never
-  delete-then-insert: an emptied block's char format is the fallback font only, so the
-  run would lose the exact size and glyph scales it renders from (pinned by
-  `ui_la_methode_script_text_setter_matches_interactive_commit_if_available`).
+  the text height in DOCUMENT PIXELS: the editor's font lives in editor pixels, so the
+  script path sets `setPixelSize(size * zoom)` (`ui_script_text_size_is_zoom_independent`).
+  Its `font` goes through `apply_text_family_to_editor`: the commit reads the session
+  family, not the char format (`ui_script_text_font_option_applies`). The `text` setter
+  replaces the selection in one `insertText(text, format)` with the first character's
+  format, never delete-then-insert: an emptied block's char format is the fallback font
+  only (`ui_la_methode_script_text_setter_matches_interactive_commit_if_available`).
   Rich runs (`addTextLayer([{text, font, size, bold, italic, color}, ...])`,
-  `layer.setTextRuns`) type each run with its own `QTextCharFormat` on top of the base
-  format through `apply_text_run_to_format` (`apply_text_family_to_format` for the family);
-  a paragraph break serializes as its own run because Qt gives the block separator the
-  preceding text's format. `box: {width, height}` passes the rect to `add_text_at`, which
-  opens the session as paragraph text; `align` and `textAlign` go through
-  `apply_text_alignment_to_editor` on the whole object. `textRuns`, `textBox` (null unless the
-  flow metadata says box) and `textAlign` read the stored runs, box and paragraph-run
-  metadata without a session. Scripted layers clear the options bar's recorded face
-  (`kTextStyleNameFormatProperty`) and carry `kTextExactSizeFormatProperty`, so the
-  requested face and size commit at every zoom (pinned by
-  `ui_script_text_face_ignores_the_options_bar_style`,
+  `layer.setTextRuns`) type each run with its own `QTextCharFormat` through
+  `apply_text_run_to_format`; a paragraph break serializes as its own run because Qt
+  gives the block separator the preceding text's format. `box: {width, height}` opens the
+  session as paragraph text; `align`/`textAlign` go through `apply_text_alignment_to_editor`.
+  `textRuns`, `textBox` (null unless the flow metadata says box) and `textAlign` read the
+  stored metadata without a session. Scripted layers clear `kTextStyleNameFormatProperty`
+  and carry `kTextExactSizeFormatProperty`, so the requested face and size commit at every
+  zoom (`ui_script_text_face_ignores_the_options_bar_style`,
   `ui_script_text_size_survives_low_zoom_reedit`, `ui_script_text_runs_create_and_read_back`,
   `ui_script_text_box_wraps_and_aligns`, `ui_script_set_text_runs_edits_existing_layer`).
 - **A script move is a Move tool move.** `layer.moveTo` and the `x`/`y` setters shift
@@ -274,48 +251,89 @@ everywhere a bundled script is resolved.
   (`offset_copied_layer_tree`) follow the same rule. A group has empty bounds: `x`/`y`
   read 0 and `moveTo` offsets its contents. Pinned by `ui_script_move_*`; Photoshop
   check: `scripts\dev\photoshop-text-move-check.ps1`.
-- **Blend mode ids** (`script_blend_mode_id`) are a compatibility contract: scripts in
-  the wild hard-code them. Append-only, aligned with the BlendMode enum, never rename.
+- **Blend mode ids** (`script_blend_mode_id`) are a compatibility contract: append-only,
+  aligned with the BlendMode enum, never renamed.
 - **`app.apiVersion` is 1.** Bump only for breaking changes. Record additions and
   behavioral changes in [scripting-api-changes.md](scripting-api-changes.md).
-  The native MCP connector, stable-ID lookups, strokes, previews, history access,
-  and structured script results are additive September 2026 APIs; see
-  [ai-control.md](ai-control.md) for their contracts.
+  The MCP connector APIs (stable-ID lookups, strokes, previews, history access,
+  structured results) are additive; their contracts are in [ai-control.md](ai-control.md).
 - **`include()` resolution order**: relative to the including script, then the user
   scripts root, then the bundled scripts root; a result inside the bundled folder maps
   through the shadow-override store. `patchy.isMainScript()` is false during an included
   file's top-level code (include-depth counter), so a script can be both a library and
   runnable (`Effects/fancy-background.js` is the model).
-  include() preserves the including script's global `OPTIONS` binding across the nested
-  evaluation (saved before, restored after): every bundled script carries a top-level
-  OPTIONS block, and without this an include overwrote the includer's options with the
-  library's.
+  include() saves and restores the includer's global `OPTIONS` binding around the nested
+  evaluation (every bundled script has one; a library's block used to overwrite it).
 - **Sound effects (`patchy.ui.playTone`/`playSound`)** play through
   `src/ui/sound_effects.{hpp,cpp}` + `sound_effects_mac.mm`: a deterministic 16-bit
-  mono tone synth (volume baked into the amplitude) and per-OS fire-and-forget
-  playback - winmm `PlaySound` (SND_MEMORY, static buffer keeps bytes alive, a new
-  sound cancels the previous) on Windows, retained `NSSound`s on macOS, a detached
-  `paplay`/`pw-play`/`aplay` process on Linux (none installed = silent no-op).
+  mono tone synth and per-OS fire-and-forget playback (winmm, `NSSound`, a detached
+  `paplay`/`pw-play`/`aplay` process; none installed = silent no-op).
   Deliberately NOT Qt Multimedia: absent from the vendored Qt, and adding it would
   grow provisioning/packaging everywhere. `playSound` resolves relative paths the
   include() way, requires RIFF/WAVE, and throws for missing/invalid files.
   `PATCHY_NO_SOUND=1` validates but skips the OS call (how offscreen tests stay silent).
 - **Modal helpers pause the watchdog.** Every interactive helper that blocks in a modal
   (alert, prompt, the pickers, `showDialog`, `runCommand`) wraps itself in
-  `ModalWatchdogPause`, which disarms the watchdog and re-arms it with a FRESH timeout on
-  exit - otherwise a user thinking at a dialog longer than the timeout gets the script
-  interrupted the moment it resumes. New modal helpers must do the same.
+  `ModalWatchdogPause` (disarms, re-arms with a FRESH timeout on exit, so time spent at a
+  dialog never interrupts the script). New modal helpers must do the same.
 - **`app.runCommand(id)`** triggers registered QActions by their stable HotkeyRegistry
-  command id (the same ids the hotkey editor persists); returns false for unknown or
-  disabled commands. It rides the same trust model as the rest of scripting.
-- **`patchy.ui.zoom` / `patchy.ui.fitOnScreen()`** are the documented view controls
-  (percent, active document). Connector sessions refuse `runCommand`; fitting settles
-  posted layout first. Window captures wait for [Dynamic Vector Preview](vector-preview.md).
-- The script canvas window deliberately bypasses `run_non_modal_dialog` (that helper
-  parks the caller in a nested event loop until the dialog finishes, and the calling
-  script must keep running). It applies `keep_dialog_above_parent_window` directly, which
-  is the macOS-critical part of the rule. The editor dialog itself is opened through
+  command id; returns false for unknown, disabled, or `script.` commands.
+- **`patchy.ui.zoom` / `patchy.ui.fitOnScreen()`** are the view controls (percent, active
+  document); fitting settles posted layout first. Window captures wait for
+  [Dynamic Vector Preview](vector-preview.md).
+- The script canvas window deliberately bypasses `run_non_modal_dialog` (its nested
+  event loop would park the running script) and applies `keep_dialog_above_parent_window`
+  directly, the macOS-critical part of the rule. The editor dialog uses
   `run_non_modal_dialog` as usual.
+
+## Script hotkeys
+
+Every script in the merged scan owns one persistent `QAction` (parent MainWindow) that is
+both its File > Scripts entry and a HotkeyRegistry command of category `scripts`, so the
+menu shows the bound shortcut and the key works from the first keypress.
+`MainWindow::refresh_script_commands(const ScriptScan&)` (main_window_scripting.cpp) owns
+them: registers new scripts, unregisters vanished ones (`HotkeyRegistry::unregister_command`),
+re-defaults a changed `@hotkey` (`set_default_shortcuts`), refreshes text, icon and run
+path, attaches each new action to every open float window (docs/float-windows.md), then
+calls `apply_to_actions()` once. It is the ONLY sanctioned late registration and runs at
+construction, on every Scripts menu rebuild and Script Manager tree refresh, and before
+the Preferences Hotkeys panel is built. `rebuild_scripts_menu` re-adds them in scan
+order; only submenus and the separator are rebuilt.
+
+- **Command id** (persisted, never changes): `script_hotkey_command_id` is `"script."` plus
+  the percent-encoded relative path (`script.Utilities%2Fquick-export-dds.js`; a `/` in a
+  QSettings key would open a group). Unique across the merged scan, so a shadow override
+  keeps the bundled script's hotkey (its own `@hotkey` becomes the default); a renamed or
+  moved file gets a new id.
+- **Precedence**: a Preferences override (settings group `hotkeys`) beats the `@hotkey`
+  default; registration order makes built-in defaults beat a colliding `@hotkey` (a
+  suppression, shown as the row note). `apply_overrides` drops overrides for unregistered
+  ids, so a deleted script's binding goes at the next Preferences OK.
+- **Editor**: `build_rows` lists category `scripts` under "Scripts" by display name even
+  when the menu walk would find them (the menu is built lazily). Script Manager's "Assign
+  Hotkey..." calls `MainWindow::show_hotkey_preferences(display_name)`: the Hotkeys tab
+  with the search prefilled.
+- **Isolation**: `PATCHY_USER_SCRIPTS_DIR` overrides `user_scripts_directory()`; the
+  UI suite points each process at
+  `test-artifacts/user-scripts/<pid>` so a developer's real scripts never register.
+- `app.runCommand` refuses `script.` ids (one run at a time). Pinned by
+  `ui_script_hotkey_runs_user_script`, `ui_script_hotkey_ids_follow_relative_path`,
+  `ui_scripts_menu_lists_bundled_scripts`, `ui_hotkey_editor_lists_scripts_category`.
+
+## Explicit save options
+
+`doc.saveAs(path, options)` / `doc.exportAs(path, options)` (`ScriptDocumentObject::save_to_path`)
+start from `MainWindow::image_save_defaults_for_document()`, overlay the object through
+`apply_script_image_save_options` (src/ui/script_save_options.cpp), and call
+`save_document_to_path` with `SaveToPathPolicy{flatten_confirmed, scripted, export_copy}`.
+The parser is strict (unknown key, wrong type, out of range, or a key for another extension
+throws before anything is written) and reuses the persisted tokens from
+`image_save_option_keys.hpp`, shared with the dialogs and settings. No options object =
+the old path (defaults or the session's remembered options). `scripted` skips the
+saved-channels and Aseprite fill-opacity prompts and never persists the user's defaults or
+save directory; `export_copy` (exportAs) takes the save-a-copy branch for every format, so
+the session's path, title and modified state stay untouched. Pinned by
+`ui_script_save_as_options_write_dds_and_jpeg` and `ui_script_save_as_options_are_strict`.
 
 ## CLI and AI control
 
@@ -344,84 +362,65 @@ newlines. The bundled `Utilities/batch-export.js` is the reference consumer.
   errors `[error] `, plain log lines are unprefixed so scripts can emit clean data (JSON
   included). Forwarded runs are unattended (above).
 - Without one: a new instance runs unattended (`cli_automation_mode_`: prompts are
-  suppressed, `app.alert` logs, `app.prompt` returns its default), opens any positional
-  files first, writes the output file, and exits 0 on success or 4 on script error
-  (2 and 3 belong to `--export`). The exit goes through `exit_cli_application`
-  (ui/cli_exit.hpp): on wasm that shuts the Emscripten runtime down so the page's
-  qtloader receives the code via onExit; see docs/wasm.md.
+  suppressed, `app.alert` logs, `app.prompt` returns its default), opens positional files
+  first, writes the output file, and exits 0 on success or 4 on script error (2 and 3
+  belong to `--export`) through `exit_cli_application` (ui/cli_exit.hpp; on wasm it shuts
+  the Emscripten runtime down so qtloader receives the code, docs/wasm.md).
 - A script that keeps timers or windows alive writes its output when the last one ends,
   so automation scripts should not open windows.
 - `--headless` (any CLI mode): `headless_flag_present` (`support/cli_flags.hpp`) scans
-  raw argv before the QApplication exists and sets `QT_QPA_PLATFORM=offscreen` (the
-  flag beats an ambient value), `PATCHY_HEADLESS=1` (lets the Windows registry font
-  rescue run for a headless user; the offscreen suites never set it), and
-  `PATCHY_NO_SOUND=1`. It forces single-instance off (never forwards, never listens),
-  sets `cli_automation_mode_` in every mode, and exits 2 without a mode flag. Release
-  packages ship the offscreen plugin and every packager smoke-tests it
-  (docs/release-process.md).
-- Successful unattended document opens and saves update recent files and their
-  containing folders, including saved flat copies. Failed operations and preview
-  captures do not add entries. `PATCHY_SETTINGS_DIR` isolates this history for tests.
-
-An AI agent drives Patchy by writing a .js file, invoking `--run-script`, and polling the
-output file.
+  raw argv before the QApplication exists and sets `QT_QPA_PLATFORM=offscreen` (beats an
+  ambient value), `PATCHY_HEADLESS=1` (lets the Windows registry font rescue run; the
+  offscreen suites never set it) and `PATCHY_NO_SOUND=1`; forces single-instance off,
+  sets `cli_automation_mode_`, and exits 2 without a mode flag. Release packages ship the
+  offscreen plugin and every packager smoke-tests it (docs/release-process.md).
+- Successful unattended opens and saves (flat copies included) update recent files and
+  folders; failed operations and preview captures do not. `PATCHY_SETTINGS_DIR` isolates
+  this history for tests.
 
 The Script Manager's C:\ button shows that command for the selected script (tree
-selection first, else the loaded file), built by `script_cli_example_command`. The
-metadata is re-read from disk on every click (never cached), and the dialog is opened
-with `open()` (window-modal, no nested event loop).
-Shell rule (a pasted command MUST run as pasted): the exe token stays unquoted
-whenever the path is plain; that form runs in Command Prompt, PowerShell, and batch
-files, while a quoted first token flips PowerShell into expression mode. When the
-path forces quotes (spaces), the shells diverge (PowerShell needs the `& ` call
-operator, cmd rejects it), so the dialog shows TWO labeled copyable lines, one per
-shell. The split is Windows-only: POSIX shells run a quoted first token, so
-macOS/Linux always show one line.
+selection first, else the loaded file), built by `script_cli_example_command`; metadata
+is re-read on every click, and the dialog opens with `open()` (no nested loop).
+Shell rule (a pasted command MUST run as pasted): the exe token stays unquoted whenever
+the path is plain (runs in cmd, PowerShell and batch files; a quoted first token flips
+PowerShell into expression mode). A path that forces quotes splits the shells
+(PowerShell needs `& `, cmd rejects it), so the dialog shows TWO labeled lines, one per
+shell, on Windows only; POSIX shells run a quoted first token.
 
 ## Trust model
 
 Scripts run with the application's privileges, like Photoshop or Affinity scripts: the
 sandbox is "only run scripts you trust", not a permission system. The engine exposes no
-file, network, or process API beyond the documented `patchy.io` helpers (text files,
-folder listing, single-file existence/size/delete, makeDir) and document save/export
-paths. The single-instance
-pipe is per-user, so `--run-script` adds no cross-user surface.
+file, network, or process API beyond the documented `patchy.io` helpers and document
+save/export paths. The single-instance pipe is per-user, so `--run-script` adds no
+cross-user surface.
 
 ## Legal posture
 
 - The API is Patchy's own design: generic OO naming, no Adobe ExtendScript identifiers,
   no cloned DOM, no copied documentation text. Keep it that way.
-- Qt6Qml is LGPL and dynamically linked, the same posture as every other shipped Qt
-  module. No vendored JS engine.
+- Qt6Qml is LGPL and dynamically linked like every shipped Qt module; no vendored engine.
 
 ## Testing
 
-- `tests/ui/scripting_tests.cpp` (`.\patchy_ui_visual_tests.exe ui_script`): the single
-  undo entry, stale wrappers, pixel round trips and palette snap, timers, the watchdog
-  (`PATCHY_SCRIPT_TIMEOUT_MS`), console line numbers, the CLI output file, the Script
-  Manager and its C:\ dialog, the canvas window, the Scripts menu scan, the guide
-  viewer, and `patchy.io` on Unicode paths (`ui_script_io_round_trips_unicode_path`).
-  Layer moves live in `tests/ui/script_move_tests.cpp`.
-- The engine works offscreen; `ScriptEngineHost::message_backlog()` is the easiest
-  assertion surface (fresh per MainWindow).
+- `tests/ui/scripting_tests.cpp` (`.\patchy_ui_visual_tests.exe ui_script`) covers the
+  engine rules, the CLI output file, the Script Manager, the canvas window, the Scripts
+  menu, save options, hotkeys, and `patchy.io` on Unicode paths; layer moves live in
+  `tests/ui/script_move_tests.cpp`. The engine works offscreen;
+  `ScriptEngineHost::message_backlog()` is the easiest assertion surface.
 - Manual smoke: every bundled script runs from File > Scripts and finishes unattended
-  under `--run-script` (active-document scripts against a positional file;
-  picker-driven ones take folders/files via `--script-arg`, and cancel cleanly without).
+  under `--run-script` (picker-driven ones take `--script-arg`, and cancel cleanly without).
 
 ## Future work
 
-Not built: document/save/command hooks with a reentrancy design, per-script hotkeys
-with stable path-based IDs, persistent script storage, macro recording, non-blocking
-batches, script packaging, and an editor REPL.
+Not built: document/save/command hooks with a reentrancy design, persistent script
+storage, macro recording, non-blocking batches, script packaging, an editor REPL.
+Anti-goals: never freeze or fork the API surface, no undocumented escape hatches, and
+scripts stay plain user-editable files.
 
-Anti-goals: never freeze or fork the API surface, no undocumented escape hatches
-(test-driven additions go through the documented API too, per the AGENTS.md
-scripting-for-testability rule), and scripts stay plain user-editable files.
-
-Unattended dispatch covers scripts forwarded to an existing GUI.
-RAW imports read `.rawprefs` sidecars or defaults without writing settings. PDF
-imports use defaults. Dialogs return Cancel; modified documents remain
-open unless the script explicitly calls `doc.close()`. Forms use their normal
-widget normalization without showing. Menu Undo/Redo/Quit are rejected while the
-script owns the transaction. The editor's syntax, gutter, and hover-card colors
-use theme roles and refresh on scheme changes.
+Unattended runs (forwarded ones included): RAW imports read `.rawprefs` sidecars or
+defaults without writing settings, PDF imports use defaults, dialogs return Cancel,
+modified documents stay open unless the script calls `doc.close()`, forms normalize
+without showing, and menu Undo/Redo/Quit are rejected while the script owns the
+transaction. The editor's syntax, gutter and hover-card colors use theme roles and
+refresh on scheme changes.

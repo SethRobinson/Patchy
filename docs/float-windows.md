@@ -98,12 +98,14 @@ activates the session by id). `ui_window_menu_lists_open_documents` pins it.
   (drag & drop, second-instance open) join the lock in `add_document_session`, which
   also skips stealing activation from the locked document.
 - Hotkeys work inside floats because float creation `addAction`s every
-  `hotkey_registry_.commands()` action onto the window: Qt's WindowShortcut context
-  matches when any associated widget lives in the active window. Do NOT switch actions
-  to ApplicationShortcut instead; that leaks document shortcuts into modal dialogs.
+  `hotkey_registry_.commands()` action onto the window, so Qt's shortcut context matches
+  when an associated widget lives in the active window (`HotkeyRegistry::apply_to_actions`
+  also sets `Qt::ApplicationShortcut` on every registered action; both associations stay).
   The snapshot is complete because every `register_hotkey` call happens during
-  MainWindow construction; a feature that registers hotkeys later must also add its
-  action to every existing float (or move the association into HotkeyRegistry).
+  MainWindow construction except the per-script commands, and
+  `MainWindow::refresh_script_commands` adds each newly registered script action to every
+  existing float itself (docs/scripting.md "Script hotkeys"). Any other late registration
+  must do the same.
 - `MainWindow::closeEvent` hides all floats after the session confirm loop: a visible
   owned top-level would block `lastWindowClosed` (the tile-preview hazard). The float is
   released with `hide()` + `deleteLater()`, never a synchronous delete (it may be inside

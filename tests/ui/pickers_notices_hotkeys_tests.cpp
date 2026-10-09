@@ -55,6 +55,7 @@
 #include "ui/layer_style_dialog.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
+#include "ui/script_folders.hpp"
 #include "ui/print_dialog.hpp"
 #include "ui/selection_outline.hpp"
 #include "ui/sprite_sheet_dialog.hpp"
@@ -2684,6 +2685,50 @@ void ui_hotkey_editor_assigns_and_persists_custom_shortcut() {
   CHECK(require_action(window, "fileNewAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_F9));
 }
 
+// Scripts get their own category in the editor whether or not File > Scripts was ever
+// opened, and the Script Manager's "Assign Hotkey..." entry point lands on the row.
+void ui_hotkey_editor_lists_scripts_category() {
+  HotkeySettingsGroupRestorer restore_hotkeys;
+  clear_hotkey_overrides();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto pong_id = patchy::ui::script_hotkey_command_id(QStringLiteral("Games/pong.js"));
+  CHECK(window.hotkey_registry().find_command(pong_id) != nullptr);
+
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyPreferencesDialog"));
+    CHECK(dialog != nullptr);
+    auto* tabs = dialog->findChild<QTabWidget*>(QStringLiteral("preferencesTabWidget"));
+    CHECK(tabs != nullptr);
+    CHECK(tabs->tabText(tabs->currentIndex()) == QStringLiteral("Hotkeys"));
+    CHECK(dialog->findChild<QWidget*>(QStringLiteral("hotkeyEditorPanel")) != nullptr);
+    auto* search = dialog->findChild<QLineEdit*>(QStringLiteral("hotkeySearchEdit"));
+    CHECK(search != nullptr);
+    CHECK(search->text() == QStringLiteral("Pong"));
+    auto* row = dialog->findChild<QWidget*>(QStringLiteral("hotkeyRow.") + pong_id);
+    CHECK(row != nullptr);
+    CHECK(row->isVisible());
+    auto* other_row = dialog->findChild<QWidget*>(QStringLiteral("hotkeyRow.file.new"));
+    CHECK(other_row != nullptr);
+    CHECK(!other_row->isVisible());
+    // The row sits in the Scripts category panel, not under File > Scripts.
+    bool in_scripts_panel = false;
+    for (auto* label : dialog->findChildren<QLabel*>()) {
+      if (label->text() == QStringLiteral("Scripts") && label->isVisible()) {
+        in_scripts_panel = true;
+      }
+    }
+    CHECK(in_scripts_panel);
+    save_widget_artifact("hotkey_editor_scripts_category", *dialog);
+    saw_dialog = true;
+    dialog->reject();
+  });
+  window.show_hotkey_preferences(QStringLiteral("Pong"));
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+}
+
 void ui_hotkey_editor_steals_conflicting_shortcut() {
   HotkeySettingsGroupRestorer restore_hotkeys;
   clear_hotkey_overrides();
@@ -2958,6 +3003,7 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
        ui_hotkey_editor_assigns_and_persists_custom_shortcut},
       {"ui_hotkey_editor_steals_conflicting_shortcut", ui_hotkey_editor_steals_conflicting_shortcut},
       {"ui_hotkey_editor_reset_all_clears_overrides", ui_hotkey_editor_reset_all_clears_overrides},
+      {"ui_hotkey_editor_lists_scripts_category", ui_hotkey_editor_lists_scripts_category},
       {"ui_color_picker_accepts_css_rgba_and_names", ui_color_picker_accepts_css_rgba_and_names},
       {"ui_color_picker_opens_with_hex_field_selected_for_paste", ui_color_picker_opens_with_hex_field_selected_for_paste},
       {"ui_hotkey_duplicate_ids_fail_without_replacing_the_command", ui_hotkey_duplicate_ids_fail_without_replacing_the_command},

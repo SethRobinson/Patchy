@@ -1932,6 +1932,287 @@ void ui_script_canvas_window_renders_frames() {
   CHECK(!host.run_active());
 }
 
+// Reads the fields of a DDS header this test cares about (docs/dds.md "Wire layout").
+struct DdsHeaderProbe {
+  QByteArray four_cc;
+  quint32 mip_count{0};
+  bool valid{false};
+};
+
+DdsHeaderProbe probe_dds_header(const QString& path) {
+  DdsHeaderProbe probe;
+  QFile file(path);
+  if (!file.open(QIODevice::ReadOnly)) {
+    return probe;
+  }
+  const auto header = file.read(128);
+  if (header.size() < 128 || !header.startsWith("DDS ")) {
+    return probe;
+  }
+  const auto* bytes = reinterpret_cast<const unsigned char*>(header.constData());
+  probe.mip_count = quint32(bytes[28]) | (quint32(bytes[29]) << 8) | (quint32(bytes[30]) << 16) |
+                    (quint32(bytes[31]) << 24);
+  probe.four_cc = header.mid(84, 4);
+  probe.valid = true;
+  return probe;
+}
+
+// doc.saveAs(path, options) / doc.exportAs(path, options): explicit format options reach
+// the writer with no dialog, exportAs never retargets the document, saveAs does.
+void ui_script_save_as_options_write_dds_and_jpeg() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  const auto base = directory.path() + QStringLiteral("/options");
+  auto& host = window.script_engine_host();
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.name = QStringLiteral("save-options");
+  options.args = QStringList{QStringLiteral("base=") + base};
+  const auto source = QStringLiteral(R"JS(
+    var d = app.newDocument(64, 64);
+    d.activeLayer.fill('#80ff0000');  // translucent: Automatic would pick BC3
+    var p = patchy.args.base;
+    if (!d.exportAs(p + '-bc1.dds', {compression: 'bc1', mipmaps: 'on'})) throw Error('bc1');
+    if (!d.exportAs(p + '-bc3.dds', {compression: 'bc3', mipmaps: 'off'})) throw Error('bc3');
+    if (d.path !== '' || !d.modified) throw Error('exportAs retargeted the document');
+    if (!d.exportAs(p + '-q20.jpg', {quality: 20})) throw Error('jpg 20');
+    if (!d.exportAs(p + '-q95.jpg', {quality: 95})) throw Error('jpg 95');
+    if (patchy.io.fileSize(p + '-q20.jpg') >= patchy.io.fileSize(p + '-q95.jpg')) throw Error('quality ignored');
+    // saveAs with options still retargets the session like a plain saveAs.
+    if (!d.saveAs(p + '-saved.jpg', {quality: 50})) throw Error('saveAs');
+    if (d.path.indexOf('-saved.jpg') < 0 || d.modified) throw Error('saveAs did not retarget');
+    console.log('done');
+  )JS");
+  (void)host.run_source(source, std::move(options));
+  wait_for_run_end(host);
+  CHECK(!host.run_active());
+  if (host.last_run_had_error()) {
+    for (const auto& line : host.message_backlog()) std::cerr << line.toStdString() << '\n';
+  }
+  CHECK(!host.last_run_had_error());
+  const auto bc1 = probe_dds_header(base + QStringLiteral("-bc1.dds"));
+  CHECK(bc1.valid);
+  CHECK(bc1.four_cc == QByteArray("DXT1"));
+  CHECK(bc1.mip_count == 7);  // 64 px: 1 + floor(log2(64))
+  const auto bc3 = probe_dds_header(base + QStringLiteral("-bc3.dds"));
+  CHECK(bc3.valid);
+  CHECK(bc3.four_cc == QByteArray("DXT5"));
+  CHECK(bc3.mip_count == 0);  // level 0 only: the count field stays 0 (docs/dds.md)
+}
+
+// Option objects are strict, and a scripted save never rewrites the user's persisted
+// saveOptions defaults (its choices are its own).
+void ui_script_save_as_options_are_strict() {
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("saveOptions/ddsCompression"), QStringLiteral("bc7"));
+    settings.setValue(QStringLiteral("saveOptions/jpegQuality"), 77);
+    settings.sync();
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  const auto base = directory.path() + QStringLiteral("/strict");
+  auto& host = window.script_engine_host();
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.name = QStringLiteral("strict-options");
+  options.args = QStringList{QStringLiteral("base=") + base};
+  const auto source = QStringLiteral(R"JS(
+    var d = app.newDocument(8, 8);
+    var p = patchy.args.base;
+    function expectThrow(path, o, needle) {
+      var message = '';
+      try { d.exportAs(path, o); } catch (e) { message = String(e); }
+      if (!message) throw Error('accepted ' + JSON.stringify(o) + ' for ' + path);
+      if (message.indexOf(needle) < 0) throw Error('message "' + message + '" lacks "' + needle + '"');
+      if (patchy.io.fileExists(path)) throw Error('a rejected save wrote ' + path);
+    }
+    expectThrow(p + '.dds', {compression: 'bc9'}, '"compression"');
+    expectThrow(p + '.dds', {mipmaps: true}, '"mipmaps"');
+    expectThrow(p + '.dds', {quality: 50}, 'does not apply to a .dds');
+    expectThrow(p + '.png', {compression: 'bc1'}, 'does not apply to a .png');
+    expectThrow(p + '.jpg', {quality: 101}, '0 to 100');
+    expectThrow(p + '.jpg', {quality: 1.5}, '"quality"');
+    expectThrow(p + '.jpg', {typo: 1}, '"typo"');
+    expectThrow(p + '.jpg', null, 'object');
+    expectThrow(p + '.jpg', [1], 'object');
+    expectThrow(p + '.ico', {sizes: [17]}, '"sizes"');
+    expectThrow(p + '.cur', {hotspot: {x: 1}}, '"hotspot"');
+    expectThrow(p + '.ico', {hotspot: {x: 1, y: 1}}, 'does not apply to a .ico');
+    // Valid choices for the formats with their own dialogs are accepted.
+    if (!d.exportAs(p + '.webp', {quality: 60, lossless: false})) throw Error('webp');
+    if (!d.exportAs(p + '.ico', {sizes: [16, 32], resample: 'nearest'})) throw Error('ico');
+    if (!d.exportAs(p + '.cur', {sizes: [32], hotspot: {x: 3, y: 4}})) throw Error('cur');
+    if (!d.exportAs(p + '.bmp', {encoding: 'rgb24'})) throw Error('bmp');
+    if (!d.exportAs(p + '.gif', {frameDelayMs: 250})) throw Error('gif');
+    if (!d.exportAs(p + '-explicit.dds', {compression: 'bc1'})) throw Error('dds');
+    if (!d.exportAs(p + '-explicit.jpg', {quality: 30})) throw Error('jpg');
+  )JS");
+  (void)host.run_source(source, std::move(options));
+  wait_for_run_end(host);
+  CHECK(!host.run_active());
+  if (host.last_run_had_error()) {
+    for (const auto& line : host.message_backlog()) std::cerr << line.toStdString() << '\n';
+  }
+  CHECK(!host.last_run_had_error());
+  auto settings = patchy::ui::app_settings();
+  CHECK(settings.value(QStringLiteral("saveOptions/ddsCompression")).toString() == QStringLiteral("bc7"));
+  CHECK(settings.value(QStringLiteral("saveOptions/jpegQuality")).toInt() == 77);
+  settings.remove(QStringLiteral("saveOptions/ddsCompression"));
+  settings.remove(QStringLiteral("saveOptions/jpegQuality"));
+  settings.sync();
+}
+
+QString write_user_script(const QString& relative_path, const QString& text) {
+  const auto path = QDir(patchy::ui::MainWindow::user_scripts_directory()).absoluteFilePath(relative_path);
+  CHECK(QDir().mkpath(QFileInfo(path).absolutePath()));
+  QFile file(path);
+  CHECK(file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text));
+  file.write(text.toUtf8());
+  file.close();
+  return path;
+}
+
+// A user script's "@hotkey" directive is its default shortcut, registered at startup under
+// the stable id derived from its relative path; the key runs the script, and a Preferences
+// override stored under that id wins over the directive.
+void ui_script_hotkey_runs_user_script() {
+  remove_test_scratch_dir(patchy::ui::MainWindow::user_scripts_directory());
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("hotkeys"));
+    settings.sync();
+  }
+  write_user_script(QStringLiteral("Mine/hot key.js"), QStringLiteral(
+      "// @name Hot Key Script\n// @hotkey Ctrl+Alt+F9\nconsole.log('hot key script ran');\n"));
+  const auto id = patchy::ui::script_hotkey_command_id(QStringLiteral("Mine/hot key.js"));
+  CHECK(id == QStringLiteral("script.Mine%2Fhot%20key.js"));
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    const auto* command = window.hotkey_registry().find_command(id);
+    CHECK(command != nullptr);
+    CHECK(command->category == QStringLiteral("scripts"));
+    CHECK(command->action != nullptr);
+    CHECK(command->action->text() == QStringLiteral("Hot Key Script"));
+    CHECK(command->action->shortcut() == QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_F9));
+    CHECK(command->action->menuRole() == QAction::NoRole);
+    // The bound action runs the script without the Scripts menu ever having been opened.
+    // The shortcut-to-action step is Qt's own shortcut map, which the registered
+    // tool-cycle keys already exercise; a synthetic Ctrl+Alt+F9 is not sent here because
+    // the offscreen platforms deliver it inconsistently (it reached the map only on
+    // Windows, and only in a fresh process).
+    command->action->trigger();
+    wait_for_run_end(window.script_engine_host());
+    CHECK(backlog_contains(window, QStringLiteral("hot key script ran")));
+    // app.runCommand refuses script commands: one run at a time.
+    CHECK(run_script(window, QStringLiteral("if (app.runCommand('") + id +
+                                 QStringLiteral("')) throw Error('ran a script from a script');")));
+    // The menu lists the same action, so it shows the shortcut.
+    auto* menu = window.findChild<QMenu*>(QStringLiteral("fileScriptsMenu"));
+    CHECK(menu != nullptr);
+    menu->popup(QPoint(0, 0));
+    QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+    bool listed = false;
+    for (auto* action : menu->actions()) {
+      if (auto* submenu = action->menu(); submenu != nullptr && action->text() == QStringLiteral("Mine")) {
+        for (const auto* entry : submenu->actions()) {
+          listed = listed || entry == command->action.data();
+        }
+      }
+    }
+    menu->close();
+    QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+    CHECK(listed);
+  }
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("hotkeys/") + id, QStringLiteral("Ctrl+Alt+F10"));
+    settings.sync();
+  }
+  {
+    patchy::ui::MainWindow window;
+    const auto* command = window.hotkey_registry().find_command(id);
+    CHECK(command != nullptr);
+    CHECK(command->action->shortcut() == QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_F10));
+    CHECK(command->default_shortcuts == QList<QKeySequence>{QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_F9)});
+  }
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("hotkeys"));
+    settings.sync();
+  }
+  remove_test_scratch_dir(patchy::ui::MainWindow::user_scripts_directory());
+}
+
+// The command id follows the relative path: a shadow override of a bundled script keeps
+// the bundled id (and the override's @hotkey becomes the default), a renamed file gets a
+// new id, a deleted one unregisters, and a recreated one registers again.
+void ui_script_hotkey_ids_follow_relative_path() {
+  remove_test_scratch_dir(patchy::ui::MainWindow::user_scripts_directory());
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(QStringLiteral("hotkeys"));
+    settings.sync();
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto rescan = [&window] {
+    window.refresh_script_commands(patchy::ui::scan_scripts(patchy::ui::MainWindow::bundled_scripts_directory(),
+                                                            patchy::ui::MainWindow::user_scripts_directory()));
+  };
+  const auto pong_id = patchy::ui::script_hotkey_command_id(QStringLiteral("Games/pong.js"));
+  const auto* pong = window.hotkey_registry().find_command(pong_id);
+  CHECK(pong != nullptr);
+  CHECK(pong->default_shortcuts.isEmpty());  // bundled scripts never ship a shortcut
+  const auto commands_before = window.hotkey_registry().commands().size();
+
+  // Shadow override: same id, the override's directive is the default, "(modified)" text.
+  const auto override_path = write_user_script(
+      QStringLiteral("Games/pong.js"), QStringLiteral("// @name Pong\n// @hotkey Ctrl+Alt+F11\nconsole.log('override');\n"));
+  rescan();
+  CHECK(window.hotkey_registry().commands().size() == commands_before);
+  pong = window.hotkey_registry().find_command(pong_id);
+  CHECK(pong != nullptr);
+  CHECK(pong->default_shortcuts == QList<QKeySequence>{QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_F11)});
+  CHECK(pong->action->shortcut() == QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_F11));
+  CHECK(pong->action->text() == QStringLiteral("Pong (modified)"));
+  CHECK(QFile::remove(override_path));
+  rescan();
+  pong = window.hotkey_registry().find_command(pong_id);
+  CHECK(pong != nullptr);
+  CHECK(pong->default_shortcuts.isEmpty());
+  CHECK(pong->action->shortcut().isEmpty());
+  CHECK(pong->action->text() == QStringLiteral("Pong"));
+
+  // A user script registers, follows a rename, unregisters when deleted, and re-registers.
+  const auto first = write_user_script(QStringLiteral("a.js"), QStringLiteral("// @hotkey Ctrl+Alt+F12\n"));
+  rescan();
+  const auto a_id = patchy::ui::script_hotkey_command_id(QStringLiteral("a.js"));
+  const auto b_id = patchy::ui::script_hotkey_command_id(QStringLiteral("b.js"));
+  CHECK(window.hotkey_registry().find_command(a_id) != nullptr);
+  CHECK(window.hotkey_registry().find_command(b_id) == nullptr);
+  const auto second = QDir(patchy::ui::MainWindow::user_scripts_directory()).absoluteFilePath(QStringLiteral("b.js"));
+  CHECK(QFile::rename(first, second));
+  rescan();
+  CHECK(window.hotkey_registry().find_command(a_id) == nullptr);
+  const auto* b = window.hotkey_registry().find_command(b_id);
+  CHECK(b != nullptr);
+  CHECK(b->action->shortcut() == QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_F12));
+  CHECK(QFile::remove(second));
+  rescan();
+  CHECK(window.hotkey_registry().find_command(b_id) == nullptr);
+  write_user_script(QStringLiteral("b.js"), QStringLiteral("console.log('back');\n"));
+  rescan();  // no duplicate-id logic_error: the old command was unregistered
+  CHECK(window.hotkey_registry().find_command(b_id) != nullptr);
+  CHECK(window.hotkey_registry().commands().size() == commands_before + 1);
+  remove_test_scratch_dir(patchy::ui::MainWindow::user_scripts_directory());
+  rescan();
+  CHECK(window.hotkey_registry().commands().size() == commands_before);
+}
+
 void ui_scripts_menu_lists_bundled_scripts() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1956,10 +2237,16 @@ void ui_scripts_menu_lists_bundled_scripts() {
   // display name and carry an icon (the sidecar PNG or the generic fallback).
   CHECK(games_menu != nullptr);
   bool pong_entry = false;
+  const auto* pong_command =
+      window.hotkey_registry().find_command(patchy::ui::script_hotkey_command_id(QStringLiteral("Games/pong.js")));
+  CHECK(pong_command != nullptr);
   for (const auto* action : games_menu->actions()) {
     if (action->text() == QStringLiteral("Pong")) {
       pong_entry = true;
       CHECK(!action->icon().isNull());
+      // The entry is the persistent hotkey command action, so a bound shortcut shows here.
+      CHECK(action == pong_command->action.data());
+      CHECK(action->menuRole() == QAction::NoRole);
     }
   }
   menu->close();
@@ -4097,6 +4384,10 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_editor_dialog_runs_and_shows_console", ui_script_editor_dialog_runs_and_shows_console},
       {"ui_script_editor_status_shows_running_and_ready", ui_script_editor_status_shows_running_and_ready},
       {"ui_script_canvas_window_renders_frames", ui_script_canvas_window_renders_frames},
+      {"ui_script_save_as_options_write_dds_and_jpeg", ui_script_save_as_options_write_dds_and_jpeg},
+      {"ui_script_save_as_options_are_strict", ui_script_save_as_options_are_strict},
+      {"ui_script_hotkey_runs_user_script", ui_script_hotkey_runs_user_script},
+      {"ui_script_hotkey_ids_follow_relative_path", ui_script_hotkey_ids_follow_relative_path},
       {"ui_scripts_menu_lists_bundled_scripts", ui_scripts_menu_lists_bundled_scripts},
       {"ui_script_editor_tree_shadow_override", ui_script_editor_tree_shadow_override},
       {"ui_script_manager_single_click_loads_and_preserves_edits",

@@ -248,6 +248,10 @@ public:
   static bool save_document_to_path(MainWindow& window, QString path, ImageSaveOptions options) {
     return window.save_document_to_path(std::move(path), std::move(options));
   }
+  static bool save_document_to_path(MainWindow& window, QString path, std::optional<ImageSaveOptions> options,
+                                    MainWindow::SaveToPathPolicy policy) {
+    return window.save_document_to_path(std::move(path), std::move(options), policy);
+  }
 
   static QString active_session_path(MainWindow& window) {
     return window.session().path;

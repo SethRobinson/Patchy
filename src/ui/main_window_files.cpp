@@ -2087,7 +2087,7 @@ void MainWindow::run_cli_export(const QString& output_path, const QString& appen
       const int mutated = cli_append_text_to_text_layers(append_text);
       fprintf(stderr, "Appended text to %d text layer(s)\n", mutated);
     }
-    const bool saved = save_document_to_path(output_path, std::nullopt, /*flatten_confirmed=*/true);
+    const bool saved = save_document_to_path(output_path, std::nullopt, SaveToPathPolicy{/*flatten_confirmed=*/true, /*scripted=*/false, /*export_copy=*/false});
     if (!saved) {
       fprintf(stderr, "Export failed: could not save %s\n", output_path.toUtf8().constData());
     }
@@ -3579,7 +3579,8 @@ bool MainWindow::save_document_as() {
     }
   }
   if (!still_saving_same_session() ||
-      !save_document_to_path(path, image_options, /*flatten_confirmed*/ discards_layers)) {
+      !save_document_to_path(path, image_options, SaveToPathPolicy{/*flatten_confirmed=*/discards_layers, /*scripted=*/false,
+                                                           /*export_copy=*/false})) {
     return false;
   }
   return true;
@@ -3678,7 +3679,11 @@ std::optional<bool> MainWindow::resolve_pdf_layer_choice(bool for_export, bool a
 }
 
 bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOptions> image_options,
-                                       bool flatten_confirmed) {
+                                       SaveToPathPolicy policy) {
+  const bool flatten_confirmed = policy.flatten_confirmed;
+  // Scripted saves answer every data-loss question themselves; they also never touch the
+  // user's persisted defaults, which unattended runs already leave alone.
+  const bool quiet = policy.scripted || unattended_automation();
   finish_active_text_editor();
   if (!has_active_document()) {
     return false;
@@ -3716,7 +3721,7 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
              !confirm_flatten_layers_for_save(extension)) {
     return false;
   }
-  if (!unattended_automation() && !is_photoshop_document_extension(extension) &&
+  if (!quiet && !is_photoshop_document_extension(extension) &&
       !std::as_const(document()).channels().empty()) {
     const auto answer = show_warning_message(
         this, tr("Saved Channels Will Be Discarded"),
@@ -3727,7 +3732,7 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
       return false;
     }
   }
-  if (!unattended_automation() && (extension == QStringLiteral("aseprite") || extension == QStringLiteral("ase")) &&
+  if (!quiet && (extension == QStringLiteral("aseprite") || extension == QStringLiteral("ase")) &&
       layers_have_nondefault_fill_opacity(std::as_const(document()).layers())) {
     const auto answer = show_warning_message(
         this, tr("Fill Opacity Will Be Discarded"),
@@ -3784,18 +3789,20 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
     const bool saved_flattened_copy =
         discards_layers &&
         !(session().smart_object_link.has_value() && session().smart_object_link->external);
-    if (saved_flattened_copy) {
+    if (saved_flattened_copy || policy.export_copy) {
       // Photoshop's save-a-copy semantics: only the flat copy lands on disk; the layered
       // document stays open, modified, and pointed at its original file, so a later Save
-      // still offers PSD instead of quietly flattening again.
-      if (!unattended_automation()) {
+      // still offers PSD instead of quietly flattening again. doc.exportAs asks for the
+      // same for every format.
+      if (!quiet) {
         remember_save_directory_for_path(path);
         if (image_save_options_apply_to_extension(extension)) {
           persist_image_save_defaults(effective_image_options);
         }
       }
       add_recent_file(path);
-      statusBar()->showMessage((extension == QStringLiteral("svg") ? tr("Saved SVG copy %1.")
+      statusBar()->showMessage((!saved_flattened_copy ? tr("Saved copy %1")
+                                : extension == QStringLiteral("svg") ? tr("Saved SVG copy %1.")
                                 : is_pdf_extension(extension) && effective_image_options.pdf_editable_layers
                                     ? tr("Saved PDF copy with editable layers %1.")
                                 : extension == QStringLiteral("gif") && effective_image_options.gif_animate
@@ -3810,14 +3817,14 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
     auto& active_session = session();
     active_session.path = path;
     active_session.title = QFileInfo(path).fileName();
-    if (!unattended_automation()) {
+    if (!quiet) {
       remember_save_directory_for_path(path);
     }
     if (!is_photoshop_document_extension(extension) && image_save_options_apply_to_extension(extension)) {
       active_session.image_save_options = effective_image_options;
       active_session.image_save_options_path = path;
       active_session.image_save_options_extension = extension;
-      if (!unattended_automation()) {
+      if (!quiet) {
         persist_image_save_defaults(effective_image_options);
       }
     } else {

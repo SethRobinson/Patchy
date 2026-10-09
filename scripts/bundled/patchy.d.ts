@@ -525,6 +525,55 @@ interface PatchySelection {
   selectEllipse(x: number, y: number, width: number, height: number): void;
 }
 
+/**
+ * Options for doc.saveAs(path, options) and doc.exportAs(path, options): the same choices
+ * the format's Save Options dialog offers, with no dialog. Which keys apply depends on
+ * the path's extension; a key for another format, an unknown key, a wrong type or an
+ * out-of-range value throws, so a typo never saves with defaults. Keys you leave out
+ * follow your Save Options defaults (and the document, such as a .dds source's format).
+ * Tokens are the persisted spellings and never change.
+ */
+interface PatchySaveOptions {
+  /** .jpg/.jpeg (0..100), .webp (0..100), .jxr (1..100), .rttex JPEG encoding (1..100). */
+  quality?: number;
+  /** .webp, .jxr: lossless compression; .pdf: Flate image data (an imageQuality preset wins). */
+  lossless?: boolean;
+  /** .dds: "auto" keeps an opened .dds file's format, otherwise BC1 when opaque and BC3
+   *  with transparency. Everything but "bc7" writes a legacy header. */
+  compression?: "auto" | "uncompressed" | "bc1" | "bc3" | "bc4" | "bc5" | "bc7";
+  /** .dds: "on" writes the full chain, "off" level 0 only, "auto" follows an opened .dds
+   *  file and generates a chain for every other document. */
+  mipmaps?: "auto" | "on" | "off";
+  /** .ico/.cur: the icon sizes to write, each one of 16, 24, 32, 48, 64, 128, 256. */
+  sizes?: number[];
+  /** .ico/.cur: how generated sizes resample ("auto": nearest for palette or small documents). */
+  resample?: "auto" | "nearest" | "smooth";
+  /** .cur: the cursor hotspot in pixels (0..255 each). */
+  hotspot?: {x: number; y: number};
+  /** .bmp pixel encoding, or .rttex pixel encoding ("rgba8", "rgba4444", "jpeg"). */
+  encoding?: "rgba32" | "rgb24" | "indexed8" | "indexed4" | "indexed2" | "rgba8" | "rgba4444" | "jpeg";
+  /** .bmp indexed encodings: "exact" uses the document palette, "quantize" builds one,
+   *  "paletteFile" reads palettePath. */
+  paletteMode?: "exact" | "quantize" | "paletteFile";
+  /** .bmp with paletteMode "paletteFile": the palette file. */
+  palettePath?: string;
+  /** .rttex: "pad" or "stretch" to a power of two, or "none". */
+  powerOfTwo?: "pad" | "stretch" | "none";
+  /** .rttex flags. */
+  forceSquare?: boolean;
+  forceAlpha?: boolean;
+  compress?: boolean;
+  /** .pdf: the same keys as app.exportPdf. */
+  imageQuality?: "lossless" | "high" | "medium" | "low";
+  editableLayers?: boolean;
+  keepOriginalImageData?: boolean;
+  missingFontsAsImages?: boolean;
+  /** .gif: write the visible top-level layers as an animation (top layer = frame 1)
+   *  instead of one flattened image; frameDelayMs is the default per-frame delay. */
+  animate?: boolean;
+  frameDelayMs?: number;
+}
+
 interface PatchyDocument {
   readonly paths: PatchyDocumentPath[];
   readonly workPath: PatchyDocumentPath | null;
@@ -714,13 +763,18 @@ interface PatchyDocument {
   convertBitDepth(bits: 8 | 16 | 32): void;
   /** Crops to the canvas intersection; throws if the rectangle is outside the canvas. */
   crop(x: number, y: number, width: number, height: number): void;
-  /** Saves to the path; the format follows the extension (.psd, .png, ...).
+  /** Saves to the path; the format follows the extension (.psd, .png, ...). The document
+   * then points at that file (a layered document saved to a flat format keeps its own
+   * path and stays modified, Photoshop's save-a-copy rule). `options` sets the format's
+   * save options explicitly, with no dialog (see PatchySaveOptions); without it the save
+   * uses your Save Options defaults. A scripted save never changes those defaults.
    * PSD embeds attached palette colors/names/settings as optional Patchy metadata and retains normal RGB
    * layers, not Photoshop's native named swatches. All PSD output must open without Photoshop warnings/errors.
    * Check the result; a successful save alone does not verify Photoshop compatibility. */
-  saveAs(path: string): boolean;
-  /** Same as saveAs; reads better for export-a-copy flows. */
-  exportAs(path: string): boolean;
+  saveAs(path: string, options?: PatchySaveOptions): boolean;
+  /** Writes a copy to the path with the same formats and options as saveAs, and leaves the
+   * document alone: its path, title and modified state never change, whatever the format. */
+  exportAs(path: string, options?: PatchySaveOptions): boolean;
   /** Exports visible top-level layers, top first, as animated WebP. Groups become one frame.
    * Trailing seconds tokens ("blink 0.033s") override frameDelayMs. Preserves the document path
    * and modified state. loopCount is total plays (0 = forever), defaults to the imported or
@@ -1061,6 +1115,11 @@ interface PatchyNamespace {
    * (all values are strings; an empty object otherwise).
    */
   readonly args: Record<string, string>;
+  // Per-script hotkeys: a "// @hotkey Ctrl+Alt+D" header line is a script's default
+  // shortcut and Preferences > Hotkeys (category Scripts) overrides it. The binding is
+  // stored under the command id "script." + the percent-encoded relative path
+  // ("script.Utilities%2Fquick-export-dds.js"); app.commandIds() lists those ids, and
+  // app.runCommand refuses them because only one script runs at a time (use include()).
   /**
    * True in the script the user ran, false while an include()d file's
    * top-level code executes - so one file can both define functions as a

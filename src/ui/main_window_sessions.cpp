@@ -893,12 +893,11 @@ void MainWindow::float_document_session(DocumentSession& target_session) {
   }
   auto* float_window = new DocumentFloatWindow(*this, canvas);
   target_session.float_window = float_window;
-  // Registered shortcuts stay window-scoped (an application scope would leak
-  // into modal dialogs); associating the actions with the float makes Qt's
-  // WindowShortcut context match while the float is the active window. All
-  // register_hotkey calls happen during construction, so this snapshot is
-  // complete; a hotkey registered after floats exist would need registry-level
-  // window association instead.
+  // Associating the registered actions with the float makes Qt's shortcut
+  // context match while the float is the active window. Every register_hotkey
+  // call happens during construction except the script commands, and
+  // refresh_script_commands adds each new one to every existing float itself,
+  // so this snapshot stays complete (docs/float-windows.md).
   for (const auto& command : hotkey_registry_.commands()) {
     if (command.action != nullptr) {
       float_window->addAction(command.action);

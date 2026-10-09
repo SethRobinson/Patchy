@@ -53,6 +53,7 @@
 #include "ui/qt_paths.hpp"
 #include "ui/font_picker.hpp"
 #include "ui/hotkey_editor.hpp"
+#include "ui/script_folders.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/layer_style_dialog.hpp"
@@ -408,7 +409,7 @@ QPixmap grid_overlay_preview_pixmap(QColor grid_color, QColor guide_color, int g
 
 }  // namespace
 
-void MainWindow::show_preferences() {
+void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_search) {
   QDialog dialog(this);
   dialog.setObjectName(QStringLiteral("patchyPreferencesDialog"));
   auto* root = new QVBoxLayout(&dialog);
@@ -1368,9 +1369,17 @@ void MainWindow::show_preferences() {
             if (index != hotkeys_tab_index || hotkey_editor != nullptr) {
               return;
             }
+            // A script added since startup gets its row too.
+            refresh_script_commands(scan_scripts(bundled_scripts_directory(), user_scripts_directory()));
             hotkey_editor = new HotkeyEditorPanel(hotkey_registry_, menuBar(), hotkeys_page);
             hotkeys_layout->insertWidget(0, hotkey_editor);
           });
+  if (page == PreferencesPage::Hotkeys) {
+    tabs->setCurrentIndex(hotkeys_tab_index);  // builds the panel through the connection above
+    if (hotkey_editor != nullptr) {
+      hotkey_editor->set_search_text(hotkey_search);
+    }
+  }
 
 #ifdef Q_OS_WIN
   // Plug-ins: the folders scanned for legacy Photoshop .8bf filters (Windows

@@ -1,5 +1,28 @@
 # Scripting API compatibility
 
+2026-10-09 additive (API 1): `doc.saveAs(path, options?)` and `doc.exportAs(path, options?)`
+take the format's save options (`PatchySaveOptions` in patchy.d.ts: JPEG/WebP/JXR/RTTEX
+`quality`, WebP/JXR/PDF `lossless`, DDS `compression` and `mipmaps`, ICO/CUR `sizes`,
+`resample` and `hotspot`, BMP `encoding`, `paletteMode` and `palettePath`, RTTEX `encoding`,
+`powerOfTwo`, `forceSquare`, `forceAlpha` and `compress`, the exportPdf keys, GIF `animate` and
+`frameDelayMs`). Unspecified keys follow the user's Save Options defaults; an unknown key, a
+wrong type, an out-of-range value, or a key for another extension throws before anything is
+written. A scripted save no longer rewrites the user's persisted saveOptions defaults, and
+scripted saves skip the saved-channels and Aseprite fill-opacity prompts (the script decided).
+Pinned by `ui_script_save_as_options_write_dds_and_jpeg` and `ui_script_save_as_options_are_strict`.
+
+2026-10-09 behavioral correction (API 1): `doc.exportAs` is a copy export. It used to be
+identical to `saveAs`, so a flat document exported as .dds became the .dds session; now the
+document's path, title and modified state never change, whatever the format. Scripts that
+relied on exportAs retargeting the document should call saveAs.
+
+2026-10-09 additive (API 1): per-script hotkeys. A `// @hotkey Ctrl+Alt+D` header line is a
+script's default shortcut; Preferences > Hotkeys lists scripts under "Scripts" and its
+override wins. The command id is `script.` plus the percent-encoded relative path
+(`script.Utilities%2Fquick-export-dds.js`), listed by `app.commandIds()`; `app.runCommand`
+refuses those ids because one script runs at a time. New bundled example
+`Utilities/quick-export-dds.js`. See docs/scripting.md "Script hotkeys".
+
 2026-10-09 additive (API 1): `addTextLayer(text, {area})` creates area text from one
 closed `PatchyVectorPath` in document coordinates. `area` and `box` are mutually
 exclusive. `layer.textArea` reads a detached boundary snapshot or `null`; assigning

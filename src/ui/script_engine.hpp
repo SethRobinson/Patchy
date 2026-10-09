@@ -185,7 +185,16 @@ public:
   [[nodiscard]] QString session_file_path(std::int64_t session_id) const;
   std::int64_t open_document_file(const QString& path);  // 0 on failure
   std::int64_t create_document(int width, int height);
-  bool save_session_to_path(std::int64_t session_id, const QString& path);
+  // doc.saveAs / doc.exportAs. `options` set = the script's explicit choices overlaid on
+  // the per-document defaults (see save_options_for_session); nullopt keeps today's
+  // defaults-or-remembered path. export_copy writes a copy without retargeting the session.
+  // (No default arguments: ImageSaveOptions is only forward-declared here.)
+  bool save_session_to_path(std::int64_t session_id, const QString& path, std::optional<ImageSaveOptions> options,
+                            bool export_copy);
+  // The ImageSaveOptions a scripted save starts from: the user's persisted defaults plus
+  // the per-document adjustments (DDS source shape, BMP palette depth, ICO sizes, CUR
+  // hotspot, WebP loop count). Activates the session. Nullopt when it is gone.
+  [[nodiscard]] std::optional<ImageSaveOptions> save_options_for_session(std::int64_t session_id);
   bool export_session_animated_webp(std::int64_t session_id, const QString& path,
                                     const ImageSaveOptions& options, QString* error);
   // app.exportPdf: the sessions as the pages of one PDF, in order. False with *error

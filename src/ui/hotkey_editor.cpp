@@ -29,8 +29,8 @@ bool is_modifier_only_key(int key) {
          key == Qt::Key_AltGr || key == Qt::Key_CapsLock || key == Qt::Key_NumLock || key == Qt::Key_ScrollLock;
 }
 
-// Keys the canvas (or the dialog itself) consumes positionally; binding them
-// app-wide would break core interactions, so the capture field refuses them.
+}  // namespace
+
 bool is_reserved_binding_key(int key, Qt::KeyboardModifiers modifiers) {
   if ((modifiers & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier)) != 0) {
     return key == Qt::Key_Escape;
@@ -56,6 +56,8 @@ bool is_reserved_binding_key(int key, Qt::KeyboardModifiers modifiers) {
   }
   return false;
 }
+
+namespace {
 
 // Menu texts carry an "opens a dialog" ellipsis that is noise in a command
 // list ("used by Levels...." reads badly in the conflict banner).
@@ -416,7 +418,9 @@ void HotkeyEditorPanel::build_rows(QMenuBar* menu_bar) {
         continue;
       }
       const auto* command = command_by_action.value(action);
-      if (command == nullptr || added.contains(command->id)) {
+      // Script commands sit in File > Scripts only once that menu has been opened; listing
+      // them by category keeps their rows the same whether or not it was.
+      if (command == nullptr || added.contains(command->id) || command->category == QStringLiteral("scripts")) {
         continue;
       }
       added.insert(command->id);
@@ -750,7 +754,16 @@ QString HotkeyEditorPanel::category_display_name(const QString& category_key) co
   if (category_key == QStringLiteral("channels")) {
     return tr("Channels");
   }
+  if (category_key == QStringLiteral("scripts")) {
+    return tr("Scripts");
+  }
   return tr("Other");
+}
+
+void HotkeyEditorPanel::set_search_text(const QString& text) {
+  if (search_edit_ != nullptr) {
+    search_edit_->setText(text);
+  }
 }
 
 }  // namespace patchy::ui

@@ -83,7 +83,7 @@ var preview = doc.renderPreview(patchy.args.preview, {
 patchy.setResult(preview);
 ```
 
-Preview dimensions default to a 1024 by 1024 bounding box and may be 1 through 4096. The aspect ratio is preserved. Ordinary previews shrink as needed; nearest-neighbor previews may enlarge pixel art. Crop rectangles are clipped to the canvas. For full-resolution outputs beyond the preview bound, use `exportAs`; it currently behaves like `saveAs`, so save the layered PSD last. MCP `get_preview` with `target: "window"` is an offscreen app-window render for inspecting the interface.
+Preview dimensions default to a 1024 by 1024 bounding box and may be 1 through 4096. The aspect ratio is preserved. Ordinary previews shrink as needed; nearest-neighbor previews may enlarge pixel art. Crop rectangles are clipped to the canvas. For full-resolution outputs beyond the preview bound, use `exportAs`, which writes a copy and leaves the document's path and modified state alone. MCP `get_preview` with `target: "window"` is an offscreen app-window render for inspecting the interface.
 
 A mutating script or stroke batch normally makes one undo entry per affected document; Slow mode separates strokes and edits within the batch. Failed or cancelled scripts may leave partial edits; inspect returned state and undo before revising. The connector does not retry edits. `doc.undo()` and `doc.redo()` return whether a history step was restored and must run before new edits in the same script. `doc.modified`, `doc.canUndo`, and `doc.canRedo` expose status. `patchy.setResult(value)` returns a small JSON value independently of logs.
 
@@ -260,8 +260,20 @@ A comment block at the top of a script describes it to the Script Manager and th
 | `@author` | Credit line on the hover card. |
 | `@window` | The script creates its own window or document (shown as a window badge). Scripts without it are expected to work on the active document. |
 | `@cli` | The argument part of the script's command-line example: everything after `--run-script <script>`. Repeat the line to continue it. Shown by the Script Manager's **C:\\** button; without it the example falls back to a plain `example.png` placeholder. |
+| `@hotkey` | The script's default keyboard shortcut in Qt's portable spelling (`Ctrl+Alt+D`, `Shift+F6`). See "Hotkeys for scripts" below. |
 
 A 128x128 PNG next to the script with the same base name (`myscript.js` and `myscript.png`) becomes its icon. Right-click a script in the Script Manager for **Set Icon from Current Window**.
+
+## Hotkeys for scripts
+
+Any script in the Scripts menu can have a keyboard shortcut, so a one-keypress job such as "export this document as a .dds next to its file" (`Utilities/quick-export-dds.js`) needs no menu trip. Two ways to set one:
+
+- **In the script**: a `// @hotkey Ctrl+Alt+D` line in the header comment is the script's default shortcut. A key Patchy already uses stays with Patchy (the first registered command wins a tie), and Preferences shows a note on the script's row saying which command took it.
+- **In Preferences > Hotkeys**: every script is listed under **Scripts** by its display name. Click the shortcut chip and press the key. Right-click a script in the Script Manager and choose **Assign Hotkey...** to open that page on the script's row. A shortcut chosen here always wins over the `@hotkey` line, and "Use here instead" takes a key from another command.
+
+The binding is stored in your Patchy settings under a stable id built from the script's path inside the scripts folder (`script.` plus the percent-encoded relative path, such as `script.Utilities%2Fquick-export-dds.js`), so it survives updating Patchy, editing the script, and saving a bundled script as your own copy (the copy keeps the bundled script's path). Renaming or moving the file starts a new id: assign the key again. A shortcut for a script that no longer exists is dropped the next time you press OK in Preferences.
+
+Bundled scripts ship without shortcuts (they could collide with yours). The menu entry shows a script's shortcut once one is bound, and the hotkey works from the moment Patchy starts, without opening the menu first. A running script cannot start another one: `app.runCommand` refuses the `script.` ids (use `include()` to reuse code).
 
 ## Script options
 
@@ -351,10 +363,37 @@ Field types: `number`, `slider`, `checkbox`, `choice`, `text`, `color`, `folder`
 | `doc.selection` | The selection object (below). |
 | `doc.flatten()` | Flattens the document. |
 | `doc.resizeImage(w, h, {method?})` / `doc.resizeCanvas(w, h)` / `doc.crop(x, y, w, h)` | Geometry operations. `resizeImage` takes a resampling `method` id (`"automatic"`, `"nearest"`, `"bilinear"`, `"bicubic"`, `"bicubicSmoother"`, `"bicubicSharper"`; default automatic). `crop` clips to the canvas and throws for a disjoint rectangle. |
-| `doc.saveAs(path)` / `doc.exportAs(path)` | Saves to the path; the format follows the extension (`.psd`, `.png`, `.jpg`, ...). WebP stays a single flattened image. |
+| `doc.saveAs(path, options?)` | Saves to the path; the format follows the extension (`.psd`, `.png`, `.jpg`, ...). The document then points at that file; a layered document saved to a flat format keeps its own path (save-a-copy). `options` sets the format's save options with no dialog (below); without it the save uses your Save Options defaults. WebP stays a single flattened image. |
+| `doc.exportAs(path, options?)` | Writes a copy with the same formats and options as `saveAs` and leaves the document alone: path, title and modified state never change. |
 | `doc.exportAnimatedWebp(path, options?)` | Exports visible top-level layers top first, with each group rendered as one frame. Leaves the document path and modified state unchanged. |
 | `doc.close()` | Closes without prompting. |
 | `doc.activate()` | Makes this the active tab. |
+
+### Save options
+
+`saveAs` and `exportAs` take an options object holding the same choices the format's Save Options dialog offers, so a script can write exactly the file it wants with no dialog:
+
+```js
+doc.exportAs("hero.dds", {compression: "bc3", mipmaps: "on"});
+doc.exportAs("web.jpg", {quality: 85});
+doc.exportAs("web.webp", {quality: 80, lossless: false});
+doc.exportAs("app.ico", {sizes: [16, 32, 48, 256], resample: "smooth"});
+doc.exportAs("page.pdf", {imageQuality: "high", editableLayers: true});
+```
+
+| Extension | Keys |
+| --- | --- |
+| `.jpg`, `.jpeg` | `quality` (0 to 100) |
+| `.webp` | `quality` (0 to 100), `lossless` |
+| `.jxr` | `quality` (1 to 100), `lossless` |
+| `.dds` | `compression` (`"auto"`, `"uncompressed"`, `"bc1"`, `"bc3"`, `"bc4"`, `"bc5"`, `"bc7"`), `mipmaps` (`"auto"`, `"on"`, `"off"`). Automatic keeps an opened .dds file's format and otherwise picks BC1 for opaque images and BC3 with transparency. |
+| `.ico`, `.cur` | `sizes` (an array from 16, 24, 32, 48, 64, 128, 256), `resample` (`"auto"`, `"nearest"`, `"smooth"`); `.cur` also `hotspot: {x, y}` |
+| `.bmp` | `encoding` (`"rgba32"`, `"rgb24"`, `"indexed8"`, `"indexed4"`, `"indexed2"`), `paletteMode` (`"exact"`, `"quantize"`, `"paletteFile"`), `palettePath` |
+| `.rttex` | `encoding` (`"rgba8"`, `"rgba4444"`, `"jpeg"`), `quality` (1 to 100), `powerOfTwo` (`"pad"`, `"stretch"`, `"none"`), `forceSquare`, `forceAlpha`, `compress` |
+| `.pdf` | the `app.exportPdf` keys: `imageQuality`, `lossless`, `editableLayers`, `keepOriginalImageData`, `missingFontsAsImages` |
+| `.gif` | `animate` (visible top-level layers become frames, top first), `frameDelayMs` |
+
+Keys you leave out follow your Save Options defaults and the document (a document opened from a .dds keeps that file's format under `"auto"`). The object is strict: a key that does not apply to the extension, an unknown key, a wrong type or an out-of-range value throws and nothing is written, so a typo never saves with defaults. A scripted save never changes your Save Options defaults. Formats without options (`.psd`, `.png`, `.tif`, ...) accept no keys.
 
 ### Animated WebP
 
@@ -578,7 +617,7 @@ When a GUI run stays busy for more than half a second, Patchy shows a progress p
 - **Bundled scripts**: shipped read-only next to the application, in `Games/`, `Demos/`, `Effects/`, and `Utilities/`.
 - **Editing a bundled script** never touches the shipped file: Save writes a copy into your user folder at the same relative path, and that copy runs instead, tagged "modified". Right-click it for **Revert to Bundled**.
 
-The bundled scripts double as examples. Good starting points: `Effects/duotone.js` (pixel processing), `Utilities/watermark.js` (text layers and options), `Utilities/batch-export.js` (folder batch work), `Games/pong.js` (interactive windows).
+The bundled scripts double as examples. Good starting points: `Effects/duotone.js` (pixel processing), `Utilities/watermark.js` (text layers and options), `Utilities/batch-export.js` (folder batch work), `Utilities/quick-export-dds.js` (save options and a script on a hotkey), `Games/pong.js` (interactive windows).
 
 Input and unattended-run details:
 

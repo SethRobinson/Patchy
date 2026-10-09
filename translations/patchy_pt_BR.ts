@@ -10944,6 +10944,10 @@ RGB: %2, %3, %4</translation>
         <source>Other</source>
         <translation>Outro</translation>
     </message>
+    <message>
+        <source>Scripts</source>
+        <translation>Scripts</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>
@@ -19045,6 +19049,10 @@ Y: %2
         <source>%1 Text Boundary</source>
         <translation>Limite do texto %1</translation>
     </message>
+    <message>
+        <source>Saved copy %1</source>
+        <translation>Cópia %1 salva</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -19712,6 +19720,14 @@ Y: %2
     <message>
         <source>Running... %1m %2s</source>
         <translation>Executando... %1m %2s</translation>
+    </message>
+    <message>
+        <source>Assign Hotkey...</source>
+        <translation>Atribuir atalho...</translation>
+    </message>
+    <message>
+        <source>Opens Preferences &gt; Hotkeys at this script&apos;s row.</source>
+        <translation>Abre Preferências &gt; Atalhos na linha deste script.</translation>
     </message>
 </context>
 <context>
@@ -20511,6 +20527,45 @@ Y: %2
     <message>
         <source>Blend mode %1 is not available in 32-bit documents.</source>
         <translation>O modo de mesclagem %1 não está disponível em documentos de 32 bits.</translation>
+    </message>
+    <message>
+        <source>%1 needs an output path.</source>
+        <translation>%1 precisa de um caminho de saída.</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::ScriptSaveOptions</name>
+    <message>
+        <source>%1: option &quot;%2&quot; must be an integer from %3 to %4.</source>
+        <translation>%1: a opção &quot;%2&quot; deve ser um inteiro de %3 a %4.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be true or false.</source>
+        <translation>%1: a opção &quot;%2&quot; deve ser true ou false.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be a string.</source>
+        <translation>%1: a opção &quot;%2&quot; deve ser uma string.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be one of %3.</source>
+        <translation>%1: a opção &quot;%2&quot; deve ser um destes valores: %3.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; does not apply to a .%3 file.</source>
+        <translation>%1: a opção &quot;%2&quot; não se aplica a um arquivo .%3.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be a non-empty array of sizes from %3.</source>
+        <translation>%1: a opção &quot;%2&quot; deve ser um array não vazio de tamanhos entre %3.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be an object {x, y} of integers from 0 to 255.</source>
+        <translation>%1: a opção &quot;%2&quot; deve ser um objeto {x, y} de inteiros de 0 a 255.</translation>
+    </message>
+    <message>
+        <source>%1: options must be an object such as {quality: 85}.</source>
+        <translation>%1: as opções devem ser um objeto como {quality: 85}.</translation>
     </message>
 </context>
 <context>

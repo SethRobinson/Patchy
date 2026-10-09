@@ -95,6 +95,7 @@ struct LayerDropRequest;
 namespace patchy::ui {
 
 struct PdfImportedDocument;
+struct ScriptScan;
 struct ShapeAppearanceSettings;
 
 namespace user_fonts {
@@ -269,6 +270,17 @@ public:
   // live under the per-user app-data folder (created on first use).
   [[nodiscard]] static QString bundled_scripts_directory();
   [[nodiscard]] static QString user_scripts_directory();
+  // Keeps one persistent QAction per script in the scan (File > Scripts entries and the
+  // hotkey commands of category "scripts", ids from script_hotkey_command_id): new scripts
+  // register, vanished ones unregister, and every action's text, icon, path and @hotkey
+  // default follow the files. The only sanctioned late hotkey registration; see
+  // docs/scripting.md "Script hotkeys". Runs at construction, on every Scripts menu
+  // rebuild, on every Script Manager tree refresh, and before the Hotkeys page is built.
+  void refresh_script_commands(const ScriptScan& scan);
+  enum class PreferencesPage { Application, Hotkeys };
+  // Preferences opened on the Hotkeys page with its search field prefilled (the Script
+  // Manager's "Assign Hotkey..." passes the script's display name).
+  void show_hotkey_preferences(const QString& search = QString()) { show_preferences(PreferencesPage::Hotkeys, search); }
   // Opens the bundled scripting guide (scripting-guide.md, shipped with the
   // scripts) in the markdown viewer; public so the Script Manager's Help
   // button shares the Help-menu instance.
@@ -807,11 +819,25 @@ private:
   void show_user_font_drop_result(const user_fonts::AddFontsResult& result);
   bool save_document();
   bool save_document_as();
-  // flatten_confirmed: the caller already ran confirm_flatten_layers_for_save() for this
-  // save, so the layers-will-be-flattened prompt is skipped (never pass true without
-  // asking first).
+  // How a save to a path may interact with the user and the session. An aggregate with
+  // no member initializers on purpose: `{}` value-initializes every flag to false, and a
+  // default member initializer here would need the enclosing class complete at the
+  // default argument below (Clang rejects that).
+  struct SaveToPathPolicy {
+    // The caller already ran confirm_flatten_layers_for_save() for this save, so the
+    // layers-will-be-flattened prompt is skipped (never pass true without asking first).
+    bool flatten_confirmed;
+    // A script decided: the saved-channels and Aseprite fill-opacity data-loss prompts are
+    // skipped, and the save never rewrites the persisted saveOptions defaults or the
+    // remembered save directory (a script's choices are its own, not the user's).
+    bool scripted;
+    // Write a copy (doc.exportAs): the session's path, title, modified state and remembered
+    // per-session options stay untouched for every format, the way a flattened copy of a
+    // layered document already behaves.
+    bool export_copy;
+  };
   bool save_document_to_path(QString path, std::optional<ImageSaveOptions> image_options = std::nullopt,
-                             bool flatten_confirmed = false);
+                             SaveToPathPolicy policy = {});
   // extension picks the wording: SVG keeps vector shapes and only bakes the
   // rest, so its copy-save warning must not claim everything flattens.
   bool confirm_flatten_layers_for_save(const QString& extension = {});
@@ -839,7 +865,8 @@ private:
                                                                 ExportDocumentsExistingFiles existing_files);
   void page_setup();
   void print_document();
-  void show_preferences();
+  // hotkey_search prefills the Hotkeys page's search field (used with PreferencesPage::Hotkeys).
+  void show_preferences(PreferencesPage page = PreferencesPage::Application, const QString& hotkey_search = QString());
   // Re-applies the whole UI for a new color scheme, live. Connected to
   // ThemeManager::color_scheme_changed; see main_window_theme.cpp for the order
   // the steps have to run in.
@@ -2254,6 +2281,7 @@ private:
   QPointer<QDialog> scripting_guide_dialog_;
   QPointer<QDialog> ai_setup_dialog_;
   QMenu* scripts_menu_{nullptr};
+  QHash<QString, QAction*> script_actions_;  // hotkey command id -> persistent script action
   FilterRegistry filters_;
   PluginHost plugin_host_;
   std::vector<LegacyPluginEntry> legacy_plugins_;

@@ -10914,6 +10914,10 @@ RGB：%2, %3, %4</translation>
         <source>Other</source>
         <translation>其他</translation>
     </message>
+    <message>
+        <source>Scripts</source>
+        <translation>脚本</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>
@@ -18989,6 +18993,10 @@ Baked into images: %1.</source>
         <source>%1 Text Boundary</source>
         <translation>%1 文本边界</translation>
     </message>
+    <message>
+        <source>Saved copy %1</source>
+        <translation>已保存副本 %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -19655,6 +19663,14 @@ Baked into images: %1.</source>
     <message>
         <source>Running... %1m %2s</source>
         <translation>正在运行... %1 分 %2 秒</translation>
+    </message>
+    <message>
+        <source>Assign Hotkey...</source>
+        <translation>指定快捷键...</translation>
+    </message>
+    <message>
+        <source>Opens Preferences &gt; Hotkeys at this script&apos;s row.</source>
+        <translation>打开“首选项 &gt; 快捷键”并定位到此脚本所在行。</translation>
     </message>
 </context>
 <context>
@@ -20454,6 +20470,45 @@ Baked into images: %1.</source>
     <message>
         <source>Blend mode %1 is not available in 32-bit documents.</source>
         <translation>混合模式 %1 在 32 位文档中不可用。</translation>
+    </message>
+    <message>
+        <source>%1 needs an output path.</source>
+        <translation>%1 需要一个输出路径。</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::ScriptSaveOptions</name>
+    <message>
+        <source>%1: option &quot;%2&quot; must be an integer from %3 to %4.</source>
+        <translation>%1：选项 &quot;%2&quot; 必须是 %3 到 %4 之间的整数。</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be true or false.</source>
+        <translation>%1：选项 &quot;%2&quot; 必须是 true 或 false。</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be a string.</source>
+        <translation>%1：选项 &quot;%2&quot; 必须是字符串。</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be one of %3.</source>
+        <translation>%1：选项 &quot;%2&quot; 必须是 %3 之一。</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; does not apply to a .%3 file.</source>
+        <translation>%1：选项 &quot;%2&quot; 不适用于 .%3 文件。</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be a non-empty array of sizes from %3.</source>
+        <translation>%1：选项 &quot;%2&quot; 必须是由 %3 中的尺寸组成的非空数组。</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be an object {x, y} of integers from 0 to 255.</source>
+        <translation>%1：选项 &quot;%2&quot; 必须是由 0 到 255 之间的整数组成的 {x, y} 对象。</translation>
+    </message>
+    <message>
+        <source>%1: options must be an object such as {quality: 85}.</source>
+        <translation>%1：选项必须是类似 {quality: 85} 的对象。</translation>
     </message>
 </context>
 <context>

@@ -10914,6 +10914,10 @@ RGB: %2, %3, %4</translation>
         <source>Other</source>
         <translation>기타</translation>
     </message>
+    <message>
+        <source>Scripts</source>
+        <translation>스크립트</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>
@@ -18989,6 +18993,10 @@ Y: %2
         <source>%1 Text Boundary</source>
         <translation>%1 텍스트 경계</translation>
     </message>
+    <message>
+        <source>Saved copy %1</source>
+        <translation>복사본 %1을(를) 저장했습니다</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -19655,6 +19663,14 @@ Y: %2
     <message>
         <source>Running... %1m %2s</source>
         <translation>실행 중... %1m %2s</translation>
+    </message>
+    <message>
+        <source>Assign Hotkey...</source>
+        <translation>단축키 지정...</translation>
+    </message>
+    <message>
+        <source>Opens Preferences &gt; Hotkeys at this script&apos;s row.</source>
+        <translation>환경 설정 &gt; 단축키를 이 스크립트의 행에서 엽니다.</translation>
     </message>
 </context>
 <context>
@@ -20454,6 +20470,45 @@ Y: %2
     <message>
         <source>Blend mode %1 is not available in 32-bit documents.</source>
         <translation>혼합 모드 %1은(는) 32비트 문서에서 사용할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>%1 needs an output path.</source>
+        <translation>%1에는 출력 경로가 필요합니다.</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::ScriptSaveOptions</name>
+    <message>
+        <source>%1: option &quot;%2&quot; must be an integer from %3 to %4.</source>
+        <translation>%1: 옵션 &quot;%2&quot;은(는) %3에서 %4 사이의 정수여야 합니다.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be true or false.</source>
+        <translation>%1: 옵션 &quot;%2&quot;은(는) true 또는 false여야 합니다.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be a string.</source>
+        <translation>%1: 옵션 &quot;%2&quot;은(는) 문자열이어야 합니다.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be one of %3.</source>
+        <translation>%1: 옵션 &quot;%2&quot;은(는) %3 중 하나여야 합니다.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; does not apply to a .%3 file.</source>
+        <translation>%1: 옵션 &quot;%2&quot;은(는) .%3 파일에 적용되지 않습니다.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be a non-empty array of sizes from %3.</source>
+        <translation>%1: 옵션 &quot;%2&quot;은(는) %3 중의 크기로 이루어진 비어 있지 않은 배열이어야 합니다.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be an object {x, y} of integers from 0 to 255.</source>
+        <translation>%1: 옵션 &quot;%2&quot;은(는) 0에서 255 사이의 정수로 된 {x, y} 객체여야 합니다.</translation>
+    </message>
+    <message>
+        <source>%1: options must be an object such as {quality: 85}.</source>
+        <translation>%1: 옵션은 {quality: 85}와 같은 객체여야 합니다.</translation>
     </message>
 </context>
 <context>

@@ -6,7 +6,11 @@
 
 #include "ui/script_folders.hpp"
 
+#include "ui/hotkey_editor.hpp"
+
 #include <QCoreApplication>
+#include <QKeySequence>
+#include <QUrl>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -63,6 +67,7 @@ void scan_into(const QDir& dir, const QString& prefix, std::vector<ScriptFolderE
     entry.description = meta.description;
     entry.author = meta.author;
     entry.cli_example = meta.cli_example;
+    entry.hotkey = meta.hotkey;
     entry.opens_window = meta.opens_window;
     const auto icon = dir.absoluteFilePath(file.completeBaseName() + QStringLiteral(".png"));
     if (QFileInfo::exists(icon)) {
@@ -100,6 +105,7 @@ void apply_overrides(std::vector<ScriptFolderEntry>& bundled, const QString& use
       entry.description = meta.description;
       entry.author = meta.author;
       entry.cli_example = meta.cli_example;
+      entry.hotkey = meta.hotkey;
       entry.opens_window = meta.opens_window;
     }
     // A user icon shadows the bundled one on its own ("Set Icon..." writes
@@ -161,11 +167,25 @@ ScriptMetadata read_script_metadata(const QString& path) {
       const auto text = body.mid(5).trimmed().toString();
       meta.cli_example =
           meta.cli_example.isEmpty() ? text : meta.cli_example + QLatin1Char(' ') + text;
+    } else if (body.startsWith(QLatin1String("@hotkey "))) {
+      // One sequence in Qt's portable spelling. A key the hotkey editor refuses to
+      // bind (Return, Space, arrows, bare digits...) is ignored the same way.
+      const auto sequence = QKeySequence::fromString(body.mid(8).trimmed().toString(), QKeySequence::PortableText);
+      if (sequence.count() == 1 && !sequence.isEmpty()) {
+        const auto combination = sequence[0];
+        if (!is_reserved_binding_key(combination.key(), combination.keyboardModifiers())) {
+          meta.hotkey = sequence.toString(QKeySequence::PortableText);
+        }
+      }
     } else if (body == QLatin1String("@window")) {
       meta.opens_window = true;
     }
   }
   return meta;
+}
+
+QString script_hotkey_command_id(const QString& relative_path) {
+  return QStringLiteral("script.") + QString::fromLatin1(QUrl::toPercentEncoding(relative_path));
 }
 
 QString script_cli_example_command(const QString& exe_path, const QString& script_path,

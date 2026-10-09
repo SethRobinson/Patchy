@@ -74,6 +74,7 @@
 #include "ui/psd_font_resolver.hpp"
 #include "ui/smart_object_render.hpp"
 #include "ui/scanner_import.hpp"
+#include "ui/script_folders.hpp"
 #include "ui/image_sequence_dialog.hpp"
 #include "ui/sprite_sheet_dialog.hpp"
 #include "ui/start_panel.hpp"
@@ -7410,6 +7411,9 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 #endif
   create_docks();
   hotkey_registry_.apply_to_actions();
+  // Script hotkeys must work from the first keypress, before File > Scripts was ever
+  // opened: register every script's command now (docs/scripting.md "Script hotkeys").
+  refresh_script_commands(scan_scripts(bundled_scripts_directory(), user_scripts_directory()));
   refresh_layer_list();
   refresh_layer_controls();
   update_document_action_state();  update_undo_redo_actions();

@@ -10914,6 +10914,10 @@ Mixed selection</source>
         <source>Other</source>
         <translation>その他</translation>
     </message>
+    <message>
+        <source>Scripts</source>
+        <translation>スクリプト</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>
@@ -18989,6 +18993,10 @@ Baked into images: %1.</source>
         <source>%1 Text Boundary</source>
         <translation>%1 のテキスト境界</translation>
     </message>
+    <message>
+        <source>Saved copy %1</source>
+        <translation>コピー %1 を保存しました</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -19655,6 +19663,14 @@ Baked into images: %1.</source>
     <message>
         <source>Close</source>
         <translation>閉じる</translation>
+    </message>
+    <message>
+        <source>Assign Hotkey...</source>
+        <translation>ホットキーを割り当て...</translation>
+    </message>
+    <message>
+        <source>Opens Preferences &gt; Hotkeys at this script&apos;s row.</source>
+        <translation>環境設定 &gt; ホットキーをこのスクリプトの行で開きます。</translation>
     </message>
 </context>
 <context>
@@ -20454,6 +20470,45 @@ Baked into images: %1.</source>
     <message>
         <source>Blend mode %1 is not available in 32-bit documents.</source>
         <translation>描画モード %1 は 32 ビットのドキュメントでは使用できません。</translation>
+    </message>
+    <message>
+        <source>%1 needs an output path.</source>
+        <translation>%1 には出力パスが必要です。</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::ScriptSaveOptions</name>
+    <message>
+        <source>%1: option &quot;%2&quot; must be an integer from %3 to %4.</source>
+        <translation>%1: オプション &quot;%2&quot; は %3 から %4 までの整数でなければなりません。</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be true or false.</source>
+        <translation>%1: オプション &quot;%2&quot; は true または false でなければなりません。</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be a string.</source>
+        <translation>%1: オプション &quot;%2&quot; は文字列でなければなりません。</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be one of %3.</source>
+        <translation>%1: オプション &quot;%2&quot; は %3 のいずれかでなければなりません。</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; does not apply to a .%3 file.</source>
+        <translation>%1: オプション &quot;%2&quot; は .%3 ファイルには適用されません。</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be a non-empty array of sizes from %3.</source>
+        <translation>%1: オプション &quot;%2&quot; は %3 のサイズからなる空でない配列でなければなりません。</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be an object {x, y} of integers from 0 to 255.</source>
+        <translation>%1: オプション &quot;%2&quot; は 0 から 255 までの整数の {x, y} オブジェクトでなければなりません。</translation>
+    </message>
+    <message>
+        <source>%1: options must be an object such as {quality: 85}.</source>
+        <translation>%1: オプションは {quality: 85} のようなオブジェクトでなければなりません。</translation>
     </message>
 </context>
 <context>

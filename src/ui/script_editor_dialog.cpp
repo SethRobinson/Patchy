@@ -698,6 +698,9 @@ void ScriptEditorDialog::refresh_script_tree(const QString& select_path) {
   const auto bundled_dir = MainWindow::bundled_scripts_directory();
   const auto user_dir = MainWindow::user_scripts_directory();
   const auto scan = scan_scripts(bundled_dir, user_dir);
+  // The hotkey commands follow the same scan: a script saved, created, or reverted here
+  // keeps its menu entry and shortcut in step.
+  window_.refresh_script_commands(scan);
   if (!scan.bundled.empty()) {
     auto* bundled_root = new QTreeWidgetItem(script_tree_);
     bundled_root->setText(0, tr("Bundled"));
@@ -794,6 +797,8 @@ void ScriptEditorDialog::show_tree_context_menu(const QPoint& position) {
   auto* run_action = menu.addAction(tr("Run"));
   auto* reveal_action = menu.addAction(tr("Show in Folder"));
   auto* cli_action = menu.addAction(tr("Command Line Example..."));
+  auto* hotkey_action = menu.addAction(tr("Assign Hotkey..."));
+  hotkey_action->setToolTip(tr("Opens Preferences > Hotkeys at this script's row."));
   auto* set_icon_action = menu.addAction(tr("Set Icon from Current Window"));
   set_icon_action->setToolTip(
       tr("Captures the running script's window (or the active image) as this script's icon."));
@@ -817,6 +822,10 @@ void ScriptEditorDialog::show_tree_context_menu(const QPoint& position) {
     QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(path).absolutePath()));
   } else if (chosen == cli_action) {
     show_cli_example_for(path);
+  } else if (chosen == hotkey_action) {
+    // The row label is the @name display name (what the tree shows), so searching for it
+    // lands on the script.
+    window_.show_hotkey_preferences(item->text(0));
   } else if (chosen == set_icon_action) {
     set_script_icon_from_window(item);
   } else if (chosen == revert_action) {

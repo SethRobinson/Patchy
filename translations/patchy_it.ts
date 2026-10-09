@@ -10944,6 +10944,10 @@ RGB: %2, %3, %4</translation>
         <source>Other</source>
         <translation>Altro</translation>
     </message>
+    <message>
+        <source>Scripts</source>
+        <translation>Script</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>
@@ -19045,6 +19049,10 @@ Convertiti in immagini: %1.</translation>
         <source>%1 Text Boundary</source>
         <translation>Contorno del testo %1</translation>
     </message>
+    <message>
+        <source>Saved copy %1</source>
+        <translation>Copia %1 salvata</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -19712,6 +19720,14 @@ Convertiti in immagini: %1.</translation>
     <message>
         <source>Running... %1m %2s</source>
         <translation>In esecuzione... %1m %2s</translation>
+    </message>
+    <message>
+        <source>Assign Hotkey...</source>
+        <translation>Assegna scorciatoia...</translation>
+    </message>
+    <message>
+        <source>Opens Preferences &gt; Hotkeys at this script&apos;s row.</source>
+        <translation>Apre Preferenze &gt; Scorciatoie sulla riga di questo script.</translation>
     </message>
 </context>
 <context>
@@ -20511,6 +20527,45 @@ Convertiti in immagini: %1.</translation>
     <message>
         <source>Blend mode %1 is not available in 32-bit documents.</source>
         <translation>Il metodo di fusione %1 non è disponibile nei documenti a 32 bit.</translation>
+    </message>
+    <message>
+        <source>%1 needs an output path.</source>
+        <translation>%1 richiede un percorso di output.</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::ScriptSaveOptions</name>
+    <message>
+        <source>%1: option &quot;%2&quot; must be an integer from %3 to %4.</source>
+        <translation>%1: l&apos;opzione &quot;%2&quot; deve essere un intero da %3 a %4.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be true or false.</source>
+        <translation>%1: l&apos;opzione &quot;%2&quot; deve essere true o false.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be a string.</source>
+        <translation>%1: l&apos;opzione &quot;%2&quot; deve essere una stringa.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be one of %3.</source>
+        <translation>%1: l&apos;opzione &quot;%2&quot; deve essere uno tra %3.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; does not apply to a .%3 file.</source>
+        <translation>%1: l&apos;opzione &quot;%2&quot; non si applica a un file .%3.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be a non-empty array of sizes from %3.</source>
+        <translation>%1: l&apos;opzione &quot;%2&quot; deve essere un array non vuoto di dimensioni tra %3.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be an object {x, y} of integers from 0 to 255.</source>
+        <translation>%1: l&apos;opzione &quot;%2&quot; deve essere un oggetto {x, y} di interi da 0 a 255.</translation>
+    </message>
+    <message>
+        <source>%1: options must be an object such as {quality: 85}.</source>
+        <translation>%1: le opzioni devono essere un oggetto come {quality: 85}.</translation>
     </message>
 </context>
 <context>

@@ -9193,7 +9193,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>%1: %2 mip levels, %3 x %4 down to %5 x %6, %7 of texture data.</source>
-        <translation>%1 : %2 niveaux de mip, %3 x %4 jusqu'à %5 x %6, %7 de données de texture.</translation>
+        <translation>%1 : %2 niveaux de mip, %3 x %4 jusqu&apos;à %5 x %6, %7 de données de texture.</translation>
     </message>
 </context>
 <context>
@@ -10943,6 +10943,10 @@ RVB : %2, %3, %4</translation>
     <message>
         <source>Other</source>
         <translation>Autre</translation>
+    </message>
+    <message>
+        <source>Scripts</source>
+        <translation>Scripts</translation>
     </message>
 </context>
 <context>
@@ -19045,6 +19049,10 @@ Convertis en images : %1.</translation>
         <source>%1 Text Boundary</source>
         <translation>Limite du texte %1</translation>
     </message>
+    <message>
+        <source>Saved copy %1</source>
+        <translation>Copie %1 enregistrée</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -19712,6 +19720,14 @@ Convertis en images : %1.</translation>
     <message>
         <source>Running... %1m %2s</source>
         <translation>Exécution... %1 min %2 s</translation>
+    </message>
+    <message>
+        <source>Assign Hotkey...</source>
+        <translation>Attribuer un raccourci...</translation>
+    </message>
+    <message>
+        <source>Opens Preferences &gt; Hotkeys at this script&apos;s row.</source>
+        <translation>Ouvre Préférences &gt; Raccourcis sur la ligne de ce script.</translation>
     </message>
 </context>
 <context>
@@ -20511,6 +20527,45 @@ Convertis en images : %1.</translation>
     <message>
         <source>Blend mode %1 is not available in 32-bit documents.</source>
         <translation>Le mode de fusion %1 n&apos;est pas disponible dans les documents 32 bits.</translation>
+    </message>
+    <message>
+        <source>%1 needs an output path.</source>
+        <translation>%1 a besoin d&apos;un chemin de sortie.</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::ScriptSaveOptions</name>
+    <message>
+        <source>%1: option &quot;%2&quot; must be an integer from %3 to %4.</source>
+        <translation>%1 : l&apos;option &quot;%2&quot; doit être un entier de %3 à %4.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be true or false.</source>
+        <translation>%1 : l&apos;option &quot;%2&quot; doit être true ou false.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be a string.</source>
+        <translation>%1 : l&apos;option &quot;%2&quot; doit être une chaîne.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be one of %3.</source>
+        <translation>%1 : l&apos;option &quot;%2&quot; doit être l&apos;une des valeurs %3.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; does not apply to a .%3 file.</source>
+        <translation>%1 : l&apos;option &quot;%2&quot; ne s&apos;applique pas à un fichier .%3.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be a non-empty array of sizes from %3.</source>
+        <translation>%1 : l&apos;option &quot;%2&quot; doit être un tableau non vide de tailles parmi %3.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be an object {x, y} of integers from 0 to 255.</source>
+        <translation>%1 : l&apos;option &quot;%2&quot; doit être un objet {x, y} d&apos;entiers de 0 à 255.</translation>
+    </message>
+    <message>
+        <source>%1: options must be an object such as {quality: 85}.</source>
+        <translation>%1 : les options doivent être un objet tel que {quality: 85}.</translation>
     </message>
 </context>
 <context>

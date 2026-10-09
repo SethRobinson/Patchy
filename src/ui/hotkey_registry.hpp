@@ -91,6 +91,12 @@ public:
 
   void register_command(QAction* action, QString id, QList<QKeySequence> default_shortcuts,
                         QString category = QString());
+  // Late registration (scripts, which come and go while the app runs) happens only
+  // through MainWindow::refresh_script_commands, which pairs these with
+  // apply_to_actions() and the float-window action association. Overrides saved for an
+  // unregistered id stay in the settings file until the next apply_overrides.
+  void unregister_command(const QString& id);
+  void set_default_shortcuts(const QString& id, QList<QKeySequence> default_shortcuts);
 
   [[nodiscard]] const std::vector<HotkeyCommand>& commands() const noexcept { return commands_; }
   [[nodiscard]] const HotkeyCommand* find_command(const QString& id) const;

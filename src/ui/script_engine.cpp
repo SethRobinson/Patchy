@@ -1039,14 +1039,26 @@ std::int64_t ScriptEngineHost::create_document(int width, int height) {
   return active_session_id();
 }
 
-bool ScriptEngineHost::save_session_to_path(std::int64_t session_id, const QString& path) {
+bool ScriptEngineHost::save_session_to_path(std::int64_t session_id, const QString& path,
+                                            std::optional<ImageSaveOptions> options, bool export_copy) {
   pump_progress_indicator();
   auto* session = window_.session_with_id(session_id);
   if (session == nullptr) {
     return false;
   }
   window_.activate_document_session(*session);
-  return window_.save_document_to_path(path, std::nullopt, /*flatten_confirmed=*/true);
+  return window_.save_document_to_path(
+      path, std::move(options),
+      MainWindow::SaveToPathPolicy{/*flatten_confirmed=*/true, /*scripted=*/true, export_copy});
+}
+
+std::optional<ImageSaveOptions> ScriptEngineHost::save_options_for_session(std::int64_t session_id) {
+  auto* session = window_.session_with_id(session_id);
+  if (session == nullptr) {
+    return std::nullopt;
+  }
+  window_.activate_document_session(*session);
+  return window_.image_save_defaults_for_document();
 }
 
 bool ScriptEngineHost::export_session_animated_webp(std::int64_t session_id, const QString& path,
@@ -3052,6 +3064,11 @@ bool ScriptEngineHost::run_app_command(const QString& command_id) {
   if (command_id == QStringLiteral("edit.undo") ||
       command_id == QStringLiteral("edit.redo") ||
       command_id == QStringLiteral("file.quit")) {
+    return false;
+  }
+  // One run at a time: a script cannot start another script (include() is the way to
+  // reuse one), so the per-script hotkey commands are refused here.
+  if (command_id.startsWith(QStringLiteral("script."))) {
     return false;
   }
   if (connector_mode_) {

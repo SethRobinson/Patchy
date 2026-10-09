@@ -501,6 +501,33 @@ ICONS["Utilities/save-version"] = function (s) {
   s.rect(19, 42, 12, 1.6, hex("#9aa4b2"));
 };
 
+ICONS["Utilities/quick-export-dds"] = function (s) {
+  background(s);
+  // A texture tile (block-compressed: a 4x4 grid) flying out to a file, with the
+  // keyboard key that fires it.
+  var tile = hex("#3b6ea5");
+  s.rrect(8, 9, 30, 30, 2, tile);
+  for (var gy = 0; gy < 4; gy++) {
+    for (var gx = 0; gx < 4; gx++) {
+      if ((gx + gy) % 2 === 0) {
+        s.rect(10 + gx * 6.5, 11 + gy * 6.5, 6.5, 6.5, hex("#4f86bf"));
+      }
+    }
+  }
+  // Arrow to the output file.
+  s.rect(40, 22, 8, 4, WHITE);
+  s.tri(48, 18, 56, 24, 48, 30, WHITE);
+  // The .dds file (page with folded corner).
+  s.rrect(44, 32, 15, 20, 1.5, hex("#f4f4f0"));
+  s.tri(54, 32, 59, 37, 54, 37, hex("#c8ccd2"));
+  s.rect(47, 42, 9, 1.6, hex("#9aa4b2"));
+  s.rect(47, 46, 7, 1.6, hex("#9aa4b2"));
+  // The key cap: one press.
+  s.rrect(8, 44, 22, 14, 3, hex("#dde2e8"));
+  s.rrect(10, 45, 18, 10, 2, WHITE);
+  s.rect(14, 49, 10, 2.2, YELLOW);
+};
+
 ICONS["Utilities/rename-layers"] = function (s) {
   background(s);
   // Two layer rows; the second is mid-rename with a caret...

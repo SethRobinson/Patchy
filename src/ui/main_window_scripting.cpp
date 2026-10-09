@@ -90,6 +90,7 @@
 #include <QMenu>
 #include <QMetaObject>
 #include <QPointer>
+#include <QSet>
 #include <QStandardPaths>
 #include <QStatusBar>
 #include <QStringList>
@@ -104,8 +105,15 @@ namespace patchy::ui {
 
 namespace {
 
-// Marks menu entries the folder rescan rebuilds (the static entries stay).
+// Marks the submenus and separator the folder rescan rebuilds (the static entries stay;
+// the script actions themselves are persistent, see refresh_script_commands).
 constexpr char kDynamicScriptActionProperty[] = "patchy.scriptMenuEntry";
+// Dynamic properties of a persistent script action: the hotkey command id, the absolute
+// path that runs (refreshed by every scan: a shadow override swaps it), and the @hotkey
+// default it was registered with (PortableText; a change re-registers the default).
+constexpr char kScriptCommandIdProperty[] = "patchy.scriptCommandId";
+constexpr char kScriptPathProperty[] = "patchy.scriptPath";
+constexpr char kScriptHotkeyProperty[] = "patchy.scriptHotkey";
 
 // Runs `script_path`, captures console output and errors, and writes them (plus
 // a final "[done]"/"[failed]" line) to output_path when the run fully
@@ -203,31 +211,106 @@ QString MainWindow::bundled_scripts_directory() {
 }
 
 QString MainWindow::user_scripts_directory() {
-  const auto base = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
-  const auto path = base + QStringLiteral("/scripts");
+  // Isolation knob like PATCHY_USER_FONTS_DIR: the UI suite points every test process at
+  // a scratch folder, so a developer's real scripts (and their @hotkey defaults) never
+  // register in test windows.
+  const auto override_dir = qEnvironmentVariable("PATCHY_USER_SCRIPTS_DIR");
+  const auto path = override_dir.isEmpty()
+                        ? QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/scripts")
+                        : QDir::cleanPath(override_dir);
   QDir().mkpath(path);
   return QDir(path).absolutePath();
+}
+
+void MainWindow::refresh_script_commands(const ScriptScan& scan) {
+  bool changed = false;
+  QSet<QString> seen;
+  const std::function<void(const std::vector<ScriptFolderEntry>&)> visit =
+      [this, &visit, &seen, &changed](const std::vector<ScriptFolderEntry>& entries) {
+        for (const auto& entry : entries) {
+          if (entry.is_folder) {
+            visit(entry.children);
+            continue;
+          }
+          const auto id = script_hotkey_command_id(entry.relative_path);
+          seen.insert(id);
+          QList<QKeySequence> defaults;
+          if (!entry.hotkey.isEmpty()) {
+            defaults << QKeySequence::fromString(entry.hotkey, QKeySequence::PortableText);
+          }
+          auto* action = script_actions_.value(id);
+          if (action == nullptr) {
+            action = new QAction(this);
+            action->setMenuRole(QAction::NoRole);  // never merged on macOS (docs/platform.md)
+            action->setObjectName(QStringLiteral("scriptAction.") + id);
+            action->setProperty(kScriptCommandIdProperty, id);
+            action->setProperty(kScriptHotkeyProperty, entry.hotkey);
+            connect(action, &QAction::triggered, this, [this, action] {
+              run_script_from_menu(action->property(kScriptPathProperty).toString());
+            });
+            register_hotkey(action, id, defaults, QStringLiteral("scripts"));
+            // Floats associate every registered action so Qt's WindowShortcut context
+            // matches while one is active (main_window_sessions.cpp); later arrivals must
+            // join the same way.
+            for (const auto& candidate : sessions_) {
+              if (candidate != nullptr && candidate->float_window != nullptr) {
+                candidate->float_window->addAction(action);
+              }
+            }
+            script_actions_.insert(id, action);
+            changed = true;
+          } else if (action->property(kScriptHotkeyProperty).toString() != entry.hotkey) {
+            action->setProperty(kScriptHotkeyProperty, entry.hotkey);
+            hotkey_registry_.set_default_shortcuts(id, defaults);
+            changed = true;
+          }
+          // The menu text; the Hotkeys page shows the same label under "Scripts".
+          action->setText(entry.is_override ? tr("%1 (modified)").arg(entry.display_name) : entry.display_name);
+          action->setIcon(script_entry_icon(entry));
+          action->setProperty(kScriptPathProperty, entry.path);
+        }
+      };
+  visit(scan.bundled);
+  visit(scan.user);
+  for (auto it = script_actions_.begin(); it != script_actions_.end();) {
+    if (seen.contains(it.key())) {
+      ++it;
+      continue;
+    }
+    hotkey_registry_.unregister_command(it.key());
+    // ~QAction removes it from every menu and float window that lists it.
+    it.value()->deleteLater();
+    it = script_actions_.erase(it);
+    changed = true;
+  }
+  if (changed) {
+    hotkey_registry_.apply_to_actions();
+  }
 }
 
 void MainWindow::rebuild_scripts_menu() {
   if (scripts_menu_ == nullptr) {
     return;
   }
+  const auto scan = scan_scripts(bundled_scripts_directory(), user_scripts_directory());
+  refresh_script_commands(scan);
   const auto actions = scripts_menu_->actions();
   for (auto* action : actions) {
     if (action->property(kDynamicScriptActionProperty).toBool()) {
       scripts_menu_->removeAction(action);
       if (auto* submenu = action->menu()) {
-        submenu->deleteLater();  // owns its menuAction
+        submenu->deleteLater();  // owns its menuAction, never the script actions listed in it
       } else {
-        action->deleteLater();
+        action->deleteLater();  // the bundled/user separator
       }
+    } else if (action->property(kScriptCommandIdProperty).isValid()) {
+      scripts_menu_->removeAction(action);  // persistent: re-added below in scan order
     }
   }
   // Folders become submenus; a user shadow copy replaces the bundled entry in
-  // place, tagged "(modified)" (script_folders.hpp). Entries show their @name
-  // display name and sidecar icon (script_entry_icon falls back to the
-  // generic JS-page icon).
+  // place, tagged "(modified)" (script_folders.hpp). Entries are the persistent
+  // script actions (refresh_script_commands keeps their @name display name,
+  // sidecar icon and shortcut current), so the menu shows each one's hotkey.
   const std::function<void(QMenu*, const std::vector<ScriptFolderEntry>&, bool)> add_entries =
       [this, &add_entries](QMenu* menu, const std::vector<ScriptFolderEntry>& entries, bool mark) {
         for (const auto& entry : entries) {
@@ -240,17 +323,11 @@ void MainWindow::rebuild_scripts_menu() {
             add_entries(submenu, entry.children, false);
             continue;
           }
-          const auto text = entry.is_override ? tr("%1 (modified)").arg(entry.display_name)
-                                              : entry.display_name;
-          auto* action = menu->addAction(script_entry_icon(entry), text);
-          if (mark) {
-            action->setProperty(kDynamicScriptActionProperty, true);
+          if (auto* action = script_actions_.value(script_hotkey_command_id(entry.relative_path)); action != nullptr) {
+            menu->addAction(action);
           }
-          const auto path = entry.path;
-          connect(action, &QAction::triggered, this, [this, path] { run_script_from_menu(path); });
         }
       };
-  const auto scan = scan_scripts(bundled_scripts_directory(), user_scripts_directory());
   add_entries(scripts_menu_, scan.bundled, true);
   if (!scan.user.empty()) {
     auto* separator = scripts_menu_->addSeparator();

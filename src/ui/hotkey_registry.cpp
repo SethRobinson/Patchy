@@ -171,6 +171,22 @@ void HotkeyRegistry::register_command(QAction* action, QString id, QList<QKeySeq
   commands_.push_back({std::move(id), std::move(category), action, std::move(default_shortcuts)});
 }
 
+void HotkeyRegistry::unregister_command(const QString& id) {
+  commands_.erase(std::remove_if(commands_.begin(), commands_.end(),
+                                 [&id](const HotkeyCommand& command) { return command.id == id; }),
+                  commands_.end());
+}
+
+void HotkeyRegistry::set_default_shortcuts(const QString& id, QList<QKeySequence> default_shortcuts) {
+  const auto it = std::find_if(commands_.begin(), commands_.end(),
+                               [&id](const HotkeyCommand& command) { return command.id == id; });
+  if (it == commands_.end()) {
+    return;
+  }
+  default_shortcuts.removeAll(QKeySequence());
+  it->default_shortcuts = std::move(default_shortcuts);
+}
+
 const HotkeyCommand* HotkeyRegistry::find_command(const QString& id) const {
   const auto it = std::find_if(commands_.begin(), commands_.end(),
                                [&id](const HotkeyCommand& command) { return command.id == id; });

@@ -23,6 +23,7 @@ struct ScriptFolderEntry {
   QString description;    // "@description" header directive (may span lines)
   QString author;         // "@author" header directive
   QString cli_example;    // "@cli" header directive (example command-line tokens)
+  QString hotkey;         // "@hotkey" header directive, PortableText; empty = no default shortcut
   QString icon_path;      // sidecar icon PNG (user copy wins); empty = none
   bool is_folder{false};
   bool is_override{false};
@@ -34,17 +35,28 @@ struct ScriptFolderEntry {
 // scripting.md): "// @name Breakout" sets the display name, "// @description
 // ..." the hover-card blurb (repeated lines join with a space), "// @author
 // ..." the credit line, "// @window" declares that the script creates its
-// own window or document, and "// @cli ..." holds the extra tokens of the
-// script's command-line example (repeated lines join with a space). Parsing
-// stops at the first non-comment line (30 lines max).
+// own window or document, "// @cli ..." holds the extra tokens of the
+// script's command-line example (repeated lines join with a space), and
+// "// @hotkey Ctrl+Alt+D" is the script's DEFAULT shortcut (a Preferences >
+// Hotkeys override always wins; see docs/scripting.md "Script hotkeys").
+// Parsing stops at the first non-comment line (30 lines max).
 struct ScriptMetadata {
   QString name;
   QString description;
   QString author;
   QString cli_example;
+  QString hotkey;  // validated PortableText ("Ctrl+Alt+D"); empty when absent or invalid
   bool opens_window{false};
 };
 [[nodiscard]] ScriptMetadata read_script_metadata(const QString& path);
+
+// The HotkeyRegistry command id of a script: "script." plus its relative path
+// percent-encoded ("Utilities/foo.js" -> "script.Utilities%2Ffoo.js"). A
+// persisted identifier (the user's hotkey override is stored under it): the
+// encoding never changes. The relative path is unique across the merged scan
+// (a user copy at the same path shadows the bundled script), so a shadow
+// override keeps the hotkey and so does a future bundled script at that path.
+[[nodiscard]] QString script_hotkey_command_id(const QString& relative_path);
 
 // The copyable "run this script from a terminal" example the Script Manager
 // shows: exe path, --run-script with the quoted script path, then the

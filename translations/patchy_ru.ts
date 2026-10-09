@@ -10974,6 +10974,10 @@ RGB: %2, %3, %4</translation>
         <source>Other</source>
         <translation>Другое</translation>
     </message>
+    <message>
+        <source>Scripts</source>
+        <translation>Скрипты</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::LegacyPluginRunDialog</name>
@@ -19101,6 +19105,10 @@ Y: %2
         <source>%1 Text Boundary</source>
         <translation>Граница текста %1</translation>
     </message>
+    <message>
+        <source>Saved copy %1</source>
+        <translation>Копия %1 сохранена</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -19769,6 +19777,14 @@ Y: %2
     <message>
         <source>Running... %1m %2s</source>
         <translation>Выполнение... %1 мин %2 с</translation>
+    </message>
+    <message>
+        <source>Assign Hotkey...</source>
+        <translation>Назначить горячую клавишу...</translation>
+    </message>
+    <message>
+        <source>Opens Preferences &gt; Hotkeys at this script&apos;s row.</source>
+        <translation>Открывает Настройки &gt; Горячие клавиши на строке этого скрипта.</translation>
     </message>
 </context>
 <context>
@@ -20568,6 +20584,45 @@ Y: %2
     <message>
         <source>Blend mode %1 is not available in 32-bit documents.</source>
         <translation>Режим наложения %1 недоступен в 32-битных документах.</translation>
+    </message>
+    <message>
+        <source>%1 needs an output path.</source>
+        <translation>%1: нужен путь к выходному файлу.</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::ScriptSaveOptions</name>
+    <message>
+        <source>%1: option &quot;%2&quot; must be an integer from %3 to %4.</source>
+        <translation>%1: параметр &quot;%2&quot; должен быть целым числом от %3 до %4.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be true or false.</source>
+        <translation>%1: параметр &quot;%2&quot; должен быть true или false.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be a string.</source>
+        <translation>%1: параметр &quot;%2&quot; должен быть строкой.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be one of %3.</source>
+        <translation>%1: параметр &quot;%2&quot; должен быть одним из: %3.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; does not apply to a .%3 file.</source>
+        <translation>%1: параметр &quot;%2&quot; не применяется к файлу .%3.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be a non-empty array of sizes from %3.</source>
+        <translation>%1: параметр &quot;%2&quot; должен быть непустым массивом размеров из %3.</translation>
+    </message>
+    <message>
+        <source>%1: option &quot;%2&quot; must be an object {x, y} of integers from 0 to 255.</source>
+        <translation>%1: параметр &quot;%2&quot; должен быть объектом {x, y} из целых чисел от 0 до 255.</translation>
+    </message>
+    <message>
+        <source>%1: options must be an object such as {quality: 85}.</source>
+        <translation>%1: параметры должны быть объектом вида {quality: 85}.</translation>
     </message>
 </context>
 <context>
