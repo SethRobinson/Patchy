@@ -11,19 +11,29 @@
 #include "ui/measurement_units.hpp"
 #include "ui/pdf_export.hpp"
 
+#include <QBrush>
 #include <QButtonGroup>
 #include <QCheckBox>
+#include <QColor>
 #include <QComboBox>
+#include <QCoreApplication>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QFormLayout>
 #include <QGroupBox>
+#include <QGuiApplication>
 #include <QHBoxLayout>
+#include <QImage>
 #include <QLabel>
 #include <QLineEdit>
+#include <QLocale>
+#include <QPainter>
+#include <QPixmap>
 #include <QPushButton>
 #include <QRadioButton>
+#include <QScrollArea>
+#include <QScopeGuard>
 #include <QSettings>
 #include <QSignalBlocker>
 #include <QSize>
@@ -34,7 +44,10 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstring>
+#include <exception>
 #include <optional>
+#include <utility>
 #include <vector>
 
 namespace patchy::ui {
@@ -95,6 +108,15 @@ QString dds_compression_key(dds::Compression compression) {
 
 dds::Compression dds_compression_from_key(const QString& key, dds::Compression fallback) {
   return dds::compression_from_token(key.toStdString()).value_or(fallback);
+}
+
+QString dds_mipmap_choice_key(dds::MipmapChoice choice) {
+  const auto token = dds::mipmap_choice_token(choice);
+  return QString::fromLatin1(token.data(), static_cast<qsizetype>(token.size()));
+}
+
+dds::MipmapChoice dds_mipmap_choice_from_key(const QString& key, dds::MipmapChoice fallback) {
+  return dds::mipmap_choice_from_token(key.toStdString()).value_or(fallback);
 }
 
 // The Proton texture tokens live with the codec so the settings keys, the dialog, and the
@@ -231,6 +253,193 @@ QDialogButtonBox* add_dialog_buttons(QVBoxLayout* content, QDialog& dialog) {
 
 constexpr int kExportResizeMaxPixels = 30000;
 constexpr char kExportBackgroundColorProperty[] = "patchy.exportBackgroundColor";
+
+// The DDS form's names for the formats it can write; the Automatic items quote them.
+QString dds_compression_short_name(dds::Compression compression) {
+  switch (compression) {
+    case dds::Compression::Uncompressed:
+      return QObject::tr("Uncompressed");
+    case dds::Compression::Bc1:
+      return QStringLiteral("BC1 / DXT1");
+    case dds::Compression::Bc3:
+      return QStringLiteral("BC3 / DXT5");
+    case dds::Compression::Bc4:
+      return QStringLiteral("BC4 / ATI1");
+    case dds::Compression::Bc5:
+      return QStringLiteral("BC5 / ATI2");
+    case dds::Compression::Bc7:
+      return QStringLiteral("BC7");
+    case dds::Compression::Automatic:
+      break;
+  }
+  return QObject::tr("Automatic");
+}
+
+// A level of the DDS preview on the transparency checkerboard (deliberately not a theme
+// role, like the canvas checkerboard) at an integer zoom with no smoothing, so block
+// artifacts and BC1 cut-outs stay visible.
+QPixmap dds_preview_pixmap(const PixelBuffer& rgba8, int zoom) {
+  QImage image(rgba8.width(), rgba8.height(), QImage::Format_RGBA8888);
+  for (std::int32_t y = 0; y < rgba8.height(); ++y) {
+    const auto row = rgba8.row(y);
+    std::memcpy(image.scanLine(y), row.data(), row.size());
+  }
+  if (zoom > 1) {
+    image = image.scaled(image.width() * zoom, image.height() * zoom, Qt::IgnoreAspectRatio, Qt::FastTransformation);
+  }
+  QPixmap checker(16, 16);
+  checker.fill(QColor(0xcc, 0xcc, 0xcc));
+  {
+    QPainter painter(&checker);
+    painter.fillRect(0, 0, 8, 8, QColor(0x99, 0x99, 0x99));
+    painter.fillRect(8, 8, 8, 8, QColor(0x99, 0x99, 0x99));
+  }
+  QPixmap composed(image.size());
+  QPainter painter(&composed);
+  painter.fillRect(composed.rect(), QBrush(checker));
+  painter.drawImage(0, 0, image);
+  painter.end();
+  return composed;
+}
+
+// The DDS form's Preview Mipmaps window: every level of the chain the save would store,
+// encoded at the form's current compression and decoded the way a reader will see it.
+// The whole chain is shown even when the save writes only level 0, so the window also
+// answers "what would Generate mipmaps add"; the summary says which it is.
+void show_dds_mipmap_preview(QDialog& owner, const Document& document, dds::Compression compression,
+                             bool mipmaps_written) {
+  dds::Preview preview;
+  try {
+    QGuiApplication::setOverrideCursor(Qt::WaitCursor);
+    const auto cursor_guard = qScopeGuard([] { QGuiApplication::restoreOverrideCursor(); });
+    preview = dds::preview_levels(document, compression, /*mipmaps*/ true);
+  } catch (const std::exception& error) {
+    show_critical_message(&owner, QObject::tr("Mipmap preview failed"),
+                          QCoreApplication::translate("QObject", error.what()),
+                          QStringLiteral("ddsMipmapPreviewFailedMessageBox"));
+    return;
+  }
+  if (preview.levels.empty()) {
+    return;
+  }
+
+  QDialog dialog(&owner);
+  dialog.setObjectName(QStringLiteral("ddsMipmapPreviewDialog"));
+  auto* content = create_options_dialog_chrome(dialog, QObject::tr("Mipmap Preview"));
+  dialog.resize(760, 640);
+  dialog.setSizeGripEnabled(true);
+
+  std::uint64_t total_bytes = 0;
+  for (const auto& level : preview.levels) {
+    total_bytes += level.byte_size;
+  }
+  const auto level_count = static_cast<int>(preview.levels.size());
+  const auto& top = preview.levels.front().rgba8;
+  const auto& bottom = preview.levels.back().rgba8;
+  const QLocale locale;
+  auto* summary = new QLabel(&dialog);
+  summary->setObjectName(QStringLiteral("ddsMipmapPreviewSummary"));
+  summary->setWordWrap(true);
+  const auto total_text = locale.formattedDataSize(static_cast<qint64>(total_bytes));
+  QString summary_text =
+      level_count == 1
+          ? QObject::tr("%1: one level, %2 x %3, %4 of texture data.")
+                .arg(dds_compression_short_name(preview.compression))
+                .arg(top.width())
+                .arg(top.height())
+                .arg(total_text)
+          : QObject::tr("%1: %2 mip levels, %3 x %4 down to %5 x %6, %7 of texture data.")
+                .arg(dds_compression_short_name(preview.compression))
+                .arg(level_count)
+                .arg(top.width())
+                .arg(top.height())
+                .arg(bottom.width())
+                .arg(bottom.height())
+                .arg(total_text);
+  summary_text += QLatin1Char(' ');
+  summary_text += mipmaps_written
+                      ? QObject::tr("Every level is written: this is what the texture will sample at each size.")
+                      : QObject::tr("Only level 0 is written with the current mipmap choice; the smaller levels "
+                                    "show what Generate mipmaps would add.");
+  summary->setText(summary_text);
+  content->addWidget(summary);
+
+  auto* zoom_row = new QHBoxLayout();
+  zoom_row->setContentsMargins(0, 0, 0, 0);
+  zoom_row->setSpacing(8);
+  zoom_row->addWidget(new QLabel(QObject::tr("Zoom:"), &dialog));
+  auto* zoom = new QComboBox(&dialog);
+  zoom->setObjectName(QStringLiteral("ddsMipmapPreviewZoomCombo"));
+  for (const int factor : {1, 2, 4, 8}) {
+    zoom->addItem(QObject::tr("%1%").arg(factor * 100), factor);
+  }
+  zoom_row->addWidget(zoom);
+  zoom_row->addStretch(1);
+  content->addLayout(zoom_row);
+
+  auto* scroll = new QScrollArea(&dialog);
+  scroll->setObjectName(QStringLiteral("ddsMipmapPreviewScroll"));
+  scroll->setWidgetResizable(true);
+  scroll->setFrameShape(QFrame::NoFrame);
+  // Like dialogOverflowScroll: without this the viewport paints the base color over the
+  // dialog's dark chrome.
+  scroll->setStyleSheet(
+      QStringLiteral("QScrollArea#ddsMipmapPreviewScroll { background: transparent; }"
+                     "QScrollArea#ddsMipmapPreviewScroll > QWidget > QWidget { background: transparent; }"));
+  auto* levels_widget = new QWidget(scroll);
+  levels_widget->setObjectName(QStringLiteral("ddsMipmapPreviewLevels"));
+  auto* levels_layout = new QVBoxLayout(levels_widget);
+  levels_layout->setContentsMargins(0, 0, 0, 0);
+  levels_layout->setSpacing(6);
+  std::vector<QLabel*> captions;
+  std::vector<QLabel*> images;
+  for (int index = 0; index < level_count; ++index) {
+    auto* caption = new QLabel(levels_widget);
+    caption->setObjectName(QStringLiteral("ddsMipmapPreviewCaption%1").arg(index));
+    auto* image = new QLabel(levels_widget);
+    image->setObjectName(QStringLiteral("ddsMipmapPreviewLevel%1").arg(index));
+    image->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    levels_layout->addWidget(caption);
+    levels_layout->addWidget(image);
+    captions.push_back(caption);
+    images.push_back(image);
+  }
+  levels_layout->addStretch(1);
+  scroll->setWidget(levels_widget);
+  content->addWidget(scroll, 1);
+
+  // Zoomed pixmaps are capped at 8192 px a side (a 4096 texture at 800% would be 1 GB of
+  // pixmap); a level that cannot take the chosen zoom shows at the largest one that fits
+  // and its caption says so.
+  const auto render_levels = [&] {
+    const int wanted = zoom->currentData().toInt();
+    for (int index = 0; index < level_count; ++index) {
+      const auto& level = preview.levels[static_cast<std::size_t>(index)];
+      int factor = wanted;
+      while (factor > 1 && std::max(level.rgba8.width(), level.rgba8.height()) * factor > 8192) {
+        factor /= 2;
+      }
+      auto caption = QObject::tr("Level %1: %2 x %3, %4")
+                         .arg(index)
+                         .arg(level.rgba8.width())
+                         .arg(level.rgba8.height())
+                         .arg(locale.formattedDataSize(static_cast<qint64>(level.byte_size)));
+      if (factor != wanted) {
+        caption += QLatin1Char(' ') + QObject::tr("(shown at %1%)").arg(factor * 100);
+      }
+      captions[static_cast<std::size_t>(index)]->setText(caption);
+      images[static_cast<std::size_t>(index)]->setPixmap(dds_preview_pixmap(level.rgba8, factor));
+    }
+  };
+  QObject::connect(zoom, &QComboBox::currentIndexChanged, &dialog, [&](int) { render_levels(); });
+  render_levels();
+
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+  QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::accept);
+  QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  content->addWidget(buttons);
+  exec_dialog(dialog);
+}
 
 // The shared Export section every export dialog appends below its format options: Size
 // (smooth resize, pixel-art scale), Transparency (keep or fill, trim), and the reveal
@@ -716,7 +925,13 @@ ImageSaveOptions load_image_save_option_defaults() {
       settings.value(QStringLiteral("saveOptions/ddsCompression"), dds_compression_key(options.dds_compression))
           .toString(),
       options.dds_compression);
-  options.dds_mipmaps = settings.value(QStringLiteral("saveOptions/ddsMipmaps"), options.dds_mipmaps).toBool();
+  if (settings.contains(QStringLiteral("saveOptions/ddsMipmapMode"))) {
+    options.dds_mipmaps = dds_mipmap_choice_from_key(
+        settings.value(QStringLiteral("saveOptions/ddsMipmapMode")).toString(), options.dds_mipmaps);
+  } else if (settings.value(QStringLiteral("saveOptions/ddsMipmaps"), false).toBool()) {
+    // The 1.07 checkbox: a user who had it on keeps generating chains; off becomes Automatic.
+    options.dds_mipmaps = dds::MipmapChoice::Generate;
+  }
   return options;
 }
 
@@ -753,12 +968,12 @@ void save_image_save_option_defaults(const ImageSaveOptions& options) {
   settings.setValue(QStringLiteral("saveOptions/rttexForceAlpha"), options.rttex_force_alpha);
   settings.setValue(QStringLiteral("saveOptions/rttexCompress"), options.rttex_compress);
   settings.setValue(QStringLiteral("saveOptions/ddsCompression"), dds_compression_key(options.dds_compression));
-  settings.setValue(QStringLiteral("saveOptions/ddsMipmaps"), options.dds_mipmaps);
+  settings.setValue(QStringLiteral("saveOptions/ddsMipmapMode"), dds_mipmap_choice_key(options.dds_mipmaps));
 }
 
 std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const QString& extension,
                                                           ImageSaveOptions options, bool for_export,
-                                                          QSize document_size) {
+                                                          QSize document_size, const Document* document) {
   reset_export_options(options);
   if (is_jpeg_extension(extension)) {
     QDialog dialog(parent);
@@ -1085,9 +1300,15 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
     form->setHorizontalSpacing(10);
     form->setVerticalSpacing(8);
 
+    // Both Automatic items name what they resolve to for this document: the opened .dds
+    // file's shape when there is one (options.dds_source), the general rule otherwise.
+    const auto& source = options.dds_source;
     auto* compression = new QComboBox(&dialog);
     compression->setObjectName(QStringLiteral("ddsCompressionCombo"));
-    compression->addItem(QObject::tr("Automatic (BC1 when opaque, BC3 with transparency)"),
+    compression->addItem(source.compression.has_value()
+                             ? QObject::tr("Automatic (%1, as the opened file)")
+                                   .arg(dds_compression_short_name(*source.compression))
+                             : QObject::tr("Automatic (BC1 when opaque, BC3 with transparency)"),
                          dds_compression_key(dds::Compression::Automatic));
     compression->addItem(QObject::tr("Uncompressed 32-bit (A8R8G8B8, lossless)"),
                          dds_compression_key(dds::Compression::Uncompressed));
@@ -1102,17 +1323,49 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
                          dds_compression_key(dds::Compression::Bc5));
     compression->setCurrentIndex(std::max(0, compression->findData(dds_compression_key(options.dds_compression))));
     form->addRow(new QLabel(QObject::tr("Compression:"), &dialog), compression);
-    content->addLayout(form);
 
-    auto* mipmaps = new QCheckBox(QObject::tr("Generate mipmaps"), &dialog);
-    mipmaps->setObjectName(QStringLiteral("ddsMipmapsCheck"));
-    mipmaps->setChecked(options.dds_mipmaps);
-    content->addWidget(mipmaps);
+    auto* mipmaps = new QComboBox(&dialog);
+    mipmaps->setObjectName(QStringLiteral("ddsMipmapsCombo"));
+    mipmaps->addItem(!source.mipmaps.has_value() ? QObject::tr("Automatic (generate mipmaps)")
+                     : *source.mipmaps           ? QObject::tr("Automatic (generate, as the opened file)")
+                                                 : QObject::tr("Automatic (none, as the opened file)"),
+                     dds_mipmap_choice_key(dds::MipmapChoice::Automatic));
+    mipmaps->addItem(QObject::tr("Generate mipmaps"), dds_mipmap_choice_key(dds::MipmapChoice::Generate));
+    mipmaps->addItem(QObject::tr("No mipmaps"), dds_mipmap_choice_key(dds::MipmapChoice::None));
+    mipmaps->setCurrentIndex(std::max(0, mipmaps->findData(dds_mipmap_choice_key(options.dds_mipmaps))));
+    auto* mipmaps_row = new QHBoxLayout();
+    mipmaps_row->setContentsMargins(0, 0, 0, 0);
+    mipmaps_row->setSpacing(8);
+    mipmaps_row->addWidget(mipmaps, 1);
+    auto* preview_button = new QPushButton(QObject::tr("Preview Mipmaps..."), &dialog);
+    preview_button->setObjectName(QStringLiteral("ddsMipmapPreviewButton"));
+    preview_button->setToolTip(QObject::tr("Shows every mip level encoded with the chosen compression, decoded "
+                                           "the way a game will sample it."));
+    preview_button->setAutoDefault(false);
+    preview_button->setVisible(document != nullptr);
+    mipmaps_row->addWidget(preview_button);
+    form->addRow(new QLabel(QObject::tr("Mipmaps:"), &dialog), mipmaps_row);
+    content->addLayout(form);
+    const auto current_choices = [&] {
+      const auto chosen_compression =
+          dds_compression_from_key(compression->currentData().toString(), options.dds_compression);
+      const auto chosen_mipmaps = dds_mipmap_choice_from_key(mipmaps->currentData().toString(), options.dds_mipmaps);
+      return std::pair{dds::resolve_compression(chosen_compression, source),
+                       dds::resolve_mipmaps(chosen_mipmaps, source)};
+    };
+    QObject::connect(preview_button, &QPushButton::clicked, &dialog, [&] {
+      if (document == nullptr) {
+        return;
+      }
+      const auto [resolved_compression, mipmaps_written] = current_choices();
+      show_dds_mipmap_preview(dialog, *document, resolved_compression, mipmaps_written);
+    });
 
     auto* note = new QLabel(
         QObject::tr("The BC formats are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below "
                     "50 percent alpha become fully transparent. BC4 stores grayscale only and BC5 the red and green "
-                    "channels; both drop transparency. Mipmaps are generated down to 1x1 with a box filter."),
+                    "channels; both drop transparency. Mipmaps are generated down to 1x1 with a box filter; "
+                    "Automatic skips them only for a file opened from .dds that had none."),
         &dialog);
     note->setObjectName(QStringLiteral("ddsSaveNote"));
     note->setWordWrap(true);
@@ -1123,7 +1376,7 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
       return std::nullopt;
     }
     options.dds_compression = dds_compression_from_key(compression->currentData().toString(), options.dds_compression);
-    options.dds_mipmaps = mipmaps->isChecked();
+    options.dds_mipmaps = dds_mipmap_choice_from_key(mipmaps->currentData().toString(), options.dds_mipmaps);
     if (section.has_value()) {
       apply_export_section(options, *section);
     }

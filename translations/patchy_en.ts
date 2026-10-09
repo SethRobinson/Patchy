@@ -9102,11 +9102,87 @@ RGB: %2, %3, %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>The BC formats are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. BC4 stores grayscale only and BC5 the red and green channels; both drop transparency. Mipmaps are generated down to 1x1 with a box filter.</source>
+        <source>DirectDraw Surface</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>DirectDraw Surface</source>
+        <source>Uncompressed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mipmap preview failed</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mipmap Preview</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Every level is written: this is what the texture will sample at each size.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Only level 0 is written with the current mipmap choice; the smaller levels show what Generate mipmaps would add.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Zoom:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Level %1: %2 x %3, %4</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>(shown at %1%)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Automatic (%1, as the opened file)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Automatic (generate mipmaps)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Automatic (generate, as the opened file)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Automatic (none, as the opened file)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No mipmaps</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Preview Mipmaps...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shows every mip level encoded with the chosen compression, decoded the way a game will sample it.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mipmaps:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The BC formats are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. BC4 stores grayscale only and BC5 the red and green channels; both drop transparency. Mipmaps are generated down to 1x1 with a box filter; Automatic skips them only for a file opened from .dds that had none.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: one level, %2 x %3, %4 of texture data.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: %2 mip levels, %3 x %4 down to %5 x %6, %7 of texture data.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -1,5 +1,6 @@
 #include "formats/dds_document_io.hpp"
 
+#include "core/worker_budget.hpp"
 #include "formats/binary_le.hpp"
 #include "formats/document_flatten.hpp"
 #include "formats/format_file_io.hpp"
@@ -17,6 +18,7 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <future>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -732,37 +734,118 @@ void append_uncompressed_level(std::vector<std::uint8_t>& payload, const PixelBu
   return 0;
 }
 
-void append_block_level(std::vector<std::uint8_t>& payload, const PixelBuffer& rgba8, Compression compression) {
-  const auto blocks_x = (rgba8.width() + 3) / 4;
-  const auto blocks_y = (rgba8.height() + 3) / 4;
-  std::array<std::uint8_t, 64> block{};
-  std::array<std::uint8_t, 16> encoded{};
-  const auto bytes = written_block_bytes(compression);
-  for (std::int32_t by = 0; by < blocks_y; ++by) {
-    for (std::int32_t bx = 0; bx < blocks_x; ++bx) {
-      gather_block(rgba8, bx, by, block.data());
-      switch (compression) {
-        case Compression::Bc3:
-          encode_bc3_block(block.data(), encoded.data());
-          break;
-        case Compression::Bc4:
-          encode_bc4_block(block.data(), encoded.data());
-          break;
-        case Compression::Bc5:
-          encode_bc5_block(block.data(), encoded.data());
-          break;
-        case Compression::Bc7:
-          encode_bc7_block(block.data(), encoded.data());
-          break;
-        case Compression::Bc1:
-        case Compression::Automatic:
-        case Compression::Uncompressed:
-          encode_bc1_block(block.data(), bc1_block_has_cutout(block.data()), encoded.data());
-          break;
-      }
-      payload.insert(payload.end(), encoded.begin(), encoded.begin() + bytes);
-    }
+void encode_block(const std::uint8_t* block, Compression compression, std::uint8_t* encoded) {
+  switch (compression) {
+    case Compression::Bc3:
+      encode_bc3_block(block, encoded);
+      break;
+    case Compression::Bc4:
+      encode_bc4_block(block, encoded);
+      break;
+    case Compression::Bc5:
+      encode_bc5_block(block, encoded);
+      break;
+    case Compression::Bc7:
+      encode_bc7_block(block, encoded);
+      break;
+    case Compression::Bc1:
+    case Compression::Automatic:
+    case Compression::Uncompressed:
+      encode_bc1_block(block, bc1_block_has_cutout(block), encoded);
+      break;
   }
+}
+
+// Encodes one level's blocks row-major after `payload`'s current end. Every block is
+// independent and lands in its own slot, so block rows fan out across threads without
+// changing a byte of the output (the byte canary covers this path). The first block row
+// runs on the calling thread before the fan-out: stb_dxt and bc7enc build their lookup
+// tables on first use, and that first use must not race.
+void append_block_level(std::vector<std::uint8_t>& payload, const PixelBuffer& rgba8, Compression compression) {
+  const auto blocks_x = static_cast<std::size_t>((rgba8.width() + 3) / 4);
+  const auto blocks_y = static_cast<std::size_t>((rgba8.height() + 3) / 4);
+  const auto bytes = static_cast<std::size_t>(written_block_bytes(compression));
+  const auto offset = payload.size();
+  payload.resize(offset + blocks_x * blocks_y * bytes);
+  auto* const out = payload.data() + offset;
+  const auto encode_rows = [&rgba8, compression, blocks_x, bytes, out](std::size_t begin, std::size_t end) {
+    std::array<std::uint8_t, 64> block{};
+    std::array<std::uint8_t, 16> encoded{};
+    for (std::size_t by = begin; by < end; ++by) {
+      for (std::size_t bx = 0; bx < blocks_x; ++bx) {
+        gather_block(rgba8, static_cast<std::int32_t>(bx), static_cast<std::int32_t>(by), block.data());
+        encode_block(block.data(), compression, encoded.data());
+        std::memcpy(out + (by * blocks_x + bx) * bytes, encoded.data(), bytes);
+      }
+    }
+  };
+  encode_rows(0, std::min<std::size_t>(1, blocks_y));
+  if (blocks_y <= 1) {
+    return;
+  }
+  const std::size_t remaining = blocks_y - 1;
+  // About 4096 texels per worker before another thread pays off; at most 8 workers like the
+  // trace pipeline, and only what the wasm fan-out budget allows.
+  const auto min_rows_per_worker = std::max<std::size_t>(1, 1024 / std::max<std::size_t>(1, blocks_x));
+  const int wanted = static_cast<int>(std::min<std::size_t>(
+      std::max<std::size_t>(1, remaining / min_rows_per_worker),
+      static_cast<std::size_t>(std::min(hardware_worker_threads(), 8))));
+  const int workers = max_blocking_fanout_workers(wanted);
+  if (workers < 2) {
+    encode_rows(1, blocks_y);
+    return;
+  }
+  std::vector<std::future<void>> futures;
+  futures.reserve(static_cast<std::size_t>(workers));
+  const auto chunk = (remaining + static_cast<std::size_t>(workers) - 1) / static_cast<std::size_t>(workers);
+  for (int w = 0; w < workers; ++w) {
+    const auto begin = 1 + static_cast<std::size_t>(w) * chunk;
+    if (begin >= blocks_y) {
+      break;
+    }
+    const auto end = std::min(blocks_y, begin + chunk);
+    futures.push_back(std::async(std::launch::async, [&encode_rows, begin, end] { encode_rows(begin, end); }));
+  }
+  for (auto& future : futures) {
+    future.get();  // rethrows a worker's bad_alloc instead of writing a truncated level
+  }
+}
+
+// The reader's view of one level the writer produced: decodes `payload` (one level of
+// `compression` blocks, or A8R8G8B8 rows) back to RGBA8 through the same decoder read_dds
+// uses, so the preview and a real round trip agree byte for byte.
+[[nodiscard]] PixelBuffer decode_written_level(std::span<const std::uint8_t> payload, std::int32_t width,
+                                               std::int32_t height, Compression compression) {
+  SourceFormat format;
+  switch (compression) {
+    case Compression::Uncompressed:
+      format = masked_source("A8R8G8B8", 32, 0x00ff0000U, 0x0000ff00U, 0x000000ffU, 0xff000000U);
+      break;
+    case Compression::Bc3:
+      format = block_source(SourceFormat::Kind::Bc3, "DXT5", true, false);
+      break;
+    case Compression::Bc4:
+      format = block_source(SourceFormat::Kind::Bc4, "ATI1", false, false);
+      break;
+    case Compression::Bc5:
+      format = block_source(SourceFormat::Kind::Bc5, "ATI2", false, false);
+      break;
+    case Compression::Bc7:
+      format = block_source(SourceFormat::Kind::Bc7, "BC7_UNORM", true, false);
+      break;
+    case Compression::Bc1:
+    case Compression::Automatic:
+      format = block_source(SourceFormat::Kind::Bc1, "DXT1", true, false);
+      break;
+  }
+  std::vector<std::uint8_t> rgba;
+  decode_image(format, payload, static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height), rgba);
+  PixelBuffer pixels(width, height, PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < height; ++y) {
+    std::memcpy(pixels.row(y).data(), rgba.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(width) * 4U,
+                static_cast<std::size_t>(width) * 4U);
+  }
+  return pixels;
 }
 
 }  // namespace
@@ -1514,6 +1597,107 @@ std::vector<std::uint8_t> write_dds(const Document& document) {
 void write_dds_file(const Document& document, const std::filesystem::path& path, const WriteOptions& options,
                     std::vector<std::string>* notices) {
   formats::write_file_bytes(path, write_dds(document, options, notices), "DDS");
+}
+
+std::string_view mipmap_choice_token(MipmapChoice choice) noexcept {
+  switch (choice) {
+    case MipmapChoice::Generate:
+      return "on";
+    case MipmapChoice::None:
+      return "off";
+    case MipmapChoice::Automatic:
+      break;
+  }
+  return "auto";
+}
+
+std::optional<MipmapChoice> mipmap_choice_from_token(std::string_view token) noexcept {
+  if (token == "auto") {
+    return MipmapChoice::Automatic;
+  }
+  if (token == "on") {
+    return MipmapChoice::Generate;
+  }
+  if (token == "off") {
+    return MipmapChoice::None;
+  }
+  return std::nullopt;
+}
+
+SourceShape source_shape_from_metadata(const std::map<std::string, std::string>& metadata) {
+  SourceShape shape;
+  if (const auto found = metadata.find(kMetadataCompression); found != metadata.end()) {
+    const auto compression = compression_from_token(found->second);
+    if (compression.has_value() && *compression != Compression::Automatic) {
+      shape.compression = compression;
+    }
+  }
+  if (const auto found = metadata.find(kMetadataMipmaps); found != metadata.end()) {
+    shape.mipmaps = found->second == "1";
+  }
+  return shape;
+}
+
+Compression resolve_compression(Compression choice, const SourceShape& source) noexcept {
+  if (choice == Compression::Automatic && source.compression.has_value() &&
+      *source.compression != Compression::Automatic) {
+    return *source.compression;
+  }
+  return choice;
+}
+
+bool resolve_mipmaps(MipmapChoice choice, const SourceShape& source) noexcept {
+  switch (choice) {
+    case MipmapChoice::Generate:
+      return true;
+    case MipmapChoice::None:
+      return false;
+    case MipmapChoice::Automatic:
+      break;
+  }
+  return source.mipmaps.value_or(true);
+}
+
+Preview preview_levels(const Document& document, Compression compression, bool mipmaps) {
+  if (document.width() <= 0 || document.height() <= 0) {
+    throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Cannot write an empty document as a DDS texture"));
+  }
+  const PixelBuffer flat = flatten_document_rgba8(document);
+  if (flat.empty()) {
+    throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Cannot write an empty document as a DDS texture"));
+  }
+  Preview preview;
+  preview.compression = compression;
+  if (preview.compression == Compression::Automatic) {
+    // write_dds's rule: BC1 for an opaque image, BC3 as soon as any alpha is below 255.
+    bool any_translucent = false;
+    const auto data = flat.data();
+    for (std::size_t offset = 3; offset < data.size() && !any_translucent; offset += 4) {
+      any_translucent = data[offset] != 255;
+    }
+    preview.compression = any_translucent ? Compression::Bc3 : Compression::Bc1;
+  }
+  std::vector<PixelBuffer> levels;
+  if (mipmaps) {
+    levels = generate_mip_chain(flat);
+  } else {
+    levels.push_back(flat);
+  }
+  preview.levels.reserve(levels.size());
+  std::vector<std::uint8_t> payload;
+  for (const auto& level : levels) {
+    payload.clear();
+    if (preview.compression == Compression::Uncompressed) {
+      append_uncompressed_level(payload, level);
+    } else {
+      append_block_level(payload, level, preview.compression);
+    }
+    PreviewLevel entry;
+    entry.byte_size = payload.size();
+    entry.rgba8 = decode_written_level(payload, level.width(), level.height(), preview.compression);
+    preview.levels.push_back(std::move(entry));
+  }
+  return preview;
 }
 
 }  // namespace patchy::dds

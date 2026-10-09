@@ -9082,12 +9082,88 @@ Mixed selection</source>
         <translation>ミップマップを生成</translation>
     </message>
     <message>
-        <source>The BC formats are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. BC4 stores grayscale only and BC5 the red and green channels; both drop transparency. Mipmaps are generated down to 1x1 with a box filter.</source>
-        <translation>BC 形式は非可逆の 4x4 ブロック形式です。BC1 は 1 ビットの透明度しか保持せず、アルファが 50 パーセント未満のピクセルは完全に透明になります。BC4 はグレースケールのみ、BC5 は赤と緑のチャンネルのみを保存し、どちらも透明度を破棄します。ミップマップはボックスフィルターで 1x1 まで生成されます。</translation>
-    </message>
-    <message>
         <source>DirectDraw Surface</source>
         <translation>DirectDraw Surface</translation>
+    </message>
+    <message>
+        <source>Uncompressed</source>
+        <translation>非圧縮</translation>
+    </message>
+    <message>
+        <source>Mipmap preview failed</source>
+        <translation>ミップマップのプレビューに失敗しました</translation>
+    </message>
+    <message>
+        <source>Mipmap Preview</source>
+        <translation>ミップマッププレビュー</translation>
+    </message>
+    <message>
+        <source>Every level is written: this is what the texture will sample at each size.</source>
+        <translation>すべてのレベルが書き込まれます。各サイズでテクスチャがサンプリングする内容です。</translation>
+    </message>
+    <message>
+        <source>Only level 0 is written with the current mipmap choice; the smaller levels show what Generate mipmaps would add.</source>
+        <translation>現在のミップマップ設定ではレベル 0 だけが書き込まれます。小さいレベルは「ミップマップを生成」で追加される内容です。</translation>
+    </message>
+    <message>
+        <source>Zoom:</source>
+        <translation>ズーム:</translation>
+    </message>
+    <message>
+        <source>%1%</source>
+        <translation>%1%</translation>
+    </message>
+    <message>
+        <source>Level %1: %2 x %3, %4</source>
+        <translation>レベル %1: %2 x %3、%4</translation>
+    </message>
+    <message>
+        <source>(shown at %1%)</source>
+        <translation>(%1% で表示)</translation>
+    </message>
+    <message>
+        <source>Automatic (%1, as the opened file)</source>
+        <translation>自動 (%1、開いたファイルと同じ)</translation>
+    </message>
+    <message>
+        <source>Automatic (generate mipmaps)</source>
+        <translation>自動 (ミップマップを生成)</translation>
+    </message>
+    <message>
+        <source>Automatic (generate, as the opened file)</source>
+        <translation>自動 (生成、開いたファイルと同じ)</translation>
+    </message>
+    <message>
+        <source>Automatic (none, as the opened file)</source>
+        <translation>自動 (なし、開いたファイルと同じ)</translation>
+    </message>
+    <message>
+        <source>No mipmaps</source>
+        <translation>ミップマップなし</translation>
+    </message>
+    <message>
+        <source>Preview Mipmaps...</source>
+        <translation>ミップマップをプレビュー...</translation>
+    </message>
+    <message>
+        <source>Shows every mip level encoded with the chosen compression, decoded the way a game will sample it.</source>
+        <translation>選択した圧縮でエンコードし、ゲームがサンプリングするとおりにデコードした各ミップレベルを表示します。</translation>
+    </message>
+    <message>
+        <source>Mipmaps:</source>
+        <translation>ミップマップ:</translation>
+    </message>
+    <message>
+        <source>The BC formats are lossy 4x4 block formats. BC1 keeps only 1-bit transparency: pixels below 50 percent alpha become fully transparent. BC4 stores grayscale only and BC5 the red and green channels; both drop transparency. Mipmaps are generated down to 1x1 with a box filter; Automatic skips them only for a file opened from .dds that had none.</source>
+        <translation>BC 形式は非可逆の 4x4 ブロック形式です。BC1 は 1 ビットの透明度しか保持せず、アルファが 50 パーセント未満のピクセルは完全に透明になります。BC4 はグレースケールのみ、BC5 は赤と緑のチャンネルのみを保存し、どちらも透明度を破棄します。ミップマップはボックスフィルターで 1x1 まで生成されます。自動は、ミップマップのない .dds から開いたファイルの場合だけ生成を省きます。</translation>
+    </message>
+    <message>
+        <source>%1: one level, %2 x %3, %4 of texture data.</source>
+        <translation>%1: 1 レベル、%2 x %3、テクスチャデータ %4。</translation>
+    </message>
+    <message>
+        <source>%1: %2 mip levels, %3 x %4 down to %5 x %6, %7 of texture data.</source>
+        <translation>%1: %2 ミップレベル、%3 x %4 から %5 x %6 まで、テクスチャデータ %7。</translation>
     </message>
 </context>
 <context>

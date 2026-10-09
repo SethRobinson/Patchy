@@ -119,11 +119,16 @@ struct ImageSaveOptions {
   bool rttex_force_square{false};
   bool rttex_force_alpha{false};
   bool rttex_compress{true};
-  // DDS texture: block compression choice (Automatic = BC1 when opaque, BC3 with
-  // transparency) and whether to write a mip chain. Persist as saveOptions/ddsCompression
-  // and saveOptions/ddsMipmaps.
+  // DDS texture: block compression choice (Automatic keeps the opened .dds file's format,
+  // otherwise BC1 when opaque and BC3 with transparency) and the mipmap choice (Automatic
+  // follows the opened .dds file and generates a chain for every other document). Persist
+  // as saveOptions/ddsCompression and saveOptions/ddsMipmapMode.
   dds::Compression dds_compression{dds::Compression::Automatic};
-  bool dds_mipmaps{false};
+  dds::MipmapChoice dds_mipmaps{dds::MipmapChoice::Automatic};
+  // Not persisted: what the reader recorded about the .dds the document was opened from
+  // (MainWindow::image_save_defaults_for_document fills it from the patchy.dds.* metadata).
+  // Both Automatic choices resolve against it at write time and the dialog names it.
+  dds::SourceShape dds_source;
 };
 
 struct RenderedDocumentPatch {

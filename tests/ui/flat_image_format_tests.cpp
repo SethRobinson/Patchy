@@ -1645,6 +1645,12 @@ void ui_rttex_save_options_persist_and_dialog_prefills_from_source() {
 }
 
 
+[[nodiscard]] std::uint32_t dds_u32_at(const QByteArray& bytes, int offset) {
+  const auto* data = reinterpret_cast<const std::uint8_t*>(bytes.constData()) + offset;
+  return static_cast<std::uint32_t>(data[0]) | (static_cast<std::uint32_t>(data[1]) << 8U) |
+         (static_cast<std::uint32_t>(data[2]) << 16U) | (static_cast<std::uint32_t>(data[3]) << 24U);
+}
+
 void ui_dds_opens_and_saves_as_a_read_write_format() {
   ensure_artifact_dir();
   const auto fixture =
@@ -1674,10 +1680,13 @@ void ui_dds_opens_and_saves_as_a_read_write_format() {
   CHECK(document.print_settings().horizontal_ppi == 72.0);
   CHECK(patchy::ui::MainWindowTestAccess::active_session_path(window) == fixture);
   CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
-  // The source was uncompressed, so a plain Save keeps it uncompressed and lossless.
+  // The source was uncompressed with no mip chain: the user's choices stay Automatic and
+  // resolve against that source, so a plain Save keeps it uncompressed and lossless.
   const auto defaults = patchy::ui::MainWindowTestAccess::image_save_defaults(window);
-  CHECK(defaults.dds_compression == patchy::dds::Compression::Uncompressed);
-  CHECK(!defaults.dds_mipmaps);
+  CHECK(defaults.dds_compression == patchy::dds::Compression::Automatic);
+  CHECK(defaults.dds_mipmaps == patchy::dds::MipmapChoice::Automatic);
+  CHECK(defaults.dds_source.compression == patchy::dds::Compression::Uncompressed);
+  CHECK(defaults.dds_source.mipmaps == false);
 
   // The registry handler has a writer, so Save writes the file in place instead of routing to
   // Save As; the reopened file keeps every colour and the whole alpha mask.
@@ -1721,9 +1730,12 @@ void ui_dds_bc3_source_resaves_as_bc3_with_alpha_intact() {
   CHECK(layer.mask().has_value());
   CHECK(patchy::layer_mask_is_document_alpha(layer));
 
-  // A BC3 source prefills BC3, so Save keeps the compression and its 8-bit alpha.
+  // A BC3 source without mipmaps is the shape Automatic resolves against, so Save keeps
+  // the compression and its 8-bit alpha and writes no chain.
   const auto prefilled = patchy::ui::MainWindowTestAccess::image_save_defaults(window);
-  CHECK(prefilled.dds_compression == patchy::dds::Compression::Bc3);
+  CHECK(prefilled.dds_compression == patchy::dds::Compression::Automatic);
+  CHECK(prefilled.dds_source.compression == patchy::dds::Compression::Bc3);
+  CHECK(prefilled.dds_source.mipmaps == false);
   const QString saved = QStringLiteral("test-artifacts/dds_bc3_resave.dds");
   QFile::remove(saved);
   CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, saved, prefilled));
@@ -1732,6 +1744,7 @@ void ui_dds_bc3_source_resaves_as_bc3_with_alpha_intact() {
   const QByteArray bytes = saved_file.readAll();
   CHECK(bytes.size() > 128);
   CHECK(std::memcmp(bytes.constData() + 84, "DXT5", 4) == 0);
+  CHECK(dds_u32_at(bytes, 28) == 0);  // dwMipMapCount: no chain, like the opened file
 
   const auto decoded = patchy::dds::read_dds(
       std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(bytes.constData()), bytes.size()));
@@ -1757,22 +1770,33 @@ void ui_dds_save_options_persist_and_dialog_prefills_from_source() {
 
   auto defaults = patchy::ui::load_image_save_option_defaults();
   CHECK(defaults.dds_compression == patchy::dds::Compression::Automatic);
-  CHECK(!defaults.dds_mipmaps);
+  CHECK(defaults.dds_mipmaps == patchy::dds::MipmapChoice::Automatic);
+  CHECK(!defaults.dds_source.compression.has_value());
   CHECK(patchy::ui::image_save_options_apply_to_extension(QStringLiteral("dds")));
   CHECK(patchy::ui::image_save_options_apply_to_extension(QStringLiteral(".DDS")));
 
   // Persisted under the permanent saveOptions/dds* keys; a bogus token falls back.
   defaults.dds_compression = patchy::dds::Compression::Bc1;
-  defaults.dds_mipmaps = true;
+  defaults.dds_mipmaps = patchy::dds::MipmapChoice::Generate;
   patchy::ui::save_image_save_option_defaults(defaults);
   CHECK(settings.value(QStringLiteral("saveOptions/ddsCompression")).toString() == QStringLiteral("bc1"));
-  CHECK(settings.value(QStringLiteral("saveOptions/ddsMipmaps")).toBool());
+  CHECK(settings.value(QStringLiteral("saveOptions/ddsMipmapMode")).toString() == QStringLiteral("on"));
   const auto reloaded = patchy::ui::load_image_save_option_defaults();
   CHECK(reloaded.dds_compression == patchy::dds::Compression::Bc1);
-  CHECK(reloaded.dds_mipmaps);
+  CHECK(reloaded.dds_mipmaps == patchy::dds::MipmapChoice::Generate);
   settings.setValue(QStringLiteral("saveOptions/ddsCompression"), QStringLiteral("bogus"));
+  settings.setValue(QStringLiteral("saveOptions/ddsMipmapMode"), QStringLiteral("bogus"));
   settings.sync();
   CHECK(patchy::ui::load_image_save_option_defaults().dds_compression == patchy::dds::Compression::Automatic);
+  CHECK(patchy::ui::load_image_save_option_defaults().dds_mipmaps == patchy::dds::MipmapChoice::Automatic);
+  // The 1.07 checkbox key migrates: a user who had it on keeps generating, off is Automatic.
+  settings.remove(QStringLiteral("saveOptions"));
+  settings.setValue(QStringLiteral("saveOptions/ddsMipmaps"), true);
+  settings.sync();
+  CHECK(patchy::ui::load_image_save_option_defaults().dds_mipmaps == patchy::dds::MipmapChoice::Generate);
+  settings.setValue(QStringLiteral("saveOptions/ddsMipmaps"), false);
+  settings.sync();
+  CHECK(patchy::ui::load_image_save_option_defaults().dds_mipmaps == patchy::dds::MipmapChoice::Automatic);
   settings.remove(QStringLiteral("saveOptions"));
   settings.sync();
 
@@ -1782,13 +1806,20 @@ void ui_dds_save_options_persist_and_dialog_prefills_from_source() {
     auto* dialog = find_top_level_dialog(QStringLiteral("ddsSaveOptionsDialog"));
     CHECK(dialog != nullptr);
     auto* compression = dialog->findChild<QComboBox*>(QStringLiteral("ddsCompressionCombo"));
-    auto* mipmaps = dialog->findChild<QCheckBox*>(QStringLiteral("ddsMipmapsCheck"));
+    auto* mipmaps = dialog->findChild<QComboBox*>(QStringLiteral("ddsMipmapsCombo"));
+    auto* preview = dialog->findChild<QPushButton*>(QStringLiteral("ddsMipmapPreviewButton"));
     CHECK(compression != nullptr);
     CHECK(mipmaps != nullptr);
+    CHECK(preview != nullptr);
+    CHECK(!preview->isVisible());  // no document to preview from this call
     CHECK(compression->count() == 7);
     CHECK(compression->currentData().toString() == QStringLiteral("auto"));
+    CHECK(compression->currentText().contains(QStringLiteral("BC1 when opaque")));
+    CHECK(mipmaps->count() == 3);
+    CHECK(mipmaps->currentData().toString() == QStringLiteral("auto"));
+    CHECK(mipmaps->currentText().contains(QStringLiteral("generate mipmaps")));
     compression->setCurrentIndex(compression->findData(QStringLiteral("bc3")));
-    mipmaps->setChecked(true);
+    mipmaps->setCurrentIndex(mipmaps->findData(QStringLiteral("on")));
     saw_dialog = true;
     dialog->accept();
   });
@@ -1797,9 +1828,10 @@ void ui_dds_save_options_persist_and_dialog_prefills_from_source() {
   CHECK(saw_dialog);
   CHECK(chosen.has_value());
   CHECK(chosen->dds_compression == patchy::dds::Compression::Bc3);
-  CHECK(chosen->dds_mipmaps);
+  CHECK(chosen->dds_mipmaps == patchy::dds::MipmapChoice::Generate);
 
-  // A mipmapped BC1 source prefills both the compression and the mipmap checkbox.
+  // A mipmapped BC1 source leaves the persisted choices alone (both Automatic) and carries
+  // its shape for them to resolve against; the dialog's Automatic items name that shape.
   patchy::ui::MainWindow window;
   show_window(window);
   patchy::ui::MainWindowTestAccess::open_document_path(
@@ -1807,9 +1839,150 @@ void ui_dds_save_options_persist_and_dialog_prefills_from_source() {
                   patchy::test::committed_format_fixture_path("dds", "synth-dxt1-mipmapped-16x16.dds").wstring()));
   QApplication::processEvents();
   const auto prefilled = patchy::ui::MainWindowTestAccess::image_save_defaults(window);
-  CHECK(prefilled.dds_compression == patchy::dds::Compression::Bc1);
-  CHECK(prefilled.dds_mipmaps);
+  CHECK(prefilled.dds_compression == patchy::dds::Compression::Automatic);
+  CHECK(prefilled.dds_mipmaps == patchy::dds::MipmapChoice::Automatic);
+  CHECK(prefilled.dds_source.compression == patchy::dds::Compression::Bc1);
+  CHECK(prefilled.dds_source.mipmaps == true);
+  bool saw_prefilled_dialog = false;
+  QTimer::singleShot(0, [&saw_prefilled_dialog] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("ddsSaveOptionsDialog"));
+    CHECK(dialog != nullptr);
+    auto* compression = dialog->findChild<QComboBox*>(QStringLiteral("ddsCompressionCombo"));
+    auto* mipmaps = dialog->findChild<QComboBox*>(QStringLiteral("ddsMipmapsCombo"));
+    CHECK(compression != nullptr);
+    CHECK(mipmaps != nullptr);
+    CHECK(compression->currentText().contains(QStringLiteral("BC1 / DXT1, as the opened file")));
+    CHECK(mipmaps->currentText().contains(QStringLiteral("generate, as the opened file")));
+    saw_prefilled_dialog = true;
+    dialog->reject();
+  });
+  CHECK(!patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("dds"), prefilled).has_value());
+  CHECK(saw_prefilled_dialog);
 
+  settings.remove(QStringLiteral("saveOptions"));
+  settings.sync();
+}
+
+void ui_dds_automatic_follows_opened_file_and_previews_the_chain() {
+  ensure_artifact_dir();
+  auto settings = patchy::ui::app_settings();
+  settings.remove(QStringLiteral("saveOptions"));
+  settings.sync();
+
+  // A document with no .dds behind it: Automatic writes BC1 for opaque pixels plus a chain.
+  {
+    patchy::Document fresh(20, 12, patchy::PixelFormat::rgb8());
+    patchy::PixelBuffer pixels(20, 12, patchy::PixelFormat::rgb8());
+    for (std::int32_t y = 0; y < 12; ++y) {
+      for (std::int32_t x = 0; x < 20; ++x) {
+        auto* pixel = pixels.pixel(x, y);
+        pixel[0] = static_cast<std::uint8_t>(x * 12);
+        pixel[1] = static_cast<std::uint8_t>(y * 20);
+        pixel[2] = 90;
+      }
+    }
+    fresh.add_pixel_layer("Background", std::move(pixels));
+    const QString path = QStringLiteral("test-artifacts/dds_fresh_automatic.dds");
+    QFile::remove(path);
+    patchy::ui::write_flat_image_file(fresh, path, QStringLiteral("dds"), patchy::ui::ImageSaveOptions{});
+    QFile file(path);
+    CHECK(file.open(QIODevice::ReadOnly));
+    const QByteArray bytes = file.readAll();
+    CHECK(std::memcmp(bytes.constData() + 84, "DXT1", 4) == 0);
+    CHECK(dds_u32_at(bytes, 28) == patchy::dds::mip_count_for(20, 12));
+  }
+
+  // Opened from a mipmapped BC1 file: Automatic keeps BC1 and the chain, and the Save As
+  // dialog's Preview Mipmaps button opens the chain encoded at those choices.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(
+      window, QString::fromStdWString(
+                  patchy::test::committed_format_fixture_path("dds", "synth-dxt1-mipmapped-16x16.dds").wstring()));
+  QApplication::processEvents();
+  const auto defaults = patchy::ui::MainWindowTestAccess::image_save_defaults(window);
+  const QString saved = QStringLiteral("test-artifacts/dds_mipmapped_automatic.dds");
+  QFile::remove(saved);
+  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, saved, defaults));
+  {
+    QFile file(saved);
+    CHECK(file.open(QIODevice::ReadOnly));
+    const QByteArray bytes = file.readAll();
+    CHECK(std::memcmp(bytes.constData() + 84, "DXT1", 4) == 0);
+    CHECK(dds_u32_at(bytes, 28) == 5);
+  }
+  // An explicit No mipmaps still wins over the opened file.
+  auto no_chain = defaults;
+  no_chain.dds_mipmaps = patchy::dds::MipmapChoice::None;
+  no_chain.dds_compression = patchy::dds::Compression::Bc3;
+  const QString flat = QStringLiteral("test-artifacts/dds_mipmapped_explicit_off.dds");
+  QFile::remove(flat);
+  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, flat, no_chain));
+  {
+    QFile file(flat);
+    CHECK(file.open(QIODevice::ReadOnly));
+    const QByteArray bytes = file.readAll();
+    CHECK(std::memcmp(bytes.constData() + 84, "DXT5", 4) == 0);
+    CHECK(dds_u32_at(bytes, 28) == 0);
+  }
+
+  bool saw_preview = false;
+  bool saw_options = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("ddsSaveOptionsDialog"));
+    CHECK(dialog != nullptr);
+    auto* preview = dialog->findChild<QPushButton*>(QStringLiteral("ddsMipmapPreviewButton"));
+    CHECK(preview != nullptr);
+    CHECK(preview->isVisible());
+    saw_options = true;
+    QTimer::singleShot(0, [&] {
+      auto* window_dialog = find_top_level_dialog(QStringLiteral("ddsMipmapPreviewDialog"));
+      CHECK(window_dialog != nullptr);
+      if (window_dialog == nullptr) {
+        return;
+      }
+      // 16x16 is five levels, 16 down to 1, every one labelled and drawn.
+      for (int level = 0; level < 5; ++level) {
+        auto* image = window_dialog->findChild<QLabel*>(QStringLiteral("ddsMipmapPreviewLevel%1").arg(level));
+        auto* caption = window_dialog->findChild<QLabel*>(QStringLiteral("ddsMipmapPreviewCaption%1").arg(level));
+        CHECK(image != nullptr);
+        CHECK(caption != nullptr);
+        if (image != nullptr && caption != nullptr) {
+          const int side = 16 >> level;
+          CHECK(image->pixmap().width() == side);
+          CHECK(caption->text().contains(QStringLiteral("Level %1: %2 x %2").arg(level).arg(side)));
+        }
+      }
+      CHECK(window_dialog->findChild<QLabel*>(QStringLiteral("ddsMipmapPreviewLevel5")) == nullptr);
+      auto* summary = window_dialog->findChild<QLabel*>(QStringLiteral("ddsMipmapPreviewSummary"));
+      CHECK(summary != nullptr);
+      if (summary != nullptr) {
+        CHECK(summary->text().contains(QStringLiteral("BC1 / DXT1: 5 mip levels, 16 x 16 down to 1 x 1")));
+        CHECK(summary->text().contains(QStringLiteral("Every level is written")));
+      }
+      // 400% draws level 0 at 64 px, nearest neighbour.
+      auto* zoom = window_dialog->findChild<QComboBox*>(QStringLiteral("ddsMipmapPreviewZoomCombo"));
+      CHECK(zoom != nullptr);
+      if (zoom != nullptr) {
+        zoom->setCurrentIndex(zoom->findData(4));
+        auto* image = window_dialog->findChild<QLabel*>(QStringLiteral("ddsMipmapPreviewLevel0"));
+        CHECK(image != nullptr && image->pixmap().width() == 64);
+      }
+      QApplication::processEvents();
+      CHECK(window_dialog->grab().save(QStringLiteral("test-artifacts/dds_mipmap_preview_dialog.png")));
+      CHECK(dialog->grab().save(QStringLiteral("test-artifacts/dds_save_options_dialog.png")));
+      saw_preview = true;
+      window_dialog->accept();
+      QTimer::singleShot(0, [dialog] { dialog->reject(); });
+    });
+    preview->click();
+  });
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  CHECK(!patchy::ui::prompt_image_save_options(nullptr, QStringLiteral("dds"), defaults, /*for_export*/ false,
+                                               QSize(), &document)
+             .has_value());
+  CHECK(saw_options);
+  CHECK(saw_preview);
   settings.remove(QStringLiteral("saveOptions"));
   settings.sync();
 }
@@ -2678,6 +2851,8 @@ std::vector<patchy::test::TestCase> flat_image_format_tests() {
       {"ui_dds_bc3_source_resaves_as_bc3_with_alpha_intact", ui_dds_bc3_source_resaves_as_bc3_with_alpha_intact},
       {"ui_dds_save_options_persist_and_dialog_prefills_from_source",
        ui_dds_save_options_persist_and_dialog_prefills_from_source},
+      {"ui_dds_automatic_follows_opened_file_and_previews_the_chain",
+       ui_dds_automatic_follows_opened_file_and_previews_the_chain},
       {"ui_dds_cubemap_import_is_layered_and_save_routes_to_save_as",
        ui_dds_cubemap_import_is_layered_and_save_routes_to_save_as},
       {"ui_export_trim_keeps_document_alpha_mask_colors", ui_export_trim_keeps_document_alpha_mask_colors},

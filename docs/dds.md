@@ -173,31 +173,72 @@ Photoshop plug-ins and every engine read it); BC7 exists only under a DX10 heade
   alpha-weighted (`(sum c*a + sum a / 2) / sum a`, or the plain rounded mean when every
   alpha is 0) and alpha averages plainly with rounding. `mip_count_for` is
   `1 + floor(log2(max(w, h)))`.
+- Block rows encode in parallel (`append_block_level`: `std::async` over rows of blocks, at
+  most 8 workers, within the wasm fan-out budget of `core/worker_budget.hpp`). Every block
+  lands in its own slot, so the bytes never depend on scheduling and the canary still pins
+  them. The first block row runs on the calling thread before the fan-out because stb_dxt
+  and bc7enc build their lookup tables on first use; keep that order.
 - Writes go through `formats::write_file_bytes` (atomic).
+- `preview_levels(document, compression, mipmaps)` is the save without the file: it
+  flattens like `write_dds`, resolves Automatic by the alpha rule, encodes every level with
+  the same block encoders and decodes each with the reader's `decode_image` (BC4 as gray,
+  BC5 as red and green, Uncompressed as the identity), returning the texels plus each
+  level's payload size. The Preview Mipmaps window is built on it, so what it shows is
+  exactly what a reader will sample.
 
 ## Settings, metadata, and the save flow
 
 Persisted defaults (`saveOptions/*`, compatibility contracts, never renamed):
 `ddsCompression` (`auto` | `uncompressed` | `bc1` | `bc3` | `bc4` | `bc5` | `bc7`, default
-`auto`) and `ddsMipmaps` (default false). The token helpers live with the codec (`dds::compression_token` and
-`compression_from_token`) so the settings, the dialog and the metadata cannot disagree.
+`auto`) and `ddsMipmapMode` (`auto` | `on` | `off`, default `auto`). `ddsMipmaps`, the
+1.07 checkbox bool, is read only when `ddsMipmapMode` is absent (true migrates to `on`,
+false to `auto`) and is no longer written. The token helpers live with the codec
+(`dds::compression_token`, `compression_from_token`, `mipmap_choice_token`,
+`mipmap_choice_from_token`) so the settings, the dialog and the metadata cannot disagree.
 
 The reader stamps session-only document metadata: `patchy.dds.compression` (the nearest
 export choice for the source: `uncompressed` for masked, 16-bit and float sources, `bc1`
 for BC1, `bc3` for BC2 and BC3, `bc4`, `bc5` and `bc7` for their own formats, `bc7` for
-BC6H since HDR has no export; never `auto`), `patchy.dds.mipmaps`
-(`1` when the file carried more than one level) and `patchy.dds.sourceFormat` (the name,
-informational). `MainWindow::image_save_defaults_for_document` reads the first two, so a
-plain Save keeps a BC3 texture as BC3 with its alpha and Save As prefills the dialog, and
-a mipmapped source prefills the checkbox. Nothing serializes `DocumentMetadata::values`
-into any file.
+BC6H since HDR has no export; never `auto`), `patchy.dds.mipmaps` (`1` when the file
+carried more than one level, else `0`) and `patchy.dds.sourceFormat` (the name,
+informational). Nothing serializes `DocumentMetadata::values` into any file.
 
-Save As and Export raise `ddsSaveOptionsDialog` (`ddsCompressionCombo` with the seven
-choices, Automatic through BC3 then BC7, BC4, BC5, `ddsMipmapsCheck`, `ddsSaveNote`), plus the shared export section
-on Export. The row is in `file_format_entries()` unconditionally and the registry handler
-carries a writer, so Save on a document opened from .dds writes in place. The format stays
-out of `save_extension_preserves_layers`, so a layered document keeps the flatten warning
-and save-a-copy semantics.
+**The user's choices stay Automatic; the opened file is what Automatic resolves against**
+(Seth, October 2026). `dds::source_shape_from_metadata` turns the first two keys into a
+`SourceShape` (optional compression, optional mipmaps; both empty for a document that did
+not come from a .dds), and `MainWindow::image_save_defaults_for_document` carries it in
+the non-persisted `ImageSaveOptions::dds_source` instead of overwriting the persisted
+choices, so a saved BC3 texture no longer turns the global default into BC3. At write time
+(`write_flat_image_file`) `resolve_compression` keeps the opened file's format for an
+Automatic choice (a BC3 texture saves back as BC3 with its alpha; a BC1 source stays BC1
+even if the image gained translucency, with the cut-out notice) and otherwise leaves
+Automatic for the writer's alpha rule; `resolve_mipmaps` makes Automatic follow the opened
+file (none when that .dds had none, a chain when it had one) and generate a chain for every
+document with no .dds source. Explicit choices pass through. The opened file is the file
+the document was loaded from: a later Save As does not restamp the metadata, and a plain
+Save to the same path reuses the session's remembered options as for every flat format.
+
+Save As and Export raise `ddsSaveOptionsDialog`: `ddsCompressionCombo` with the seven
+choices (Automatic through BC3 then BC7, BC4, BC5), `ddsMipmapsCombo` (Automatic, Generate
+mipmaps, No mipmaps), `ddsMipmapPreviewButton` and `ddsSaveNote`, plus the shared export
+section on Export. Both Automatic items name what they resolve to for this document
+("Automatic (BC3 / DXT5, as the opened file)", "Automatic (none, as the opened file)",
+"Automatic (generate mipmaps)" without a source). `prompt_image_save_options` takes an
+optional `const Document*` (Save As and Export pass the active document); the preview
+button is hidden without one. **Preview Mipmaps...** runs `preview_levels` under a wait
+cursor at the form's current resolved choices, always for the whole chain, and opens
+`ddsMipmapPreviewDialog`: `ddsMipmapPreviewSummary` (format, level count, size range,
+total payload, and whether every level or only level 0 will be written),
+`ddsMipmapPreviewZoomCombo` (100 to 800 percent, nearest neighbour so block artifacts and
+BC1 cut-outs stay visible), and per level `ddsMipmapPreviewCaption<N>` (size and bytes)
+over `ddsMipmapPreviewLevel<N>` on the transparency checkerboard inside
+`ddsMipmapPreviewScroll`. Zoomed pixmaps cap at 8192 px a side; a level that cannot take
+the chosen zoom shows at the largest that fits and its caption says so.
+
+The row is in `file_format_entries()` unconditionally and the registry handler carries a
+writer, so Save on a document opened from .dds writes in place. The format stays out of
+`save_extension_preserves_layers`, so a layered document keeps the flatten warning and
+save-a-copy semantics.
 
 The plug-in probe's reason for `.8bi` files, the plug-ins folder README and
 [plugins.md](plugins.md) point users at native DDS support, since the plug-ins the
@@ -213,11 +254,17 @@ BC6H against Pillow's decode through the tone map, cubemap, volume, array and pa
 cubemap layering, the writer's header layout, an exact uncompressed round trip, the BC1
 cut-out rule and Automatic, BC3 alpha within 8 on a smooth ramp and colour PSNR above 30 dB, BC7 above 33 dB
 with alpha within 16, the BC4 luminance and BC5 red/green round trips with their notices, the mip filter
-rules, the byte canary, a Unicode path round trip, the inspection artifacts and the local
-fixture sweep. `tests/ui/flat_image_format_tests.cpp` (filter `ui_dds`) covers the
-open-and-save-in-place flow with the document-alpha mask, the BC3 re-save keeping alpha,
-settings persistence and the dialog, the metadata prefill, and the cubemap save routing;
-`dds` is also in the UI Unicode write list and the export-options clipping check.
+rules, the Automatic resolution against the opened file's shape plus the mipmap tokens
+(`dds_automatic_choices_resolve_against_the_opened_file`), the preview against a real
+round trip (`dds_preview_levels_match_the_written_file`), the byte canary, a Unicode path
+round trip, the inspection artifacts and the local fixture sweep.
+`tests/ui/flat_image_format_tests.cpp` (filter `ui_dds`) covers the open-and-save-in-place
+flow with the document-alpha mask, the BC3 re-save keeping alpha and writing no chain,
+settings persistence with the checkbox migration and the dialog's combos, the source shape
+carried beside untouched Automatic choices, a fresh document writing BC1 plus a chain, a
+mipmapped source keeping its chain, an explicit No mipmaps winning, the Preview Mipmaps
+window's levels, captions, summary and zoom, and the cubemap save routing; `dds` is also
+in the UI Unicode write list and the export-options clipping check.
 
 Fixtures under `test-fixtures/dds/` are generated by `scripts/dev/dds/make_dds_fixtures.py`
 (self-authored procedural art, provenance in NOTICE-THIRD-PARTY.md): Pillow 12 writes the

@@ -18,6 +18,7 @@
 #include <cstring>
 #include <filesystem>
 #include <iostream>
+#include <map>
 #include <string>
 #include <utility>
 #include <vector>
@@ -1338,6 +1339,120 @@ void dds_mipmap_chain_box_filter_rules() {
   CHECK(half.pixel(0, 1)[0] == 50);
 }
 
+void dds_automatic_choices_resolve_against_the_opened_file() {
+  using dds::MipmapChoice;
+  // The persisted mipmap tokens, a compatibility contract like the compression tokens.
+  CHECK(dds::mipmap_choice_token(MipmapChoice::Automatic) == "auto");
+  CHECK(dds::mipmap_choice_token(MipmapChoice::Generate) == "on");
+  CHECK(dds::mipmap_choice_token(MipmapChoice::None) == "off");
+  for (const auto choice : {MipmapChoice::Automatic, MipmapChoice::Generate, MipmapChoice::None}) {
+    CHECK(dds::mipmap_choice_from_token(dds::mipmap_choice_token(choice)) == choice);
+  }
+  CHECK(!dds::mipmap_choice_from_token("bogus").has_value());
+
+  // A document that never came from a .dds has no source shape: Automatic stays Automatic
+  // for the writer's alpha rule and writes a mip chain.
+  const dds::SourceShape none;
+  CHECK(!none.compression.has_value());
+  CHECK(!none.mipmaps.has_value());
+  CHECK(dds::resolve_compression(Compression::Automatic, none) == Compression::Automatic);
+  CHECK(dds::resolve_compression(Compression::Bc7, none) == Compression::Bc7);
+  CHECK(dds::resolve_mipmaps(MipmapChoice::Automatic, none));
+  CHECK(dds::resolve_mipmaps(MipmapChoice::Generate, none));
+  CHECK(!dds::resolve_mipmaps(MipmapChoice::None, none));
+
+  // The reader's metadata describes the opened file: a BC3 texture without a chain and a
+  // mipmapped BC1 one. Automatic follows it; explicit choices pass through untouched.
+  const auto bc3 = dds::read_dds(
+      patchy::test::read_binary_file(patchy::test::committed_format_fixture_path("dds", "pillow-dxt5-16x16.dds")));
+  const auto bc3_source = dds::source_shape_from_metadata(bc3.document.metadata().values);
+  CHECK(bc3_source.compression == Compression::Bc3);
+  CHECK(bc3_source.mipmaps == false);
+  CHECK(dds::resolve_compression(Compression::Automatic, bc3_source) == Compression::Bc3);
+  CHECK(dds::resolve_compression(Compression::Bc1, bc3_source) == Compression::Bc1);
+  CHECK(!dds::resolve_mipmaps(MipmapChoice::Automatic, bc3_source));
+  CHECK(dds::resolve_mipmaps(MipmapChoice::Generate, bc3_source));
+
+  const auto bc1 = dds::read_dds(patchy::test::read_binary_file(
+      patchy::test::committed_format_fixture_path("dds", "synth-dxt1-mipmapped-16x16.dds")));
+  const auto bc1_source = dds::source_shape_from_metadata(bc1.document.metadata().values);
+  CHECK(bc1_source.compression == Compression::Bc1);
+  CHECK(bc1_source.mipmaps == true);
+  CHECK(dds::resolve_compression(Compression::Automatic, bc1_source) == Compression::Bc1);
+  CHECK(dds::resolve_mipmaps(MipmapChoice::Automatic, bc1_source));
+  CHECK(!dds::resolve_mipmaps(MipmapChoice::None, bc1_source));
+
+  // Metadata written by hand: an "auto" or unknown compression token is no source format.
+  std::map<std::string, std::string> odd;
+  odd[dds::kMetadataCompression] = "auto";
+  odd[dds::kMetadataMipmaps] = "1";
+  const auto odd_source = dds::source_shape_from_metadata(odd);
+  CHECK(!odd_source.compression.has_value());
+  CHECK(odd_source.mipmaps == true);
+}
+
+void dds_preview_levels_match_the_written_file() {
+  // The preview is the save: every level is encoded by the writer's block encoders and
+  // decoded by the reader's decoder, so level 0 equals a real round trip texel for texel
+  // and the byte sizes add up to the file's payload.
+  const auto document = gradient_document(13, 9, /*translucent*/ true);
+  const auto preview = dds::preview_levels(document, Compression::Bc3, /*mipmaps*/ true);
+  CHECK(preview.compression == Compression::Bc3);
+  CHECK(preview.levels.size() == dds::mip_count_for(13, 9));
+  CHECK((preview.levels.front().rgba8.width() == 13 && preview.levels.front().rgba8.height() == 9));
+  CHECK((preview.levels.back().rgba8.width() == 1 && preview.levels.back().rgba8.height() == 1));
+  WriteOptions options;
+  options.compression = Compression::Bc3;
+  options.generate_mipmaps = true;
+  const auto bytes = dds::write_dds(document, options);
+  std::uint64_t payload = 0;
+  for (const auto& level : preview.levels) {
+    payload += level.byte_size;
+  }
+  CHECK(payload == bytes.size() - dds::kFileHeaderBytes);
+  CHECK(preview.levels[0].byte_size == 4U * 3U * 16U);  // 13x9 is 4x3 blocks of 16 bytes
+  const auto round_trip = dds::read_dds(bytes);
+  for (std::int32_t y = 0; y < 9; ++y) {
+    for (std::int32_t x = 0; x < 13; ++x) {
+      const auto expected = pixel_at(round_trip.document, x, y);
+      const auto* actual = preview.levels[0].rgba8.pixel(x, y);
+      for (int channel = 0; channel < 4; ++channel) {
+        CHECK(actual[channel] == expected[static_cast<std::size_t>(channel)]);
+      }
+    }
+  }
+
+  // Without a chain only level 0 is produced; Uncompressed is the identity; Automatic
+  // resolves by the alpha rule (BC1 for an opaque image) and reports what it picked.
+  const auto single = dds::preview_levels(document, Compression::Uncompressed, /*mipmaps*/ false);
+  CHECK(single.levels.size() == 1);
+  CHECK(single.compression == Compression::Uncompressed);
+  CHECK(single.levels[0].byte_size == 13U * 9U * 4U);
+  const auto flat = std::as_const(document.layers().front()).pixels();
+  for (std::int32_t y = 0; y < 9; ++y) {
+    for (std::int32_t x = 0; x < 13; ++x) {
+      const auto* expected = flat.pixel(x, y);
+      const auto* actual = single.levels[0].rgba8.pixel(x, y);
+      CHECK(actual[3] == expected[3]);
+      if (expected[3] != 0) {  // colours under zero alpha do not survive a flatten
+        CHECK((actual[0] == expected[0] && actual[1] == expected[1] && actual[2] == expected[2]));
+      }
+    }
+  }
+  const auto opaque = dds::preview_levels(gradient_document(8, 8, false), Compression::Automatic, true);
+  CHECK(opaque.compression == Compression::Bc1);
+  CHECK(opaque.levels.size() == 4);
+  CHECK(opaque.levels[0].byte_size == 4U * 8U);
+  const auto translucent = dds::preview_levels(gradient_document(8, 8, true), Compression::Automatic, false);
+  CHECK(translucent.compression == Compression::Bc3);
+  // BC4 previews as gray and BC5 as red and green with blue 0, as a reader sees them.
+  const auto gray = dds::preview_levels(gradient_document(8, 8, false), Compression::Bc4, false);
+  const auto* gray_pixel = gray.levels[0].rgba8.pixel(3, 3);
+  CHECK((gray_pixel[0] == gray_pixel[1] && gray_pixel[1] == gray_pixel[2] && gray_pixel[3] == 255));
+  const auto red_green = dds::preview_levels(gradient_document(8, 8, false), Compression::Bc5, false);
+  CHECK(red_green.levels[0].rgba8.pixel(3, 3)[2] == 0);
+}
+
 void dds_writer_bytes_are_stable() {
   // Cross-platform byte-identical rule: the exact writer output (header, stb_dxt's BC1 and
   // BC3 blocks, Patchy's cut-out blocks, the box-filtered mip chain) is pinned by an FNV-1a
@@ -1493,6 +1608,8 @@ std::vector<patchy::test::TestCase> dds_tests() {
       {"dds_bc1_cutout_rule_and_automatic_compression", dds_bc1_cutout_rule_and_automatic_compression},
       {"dds_bc3_writer_keeps_alpha_within_tolerance", dds_bc3_writer_keeps_alpha_within_tolerance},
       {"dds_mipmap_chain_box_filter_rules", dds_mipmap_chain_box_filter_rules},
+      {"dds_automatic_choices_resolve_against_the_opened_file", dds_automatic_choices_resolve_against_the_opened_file},
+      {"dds_preview_levels_match_the_written_file", dds_preview_levels_match_the_written_file},
       {"dds_writer_bytes_are_stable", dds_writer_bytes_are_stable},
       {"dds_unicode_path_round_trips", dds_unicode_path_round_trips},
       {"dds_writes_inspection_artifacts", dds_writes_inspection_artifacts},

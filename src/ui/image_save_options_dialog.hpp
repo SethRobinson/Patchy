@@ -28,10 +28,13 @@ void save_image_save_option_defaults(const ImageSaveOptions& options);
 // section-only dialog for formats that otherwise have no options, and is passed only by
 // the export flows, never Save/Save As. document_size drives the Resize row; an empty size
 // hides it. ICO/CUR never get the section (their size list defines the output).
+// `document` (optional) is what a preview can read: the DDS form's Preview Mipmaps button
+// encodes it at the dialog's current choices and is hidden without one.
 [[nodiscard]] std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const QString& extension,
                                                                         ImageSaveOptions options,
                                                                         bool for_export = false,
-                                                                        QSize document_size = {});
+                                                                        QSize document_size = {},
+                                                                        const Document* document = nullptr);
 
 // GIF options dialog, deliberately outside image_save_options_apply_to_extension so only
 // its three call sites raise it (Save As and Export Flat Image with a 2+ layer document,
