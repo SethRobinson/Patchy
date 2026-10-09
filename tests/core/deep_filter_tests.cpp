@@ -17,6 +17,7 @@
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <vector>
 
 namespace {
@@ -213,6 +214,37 @@ void sixteen_bit_filters_keep_precision() {
   CHECK(distinct_values(median.pixels) >= 900U);
 }
 
+// A recipe (Filter Gallery Looks) on a 16-bit copy agrees with 8 bits, partial opacity
+// and blend modes included (blend_recipe_result's float branch).
+void recipes_agree_with_8_bits_on_a_16_bit_copy() {
+  const auto registry = builtin_registry();
+  const auto image = filter_test_image();
+  const auto bounds = Rect::from_size(image.width(), image.height());
+  FilterRecipe recipe;
+  for (const auto& [id, opacity, mode] :
+       std::vector<std::tuple<std::string, double, BlendMode>>{{"patchy.filters.gaussian_blur", 0.6, BlendMode::Multiply},
+                                                               {"patchy.filters.median", 1.0, BlendMode::Normal},
+                                                               {"patchy.filters.sepia", 0.5, BlendMode::Screen}}) {
+    FilterRecipeEntry entry;
+    entry.invocation = test_invocation(registry, id);
+    entry.opacity = opacity;
+    entry.blend_mode = mode;
+    recipe.entries.push_back(std::move(entry));
+  }
+  const auto eight = registry.render(recipe, image, bounds);
+  const auto sixteen =
+      registry.render(recipe, convert_pixel_buffer_depth(image, BitDepth::UInt16, SampleKind::Color), bounds);
+  CHECK(sixteen.pixels.format().bit_depth == BitDepth::UInt16);
+  CHECK(sixteen.pixels.width() == eight.pixels.width() && sixteen.pixels.height() == eight.pixels.height());
+  const auto difference = compare_rgba8(
+      eight.pixels, convert_pixel_buffer_depth(sixteen.pixels, BitDepth::UInt8, SampleKind::Color));
+  if (difference.max_color > 3 || difference.max_alpha > 3 || difference.mean_color > 0.75) {
+    std::cerr << "  recipe: max color " << difference.max_color << ", max alpha " << difference.max_alpha
+              << ", mean color " << difference.mean_color << "\n";
+    CHECK(false);
+  }
+}
+
 // The 8-bit-precision path folds an edit back as a move of the changed samples.
 void eight_bit_edits_fold_back_at_depth() {
   PixelBuffer pixels(4, 1, with_bit_depth(PixelFormat::rgba8(), BitDepth::UInt16));
@@ -245,5 +277,6 @@ std::vector<patchy::test::TestCase> deep_filter_tests() {
        thirty_two_bit_documents_get_the_linear_light_filters},
       {"deep_filters_sixteen_bit_filters_keep_precision", sixteen_bit_filters_keep_precision},
       {"deep_filters_eight_bit_edits_fold_back_at_depth", eight_bit_edits_fold_back_at_depth},
+      {"deep_filters_recipes_agree_with_8_bits_on_a_16_bit_copy", recipes_agree_with_8_bits_on_a_16_bit_copy},
   };
 }

@@ -469,6 +469,11 @@ int main(int argc, char* argv[]) {
       QCoreApplication::translate("QObject", "Directory for stress test reports (with --stress-test)."),
       QStringLiteral("dir"));
   parser.addOption(stress_report_dir_option);
+  QCommandLineOption stress_depth_option(
+      QStringLiteral("stress-depth"),
+      QCoreApplication::translate("QObject", "Bits per channel for the stress test documents: 8, 16, or 32."),
+      QStringLiteral("bits"), QStringLiteral("8"));
+  parser.addOption(stress_depth_option);
   QCommandLineOption screenshot_option(
       QStringLiteral("screenshot"),
       QCoreApplication::translate(
@@ -542,6 +547,12 @@ int main(int argc, char* argv[]) {
               parser.value(stress_option).toUtf8().constData());
       return 2;
     }
+  }
+  const auto stress_depth = parser.value(stress_depth_option).toInt();
+  if (stress_mode && stress_depth != 8 && stress_depth != 16 && stress_depth != 32) {
+    fprintf(stderr, "Unknown stress test depth '%s' (use 8, 16, or 32)\n",
+            parser.value(stress_depth_option).toUtf8().constData());
+    return 2;
   }
 
   // Resolve the requested files to absolute paths now: a forwarded request runs in the receiving
@@ -745,6 +756,7 @@ int main(int argc, char* argv[]) {
     patchy::ui::StressTestOptions stress_options;
     stress_options.preset = *stress_preset;
     stress_options.report_dir = parser.value(stress_report_dir_option);
+    stress_options.bit_depth = stress_depth;
     window.start_cli_stress_test(stress_options);
     return finish_after_event_loop(app.exec());
   }

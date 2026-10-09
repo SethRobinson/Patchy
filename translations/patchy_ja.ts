@@ -8933,6 +8933,14 @@ Mixed selection</source>
         <source>Gamma</source>
         <translation>ガンマ</translation>
     </message>
+    <message>
+        <source>Bits per channel for the stress test documents: 8, 16, or 32.</source>
+        <translation>ストレステスト用ドキュメントのチャンネルあたりのビット数: 8、16、32 のいずれか。</translation>
+    </message>
+    <message>
+        <source>The 32-bit image was converted to 16 bits per channel: the web version edits up to 16.</source>
+        <translation>32 ビット画像をチャンネルあたり 16 ビットに変換しました。Web 版で編集できるのは 16 ビットまでです。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -20206,6 +20214,14 @@ Baked into images: %1.</source>
     <message>
         <source>This filter is not available in 32-bit documents.</source>
         <translation>このフィルターは 32 ビットのドキュメントでは使用できません。</translation>
+    </message>
+    <message>
+        <source>The web version edits up to 16 bits per channel.</source>
+        <translation>Web 版で編集できるのはチャンネルあたり 16 ビットまでです。</translation>
+    </message>
+    <message>
+        <source>Blend mode %1 is not available in 32-bit documents.</source>
+        <translation>描画モード %1 は 32 ビットのドキュメントでは使用できません。</translation>
     </message>
 </context>
 <context>

@@ -500,6 +500,9 @@ private:
   bool previous_;
 };
 [[nodiscard]] double descriptor_rgb_component(std::uint8_t encoded) noexcept;
+// Inside ScopedLinearDescriptorColors (a 32-bit document being written): a layer blend
+// mode Photoshop refuses at 32 bits is written as Normal (blend_mode_supported_at_depth).
+[[nodiscard]] BlendMode writable_layer_blend_mode(BlendMode mode) noexcept;
 void write_rgb8_image_data(BigEndianWriter& writer, const PixelBuffer& pixels, bool wide_rle_counts);
 [[nodiscard]] std::optional<DocumentAlphaComposite> document_alpha_composite(const Document& document);
 [[nodiscard]] DocumentAlphaComposite merged_flatten_composite(const Document& document);

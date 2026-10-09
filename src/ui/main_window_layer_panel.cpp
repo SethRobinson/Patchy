@@ -3712,6 +3712,7 @@ void MainWindow::refresh_layer_controls() {
     visible_check_->setChecked(layer->visible());
   }
   if (blend_combo_ != nullptr) {
+    enable_blend_mode_items_for_depth(blend_combo_, std::as_const(document()).color_state().bit_depth);
     const auto blend_value = static_cast<int>(layer->blend_mode());
     const auto index = blend_combo_->findData(blend_value);
     blend_combo_->setCurrentIndex(index >= 0 ? index : 0);

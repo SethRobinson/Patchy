@@ -2567,7 +2567,7 @@ void MainWindow::edit_active_layer_style() {
       &gradient_library(),
       {static_cast<std::uint8_t>(fg.red()), static_cast<std::uint8_t>(fg.green()), static_cast<std::uint8_t>(fg.blue())},
       {static_cast<std::uint8_t>(bg.red()), static_cast<std::uint8_t>(bg.green()), static_cast<std::uint8_t>(bg.blue())},
-      &context);
+      &context, std::as_const(doc).color_state().bit_depth);
   const auto available = doc.metadata().patterns;
   restore();
   bool changed = false;

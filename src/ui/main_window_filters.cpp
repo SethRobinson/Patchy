@@ -2856,7 +2856,13 @@ void MainWindow::visual_filter_gallery_dialog() {
   // the user only opened and cancelled the gallery.
   const auto& source_document = std::as_const(target_session->document);
   const auto* source_layer = source_document.find_layer(*active);
-  if (!editable_rgb8_layer(source_layer)) {
+  // 16-bit layers run the Look at depth (docs/high-bit-depth.md); 32-bit documents
+  // do not offer the gallery.
+  const auto gallery_layer = [](const Layer* candidate) {
+    return editable_rgb_layer_any_depth(candidate) &&
+           std::as_const(*candidate).pixels().format().bit_depth != BitDepth::Float32;
+  };
+  if (!gallery_layer(source_layer)) {
     show_status_error(tr("Select an editable RGB pixel layer"));
     return;
   }
@@ -2870,7 +2876,7 @@ void MainWindow::visual_filter_gallery_dialog() {
     return;
   }
   source_layer = source_document.find_layer(*active);
-  if (!editable_rgb8_layer(source_layer)) {
+  if (!gallery_layer(source_layer)) {
     show_status_error(tr("Select an editable RGB pixel layer"));
     return;
   }

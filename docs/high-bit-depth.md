@@ -249,12 +249,14 @@ Each phase lands as verified commits; the gate stays off until Phase 9.
    - 32-bit documents disable the rest, Liquify and Auto All (menu actions off in
      `update_document_action_state` through the actions' `patchy.filterIdentifier`;
      script `applyFilter` throws). 8BF plug-ins run on 16-bit layers through the same
-     8-bit copy and refuse 32-bit ones. The Filter Gallery is disabled on 16 and 32 bits
-     for now.
+     8-bit copy and refuse 32-bit ones. The Filter Gallery takes 16-bit layers (its
+     previews draw from display values: `make_filter_preview_proxy` and
+     `exact_render_to_proxy` narrow) and is disabled at 32 bits.
    - Oracle: every filter on a 16-bit copy of an 8-bit image narrows back within 3
      levels (exactly, on the 8-bit-copy path); offered 32-bit filters keep a uniform
      HDR color, values above 1.0 included.
-   Still to do: the Filter Gallery, Smart Filters on deep smart objects, native 16-bit
+   Smart objects render their contents at 8 bits in every document, so their Smart
+   Filters run at 8 bits. Still to do: Smart Filters at depth, native 16-bit
    8BF (check the SDK's 16-bit sample range), 32-bit Motion Blur and Add Noise, deep
    kernels for the 8-bit-copy filters. Surface Blur, Median and Dust & Scratches keep
    their no-histogram designs at every depth (docs/patent-research.md).
@@ -283,9 +285,29 @@ Each phase lands as verified commits; the gate stays off until Phase 9.
    keep 16 bits (`deep_export_qimage`); a 32-bit document writes float TIFF with its
    linear values (`float_export_qimage`). Still to do: JXR float native, HEIF 10-bit,
    raw at 16 bits, deep .af import, OpenEXR and Radiance .hdr (licensing check first).
-9. **Memory, performance, platforms, flip the gate.** History budget and style caches
-   under 2x/4x pixels, a deep stress preset (new step ids appended), wasm, mac/linux
-   builds, then both full suites and a full Testy run against the baseline.
+9. **Memory, performance, platforms, flip the gate** (in progress). The history budget
+   counts real buffer bytes (`accumulate_unique_pixel_bytes`), so deep layers weigh 2x
+   or 4x. `patchy.exe --stress-test=quick --stress-depth 16|32` runs the whole stress
+   scenario on deep documents (filters a 32-bit document lacks are skipped and listed
+   in the report's warnings). October 9, 2026, offscreen quick preset: 8 bits 42.6 s,
+   16 bits 92.9 s, 32 bits 93.2 s, no failures; the 16-bit scene PSD opens in
+   Photoshop without a prompt. The web build stops at 16 bits
+   (`depth_supported_on_platform`): 32-bit files open converted to 16 with an import
+   note, and Image > Mode, New Document and `convertBitDepth` offer no 32. Still to
+   do: deep compositor speed, the gate decision, a full Testy run against the
+   baseline.
+
+### Photoshop's 32-bit blend modes
+
+Photoshop 2026 refuses to open a 32-bit PSD ("open options are incorrect") with a layer
+or group in Color Burn, Linear Burn, Screen, Color Dodge, Overlay, Soft, Hard, Vivid,
+Linear or Pin Light, Hard Mix or Exclusion; its own conversion to 32 bits (Don't Merge)
+sets those layers to Normal. Layer-effect blend modes are not affected. Patchy follows
+it (`blend_mode_supported_at_depth`): `convert_layer` substitutes Normal on the way to
+32 bits, the Layers panel and Layer Style blend menus disable the modes on 32-bit
+documents, script `blendMode` throws, and the PSD writer writes Normal for any that
+slip through (`writable_layer_blend_mode`). Pinned by
+`psd_deep_32_bit_blend_modes_follow_photoshop`.
 
 ## Verification rules
 

@@ -862,7 +862,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     PatternStore* document_patterns, PatternLibrary* pattern_library, StyleLibrary* style_library,
     std::function<void(const QString& name, const PixelBuffer& tile)> open_pattern_as_image,
     GradientLibrary *gradient_library, RgbColor foreground,
-    RgbColor background, const AppearanceDialogContext<LayerStyleSettings>* batch) {
+    RgbColor background, const AppearanceDialogContext<LayerStyleSettings>* batch, BitDepth document_depth) {
   const auto request_started = std::chrono::steady_clock::now();
   const LayerStyleSettings original_settings{
       static_cast<int>(std::round(layer.opacity() * 100.0F)),
@@ -2143,6 +2143,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   auto* blend = new QComboBox(blending_group);
   blend->setObjectName(QStringLiteral("layerStyleBlendModeCombo"));
   add_blend_mode_items(blend);
+  enable_blend_mode_items_for_depth(blend, document_depth);
   blend->setCurrentIndex(std::max(0, blend->findData(static_cast<int>(layer.blend_mode()))));
   blending_form->addRow(QObject::tr("Blend Mode"), blend);
   auto* opacity = add_slider_spin_row(blending_form, blending_group, QObject::tr("Opacity"),

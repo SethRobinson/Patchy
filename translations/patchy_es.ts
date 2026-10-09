@@ -8963,6 +8963,14 @@ RGB: %2, %3, %4</translation>
         <source>Gamma</source>
         <translation>Gamma</translation>
     </message>
+    <message>
+        <source>Bits per channel for the stress test documents: 8, 16, or 32.</source>
+        <translation>Bits por canal de los documentos de la prueba de estrés: 8, 16 o 32.</translation>
+    </message>
+    <message>
+        <source>The 32-bit image was converted to 16 bits per channel: the web version edits up to 16.</source>
+        <translation>La imagen de 32 bits se convirtió a 16 bits por canal: la versión web edita hasta 16 bits.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -20263,6 +20271,14 @@ Convertido en imágenes: %1.</translation>
     <message>
         <source>This filter is not available in 32-bit documents.</source>
         <translation>Este filtro no está disponible en documentos de 32 bits.</translation>
+    </message>
+    <message>
+        <source>The web version edits up to 16 bits per channel.</source>
+        <translation>La versión web edita hasta 16 bits por canal.</translation>
+    </message>
+    <message>
+        <source>Blend mode %1 is not available in 32-bit documents.</source>
+        <translation>El modo de fusión %1 no está disponible en documentos de 32 bits.</translation>
     </message>
 </context>
 <context>

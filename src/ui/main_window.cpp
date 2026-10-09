@@ -13746,8 +13746,7 @@ void MainWindow::update_document_action_state() {
   refresh_add_layer_mask_button_state();
   update_legacy_plugin_repeat_actions();
   // 16/32-bit documents (docs/high-bit-depth.md): a 32-bit document offers only the
-  // filters with a linear-light kernel, and the Filter Gallery and 8BF plug-ins are
-  // 8-bit only for now.
+  // filters with a linear-light kernel, and no Filter Gallery, Liquify or Auto All.
   const auto document_depth =
       has_document ? std::as_const(document()).color_state().bit_depth : BitDepth::UInt8;
   // Indexed color is 8-bit only (refresh_bit_depth_actions; the loop above re-enabled them).
@@ -13774,9 +13773,9 @@ void MainWindow::update_document_action_state() {
         continue;
       }
       const bool unavailable =
-          command.id == QStringLiteral("filter.gallery") ||
-          (document_depth == BitDepth::Float32 &&
-           (command.id == QStringLiteral("filter.liquify") || command.id == QStringLiteral("image.auto_all")));
+          document_depth == BitDepth::Float32 &&
+          (command.id == QStringLiteral("filter.gallery") || command.id == QStringLiteral("filter.liquify") ||
+           command.id == QStringLiteral("image.auto_all"));
       if (unavailable) {
         command.action->setEnabled(false);
       }

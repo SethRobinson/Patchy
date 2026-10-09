@@ -8933,6 +8933,14 @@ RGB：%2, %3, %4</translation>
         <source>Gamma</source>
         <translation>Gamma</translation>
     </message>
+    <message>
+        <source>Bits per channel for the stress test documents: 8, 16, or 32.</source>
+        <translation>壓力測試文件的每色版位元數：8、16 或 32。</translation>
+    </message>
+    <message>
+        <source>The 32-bit image was converted to 16 bits per channel: the web version edits up to 16.</source>
+        <translation>32 位元影像已轉換為每色版 16 位元：網頁版最多編輯 16 位元。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -20206,6 +20214,14 @@ Baked into images: %1.</source>
     <message>
         <source>This filter is not available in 32-bit documents.</source>
         <translation>此濾鏡在 32 位元文件中無法使用。</translation>
+    </message>
+    <message>
+        <source>The web version edits up to 16 bits per channel.</source>
+        <translation>網頁版最多編輯每色版 16 位元。</translation>
+    </message>
+    <message>
+        <source>Blend mode %1 is not available in 32-bit documents.</source>
+        <translation>混合模式 %1 在 32 位元文件中無法使用。</translation>
     </message>
 </context>
 <context>

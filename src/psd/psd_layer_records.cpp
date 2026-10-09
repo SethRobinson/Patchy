@@ -128,7 +128,7 @@ std::vector<std::uint8_t> section_divider_payload(std::uint32_t type, BlendMode 
   payload.write_u32(type);
   if (include_blend_mode) {
     write_signature(payload, {'8', 'B', 'I', 'M'});
-    write_signature(payload, blend_mode_key(blend_mode));
+    write_signature(payload, blend_mode_key(writable_layer_blend_mode(blend_mode)));
   }
   return payload.bytes();
 }
@@ -861,7 +861,7 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
   }
 
   write_signature(writer, {'8', 'B', 'I', 'M'});
-  write_signature(writer, blend_mode_key(encoded_layer_blend_mode(encoded)));
+  write_signature(writer, blend_mode_key(writable_layer_blend_mode(encoded_layer_blend_mode(encoded))));
   writer.write_u8(
       static_cast<std::uint8_t>(std::clamp(std::lround(encoded_layer_opacity(encoded) * 255.0F), 0L, 255L)));
   writer.write_u8(encoded_layer_clipping(encoded));

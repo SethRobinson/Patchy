@@ -451,7 +451,9 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   bit_depth->setObjectName(QStringLiteral("newDocumentBitDepthCombo"));
   bit_depth->addItem(QObject::tr("8 Bits/Channel"), 8);
   bit_depth->addItem(QObject::tr("16 Bits/Channel"), 16);
-  bit_depth->addItem(QObject::tr("32 Bits/Channel"), 32);
+  if (depth_supported_on_platform(BitDepth::Float32)) {
+    bit_depth->addItem(QObject::tr("32 Bits/Channel"), 32);
+  }
   if (deep_editing_enabled()) {
     add_row_label(QObject::tr("Bit Depth"), 4);
     grid->addWidget(bit_depth, 4, 1, 1, 2);

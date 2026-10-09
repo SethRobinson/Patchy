@@ -446,6 +446,11 @@ void ScriptLayerObject::set_blend_mode(const QString& mode) {
     host_.throw_js_error(ScriptEngineHost::tr("Unknown blend mode: %1").arg(mode));
     return;
   }
+  if (const auto* document = host_.session_document_const(session_id_);
+      document != nullptr && !blend_mode_supported_at_depth(parsed, document->color_state().bit_depth)) {
+    host_.throw_js_error(ScriptEngineHost::tr("Blend mode %1 is not available in 32-bit documents.").arg(mode));
+    return;
+  }
   if (auto* layer = write_layer()) {
     layer->set_blend_mode(parsed);
     host_.note_pixels_changed(session_id_, to_qrect(layer_render_bounds(std::as_const(*layer))), false);
@@ -2219,6 +2224,10 @@ void ScriptDocumentObject::convertBitDepth(int bits) {
   }
   if (bits != 8 && !deep_editing_enabled()) {
     host_.throw_js_error(ScriptEngineHost::tr("16 and 32-bit editing is not enabled."));
+    return;
+  }
+  if (bits == 32 && !depth_supported_on_platform(BitDepth::Float32)) {
+    host_.throw_js_error(ScriptEngineHost::tr("The web version edits up to 16 bits per channel."));
     return;
   }
   const auto* current = read_document();

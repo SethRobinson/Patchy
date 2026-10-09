@@ -56,6 +56,7 @@ struct LayerStyleSettings {
     GradientLibrary* gradient_library = nullptr,
     RgbColor foreground = RgbColor{0, 0, 0},
     RgbColor background = RgbColor{255, 255, 255},
-    const AppearanceDialogContext<LayerStyleSettings>* batch = nullptr);
+    const AppearanceDialogContext<LayerStyleSettings>* batch = nullptr,
+    BitDepth document_depth = BitDepth::UInt8);
 
 }  // namespace patchy::ui

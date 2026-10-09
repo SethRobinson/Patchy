@@ -8933,6 +8933,14 @@ RGB: %2, %3, %4</translation>
         <source>Gamma</source>
         <translation>감마</translation>
     </message>
+    <message>
+        <source>Bits per channel for the stress test documents: 8, 16, or 32.</source>
+        <translation>스트레스 테스트 문서의 채널당 비트 수: 8, 16 또는 32.</translation>
+    </message>
+    <message>
+        <source>The 32-bit image was converted to 16 bits per channel: the web version edits up to 16.</source>
+        <translation>32비트 이미지를 채널당 16비트로 변환했습니다. 웹 버전은 16비트까지 편집합니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -20206,6 +20214,14 @@ Y: %2
     <message>
         <source>This filter is not available in 32-bit documents.</source>
         <translation>이 필터는 32비트 문서에서 사용할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>The web version edits up to 16 bits per channel.</source>
+        <translation>웹 버전은 채널당 16비트까지 편집합니다.</translation>
+    </message>
+    <message>
+        <source>Blend mode %1 is not available in 32-bit documents.</source>
+        <translation>혼합 모드 %1은(는) 32비트 문서에서 사용할 수 없습니다.</translation>
     </message>
 </context>
 <context>

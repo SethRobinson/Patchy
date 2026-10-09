@@ -8949,7 +8949,7 @@ RVB : %2, %3, %4</translation>
     </message>
     <message>
         <source>This filter is not available in 32-bit documents</source>
-        <translation>Ce filtre n'est pas disponible dans les documents 32 bits</translation>
+        <translation>Ce filtre n&apos;est pas disponible dans les documents 32 bits</translation>
     </message>
     <message>
         <source>HDR Toning</source>
@@ -8962,6 +8962,14 @@ RVB : %2, %3, %4</translation>
     <message>
         <source>Gamma</source>
         <translation>Gamma</translation>
+    </message>
+    <message>
+        <source>Bits per channel for the stress test documents: 8, 16, or 32.</source>
+        <translation>Bits par couche des documents du test de charge : 8, 16 ou 32.</translation>
+    </message>
+    <message>
+        <source>The 32-bit image was converted to 16 bits per channel: the web version edits up to 16.</source>
+        <translation>L&apos;image 32 bits a été convertie en 16 bits par couche : la version web modifie jusqu&apos;à 16 bits.</translation>
     </message>
 </context>
 <context>
@@ -18791,11 +18799,11 @@ Convertis en images : %1.</translation>
     </message>
     <message>
         <source>32-bit preview exposure in stops. It changes the display, not the pixels.</source>
-        <translation>Exposition d'aperçu 32 bits, en diaphragmes. Elle modifie l'affichage, pas les pixels.</translation>
+        <translation>Exposition d&apos;aperçu 32 bits, en diaphragmes. Elle modifie l&apos;affichage, pas les pixels.</translation>
     </message>
     <message>
         <source>This filter is not available in 32-bit documents</source>
-        <translation>Ce filtre n'est pas disponible dans les documents 32 bits</translation>
+        <translation>Ce filtre n&apos;est pas disponible dans les documents 32 bits</translation>
     </message>
     <message>
         <source>Linear RGB: %1, %2, %3</source>
@@ -20254,7 +20262,7 @@ Convertis en images : %1.</translation>
     </message>
     <message>
         <source>16 and 32-bit editing is not enabled.</source>
-        <translation>L'édition en 16 et 32 bits n'est pas activée.</translation>
+        <translation>L&apos;édition en 16 et 32 bits n&apos;est pas activée.</translation>
     </message>
     <message>
         <source>Indexed documents are 8-bit only.</source>
@@ -20262,7 +20270,15 @@ Convertis en images : %1.</translation>
     </message>
     <message>
         <source>This filter is not available in 32-bit documents.</source>
-        <translation>Ce filtre n'est pas disponible dans les documents 32 bits.</translation>
+        <translation>Ce filtre n&apos;est pas disponible dans les documents 32 bits.</translation>
+    </message>
+    <message>
+        <source>The web version edits up to 16 bits per channel.</source>
+        <translation>La version web modifie jusqu&apos;à 16 bits par couche.</translation>
+    </message>
+    <message>
+        <source>Blend mode %1 is not available in 32-bit documents.</source>
+        <translation>Le mode de fusion %1 n'est pas disponible dans les documents 32 bits.</translation>
     </message>
 </context>
 <context>

@@ -1,11 +1,13 @@
 #include "ui/blend_mode_ui.hpp"
 
+#include "core/document_depth.hpp"
 #include "filters/filter_registry.hpp"
 
 #include <QAbstractItemView>
 #include <QComboBox>
 #include <QCoreApplication>
 #include <QKeyEvent>
+#include <QStandardItemModel>
 #include <QObject>
 
 #include <array>
@@ -140,5 +142,17 @@ void add_blend_mode_items(QComboBox* combo, BlendModeMenu menu) {
   }
 }
 
+
+void enable_blend_mode_items_for_depth(QComboBox* combo, BitDepth depth) {
+  auto* model = combo != nullptr ? qobject_cast<QStandardItemModel*>(combo->model()) : nullptr;
+  if (model == nullptr) {
+    return;
+  }
+  for (int index = 0; index < combo->count(); ++index) {
+    if (auto* item = model->item(index); item != nullptr) {
+      item->setEnabled(blend_mode_supported_at_depth(static_cast<BlendMode>(combo->itemData(index).toInt()), depth));
+    }
+  }
+}
 
 }  // namespace patchy::ui

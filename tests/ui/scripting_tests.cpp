@@ -980,9 +980,14 @@ void ui_script_bit_depth_and_deep_filters() {
       console.log('median32-threw=' + threw);
       layer.applyFilter('patchy.filters.gaussian_blur', {radius: 2});
       console.log('depth32=' + doc.bitDepth);
+      var screenThrew = false;
+      try { layer.blendMode = 'screen'; } catch (error) { screenThrew = true; }
+      layer.blendMode = 'multiply';
+      console.log('screen32-threw=' + screenThrew + ' mode=' + layer.blendMode);
     )JS")));
     CHECK(backlog_contains(window, QStringLiteral("median32-threw=true")));
     CHECK(backlog_contains(window, QStringLiteral("depth32=32")));
+    CHECK(backlog_contains(window, QStringLiteral("screen32-threw=true mode=multiply")));
     CHECK(median_action != nullptr && !median_action->isEnabled());
     CHECK(gaussian_action != nullptr && gaussian_action->isEnabled());
     CHECK(patchy::document_depth_problems(patchy::ui::MainWindowTestAccess::document(window)).empty());

@@ -24,6 +24,9 @@ const char* depth_label(BitDepth depth) noexcept {
 }
 
 void convert_layer(Layer& layer, BitDepth depth) {
+  if (!blend_mode_supported_at_depth(layer.blend_mode(), depth)) {
+    layer.set_blend_mode(BlendMode::Normal);
+  }
   const auto& pixels = std::as_const(layer).pixels();
   if (!pixels.empty() && pixels.format().bit_depth != depth) {
     const auto kind = pixels.format().channels >= 3 ? SampleKind::Color : SampleKind::Coverage;
@@ -114,6 +117,29 @@ void convert_layer_depth(Layer& layer, BitDepth depth) {
 
 BitDepth document_bit_depth(const Document& document) noexcept {
   return document.color_state().bit_depth;
+}
+
+bool blend_mode_supported_at_depth(BlendMode mode, BitDepth depth) noexcept {
+  if (depth != BitDepth::Float32) {
+    return true;
+  }
+  switch (mode) {
+    case BlendMode::ColorBurn:
+    case BlendMode::LinearBurn:
+    case BlendMode::Screen:
+    case BlendMode::ColorDodge:
+    case BlendMode::Overlay:
+    case BlendMode::SoftLight:
+    case BlendMode::HardLight:
+    case BlendMode::VividLight:
+    case BlendMode::LinearLight:
+    case BlendMode::PinLight:
+    case BlendMode::HardMix:
+    case BlendMode::Exclusion:
+      return false;
+    default:
+      return true;
+  }
 }
 
 void convert_document_depth(Document& document, BitDepth depth) {

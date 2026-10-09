@@ -8993,6 +8993,14 @@ RGB: %2, %3, %4</translation>
         <source>Gamma</source>
         <translation>Гамма</translation>
     </message>
+    <message>
+        <source>Bits per channel for the stress test documents: 8, 16, or 32.</source>
+        <translation>Бит на канал для документов нагрузочного теста: 8, 16 или 32.</translation>
+    </message>
+    <message>
+        <source>The 32-bit image was converted to 16 bits per channel: the web version edits up to 16.</source>
+        <translation>32-битное изображение преобразовано в 16 бит на канал: веб-версия редактирует не более 16 бит.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -20320,6 +20328,14 @@ Y: %2
     <message>
         <source>This filter is not available in 32-bit documents.</source>
         <translation>Этот фильтр недоступен в 32-битных документах.</translation>
+    </message>
+    <message>
+        <source>The web version edits up to 16 bits per channel.</source>
+        <translation>Веб-версия редактирует не более 16 бит на канал.</translation>
+    </message>
+    <message>
+        <source>Blend mode %1 is not available in 32-bit documents.</source>
+        <translation>Режим наложения %1 недоступен в 32-битных документах.</translation>
     </message>
 </context>
 <context>

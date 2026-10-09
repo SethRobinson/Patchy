@@ -230,7 +230,12 @@ FilterProxyRender exact_render_to_proxy(
       scale_y));
   const auto width = std::max(1, right - left);
   const auto height = std::max(1, bottom - top);
-  auto pixels = make_proxy_pixels(exact->pixels, width, height);
+  // A 16/32-bit result (docs/high-bit-depth.md) previews from its display values.
+  auto pixels = exact->pixels.format().bit_depth == BitDepth::UInt8
+                    ? make_proxy_pixels(exact->pixels, width, height)
+                    : make_proxy_pixels(convert_pixel_buffer_depth(exact->pixels, BitDepth::UInt8,
+                                                                   SampleKind::Color),
+                                        width, height);
   return {image_from_pixels(pixels), Rect{left, top, width, height}, {},
           std::move(exact)};
 }

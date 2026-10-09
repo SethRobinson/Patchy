@@ -1065,6 +1065,7 @@ void MainWindow::refresh_bit_depth_actions() {
     const QSignalBlocker blocker(action);
     action->setVisible(shown);
   }
+  image_mode_32_bit_action_->setVisible(shown && depth_supported_on_platform(BitDepth::Float32));
   {
     const QSignalBlocker b8(image_mode_8_bit_action_);
     const QSignalBlocker b16(image_mode_16_bit_action_);

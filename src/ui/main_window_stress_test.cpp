@@ -23,10 +23,13 @@
 #include "patchy_version.hpp"
 
 #include "core/adjustment_layer.hpp"
+#include "core/document_depth.hpp"
+#include "filters/filter_engine.hpp"
 #include "core/document_path.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/path_fit.hpp"
+#include "core/pixel_depth.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/smart_filter.hpp"
 #include "core/smart_object.hpp"
@@ -334,6 +337,7 @@ QJsonDocument report_to_json(const StressReport& report) {
 
   QJsonObject run;
   run.insert(QStringLiteral("preset"), report.preset_token);
+  run.insert(QStringLiteral("bit_depth"), report.bit_depth);
   run.insert(QStringLiteral("canvas_px"), report.canvas_size);
   QJsonObject window;
   window.insert(QStringLiteral("width"), report.window_size.width());
@@ -443,7 +447,8 @@ QString report_to_text(const StressReport& report) {
       << (report.ram_mb >= 0 ? QStringLiteral("%1 GB RAM").arg((report.ram_mb + 512) / 1024)
                              : QStringLiteral("RAM unknown"))
       << "  |  " << report.os << "\n";
-  out << "Preset: " << report.preset_token << " (" << report.canvas_size << " px)  |  window "
+  out << "Preset: " << report.preset_token << " (" << report.canvas_size << " px"
+      << (report.bit_depth != 8 ? QStringLiteral(", %1-bit").arg(report.bit_depth) : QString()) << ")  |  window "
       << report.window_size.width() << "x" << report.window_size.height() << ", viewport "
       << report.canvas_viewport.width() << "x" << report.canvas_viewport.height()
       << (report.offscreen ? "  |  OFFSCREEN (numbers not comparable to real-screen runs)" : "") << "\n\n";
@@ -653,6 +658,7 @@ public:
       : w(window), options_(options), report_dir_(std::move(report_dir)),
         size_(stress_preset_canvas_size(options.preset)) {
     report_.preset_token = stress_preset_token(options_.preset);
+    report_.bit_depth = options_.bit_depth;
     report_.canvas_size = size_;
     report_.interactive = options_.interactive;
   }
@@ -660,6 +666,20 @@ public:
   StressReport run();
 
   [[nodiscard]] StressReport& report() noexcept { return report_; }
+
+  // --stress-depth: the freshly created document converted to 16 or 32 bits.
+  void apply_bit_depth() {
+    if (options_.bit_depth != 16 && options_.bit_depth != 32) {
+      return;
+    }
+    convert_document_depth(w.document(), options_.bit_depth == 32 ? BitDepth::Float32 : BitDepth::UInt16);
+    w.refresh_bit_depth_actions();
+    w.update_document_action_state();
+    canvas()->document_changed();
+    // Draw the converted frame now: a document hidden by the next new tab before its
+    // first repaint stays dirty offscreen.
+    settle();
+  }
   [[nodiscard]] bool was_cancelled() const noexcept { return cancel_requested_; }
 
 private:
@@ -1197,6 +1217,15 @@ private:
     if (layer == nullptr || layer->kind() != LayerKind::Pixel) {
       return;
     }
+    // --stress-depth 32: filters a 32-bit document does not offer are skipped (once noted).
+    if (deep_filter_support(identifier.toStdString(), std::as_const(*layer).pixels().format().bit_depth) ==
+        DeepFilterSupport::Unsupported) {
+      const auto note = QStringLiteral("Skipped at this depth: %1").arg(identifier);
+      if (!report_.warnings.contains(note)) {
+        report_.warnings.append(note);
+      }
+      return;
+    }
     const auto selection = canvas()->selected_document_region();
     const auto bounds = layer->bounds();
     const auto original = layer->pixels();
@@ -1501,6 +1530,7 @@ private:
 void StressTestRunner::phase_setup() {
   step("01_create_document", "Create document + first composite", "setup", [&] {
     w.reset_document(size_, size_, QColor(58, 56, 60), MainWindow::tr("Stress test"));
+    apply_bit_depth();
     canvas()->fit_to_view();
     pump();
   }, canvas_megapixels());
@@ -2236,8 +2266,10 @@ void StressTestRunner::phase_io() {
   step("41_multi_document", "Two extra documents + 6 tab switches", "io", [&] {
     const auto half = std::max(256, size_ / 2);
     w.reset_document(half, half, QColor(96, 108, 96), MainWindow::tr("Stress extra 1"));
+    apply_bit_depth();
     w.set_session_saved(w.session());
     w.reset_document(half, half, QColor(108, 96, 108), MainWindow::tr("Stress extra 2"));
+    apply_bit_depth();
     w.set_session_saved(w.session());
     if (w.document_tabs_ != nullptr) {
       const auto count = w.document_tabs_->count();
@@ -2864,6 +2896,9 @@ StressReport StressTestRunner::run() {
     report_.device_pixel_ratio = screen->devicePixelRatio();
   }
   report_.baseline_tag = QLatin1String(kBaselineTag);
+  if (options_.bit_depth == 16 || options_.bit_depth == 32) {
+    set_deep_editing_override(true);
+  }
 
   QElapsedTimer total;
   total.start();

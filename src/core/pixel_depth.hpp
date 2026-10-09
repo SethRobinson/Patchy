@@ -34,6 +34,17 @@ inline constexpr float kDeepScale = 255.0F;
 [[nodiscard]] bool deep_editing_enabled();
 void set_deep_editing_override(std::optional<bool> enabled);
 
+// Whether this build edits documents at `depth`. The web build stops at 16 bits (its
+// memory budget): 32-bit files open converted to 16 and Image > Mode offers no 32.
+[[nodiscard]] constexpr bool depth_supported_on_platform(BitDepth depth) noexcept {
+#ifdef __EMSCRIPTEN__
+  return depth != BitDepth::Float32;
+#else
+  static_cast<void>(depth);
+  return true;
+#endif
+}
+
 enum class DeepDomain : std::uint8_t {
   Encoded,  // display-encoded sRGB values on the deep scale (8 and 16-bit documents)
   Linear    // linear light, 255 = 1.0, unbounded (32-bit documents)
