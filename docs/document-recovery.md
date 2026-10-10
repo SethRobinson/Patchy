@@ -63,15 +63,24 @@ write, never by construction, so an instance that never wrote leaves nothing beh
 Inside, per session (Qt-free layout in `src/core/document_recovery_store.hpp`):
 
 - `<session_id>.psb`: the copy.
-- `<session_id>.recovery`: UTF-8 `key=value` lines `title=`, `path=` (the original file as
-  UTF-8, empty when never saved), `savedAt=` (Unix ms). Key=value rather than JSON because
-  `patchy_core` has no JSON parser and titles and paths cannot contain newlines. The PSB
-  is written first and the sidecar second, so a crash between them leaves a recoverable
-  document listed as untitled, never a sidecar pointing at nothing.
+- `<session_id>.recovery`: UTF-8 `key=value` lines, first `format=2`, then `title=`,
+  `path=` (the original file as UTF-8, empty when never saved), `savedAt=` (Unix ms).
+  Key=value rather than JSON because `patchy_core` has no JSON parser. Format 2 escapes
+  a backslash, a newline and a carriage return in values (`\\`, `\n`, `\r`): a POSIX
+  path or a title may legally contain a line break, and unescaped it would have produced
+  a second `path=` line that redirected the recovered document's Save. A sidecar with no
+  `format=` line is the original unescaped layout and decodes verbatim (Windows paths
+  there hold raw backslashes). A repeated `title`, `path` or `savedAt` key is malformed:
+  the first title and timestamp stay and the path is dropped, so a damaged or crafted
+  sidecar can only make a document untitled. The PSB is written first and the sidecar
+  second, so a crash between them leaves a recoverable document listed as untitled,
+  never a sidecar pointing at nothing.
 - `lock`: a `QLockFile` with `setStaleLockTime(0)`. Liveness comes from Qt's own check that
   the pid in the file is a running process; the age heuristic is disabled because a live
   instance older than 30 seconds would otherwise look stale and a second instance would
-  recover its documents out from under it.
+  recover its documents out from under it. The probe itself (`tryLock` then `unlock`)
+  replaces a stale lock file and removes it again, so after an orphan scan a dead
+  instance's folder has no `lock`; tests must not expect one to survive.
 
 Both files are written through `write_file_bytes_atomically`.
 
@@ -95,13 +104,24 @@ Both files are written through `write_file_bytes_atomically`.
   with prompts off, plus the reopened-text metric fix-up), becomes a modified session, and
   its two files are renamed into this instance's folder under the new session id with a
   mark equal to the session's current state (a second crash is covered; the timer does not
-  rewrite an identical copy). A file that fails to open stays where it is and the status
-  bar reports the count. `patchy-mcp` with a visible workspace runs the timer like the GUI;
-  hidden connectors do not.
+  rewrite an identical copy). The orphan's files are removed only after the PSB rename
+  succeeded: when this instance's folder cannot be created or the rename fails, the old
+  copy stays where it is (still listed as an orphan), no mark is recorded so the timer
+  writes a fresh copy of the open session when it is next due, and the status bar reports
+  how many copies stayed behind. A failed sidecar rename is replaced by rewriting the
+  sidecar from the entry in hand (`recovery::write_sidecar`). A file that fails to open
+  stays where it is and the status bar reports the count. `patchy-mcp` with a visible
+  workspace runs the timer like the GUI; hidden connectors do not.
 - Deleting an instance folder goes through `RecoveryInstanceFolder::remove_folder`, which
-  refuses a blank or relative path or a name that is not `<pid>-<msecs>`, so a
-  `PATCHY_RECOVERY_DIR` pointed at a user folder can never be wiped. Keep that guard on any
-  new recursive delete here.
+  is not a recursive delete: it refuses a blank or relative path, a name that is not
+  `<pid>-<msecs>`, a link or junction, an unreadable folder, and any folder holding
+  anything but the store's own files (`recovery::is_store_file_name`: `<id>.psb`,
+  `<id>.recovery`, their `.patchy-tmp` temporaries) and the lock; otherwise it removes
+  those files one by one and then the empty folder. Ownership is proven by the contents,
+  never by the name, so a `PATCHY_RECOVERY_DIR` pointed at a photo library whose `2026-10`
+  folder fits the name pattern loses nothing. The orphan scan reads `symlink_status`, so a
+  link named like an instance folder is neither scanned nor swept. Keep both rules on any
+  new delete here.
 - Concurrent instances are real (`PATCHY_NO_SINGLE_INSTANCE`, the test binaries, the
   connector), which is why liveness is per folder and never "files exist".
 - wasm: compiled out (`Q_OS_WASM`). MEMFS is recreated per page load, so there is nothing
@@ -128,18 +148,37 @@ instead of test-only hooks.
 ## Atomic file writes
 
 `write_file_bytes_atomically(path, bytes, open_message, write_message)` in
-`src/support/atomic_file_write.hpp` writes `<name>.<pid>-<counter>.patchy-tmp` beside the
-target, flushes, and renames it over the target (MSVC's `rename` is `MoveFileExW` with
-`MOVEFILE_REPLACE_EXISTING`; POSIX `rename` replaces). The temporary file is removed on
-every failure path. Callers: `psd::write_file_bytes` (every PSD/PSB write), `formats::write_file_bytes` (BMP,
-TGA, PCX, ICO, ILBM, Aseprite, GIF, JPEG XR, SVG, RTTEX, DDS), the animated WebP writer, and
-the recovery store. `write_flat_image_file`
-(PNG, JPEG, WebP, TIFF and the other `QImageWriter` formats) goes through `QSaveFile` with
-an explicit format instead, since `QImageWriter` on a device cannot infer it from a suffix.
+`src/support/atomic_file_write.hpp` creates `<name>.<pid>-<counter>-<random>.patchy-tmp`
+beside the target exclusively (`CREATE_NEW` with `FILE_FLAG_OPEN_REPARSE_POINT` on
+Windows, `O_CREAT|O_EXCL|O_NOFOLLOW` elsewhere; a name that exists in any form is skipped
+and another drawn), writes the bytes through that same handle, flushes them to the device
+(`FlushFileBuffers`; `fsync`, `F_FULLFSYNC` first on macOS), and renames it over the
+target (`MoveFileExW` with `MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH`; POSIX
+`rename` followed by a best-effort `fsync` of the directory). The temporary file is
+removed on every failure path, and only a temporary the call itself created is ever
+removed. Guarantees: a process crash, a full disk or a writer error never leaves the
+target truncated (the old file survives until the new bytes are complete); against an OS
+crash or power loss the new bytes are on the device before the rename, and the one window
+left is a directory entry the file system has not persisted yet, in which case the old
+file is what comes back. A flush failure is a write failure. Callers:
+`psd::write_file_bytes` (every PSD/PSB write), `formats::write_file_bytes` (BMP, TGA,
+PCX, ICO, ILBM, Aseprite, GIF, JPEG XR, SVG, RTTEX, DDS), the animated WebP writer, the
+palette (`palette_io::write_palette_file`) and Curves preset (`acv::write_file`) exports,
+and the recovery store. `write_flat_image_file` (PNG, JPEG, WebP, TIFF and the other
+`QImageWriter` formats) goes through `QSaveFile` with an explicit format instead, since
+`QImageWriter` on a device cannot infer it from a suffix. Small Qt-side text files (the
+Script Manager's Save and Save As, `patchy.io.writeTextFile`) go through
+`save_text_file_atomically` in `src/ui/qt_text_file.hpp`, a `QSaveFile` wrapper that
+reports the commit result; the editor clears its modified flag only after that succeeds.
 
 Writers that stream to disk or hand a path to a library use `AtomicFileReplacement` (same
-header, same temporary name): write `temporary_path()`, close it, `commit()` renames it
-over the target; without a commit the destructor removes the temporary. Callers: the PDF
+header, same temporary name, reserved empty by the constructor's exclusive create): write
+`temporary_path()`, close it, `commit()` reopens it without following links, refuses
+anything that is not a regular file with one hard link, flushes it and renames it over
+the target; without a commit the destructor removes the temporary. Because these callers
+reopen the reserved name by path, a link swapped in under it between the reservation and
+their open would receive their bytes; the commit check keeps such a swap from ever
+replacing the target, and the in-memory writer has no such window. Callers: the PDF
 image-page writer (`pdf::ImageWriter`, pages stream into the temporary and `finish()`
 commits), the Qt-engine PDF writers through `pdf_detail::QtPdfOutput` (`QPdfWriter` on a
 `QFile` device opened on the temporary, so a failed write is caught from `QFile::error()`;
@@ -155,18 +194,29 @@ permissions rather than the old file's. The byte canaries pin encoder bytes, not
 
 ## Tests
 
-Core (`patchy_core_tests`, filters `atomic_write` and `recovery`; group
-`atomic_write_recovery_tests`): replace-existing with no temporary left, missing directory
-throws and keeps nothing, failed rename keeps the target and removes the temporary, the
-streaming replacement's commit/discard/destructor (and `pdf_image_writer_keeps_existing`), sidecar
-round trip with Unicode and CRLF input, directory scan with strays, Unicode instance root.
+Core (`patchy_core_tests`, filters `atomic_write`, `recovery` and `palette_and_curves`;
+group `atomic_write_recovery_tests`): replace-existing with no temporary left, missing
+directory throws and keeps nothing, failed rename keeps the target and removes the
+temporary, planted hard links at the old predictable temporary names stay untouched and
+two reservations never share a name, a hard link or symlink swapped in under the reserved
+name is refused at commit, the streaming replacement's commit/discard/destructor (and
+`pdf_image_writer_keeps_existing`), palette and Curves exports replacing and failing
+atomically, sidecar round trip with Unicode and CRLF input, format 2 escaping, legacy
+decoding and duplicate-key rejection, `is_store_file_name`, directory scan with strays,
+Unicode instance root. No power-loss test exists; the flush ordering is by inspection.
 
 UI (`patchy_ui_visual_tests`, filters `ui_recovery`, `ui_flat_save`, `ui_preferences_recovery`;
 group `document_recovery_tests`): `writeNow` round trip through the PSB reader and the
 sidecar, the `(revision, state_id)` rule across undo/redo/edit, discard on save and on close,
 the modal-dialog busy skip and the enabled toggle on a 50 ms timer, orphan detection through
-a dead-pid lock and `recoverAll`, a live instance's folder never reported, Unicode roots and
-titles, the atomic flat and PSD save (overwrite leaves no temporary, a missing folder fails
-and keeps the old files), and the Preferences row plus the scripting setters. PDF:
+a dead-pid lock and `recoverAll`, a live instance's folder never reported, foreign
+date-named folders (photos, a dead lock beside a photo, a directory link) surviving the
+sweep while a lock-and-temporary leftover folder goes, a blocked instance folder leaving
+the orphan copy in place and still listed until the timer covers the session, Unicode
+roots and titles, the atomic flat and PSD save (overwrite leaves no temporary, a missing
+folder fails and keeps the old files), and the Preferences row plus the scripting setters.
+Scripting (filters `ui_script_editor_save_failure` and `ui_script_io_write_text_file`):
+the Script Manager save that cannot land keeps the editor modified and the folder clean,
+and `writeTextFile` throws on a blocked target. PDF:
 `ui_pdf_export_failure_keeps_existing_file` and `ui_pdf_export_writes_unicode_paths`
 (filter `ui_pdf_export`).

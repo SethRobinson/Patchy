@@ -2,6 +2,7 @@
 
 #ifndef Q_OS_WASM
 
+#include "support/path_utils.hpp"
 #include "ui/qt_paths.hpp"
 
 #include <QCoreApplication>
@@ -11,6 +12,7 @@
 
 #include <algorithm>
 #include <system_error>
+#include <vector>
 
 namespace patchy::ui {
 namespace {
@@ -81,7 +83,10 @@ std::vector<OrphanedRecoveryFolder> RecoveryInstanceFolder::scan_orphaned(const 
     return orphans;
   }
   for (const auto& item : iterator) {
-    if (!item.is_directory(error) || error || !is_instance_folder_name(item.path().filename())) {
+    // symlink_status: a link or junction named like an instance folder is not one,
+    // and following it would scan (and sweep) whatever it points at.
+    const auto status = item.symlink_status(error);
+    if (error || !std::filesystem::is_directory(status) || !is_instance_folder_name(item.path().filename())) {
       continue;
     }
     {
@@ -96,6 +101,9 @@ std::vector<OrphanedRecoveryFolder> RecoveryInstanceFolder::scan_orphaned(const 
     }
     auto entries = recovery::scan_instance_dir(item.path());
     if (entries.empty()) {
+      // Nothing to recover: an instance that never wrote, or one whose entries were
+      // all removed. remove_folder only deletes a folder holding Patchy's own files,
+      // so a date-named folder of someone else's under a custom root stays.
       (void)remove_folder(item.path());
       continue;
     }
@@ -127,7 +135,44 @@ bool RecoveryInstanceFolder::remove_folder(const std::filesystem::path& director
     return false;
   }
   std::error_code error;
-  std::filesystem::remove_all(directory, error);
+  // The folder itself, never through a link or junction standing in its place.
+  const auto status = std::filesystem::symlink_status(directory, error);
+  if (error || !std::filesystem::is_directory(status)) {
+    return false;
+  }
+  // Ownership is proven by the contents, not the name: every entry must be a regular
+  // file the store or the lock wrote. Anything else (a subfolder, a link, a photo in a
+  // "2026-10" folder under a mistaken PATCHY_RECOVERY_DIR) makes the folder someone
+  // else's, and nothing in it is touched. An unreadable folder is not disposable.
+  std::filesystem::directory_iterator iterator(directory, error);
+  if (error) {
+    return false;
+  }
+  std::vector<std::filesystem::path> owned;
+  for (const auto& item : iterator) {
+    const auto item_status = item.symlink_status(error);
+    if (error || !std::filesystem::is_regular_file(item_status)) {
+      return false;
+    }
+    const auto name = path_to_utf8(item.path().filename());
+    if (name != kLockFileName && !recovery::is_store_file_name(name)) {
+      return false;
+    }
+    owned.push_back(item.path());
+  }
+  // Non-recursive by construction: the files one by one, then the empty folder. A file
+  // that will not go (the forced-exit path still holds its own lock open on Windows)
+  // does not stop the others: the session copies must leave even when the lock stays,
+  // or the next launch would recover them again. That lock-only folder is swept then.
+  bool removed_all = true;
+  for (const auto& path : owned) {
+    std::filesystem::remove(path, error);
+    removed_all = removed_all && !error;
+  }
+  if (!removed_all) {
+    return false;
+  }
+  std::filesystem::remove(directory, error);
   return !error;
 }
 

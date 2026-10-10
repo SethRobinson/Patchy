@@ -19141,6 +19141,14 @@ Y: %2
         <source>Saved icon to %1</source>
         <translation>Значок сохранен в %1.</translation>
     </message>
+    <message numerus="yes">
+        <source>%n recovered document(s) could not be moved to this session&apos;s recovery folder; the copies stay in %1</source>
+        <translation>
+            <numerusform>Не удалось переместить %n восстановленный документ в папку восстановления этого сеанса; копия остаётся в %1</numerusform>
+            <numerusform>Не удалось переместить %n восстановленных документа в папку восстановления этого сеанса; копии остаются в %1</numerusform>
+            <numerusform>Не удалось переместить %n восстановленных документов в папку восстановления этого сеанса; копии остаются в %1</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -19818,6 +19826,10 @@ Y: %2
         <source>Opens Preferences &gt; Hotkeys at this script&apos;s row.</source>
         <translation>Открывает Настройки &gt; Горячие клавиши на строке этого скрипта.</translation>
     </message>
+    <message>
+        <source>Could not write %1: %2</source>
+        <translation>Не удалось записать %1: %2</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptEngineHost</name>
@@ -20196,10 +20208,6 @@ Y: %2
     <message>
         <source>readTextFile: %1 is larger than 256 MB</source>
         <translation>readTextFile: %1 больше 256 МБ</translation>
-    </message>
-    <message>
-        <source>Could not write %1</source>
-        <translation>Не удалось записать %1</translation>
     </message>
     <message>
         <source>listFiles: no such folder: %1</source>
@@ -20648,6 +20656,10 @@ Y: %2
     <message>
         <source>patchy.scripts: could not write %1.</source>
         <translation>patchy.scripts: не удалось записать %1.</translation>
+    </message>
+    <message>
+        <source>Could not write %1: %2</source>
+        <translation>Не удалось записать %1: %2</translation>
     </message>
 </context>
 <context>

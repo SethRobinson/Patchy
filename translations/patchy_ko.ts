@@ -19029,6 +19029,12 @@ Y: %2
         <source>Saved icon to %1</source>
         <translation>아이콘을 %1에 저장했습니다</translation>
     </message>
+    <message numerus="yes">
+        <source>%n recovered document(s) could not be moved to this session&apos;s recovery folder; the copies stay in %1</source>
+        <translation>
+            <numerusform>복구된 문서 %n개를 이 세션의 복구 폴더로 이동할 수 없습니다. 복사본은 %1에 남아 있습니다</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -19704,6 +19710,10 @@ Y: %2
         <source>Opens Preferences &gt; Hotkeys at this script&apos;s row.</source>
         <translation>환경 설정 &gt; 단축키를 이 스크립트의 행에서 엽니다.</translation>
     </message>
+    <message>
+        <source>Could not write %1: %2</source>
+        <translation>%1에 쓸 수 없습니다: %2</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptEngineHost</name>
@@ -20082,10 +20092,6 @@ Y: %2
     <message>
         <source>readTextFile: %1 is larger than 256 MB</source>
         <translation>readTextFile: %1은(는) 256MB보다 큽니다.</translation>
-    </message>
-    <message>
-        <source>Could not write %1</source>
-        <translation>%1에 쓸 수 없습니다</translation>
     </message>
     <message>
         <source>listFiles: no such folder: %1</source>
@@ -20534,6 +20540,10 @@ Y: %2
     <message>
         <source>patchy.scripts: could not write %1.</source>
         <translation>patchy.scripts: %1을(를) 쓸 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Could not write %1: %2</source>
+        <translation>%1에 쓸 수 없습니다: %2</translation>
     </message>
 </context>
 <context>

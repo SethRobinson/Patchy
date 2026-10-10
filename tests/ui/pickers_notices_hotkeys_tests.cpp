@@ -1969,6 +1969,56 @@ void ui_eyedropper_picks_the_composite_of_a_16_bit_document() {
   CHECK(!color_close(canvas.primary_color(), QColor(1, 2, 3), 8));
 }
 
+// The 8-bit eyedropper reads the real composite, not a per-layer approximation: an
+// opaque red child inside a 50% group over white picks pink (the old sampler returned
+// pure red), a clipped layer shows only over its base, and every pick equals the
+// compositor's own pixel, whether the canvas has a current render cache or not.
+void ui_eyedropper_picks_group_opacity_and_clipping_composite() {
+  patchy::Document document(48, 16, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("White", solid_pixels(48, 16, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::Layer group(document.allocate_layer_id(), "Half", patchy::LayerKind::Group);
+  group.set_opacity(0.5F);
+  group.add_child(patchy::Layer(document.allocate_layer_id(), "Red",
+                               solid_pixels(48, 16, patchy::PixelFormat::rgba8(), QColor(255, 0, 0))));
+  document.add_layer(std::move(group));
+  auto base = solid_pixels(48, 16, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
+  fill_pixel_rect(base, QRect(32, 0, 16, 16), QColor(0, 200, 0));
+  document.add_pixel_layer("Green right", std::move(base));
+  auto& blue = document.add_pixel_layer("Blue clipped",
+                                        solid_pixels(48, 16, patchy::PixelFormat::rgba8(), QColor(0, 0, 255)));
+  blue.set_clipped(true);
+
+  const QPoint pink_point(8, 8);
+  const QPoint blue_point(40, 8);
+  const auto expected_pink =
+      patchy::ui::qimage_from_document_rect(document, QRect(pink_point, QSize(1, 1)), true).pixelColor(0, 0);
+  const auto expected_blue =
+      patchy::ui::qimage_from_document_rect(document, QRect(blue_point, QSize(1, 1)), true).pixelColor(0, 0);
+  CHECK(color_close(expected_pink, QColor(255, 128, 128), 2));
+  CHECK(color_close(expected_blue, QColor(0, 0, 255), 1));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(192, 64);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Eyedropper);
+  canvas.set_primary_color(QColor(1, 2, 3));
+  const auto pick = [&](QPoint document_point) {
+    const auto point = canvas.widget_position_for_document_point(document_point);
+    send_mouse(canvas, QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(canvas, QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton);
+    return canvas.primary_color();
+  };
+  // Before the first paint there is no render cache: the one-pixel render path.
+  CHECK(color_close(pick(pink_point), expected_pink, 1));
+  CHECK(!color_close(canvas.primary_color(), QColor(255, 0, 0), 8));
+  CHECK(color_close(pick(blue_point), expected_blue, 1));
+  // Shown and painted: the cached composite path answers the same.
+  canvas.show();
+  QApplication::processEvents();
+  CHECK(color_close(pick(pink_point), expected_pink, 1));
+  CHECK(color_close(pick(blue_point), expected_blue, 1));
+}
+
 void ui_eyedropper_starts_in_gray_area_and_drags_to_document_color() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -3031,6 +3081,8 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_brush_paints_deep_layers_and_masks_at_depth", ui_brush_paints_deep_layers_and_masks_at_depth},
       {"ui_retouch_tools_edit_deep_layers_at_depth", ui_retouch_tools_edit_deep_layers_at_depth},
       {"ui_eyedropper_picks_the_composite_of_a_16_bit_document", ui_eyedropper_picks_the_composite_of_a_16_bit_document},
+      {"ui_eyedropper_picks_group_opacity_and_clipping_composite",
+       ui_eyedropper_picks_group_opacity_and_clipping_composite},
       {"ui_eyedropper_starts_in_gray_area_and_drags_to_document_color",
        ui_eyedropper_starts_in_gray_area_and_drags_to_document_color},
       {"ui_photoshop_shortcuts_are_registered", ui_photoshop_shortcuts_are_registered},

@@ -19036,6 +19036,13 @@ Baked into images: %1.</source>
         <source>Saved icon to %1</source>
         <translation type="unfinished"></translation>
     </message>
+    <message numerus="yes">
+        <source>%n recovered document(s) could not be moved to this session&apos;s recovery folder; the copies stay in %1</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -19712,6 +19719,10 @@ Baked into images: %1.</source>
         <source>Opens Preferences &gt; Hotkeys at this script&apos;s row.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Could not write %1: %2</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptEngineHost</name>
@@ -19965,10 +19976,6 @@ Baked into images: %1.</source>
     </message>
     <message>
         <source>readTextFile: %1 is larger than 256 MB</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Could not write %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -20541,6 +20548,10 @@ Baked into images: %1.</source>
     </message>
     <message>
         <source>patchy.scripts: could not write %1.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not write %1: %2</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -19029,6 +19029,12 @@ Baked into images: %1.</source>
         <source>Saved icon to %1</source>
         <translation>アイコンを %1 に保存しました</translation>
     </message>
+    <message numerus="yes">
+        <source>%n recovered document(s) could not be moved to this session&apos;s recovery folder; the copies stay in %1</source>
+        <translation>
+            <numerusform>%n 件の復元した書類をこのセッションの復元フォルダーに移動できませんでした。コピーは %1 に残っています</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -19704,6 +19710,10 @@ Baked into images: %1.</source>
         <source>Opens Preferences &gt; Hotkeys at this script&apos;s row.</source>
         <translation>環境設定 &gt; ホットキーをこのスクリプトの行で開きます。</translation>
     </message>
+    <message>
+        <source>Could not write %1: %2</source>
+        <translation>%1 に書き込めませんでした: %2</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptEngineHost</name>
@@ -20058,10 +20068,6 @@ Baked into images: %1.</source>
     <message>
         <source>Could not read %1</source>
         <translation>%1 を読み込めませんでした</translation>
-    </message>
-    <message>
-        <source>Could not write %1</source>
-        <translation>%1 に書き込めませんでした</translation>
     </message>
     <message>
         <source>selectRect needs a positive size.</source>
@@ -20534,6 +20540,10 @@ Baked into images: %1.</source>
     <message>
         <source>patchy.scripts: could not write %1.</source>
         <translation>patchy.scripts: %1 を書き込めませんでした。</translation>
+    </message>
+    <message>
+        <source>Could not write %1: %2</source>
+        <translation>%1 に書き込めませんでした: %2</translation>
     </message>
 </context>
 <context>

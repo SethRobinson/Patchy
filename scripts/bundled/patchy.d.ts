@@ -1027,7 +1027,10 @@ interface PatchyUi {
 interface PatchyIo {
   /** Throws when the file cannot be read or is larger than 256 MB. */
   readTextFile(path: string): string;
-  /** Throws when the file cannot be written. */
+  /**
+   * Replaces the file whole (a sibling temporary and a rename), so a failed write
+   * keeps the previous file. Throws when the file cannot be written.
+   */
   writeTextFile(path: string, text: string): void;
   /**
    * Names (not full paths) of the files in dir matching pattern ("*.png";

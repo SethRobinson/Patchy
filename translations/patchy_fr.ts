@@ -19085,6 +19085,13 @@ Convertis en images : %1.</translation>
         <source>Saved icon to %1</source>
         <translation>Icône enregistrée dans %1</translation>
     </message>
+    <message numerus="yes">
+        <source>%n recovered document(s) could not be moved to this session&apos;s recovery folder; the copies stay in %1</source>
+        <translation>
+            <numerusform>%n document récupéré n&apos;a pas pu être déplacé dans le dossier de récupération de cette session ; la copie reste dans %1</numerusform>
+            <numerusform>%n documents récupérés n&apos;ont pas pu être déplacés dans le dossier de récupération de cette session ; les copies restent dans %1</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -19761,6 +19768,10 @@ Convertis en images : %1.</translation>
         <source>Opens Preferences &gt; Hotkeys at this script&apos;s row.</source>
         <translation>Ouvre Préférences &gt; Raccourcis sur la ligne de ce script.</translation>
     </message>
+    <message>
+        <source>Could not write %1: %2</source>
+        <translation>Impossible d&apos;écrire %1 : %2</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptEngineHost</name>
@@ -20015,10 +20026,6 @@ Convertis en images : %1.</translation>
     <message>
         <source>readTextFile: %1 is larger than 256 MB</source>
         <translation>readTextFile : %1 dépasse 256 Mo</translation>
-    </message>
-    <message>
-        <source>Could not write %1</source>
-        <translation>Impossible d&apos;écrire %1</translation>
     </message>
     <message>
         <source>listFiles: no such folder: %1</source>
@@ -20591,6 +20598,10 @@ Convertis en images : %1.</translation>
     <message>
         <source>patchy.scripts: could not write %1.</source>
         <translation>patchy.scripts : impossible d&apos;écrire %1.</translation>
+    </message>
+    <message>
+        <source>Could not write %1: %2</source>
+        <translation>Impossible d&apos;écrire %1 : %2</translation>
     </message>
 </context>
 <context>

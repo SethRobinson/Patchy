@@ -19085,6 +19085,13 @@ Convertido en imágenes: %1.</translation>
         <source>Saved icon to %1</source>
         <translation>Icono guardado en %1</translation>
     </message>
+    <message numerus="yes">
+        <source>%n recovered document(s) could not be moved to this session&apos;s recovery folder; the copies stay in %1</source>
+        <translation>
+            <numerusform>No se pudo mover %n documento recuperado a la carpeta de recuperación de esta sesión; la copia permanece en %1</numerusform>
+            <numerusform>No se pudieron mover %n documentos recuperados a la carpeta de recuperación de esta sesión; las copias permanecen en %1</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -19761,6 +19768,10 @@ Convertido en imágenes: %1.</translation>
         <source>Opens Preferences &gt; Hotkeys at this script&apos;s row.</source>
         <translation>Abre Preferencias &gt; Atajos de teclado en la fila de este script.</translation>
     </message>
+    <message>
+        <source>Could not write %1: %2</source>
+        <translation>No se pudo escribir %1: %2</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptEngineHost</name>
@@ -20015,10 +20026,6 @@ Convertido en imágenes: %1.</translation>
     <message>
         <source>readTextFile: %1 is larger than 256 MB</source>
         <translation>readTextFile: %1 supera los 256 MB</translation>
-    </message>
-    <message>
-        <source>Could not write %1</source>
-        <translation>No se pudo escribir %1</translation>
     </message>
     <message>
         <source>listFiles: no such folder: %1</source>
@@ -20591,6 +20598,10 @@ Convertido en imágenes: %1.</translation>
     <message>
         <source>patchy.scripts: could not write %1.</source>
         <translation>patchy.scripts: no se pudo escribir %1.</translation>
+    </message>
+    <message>
+        <source>Could not write %1: %2</source>
+        <translation>No se pudo escribir %1: %2</translation>
     </message>
 </context>
 <context>

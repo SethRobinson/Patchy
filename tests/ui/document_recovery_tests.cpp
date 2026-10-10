@@ -38,11 +38,14 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <iostream>
 #include <string>
+#include <system_error>
 #include <vector>
 
 #ifdef Q_OS_WIN
 #include <stdlib.h>
+#include <winerror.h>
 #endif
 
 using patchy::test::kUnicodeCombinedStem;
@@ -449,6 +452,128 @@ void ui_recovery_sweep_only_touches_instance_folders() {
   CHECK(!QDir(root + QStringLiteral("/4000000000-8")).exists());
 }
 
+// A custom PATCHY_RECOVERY_DIR may hold folders whose names happen to fit the
+// <pid>-<msecs> pattern (a photo library's "2026-10"). Nothing in them is Patchy's, so
+// the sweep lists nothing from them, deletes nothing, follows no link, and refuses them
+// outright; a folder of Patchy's own leftovers (a lock and an unfinished temporary of a
+// session copy) still goes.
+void ui_recovery_sweep_keeps_foreign_date_named_folders() {
+  RecoveryEnvRestorer env;
+  const auto root = fresh_recovery_root(QStringLiteral("foreign-folders"));
+  const auto write_text = [](const QString& path, const char* text) {
+    QFile file(path);
+    CHECK(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    file.write(text);
+  };
+  const auto photos = root + QStringLiteral("/2026-10");
+  CHECK(QDir().mkpath(photos + QStringLiteral("/Trip")));
+  write_text(photos + QStringLiteral("/IMG_0001.jpg"), "photo");
+  write_text(photos + QStringLiteral("/Trip/IMG_0002.jpg"), "photo");
+  // A dead lock and a stray PSB beside a photo do not make the folder Patchy's.
+  const auto mixed = root + QStringLiteral("/2026-11");
+  CHECK(QDir().mkpath(mixed));
+  seed_orphan_folder(root, QStringLiteral("2026-11"), {});
+  write_text(mixed + QStringLiteral("/holiday.jpg"), "photo");
+  write_text(mixed + QStringLiteral("/stray.psb"), "not a session copy");
+  // Patchy's own leftovers only: swept.
+  const auto leftovers = root + QStringLiteral("/4000000000-7");
+  CHECK(QDir().mkpath(leftovers));
+  seed_orphan_folder(root, QStringLiteral("4000000000-7"), {});
+  write_text(leftovers + QStringLiteral("/3.psb.4242-0-0123456789abcdef.patchy-tmp"), "half");
+  write_text(leftovers + QStringLiteral("/3.recovery"), "title=gone\n");
+
+  using Folder = patchy::ui::RecoveryInstanceFolder;
+  CHECK(Folder::scan_orphaned(root).empty());
+  CHECK(QFile::exists(photos + QStringLiteral("/IMG_0001.jpg")));
+  CHECK(QFile::exists(photos + QStringLiteral("/Trip/IMG_0002.jpg")));
+  CHECK(QFile::exists(mixed + QStringLiteral("/holiday.jpg")));
+  CHECK(QFile::exists(mixed + QStringLiteral("/stray.psb")));
+  // (The dead lock itself is gone: QLockFile's liveness probe replaces a stale lock
+  // and unlock() removes it again. That file was Patchy's; the photos are the point.)
+  CHECK(!QDir(leftovers).exists());
+  CHECK(!Folder::remove_folder(fs(photos)));
+  CHECK(!Folder::remove_folder(fs(mixed)));
+  CHECK(QFile::exists(photos + QStringLiteral("/IMG_0001.jpg")));
+  CHECK(QFile::exists(mixed + QStringLiteral("/holiday.jpg")));
+
+  // The window's own sweep and the scripted discard see the same thing.
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(window.list_orphaned_recovery().empty());
+  CHECK(window.discard_orphaned_recovery() == 0);
+  CHECK(QFile::exists(photos + QStringLiteral("/Trip/IMG_0002.jpg")));
+
+  // A directory link named like an instance folder is not followed and not removed.
+  std::error_code error;
+  const auto link = fs(root + QStringLiteral("/4000000000-8"));
+  std::filesystem::create_directory_symlink(fs(photos), link, error);
+  bool symlinks_unavailable = error == std::errc::permission_denied || error == std::errc::operation_not_permitted ||
+      error == std::errc::function_not_supported || error == std::errc::operation_not_supported;
+#if defined(Q_OS_WIN)
+  symlinks_unavailable = symlinks_unavailable ||
+      error == std::error_code(ERROR_PRIVILEGE_NOT_HELD, std::system_category());
+#endif
+  if (symlinks_unavailable) {
+    std::cout << "[SKIP] link half of ui_recovery_sweep_keeps_foreign_date_named_folders: " << error.message()
+              << '\n';
+    return;
+  }
+  CHECK(!error);
+  CHECK(Folder::scan_orphaned(root).empty());
+  CHECK(!Folder::remove_folder(link));
+  CHECK(std::filesystem::is_symlink(std::filesystem::symlink_status(link)));
+  CHECK(QFile::exists(photos + QStringLiteral("/IMG_0001.jpg")));
+  std::filesystem::remove(link, error);
+}
+
+// The orphan's files stay until a copy exists under this instance. When this
+// instance's folder cannot be created (a file sits where it would go), the recovered
+// document still opens, the old copy stays where it was and is still listed, the status
+// bar says so, and the next recovery write covers the session with a fresh copy.
+void ui_recovery_adoption_failure_keeps_orphan_copy() {
+  RecoveryEnvRestorer env;
+  const auto root = fresh_recovery_root(QStringLiteral("adoption-fails"));
+  patchy::recovery::RecoveryEntry titled;
+  titled.title = "Poster.png";
+  titled.saved_at_unix_ms = 7;
+  seed_orphan_folder(root, QStringLiteral("4000000000-1"), {{5, titled}});
+  const auto orphan_psb = root + QStringLiteral("/4000000000-1/5.psb");
+  const auto orphan_sidecar = root + QStringLiteral("/4000000000-1/5.recovery");
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto instance_dir = window.recovery_directory();
+  CHECK(!instance_dir.isEmpty() && !QDir(instance_dir).exists());
+  {
+    QFile block(instance_dir);
+    CHECK(block.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    block.write("not a folder");
+  }
+  const auto before = patchy::ui::MainWindowTestAccess::session_count(window);
+  const auto recovered = window.recover_orphaned_documents();
+  CHECK(recovered.size() == 1);
+  CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == before + 1);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_modified(window));
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_title(window) == QStringLiteral("Poster.png (Recovered)"));
+  // Both orphan files are still on disk, the folder is still an orphan, and nothing
+  // claims to be adopted.
+  CHECK(QFile::exists(orphan_psb));
+  CHECK(QFile::exists(orphan_sidecar));
+  CHECK(window.list_orphaned_recovery().size() == 1);
+  CHECK(window.list_recovery_entries().empty());
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("could not be moved")));
+
+  // Once the folder can be created, the timer's write (no mark was recorded) covers the
+  // session; the orphan stays until the user or the next launch takes it.
+  CHECK(QFile::remove(instance_dir));
+  CHECK(window.write_recovery_now(true).size() == 1);
+  CHECK(window.list_recovery_entries().size() == 1);
+  CHECK(QFile::exists(orphan_psb));
+  CHECK(window.discard_orphaned_recovery() == 1);
+  CHECK(!QDir(root + QStringLiteral("/4000000000-1")).exists());
+  CHECK(window.list_recovery_entries().size() == 1);
+}
+
 void ui_recovery_round_trips_unicode_paths() {
   RecoveryEnvRestorer env;
   const auto root = fresh_recovery_root(QStringLiteral("recovery"), q(kUnicodeDirName));
@@ -590,6 +715,8 @@ std::vector<patchy::test::TestCase> document_recovery_tests() {
        ui_recovery_orphaned_folder_recovers_as_modified_document},
       {"ui_recovery_live_instance_is_not_reported_as_orphaned", ui_recovery_live_instance_is_not_reported_as_orphaned},
       {"ui_recovery_sweep_only_touches_instance_folders", ui_recovery_sweep_only_touches_instance_folders},
+      {"ui_recovery_sweep_keeps_foreign_date_named_folders", ui_recovery_sweep_keeps_foreign_date_named_folders},
+      {"ui_recovery_adoption_failure_keeps_orphan_copy", ui_recovery_adoption_failure_keeps_orphan_copy},
       {"ui_recovery_round_trips_unicode_paths", ui_recovery_round_trips_unicode_paths},
       {"ui_flat_save_is_atomic_and_reports_failure", ui_flat_save_is_atomic_and_reports_failure},
       {"ui_preferences_recovery_controls_persist", ui_preferences_recovery_controls_persist},

@@ -19085,6 +19085,13 @@ In Bilder umgewandelt: %1.</translation>
         <source>Saved icon to %1</source>
         <translation>Symbol gespeichert unter %1</translation>
     </message>
+    <message numerus="yes">
+        <source>%n recovered document(s) could not be moved to this session&apos;s recovery folder; the copies stay in %1</source>
+        <translation>
+            <numerusform>%n wiederhergestelltes Dokument konnte nicht in den Wiederherstellungsordner dieser Sitzung verschoben werden; die Kopie bleibt in %1</numerusform>
+            <numerusform>%n wiederhergestellte Dokumente konnten nicht in den Wiederherstellungsordner dieser Sitzung verschoben werden; die Kopien bleiben in %1</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -19761,6 +19768,10 @@ In Bilder umgewandelt: %1.</translation>
         <source>Opens Preferences &gt; Hotkeys at this script&apos;s row.</source>
         <translation>Öffnet Einstellungen &gt; Tastaturbefehle bei der Zeile dieses Skripts.</translation>
     </message>
+    <message>
+        <source>Could not write %1: %2</source>
+        <translation>%1 konnte nicht geschrieben werden: %2</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptEngineHost</name>
@@ -20015,10 +20026,6 @@ In Bilder umgewandelt: %1.</translation>
     <message>
         <source>readTextFile: %1 is larger than 256 MB</source>
         <translation>readTextFile: %1 ist größer als 256 MB</translation>
-    </message>
-    <message>
-        <source>Could not write %1</source>
-        <translation>%1 konnte nicht geschrieben werden</translation>
     </message>
     <message>
         <source>listFiles: no such folder: %1</source>
@@ -20591,6 +20598,10 @@ In Bilder umgewandelt: %1.</translation>
     <message>
         <source>patchy.scripts: could not write %1.</source>
         <translation>patchy.scripts: %1 konnte nicht geschrieben werden.</translation>
+    </message>
+    <message>
+        <source>Could not write %1: %2</source>
+        <translation>%1 konnte nicht geschrieben werden: %2</translation>
     </message>
 </context>
 <context>

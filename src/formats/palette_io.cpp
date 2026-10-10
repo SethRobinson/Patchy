@@ -1,6 +1,7 @@
 #include "formats/palette_io.hpp"
 
 #include "formats/bmp_document_io.hpp"
+#include "support/atomic_file_write.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
@@ -547,14 +548,9 @@ std::vector<std::uint8_t> write_palette_bytes(std::span<const RgbColor> colors, 
 void write_palette_file(const std::filesystem::path& path, std::span<const RgbColor> colors,
                         PaletteFileFormat format, std::string_view name, std::span<const std::string> names) {
   const auto bytes = write_palette_bytes(colors, format, name, names);
-  std::ofstream file(path, std::ios::binary | std::ios::trunc);
-  if (!file) {
-    throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Could not create palette file"));
-  }
-  file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
-  if (!file) {
-    throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Could not write palette file"));
-  }
+  // Sibling temporary plus rename: a failed export keeps the previous palette file.
+  write_file_bytes_atomically(path, bytes, PATCHY_TRANSLATE_NOOP("QObject", "Could not create palette file"),
+                              PATCHY_TRANSLATE_NOOP("QObject", "Could not write palette file"));
 }
 
 std::optional<PaletteFileFormat> palette_format_for_extension(std::string_view extension) noexcept {

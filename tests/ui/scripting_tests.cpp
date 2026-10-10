@@ -3853,6 +3853,102 @@ void ui_script_webp_animation_export_preserves_document_and_validates_options() 
   CHECK(still.imageCount() == 1);
 }
 
+// Save goes through a replacement write. When the file cannot be replaced (a folder now
+// sits where the script was) the save fails, says so in the console, and leaves the
+// editor modified so the edit is not mistaken for saved; once the path is writable
+// again the same Save lands, and the folder holds only the script, no temporary.
+void ui_script_editor_save_failure_keeps_file_and_modified_flag() {
+  const StandardPathsTestMode test_paths;
+  const auto user_dir = patchy::ui::MainWindow::user_scripts_directory();
+  remove_test_scratch_dir(user_dir);
+  const auto folder = user_dir + QStringLiteral("/Mine");
+  CHECK(QDir().mkpath(folder));
+  const auto path = folder + QStringLiteral("/keep.js");
+  {
+    QFile file(path);
+    CHECK(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    file.write("console.log('v1');\n");
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::ScriptEditorDialog dialog(window, window.script_engine_host());
+  dialog.show();
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  auto* code = dialog.findChild<QPlainTextEdit*>(QStringLiteral("scriptEditorCode"));
+  auto* console_pane = dialog.findChild<QPlainTextEdit*>(QStringLiteral("scriptEditorConsole"));
+  auto* save_button = dialog.findChild<QPushButton*>(QStringLiteral("scriptEditorSaveButton"));
+  CHECK(code != nullptr && console_pane != nullptr && save_button != nullptr);
+  dialog.open_script(path);
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  CHECK(code->toPlainText().contains(QStringLiteral("v1")));
+  code->textCursor().insertText(QStringLiteral("// edited\n"));
+  CHECK(code->document()->isModified());
+
+  // A folder in the script's place: the replacement cannot land.
+  CHECK(QFile::remove(path));
+  CHECK(QDir().mkpath(path + QStringLiteral("/inner")));
+  save_button->click();
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  CHECK(code->document()->isModified());
+  CHECK(console_pane->toPlainText().contains(QStringLiteral("Could not write")));
+  CHECK(QDir(path + QStringLiteral("/inner")).exists());
+  CHECK(QDir(folder).entryList(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden) ==
+        QStringList{QStringLiteral("keep.js")});
+
+  CHECK(QDir(path).rmdir(QStringLiteral("inner")));
+  CHECK(QDir(folder).rmdir(QStringLiteral("keep.js")));
+  save_button->click();
+  QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+  CHECK(!code->document()->isModified());
+  QFile saved(path);
+  CHECK(saved.open(QIODevice::ReadOnly));
+  const auto text = QString::fromUtf8(saved.readAll());
+  CHECK(text.contains(QStringLiteral("// edited")) && text.contains(QStringLiteral("v1")));
+  CHECK(QDir(folder).entryList(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden) ==
+        QStringList{QStringLiteral("keep.js")});
+  dialog.close();
+}
+
+// patchy.io.writeTextFile replaces the file whole and reports failure to the script: a
+// target that cannot be written throws (an existing file there is kept), and a
+// successful write leaves only the file behind.
+void ui_script_io_write_text_file_replaces_atomically_and_throws() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.set_cli_automation_mode(true);
+  patchy::test::ui::ensure_artifact_dir();
+  const auto dir = QFileInfo(QStringLiteral("test-artifacts")).absoluteFilePath() + QStringLiteral("/script-io-text");
+  remove_test_scratch_dir(dir);
+  CHECK(QDir().mkpath(dir));
+
+  auto& host = window.script_engine_host();
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.name = QStringLiteral("write-text-file");
+  options.args = QStringList{QStringLiteral("dir=") + dir};
+  const auto source = QStringLiteral(R"JS(
+    var dir = patchy.args.dir;
+    var p = dir + '/notes.txt';
+    patchy.io.writeTextFile(p, 'first');
+    patchy.io.writeTextFile(p, 'second, longer');
+    console.log('text=' + patchy.io.readTextFile(p));
+    var blocked = dir + '/blocked.txt';
+    patchy.io.makeDir(blocked);
+    var threw = '';
+    try { patchy.io.writeTextFile(blocked, 'x'); } catch (e) { threw = String(e); }
+    console.log('threw=' + (threw.indexOf('Could not write') >= 0));
+    console.log('files=' + patchy.io.listFiles(dir).join('|'));
+  )JS");
+  (void)host.run_source(source, std::move(options));
+  wait_for_run_end(host);
+  CHECK(!host.last_run_had_error());
+  CHECK(backlog_contains(window, QStringLiteral("text=second, longer")));
+  CHECK(backlog_contains(window, QStringLiteral("threw=true")));
+  CHECK(backlog_contains(window, QStringLiteral("files=notes.txt")));
+  auto names = QDir(dir).entryList(QDir::AllEntries | QDir::NoDotAndDotDot | QDir::Hidden);
+  names.sort();
+  CHECK(names == (QStringList{QStringLiteral("blocked.txt"), QStringLiteral("notes.txt")}));
+}
+
 void ui_script_io_round_trips_unicode_path() {
   // The patchy.io probes plus saveAs/open on a Unicode, special-character path. The
   // directory comes in through --script-arg style args; the file name is built in the
@@ -4645,6 +4741,10 @@ std::vector<patchy::test::TestCase> scripting_tests() {
       {"ui_script_active_layer_setter_reveals_row", ui_script_active_layer_setter_reveals_row},
       {"ui_script_webp_animation_export_preserves_document_and_validates_options", ui_script_webp_animation_export_preserves_document_and_validates_options},
       {"ui_script_io_round_trips_unicode_path", ui_script_io_round_trips_unicode_path},
+      {"ui_script_io_write_text_file_replaces_atomically_and_throws",
+       ui_script_io_write_text_file_replaces_atomically_and_throws},
+      {"ui_script_editor_save_failure_keeps_file_and_modified_flag",
+       ui_script_editor_save_failure_keeps_file_and_modified_flag},
       {"ui_script_unattended_normalizes_forms_and_guards_commands", ui_script_unattended_normalizes_forms_and_guards_commands},
       {"ui_script_geometry_rgb_fill_and_empty_text_regressions", ui_script_geometry_rgb_fill_and_empty_text_regressions},
       {"ui_script_layer_duplicate_to_document", ui_script_layer_duplicate_to_document},

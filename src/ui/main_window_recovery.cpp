@@ -236,12 +236,13 @@ std::vector<std::int64_t> MainWindow::recover_orphaned_documents() {
     return recovered;
   }
   int failed = 0;
+  int left_in_place = 0;
   for (const auto& orphan : list_orphaned_recovery()) {
     bool folder_clean = true;
     for (const auto& entry : orphan.entries) {
-      const auto psb_path = orphan.directory / std::filesystem::path(entry.file_stem + std::string(recovery::kDocumentExtension));
-      const auto sidecar_path =
-          orphan.directory / std::filesystem::path(entry.file_stem + std::string(recovery::kSidecarExtension));
+      const auto orphan_session_id = std::stoll(entry.file_stem);
+      const auto psb_path = recovery::document_path(orphan.directory, orphan_session_id);
+      const auto sidecar_path = recovery::sidecar_path(orphan.directory, orphan_session_id);
       const auto name = entry.title.empty() ? tr("Untitled") : QString::fromStdString(entry.title);
       std::int64_t session_id = 0;
       if (!open_recovered_document(to_qstring(psb_path), tr("%1 (Recovered)").arg(name),
@@ -251,20 +252,39 @@ std::vector<std::int64_t> MainWindow::recover_orphaned_documents() {
         continue;
       }
       recovered.push_back(session_id);
-      // Keep the copy under this instance so a second crash is covered too; the
-      // session's current state IS the copy, so the timer need not rewrite it.
+      // Move the copy under this instance so a second crash is covered too; the
+      // session's current state IS the copy, so the timer need not rewrite it. The
+      // orphan's files go only once the copy is in place under this instance: until
+      // then, and whenever the move fails, the old copy stays where it is (the open
+      // session has no mark, so the timer writes a fresh copy when it is next due).
+      bool adopted = false;
       if (auto* target_session = session_with_id(session_id);
           target_session != nullptr && recovery_folder_->ensure_created()) {
+        const auto& directory = recovery_folder_->directory();
         std::error_code error;
-        std::filesystem::rename(psb_path, recovery::document_path(recovery_folder_->directory(), session_id), error);
+        std::filesystem::rename(psb_path, recovery::document_path(directory, session_id), error);
         if (!error) {
-          std::filesystem::rename(sidecar_path, recovery::sidecar_path(recovery_folder_->directory(), session_id),
-                                  error);
+          adopted = true;
+          std::filesystem::rename(sidecar_path, recovery::sidecar_path(directory, session_id), error);
+          if (error) {
+            // The sidecar's content is in hand: rewrite it rather than leave the moved
+            // copy to recover as untitled next time.
+            try {
+              recovery::write_sidecar(directory, session_id, entry);
+            } catch (const std::exception&) {
+              // The PSB is what matters; a missing sidecar only costs the title.
+            }
+          }
           recovery_marks_[session_id] =
               RecoveryMark{session_id, target_session->revision, target_session->current_state_id};
         }
       }
-      recovery::remove_entry(orphan.directory, std::stoll(entry.file_stem));
+      if (adopted) {
+        recovery::remove_entry(orphan.directory, orphan_session_id);
+      } else {
+        ++left_in_place;
+        folder_clean = false;
+      }
     }
     if (folder_clean) {
       (void)RecoveryInstanceFolder::remove_folder(orphan.directory);
@@ -276,6 +296,11 @@ std::vector<std::int64_t> MainWindow::recover_orphaned_documents() {
   }
   if (failed > 0) {
     show_status_error(tr("%n recovery file(s) could not be opened; see %1", nullptr, failed)
+                          .arg(QDir::toNativeSeparators(RecoveryInstanceFolder::recovery_root())));
+  } else if (left_in_place > 0) {
+    show_status_error(tr("%n recovered document(s) could not be moved to this session's recovery folder; "
+                         "the copies stay in %1",
+                         nullptr, left_in_place)
                           .arg(QDir::toNativeSeparators(RecoveryInstanceFolder::recovery_root())));
   }
   return recovered;

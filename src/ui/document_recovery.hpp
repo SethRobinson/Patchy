@@ -58,9 +58,12 @@ public:
   // orphan folders (nothing was ever written) are removed on the way. Only folders
   // named like an instance folder count; anything else under the root is left alone.
   [[nodiscard]] static std::vector<OrphanedRecoveryFolder> scan_orphaned(const QString& root);
-  // Deletes an instance folder recursively. Refuses (returns false) a blank or
-  // relative path, or one whose name is not <pid>-<msecs>, so a mistaken root such as
-  // a PATCHY_RECOVERY_DIR pointed at a user folder can never be wiped.
+  // Deletes an instance folder: its files one by one, then the empty folder, never a
+  // recursive delete. Refuses (returns false, nothing removed) a blank or relative
+  // path, a name that is not <pid>-<msecs>, a link or junction, an unreadable folder,
+  // and any folder holding something other than the store's own files
+  // (`recovery::is_store_file_name`) and the lock, so a mistaken root such as a
+  // PATCHY_RECOVERY_DIR pointed at a user folder can never lose a file.
   [[nodiscard]] static bool remove_folder(const std::filesystem::path& directory) noexcept;
   [[nodiscard]] static bool is_instance_folder_name(const std::filesystem::path& name) noexcept;
 

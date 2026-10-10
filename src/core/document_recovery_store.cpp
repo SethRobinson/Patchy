@@ -38,6 +38,46 @@ bool is_session_stem(std::string_view stem) {
   return std::all_of(stem.begin(), stem.end(), [](char c) { return c >= '0' && c <= '9'; });
 }
 
+bool ends_with(std::string_view text, std::string_view suffix) {
+  return text.size() >= suffix.size() && text.substr(text.size() - suffix.size()) == suffix;
+}
+
+// Format 2 value escaping: the three characters that could break the line layout.
+std::string escape_value(std::string_view value) {
+  std::string out;
+  out.reserve(value.size());
+  for (const char c : value) {
+    switch (c) {
+      case '\\': out += "\\\\"; break;
+      case '\n': out += "\\n"; break;
+      case '\r': out += "\\r"; break;
+      default: out += c; break;
+    }
+  }
+  return out;
+}
+
+// An escape the writer never produces is kept literally rather than dropped.
+std::string unescape_value(std::string_view value) {
+  std::string out;
+  out.reserve(value.size());
+  for (std::size_t i = 0; i < value.size(); ++i) {
+    const char c = value[i];
+    if (c != '\\' || i + 1 == value.size()) {
+      out += c;
+      continue;
+    }
+    const char next = value[++i];
+    switch (next) {
+      case '\\': out += '\\'; break;
+      case 'n': out += '\n'; break;
+      case 'r': out += '\r'; break;
+      default: out += '\\'; out += next; break;
+    }
+  }
+  return out;
+}
+
 }  // namespace
 
 std::filesystem::path document_path(const std::filesystem::path& instance_dir, std::int64_t session_id) {
@@ -49,14 +89,18 @@ std::filesystem::path sidecar_path(const std::filesystem::path& instance_dir, st
 }
 
 std::string encode_sidecar(const RecoveryEntry& entry) {
-  return "title=" + entry.title + "\npath=" + entry.original_path + "\nsavedAt=" +
-         std::to_string(entry.saved_at_unix_ms) + "\n";
+  return "format=" + std::to_string(kSidecarFormatVersion) + "\ntitle=" + escape_value(entry.title) +
+         "\npath=" + escape_value(entry.original_path) + "\nsavedAt=" + std::to_string(entry.saved_at_unix_ms) + "\n";
 }
 
 std::optional<RecoveryEntry> decode_sidecar(std::string_view text, std::string file_stem) {
   RecoveryEntry entry;
   entry.file_stem = std::move(file_stem);
   bool recognized = false;
+  bool escaped = false;
+  int title_count = 0;
+  int path_count = 0;
+  int saved_at_count = 0;
   while (!text.empty()) {
     const auto end = text.find('\n');
     auto line = text.substr(0, end);
@@ -69,24 +113,41 @@ std::optional<RecoveryEntry> decode_sidecar(std::string_view text, std::string f
       continue;
     }
     const auto key = line.substr(0, separator);
-    const auto value = line.substr(separator + 1);
+    const auto raw = line.substr(separator + 1);
+    if (key == "format") {
+      // Only the version this reader knows escapes; a legacy file has no format line.
+      escaped = raw == "2";
+      continue;
+    }
+    const auto value = escaped ? unescape_value(raw) : std::string(raw);
     if (key == "title") {
-      entry.title = std::string(value);
+      if (++title_count == 1) {
+        entry.title = value;
+      }
       recognized = true;
     } else if (key == "path") {
-      entry.original_path = std::string(value);
+      if (++path_count == 1) {
+        entry.original_path = value;
+      }
       recognized = true;
     } else if (key == "savedAt") {
-      try {
-        entry.saved_at_unix_ms = std::stoll(std::string(value));
-      } catch (const std::exception&) {
-        entry.saved_at_unix_ms = 0;
+      if (++saved_at_count == 1) {
+        try {
+          entry.saved_at_unix_ms = std::stoll(value);
+        } catch (const std::exception&) {
+          entry.saved_at_unix_ms = 0;
+        }
       }
       recognized = true;
     }
   }
   if (!recognized) {
     return std::nullopt;
+  }
+  if (title_count > 1 || path_count > 1 || saved_at_count > 1) {
+    // Malformed: a second `path=` line is exactly what an unescaped line break in a
+    // title would have produced. The document still recovers, with Save prompting.
+    entry.original_path.clear();
   }
   return entry;
 }
@@ -124,17 +185,40 @@ std::vector<RecoveryEntry> scan_instance_dir(const std::filesystem::path& instan
   return entries;
 }
 
+bool is_store_file_name(std::string_view name) noexcept {
+  if (ends_with(name, kAtomicTemporarySuffix)) {
+    // `<session>.<ext>.<pid>-<n>-<token>.patchy-tmp`: drop the suffix and the writer's
+    // own middle piece, then judge what is left like a finished file.
+    name.remove_suffix(kAtomicTemporarySuffix.size());
+    const auto dot = name.rfind('.');
+    if (dot == std::string_view::npos) {
+      return false;
+    }
+    name = name.substr(0, dot);
+  }
+  for (const auto extension : {kDocumentExtension, kSidecarExtension}) {
+    if (ends_with(name, extension) && is_session_stem(name.substr(0, name.size() - extension.size()))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void write_sidecar(const std::filesystem::path& instance_dir, std::int64_t session_id, const RecoveryEntry& entry) {
+  const auto sidecar = encode_sidecar(entry);
+  write_file_bytes_atomically(sidecar_path(instance_dir, session_id),
+                              std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(sidecar.data()),
+                                                            sidecar.size()),
+                              "Could not create the recovery file", "Could not write the recovery file");
+}
+
 void write_entry(const std::filesystem::path& instance_dir, std::int64_t session_id,
                  std::span<const std::uint8_t> psb_bytes, const RecoveryEntry& entry) {
   std::error_code error;
   std::filesystem::create_directories(instance_dir, error);
   write_file_bytes_atomically(document_path(instance_dir, session_id), psb_bytes,
                               "Could not create the recovery file", "Could not write the recovery file");
-  const auto sidecar = encode_sidecar(entry);
-  write_file_bytes_atomically(sidecar_path(instance_dir, session_id),
-                              std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(sidecar.data()),
-                                                            sidecar.size()),
-                              "Could not create the recovery file", "Could not write the recovery file");
+  write_sidecar(instance_dir, session_id, entry);
 }
 
 void remove_entry(const std::filesystem::path& instance_dir, std::int64_t session_id) noexcept {

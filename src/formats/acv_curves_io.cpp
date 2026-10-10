@@ -1,6 +1,7 @@
 #include "formats/acv_curves_io.hpp"
 
 #include "psd/psd_binary.hpp"
+#include "support/atomic_file_write.hpp"
 #include "support/translate_noop.hpp"
 
 #include <array>
@@ -300,14 +301,9 @@ std::vector<std::uint8_t> write(const CurvesAdjustment& curves) {
 
 void write_file(const std::filesystem::path& path, const CurvesAdjustment& curves) {
   const auto bytes = write(curves);
-  std::ofstream file(path, std::ios::binary);
-  if (!file) {
-    throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Could not open Curves preset for writing"));
-  }
-  file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
-  if (!file) {
-    throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Could not write Curves preset"));
-  }
+  // Sibling temporary plus rename: a failed export keeps the previous preset.
+  write_file_bytes_atomically(path, bytes, PATCHY_TRANSLATE_NOOP("QObject", "Could not open Curves preset for writing"),
+                              PATCHY_TRANSLATE_NOOP("QObject", "Could not write Curves preset"));
 }
 
 }  // namespace patchy::acv

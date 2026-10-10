@@ -21,6 +21,7 @@
 #include "ui/image_document_io.hpp"
 #include "ui/js_syntax_highlighter.hpp"
 #include "ui/main_window.hpp"
+#include "ui/qt_text_file.hpp"
 #include "ui/script_engine.hpp"
 #include "ui/script_folders.hpp"
 #include "ui/theme_palette.hpp"
@@ -1120,13 +1121,13 @@ bool ScriptEditorDialog::save_script() {
     target = QDir(MainWindow::user_scripts_directory()).absoluteFilePath(bundled_relative);
     QDir().mkpath(QFileInfo(target).absolutePath());
   }
-  QFile file(target);
-  if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
-    append_console(2, tr("Could not write %1").arg(QDir::toNativeSeparators(target)));
+  // Replacement save: a failed write keeps the previous file, and the editor stays
+  // modified so the edit is not mistaken for saved.
+  QString error;
+  if (!save_text_file_atomically(target, editor_->toPlainText().toUtf8(), &error)) {
+    append_console(2, tr("Could not write %1: %2").arg(QDir::toNativeSeparators(target), error));
     return false;
   }
-  file.write(editor_->toPlainText().toUtf8());
-  file.close();
   editor_->document()->setModified(false);
   if (target != current_path_) {
     append_console(0, tr("Saved your copy to %1; it now runs instead of the bundled script "
@@ -1157,13 +1158,11 @@ bool ScriptEditorDialog::save_script_as() {
   // user scripts dir (and is offered as a browser download below).
   path = QDir(MainWindow::user_scripts_directory()).absoluteFilePath(QFileInfo(path).fileName());
 #endif
-  QFile file(path);
-  if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
-    append_console(2, tr("Could not write %1").arg(QDir::toNativeSeparators(path)));
+  QString error;
+  if (!save_text_file_atomically(path, editor_->toPlainText().toUtf8(), &error)) {
+    append_console(2, tr("Could not write %1: %2").arg(QDir::toNativeSeparators(path), error));
     return false;
   }
-  file.write(editor_->toPlainText().toUtf8());
-  file.close();
   offer_browser_download_for_saved_file(path);
   editor_->document()->setModified(false);
   set_current_path(path);

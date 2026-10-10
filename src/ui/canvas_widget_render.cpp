@@ -188,92 +188,6 @@ QRegion outset_region(const QRegion& region, int amount) {
   return expanded;
 }
 
-void compose_layer_pixel(const Layer& layer, std::int32_t x, std::int32_t y, std::array<float, 3>& out,
-                         float& out_alpha) {
-  if (!layer.visible() || layer.opacity() <= 0.0F) {
-    return;
-  }
-  const auto channel_restriction =
-      layer.channel_restriction_supported() ? layer.restricted_channels() : std::uint8_t{0};
-  if (channel_restriction == kRestrictAllChannels) {
-    return;  // all channels excluded removes the layer from compositing
-  }
-
-  if (layer.kind() == LayerKind::Group) {
-    // Partial group restrictions stay unhandled here, like group opacity and
-    // child blend modes (this sampler is a documented approximation).
-    for (const auto& child : layer.children()) {
-      compose_layer_pixel(child, x, y, out, out_alpha);
-    }
-    return;
-  }
-
-  if (layer.kind() == LayerKind::Adjustment) {
-    const auto settings = adjustment_settings_from_layer(layer);
-    if (!settings.has_value() || !adjustment_has_effect(*settings) || out_alpha <= 0.0F) {
-      return;
-    }
-    if (!layer.bounds().empty() && !layer.bounds().contains(x, y)) {
-      return;
-    }
-    const auto amount = layer_mask_alpha_at(layer, x, y) * layer.opacity();
-    if (amount <= 0.0F) {
-      return;
-    }
-    const auto adjusted =
-        apply_adjustment_to_color(RgbColor{clamp_byte(out[0]), clamp_byte(out[1]), clamp_byte(out[2])}, *settings);
-    if ((channel_restriction & kRestrictRed) == 0U) {
-      out[0] = static_cast<float>(adjusted.red) * amount + out[0] * (1.0F - amount);
-    }
-    if ((channel_restriction & kRestrictGreen) == 0U) {
-      out[1] = static_cast<float>(adjusted.green) * amount + out[1] * (1.0F - amount);
-    }
-    if ((channel_restriction & kRestrictBlue) == 0U) {
-      out[2] = static_cast<float>(adjusted.blue) * amount + out[2] * (1.0F - amount);
-    }
-    return;
-  }
-
-  if (layer.kind() != LayerKind::Pixel) {
-    return;
-  }
-
-  const auto& pixels = layer.pixels();
-  if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 3) {
-    return;
-  }
-
-  const auto bounds = layer.bounds();
-  const auto local_x = x - bounds.x;
-  const auto local_y = y - bounds.y;
-  if (local_x < 0 || local_y < 0 || local_x >= pixels.width() || local_y >= pixels.height()) {
-    return;
-  }
-
-  const auto* src = pixels.pixel(local_x, local_y);
-  const auto source_alpha = pixels.format().channels >= 4 ? static_cast<float>(src[3]) / 255.0F : 1.0F;
-  const auto alpha = source_alpha * layer_mask_alpha_at(layer, x, y) * layer.opacity();
-  if (alpha <= 0.0F) {
-    return;
-  }
-
-  const auto next_alpha = alpha + out_alpha * (1.0F - alpha);
-  const std::array<std::uint8_t, 3> src_rgb = {src[0], src[1], src[2]};
-  const std::array<std::uint8_t, 3> dst_rgb = {clamp_byte(out[0]), clamp_byte(out[1]), clamp_byte(out[2])};
-  const auto blended = composite_blended_rgb(src_rgb, dst_rgb, layer.blend_mode(), alpha, out_alpha);
-  for (int channel = 0; channel < 3; ++channel) {
-    if (next_alpha <= 0.0F) {
-      out[channel] = 0.0F;
-      continue;
-    }
-    // A restricted channel keeps the backdrop's premultiplied value.
-    out[channel] = ((channel_restriction >> channel) & 1U) != 0U
-                       ? out[channel] * out_alpha / next_alpha
-                       : static_cast<float>(blended[static_cast<std::size_t>(channel)]);
-  }
-  out_alpha = next_alpha;
-}
-
 }  // namespace
 
 CanvasWidget::RenderCacheDiagnostics CanvasWidget::render_cache_diagnostics() const noexcept {
@@ -2000,23 +1914,23 @@ const QImage& CanvasWidget::warp_base_display_image_for_zoom() {
 }
 
 QColor CanvasWidget::compose_document_pixel(std::int32_t x, std::int32_t y) const {
-  std::array<float, 3> out = {0.0F, 0.0F, 0.0F};
-  float out_alpha = 0.0F;
-  if (document_ == nullptr) {
+  if (document_ == nullptr || x < 0 || y < 0 || x >= document_->width() || y >= document_->height()) {
     return Qt::transparent;
   }
-  // The per-layer sampler below reads 8-bit pixels only; a 16/32-bit document picks
-  // from the deep compositor's render of that one pixel (docs/high-bit-depth.md).
-  if (document_->color_state().bit_depth != BitDepth::UInt8) {
-    const auto image = qimage_from_document_rect(*document_, QRect(x, y, 1, 1), true);
-    return image.isNull() ? QColor(Qt::transparent) : image.pixelColor(0, 0);
+  // The displayed composite when it is current: render_cache_ is the CPU compositor's
+  // full-resolution image of the document (group opacity, clipping, masks, styles,
+  // blend modes, adjustments included), so a pick matches what the user sees and costs
+  // one pixel read. Palette mode snaps that image for display and the eyedropper reads
+  // the unsnapped composite, so it takes the render path below.
+  if (!render_cache_dirty_ && !render_cache_.isNull() &&
+      render_cache_.size() == QSize(document_->width(), document_->height()) && palette_snap_context() == nullptr) {
+    return render_cache_.pixelColor(x, y);
   }
-
-  for (const auto& layer : document_->layers()) {
-    compose_layer_pixel(layer, x, y, out, out_alpha);
-  }
-
-  return QColor(clamp_byte(out[0]), clamp_byte(out[1]), clamp_byte(out[2]), clamp_byte(out_alpha * 255.0F));
+  // Otherwise the same compositor renders this one pixel (the deep path always did;
+  // docs/high-bit-depth.md). Clip rendering equals full rendering, so the result is
+  // the displayed pixel once the cache catches up.
+  const auto image = qimage_from_document_rect(*document_, QRect(x, y, 1, 1), true);
+  return image.isNull() ? QColor(Qt::transparent) : image.pixelColor(0, 0);
 }
 
 void CanvasWidget::draw_checkerboard(QPainter& painter, const QRectF& rect, QRect exposed_rect) const {

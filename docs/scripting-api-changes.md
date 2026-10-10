@@ -7,6 +7,12 @@ attachment, palettes, vector automation, brushes, Slow mode and Pause) are in
 [scripting-api-changes-through-2026-09-11.md](scripting-api-changes-through-2026-09-11.md).
 Every entry below is API 1.
 
+2026-10-10 (behavioral correction): `patchy.io.writeTextFile(path, text)` writes through
+a sibling temporary and a replacing rename (QSaveFile), so a failed write leaves the
+previous file intact instead of a truncated one, and a write that cannot be committed
+throws `Could not write <path>: <reason>` instead of returning silently. The Script
+Manager's Save and Save As take the same path and keep the editor modified on failure.
+
 2026-10-10 (behavioral correction): saving or exporting a 16/32-bit document to an
 8-bit-only format (BMP, TGA, DDS, GIF, PCX, ICO/CUR, IFF, RTTEX, JXR, SVG, Aseprite, or any
 export transform) writes an 8-bit copy instead of returning false; the document keeps its

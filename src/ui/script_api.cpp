@@ -38,6 +38,7 @@
 #include "ui/layer_merge.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/qt_paths.hpp"
+#include "ui/qt_text_file.hpp"
 #include "ui/script_canvas_window.hpp"
 #include "ui/script_engine.hpp"
 #include "ui/script_folders.hpp"
@@ -2604,13 +2605,13 @@ QString ScriptIoObject::readTextFile(const QString& path) {
 }
 
 void ScriptIoObject::writeTextFile(const QString& path, const QString& text) {
-  QFile file(path);
-  if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate | QIODevice::Text)) {
+  // Replacement save (QSaveFile): a failed write leaves the previous file and reaches
+  // the script as an exception instead of a silently truncated file.
+  QString error;
+  if (!save_text_file_atomically(path, text.toUtf8(), &error)) {
     host_.throw_js_error(
-        ScriptEngineHost::tr("Could not write %1").arg(QDir::toNativeSeparators(path)));
-    return;
+        ScriptEngineHost::tr("Could not write %1: %2").arg(QDir::toNativeSeparators(path), error));
   }
-  file.write(text.toUtf8());
 }
 
 QStringList ScriptIoObject::listFiles(const QString& dir, const QString& pattern) {

@@ -19029,6 +19029,12 @@ Baked into images: %1.</source>
         <source>Saved icon to %1</source>
         <translation>已将图标存储到 %1</translation>
     </message>
+    <message numerus="yes">
+        <source>%n recovered document(s) could not be moved to this session&apos;s recovery folder; the copies stay in %1</source>
+        <translation>
+            <numerusform>%n 个已恢复的文档无法移动到此会话的恢复文件夹；副本保留在 %1</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -19704,6 +19710,10 @@ Baked into images: %1.</source>
         <source>Opens Preferences &gt; Hotkeys at this script&apos;s row.</source>
         <translation>打开“首选项 &gt; 快捷键”并定位到此脚本所在行。</translation>
     </message>
+    <message>
+        <source>Could not write %1: %2</source>
+        <translation>无法写入 %1：%2</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptEngineHost</name>
@@ -19958,10 +19968,6 @@ Baked into images: %1.</source>
     <message>
         <source>readTextFile: %1 is larger than 256 MB</source>
         <translation>readTextFile：%1 大于 256 MB</translation>
-    </message>
-    <message>
-        <source>Could not write %1</source>
-        <translation>无法写入 %1</translation>
     </message>
     <message>
         <source>listFiles: no such folder: %1</source>
@@ -20534,6 +20540,10 @@ Baked into images: %1.</source>
     <message>
         <source>patchy.scripts: could not write %1.</source>
         <translation>patchy.scripts：无法写入 %1。</translation>
+    </message>
+    <message>
+        <source>Could not write %1: %2</source>
+        <translation>无法写入 %1：%2</translation>
     </message>
 </context>
 <context>

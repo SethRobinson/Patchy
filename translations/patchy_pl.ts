@@ -19141,6 +19141,14 @@ Y: %2
         <source>Saved icon to %1</source>
         <translation>Zapisano ikonę w %1</translation>
     </message>
+    <message numerus="yes">
+        <source>%n recovered document(s) could not be moved to this session&apos;s recovery folder; the copies stay in %1</source>
+        <translation>
+            <numerusform>Nie można przenieść %n odzyskanego dokumentu do folderu odzyskiwania tej sesji; kopia pozostaje w %1</numerusform>
+            <numerusform>Nie można przenieść %n odzyskanych dokumentów do folderu odzyskiwania tej sesji; kopie pozostają w %1</numerusform>
+            <numerusform>Nie można przenieść %n odzyskanych dokumentów do folderu odzyskiwania tej sesji; kopie pozostają w %1</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::McpActivity</name>
@@ -19818,6 +19826,10 @@ Y: %2
         <source>Opens Preferences &gt; Hotkeys at this script&apos;s row.</source>
         <translation>Otwiera Preferencje &gt; Skróty klawiszowe w wierszu tego skryptu.</translation>
     </message>
+    <message>
+        <source>Could not write %1: %2</source>
+        <translation>Nie można zapisać %1: %2</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptEngineHost</name>
@@ -20196,10 +20208,6 @@ Y: %2
     <message>
         <source>readTextFile: %1 is larger than 256 MB</source>
         <translation>readTextFile: %1 jest większy niż 256 MB</translation>
-    </message>
-    <message>
-        <source>Could not write %1</source>
-        <translation>Nie można zapisać %1</translation>
     </message>
     <message>
         <source>listFiles: no such folder: %1</source>
@@ -20648,6 +20656,10 @@ Y: %2
     <message>
         <source>patchy.scripts: could not write %1.</source>
         <translation>patchy.scripts: nie można zapisać %1.</translation>
+    </message>
+    <message>
+        <source>Could not write %1: %2</source>
+        <translation>Nie można zapisać %1: %2</translation>
     </message>
 </context>
 <context>
