@@ -8,6 +8,7 @@
 #include "core/pixel_depth.hpp"
 #include "local_psd_fixtures.hpp"
 #include "psd/psd_document_io.hpp"
+#include "psd_test_support.hpp"
 #include "render/compositor.hpp"
 #include "test_harness.hpp"
 
@@ -18,6 +19,7 @@
 #include <filesystem>
 #include <functional>
 #include <iostream>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -184,6 +186,117 @@ void psd_deep_gate_off_reads_8_bit_as_before() {
   CHECK(document_bit_depth(deep) == BitDepth::UInt16);
 }
 
+// Raw native planes keep this independent of Patchy's RGB writer. A layered file
+// and its composite carry the same fine ramp, alpha and source profile.
+std::vector<std::uint8_t> color_mode_ramp16(std::uint16_t mode, std::span<const std::uint8_t> profile) {
+  using namespace patchy::test;
+  const std::uint16_t colors = mode == 4 ? 4 : mode == 1 ? 1 : 3;
+  psd::BigEndianWriter resources;
+  if (!profile.empty()) {
+    write_ascii4(resources, "8BIM");
+    resources.write_u16(1039);
+    resources.write_u16(0);  // empty Pascal name, padded to even
+    resources.write_u32(static_cast<std::uint32_t>(profile.size()));
+    resources.write_bytes(profile);
+    if (profile.size() % 2U != 0U) resources.write_u8(0);
+  }
+  std::vector<std::vector<std::uint8_t>> planes;
+  for (std::uint16_t c = 0; c <= colors; ++c) {
+    psd::BigEndianWriter plane;
+    for (std::uint16_t x = 0; x < 64; ++x) {
+      plane.write_u16(c == colors ? static_cast<std::uint16_t>(40000U + x)
+                     : c == 0 ? static_cast<std::uint16_t>(30000U + x)
+                     : c == 3 ? 65535 : 32896);
+    }
+    planes.push_back(plane.bytes());
+  }
+  psd::BigEndianWriter info;
+  info.write_u16(0xFFFF);  // one layer, merged transparency present
+  info.write_u32(0); info.write_u32(0); info.write_u32(1); info.write_u32(64);
+  info.write_u16(static_cast<std::uint16_t>(colors + 1U));
+  for (std::uint16_t c = 0; c <= colors; ++c) {
+    info.write_u16(c == colors ? 0xFFFF : c);
+    info.write_u32(130);  // compression marker + 64 full-range u16 samples
+  }
+  write_ascii4(info, "8BIM"); write_ascii4(info, "norm");
+  info.write_u8(255); info.write_u8(0); info.write_u8(8); info.write_u8(0);
+  info.write_u32(12);  // empty mask, blending ranges and name
+  info.write_u32(0); info.write_u32(0); info.write_u32(0);
+  for (const auto& plane : planes) {
+    info.write_u16(0);
+    info.write_bytes(plane);
+  }
+  psd::BigEndianWriter layer_mask;
+  layer_mask.write_u32(0); layer_mask.write_u32(0);
+  write_ascii4(layer_mask, "8BIM"); write_ascii4(layer_mask, "Lr16");
+  layer_mask.write_u32(static_cast<std::uint32_t>(info.bytes().size()));
+  layer_mask.write_bytes(info.bytes());
+  while (layer_mask.bytes().size() % 4U != 0U) layer_mask.write_u8(0);
+  psd::BigEndianWriter file;
+  psd::write_header(file, psd::Header{false, static_cast<std::uint16_t>(colors + 1U), 1, 64, 16, mode});
+  file.write_u32(0);
+  file.write_u32(static_cast<std::uint32_t>(resources.bytes().size()));
+  file.write_bytes(resources.bytes());
+  file.write_u32(static_cast<std::uint32_t>(layer_mask.bytes().size()));
+  file.write_bytes(layer_mask.bytes());
+  file.write_u16(0);
+  for (const auto& plane : planes) file.write_bytes(plane);
+  return file.bytes();
+}
+
+void psd_deep_color_conversions_keep_sub_byte_samples_and_alpha() {
+  const auto cmyk_source = psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-cmyk-style-colors.psd"));
+  const auto cmyk_profile = patchy::test::test_image_resource_payload(
+      cmyk_source.metadata().raw_psd_image_resources, 1039);
+  CHECK(cmyk_profile.has_value());
+  const auto gray_profile = patchy::test::test_linear_gray_icc_profile();
+  for (const auto mode : std::array<std::uint16_t, 4>{1, 4, 7, 9}) {
+    for (const bool with_profile : {false, true}) {
+      if (with_profile && mode != 1 && mode != 4) continue;
+      const auto profile = !with_profile ? std::span<const std::uint8_t>{}
+                           : mode == 1 ? std::span<const std::uint8_t>(gray_profile)
+                                       : std::span<const std::uint8_t>(*cmyk_profile);
+      const auto bytes = color_mode_ramp16(mode, profile);
+      for (const bool flat : {false, true}) {
+        psd::ReadOptions options;
+        options.keep_bit_depth = true;
+        options.prefer_flat_composite = flat;
+        const auto document = psd::DocumentIo::read(bytes, options);
+        CHECK(document_bit_depth(document) == BitDepth::UInt16);
+        CHECK(document.layers().size() == 1);
+        const auto& layer = document.layers()[0];
+        const auto& pixels = layer.pixels();
+        CHECK(pixels.format().bit_depth == BitDepth::UInt16);
+        std::set<int> values;
+        for (int x = 0; x < 64; ++x) {
+          const auto pixel = load_pixel(pixels.format(), pixels.pixel(x, 0));
+          const auto red = static_cast<int>(std::lround(pixel[0] * 257.0F));
+          values.insert(red);
+          if ((mode == 1 || mode == 4 || mode == 7) && !with_profile) CHECK(red == 30000 + x);
+          if (mode == 1 && with_profile) {
+            const auto expected = static_cast<int>(std::lround(srgb_encode((30000.0 + x) / 65535.0) * 65535.0));
+            CHECK(std::abs(red - expected) <= 8);
+          }
+          const auto alpha = flat ? coverage_at(layer.mask()->pixels, x, 0) * 65535.0F : pixel[3] * 257.0F;
+          CHECK(std::abs(alpha - (40000.0F + x)) < 0.1F);
+        }
+        // All 64 input samples round to the SAME byte. A deep conversion must
+        // preserve a gradient instead of producing one repeated output value.
+        CHECK(values.size() > 24U);
+        const auto saved = psd::DocumentIo::write_layered_rgb8(document);
+        options.prefer_flat_composite = false;
+        const auto reopened = psd::DocumentIo::read(saved, options);
+        const auto& saved_pixels = reopened.layers()[0].pixels();
+        for (int x = 0; x < 64; ++x) {
+          CHECK(load_pixel(saved_pixels.format(), saved_pixels.pixel(x, 0)) ==
+                load_pixel(pixels.format(), pixels.pixel(x, 0)));
+        }
+      }
+    }
+  }
+}
+
 // Photoshop-made files from scripts/dev/deep/make_deep_fixtures.py: every scene and
 // depth the corpus has. The deep reading narrows to exactly the 8-bit reading (which
 // the existing suites pin against Photoshop), keeps samples 8 bits cannot hold, and
@@ -305,6 +418,8 @@ std::vector<patchy::test::TestCase> psd_deep_io_tests() {
       {"psd_deep_16_bit_document_round_trips_exactly", psd_deep_16_bit_document_round_trips_exactly},
       {"psd_deep_32_bit_document_round_trips_exactly", psd_deep_32_bit_document_round_trips_exactly},
       {"psd_deep_gate_off_reads_8_bit_as_before", psd_deep_gate_off_reads_8_bit_as_before},
+      {"psd_deep_color_conversions_keep_sub_byte_samples_and_alpha",
+       psd_deep_color_conversions_keep_sub_byte_samples_and_alpha},
       {"psd_deep_32_bit_blend_modes_follow_photoshop", psd_deep_32_bit_blend_modes_follow_photoshop},
       {"psd_deep_photoshop_corpus_reads_and_round_trips_if_available",
        psd_deep_photoshop_corpus_reads_and_round_trips_if_available},

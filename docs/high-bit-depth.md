@@ -135,8 +135,12 @@ Code comments cite these phase numbers. Each phase lands as verified commits.
 2. **PSD/PSB at depth** (done; `tests/core/psd_deep_io_tests.cpp`). `ReadOptions::
    keep_bit_depth` (unset follows the gate) keeps the file's samples: RGB and unprofiled
    gray layers, masks, the composite, merged transparency and saved channels store
-   natively; CMYK, Lab and profiled gray convert at 8 bits and widen (gap). The 8-bit
-   reading of a deep file is exactly the deep reading narrowed. The writer takes the
+   natively. At 16 bits, CMYK and profiled gray convert through full-range u16 ICC
+   transforms, Lab through the D50 Lab-to-sRGB transform, and multichannel planes
+   retain their samples. Color conversion never touches transparency or masks.
+   32-bit non-RGB conversion still widens the 8-bit result (gap). RGB and unprofiled
+   gray narrow exactly to the historical 8-bit reading; transformed modes retain
+   more precision than that old path. The writer takes the
    document's depth: header depth, layer records in `Lr16`/`Lr32` behind an empty
    standard section, deep composite and saved channels; descriptor colors linear for
    32 bits (`ScopedLinearDescriptorColors`). The stored composite (and its merged
@@ -153,6 +157,15 @@ Code comments cite these phase numbers. Each phase lands as verified commits.
    `python scripts\dev\deep\ps_check_writes.py` re-saves every corpus document
    through patchy.exe and opens it in Photoshop: all 77 open and render identical to
    the originals (16-bit precision 100%).
+   The 12 precision-scored files from Testy's 20261009-231617 run score 67.2% after
+   save with native 16-bit color conversion (the published build scored 58.8%).
+   Multichannel is 100%; the five RGB cases are also 100%. Remaining gaps are the
+   non-RGB gradients and adjustments whose source color space is lost on RGB save,
+   plus their rendering approximations. These files all reopen under Photoshop's
+   error-enabled dialog mode. The synthetic regression
+   `psd_deep_color_conversions_keep_sub_byte_samples_and_alpha` checks a fine ramp
+   through layered and composite reads, RGB saves, gray/CMYK profiles, Lab and
+   multichannel, including unchanged transparency.
 3. **Deep compositor** (compositor done; `tests/core/deep_compositor_tests.cpp`).
    `render/layer_compositor.hpp` is templated on the target's color type
    (`render/composite_color.hpp`: `target_color_t`, `DeepRgb` floats on the deep scale);

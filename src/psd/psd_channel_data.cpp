@@ -845,6 +845,63 @@ void convert_lab_pixels_to_rgb(PixelBuffer& pixels) {
   }
 }
 
+void convert_16_bit_color_planes_to_rgb(PixelBuffer& pixels,
+                                       std::span<const std::vector<std::uint8_t>> planes,
+                                       std::uint16_t color_mode, const CmykColorConverter& colors) {
+  const bool gray = is_grayscale_color_mode(color_mode);
+  const bool cmyk = is_cmyk_color_mode(color_mode);
+  const bool lab = is_lab_color_mode(color_mode);
+  if ((!gray && !cmyk && !lab) || (gray && colors.gray_icc == nullptr)) {
+    for (std::size_t c = 0; c < 3U; ++c) {
+      const auto plane = gray ? 0U : c;
+      if (plane < planes.size()) {
+        store_native_plane(pixels, c, planes[plane], 16);
+      }
+    }
+    return;
+  }
+  const auto lab_transform = lab ? LabToRgbTransform::create() : std::nullopt;
+  if (lab && !lab_transform) {
+    throw std::bad_alloc{};
+  }
+  const auto components = cmyk ? 4U : gray ? 1U : 3U;
+  const auto pixel_count = static_cast<std::size_t>(pixels.width()) * static_cast<std::size_t>(pixels.height());
+  const auto channels = static_cast<std::size_t>(pixels.format().channels);
+  auto* target = pixels.data().data();
+  constexpr std::size_t kChunkPixels = 65536;
+  std::vector<std::uint16_t> source(std::min(pixel_count, kChunkPixels) * components);
+  std::vector<std::uint16_t> rgb(std::min(pixel_count, kChunkPixels) * 3U);
+  for (std::size_t begin = 0; begin < pixel_count; begin += kChunkPixels) {
+    const auto count = std::min(kChunkPixels, pixel_count - begin);
+    for (std::size_t i = 0; i < count; ++i) {
+      for (std::size_t c = 0; c < components; ++c) {
+        const auto offset = (begin + i) * 2U;
+        source[i * components + c] = c < planes.size() && offset + 1U < planes[c].size()
+            ? static_cast<std::uint16_t>((static_cast<unsigned>(planes[c][offset]) << 8U) | planes[c][offset + 1U])
+            : std::uint16_t{0};
+      }
+    }
+    if (gray) {
+      colors.gray_icc->convert16(source.data(), rgb.data(), count);
+    } else if (lab) {
+      lab_transform->convert16(source.data(), rgb.data(), count);
+    } else if (colors.icc != nullptr) {
+      colors.icc->convert16(source.data(), rgb.data(), count);
+    } else {
+      for (std::size_t i = 0; i < count; ++i) {
+        for (std::size_t c = 0; c < 3U; ++c) {
+          rgb[i * 3U + c] = static_cast<std::uint16_t>(
+              (static_cast<std::uint32_t>(source[i * 4U + c]) * source[i * 4U + 3U] + 32767U) / 65535U);
+        }
+      }
+    }
+    for (std::size_t i = 0; i < count; ++i) {
+      std::memcpy(target + (begin + i) * channels * sizeof(std::uint16_t),
+                  rgb.data() + i * 3U, 3U * sizeof(std::uint16_t));
+    }
+  }
+}
+
 void convert_multichannel_planes_to_rgb(PixelBuffer& pixels, std::span<const std::vector<std::uint8_t>> planes,
                                         std::size_t pixel_count) {
   const auto channels = static_cast<std::size_t>(pixels.format().channels);

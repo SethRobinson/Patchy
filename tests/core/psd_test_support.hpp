@@ -135,4 +135,6 @@ std::filesystem::path arrows_fixture_path();
 
 bool layer_has_psd_block(const patchy::Layer& layer, const std::string& key);
 
+std::vector<std::uint8_t> test_linear_gray_icc_profile();
+
 }  // namespace patchy::test

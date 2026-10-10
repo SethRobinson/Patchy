@@ -25,9 +25,13 @@ void ignore_lcms_error(cmsContext /*context*/, cmsUInt32Number /*code*/, const c
 struct IccToSrgbState {
   cmsContext context{nullptr};
   cmsHTRANSFORM transform{nullptr};
+  cmsHTRANSFORM transform16{nullptr};
   std::string description;
 
   ~IccToSrgbState() {
+    if (transform16 != nullptr) {
+      cmsDeleteTransform(transform16);
+    }
     if (transform != nullptr) {
       cmsDeleteTransform(transform);
     }
@@ -73,10 +77,14 @@ bool open_icc_to_srgb(IccToSrgbState& state, std::span<const std::uint8_t> profi
     state.transform = cmsCreateTransformTHR(state.context, source_profile, input_format,
                                             srgb_profile, TYPE_RGB_8, INTENT_RELATIVE_COLORIMETRIC,
                                             cmsFLAGS_BLACKPOINTCOMPENSATION | cmsFLAGS_NOCACHE);
+    const auto input16 = expected_space == cmsSigCmykData ? TYPE_CMYK_16_REV : TYPE_GRAY_16;
+    state.transform16 = cmsCreateTransformTHR(state.context, source_profile, input16,
+                                              srgb_profile, TYPE_RGB_16, INTENT_RELATIVE_COLORIMETRIC,
+                                              cmsFLAGS_BLACKPOINTCOMPENSATION | cmsFLAGS_NOCACHE);
     cmsCloseProfile(srgb_profile);
   }
   cmsCloseProfile(source_profile);
-  return state.transform != nullptr;
+  return state.transform != nullptr && state.transform16 != nullptr;
 }
 
 }  // namespace
@@ -101,6 +109,11 @@ void CmykToRgbTransform::convert(const std::uint8_t* cmyk_inverted, std::uint8_t
                                  std::size_t pixel_count) const {
   cmsDoTransform(impl_->transform, cmyk_inverted, rgb_out,
                  static_cast<cmsUInt32Number>(pixel_count));
+}
+
+void CmykToRgbTransform::convert16(const std::uint16_t* cmyk_inverted, std::uint16_t* rgb_out,
+                                  std::size_t pixel_count) const {
+  cmsDoTransform(impl_->transform16, cmyk_inverted, rgb_out, static_cast<cmsUInt32Number>(pixel_count));
 }
 
 RgbColor CmykToRgbTransform::convert_single(std::uint8_t cyan_inverted,
@@ -221,6 +234,11 @@ void GrayToRgbTransform::convert(const std::uint8_t* gray, std::uint8_t* rgb_out
   cmsDoTransform(impl_->transform, gray, rgb_out, static_cast<cmsUInt32Number>(pixel_count));
 }
 
+void GrayToRgbTransform::convert16(const std::uint16_t* gray, std::uint16_t* rgb_out,
+                                  std::size_t pixel_count) const {
+  cmsDoTransform(impl_->transform16, gray, rgb_out, static_cast<cmsUInt32Number>(pixel_count));
+}
+
 RgbColor GrayToRgbTransform::convert_single(std::uint8_t gray) const {
   std::array<std::uint8_t, 3> rgb{};
   convert(&gray, rgb.data(), 1);
@@ -266,8 +284,12 @@ std::shared_ptr<const InkSpace> build_gray_ink_space(std::span<const std::uint8_
 struct LabToRgbTransform::Impl {
   cmsContext context{nullptr};
   cmsHTRANSFORM transform{nullptr};
+  cmsHTRANSFORM transform16{nullptr};
 
   ~Impl() {
+    if (transform16 != nullptr) {
+      cmsDeleteTransform(transform16);
+    }
     if (transform != nullptr) {
       cmsDeleteTransform(transform);
     }
@@ -291,6 +313,9 @@ std::optional<LabToRgbTransform> LabToRgbTransform::create() {
     impl->transform = cmsCreateTransformTHR(impl->context, lab_profile, TYPE_Lab_16, srgb_profile,
                                             TYPE_RGB_8, INTENT_RELATIVE_COLORIMETRIC,
                                             cmsFLAGS_BLACKPOINTCOMPENSATION | cmsFLAGS_NOCACHE);
+    impl->transform16 = cmsCreateTransformTHR(impl->context, lab_profile, TYPE_Lab_16, srgb_profile,
+                                              TYPE_RGB_16, INTENT_RELATIVE_COLORIMETRIC,
+                                              cmsFLAGS_BLACKPOINTCOMPENSATION | cmsFLAGS_NOCACHE);
   }
   if (lab_profile != nullptr) {
     cmsCloseProfile(lab_profile);
@@ -298,7 +323,7 @@ std::optional<LabToRgbTransform> LabToRgbTransform::create() {
   if (srgb_profile != nullptr) {
     cmsCloseProfile(srgb_profile);
   }
-  if (impl->transform == nullptr) {
+  if (impl->transform == nullptr || impl->transform16 == nullptr) {
     return std::nullopt;
   }
   return LabToRgbTransform(std::move(impl));
@@ -313,6 +338,11 @@ void LabToRgbTransform::convert(const std::uint16_t* lab_encoded, std::uint8_t* 
                                 std::size_t pixel_count) const {
   cmsDoTransform(impl_->transform, lab_encoded, rgb_out,
                  static_cast<cmsUInt32Number>(pixel_count));
+}
+
+void LabToRgbTransform::convert16(const std::uint16_t* lab_encoded, std::uint16_t* rgb_out,
+                                 std::size_t pixel_count) const {
+  cmsDoTransform(impl_->transform16, lab_encoded, rgb_out, static_cast<cmsUInt32Number>(pixel_count));
 }
 
 void ColorManager::assign_icc_profile(Document& document, std::vector<std::uint8_t> icc_profile) const {

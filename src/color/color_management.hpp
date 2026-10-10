@@ -40,6 +40,9 @@ public:
   // Interleaved inverted-CMYK pixels (4 bytes each) to packed sRGB (3 bytes each).
   void convert(const std::uint8_t* cmyk_inverted, std::uint8_t* rgb_out,
                std::size_t pixel_count) const;
+  // Full-range native-endian u16 samples on both sides, without an 8-bit intermediate.
+  void convert16(const std::uint16_t* cmyk_inverted, std::uint16_t* rgb_out,
+                 std::size_t pixel_count) const;
   [[nodiscard]] RgbColor convert_single(std::uint8_t cyan_inverted, std::uint8_t magenta_inverted,
                                         std::uint8_t yellow_inverted,
                                         std::uint8_t black_inverted) const;
@@ -81,6 +84,7 @@ public:
 
   // Gray pixels (1 byte each) to packed sRGB (3 bytes each).
   void convert(const std::uint8_t* gray, std::uint8_t* rgb_out, std::size_t pixel_count) const;
+  void convert16(const std::uint16_t* gray, std::uint16_t* rgb_out, std::size_t pixel_count) const;
   [[nodiscard]] RgbColor convert_single(std::uint8_t gray) const;
   [[nodiscard]] const std::string& profile_description() const;
 
@@ -109,6 +113,8 @@ public:
   // Interleaved ICC-encoded L,a,b u16 triples to packed sRGB (3 bytes each).
   void convert(const std::uint16_t* lab_encoded, std::uint8_t* rgb_out,
                std::size_t pixel_count) const;
+  void convert16(const std::uint16_t* lab_encoded, std::uint16_t* rgb_out,
+                 std::size_t pixel_count) const;
 
 private:
   struct Impl;

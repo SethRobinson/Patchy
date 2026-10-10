@@ -214,8 +214,8 @@ Document read_flat_composite(BigEndianReader& reader, const Header& header,
   const auto source_is_cmyk = is_cmyk_color_mode(header.color_mode);
   const auto source_is_gray = is_grayscale_color_mode(header.color_mode);
   // Deep files kept at their depth read the file's samples; the 8-bit planes below are
-  // converted copies that keep driving the mode conversions, and RGB and plain gray
-  // composites then take the native samples (other modes widen in DocumentIo::read).
+  // converted copies that keep driving the legacy path. 16-bit color conversions
+  // below use the original samples on both sides of the transform.
   const bool native_depth = keep_depth && (header.depth == 16 || header.depth == 32) &&
                             header.color_mode != kColorModeBitmap;
   const auto native_bit_depth = header.depth == 32 ? BitDepth::Float32 : BitDepth::UInt16;
@@ -273,11 +273,16 @@ Document read_flat_composite(BigEndianReader& reader, const Header& header,
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "PSD merged transparency flag has no matching composite channel"));
   }
   const bool native_color =
-      native_depth && (header.color_mode == kColorModeRgb || (source_is_gray && source_colors.gray_icc == nullptr));
+      native_depth && (header.depth == 16 || header.color_mode == kColorModeRgb ||
+                       (source_is_gray && source_colors.gray_icc == nullptr));
   if (native_color) {
     PixelBuffer deep(document.width(), document.height(), with_bit_depth(format, native_bit_depth));
-    for (std::size_t c = 0; c < 3U; ++c) {
-      store_native_plane(deep, c, native_planes[source_is_gray ? 0U : c], header.depth);
+    if (header.depth == 16) {
+      convert_16_bit_color_planes_to_rgb(deep, native_planes, header.color_mode, source_colors);
+    } else {
+      for (std::size_t c = 0; c < 3U; ++c) {
+        store_native_plane(deep, c, native_planes[source_is_gray ? 0U : c], header.depth);
+      }
     }
     pixels = std::move(deep);
   }
@@ -614,8 +619,7 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
   has_merged_transparency = false;
   int unrendered_color_balance_count = 0;
   // A deep file kept at its depth: color, transparency and mask planes are stored at
-  // the file's depth here; modes without a native path (CMYK, Lab, profiled gray) keep
-  // the 8-bit conversion below and widen afterwards (DocumentIo::read).
+  // the file's depth here. 16-bit CMYK, Lab and profiled gray convert at depth too.
   const bool native_depth = keep_depth && (depth == 16 || depth == 32);
   const auto native_bit_depth = depth == 32 ? BitDepth::Float32 : BitDepth::UInt16;
   const auto layer_count_raw = static_cast<std::int16_t>(layer_reader.read_u16());
@@ -670,8 +674,11 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
       return channel.id == kChannelTransparency;
     });
     PixelBuffer pixels(width, height, (has_alpha || !has_color) ? PixelFormat::rgba8() : PixelFormat::rgb8());
-    const bool native_color = native_depth && (source_color_mode == kColorModeRgb ||
+    const bool native_color = native_depth && (depth == 16 || source_color_mode == kColorModeRgb ||
                                                (source_is_gray && source_colors.gray_icc == nullptr));
+    const bool convert_native_color = native_color && depth == 16 &&
+        (source_is_cmyk || is_lab_color_mode(source_color_mode) || (source_is_gray && source_colors.gray_icc != nullptr));
+    std::array<std::vector<std::uint8_t>, 4> native_color_planes;
     PixelBuffer native_pixels;
     if (native_color) {
       native_pixels = PixelBuffer(width, height, with_bit_depth(pixels.format(), native_bit_depth));
@@ -803,6 +810,10 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
                    (!source_is_gray || target_channel == 3)) {
           store_native_plane(native_pixels, static_cast<std::size_t>(target_channel), native_samples, depth);
         }
+        if (convert_native_color && is_source_color_channel(channel.id, source_color_mode) &&
+            channel.id < native_color_planes.size()) {
+          native_color_planes[channel.id] = std::move(native_samples);
+        }
       }
       if (source_is_cmyk) {
         if (channel.id <= kChannelBlack && channel_data.size() == pixel_count) {
@@ -852,6 +863,9 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
       }
     }
     if (native_color && !text_placeholder_rendered && !text_regenerated_rendered) {
+      if (convert_native_color) {
+        convert_16_bit_color_planes_to_rgb(native_pixels, native_color_planes, source_color_mode, source_colors);
+      }
       // The 8-bit planes above still drove every decision (empty-text detection,
       // adjustment parsing); the layer itself keeps the file's samples.
       pixels = std::move(native_pixels);

@@ -291,4 +291,91 @@ std::vector<std::uint8_t> single_text_layer_psd(std::span<const std::uint8_t> te
   return writer.bytes();
 }
 
+// A minimal ICC v2 gray profile with a linear (gamma 1.0) tone curve. lcms accepts it,
+// and mid-gray comes out visibly brighter in sRGB than a neutral copy would, so the
+// test can tell the profile path from the fallback.
+std::vector<std::uint8_t> test_linear_gray_icc_profile() {
+  const std::string description = "Patchy Test Linear Gray";
+  patchy::psd::BigEndianWriter desc;  // textDescriptionType
+  write_ascii4(desc, "desc");
+  desc.write_u32(0);
+  desc.write_u32(static_cast<std::uint32_t>(description.size() + 1U));
+  for (const char ch : description) {
+    desc.write_u8(static_cast<std::uint8_t>(ch));
+  }
+  desc.write_u8(0);
+  desc.write_u32(0);  // Unicode language code
+  desc.write_u32(0);  // Unicode count
+  desc.write_u16(0);  // ScriptCode code
+  desc.write_u8(0);   // ScriptCode count
+  for (int i = 0; i < 67; ++i) {
+    desc.write_u8(0);
+  }
+  patchy::psd::BigEndianWriter wtpt;  // XYZType, D50
+  write_ascii4(wtpt, "XYZ ");
+  wtpt.write_u32(0);
+  wtpt.write_u32(0x0000F6D6U);
+  wtpt.write_u32(0x00010000U);
+  wtpt.write_u32(0x0000D32DU);
+  patchy::psd::BigEndianWriter ktrc;  // curveType with one entry: gamma as u8Fixed8
+  write_ascii4(ktrc, "curv");
+  ktrc.write_u32(0);
+  ktrc.write_u32(1);
+  ktrc.write_u16(0x0100);
+  ktrc.write_u16(0);
+
+  struct TagEntry {
+    const char* signature;
+    const std::vector<std::uint8_t>* data;
+  };
+  const std::vector<TagEntry> tags{{"desc", &desc.bytes()}, {"wtpt", &wtpt.bytes()}, {"kTRC", &ktrc.bytes()}};
+  const auto padded = [](std::size_t size) { return (size + 3U) & ~static_cast<std::size_t>(3U); };
+  std::size_t total = 128U + 4U + 12U * tags.size();
+  for (const auto& tag : tags) {
+    total += padded(tag.data->size());
+  }
+
+  patchy::psd::BigEndianWriter profile;
+  profile.write_u32(static_cast<std::uint32_t>(total));
+  profile.write_u32(0);           // preferred CMM
+  profile.write_u32(0x02100000U);  // version 2.1
+  write_ascii4(profile, "mntr");
+  write_ascii4(profile, "GRAY");
+  write_ascii4(profile, "XYZ ");
+  for (int i = 0; i < 12; ++i) {
+    profile.write_u8(0);  // creation date
+  }
+  write_ascii4(profile, "acsp");
+  for (int i = 0; i < 24; ++i) {
+    profile.write_u8(0);  // platform, flags, manufacturer, model, attributes
+  }
+  profile.write_u32(0);  // rendering intent
+  profile.write_u32(0x0000F6D6U);
+  profile.write_u32(0x00010000U);
+  profile.write_u32(0x0000D32DU);
+  profile.write_u32(0);  // creator
+  for (int i = 0; i < 44; ++i) {
+    profile.write_u8(0);
+  }
+  CHECK(profile.bytes().size() == 128U);
+  profile.write_u32(static_cast<std::uint32_t>(tags.size()));
+  std::size_t offset = 128U + 4U + 12U * tags.size();
+  for (const auto& tag : tags) {
+    for (int i = 0; i < 4; ++i) {
+      profile.write_u8(static_cast<std::uint8_t>(tag.signature[i]));
+    }
+    profile.write_u32(static_cast<std::uint32_t>(offset));
+    profile.write_u32(static_cast<std::uint32_t>(tag.data->size()));
+    offset += padded(tag.data->size());
+  }
+  for (const auto& tag : tags) {
+    profile.write_bytes(*tag.data);
+    for (std::size_t pad = tag.data->size(); pad < padded(tag.data->size()); ++pad) {
+      profile.write_u8(0);
+    }
+  }
+  CHECK(profile.bytes().size() == total);
+  return profile.bytes();
+}
+
 }  // namespace patchy::test
