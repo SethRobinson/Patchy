@@ -134,9 +134,13 @@ Calibrated against PS's `convertProfile("sRGB IEC61966-2.1", RELATIVECOLORIMETRI
 
 **The base's layer effects draw OVER its clipped members** (`photoshop-clip-base-effects.psd/bmp`, COM-probed September 2026, GitHub issue 41): the members are part of the base's fill, so its Color/Gradient/Pattern Overlay, Satin, Inner Glow, Inner Shadow, Bevel and Stroke all land on top of them, and its blend mode, opacity, Fill, mask and channel restriction apply to the merged result. `clbl` "Blend Clipped Layers as Group" (4-byte bool block, PS default ON and absence means on; `LayerStyle::blend_clipped_elements`, written only when off) matters only through `infx`: clbl OFF with infx ON folds the overlays and Satin into the base first, so the members cover them, while Inner Shadow and Stroke still paint over the members. A Multiply member over a 50%-opacity Normal base renders identically with clbl on or off (the D cells): members keep blending against the base color at full strength and fading with the base either way. Renderer: `composite_sibling_layers` builds the base's raw content plus its members as one `ClipRunContent` source and runs it through the ordinary effect pipeline, which keeps every effect mask on the real source (members cannot widen the clip). Divergences: a Blend If base keeps the isolated-buffer path (its per-pixel gate is calibrated on the base's own colors) and there its effects still render under the members; adjustment-layer bases render clipped siblings unrestricted; whether a non-Normal base's blend mode stops carrying the members with clbl off is unprobed.
 
-Folder bases use `group_silhouette_for_render` and the pixel-base pipeline,
-even for Pass Through. Override-aware bounds preserve moves and effect
-geometry. Local `backglass-invert/Backglass_homebrew.psd` pins the background,
+Folder bases use their union silhouette for clipping coverage. Plain Pass Through
+bases first blend their children against the outside backdrop, then remove the
+backdrop contribution to recover straight base colors for the clipped members.
+An empty clipped member leaves Linear Dodge unchanged; a half-opacity member
+keeps the same backdrop colors (PS COM probes on `passthrough_clipping_mask_blendmode.psd`).
+Blend If, reduced Fill, knockout and styled bases retain their isolated pipelines.
+Override-aware bounds preserve moves and effect geometry. Local `backglass-invert/Backglass_homebrew.psd` pins the background,
 dragons and opaque text against PS's saved composite: `Invert 1` clips to the
 dragon folder only; fractional text edges have a separate blending mismatch.
 

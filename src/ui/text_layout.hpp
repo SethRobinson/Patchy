@@ -84,6 +84,8 @@ inline constexpr double kFauxItalicSlant = 0.2126;
 // column instead of standing upright (Photoshop's "Standard Vertical Roman Alignment",
 // /BaselineDirection 2). CJK glyphs stay upright either way.
 inline constexpr int kTextRotatedRomanFormatProperty = QTextFormat::UserProperty + 42;
+// Baseline shift in the same scaled engine pixels as kTextExactSizeFormatProperty.
+inline constexpr int kTextBaselineShiftFormatProperty = QTextFormat::UserProperty + 43;
 
 // One visual line as the renderer draws it: the line, the origin it is drawn at, and the
 // rect it is clipped to. `block_position` is the owning block's document position, which

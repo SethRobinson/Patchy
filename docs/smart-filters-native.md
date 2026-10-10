@@ -1,5 +1,15 @@
 # Native Smart Filters: descriptors, FEid cache, render calibration
 
+CMYK FEid caches contain inverted C/M/Y/K in slots 0..3 and alpha in slot 25
+(Photoshop captures `cmyk-render/smart-filtered-{8,16}.psd`). Photoshop's 16-bit
+capture uses 16-bit ZIP-predicted planes, preserved but preview-locked; Patchy's
+authored caches use the supported 8-bit form. Imported records retain their source
+profile in session metadata through rekeying, mask edits and clipboard copies.
+CMYK saves convert rebuilt sRGB cache planes with that document's profile while
+preserving the remaining slots and exact mask tail. Unchanged native caches are
+emitted verbatim. The layer preview converts separately at the parent depth;
+neither conversion alters the live document or undo snapshots.
+
 Calibration record for Photoshop-native Smart Filter authoring and rendering. Read this before touching src/psd smart-filter descriptor I/O or src/filters/smart_filter_renderer.cpp. Model and UI rules live in [smart-objects.md](smart-objects.md).
 Conventions: "PS" = Adobe Photoshop 2026/27.8, the installed ground truth; every rule is pinned by PS COM captures unless noted. Fixtures named `photoshop-*` live in `test-fixtures/psd/`; `local-test-fixtures/` is machine-local. The COM workflow lives in [ps-compat.md](ps-compat.md).
 
@@ -36,3 +46,9 @@ Conventions: "PS" = Adobe Photoshop 2026/27.8, the installed ground truth; every
 - Untouched SoLd and FEid/FXid payloads stay byte-exact. Rekeying duplicates changes only the Pascal `placed` id and rebuilds the envelope; the cloned FEid record must sit directly AFTER its source, and the cloned layer needs a fresh native `lyid` (PS rejects wrong cache order and merges duplicate lyids); Patchy allocates the next unused native id independently of runtime `LayerId`. Unknown versions, malformed bounds/lengths, trailing row data, unsupported depth/compression, missing associations, and duplicate `placed` matches fail closed; any opaque FEid/FXid block disables association and mutation store-wide. If ANY `filterFXList` entry is unsupported the whole stack stays preview-locked; never execute a known prefix over PS's baked preview. No private fallback block.
 - Fixture inventory: [smart-objects.md](smart-objects.md). PS ignores written `filterMaskLinked=true`; Patchy preserves the flag but keeps that stack preview-locked.
 
+
+The self-authored `cmyk-render/smart-filtered-{8,16}.psd` fixtures add Gaussian Blur
+through Photoshop COM to `smart-gradient.psd`; `smart-gradient-16.psd` is its
+unfiltered 16-bit conversion. Edited parent previews widen to their parent depth.
+Acceptance covers unchanged, regenerated and moved caches plus embedded-content
+edits in PSD and PSB, with error-enabled Photoshop opens.

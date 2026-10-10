@@ -753,6 +753,26 @@ void compositor_group_clip_base_limits_adjustments_and_combines_child_coverage()
   }
 }
 
+void compositor_passthrough_clip_base_keeps_child_blending() {
+  patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(1, 1, 125, 125, 125));
+  patchy::Layer group(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  group.set_blend_mode(patchy::BlendMode::PassThrough);
+  patchy::Layer child(document.allocate_layer_id(), "Dodge", solid_rgba(1, 1, 255, 0, 0, 128));
+  child.set_blend_mode(patchy::BlendMode::LinearDodge);
+  group.children().push_back(std::move(child));
+  document.add_layer(std::move(group));
+  const auto before = patchy::Compositor{}.flatten_rgb8(document);
+  auto& member = document.add_pixel_layer("Clipped", solid_rgba(1, 1, 0, 0, 255, 0));
+  member.set_clipped(true);
+  const auto empty = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(std::equal(before.data().begin(), before.data().end(), empty.data().begin()));
+  member.pixels().pixel(0, 0)[3] = 128;
+  const auto colored = patchy::Compositor{}.flatten_rgb8(document);
+  const std::array<int, 3> expected{126, 94, 158};
+  for (int c = 0; c < 3; ++c) CHECK(std::abs(colored.pixel(0, 0)[c] - expected[c]) <= 1);
+}
+
 void psd_backglass_group_clipped_invert_matches_photoshop_if_available() {
   const auto path = patchy::test::local_format_fixture_path("backglass-invert", "Backglass_homebrew.psd");
   if (!std::filesystem::exists(path)) {
@@ -1996,6 +2016,8 @@ std::vector<patchy::test::TestCase> compositor_blend_if_tests() {
       {"compositor_knockout_clipped_member_reveals_base", compositor_knockout_clipped_member_reveals_base},
       {"compositor_group_clip_base_limits_adjustments_and_combines_child_coverage",
        compositor_group_clip_base_limits_adjustments_and_combines_child_coverage},
+      {"compositor_passthrough_clip_base_keeps_child_blending",
+       compositor_passthrough_clip_base_keeps_child_blending},
       {"psd_backglass_group_clipped_invert_matches_photoshop_if_available",
        psd_backglass_group_clipped_invert_matches_photoshop_if_available},
       {"compositor_pass_through_group_blend_if_isolates_adjustment_child",

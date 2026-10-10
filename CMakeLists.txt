@@ -186,6 +186,7 @@ patchy_configure_target(patchy_core)
 add_library(patchy_render
   src/render/compositor.cpp
   src/render/native_cmyk.cpp
+  src/render/native_duotone.cpp
   src/render/layer_style_mask_ops.cpp
   src/render/tile_cache.cpp
 )

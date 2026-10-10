@@ -508,6 +508,22 @@ void stroke_combined_shapes_follow_boolean_boundary() {
   CHECK(coverage_pixel(band, 6, 20) > 200);
 }
 
+void stroke_first_intersection_keeps_fill_without_outline() {
+  VectorPath path;
+  path.subpaths = {circle_subpath(24, 24, 16)};
+  path.subpaths.front().op = PathCombineOp::Intersect;
+  const Rect clip{0, 0, 48, 48};
+  CHECK(coverage_pixel(rasterize(path, clip), 24, 24) == 255);
+  patchy::VectorStroke stroke;
+  stroke.enabled = true;
+  stroke.width = 1.0;
+  stroke.alignment = patchy::VectorStrokeAlignment::Inside;
+  CHECK(stroke_coverage(path, stroke, clip).bounds.empty());
+  // The same geometry with Add still has its one-pixel outline.
+  path.subpaths.front().op = PathCombineOp::Add;
+  CHECK(!stroke_coverage(path, stroke, clip).bounds.empty());
+}
+
 void stroke_alignment_inside_outside() {
   VectorPath path;
   path.subpaths = {rect_subpath(8, 8, 24, 24, PathCombineOp::Add, 0)};
@@ -1475,6 +1491,7 @@ std::vector<patchy::test::TestCase> vector_raster_tests() {
       {"raster_shape_paints_solid_gradient_pattern", raster_shape_paints_solid_gradient_pattern},
       {"stroke_center_band_and_miter_corner", stroke_center_band_and_miter_corner},
       {"stroke_combined_shapes_follow_boolean_boundary", stroke_combined_shapes_follow_boolean_boundary},
+      {"stroke_first_intersection_keeps_fill_without_outline", stroke_first_intersection_keeps_fill_without_outline},
       {"stroke_alignment_inside_outside", stroke_alignment_inside_outside},
       {"stroke_arc_band_has_no_winding_notches", stroke_arc_band_has_no_winding_notches},
       {"stroke_caps_butt_square_round", stroke_caps_butt_square_round},

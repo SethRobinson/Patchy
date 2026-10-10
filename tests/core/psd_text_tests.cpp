@@ -1875,6 +1875,32 @@ void psd_text_engine_normal_style_sheet_supplies_missing_run_properties() {
   CHECK(metadata.at(patchy::kLayerMetadataTextLayoutMode) == patchy::kTextLayoutModePhotoshop);
 }
 
+void psd_text_baseline_shift_round_trips_native_text() {
+  patchy::Document document(128, 128, patchy::PixelFormat::rgb8());
+  auto& layer = document.add_pixel_layer("Shifted", solid_rgb(128, 128, 0, 0, 0));
+  layer.metadata()[patchy::kLayerMetadataText] = "HH";
+  layer.metadata()[patchy::kLayerMetadataTextFont] = "Arial";
+  layer.metadata()[patchy::kLayerMetadataTextSize] = "24";
+  layer.metadata()[patchy::kLayerMetadataTextRuns] =
+      "v8\n0\t1\t24\t0\t0\t#000000\tArial\tauto\t0\t1\t1\t0\t\t0\t0\t-8"
+      "\n1\t1\t24\t0\t0\t#000000\tArial\tauto\t0\t1\t1\t0\t\t0\t0\t4";
+  const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto read = patchy::psd::DocumentIo::read(written);
+  const auto& runs = read.layers().front().metadata().at(patchy::kLayerMetadataTextRuns);
+  CHECK(runs.starts_with("v8\n"));
+  const auto lines = split_lines(runs);
+  CHECK(lines.size() == 3);
+  if (lines.size() == 3) {
+    const auto first = split_tabs(lines[1]);
+    const auto second = split_tabs(lines[2]);
+    CHECK(first.size() == 16 && second.size() == 16);
+    if (first.size() == 16 && second.size() == 16) {
+      CHECK(std::stod(first[15]) == -8.0);
+      CHECK(std::stod(second[15]) == 4.0);
+    }
+  }
+}
+
 void psd_text_engine_auto_leading_run_serializes_auto_marker() {
   // AutoLeading true makes the recorded /Leading informational: the run must serialize as
   // "auto" so later size edits keep tracking Photoshop's 1.2 x size rule (COM-verified).
@@ -2881,6 +2907,7 @@ std::vector<patchy::test::TestCase> psd_text_tests() {
        psd_text_engine_data_preserves_paragraph_layout_runs},
       {"psd_text_engine_normal_style_sheet_supplies_missing_run_properties",
        psd_text_engine_normal_style_sheet_supplies_missing_run_properties},
+      {"psd_text_baseline_shift_round_trips_native_text", psd_text_baseline_shift_round_trips_native_text},
       {"psd_text_engine_auto_leading_run_serializes_auto_marker",
        psd_text_engine_auto_leading_run_serializes_auto_marker},
       {"psd_restaurant_menu_dishes_runs_parse_photoshop_layout_if_available",

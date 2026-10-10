@@ -12,6 +12,8 @@ struct PsdNativeColorSpace {
   std::uint16_t mode{0};
   BitDepth depth{BitDepth::UInt16};
   std::vector<std::uint8_t> profile;
+  // Resource 1066: one sRGB triple for each stored duotone gray sample.
+  std::shared_ptr<const std::array<RgbColor, 256>> duotone_colors;
 };
 
 struct PsdNativeLayerColors {

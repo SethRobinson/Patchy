@@ -1262,6 +1262,10 @@ PsdTextEngineDefaults extract_engine_text_defaults(std::span<const std::uint8_t>
       if (const auto font_index = engine_number_after_key(sheet, "/Font"); font_index.has_value()) {
         defaults.font_index = static_cast<int>(std::lround(*font_index));
       }
+      if (const auto shift = engine_number_after_key(sheet, "/BaselineShift");
+          shift.has_value() && std::isfinite(*shift) && std::abs(*shift) < 100000.0) {
+        defaults.baseline_shift = *shift;
+      }
       defaults.faux_bold = engine_bool_after_key(sheet, "/FauxBold");
       defaults.faux_italic = engine_bool_after_key(sheet, "/FauxItalic");
       if (const auto baseline = engine_number_after_key(sheet, "/BaselineDirection"); baseline.has_value()) {
@@ -1333,6 +1337,11 @@ std::optional<std::vector<PsdTextStyleRun>> extract_engine_text_runs(std::span<c
     run.faux_italic = engine_bool_after_key(dictionaries[index], "/FauxItalic", defaults.faux_italic);
     run.baseline_direction = static_cast<int>(std::lround(
         engine_number_after_key(dictionaries[index], "/BaselineDirection").value_or(defaults.baseline_direction)));
+    if (const auto shift = engine_number_after_key(dictionaries[index], "/BaselineShift")
+                               .value_or(defaults.baseline_shift);
+        std::isfinite(shift) && std::abs(shift) < 100000.0) {
+      run.baseline_shift = shift;
+    }
     run.auto_leading = engine_bool_after_key(dictionaries[index], "/AutoLeading", defaults.auto_leading);
     // Photoshop records a stale /Leading value even for auto-leading runs; only a fixed
     // (non-auto) run's leading participates in layout.
@@ -1473,7 +1482,10 @@ std::string serialize_patchy_text_runs(std::span<const PsdTextStyleRun> runs) {
     return run.leading.has_value() && std::isfinite(*run.leading) && *run.leading > 0.0;
   });
   // v7: the rotated-Roman flag (BaselineDirection 2), only when a run carries it.
-  const bool include_rotated =
+  const bool include_shift = std::any_of(runs.begin(), runs.end(), [](const PsdTextStyleRun& run) {
+    return std::isfinite(run.baseline_shift) && std::abs(run.baseline_shift) > 0.0001;
+  });
+  const bool include_rotated = include_shift ||
       std::any_of(runs.begin(), runs.end(), [](const PsdTextStyleRun& run) { return run.baseline_direction == 2; });
   const bool include_faux_italic = include_rotated ||
       std::any_of(runs.begin(), runs.end(), [](const PsdTextStyleRun& run) { return run.faux_italic; });
@@ -1487,7 +1499,7 @@ std::string serialize_patchy_text_runs(std::span<const PsdTextStyleRun> runs) {
                std::abs(run.horizontal_scale - 1.0) > 0.0001 || std::abs(run.vertical_scale - 1.0) > 0.0001;
       });
   std::string serialized =
-      include_rotated
+      include_shift ? "v8" : include_rotated
           ? "v7"
           : include_faux_italic
           ? "v6"
@@ -1543,6 +1555,10 @@ std::string serialize_patchy_text_runs(std::span<const PsdTextStyleRun> runs) {
       if (include_rotated) {
         serialized += '\t';
         serialized += run.baseline_direction == 2 ? '2' : '0';
+      }
+      if (include_shift) {
+        serialized += '\t';
+        serialized += serialize_paragraph_metric(run.baseline_shift);
       }
     } else if (include_leading) {
       serialized += '\t';

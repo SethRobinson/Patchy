@@ -1633,6 +1633,54 @@ void ui_script_rerender_text_replaces_stored_pixels() {
   CHECK(std::abs(bounds_after.height - bounds_before.height) <= 2);
 }
 
+// Baseline shifts move individual glyphs and scale with the text during Image Size.
+void ui_text_baseline_shift_moves_individual_runs() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var shifted = app.activeDocument.addTextLayer('HH', {size: 48, x: 30, y: 80, color: '#000000'});
+  )JS")));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto id = document.active_layer_id();
+  CHECK(id.has_value());
+  if (!id) return;
+  auto* layer = document.find_layer(*id);
+  layer->metadata()[patchy::kLayerMetadataTextLayoutMode] = patchy::kTextLayoutModePhotoshop;
+  layer->metadata()[patchy::kLayerMetadataTextRuns] =
+      "v8\n0\t1\t48\t0\t0\t#000000\tArial\tauto\t0\t1\t1\t0\t\t0\t0\t0"
+      "\n1\t1\t48\t0\t0\t#000000\tArial\tauto\t0\t1\t1\t0\t\t0\t0\t-8";
+  CHECK(run_script(window, QStringLiteral("app.activeDocument.activeLayer.rerenderText();")));
+  const auto baseline_difference = [](const patchy::Layer& text_layer) {
+    const auto& pixels = text_layer.pixels();
+    std::vector<int> ink_columns;
+    for (int x = 0; x < pixels.width(); ++x) {
+      for (int y = 0; y < pixels.height(); ++y) {
+        if (pixels.pixel(x, y)[3] > 128) { ink_columns.push_back(x); break; }
+      }
+    }
+    CHECK(!ink_columns.empty());
+    if (ink_columns.empty()) return 0;
+    const int middle = (ink_columns.front() + ink_columns.back()) / 2;
+    int top_left = pixels.height(), top_right = pixels.height();
+    for (int y = 0; y < pixels.height(); ++y) for (int x = 0; x < pixels.width(); ++x) {
+      if (pixels.pixel(x, y)[3] > 128) {
+        auto& top = x <= middle ? top_left : top_right;
+        top = std::min(top, y);
+      }
+    }
+    return top_right - top_left;
+  };
+  CHECK(baseline_difference(*std::as_const(document).find_layer(*id)) == 8);
+  CHECK(std::as_const(document).find_layer(*id)->metadata().at(patchy::kLayerMetadataTextRuns).starts_with("v8\n"));
+  CHECK(run_script(window, QStringLiteral(
+      "var doc = app.activeDocument; doc.resizeImage(doc.width * 2, doc.height * 2);")));
+  const auto& resized = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* resized_layer = resized.find_layer(*id);
+  CHECK(resized_layer != nullptr);
+  if (resized_layer) CHECK(baseline_difference(*resized_layer) == 16);
+}
+
 // setTextRuns retypes an existing layer with formatted runs on top of the first character's
 // formatting (the family and size survive, the runs' own bold and color apply), and a plain
 // `text` assignment afterwards keeps the first run's formatting as before.
@@ -4687,6 +4735,7 @@ std::vector<patchy::test::TestCase> scripting_tests() {
        ui_text_windows_named_font_data_drops_macintosh_records_if_available},
       {"ui_script_text_runs_create_and_read_back", ui_script_text_runs_create_and_read_back},
       {"ui_script_text_box_wraps_and_aligns", ui_script_text_box_wraps_and_aligns},
+      {"ui_text_baseline_shift_moves_individual_runs", ui_text_baseline_shift_moves_individual_runs},
       {"ui_script_set_text_runs_edits_existing_layer", ui_script_set_text_runs_edits_existing_layer},
       {"ui_script_rerender_text_replaces_stored_pixels", ui_script_rerender_text_replaces_stored_pixels},
       {"ui_script_text_paragraph_reads_and_sets_metrics", ui_script_text_paragraph_reads_and_sets_metrics},

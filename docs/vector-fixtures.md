@@ -80,6 +80,10 @@ stroke).
 
 ## Known render divergences
 
+- A lone closed Intersect group fills its contour but has no native stroke.
+  Photoshop's translated-and-restored `intersect-first.psd` capture pins this
+  distinction; Add and Xor on the same path retain the outline.
+
 - GdFl: with Photoshop's pixel-corner sampling and whole-pixel ends
   ([gradients.md](gradients.md), "Gradient fill layer geometry") the
   gradient fixture's mean error is 0.29. Residual: Photoshop parametrizes its

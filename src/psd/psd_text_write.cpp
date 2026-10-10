@@ -280,7 +280,7 @@ std::vector<PsdTextStyleRun> parse_patchy_text_runs_metadata(std::string_view ru
     }
     line_start = line_end == std::string_view::npos ? runs_text.size() : line_end + 1U;
     if (line.empty() || line == "v1" || line == "v2" || line == "v3" || line == "v4" || line == "v5" || line == "v6" ||
-        line == "v7") {
+        line == "v7" || line == "v8") {
       continue;
     }
 
@@ -340,6 +340,12 @@ std::vector<PsdTextStyleRun> parse_patchy_text_runs_metadata(std::string_view ru
     }
     if (fields.size() >= 15U) {
       run.baseline_direction = parse_int_or(fields[14], 0) == 2 ? 2 : 0;
+    }
+    if (fields.size() >= 16U) {
+      if (const auto shift = parse_double(fields[15]);
+          shift.has_value() && std::isfinite(*shift) && std::abs(*shift) < 100000.0) {
+        run.baseline_shift = *shift;
+      }
     }
     if (run.length <= 0 || run.start >= text_length) {
       continue;
@@ -454,7 +460,7 @@ std::vector<PsdTextParagraphRun> parse_patchy_paragraph_runs_metadata(std::strin
     }
     line_start = line_end == std::string_view::npos ? runs_text.size() : line_end + 1U;
     if (line.empty() || line == "v1" || line == "v2" || line == "v3" || line == "v4" || line == "v5" || line == "v6" ||
-        line == "v7") {
+        line == "v7" || line == "v8") {
       continue;
     }
     const auto fields = split_tab_fields(line);
@@ -1536,6 +1542,9 @@ std::string engine_style_sheet_data(const PsdTextStyleRun& run, int font_index, 
   if (std::isfinite(run.vertical_scale) && std::abs(run.vertical_scale - 1.0) > 0.0001) {
     style += " /VerticalScale ";
     style += std::to_string(run.vertical_scale);
+  }
+  if (std::isfinite(run.baseline_shift) && std::abs(run.baseline_shift) > 0.0001) {
+    style += " /BaselineShift " + engine_short_fraction(run.baseline_shift);
   }
   style += " /AutoKerning true /Kerning 0 /FillColor ";
   style += engine_color_object(run.color);

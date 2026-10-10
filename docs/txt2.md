@@ -138,7 +138,7 @@ Style sheet (`/1/1[i]/0/6/0[j]/0/0/6`, and `/0/5`, `/1/2`):
 | `/4`, `/5` | AutoLeading, Leading | `true 28.8` (Photoshop stores the computed auto leading) |
 | `/6`, `/7` | HorizontalScale, VerticalScale | 1.0 |
 | `/8` | Tracking | integer (200 in the tracking fixture) |
-| `/9` | BaselineShift | 0.0 |
+| `/9` | BaselineShift | Engine pixels; positive raises glyphs, runs v8 column 15 |
 | `/11` | AutoKerning | 1 |
 | `/18` | Ligatures | true |
 | `/38` | Language | 14 |

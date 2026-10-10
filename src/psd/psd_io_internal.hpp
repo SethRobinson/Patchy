@@ -322,6 +322,7 @@ struct ParsedCompositeChannelResources {
 // restaurant-menu bug: dish names omitted /FontSize because they used the default 12.0, and the
 // old code fell back to the first /FontSize found anywhere in the engine data instead).
 struct PsdTextEngineDefaults {
+  double baseline_shift{0.0};
   double font_size{12.0};
   bool auto_leading{true};
   double leading{0.0};
@@ -369,6 +370,7 @@ struct CmykColorConverter {
   bool linear_rgb{false};
   enum class InkView { Display, Cmy, Black };
   InkView ink_view{InkView::Display};
+  const std::array<RgbColor, 256>* duotone_colors{nullptr};
 
   [[nodiscard]] RgbColor rgb_from_descriptor_rgb(double red, double green, double blue) const {
     const auto byte = [&](double value) {
@@ -409,6 +411,7 @@ struct CmykColorConverter {
   [[nodiscard]] RgbColor rgb_from_gray(double lightness) const {
     const auto gray = static_cast<std::uint8_t>(
         std::clamp(std::lround(std::clamp(lightness, 0.0, 1.0) * 255.0), 0L, 255L));
+    if (duotone_colors != nullptr) return (*duotone_colors)[gray];
     if (gray_icc != nullptr) {
       return gray_icc->convert_single(gray);
     }

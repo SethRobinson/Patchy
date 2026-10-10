@@ -1981,6 +1981,7 @@ void scale_document_font_sizes(QTextDocument& document, double scale) {
       auto format_font = format.font();
       const auto before_pixel_size = format_font.pixelSize();
       const auto before_point_size = format_font.pointSizeF();
+      const auto before_shift = format.property(kTextBaselineShiftFormatProperty).toDouble();
       const auto before_leading = format.hasProperty(kTextLeadingFormatProperty)
                                       ? format.property(kTextLeadingFormatProperty).toDouble()
                                       : 0.0;
@@ -1992,6 +1993,11 @@ void scale_document_font_sizes(QTextDocument& document, double scale) {
       scale_font_size(format_font, scale);
       bool changed = format_font.pixelSize() != before_pixel_size ||
                      std::abs(format_font.pointSizeF() - before_point_size) >= 0.0001;
+      if (format.hasProperty(kTextBaselineShiftFormatProperty) && std::isfinite(before_shift)) {
+        const auto scaled_shift = before_shift * scale;
+        format.setProperty(kTextBaselineShiftFormatProperty, scaled_shift);
+        changed = changed || std::abs(scaled_shift - before_shift) >= 0.0001;
+      }
       if (format.hasProperty(kTextLeadingFormatProperty) && std::isfinite(before_leading) && before_leading > 0.0) {
         const auto scaled_leading = before_leading * scale;
         format.setProperty(kTextLeadingFormatProperty, scaled_leading);
@@ -3228,6 +3234,7 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
   bool includes_style = false;
   bool includes_faux_italic = false;
   bool includes_rotated = false;
+  bool includes_shift = false;
   const auto fallback_family = fallback.family.isEmpty() ? QApplication::font().family() : fallback.family;
   const auto fallback_size = std::max(1, fallback.size);
   const auto fallback_color_name = (fallback_color.isValid() ? fallback_color : QColor(Qt::black)).name(QColor::HexRgb);
@@ -3248,12 +3255,13 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
     bool faux_bold{false};
     bool faux_italic{false};
     bool rotated_roman{false};
+    double baseline_shift{0.0};
     QString style;
   };
   std::vector<SerializedRun> collected;
 
   const auto append_run = [&collected, &includes_leading, &photoshop_layout, &includes_faux_bold, &includes_style,
-                           &includes_faux_italic, &includes_rotated, &fallback_family, fallback_size,
+                           &includes_faux_italic, &includes_rotated, &includes_shift, &fallback_family, fallback_size,
                            &fallback_color_name](int start, int length, const QTextCharFormat& format) {
     if (length <= 0) {
       return;
@@ -3331,8 +3339,10 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
     run.rotated_roman = format.hasProperty(kTextRotatedRomanFormatProperty) &&
                         format.property(kTextRotatedRomanFormatProperty).toBool();
     includes_rotated = includes_rotated || run.rotated_roman;
+    run.baseline_shift = format.property(kTextBaselineShiftFormatProperty).toDouble();
+    includes_shift = includes_shift || std::abs(run.baseline_shift) > 0.0001;
     photoshop_layout = photoshop_layout || run.auto_leading || run.faux_bold || run.faux_italic || run.rotated_roman ||
-                       !run.style.isEmpty() ||
+                       !run.style.isEmpty() || std::abs(run.baseline_shift) > 0.0001 ||
                        std::abs(run.tracking) > 0.0001 ||
                        std::abs(run.horizontal_scale - 1.0) > 0.0001 ||
                        std::abs(run.vertical_scale - 1.0) > 0.0001;
@@ -3380,7 +3390,9 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
   if (!found_run) {
     append_run(0, document.toPlainText().size(), fallback_format);
   }
-  if (includes_rotated) {
+  if (includes_shift) {
+    lines[0] = QStringLiteral("v8");
+  } else if (includes_rotated) {
     lines[0] = QStringLiteral("v7");
   } else if (includes_faux_italic) {
     lines[0] = QStringLiteral("v6");
@@ -3413,17 +3425,20 @@ QString rich_text_runs_from_document(const QTextDocument& document, const TextTo
       line += QStringLiteral("\t%1").arg(QString::number(run.vertical_scale, 'g', 17));
       // Column 11 is faux bold and column 12 the style name; the style column needs the faux
       // one in front of it, so a styled run emits both.
-      if (includes_faux_bold || includes_style || includes_faux_italic || includes_rotated) {
+      if (includes_faux_bold || includes_style || includes_faux_italic || includes_rotated || includes_shift) {
         line += QStringLiteral("\t%1").arg(run.faux_bold ? 1 : 0);
       }
-      if (includes_style || includes_faux_italic || includes_rotated) {
+      if (includes_style || includes_faux_italic || includes_rotated || includes_shift) {
         line += QStringLiteral("\t%1").arg(QString::fromLatin1(run.style.toUtf8().toPercentEncoding()));
       }
-      if (includes_faux_italic || includes_rotated) {
+      if (includes_faux_italic || includes_rotated || includes_shift) {
         line += QStringLiteral("\t%1").arg(run.faux_italic ? 1 : 0);
       }
-      if (includes_rotated) {
+      if (includes_rotated || includes_shift) {
         line += QStringLiteral("\t%1").arg(run.rotated_roman ? 2 : 0);
+      }
+      if (includes_shift) {
+        line += QStringLiteral("\t%1").arg(QString::number(run.baseline_shift, 'g', 17));
       }
     } else if (includes_leading) {
       line += QStringLiteral("\t%1").arg(QString::number(run.leading, 'g', 17));
@@ -3587,7 +3602,7 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
     const auto line = raw_line.trimmed();
     if (line.isEmpty() || line == QStringLiteral("v1") || line == QStringLiteral("v2") ||
         line == QStringLiteral("v3") || line == QStringLiteral("v4") || line == QStringLiteral("v5") ||
-        line == QStringLiteral("v6") || line == QStringLiteral("v7")) {
+        line == QStringLiteral("v6") || line == QStringLiteral("v7") || line == QStringLiteral("v8")) {
       continue;
     }
     const auto fields = line.split(QLatin1Char('\t'));
@@ -3700,6 +3715,14 @@ void apply_patchy_text_runs_to_document(QTextDocument& document, const QString& 
     }
     if (fields.size() >= 15 && fields[14].toInt() == 2) {
       format.setProperty(kTextRotatedRomanFormatProperty, true);
+    }
+    if (fields.size() >= 16) {
+      const auto shift = fields[15].toDouble();
+      if (std::isfinite(shift) && std::abs(shift) < 100000.0) {
+        const auto scaled_shift = shift * std::max(0.0, scale);
+        format.setProperty(kTextBaselineShiftFormatProperty, scaled_shift);
+        format.setBaselineOffset(100.0 * scaled_shift / std::max(1, font.pixelSize()));
+      }
     }
     QTextCursor cursor(&document);
     cursor.setPosition(start);
@@ -4671,6 +4694,9 @@ void draw_line_glyphs_pixel_aligned(const QTextBlock& block, const BoxTextLineRe
     for (auto run : line.glyphRuns(from - block.position(), to - from)) {
       auto positions = run.positions();
       for (auto& position : positions) {
+        // QGlyphRun positions omit QTextCharFormat's baseline offset, unlike
+        // QTextLine::draw. Apply the engine-pixel shift before device snapping.
+        position.ry() -= format.property(kTextBaselineShiftFormatProperty).toDouble();
         const auto document_point = document_transform.map(item.block_origin + position);
         position.rx() += (snap_to_pixel_grid(document_point.x()) - document_point.x()) / scale_x;
         position.ry() += (snap_to_pixel_grid(document_point.y()) - document_point.y()) / scale_y;
@@ -6823,7 +6849,7 @@ int text_runs_format_version(const QStringList& lines) {
   return ok ? version : 0;
 }
 
-// Scale the per-run font sizes (and any explicit leading) in a serialized rich-text-runs string.
+// Scale per-run font sizes, explicit leading and baseline shifts in serialized rich-text runs.
 // Format (see rich_text_runs_from_document): line 0 is the version tag, each subsequent line is
 // "start\tlength\tsize\tbold\titalic\tcolor\tfamily[\tleading[\ttracking]]". Sizes are doubles
 // from v3 on (v4-v6 only append columns, so they keep the double sizes), the leading column may
@@ -6851,6 +6877,11 @@ QString scale_rich_text_runs(const QString& runs, double scale) {
     if (fields.size() >= 8 && fields[7] != QStringLiteral("auto")) {
       if (const double leading = fields[7].toDouble(&ok); ok && std::isfinite(leading) && leading > 0.0) {
         fields[7] = QString::number(leading * scale, 'g', 17);
+      }
+    }
+    if (fields.size() >= 16) {
+      if (const double shift = fields[15].toDouble(&ok); ok && std::isfinite(shift)) {
+        fields[15] = QString::number(shift * scale, 'g', 17);
       }
     }
     lines[i] = fields.join(QLatin1Char('\t'));

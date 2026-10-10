@@ -10,9 +10,11 @@
 #include "core/pixel_depth.hpp"
 #include "core/psd_source_colors.hpp"
 #include "core/smart_object.hpp"
+#include "core/vector_raster.hpp"
 #include "local_psd_fixtures.hpp"
 #include "core_test_support.hpp"
 #include "psd/psd_document_io.hpp"
+#include "psd/psd_filter_effects.hpp"
 #include "psd_test_support.hpp"
 #include "render/compositor.hpp"
 #include "test_harness.hpp"
@@ -404,17 +406,98 @@ void psd_cmyk_smart_objects_preserve_inks_and_invalidate_changed_sources() {
           *original.metadata().smart_objects.find(uuid)->file_bytes);
     // The per-layer metadata can stay identical while the document-level
     // payload changes. Never reuse the original ink preview in that case.
-    doc.metadata().smart_objects.find(uuid)->file_bytes =
-        std::make_shared<const std::vector<std::uint8_t>>(std::vector<std::uint8_t>{1, 2, 3});
-    CHECK(mode(psd::DocumentIo::write_layered_rgb8(doc, options)) == 3);
+    doc.metadata().smart_objects.find(uuid)->dirty = true;
+    CHECK(mode(psd::DocumentIo::write_layered_rgb8(doc, options)) == 4);
     doc = original;
     mark_layer_smart_object_block_dirty(*doc.find_layer(id));
-    CHECK(mode(psd::DocumentIo::write_layered_rgb8(doc, options)) == 3);
+    CHECK(mode(psd::DocumentIo::write_layered_rgb8(doc, options)) == 4);
     doc = original;
-    doc.find_layer(id)->pixels().pixel(0, 0)[0] ^= 1;
-    CHECK(mode(psd::DocumentIo::write_layered_rgb8(doc, options)) == 3);
+    doc.find_layer(id)->pixels().pixel(0, 0)[0] ^= 0x80;
+    const auto edited_bytes = psd::DocumentIo::write_layered_rgb8(doc, options);
+    CHECK(mode(edited_bytes) == 4);
+    const auto edited = psd::DocumentIo::read(edited_bytes);
+    CHECK(edited.find_layer(id)->psd_native_colors()->planes != placed->psd_native_colors()->planes);
     doc = original;  // Undo restores provenance as well as the original pixels.
     CHECK(mode(psd::DocumentIo::write_layered_rgb8(doc, options)) == 4);
+  }
+}
+
+void psd_duotone_preserves_inks_and_regenerates_colored_gradient_if_available() {
+  const auto path = test::local_format_fixture_path("psd-tools/tests/psd_files/colormodes", "4x4_8bit_duotone.psd");
+  if (!std::filesystem::exists(path)) { std::cout << "[SKIP] local duotone fixture unavailable\n"; return; }
+  const auto original = psd::DocumentIo::read_file(path);
+  CHECK(original.metadata().psd_native_color_space != nullptr);
+  const auto colors = original.metadata().psd_native_color_space->duotone_colors;
+  CHECK(colors != nullptr);
+  if (!colors) return;
+  auto regenerated = original;
+  for (auto& layer : regenerated.layers()) {
+    if (layer.vector_shape()) update_vector_shape_raster(layer, Rect::from_size(4, 4), nullptr);
+  }
+  const auto rgb = Compositor{}.flatten_rgb8(regenerated);
+  CHECK(rgb.pixel(0, 0)[1] > rgb.pixel(0, 0)[0] + 10);
+  CHECK(rgb.pixel(0, 0)[2] > rgb.pixel(0, 0)[0] + 10);
+  for (const bool psb : {false, true}) {
+    psd::WriteOptions options; options.large_document = psb;
+    const auto bytes = psd::DocumentIo::write_layered_rgb8(original, options);
+    CHECK(bytes[24] == 0 && bytes[25] == 8);
+    const auto reopened = psd::DocumentIo::read(bytes);
+    CHECK(reopened.metadata().raw_psd_color_mode_data == original.metadata().raw_psd_color_mode_data);
+    for (std::size_t i = 0; i < original.layers().size(); ++i) {
+      if (!original.layers()[i].vector_shape()) {
+        CHECK(reopened.layers()[i].psd_native_colors()->planes == original.layers()[i].psd_native_colors()->planes);
+      } else {
+        // Native fills retain their descriptor instead of obsolete cached planes.
+        CHECK(reopened.layers()[i].vector_shape() != nullptr);
+        CHECK(reopened.layers()[i].vector_shape()->fill.native_gray != nullptr);
+      }
+    }
+    CHECK(same_bytes(Compositor{}.flatten_rgb8(reopened), Compositor{}.flatten_rgb8(original)));
+  }
+}
+
+void psd_cmyk_smart_filter_saves_preserve_native_and_convert_authored_caches() {
+  for (const auto bits : {8, 16}) {
+    psd::ReadOptions read;
+    read.keep_bit_depth = true;
+    const auto original = psd::DocumentIo::read_file(patchy::test::source_root_path() /
+        ("test-fixtures/psd/cmyk-render/smart-filtered-" + std::to_string(bits) + ".psd"), read);
+    const auto placed = std::find_if(original.layers().begin(), original.layers().end(),
+        [](const auto& layer) { return layer_is_smart_object(layer); });
+    CHECK(placed != original.layers().end());
+    const auto uuid = smart_object_placed_uuid(*placed);
+    const auto& original_store = original.metadata().smart_filter_effects;
+    CHECK(original_store.find_unique(uuid)->native_color_space != nullptr);
+    for (const bool large : {false, true}) {
+      psd::WriteOptions options;
+      options.large_document = large;
+      const auto bytes = psd::DocumentIo::write_layered_rgb8(original, options);
+      CHECK(bytes[25] == 4 && bytes[23] == bits);
+      const auto reopened = psd::DocumentIo::read(bytes, read);
+      CHECK(psd::serialize_filter_effects_block(reopened.metadata().smart_filter_effects.blocks.front()) ==
+            psd::serialize_filter_effects_block(original_store.blocks.front()));
+      auto edited = original;
+      const auto rgb = convert_pixel_buffer_depth(placed->pixels(), BitDepth::UInt8, SampleKind::Color);
+      const auto authored = psd::author_filter_effects_record(uuid, Rect::from_size(original.width(), original.height()),
+          rgb, placed->bounds(), placed->smart_filter_stack()->mask);
+      CHECK(authored.has_value());
+      CHECK(edited.metadata().smart_filter_effects.upsert_authored(*authored));
+      mark_layer_smart_object_block_dirty(*edited.find_layer(placed->id()));
+      const auto edited_bytes = psd::DocumentIo::write_layered_rgb8(edited, options);
+      CHECK(edited_bytes[25] == 4 && edited_bytes[23] == bits);
+      const auto after = psd::DocumentIo::read(edited_bytes, read);
+      const auto* cache = after.metadata().smart_filter_effects.find_unique(uuid);
+      CHECK(cache != nullptr && cache->semantic_supported() && cache->native_color_space != nullptr);
+      CHECK(cache->mask->bounds.x == authored->mask->bounds.x && cache->mask->bounds.y == authored->mask->bounds.y);
+      CHECK(cache->mask->bounds.width == authored->mask->bounds.width && cache->mask->bounds.height == authored->mask->bounds.height);
+      CHECK(*cache->mask->samples == *authored->mask->samples);
+      // Saving must not mutate the live/undo cache, and a subsequent save must
+      // preserve the converted record rather than converting its inks again.
+      CHECK(edited.metadata().smart_filter_effects.find_unique(uuid)->native_color_space == nullptr);
+      const auto again = psd::DocumentIo::read(psd::DocumentIo::write_layered_rgb8(after, options), read);
+      CHECK(psd::serialize_filter_effects_block(after.metadata().smart_filter_effects.blocks.front()) ==
+            psd::serialize_filter_effects_block(again.metadata().smart_filter_effects.blocks.front()));
+    }
   }
 }
 
@@ -607,6 +690,10 @@ std::vector<patchy::test::TestCase> psd_deep_io_tests() {
        psd_deep_native_colors_survive_saves_but_never_shadow_edits},
       {"psd_cmyk_smart_objects_preserve_inks_and_invalidate_changed_sources",
        psd_cmyk_smart_objects_preserve_inks_and_invalidate_changed_sources},
+      {"psd_duotone_preserves_inks_and_regenerates_colored_gradient_if_available",
+       psd_duotone_preserves_inks_and_regenerates_colored_gradient_if_available},
+      {"psd_cmyk_smart_filter_saves_preserve_native_and_convert_authored_caches",
+       psd_cmyk_smart_filter_saves_preserve_native_and_convert_authored_caches},
       {"psd_deep_non_rgb_gradients_and_adjustments_keep_native_color_if_available",
        psd_deep_non_rgb_gradients_and_adjustments_keep_native_color_if_available},
       {"psd_deep_32_bit_blend_modes_follow_photoshop", psd_deep_32_bit_blend_modes_follow_photoshop},

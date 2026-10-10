@@ -2,6 +2,8 @@
 
 #include "color/color_management.hpp"
 #include "core/psd_source_colors.hpp"
+#include "core/document_depth.hpp"
+#include "core/pixel_depth.hpp"
 #include "filters/smart_filter_renderer.hpp"
 #include "psd/psd_filter_effects.hpp"
 
@@ -762,7 +764,7 @@ bool install_smart_object_layer_preview(Document& document, Layer& layer,
   }
 
   document.metadata().smart_filter_effects = std::move(filter_effects);
-  layer.set_pixels(std::move(preview.rendered.pixels));
+  layer.set_pixels(convert_pixel_buffer_depth(preview.rendered.pixels, document_bit_depth(document), SampleKind::Color));
   layer.set_bounds(preview.rendered.bounds);
   layer.metadata()[kLayerMetadataSmartObjectRasterStatus] =
       kSmartObjectRasterStatusPatchy;

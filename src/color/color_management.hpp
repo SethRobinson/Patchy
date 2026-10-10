@@ -137,9 +137,9 @@ public:
                                          const ColorTransformSpec& spec = {}) const;
 };
 
-// Convert an RGB8/RGB16 composite to an imported document's color space for the PSD
-// merged preview. Layer samples are preserved separately and never round-trip
-// through this inverse transform. Nullopt means the profile cannot be used.
+// Convert RGB8/RGB16 to an imported document's color space for the PSD merged
+// preview and regenerated Smart Object previews/caches. Untouched layer samples
+// are preserved separately. Nullopt means the profile cannot be used.
 [[nodiscard]] std::optional<PixelBuffer> rgb_to_native_color_space(
     const PixelBuffer& rgb, ColorMode mode, std::span<const std::uint8_t> profile);
 

@@ -309,7 +309,7 @@ swapped in, `resize_document_image` (dialog, `doc.resizeImage` and MCP) runs
 `rerender_text_layers_through_transforms`, which re-renders every text layer whose transform
 carries scale with the free-transform commit's rules (`rerender_text_layer_through_stored_transform`):
 Patchy-authored point AND box text fold the vertical scale into the size, per-run sizes,
-paragraph metrics and frame dims (`fold_text_transform_scale_into_font_size`) and re-rasterize
+baseline shifts, paragraph metrics and frame dims (`fold_text_transform_scale_into_font_size`) and re-rasterize
 through the residual; installed-font PSD point text re-renders crisp through the glyph-aligned
 transform; everything else keeps the resampled raster and its raster status. The options bar
 derives its displayed size from the transform's vertical scale for ANY layer, so documents saved

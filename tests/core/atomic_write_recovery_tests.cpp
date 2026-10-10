@@ -56,6 +56,28 @@ std::string text_of(const std::filesystem::path& path) {
   return std::string(bytes.begin(), bytes.end());
 }
 
+void create_fixture_hard_link(const std::filesystem::path& target,
+                             const std::filesystem::path& link, std::error_code& error) {
+#if defined(__EMSCRIPTEN__)
+  // Emscripten has no link/linkat syscall, even with NODERAWFS. Create the host
+  // fixture through Node so the real atomic writer still checks its link count.
+  const auto target_text = target.u8string();
+  const auto link_text = link.u8string();
+  const int failed = EM_ASM_INT({
+    try {
+      require('fs').linkSync(UTF8ToString(arguments[0]), UTF8ToString(arguments[1]));
+      return 0;
+    } catch (e) {
+      console.error('Hard-link fixture: ' + e.message);
+      return 1;
+    }
+  }, target_text.c_str(), link_text.c_str());
+  error = failed ? std::make_error_code(std::errc::io_error) : std::error_code{};
+#else
+  std::filesystem::create_hard_link(target, link, error);
+#endif
+}
+
 bool scratch_remove_refuses(const std::filesystem::path& path) {
   try {
     (void)patchy::test::remove_test_scratch_tree(path);
@@ -227,7 +249,7 @@ void atomic_write_never_opens_a_planted_entry_beside_the_target() {
     name += "." + std::to_string(pid) + "-" + std::to_string(counter) + std::string(patchy::kAtomicTemporarySuffix);
     planted.push_back(dir / name);
     std::error_code error;
-    std::filesystem::create_hard_link(canary, planted.back(), error);
+    create_fixture_hard_link(canary, planted.back(), error);
     CHECK(!error);
   }
   patchy::write_file_bytes_atomically(target, bytes_of("saved"), "open failed", "write failed");
@@ -266,7 +288,7 @@ void atomic_write_commit_refuses_a_link_under_the_reserved_name() {
     patchy::AtomicFileReplacement replacement(target);
     std::error_code error;
     fs::remove(replacement.temporary_path(), error);
-    fs::create_hard_link(canary, replacement.temporary_path(), error);
+    create_fixture_hard_link(canary, replacement.temporary_path(), error);
     CHECK(!error);
     bool threw = false;
     try {

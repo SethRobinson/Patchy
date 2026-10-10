@@ -12,6 +12,8 @@
 
 namespace patchy {
 
+struct PsdNativeColorSpace;
+
 // Raw document-global Photoshop Smart Filter cache data ('FEid'/'FXid'). The
 // cache records can be very large, so records point into shared block storage.
 // Whole-Document undo snapshots consequently copy only shared_ptrs, not cache
@@ -44,6 +46,10 @@ struct SmartFilterEffectsRecord {
   std::uint32_t cache_depth{0};
   std::uint32_t cache_max_channels{0};
   bool cache_layout_valid{false};
+
+  // Null for authored sRGB caches. Imported non-RGB caches retain their ink
+  // space through undo, rekeying and clipboard adoption; it is not wire data.
+  std::shared_ptr<const PsdNativeColorSpace> native_color_space;
 
   bool mask_present{false};
   bool mask_decoded{false};

@@ -47,6 +47,8 @@ struct PsdTextStyleRun {
   // default Photoshop writes), 2 = they lie rotated 90 degrees ("Standard Vertical Roman
   // Alignment"). 0 = unspecified (upright). Runs v7 column 14 carries it only when rotated.
   int baseline_direction{0};
+  // Positive values raise glyphs, in engine pixels. Runs v8 column 15.
+  double baseline_shift{0.0};
   // Fixed leading in engine units (document pixels through the TySh transform). Unset when the
   // run uses Photoshop auto leading (auto_leading), which is paragraph AutoLeading fraction x size.
   std::optional<double> leading;

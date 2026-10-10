@@ -43,6 +43,13 @@ serialize_filter_effects_block(const SmartFilterEffectsBlock &block);
 [[nodiscard]] std::span<const std::uint8_t>
 raw_filter_effects_record_body(const SmartFilterEffectsRecord &record) noexcept;
 
+// Convert an authored sRGB cache to the save document's ink space, preserving
+// every non-color slot and the exact mask tail. Matching imported caches stay
+// byte-identical. Unsupported layouts or a different native source fail closed.
+[[nodiscard]] std::optional<SmartFilterEffectsRecord>
+native_filter_effects_cache(const SmartFilterEffectsRecord& record,
+                            std::shared_ptr<const PsdNativeColorSpace> space);
+
 // Replaces only the optional native filter-mask tail of the one record
 // associated with placed_uuid. The record's cache prefix, its block's
 // FEid/FXid dialect/version/length form, and every other record remain raw.

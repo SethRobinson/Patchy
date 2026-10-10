@@ -213,6 +213,16 @@ std::optional<VectorFill> parse_fill_content(VectorFillKind kind, const Descript
                                              const CmykColorConverter& cmyk) {
   auto fill = parse_fill_content_impl(kind, object, cmyk);
   if (!fill) return fill;
+  if (cmyk.duotone_colors != nullptr &&
+      (kind == VectorFillKind::Solid || kind == VectorFillKind::Gradient)) {
+    auto original = std::make_shared<NativeGrayFill>();
+    original->reference = *fill;
+    auto converter = cmyk;
+    converter.duotone_colors = nullptr;
+    converter.gray_icc = nullptr;
+    original->gray = *parse_fill_content_impl(kind, object, converter);
+    fill->native_gray = std::move(original);
+  }
   const auto ink_color = [](const DescriptorObject& parent) {
     const auto* color = descriptor_object(parent, "Clr ");
     return color != nullptr && color->class_id == "CMYC";

@@ -30,6 +30,7 @@
 #include "core/rect_utils.hpp"
 #include "render/compositor.hpp"
 #include "render/native_cmyk.hpp"
+#include "render/native_duotone.hpp"
 #include "render/layer_compositor.hpp"
 #include "support/string_utils.hpp"
 #include "ui/pdf_export.hpp"
@@ -1322,8 +1323,10 @@ bool layer_has_visible_knockout(const Layer& layer,
 QImage render_document_rect(const Document& document, QRect document_rect, bool preserve_alpha,
                             const std::vector<render_detail::LayerBoundsOverride>* overrides) {
   const auto native_rect = document_rect.normalized();
-  if (const auto native = render_native_cmyk8(document,
-          Rect{native_rect.x(), native_rect.y(), native_rect.width(), native_rect.height()}, overrides)) {
+  const Rect native_clip{native_rect.x(), native_rect.y(), native_rect.width(), native_rect.height()};
+  auto native = render_native_cmyk8(document, native_clip, overrides);
+  if (!native) native = render_native_duotone8(document, native_clip, overrides);
+  if (native) {
     if (native->empty()) return {};
     QImage image(native->width(), native->height(), preserve_alpha ? QImage::Format_RGBA8888 : QImage::Format_RGB888);
     for (int y = 0; y < native->height(); ++y) {

@@ -90,6 +90,7 @@ enum class VectorFillKind : std::uint8_t {
 };
 
 struct NativeCmykFill;
+struct NativeGrayFill;
 
 // Fill appearance for shape layers, fill layers, and stroke paint. The
 // gradient reuses the layer-style gradient model (GdFl's Grad object parses
@@ -111,8 +112,14 @@ struct VectorFill {
   // Imported CMYK paint, before conversion to the RGB editing colors. The
   // reference fill detects edits; no private PSD data is written for this cache.
   std::shared_ptr<const NativeCmykFill> native_cmyk{};
+  std::shared_ptr<const NativeGrayFill> native_gray{};
 
   friend bool operator==(const VectorFill&, const VectorFill&) = default;
+};
+
+struct NativeGrayFill {
+  VectorFill reference;
+  VectorFill gray;
 };
 
 struct NativeCmykFill {

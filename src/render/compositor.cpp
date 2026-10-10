@@ -5,6 +5,7 @@
 #include "core/worker_budget.hpp"
 #include "render/layer_compositor.hpp"
 #include "render/native_cmyk.hpp"
+#include "render/native_duotone.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
@@ -284,7 +285,9 @@ PixelBuffer Compositor::flatten_rgba_deep(const Document& document) const {
 }
 
 PixelBuffer Compositor::flatten_rgb8(const Document& document, std::vector<std::uint8_t>* merged_alpha) const {
-  if (const auto native = render_native_cmyk8(document, Rect::from_size(document.width(), document.height()))) {
+  auto native = render_native_cmyk8(document, Rect::from_size(document.width(), document.height()));
+  if (!native) native = render_native_duotone8(document, Rect::from_size(document.width(), document.height()));
+  if (native) {
     PixelBuffer output(native->width(), native->height(), PixelFormat::rgb8());
     if (merged_alpha) merged_alpha->resize(static_cast<std::size_t>(native->width()) * native->height());
     for (int y = 0; y < native->height(); ++y) {

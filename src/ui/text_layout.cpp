@@ -269,6 +269,8 @@ struct GlyphInkInflation {
   double stretch{1.0};
   double stroke{0.0};
   double italic_lean{0.0};
+  double rise{0.0};
+  double drop{0.0};
 };
 
 GlyphInkInflation glyph_ink_inflation(const QTextBlock& block, const QTextLine& line) {
@@ -277,6 +279,9 @@ GlyphInkInflation glyph_ink_inflation(const QTextBlock& block, const QTextLine& 
   const auto line_end = line_start + std::max(1, line.textLength());
   const auto fold = [&inflation](const QTextCharFormat& format) {
     const auto font = format.font();
+    const auto shift = format.property(kTextBaselineShiftFormatProperty).toDouble();
+    inflation.rise = std::max(inflation.rise, shift);
+    inflation.drop = std::max(inflation.drop, -shift);
     if (font.stretch() > 100) {
       inflation.stretch = std::max(inflation.stretch, font.stretch() / 100.0);
     }
@@ -344,8 +349,8 @@ QRectF line_glyph_ink_rect(const QTextBlock& block, const QTextLine& line, QPoin
 #else
   constexpr double kEngineBoxSlack = 0.0;
 #endif
-  ink.adjust(-inflation.stroke - inflation.italic_lean - kEngineBoxSlack, -inflation.stroke - kEngineBoxSlack,
-             inflation.stroke + kEngineBoxSlack, inflation.stroke + kEngineBoxSlack);
+  ink.adjust(-inflation.stroke - inflation.italic_lean - kEngineBoxSlack, -inflation.stroke - kEngineBoxSlack - inflation.rise,
+             inflation.stroke + kEngineBoxSlack, inflation.stroke + kEngineBoxSlack + inflation.drop);
   return ink.translated(block_origin);
 }
 

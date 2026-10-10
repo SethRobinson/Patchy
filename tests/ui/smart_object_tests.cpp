@@ -8,6 +8,8 @@
 #include "core/smart_filter.hpp"
 #include "core/smart_filter_effects.hpp"
 #include "core/smart_object.hpp"
+#include "core/pixel_depth.hpp"
+#include "core/psd_source_colors.hpp"
 #include "core/text_warp.hpp"
 #include "core/vector_shape.hpp"
 #include "ui/smart_object_render.hpp"
@@ -610,6 +612,62 @@ void ui_layer_smart_object_badge_shows_linked_variant() {
   CHECK(opaque_pixels(linked_image) > 20);
   CHECK(embedded_image != linked_image);
   save_widget_artifact("ui_layer_smart_object_badge_linked_variant", window);
+}
+
+void ui_cmyk_smart_object_content_edits_keep_native_saves() {
+  SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::set_deep_editing_override(true);
+  struct RestoreDepth { ~RestoreDepth() { patchy::set_deep_editing_override(std::nullopt); } } restore_depth;
+  for (const auto& name : {"smart-gradient", "smart-filtered-8", "smart-gradient-16"}) {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    const auto path = patchy::test::committed_psd_fixture_path(std::string("cmyk-render/") + name + ".psd");
+    patchy::ui::MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(path));
+    auto& parent = patchy::ui::MainWindowTestAccess::document(window);
+    const auto found = std::find_if(std::as_const(parent).layers().begin(), std::as_const(parent).layers().end(),
+        [](const auto& layer) { return patchy::layer_is_smart_object(layer); });
+    CHECK(found != std::as_const(parent).layers().end());
+    const auto id = found->id();
+    const bool filtered = found->smart_filter_stack() != nullptr;
+    parent.set_active_layer(id);
+    auto* tabs = qobject_cast<QTabWidget*>(window.centralWidget());
+    CHECK(tabs != nullptr);
+    const auto parent_index = tabs->currentIndex();
+    patchy::ui::MainWindowTestAccess::open_smart_object_contents(window);
+    QApplication::processEvents();
+    CHECK(patchy::ui::MainWindowTestAccess::active_session_is_smart_object_child(window));
+    auto& child = patchy::ui::MainWindowTestAccess::document(window);
+    CHECK(child.layers().size() == 1);
+    child.layers().front().set_pixels(solid_pixels(child.width(), child.height(),
+        patchy::PixelFormat::rgba8(), QColor(20, 200, 40, 255)));
+    child.layers().front().set_bounds(patchy::Rect::from_size(child.width(), child.height()));
+    patchy::ui::MainWindowTestAccess::canvas(window)->document_changed();
+    CHECK(patchy::ui::MainWindowTestAccess::save_document(window));
+    tabs->setCurrentIndex(parent_index);
+    QApplication::processEvents();
+    const auto& edited = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    CHECK(edited.find_layer(id)->psd_native_colors() != nullptr);
+    ensure_artifact_dir();
+    for (const bool large : {false, true}) {
+      patchy::psd::WriteOptions options;
+      options.large_document = large;
+      const auto output = std::filesystem::path("test-artifacts") /
+          (std::string("ui_cmyk_edited_") + name + (large ? ".psb" : ".psd"));
+      patchy::psd::DocumentIo::write_layered_rgb8_file(edited, output, options);
+      patchy::psd::ReadOptions read;
+      read.keep_bit_depth = true;
+      const auto reopened = patchy::psd::DocumentIo::read_file(output, read);
+      CHECK(reopened.metadata().psd_native_color_space != nullptr);
+      CHECK(reopened.metadata().psd_native_color_space->mode == 4);
+      const auto placed = std::find_if(reopened.layers().begin(), reopened.layers().end(),
+          [](const auto& layer) { return patchy::layer_is_smart_object(layer); });
+      CHECK(placed != reopened.layers().end());
+      CHECK((placed->smart_filter_stack() != nullptr) == filtered);
+      if (filtered) CHECK(reopened.metadata().smart_filter_effects.find_unique(
+          patchy::smart_object_placed_uuid(*placed))->native_color_space != nullptr);
+    }
+  }
 }
 
 void ui_smart_object_edit_contents_commit_rerenders_parent() {
@@ -3074,6 +3132,7 @@ void ui_smart_object_photoshop_linked_capture_resolves_if_available() {
 
 std::vector<patchy::test::TestCase> smart_object_tests() {
   return {
+      {"ui_cmyk_smart_object_content_edits_keep_native_saves", ui_cmyk_smart_object_content_edits_keep_native_saves},
       {"ui_layer_fx_and_smart_badges_stay_visible_in_narrow_panel",
        ui_layer_fx_and_smart_badges_stay_visible_in_narrow_panel},
       {"ui_layer_smart_object_badge_button_opens_contents", ui_layer_smart_object_badge_button_opens_contents},

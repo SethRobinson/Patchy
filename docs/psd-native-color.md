@@ -1,7 +1,7 @@
 # Preserving imported PSD color spaces
 
 Patchy edits in RGB. Layered PSD/PSB saves can retain an imported 8/16-bit
-CMYK, grayscale or Lab document's original mode, ICC profile, color planes
+CMYK, grayscale, duotone or Lab document's original mode, ICC profile, color planes
 and native adjustment/gradient blocks. This preserves the color space in
 which Photoshop evaluates the layers. Converting only raster samples to
 RGB cannot preserve a CMYK Posterize operation or a Lab gradient's
@@ -22,8 +22,13 @@ revision triggers comparison with the imported snapshot, so mutable reads
 cannot disable preservation. Raster pixels, metadata, native blocks and
 vector content must match. Unchanged Smart Objects also retain their native
 preview planes, provided their placement and document-level source still match
-the import snapshot. Source replacement, placement edits, regenerated previews
-and native Smart Filter stacks select RGB saving. Regenerated vector blocks and
+the import snapshot. In CMYK documents, source replacement, placement edits and
+regenerated Smart Object previews instead convert the current RGB pixels back
+through the document profile, at its depth. Native Smart Filter caches retain
+their imported ink-space identity; rebuilt sRGB caches convert their four color
+planes independently, leaving alpha, auxiliary slots and mask tails intact.
+Matching imported caches remain byte-identical. Unknown cache layouts and caches
+from another native profile cannot be converted. Regenerated vector blocks and
 text are excluded. Styles need their preserved Photoshop blocks.
 Changing the embedded profile, depth, or source ICC resource disables reuse.
 A layer pasted from another document cannot inherit the destination's inks.
@@ -50,7 +55,7 @@ color channels. Unchanged adjustments keep their original blocks, including
 source channel records; fills keep their native descriptors. The merged
 preview is freshly composited by Patchy and converted back through a
 sRGB-to-source ICC transform at the document depth. It never uses the source merged image.
-Layer data does not pass through that inverse transform.
+Unchanged layer data does not pass through that inverse transform.
 For untagged CMYK, this inverse uses the same installed working-profile fallback
 as display conversion, without embedding that assumed profile in the save.
 
@@ -69,3 +74,21 @@ reference pixels exactly (100% precision). The six CMYK/gray/Lab cases also
 match exactly as PSB. All 18 open/render checks use Photoshop's error-enabled
 dialog mode. This result covers save fidelity of the imported content, not
 native non-RGB editing or the RGB preview's rendering accuracy.
+
+## Duotone
+
+Eight-bit duotone imports retain the ink definition in color-mode data and the
+original gray layer planes. Resource 1066 supplies a bounded 256-entry Lab lookup;
+it converts to sRGB once on import. Raster editing previews and gray descriptor
+colors use that same lookup. Native fill provenance keeps the gray stops, so the
+CPU and UI compose supported untouched stacks in gray and apply the lookup after
+composition. Revision-keyed caches keep gray reconstruction out of repaint loops.
+PSD/PSB saves preserve the ink definition, original layer channels and native fill
+blocks; the merged channel comes from fresh gray composition, not an inverse
+conversion of the colored display image.
+
+Edited colors, patterns, adjustments, Smart Objects and styled layers currently
+use the RGB preview path. A missing or malformed lookup also keeps the historical
+RGB fallback. Photoshop can recompute a stale lookup from its current working ink
+profiles on open, so an old file's embedded table can differ from its fresh
+Photoshop display even while its native save preserves the inks exactly.

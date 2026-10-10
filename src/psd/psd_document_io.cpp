@@ -21,6 +21,7 @@
 #include "psd/psd_patterns.hpp"
 #include "psd/psd_smart_objects.hpp"
 #include "render/compositor.hpp"
+#include "render/native_duotone.hpp"
 #include "support/string_utils.hpp"
 #include "support/translate_noop.hpp"
 
@@ -254,6 +255,14 @@ Document read_flat_composite(BigEndianReader& reader, const Header& header,
     convert_indexed_plane_to_rgb(pixels, channel_data[0].data(), channel_pixels, source_colors.indexed_palette);
   } else if (source_is_gray) {
     convert_gray_plane_to_rgb(pixels, channel_data[0].data(), channel_pixels, source_colors.gray_icc);
+    if (source_colors.duotone_colors) {
+      auto data = pixels.data();
+      for (std::size_t i = 0; i < channel_pixels; ++i) {
+        const auto color = (*source_colors.duotone_colors)[channel_data[0][i]];
+        auto* px = data.data() + i * pixels.format().channels;
+        px[0] = color.red; px[1] = color.green; px[2] = color.blue;
+      }
+    }
   } else if (header.color_mode == kColorModeMultichannel) {
     convert_multichannel_planes_to_rgb(pixels, channel_data, channel_pixels);
   } else {
@@ -681,7 +690,7 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
     const bool convert_native_color = native_color && depth == 16 &&
         (source_is_cmyk || is_lab_color_mode(source_color_mode) || (source_is_gray && source_colors.gray_icc != nullptr));
     const bool preserve_native_color = (depth == 8 || (native_color && depth == 16)) &&
-        (source_is_cmyk || is_lab_color_mode(source_color_mode) || source_color_mode == kColorModeGrayscale);
+        (source_is_cmyk || is_lab_color_mode(source_color_mode) || source_color_mode == kColorModeGrayscale || source_color_mode == kColorModeDuotone);
     std::array<std::vector<std::uint8_t>, 4> native_color_planes;
     PixelBuffer native_pixels;
     if (native_color) {
@@ -853,6 +862,14 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
                                  source_colors.icc);
     } else if (source_is_gray && gray_plane.size() == pixel_count) {
       convert_gray_plane_to_rgb(pixels, gray_plane.data(), pixel_count, source_colors.gray_icc);
+      if (source_colors.duotone_colors) {
+        auto data = pixels.data();
+        for (std::size_t i = 0; i < pixel_count; ++i) {
+          const auto color = (*source_colors.duotone_colors)[gray_plane[i]];
+          auto* px = data.data() + i * pixels.format().channels;
+          px[0] = color.red; px[1] = color.green; px[2] = color.blue;
+        }
+      }
     } else if (is_lab_color_mode(source_color_mode) && has_color) {
       convert_lab_pixels_to_rgb(pixels);
     }
@@ -1444,7 +1461,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
   const bool retain_source_color = (header.depth == 8 || (keep_depth && header.depth == 16)) && options.preserve_unknown_blocks &&
       !options.prefer_flat_composite &&
       (header.color_mode == kColorModeCmyk || header.color_mode == kColorModeGrayscale ||
-       header.color_mode == kColorModeLab);
+       header.color_mode == kColorModeLab || header.color_mode == kColorModeDuotone);
   // The depth conversion is permanent data loss once the document is saved (every writer
   // emits 8-bit), so the UI forces the Import Notes popup for these two notes regardless of
   // the popup preference; it recognizes them through the "psd.depth" metadata value below.
@@ -1463,8 +1480,8 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
         "lost, and saving writes an 8-bit file. Keep the original if you need the 16-bit data."));
   }
 
-  // Indexed documents keep their 256-color table here (768 bytes); Duotone keeps its ink
-  // curves, which are not read (the gray plane stands in for the image).
+  // Indexed documents keep their 256-color table here (768 bytes). Duotone keeps
+  // its ink curves for native saves; resource 1066 supplies its display colors.
   const auto color_mode_data = read_length_block(reader, "color mode data");
   // Like the depth conversion above, this is permanent once the document is saved, so the
   // UI forces the Import Notes popup for it ("psd.color_mode" below tells it which).
@@ -1481,7 +1498,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
 
   Document document(static_cast<std::int32_t>(header.width), static_cast<std::int32_t>(header.height), format);
   document.metadata().raw_psd_image_resources = image_resources;
-  if (keep_depth && header.depth == 32) {
+  if ((keep_depth && header.depth == 32) || header.color_mode == kColorModeDuotone) {
     document.metadata().raw_psd_color_mode_data = color_mode_data;
   }
   // Source bits per channel ("8", "16", "32"). Set here so both the flat-composite and the
@@ -1574,12 +1591,35 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
       }
     }
   }
+  std::shared_ptr<std::array<RgbColor, 256>> duotone_colors;
+  if (header.color_mode == kColorModeDuotone && header.depth == 8) {
+    if (const auto table = find_image_resource_payload(image_resources, 1066); table && table->size() >= 6U) {
+      BigEndianReader colors(*table);
+      const auto version = colors.read_u16();
+      const auto inks = colors.read_u16();
+      if (version == 1 && inks >= 1 && inks <= 4 && table->size() == 6U + inks * 10U + 768U) {
+        static_cast<void>(colors.read_span(inks * 10U));
+        if (colors.read_u16() == 256) {
+          const auto lab = colors.read_span(768U);
+          if (const auto transform = LabToRgbTransform::create()) {
+            std::array<std::uint16_t, 768> encoded{};
+            std::array<std::uint8_t, 768> rgb{};
+            for (std::size_t i = 0; i < encoded.size(); ++i) encoded[i] = static_cast<std::uint16_t>(lab[i] * 257U);
+            transform->convert(encoded.data(), rgb.data(), 256U);
+            duotone_colors = std::make_shared<std::array<RgbColor, 256>>();
+            for (std::size_t i = 0; i < 256U; ++i)
+              (*duotone_colors)[i] = {rgb[i * 3U], rgb[i * 3U + 1U], rgb[i * 3U + 2U]};
+          }
+        }
+      }
+    }
+  }
   const CmykColorConverter source_colors{
       cmyk_icc_transform.has_value() ? &*cmyk_icc_transform : nullptr,
       gray_icc_transform.has_value() ? &*gray_icc_transform : nullptr,
       header.color_mode == kColorModeIndexed && color_mode_data.size() >= 768U ? color_mode_data.data() : nullptr,
       ink_space,
-      header.depth == 32};
+      header.depth == 32, CmykColorConverter::InkView::Display, duotone_colors.get()};
   const auto* cmyk_icc = source_colors.icc;
   if (auto resolution = find_image_resource_payload(image_resources, kImageResourceResolutionInfo);
       resolution.has_value()) {
@@ -1907,11 +1947,14 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     }
     auto space = std::make_shared<PsdNativeColorSpace>();
     space->mode = header.color_mode;
+    space->duotone_colors = duotone_colors;
     space->depth = header.depth == 8 ? BitDepth::UInt8 : BitDepth::UInt16;
     if (const auto profile = find_image_resource_payload(image_resources, kImageResourceIccProfile)) {
       space->profile = *profile;
     }
     document.metadata().psd_native_color_space = space;
+    for (auto& block : document.metadata().smart_filter_effects.blocks)
+      for (auto& record : block.records) record.native_color_space = space;
     const auto seal = [&space, &document](auto& self, std::vector<Layer>& layers) -> void {
       for (auto& layer : layers) {
         self(self, layer.children());
@@ -1993,6 +2036,18 @@ std::uint16_t header_depth(BitDepth depth) noexcept {
   return depth == BitDepth::Float32 ? 32 : depth == BitDepth::UInt16 ? 16 : 8;
 }
 
+bool native_smart_preview_unchanged(const Layer& layer, const SmartObjectStore& store) {
+  const auto& source = layer.psd_native_colors();
+  const auto* placed = store.find(smart_object_source_uuid(layer));
+  if (!source || !source->imported || !placed || !source->smart_object_source ||
+      placed->dirty || *placed != *source->smart_object_source || layer_smart_object_block_dirty(layer)) return false;
+  const auto& before = source->imported->pixels();
+  const auto& after = layer.pixels();
+  return before.width() == after.width() && before.height() == after.height() &&
+      before.format() == after.format() &&
+      (before.data().data() == after.data().data() || std::ranges::equal(before.data(), after.data()));
+}
+
 bool native_layer_colors_unchanged(const std::vector<Layer>& layers,
                                   const std::shared_ptr<const PsdNativeColorSpace>& space,
                                   const SmartObjectStore& smart_objects) {
@@ -2009,8 +2064,15 @@ bool native_layer_colors_unchanged(const std::vector<Layer>& layers,
     const auto& imported = *source->imported;
     if (layer_is_smart_object(layer)) {
       const auto* placed = smart_objects.find(smart_object_source_uuid(layer));
-      // Native filter caches have their own document-wide color planes. Keep
-      // those on the conservative RGB path until they can be validated too.
+      // CMYK previews can be regenerated independently of the unchanged native
+      // layers. The save path validates/converts each Smart Filter cache too.
+      if (space->mode == kColorModeCmyk && placed && layer.kind() == LayerKind::Pixel &&
+          !layer.vector_shape() && !layer.pixels().empty() &&
+          layer.pixels().format().color_mode == ColorMode::RGB &&
+          layer.pixels().format().bit_depth == space->depth &&
+          (layer.pixels().format().channels == 3 || layer.pixels().format().channels == 4) &&
+          photoshop_lfx2_layer_style_payload(layer.layer_style()) ==
+              photoshop_lfx2_layer_style_payload(imported.layer_style())) continue;
       if (layer_smart_object_block_dirty(layer) || layer.smart_filter_stack() ||
           !placed || !source->smart_object_source || placed->dirty ||
           *placed != *source->smart_object_source) return false;
@@ -2061,6 +2123,15 @@ std::optional<PixelBuffer> native_color_composite(const Document& document, cons
   const auto profile = find_image_resource_payload(document.metadata().raw_psd_image_resources,
                                                    kImageResourceIccProfile);
   if (profile.value_or(std::vector<std::uint8_t>{}) != space->profile) return std::nullopt;
+  if (space->mode == kColorModeDuotone) {
+    const auto gray = render_native_duotone8(document, Rect::from_size(document.width(), document.height()),
+                                             nullptr, /*display_colors=*/false);
+    if (!gray) return std::nullopt;
+    PixelBuffer native(gray->width(), gray->height(), PixelFormat::gray8());
+    for (int y = 0; y < gray->height(); ++y)
+      for (int x = 0; x < gray->width(); ++x) native.pixel(x, y)[0] = gray->pixel(x, y)[0];
+    return native;
+  }
   const auto color_mode = space->mode == kColorModeCmyk ? ColorMode::CMYK
                           : space->mode == kColorModeLab ? ColorMode::Lab : ColorMode::Grayscale;
   const auto& conversion_profile = space->profile.empty() && color_mode == ColorMode::CMYK
@@ -2068,7 +2139,8 @@ std::optional<PixelBuffer> native_color_composite(const Document& document, cons
   return rgb_to_native_color_space(rgb, color_mode, conversion_profile);
 }
 
-void restore_native_layer_colors(std::vector<EncodedLayer>& layers, std::uint16_t mode, bool large_document) {
+void restore_native_layer_colors(std::vector<EncodedLayer>& layers, std::uint16_t mode, bool large_document,
+                                 const SmartObjectStore& smart_objects) {
   const auto count = composite_color_channel_count(mode);
   for (auto& encoded : layers) {
     encoded.preserve_native_color_blocks = true;
@@ -2076,7 +2148,22 @@ void restore_native_layer_colors(std::vector<EncodedLayer>& layers, std::uint16_
       const auto& source = *encoded.layer->psd_native_colors();
       std::erase_if(encoded.channels, [](const EncodedChannel& channel) { return channel.id <= kChannelBlack; });
       const bool vector = layer_is_vector_shape(*encoded.layer);
+      std::optional<PixelBuffer> regenerated;
+      if (layer_is_smart_object(*encoded.layer) && !native_smart_preview_unchanged(*encoded.layer, smart_objects)) {
+        const auto& pixels = encoded.layer->pixels();
+        PixelBuffer rgb(pixels.width(), pixels.height(), with_bit_depth(PixelFormat::rgb8(), source.space->depth));
+        const auto bytes = source.space->depth == BitDepth::UInt8 ? 1U : 2U;
+        for (int y = 0; y < pixels.height(); ++y)
+          for (int x = 0; x < pixels.width(); ++x) std::copy_n(pixels.pixel(x, y), 3U * bytes, rgb.pixel(x, y));
+        const auto& profile = source.space->profile.empty() ? default_cmyk_profile() : source.space->profile;
+        regenerated = rgb_to_native_color_space(rgb, ColorMode::CMYK, profile);
+      }
       for (std::uint16_t channel = 0; channel < count; ++channel) {
+        if (regenerated) {
+          encoded.channels.push_back(encode_channel_at_depth(channel, regenerated->width(), regenerated->height(),
+              big_endian_plane(*regenerated, channel), source.space->depth, large_document));
+          continue;
+        }
         encoded.channels.push_back(vector ? EncodedChannel{channel, 0, 0, kCompressionRaw, {}}
             : encode_channel_at_depth(channel, source.width, source.height, source.planes[channel],
                                        source.space->depth, large_document));
@@ -2222,6 +2309,18 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
   }
 
   auto native_composite = native_color_composite(document, deep ? deep_composite->rgb : composite.rgb, options);
+  auto native_filters = document.metadata().smart_filter_effects;
+  if (native_composite) {
+    for (auto& block : native_filters.blocks) {
+      for (auto& record : block.records) {
+        auto converted = native_filter_effects_cache(record, document.metadata().psd_native_color_space);
+        if (!converted) { native_composite.reset(); break; }
+        if (converted->raw_storage != record.raw_storage) block.original_payload.reset();
+        record = std::move(*converted);
+      }
+      if (!native_composite) break;
+    }
+  }
   if (native_composite && native_composite->format().channels + document.channels().size() +
           (composite.channel_name.empty() ? 0U : 1U) > kMaximumPhotoshopChannelCount) {
     native_composite.reset();  // Added saved channels may fit RGB but not four-ink CMYK.
@@ -2253,7 +2352,8 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
     append_encoded_layers(layer, encoded_layers, options.large_document,
                           Rect::from_size(document.width(), document.height()), depth);
   }
-  if (native_composite) restore_native_layer_colors(encoded_layers, output_mode, options.large_document);
+  if (native_composite) restore_native_layer_colors(encoded_layers, output_mode, options.large_document,
+                                                    document.metadata().smart_objects);
 
   BigEndianWriter layer_info;
   // A NEGATIVE layer count is the spec's "first alpha channel contains the merged
@@ -2357,7 +2457,7 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
   }
   {
     const auto& store = document.metadata().smart_objects;
-    const auto& filter_store = document.metadata().smart_filter_effects;
+    const auto& filter_store = native_composite ? native_filters : document.metadata().smart_filter_effects;
     // Photoshop 2026 refuses to open a file whose link block carries an element no
     // layer references ("program error"), whether Patchy or Photoshop wrote the
     // element, for embedded (lnk2) and linked (lnkE) elements alike, and drops
@@ -2547,7 +2647,10 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
                               static_cast<std::uint32_t>(document.width()),
                               header_depth(depth),
                               output_mode});
-  write_color_mode_data(writer, document, depth);
+  if (output_mode == kColorModeDuotone)
+    write_length_prefixed_block(writer, document.metadata().raw_psd_color_mode_data);
+  else
+    write_color_mode_data(writer, document, depth);
   write_length_prefixed_block(writer, image_resources_for_document(document, channel_info, output_mode));
   if (options.large_document) {
     writer.write_u64(layer_mask.bytes().size());

@@ -89,7 +89,7 @@ EngineNode style_sheet(const PsdTextStyleRun& run, int font_index, double auto_l
       {"6", engine_number(scale(run.horizontal_scale))},
       {"7", engine_number(scale(run.vertical_scale))},
       {"8", engine_integer(tracking)},
-      {"9", engine_number(0.0)},
+      {"9", engine_number(std::isfinite(run.baseline_shift) ? run.baseline_shift : 0.0)},
       {"11", engine_integer(1)},
       {"12", engine_integer(0)},
       {"13", engine_integer(0)},

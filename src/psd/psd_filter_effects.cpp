@@ -3,6 +3,8 @@
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
 #include "core/smart_filter.hpp"
+#include "core/psd_source_colors.hpp"
+#include "color/color_management.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
@@ -524,6 +526,7 @@ bool replace_filter_effects_mask(SmartFilterEffectsStore &store,
       return false;
     }
     replacement.association_unique = true;
+    replacement.native_color_space = target.native_color_space;
 
     auto &mutated_block = store.blocks[target_block_index];
     mutated_block.records[target_record_index] = std::move(replacement);
@@ -532,6 +535,83 @@ bool replace_filter_effects_mask(SmartFilterEffectsStore &store,
   } catch (const std::exception &) {
     return false;
   }
+}
+
+std::optional<SmartFilterEffectsRecord>
+native_filter_effects_cache(const SmartFilterEffectsRecord& record,
+                            std::shared_ptr<const PsdNativeColorSpace> space) {
+  if (!space) return std::nullopt;
+  if (record.native_color_space) {
+    const auto& source = *record.native_color_space;
+    if (source.mode == space->mode && source.profile == space->profile) return record;
+    return std::nullopt;
+  }
+  if (!record.semantic_supported() || record.cache_depth != 8 || space->mode != 4 ||
+      record.cache_max_channels < 4) return std::nullopt;
+  try {
+    const auto body = serialize_filter_effects_record_body(record);
+    BigEndianReader reader(body);
+    const auto id_length = reader.read_u8();
+    reader.skip(id_length + 4U);
+    const auto length_position = reader.position();
+    const auto cache_length = reader.read_u64();
+    if (cache_length > reader.remaining()) return std::nullopt;
+    const auto cache_begin = reader.position();
+    const auto cache_end = cache_begin + static_cast<std::size_t>(cache_length);
+    reader.skip(24U);
+    std::vector<std::vector<std::uint8_t>> slots(record.cache_max_channels + 2U);
+    for (auto& slot : slots) {
+      const auto present = reader.read_u32();
+      if (present == 0) continue;
+      if (present != 1) return std::nullopt;
+      const auto length = reader.read_u64();
+      if (length > reader.remaining()) return std::nullopt;
+      slot = reader.read_bytes(static_cast<std::size_t>(length));
+    }
+    if (reader.position() != cache_end || !slots[3].empty()) return std::nullopt;
+    std::array<SmartFilterEffectsRecord, 3> decoded;
+    for (std::size_t c = 0; c < 3; ++c)
+      if (!decode_filter_mask(slots[c], record.cache_bounds, decoded[c])) return std::nullopt;
+    PixelBuffer rgb(record.cache_bounds.width, record.cache_bounds.height, PixelFormat::rgb8());
+    auto pixels = rgb.data();
+    for (std::size_t i = 0; i < pixels.size() / 3U; ++i)
+      for (std::size_t c = 0; c < 3; ++c) pixels[i * 3U + c] = (*decoded[c].mask->samples)[i];
+    const auto& profile = space->profile.empty() ? default_cmyk_profile() : space->profile;
+    const auto inks = rgb_to_native_color_space(rgb, ColorMode::CMYK, profile);
+    if (!inks) return std::nullopt;
+    for (std::size_t c = 0; c < 4; ++c) {
+      std::vector<std::vector<std::uint8_t>> rows;
+      std::vector<std::uint8_t> row(static_cast<std::size_t>(rgb.width()));
+      rows.reserve(static_cast<std::size_t>(rgb.height()));
+      for (int y = 0; y < rgb.height(); ++y) {
+        for (int x = 0; x < rgb.width(); ++x) row[static_cast<std::size_t>(x)] = inks->pixel(x, y)[c];
+        rows.push_back(encode_packbits_row(row));
+      }
+      BigEndianWriter plane;
+      plane.write_u16(1U);
+      for (const auto& encoded : rows) plane.write_u32(static_cast<std::uint32_t>(encoded.size()));
+      for (const auto& encoded : rows) plane.write_bytes(encoded);
+      slots[c] = plane.bytes();
+    }
+    BigEndianWriter cache;
+    cache.write_bytes(std::span<const std::uint8_t>(body).subspan(cache_begin, 24U));
+    for (const auto& slot : slots) {
+      cache.write_u32(slot.empty() ? 0U : 1U);
+      if (!slot.empty()) { cache.write_u64(slot.size()); cache.write_bytes(slot); }
+    }
+    BigEndianWriter rebuilt;
+    rebuilt.write_bytes(std::span<const std::uint8_t>(body).first(length_position));
+    rebuilt.write_u64(cache.bytes().size());
+    rebuilt.write_bytes(cache.bytes());
+    rebuilt.write_bytes(std::span<const std::uint8_t>(body).subspan(cache_end));
+    auto result = record;
+    result.raw_storage = std::make_shared<const std::vector<std::uint8_t>>(rebuilt.bytes());
+    result.raw_body_offset = 0;
+    result.raw_body_length = rebuilt.bytes().size();
+    result.original_placed_uuid = result.placed_uuid;
+    result.native_color_space = std::move(space);
+    return result;
+  } catch (const std::runtime_error&) { return std::nullopt; }
 }
 
 SmartFilterEffectsBlock parse_filter_effects_block(

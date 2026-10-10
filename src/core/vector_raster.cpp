@@ -515,6 +515,10 @@ std::vector<StrokeRun> combined_stroke_contours(const VectorPath& path) {
     all_closed &= subpath.closed;
     multiple_groups |= subpath.shape_group != path.subpaths.front().shape_group;
   }
+  // Photoshop fills a leading Intersect contour, but its stroke starts from an
+  // empty operand. A lone closed Intersect group consequently has no outline.
+  if (!multiple_groups && all_closed && !path.subpaths.empty() &&
+      path.subpaths.front().op == PathCombineOp::Intersect) return {};
   if (!multiple_groups || !all_closed) return original;
   struct Segment { DPoint a, b; std::vector<double> cuts{0.0, 1.0}; };
   std::vector<Segment> segments;

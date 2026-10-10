@@ -4538,8 +4538,7 @@ void composite_sibling_layers(Target& destination, const std::vector<Layer>& sib
     // base keeps the ORIGINAL backdrop's green). Restricted MEMBERS self-wrap
     // normally: their backdrop is the base content (the P7b probe).
     if (layer.kind() == LayerKind::Group) {
-      // A folder clipping base supplies its merged content, even in Pass Through
-      // mode. Render the children first, then apply the folder's mask, opacity,
+      // A folder clipping base supplies its merged coverage. Render the children first, then apply the folder's mask, opacity,
       // Blend If and effects once through the ordinary base-layer pipeline.
       // This records the union alpha of overlapping/nested children and excludes
       // the folder's own effects from the clipping shape. Keep the full bounds
@@ -4559,6 +4558,40 @@ void composite_sibling_layers(Target& destination, const std::vector<Layer>& sib
       composite_layer(group, layer, group_rect, overrides, throw_on_unsupported_pixel_format, masks,
                       base_backdrop.has_value() ? &*base_backdrop : nullptr, patterns,
                       /*suppress_channel_restriction=*/true);
+    }
+    if (layer.kind() == LayerKind::Group && layer.blend_mode() == BlendMode::PassThrough &&
+        !layer_has_rendered_blend_if(layer) && group_fill_factor_for_render(layer) >= 1.0F &&
+        !layer_tree_has_knockout(layer)) {
+      // A pass-through clipping base still blends its children with the outside
+      // backdrop. Recover the group's straight contribution from that composite
+      // before clipping the members to its union alpha. Isolating the children
+      // against transparency changed Linear Dodge even with an empty member.
+      auto passed = make_isolated_target(destination, group_rect);
+      for (int y = group_rect.y; y < group_rect.y + group_rect.height; ++y) {
+        for (int x = group_rect.x; x < group_rect.x + group_rect.width; ++x) {
+          const auto backdrop = destination.sample_color(x, y);
+          passed.store_color(x, y, backdrop.color, backdrop.alpha);
+        }
+      }
+      composite_layer(passed, layer, group_rect, overrides, throw_on_unsupported_pixel_format,
+                      masks, nullptr, patterns, /*suppress_channel_restriction=*/true);
+      for (int y = group_rect.y; y < group_rect.y + group_rect.height; ++y) {
+        for (int x = group_rect.x; x < group_rect.x + group_rect.width; ++x) {
+          const auto coverage = group.sample_color(x, y).alpha;
+          if (coverage <= 0.0F) continue;
+          const auto backdrop = destination.sample_color(x, y);
+          const auto result = passed.sample_color(x, y);
+          const auto remaining = backdrop.alpha * (1.0F - coverage);
+          const auto recover = [&](auto painted, auto behind) {
+            return (static_cast<float>(painted) * result.alpha -
+                    static_cast<float>(behind) * remaining) / coverage;
+          };
+          group.store_color(x, y, color_from_floats<target_color_t<Target>>(
+              recover(result.color.red, backdrop.color.red),
+              recover(result.color.green, backdrop.color.green),
+              recover(result.color.blue, backdrop.color.blue)), coverage);
+        }
+      }
     }
     group.freeze_clip();
     std::optional<target_snapshot_t<Target>> clip_floor;

@@ -74,19 +74,20 @@ Icon and synthetic legacy-fill/mask round trips run on every platform.
   blocks, so the pool must pre-spawn the largest blocking fan-out; a lazily
   spawned worker deadlocks there. Both sites cap at 16 workers. STRICT=2
   makes pool exhaustion a hard error, not a silent hang.
-- `-sNODERAWFS=1`: fixtures read from the real filesystem via
-  `PATCHY_SOURCE_DIR`, `test-artifacts/` written to disk; the .js becomes
-  node-only. Path queries work, but anything resolving through
-  `weakly_canonical` (`fs::relative`, `fs::canonical`) throws "No such file or
-  directory" on a Windows `D:/...` path that exists. Use the lexical forms
-  (`lexically_relative`, `lexically_normal`) for pure string work on paths you
-  built. `fs::copy_file` onto an existing file fails ("Bad file descriptor"):
+- `-sNODERAWFS=1`: Node-only host I/O reads fixtures via `PATCHY_SOURCE_DIR`
+  and writes `test-artifacts/`. `weakly_canonical` (`fs::relative`,
+  `fs::canonical`) rejects existing Windows `D:/...` paths with "No such file
+  or directory". Use `lexically_relative`/`lexically_normal` for constructed
+  paths. `fs::copy_file` to an existing file fails with "Bad file descriptor";
   remove the target first.
   Test cleanup uses Node `path`/`fs`: musl rejects Windows cwd paths and cannot
   remove directory links. Resolve host-absolute targets/temp roots and parent
   links; retain missing suffixes/final leaves, check containment, then use `rmSync`.
   Refuse resolution errors/dangling parents; never fall back lexically.
   Native suites retain standard-filesystem cleanup.
+  Atomic-write hard-link fixtures use Node `fs.linkSync`: Emscripten does not
+  implement `link`/`linkat`. The production writer still validates the host
+  file's link count through NODERAWFS; these assertions must not be skipped.
 - Memory: growth to 4 GB, 256 MB initial, 8 MB stack (LibRaw's dcraw-derived
   decoders carry large stack locals; the 64 KB default is far too small),
   1 MB worker stacks.
