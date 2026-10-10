@@ -22,6 +22,13 @@ yellow, cyan, magenta, (80,120,200), and (128,128,128). Three 16-pixel rows
 have alpha 255, 128 and 0. smart-gradient.png is the same fresh Photoshop
 flatten/profile conversion as above.
 
-Both PSDs embed the working CMYK profile used for their creation, so the tests
+The PSDs embed the working CMYK profile used for their creation, so the tests
 do not depend on the host's installed profiles. These documents contain only
 self-authored pixels and geometry. They are regression data, not runtime assets.
+
+threshold.psd: 256 x 16 native CMYK colors under a Threshold adjustment.
+The first row is a K-only byte ramp, the second a C-only byte ramp; the rest
+are deterministic synthetic native ink samples. threshold-{60,115,128,172,232}.bmp
+are Photoshop's fresh flattened renders at those levels, converted to sRGB
+with relative colorimetric intent, black-point compensation and no dither.
+The two-stage rounded CMY-luminance times K rule matches all 20,480 pixels.

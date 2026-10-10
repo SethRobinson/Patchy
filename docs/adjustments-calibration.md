@@ -70,7 +70,14 @@ inks they match on 99.9 percent (worst channel miss 7/255 at the 16 pinned probe
   fifth record, and `CurvesAdjustment::black_ink`, curve index 4). Ink values are the stored ones (0 = full ink), the domain Photoshop's CMYK
   Levels reads. `build_adjustment_lut` returns nullopt for these, so every compositor
   takes the per-pixel path.
-- Hue/Saturation, Color Balance and Threshold stay on RGB math in CMYK documents.
+- Supported 8-bit CMYK stacks evaluate Threshold directly on retained ink planes
+  in `render/native_cmyk.cpp`: round `(30*C + 59*M + 11*Y)/100`, multiply by
+  inverted K and round to a byte, then compare with the level. Output has no CMY
+  ink and either full or zero K. The final profile conversion gives K-only black
+  its correct display tone. Five levels over 4096 synthetic native colors match
+  Photoshop exactly (`cmyk-render/threshold*`); masks, opacity and group coverage
+  blend the adjustment in ink space. Other adjustment kinds still use the
+  existing RGB/InkSpace path; Hue/Saturation and Color Balance use RGB math.
 - Grayscale documents get the one-channel form (`InkSpace::is_gray`, `build_gray_ink_space`):
   the 256 stored gray values through the gray profile and the nearest-value inverse.
   Their Levels record and curve sit in the slot RGB calls red (index 1; the composite

@@ -1485,6 +1485,29 @@ void compositor_cmyk_matches_photoshop_and_partial_bounds() {
   }
 }
 
+void compositor_cmyk_threshold_matches_photoshop() {
+  auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("cmyk-render/threshold.psd"));
+  const auto found = std::find_if(document.layers().begin(), document.layers().end(),
+      [](const auto& layer) { return layer.kind() == patchy::LayerKind::Adjustment; });
+  CHECK(found != document.layers().end());
+  for (const int level : {60, 115, 128, 172, 232}) {
+    auto settings = patchy::adjustment_settings_from_layer(*found);
+    CHECK(settings.has_value());
+    settings->threshold.level = level;
+    patchy::configure_adjustment_layer(*found, *settings);
+    const auto reference = patchy::bmp::DocumentIo::read_file(patchy::test::committed_psd_fixture_path(
+        "cmyk-render/threshold-" + std::to_string(level) + ".bmp"));
+    const auto expected = patchy::Compositor{}.flatten_rgb8(reference);
+    const auto actual = patchy::Compositor{}.flatten_rgb8(document);
+    CHECK(std::equal(actual.data().begin(), actual.data().end(), expected.data().begin()));
+    const auto partial = patchy::render_native_cmyk8(document, {20, 3, 40, 7});
+    CHECK(partial.has_value());
+    for (int y = 0; y < 7; ++y) for (int x = 0; x < 40; ++x) for (int c = 0; c < 3; ++c)
+      CHECK(partial->pixel(x, y)[c] == expected.pixel(x + 20, y + 3)[c]);
+  }
+}
+
 void compositor_cmyk_cache_tracks_edits_and_undo() {
   auto document = patchy::psd::DocumentIo::read_file(
       patchy::test::committed_psd_fixture_path("cmyk-render/calibration.psd"));
@@ -1922,6 +1945,7 @@ void compositor_channel_restriction_keeps_backdrop_channel() {
 std::vector<patchy::test::TestCase> compositor_blend_if_tests() {
   return {
       {"compositor_cmyk_matches_photoshop_and_partial_bounds", compositor_cmyk_matches_photoshop_and_partial_bounds},
+      {"compositor_cmyk_threshold_matches_photoshop", compositor_cmyk_threshold_matches_photoshop},
       {"compositor_cmyk_cache_tracks_edits_and_undo", compositor_cmyk_cache_tracks_edits_and_undo},
       {"compositor_cmyk_noise_gradient_keeps_rgb_fallback", compositor_cmyk_noise_gradient_keeps_rgb_fallback},
       {"compositor_cmyk_flat_preview_avoids_a_second_profile_conversion", compositor_cmyk_flat_preview_avoids_a_second_profile_conversion},

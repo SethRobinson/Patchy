@@ -1,6 +1,6 @@
 # Vector tools: pen paths, shape layers, vector masks, Paths panel
 
-References: [scripting](vector-automation.md), [preview](vector-preview.md), [merging](layer-merging.md), [open strokes](open-path-strokes.md), [point editing and commands](vector-commands.md), [fixture inventory and known render divergences](vector-fixtures.md).
+References: [scripting](vector-automation.md), [preview](vector-preview.md), [merging](layer-merging.md), [open strokes](open-path-strokes.md), [point editing and commands](vector-commands.md), [fixtures and render differences](vector-fixtures.md).
 
 PS 27.8 COM probes: `local-test-fixtures/vector-probe/`.
 Rules: docs/legal-constraints.md.
@@ -392,6 +392,9 @@ src/core/vector_live_shapes.hpp.
 
 ### Stroke rasterization (winding, lattice, bounds)
 
+- Multi-group closed paths stroke their resolved Boolean boundary, removing
+  interior seams. Split intersections and side-fill tests form directed contour
+  walks for the existing stroker. Editable paths and PSD blocks stay intact.
 - Aligned dashes retain original-width caps; zero-length dots carry their
   path tangent. Geometry, tests and residuals:
   [vector-fixtures.md](vector-fixtures.md).

@@ -20,8 +20,11 @@ A layered save retains the source mode only when every layer still has
 that document's source identity and unchanged color content. A changed
 revision triggers comparison with the imported snapshot, so mutable reads
 cannot disable preservation. Raster pixels, metadata, native blocks and
-vector content must match. Regenerated vector blocks, text and smart
-objects are excluded. Styles need their preserved Photoshop blocks.
+vector content must match. Unchanged Smart Objects also retain their native
+preview planes, provided their placement and document-level source still match
+the import snapshot. Source replacement, placement edits, regenerated previews
+and native Smart Filter stacks select RGB saving. Regenerated vector blocks and
+text are excluded. Styles need their preserved Photoshop blocks.
 Changing the embedded profile, depth, or source ICC resource disables reuse.
 A layer pasted from another document cannot inherit the destination's inks.
 
@@ -48,6 +51,8 @@ source channel records; fills keep their native descriptors. The merged
 preview is freshly composited by Patchy and converted back through a
 sRGB-to-source ICC transform at the document depth. It never uses the source merged image.
 Layer data does not pass through that inverse transform.
+For untagged CMYK, this inverse uses the same installed working-profile fallback
+as display conversion, without embedding that assumed profile in the save.
 
 Regression tests cover exact source samples and alpha, PSD/PSB, profiles,
 native gradient/adjustment blocks, edited-pixel fallback, cross-document

@@ -502,6 +502,146 @@ struct StrokeRun {
   DPoint dot_direction{};
 };
 
+// A shape's stroke follows the Boolean result, not the hidden contours of its
+// operands. Split the flattened segments at crossings, retain only edges with
+// different final fill on their two sides, then walk the directed boundaries.
+// Source paths stay intact for editing and native PSD preservation.
+std::vector<StrokeRun> combined_stroke_contours(const VectorPath& path) {
+  std::vector<StrokeRun> original;
+  bool multiple_groups = false;
+  bool all_closed = true;
+  for (const auto& subpath : path.subpaths) {
+    original.push_back({subpath_polyline(subpath), subpath.closed});
+    all_closed &= subpath.closed;
+    multiple_groups |= subpath.shape_group != path.subpaths.front().shape_group;
+  }
+  if (!multiple_groups || !all_closed) return original;
+  struct Segment { DPoint a, b; std::vector<double> cuts{0.0, 1.0}; };
+  std::vector<Segment> segments;
+  for (const auto& contour : original) {
+    for (std::size_t i = 0; i < contour.points.size(); ++i) {
+      const auto a = contour.points[i], b = contour.points[(i + 1) % contour.points.size()];
+      if (a.x != b.x || a.y != b.y) segments.push_back({a, b});
+    }
+  }
+  const auto cross = [](DPoint a, DPoint b) { return a.x * b.y - a.y * b.x; };
+  const auto delta = [](DPoint a, DPoint b) { return DPoint{a.x - b.x, a.y - b.y}; };
+  const auto add_cut = [](Segment& segment, double t) {
+    if (t >= 0.0 && t <= 1.0) segment.cuts.push_back(t);
+  };
+  for (std::size_t i = 0; i < segments.size(); ++i) {
+    auto& a = segments[i];
+    const auto r = delta(a.b, a.a);
+    for (std::size_t j = i + 1; j < segments.size(); ++j) {
+      auto& b = segments[j];
+      if (std::max(a.a.x, a.b.x) < std::min(b.a.x, b.b.x) ||
+          std::max(b.a.x, b.b.x) < std::min(a.a.x, a.b.x) ||
+          std::max(a.a.y, a.b.y) < std::min(b.a.y, b.b.y) ||
+          std::max(b.a.y, b.b.y) < std::min(a.a.y, a.b.y)) continue;
+      const auto s = delta(b.b, b.a), q = delta(b.a, a.a);
+      const auto divisor = cross(r, s);
+      if (divisor != 0.0) {
+        const auto t = cross(q, s) / divisor, u = cross(q, r) / divisor;
+        if (t >= 0.0 && t <= 1.0 && u >= 0.0 && u <= 1.0) {
+          add_cut(a, t); add_cut(b, u);
+        }
+      } else if (cross(q, r) == 0.0) {
+        const auto parameter = [](DPoint p, const Segment& edge) {
+          return std::abs(edge.b.x - edge.a.x) >= std::abs(edge.b.y - edge.a.y)
+              ? (p.x - edge.a.x) / (edge.b.x - edge.a.x)
+              : (p.y - edge.a.y) / (edge.b.y - edge.a.y);
+        };
+        add_cut(a, parameter(b.a, a)); add_cut(a, parameter(b.b, a));
+        add_cut(b, parameter(a.a, b)); add_cut(b, parameter(a.b, b));
+      }
+    }
+  }
+  const auto filled = [&](DPoint point) {
+    bool result = path.subpaths.front().op == PathCombineOp::Subtract;
+    for (std::size_t first = 0; first < original.size();) {
+      auto end = first + 1;
+      while (end < original.size() && path.subpaths[end].shape_group == path.subpaths[first].shape_group) ++end;
+      bool inside = false;
+      for (auto s = first; s < end; ++s) {
+        const auto& points = original[s].points;
+        for (std::size_t i = 0; i < points.size(); ++i) {
+          const auto a = points[i], b = points[(i + 1) % points.size()];
+          if ((a.y > point.y) != (b.y > point.y) &&
+              point.x < a.x + (point.y - a.y) * (b.x - a.x) / (b.y - a.y)) inside = !inside;
+        }
+      }
+      const auto op = path.subpaths[first].op;
+      if (first == 0 && op != PathCombineOp::Subtract) result = inside;
+      else switch (op) {
+        case PathCombineOp::Add: result |= inside; break;
+        case PathCombineOp::Subtract: result &= !inside; break;
+        case PathCombineOp::Intersect: result &= inside; break;
+        case PathCombineOp::Xor: result ^= inside; break;
+      }
+      first = end;
+    }
+    return result;
+  };
+  using Vertex = std::pair<std::int32_t, std::int32_t>;
+  struct Boundary { Vertex a, b; bool used{false}; };
+  std::vector<Boundary> boundary;
+  std::map<std::pair<Vertex, Vertex>, bool> unique;
+  for (auto& segment : segments) {
+    auto& cuts = segment.cuts;
+    std::sort(cuts.begin(), cuts.end());
+    cuts.erase(std::unique(cuts.begin(), cuts.end()), cuts.end());
+    const auto d = delta(segment.b, segment.a);
+    const auto length = std::hypot(d.x, d.y);
+    const auto at = [&](double t) { return DPoint{segment.a.x + d.x * t, segment.a.y + d.y * t}; };
+    for (std::size_t i = 1; i < cuts.size(); ++i) {
+      const auto middle = at((cuts[i - 1] + cuts[i]) * 0.5);
+      // Below one lattice quantum, but bounded by the segment's own length.
+      const auto epsilon = std::min(1.0 / 65536.0, length * (cuts[i] - cuts[i - 1]) / 8.0);
+      const DPoint normal{-d.y / length * epsilon, d.x / length * epsilon};
+      const bool left = filled({middle.x + normal.x, middle.y + normal.y});
+      if (left == filled({middle.x - normal.x, middle.y - normal.y})) continue;
+      const auto from = at(cuts[i - 1]), to = at(cuts[i]);
+      Vertex a{to_fixed(from.x), to_fixed(from.y)}, b{to_fixed(to.x), to_fixed(to.y)};
+      if (a == b) continue;
+      if (!left) std::swap(a, b);
+      if (unique.emplace(std::make_pair(a, b), true).second) boundary.push_back({a, b});
+    }
+  }
+  std::map<Vertex, std::vector<std::size_t>> outgoing;
+  for (std::size_t i = 0; i < boundary.size(); ++i) outgoing[boundary[i].a].push_back(i);
+  std::vector<StrokeRun> contours;
+  for (std::size_t start = 0; start < boundary.size(); ++start) {
+    if (boundary[start].used) continue;
+    StrokeRun contour;
+    auto current = start;
+    while (!boundary[current].used) {
+      auto& edge = boundary[current];
+      edge.used = true;
+      contour.points.push_back({static_cast<double>(edge.a.first) / kSub,
+                                static_cast<double>(edge.a.second) / kSub});
+      if (edge.b == boundary[start].a) { contour.closed = true; break; }
+      const auto found = outgoing.find(edge.b);
+      if (found == outgoing.end()) break;
+      auto next = boundary.size();
+      double best_turn = -4.0;
+      const DPoint incoming{static_cast<double>(edge.b.first) - edge.a.first,
+                            static_cast<double>(edge.b.second) - edge.a.second};
+      for (const auto candidate : found->second) {
+        const auto& other = boundary[candidate];
+        if (other.used) continue;
+        const DPoint direction{static_cast<double>(other.b.first) - other.a.first,
+                               static_cast<double>(other.b.second) - other.a.second};
+        const auto turn = std::atan2(cross(incoming, direction), incoming.x * direction.x + incoming.y * direction.y);
+        if (turn > best_turn) { best_turn = turn; next = candidate; }
+      }
+      if (next == boundary.size()) break;
+      current = next;
+    }
+    if (contour.closed && contour.points.size() >= 3) contours.push_back(std::move(contour));
+  }
+  return contours;
+}
+
 double distance(const DPoint& a, const DPoint& b) noexcept {
   const double dx = b.x - a.x;
   const double dy = b.y - a.y;
@@ -980,12 +1120,11 @@ CoverageBuffer rasterize_vector_stroke(const VectorPath& path, const VectorStrok
   // half*2+2 guess did the latter). Every loop's interior lies inside its own
   // vertex hull, so the edge hull is exact.
   std::vector<Edge> edges;
-  for (const auto& subpath : path.subpaths) {
-    const auto polyline = subpath_polyline(subpath);
-    if (polyline.size() < 2) {
+  for (const auto& contour : combined_stroke_contours(path)) {
+    if (contour.points.size() < 2) {
       continue;
     }
-    const auto runs = apply_dashes(polyline, subpath.closed, dashes_px, offset_px);
+    const auto runs = apply_dashes(contour.points, contour.closed, dashes_px, offset_px);
     for (const auto& run : runs) {
       append_run_outline(run, half, cap_half_width, stroke.cap, stroke.join, stroke.miter_limit, 0, 0, edges);
     }

@@ -597,6 +597,13 @@ void ui_channel_ctrl_click_context_menu_and_compact_actions() {
 }
 
 void ui_channel_shape_previews_match_committed_grayscale_and_overlay() {
+  // Tool settings can flush on a delayed timer during the preview checks.
+  // Do not leave this test's solid-green gradient in later MainWindows.
+  SettingsValueRestorer saved_gradient_method(QStringLiteral("tools/gradientMethod"));
+  SettingsValueRestorer saved_gradient_reverse(QStringLiteral("tools/gradientReverse"));
+  SettingsValueRestorer saved_gradient_opacity(QStringLiteral("tools/gradientOpacity"));
+  SettingsValueRestorer saved_gradient_use_custom(QStringLiteral("tools/gradientUseCustomStops"));
+  SettingsValueRestorer saved_gradient_stops(QStringLiteral("tools/gradientStops"));
   patchy::Document document(96, 72, patchy::PixelFormat::rgb8());
   document.add_pixel_layer(
       "Pixels", solid_pixels(96, 72, patchy::PixelFormat::rgb8(), QColor(80, 140, 210)));

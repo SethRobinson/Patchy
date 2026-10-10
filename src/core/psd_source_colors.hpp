@@ -4,6 +4,8 @@
 
 namespace patchy {
 
+struct SmartObjectSource;
+
 // Original color data, independent of the RGB editing buffers. Shared by undo
 // snapshots; session-only, never serialized as private PSD tags.
 struct PsdNativeColorSpace {
@@ -21,6 +23,9 @@ struct PsdNativeLayerColors {
   // Its pixels remain copy-on-write. Revision changes trigger content comparison,
   // since a mutable read also bumps revisions without necessarily editing anything.
   std::shared_ptr<const Layer> imported;
+  // The placed source belongs to the document, not the layer snapshot. Keep its
+  // immutable import state too so replacing embedded contents invalidates inks.
+  std::shared_ptr<const SmartObjectSource> smart_object_source;
   std::uint64_t content_revision{0};
 };
 

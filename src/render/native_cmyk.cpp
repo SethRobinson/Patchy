@@ -25,7 +25,12 @@ bool supported_layers(const std::vector<Layer>& layers) {
         (fill.kind != VectorFillKind::Gradient || fill.gradient.form == GradientDefinitionForm::Solid);
   };
   for (const auto& layer : layers) {
-    if (layer.kind() == LayerKind::Adjustment || layer.clipped() ||
+    if (layer.kind() == LayerKind::Adjustment) {
+      const auto settings = adjustment_settings_from_layer(layer);
+      if (!settings || settings->kind != AdjustmentKind::Threshold ||
+          layer.blend_mode() != BlendMode::Normal) return false;
+    }
+    if (layer.clipped() ||
         render_detail::layer_knockout_mode(layer) != 0 ||
         (!layer.layer_style().empty() || !layer.layer_style().satins.empty()) ||
         render_detail::layer_has_rendered_blend_if(layer) ||
@@ -115,7 +120,29 @@ void composite_native_layers(NativeTarget& target, const std::vector<Layer>& cmy
   for (std::size_t i = 0; i < cmy.size(); ++i) {
     const auto& layer = cmy[i];
     if (!layer.visible() || layer.opacity() <= 0.0F) continue;
-    if (layer.kind() != LayerKind::Group) {
+    if (layer.kind() == LayerKind::Adjustment) {
+      const auto settings = adjustment_settings_from_layer(layer);
+      auto rect = clip;
+      if (!layer.bounds().empty()) rect = intersect_rect(rect, layer.bounds());
+      for (int y = rect.y; y < rect.y + rect.height; ++y) for (int x = rect.x; x < rect.x + rect.width; ++x) {
+        const auto color = target.cmy.sample_color(x, y);
+        const auto key = target.black.sample_color(x, y);
+        // Photoshop thresholds a rounded CMY luminance, multiplied by inverted
+        // K and rounded again. Black output is K-only, never four full inks.
+        // Five levels over 4096 native colors pin both rounding stages.
+        const auto gray = (30 * color.color.red + 59 * color.color.green + 11 * color.color.blue + 50) / 100;
+        const auto value = (gray * key.color.red + 127) / 255 >= settings->threshold.level ? 255 : 0;
+        const auto amount = layer_mask_alpha_at(layer, x, y) * layer.opacity() *
+            render_detail::layer_fill_opacity_for_render(layer) * target.group_coverage(x, y);
+        const auto mix = [amount](std::uint8_t before, int after) {
+          return clamp_byte(before + (after - before) * amount);
+        };
+        target.cmy.store_color(x, y, {mix(color.color.red, 255), mix(color.color.green, 255),
+                                     mix(color.color.blue, 255)}, color.alpha);
+        const auto k = mix(key.color.red, value);
+        target.black.store_color(x, y, {k, k, k}, key.alpha);
+      }
+    } else if (layer.kind() != LayerKind::Group) {
       target.black_source = &black[i];
       render_detail::composite_pixel_layer(target, layer, clip, nullptr, true, nullptr);
     } else if (layer.blend_mode() == BlendMode::PassThrough &&
@@ -301,6 +328,10 @@ bool prepare_layers(std::vector<Layer>& cmy, std::vector<Layer>& black,
     }
     if (layer.kind() == LayerKind::Group) {
       if (!prepare_layers(cmy[i].children(), black[i].children(), layer.children(), document, profile, overrides)) return false;
+      continue;
+    }
+    if (layer.kind() == LayerKind::Adjustment) {
+      if (replacement) { cmy[i].set_bounds(replacement->bounds); black[i].set_bounds(replacement->bounds); }
       continue;
     }
     const auto* pixels = replacement != nullptr ? replacement->pixels : nullptr;

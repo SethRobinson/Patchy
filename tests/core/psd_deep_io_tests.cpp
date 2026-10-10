@@ -9,7 +9,9 @@
 #include "core/layer_tree.hpp"
 #include "core/pixel_depth.hpp"
 #include "core/psd_source_colors.hpp"
+#include "core/smart_object.hpp"
 #include "local_psd_fixtures.hpp"
+#include "core_test_support.hpp"
 #include "psd/psd_document_io.hpp"
 #include "psd_test_support.hpp"
 #include "render/compositor.hpp"
@@ -377,6 +379,45 @@ void psd_deep_native_colors_survive_saves_but_never_shadow_edits() {
   }
 }
 
+void psd_cmyk_smart_objects_preserve_inks_and_invalidate_changed_sources() {
+  const auto original = psd::DocumentIo::read_file(patchy::test::source_root_path() /
+      "test-fixtures/psd/cmyk-render/smart-gradient.psd");
+  const auto mode = [](const auto& bytes) { return (bytes[24] << 8U) | bytes[25]; };
+  const auto placed = std::find_if(original.layers().begin(), original.layers().end(),
+      [](const auto& layer) { return layer_is_smart_object(layer); });
+  CHECK(placed != original.layers().end());
+  const auto id = placed->id();
+  for (const bool large : {false, true}) {
+    psd::WriteOptions options;
+    options.large_document = large;
+    auto doc = original;
+    doc.find_layer(id)->set_name("Renamed placement");
+    const auto bytes = psd::DocumentIo::write_layered_rgb8(doc, options);
+    CHECK(mode(bytes) == 4);
+    const auto reopened = psd::DocumentIo::read(bytes);
+    const auto* after = patchy::test::find_layer_named(reopened.layers(), "Renamed placement");
+    CHECK(after != nullptr);
+    CHECK(layer_is_smart_object(*after));
+    CHECK(after->psd_native_colors()->planes == placed->psd_native_colors()->planes);
+    const auto uuid = smart_object_source_uuid(*placed);
+    CHECK(*reopened.metadata().smart_objects.find(uuid)->file_bytes ==
+          *original.metadata().smart_objects.find(uuid)->file_bytes);
+    // The per-layer metadata can stay identical while the document-level
+    // payload changes. Never reuse the original ink preview in that case.
+    doc.metadata().smart_objects.find(uuid)->file_bytes =
+        std::make_shared<const std::vector<std::uint8_t>>(std::vector<std::uint8_t>{1, 2, 3});
+    CHECK(mode(psd::DocumentIo::write_layered_rgb8(doc, options)) == 3);
+    doc = original;
+    mark_layer_smart_object_block_dirty(*doc.find_layer(id));
+    CHECK(mode(psd::DocumentIo::write_layered_rgb8(doc, options)) == 3);
+    doc = original;
+    doc.find_layer(id)->pixels().pixel(0, 0)[0] ^= 1;
+    CHECK(mode(psd::DocumentIo::write_layered_rgb8(doc, options)) == 3);
+    doc = original;  // Undo restores provenance as well as the original pixels.
+    CHECK(mode(psd::DocumentIo::write_layered_rgb8(doc, options)) == 4);
+  }
+}
+
 void psd_deep_non_rgb_gradients_and_adjustments_keep_native_color_if_available() {
   const auto root = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" / "psd_files";
   if (!std::filesystem::exists(root)) {
@@ -395,12 +436,6 @@ void psd_deep_non_rgb_gradients_and_adjustments_keep_native_color_if_available()
     const auto document = psd::DocumentIo::read_file(root / name, read);
     const auto saved = psd::DocumentIo::write_layered_rgb8(document);
     const auto reopened = psd::DocumentIo::read(saved, read);
-    if (std::string_view(name).starts_with("blend-modes/")) {
-      // These documents contain embedded Smart Objects. Their independently
-      // editable source store is not covered by the layer-color snapshot.
-      CHECK(reopened.metadata().values.at("psd.color_mode") == "RGB");
-      continue;
-    }
     CHECK(reopened.metadata().values.at("psd.color_mode") == document.metadata().values.at("psd.color_mode"));
     CHECK(patchy::test::test_image_resource_payload(reopened.metadata().raw_psd_image_resources, 1039) ==
           patchy::test::test_image_resource_payload(document.metadata().raw_psd_image_resources, 1039));
@@ -570,6 +605,8 @@ std::vector<patchy::test::TestCase> psd_deep_io_tests() {
        psd_deep_color_conversions_keep_sub_byte_samples_and_alpha},
       {"psd_deep_native_colors_survive_saves_but_never_shadow_edits",
        psd_deep_native_colors_survive_saves_but_never_shadow_edits},
+      {"psd_cmyk_smart_objects_preserve_inks_and_invalidate_changed_sources",
+       psd_cmyk_smart_objects_preserve_inks_and_invalidate_changed_sources},
       {"psd_deep_non_rgb_gradients_and_adjustments_keep_native_color_if_available",
        psd_deep_non_rgb_gradients_and_adjustments_keep_native_color_if_available},
       {"psd_deep_32_bit_blend_modes_follow_photoshop", psd_deep_32_bit_blend_modes_follow_photoshop},

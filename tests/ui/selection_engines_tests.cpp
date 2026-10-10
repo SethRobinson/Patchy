@@ -239,6 +239,11 @@ void ui_gradient_and_magic_wand_render_visually() {
 }
 
 void ui_radial_gradient_tool_renders_custom_transparency() {
+  SettingsValueRestorer saved_gradient_method(QStringLiteral("tools/gradientMethod"));
+  SettingsValueRestorer saved_gradient_reverse(QStringLiteral("tools/gradientReverse"));
+  SettingsValueRestorer saved_gradient_opacity(QStringLiteral("tools/gradientOpacity"));
+  SettingsValueRestorer saved_gradient_use_custom(QStringLiteral("tools/gradientUseCustomStops"));
+  SettingsValueRestorer saved_gradient_stops(QStringLiteral("tools/gradientStops"));
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);

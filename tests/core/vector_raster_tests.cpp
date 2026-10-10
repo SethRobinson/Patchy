@@ -472,6 +472,42 @@ void stroke_center_band_and_miter_corner() {
   CHECK(coverage_pixel(band, 6, 6) == 255);    // miter fills the outer corner
 }
 
+void stroke_combined_shapes_follow_boolean_boundary() {
+  patchy::VectorStroke stroke;
+  stroke.enabled = true;
+  stroke.width = 2.0;
+  stroke.alignment = patchy::VectorStrokeAlignment::Center;
+  const Rect clip{0, 0, 48, 40};
+  for (const auto op : {PathCombineOp::Add, PathCombineOp::Subtract,
+                        PathCombineOp::Intersect, PathCombineOp::Xor}) {
+    VectorPath path;
+    path.subpaths = {rect_subpath(8, 8, 28, 32, PathCombineOp::Add, 0),
+                     rect_subpath(20, 8, 40, 32, op, 1)};
+    const auto band = stroke_coverage(path, stroke, clip);
+    CHECK(coverage_pixel(band, 20, 20) == (op == PathCombineOp::Add ? 0 : 255));
+    CHECK(coverage_pixel(band, 28, 20) ==
+          (op == PathCombineOp::Intersect || op == PathCombineOp::Xor ? 255 : 0));
+    CHECK(coverage_pixel(band, 8, 20) == (op == PathCombineOp::Intersect ? 0 : 255));
+    CHECK(coverage_pixel(band, 40, 20) ==
+          (op == PathCombineOp::Add || op == PathCombineOp::Xor ? 255 : 0));
+  }
+  // Coincident operands must deduplicate their boundaries or cancel entirely.
+  VectorPath duplicate;
+  duplicate.subpaths = {rect_subpath(8, 8, 28, 32, PathCombineOp::Add, 0),
+                       rect_subpath(8, 8, 28, 32, PathCombineOp::Add, 1)};
+  CHECK(coverage_pixel(stroke_coverage(duplicate, stroke, clip), 8, 20) == 255);
+  duplicate.subpaths.back().op = PathCombineOp::Xor;
+  CHECK(stroke_coverage(duplicate, stroke, clip).bounds.empty());
+  // Curved operands retain their exterior, without an interior circle seam.
+  VectorPath circles;
+  circles.subpaths = {circle_subpath(18, 20, 12), circle_subpath(28, 20, 12)};
+  circles.subpaths.back().shape_group = 1;
+  const auto band = stroke_coverage(circles, stroke, clip);
+  CHECK(coverage_pixel(band, 29, 20) == 0);
+  CHECK(coverage_pixel(band, 16, 20) == 0);
+  CHECK(coverage_pixel(band, 6, 20) > 200);
+}
+
 void stroke_alignment_inside_outside() {
   VectorPath path;
   path.subpaths = {rect_subpath(8, 8, 24, 24, PathCombineOp::Add, 0)};
@@ -1438,6 +1474,7 @@ std::vector<patchy::test::TestCase> vector_raster_tests() {
       {"raster_golden_digests_are_stable", raster_golden_digests_are_stable},
       {"raster_shape_paints_solid_gradient_pattern", raster_shape_paints_solid_gradient_pattern},
       {"stroke_center_band_and_miter_corner", stroke_center_band_and_miter_corner},
+      {"stroke_combined_shapes_follow_boolean_boundary", stroke_combined_shapes_follow_boolean_boundary},
       {"stroke_alignment_inside_outside", stroke_alignment_inside_outside},
       {"stroke_arc_band_has_no_winding_notches", stroke_arc_band_has_no_winding_notches},
       {"stroke_caps_butt_square_round", stroke_caps_butt_square_round},

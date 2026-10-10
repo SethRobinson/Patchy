@@ -82,6 +82,8 @@ struct SmartObjectSource {
   // byte-identical re-emit while untouched. Null for Patchy-authored or edited sources.
   std::shared_ptr<const std::vector<std::uint8_t>> original_element_bytes;
   bool dirty{false};
+
+  friend bool operator==(const SmartObjectSource&, const SmartObjectSource&) = default;
 };
 
 struct SmartObjectLinkBlock {

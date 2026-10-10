@@ -1912,13 +1912,19 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
       space->profile = *profile;
     }
     document.metadata().psd_native_color_space = space;
-    const auto seal = [&space](auto& self, std::vector<Layer>& layers) -> void {
+    const auto seal = [&space, &document](auto& self, std::vector<Layer>& layers) -> void {
       for (auto& layer : layers) {
         self(self, layer.children());
         if (const auto& source = layer.psd_native_colors()) {
           auto colors = std::make_shared<PsdNativeLayerColors>(*source);
           colors->space = space;
           colors->content_revision = layer.content_revision();
+          if (layer_is_smart_object(layer)) {
+            if (const auto* placed = std::as_const(document).metadata().smart_objects.find(
+                    smart_object_source_uuid(layer))) {
+              colors->smart_object_source = std::make_shared<SmartObjectSource>(*placed);
+            }
+          }
           auto imported = std::make_shared<Layer>(layer);
           imported->set_psd_native_colors(nullptr);
           imported->children().clear();
@@ -1988,18 +1994,27 @@ std::uint16_t header_depth(BitDepth depth) noexcept {
 }
 
 bool native_layer_colors_unchanged(const std::vector<Layer>& layers,
-                                  const std::shared_ptr<const PsdNativeColorSpace>& space) {
+                                  const std::shared_ptr<const PsdNativeColorSpace>& space,
+                                  const SmartObjectStore& smart_objects) {
   for (const auto& layer : layers) {
     const auto& source = layer.psd_native_colors();
     const bool preserved_style = std::any_of(layer.unknown_psd_blocks().begin(), layer.unknown_psd_blocks().end(),
         [](const UnknownPsdBlock& block) { return block.key == "lfx2" || block.key == "lrFX" || block.key == "lmfx"; });
     if (!source || source->space != space || !source->imported ||
-        layer_vector_block_dirty(layer) || layer_is_smart_object(layer) || layer_is_text(layer) ||
+        layer_vector_block_dirty(layer) || layer_is_text(layer) ||
         ((!layer.layer_style().empty() || !layer.layer_style().satins.empty()) &&
          !preserved_style)) {
       return false;
     }
     const auto& imported = *source->imported;
+    if (layer_is_smart_object(layer)) {
+      const auto* placed = smart_objects.find(smart_object_source_uuid(layer));
+      // Native filter caches have their own document-wide color planes. Keep
+      // those on the conservative RGB path until they can be validated too.
+      if (layer_smart_object_block_dirty(layer) || layer.smart_filter_stack() ||
+          !placed || !source->smart_object_source || placed->dirty ||
+          *placed != *source->smart_object_source) return false;
+    }
     if (layer.kind() != imported.kind() || layer.vector_shape() != imported.vector_shape() ||
         layer.vector_mask() != imported.vector_mask() ||
         layer.metadata() != imported.metadata()) return false;
@@ -2032,7 +2047,7 @@ bool native_layer_colors_unchanged(const std::vector<Layer>& layers,
         if (source->planes[channel].size() != plane_size) return false;
       }
     }
-    if (!native_layer_colors_unchanged(layer.children(), space)) return false;
+    if (!native_layer_colors_unchanged(layer.children(), space, smart_objects)) return false;
   }
   return true;
 }
@@ -2042,14 +2057,15 @@ std::optional<PixelBuffer> native_color_composite(const Document& document, cons
   const auto& space = document.metadata().psd_native_color_space;
   if (!options.preserve_source_color_mode || !space || document_bit_depth(document) != space->depth ||
       !document.color_state().embedded_icc_profile.empty() ||
-      !native_layer_colors_unchanged(document.layers(), space)) return std::nullopt;
+      !native_layer_colors_unchanged(document.layers(), space, document.metadata().smart_objects)) return std::nullopt;
   const auto profile = find_image_resource_payload(document.metadata().raw_psd_image_resources,
                                                    kImageResourceIccProfile);
   if (profile.value_or(std::vector<std::uint8_t>{}) != space->profile) return std::nullopt;
   const auto color_mode = space->mode == kColorModeCmyk ? ColorMode::CMYK
                           : space->mode == kColorModeLab ? ColorMode::Lab : ColorMode::Grayscale;
-  return rgb_to_native_color_space(rgb, color_mode, profile ? std::span<const std::uint8_t>(*profile)
-                                                            : std::span<const std::uint8_t>{});
+  const auto& conversion_profile = space->profile.empty() && color_mode == ColorMode::CMYK
+      ? default_cmyk_profile() : space->profile;
+  return rgb_to_native_color_space(rgb, color_mode, conversion_profile);
 }
 
 void restore_native_layer_colors(std::vector<EncodedLayer>& layers, std::uint16_t mode, bool large_document) {

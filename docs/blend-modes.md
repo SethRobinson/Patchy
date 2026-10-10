@@ -43,7 +43,8 @@ This coupled selection applies to layer and group blends. Non-Normal vector
 strokes require a coupled ink bake and currently select the RGB renderer.
 
 Masks, layer Opacity/Fill, isolated groups and faded Pass Through groups keep
-their native-channel composition. Adjustment layers, layer effects, clipping
+their native-channel composition. Normal-mode Threshold uses native inks too
+([adjustment calibration](adjustments-calibration.md)). Other adjustments, layer effects, clipping
 runs, knockout and rendered Blend If/channel restrictions currently select the
 existing RGB renderer for the whole stack. Noise/pattern fills and compound
 vector paints also use that fallback. Deep CMYK and Dynamic Vector Preview
@@ -51,7 +52,7 @@ remain on that renderer. Untagged CMYK editing pixels use the same installed
 working-profile fallback as the native composite.
 Flat imports without native layer records keep their already-converted RGB
 preview; sending it back through the CMYK gamut would introduce avoidable error.
-This is a rendering improvement, not native CMYK painting or new save eligibility.
+Native save eligibility is separate: [preservation rules](psd-native-color.md).
 
 For untagged CMYK, Patchy uses U.S. Web Coated (SWOP) v2 if that profile is already
 installed in a conventional Adobe/system profile directory. No Adobe profile
