@@ -8825,6 +8825,9 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
           *error = linked_smart_object_problem_message(std::as_const(owner_session->document), *layer,
                                                        parent_document_dir);
         }
+        if (image.has_value()) {
+          image = smart_object_image_for_document(*image, std::as_const(owner_session->document));
+        }
         return image;
       });
   canvas->set_smart_object_paint_prompt_callback(

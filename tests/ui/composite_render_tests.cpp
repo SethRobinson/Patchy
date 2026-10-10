@@ -16,8 +16,11 @@
 #include "core/document_depth.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/layer.hpp"
+#include "core/psd_source_colors.hpp"
 #include "psd/psd_document_io.hpp"
 #include "ui/image_document_io.hpp"
+#include "ui/qt_paths.hpp"
+#include "ui/smart_object_render.hpp"
 
 #include <QImage>
 
@@ -349,10 +352,91 @@ void hidden_knockout_does_not_change_rgb_matte_blending() {
   }
 }
 
+void grayscale_smart_object_rerender_matches_photoshop() {
+  for (const auto* fixture : {"gamma22", "dot20"}) {
+    const auto base = std::string("smart-object-gray/") + fixture;
+    for (const auto depth : {patchy::BitDepth::UInt8, patchy::BitDepth::UInt16}) {
+      auto document = patchy::psd::DocumentIo::read_file(
+          patchy::test::committed_psd_fixture_path(base + ".psd"));
+      patchy::convert_document_depth(document, depth);
+      const auto imported = patchy::ui::qimage_from_document(document, true);
+      const QImage expected(patchy::ui::to_qstring(
+          patchy::test::committed_psd_fixture_path(base + ".png")));
+      CHECK(!expected.isNull());
+      bool refreshed = false;
+      for (const auto& layer : std::as_const(document).layers()) {
+        if (!patchy::layer_is_smart_object(layer)) continue;
+        const auto* source = std::as_const(document).metadata().smart_objects.find(
+            patchy::smart_object_source_uuid(layer));
+        CHECK(source != nullptr);
+        const auto bytes = *source->file_bytes;
+        const auto source_image = patchy::ui::decode_smart_object_source_image(*source);
+        CHECK(source_image.has_value());
+        CHECK(source_image->pixelColor(4, 8) == QColor(255, 0, 0));
+        const auto placement = patchy::smart_object_placement_from_layer(layer);
+        CHECK(placement.has_value());
+        const auto direct = patchy::ui::render_smart_object_image_preview(
+            *source_image, *placement, std::nullopt,
+            patchy::ui::CanvasWidget::TransformInterpolation::Bicubic, nullptr, document);
+        CHECK(direct.has_value());
+        const auto preview = patchy::ui::render_smart_object_layer_preview(
+            document, layer, patchy::ui::CanvasWidget::TransformInterpolation::Bicubic);
+        CHECK(preview.has_value());
+        CHECK(std::equal(preview->rendered.pixels.data().begin(), preview->rendered.pixels.data().end(),
+                         direct->rendered.pixels.data().begin(), direct->rendered.pixels.data().end()));
+        auto* target = document.find_layer(layer.id());
+        CHECK(target != nullptr);
+        CHECK(patchy::ui::refresh_smart_object_layer_preview(
+            document, *target, patchy::ui::CanvasWidget::TransformInterpolation::Bicubic));
+        CHECK(*source->file_bytes == bytes);
+        refreshed = true;
+      }
+      CHECK(refreshed);
+      const auto actual = patchy::ui::qimage_from_document(document, true);
+      CHECK(actual.size() == expected.size());
+      for (int y = 0; y < actual.height(); ++y) {
+        for (int x = 0; x < actual.width(); ++x) {
+          const auto color = actual.pixelColor(x, y);
+          const auto before = imported.pixelColor(x, y);
+          CHECK(color.alpha() == before.alpha());
+          if (color.alpha() == 0) continue;
+          CHECK(color.red() == color.green() && color.green() == color.blue());
+          CHECK(std::abs(color.red() - before.red()) <= 3);
+          // Native gray compositing has a separate fractional-alpha difference;
+          // opaque colors isolate source conversion from that blend-domain gap.
+          if (color.alpha() == 255) {
+            CHECK(std::abs(color.red() - expected.pixelColor(x, y).red()) <= 3);
+          }
+        }
+      }
+    }
+  }
+}
+
+void grayscale_smart_object_fallback_preserves_alpha_and_source() {
+  patchy::Document document(2, 1, patchy::PixelFormat::rgba8());
+  QImage source(2, 1, QImage::Format_RGBA8888);
+  source.setPixelColor(0, 0, QColor(255, 0, 0, 128));
+  source.setPixelColor(1, 0, QColor(0, 0, 255, 0));
+  CHECK(patchy::ui::smart_object_image_for_document(source, document) == source);
+  auto space = std::make_shared<patchy::PsdNativeColorSpace>();
+  space->mode = 1;
+  document.metadata().psd_native_color_space = space;
+  for (const auto& profile : {std::vector<std::uint8_t>{}, std::vector<std::uint8_t>{1, 2, 3}}) {
+    space->profile = profile;
+    const auto gray = patchy::ui::smart_object_image_for_document(source, document);
+    CHECK(gray.pixelColor(0, 0) == QColor(77, 77, 77, 128));
+    CHECK(gray.pixelColor(1, 0) == QColor(28, 28, 28, 0));
+    CHECK(source.pixelColor(0, 0) == QColor(255, 0, 0, 128));
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> composite_render_tests() {
   return {
+      {"grayscale_smart_object_rerender_matches_photoshop", grayscale_smart_object_rerender_matches_photoshop},
+      {"grayscale_smart_object_fallback_preserves_alpha_and_source", grayscale_smart_object_fallback_preserves_alpha_and_source},
       {"composite_corpus_render_digests_are_stable", composite_corpus_render_digests_are_stable},
       {"group_isolation_override_bounds_match_actual_layer_move",
        group_isolation_override_bounds_match_actual_layer_move},

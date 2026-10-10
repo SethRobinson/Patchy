@@ -32,11 +32,13 @@ struct SmartObjectLayerPreview {
 // Size over six linked logos) reads and decodes that file once, not once per layer.
 // An entry with `resolved` set and no `linked_contents` records a linked file that
 // could not be found or read; the render then fails the same way for every layer.
+// The image is converted for the owning document; do not share this operation
+// cache between documents with different color profiles.
 struct SmartObjectSourceRenderCache {
   struct Entry {
     bool resolved{false};
     std::optional<SmartObjectSource> linked_contents;  // the file's bytes (linked sources only)
-    std::optional<QImage> image;                       // the natural-size decode
+    std::optional<QImage> image;                       // natural-size decode in the parent's display space
   };
   std::unordered_map<std::string, Entry> entries;
 };
@@ -57,6 +59,12 @@ enum class SmartObjectContentsFormat {
 
 // Decoded flat pixels of the embedded source (RGBA8888), for preview rendering.
 [[nodiscard]] std::optional<QImage> decode_smart_object_source_image(const SmartObjectSource& source);
+
+// A grayscale PSD can embed an RGB source. Its placed raster must pass through the
+// parent's gray profile before resampling/filtering, while the source stays RGB.
+// Other documents keep the source unchanged. Call once per source/operation, not
+// from painting; the returned image shares storage when no conversion is needed.
+[[nodiscard]] QImage smart_object_image_for_document(const QImage& image, const Document& document);
 
 // Decodes either embedded bytes or a linked file resolved relative to the
 // owning document. Alias sources remain preservation-only.
@@ -168,7 +176,7 @@ render_smart_object_image_preview(
     const QImage& source_image, const SmartObjectPlacement& placement,
     const std::optional<SmartObjectWarp>& warp,
     CanvasWidget::TransformInterpolation interpolation,
-    const SmartFilterStack* stack, Rect document_bounds);
+    const SmartFilterStack* stack, const Document& document);
 
 // Atomically installs a pre-rendered preview and, when requested, regenerates
 // the associated FEid cache before touching layer pixels.

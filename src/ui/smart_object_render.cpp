@@ -1,5 +1,7 @@
 #include "ui/smart_object_render.hpp"
 
+#include "color/color_management.hpp"
+#include "core/psd_source_colors.hpp"
 #include "filters/smart_filter_renderer.hpp"
 #include "psd/psd_filter_effects.hpp"
 
@@ -108,6 +110,44 @@ const FormatHandler* registry_handler_for(const SmartObjectSource& source,
 }
 
 }  // namespace
+
+QImage smart_object_image_for_document(const QImage& image, const Document& document) {
+  const auto& space = document.metadata().psd_native_color_space;
+  if (image.isNull() || space == nullptr || space->mode != 1) {
+    return image;
+  }
+  auto result = image.convertToFormat(QImage::Format_RGBA8888);
+  PixelBuffer rgb(result.width(), result.height(), PixelFormat::rgb8());
+  for (int y = 0; y < result.height(); ++y) {
+    const auto* input = result.constScanLine(y);
+    auto output = rgb.row(y);
+    for (int x = 0; x < result.width(); ++x) {
+      std::copy_n(input + x * 4, 3, output.data() + x * 3);
+    }
+  }
+  const auto to_rgb = GrayToRgbTransform::from_icc_profile(space->profile);
+  const auto gray = to_rgb.has_value()
+      ? rgb_to_native_color_space(rgb, ColorMode::Grayscale, space->profile) : std::nullopt;
+  for (int y = 0; y < result.height(); ++y) {
+    auto* output = result.scanLine(y);
+    if (gray.has_value()) {
+      auto converted = rgb.row(y);
+      to_rgb->convert(gray->row(y).data(), converted.data(), static_cast<std::size_t>(result.width()));
+      for (int x = 0; x < result.width(); ++x) {
+        std::copy_n(converted.data() + x * 3, 3, output + x * 4);
+      }
+    } else {
+      // Untagged/invalid-profile gray imports use neutral RGB. Keep the existing
+      // alpha and use deterministic luminance for colored embedded sources.
+      for (int x = 0; x < result.width(); ++x) {
+        auto* pixel = output + x * 4;
+        const auto value = static_cast<std::uint8_t>((30 * pixel[0] + 59 * pixel[1] + 11 * pixel[2] + 50) / 100);
+        pixel[0] = pixel[1] = pixel[2] = value;
+      }
+    }
+  }
+  return result;
+}
 
 SmartObjectContentsFormat classify_smart_object_contents(const SmartObjectSource& source) {
   const auto bytes = source_bytes(source);
@@ -649,6 +689,7 @@ std::optional<FilterRenderResult> render_smart_object_unfiltered_layer_preview(
     if (!entry.image.has_value()) {
       return std::nullopt;
     }
+    entry.image = smart_object_image_for_document(*entry.image, document);
   }
   auto image = entry.image;
   const auto warp = smart_object_warp_from_layer(layer);
@@ -656,7 +697,7 @@ std::optional<FilterRenderResult> render_smart_object_unfiltered_layer_preview(
     // Vector artwork rasterizes at the placement's scale; the warp grid is built
     // for the natural size, so warped placements keep the natural image.
     if (auto vector = render_smart_object_vector_contents(*contents, *placement); vector.has_value()) {
-      image = std::move(vector);
+      image = smart_object_image_for_document(*vector, document);
     }
   }
   const auto rendered = render_smart_object_pixels(
@@ -672,9 +713,9 @@ std::optional<SmartObjectLayerPreview> render_smart_object_image_preview(
     const QImage& source_image, const SmartObjectPlacement& placement,
     const std::optional<SmartObjectWarp>& warp,
     CanvasWidget::TransformInterpolation interpolation,
-    const SmartFilterStack* stack, Rect document_bounds) {
+    const SmartFilterStack* stack, const Document& document) {
   auto rendered =
-      render_smart_object_pixels(source_image, placement, warp, interpolation);
+      render_smart_object_pixels(smart_object_image_for_document(source_image, document), placement, warp, interpolation);
   if (!rendered.has_value()) {
     return std::nullopt;
   }
@@ -686,7 +727,7 @@ std::optional<SmartObjectLayerPreview> render_smart_object_image_preview(
                           ? result.unfiltered
                           : render_smart_filter_stack(result.unfiltered.pixels,
                                                       result.unfiltered.bounds,
-                                                      document_bounds,
+                                                      Rect::from_size(document.width(), document.height()),
                                                       *stack);
   } catch (const std::exception&) {
     return std::nullopt;

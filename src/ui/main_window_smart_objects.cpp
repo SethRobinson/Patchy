@@ -839,8 +839,7 @@ bool MainWindow::refresh_smart_object_layers_for_source(
               updated_placement, warp,
               CanvasWidget::TransformInterpolation::Bicubic,
               std::as_const(layer).smart_filter_stack(),
-              Rect::from_size(target_document.width(),
-                              target_document.height()))) {
+              target_document)) {
         if (!install_smart_object_layer_preview(
                 target_document, layer, std::move(*rendered), true)) {
           return false;
@@ -1203,8 +1202,7 @@ void MainWindow::relink_smart_object_contents_with_path(const QString& path) {
               updated_placement, warp,
               CanvasWidget::TransformInterpolation::Bicubic,
               std::as_const(target).smart_filter_stack(),
-              Rect::from_size(updated_document.width(),
-                              updated_document.height()))) {
+              updated_document)) {
         if (!install_smart_object_layer_preview(
                 updated_document, target, std::move(*rendered), true)) {
           return false;
@@ -1460,8 +1458,7 @@ void MainWindow::replace_smart_object_contents_with_path(const QString& path) {
               *rendered_image, updated_placement, warp,
               CanvasWidget::TransformInterpolation::Bicubic,
               std::as_const(target).smart_filter_stack(),
-              Rect::from_size(updated_document.width(),
-                              updated_document.height()))) {
+              updated_document)) {
         if (!install_smart_object_layer_preview(
                 updated_document, target, std::move(*rendered), true)) {
           return false;
@@ -2074,7 +2071,8 @@ std::optional<LayerId> MainWindow::place_file_as_smart_object(DocumentSession& t
   std::optional<TransformedImage> rendered;
   try {
     rendered = render_smart_object_pixels(
-        smart_object_image_for_placement(*image, vector_contents ? &*contents : nullptr, placement, std::nullopt),
+        smart_object_image_for_document(
+            smart_object_image_for_placement(*image, vector_contents ? &*contents : nullptr, placement, std::nullopt), doc),
         placement, CanvasWidget::TransformInterpolation::Bicubic);
   } catch (const std::exception&) {
     rendered.reset();
