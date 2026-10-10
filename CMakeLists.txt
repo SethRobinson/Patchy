@@ -37,6 +37,39 @@ option(PATCHY_BUILD_TESTS "Build unit tests" ON)
 option(PATCHY_ENABLE_STRICT_WARNINGS "Enable strict compiler warnings" ON)
 option(PATCHY_STORE_BUILD "Build for a store that delivers updates itself: no in-app update check" OFF)
 
+# Both GPU tiers are experimental and opt-in. The default configure, and the
+# default runtime of a build that enabled them, keep the QWidget/CPU canvas
+# (see docs/gpu-canvas.md). Nothing here changes behavior unless requested.
+option(PATCHY_ENABLE_GPU_CANVAS
+       "Compile the optional Qt Quick/RHI canvas presentation path (opt-in)"
+       OFF)
+
+option(PATCHY_ENABLE_WEBGPU
+       "Discover an optional installed Dawn/WebGPU document compositor (opt-in)"
+       OFF)
+option(PATCHY_BUILD_WEBGPU_VALIDATION_TESTS
+       "Build the hardware-backed Dawn/CPU equivalence checks and register them with CTest (skips without Dawn or an adapter)"
+       OFF)
+option(PATCHY_ENABLE_VULKAN_QT_INTEROP_PROBE
+       "Build the opt-in Vulkan/Qt RHI interop observation probe"
+       OFF)
+set(PATCHY_DAWN_PREFIX "" CACHE PATH "Optional installed Dawn prefix; never downloads Dawn")
+set(PATCHY_DAWN_ROOT "" CACHE PATH "Optional local Dawn workspace containing install/<config> prefixes")
+
+if(PATCHY_ENABLE_GPU_CANVAS AND EMSCRIPTEN)
+  message(FATAL_ERROR
+          "PATCHY_ENABLE_GPU_CANVAS is currently supported only by desktop Qt builds")
+endif()
+
+set(PATCHY_GPU_CANVAS_AVAILABLE OFF)
+set(PATCHY_GPU_SHADER_COMPOSITOR_AVAILABLE OFF)
+
+set(PATCHY_WEBGPU_AVAILABLE OFF)
+set(PATCHY_WEBGPU_TARGET "")
+set(PATCHY_VULKAN_QT_INTEROP_AVAILABLE OFF)
+
+
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -185,7 +218,14 @@ patchy_configure_target(patchy_core)
 
 add_library(patchy_render
   src/render/compositor.cpp
+  src/render/dirty_region.cpp
+  src/render/gpu_document_capabilities.cpp
+  src/render/gpu_wait_budget.cpp
+  src/render/gpu_presentation_interop.cpp
+  src/render/gpu_render_graph.cpp
+  src/render/gpu_tile_scheduler.cpp
   src/render/layer_style_mask_ops.cpp
+  src/render/pixel_comparison.cpp
   src/render/tile_cache.cpp
 )
 # flatten_rgb8 composites large documents in parallel strips (std::async).
@@ -600,6 +640,91 @@ if(PATCHY_BUILD_APP)
     set(PATCHY_QT_COMPONENTS Widgets Svg PrintSupport Network Qml LinguistTools Test)
   endif()
   find_package(Qt6 QUIET COMPONENTS ${PATCHY_QT_COMPONENTS})
+  if(PATCHY_ENABLE_GPU_CANVAS AND Qt6_FOUND)
+    # Keep optional Qt add-on lookups separate so a missing module never makes
+    # the desktop application disappear. canvas_graphics_surface.cpp includes
+    # Qt Quick, Qt Quick Widgets, and the OpenGL helpers unconditionally, so the
+    # GPU canvas is only available when all three are present; ShaderTools adds
+    # just the QSB shader tier. Anything missing keeps the QWidget/CPU canvas.
+    set(PATCHY_QT_BASE_FOUND ${Qt6_FOUND})
+    find_package(Qt6 QUIET COMPONENTS OpenGLWidgets Quick QuickWidgets)
+    if(TARGET Qt6::OpenGLWidgets AND TARGET Qt6::Quick AND TARGET Qt6::QuickWidgets)
+      set(PATCHY_GPU_CANVAS_AVAILABLE ON)
+      find_package(Qt6 QUIET COMPONENTS ShaderTools)
+      if(TARGET Qt6::ShaderTools)
+        set(PATCHY_GPU_SHADER_COMPOSITOR_AVAILABLE ON)
+      else()
+        message(STATUS "Qt ShaderTools was not found; using the texture-only GPU canvas tier")
+      endif()
+    else()
+      message(STATUS
+              "Qt OpenGLWidgets, Quick, or QuickWidgets was not found; using the CPU canvas")
+    endif()
+    set(Qt6_FOUND ${PATCHY_QT_BASE_FOUND})
+  endif()
+  if(PATCHY_ENABLE_WEBGPU AND PATCHY_GPU_CANVAS_AVAILABLE AND NOT EMSCRIPTEN)
+    # Dawn is deliberately an external optional dependency. A machine without
+    # Dawn keeps the same Patchy binary and uses the Qt RHI/CPU compositor.
+    set(PATCHY_DAWN_PACKAGE_HINTS)
+    if(PATCHY_DAWN_PREFIX)
+      list(APPEND PATCHY_DAWN_PACKAGE_HINTS "${PATCHY_DAWN_PREFIX}")
+    endif()
+    if(PATCHY_DAWN_ROOT)
+      file(GLOB _PATCHY_DAWN_LOCAL_PREFIXES LIST_DIRECTORIES true
+        "${PATCHY_DAWN_ROOT}/install/*")
+      list(APPEND PATCHY_DAWN_PACKAGE_HINTS ${_PATCHY_DAWN_LOCAL_PREFIXES})
+    endif()
+    if(PATCHY_DAWN_PACKAGE_HINTS)
+      list(REMOVE_DUPLICATES PATCHY_DAWN_PACKAGE_HINTS)
+      message(STATUS "Searching optional Dawn packages in: ${PATCHY_DAWN_PACKAGE_HINTS}")
+      find_package(Dawn CONFIG QUIET HINTS ${PATCHY_DAWN_PACKAGE_HINTS})
+    else()
+      find_package(Dawn CONFIG QUIET)
+    endif()
+    if(NOT TARGET dawn::webgpu_dawn AND NOT TARGET Dawn::webgpu_dawn AND NOT TARGET webgpu_dawn)
+      if(PATCHY_DAWN_PACKAGE_HINTS)
+        find_package(webgpu_dawn CONFIG QUIET HINTS ${PATCHY_DAWN_PACKAGE_HINTS})
+      else()
+        find_package(webgpu_dawn CONFIG QUIET)
+      endif()
+    endif()
+    if(TARGET dawn::webgpu_dawn)
+      set(PATCHY_WEBGPU_TARGET dawn::webgpu_dawn)
+      set(PATCHY_WEBGPU_AVAILABLE ON)
+    elseif(TARGET Dawn::webgpu_dawn)
+      set(PATCHY_WEBGPU_TARGET Dawn::webgpu_dawn)
+      set(PATCHY_WEBGPU_AVAILABLE ON)
+    elseif(TARGET webgpu_dawn)
+      set(PATCHY_WEBGPU_TARGET webgpu_dawn)
+      set(PATCHY_WEBGPU_AVAILABLE ON)
+    else()
+      if(PATCHY_DAWN_PACKAGE_HINTS)
+        message(STATUS "Dawn/WebGPU was not found in the configured local prefixes; automatic WebGPU document composition is disabled")
+      else()
+        message(STATUS "Dawn/WebGPU was not found; automatic WebGPU document composition is disabled")
+      endif()
+    endif()
+    if(PATCHY_WEBGPU_AVAILABLE)
+      message(STATUS "Dawn/WebGPU found: ${PATCHY_WEBGPU_TARGET}")
+    endif()
+    if(PATCHY_ENABLE_VULKAN_QT_INTEROP_PROBE AND PATCHY_WEBGPU_AVAILABLE AND PATCHY_GPU_CANVAS_AVAILABLE AND
+       NOT EMSCRIPTEN)
+      # QSGRendererInterface is public Qt API and exposes the Vulkan device,
+      # queue, physical device, and instance during scene-graph rendering.
+      # Dawn's native Vulkan header remains opt-in; the normal WebGPU build
+      # keeps only the readback presentation path.
+      find_path(PATCHY_DAWN_VULKAN_BACKEND_HEADER
+        NAMES dawn/native/VulkanBackend.h
+        HINTS "${PATCHY_DAWN_PREFIX}" ${PATCHY_DAWN_PACKAGE_HINTS}
+        PATH_SUFFIXES include)
+      if(PATCHY_DAWN_VULKAN_BACKEND_HEADER)
+        set(PATCHY_VULKAN_QT_INTEROP_AVAILABLE ON)
+        message(STATUS "Vulkan/Qt RHI interop probe enabled (opt-in diagnostic only)")
+      else()
+        message(STATUS "Vulkan/Qt RHI interop probe unavailable; keeping the readback presentation path")
+      endif()
+    endif()
+  endif()
   # Qt PDF is optional: a stock Qt install does not carry it and Qt publishes no
   # WebAssembly build of it at all. Absent, patchy_ui compiles src/ui/pdf_import_stub.cpp
   # and Patchy still EXPORTS PDF (QPdfWriter is QtGui), it just cannot open one.
@@ -991,6 +1116,15 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/brush_tip_manager_dialog.cpp
       src/ui/brush_tip_picker.hpp
       src/ui/brush_tip_picker.cpp
+      src/ui/canvas_graphics_surface.hpp
+      src/ui/canvas_graphics_surface.cpp
+      src/ui/gpu_frame_invalidation.hpp
+      src/ui/gpu_layer_image_cache.hpp
+      src/ui/gpu_layer_image_cache.cpp
+      src/ui/webgpu_document_compositor.hpp
+      src/ui/webgpu_document_compositor.cpp
+      src/ui/webgpu_render_backend.hpp
+      src/ui/webgpu_render_backend.cpp
       src/ui/canvas_widget.hpp
       src/ui/canvas_widget.cpp
       src/ui/canvas_widget_shared.hpp
@@ -1397,6 +1531,43 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       # ws2_32: getaddrinfo for the update check's own host resolve (update_checker.cpp).
       target_link_libraries(patchy_ui PUBLIC wiaguid winmm ws2_32)
     endif()
+    if(PATCHY_GPU_CANVAS_AVAILABLE)
+      target_link_libraries(patchy_ui PUBLIC Qt6::OpenGLWidgets Qt6::Quick Qt6::QuickWidgets)
+      target_compile_definitions(patchy_ui PUBLIC PATCHY_GPU_CANVAS=1)
+    endif()
+    if(PATCHY_WEBGPU_AVAILABLE)
+      target_link_libraries(patchy_ui PRIVATE ${PATCHY_WEBGPU_TARGET})
+      target_compile_definitions(patchy_ui PRIVATE PATCHY_WEBGPU_AVAILABLE=1)
+    endif()
+    if(PATCHY_VULKAN_QT_INTEROP_AVAILABLE)
+      target_sources(patchy_ui PRIVATE
+        src/ui/vulkan_qt_interop_probe.hpp
+        src/ui/vulkan_qt_interop_probe.cpp)
+      target_compile_definitions(patchy_ui PRIVATE
+        PATCHY_VULKAN_QT_INTEROP_PROBE=1
+        PATCHY_DAWN_NATIVE_AVAILABLE=1)
+    endif()
+    if(PATCHY_GPU_SHADER_COMPOSITOR_AVAILABLE)
+      target_sources(patchy_ui PRIVATE
+        src/ui/gpu_shader_compositor.hpp
+        src/ui/gpu_shader_compositor.cpp
+      )
+      target_link_libraries(patchy_ui PUBLIC Qt6::ShaderTools)
+      target_compile_definitions(patchy_ui PUBLIC PATCHY_GPU_SHADER_COMPOSITOR=1)
+      qt6_add_resources(patchy_ui "patchy_gpu_compositor_qml"
+        PREFIX "/patchy/ui"
+        BASE src/ui
+        FILES src/ui/gpu_layer_pass.qml
+      )
+      qt6_add_shaders(patchy_ui "patchy_gpu_compositor_shaders"
+        PREFIX "/patchy/shaders"
+        BASE src/ui
+        BATCHABLE
+        FILES
+          src/ui/gpu_layer_pass.vert
+          src/ui/gpu_layer_pass.frag
+      )
+    endif()
     patchy_configure_target(patchy_ui)
 
     if(EMSCRIPTEN)
@@ -1590,7 +1761,10 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       patchy_copy_bundled_fonts(patchy_translation_checks)
       patchy_copy_bundled_scripts(patchy_translation_checks)
       add_custom_target(patchy_check_translation_runtime
-        COMMAND $<TARGET_FILE:patchy_translation_checks>
+        COMMAND ${CMAKE_COMMAND} -E env
+                QT_QPA_PLATFORM=offscreen
+                PATCHY_RENDER_BACKEND=cpu
+                $<TARGET_FILE:patchy_translation_checks>
         DEPENDS patchy_translation_checks
         WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
         COMMENT "Checking UI translations at startup and after language switches"
@@ -1739,6 +1913,30 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
   else()
     message(STATUS "Qt 6 Widgets was not found; skipping the native Patchy app target.")
   endif()
+endif()
+
+if(PATCHY_BUILD_WEBGPU_VALIDATION_TESTS)
+  if(NOT PATCHY_BUILD_APP OR NOT Qt6_FOUND OR EMSCRIPTEN)
+    message(FATAL_ERROR "PATCHY_BUILD_WEBGPU_VALIDATION_TESTS requires the native Qt desktop application")
+  endif()
+  add_executable(patchy_webgpu_equivalence_tests
+    tests/webgpu_equivalence_tests.cpp
+  )
+  target_link_libraries(patchy_webgpu_equivalence_tests PRIVATE patchy_ui)
+  patchy_configure_target(patchy_webgpu_equivalence_tests)
+  patchy_copy_translations(patchy_webgpu_equivalence_tests)
+  patchy_copy_qt_runtime(patchy_webgpu_equivalence_tests)
+  patchy_copy_bundled_fonts(patchy_webgpu_equivalence_tests)
+  # Registered with CTest only when this option is ON, so the default suite
+  # stays machine-independent. When Dawn or a hardware adapter is missing the
+  # executable exits with 77 and CTest reports "Not Run (Skipped)" instead of a
+  # pass; set PATCHY_WEBGPU_TESTS_REQUIRE_HARDWARE=1 to turn that into a failure
+  # on machines that are expected to have a GPU.
+  add_test(NAME patchy_webgpu_equivalence_tests COMMAND patchy_webgpu_equivalence_tests)
+  set_tests_properties(patchy_webgpu_equivalence_tests PROPERTIES
+    SKIP_RETURN_CODE 77
+    LABELS "hardware;gpu"
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;PATCHY_RENDER_BACKEND=cpu;PATCHY_NO_SOUND=1;LC_ALL=C.UTF-8;LANG=C.UTF-8;LANGUAGE=C;QT_SCALE_FACTOR=1")
 endif()
 
 if(PATCHY_BUILD_TESTS)
@@ -1936,7 +2134,8 @@ if(PATCHY_BUILD_TESTS)
     patchy_copy_bundled_fonts(patchy_ui_visual_tests)
     patchy_copy_bundled_scripts(patchy_ui_visual_tests)
     add_test(NAME patchy_ui_visual_tests COMMAND patchy_ui_visual_tests)
-    set_tests_properties(patchy_ui_visual_tests PROPERTIES ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    set_tests_properties(patchy_ui_visual_tests PROPERTIES
+      ENVIRONMENT "QT_QPA_PLATFORM=offscreen;PATCHY_RENDER_BACKEND=cpu;PATCHY_NO_SOUND=1;PATCHY_RENDER_SINGLE_THREADED=1;PATCHY_RENDER_THREADS=1;LC_ALL=C.UTF-8;LANG=C.UTF-8;LANGUAGE=C;QT_SCALE_FACTOR=1")
 
     add_executable(patchy_curves_clipping_preview_tests
       tests/curves_clipping_preview_tests.cpp

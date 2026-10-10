@@ -87,4 +87,27 @@ QImage display_qimage_from_pixel_buffer(const PixelBuffer& pixels) {
   return image;
 }
 
+QImage grayscale_qimage_from_pixel_buffer(const PixelBuffer& pixels) {
+  if (pixels.empty() || pixels.format().bit_depth != BitDepth::UInt8 || pixels.format().channels < 1) {
+    return {};
+  }
+  QImage image(pixels.width(), pixels.height(), QImage::Format_Grayscale8);
+  const int width = pixels.width();
+  const std::size_t channels = pixels.format().channels;
+  for (int y = 0; y < pixels.height(); ++y) {
+    const auto src = pixels.row(y);
+    auto* dst = image.scanLine(y);
+    if (channels == 1U) {
+      std::memcpy(dst, src.data(), static_cast<std::size_t>(width));
+    } else {
+      // A multi-channel buffer is not a mask; keep the leading channel so the
+      // result stays defined instead of reading past the row.
+      for (int x = 0; x < width; ++x) {
+        dst[x] = src[static_cast<std::size_t>(x) * channels];
+      }
+    }
+  }
+  return image;
+}
+
 }  // namespace patchy::ui

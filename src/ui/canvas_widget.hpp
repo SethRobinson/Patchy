@@ -12,10 +12,14 @@
 #include "core/stroke_stabilizer.hpp"
 #include "core/warp_mesh.hpp"
 #include "ui/curves_clipping_preview.hpp"
+#include "ui/canvas_graphics_surface.hpp"
+#include "ui/gpu_frame_invalidation.hpp"
+#include "ui/gpu_layer_image_cache.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/measurement_units.hpp"
 #include "ui/selection_outline.hpp"
 #include "ui/vector_preview_renderer.hpp"
+#include "ui/webgpu_render_backend.hpp"
 
 #include <QBasicTimer>
 #include <QBrush>
@@ -37,6 +41,9 @@
 #include <QSize>
 #include <QString>
 #include <QStringList>
+#ifdef PATCHY_GPU_CANVAS
+#include <QOpenGLWidget>
+#endif
 #include <QWidget>
 
 #include <array>
@@ -62,6 +69,7 @@ class QMenu;
 class QEvent;
 class QResizeEvent;
 class QScrollBar;
+class QShowEvent;
 class QTabletEvent;
 
 namespace patchy {
@@ -203,6 +211,16 @@ class CanvasWidget final : public QWidget {
   Q_OBJECT
 
 public:
+  enum class CanvasRenderBackend : std::uint8_t {
+    Cpu,
+    Initializing,
+    OpenGL,
+    Vulkan,
+    Metal,
+    Direct3D11,
+    Direct3D12
+  };
+
   enum class LocalToneRange {
     Shadows,
     Midtones,
@@ -416,8 +434,20 @@ public:
   };
 
   explicit CanvasWidget(QWidget* parent = nullptr);
+  ~CanvasWidget() override;
+
+  [[nodiscard]] CanvasRenderBackend canvas_render_backend() const noexcept;
 
   void set_document(Document* document);
+#ifdef PATCHY_GPU_CANVAS
+  // Builds the GPU document snapshot exactly as the canvas hands it to the
+  // Qt RHI / Dawn tiers (capability gate, Fill folding, Grayscale8 masks,
+  // Blend If ranges, document-space rectangles). Returns false with the
+  // fallback reason when the document stays on the CPU compositor. Hardware
+  // equivalence checks compose this snapshot so the canvas-to-backend
+  // conversion itself is under test, not a test-side reimplementation.
+  [[nodiscard]] bool gpu_document_snapshot(CanvasGpuDocument& document, QString* rejection_reason = nullptr) const;
+#endif
   [[nodiscard]] bool pointer_gesture_active() const noexcept;
   [[nodiscard]] double zoom() const noexcept;
   void set_zoom(double zoom);
@@ -429,6 +459,10 @@ public:
   [[nodiscard]] double view_zoom() const noexcept;
   void set_view_zoom(double view_zoom);
   void set_view_zoom_centered(double view_zoom);
+  // Restores a view after transient UI chrome changes size. Unlike interactive
+  // panning, this intentionally does not constrain or recenter the saved pan.
+  [[nodiscard]] QPointF view_pan() const noexcept;
+  void set_view_pan(QPointF pan);
   // Absolute zoom anchored at the viewport center, Photoshop-style: the anchor
   // is clamped to the document bounds (so a view left off-center never pins
   // grey margin), then per axis the document is centered when it fits the
@@ -1308,6 +1342,7 @@ protected:
   // editing) + macOS trackpad pinch zoom (QNativeGestureEvent).
   bool event(QEvent* event) override;
   void paintEvent(QPaintEvent* event) override;
+  void showEvent(QShowEvent* event) override;
   void wheelEvent(QWheelEvent* event) override;
   void resizeEvent(QResizeEvent* event) override;
   void mousePressEvent(QMouseEvent* event) override;
@@ -1326,6 +1361,35 @@ protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
+#ifdef PATCHY_GPU_CANVAS
+  void initialize_webgpu_compositor();
+  void initialize_graphics_canvas();
+  void show_graphics_canvas();
+  void resize_graphics_canvas_surface();
+  void graphics_surface_ready(CanvasGraphicsApi api);
+  void graphics_surface_failed(const QString& reason);
+  void render_graphics_canvas_frame();
+  void disable_gpu_canvas(const QString& reason);
+  void request_graphics_canvas_update(const QRegion& region);
+  [[nodiscard]] bool build_gpu_document(CanvasGpuDocument& document, QString* rejection_reason = nullptr) const;
+  void paint_gpu_overlay(QPainter& painter, QRect exposed_rect);
+  std::unique_ptr<WebGpuRenderBackend> webgpu_compositor_;
+  QImage webgpu_frame_cache_;
+  std::uint64_t webgpu_frame_cache_key_{0};
+  // Document-space damage since the last published GPU frame. Fed by the
+  // document_changed family, consumed by render_graphics_canvas_frame; the
+  // exposed widget region never decides which tiles are rebuilt.
+  GpuFrameInvalidation gpu_frame_invalidation_;
+  // build_gpu_document is const and runs per repaint request; the cache keeps
+  // it from copying unchanged layer pixels (docs/performance.md).
+  mutable GpuLayerImageCache gpu_layer_image_cache_;
+  bool webgpu_compositor_reported_{false};
+#ifdef PATCHY_VULKAN_QT_INTEROP_PROBE
+  std::atomic_bool vulkan_qt_interop_probe_reported_{false};
+#endif
+#endif
+  void paint_canvas(QPainter& painter, const QRect& exposed_rect);
+
   enum class TransformHandle {
     None,
     Move,
@@ -2220,6 +2284,12 @@ private:
   QScrollBar* horizontal_scroll_bar_{nullptr};
   QScrollBar* vertical_scroll_bar_{nullptr};
   bool syncing_scroll_bars_{false};
+  CanvasRenderBackend canvas_render_backend_{CanvasRenderBackend::Cpu};
+#ifdef PATCHY_GPU_CANVAS
+  std::unique_ptr<CanvasGraphicsSurface> graphics_surface_;
+  bool gpu_document_active_{false};
+  QString last_gpu_fallback_reason_;
+#endif
   QImage render_cache_{};
   bool render_cache_dirty_{true};
   bool tiling_preview_enabled_{false};

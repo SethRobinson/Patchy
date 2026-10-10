@@ -53,7 +53,15 @@
 #include "core/quick_select.hpp"
 #include "core/spot_heal.hpp"
 #include "render/compositor.hpp"
+#include "render/dirty_region.hpp"
+#include "render/gpu_document_capabilities.hpp"
+#include "render/gpu_presentation_interop.hpp"
+#include "render/gpu_render_backend.hpp"
+#include "render/gpu_render_graph.hpp"
+#include "render/gpu_tile_scheduler.hpp"
+#include "render/gpu_wait_budget.hpp"
 #include "render/layer_compositor.hpp"
+#include "render/pixel_comparison.hpp"
 #include "render/tile_cache.hpp"
 #include "support/cli_flags.hpp"
 #include "support/string_utils.hpp"
@@ -91,6 +99,8 @@
 #include <vector>
 
 #include "core_test_support.hpp"
+#include "fake_gpu_backend.hpp"
+#include "fake_gpu_document_renderer.hpp"
 #include "test_groups.hpp"
 
 namespace {
@@ -157,11 +167,373 @@ void tile_cache_stores_and_invalidates() {
   CHECK(!cache.find(key).has_value());
 }
 
+void tile_cache_invalidates_regions_across_mips() {
+  patchy::TileCache cache(4);
+  cache.put({0, 0, 0}, solid_rgb(1, 1, 1, 2, 3));
+  cache.put({1, 0, 0}, solid_rgb(1, 1, 4, 5, 6));
+  cache.put({0, 0, 1}, solid_rgb(1, 1, 7, 8, 9));
+  cache.put({2, 0, 0}, solid_rgb(1, 1, 10, 11, 12));
+
+  CHECK(cache.invalidate_region(patchy::Rect{4, 0, 1, 1}, 0) == 1);
+  CHECK(!cache.find({1, 0, 0}).has_value());
+  CHECK(cache.find({0, 0, 1}).has_value());
+  CHECK(cache.invalidate_all_mips(patchy::Rect{0, 0, 1, 1}) == 2);
+  CHECK(cache.find({2, 0, 0}).has_value());
+}
+
+void dirty_regions_coalesce_deterministically() {
+  patchy::DirtyRegionSet dirty;
+  dirty.add({4, 0, 2, 4}, 1);
+  dirty.add({0, 0, 4, 4}, 1);
+  dirty.add({0, 8, 2, 2}, 0);
+  dirty.add({20, 20, 0, 5}, 0);
+
+  CHECK(dirty.size() == 2);
+  CHECK(dirty.regions()[0].mip == 0);
+  CHECK(dirty.regions()[1].mip == 1);
+  CHECK(dirty.regions()[1].bounds.x == 0);
+  CHECK(dirty.regions()[1].bounds.width == 6);
+  CHECK(dirty.regions()[1].bounds.height == 4);
+}
+
+void render_graph_orders_passes_and_recovers_fake_device() {
+  patchy::RenderGraph graph;
+  const auto source = graph.add_resource("source", {0, 0, 8, 8}, patchy::RenderPixelFormat::Rgba8Unorm, true);
+  const auto backdrop = graph.add_resource("backdrop", {0, 0, 8, 8}, patchy::RenderPixelFormat::Rgba16Float);
+  const auto output = graph.add_resource("output", {0, 0, 8, 8}, patchy::RenderPixelFormat::Rgba8Unorm, true);
+  const auto clear = graph.add_pass("clear", patchy::RenderPassType::Clear, {0, 0, 0});
+  const auto composite = graph.add_pass("composite", patchy::RenderPassType::Composite, {0, 0, 0});
+  const auto readback = graph.add_pass("readback", patchy::RenderPassType::Readback, {0, 0, 0});
+  CHECK(graph.add_write(clear, backdrop));
+  CHECK(graph.add_read(composite, source));
+  CHECK(graph.add_read(composite, backdrop));
+  CHECK(graph.add_write(composite, output));
+  CHECK(graph.add_read(readback, output));
+
+  std::string reason;
+  CHECK(graph.validate(&reason));
+  const std::vector<patchy::RenderPassId> expected_order{clear, composite, readback};
+  CHECK(graph.execution_order(&reason) == expected_order);
+
+  patchy::test::FakeGpuBackend backend;
+  CHECK(backend.submit(graph) == patchy::GpuSubmitResult::BackendError);
+  CHECK(backend.initialize());
+  CHECK(backend.submit(graph) == patchy::GpuSubmitResult::Submitted);
+  CHECK(backend.submitted_passes() == expected_order);
+  backend.lose_device();
+  CHECK(backend.submit(graph) == patchy::GpuSubmitResult::DeviceLost);
+  CHECK(backend.recover());
+  CHECK(backend.recovery_count() == 1);
+  CHECK(backend.submit(graph) == patchy::GpuSubmitResult::Submitted);
+}
+
+void render_graph_rejects_cycles_and_multiple_writers() {
+  patchy::RenderGraph multiple_writers;
+  const auto resource = multiple_writers.add_resource("resource", {0, 0, 2, 2}, patchy::RenderPixelFormat::Rgba8Unorm);
+  const auto first = multiple_writers.add_pass("first", patchy::RenderPassType::Clear);
+  const auto second = multiple_writers.add_pass("second", patchy::RenderPassType::Clear);
+  CHECK(multiple_writers.add_write(first, resource));
+  CHECK(multiple_writers.add_write(second, resource));
+  std::string reason;
+  CHECK(!multiple_writers.validate(&reason));
+  CHECK(reason == "render resource has multiple writers");
+
+  patchy::RenderGraph cycle;
+  const auto first_resource = cycle.add_resource("first", {0, 0, 2, 2}, patchy::RenderPixelFormat::Rgba8Unorm);
+  const auto second_resource = cycle.add_resource("second", {0, 0, 2, 2}, patchy::RenderPixelFormat::Rgba8Unorm);
+  const auto first_pass = cycle.add_pass("first", patchy::RenderPassType::Composite);
+  const auto second_pass = cycle.add_pass("second", patchy::RenderPassType::Composite);
+  CHECK(cycle.add_read(first_pass, second_resource));
+  CHECK(cycle.add_write(first_pass, first_resource));
+  CHECK(cycle.add_read(second_pass, first_resource));
+  CHECK(cycle.add_write(second_pass, second_resource));
+  CHECK(cycle.validate(&reason));
+  CHECK(cycle.execution_order(&reason).empty());
+  CHECK(reason == "render graph contains a dependency cycle");
+}
+
+void zero_copy_interop_requires_verified_shared_resources() {
+  patchy::ZeroCopyInteropRequirements requirements;
+  CHECK(!patchy::evaluate_zero_copy_interop(requirements).eligible());
+  CHECK(patchy::evaluate_zero_copy_interop(requirements).status ==
+        patchy::ZeroCopyInteropStatus::UnknownApi);
+
+  requirements.compositor_api = patchy::GpuPresentationApi::Vulkan;
+  requirements.presentation_api = patchy::GpuPresentationApi::OpenGL;
+  auto decision = patchy::evaluate_zero_copy_interop(requirements);
+  CHECK(decision.status == patchy::ZeroCopyInteropStatus::ApiMismatch);
+
+  requirements.presentation_api = patchy::GpuPresentationApi::Vulkan;
+  decision = patchy::evaluate_zero_copy_interop(requirements);
+  CHECK(decision.status == patchy::ZeroCopyInteropStatus::SharedDeviceRequired);
+
+  requirements.shared_device = true;
+  decision = patchy::evaluate_zero_copy_interop(requirements);
+  CHECK(decision.status == patchy::ZeroCopyInteropStatus::NativeTextureImportRequired);
+
+  requirements.native_texture_import = true;
+  decision = patchy::evaluate_zero_copy_interop(requirements);
+  CHECK(decision.status == patchy::ZeroCopyInteropStatus::SynchronizationRequired);
+
+  requirements.synchronization = true;
+  decision = patchy::evaluate_zero_copy_interop(requirements);
+  CHECK(decision.eligible());
+  CHECK(decision.status == patchy::ZeroCopyInteropStatus::Ready);
+}
+
+patchy::Document make_gpu_equivalence_document() {
+  patchy::Document document(8, 8, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer background(8, 8, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < background.height(); ++y) {
+    for (std::int32_t x = 0; x < background.width(); ++x) {
+      auto* pixel = background.pixel(x, y);
+      pixel[0] = static_cast<std::uint8_t>(20 + x * 3);
+      pixel[1] = static_cast<std::uint8_t>(30 + y * 4);
+      pixel[2] = 40;
+      pixel[3] = 255;
+    }
+  }
+  document.add_pixel_layer("Background", std::move(background));
+
+  patchy::PixelBuffer overlay(8, 8, patchy::PixelFormat::rgba8());
+  overlay.clear(0);
+  for (std::int32_t y = 0; y < 4; ++y) {
+    for (std::int32_t x = 0; x < 4; ++x) {
+      auto* pixel = overlay.pixel(x, y);
+      pixel[0] = 220;
+      pixel[1] = 60;
+      pixel[2] = 15;
+      pixel[3] = 160;
+    }
+  }
+  document.add_pixel_layer("Overlay", std::move(overlay));
+  return document;
+}
+
+void pixel_comparison_reports_exact_and_tolerated_differences() {
+  auto reference = patchy::test::solid_rgb(2, 1, 10, 20, 30);
+  auto candidate = reference;
+  CHECK(patchy::compare_pixel_buffers(reference, candidate).within());
+
+  candidate.pixel(1, 0)[0] = 12;
+  const auto report = patchy::compare_pixel_buffers(reference, candidate);
+  CHECK(report.comparable);
+  CHECK(report.differing_pixels == 1);
+  CHECK(report.differing_channels == 1);
+  CHECK(report.max_channel_delta == 2);
+  CHECK(!report.within());
+
+  patchy::PixelComparisonPolicy preview_policy;
+  preview_policy.max_channel_delta = 2;
+  preview_policy.max_differing_pixels = 1;
+  preview_policy.max_mean_abs_channel_delta = 1.0;
+  preview_policy.max_differing_fraction = 0.5;
+  CHECK(report.within(preview_policy));
+
+  patchy::PixelBuffer different_format(2, 1, patchy::PixelFormat::rgba8());
+  different_format.clear(0);
+  CHECK(!patchy::compare_pixel_buffers(reference, different_format).comparable);
+}
+
+void gpu_tile_renderer_matches_cpu_and_updates_only_dirty_tiles() {
+  auto document = make_gpu_equivalence_document();
+  patchy::test::FakeGpuDocumentRenderer renderer(4);
+
+  const auto initial = renderer.render(document);
+  CHECK(initial.success);
+  CHECK(initial.rendered_tiles == 4);
+  CHECK(renderer.tile_cache().size() == 4);
+  CHECK(renderer.compare_with_cpu(document).within());
+
+  patchy::DirtyRegionSet dirty;
+  dirty.add(patchy::Rect{0, 0, 1, 1});
+  auto* overlay = document.find_layer(document.layers().back().id());
+  CHECK(overlay != nullptr);
+  overlay->pixels().pixel(0, 0)[0] = 120;
+  const auto incremental = renderer.render(document, dirty);
+  CHECK(incremental.success);
+  CHECK(incremental.rendered_tiles == 1);
+  CHECK(renderer.tile_cache().size() == 4);
+  CHECK(renderer.compare_with_cpu(document).within());
+
+  const auto idle = renderer.render(document);
+  CHECK(idle.success);
+  CHECK(idle.rendered_tiles == 0);
+  CHECK(renderer.compare_with_cpu(document).within());
+}
+
+void gpu_tile_renderer_recovers_device_and_rebuilds_resources() {
+  auto document = make_gpu_equivalence_document();
+  patchy::test::FakeGpuDocumentRenderer renderer(4);
+  CHECK(renderer.render(document).success);
+  renderer.backend().lose_device();
+
+  const auto recovered = renderer.render(document);
+  CHECK(recovered.success);
+  CHECK(recovered.recovered_device);
+  CHECK(recovered.rendered_tiles == 4);
+  CHECK(renderer.backend().recovery_count() == 1);
+  CHECK(renderer.compare_with_cpu(document).within());
+}
+
+void gpu_tile_renderer_rejects_unsupported_document_without_mixing_paths() {
+  auto document = make_gpu_equivalence_document();
+  document.layers().back().set_blend_mode(patchy::BlendMode::Hue);
+  patchy::test::FakeGpuDocumentRenderer renderer(4);
+
+  const auto result = renderer.render(document);
+  CHECK(!result.success);
+  CHECK(result.error == "document contains a non-separable or unsupported blend mode");
+  CHECK(renderer.rendered_frame().empty());
+}
+
 void color_manager_assigns_profiles() {
   patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
   patchy::ColorManager manager;
   manager.assign_icc_profile(document, {1, 2, 3});
   CHECK(document.color_state().embedded_icc_profile.size() == 3);
+}
+
+void gpu_wait_budget_parses_overrides_and_keeps_defaults_on_bad_input() {
+  using namespace std::chrono_literals;
+  const auto fallback = 250ms;
+  CHECK(patchy::gpu_wait_budget_from_text(std::nullopt, fallback) == fallback);
+  CHECK(patchy::gpu_wait_budget_from_text(std::string(""), fallback) == fallback);
+  CHECK(patchy::gpu_wait_budget_from_text(std::string("  "), fallback) == fallback);
+  CHECK(patchy::gpu_wait_budget_from_text(std::string("abc"), fallback) == fallback);
+  CHECK(patchy::gpu_wait_budget_from_text(std::string("12ms"), fallback) == fallback);
+  CHECK(patchy::gpu_wait_budget_from_text(std::string("-5"), fallback) == fallback);
+  CHECK(patchy::gpu_wait_budget_from_text(std::string("0"), fallback) == 0ms);
+  CHECK(patchy::gpu_wait_budget_from_text(std::string(" 40 "), fallback) == 40ms);
+  CHECK(patchy::gpu_wait_budget_from_text(std::string("999999"), fallback) ==
+        std::chrono::milliseconds(patchy::kGpuWaitBudgetMaxMs));
+  const patchy::GpuWaitBudget defaults;
+  CHECK(defaults.frame < defaults.startup);
+  CHECK(defaults.frame <= 500ms);
+}
+
+void gpu_wait_deadline_expires_only_after_its_budget() {
+  using namespace std::chrono_literals;
+  const patchy::GpuWaitDeadline immediate(0ms);
+  CHECK(immediate.expired());
+  CHECK(immediate.budget() == 0ms);
+  const patchy::GpuWaitDeadline generous(60s);
+  CHECK(!generous.expired());
+}
+
+void gpu_document_capability_accepts_simple_pixel_stack() {
+  patchy::Document document(4, 4, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(4, 4, patchy::PixelFormat::rgba8());
+  pixels.clear(0);
+  document.add_pixel_layer("Paint", std::move(pixels));
+
+  const auto capability = patchy::gpu_document_capability(document);
+  CHECK(capability.mode == patchy::GpuDocumentRenderMode::PixelStackSourceOver);
+  CHECK(capability.reason.empty());
+}
+
+void gpu_document_capability_accepts_separable_blend_in_shader_tier() {
+  patchy::Document document(4, 4, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(4, 4, patchy::PixelFormat::rgba8());
+  pixels.clear(0);
+  document.add_pixel_layer("Paint", std::move(pixels));
+  document.layers().front().set_blend_mode(patchy::BlendMode::Multiply);
+
+  const auto capability = patchy::gpu_document_capability(document);
+  CHECK(capability.mode == patchy::GpuDocumentRenderMode::PixelStackShader);
+  CHECK(capability.reason.empty());
+}
+
+void gpu_document_capability_accepts_unfeathered_gray8_mask_in_shader_tier() {
+  patchy::Document document(4, 4, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(4, 4, patchy::PixelFormat::rgba8());
+  pixels.clear(0);
+  document.add_pixel_layer("Paint", std::move(pixels));
+
+  patchy::LayerMask mask;
+  mask.bounds = patchy::Rect{0, 0, 4, 4};
+  mask.pixels = patchy::PixelBuffer(4, 4, patchy::PixelFormat::gray8());
+  mask.pixels.clear(255);
+  document.layers().front().set_mask(std::move(mask));
+
+  const auto capability = patchy::gpu_document_capability(document);
+  CHECK(capability.mode == patchy::GpuDocumentRenderMode::PixelStackShader);
+  CHECK(capability.reason.empty());
+}
+
+void gpu_document_capability_accepts_supported_blend_if_in_shader_tier() {
+  patchy::Document document(4, 4, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(4, 4, patchy::PixelFormat::rgba8());
+  pixels.clear(0);
+  document.add_pixel_layer("Paint", std::move(pixels));
+
+  patchy::LayerBlendIf settings;
+  settings.channels[static_cast<std::size_t>(patchy::BlendIfChannel::Gray)].this_layer =
+      patchy::BlendIfThresholds{32, 96, 160, 224};
+  CHECK(document.layers().front().set_blend_if(settings));
+
+  const auto capability = patchy::gpu_document_capability(document);
+  CHECK(capability.mode == patchy::GpuDocumentRenderMode::PixelStackShader);
+  CHECK(capability.reason.empty());
+}
+
+void gpu_document_capability_rejects_unsupported_blend_if_payload() {
+  patchy::Document document(4, 4, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(4, 4, patchy::PixelFormat::rgba8());
+  pixels.clear(0);
+  document.add_pixel_layer("Paint", std::move(pixels));
+  document.layers().front().set_blend_if_payload({1, 2, 3});
+
+  const auto capability = patchy::gpu_document_capability(document);
+  CHECK(capability.mode == patchy::GpuDocumentRenderMode::Unsupported);
+  CHECK(capability.reason == "document contains unsupported Blend If settings");
+}
+
+// Fill differs from Opacity only in the eight special-Fill modes. The GPU tiers
+// multiply opacity by fill, which matches the CPU everywhere else, so those
+// modes must reject partial Fill while every other mode may fold it in.
+void gpu_document_capability_rejects_partial_fill_in_special_fill_modes() {
+  const auto capability_for = [](patchy::BlendMode mode, float fill) {
+    patchy::Document document(4, 4, patchy::PixelFormat::rgba8());
+    patchy::PixelBuffer pixels(4, 4, patchy::PixelFormat::rgba8());
+    pixels.clear(0);
+    document.add_pixel_layer("Paint", std::move(pixels));
+    document.layers().front().set_blend_mode(mode);
+    document.layers().front().set_fill_opacity(fill);
+    return patchy::gpu_document_capability(document);
+  };
+
+  for (const auto mode : {patchy::BlendMode::ColorBurn, patchy::BlendMode::LinearBurn, patchy::BlendMode::ColorDodge,
+                          patchy::BlendMode::LinearDodge, patchy::BlendMode::Difference, patchy::BlendMode::VividLight,
+                          patchy::BlendMode::LinearLight, patchy::BlendMode::HardMix}) {
+    CHECK(patchy::blend_mode_has_special_fill(mode));
+    const auto partial = capability_for(mode, 0.5F);
+    CHECK(partial.mode == patchy::GpuDocumentRenderMode::Unsupported);
+    CHECK(partial.reason == "document contains a special-Fill blend mode with Fill below 100%");
+    const auto full = capability_for(mode, 1.0F);
+    CHECK(full.mode == patchy::GpuDocumentRenderMode::PixelStackShader);
+    CHECK(full.reason.empty());
+  }
+
+  for (const auto mode : {patchy::BlendMode::Normal, patchy::BlendMode::Multiply, patchy::BlendMode::Screen,
+                          patchy::BlendMode::Overlay, patchy::BlendMode::SoftLight, patchy::BlendMode::Subtract}) {
+    CHECK(!patchy::blend_mode_has_special_fill(mode));
+    const auto partial = capability_for(mode, 0.5F);
+    CHECK(partial.mode != patchy::GpuDocumentRenderMode::Unsupported);
+    CHECK(partial.reason.empty());
+  }
+}
+
+void gpu_document_capability_rejects_non_separable_blend() {
+  patchy::Document document(4, 4, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(4, 4, patchy::PixelFormat::rgba8());
+  pixels.clear(0);
+  document.add_pixel_layer("Paint", std::move(pixels));
+  document.layers().front().set_blend_mode(patchy::BlendMode::Hue);
+
+  const auto capability = patchy::gpu_document_capability(document);
+  CHECK(capability.mode == patchy::GpuDocumentRenderMode::Unsupported);
+  CHECK(capability.reason == "document contains a non-separable or unsupported blend mode");
 }
 
 // ---------------------------------------------------------------------------
@@ -1300,7 +1672,38 @@ std::vector<patchy::test::TestCase> infra_selection_tests() {
   return {
       {"plugin_host_and_legacy_probe_work", plugin_host_and_legacy_probe_work},
       {"tile_cache_stores_and_invalidates", tile_cache_stores_and_invalidates},
+      {"tile_cache_invalidates_regions_across_mips", tile_cache_invalidates_regions_across_mips},
+      {"dirty_regions_coalesce_deterministically", dirty_regions_coalesce_deterministically},
+      {"render_graph_orders_passes_and_recovers_fake_device", render_graph_orders_passes_and_recovers_fake_device},
+      {"render_graph_rejects_cycles_and_multiple_writers", render_graph_rejects_cycles_and_multiple_writers},
+      {"zero_copy_interop_requires_verified_shared_resources",
+       zero_copy_interop_requires_verified_shared_resources},
+      {"pixel_comparison_reports_exact_and_tolerated_differences",
+       pixel_comparison_reports_exact_and_tolerated_differences},
+      {"gpu_tile_renderer_matches_cpu_and_updates_only_dirty_tiles",
+       gpu_tile_renderer_matches_cpu_and_updates_only_dirty_tiles},
+      {"gpu_tile_renderer_recovers_device_and_rebuilds_resources",
+       gpu_tile_renderer_recovers_device_and_rebuilds_resources},
+      {"gpu_tile_renderer_rejects_unsupported_document_without_mixing_paths",
+       gpu_tile_renderer_rejects_unsupported_document_without_mixing_paths},
       {"color_manager_assigns_profiles", color_manager_assigns_profiles},
+      {"gpu_wait_budget_parses_overrides_and_keeps_defaults_on_bad_input",
+       gpu_wait_budget_parses_overrides_and_keeps_defaults_on_bad_input},
+      {"gpu_wait_deadline_expires_only_after_its_budget", gpu_wait_deadline_expires_only_after_its_budget},
+      {"gpu_document_capability_accepts_simple_pixel_stack",
+       gpu_document_capability_accepts_simple_pixel_stack},
+      {"gpu_document_capability_accepts_separable_blend_in_shader_tier",
+       gpu_document_capability_accepts_separable_blend_in_shader_tier},
+      {"gpu_document_capability_accepts_unfeathered_gray8_mask_in_shader_tier",
+       gpu_document_capability_accepts_unfeathered_gray8_mask_in_shader_tier},
+      {"gpu_document_capability_accepts_supported_blend_if_in_shader_tier",
+       gpu_document_capability_accepts_supported_blend_if_in_shader_tier},
+      {"gpu_document_capability_rejects_unsupported_blend_if_payload",
+       gpu_document_capability_rejects_unsupported_blend_if_payload},
+      {"gpu_document_capability_rejects_partial_fill_in_special_fill_modes",
+       gpu_document_capability_rejects_partial_fill_in_special_fill_modes},
+      {"gpu_document_capability_rejects_non_separable_blend",
+       gpu_document_capability_rejects_non_separable_blend},
       {"quick_select_maxflow_solves_tiny_grid", quick_select_maxflow_solves_tiny_grid},
       {"quick_select_maxflow_matches_reference_on_random_grids",
        quick_select_maxflow_matches_reference_on_random_grids},

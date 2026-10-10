@@ -119,10 +119,7 @@ renders and difference maps for all nine columns. Read the
 [full comparison and methodology](docs/psd-compatibility-benchmark.md) for the
 tables, per-folder results, scoring rules, and limitations.
 
-**Know the limits:** editing is RGB at 8, 16, or 32 bits per channel (the browser
-build stops at 16). CMYK, Lab, and the other color modes convert to RGB on open, and
-there is no GPU acceleration. Unsupported Smart Filters can remain preview-locked,
-and Affinity import has format-specific limitations. See [current compatibility](docs/features.md#current-status).
+**Know the limits:** editing is RGB at 8, 16, or 32 bits per channel (the browser build stops at 16). CPU compositing, PSD output, and compatibility tests remain authoritative for portability and deterministic output. Desktop builds include an automatic Qt Quick/RHI presentation backend that selects OpenGL, Vulkan, Metal, or Direct3D by platform and driver, rejects software renderers, and falls back to the CPU widget when needed. The optional Dawn/WebGPU document-compositing tier can be enabled with `-DPATCHY_ENABLE_GPU_CANVAS=ON` and `-DPATCHY_ENABLE_WEBGPU=ON`; its conservative first capability tier covers only simple top-level 8-bit RGB/RGBA pixel stacks with Normal/source-over blending. Unsupported document features and export remain on the CPU with atomic fallback, and the CPU path remains authoritative until each future shader tier has equivalence coverage. CMYK, Lab, and the other color modes convert to RGB on open. Unsupported Smart Filters can remain preview-locked, and Affinity import has format-specific limitations. See [GPU canvas presentation](docs/gpu-canvas.md) and [current compatibility](docs/features.md#current-status).
 
 ## What's New
 

@@ -8,7 +8,11 @@
 #include "core/smart_filter_effects.hpp"
 #include "core/smart_object.hpp"
 #include "core/text_warp.hpp"
+#include "ui/edit_conversions.hpp"
+#include "ui/gpu_frame_invalidation.hpp"
+#include "ui/gpu_layer_image_cache.hpp"
 #include "ui/smart_object_render.hpp"
+#include "ui/webgpu_document_compositor.hpp"
 #include "core/layer_tree.hpp"
 #include "core/palette.hpp"
 #include "core/palette_presets.hpp"
@@ -150,7 +154,8 @@
 #include <QStringList>
 #include <QScrollArea>
 #include <QScrollBar>
-#include <QScreen>
+#include <QScopeGuard>
+#include <QSlider>
 #include <QSettings>
 #include <QSlider>
 #include <QStandardItemModel>
@@ -851,6 +856,310 @@ std::pair<QScrollBar*, QScrollBar*> require_canvas_scroll_bars(patchy::ui::Canva
   CHECK(horizontal != nullptr);
   CHECK(vertical != nullptr);
   return {horizontal, vertical};
+}
+
+void ui_canvas_renderer_selects_a_safe_runtime_backend() {
+  patchy::ui::CanvasWidget canvas;
+  const auto backend = canvas.canvas_render_backend();
+  CHECK(backend == patchy::ui::CanvasWidget::CanvasRenderBackend::Cpu ||
+        backend == patchy::ui::CanvasWidget::CanvasRenderBackend::Initializing ||
+        backend == patchy::ui::CanvasWidget::CanvasRenderBackend::OpenGL ||
+        backend == patchy::ui::CanvasWidget::CanvasRenderBackend::Vulkan ||
+        backend == patchy::ui::CanvasWidget::CanvasRenderBackend::Metal ||
+        backend == patchy::ui::CanvasWidget::CanvasRenderBackend::Direct3D11 ||
+        backend == patchy::ui::CanvasWidget::CanvasRenderBackend::Direct3D12);
+
+  const auto platform = QGuiApplication::platformName();
+  if (platform == QStringLiteral("offscreen") || platform == QStringLiteral("minimal") ||
+      platform == QStringLiteral("minimalegl")) {
+    CHECK(backend == patchy::ui::CanvasWidget::CanvasRenderBackend::Cpu);
+  }
+
+  canvas.resize(320, 240);
+  canvas.show();
+  QApplication::processEvents();
+  const auto after_show = canvas.canvas_render_backend();
+  CHECK(after_show == patchy::ui::CanvasWidget::CanvasRenderBackend::Cpu ||
+        after_show == patchy::ui::CanvasWidget::CanvasRenderBackend::Initializing ||
+        after_show == patchy::ui::CanvasWidget::CanvasRenderBackend::OpenGL ||
+        after_show == patchy::ui::CanvasWidget::CanvasRenderBackend::Vulkan ||
+        after_show == patchy::ui::CanvasWidget::CanvasRenderBackend::Metal ||
+        after_show == patchy::ui::CanvasWidget::CanvasRenderBackend::Direct3D11 ||
+        after_show == patchy::ui::CanvasWidget::CanvasRenderBackend::Direct3D12);
+}
+
+// Saves PATCHY_RENDER_BACKEND and PATCHY_GPU_CANVAS for one test and restores
+// them on scope exit, so backend-selection tests never leak into each other.
+class ScopedRenderBackendEnvironment {
+public:
+  ScopedRenderBackendEnvironment()
+      : had_backend_(qEnvironmentVariableIsSet("PATCHY_RENDER_BACKEND")),
+        had_alias_(qEnvironmentVariableIsSet("PATCHY_GPU_CANVAS")),
+        backend_(qgetenv("PATCHY_RENDER_BACKEND")),
+        alias_(qgetenv("PATCHY_GPU_CANVAS")) {}
+  ~ScopedRenderBackendEnvironment() {
+    restore("PATCHY_RENDER_BACKEND", had_backend_, backend_);
+    restore("PATCHY_GPU_CANVAS", had_alias_, alias_);
+  }
+  ScopedRenderBackendEnvironment(const ScopedRenderBackendEnvironment&) = delete;
+  ScopedRenderBackendEnvironment& operator=(const ScopedRenderBackendEnvironment&) = delete;
+
+  static void clear() {
+    qunsetenv("PATCHY_RENDER_BACKEND");
+    qunsetenv("PATCHY_GPU_CANVAS");
+  }
+
+private:
+  static void restore(const char* name, bool had, const QByteArray& value) {
+    if (had) {
+      qputenv(name, value);
+    } else {
+      qunsetenv(name);
+    }
+  }
+  bool had_backend_;
+  bool had_alias_;
+  QByteArray backend_;
+  QByteArray alias_;
+};
+
+// The GPU tiers are opt-in: a process that never asked for a graphics backend
+// must get the QWidget/CPU canvas even in a build that compiled the GPU path.
+void ui_canvas_renderer_defaults_to_cpu_without_an_explicit_request() {
+  const ScopedRenderBackendEnvironment saved;
+  ScopedRenderBackendEnvironment::clear();
+
+  patchy::ui::CanvasWidget canvas;
+  CHECK(canvas.canvas_render_backend() == patchy::ui::CanvasWidget::CanvasRenderBackend::Cpu);
+  canvas.resize(320, 240);
+  canvas.show();
+  QApplication::processEvents();
+  CHECK(canvas.canvas_render_backend() == patchy::ui::CanvasWidget::CanvasRenderBackend::Cpu);
+}
+
+// Dawn is probed only for an explicit "webgpu"/"gpu" request. Absent, empty,
+// "auto", "cpu", and plain Qt RHI backend names never touch Dawn.
+void ui_webgpu_compositor_is_only_probed_on_explicit_request() {
+  const ScopedRenderBackendEnvironment saved;
+  ScopedRenderBackendEnvironment::clear();
+  CHECK(!patchy::ui::WebGpuDocumentCompositor::should_try_automatically());
+
+  for (const char* value : {"", "auto", "cpu", "software", "opengl", "vulkan", "metal", "d3d11", "d3d12", "nonsense"}) {
+    qputenv("PATCHY_RENDER_BACKEND", value);
+    CHECK(!patchy::ui::WebGpuDocumentCompositor::should_try_automatically());
+  }
+  for (const char* value : {"webgpu", "gpu", "WebGPU", " gpu "}) {
+    qputenv("PATCHY_RENDER_BACKEND", value);
+    CHECK(patchy::ui::WebGpuDocumentCompositor::should_try_automatically());
+  }
+
+  qunsetenv("PATCHY_RENDER_BACKEND");
+  qputenv("PATCHY_GPU_CANVAS", "auto");
+  CHECK(!patchy::ui::WebGpuDocumentCompositor::should_try_automatically());
+  qputenv("PATCHY_GPU_CANVAS", "webgpu");
+  CHECK(patchy::ui::WebGpuDocumentCompositor::should_try_automatically());
+}
+
+// GPU tiers upload layer masks as single-channel textures and read coverage
+// from the red channel. The snapshot must therefore hand them a Grayscale8
+// image: Qt turns an Alpha8 image into opaque black when asked for Grayscale8,
+// which would silently discard every painted mask value on the GPU path.
+void ui_gpu_mask_snapshot_preserves_mask_values_as_grayscale() {
+  patchy::PixelBuffer mask(3, 2, patchy::PixelFormat::gray8());
+  const std::array<std::uint8_t, 6> values{0, 128, 255, 17, 200, 64};
+  for (int y = 0; y < 2; ++y) {
+    auto row = mask.row(y);
+    for (int x = 0; x < 3; ++x) {
+      row[static_cast<std::size_t>(x)] = values[static_cast<std::size_t>(y * 3 + x)];
+    }
+  }
+
+  const auto image = patchy::ui::grayscale_qimage_from_pixel_buffer(mask);
+  CHECK(!image.isNull());
+  CHECK(image.format() == QImage::Format_Grayscale8);
+  CHECK(image.width() == 3 && image.height() == 2);
+  for (int y = 0; y < 2; ++y) {
+    for (int x = 0; x < 3; ++x) {
+      CHECK(image.constScanLine(y)[x] == values[static_cast<std::size_t>(y * 3 + x)]);
+    }
+  }
+
+  // The Dawn compositor re-requests Grayscale8 before upload and the Qt tier
+  // expands to RGBA; both must keep the bytes intact.
+  const auto dawn_upload = image.convertToFormat(QImage::Format_Grayscale8);
+  const auto qt_upload = image.convertToFormat(QImage::Format_RGBA8888);
+  for (int y = 0; y < 2; ++y) {
+    for (int x = 0; x < 3; ++x) {
+      const auto expected = values[static_cast<std::size_t>(y * 3 + x)];
+      CHECK(dawn_upload.constScanLine(y)[x] == expected);
+      CHECK(qRed(qt_upload.pixel(x, y)) == expected);
+      CHECK(qAlpha(qt_upload.pixel(x, y)) == 255);
+    }
+  }
+
+  // Document the failure mode that motivated the format: the same bytes as an
+  // Alpha8 image do not survive a Grayscale8 conversion.
+  QImage alpha_only(3, 2, QImage::Format_Alpha8);
+  for (int y = 0; y < 2; ++y) {
+    std::memcpy(alpha_only.scanLine(y), values.data() + y * 3, 3U);
+  }
+  const auto lossy = alpha_only.convertToFormat(QImage::Format_Grayscale8);
+  CHECK(lossy.constScanLine(0)[1] != 128 || lossy.constScanLine(0)[2] != 255);
+
+  CHECK(patchy::ui::grayscale_qimage_from_pixel_buffer(patchy::PixelBuffer{}).isNull());
+}
+
+// The WGSL Params uniform declares blendIf{Gray,Red,Green,Blue}This followed by
+// blendIf{Gray,Red,Green,Blue}Underlying. The C++ packing must match that
+// order; interleaving this/underlying per channel feeds the Red "this" range
+// where the shader expects the Gray "underlying" range.
+void ui_webgpu_blend_if_uniform_matches_shader_layout() {
+  std::array<patchy::ui::CanvasGpuBlendIfRanges, 4> ranges{};
+  for (std::size_t channel = 0; channel < ranges.size(); ++channel) {
+    const auto base = static_cast<std::uint8_t>(channel * 10U);
+    ranges[channel].this_layer = {static_cast<std::uint8_t>(base + 1U), static_cast<std::uint8_t>(base + 2U),
+                                  static_cast<std::uint8_t>(base + 3U), static_cast<std::uint8_t>(base + 4U)};
+    ranges[channel].underlying_layer = {static_cast<std::uint8_t>(base + 101U), static_cast<std::uint8_t>(base + 102U),
+                                        static_cast<std::uint8_t>(base + 103U), static_cast<std::uint8_t>(base + 104U)};
+  }
+
+  const auto packed = patchy::ui::pack_webgpu_blend_if_uniform(ranges);
+  for (std::size_t channel = 0; channel < ranges.size(); ++channel) {
+    const auto base = static_cast<float>(channel * 10U);
+    const auto& this_slot = packed[channel];
+    const auto& underlying_slot = packed[4U + channel];
+    CHECK(this_slot[0] == base + 1.0F && this_slot[1] == base + 2.0F && this_slot[2] == base + 3.0F &&
+          this_slot[3] == base + 4.0F);
+    CHECK(underlying_slot[0] == base + 101.0F && underlying_slot[1] == base + 102.0F &&
+          underlying_slot[2] == base + 103.0F && underlying_slot[3] == base + 104.0F);
+  }
+
+  // Identity ranges pack to the shader's "no threshold" quadruple.
+  const auto identity = patchy::ui::pack_webgpu_blend_if_uniform({});
+  for (const auto& slot : identity) {
+    CHECK(slot[0] == 0.0F && slot[1] == 0.0F && slot[2] == 255.0F && slot[3] == 255.0F);
+  }
+}
+
+// Document invalidation for the GPU frame cache is driven by document-space
+// edits, never by the exposed widget region. A zoomed-in view that edits
+// pixels outside the viewport must leave exactly those tiles dirty, a
+// full-document change must force a full composition, and a repaint caused by
+// panning (no document change) must not invalidate anything.
+void ui_gpu_frame_invalidation_tracks_document_space_edits() {
+  const QRect document_bounds(0, 0, 2048, 1024);
+  patchy::ui::GpuFrameInvalidation invalidation;
+  CHECK(invalidation.empty());
+  CHECK(!invalidation.full());
+
+  // Viewport shows the top-left corner; the edit lands far outside it.
+  const QRect viewport(0, 0, 256, 256);
+  const QRect offscreen_edit(1800, 700, 100, 100);
+  invalidation.mark(QRegion(offscreen_edit), document_bounds);
+  CHECK(!invalidation.empty());
+  CHECK(!invalidation.full());
+  CHECK(invalidation.region() == QRegion(offscreen_edit));
+  CHECK(!invalidation.region().intersects(viewport));
+
+  // Publishing a frame consumes the damage; panning to the edited area is a
+  // pure repaint and records nothing, so the rebuilt tiles are reused.
+  invalidation.clear();
+  CHECK(invalidation.empty());
+
+  // Several edits accumulate and are clipped to the document.
+  invalidation.mark(QRegion(QRect(10, 10, 20, 20)), document_bounds);
+  invalidation.mark(QRegion(QRect(2000, 1000, 100, 100)), document_bounds);
+  CHECK(invalidation.region().rectCount() == 2);
+  CHECK(invalidation.region().boundingRect().right() <= document_bounds.right());
+  CHECK(invalidation.region().boundingRect().bottom() <= document_bounds.bottom());
+
+  // An unbounded change (empty region) means the whole document is stale, and
+  // later regional edits do not shrink that.
+  invalidation.mark(QRegion(), document_bounds);
+  CHECK(invalidation.full());
+  CHECK(!invalidation.empty());
+  CHECK(invalidation.region().isEmpty());
+  invalidation.mark(QRegion(QRect(0, 0, 1, 1)), document_bounds);
+  CHECK(invalidation.full());
+
+  invalidation.clear();
+  invalidation.mark_full();
+  CHECK(invalidation.full());
+  invalidation.clear();
+  CHECK(invalidation.empty());
+
+  // A region entirely outside the document is ignored.
+  invalidation.mark(QRegion(QRect(5000, 5000, 10, 10)), document_bounds);
+  CHECK(invalidation.empty());
+}
+
+// build_gpu_document runs per repaint; unchanged layers must not be copied
+// into new images again (docs/performance.md: nothing O(layer pixels) per
+// repaint). The cache is keyed by layer id and pixel/mask revision.
+void ui_gpu_layer_image_cache_reuses_unchanged_layers() {
+  patchy::ui::GpuLayerImageCache cache;
+  patchy::PixelBuffer pixels(8, 4, patchy::PixelFormat::rgba8());
+  pixels.clear(0);
+  pixels.pixel(1, 1)[0] = 200;
+
+  const auto first = cache.layer_image(7, 1, pixels);
+  CHECK(cache.conversions() == 1);
+  CHECK(first.format() == QImage::Format_RGBA8888);
+  CHECK(qRed(first.pixel(1, 1)) == 200);
+
+  // Same revision: shared image, no conversion.
+  const auto again = cache.layer_image(7, 1, pixels);
+  CHECK(cache.conversions() == 1);
+  CHECK(again.cacheKey() == first.cacheKey());
+
+  // Pixel edit bumps the revision: converted once more, new content visible.
+  pixels.pixel(1, 1)[0] = 20;
+  const auto edited = cache.layer_image(7, 2, pixels);
+  CHECK(cache.conversions() == 2);
+  CHECK(qRed(edited.pixel(1, 1)) == 20);
+  CHECK(edited.cacheKey() != first.cacheKey());
+
+  // A size change with the same revision is never trusted.
+  patchy::PixelBuffer resized(4, 4, patchy::PixelFormat::rgba8());
+  resized.clear(0);
+  (void)cache.layer_image(7, 2, resized);
+  CHECK(cache.conversions() == 3);
+
+  // Masks are tracked separately from pixels for the same layer.
+  patchy::PixelBuffer mask(8, 4, patchy::PixelFormat::gray8());
+  mask.clear(90);
+  const auto mask_image = cache.mask_image(7, 1, mask);
+  CHECK(cache.conversions() == 4);
+  CHECK(mask_image.format() == QImage::Format_Grayscale8);
+  CHECK(mask_image.constScanLine(0)[3] == 90);
+  (void)cache.mask_image(7, 1, mask);
+  CHECK(cache.conversions() == 4);
+
+  // Layers that left the snapshot are dropped; survivors keep their images.
+  (void)cache.layer_image(8, 1, resized);
+  CHECK(cache.size() == 2);
+  cache.retain_only({7});
+  CHECK(cache.size() == 1);
+  (void)cache.layer_image(7, 2, resized);
+  CHECK(cache.conversions() == 5);
+  cache.clear();
+  CHECK(cache.size() == 0);
+}
+
+void ui_canvas_renderer_honors_cpu_override() {
+  const bool had_override = qEnvironmentVariableIsSet("PATCHY_RENDER_BACKEND");
+  const auto previous_override = qgetenv("PATCHY_RENDER_BACKEND");
+  const auto restore_override = qScopeGuard([had_override, previous_override] {
+    if (had_override) {
+      qputenv("PATCHY_RENDER_BACKEND", previous_override);
+    } else {
+      qunsetenv("PATCHY_RENDER_BACKEND");
+    }
+  });
+  qputenv("PATCHY_RENDER_BACKEND", "cpu");
+
+  patchy::ui::CanvasWidget canvas;
+  CHECK(canvas.canvas_render_backend() == patchy::ui::CanvasWidget::CanvasRenderBackend::Cpu);
 }
 
 void ui_canvas_scroll_bars_reflect_pan_range() {
@@ -2730,6 +3039,9 @@ void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
   show_window(window);
   auto* canvas = require_canvas(window);
   canvas->set_zoom(1.0);
+  // This assertion checks the exact document-space marquee origin. Do not let
+  // persisted snapping preferences from another UI test move the press point.
+  canvas->set_snap_enabled(false);
   QApplication::processEvents();
   auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   auto* info = window.findChild<QLabel*>(QStringLiteral("canvasInfoLabel"));
@@ -2854,6 +3166,14 @@ void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
   CHECK(info->text().contains(QStringLiteral("RGB:")));
 
   require_action_by_text(window, QStringLiteral("Marquee"))->trigger();
+  // Activating a tool can resize the options bar and move the canvas before the
+  // synthetic press is delivered. Flush that layout first so both coordinates
+  // are calculated from the same viewport state used by the gesture.
+  QApplication::processEvents();
+  // The dock-resize assertions above may leave a fractional pan. This test is
+  // about the metadata text, so use the historical integer origin to make the
+  // QPoint-to-document conversion exact at 1x zoom.
+  canvas->set_view_pan(QPointF(40.0, 40.0));
   const auto marquee_start = canvas->widget_position_for_document_point(QPoint(40, 40));
   const auto marquee_end = canvas->widget_position_for_document_point(QPoint(140, 90));
   send_mouse(*canvas, QEvent::MouseButtonPress, marquee_start, Qt::LeftButton, Qt::LeftButton);
@@ -4011,6 +4331,19 @@ void ui_menu_disabled_items_render_grayed() {
 std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
   return {
       {"ui_startup_defaults_to_round_brush", ui_startup_defaults_to_round_brush},
+      {"ui_canvas_renderer_selects_a_safe_runtime_backend",
+       ui_canvas_renderer_selects_a_safe_runtime_backend},
+      {"ui_canvas_renderer_defaults_to_cpu_without_an_explicit_request",
+       ui_canvas_renderer_defaults_to_cpu_without_an_explicit_request},
+      {"ui_webgpu_compositor_is_only_probed_on_explicit_request",
+       ui_webgpu_compositor_is_only_probed_on_explicit_request},
+      {"ui_gpu_mask_snapshot_preserves_mask_values_as_grayscale",
+       ui_gpu_mask_snapshot_preserves_mask_values_as_grayscale},
+      {"ui_webgpu_blend_if_uniform_matches_shader_layout", ui_webgpu_blend_if_uniform_matches_shader_layout},
+      {"ui_gpu_frame_invalidation_tracks_document_space_edits",
+       ui_gpu_frame_invalidation_tracks_document_space_edits},
+      {"ui_gpu_layer_image_cache_reuses_unchanged_layers", ui_gpu_layer_image_cache_reuses_unchanged_layers},
+      {"ui_canvas_renderer_honors_cpu_override", ui_canvas_renderer_honors_cpu_override},
       {"ui_canvas_wheel_matches_photoshop_navigation", ui_canvas_wheel_matches_photoshop_navigation},
       {"ui_canvas_wheel_zoom_mode_zooms_at_cursor", ui_canvas_wheel_zoom_mode_zooms_at_cursor},
       {"ui_canvas_trackpad_scroll_pans_both_axes", ui_canvas_trackpad_scroll_pans_both_axes},

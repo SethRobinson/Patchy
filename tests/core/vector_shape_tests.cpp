@@ -10,6 +10,7 @@
 
 #include "test_harness.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <limits>
