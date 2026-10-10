@@ -2,6 +2,7 @@
 // Phase 2): the reader keeps the samples, the writer emits them back, and the 8-bit
 // reading of the same file is exactly the deep reading narrowed.
 
+#include "color/color_management.hpp"
 #include "core/document.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/document_depth.hpp"
@@ -271,6 +272,8 @@ void psd_deep_color_conversions_keep_sub_byte_samples_and_alpha() {
                            : mode == 1 ? std::span<const std::uint8_t>(gray_profile)
                                        : std::span<const std::uint8_t>(*cmyk_profile);
       const auto bytes = color_mode_ramp16(mode, profile);
+      const auto assumed_cmyk = mode == 4 && !with_profile
+          ? CmykToRgbTransform::from_icc_profile(default_cmyk_profile()) : std::nullopt;
       for (const bool flat : {false, true}) {
         psd::ReadOptions options;
         options.keep_bit_depth = true;
@@ -286,7 +289,14 @@ void psd_deep_color_conversions_keep_sub_byte_samples_and_alpha() {
           const auto pixel = load_pixel(pixels.format(), pixels.pixel(x, 0));
           const auto red = static_cast<int>(std::lround(pixel[0] * 257.0F));
           values.insert(red);
-          if ((mode == 1 || mode == 4 || mode == 7) && !with_profile) CHECK(red == 30000 + x);
+          if ((mode == 1 || mode == 4 || mode == 7) && !with_profile && !assumed_cmyk)
+            CHECK(red == 30000 + x);
+          if (assumed_cmyk) {
+            const std::array<std::uint16_t, 4> inks{static_cast<std::uint16_t>(30000 + x), 32896, 32896, 65535};
+            std::array<std::uint16_t, 3> expected{};
+            assumed_cmyk->convert16(inks.data(), expected.data(), 1);
+            CHECK(red == expected[0]);
+          }
           if (mode == 1 && with_profile) {
             const auto expected = static_cast<int>(std::lround(srgb_encode((30000.0 + x) / 65535.0) * 65535.0));
             CHECK(std::abs(red - expected) <= 8);

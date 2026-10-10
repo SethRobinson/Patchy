@@ -4,6 +4,7 @@
 #include "core/environment.hpp"
 #include "core/worker_budget.hpp"
 #include "render/layer_compositor.hpp"
+#include "render/native_cmyk.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
@@ -283,6 +284,19 @@ PixelBuffer Compositor::flatten_rgba_deep(const Document& document) const {
 }
 
 PixelBuffer Compositor::flatten_rgb8(const Document& document, std::vector<std::uint8_t>* merged_alpha) const {
+  if (const auto native = render_native_cmyk8(document, Rect::from_size(document.width(), document.height()))) {
+    PixelBuffer output(native->width(), native->height(), PixelFormat::rgb8());
+    if (merged_alpha) merged_alpha->resize(static_cast<std::size_t>(native->width()) * native->height());
+    for (int y = 0; y < native->height(); ++y) {
+      const auto* source = native->row(y).data();
+      auto* destination = output.row(y).data();
+      for (int x = 0; x < native->width(); ++x) {
+        std::copy_n(source + x * 4, 3, destination + x * 3);
+        if (merged_alpha) (*merged_alpha)[static_cast<std::size_t>(y) * native->width() + x] = source[x * 4 + 3];
+      }
+    }
+    return output;
+  }
   if (document.color_state().bit_depth != BitDepth::UInt8) {
     // 16/32-bit documents (docs/high-bit-depth.md): the deep flatten's display values.
     // (The 8-bit walk skips deep layers.)

@@ -17,6 +17,8 @@
 #include "core/adjustment_layer.hpp"
 #include "core/layer.hpp"
 #include "core/psd_source_colors.hpp"
+#include "core/vector_raster.hpp"
+#include "render/compositor.hpp"
 #include "psd/psd_document_io.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/qt_paths.hpp"
@@ -413,6 +415,46 @@ void grayscale_smart_object_rerender_matches_photoshop() {
   }
 }
 
+void cmyk_smart_object_and_gradient_rerender_match_photoshop() {
+  auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("cmyk-render/smart-gradient.psd"));
+  const QImage expected(patchy::ui::to_qstring(
+      patchy::test::committed_psd_fixture_path("cmyk-render/smart-gradient.png")));
+  CHECK(!expected.isNull());
+  std::vector<patchy::LayerId> smart, shapes;
+  for (const auto& layer : std::as_const(document).layers()) {
+    if (patchy::layer_is_smart_object(layer)) smart.push_back(layer.id());
+    if (layer.vector_shape()) shapes.push_back(layer.id());
+  }
+  CHECK(smart.size() == 1 && shapes.size() == 1);
+  for (const auto id : smart) {
+    auto* layer = document.find_layer(id);
+    CHECK(patchy::ui::refresh_smart_object_layer_preview(
+        document, *layer, patchy::ui::CanvasWidget::TransformInterpolation::Bicubic));
+  }
+  for (const auto id : shapes) patchy::update_vector_shape_raster(
+      *document.find_layer(id), patchy::Rect::from_size(document.width(), document.height()),
+      &std::as_const(document).metadata().patterns);
+  const auto actual = patchy::ui::qimage_from_document(document, true);
+  const auto core = patchy::Compositor{}.flatten_rgb8(document);
+  const auto partial = patchy::ui::qimage_from_document_rect(document, QRect(5, 7, 35, 31), true);
+  CHECK(actual.size() == expected.size());
+  CHECK(partial == actual.copy(QRect(5, 7, 35, 31)));
+  std::int64_t total_error = 0;
+  for (int y = 0; y < actual.height(); ++y) for (int x = 0; x < actual.width(); ++x) {
+    const auto color = actual.pixelColor(x, y);
+    CHECK(color.alpha() == 255);
+    CHECK(color.red() == core.pixel(x, y)[0] && color.green() == core.pixel(x, y)[1] && color.blue() == core.pixel(x, y)[2]);
+    const auto reference = expected.pixelColor(x, y);
+    // One ink-byte of gradient rounding can amplify near a profile's gamut
+    // boundary. Pin both the largest error and the much smaller mean error.
+    const std::array<int, 3> error{std::abs(color.red() - reference.red()),
+        std::abs(color.green() - reference.green()), std::abs(color.blue() - reference.blue())};
+    for (const auto value : error) { CHECK(value <= 12); total_error += value; }
+  }
+  CHECK(total_error < actual.width() * actual.height() * 3 * 2);
+}
+
 void grayscale_smart_object_fallback_preserves_alpha_and_source() {
   patchy::Document document(2, 1, patchy::PixelFormat::rgba8());
   QImage source(2, 1, QImage::Format_RGBA8888);
@@ -435,6 +477,7 @@ void grayscale_smart_object_fallback_preserves_alpha_and_source() {
 
 std::vector<patchy::test::TestCase> composite_render_tests() {
   return {
+      {"cmyk_smart_object_and_gradient_rerender_match_photoshop", cmyk_smart_object_and_gradient_rerender_match_photoshop},
       {"grayscale_smart_object_rerender_matches_photoshop", grayscale_smart_object_rerender_matches_photoshop},
       {"grayscale_smart_object_fallback_preserves_alpha_and_source", grayscale_smart_object_fallback_preserves_alpha_and_source},
       {"composite_corpus_render_digests_are_stable", composite_corpus_render_digests_are_stable},

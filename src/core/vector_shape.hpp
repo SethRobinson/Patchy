@@ -89,6 +89,8 @@ enum class VectorFillKind : std::uint8_t {
   Pattern
 };
 
+struct NativeCmykFill;
+
 // Fill appearance for shape layers, fill layers, and stroke paint. The
 // gradient reuses the layer-style gradient model (GdFl's Grad object parses
 // with the same code as gradient overlays); pattern tiles live in the
@@ -106,8 +108,17 @@ struct VectorFill {
   bool pattern_linked{true};
   double pattern_phase_x{0.0};
   double pattern_phase_y{0.0};
+  // Imported CMYK paint, before conversion to the RGB editing colors. The
+  // reference fill detects edits; no private PSD data is written for this cache.
+  std::shared_ptr<const NativeCmykFill> native_cmyk{};
 
   friend bool operator==(const VectorFill&, const VectorFill&) = default;
+};
+
+struct NativeCmykFill {
+  VectorFill reference;
+  VectorFill cmy;
+  VectorFill black;
 };
 
 enum class VectorStrokeAlignment : std::uint8_t { Inside, Center, Outside };

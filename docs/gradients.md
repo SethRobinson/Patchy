@@ -8,8 +8,10 @@ Layer-style placement adds Linear, Radial, Angle, Reflected, and Diamond geometr
 
 Imported 8/16-bit CMYK, grayscale and Lab gradients retain their original
 descriptors and document mode on eligible layered saves:
-[native color preservation](psd-native-color.md). Their RGB editing preview
-still interpolates the converted stops.
+[native color preservation](psd-native-color.md). Supported 8-bit CMYK stacks
+also regenerate solid/gradient fills from their ink values before composition
+and display conversion; see [blend-modes.md](blend-modes.md). Other non-RGB
+previews still interpolate the converted RGB stops.
 
 - Classic applies the stored smoothness as cubic interpolation after destination-stop midpoint remapping.
 - Perceptual interpolates in OKLab.

@@ -7,6 +7,7 @@
 #include "formats/format_file_io.hpp"
 #include "formats/palette_io.hpp"
 #include "render/layer_compositor.hpp"
+#include "render/native_cmyk.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
@@ -574,6 +575,16 @@ private:
 };
 
 [[nodiscard]] PixelBuffer render_rgb8_on_white(const Document& document) {
+  if (const auto native = render_native_cmyk8(document, Rect::from_size(document.width(), document.height()))) {
+    PixelBuffer output(native->width(), native->height(), PixelFormat::rgb8());
+    for (int y = 0; y < native->height(); ++y) for (int x = 0; x < native->width(); ++x) {
+      const auto* src = native->pixel(x, y);
+      auto* dst = output.pixel(x, y);
+      for (int c = 0; c < 3; ++c) dst[c] = static_cast<std::uint8_t>(
+          (static_cast<int>(src[c]) * src[3] + 255 * (255 - src[3]) + 127) / 255);
+    }
+    return output;
+  }
   if (render_detail::layers_have_rendered_underlying_blend_if(document.layers())) {
     // Keep the logical backdrop transparent while Blend If is evaluated, then
     // apply BMP's white matte once at the end. Treating the matte as an opaque
@@ -611,6 +622,9 @@ private:
 }
 
 [[nodiscard]] PixelBuffer render_rgba8(const Document& document) {
+  if (auto native = render_native_cmyk8(document, Rect::from_size(document.width(), document.height()))) {
+    return std::move(*native);
+  }
   // A single masked layer is written non-destructively: the original colors stay intact
   // and the mask becomes the alpha channel, so reopening preserves both. Compositing here
   // would instead erase the colors wherever the mask is transparent.

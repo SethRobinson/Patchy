@@ -5,6 +5,7 @@
 #include <array>
 #include <cstdlib>
 #include <cstring>
+#include <fstream>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -15,6 +16,46 @@
 #include "lcms2.h"
 
 namespace patchy {
+
+std::vector<std::uint8_t> read_cmyk_profile(const std::filesystem::path& path) {
+  std::ifstream input(path, std::ios::binary | std::ios::ate);
+  if (!input) return {};
+  const auto size = input.tellg();
+  if (size < 128 || size > 16 * 1024 * 1024) return {};
+  std::vector<std::uint8_t> bytes(static_cast<std::size_t>(size));
+  input.seekg(0);
+  if (!input.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(bytes.size())) ||
+      !CmykToRgbTransform::from_icc_profile(bytes)) return {};
+  return bytes;
+}
+
+const std::vector<std::uint8_t>& default_cmyk_profile() {
+  static const auto profile = [] {
+    std::vector<std::filesystem::path> folders;
+#if defined(_WIN32)
+    for (const auto* variable : {L"CommonProgramFiles", L"CommonProgramFiles(x86)"}) {
+      wchar_t* value = nullptr;
+      std::size_t size = 0;
+      if (_wdupenv_s(&value, &size, variable) == 0 && value != nullptr) {
+        folders.emplace_back(std::filesystem::path(value) / L"Adobe/Color/Profiles/Recommended");
+      }
+      std::free(value);
+    }
+#elif defined(__APPLE__)
+    folders.emplace_back("/Library/Application Support/Adobe/Color/Profiles/Recommended");
+    folders.emplace_back("/Library/ColorSync/Profiles");
+#else
+    folders.emplace_back("/usr/share/color/icc/Adobe/CMYK");
+    folders.emplace_back("/usr/share/color/icc");
+#endif
+    for (const auto& folder : folders) {
+      auto bytes = read_cmyk_profile(folder / "USWebCoatedSWOP.icc");
+      if (!bytes.empty()) return bytes;
+    }
+    return std::vector<std::uint8_t>{};
+  }();
+  return profile;
+}
 
 namespace {
 

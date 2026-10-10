@@ -472,6 +472,15 @@ void psd_flat_rle_rgb8_reads() {
   CHECK(px1[2] == 6);
 }
 
+void check_untagged_cmyk_pixel(const std::uint8_t* pixel, std::array<std::uint8_t, 4> ink) {
+  const auto transform = patchy::CmykToRgbTransform::from_icc_profile(patchy::default_cmyk_profile());
+  const auto expected = transform ? transform->convert_single(ink[0], ink[1], ink[2], ink[3])
+      : patchy::RgbColor{static_cast<std::uint8_t>((ink[0] * ink[3] + 127) / 255),
+                        static_cast<std::uint8_t>((ink[1] * ink[3] + 127) / 255),
+                        static_cast<std::uint8_t>((ink[2] * ink[3] + 127) / 255)};
+  CHECK(pixel[0] == expected.red && pixel[1] == expected.green && pixel[2] == expected.blue);
+}
+
 void psd_flat_raw_cmyk8_imports_as_rgb() {
   patchy::psd::BigEndianWriter writer;
   patchy::psd::write_header(writer, patchy::psd::Header{false, 4, 1, 2, 8, 4});
@@ -496,12 +505,8 @@ void psd_flat_raw_cmyk8_imports_as_rgb() {
   CHECK(color_mode->second == "CMYK");
   const auto* px0 = read.layers().front().pixels().pixel(0, 0);
   const auto* px1 = read.layers().front().pixels().pixel(1, 0);
-  CHECK(px0[0] == 255);
-  CHECK(px0[1] == 0);
-  CHECK(px0[2] == 0);
-  CHECK(px1[0] == 127);
-  CHECK(px1[1] == 127);
-  CHECK(px1[2] == 127);
+  check_untagged_cmyk_pixel(px0, {255, 0, 0, 255});
+  check_untagged_cmyk_pixel(px1, {255, 255, 255, 127});
 }
 
 void psd_flat_rle_cmyk8_imports_as_rgb() {
@@ -527,12 +532,8 @@ void psd_flat_rle_cmyk8_imports_as_rgb() {
   CHECK(read.layers().size() == 1);
   const auto* px0 = read.layers().front().pixels().pixel(0, 0);
   const auto* px1 = read.layers().front().pixels().pixel(1, 0);
-  CHECK(px0[0] == 0);
-  CHECK(px0[1] == 255);
-  CHECK(px0[2] == 0);
-  CHECK(px1[0] == 255);
-  CHECK(px1[1] == 0);
-  CHECK(px1[2] == 255);
+  check_untagged_cmyk_pixel(px0, {0, 255, 0, 255});
+  check_untagged_cmyk_pixel(px1, {255, 0, 255, 255});
 }
 
 void psd_layered_cmyk8_imports_as_rgba() {
@@ -547,13 +548,9 @@ void psd_layered_cmyk8_imports_as_rgba() {
 
   const auto* px0 = layer.pixels().pixel(0, 0);
   const auto* px1 = layer.pixels().pixel(1, 0);
-  CHECK(px0[0] == 255);
-  CHECK(px0[1] == 0);
-  CHECK(px0[2] == 0);
+  check_untagged_cmyk_pixel(px0, {255, 0, 0, 255});
   CHECK(px0[3] == 255);
-  CHECK(px1[0] == 127);
-  CHECK(px1[1] == 127);
-  CHECK(px1[2] == 127);
+  check_untagged_cmyk_pixel(px1, {255, 255, 255, 127});
   CHECK(px1[3] == 64);
 }
 

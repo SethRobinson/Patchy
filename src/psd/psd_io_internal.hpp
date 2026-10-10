@@ -367,6 +367,8 @@ struct CmykColorConverter {
   // renders psd-tools' 300dpi.psb fill of (172, 11, 11) as (215, 60, 60), its sRGB
   // encoding; 8- and 16-bit documents store encoded values and keep them as they are.
   bool linear_rgb{false};
+  enum class InkView { Display, Cmy, Black };
+  InkView ink_view{InkView::Display};
 
   [[nodiscard]] RgbColor rgb_from_descriptor_rgb(double red, double green, double blue) const {
     const auto byte = [&](double value) {
@@ -380,6 +382,14 @@ struct CmykColorConverter {
 
   [[nodiscard]] RgbColor rgb_from_ink(double cyan, double magenta, double yellow,
                                       double black) const {
+    if (ink_view != InkView::Display) {
+      const auto inverted = [](double ink) {
+        return static_cast<std::uint8_t>(
+            std::clamp(std::lround((1.0 - std::clamp(ink, 0.0, 1.0)) * 255.0), 0L, 255L));
+      };
+      return ink_view == InkView::Cmy ? RgbColor{inverted(cyan), inverted(magenta), inverted(yellow)}
+                                     : RgbColor{inverted(black), inverted(black), inverted(black)};
+    }
     if (icc != nullptr) {
       const auto inverted = [](double ink) {
         return static_cast<std::uint8_t>(

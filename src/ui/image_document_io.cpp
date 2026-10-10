@@ -29,6 +29,7 @@
 #include "formats/tga_document_io.hpp"
 #include "core/rect_utils.hpp"
 #include "render/compositor.hpp"
+#include "render/native_cmyk.hpp"
 #include "render/layer_compositor.hpp"
 #include "support/string_utils.hpp"
 #include "ui/pdf_export.hpp"
@@ -1320,6 +1321,23 @@ bool layer_has_visible_knockout(const Layer& layer,
 
 QImage render_document_rect(const Document& document, QRect document_rect, bool preserve_alpha,
                             const std::vector<render_detail::LayerBoundsOverride>* overrides) {
+  const auto native_rect = document_rect.normalized();
+  if (const auto native = render_native_cmyk8(document,
+          Rect{native_rect.x(), native_rect.y(), native_rect.width(), native_rect.height()}, overrides)) {
+    if (native->empty()) return {};
+    QImage image(native->width(), native->height(), preserve_alpha ? QImage::Format_RGBA8888 : QImage::Format_RGB888);
+    for (int y = 0; y < native->height(); ++y) {
+      const auto* source = native->row(y).data();
+      auto* destination = image.scanLine(y);
+      for (int x = 0; x < native->width(); ++x) {
+        if (preserve_alpha) std::copy_n(source, 4, destination);
+        else for (int c = 0; c < 3; ++c) destination[c] = static_cast<std::uint8_t>(
+            (static_cast<int>(source[c]) * source[3] + 255 * (255 - source[3]) + 127) / 255);
+        source += 4; destination += preserve_alpha ? 4 : 3;
+      }
+    }
+    return image;
+  }
   if (document.color_state().bit_depth != BitDepth::UInt8) {
     const auto normalized = document_rect.normalized();
     const auto clip = intersect_rect(Rect::from_size(document.width(), document.height()),

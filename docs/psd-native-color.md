@@ -52,8 +52,10 @@ Layer data does not pass through that inverse transform.
 Regression tests cover exact source samples and alpha, PSD/PSB, profiles,
 native gradient/adjustment blocks, edited-pixel fallback, cross-document
 provenance and undo. Photoshop acceptance and precision are measured from
-its fresh flatten of each saved document. Patchy's RGB preview still has
-the non-RGB rendering approximations described in
+its fresh flatten of each saved document. Supported 8-bit CMYK stacks now blend
+retained or regenerated ink channels before display conversion, including native
+gradient stops; limitations and the untagged working-profile fallback are in
+[blend-modes.md](blend-modes.md). Other non-RGB approximations are described in
 [high-bit-depth.md](high-bit-depth.md) and
 [adjustments-calibration.md](adjustments-calibration.md).
 

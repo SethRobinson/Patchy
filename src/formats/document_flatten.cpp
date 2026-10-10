@@ -5,6 +5,7 @@
 #include "core/layer_render_utils.hpp"
 #include "core/palette.hpp"
 #include "render/layer_compositor.hpp"
+#include "render/native_cmyk.hpp"
 #include "support/translate_noop.hpp"
 
 #include <array>
@@ -114,6 +115,9 @@ private:
 PixelBuffer flatten_document_rgba8(const Document& document) {
   if (document.width() <= 0 || document.height() <= 0) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Cannot flatten an empty document"));
+  }
+  if (auto native = render_native_cmyk8(document, Rect::from_size(document.width(), document.height()))) {
+    return std::move(*native);
   }
   if (!render_detail::layers_have_rendered_blend_if(document.layers())) {
     if (auto masked = document_alpha_rgba8(document); masked.has_value()) {

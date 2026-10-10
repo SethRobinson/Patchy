@@ -1512,6 +1512,8 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
               "converted with a basic CMYK-to-RGB formula.");
         }
       }
+    } else {
+      cmyk_icc_transform = CmykToRgbTransform::from_icc_profile(default_cmyk_profile());
     }
   }
   // Grayscale sources convert through their embedded gray profile the same way (Dot Gain
@@ -1541,8 +1543,9 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
   // a hash of the profile so reopening the file finds the tables already built.
   std::shared_ptr<const InkSpace> ink_space;
   if (cmyk_icc_transform.has_value()) {
-    if (auto icc_profile = find_image_resource_payload(image_resources, kImageResourceIccProfile);
-        icc_profile.has_value()) {
+    auto icc_profile = find_image_resource_payload(image_resources, kImageResourceIccProfile);
+    if (!icc_profile) icc_profile = default_cmyk_profile();
+    if (!icc_profile->empty()) {
       std::uint64_t hash = 1469598103934665603ULL;  // FNV-1a
       for (const auto byte : *icc_profile) {
         hash = (hash ^ byte) * 1099511628211ULL;

@@ -154,7 +154,7 @@ std::optional<DescriptorObject> read_block_descriptor(std::span<const std::uint8
   }
 }
 
-std::optional<VectorFill> parse_fill_content(VectorFillKind kind, const DescriptorObject& object,
+std::optional<VectorFill> parse_fill_content_impl(VectorFillKind kind, const DescriptorObject& object,
                                              const CmykColorConverter& cmyk) {
   VectorFill fill;
   fill.kind = kind;
@@ -207,6 +207,36 @@ std::optional<VectorFill> parse_fill_content(VectorFillKind kind, const Descript
       break;
   }
   return std::nullopt;
+}
+
+std::optional<VectorFill> parse_fill_content(VectorFillKind kind, const DescriptorObject& object,
+                                             const CmykColorConverter& cmyk) {
+  auto fill = parse_fill_content_impl(kind, object, cmyk);
+  if (!fill) return fill;
+  const auto ink_color = [](const DescriptorObject& parent) {
+    const auto* color = descriptor_object(parent, "Clr ");
+    return color != nullptr && color->class_id == "CMYC";
+  };
+  bool native = kind == VectorFillKind::Solid && ink_color(object);
+  if (kind == VectorFillKind::Gradient && fill->gradient.form == GradientDefinitionForm::Solid) {
+    const auto* gradient = descriptor_object(object, "Grad");
+    const auto* colors = gradient != nullptr ? descriptor_value(*gradient, "Clrs") : nullptr;
+    native = colors != nullptr && colors->type == DescriptorValue::Type::List && !colors->list_value.empty() &&
+        std::all_of(colors->list_value.begin(), colors->list_value.end(), [&](const DescriptorValue& value) {
+          return value.type == DescriptorValue::Type::Object && value.object_value && ink_color(*value.object_value);
+        });
+  }
+  if (native) {
+    auto channels = std::make_shared<NativeCmykFill>();
+    channels->reference = *fill;
+    auto converter = cmyk;
+    converter.ink_view = CmykColorConverter::InkView::Cmy;
+    channels->cmy = *parse_fill_content_impl(kind, object, converter);
+    converter.ink_view = CmykColorConverter::InkView::Black;
+    channels->black = *parse_fill_content_impl(kind, object, converter);
+    fill->native_cmyk = std::move(channels);
+  }
+  return fill;
 }
 
 std::optional<VectorFill> parse_content_object(const DescriptorObject& content,

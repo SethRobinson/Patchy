@@ -50,6 +50,9 @@
 #include "core/pixel_tools.hpp"
 #include "core/quick_select.hpp"
 #include "render/compositor.hpp"
+#include "render/native_cmyk.hpp"
+#include "core/psd_source_colors.hpp"
+#include "unicode_path_names.hpp"
 #include "render/layer_compositor.hpp"
 #include "render/tile_cache.hpp"
 #include "support/string_utils.hpp"
@@ -1454,6 +1457,107 @@ void compositor_dissolve_dithers_layer_effects() {
   CHECK(clear > 200);
 }
 
+void compositor_cmyk_matches_photoshop_and_partial_bounds() {
+  const auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("cmyk-render/calibration.psd"));
+  const auto reference = patchy::bmp::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("cmyk-render/calibration.bmp"));
+  const auto expected = patchy::Compositor{}.flatten_rgb8(reference);
+  const auto actual = patchy::Compositor{}.flatten_rgb8(document);
+  const auto rgba = patchy::flatten_document_rgba8(document);
+  const auto bmp = patchy::bmp::DocumentIo::read(patchy::bmp::DocumentIo::write(document));
+  const auto bmp_rgb = patchy::Compositor{}.flatten_rgb8(bmp);
+  CHECK(actual.width() == 8 && actual.height() == 26);
+  for (int y = 0; y < actual.height(); ++y) for (int x = 0; x < actual.width(); ++x) {
+    for (int c = 0; c < 3; ++c) {
+      CHECK(std::abs(int(actual.pixel(x, y)[c]) - expected.pixel(x, y)[c]) <= 5);
+      CHECK(rgba.pixel(x, y)[c] == actual.pixel(x, y)[c]);
+      CHECK(bmp_rgb.pixel(x, y)[c] == actual.pixel(x, y)[c]);
+    }
+  }
+  for (int y = 0; y < 26; y += 5) {
+    const auto partial = patchy::render_native_cmyk8(document, {2, y, 3, std::min(5, 26 - y)});
+    CHECK(partial.has_value());
+    for (int j = 0; j < partial->height(); ++j) for (int x = 0; x < 3; ++x) {
+      for (int c = 0; c < 3; ++c) CHECK(partial->pixel(x, j)[c] == actual.pixel(x + 2, y + j)[c]);
+      CHECK(partial->pixel(x, j)[3] == 255);
+    }
+  }
+}
+
+void compositor_cmyk_cache_tracks_edits_and_undo() {
+  auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("cmyk-render/calibration.psd"));
+  const auto before = document;
+  const auto original = patchy::Compositor{}.flatten_rgb8(document);
+  const auto* imported = find_layer_named(std::as_const(document).layers(), "Source 0 norm");
+  CHECK(imported != nullptr);
+  auto* source = document.find_layer(imported->id());
+  auto pixels = std::as_const(*source).pixels();
+  std::fill_n(pixels.pixel(0, 0), 3, std::uint8_t{255});
+  const auto bounds = source->bounds();
+  source->set_pixels(std::move(pixels)); source->set_bounds(bounds);
+  const auto edited = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(edited.pixel(0, 0)[0] >= 250 && edited.pixel(0, 0)[1] >= 250 && edited.pixel(0, 0)[2] >= 250);
+  CHECK(original.pixel(0, 0)[1] < 50);
+  document = before;
+  const auto undone = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(std::equal(original.data().begin(), original.data().end(), undone.data().begin()));
+  document.color_state().embedded_icc_profile = {1, 2, 3};
+  CHECK(!patchy::render_native_cmyk8(document, {0, 0, 8, 26}));
+}
+
+void compositor_cmyk_flat_preview_avoids_a_second_profile_conversion() {
+  const auto source = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("cmyk-render/calibration.psd"));
+  patchy::Document document(1, 1, patchy::PixelFormat::rgba8());
+  document.metadata().psd_native_color_space = source.metadata().psd_native_color_space;
+  document.add_layer(patchy::Layer(document.allocate_layer_id(), "Converted flat preview",
+      solid_rgba(1, 1, 0, 0, 255, 128)));
+  CHECK(!patchy::render_native_cmyk8(document, {0, 0, 1, 1}));
+  std::vector<std::uint8_t> alpha;
+  const auto actual = patchy::Compositor{}.flatten_rgb8(document, &alpha);
+  CHECK(actual.pixel(0, 0)[0] == 0 && actual.pixel(0, 0)[1] == 0 && actual.pixel(0, 0)[2] == 255);
+  CHECK(alpha.size() == 1 && alpha[0] == 128);
+}
+
+void compositor_cmyk_noise_gradient_keeps_rgb_fallback() {
+  auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("cmyk-render/smart-gradient.psd"));
+  bool changed = false;
+  for (auto& layer : document.layers()) {
+    const auto* shape = std::as_const(layer).vector_shape();
+    if (shape == nullptr) continue;
+    auto content = *shape;
+    content.fill.gradient.form = patchy::GradientDefinitionForm::Noise;
+    content.fill.gradient.noise.seed = 42;
+    layer.set_vector_shape(std::move(content));
+    patchy::update_vector_shape_raster(layer, {0, 0, document.width(), document.height()}, nullptr);
+    changed = true;
+  }
+  CHECK(changed);
+  CHECK(!patchy::render_native_cmyk8(document, {0, 0, document.width(), document.height()}));
+  const auto actual = patchy::Compositor{}.flatten_rgb8(document);
+  document.metadata().psd_native_color_space.reset();
+  const auto reference = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(std::equal(actual.data().begin(), actual.data().end(), reference.data().begin()));
+}
+
+void cmyk_profile_reader_accepts_unicode_paths_and_rejects_bad_data() {
+  const auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("cmyk-render/calibration.psd"));
+  const auto& profile = document.metadata().psd_native_color_space->profile;
+  const auto directory = patchy::test::unicode_artifact_dir(u8"cmyk-profile");
+  const auto path = directory / (patchy::test::unicode_path_piece(patchy::test::kUnicodeCombinedStem).native() +
+      std::filesystem::path(".icc").native());
+  { std::ofstream output(path, std::ios::binary); output.write(reinterpret_cast<const char*>(profile.data()),
+                                                            static_cast<std::streamsize>(profile.size())); }
+  CHECK(patchy::read_cmyk_profile(path) == profile);
+  { std::ofstream output(path, std::ios::binary); output << "invalid profile"; }
+  CHECK(patchy::read_cmyk_profile(path).empty());
+  CHECK(patchy::read_cmyk_profile(directory / "absent.icc").empty());
+}
+
 }  // namespace
 
 // The July 2026 blend modes (Vivid/Linear Light, Hard Mix, Darker/Lighter
@@ -1817,6 +1921,11 @@ void compositor_channel_restriction_keeps_backdrop_channel() {
 
 std::vector<patchy::test::TestCase> compositor_blend_if_tests() {
   return {
+      {"compositor_cmyk_matches_photoshop_and_partial_bounds", compositor_cmyk_matches_photoshop_and_partial_bounds},
+      {"compositor_cmyk_cache_tracks_edits_and_undo", compositor_cmyk_cache_tracks_edits_and_undo},
+      {"compositor_cmyk_noise_gradient_keeps_rgb_fallback", compositor_cmyk_noise_gradient_keeps_rgb_fallback},
+      {"compositor_cmyk_flat_preview_avoids_a_second_profile_conversion", compositor_cmyk_flat_preview_avoids_a_second_profile_conversion},
+      {"cmyk_profile_reader_accepts_unicode_paths_and_rejects_bad_data", cmyk_profile_reader_accepts_unicode_paths_and_rejects_bad_data},
       {"blend_math_new_modes_match_photoshop_captures",
        blend_math_new_modes_match_photoshop_captures},
       {"blend_math_color_burn_dodge_match_photoshop_captures",

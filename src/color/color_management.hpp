@@ -5,6 +5,7 @@
 #include "core/layer.hpp"
 
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <span>
@@ -12,6 +13,13 @@
 #include <vector>
 
 namespace patchy {
+
+// Reads an installed profile without shipping third-party profile data. Invalid,
+// oversized and non-CMYK files are rejected. Paths keep their native encoding.
+[[nodiscard]] std::vector<std::uint8_t> read_cmyk_profile(const std::filesystem::path& path);
+// The conventional untagged-CMYK working profile, only when already installed.
+// Empty on systems without it; never calls Photoshop or downloads a profile.
+[[nodiscard]] const std::vector<std::uint8_t>& default_cmyk_profile();
 
 struct ColorTransformSpec {
   std::string source_profile_name{"document"};
