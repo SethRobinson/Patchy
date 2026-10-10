@@ -1307,6 +1307,17 @@ QImage render_document_rect_deep(const Document& document, Rect clip, bool prese
   return image;
 }
 
+bool layer_has_visible_knockout(const Layer& layer,
+                                const std::vector<render_detail::LayerBoundsOverride>* overrides) {
+  if (!render_detail::layer_visible_for_render(layer, overrides) || layer.opacity() <= 0.0F) {
+    return false;
+  }
+  return render_detail::layer_knockout_mode(layer) != 0 ||
+         std::any_of(layer.children().begin(), layer.children().end(), [overrides](const Layer& child) {
+           return layer_has_visible_knockout(child, overrides);
+         });
+}
+
 QImage render_document_rect(const Document& document, QRect document_rect, bool preserve_alpha,
                             const std::vector<render_detail::LayerBoundsOverride>* overrides) {
   if (document.color_state().bit_depth != BitDepth::UInt8) {
@@ -1340,7 +1351,10 @@ QImage render_document_rect(const Document& document, QRect document_rect, bool 
   }
 
   const auto logical_alpha_render =
-      !preserve_alpha && render_detail::layers_have_rendered_underlying_blend_if(document.layers());
+      !preserve_alpha && (render_detail::layers_have_rendered_underlying_blend_if(document.layers()) ||
+                         std::any_of(document.layers().begin(), document.layers().end(), [overrides](const Layer& layer) {
+                           return layer_has_visible_knockout(layer, overrides);
+                         }));
   const auto target_preserves_alpha = preserve_alpha || logical_alpha_render;
   QImage image(clip.width, clip.height,
                target_preserves_alpha ? QImage::Format_RGBA8888 : QImage::Format_RGB888);

@@ -198,6 +198,33 @@ using CompositeSnapshot = CompositeSnapshotT<RgbColor>;
 template <typename Target>
 using target_snapshot_t = CompositeSnapshotT<target_color_t<Target>>;
 
+// Native PSD 'knko': one mode byte followed by three padding bytes. Keep the
+// original block untouched; unsupported values have no rendering semantics.
+[[nodiscard]] inline unsigned layer_knockout_mode(const Layer& layer) noexcept {
+  for (const auto& block : layer.unknown_psd_blocks()) {
+    if (block.key == "knko" && block.payload.size() == 4U) {
+      return block.payload[0] <= 2U ? block.payload[0] : 0U;
+    }
+  }
+  return 0U;
+}
+
+[[nodiscard]] inline bool layer_tree_has_knockout(const Layer& layer) noexcept {
+  return layer_knockout_mode(layer) != 0U ||
+         std::any_of(layer.children().begin(), layer.children().end(), layer_tree_has_knockout);
+}
+
+template <typename Color>
+struct KnockoutBackdropT {
+  // A null snapshot is transparent. Isolation resets both floors; Pass Through
+  // replaces the shallow floor with its entry backdrop and inherits the deep one.
+  const CompositeSnapshotT<Color>* shallow{nullptr};
+  const CompositeSnapshotT<Color>* deep{nullptr};
+};
+
+template <typename Target>
+using target_knockout_t = KnockoutBackdropT<target_color_t<Target>>;
+
 // Photoshop's Opacity on a pass-through group is a post-composite fade: the
 // children first meet the backdrop exactly as at 100% (child blend modes and
 // interior adjustments included), then the whole result interpolates back
@@ -2391,6 +2418,13 @@ public:
 
   [[nodiscard]] DeepDomain deep_domain() const noexcept { return target_domain(base_); }
 
+  [[nodiscard]] float knockout_clip_gate(std::int32_t x, std::int32_t y) const noexcept {
+    if constexpr (requires { base_.knockout_clip_gate(x, y); }) {
+      return base_.knockout_clip_gate(x, y);
+    }
+    return 1.0F;
+  }
+
   void push_channel_restriction(std::uint8_t mask) {
     masks_.push_back(mask);
     combined_ |= mask;
@@ -2538,13 +2572,15 @@ void composite_layer(Target& destination, const Layer& layer, Rect clip,
                      const std::vector<LayerBoundsOverride>* overrides = nullptr,
                      bool throw_on_unsupported_pixel_format = false, StyleMaskProvider* masks = nullptr,
                      const target_snapshot_t<Target>* blend_if_backdrop = nullptr,
-                     const PatternStore* patterns = nullptr, bool suppress_channel_restriction = false);
+                     const PatternStore* patterns = nullptr, bool suppress_channel_restriction = false,
+                     const target_knockout_t<Target>* knockout_backdrops = nullptr);
 
 template <typename Target>
 void composite_pass_through_group(Target& destination, const Layer& layer, Rect clip,
                                   const std::vector<LayerBoundsOverride>* overrides,
                                   bool throw_on_unsupported_pixel_format, StyleMaskProvider* masks,
-                                  const PatternStore* patterns, bool styled);
+                                  const PatternStore* patterns, bool styled,
+                                  const target_knockout_t<Target>* knockout_backdrops);
 
 template <typename Color = RgbColor>
 PixelBuffer group_silhouette_for_render(const Layer& layer, Rect bounds,
@@ -2654,7 +2690,9 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
                            const target_snapshot_t<Target>* blend_if_backdrop_override = nullptr,
                            const PatternStore* patterns = nullptr,
                            bool suppress_channel_restriction = false,
-                           const ClipRunContent* clip_content = nullptr) {
+                           const ClipRunContent* clip_content = nullptr,
+                           const target_snapshot_t<Target>* knockout_backdrop = nullptr,
+                           bool applies_knockout = false) {
   // Styled groups and group clipping bases route through this pipeline: the group's
   // flattened children arrive as an override pixel buffer and the group plays
   // the layer's role. Other plain groups use composite_layer's group branch.
@@ -2676,7 +2714,8 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
     // isolated buffer the base's backdrop is transparent black.
     with_channel_restriction(destination, channel_restriction, [&](auto& restricted) {
       composite_pixel_layer(restricted, layer, clip, overrides, throw_on_unsupported_pixel_format, masks,
-                            blend_if_backdrop_override, patterns, true, clip_content);
+                            blend_if_backdrop_override, patterns, true, clip_content,
+                            knockout_backdrop, applies_knockout);
     });
     return;
   }
@@ -2903,6 +2942,50 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
   const bool blend_against_backdrop =
       layer.blend_mode() != BlendMode::Normal && !has_blend_if && fill_opacity == 1.0F &&
       ((has_interior_folds && fold_after_layer_blend) || has_exterior_effects || has_underlay);
+
+  // Knockout replaces the lower stack by its floor before the content blends.
+  // Restore the uncovered part afterwards in premultiplied space. Erasing by
+  // shape then painting by shape would apply antialiasing/Opacity twice. Fill
+  // scales only the new paint, so Fill 0 still cuts the full masked shape.
+  std::optional<target_snapshot_t<Target>> before_knockout;
+  std::vector<float> knockout_shape;
+  if (applies_knockout && !draw_rect.empty()) {
+    before_knockout.emplace(destination, draw_rect);
+    knockout_shape.resize(static_cast<std::size_t>(draw_rect.width) * draw_rect.height);
+    const auto domain = target_domain(destination);
+    std::vector<float> row(static_cast<std::size_t>(draw_rect.width) * 4U);
+    for (auto y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
+      load_rgba_row(source, y - bounds.y, draw_rect.x - bounds.x, draw_rect.width, domain, row);
+      for (auto x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
+        const auto* px = row.data() + static_cast<std::size_t>(x - draw_rect.x) * 4U;
+        auto shape = (px[3] / 255.0F) * layer_mask_alpha_for_render(layer, x, y, layer_mask_bounds) *
+                     layer.opacity();
+        if constexpr (requires { destination.mask_alpha(x, y); }) {
+          shape *= destination.mask_alpha(x, y);
+        }
+        if constexpr (requires { destination.knockout_clip_gate(x, y); }) {
+          shape *= destination.knockout_clip_gate(x, y);
+        }
+        if (has_blend_if) {
+          const auto color = color_from_floats<target_color_t<Target>>(px[0], px[1], px[2]);
+          shape *= blend_if_source_factor_for(blend_if, color, domain);
+          if (has_underlying_blend_if) {
+            shape *= blend_if_underlying_alpha_factor(blend_if, blend_if_backdrop->sample_color(x, y), domain);
+          }
+        }
+        const auto index = static_cast<std::size_t>(y - draw_rect.y) * draw_rect.width + x - draw_rect.x;
+        knockout_shape[index] = clamp_unit(shape);
+        if (shape > 0.0F) {
+          const auto floor = knockout_backdrop != nullptr ? knockout_backdrop->sample_color(x, y)
+                                                         : CompositeSampleT<target_color_t<Target>>{};
+          destination.store_color(x, y, floor.color, floor.alpha);
+        }
+      }
+    }
+    if (pre_effect_backdrop.has_value()) {
+      pre_effect_backdrop.emplace(destination, draw_rect);
+    }
+  }
 
   if (!draw_rect.empty()) {
     profile_compositor_step(destination, layer, "base_pixels", draw_rect, [&] {
@@ -3271,6 +3354,35 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
     });
   }
 
+  if (before_knockout.has_value()) {
+    using Color = target_color_t<Target>;
+    for (auto y = draw_rect.y; y < draw_rect.y + draw_rect.height; ++y) {
+      for (auto x = draw_rect.x; x < draw_rect.x + draw_rect.width; ++x) {
+        const auto index = static_cast<std::size_t>(y - draw_rect.y) * draw_rect.width + x - draw_rect.x;
+        const auto shape = knockout_shape[index];
+        if (shape <= 0.0F || shape >= 1.0F) {
+          continue;
+        }
+        const auto before = before_knockout->sample_color(x, y);
+        const auto floor = knockout_backdrop != nullptr ? knockout_backdrop->sample_color(x, y)
+                                                       : CompositeSampleT<Color>{};
+        const auto painted = destination.sample_color(x, y);
+        const auto keep = 1.0F - shape;
+        const auto alpha = clamp_unit(painted.alpha + (before.alpha - floor.alpha) * keep);
+        const auto channel = [&](auto value, auto old_value, auto floor_value) {
+          return alpha > 0.0F ? (static_cast<float>(value) * painted.alpha +
+                                   (static_cast<float>(old_value) * before.alpha -
+                                    static_cast<float>(floor_value) * floor.alpha) * keep) / alpha
+                              : 0.0F;
+        };
+        destination.store_color(x, y,
+            color_from_floats<Color>(channel(painted.color.red, before.color.red, floor.color.red),
+                                    channel(painted.color.green, before.color.green, floor.color.green),
+                                    channel(painted.color.blue, before.color.blue, floor.color.blue)), alpha);
+      }
+    }
+  }
+
   // Satin is normally folded into the base color to preserve Patchy's
   // established identity-path bytes. Photoshop does not gate layer effects
   // with Blend If, however, so a Blend-If layer renders Satin as its own
@@ -3575,6 +3687,17 @@ public:
 
   [[nodiscard]] DeepDomain deep_domain() const noexcept { return domain_; }
   [[nodiscard]] Rect rect() const noexcept { return rect_; }
+
+  [[nodiscard]] float knockout_clip_gate(std::int32_t x, std::int32_t y) const noexcept {
+    if (!frozen_) {
+      return 1.0F;
+    }
+    if (!rect_.contains(x, y)) {
+      return 0.0F;
+    }
+    const auto index = static_cast<std::size_t>(y - rect_.y) * rect_.width + x - rect_.x;
+    return clip_alpha_[index] > 0.0F ? 1.0F : 0.0F;
+  }
 
   void composite_color(std::int32_t x, std::int32_t y, Color color, float alpha, BlendMode mode) {
     alpha = clamp_unit(alpha);
@@ -4294,8 +4417,26 @@ template <typename Target, typename CompositeOne>
 void composite_sibling_layers(Target& destination, const std::vector<Layer>& siblings, Rect clip,
                               const std::vector<LayerBoundsOverride>* overrides,
                               bool throw_on_unsupported_pixel_format, StyleMaskProvider* masks,
-                              CompositeOne&& composite_one, const PatternStore* patterns = nullptr) {
+                              CompositeOne&& composite_one, const PatternStore* patterns = nullptr,
+                              const target_knockout_t<Target>* knockout_backdrops = nullptr) {
   std::size_t index = 0;
+  std::optional<target_snapshot_t<Target>> root_floor;
+  target_knockout_t<Target> root_backdrops;
+  if (knockout_backdrops == nullptr &&
+      std::any_of(siblings.begin(), siblings.end(), layer_tree_has_knockout)) {
+    // Photoshop's real Background has no transparency channel. An opaque RGBA
+    // layer (even one named Background) is not a knockout floor.
+    if (!siblings.empty() && siblings.front().kind() == LayerKind::Pixel &&
+        siblings.front().pixels().format().channels == 3 && !siblings.front().clipped()) {
+      composite_one(destination, siblings.front());
+      // A clipping run still has to render as a unit. The opaque Background
+      // is painted again by that run, while its unclipped color remains the floor.
+      index = siblings.size() > 1 && layer_clipped_for_render(siblings[1]) ? 0U : 1U;
+    }
+    root_floor.emplace(destination, clip);
+    root_backdrops = {&*root_floor, &*root_floor};
+    knockout_backdrops = &root_backdrops;
+  }
   while (index < siblings.size()) {
     const Layer& layer = siblings[index];
     std::size_t run_end = index + 1;
@@ -4307,7 +4448,12 @@ void composite_sibling_layers(Target& destination, const std::vector<Layer>& sib
       }
     }
     if (run_end == index + 1 || !layer_is_clip_base(layer)) {
-      composite_one(destination, layer);
+      if (knockout_backdrops != nullptr && layer_tree_has_knockout(layer)) {
+        composite_layer(destination, layer, clip, overrides, throw_on_unsupported_pixel_format,
+                        masks, nullptr, patterns, false, knockout_backdrops);
+      } else {
+        composite_one(destination, layer);
+      }
       ++index;
       continue;
     }
@@ -4338,6 +4484,9 @@ void composite_sibling_layers(Target& destination, const std::vector<Layer>& sib
     // the isolated buffer's merge did. Blend If bases keep the isolated path:
     // its per-pixel gate is calibrated on the base's own colors.
     const auto& base_style = layer.layer_style();
+    const bool knockout_members = base_style.blend_clipped_elements &&
+        std::any_of(siblings.begin() + static_cast<std::ptrdiff_t>(index + 1),
+                    siblings.begin() + static_cast<std::ptrdiff_t>(run_end), layer_tree_has_knockout);
     if (base_style.effects_visible && !base_style.empty() && !layer_has_rendered_blend_if(layer)) {
       const bool prefold_interiors = !base_style.blend_clipped_elements && base_style.blend_interior_elements;
       std::optional<PixelBuffer> flattened;
@@ -4360,9 +4509,15 @@ void composite_sibling_layers(Target& destination, const std::vector<Layer>& sib
                                   layer_bounds_for_render(layer, base_overrides), group_rect, prefold_interiors,
                                   layer_mask_bounds_for_render(layer, base_overrides), masks, patterns);
       fill.freeze_clip();
+      std::optional<target_snapshot_t<Target>> clip_floor;
+      if (knockout_members) {
+        clip_floor.emplace(fill, group_rect);
+      }
+      const auto* floor = clip_floor.has_value() ? &*clip_floor : nullptr;
+      const target_knockout_t<Target> clip_backdrops{floor, floor};
       for (std::size_t member = index + 1; member < run_end; ++member) {
         composite_layer(fill, siblings[member], group_rect, overrides, throw_on_unsupported_pixel_format, masks,
-                        nullptr, patterns);
+                        nullptr, patterns, false, knockout_members ? &clip_backdrops : nullptr);
       }
       const auto content = fill.to_pixel_buffer();
       const ClipRunContent clip_content{&content, group_rect, prefold_interiors};
@@ -4406,9 +4561,15 @@ void composite_sibling_layers(Target& destination, const std::vector<Layer>& sib
                       /*suppress_channel_restriction=*/true);
     }
     group.freeze_clip();
+    std::optional<target_snapshot_t<Target>> clip_floor;
+    if (knockout_members) {
+      clip_floor.emplace(group, group_rect);
+    }
+    const auto* floor = clip_floor.has_value() ? &*clip_floor : nullptr;
+    const target_knockout_t<Target> clip_backdrops{floor, floor};
     for (std::size_t member = index + 1; member < run_end; ++member) {
       composite_layer(group, siblings[member], group_rect, overrides, throw_on_unsupported_pixel_format, masks,
-                      nullptr, patterns);
+                      nullptr, patterns, false, knockout_members ? &clip_backdrops : nullptr);
     }
     with_channel_restriction(destination, layer_rendered_channel_restriction(layer),
                              [&](auto& merge_destination) {
@@ -4422,14 +4583,15 @@ template <typename Target>
 void composite_layers(Target& destination, const std::vector<Layer>& layers, Rect clip,
                       const std::vector<LayerBoundsOverride>* overrides = nullptr,
                       bool throw_on_unsupported_pixel_format = false, StyleMaskProvider* masks = nullptr,
-                      const PatternStore* patterns = nullptr) {
+                      const PatternStore* patterns = nullptr,
+                      const target_knockout_t<Target>* knockout_backdrops = nullptr) {
   composite_sibling_layers(
       destination, layers, clip, overrides, throw_on_unsupported_pixel_format, masks,
       [&](Target& target, const Layer& layer) {
         composite_layer(target, layer, clip, overrides, throw_on_unsupported_pixel_format, masks, nullptr,
-                        patterns);
+                        patterns, false, knockout_backdrops);
       },
-      patterns);
+      patterns, knockout_backdrops);
 }
 
 template <typename Color>
@@ -4445,8 +4607,9 @@ PixelBuffer group_silhouette_for_render(const Layer& layer, Rect bounds,
       cache, layer, StyleMaskKind::GroupSilhouette, 0, bounds, bounds, bounds, bounds, std::nullopt,
       [&](Rect rect) {
         IsolatedClipGroupTargetT<Color> isolated(rect, false, domain);
+        const KnockoutBackdropT<Color> isolated_backdrops;
         composite_layers(isolated, layer.children(), rect, overrides,
-                         throw_on_unsupported_pixel_format, masks, patterns);
+                         throw_on_unsupported_pixel_format, masks, patterns, &isolated_backdrops);
         StyleMaskEntry result;
         result.group_pixels = std::make_shared<const PixelBuffer>(isolated.to_pixel_buffer());
         return result;
@@ -4459,11 +4622,18 @@ void composite_layer(Target& destination, const Layer& layer, Rect clip,
                      const std::vector<LayerBoundsOverride>* overrides,
                      bool throw_on_unsupported_pixel_format, StyleMaskProvider* masks,
                      const target_snapshot_t<Target>* blend_if_backdrop, const PatternStore* patterns,
-                     bool suppress_channel_restriction) {
+                     bool suppress_channel_restriction,
+                     const target_knockout_t<Target>* knockout_backdrops) {
   if (!layer_visible_for_render(layer, overrides) || layer.opacity() <= 0.0F) {
     return;
   }
 
+  // Clip runs with Blend Clipped Layers as Group disabled retain the existing
+  // approximation; their cross-run knockout floor is not modeled yet.
+  const auto knockout_mode = layer_clipped_for_render(layer) && knockout_backdrops == nullptr
+                                 ? 0U : layer_knockout_mode(layer);
+  const auto* knockout_floor = knockout_backdrops == nullptr ? nullptr
+                            : knockout_mode == 1U ? knockout_backdrops->shallow : knockout_backdrops->deep;
   if (layer.kind() == LayerKind::Group) {
     if (layer_rendered_channel_restriction(layer) == kRestrictAllChannels) {
       // All channels excluded removes the group and its effects entirely,
@@ -4482,7 +4652,7 @@ void composite_layer(Target& destination, const Layer& layer, Rect clip,
     // 100%: Photoshop's flatten of psd-tools' passthrough_fill_adjustment.psd
     // keeps the group's Exposure off the backdrop and matches the isolated
     // merge within 1/255 (a plain fade is off by up to 69).
-    if (layer_has_rendered_blend_if(layer) || layer.blend_mode() != BlendMode::PassThrough ||
+    if (knockout_mode != 0U || layer_has_rendered_blend_if(layer) || layer.blend_mode() != BlendMode::PassThrough ||
         group_fill_factor_for_render(layer) < 1.0F) {
       // Blend-if groups keep the calibrated full-clip buffer; the plain
       // isolated path bounds it by the children's render bounds instead,
@@ -4491,7 +4661,7 @@ void composite_layer(Target& destination, const Layer& layer, Rect clip,
       // isolation buffer per group per preview frame). Coverage can only
       // exist where pixel children painted, so the bounded buffer merges
       // identically.
-      const auto isolated_rect = styled ? group_content_bounds_for_render(layer, overrides)
+      const auto isolated_rect = styled || knockout_mode != 0U ? group_content_bounds_for_render(layer, overrides)
                                  : !layer_has_rendered_blend_if(layer)
                                      ? intersect_rect(clip, layer_render_bounds_for_render(layer, overrides))
                                      : clip;
@@ -4506,7 +4676,7 @@ void composite_layer(Target& destination, const Layer& layer, Rect clip,
       if (blend_if_has_underlying_ranges(blend_if) && !styled) {
         backdrop.emplace(destination, isolated_rect);
       }
-      if (styled) {
+      if (styled || knockout_mode != 0U) {
         // Route the merged content through the full styled pipeline. The
         // group mask has NOT been applied yet (merge_layer_into is skipped),
         // so the pipeline's own mask handling applies it exactly once, which
@@ -4521,12 +4691,14 @@ void composite_layer(Target& destination, const Layer& layer, Rect clip,
             outer_override != nullptr ? outer_override->mask_bounds : std::nullopt,
             std::optional<bool>{}}};
         composite_pixel_layer(destination, layer, clip, &styled_override,
-                              throw_on_unsupported_pixel_format, masks, blend_if_backdrop, patterns);
+                              throw_on_unsupported_pixel_format, masks, blend_if_backdrop, patterns,
+                              suppress_channel_restriction, nullptr, knockout_floor, knockout_mode != 0U);
         return;
       }
       auto isolated = make_isolated_target(destination, isolated_rect);
+      const target_knockout_t<Target> isolated_backdrops;
       composite_layers(isolated, layer.children(), isolated_rect, overrides, throw_on_unsupported_pixel_format,
-                       masks, patterns);
+                       masks, patterns, &isolated_backdrops);
       // A restricted isolated group applies its restriction where the merged
       // result meets the backdrop (the P5 isolated arm: the group's excluded
       // channel keeps the backdrop under Normal-mode children).
@@ -4546,7 +4718,7 @@ void composite_layer(Target& destination, const Layer& layer, Rect clip,
                              [&](auto& pass_destination) {
                                composite_pass_through_group(pass_destination, layer, clip, overrides,
                                                             throw_on_unsupported_pixel_format, masks,
-                                                            patterns, styled);
+                                                            patterns, styled, knockout_backdrops);
                              });
     return;
   }
@@ -4557,7 +4729,8 @@ void composite_layer(Target& destination, const Layer& layer, Rect clip,
   }
 
   composite_pixel_layer(destination, layer, clip, overrides, throw_on_unsupported_pixel_format, masks,
-                        blend_if_backdrop, patterns, suppress_channel_restriction);
+                        blend_if_backdrop, patterns, suppress_channel_restriction, nullptr,
+                        knockout_floor, knockout_mode != 0U);
 }
 
 // The pass-through tail of composite_layer: children composite against the
@@ -4568,15 +4741,22 @@ template <typename Target>
 void composite_pass_through_group(Target& destination, const Layer& layer, Rect clip,
                                   const std::vector<LayerBoundsOverride>* overrides,
                                   bool throw_on_unsupported_pixel_format, StyleMaskProvider* masks,
-                                  const PatternStore* patterns, bool styled) {
+                                  const PatternStore* patterns, bool styled,
+                                  const target_knockout_t<Target>* knockout_backdrops) {
   // Pass-through group Opacity is a post-composite fade (fade_toward_snapshot):
   // snapshot the backdrop, composite the children at full strength, then
   // interpolate. The fade covers the full clip because an interior adjustment
   // with unlimited bounds can touch backdrop pixels outside the children's
   // render bounds.
   std::optional<target_snapshot_t<Target>> before;
-  if (layer.opacity() < 1.0F) {
+  const bool has_knockout = layer_tree_has_knockout(layer);
+  if (layer.opacity() < 1.0F || has_knockout) {
     before.emplace(destination, clip);
+  }
+  target_knockout_t<Target> child_backdrops;
+  if (has_knockout) {
+    child_backdrops = {&*before, knockout_backdrops != nullptr ? knockout_backdrops->deep : nullptr};
+    knockout_backdrops = &child_backdrops;
   }
   // Styled pass-through groups do NOT isolate (the
   // photoshop-group-fx-passthrough probe: a Multiply child keeps blending
@@ -4618,17 +4798,17 @@ void composite_pass_through_group(Target& destination, const Layer& layer, Rect 
     if constexpr (is_group_masked_target<Target>::value) {
       destination.push_mask(layer, mask_bounds);
       composite_layers(destination, layer.children(), clip, overrides, throw_on_unsupported_pixel_format,
-                       masks, patterns);
+                       masks, patterns, knockout_backdrops);
       destination.pop_mask();
     } else {
       GroupMaskedTarget<Target> masked(destination);
       masked.push_mask(layer, mask_bounds);
       composite_layers(masked, layer.children(), clip, overrides, throw_on_unsupported_pixel_format, masks,
-                       patterns);
+                       patterns, knockout_backdrops);
     }
   } else {
     composite_layers(destination, layer.children(), clip, overrides, throw_on_unsupported_pixel_format, masks,
-                     patterns);
+                     patterns, knockout_backdrops);
   }
   // Interior effects paint ABOVE the pass-through content, masked by the
   // silhouette, each with its OWN blend mode (the photoshop-group-fx-interior
@@ -4716,7 +4896,7 @@ void composite_pass_through_group(Target& destination, const Layer& layer, Rect 
       }
     }
   }
-  if (before.has_value()) {
+  if (before.has_value() && layer.opacity() < 1.0F) {
     fade_toward_snapshot(destination, *before, clip, layer.opacity());
   }
 }

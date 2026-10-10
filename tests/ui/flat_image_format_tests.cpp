@@ -1072,8 +1072,9 @@ QString forced_import_notice_text(const QString& path) {
   return notice_text;
 }
 
-// The other two conversions a save makes permanent pop up the same way as the 16-bit one:
-// a color mode Patchy converts to RGB, and CMYK adjustment layers that acted on the inks.
+// Unsupported color modes and CMYK ink adjustments force a notice even with
+// optional import notes disabled. Unchanged supported CMYK content can retain
+// its source mode, so the ink notice must explain the conditional RGB fallback.
 void ui_color_mode_and_ink_adjustment_imports_force_notices_popup() {
   ensure_artifact_dir();
   const auto path = QFileInfo(QStringLiteral("test-artifacts/ui_indexed_mode.psd")).absoluteFilePath();
@@ -1107,8 +1108,10 @@ void ui_color_mode_and_ink_adjustment_imports_force_notices_popup() {
     return;
   }
   const auto ink = forced_import_notice_text(patchy::ui::to_qstring(cmyk));
-  CHECK(ink.contains(QStringLiteral("CMYK inks")));
-  CHECK(ink.contains(QStringLiteral("saves RGB files")));
+  CHECK(ink.contains(QStringLiteral("Unchanged supported layers")));
+  CHECK(ink.contains(QStringLiteral("original color mode")));
+  CHECK(ink.contains(QStringLiteral("Content edits or unsupported layers require RGB saving")));
+  CHECK(!ink.contains(QStringLiteral("saves RGB files")));
 }
 
 void ui_animated_gif_export_round_trips() {

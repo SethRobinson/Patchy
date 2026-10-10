@@ -586,6 +586,126 @@ void compositor_group_fill_fades_content_not_effects() {
   }
 }
 
+void compositor_knockout_preserves_floor_and_fractional_shape() {
+  for (const bool background : {false, true}) {
+    for (const unsigned mode : {1U, 2U}) {
+      for (const float fill : {0.0F, 0.5F, 1.0F}) {
+        patchy::Document document(3, 1, patchy::PixelFormat::rgb8());
+        if (background) {
+          document.add_pixel_layer("Not a name heuristic", solid_rgb(3, 1, 0, 255, 255));
+        }
+        document.add_pixel_layer("Background", solid_rgba(3, 1, 255, 0, 0, 255));
+        auto pixels = solid_rgba(3, 1, 0, 0, 255, 255);
+        pixels.pixel(0, 0)[3] = 0;
+        pixels.pixel(1, 0)[3] = 128;
+        auto& layer = document.add_pixel_layer("Knockout", std::move(pixels));
+        layer.set_fill_opacity(fill);
+        layer.set_opacity(0.5F);
+        layer.unknown_psd_blocks().push_back({"knko", {static_cast<std::uint8_t>(mode), 0, 0, 0}});
+        std::vector<std::uint8_t> alpha;
+        const auto result = patchy::Compositor{}.flatten_rgb8(document, &alpha);
+        for (int x = 0; x < 3; ++x) {
+          const auto shape = (x == 0 ? 0.0F : x == 1 ? 128.0F / 255.0F : 1.0F) * 0.5F;
+          const auto coverage = background ? 1.0F : 1.0F - shape * (1.0F - fill);
+          const std::array<float, 3> expected{
+              255.0F * (1.0F - shape) / coverage,
+              background ? 255.0F * shape * (1.0F - fill) : 0.0F,
+              255.0F * shape * (background ? 1.0F : fill) / coverage};
+          for (int c = 0; c < 3; ++c) {
+            CHECK(std::abs(result.pixel(x, 0)[c] - expected[static_cast<std::size_t>(c)]) <= 1.0F);
+          }
+          CHECK(std::abs(alpha[static_cast<std::size_t>(x)] - coverage * 255.0F) <= 1.0F);
+        }
+      }
+    }
+  }
+}
+
+void compositor_knockout_group_boundaries_match_photoshop() {
+  for (const auto outer_mode : {patchy::BlendMode::Normal, patchy::BlendMode::PassThrough}) {
+    for (const unsigned knockout_mode : {1U, 2U}) {
+      patchy::Document document(2, 1, patchy::PixelFormat::rgb8());
+      document.add_pixel_layer("Background", solid_rgb(2, 1, 255, 255, 255));
+      document.add_pixel_layer("Red", solid_rgba(2, 1, 255, 0, 0, 255));
+      patchy::Layer outer(document.allocate_layer_id(), "Outer", patchy::LayerKind::Group);
+      outer.set_blend_mode(outer_mode);
+      outer.add_child(patchy::Layer(document.allocate_layer_id(), "Green", solid_rgba(2, 1, 0, 255, 0, 255)));
+      patchy::Layer inner(document.allocate_layer_id(), "Inner", patchy::LayerKind::Group);
+      inner.set_fill_opacity(128.0F / 255.0F);
+      inner.unknown_psd_blocks().push_back({"knko", {static_cast<std::uint8_t>(knockout_mode), 0, 0, 0}});
+      inner.add_child(patchy::Layer(document.allocate_layer_id(), "Blue", solid_rgba(2, 1, 0, 0, 255, 255)));
+      outer.add_child(std::move(inner));
+      document.add_layer(std::move(outer));
+      const auto rendered = patchy::Compositor{}.flatten_rgb8(document);
+      const auto* px = rendered.pixel(0, 0);
+      // Photoshop's psd-tools knockout-{deep,shallow}-nested{-pt,} captures.
+      CHECK(px[0] == 127);
+      CHECK(px[1] == (outer_mode == patchy::BlendMode::PassThrough && knockout_mode == 2U ? 127 : 0));
+      CHECK(px[2] == (outer_mode == patchy::BlendMode::PassThrough && knockout_mode == 2U ? 255 : 128));
+    }
+  }
+}
+
+void psd_tools_knockout_matches_photoshop_if_available() {
+  const auto root = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" / "psd_files" /
+                    "transparency";
+  if (!std::filesystem::exists(root)) {
+    std::cout << "[SKIP] psd-tools collection unavailable\n";
+    return;
+  }
+  struct Probe { const char* name; std::array<int, 4> rgba; };
+  const Probe probes[]{
+      {"knockout-deep-cyanbg", {0, 127, 255, 255}},
+      {"knockout-deep-normal", {127, 127, 255, 255}},
+      {"knockout-deep-passthrough", {127, 127, 255, 255}},
+      {"knockout-deep-nobg", {0, 0, 255, 128}},
+      {"knockout-deep-nested", {127, 0, 128, 255}},
+      {"knockout-deep-nested-pt", {127, 127, 255, 255}},
+      {"knockout-shallow-nested", {127, 0, 128, 255}},
+      {"knockout-shallow-nested-pt", {127, 0, 128, 255}},
+  };
+  for (const auto& probe : probes) {
+    const auto document = patchy::psd::DocumentIo::read_file(root / (std::string(probe.name) + ".psd"));
+    const auto check = [&](const patchy::Document& doc) {
+      std::vector<std::uint8_t> alpha;
+      const auto pixels = patchy::Compositor{}.flatten_rgb8(doc, &alpha);
+      for (int y = 0; y < doc.height(); ++y) {
+        for (int x = 0; x < doc.width(); ++x) {
+          for (int c = 0; c < 3; ++c) {
+            CHECK(std::abs(pixels.pixel(x, y)[c] - probe.rgba[static_cast<std::size_t>(c)]) <= 1);
+          }
+          CHECK(std::abs(alpha[static_cast<std::size_t>(y) * doc.width() + x] - probe.rgba[3]) <= 1);
+        }
+      }
+    };
+    check(document);
+    check(patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document)));
+  }
+}
+
+void compositor_knockout_clipped_member_reveals_base() {
+  for (const unsigned mode : {1U, 2U}) {
+    patchy::Document document(3, 1, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background", solid_rgb(3, 1, 0, 255, 255));
+    auto base = solid_rgba(3, 1, 255, 0, 0, 255);
+    base.pixel(0, 0)[3] = 0;
+    base.pixel(1, 0)[3] = 128;
+    document.add_pixel_layer("Base", std::move(base));
+    document.add_pixel_layer("Green", solid_rgba(3, 1, 0, 255, 0, 255)).set_clipped(true);
+    auto& top = document.add_pixel_layer("Cut", solid_rgba(3, 1, 0, 0, 255, 255));
+    top.set_clipped(true);
+    top.set_fill_opacity(128.0F / 255.0F);
+    top.unknown_psd_blocks().push_back({"knko", {static_cast<std::uint8_t>(mode), 0, 0, 0}});
+    const auto rendered = patchy::Compositor{}.flatten_rgb8(document);
+    const std::array<std::array<int, 3>, 3> expected{{{0, 255, 255}, {64, 127, 191}, {127, 0, 128}}};
+    for (int x = 0; x < 3; ++x) {
+      for (int c = 0; c < 3; ++c) {
+        CHECK(std::abs(rendered.pixel(x, 0)[c] - expected[static_cast<std::size_t>(x)][static_cast<std::size_t>(c)]) <= 1);
+      }
+    }
+  }
+}
+
 void compositor_group_clip_base_limits_adjustments_and_combines_child_coverage() {
   for (const auto mode : {patchy::BlendMode::PassThrough, patchy::BlendMode::Normal}) {
     patchy::Document document(6, 1, patchy::PixelFormat::rgb8());
@@ -1737,6 +1857,10 @@ std::vector<patchy::test::TestCase> compositor_blend_if_tests() {
       {"compositor_clip_base_effects_do_not_widen_the_clip_shape",
        compositor_clip_base_effects_do_not_widen_the_clip_shape},
       {"compositor_group_fill_fades_content_not_effects", compositor_group_fill_fades_content_not_effects},
+      {"compositor_knockout_preserves_floor_and_fractional_shape", compositor_knockout_preserves_floor_and_fractional_shape},
+      {"compositor_knockout_group_boundaries_match_photoshop", compositor_knockout_group_boundaries_match_photoshop},
+      {"psd_tools_knockout_matches_photoshop_if_available", psd_tools_knockout_matches_photoshop_if_available},
+      {"compositor_knockout_clipped_member_reveals_base", compositor_knockout_clipped_member_reveals_base},
       {"compositor_group_clip_base_limits_adjustments_and_combines_child_coverage",
        compositor_group_clip_base_limits_adjustments_and_combines_child_coverage},
       {"psd_backglass_group_clipped_invert_matches_photoshop_if_available",

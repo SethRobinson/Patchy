@@ -13,6 +13,7 @@
 #include "ui_test_groups.hpp"
 
 #include "core/document.hpp"
+#include "core/document_depth.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/layer.hpp"
 #include "psd/psd_document_io.hpp"
@@ -293,6 +294,61 @@ void styled_group_parallel_strips_match_single_threaded() {
   CHECK(parallel == sequential);
 }
 
+void knockout_preview_preserves_alpha_depth_and_partial_bounds() {
+  for (const auto depth : {patchy::BitDepth::UInt8, patchy::BitDepth::UInt16, patchy::BitDepth::Float32}) {
+    patchy::Document document(48, 32, patchy::PixelFormat::rgba8());
+    document.add_pixel_layer("Opaque but not Background", solid_rgba(48, 32, 255, 0, 0, 255));
+    patchy::Layer group(document.allocate_layer_id(), "Pass Through", patchy::LayerKind::Group);
+    group.set_blend_mode(patchy::BlendMode::PassThrough);
+    patchy::Layer hole(document.allocate_layer_id(), "Hole", solid_rgba(16, 16, 0, 0, 255, 255));
+    const auto id = hole.id();
+    hole.set_bounds({8, 8, 16, 16});
+    hole.set_fill_opacity(0.0F);
+    hole.unknown_psd_blocks().push_back({"knko", {2, 0, 0, 0}});
+    group.add_child(std::move(hole));
+    document.add_layer(std::move(group));
+    patchy::convert_document_depth(document, depth);
+    const auto rgba = patchy::ui::qimage_from_document(document, true);
+    const auto rgb = patchy::ui::qimage_from_document(document, false);
+    CHECK(rgba.pixelColor(12, 12).alpha() == 0);
+    CHECK(rgba.pixelColor(0, 0) == QColor(255, 0, 0));
+    CHECK(rgb.pixelColor(12, 12) == QColor(255, 255, 255));
+    const QRect rect(10, 4, 25, 20);
+    CHECK(patchy::ui::qimage_from_document_rect(document, rect, true) == rgba.copy(rect));
+    CHECK(patchy::ui::qimage_from_document_rect(document, rect, false) == rgb.copy(rect));
+    const auto moved_preview = patchy::ui::qimage_from_document_rect_with_layer_bounds(
+        document, QRect(0, 0, 48, 32), true, id, {24, 4, 16, 16});
+    document.find_layer(id)->set_bounds({24, 4, 16, 16});
+    CHECK(moved_preview == patchy::ui::qimage_from_document(document, true));
+  }
+}
+
+void hidden_knockout_does_not_change_rgb_matte_blending() {
+  patchy::Document document(8, 8, patchy::PixelFormat::rgba8());
+  auto& bottom = document.add_pixel_layer("Screen", solid_rgba(8, 8, 64, 128, 192, 255));
+  bottom.set_blend_mode(patchy::BlendMode::Screen);
+  const auto expected = patchy::ui::qimage_from_document(document, false);
+  patchy::Layer group(document.allocate_layer_id(), "Hidden knockout", patchy::LayerKind::Group);
+  const auto group_id = group.id();
+  group.set_blend_mode(patchy::BlendMode::PassThrough);
+  patchy::Layer hole(document.allocate_layer_id(), "Hole", solid_rgba(8, 8, 0, 0, 255, 255));
+  const auto hole_id = hole.id();
+  hole.set_fill_opacity(0.0F);
+  hole.unknown_psd_blocks().push_back({"knko", {2, 0, 0, 0}});
+  group.add_child(std::move(hole));
+  document.add_layer(std::move(group));
+  for (const auto id : {group_id, hole_id}) {
+    document.find_layer(id)->set_visible(false);
+    CHECK(patchy::ui::qimage_from_document(document, false) == expected);
+    document.find_layer(id)->set_visible(true);
+    CHECK(patchy::ui::qimage_from_document_rect_with_hidden_layers(
+              document, QRect(0, 0, 8, 8), false, {id}) == expected);
+    document.find_layer(id)->set_opacity(0.0F);
+    CHECK(patchy::ui::qimage_from_document(document, false) == expected);
+    document.find_layer(id)->set_opacity(1.0F);
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> composite_render_tests() {
@@ -302,6 +358,8 @@ std::vector<patchy::test::TestCase> composite_render_tests() {
        group_isolation_override_bounds_match_actual_layer_move},
       {"styled_group_partial_render_and_child_edit_match_full_render", styled_group_partial_render_and_child_edit_match_full_render},
       {"styled_group_parallel_strips_match_single_threaded", styled_group_parallel_strips_match_single_threaded},
+      {"knockout_preview_preserves_alpha_depth_and_partial_bounds", knockout_preview_preserves_alpha_depth_and_partial_bounds},
+      {"hidden_knockout_does_not_change_rgb_matte_blending", hidden_knockout_does_not_change_rgb_matte_blending},
       {"group_clipped_adjustment_preview_keeps_backdrop_and_tracks_child_move",
        group_clipped_adjustment_preview_keeps_backdrop_and_tracks_child_move},
       {"backglass_group_clipped_invert_preview_matches_photoshop_if_available",
