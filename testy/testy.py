@@ -1527,6 +1527,12 @@ class Runner:
             cell.clear()
             cell.update(cached_cell)
             cell["cached"] = True
+            # The stored paths name the directory of the run that wrote the entry, and a
+            # file's directory depends on its corpus (text.psd beside text.psb is
+            # text~psd): every cell artifact lives in cell_dir, so point them there.
+            artifacts = cell.get("artifacts") or {}
+            for key, value in list(artifacts.items()):
+                artifacts[key] = self._rel(cell_dir / Path(value).name)
             self._upgrade_cached_metrics(entry, cell, cell_dir, cache_dir, staged, truth)
             self._skip_unavailable_text_comparison(cell, truth)
             self.push()

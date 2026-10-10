@@ -469,6 +469,33 @@ class RerunTests(unittest.TestCase):
         self.assertIn('photocraft', lines[1]['editors'])
         self.assertEqual(lines[1]['editors']['photocraft']['opened'], 1)
 
+    def test_a_cached_cell_links_its_own_directory_not_the_writing_runs(self):
+        # The cache entry was written by a run where text.psd had the directory "text";
+        # beside text.psb it is "text~psd", and "text" is the .psb's.
+        import types
+        cache = self.runs / 'cache'
+        key = testy._version_slug('3.0' + testy.reference_space_key({}))
+        entry_dir = cache / f'cell-sha-gimp-{key}-~TESTY~'
+        entry_dir.mkdir(parents=True)
+        (entry_dir / 'render.png').write_bytes(b'png')
+        (entry_dir / 'cell.json').write_text(json.dumps(dict(state='done', artifacts=dict(
+            render='files/text/gimp/render.png', heatmap='files/text/gimp/heatmap.png'))), encoding='utf-8')
+        runner = object.__new__(testy.Runner)
+        runner.run_dir = self.runs / 'run'
+        runner.files_dir = runner.run_dir / 'files'
+        runner.suffix = '~TESTY~'
+        runner.args = mock.Mock(fresh=False)
+        runner.editors = dict(gimp=testy.config.EditorInfo('gimp', 'GIMP', Path('gimp.exe'), '3.0', True))
+        runner.status = dict(files=[dict(name='text.psd', dir='text~psd', traits={}, cells=dict(gimp={}))])
+        runner.push = lambda: None
+        with mock.patch.object(testy.config, 'CACHE_DIR', cache):
+            runner.run_cell(0, 'gimp', types.SimpleNamespace(sha1='sha', trap=None), None)
+        cell = runner.status['files'][0]['cells']['gimp']
+        self.assertTrue(cell['cached'])
+        self.assertEqual(cell['artifacts'], dict(render='files/text~psd/gimp/render.png',
+                                                 heatmap='files/text~psd/gimp/heatmap.png'))
+        self.assertTrue((runner.run_dir / cell['artifacts']['render']).exists())
+
     def test_cache_stripper_empties_cached_layers_and_only_those(self):
         import psd_sections
 
