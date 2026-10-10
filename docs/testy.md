@@ -166,11 +166,12 @@ the report does not need the files) and the cache-free leg's working renders, tu
 each file's source into its path below the corpus folder, replaces this machine's
 folders inside error messages with `<run>`, `<patchy>` and `<home>`, and refuses to
 write if a local path is still left. It only ever replaces a folder an earlier export
-made (`testy-export.txt` marks it). Nothing is uploaded by the tool. Published runs live at
+made (`testy-export.txt` marks it). Published runs live at
 `rtsoft.com/testy/<YYYY-MM-DD>/` and are uploaded only on Seth's explicit go-ahead (the upload
 target belongs in `agents_local.md`, never here): pack the folder (`tar --force-local -czf ...
---exclude=testy-export.txt .`, about 190 MB for 309 files), copy the one archive to the host,
-compare sha256 there, untar, delete the archive; one transfer instead of 17,000 small files. The published report requests
+--exclude=testy-export.txt .`, about 220 MB for 309 files), copy the one archive into a
+`<date>.new` folder on the host, compare sha256, untar, delete the archive, then swap it in with
+two renames, so a republished run never serves half a copy. The published report requests
 `../history.jsonl` once and gets a harmless 404 (the history section stays empty).
 
 ## Scan mode
