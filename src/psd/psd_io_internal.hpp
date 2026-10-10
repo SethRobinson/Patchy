@@ -284,6 +284,7 @@ struct EncodedLayer {
   // index no text object in that block has, so Photoshop reads this layer from its own TySh
   // instead of the stale object (see write_layered_rgb8 in psd_document_io.cpp).
   std::optional<std::int32_t> text_index_override;
+  bool preserve_native_color_blocks{false};
 };
 
 struct ImageResource {
@@ -792,7 +793,8 @@ void apply_compound_vector_resource(Document& document, std::span<const std::uin
 // malformed field rejects the whole record.
 void apply_long_shadow_resource(Document& document, std::span<const std::uint8_t> payload);
 std::vector<std::uint8_t> image_resources_for_document(const Document& document,
-                                                       std::span<const CompositeChannelInfo> channels);
+                                                       std::span<const CompositeChannelInfo> channels,
+                                                       std::uint16_t output_mode = kColorModeRgb);
 
 
 // Engine-data (TySh) text READ codec: engine-data parsing, run serialization

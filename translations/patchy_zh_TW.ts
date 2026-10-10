@@ -9165,6 +9165,10 @@ RGB：%2, %3, %4</translation>
         <source>%1: %2 mip levels, %3 x %4 down to %5 x %6, %7 of texture data.</source>
         <translation>%1：%2 個 Mip 層級，從 %3 x %4 到 %5 x %6，紋理資料 %7。</translation>
     </message>
+    <message>
+        <source>Patchy edits this file in RGB. Unchanged supported layers can be saved in the original 16-bit color mode. Content edits or unsupported layers require RGB saving, which can change gradients and adjustments.</source>
+        <translation>Patchy 以 RGB 模式編輯此檔案。未變更且受支援的圖層可以使用原始 16 位元色彩模式儲存。編輯內容或存在不受支援的圖層時，必須以 RGB 模式儲存，這可能會改變漸層和調整效果。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

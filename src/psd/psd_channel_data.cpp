@@ -391,7 +391,7 @@ void write_deep_image_data(BigEndianWriter& writer, const PixelBuffer& rgb,
                            const std::vector<std::vector<std::uint8_t>>& extra_planes, BitDepth depth,
                            bool wide_rle_counts) {
   std::vector<std::uint8_t> planar;
-  for (std::size_t channel = 0; channel < 3U; ++channel) {
+  for (std::size_t channel = 0; channel < rgb.format().channels; ++channel) {
     const auto plane = big_endian_plane(rgb, channel);
     planar.insert(planar.end(), plane.begin(), plane.end());
   }
@@ -399,7 +399,7 @@ void write_deep_image_data(BigEndianWriter& writer, const PixelBuffer& rgb,
     planar.insert(planar.end(), plane.begin(), plane.end());
   }
   if (depth == BitDepth::UInt16) {
-    const auto plane_count = static_cast<std::uint16_t>(3U + extra_planes.size());
+    const auto plane_count = static_cast<std::uint16_t>(rgb.format().channels + extra_planes.size());
     const auto rle_data = encode_packbits_rows(planar, rgb.width() * 2, rgb.height(), plane_count,
                                                wide_rle_counts, /*even_rows=*/true);
     if (rle_data.size() < planar.size()) {

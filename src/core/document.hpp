@@ -55,6 +55,9 @@ struct DocumentMetadata {
   // back; documents without one get Photoshop 2026's default (docs/high-bit-depth.md).
   std::vector<std::uint8_t> raw_psd_color_mode_data;
   std::vector<std::uint8_t> raw_psd_image_resources;
+  // Session-only source mode for lossless layered 16-bit CMYK/gray/Lab saves.
+  // RGB remains the editing space. Ineligible/edited content saves through RGB.
+  std::shared_ptr<const PsdNativeColorSpace> psd_native_color_space;
   std::optional<PixelBuffer> psd_flat_composite;
   // The encoded image an imported PDF page was made of, so an export can write it back
   // untouched while the page is unchanged. Session-only and never serialized: see

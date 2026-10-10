@@ -168,7 +168,7 @@ bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock&
       layer_smart_object_block_dirty(*encoded.layer)) {
     return true;
   }
-  if (encoded.kind == EncodedLayerKind::Adjustment &&
+  if (!encoded.preserve_native_color_blocks && encoded.kind == EncodedLayerKind::Adjustment &&
       (block.key == "levl" || block.key == "curv" || block.key == "hue2" || block.key == "nvrt" ||
        block.key == "post" || block.key == "thrs" || block.key == "brit" || block.key == "blnc" ||
        block.key == "expA")) {
@@ -177,7 +177,7 @@ bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock&
   // The Brightness/Contrast emitter owns 'CgEd' (preserved, regenerated, or
   // deliberately absent); re-emitting the raw block beside it would leave a
   // stale descriptor Photoshop reads as authoritative over the new values.
-  if (encoded.kind == EncodedLayerKind::Adjustment && block.key == "CgEd" && encoded.layer != nullptr) {
+  if (!encoded.preserve_native_color_blocks && encoded.kind == EncodedLayerKind::Adjustment && block.key == "CgEd" && encoded.layer != nullptr) {
     if (const auto settings = adjustment_settings_from_layer(*encoded.layer);
         settings.has_value() && settings->kind == AdjustmentKind::BrightnessContrast) {
       return true;
@@ -998,7 +998,7 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
     generated_style_payload = true;
   }
 
-  if (encoded.layer != nullptr && encoded.kind == EncodedLayerKind::Adjustment) {
+  if (!encoded.preserve_native_color_blocks && encoded.layer != nullptr && encoded.kind == EncodedLayerKind::Adjustment) {
     const auto settings = adjustment_settings_from_layer(*encoded.layer);
     if (settings.has_value() && settings->kind == AdjustmentKind::Levels) {
       write_additional_layer_block(extra, kPhotoshopLevelsAdjustmentBlockKey,
@@ -1074,7 +1074,7 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
   // (no preserved originals); untouched imported layers re-emit their exact
   // original bytes through the preserved loop below instead.
   const bool generated_vector_blocks =
-      encoded.layer != nullptr && encoded.kind != EncodedLayerKind::GroupBoundary &&
+      !encoded.preserve_native_color_blocks && encoded.layer != nullptr && encoded.kind != EncodedLayerKind::GroupBoundary &&
       (encoded.layer->vector_shape() != nullptr || encoded.layer->vector_mask() != nullptr) &&
       vector_lock_reason(*encoded.layer).empty() &&
       (layer_vector_block_dirty(*encoded.layer) ||

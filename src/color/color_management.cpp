@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cstdlib>
+#include <cstring>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -355,6 +356,58 @@ PixelBuffer ColorManager::preview_rgb8(const Document& /*document*/, const Pixel
     throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "Color preview placeholder currently accepts RGB8 buffers only"));
   }
   return source;
+}
+
+std::optional<PixelBuffer> rgb16_to_native_color_space(
+    const PixelBuffer& rgb, ColorMode mode, std::span<const std::uint8_t> profile) {
+  if (rgb.format() != PixelFormat::rgb16() || mode == ColorMode::RGB) {
+    return std::nullopt;
+  }
+  const std::uint16_t channels = mode == ColorMode::CMYK ? 4 : mode == ColorMode::Lab ? 3 : 1;
+  PixelBuffer result(rgb.width(), rgb.height(), PixelFormat{mode, BitDepth::UInt16, channels});
+  if (profile.empty() && mode != ColorMode::Lab) {
+    // Inverse of the profile-free import: neutral gray, or no black ink.
+    for (int y = 0; y < rgb.height(); ++y) {
+      const auto input = rgb.row(y);
+      auto output = result.row(y);
+      for (int x = 0; x < rgb.width(); ++x) {
+        if (mode == ColorMode::Grayscale) {
+          std::memcpy(output.data() + x * 2, input.data() + x * 6 + 2, 2);
+        } else {
+          std::memcpy(output.data() + x * 8, input.data() + x * 6, 6);
+          const std::uint16_t no_black = 65535;
+          std::memcpy(output.data() + x * 8 + 6, &no_black, 2);
+        }
+      }
+    }
+    return result;
+  }
+  if (profile.size() > 0xFFFFFFFFULL) return std::nullopt;
+  const auto context = cmsCreateContext(nullptr, nullptr);
+  if (context == nullptr) return std::nullopt;
+  cmsSetLogErrorHandlerTHR(context, ignore_lcms_error);
+  const auto source = cmsCreate_sRGBProfileTHR(context);
+  const auto destination = mode == ColorMode::Lab
+      ? cmsCreateLab4ProfileTHR(context, nullptr)
+      : cmsOpenProfileFromMemTHR(context, profile.data(), static_cast<cmsUInt32Number>(profile.size()));
+  const auto signature = mode == ColorMode::CMYK ? cmsSigCmykData
+                         : mode == ColorMode::Lab ? cmsSigLabData : cmsSigGrayData;
+  const auto format = mode == ColorMode::CMYK ? TYPE_CMYK_16_REV
+                      : mode == ColorMode::Lab ? TYPE_Lab_16 : TYPE_GRAY_16;
+  const auto transform = source != nullptr && destination != nullptr && cmsGetColorSpace(destination) == signature
+      ? cmsCreateTransformTHR(context, source, TYPE_RGB_16, destination, format,
+                              INTENT_RELATIVE_COLORIMETRIC, cmsFLAGS_BLACKPOINTCOMPENSATION | cmsFLAGS_NOCACHE)
+      : nullptr;
+  if (source != nullptr) cmsCloseProfile(source);
+  if (destination != nullptr) cmsCloseProfile(destination);
+  if (transform != nullptr) {
+    for (int y = 0; y < rgb.height(); ++y) {
+      cmsDoTransform(transform, rgb.row(y).data(), result.row(y).data(), static_cast<cmsUInt32Number>(rgb.width()));
+    }
+    cmsDeleteTransform(transform);
+  }
+  cmsDeleteContext(context);
+  return transform != nullptr ? std::optional<PixelBuffer>{std::move(result)} : std::nullopt;
 }
 
 }  // namespace patchy

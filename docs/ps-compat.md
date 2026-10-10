@@ -31,6 +31,10 @@ Lives in [photoshop-com.md](photoshop-com.md): the PowerShell entry point, dialo
 
 ## Write rules pinned against PS (silent corruption otherwise)
 
+- Unchanged supported 16-bit CMYK/gray/Lab layers can retain the original
+  document mode, profile and color channels. Content edits conservatively
+  select RGB saving; see [native color preservation](psd-native-color.md).
+
 - **Photoshop reads type from the document-level `Txt2` block and trusts it over the TySh.**
   The block holds one text object per type layer, addressed by the TySh TextIndex; a stale
   object silently wins (a layer retyped in Bahnschrift Light read back as Bahnschrift Bold).

@@ -9185,6 +9185,10 @@ RGB: %2, %3, %4</source>
         <source>%1: %2 mip levels, %3 x %4 down to %5 x %6, %7 of texture data.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Patchy edits this file in RGB. Unchanged supported layers can be saved in the original 16-bit color mode. Content edits or unsupported layers require RGB saving, which can change gradients and adjustments.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

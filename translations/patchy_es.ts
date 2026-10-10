@@ -9195,6 +9195,10 @@ RGB: %2, %3, %4</translation>
         <source>%1: %2 mip levels, %3 x %4 down to %5 x %6, %7 of texture data.</source>
         <translation>%1: %2 niveles de mip, %3 x %4 hasta %5 x %6, %7 de datos de textura.</translation>
     </message>
+    <message>
+        <source>Patchy edits this file in RGB. Unchanged supported layers can be saved in the original 16-bit color mode. Content edits or unsupported layers require RGB saving, which can change gradients and adjustments.</source>
+        <translation>Patchy edita este archivo en RGB. Las capas compatibles sin cambios se pueden guardar en el modo de color original de 16 bits. Los cambios de contenido o las capas no compatibles requieren guardar en RGB, lo que puede alterar los degradados y los ajustes.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

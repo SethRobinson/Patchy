@@ -80,12 +80,14 @@ inks they match on 99.9 percent (worst channel miss 7/255 at the 16 pinned probe
   1/255 (22/255 without the gray space, a visible tint before the copy). Pinned by
   `psd_tools_grayscale_adjustments_apply_to_the_gray_channel_if_available`.
 - No profile, or one lcms2 cannot use: no ink space, RGB math as before.
-- The black ink's record is never written: Photoshop 2026 silently turns a Levels layer
+- On RGB saves the black ink's record is never written: Photoshop 2026 silently turns a Levels layer
   of an RGB document into a plain empty layer, mask gone, when the `levl` block's fifth
   record is not the identity.
   A `curv` payload that carries a fifth curve is regenerated without it for the same
   reason instead of being passed through.
-- Gap: Patchy saves RGB. The layer is written as an ordinary RGB adjustment, so
+- Eligible unchanged 16-bit CMYK/grayscale documents retain their source channels,
+  profile and adjustment blocks on layered saves: [preservation rules](psd-native-color.md).
+- Gap on RGB saves: the layer is written as an ordinary RGB adjustment, so
   Photoshop, and Patchy after a reopen in another run (the id is then unregistered),
   evaluate it on RGB again. Pinned by `psd_tools_cmyk_levels_run_on_the_inks_if_available`.
 

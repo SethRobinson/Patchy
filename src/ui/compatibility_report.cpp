@@ -86,7 +86,7 @@ void append_unrendered_style_warnings(const Layer& layer, QStringList& warnings)
 
 }
 
-void append_layer_warnings(const Layer& layer, QStringList& warnings) {
+void append_layer_warnings(const Layer& layer, QStringList& warnings, bool native_color_candidate) {
   append_unrendered_style_warnings(layer, warnings);
   if (!layer.raw_psd_blending_ranges().empty() &&
       layer.blend_if_payload_status() == BlendIfPayloadStatus::Unsupported) {
@@ -114,7 +114,7 @@ void append_layer_warnings(const Layer& layer, QStringList& warnings) {
                        .arg(unknown_blocks);
     }
     for (const auto& child : layer.children()) {
-      append_layer_warnings(child, warnings);
+      append_layer_warnings(child, warnings, native_color_candidate);
     }
     return;
   }
@@ -150,7 +150,7 @@ void append_layer_warnings(const Layer& layer, QStringList& warnings) {
       warnings << QObject::tr("%1 is a Patchy-native adjustment layer; it round-trips in Patchy PSDs but may "
                               "appear as an unsupported adjustment in other editors.")
                        .arg(QString::fromStdString(layer.name()));
-    } else if (adjustment_runs_in_ink_space(*settings)) {
+    } else if (!native_color_candidate && adjustment_runs_in_ink_space(*settings)) {
       // The layer came from a CMYK document and is evaluated on its inks (InkSpace).
       // An RGB save cannot carry that meaning.
       warnings << (settings->ink_space->is_gray()
@@ -194,8 +194,12 @@ QString report_text(const QStringList& warnings) {
 
 QStringList compatibility_warnings_for_document(const Document& document) {
   QStringList warnings;
+  const bool native_color_candidate = document.metadata().psd_native_color_space != nullptr;
   const auto color_mode = document.metadata().values.find("psd.color_mode");
-  if (color_mode != document.metadata().values.end() && color_mode->second != "RGB") {
+  if (native_color_candidate) {
+    warnings << QObject::tr("Patchy edits this file in RGB. Unchanged supported layers can be saved in the original "
+                            "16-bit color mode. Content edits or unsupported layers require RGB saving, which can change gradients and adjustments.");
+  } else if (color_mode != document.metadata().values.end() && color_mode->second != "RGB") {
     if (color_mode->second == "CMYK") {
       warnings << QObject::tr("The source color mode is CMYK; Patchy converted the pixels to RGB/RGBA for editing "
                               "and will export RGB PSD data from this document.");
@@ -237,7 +241,7 @@ QStringList compatibility_warnings_for_document(const Document& document) {
     }
   }
   for (const auto& layer : document.layers()) {
-    append_layer_warnings(layer, warnings);
+    append_layer_warnings(layer, warnings, native_color_candidate);
   }
 
   warnings.removeDuplicates();

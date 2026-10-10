@@ -6,6 +6,11 @@ Layer-style placement adds Linear, Radial, Angle, Reflected, and Diamond geometr
 
 ## Rendering
 
+Imported 16-bit CMYK, grayscale and Lab gradients retain their original
+descriptors and document mode on eligible layered saves:
+[native color preservation](psd-native-color.md). Their RGB editing preview
+still interpolates the converted stops.
+
 - Classic applies the stored smoothness as cubic interpolation after destination-stop midpoint remapping.
 - Perceptual interpolates in OKLab.
 - Linear interpolates in linear-light RGB.

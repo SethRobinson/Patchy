@@ -379,6 +379,14 @@ Layer Layer::clone_with_id(LayerId id) const {
   return cloned;
 }
 
+const std::shared_ptr<const PsdNativeLayerColors>& Layer::psd_native_colors() const noexcept {
+  return psd_native_colors_;
+}
+
+void Layer::set_psd_native_colors(std::shared_ptr<const PsdNativeLayerColors> colors) noexcept {
+  psd_native_colors_ = std::move(colors);
+}
+
 std::optional<std::uint32_t>
 photoshop_layer_id(const Layer& layer) noexcept {
   for (const auto& block : layer.unknown_psd_blocks()) {

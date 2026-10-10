@@ -837,14 +837,15 @@ void apply_compound_vector_resource(Document& document, std::span<const std::uin
 }
 
 std::vector<std::uint8_t> image_resources_for_document(const Document& document,
-                                                       std::span<const CompositeChannelInfo> channels) {
+                                                       std::span<const CompositeChannelInfo> channels,
+                                                       std::uint16_t output_mode) {
   auto resources = document.metadata().raw_psd_image_resources;
   auto parsed = read_image_resources(resources);
   if (!parsed.has_value()) {
     parsed = std::vector<ImageResource>{};
   }
   if (const auto color_mode = document.metadata().values.find("psd.color_mode");
-      color_mode != document.metadata().values.end() && color_mode->second != "RGB") {
+      output_mode == kColorModeRgb && color_mode != document.metadata().values.end() && color_mode->second != "RGB") {
     remove_image_resource(*parsed, kImageResourceIccProfile);
   }
 
@@ -861,7 +862,7 @@ std::vector<std::uint8_t> image_resources_for_document(const Document& document,
   if (had_grid_guides_resource || has_non_default_grid_guides) {
     upsert_image_resource(*parsed, kImageResourceGridAndGuidesInfo, grid_guides_resource_for_document(document));
   }
-  if (!document.color_state().embedded_icc_profile.empty()) {
+  if (output_mode == kColorModeRgb && !document.color_state().embedded_icc_profile.empty()) {
     upsert_image_resource(*parsed, kImageResourceIccProfile, document.color_state().embedded_icc_profile);
   }
   if (!channels.empty()) {

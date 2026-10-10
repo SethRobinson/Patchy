@@ -875,8 +875,11 @@ void ui_compatibility_report_warns_about_cmyk_ink_adjustments() {
   space->ink_to_rgb.assign(2U * 2U * 2U * 2U * 3U, std::uint16_t{32768});
   patchy::register_ink_space(space);
 
-  const auto warnings_for = [&](patchy::AdjustmentKind kind, bool in_ink_space) {
+  const auto warnings_for = [&](patchy::AdjustmentKind kind, bool in_ink_space, bool native_color = false) {
     patchy::Document document(60, 40, patchy::PixelFormat::rgb8());
+    if (native_color) {
+      document.metadata().psd_native_color_space = std::make_shared<patchy::PsdNativeColorSpace>();
+    }
     document.add_pixel_layer("Background", solid_pixels(60, 40, patchy::PixelFormat::rgb8(), QColor(Qt::white)));
     patchy::AdjustmentSettings settings;
     settings.kind = kind;
@@ -898,6 +901,11 @@ void ui_compatibility_report_warns_about_cmyk_ink_adjustments() {
   // The same layer in an RGB document, and a kind that stays on RGB math, say nothing.
   CHECK(warnings_for(patchy::AdjustmentKind::Levels, false).isEmpty());
   CHECK(warnings_for(patchy::AdjustmentKind::HueSaturation, true).isEmpty());
+  const auto native = warnings_for(patchy::AdjustmentKind::Levels, true, true);
+  CHECK(native.size() == 1);
+  CHECK(native.front().contains(QStringLiteral("original 16-bit color mode")));
+  CHECK(native.front().contains(QStringLiteral("Content edits or unsupported layers require RGB saving")));
+  CHECK(!native.front().contains(QStringLiteral("Patchy saves RGB files")));
 
   // A grayscale document's space is the one-channel form, and the wording follows it.
   auto gray = std::make_shared<patchy::InkSpace>();
@@ -3105,3 +3113,4 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_hotkey_duplicate_ids_fail_without_replacing_the_command", ui_hotkey_duplicate_ids_fail_without_replacing_the_command},
   };
 }
+#include "core/psd_source_colors.hpp"

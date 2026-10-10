@@ -9225,6 +9225,10 @@ RGB: %2, %3, %4</translation>
         <source>%1: %2 mip levels, %3 x %4 down to %5 x %6, %7 of texture data.</source>
         <translation>%1: poziomy mip: %2, od %3 x %4 do %5 x %6, %7 danych tekstury.</translation>
     </message>
+    <message>
+        <source>Patchy edits this file in RGB. Unchanged supported layers can be saved in the original 16-bit color mode. Content edits or unsupported layers require RGB saving, which can change gradients and adjustments.</source>
+        <translation>Patchy edytuje ten plik w RGB. Niezmienione obsługiwane warstwy można zapisać w oryginalnym 16-bitowym trybie kolorów. Zmiany zawartości lub nieobsługiwane warstwy wymagają zapisu w RGB, co może zmienić gradienty i korekty.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
