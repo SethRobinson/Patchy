@@ -421,6 +421,8 @@ add_library(patchy_filters
   src/filters/deep_filters.cpp
   src/filters/deep_filters.hpp
   src/filters/filter_engine.cpp
+  src/filters/filter_kernels.cpp
+  src/filters/filter_kernels.hpp
   src/filters/filter_registry.cpp
   src/filters/filter_support.hpp
   src/filters/rgba_filter_staging.hpp

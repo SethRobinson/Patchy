@@ -1,4 +1,5 @@
 #include "filters/filter_engine.hpp"
+#include "filters/filter_kernels.hpp"
 #include "filters/auto_levels_math.hpp"
 #include "filters/smart_filter_renderer.hpp"
 #include "filters/filter_registry.hpp"
@@ -92,16 +93,6 @@ void warm_tint(PixelBuffer& pixels, int red, int green, int blue) {
   }
 }
 
-std::uint32_t noise_hash(std::int32_t x, std::int32_t y, std::uint32_t seed) noexcept {
-  auto value = static_cast<std::uint32_t>(x + 16384) * 374761393U;
-  value ^= static_cast<std::uint32_t>(y + 8192) * 668265263U;
-  value ^= seed * 2246822519U;
-  value ^= value >> 13U;
-  value *= 1274126177U;
-  value ^= value >> 16U;
-  return value;
-}
-
 double smooth_noise_step(double value) {
   value = std::clamp(value, 0.0, 1.0);
   return value * value * (3.0 - 2.0 * value);
@@ -113,7 +104,7 @@ double lattice_noise(double x, double y, std::uint32_t seed) {
   const auto tx = smooth_noise_step(x - static_cast<double>(x0));
   const auto ty = smooth_noise_step(y - static_cast<double>(y0));
   const auto sample = [seed](std::int32_t sx, std::int32_t sy) {
-    return static_cast<double>(noise_hash(sx, sy, seed) & 0xffffU) / 65535.0;
+    return static_cast<double>(position_noise_hash(sx, sy, seed) & 0xffffU) / 65535.0;
   };
   const auto a = sample(x0, y0) * (1.0 - tx) + sample(x0 + 1, y0) * tx;
   const auto b = sample(x0, y0 + 1) * (1.0 - tx) + sample(x0 + 1, y0 + 1) * tx;
@@ -203,51 +194,16 @@ void twirl_with_settings(PixelBuffer& pixels, int angle_degrees, int radius_perc
   }
 }
 
-double sampled_luminance(const PixelBuffer& pixels, double x, double y) {
-  x = std::clamp(x, 0.0, static_cast<double>(std::max<std::int32_t>(0, pixels.width() - 1)));
-  y = std::clamp(y, 0.0, static_cast<double>(std::max<std::int32_t>(0, pixels.height() - 1)));
-  const auto x0 = static_cast<std::int32_t>(std::floor(x));
-  const auto y0 = static_cast<std::int32_t>(std::floor(y));
-  const auto x1 = std::min<std::int32_t>(pixels.width() - 1, x0 + 1);
-  const auto y1 = std::min<std::int32_t>(pixels.height() - 1, y0 + 1);
-  const auto tx = x - static_cast<double>(x0);
-  const auto ty = y - static_cast<double>(y0);
-  const auto l00 = static_cast<double>(luminance_of(pixels.pixel(x0, y0)));
-  const auto l10 = static_cast<double>(luminance_of(pixels.pixel(x1, y0)));
-  const auto l01 = static_cast<double>(luminance_of(pixels.pixel(x0, y1)));
-  const auto l11 = static_cast<double>(luminance_of(pixels.pixel(x1, y1)));
-  const auto top = l00 * (1.0 - tx) + l10 * tx;
-  const auto bottom = l01 * (1.0 - tx) + l11 * tx;
-  return top * (1.0 - ty) + bottom * ty;
-}
-
 void emboss_with_settings(PixelBuffer& pixels, int angle_degrees, int height, int amount) {
   require_uint8(pixels);
   if (pixels.format().channels < 3 || pixels.empty()) {
     return;
   }
 
+  // The legacy clamps (height 1..24, amount 0..300) on the shared kernel; no progress.
   const auto original = pixels;
-  const auto angle = static_cast<double>(angle_degrees) * 3.14159265358979323846 / 180.0;
-  const auto distance = static_cast<double>(std::clamp(height, 1, 24));
-  const auto offset_x = std::cos(angle) * distance;
-  const auto offset_y = -std::sin(angle) * distance;
-  amount = std::clamp(amount, 0, 300);
-
-  for (std::int32_t y = 0; y < pixels.height(); ++y) {
-    for (std::int32_t x = 0; x < pixels.width(); ++x) {
-      const auto highlight = sampled_luminance(original, static_cast<double>(x) - offset_x,
-                                               static_cast<double>(y) - offset_y);
-      const auto shadow = sampled_luminance(original, static_cast<double>(x) + offset_x,
-                                            static_cast<double>(y) + offset_y);
-      const auto value =
-          clamp_byte(static_cast<int>(std::lround(128.0 + (highlight - shadow) * static_cast<double>(amount) / 100.0)));
-      auto* px = pixels.pixel(x, y);
-      px[0] = value;
-      px[1] = value;
-      px[2] = value;
-    }
-  }
+  emboss_kernel(pixels, original, angle_degrees, static_cast<double>(std::clamp(height, 1, 24)),
+                std::clamp(amount, 0, 300), nullptr);
 }
 
 void invert(PixelBuffer& pixels) {
@@ -442,65 +398,17 @@ void posterize(PixelBuffer& pixels) {
   }
 }
 
-struct PixelAccum {
-  std::array<double, 3> premultiplied_color{0.0, 0.0, 0.0};
-  double alpha{0.0};
-  double weight{0.0};
-};
-
-void accumulate_pixel(PixelAccum& accum, const PixelBuffer& original, const std::uint8_t* px, double weight) {
-  if (weight <= 0.0) {
-    return;
-  }
-  const auto alpha = original.format().channels >= 4 ? static_cast<double>(px[3]) / 255.0 : 1.0;
-  accum.weight += weight;
-  accum.alpha += alpha * weight;
-  for (std::uint16_t channel = 0; channel < std::min<std::uint16_t>(original.format().channels, 3); ++channel) {
-    accum.premultiplied_color[static_cast<std::size_t>(channel)] += static_cast<double>(px[channel]) * alpha * weight;
-  }
-}
-
-void accumulate_sample(PixelAccum& accum, const PixelBuffer& original, double x, double y, double weight = 1.0) {
-  x = std::clamp(x, 0.0, static_cast<double>(std::max<std::int32_t>(0, original.width() - 1)));
-  y = std::clamp(y, 0.0, static_cast<double>(std::max<std::int32_t>(0, original.height() - 1)));
-  const auto x0 = static_cast<std::int32_t>(std::floor(x));
-  const auto y0 = static_cast<std::int32_t>(std::floor(y));
-  const auto x1 = std::min<std::int32_t>(original.width() - 1, x0 + 1);
-  const auto y1 = std::min<std::int32_t>(original.height() - 1, y0 + 1);
-  const auto tx = x - static_cast<double>(x0);
-  const auto ty = y - static_cast<double>(y0);
-  accumulate_pixel(accum, original, original.pixel(x0, y0), weight * (1.0 - tx) * (1.0 - ty));
-  accumulate_pixel(accum, original, original.pixel(x1, y0), weight * tx * (1.0 - ty));
-  accumulate_pixel(accum, original, original.pixel(x0, y1), weight * (1.0 - tx) * ty);
-  accumulate_pixel(accum, original, original.pixel(x1, y1), weight * tx * ty);
-}
-
-void write_accumulated_pixel(PixelBuffer& pixels, std::int32_t x, std::int32_t y, const PixelAccum& accum) {
-  auto* dst = pixels.pixel(x, y);
-  const auto channels = pixels.format().channels;
-  const auto normalized_alpha = channels >= 4 && accum.weight > 0.0 ? accum.alpha / accum.weight : 1.0;
-  for (std::uint16_t channel = 0; channel < std::min<std::uint16_t>(channels, 3); ++channel) {
-    const auto value = accum.alpha > 0.000001
-                           ? accum.premultiplied_color[static_cast<std::size_t>(channel)] / accum.alpha
-                           : 0.0;
-    dst[channel] = clamp_byte(static_cast<int>(std::lround(value)));
-  }
-  if (channels >= 4) {
-    dst[3] = clamp_byte(static_cast<int>(std::lround(normalized_alpha * 255.0)));
-  }
-}
-
 void write_blurred_pixel(PixelBuffer& pixels, const PixelBuffer& original, std::int32_t x, std::int32_t y, int radius,
                          bool weighted) {
   radius = std::clamp(radius, 1, 32);
-  PixelAccum accum;
+  PremultipliedAccum accum;
   for (int dy = -radius; dy <= radius; ++dy) {
     const auto sy = std::clamp<std::int32_t>(y + dy, 0, original.height() - 1);
     const auto y_weight = weighted ? radius + 1 - std::abs(dy) : 1;
     for (int dx = -radius; dx <= radius; ++dx) {
       const auto sx = std::clamp<std::int32_t>(x + dx, 0, original.width() - 1);
       const auto x_weight = weighted ? radius + 1 - std::abs(dx) : 1;
-      accumulate_pixel(accum, original, original.pixel(sx, sy), static_cast<double>(x_weight * y_weight));
+      accumulate_premultiplied_pixel(accum, original, original.pixel(sx, sy), static_cast<double>(x_weight * y_weight));
     }
   }
   write_accumulated_pixel(pixels, x, y, accum);
@@ -554,12 +462,12 @@ void gaussian_blur(PixelBuffer& pixels) {
   const auto original = pixels;
   for (std::int32_t y = 0; y < pixels.height(); ++y) {
     for (std::int32_t x = 0; x < pixels.width(); ++x) {
-      PixelAccum accum;
+      PremultipliedAccum accum;
       for (int ky = -2; ky <= 2; ++ky) {
         const auto sy = std::clamp<std::int32_t>(y + ky, 0, pixels.height() - 1);
         for (int kx = -2; kx <= 2; ++kx) {
           const auto sx = std::clamp<std::int32_t>(x + kx, 0, pixels.width() - 1);
-          accumulate_pixel(accum, original, original.pixel(sx, sy),
+          accumulate_premultiplied_pixel(accum, original, original.pixel(sx, sy),
                            static_cast<double>(weights[static_cast<std::size_t>(kx + 2)] *
                                                weights[static_cast<std::size_t>(ky + 2)]));
         }
@@ -708,24 +616,9 @@ void pixelate(PixelBuffer& pixels) {
     return;
   }
 
+  // In place: the kernel reads each 4 px block completely before writing it.
   constexpr std::int32_t kBlockSize = 4;
-  for (std::int32_t block_y = 0; block_y < pixels.height(); block_y += kBlockSize) {
-    for (std::int32_t block_x = 0; block_x < pixels.width(); block_x += kBlockSize) {
-      const auto block_width = std::min(kBlockSize, pixels.width() - block_x);
-      const auto block_height = std::min(kBlockSize, pixels.height() - block_y);
-      PixelAccum accum;
-      for (std::int32_t y = block_y; y < block_y + block_height; ++y) {
-        for (std::int32_t x = block_x; x < block_x + block_width; ++x) {
-          accumulate_pixel(accum, pixels, pixels.pixel(x, y), 1.0);
-        }
-      }
-      for (std::int32_t y = block_y; y < block_y + block_height; ++y) {
-        for (std::int32_t x = block_x; x < block_x + block_width; ++x) {
-          write_accumulated_pixel(pixels, x, y, accum);
-        }
-      }
-    }
-  }
+  mosaic_kernel(pixels, pixels, kBlockSize, nullptr);
 }
 
 std::uint32_t coordinate_hash(std::int32_t x, std::int32_t y, std::uint16_t channel) noexcept {
@@ -782,8 +675,8 @@ void vignette(PixelBuffer& pixels) {
 
 void copy_sampled_pixel(PixelBuffer& pixels, const PixelBuffer& original, std::int32_t x, std::int32_t y,
                         double source_x, double source_y) {
-  PixelAccum accum;
-  accumulate_sample(accum, original, source_x, source_y);
+  PremultipliedAccum accum;
+  accumulate_bilinear_sample(accum, original, source_x, source_y);
   write_accumulated_pixel(pixels, x, y, accum);
 }
 
@@ -828,9 +721,9 @@ void motion_blur(PixelBuffer& pixels) {
   constexpr int kDistance = 12;
   for (std::int32_t y = 0; y < pixels.height(); ++y) {
     for (std::int32_t x = 0; x < pixels.width(); ++x) {
-      PixelAccum accum;
+      PremultipliedAccum accum;
       for (int sample = -kDistance; sample <= kDistance; ++sample) {
-        accumulate_sample(accum, original, static_cast<double>(x + sample), static_cast<double>(y));
+        accumulate_bilinear_sample(accum, original, static_cast<double>(x + sample), static_cast<double>(y));
       }
       write_accumulated_pixel(pixels, x, y, accum);
     }
@@ -844,24 +737,11 @@ void radial_blur(PixelBuffer& pixels) {
   }
 
   const auto original = pixels;
+  constexpr int kAmount = 35;
   constexpr int kSamples = 16;
-  constexpr double kSweep = 35.0 * 3.6 * kBuiltinPi / 180.0;
   const auto center_x = (static_cast<double>(pixels.width()) - 1.0) * 0.5;
   const auto center_y = (static_cast<double>(pixels.height()) - 1.0) * 0.5;
-  for (std::int32_t y = 0; y < pixels.height(); ++y) {
-    for (std::int32_t x = 0; x < pixels.width(); ++x) {
-      const auto dx = static_cast<double>(x) - center_x;
-      const auto dy = static_cast<double>(y) - center_y;
-      PixelAccum accum;
-      for (int sample = 0; sample < kSamples; ++sample) {
-        const auto t = static_cast<double>(sample) / static_cast<double>(kSamples - 1) - 0.5;
-        const auto angle = kSweep * t;
-        accumulate_sample(accum, original, center_x + dx * std::cos(angle) - dy * std::sin(angle),
-                          center_y + dx * std::sin(angle) + dy * std::cos(angle));
-      }
-      write_accumulated_pixel(pixels, x, y, accum);
-    }
-  }
+  radial_blur_kernel(pixels, original, kAmount, kSamples, center_x, center_y, nullptr);
 }
 
 void wave(PixelBuffer& pixels) {

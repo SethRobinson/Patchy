@@ -1984,6 +1984,47 @@ void filter_invocations_normalize_scale_and_reject_bad_data() {
   CHECK(!registry.supports(typed));
 }
 
+// Emboss, Pixel Mosaic and Radial Blur run both execution paths through one kernel
+// (filter_kernels.cpp). Their legacy defaults always equalled the named defaults;
+// this pins that the shared body keeps them equal, on RGBA and on RGB input.
+void filter_legacy_and_named_defaults_share_kernels() {
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  const auto fill = [](patchy::PixelBuffer &buffer) {
+    for (std::int32_t y = 0; y < buffer.height(); ++y) {
+      for (std::int32_t x = 0; x < buffer.width(); ++x) {
+        auto *pixel = buffer.pixel(x, y);
+        pixel[0] = static_cast<std::uint8_t>((x * 37 + y * 5) % 256);
+        pixel[1] = static_cast<std::uint8_t>((x * 13 + y * 31) % 256);
+        pixel[2] = static_cast<std::uint8_t>((x * 23 + y * 17) % 256);
+        if (buffer.format().channels >= 4) {
+          pixel[3] = static_cast<std::uint8_t>(x % 3 == 0 ? 90 : 255);
+        }
+      }
+    }
+  };
+  const auto equal_pixels = [](const patchy::PixelBuffer &left,
+                               const patchy::PixelBuffer &right) {
+    return left.format() == right.format() && left.width() == right.width() &&
+           left.height() == right.height() &&
+           std::equal(left.data().begin(), left.data().end(),
+                      right.data().begin());
+  };
+  for (const auto format : {patchy::PixelFormat::rgba8(), patchy::PixelFormat::rgb8()}) {
+    patchy::PixelBuffer source(19, 11, format);
+    fill(source);
+    for (const auto *identifier : {"patchy.filters.emboss", "patchy.filters.pixelate",
+                                   "patchy.filters.radial_blur"}) {
+      auto legacy = source;
+      registry.apply(identifier, legacy);
+      auto named = source;
+      registry.apply(registry.default_invocation(identifier), named);
+      CHECK(equal_pixels(legacy, named));
+      CHECK(!equal_pixels(legacy, source));
+    }
+  }
+}
+
 void filter_centers_preserve_defaults_move_effects_and_survive_padding() {
   patchy::FilterRegistry registry;
   patchy::register_builtin_filters(registry);
@@ -3104,6 +3145,7 @@ std::vector<patchy::test::TestCase> document_ops_filters_tests() {
        filter_invocations_normalize_scale_and_reject_bad_data},
       {"filter_centers_preserve_defaults_move_effects_and_survive_padding",
        filter_centers_preserve_defaults_move_effects_and_survive_padding},
+      {"filter_legacy_and_named_defaults_share_kernels", filter_legacy_and_named_defaults_share_kernels},
       {"filter_named_engine_recipes_bounds_colors_and_legacy_stay_distinct",
        filter_named_engine_recipes_bounds_colors_and_legacy_stay_distinct},
       {"filter_recipe_opacity_interpolates_rgba_results",

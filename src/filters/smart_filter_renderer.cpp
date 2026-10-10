@@ -3,6 +3,7 @@
 #include "core/blend_math.hpp"
 #include "core/rect_utils.hpp"
 #include "core/worker_budget.hpp"
+#include "filters/filter_kernels.hpp"
 #include "filters/filter_support.hpp"
 #include "support/translate_noop.hpp"
 
@@ -67,7 +68,6 @@ constexpr double kMinimumAddNoiseAmount = 0.1;
 constexpr double kMaximumAddNoiseAmount = 400.0;
 constexpr std::int32_t kMinimumAddNoiseSeed = 0;
 constexpr std::int32_t kMaximumAddNoiseSeed = 999999999;
-constexpr std::int32_t kBoxBlurDirectMaximumRadius = 12;
 constexpr double kGaussianMarginScale = 3.0;
 constexpr double kDirectGaussianMaximumRadius = 8.0;
 constexpr int kProgressScale = 1000000;
@@ -2303,163 +2303,9 @@ apply_stack_mask(const FilterRenderResult &base,
                             cropped_bounds};
 }
 
-// The destructive Box Blur math, verbatim: an alpha-weighted separable box
-// average over an edge-clamped window, accumulated in doubles, written as
-// straight color with the normalized alpha. Used for radii through
-// kBoxBlurDirectMaximumRadius so the smart filter matches the destructive
-// path byte for byte.
-[[nodiscard]] FilterRenderResult render_box_blur_direct(
-    const FilterRenderResult &input, std::int32_t radius,
-    const FilterProgress *progress) {
-  const auto width = input.pixels.width();
-  const auto height = input.pixels.height();
-  auto result = input;
-  const auto taps = 2 * radius + 1;
-  const auto axis_weight_sum = static_cast<double>(taps);
-  const auto total_weight = axis_weight_sum * axis_weight_sum;
-
-  const auto row_stride = static_cast<std::size_t>(width) * 4U;
-  std::vector<double> h_rows(row_stride * static_cast<std::size_t>(taps), 0.0);
-  int h_rows_built_through = -1;
-  const auto build_h_row = [&](std::int32_t source_y, double *out) {
-    std::fill(out, out + row_stride, 0.0);
-    for (int dx = -radius; dx <= radius; ++dx) {
-      for (std::int32_t x = 0; x < width; ++x) {
-        const auto sx = std::clamp<std::int32_t>(x + dx, 0, width - 1);
-        const auto *px = input.pixels.pixel(sx, source_y);
-        const auto alpha = static_cast<double>(px[3]) / 255.0;
-        auto *accum = out + static_cast<std::size_t>(x) * 4U;
-        for (int channel = 0; channel < 3; ++channel) {
-          accum[channel] += static_cast<double>(px[channel]) * alpha;
-        }
-        accum[3] += alpha;
-      }
-    }
-  };
-  const auto h_row_for = [&](std::int32_t source_y) -> const double * {
-    return h_rows.data() +
-           static_cast<std::size_t>(source_y % taps) * row_stride;
-  };
-
-  std::vector<double> v_accum(row_stride);
-  for (std::int32_t y = 0; y < height; ++y) {
-    report_progress(progress, y, height, FilterProgressStage::Blurring);
-    const auto needed_through = std::min<std::int32_t>(height - 1, y + radius);
-    while (h_rows_built_through < needed_through) {
-      ++h_rows_built_through;
-      build_h_row(h_rows_built_through,
-                  h_rows.data() +
-                      static_cast<std::size_t>(h_rows_built_through % taps) *
-                          row_stride);
-    }
-    std::fill(v_accum.begin(), v_accum.end(), 0.0);
-    for (int dy = -radius; dy <= radius; ++dy) {
-      const auto sy = std::clamp<std::int32_t>(y + dy, 0, height - 1);
-      const auto *h_row = h_row_for(sy);
-      for (std::size_t i = 0; i < row_stride; ++i) {
-        v_accum[i] += h_row[i];
-      }
-    }
-    for (std::int32_t x = 0; x < width; ++x) {
-      const auto *accum = v_accum.data() + static_cast<std::size_t>(x) * 4U;
-      auto *dst = result.pixels.pixel(x, y);
-      const auto alpha_sum = accum[3];
-      for (int channel = 0; channel < 3; ++channel) {
-        const auto value =
-            alpha_sum > 0.000001 ? accum[channel] / alpha_sum : 0.0;
-        dst[channel] = static_cast<std::uint8_t>(
-            std::clamp(std::lround(value), 0L, 255L));
-      }
-      dst[3] = static_cast<std::uint8_t>(std::clamp(
-          std::lround(alpha_sum / total_weight * 255.0), 0L, 255L));
-    }
-  }
-  report_progress(progress, height, height, FilterProgressStage::Blurring);
-  return result;
-}
-
-// Large-radius Box Blur: an exact integer sliding-window box average with
-// the same edge-clamped sampling. The alpha-weighted quotient
-// sum(color * alpha) / sum(alpha) is computed on raw bytes (the /255
-// normalization cancels), so the math is deterministic across toolchains.
-[[nodiscard]] FilterRenderResult render_box_blur_sliding(
-    const FilterRenderResult &input, std::int32_t radius,
-    const FilterProgress *progress) {
-  const auto width = input.pixels.width();
-  const auto height = input.pixels.height();
-  auto result = input;
-  const auto taps = static_cast<std::int64_t>(2) * radius + 1;
-  const auto total_weight = static_cast<double>(taps) * static_cast<double>(taps);
-
-  const auto row_stride = static_cast<std::size_t>(width) * 4U;
-  const auto term = [&](std::int32_t x, std::int32_t y, int channel) {
-    const auto *px = input.pixels.pixel(x, y);
-    return channel < 3 ? static_cast<std::int64_t>(px[channel]) *
-                             static_cast<std::int64_t>(px[3])
-                       : static_cast<std::int64_t>(px[3]);
-  };
-  // Horizontal sliding sums for one source row.
-  std::vector<std::int64_t> h_row(row_stride);
-  const auto build_h_row = [&](std::int32_t source_y) {
-    std::array<std::int64_t, 4> window{};
-    for (std::int32_t t = -radius; t <= radius; ++t) {
-      const auto sx = std::clamp<std::int32_t>(t, 0, width - 1);
-      for (int channel = 0; channel < 4; ++channel) {
-        window[static_cast<std::size_t>(channel)] += term(sx, source_y, channel);
-      }
-    }
-    for (std::int32_t x = 0; x < width; ++x) {
-      auto *out = h_row.data() + static_cast<std::size_t>(x) * 4U;
-      for (int channel = 0; channel < 4; ++channel) {
-        out[channel] = window[static_cast<std::size_t>(channel)];
-      }
-      const auto leaving = std::clamp<std::int32_t>(x - radius, 0, width - 1);
-      const auto entering =
-          std::clamp<std::int32_t>(x + 1 + radius, 0, width - 1);
-      for (int channel = 0; channel < 4; ++channel) {
-        window[static_cast<std::size_t>(channel)] +=
-            term(entering, source_y, channel) - term(leaving, source_y, channel);
-      }
-    }
-  };
-  // Vertical sliding sums of the horizontal sums.
-  std::vector<std::int64_t> v_accum(row_stride, 0);
-  const auto add_row = [&](std::int32_t source_y, std::int64_t sign) {
-    build_h_row(source_y);
-    for (std::size_t i = 0; i < row_stride; ++i) {
-      v_accum[i] += sign * h_row[i];
-    }
-  };
-  for (std::int32_t t = -radius; t <= radius; ++t) {
-    add_row(std::clamp<std::int32_t>(t, 0, height - 1), 1);
-  }
-  for (std::int32_t y = 0; y < height; ++y) {
-    report_progress(progress, y, height, FilterProgressStage::Blurring);
-    for (std::int32_t x = 0; x < width; ++x) {
-      const auto *accum = v_accum.data() + static_cast<std::size_t>(x) * 4U;
-      auto *dst = result.pixels.pixel(x, y);
-      const auto alpha_sum = accum[3];
-      for (int channel = 0; channel < 3; ++channel) {
-        const auto value = alpha_sum > 0
-                               ? static_cast<double>(accum[channel]) /
-                                     static_cast<double>(alpha_sum)
-                               : 0.0;
-        dst[channel] = static_cast<std::uint8_t>(
-            std::clamp(std::lround(value), 0L, 255L));
-      }
-      dst[3] = static_cast<std::uint8_t>(std::clamp(
-          std::lround(static_cast<double>(alpha_sum) / total_weight), 0L,
-          255L));
-    }
-    if (y + 1 < height) {
-      add_row(std::clamp<std::int32_t>(y - radius, 0, height - 1), -1);
-      add_row(std::clamp<std::int32_t>(y + 1 + radius, 0, height - 1), 1);
-    }
-  }
-  report_progress(progress, height, height, FilterProgressStage::Blurring);
-  return result;
-}
-
+// The destructive Box Blur math (box_blur_kernel: the direct double-precision
+// path through radius 12, the exact integer running sum above), so the smart
+// filter matches the destructive path byte for byte.
 [[nodiscard]] FilterRenderResult render_box_blur_effect(
     const FilterRenderResult &input, std::int32_t radius,
     const FilterProgress *progress) {
@@ -2469,10 +2315,10 @@ apply_stack_mask(const FilterRenderResult &base,
   }
   radius = std::clamp(radius, 1,
                       static_cast<std::int32_t>(kMaximumBoxBlurRadius));
-  if (radius <= kBoxBlurDirectMaximumRadius) {
-    return render_box_blur_direct(input, radius, progress);
-  }
-  return render_box_blur_sliding(input, radius, progress);
+  auto result = input;
+  box_blur_kernel(result.pixels, input.pixels, radius, /*weighted=*/false,
+                  progress);
+  return result;
 }
 
 // The destructive Emboss math: bilinear edge-clamped luminance samples at
@@ -2488,139 +2334,10 @@ apply_stack_mask(const FilterRenderResult &base,
     report_progress(progress, 1, 1, FilterProgressStage::Embossing);
     return input;
   }
-  constexpr double kPi = 3.14159265358979323846;
-  const auto luminance = [](const std::uint8_t *px) {
-    return (static_cast<int>(px[0]) * 30 + static_cast<int>(px[1]) * 59 +
-            static_cast<int>(px[2]) * 11) /
-           100;
-  };
-  const auto sampled_luminance = [&](double x, double y) {
-    x = std::clamp(
-        x, 0.0,
-        static_cast<double>(
-            std::max<std::int32_t>(0, input.pixels.width() - 1)));
-    y = std::clamp(
-        y, 0.0,
-        static_cast<double>(
-            std::max<std::int32_t>(0, input.pixels.height() - 1)));
-    const auto x0 = static_cast<std::int32_t>(std::floor(x));
-    const auto y0 = static_cast<std::int32_t>(std::floor(y));
-    const auto x1 = std::min<std::int32_t>(input.pixels.width() - 1, x0 + 1);
-    const auto y1 = std::min<std::int32_t>(input.pixels.height() - 1, y0 + 1);
-    const auto tx = x - static_cast<double>(x0);
-    const auto ty = y - static_cast<double>(y0);
-    const auto l00 = static_cast<double>(luminance(input.pixels.pixel(x0, y0)));
-    const auto l10 = static_cast<double>(luminance(input.pixels.pixel(x1, y0)));
-    const auto l01 = static_cast<double>(luminance(input.pixels.pixel(x0, y1)));
-    const auto l11 = static_cast<double>(luminance(input.pixels.pixel(x1, y1)));
-    const auto top = l00 * (1.0 - tx) + l10 * tx;
-    const auto bottom = l01 * (1.0 - tx) + l11 * tx;
-    return top * (1.0 - ty) + bottom * ty;
-  };
-  const auto angle = static_cast<double>(angle_degrees) * kPi / 180.0;
-  const auto distance = static_cast<double>(height_pixels);
-  const auto offset_x = std::cos(angle) * distance;
-  const auto offset_y = -std::sin(angle) * distance;
   auto result = input;
-  for (std::int32_t y = 0; y < result.pixels.height(); ++y) {
-    report_progress(progress, y, result.pixels.height(),
-                    FilterProgressStage::Embossing);
-    for (std::int32_t x = 0; x < result.pixels.width(); ++x) {
-      const auto highlight = sampled_luminance(
-          static_cast<double>(x) - offset_x, static_cast<double>(y) - offset_y);
-      const auto shadow = sampled_luminance(
-          static_cast<double>(x) + offset_x, static_cast<double>(y) + offset_y);
-      const auto value = static_cast<std::uint8_t>(std::clamp(
-          std::lround(128.0 + (highlight - shadow) *
-                                  static_cast<double>(amount_percent) / 100.0),
-          0L, 255L));
-      auto *px = result.pixels.pixel(x, y);
-      px[0] = value;
-      px[1] = value;
-      px[2] = value;
-    }
-  }
-  report_progress(progress, result.pixels.height(), result.pixels.height(),
-                  FilterProgressStage::Embossing);
+  emboss_kernel(result.pixels, input.pixels, angle_degrees,
+                static_cast<double>(height_pixels), amount_percent, progress);
   return result;
-}
-
-// Verbatim replicas of filter_engine.cpp's bilinear premultiplied sampling
-// helpers so render_radial_blur stays byte-identical to the destructive
-// patchy.filters.radial_blur (pinned by
-// smart_filter_radial_blur_matches_destructive); keep both in sync.
-constexpr double kRadialBlurPi = 3.14159265358979323846;
-
-struct RadialBlurAccum {
-  std::array<double, 3> premultiplied_color{0.0, 0.0, 0.0};
-  double alpha{0.0};
-  double weight{0.0};
-};
-
-void radial_blur_accumulate_pixel(RadialBlurAccum &accum,
-                                  const PixelBuffer &original,
-                                  const std::uint8_t *px, double weight) {
-  if (weight <= 0.0) {
-    return;
-  }
-  const auto alpha = original.format().channels >= 4
-                         ? static_cast<double>(px[3]) / 255.0
-                         : 1.0;
-  accum.weight += weight;
-  accum.alpha += alpha * weight;
-  for (std::uint16_t channel = 0;
-       channel < std::min<std::uint16_t>(original.format().channels, 3);
-       ++channel) {
-    accum.premultiplied_color[static_cast<std::size_t>(channel)] +=
-        static_cast<double>(px[channel]) * alpha * weight;
-  }
-}
-
-void radial_blur_accumulate_sample(RadialBlurAccum &accum,
-                                   const PixelBuffer &original, double x,
-                                   double y, double weight = 1.0) {
-  x = std::clamp(
-      x, 0.0,
-      static_cast<double>(std::max<std::int32_t>(0, original.width() - 1)));
-  y = std::clamp(
-      y, 0.0,
-      static_cast<double>(std::max<std::int32_t>(0, original.height() - 1)));
-  const auto x0 = static_cast<std::int32_t>(std::floor(x));
-  const auto y0 = static_cast<std::int32_t>(std::floor(y));
-  const auto x1 = std::min<std::int32_t>(original.width() - 1, x0 + 1);
-  const auto y1 = std::min<std::int32_t>(original.height() - 1, y0 + 1);
-  const auto tx = x - static_cast<double>(x0);
-  const auto ty = y - static_cast<double>(y0);
-  radial_blur_accumulate_pixel(accum, original, original.pixel(x0, y0),
-                               weight * (1.0 - tx) * (1.0 - ty));
-  radial_blur_accumulate_pixel(accum, original, original.pixel(x1, y0),
-                               weight * tx * (1.0 - ty));
-  radial_blur_accumulate_pixel(accum, original, original.pixel(x0, y1),
-                               weight * (1.0 - tx) * ty);
-  radial_blur_accumulate_pixel(accum, original, original.pixel(x1, y1),
-                               weight * tx * ty);
-}
-
-void radial_blur_write_pixel(PixelBuffer &pixels, std::int32_t x,
-                             std::int32_t y, const RadialBlurAccum &accum) {
-  auto *dst = pixels.pixel(x, y);
-  const auto channels = pixels.format().channels;
-  const auto normalized_alpha =
-      channels >= 4 && accum.weight > 0.0 ? accum.alpha / accum.weight : 1.0;
-  for (std::uint16_t channel = 0;
-       channel < std::min<std::uint16_t>(channels, 3); ++channel) {
-    const auto value =
-        accum.alpha > 0.000001
-            ? accum.premultiplied_color[static_cast<std::size_t>(channel)] /
-                  accum.alpha
-            : 0.0;
-    dst[channel] = static_cast<std::uint8_t>(
-        std::clamp(std::lround(value), 0L, 255L));
-  }
-  if (channels >= 4) {
-    dst[3] = static_cast<std::uint8_t>(
-        std::clamp(std::lround(normalized_alpha * 255.0), 0L, 255L));
-  }
 }
 
 // The destructive Radial Blur math: a rotational sample sweep of
@@ -2636,50 +2353,9 @@ void radial_blur_write_pixel(PixelBuffer &pixels, std::int32_t x,
       PixelBuffer(input.bounds.width, input.bounds.height,
                   PixelFormat::rgba8()),
       input.bounds};
-  const auto clamped_amount = std::clamp(amount, 0, 100);
-  const auto clamped_samples = std::clamp(samples, 4, 32);
-  const auto sweep =
-      static_cast<double>(clamped_amount) * 3.6 * kRadialBlurPi / 180.0;
-  for (std::int32_t y = 0; y < input.bounds.height; ++y) {
-    report_progress(progress, y, input.bounds.height,
-                    FilterProgressStage::Blurring);
-    for (std::int32_t x = 0; x < input.bounds.width; ++x) {
-      const auto dx = static_cast<double>(x) - center_x;
-      const auto dy = static_cast<double>(y) - center_y;
-      RadialBlurAccum accum;
-      for (int sample = 0; sample < clamped_samples; ++sample) {
-        const auto t =
-            clamped_samples <= 1
-                ? 0.0
-                : static_cast<double>(sample) /
-                          static_cast<double>(clamped_samples - 1) -
-                      0.5;
-        const auto angle = sweep * t;
-        const auto source_x =
-            center_x + dx * std::cos(angle) - dy * std::sin(angle);
-        const auto source_y =
-            center_y + dx * std::sin(angle) + dy * std::cos(angle);
-        radial_blur_accumulate_sample(accum, input.pixels, source_x, source_y);
-      }
-      radial_blur_write_pixel(result.pixels, x, y, accum);
-    }
-  }
-  report_progress(progress, input.bounds.height, input.bounds.height,
-                  FilterProgressStage::Blurring);
+  radial_blur_kernel(result.pixels, input.pixels, amount, samples, center_x,
+                     center_y, progress);
   return result;
-}
-
-// The same position-hash mix as filter_engine.cpp's filter_noise_hash; keep
-// both in sync (smart_filter_add_noise_matches_destructive pins parity).
-[[nodiscard]] std::uint32_t add_noise_hash(std::int32_t x, std::int32_t y,
-                                           std::uint32_t seed) noexcept {
-  auto value = static_cast<std::uint32_t>(x + 16384) * 374761393U;
-  value ^= static_cast<std::uint32_t>(y + 8192) * 668265263U;
-  value ^= seed * 2246822519U;
-  value ^= value >> 13U;
-  value *= 1274126177U;
-  value ^= value >> 16U;
-  return value;
 }
 
 // Deterministic Add Noise: RGB gains position-hashed deltas, alpha and
@@ -2738,55 +2414,9 @@ void radial_blur_write_pixel(PixelBuffer &pixels, std::int32_t x,
       PixelBuffer(input.bounds.width, input.bounds.height,
                   PixelFormat::rgba8()),
       input.bounds};
-  const auto width = input.bounds.width;
-  const auto height = input.bounds.height;
-  const auto cell = std::max<std::int32_t>(kMinimumMosaicCellSize,
-                                           cell_size_pixels);
-  for (std::int32_t block_y = 0; block_y < height; block_y += cell) {
-    report_progress(progress, block_y, height,
-                    FilterProgressStage::Pixelating);
-    const auto block_height = std::min(cell, height - block_y);
-    for (std::int32_t block_x = 0; block_x < width; block_x += cell) {
-      const auto block_width = std::min(cell, width - block_x);
-      double weight = 0.0;
-      double alpha_sum = 0.0;
-      std::array<double, 3> premultiplied{};
-      for (std::int32_t y = block_y; y < block_y + block_height; ++y) {
-        for (std::int32_t x = block_x; x < block_x + block_width; ++x) {
-          const auto *px = input.pixels.pixel(x, y);
-          const auto alpha = static_cast<double>(px[3]) / 255.0;
-          weight += 1.0;
-          alpha_sum += alpha;
-          for (int channel = 0; channel < 3; ++channel) {
-            premultiplied[static_cast<std::size_t>(channel)] +=
-                static_cast<double>(px[channel]) * alpha;
-          }
-        }
-      }
-      std::array<std::uint8_t, 4> value{};
-      for (int channel = 0; channel < 3; ++channel) {
-        const auto straight =
-            alpha_sum > 0.000001
-                ? premultiplied[static_cast<std::size_t>(channel)] / alpha_sum
-                : 0.0;
-        value[static_cast<std::size_t>(channel)] = static_cast<std::uint8_t>(
-            std::clamp(std::lround(straight), 0L, 255L));
-      }
-      value[3] = static_cast<std::uint8_t>(std::clamp(
-          std::lround(weight > 0.0 ? alpha_sum / weight * 255.0 : 0.0), 0L,
-          255L));
-      for (std::int32_t y = block_y; y < block_y + block_height; ++y) {
-        for (std::int32_t x = block_x; x < block_x + block_width; ++x) {
-          auto *dst = result.pixels.pixel(x, y);
-          dst[0] = value[0];
-          dst[1] = value[1];
-          dst[2] = value[2];
-          dst[3] = value[3];
-        }
-      }
-    }
-  }
-  report_progress(progress, height, height, FilterProgressStage::Pixelating);
+  mosaic_kernel(result.pixels, input.pixels,
+                std::max<std::int32_t>(kMinimumMosaicCellSize, cell_size_pixels),
+                progress);
   return result;
 }
 
@@ -3010,13 +2640,13 @@ double add_noise_delta(std::int32_t x, std::int32_t y, std::int32_t seed,
     return static_cast<double>(hash) * (2.0 / 4294967295.0) - 1.0;
   };
   if (!gaussian) {
-    return unit_from_hash(add_noise_hash(x, y, lane_base + lane * 4U)) * range;
+    return unit_from_hash(position_noise_hash(x, y, lane_base + lane * 4U)) * range;
   }
   // Sum of four uniforms: a deterministic gaussian approximation with no
   // transcendental calls (those vary across toolchains).
   double sum = 0.0;
   for (std::uint32_t sample = 1; sample <= 4U; ++sample) {
-    sum += unit_from_hash(add_noise_hash(x, y, lane_base + lane * 4U + sample));
+    sum += unit_from_hash(position_noise_hash(x, y, lane_base + lane * 4U + sample));
   }
   return sum * 0.5 * range;
 }

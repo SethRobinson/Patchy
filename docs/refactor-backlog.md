@@ -21,9 +21,19 @@ canaries.
 
 ### Filters and formats
 
-- `filter_engine.cpp` and `builtin_filters.cpp` contain near-identical filter kernels
-  with different progress plumbing. Any extraction must keep both outputs
-  byte-identical and must not route legacy calls through `default_invocation`.
+- `filter_engine.cpp`, `builtin_filters.cpp` and `smart_filter_renderer.cpp` still carry
+  parallel kernels beyond the ones `filter_kernels.cpp` now owns (box blur, radial blur,
+  emboss, mosaic, the premultiplied accumulator, the noise hash). Provably identical
+  legacy/named pairs left: the 5-tap Gaussian, Sharpen, Edge Detect (plus the Sobel
+  copy in Glowing Edges), Twirl, Wave, Pinch/Bloat, the cloud/lattice noise, Film
+  Grain, Color Halftone, Invert/Grayscale/Sepia/Threshold, the auto LUT loops, the
+  luminance and progress-reporter helpers (four reporters, one in `filter_workflows.cpp`).
+  Not identical, keep apart: the legacy r=1 box blur (summation order), Vignette, the
+  photo looks and contrast/saturation helpers (float vs double), Unsharp Mask, Motion
+  Blur, Posterize. Any extraction must keep both outputs byte-identical, add a legacy ==
+  named pin first, and must not route legacy calls through `default_invocation`. The
+  deep (16/32-bit) kernels in `deep_filters.cpp` could be templates over the pixel type
+  but differ by design in places (double running sums, no large-distance motion kernel).
 - The raw-or-PackBits plane loop appears in PSD channel data, PSD patterns, PAT, ABR,
   and PSD filter effects. PAT also duplicates the PSD pattern VMA slot parser. ABR's
   16-bit conversion intentionally differs from `deep_sample_to_byte`.
