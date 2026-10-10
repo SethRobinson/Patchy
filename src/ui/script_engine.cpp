@@ -980,16 +980,7 @@ void ScriptEngineHost::throw_js_error(const QString& message) {
 // ---------------------------------------------------------------------------
 // Session services
 
-std::vector<std::int64_t> ScriptEngineHost::session_ids() const {
-  std::vector<std::int64_t> ids;
-  ids.reserve(window_.sessions_.size());
-  for (const auto& session : window_.sessions_) {
-    if (session != nullptr) {
-      ids.push_back(session->session_id);
-    }
-  }
-  return ids;
-}
+std::vector<std::int64_t> ScriptEngineHost::session_ids() const { return window_.sessions_.ids(); }
 
 std::int64_t ScriptEngineHost::active_session_id() const {
   const auto* session = window_.active_session();

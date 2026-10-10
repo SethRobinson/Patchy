@@ -31,6 +31,7 @@
 #include "ui/default_brush_tips.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/document_float_window.hpp"
+#include "ui/document_session_store.hpp"
 #include "ui/compatibility_report.hpp"
 #include "ui/curves_editor.hpp"
 #include "ui/curves_presets.hpp"
@@ -218,6 +219,58 @@ QWidget* find_document_float_window(patchy::ui::MainWindow& window) {
 void flush_deferred_deletes() {
   QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
   QApplication::processEvents();
+}
+
+// The session store on its own: creation-order iteration, the by-id and by-canvas
+// lookups, Smart Object children, the id snapshot, and remove() handing the entry
+// back so the caller decides when the session dies.
+void ui_document_session_store_owns_lookups_and_removal() {
+  patchy::ui::DocumentSessionStore store;
+  CHECK(store.empty() && store.size() == 0 && store.ids().empty());
+  CHECK(store.find_by_id(1) == nullptr);
+  CHECK(store.find_by_canvas(nullptr) == nullptr);
+
+  patchy::ui::CanvasWidget canvas_a;
+  patchy::ui::CanvasWidget canvas_b;
+  const auto make = [](std::int64_t id, patchy::ui::CanvasWidget* canvas) {
+    auto session = std::make_unique<patchy::ui::DocumentSession>();
+    session->session_id = id;
+    session->canvas = canvas;
+    session->title = QStringLiteral("S%1").arg(id);
+    return session;
+  };
+  auto& first = store.add(make(7, &canvas_a));
+  auto& second = store.add(make(3, &canvas_b));
+  auto child = make(9, nullptr);
+  child->smart_object_link = patchy::ui::DocumentSession::SmartObjectLink{7, "uuid", false, {}};
+  auto& third = store.add(std::move(child));
+  CHECK(store.size() == 3);
+  CHECK((store.ids() == std::vector<std::int64_t>{7, 3, 9}));
+  CHECK(store.find_by_id(3) == &second);
+  CHECK(store.find_by_id(42) == nullptr);
+  CHECK(store.find_by_canvas(&canvas_a) == &first);
+  CHECK(store.find_by_canvas(&canvas_b) == &second);
+  CHECK(store.find_by_canvas(nullptr) == nullptr);
+  CHECK(store.contains(third));
+  CHECK((store.smart_object_children(7) == std::vector<patchy::ui::DocumentSession*>{&third}));
+  CHECK(store.smart_object_children(3).empty());
+  CHECK(store.at(1)->session_id == 3);
+  CHECK(std::as_const(store).find_by_id(9) == &third);
+  // Reverse iteration finds the most recently added first.
+  CHECK((*store.rbegin())->session_id == 9);
+
+  {
+    auto removed = store.remove(second);
+    CHECK(removed != nullptr && removed->session_id == 3);
+    CHECK(store.size() == 2);
+    CHECK(!store.contains(*removed));
+    CHECK(store.find_by_canvas(&canvas_b) == nullptr);
+    // The entry is alive until the caller lets go of it.
+    CHECK(removed->title == QStringLiteral("S3"));
+  }
+  patchy::ui::DocumentSession stranger;
+  CHECK(store.remove(stranger) == nullptr);
+  CHECK((store.ids() == std::vector<std::int64_t>{7, 9}));
 }
 
 void ui_float_document_window_hosts_canvas_and_redocks() {
@@ -1179,6 +1232,7 @@ void ui_float_window_accepts_file_drop() {
 
 std::vector<patchy::test::TestCase> float_window_tests() {
   return {
+      {"ui_document_session_store_owns_lookups_and_removal", ui_document_session_store_owns_lookups_and_removal},
       {"ui_float_document_window_hosts_canvas_and_redocks", ui_float_document_window_hosts_canvas_and_redocks},
       {"ui_float_window_preserves_channel_target_per_canvas",
        ui_float_window_preserves_channel_target_per_canvas},

@@ -121,11 +121,11 @@ canaries.
 - Extracting document session and undo ownership from `MainWindow` remains the
   highest-leverage class boundary. Done so far: `DocumentSession` is a standalone type
   (`ui/document_session.hpp`) and the recovery lifecycle lives behind `RecoveryHost` in
-  `ui/document_recovery_coordinator`. Next: a session store owning `sessions_` with the
-  by-id and by-canvas lookups (`session_with_id`, `session_for_canvas`, add, erase,
-  iteration; about 80 call sites across 16 TUs plus `ScriptEngineHost`), then save
-  coordination (`set_session_saved`, the image-save options, the Smart Object commit-back
-  in `main_window_files.cpp`) behind an explicit interface the way recovery is.
+  `ui/document_recovery_coordinator`, and `DocumentSessionStore` owns the session list
+  with its lookups and id snapshots. Next: save coordination (`set_session_saved`, the
+  image-save options, the Smart Object commit-back in `main_window_files.cpp`) behind an
+  explicit interface the way recovery is; then the undo stacks (`push_history_state` and
+  friends in `main_window_history.cpp`) as a per-session history object.
 - Canvas tool enums could move to a small `ui/tool_types.hpp` header.
 - The options bar's `current_*` mirrors indicate a missing tool-options model.
 - Canvas callback fields could become a clearer single-listener interface or Qt

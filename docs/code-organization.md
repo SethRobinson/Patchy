@@ -44,9 +44,14 @@ Per-file helpers stay in an anonymous namespace. When a second TU needs one, mov
 `DocumentSession` (the open-document record: document, title, path, history stacks, save
 state, canvas and float-window binding, Smart Object parentage) is a standalone type in
 `ui/document_session.hpp`; `MainWindow::DocumentSession` is an alias of it, so every TU and
-friend keeps its spelling. MainWindow still owns the list (`sessions_`) and the lookups;
-moving those behind a session store is the next step of that extraction
-([refactor-backlog.md](refactor-backlog.md)).
+friend keeps its spelling. The list itself is a `DocumentSessionStore`
+(`ui/document_session_store.{hpp,cpp}`, the member is still named `sessions_`): it owns the
+sessions in creation order and provides the lookups (`find_by_id`, `find_by_canvas`,
+`smart_object_children`, `contains`), the `ids()` snapshot for loops that close documents,
+`add`, and `remove`, which hands the entry back so the caller chooses when the session dies.
+`MainWindow::session_with_id` / `session_for_canvas` forward to it. Save coordination
+(`set_session_saved`, the image-save options, the Smart Object commit-back) is the next
+extraction ([refactor-backlog.md](refactor-backlog.md)).
 
 Startup creates no document. The start panel in `src/ui/start_panel.cpp` overlays `document_tabs_` only while `sessions_` is empty. `load_tool_settings()` runs once when the first document session is added because it needs a canvas. Only `src/app/main.cpp` calls `MainWindow::begin_startup_update_check`, never construction, so tests start no network request unless one calls it against a local manifest server. `show_window` supplies the historical test document; use `show_window_empty` for real empty-workspace behavior.
 

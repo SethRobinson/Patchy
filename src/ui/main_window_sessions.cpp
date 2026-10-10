@@ -400,7 +400,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   }
   // Publish only after insertion: QStackedWidget may send FocusIn even with
   // tab signals blocked, and that must not activate a half-installed session.
-  sessions_.push_back(std::move(session));
+  sessions_.add(std::move(session));
   if (background) {
     // The active document, its panels, and the current tab are untouched: selecting
     // the tab later runs activate_document_canvas, which does everything skipped here.
@@ -771,13 +771,9 @@ bool MainWindow::close_document_session(DocumentSession& target_session) {
   // canvas->document_, which is owned by the session. Erasing first left a
   // narrow use-after-free window on the freed Document.
   delete canvas;
-  // Re-resolve after the teardown events above: they run arbitrary handlers.
-  const auto found = std::find_if(sessions_.begin(), sessions_.end(), [live_session](const auto& candidate) {
-    return candidate.get() == live_session;
-  });
-  if (found != sessions_.end()) {
-    sessions_.erase(found);
-  }
+  // Re-resolve after the teardown events above: they run arbitrary handlers. The
+  // removed entry dies at the end of this statement, as the erase did.
+  (void)sessions_.remove(*live_session);
   if (canvas_ == nullptr) {
     // activate_document_session (not _canvas) so a floated successor's window is
     // also raised: the main window would otherwise show an empty tab area while
@@ -814,13 +810,8 @@ void MainWindow::close_other_document_tabs(int index) {
   // Sessions, not tab indexes: "others" includes documents floated into their own
   // windows. Ids are snapshotted first because closing mutates sessions_.
   const auto keep_id = keep_session->session_id;
-  std::vector<std::int64_t> other_ids;
-  other_ids.reserve(sessions_.size());
-  for (const auto& candidate : sessions_) {
-    if (candidate->session_id != keep_id) {
-      other_ids.push_back(candidate->session_id);
-    }
-  }
+  auto other_ids = sessions_.ids();
+  std::erase(other_ids, keep_id);
   for (auto other_it = other_ids.rbegin(); other_it != other_ids.rend(); ++other_it) {
     auto* candidate = session_with_id(*other_it);
     if (candidate != nullptr && !close_document_session(*candidate)) {
@@ -837,11 +828,7 @@ void MainWindow::close_all_document_tabs() {
     show_preview_dialog_edit_lock_message();
     return;
   }
-  std::vector<std::int64_t> session_ids;
-  session_ids.reserve(sessions_.size());
-  for (const auto& candidate : sessions_) {
-    session_ids.push_back(candidate->session_id);
-  }
+  const auto session_ids = sessions_.ids();
   for (auto id_it = session_ids.rbegin(); id_it != session_ids.rend(); ++id_it) {
     auto* candidate = session_with_id(*id_it);
     if (candidate != nullptr && !close_document_session(*candidate)) {
@@ -1417,10 +1404,7 @@ bool MainWindow::confirm_close_session(DocumentSession& target_session) {
 }
 
 bool MainWindow::maybe_save_session(DocumentSession& target_session) {
-  const auto found = std::find_if(sessions_.begin(), sessions_.end(), [&target_session](const auto& candidate) {
-    return candidate.get() == &target_session;
-  });
-  if (found == sessions_.end()) {
+  if (!sessions_.contains(target_session)) {
     return false;
   }
 
@@ -1544,42 +1528,20 @@ void MainWindow::mark_session_modified(DocumentSession& target_session) {
 }
 
 MainWindow::DocumentSession* MainWindow::session_for_canvas(CanvasWidget* canvas) noexcept {
-  if (canvas == nullptr) {
-    return nullptr;
-  }
-  const auto found = std::find_if(sessions_.begin(), sessions_.end(), [canvas](const auto& candidate) {
-    return candidate->canvas == canvas;
-  });
-  return found == sessions_.end() ? nullptr : found->get();
+  return sessions_.find_by_canvas(canvas);
 }
 
 const MainWindow::DocumentSession* MainWindow::session_for_canvas(CanvasWidget* canvas) const noexcept {
-  if (canvas == nullptr) {
-    return nullptr;
-  }
-  const auto found = std::find_if(sessions_.begin(), sessions_.end(), [canvas](const auto& candidate) {
-    return candidate->canvas == canvas;
-  });
-  return found == sessions_.end() ? nullptr : found->get();
+  return sessions_.find_by_canvas(canvas);
 }
 
 MainWindow::DocumentSession* MainWindow::session_with_id(std::int64_t session_id) noexcept {
-  const auto found = std::find_if(sessions_.begin(), sessions_.end(), [session_id](const auto& candidate) {
-    return candidate->session_id == session_id;
-  });
-  return found == sessions_.end() ? nullptr : found->get();
+  return sessions_.find_by_id(session_id);
 }
 
 std::vector<MainWindow::DocumentSession*> MainWindow::open_smart_object_child_sessions(
     std::int64_t parent_session_id) {
-  std::vector<DocumentSession*> children;
-  for (const auto& candidate : sessions_) {
-    if (candidate->smart_object_link.has_value() &&
-        candidate->smart_object_link->parent_session_id == parent_session_id) {
-      children.push_back(candidate.get());
-    }
-  }
-  return children;
+  return sessions_.smart_object_children(parent_session_id);
 }
 
 void MainWindow::activate_document_session(DocumentSession& target_session) {

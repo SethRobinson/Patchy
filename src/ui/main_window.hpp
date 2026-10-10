@@ -3,7 +3,7 @@
 #include "core/adjustment_layer.hpp"
 #include "core/document.hpp"
 #include "core/document_recovery_store.hpp"
-#include "ui/document_session.hpp"
+#include "ui/document_session_store.hpp"
 #include "core/layer_alignment.hpp"
 #include "core/layer_tree.hpp"
 #include "core/resample.hpp"
@@ -1788,7 +1788,9 @@ private:
   // the box's current proportion when the link button is down.
   void handle_crop_size_value_changed(bool horizontal, int value);
   [[nodiscard]] bool crop_option_widget_visible(QWidget* widget) const;
-  std::vector<std::unique_ptr<DocumentSession>> sessions_;
+  // The open sessions, in creation order (ui/document_session_store.hpp owns the
+  // list and the lookups; session_for_canvas / session_with_id forward to it).
+  DocumentSessionStore sessions_;
   std::int64_t next_session_id_{1};
   // The ACTIVE document's canvas, the single source of truth for "current document"
   // (session()/document() resolve through it). Writers: activate_document_canvas (every
