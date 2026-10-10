@@ -358,13 +358,16 @@ PixelBuffer ColorManager::preview_rgb8(const Document& /*document*/, const Pixel
   return source;
 }
 
-std::optional<PixelBuffer> rgb16_to_native_color_space(
+std::optional<PixelBuffer> rgb_to_native_color_space(
     const PixelBuffer& rgb, ColorMode mode, std::span<const std::uint8_t> profile) {
-  if (rgb.format() != PixelFormat::rgb16() || mode == ColorMode::RGB) {
+  if ((rgb.format() != PixelFormat::rgb16() && rgb.format() != PixelFormat::rgb8()) ||
+      (mode != ColorMode::CMYK && mode != ColorMode::Lab && mode != ColorMode::Grayscale)) {
     return std::nullopt;
   }
   const std::uint16_t channels = mode == ColorMode::CMYK ? 4 : mode == ColorMode::Lab ? 3 : 1;
-  PixelBuffer result(rgb.width(), rgb.height(), PixelFormat{mode, BitDepth::UInt16, channels});
+  const bool deep = rgb.format().bit_depth == BitDepth::UInt16;
+  const std::size_t sample_bytes = deep ? 2U : 1U;
+  PixelBuffer result(rgb.width(), rgb.height(), PixelFormat{mode, rgb.format().bit_depth, channels});
   if (profile.empty() && mode != ColorMode::Lab) {
     // Inverse of the profile-free import: neutral gray, or no black ink.
     for (int y = 0; y < rgb.height(); ++y) {
@@ -372,11 +375,10 @@ std::optional<PixelBuffer> rgb16_to_native_color_space(
       auto output = result.row(y);
       for (int x = 0; x < rgb.width(); ++x) {
         if (mode == ColorMode::Grayscale) {
-          std::memcpy(output.data() + x * 2, input.data() + x * 6 + 2, 2);
+          std::memcpy(output.data() + x * sample_bytes, input.data() + (x * 3 + 1) * sample_bytes, sample_bytes);
         } else {
-          std::memcpy(output.data() + x * 8, input.data() + x * 6, 6);
-          const std::uint16_t no_black = 65535;
-          std::memcpy(output.data() + x * 8 + 6, &no_black, 2);
+          std::memcpy(output.data() + x * 4 * sample_bytes, input.data() + x * 3 * sample_bytes, 3 * sample_bytes);
+          std::memset(output.data() + (x * 4 + 3) * sample_bytes, 255, sample_bytes);
         }
       }
     }
@@ -392,10 +394,11 @@ std::optional<PixelBuffer> rgb16_to_native_color_space(
       : cmsOpenProfileFromMemTHR(context, profile.data(), static_cast<cmsUInt32Number>(profile.size()));
   const auto signature = mode == ColorMode::CMYK ? cmsSigCmykData
                          : mode == ColorMode::Lab ? cmsSigLabData : cmsSigGrayData;
-  const auto format = mode == ColorMode::CMYK ? TYPE_CMYK_16_REV
-                      : mode == ColorMode::Lab ? TYPE_Lab_16 : TYPE_GRAY_16;
+  const auto format = mode == ColorMode::CMYK ? (deep ? TYPE_CMYK_16_REV : TYPE_CMYK_8_REV)
+                      : mode == ColorMode::Lab ? (deep ? TYPE_Lab_16 : TYPE_Lab_8)
+                                              : (deep ? TYPE_GRAY_16 : TYPE_GRAY_8);
   const auto transform = source != nullptr && destination != nullptr && cmsGetColorSpace(destination) == signature
-      ? cmsCreateTransformTHR(context, source, TYPE_RGB_16, destination, format,
+      ? cmsCreateTransformTHR(context, source, deep ? TYPE_RGB_16 : TYPE_RGB_8, destination, format,
                               INTENT_RELATIVE_COLORIMETRIC, cmsFLAGS_BLACKPOINTCOMPENSATION | cmsFLAGS_NOCACHE)
       : nullptr;
   if (source != nullptr) cmsCloseProfile(source);

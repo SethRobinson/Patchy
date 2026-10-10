@@ -190,7 +190,8 @@ void psd_deep_gate_off_reads_8_bit_as_before() {
 
 // Raw native planes keep this independent of Patchy's RGB writer. A layered file
 // and its composite carry the same fine ramp, alpha and source profile.
-std::vector<std::uint8_t> color_mode_ramp16(std::uint16_t mode, std::span<const std::uint8_t> profile) {
+std::vector<std::uint8_t> color_mode_ramp16(std::uint16_t mode, std::span<const std::uint8_t> profile,
+                                         bool eight_bit = false) {
   using namespace patchy::test;
   const std::uint16_t colors = mode == 4 ? 4 : mode == 1 ? 1 : 3;
   psd::BigEndianWriter resources;
@@ -206,7 +207,10 @@ std::vector<std::uint8_t> color_mode_ramp16(std::uint16_t mode, std::span<const 
   for (std::uint16_t c = 0; c <= colors; ++c) {
     psd::BigEndianWriter plane;
     for (std::uint16_t x = 0; x < 64; ++x) {
-      plane.write_u16(c == colors ? static_cast<std::uint16_t>(40000U + x)
+      if (eight_bit) {
+        plane.write_u8(c == colors ? static_cast<std::uint8_t>(180U + x)
+                        : c == 0 ? static_cast<std::uint8_t>(80U + x) : c == 3 ? 255 : 128);
+      } else plane.write_u16(c == colors ? static_cast<std::uint16_t>(40000U + x)
                      : c == 0 ? static_cast<std::uint16_t>(30000U + x)
                      : c == 3 ? 65535 : 32896);
     }
@@ -218,7 +222,7 @@ std::vector<std::uint8_t> color_mode_ramp16(std::uint16_t mode, std::span<const 
   info.write_u16(static_cast<std::uint16_t>(colors + 1U));
   for (std::uint16_t c = 0; c <= colors; ++c) {
     info.write_u16(c == colors ? 0xFFFF : c);
-    info.write_u32(130);  // compression marker + 64 full-range u16 samples
+    info.write_u32(eight_bit ? 66 : 130);  // compression marker + 64 samples
   }
   write_ascii4(info, "8BIM"); write_ascii4(info, "norm");
   info.write_u8(255); info.write_u8(0); info.write_u8(8); info.write_u8(0);
@@ -229,13 +233,20 @@ std::vector<std::uint8_t> color_mode_ramp16(std::uint16_t mode, std::span<const 
     info.write_bytes(plane);
   }
   psd::BigEndianWriter layer_mask;
-  layer_mask.write_u32(0); layer_mask.write_u32(0);
-  write_ascii4(layer_mask, "8BIM"); write_ascii4(layer_mask, "Lr16");
-  layer_mask.write_u32(static_cast<std::uint32_t>(info.bytes().size()));
-  layer_mask.write_bytes(info.bytes());
-  while (layer_mask.bytes().size() % 4U != 0U) layer_mask.write_u8(0);
+  if (eight_bit) {
+    layer_mask.write_u32(static_cast<std::uint32_t>(info.bytes().size()));
+    layer_mask.write_bytes(info.bytes());
+    layer_mask.write_u32(0);
+  } else {
+    layer_mask.write_u32(0); layer_mask.write_u32(0);
+    write_ascii4(layer_mask, "8BIM"); write_ascii4(layer_mask, "Lr16");
+    layer_mask.write_u32(static_cast<std::uint32_t>(info.bytes().size()));
+    layer_mask.write_bytes(info.bytes());
+    while (layer_mask.bytes().size() % 4U != 0U) layer_mask.write_u8(0);
+  }
   psd::BigEndianWriter file;
-  psd::write_header(file, psd::Header{false, static_cast<std::uint16_t>(colors + 1U), 1, 64, 16, mode});
+  psd::write_header(file, psd::Header{false, static_cast<std::uint16_t>(colors + 1U), 1, 64,
+                                   static_cast<std::uint16_t>(eight_bit ? 8 : 16), mode});
   file.write_u32(0);
   file.write_u32(static_cast<std::uint32_t>(resources.bytes().size()));
   file.write_bytes(resources.bytes());
@@ -305,8 +316,10 @@ void psd_deep_native_colors_survive_saves_but_never_shadow_edits() {
   const auto mode_of = [](const auto& bytes) { return (bytes[24] << 8U) | bytes[25]; };
   psd::ReadOptions read;
   read.keep_bit_depth = true;
-  for (const auto mode : std::array<std::uint16_t, 3>{1, 4, 9}) {
-    const auto original = psd::DocumentIo::read(color_mode_ramp16(mode, {}), read);
+  for (const auto& [eight_bit, mode] : std::array<std::pair<bool, std::uint16_t>, 6>{
+           {{false, std::uint16_t{1}}, {false, std::uint16_t{4}}, {false, std::uint16_t{9}},
+            {true, std::uint16_t{1}}, {true, std::uint16_t{4}}, {true, std::uint16_t{9}}}}) {
+    const auto original = psd::DocumentIo::read(color_mode_ramp16(mode, {}, eight_bit), read);
     for (const bool large : {false, true}) {
       psd::WriteOptions write;
       write.large_document = large;
@@ -334,14 +347,15 @@ void psd_deep_native_colors_survive_saves_but_never_shadow_edits() {
       CHECK(mode_of(psd::DocumentIo::write_layered_rgb8(document, write)) == mode);
       // A layer pasted from a separately imported color space cannot inherit
       // this document's native profile, even when both files name the same mode.
-      const auto other = psd::DocumentIo::read(color_mode_ramp16(mode, {}), read);
+      const auto other = psd::DocumentIo::read(color_mode_ramp16(mode, {}, eight_bit), read);
       document.add_layer(other.layers()[0].clone_with_id(document.allocate_layer_id()));
       CHECK(mode_of(psd::DocumentIo::write_layered_rgb8(document, write)) == 3);
       if (mode == 4) {
         auto crowded = original;
         for (int i = 0; i < 52; ++i) {
           crowded.add_channel(DocumentChannel(crowded.allocate_channel_id(), "Alpha " + std::to_string(i),
-              DocumentChannelKind::Alpha, PixelBuffer(64, 1, with_bit_depth(PixelFormat::gray8(), BitDepth::UInt16))));
+              DocumentChannelKind::Alpha, PixelBuffer(64, 1, with_bit_depth(PixelFormat::gray8(),
+                  eight_bit ? BitDepth::UInt8 : BitDepth::UInt16))));
         }
         // With merged transparency, 52 saved channels fit RGB's 56-channel
         // limit but not CMYK's. Keep saving successfully through RGB.
@@ -363,10 +377,20 @@ void psd_deep_non_rgb_gradients_and_adjustments_keep_native_color_if_available()
   read.keep_bit_depth = true;
   for (const auto* name : {"colormodes/4x4_16bit_cmyk.psd", "colormodes/4x4_16bit_grayscale.psd",
                           "colormodes/4x4_16bit_lab.psd", "adjustments/posterize_16bits_cmyk.psd",
-                          "adjustments/posterize_16bits_grayscale.psd", "adjustments/threshold_16bits_grayscale.psd"}) {
+                          "adjustments/posterize_16bits_grayscale.psd", "adjustments/threshold_16bits_grayscale.psd",
+                          "adjustments/curves_cmyk.psd", "adjustments/posterize_grayscale.psd",
+                          "gradients/noise-gradient-cmyk.psd", "gradients/noise-gradient-grayscale.psd",
+                          "gradients/noise-gradient-lab.psd", "blend-modes/cmyk-blend-modes.psd",
+                          "blend-modes/gray-blend-modes.psd"}) {
     const auto document = psd::DocumentIo::read_file(root / name, read);
     const auto saved = psd::DocumentIo::write_layered_rgb8(document);
     const auto reopened = psd::DocumentIo::read(saved, read);
+    if (std::string_view(name).starts_with("blend-modes/")) {
+      // These documents contain embedded Smart Objects. Their independently
+      // editable source store is not covered by the layer-color snapshot.
+      CHECK(reopened.metadata().values.at("psd.color_mode") == "RGB");
+      continue;
+    }
     CHECK(reopened.metadata().values.at("psd.color_mode") == document.metadata().values.at("psd.color_mode"));
     CHECK(patchy::test::test_image_resource_payload(reopened.metadata().raw_psd_image_resources, 1039) ==
           patchy::test::test_image_resource_payload(document.metadata().raw_psd_image_resources, 1039));
@@ -376,7 +400,11 @@ void psd_deep_non_rgb_gradients_and_adjustments_keep_native_color_if_available()
     for (std::size_t i = 0; i < before.size(); ++i) {
       CHECK(before[i]->kind() == after[i]->kind());
       CHECK(after[i]->psd_native_colors() != nullptr);
-      CHECK(before[i]->psd_native_colors()->planes == after[i]->psd_native_colors()->planes);
+      // Photoshop rebuilds vector/fill previews from the preserved descriptors;
+      // the writer deliberately leaves their cached color channels empty.
+      if (!layer_is_vector_shape(*before[i])) {
+        CHECK(before[i]->psd_native_colors()->planes == after[i]->psd_native_colors()->planes);
+      }
       for (const auto& block : before[i]->unknown_psd_blocks()) {
         if (block.key != "GdFl" && block.key != "post" && block.key != "thrs") continue;
         const auto& blocks = after[i]->unknown_psd_blocks();

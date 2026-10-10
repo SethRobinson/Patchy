@@ -48,7 +48,7 @@ struct DecodedPlane {
 // their declared length and remain inside the VMA, but their payload is skipped
 // without parsing or decompressing it.
 bool read_plane(BigEndianReader& reader, DecodedPlane& plane, std::size_t container_end,
-                bool decode_samples) {
+                bool decode_samples, bool* populated = nullptr) {
   if (reader.position() > container_end || container_end - reader.position() < 4U) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "PSD pattern channel list is truncated"));
   }
@@ -66,6 +66,9 @@ bool read_plane(BigEndianReader& reader, DecodedPlane& plane, std::size_t contai
   if (length < kChannelHeaderBytes || length > reader.remaining() ||
       length > container_end - reader.position()) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "PSD pattern channel is truncated"));
+  }
+  if (populated != nullptr) {
+    *populated = true;
   }
   if (!decode_samples) {
     reader.skip(length);
@@ -170,7 +173,8 @@ bool read_plane(BigEndianReader& reader, DecodedPlane& plane, std::size_t contai
 // Parses one pattern starting at the reader's position; the reader is positioned
 // at the pattern's u32 length field. Returns nullopt for undecodable content.
 std::optional<PatternResource> parse_single_pattern(BigEndianReader& reader,
-                                                    const CmykToRgbTransform* cmyk_icc) {
+                                                    const CmykToRgbTransform* cmyk_icc,
+                                                    bool* extra_multichannel_planes = nullptr) {
   const auto declared_length = reader.read_u32();
   if (declared_length < 16U || declared_length > reader.remaining()) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "PSD pattern length is invalid"));
@@ -230,10 +234,15 @@ std::optional<PatternResource> parse_single_pattern(BigEndianReader& reader,
       std::vector<bool> color_present(color_channel_count, false);
       DecodedPlane alpha_plane;
       bool alpha_present = false;
-      for (std::uint32_t slot = 0; slot < slot_count && reader.position() < vma_end; ++slot) {
+      bool extra_planes = false;
+      std::uint32_t slot = 0;
+      for (; slot < slot_count && reader.position() < vma_end; ++slot) {
         DecodedPlane plane;
         const auto relevant = slot < color_channel_count || slot == declared_channels + 1U;
-        if (!read_plane(reader, plane, vma_end, relevant)) {
+        const auto extra_multichannel = mode == kModeMultichannel && slot > 0U &&
+                                       slot < declared_channels;
+        if (!read_plane(reader, plane, vma_end, relevant,
+                        extra_multichannel ? &extra_planes : nullptr)) {
           continue;
         }
         if (slot < color_channel_count) {
@@ -306,6 +315,9 @@ std::optional<PatternResource> parse_single_pattern(BigEndianReader& reader,
           }
         }
         result = std::move(resource);
+        if (extra_multichannel_planes != nullptr && slot == slot_count) {
+          *extra_multichannel_planes = extra_planes;
+        }
       }
     }
   } catch (const std::exception&) {
@@ -377,6 +389,50 @@ std::vector<std::string> pattern_ids_in_block(std::span<const std::uint8_t> payl
   } catch (const std::exception&) {
   }
   return ids;
+}
+
+std::optional<std::vector<std::uint8_t>> repair_multichannel_patterns(
+    std::span<const std::uint8_t> payload) {
+  BigEndianReader reader(payload);
+  BigEndianWriter repaired;
+  bool changed = false;
+  try {
+    while (reader.remaining() >= 16U) {
+      const auto start = reader.position();
+      const auto length = reader.read_u32();
+      if (length < 16U || length > reader.remaining()) {
+        return std::nullopt;
+      }
+      const auto body = reader.read_span(length);
+      const auto padding = (4U - (length % 4U)) % 4U;
+      reader.skip(std::min<std::size_t>(padding, reader.remaining()));
+      const auto record = payload.subspan(start, reader.position() - start);
+      BigEndianReader header(body);
+      const auto version = header.read_u32();
+      const auto mode = header.read_u32();
+      if (version == kPatternVersion && mode == kModeMultichannel) {
+        // Photoshop accepts the old single-plane bevel textures, but rejects
+        // multi-ink pattern records with a program error. Keep the decoded
+        // appearance and UUID using our canonical RGB tile encoding.
+        BigEndianReader pattern_reader(record);
+        bool extra_planes = false;
+        const auto resource = parse_single_pattern(pattern_reader, nullptr, &extra_planes);
+        if (resource.has_value() && extra_planes) {
+          const auto replacement = serialize_patterns_block(std::span(&*resource, 1U));
+          if (!replacement.empty()) {
+            repaired.write_bytes(replacement);
+            changed = true;
+            continue;
+          }
+        }
+      }
+      repaired.write_bytes(record);
+    }
+    repaired.write_bytes(reader.read_span(reader.remaining()));
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
+  return changed ? std::optional(std::move(repaired.bytes())) : std::nullopt;
 }
 
 std::vector<std::uint8_t> serialize_patterns_block(std::span<const PatternResource> patterns) {

@@ -95,6 +95,125 @@ double fixed_16_16_to_double(std::uint32_t value) noexcept {
 
 namespace {
 
+// Some exporters write ISO basic timezone offsets in XMP dates. Adobe's XMP
+// parser accepts the packet but rejects these properties when Photoshop imports
+// File Info, producing a modal data-discard warning. Repair only date properties,
+// keeping all other metadata and the packet's original serialization intact.
+void repair_xmp_date_timezones(std::vector<std::uint8_t>& payload) {
+  const std::string_view xml(reinterpret_cast<const char*>(payload.data()), payload.size());
+  const auto whitespace = [](char c) { return c == ' ' || c == '\t' || c == '\r' || c == '\n'; };
+  using Namespaces = std::map<std::string_view, std::string_view>;
+  struct Element { Namespaces namespaces; std::string_view name; bool date{false}; };
+  std::vector<Element> stack;
+  std::vector<std::size_t> insertions;
+  const auto date_property = [](std::string_view name, const Namespaces& namespaces) {
+    const auto colon = name.find(':');
+    if (colon == std::string_view::npos) return false;
+    const auto found = namespaces.find(name.substr(0, colon));
+    if (found == namespaces.end()) return false;
+    const auto local = name.substr(colon + 1);
+    const auto uri = found->second;
+    return (uri == "http://ns.adobe.com/xap/1.0/" &&
+            (local == "CreateDate" || local == "ModifyDate" || local == "MetadataDate")) ||
+           (uri == "http://ns.adobe.com/photoshop/1.0/" && local == "DateCreated") ||
+           (uri == "http://ns.adobe.com/exif/1.0/" &&
+            (local == "DateTimeOriginal" || local == "DateTimeDigitized" || local == "GPSTimeStamp")) ||
+           (uri == "http://ns.adobe.com/xap/1.0/sType/ResourceEvent#" && local == "when");
+  };
+  const auto inspect_date = [&](std::size_t begin, std::size_t end) {
+    while (begin < end && whitespace(xml[begin])) ++begin;
+    while (end > begin && whitespace(xml[end - 1])) --end;
+    const auto value = xml.substr(begin, end - begin);
+    // YYYY-MM-DDThh:mm:ss[.fraction]+hhmm. Do not guess at damaged dates.
+    if (value.size() < 24 || value[4] != '-' || value[7] != '-' || value[10] != 'T' ||
+        value[13] != ':' || value[16] != ':') return;
+    const auto zone = value.size() - 5;
+    if (value[zone] != '+' && value[zone] != '-') return;
+    for (std::size_t i = 0; i < value.size(); ++i) {
+      if (i == 4 || i == 7 || i == 10 || i == 13 || i == 16 || i == zone) continue;
+      if (i == 19 && zone > 19 && value[i] == '.') continue;
+      if (value[i] < '0' || value[i] > '9') return;
+    }
+    if (zone != 19 && (zone < 21 || value[19] != '.')) return;
+    const auto pair = [&](std::size_t at) { return (value[at] - '0') * 10 + value[at + 1] - '0'; };
+    if (pair(5) < 1 || pair(5) > 12 || pair(8) < 1 || pair(8) > 31 ||
+        pair(11) > 23 || pair(14) > 59 || pair(17) > 59 || pair(zone + 1) > 23 || pair(zone + 3) > 59) return;
+    insertions.push_back(begin + zone + 3);
+  };
+  std::size_t pos = 0;
+  while (pos < xml.size()) {
+    const auto open = xml.find('<', pos);
+    if (open == std::string_view::npos) break;
+    if (!stack.empty() && stack.back().date) inspect_date(pos, open);
+    if (xml.substr(open, 4) == "<!--" || xml.substr(open, 9) == "<![CDATA[" || xml.substr(open, 2) == "<?") {
+      const auto terminator = xml.substr(open, 4) == "<!--" ? "-->" : xml.substr(open, 2) == "<?" ? "?>" : "]]>";
+      const auto end = xml.find(terminator, open + 2);
+      if (end == std::string_view::npos) return;
+      pos = end + std::string_view(terminator).size();
+      continue;
+    }
+    // XMP has no DTD. Leave unsupported packets untouched rather than editing
+    // entity declarations or interpreting an incomplete document.
+    if (xml.substr(open, 2) == "<!") return;
+    auto at = open + 1;
+    const bool closing = at < xml.size() && xml[at] == '/';
+    if (closing) ++at;
+    const auto name_begin = at;
+    while (at < xml.size() && !whitespace(xml[at]) && xml[at] != '/' && xml[at] != '>') ++at;
+    const auto name = xml.substr(name_begin, at - name_begin);
+    if (name.empty()) return;
+    auto namespaces = stack.empty() ? Namespaces{} : stack.back().namespaces;
+    struct Attribute { std::string_view name; std::size_t begin, end; };
+    std::vector<Attribute> attributes;
+    while (at < xml.size()) {
+      while (at < xml.size() && whitespace(xml[at])) ++at;
+      if (at == xml.size() || xml[at] == '>' || xml[at] == '/') break;
+      const auto key_begin = at;
+      while (at < xml.size() && !whitespace(xml[at]) && xml[at] != '=') ++at;
+      const auto key = xml.substr(key_begin, at - key_begin);
+      while (at < xml.size() && whitespace(xml[at])) ++at;
+      if (at == xml.size() || xml[at++] != '=') return;
+      while (at < xml.size() && whitespace(xml[at])) ++at;
+      if (at == xml.size() || (xml[at] != '\'' && xml[at] != '"')) return;
+      const auto quote = xml[at++];
+      const auto end = xml.find(quote, at);
+      if (end == std::string_view::npos) return;
+      attributes.push_back({key, at, end});
+      if (key.starts_with("xmlns:")) namespaces[key.substr(6)] = xml.substr(at, end - at);
+      at = end + 1;
+    }
+    const bool empty = at < xml.size() && xml[at] == '/';
+    if (empty) ++at;
+    if (at == xml.size() || xml[at] != '>') return;
+    if (closing) {
+      if (stack.empty() || stack.back().name != name) return;
+      stack.pop_back();
+    } else {
+      for (const auto& attribute : attributes) {
+        if (date_property(attribute.name, namespaces)) inspect_date(attribute.begin, attribute.end);
+      }
+      if (!empty) {
+        if (stack.size() >= 128) return;
+        const bool date = date_property(name, namespaces);
+        stack.push_back({std::move(namespaces), name, date});
+      }
+    }
+    pos = at + 1;
+  }
+  if (!stack.empty() || insertions.empty()) return;
+  // Build once: repeated vector insertions would be quadratic for large packets.
+  std::vector<std::uint8_t> repaired;
+  repaired.reserve(payload.size() + insertions.size());
+  std::size_t previous = 0;
+  for (const auto insertion : insertions) {
+    repaired.insert(repaired.end(), payload.begin() + previous, payload.begin() + insertion);
+    repaired.push_back(':');
+    previous = insertion;
+  }
+  repaired.insert(repaired.end(), payload.begin() + previous, payload.end());
+  payload = std::move(repaired);
+}
+
 std::optional<std::vector<ImageResource>> read_image_resources(std::span<const std::uint8_t> bytes) {
   BigEndianReader reader(bytes);
   std::vector<ImageResource> resources;
@@ -843,6 +962,9 @@ std::vector<std::uint8_t> image_resources_for_document(const Document& document,
   auto parsed = read_image_resources(resources);
   if (!parsed.has_value()) {
     parsed = std::vector<ImageResource>{};
+  }
+  for (auto& resource : *parsed) {
+    if (resource.id == 1060) repair_xmp_date_timezones(resource.payload);
   }
   if (const auto color_mode = document.metadata().values.find("psd.color_mode");
       output_mode == kColorModeRgb && color_mode != document.metadata().values.end() && color_mode->second != "RGB") {

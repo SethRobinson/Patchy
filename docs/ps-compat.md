@@ -31,9 +31,16 @@ Lives in [photoshop-com.md](photoshop-com.md): the PowerShell entry point, dialo
 
 ## Write rules pinned against PS (silent corruption otherwise)
 
-- Unchanged supported 16-bit CMYK/gray/Lab layers can retain the original
+- Unchanged supported 8/16-bit CMYK/gray/Lab layers can retain the original
   document mode, profile and color channels. Content edits conservatively
   select RGB saving; see [native color preservation](psd-native-color.md).
+
+- XMP resource 1060 dates require extended timezone offsets (`-07:00`, not
+  `-0700`). Photoshop's XMP parser rejects the latter when importing File Info
+  and shows a data-discard warning. The writer repairs basic offsets only in
+  recognized, namespace-resolved XMP date properties; other packet bytes and
+  valid IPTC/EXIF metadata stay intact. A date-only repair of the issue397
+  fixture opens cleanly with Photoshop's error-enabled dialog mode.
 
 - **Photoshop reads type from the document-level `Txt2` block and trusts it over the TySh.**
   The block holds one text object per type layer, addressed by the TySh TextIndex; a stale
@@ -85,6 +92,7 @@ Lives in [photoshop-com.md](photoshop-com.md): the PowerShell entry point, dialo
 - **ShpC contour objects**: `Nm  ` + `Crv ` list of `CrPt`s. Linear default = name "Linear", two-point identity ramp, NO `Cnty` keys; custom curves write `Cnty` on EVERY point (true = smooth). `StyleContour` keeps exact points (lossless round trip; Satin normalizes to Linear on edit); `build_style_contour_lut` renders them.
 - **patternFill (Pattern Overlay)**: 10 items `enab, present, showInDialog, Md, Opct, Ptrn{Nm,Idnt}, Angl, Scl , Algn, phase{Hrzn,Vrtc doubles}`. `Algn` anchors at the layer's `fxrp` block (16 bytes, two BE doubles), which PS updates on move; render rules in [layer-effects-render.md](layer-effects-render.md).
 - **Pattern data blocks** (`Patt`/`Pat2`/`Pat3` global blocks; codec src/psd/psd_patterns.*): per pattern `{u32 length, u32 version=1, u32 image mode, u16 height, u16 width, UnicodeString name (count includes trailing NUL), PascalString id (no padding), [768-byte table if indexed], VMA list}`, 4-byte padded. VMA list: `{u32 version=3, u32 length, rect, u32 max-channels (PS declares 24)}` then max+2 slots (`u32 written`, then `u32 length, u32 depth, rect, u16 depth, u8 compression, data`). Color channels first; transparency in the LAST slot (max+1). Compression 0 = raw planar rows (PS writes it for small tiles, Patchy always); 1 = PackBits with per-row u16 counts, read only. Modes: Gray 1, Indexed 2, RGB 3, CMYK 4, Multichannel 7 (CS-era bevel textures; one plane, PS treats as grayscale and preserves on resave). Imported blocks stay raw in `unknown_psd_resources` AND decode into `DocumentMetadata::patterns`; saves append one authored `Patt` block holding only referenced patterns no raw block covers (PS reads both together).
+- **Rejected multi-ink patterns:** PS 2026 rejects mode-7 patterns with multiple color planes (`multichannel-pattern-fill.psd`) with a program error. At PSD/PSB save, `repair_multichannel_patterns` replaces only decodable records of that shape with their displayed RGBA8 tile encoded as RGB, retaining the UUID, name and alpha. Patchy displays the first ink as gray; it does not model spot-ink mixing. Valid single-plane mode-7 textures and other records remain byte-exact. The source raw blocks remain unchanged for undo.
 - **`.pat` import** (src/psd/pat_reader.*): big-endian `8BPT` v1; the same VMA v3 planes without the outer per-pattern length/padding. Indexed PAT records carry a 772-byte ACT table (768 RGB + colors-used + transparent-index) vs PSD's 768. Accepts Gray/Indexed/RGB/CMYK, 8/16-bit, raw and PackBits; bounded bad items skip with warnings, structural damage stops the scan keeping the decoded prefix; trailing `8BIMphry` ignored. `test-fixtures/pat/hue.pat` is from Jaroslav Bereza's MIT-licensed `jardicc/pat-parser`; source URL, SHA-256, and license in `test-fixtures/pat/NOTICE.txt`.
 - **Bevel Texture with an unresolvable pattern is DISABLED by PS** (Texture unchecked, renders off); Patchy mirrors that, untouched styles keep the raw lfx2.
 - **Roundtrip**: PS opens Patchy-authored style files without warnings and returns every value via Action Manager (`photoshop-pattern-bevel-roundtrip.psd`). Built-in pattern presets carry fixed GUID-shaped ids (pattern_presets.cpp) PS accepts and re-embeds.

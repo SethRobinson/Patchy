@@ -903,7 +903,7 @@ void ui_compatibility_report_warns_about_cmyk_ink_adjustments() {
   CHECK(warnings_for(patchy::AdjustmentKind::HueSaturation, true).isEmpty());
   const auto native = warnings_for(patchy::AdjustmentKind::Levels, true, true);
   CHECK(native.size() == 1);
-  CHECK(native.front().contains(QStringLiteral("original 16-bit color mode")));
+  CHECK(native.front().contains(QStringLiteral("original color mode")));
   CHECK(native.front().contains(QStringLiteral("Content edits or unsupported layers require RGB saving")));
   CHECK(!native.front().contains(QStringLiteral("Patchy saves RGB files")));
 

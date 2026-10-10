@@ -198,7 +198,7 @@ QStringList compatibility_warnings_for_document(const Document& document) {
   const auto color_mode = document.metadata().values.find("psd.color_mode");
   if (native_color_candidate) {
     warnings << QObject::tr("Patchy edits this file in RGB. Unchanged supported layers can be saved in the original "
-                            "16-bit color mode. Content edits or unsupported layers require RGB saving, which can change gradients and adjustments.");
+                            "color mode. Content edits or unsupported layers require RGB saving, which can change gradients and adjustments.");
   } else if (color_mode != document.metadata().values.end() && color_mode->second != "RGB") {
     if (color_mode->second == "CMYK") {
       warnings << QObject::tr("The source color mode is CMYK; Patchy converted the pixels to RGB/RGBA for editing "

@@ -25,7 +25,7 @@ struct ReadOptions {
 
 struct WriteOptions {
   bool large_document{false};
-  // Layered saves retain imported 16-bit CMYK/gray/Lab when all layer color content
+  // Layered saves retain imported 8/16-bit CMYK/gray/Lab when all layer color content
   // is unchanged. False explicitly requests the RGB conversion path.
   bool preserve_source_color_mode{true};
 };

@@ -134,8 +134,8 @@ std::optional<GrdGradient> parse_gradient(const DescriptorObject &wrapper,
     noise.add_transparency = boolean(*source, "ShTr", false);
     noise.restrict_colors = boolean(*source, "VctC", true);
     const auto model = enum_text(*source, "ClrS", "RGBC");
-    noise.color_model = model == "HSBC"   ? GradientNoiseColorModel::HSB
-                        : model == "LABC" ? GradientNoiseColorModel::Lab
+    noise.color_model = (model == "HSBl" || model == "HSBC" || model == "HSB ") ? GradientNoiseColorModel::HSB
+                        : (model == "LbCl" || model == "LABC" || model == "Lab ") ? GradientNoiseColorModel::Lab
                                           : GradientNoiseColorModel::RGB;
     noise.seed =
         static_cast<std::uint32_t>(std::max(0.0, number(*source, "RndS")));
@@ -277,10 +277,10 @@ DescriptorObject gradient_object(const GrdGradient &item) {
     append(result, "ClrS",
            enum_value("ClrS", definition.noise.color_model ==
                                       GradientNoiseColorModel::HSB
-                                  ? "HSBC"
+                                  ? "HSBl"
                               : definition.noise.color_model ==
                                       GradientNoiseColorModel::Lab
-                                  ? "LABC"
+                                  ? "LbCl"
                                   : "RGBC"));
     append(result, "RndS",
            integer_value(static_cast<std::int32_t>(definition.noise.seed)));

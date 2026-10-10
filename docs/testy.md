@@ -294,7 +294,7 @@ rules and the "never mark an editor down for the harness's mistake" safeguards.
   the corpus file's stem, so this reaches every artifact.
 - Nuisance modal dialogs are answered from outside the COM call. `DialogModes.NO`
   does not reach every dialog: some files make Photoshop raise a modal alert from
-  inside `app.open` (e.g. a PSD whose IPTC resource holds non-IPTC records), and
+  inside `app.open` (e.g. a PSD with malformed XMP date properties), and
   the scripted call is already blocked when the alert appears. Save-time warnings
   (nested-layer-groups compatibility) are modal too, so the save leg can hang the
   same way. Every probe runs under a `testy/win_dialogs.py` DialogGuard, which

@@ -1715,7 +1715,12 @@ void psd_tools_cmyk_levels_run_on_the_inks_if_available() {
   // Saved as RGB, the Levels layers stay Levels layers, and each one's fifth record (the
   // black ink) is written as the identity: Photoshop 2026 discards a Levels layer of an
   // RGB document whose fifth record is anything else, leaving a plain empty layer.
-  const auto saved = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto native_saved = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  CHECK(native_saved[25] == 4);  // Unchanged CMYK now retains all ink records.
+  patchy::psd::WriteOptions rgb_options;
+  rgb_options.preserve_source_color_mode = false;
+  const auto saved = patchy::psd::DocumentIo::write_layered_rgb8(document, rgb_options);
+  CHECK(saved[25] == 3);
   int levels_blocks = 0;
   const std::array<std::uint8_t, 8> key{'8', 'B', 'I', 'M', 'l', 'e', 'v', 'l'};
   for (auto at = std::search(saved.begin(), saved.end(), key.begin(), key.end()); at != saved.end();
@@ -2067,6 +2072,15 @@ void psd_tools_noise_gradient_fill_survives_resave_if_available() {
       CHECK(contains(*block, "ClNs"));
       CHECK(!contains(*block, "CstS"));
       CHECK(!contains(*block, "Clrs"));
+      patchy::psd::BigEndianReader descriptor_reader(*block);
+      CHECK(descriptor_reader.read_u32() == 16);
+      const auto descriptor = patchy::psd::read_descriptor(descriptor_reader);
+      const auto* gradient = patchy::psd::descriptor_object(descriptor, "Grad");
+      CHECK(gradient != nullptr);
+      const auto model = before->fill.gradient.noise.color_model;
+      CHECK(gradient->values.at("ClrS").enum_value ==
+            (model == patchy::GradientNoiseColorModel::HSB ? "HSBl" :
+             model == patchy::GradientNoiseColorModel::Lab ? "LbCl" : "RGBC"));
     }
   }
   // Photoshop stores the channel ranges as doubles (79.9988 for 80); rgb-noise, the

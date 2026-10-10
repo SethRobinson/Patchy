@@ -599,7 +599,12 @@ DeepDocumentComposite deep_merged_flatten_composite(const Document& document, Bi
 void write_rgb8_image_data_with_extra_channels(
     BigEndianWriter& writer, const PixelBuffer& pixels,
     std::span<const std::span<const std::uint8_t>> extra_channels, bool wide_rle_counts) {
-  if (pixels.format() != PixelFormat::rgb8()) {
+  const auto color_channels = pixels.format().channels;
+  if (pixels.format().bit_depth != BitDepth::UInt8 ||
+      !((pixels.format().color_mode == ColorMode::RGB && color_channels == 3) ||
+        (pixels.format().color_mode == ColorMode::CMYK && color_channels == 4) ||
+        (pixels.format().color_mode == ColorMode::Lab && color_channels == 3) ||
+        (pixels.format().color_mode == ColorMode::Grayscale && color_channels == 1))) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "PSD composite export requires RGB8 pixels"));
   }
   const auto width = static_cast<std::size_t>(pixels.width());
@@ -611,7 +616,7 @@ void write_rgb8_image_data_with_extra_channels(
     }
   }
 
-  const auto channel_count = 3U + extra_channels.size();
+  const auto channel_count = color_channels + extra_channels.size();
   std::vector<std::uint32_t> row_lengths;
   row_lengths.reserve(height * channel_count);
   std::vector<std::uint8_t> encoded_rows;
@@ -627,11 +632,11 @@ void write_rgb8_image_data_with_extra_channels(
     encoded_rows.insert(encoded_rows.end(), encoded.begin(), encoded.end());
   };
 
-  for (std::size_t component = 0; component < 3U; ++component) {
+  for (std::size_t component = 0; component < color_channels; ++component) {
     for (std::size_t y = 0; y < height; ++y) {
       const auto first_pixel = y * width;
       for (std::size_t x = 0; x < width; ++x) {
-        rgb_row[x] = pixels.data()[(first_pixel + x) * 3U + component];
+        rgb_row[x] = pixels.data()[(first_pixel + x) * color_channels + component];
       }
       append_encoded_row(rgb_row);
     }
@@ -659,9 +664,9 @@ void write_rgb8_image_data_with_extra_channels(
   }
 
   writer.write_u16(kCompressionRaw);
-  for (std::size_t component = 0; component < 3U; ++component) {
+  for (std::size_t component = 0; component < color_channels; ++component) {
     for (std::size_t pixel = 0; pixel < channel_pixels; ++pixel) {
-      writer.write_u8(pixels.data()[pixel * 3U + component]);
+      writer.write_u8(pixels.data()[pixel * color_channels + component]);
     }
   }
   for (const auto channel : extra_channels) {

@@ -9166,8 +9166,8 @@ RGB: %2, %3, %4</translation>
         <translation>%1: 밉 레벨 %2개, %3 x %4부터 %5 x %6까지, 텍스처 데이터 %7.</translation>
     </message>
     <message>
-        <source>Patchy edits this file in RGB. Unchanged supported layers can be saved in the original 16-bit color mode. Content edits or unsupported layers require RGB saving, which can change gradients and adjustments.</source>
-        <translation>Patchy는 이 파일을 RGB로 편집합니다. 지원되는 레이어의 내용이 변경되지 않았다면 원래의 16비트 색상 모드로 저장할 수 있습니다. 내용을 편집하거나 지원되지 않는 레이어가 있으면 RGB로 저장해야 하므로 그레이디언트와 조정 결과가 달라질 수 있습니다.</translation>
+        <source>Patchy edits this file in RGB. Unchanged supported layers can be saved in the original color mode. Content edits or unsupported layers require RGB saving, which can change gradients and adjustments.</source>
+        <translation>Patchy는 이 파일을 RGB로 편집합니다. 지원되는 레이어가 변경되지 않았다면 원래 색상 모드로 저장할 수 있습니다. 내용을 편집하거나 지원되지 않는 레이어가 있으면 RGB로 저장해야 하므로 그레이디언트와 조정이 달라질 수 있습니다.</translation>
     </message>
 </context>
 <context>

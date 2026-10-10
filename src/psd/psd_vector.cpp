@@ -622,8 +622,8 @@ DescriptorObject gradient_object(const LayerStyleGradient& gradient) {
     put_value(object, "ShTr", make_bool_value(gradient.noise.add_transparency));
     put_value(object, "VctC", make_bool_value(gradient.noise.restrict_colors));
     put_value(object, "ClrS",
-              make_enum_value("ClrS", gradient.noise.color_model == GradientNoiseColorModel::HSB   ? "HSBC"
-                                      : gradient.noise.color_model == GradientNoiseColorModel::Lab ? "LABC"
+              make_enum_value("ClrS", gradient.noise.color_model == GradientNoiseColorModel::HSB   ? "HSBl"
+                                      : gradient.noise.color_model == GradientNoiseColorModel::Lab ? "LbCl"
                                                                                                    : "RGBC"));
     put_value(object, "RndS", make_long_value(static_cast<std::int32_t>(gradient.noise.seed)));
     put_value(object, "Smth", make_long_value(gradient.noise.roughness));

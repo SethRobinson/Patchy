@@ -1345,8 +1345,8 @@ void write_layer_style_gradient_descriptor(BigEndianWriter& writer, const LayerS
     write_descriptor_bool_item(writer, "ShTr", gradient.noise.add_transparency);
     write_descriptor_bool_item(writer, "VctC", gradient.noise.restrict_colors);
     const auto color_space =
-        gradient.noise.color_model == GradientNoiseColorModel::HSB   ? "HSBC"
-        : gradient.noise.color_model == GradientNoiseColorModel::Lab ? "LABC"
+        gradient.noise.color_model == GradientNoiseColorModel::HSB   ? "HSBl"
+        : gradient.noise.color_model == GradientNoiseColorModel::Lab ? "LbCl"
                                                                      : "RGBC";
     write_descriptor_enum_item(writer, "ClrS", "ClrS", color_space);
     write_descriptor_long_item(writer, "RndS",

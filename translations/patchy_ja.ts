@@ -9166,8 +9166,8 @@ Mixed selection</source>
         <translation>%1: %2 ミップレベル、%3 x %4 から %5 x %6 まで、テクスチャデータ %7。</translation>
     </message>
     <message>
-        <source>Patchy edits this file in RGB. Unchanged supported layers can be saved in the original 16-bit color mode. Content edits or unsupported layers require RGB saving, which can change gradients and adjustments.</source>
-        <translation>Patchy はこのファイルを RGB で編集します。対応しているレイヤーの内容が変更されていなければ、元の 16 ビットカラーモードで保存できます。内容を編集した場合や未対応のレイヤーがある場合は RGB で保存するため、グラデーションや色調補正が変わることがあります。</translation>
+        <source>Patchy edits this file in RGB. Unchanged supported layers can be saved in the original color mode. Content edits or unsupported layers require RGB saving, which can change gradients and adjustments.</source>
+        <translation>PatchyはこのファイルをRGBで編集します。対応するレイヤーが変更されていなければ、元のカラーモードで保存できます。内容の編集や非対応のレイヤーがある場合はRGBでの保存が必要となり、グラデーションや色調補正が変わることがあります。</translation>
     </message>
 </context>
 <context>

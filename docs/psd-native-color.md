@@ -1,6 +1,6 @@
-# Preserving imported 16-bit PSD color spaces
+# Preserving imported PSD color spaces
 
-Patchy edits in RGB. Layered PSD/PSB saves can retain an imported 16-bit
+Patchy edits in RGB. Layered PSD/PSB saves can retain an imported 8/16-bit
 CMYK, grayscale or Lab document's original mode, ICC profile, color planes
 and native adjustment/gradient blocks. This preserves the color space in
 which Photoshop evaluates the layers. Converting only raster samples to
@@ -34,10 +34,10 @@ Import notes and the compatibility report explain that content edits may
 require RGB saving and change gradients or adjustments.
 
 `WriteOptions::preserve_source_color_mode = false` explicitly selects RGB.
-Flat exports, 8/32-bit documents, other color modes, reads with discarded
+Flat exports, 32-bit documents, other color modes, reads with discarded
 unknown blocks, and documents without eligible layer records use the
 existing RGB path. The historical `write_layered_rgb8` name also handles
-these native 16-bit saves, as it already handles deep RGB saves.
+these native saves, as it already handles deep RGB saves.
 
 ## Wire output and verification
 
@@ -46,7 +46,7 @@ and the PSD/PSB container. Native color planes replace only the encoded
 color channels. Unchanged adjustments keep their original blocks, including
 source channel records; fills keep their native descriptors. The merged
 preview is freshly composited by Patchy and converted back through a
-16-bit sRGB-to-source ICC transform. It never uses the source merged image.
+sRGB-to-source ICC transform at the document depth. It never uses the source merged image.
 Layer data does not pass through that inverse transform.
 
 Regression tests cover exact source samples and alpha, PSD/PSB, profiles,

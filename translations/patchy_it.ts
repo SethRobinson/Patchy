@@ -9196,8 +9196,8 @@ RGB: %2, %3, %4</translation>
         <translation>%1: %2 livelli mip, da %3 x %4 a %5 x %6, %7 di dati texture.</translation>
     </message>
     <message>
-        <source>Patchy edits this file in RGB. Unchanged supported layers can be saved in the original 16-bit color mode. Content edits or unsupported layers require RGB saving, which can change gradients and adjustments.</source>
-        <translation>Patchy modifica questo file in RGB. I livelli supportati e non modificati possono essere salvati nella modalità colore originale a 16 bit. Le modifiche al contenuto o i livelli non supportati richiedono il salvataggio in RGB, che può alterare sfumature e regolazioni.</translation>
+        <source>Patchy edits this file in RGB. Unchanged supported layers can be saved in the original color mode. Content edits or unsupported layers require RGB saving, which can change gradients and adjustments.</source>
+        <translation>Patchy modifica questo file in RGB. I livelli supportati non modificati possono essere salvati nella modalità colore originale. Le modifiche al contenuto o i livelli non supportati richiedono il salvataggio in RGB, che può alterare sfumature e regolazioni.</translation>
     </message>
 </context>
 <context>

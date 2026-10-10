@@ -8,6 +8,7 @@ namespace patchy {
 // snapshots; session-only, never serialized as private PSD tags.
 struct PsdNativeColorSpace {
   std::uint16_t mode{0};
+  BitDepth depth{BitDepth::UInt16};
   std::vector<std::uint8_t> profile;
 };
 

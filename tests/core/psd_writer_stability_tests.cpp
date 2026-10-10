@@ -1468,10 +1468,61 @@ void psd_pinball_resave_writes_even_blocks_and_no_plad_if_available() {
   }
 }
 
+void psd_xmp_dates_repair_basic_timezones_without_discarding_metadata() {
+  using namespace patchy;
+  const std::string prefix = "<x:xmpmeta xmlns:x='adobe:ns:meta/'><rdf:RDF xmlns:rdf='http://www.w3.org/1999/02/22-rdf-syntax-ns#'><rdf:Description xmlns:d='http://ns.adobe.com/xap/1.0/' ";
+  const std::string suffix = "</rdf:Description></rdf:RDF></x:xmpmeta>";
+  const std::string original = prefix +
+      "d:CreateDate='2024-04-09T00:59:12-0700' d:ModifyDate='2024-04-09T00:59:33-07:00' title='2024-04-09T00:59:12-0700'>"
+      "<d:MetadataDate>2024-04-09T00:59:12.123+0930</d:MetadataDate>"
+      "<foreign xmlns:d='urn:unrelated' d:CreateDate='2024-04-09T00:59:12-0700'/>"
+      "<!-- d:CreateDate='2024-04-09T00:59:12-0700' -->"
+      "<![CDATA[2024-04-09T00:59:12-0700]]>" + suffix;
+  const std::string expected = prefix +
+      "d:CreateDate='2024-04-09T00:59:12-07:00' d:ModifyDate='2024-04-09T00:59:33-07:00' title='2024-04-09T00:59:12-0700'>"
+      "<d:MetadataDate>2024-04-09T00:59:12.123+09:30</d:MetadataDate>"
+      "<foreign xmlns:d='urn:unrelated' d:CreateDate='2024-04-09T00:59:12-0700'/>"
+      "<!-- d:CreateDate='2024-04-09T00:59:12-0700' -->"
+      "<![CDATA[2024-04-09T00:59:12-0700]]>" + suffix;
+  const std::vector<std::uint8_t> iptc{0x1c, 2, 5, 0, 7, 'm', 'i', 'n', 'i', 'm', 'a', 'l'};
+  Document document(2, 2, PixelFormat::rgb8());
+  document.add_pixel_layer("Pixels", solid_rgb(2, 2, 10, 20, 30));
+  psd::BigEndianWriter resources;
+  const auto append_resource = [&](std::uint16_t id, std::span<const std::uint8_t> bytes) {
+    resources.write_bytes(std::array<std::uint8_t, 4>{'8', 'B', 'I', 'M'});
+    resources.write_u16(id);
+    resources.write_u16(0);
+    resources.write_u32(static_cast<std::uint32_t>(bytes.size()));
+    resources.write_bytes(bytes);
+    if (bytes.size() % 2U) resources.write_u8(0);
+  };
+  append_resource(1060, std::vector<std::uint8_t>(original.begin(), original.end()));
+  append_resource(1028, iptc);
+  document.metadata().raw_psd_image_resources = resources.bytes();
+  for (const bool large : {false, true}) {
+    psd::WriteOptions options;
+    options.large_document = large;
+    for (const bool flat : {false, true}) {
+      const auto bytes = flat ? psd::DocumentIo::write_flat_rgb8(document, options)
+                              : psd::DocumentIo::write_layered_rgb8(document, options);
+      const auto read = psd::DocumentIo::read(bytes);
+      const auto& saved_resources = read.metadata().raw_psd_image_resources;
+      const auto xmp = psd::find_image_resource_payload(saved_resources, 1060);
+      CHECK(xmp.has_value());
+      CHECK(std::string(xmp->begin(), xmp->end()) == expected);
+      CHECK(psd::find_image_resource_payload(saved_resources, 1028).value() == iptc);
+      CHECK(psd::image_resources_for_document(read, {}) == saved_resources);
+    }
+  }
+  CHECK(document.metadata().raw_psd_image_resources == resources.bytes());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> psd_writer_stability_tests() {
   return {
+      {"psd_xmp_dates_repair_basic_timezones_without_discarding_metadata",
+       psd_xmp_dates_repair_basic_timezones_without_discarding_metadata},
       {"psb_write_accepts_over_30k_dimension_psd_rejects",
        psb_write_accepts_over_30k_dimension_psd_rejects},
       {"psd_layered_writer_bytes_are_stable", psd_layered_writer_bytes_are_stable},

@@ -680,7 +680,7 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
                                                (source_is_gray && source_colors.gray_icc == nullptr));
     const bool convert_native_color = native_color && depth == 16 &&
         (source_is_cmyk || is_lab_color_mode(source_color_mode) || (source_is_gray && source_colors.gray_icc != nullptr));
-    const bool preserve_native_color = native_color && depth == 16 &&
+    const bool preserve_native_color = (depth == 8 || (native_color && depth == 16)) &&
         (source_is_cmyk || is_lab_color_mode(source_color_mode) || source_color_mode == kColorModeGrayscale);
     std::array<std::vector<std::uint8_t>, 4> native_color_planes;
     PixelBuffer native_pixels;
@@ -818,6 +818,10 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
             channel.id < native_color_planes.size()) {
           native_color_planes[channel.id] = std::move(native_samples);
         }
+      }
+      if (preserve_native_color && depth == 8 && is_source_color_channel(channel.id, source_color_mode) &&
+          channel.id < native_color_planes.size()) {
+        native_color_planes[channel.id] = channel_data;
       }
       if (source_is_cmyk) {
         if (channel.id <= kChannelBlack && channel_data.size() == pixel_count) {
@@ -1437,7 +1441,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
   const bool keep_depth = (header.depth == 16 || header.depth == 32) && header.color_mode != kColorModeBitmap &&
                           options.keep_bit_depth.value_or(deep_editing_enabled());
   const auto kept_depth = header.depth == 32 ? BitDepth::Float32 : BitDepth::UInt16;
-  const bool retain_source_color = keep_depth && header.depth == 16 && options.preserve_unknown_blocks &&
+  const bool retain_source_color = (header.depth == 8 || (keep_depth && header.depth == 16)) && options.preserve_unknown_blocks &&
       !options.prefer_flat_composite &&
       (header.color_mode == kColorModeCmyk || header.color_mode == kColorModeGrayscale ||
        header.color_mode == kColorModeLab);
@@ -1849,7 +1853,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
 
   document.metadata().values["psd.version"] = header.large_document ? "PSB" : "PSD";
   document.metadata().values["psd.color_mode"] = color_mode_name(header.color_mode);
-  // Ink adjustments change meaning on RGB saves. Native 16-bit candidates get
+  // Ink adjustments change meaning on RGB saves. Native-color candidates get
   // the conditional preservation notice below; other imports keep the RGB warning.
   // The UI forces the Import Notes popup via "psd.ink_adjustments" in either case.
   if (ink_space != nullptr) {
@@ -1896,10 +1900,11 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     if (options.notices != nullptr) {
       options.notices->push_back(PATCHY_TRANSLATE_NOOP(
           "QObject", "Patchy edits this file in RGB. Unchanged supported layers can be saved in the original "
-          "16-bit color mode. Content edits or unsupported layers require RGB saving, which can change gradients and adjustments."));
+          "color mode. Content edits or unsupported layers require RGB saving, which can change gradients and adjustments."));
     }
     auto space = std::make_shared<PsdNativeColorSpace>();
     space->mode = header.color_mode;
+    space->depth = header.depth == 8 ? BitDepth::UInt8 : BitDepth::UInt16;
     if (const auto profile = find_image_resource_payload(image_resources, kImageResourceIccProfile)) {
       space->profile = *profile;
     }
@@ -2018,7 +2023,8 @@ bool native_layer_colors_unchanged(const std::vector<Layer>& layers,
       const auto original_pixels = imported.pixels().data();
       if (layer.pixels().format() != imported.pixels().format() ||
           (pixels.data() != original_pixels.data() && !std::ranges::equal(pixels, original_pixels))) return false;
-      const auto plane_size = static_cast<std::size_t>(source->width) * source->height * 2U;
+      const auto plane_size = static_cast<std::size_t>(source->width) * source->height *
+                              (space->depth == BitDepth::UInt8 ? 1U : 2U);
       for (std::size_t channel = 0; channel < composite_color_channel_count(space->mode); ++channel) {
         if (source->planes[channel].size() != plane_size) return false;
       }
@@ -2031,7 +2037,7 @@ bool native_layer_colors_unchanged(const std::vector<Layer>& layers,
 std::optional<PixelBuffer> native_color_composite(const Document& document, const PixelBuffer& rgb,
                                                  const WriteOptions& options) {
   const auto& space = document.metadata().psd_native_color_space;
-  if (!options.preserve_source_color_mode || !space || document_bit_depth(document) != BitDepth::UInt16 ||
+  if (!options.preserve_source_color_mode || !space || document_bit_depth(document) != space->depth ||
       !document.color_state().embedded_icc_profile.empty() ||
       !native_layer_colors_unchanged(document.layers(), space)) return std::nullopt;
   const auto profile = find_image_resource_payload(document.metadata().raw_psd_image_resources,
@@ -2039,7 +2045,7 @@ std::optional<PixelBuffer> native_color_composite(const Document& document, cons
   if (profile.value_or(std::vector<std::uint8_t>{}) != space->profile) return std::nullopt;
   const auto color_mode = space->mode == kColorModeCmyk ? ColorMode::CMYK
                           : space->mode == kColorModeLab ? ColorMode::Lab : ColorMode::Grayscale;
-  return rgb16_to_native_color_space(rgb, color_mode, profile ? std::span<const std::uint8_t>(*profile)
+  return rgb_to_native_color_space(rgb, color_mode, profile ? std::span<const std::uint8_t>(*profile)
                                                             : std::span<const std::uint8_t>{});
 }
 
@@ -2054,7 +2060,7 @@ void restore_native_layer_colors(std::vector<EncodedLayer>& layers, std::uint16_
       for (std::uint16_t channel = 0; channel < count; ++channel) {
         encoded.channels.push_back(vector ? EncodedChannel{channel, 0, 0, kCompressionRaw, {}}
             : encode_channel_at_depth(channel, source.width, source.height, source.planes[channel],
-                                       BitDepth::UInt16, large_document));
+                                       source.space->depth, large_document));
       }
     }
   }
@@ -2196,8 +2202,7 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
     composite = merged_flatten_composite(document);
   }
 
-  auto native_composite = deep ? native_color_composite(document, deep_composite->rgb, options)
-                               : std::optional<PixelBuffer>{};
+  auto native_composite = native_color_composite(document, deep ? deep_composite->rgb : composite.rgb, options);
   if (native_composite && native_composite->format().channels + document.channels().size() +
           (composite.channel_name.empty() ? 0U : 1U) > kMaximumPhotoshopChannelCount) {
     native_composite.reset();  // Added saved channels may fit RGB but not four-ink CMYK.
@@ -2429,6 +2434,10 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
           if (block.key == "Txt2" && text_engine_payload.has_value()) {
             emit_global_payload(block.key, *text_engine_payload, block.long_length);
             text_engine_emitted = true;
+          } else if (block.key == "Patt" || block.key == "Pat2" || block.key == "Pat3") {
+            const auto repaired = repair_multichannel_patterns(block.payload);
+            emit_global_payload(block.key, repaired.has_value() ? *repaired : block.payload,
+                                block.long_length);
           } else {
             emit_global_payload(block.key, block.payload, block.long_length);
           }
@@ -2531,8 +2540,8 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
     write_deep_image_data(writer, native_composite ? *native_composite : deep_composite->rgb,
                           deep_extra_planes(document, *deep_composite, depth), depth,
                           options.large_document);
-  } else if (!extra_channels.empty()) {
-    write_rgb8_image_data_with_extra_channels(writer, composite.rgb, extra_channels,
+  } else if (native_composite || !extra_channels.empty()) {
+    write_rgb8_image_data_with_extra_channels(writer, native_composite ? *native_composite : composite.rgb, extra_channels,
                                               options.large_document);
   } else {
     write_rgb8_image_data(writer, composite.rgb, options.large_document);

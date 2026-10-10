@@ -6,7 +6,7 @@ Layer-style placement adds Linear, Radial, Angle, Reflected, and Diamond geometr
 
 ## Rendering
 
-Imported 16-bit CMYK, grayscale and Lab gradients retain their original
+Imported 8/16-bit CMYK, grayscale and Lab gradients retain their original
 descriptors and document mode on eligible layered saves:
 [native color preservation](psd-native-color.md). Their RGB editing preview
 still interpolates the converted stops.
@@ -55,5 +55,10 @@ A fill layer without a vector mask aligns to the layer's bounds, which in Photos
 Not modeled: Angle and Diamond (they keep center sampling), and offsets on very small canvases (no candidate rule fit a 16x8 probe). This geometry is what took `photoshop-shape-gradient.psd` from mean error 1.22 to 0.29 against Photoshop and fixed psd-tools' `colormodes/4x4_*` files.
 
 ## Noise gradients in PSD fill layers
+
+Noise `ClrS` enum values are `RGBC`, `HSBl`, and `LbCl`. The color-object
+classes `HSBC` and `LABC` are not the HSB/Lab enum values: Photoshop silently
+interprets them as RGB. PSD fills, layer effects, and GRD exports all write
+the native enum values; readers still accept older Patchy spellings.
 
 A Gradient Fill layer or shape stroke may carry a noise (`ClNs`) gradient. Photoshop's PSDs store the channel ranges `Mnm `/`Mxm ` as doubles (79.9988 for 80), where GRD files use longs; the reader accepts both. `gradient_object` (src/psd/psd_vector.cpp) writes the noise form with Photoshop's keys and order (`Nm`, `GrdF`, `ShTr`, `VctC`, `ClrS`, `RndS`, `Smth`, `Mnm`, `Mxm`) and no stop lists. A noise gradient is never "healed" for missing transparency stops: writing it as a stop gradient left an empty `Clrs` list and Photoshop dropped the fill layer on open (psd-tools' `gradients/noise-gradient-*.psd`, found by Testy in October 2026; Photoshop 2026 opens the regenerated file clean with all three layers still Gradient Fill).

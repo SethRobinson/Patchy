@@ -332,6 +332,85 @@ void psd_photoshop_pattern_overlay_fixture_imports() {
   CHECK(reread.metadata().patterns.patterns.size() == 1U);
 }
 
+void psd_multichannel_pattern_save_repairs_only_rejected_multi_ink_records() {
+  const auto pattern = [](std::uint32_t mode, std::uint32_t colors, const std::string& id) {
+    patchy::psd::BigEndianWriter vma;
+    vma.write_u32(0); vma.write_u32(0); vma.write_u32(1); vma.write_u32(2);
+    vma.write_u32(24);
+    for (std::uint32_t slot = 0; slot < 26U; ++slot) {
+      const auto written = slot < colors || slot == 25U;
+      vma.write_u32(written ? 1U : 0U);
+      if (!written) continue;
+      vma.write_u32(25);  // channel header and two samples
+      vma.write_u32(8);
+      vma.write_u32(0); vma.write_u32(0); vma.write_u32(1); vma.write_u32(2);
+      vma.write_u16(8);
+      vma.write_u8(0);
+      vma.write_u8(static_cast<std::uint8_t>(slot == 25U ? 128U : 20U + slot));
+      vma.write_u8(static_cast<std::uint8_t>(slot == 25U ? 0U : 90U + slot));
+    }
+    patchy::psd::BigEndianWriter body;
+    body.write_u32(1); body.write_u32(mode);
+    body.write_u16(1); body.write_u16(2);
+    patchy::psd::write_descriptor_unicode_string(body, "Imported texture");
+    body.write_u8(static_cast<std::uint8_t>(id.size()));
+    body.write_bytes(std::span(reinterpret_cast<const std::uint8_t*>(id.data()), id.size()));
+    body.write_u32(3);
+    body.write_u32(static_cast<std::uint32_t>(vma.bytes().size()));
+    body.write_bytes(vma.bytes());
+    patchy::psd::BigEndianWriter record;
+    record.write_u32(static_cast<std::uint32_t>(body.bytes().size()));
+    record.write_bytes(body.bytes());
+    while (record.bytes().size() % 4U != 0U) record.write_u8(0);
+    return record.bytes();
+  };
+  const auto valid_legacy = pattern(7, 1, "valid-legacy");
+  const auto rejected = pattern(7, 3, "multi-ink");
+  const auto valid_rgb = pattern(3, 3, "valid-rgb");
+  CHECK(!patchy::psd::repair_multichannel_patterns(valid_legacy).has_value());
+  CHECK(!patchy::psd::repair_multichannel_patterns(valid_rgb).has_value());
+  auto original = valid_legacy;
+  original.insert(original.end(), rejected.begin(), rejected.end());
+  original.insert(original.end(), valid_rgb.begin(), valid_rgb.end());
+  const auto resources = patchy::psd::parse_patterns_block(original, nullptr);
+  CHECK(resources.size() == 3U);
+  for (const auto key : {"Patt", "Pat2", "Pat3"}) {
+    patchy::Document document(2, 1, patchy::PixelFormat::rgba8());
+    document.add_pixel_layer("Pixels", solid_rgba(2, 1, 40, 50, 60, 255));
+    document.metadata().unknown_psd_resources.push_back({key, original});
+    for (const auto psb : {false, true}) {
+      patchy::psd::WriteOptions options;
+      options.large_document = psb;
+      const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document, options);
+      const auto reopened = patchy::psd::DocumentIo::read(bytes);
+      const auto& blocks = reopened.metadata().unknown_psd_resources;
+      const auto block = std::find_if(blocks.begin(), blocks.end(), [key](const auto& b) {
+        return b.key == key;
+      });
+      CHECK(block != blocks.end());
+      CHECK(block->payload != original);
+      CHECK(std::equal(valid_legacy.begin(), valid_legacy.end(), block->payload.begin()));
+      CHECK(std::equal(valid_rgb.rbegin(), valid_rgb.rend(), block->payload.rbegin()));
+      patchy::psd::BigEndianReader header(std::span(block->payload).subspan(valid_legacy.size()));
+      header.skip(8U);
+      CHECK(header.read_u32() == 3U);
+      const auto decoded = patchy::psd::parse_patterns_block(block->payload, nullptr);
+      CHECK(decoded.size() == resources.size());
+      for (std::size_t i = 0; i < resources.size(); ++i) {
+        CHECK(decoded[i].id == resources[i].id);
+        CHECK(decoded[i].name == resources[i].name);
+        CHECK(std::equal(decoded[i].tile.data().begin(), decoded[i].tile.data().end(),
+                         resources[i].tile.data().begin(), resources[i].tile.data().end()));
+      }
+      CHECK(!patchy::psd::repair_multichannel_patterns(block->payload).has_value());
+    }
+    CHECK(std::as_const(document).metadata().unknown_psd_resources.front().payload == original);
+  }
+  auto truncated = rejected;
+  truncated.resize(truncated.size() / 2U);
+  CHECK(!patchy::psd::repair_multichannel_patterns(truncated).has_value());
+}
+
 void psd_photoshop_pattern_transparent_fixture_decodes_alpha() {
   const auto document = patchy::psd::DocumentIo::read_file(
       patchy::test::committed_psd_fixture_path("photoshop-pattern-transparent.psd"));
@@ -2397,6 +2476,8 @@ std::vector<patchy::test::TestCase> pattern_styles_fixtures_tests() {
       {"psd_photoshop_pattern_overlay_fixture_imports", psd_photoshop_pattern_overlay_fixture_imports},
       {"psd_photoshop_pattern_transparent_fixture_decodes_alpha",
        psd_photoshop_pattern_transparent_fixture_decodes_alpha},
+      {"psd_multichannel_pattern_save_repairs_only_rejected_multi_ink_records",
+       psd_multichannel_pattern_save_repairs_only_rejected_multi_ink_records},
       {"psd_photoshop_bevel_subs_fixture_round_trips", psd_photoshop_bevel_subs_fixture_round_trips},
       {"psd_photoshop_pattern_bevel_roundtrip_fixture_imports",
        psd_photoshop_pattern_bevel_roundtrip_fixture_imports},

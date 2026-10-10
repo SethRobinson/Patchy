@@ -173,6 +173,8 @@ void grd_v5_round_trips_solid_dynamic_noise_and_hierarchy() {
   const auto bytes = patchy::psd::write_grd(source);
   CHECK(bytes.size() > 64U);
   CHECK(bytes == patchy::psd::write_grd(source));
+  CHECK(std::search(bytes.begin(), bytes.end(), std::begin("LbCl"), std::end("LbCl") - 1) != bytes.end());
+  CHECK(std::search(bytes.begin(), bytes.end(), std::begin("LABC"), std::end("LABC") - 1) == bytes.end());
   CHECK(std::search(bytes.begin(), bytes.end(), std::begin("8BIMphry"), std::end("8BIMphry") - 1) != bytes.end());
   std::string error;
   const auto decoded = patchy::psd::read_grd(bytes, error);
@@ -191,6 +193,15 @@ void grd_v5_round_trips_solid_dynamic_noise_and_hierarchy() {
   CHECK(decoded->gradients[1].definition.noise.color_model == patchy::GradientNoiseColorModel::Lab);
   CHECK(decoded->gradients[1].definition.noise.minimum == noise.noise.minimum);
   CHECK(decoded->gradients[2].definition.smoothness == 2048U);
+
+  // Older Patchy presets used the color-object class as an enum. Keep those
+  // readable, while newly written presets use Photoshop's actual enum values.
+  auto legacy = bytes;
+  const auto model = std::search(legacy.begin(), legacy.end(), std::begin("LbCl"), std::end("LbCl") - 1);
+  std::copy_n("LABC", 4, model);
+  const auto old_preset = patchy::psd::read_grd(legacy, error);
+  CHECK(old_preset.has_value());
+  CHECK(old_preset->gradients[1].definition.noise.color_model == patchy::GradientNoiseColorModel::Lab);
 
   auto truncated = bytes;
   truncated.resize(bytes.size() - 24U);

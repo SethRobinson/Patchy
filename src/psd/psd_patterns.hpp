@@ -3,6 +3,7 @@
 #include "core/pattern_resource.hpp"
 
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
 #include <vector>
@@ -16,7 +17,8 @@
 // slots total; PS declares 24 max channels regardless of mode).
 //
 // Preservation contract: imported blocks stay raw in
-// DocumentMetadata::unknown_psd_resources and are re-emitted verbatim; this codec
+// DocumentMetadata::unknown_psd_resources and are re-emitted verbatim except for
+// rejected multi-ink patterns repaired at save (see repair_multichannel_patterns). This codec
 // only DECODES them into the PatternStore for rendering, and SERIALIZES the
 // Patchy-authored resources the raw blocks do not cover into one new 'Patt' block.
 namespace patchy {
@@ -38,6 +40,13 @@ namespace patchy::psd {
 // The writer uses this to avoid re-embedding ids already covered by preserved raw
 // blocks.
 [[nodiscard]] std::vector<std::string> pattern_ids_in_block(std::span<const std::uint8_t> payload);
+
+// Photoshop rejects mode-7 records with multiple color planes. Replace only
+// decodable records of that shape with the RGBA8 appearance Patchy displays,
+// retaining the UUID, name and alpha. Valid one-plane mode-7 records and other
+// records stay verbatim. Nullopt means no repair; the source is never modified.
+[[nodiscard]] std::optional<std::vector<std::uint8_t>> repair_multichannel_patterns(
+    std::span<const std::uint8_t> payload);
 
 // Serializes resources into one pattern-block payload: version 1, RGB mode, 8-bit,
 // raw (compression 0) planar channels — the exact shape PS 27.8 writes for small

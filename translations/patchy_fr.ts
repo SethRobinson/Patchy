@@ -9196,8 +9196,8 @@ RVB : %2, %3, %4</translation>
         <translation>%1 : %2 niveaux de mip, %3 x %4 jusqu&apos;à %5 x %6, %7 de données de texture.</translation>
     </message>
     <message>
-        <source>Patchy edits this file in RGB. Unchanged supported layers can be saved in the original 16-bit color mode. Content edits or unsupported layers require RGB saving, which can change gradients and adjustments.</source>
-        <translation>Patchy modifie ce fichier en RVB. Les calques pris en charge et inchangés peuvent être enregistrés dans le mode colorimétrique 16 bits d’origine. Les modifications du contenu ou les calques non pris en charge imposent un enregistrement en RVB, ce qui peut modifier les dégradés et les réglages.</translation>
+        <source>Patchy edits this file in RGB. Unchanged supported layers can be saved in the original color mode. Content edits or unsupported layers require RGB saving, which can change gradients and adjustments.</source>
+        <translation>Patchy modifie ce fichier en RVB. Les calques pris en charge et non modifiés peuvent être enregistrés dans le mode colorimétrique d’origine. Les modifications de contenu ou les calques non pris en charge nécessitent un enregistrement en RVB, ce qui peut modifier les dégradés et les réglages.</translation>
     </message>
 </context>
 <context>
