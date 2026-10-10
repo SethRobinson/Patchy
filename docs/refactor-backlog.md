@@ -64,9 +64,6 @@ canaries.
   checks.
 - `qimage_from_pixel_buffer` still uses per-pixel `setPixelColor`. Treat a scanline
   rewrite as a pinned-output performance change.
-- `compose_document_pixel` and `compose_layer_pixel` omit clipping-group folding and
-  layer styles. Decide whether the eyedropper's fast-path difference is intentional
-  before converging it with the reference compositor.
 
 ## Structural extractions
 
@@ -112,7 +109,13 @@ canaries.
 
 - A nested text-import record could replace the text-only optionals on `LayerRecord`.
 - Extracting document session and undo ownership from `MainWindow` remains the
-  highest-leverage class boundary.
+  highest-leverage class boundary. Done so far: `DocumentSession` is a standalone type
+  (`ui/document_session.hpp`) and the recovery lifecycle lives behind `RecoveryHost` in
+  `ui/document_recovery_coordinator`. Next: a session store owning `sessions_` with the
+  by-id and by-canvas lookups (`session_with_id`, `session_for_canvas`, add, erase,
+  iteration; about 80 call sites across 16 TUs plus `ScriptEngineHost`), then save
+  coordination (`set_session_saved`, the image-save options, the Smart Object commit-back
+  in `main_window_files.cpp`) behind an explicit interface the way recovery is.
 - Canvas tool enums could move to a small `ui/tool_types.hpp` header.
 - The options bar's `current_*` mirrors indicate a missing tool-options model.
 - Canvas callback fields could become a clearer single-listener interface or Qt

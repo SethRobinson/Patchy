@@ -1,6 +1,7 @@
-// Automatic document recovery (docs/document-recovery.md): the timer, the
-// background write of one PSB copy per modified document, the lifecycle hooks'
-// shared discard, and the reopen of copies a crashed instance left behind.
+// Automatic document recovery (docs/document-recovery.md): MainWindow's half. The
+// lifecycle itself (timer, folder, marks, background write, orphan reopen) is
+// DocumentRecoveryCoordinator; this TU implements its RecoveryHost over the session
+// list, owns the user-facing text, and forwards the public recovery members.
 
 #include "ui/main_window.hpp"
 #include "ui/main_window_shared.hpp"
@@ -12,20 +13,21 @@
 #include "ui/background_workers.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/document_recovery.hpp"
+#include "ui/document_recovery_coordinator.hpp"
 #include "ui/qt_paths.hpp"
 
 #include <QApplication>
-#include <QDateTime>
 #include <QDir>
-#include <QPointer>
 #include <QStatusBar>
 #include <QTextEdit>
-#include <QTimer>
 
-#include <exception>
+#include <cstdint>
 #include <memory>
-#include <system_error>
+#include <optional>
+#include <string>
+#include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace patchy::ui {
 
@@ -44,52 +46,101 @@ bool MainWindow::any_canvas_interaction_active() const {
 
 #ifndef Q_OS_WASM
 
-namespace {
+// The window's side of the recovery lifecycle: what the coordinator asks of the
+// document owner (RecoveryHost), the user-facing text, and the public forwarders.
+class MainWindow::RecoveryHostAdapter final : public RecoveryHost {
+public:
+  explicit RecoveryHostAdapter(MainWindow& window) noexcept : window_(window) {}
 
-struct RecoveryJob {
-  MainWindow::RecoveryMark mark;
-  Document snapshot;
-  recovery::RecoveryEntry entry;
+  [[nodiscard]] bool recovery_busy() const override { return window_.recovery_busy(); }
+  [[nodiscard]] bool recovery_suppressed_for_automation() const override { return window_.cli_automation_mode_; }
+
+  [[nodiscard]] std::vector<RecoveryJob> collect_recovery_jobs(
+      const std::unordered_map<std::int64_t, RecoveryMark>& marks) override {
+    std::vector<RecoveryJob> jobs;
+    for (const auto& target_session : window_.sessions_) {
+      if (target_session == nullptr || !window_.session_is_modified(*target_session)) {
+        continue;
+      }
+      const auto mark = marks.find(target_session->session_id);
+      if (mark != marks.end() && mark->second.revision == target_session->revision &&
+          mark->second.state_id == target_session->current_state_id) {
+        continue;
+      }
+      RecoveryJob job;
+      job.mark = RecoveryMark{target_session->session_id, target_session->revision, target_session->current_state_id};
+      // A copy shares pixel storage with the live document until the user's next edit
+      // detaches the live side; the worker only reads it (const Document&).
+      job.snapshot = std::as_const(*target_session).document;
+      job.entry.title = target_session->title.toStdString();
+      job.entry.original_path =
+          target_session->path.isEmpty() ? std::string() : path_to_utf8(to_filesystem_path(target_session->path));
+      jobs.push_back(std::move(job));
+    }
+    return jobs;
+  }
+
+  [[nodiscard]] std::optional<RecoveryMark> modified_session_mark(std::int64_t session_id) override {
+    const auto* target_session = window_.session_with_id(session_id);
+    if (target_session == nullptr || !window_.session_is_modified(*target_session)) {
+      return std::nullopt;
+    }
+    return RecoveryMark{session_id, target_session->revision, target_session->current_state_id};
+  }
+
+  bool open_recovered_document(const QString& psb_path, const QString& title, const QString& original_path,
+                               std::int64_t* session_id) override {
+    return window_.open_recovered_document(psb_path, title, original_path, session_id);
+  }
+
+  [[nodiscard]] QString recovered_document_title(const std::string& title) override {
+    const auto name = title.empty() ? MainWindow::tr("Untitled") : QString::fromStdString(title);
+    return MainWindow::tr("%1 (Recovered)").arg(name);
+  }
+
+  void report_recovery_folder_unavailable(const QString& directory) override {
+    window_.show_status_error(
+        MainWindow::tr("Could not save recovery information: %1").arg(QDir::toNativeSeparators(directory)));
+  }
+
+  void report_recovery_write_error(const QString& error) override {
+    window_.show_status_error(MainWindow::tr("Could not save recovery information: %1").arg(error));
+  }
+
+  void report_recovery_result(int recovered, int failed_to_open, int left_in_place) override {
+    if (recovered > 0) {
+      window_.statusBar()->showMessage(
+          MainWindow::tr("Recovered %n unsaved document(s) from the last session", nullptr, recovered));
+    }
+    const auto root = QDir::toNativeSeparators(RecoveryInstanceFolder::recovery_root());
+    if (failed_to_open > 0) {
+      window_.show_status_error(
+          MainWindow::tr("%n recovery file(s) could not be opened; see %1", nullptr, failed_to_open).arg(root));
+    } else if (left_in_place > 0) {
+      window_.show_status_error(
+          MainWindow::tr("%n recovered document(s) could not be moved to this session's recovery folder; "
+                         "the copies stay in %1",
+                         nullptr, left_in_place)
+              .arg(root));
+    }
+  }
+
+private:
+  MainWindow& window_;
 };
 
-QString original_path_from_entry(const recovery::RecoveryEntry& entry) {
-  if (entry.original_path.empty()) {
-    return QString();
-  }
-  return to_qstring(std::filesystem::path(std::u8string(entry.original_path.begin(), entry.original_path.end())));
-}
-
-}  // namespace
-
 void MainWindow::start_document_recovery() {
-  recovery_folder_ = std::make_shared<RecoveryInstanceFolder>(RecoveryInstanceFolder::recovery_root());
-  recovery_timer_ = new QTimer(this);
-  recovery_timer_->setObjectName(QStringLiteral("documentRecoveryTimer"));
-  recovery_timer_->setTimerType(Qt::VeryCoarseTimer);
-  connect(recovery_timer_, &QTimer::timeout, this, [this] {
-    // Export, run-script, headless and hidden-connector instances never write: their
-    // documents are the automation's, not the user's, and nobody would recover them.
-    if (!cli_automation_mode_) {
-      write_recovery_now(/*wait=*/false);
-    }
-  });
+  recovery_host_ = std::make_shared<RecoveryHostAdapter>(*this);
+  recovery_coordinator_ =
+      new DocumentRecoveryCoordinator(*recovery_host_, RecoveryInstanceFolder::recovery_root(), this);
   apply_recovery_preferences();
 }
 
 void MainWindow::apply_recovery_preferences() {
-  if (recovery_timer_ == nullptr) {
+  if (recovery_coordinator_ == nullptr) {
     return;
   }
-  if (!stored_recovery_enabled()) {
-    recovery_timer_->stop();
-    return;
-  }
-  int interval_ms = stored_recovery_interval_minutes() * 60 * 1000;
-  // Test hook: a short interval makes the timer observable inside a test's budget.
-  if (const auto override_ms = qEnvironmentVariable("PATCHY_RECOVERY_INTERVAL_MS").toInt(); override_ms > 0) {
-    interval_ms = override_ms;
-  }
-  recovery_timer_->start(interval_ms);
+  recovery_coordinator_->apply_preferences(stored_recovery_enabled(), stored_recovery_interval_minutes());
 }
 
 bool MainWindow::recovery_busy() const {
@@ -98,221 +149,41 @@ bool MainWindow::recovery_busy() const {
 }
 
 QString MainWindow::recovery_directory() const {
-  return recovery_folder_ != nullptr ? recovery_folder_->directory_string() : QString();
+  return recovery_coordinator_ != nullptr ? recovery_coordinator_->directory() : QString();
 }
 
 std::vector<recovery::RecoveryEntry> MainWindow::list_recovery_entries() const {
-  if (recovery_folder_ == nullptr || !recovery_folder_->created()) {
-    return {};
-  }
-  return recovery::scan_instance_dir(recovery_folder_->directory());
+  return recovery_coordinator_ != nullptr ? recovery_coordinator_->list_entries()
+                                          : std::vector<recovery::RecoveryEntry>{};
 }
 
 std::vector<OrphanedRecoveryFolder> MainWindow::list_orphaned_recovery() const {
-  return RecoveryInstanceFolder::scan_orphaned(RecoveryInstanceFolder::recovery_root());
+  return DocumentRecoveryCoordinator::list_orphaned();
 }
 
 void MainWindow::discard_recovery_folder_for_forced_exit() {
-  if (recovery_timer_ != nullptr) {
-    recovery_timer_->stop();
+  if (recovery_coordinator_ != nullptr) {
+    recovery_coordinator_->discard_folder_for_forced_exit();
   }
-  if (recovery_folder_ == nullptr || !recovery_folder_->created()) {
-    return;
-  }
-  recovery_folder_->discard_on_release();
-  // The lock file stays open until the process ends (Windows refuses to delete
-  // it), so what may survive is a lock-only folder, which the next start sweeps
-  // as an empty orphan.
-  (void)RecoveryInstanceFolder::remove_folder(recovery_folder_->directory());
 }
 
 void MainWindow::discard_recovery_for_session(std::int64_t session_id) {
-  recovery_marks_.erase(session_id);
-  if (recovery_folder_ != nullptr && recovery_folder_->created()) {
-    recovery::remove_entry(recovery_folder_->directory(), session_id);
+  if (recovery_coordinator_ != nullptr) {
+    recovery_coordinator_->discard_for_session(session_id);
   }
 }
 
 QStringList MainWindow::write_recovery_now(bool wait) {
-  QStringList written;
-  if (recovery_folder_ == nullptr || recovery_write_in_flight_ || recovery_busy()) {
-    return written;
-  }
-  auto jobs = std::make_shared<std::vector<RecoveryJob>>();
-  for (const auto& target_session : sessions_) {
-    if (target_session == nullptr || !session_is_modified(*target_session)) {
-      continue;
-    }
-    const auto mark = recovery_marks_.find(target_session->session_id);
-    if (mark != recovery_marks_.end() && mark->second.revision == target_session->revision &&
-        mark->second.state_id == target_session->current_state_id) {
-      continue;
-    }
-    RecoveryJob job;
-    job.mark = RecoveryMark{target_session->session_id, target_session->revision, target_session->current_state_id};
-    // A copy shares pixel storage with the live document until the user's next edit
-    // detaches the live side; the worker only reads it (const Document&).
-    job.snapshot = std::as_const(*target_session).document;
-    job.entry.title = target_session->title.toStdString();
-    job.entry.original_path =
-        target_session->path.isEmpty() ? std::string() : path_to_utf8(to_filesystem_path(target_session->path));
-    jobs->push_back(std::move(job));
-  }
-  if (jobs->empty()) {
-    return written;
-  }
-  if (!recovery_folder_->ensure_created()) {
-    show_status_error(tr("Could not save recovery information: %1")
-                          .arg(QDir::toNativeSeparators(recovery_folder_->directory_string())));
-    return written;
-  }
-  const auto directory = recovery_folder_->directory();
-  for (const auto& job : *jobs) {
-    written.push_back(to_qstring(recovery::document_path(directory, job.mark.session_id)));
-  }
-  recovery_write_in_flight_ = true;
-  auto folder = recovery_folder_;
-  auto* app = QApplication::instance();
-  QPointer<MainWindow> self(this);
-  run_tracked_background_worker([app, self, folder, jobs] {
-    auto marks = std::make_shared<std::vector<RecoveryMark>>();
-    auto errors = std::make_shared<QStringList>();
-    for (auto& job : *jobs) {
-      try {
-        job.entry.saved_at_unix_ms = QDateTime::currentMSecsSinceEpoch();
-        const auto bytes = psd::DocumentIo::write_layered_rgb8(job.snapshot, psd::WriteOptions{true});
-        recovery::write_entry(folder->directory(), job.mark.session_id, bytes, job.entry);
-        marks->push_back(job.mark);
-      } catch (const std::exception& error) {
-        errors->push_back(QString::fromUtf8(error.what()));
-      }
-    }
-    // Release the snapshots here, off the UI thread.
-    jobs->clear();
-    if (app == nullptr) {
-      return;
-    }
-    QMetaObject::invokeMethod(
-        app,
-        [self, folder, marks, errors] {
-          if (self != nullptr) {
-            self->finish_recovery_write(*marks, *errors);
-          }
-        },
-        Qt::QueuedConnection);
-  });
-  if (wait) {
-    while (recovery_write_in_flight_) {
-      QApplication::processEvents(QEventLoop::AllEvents, 15);
-    }
-  }
-  return written;
-}
-
-void MainWindow::finish_recovery_write(const std::vector<RecoveryMark>& marks, const QStringList& errors) {
-  recovery_write_in_flight_ = false;
-  if (recovery_folder_ == nullptr) {
-    return;
-  }
-  for (const auto& mark : marks) {
-    const auto* target_session = session_with_id(mark.session_id);
-    if (target_session == nullptr || !session_is_modified(*target_session)) {
-      // Closed or saved while the copy was being written: the copy is stale, and a
-      // close or save already removed the previous one, so remove this one too.
-      recovery::remove_entry(recovery_folder_->directory(), mark.session_id);
-      recovery_marks_.erase(mark.session_id);
-      continue;
-    }
-    recovery_marks_[mark.session_id] = mark;
-  }
-  if (!errors.isEmpty()) {
-    show_status_error(tr("Could not save recovery information: %1").arg(errors.front()));
-  }
+  return recovery_coordinator_ != nullptr ? recovery_coordinator_->write_now(wait) : QStringList{};
 }
 
 std::vector<std::int64_t> MainWindow::recover_orphaned_documents() {
-  std::vector<std::int64_t> recovered;
-  if (recovery_folder_ == nullptr) {
-    return recovered;
-  }
-  int failed = 0;
-  int left_in_place = 0;
-  for (const auto& orphan : list_orphaned_recovery()) {
-    bool folder_clean = true;
-    for (const auto& entry : orphan.entries) {
-      const auto orphan_session_id = std::stoll(entry.file_stem);
-      const auto psb_path = recovery::document_path(orphan.directory, orphan_session_id);
-      const auto sidecar_path = recovery::sidecar_path(orphan.directory, orphan_session_id);
-      const auto name = entry.title.empty() ? tr("Untitled") : QString::fromStdString(entry.title);
-      std::int64_t session_id = 0;
-      if (!open_recovered_document(to_qstring(psb_path), tr("%1 (Recovered)").arg(name),
-                                   original_path_from_entry(entry), &session_id)) {
-        ++failed;
-        folder_clean = false;
-        continue;
-      }
-      recovered.push_back(session_id);
-      // Move the copy under this instance so a second crash is covered too; the
-      // session's current state IS the copy, so the timer need not rewrite it. The
-      // orphan's files go only once the copy is in place under this instance: until
-      // then, and whenever the move fails, the old copy stays where it is (the open
-      // session has no mark, so the timer writes a fresh copy when it is next due).
-      bool adopted = false;
-      if (auto* target_session = session_with_id(session_id);
-          target_session != nullptr && recovery_folder_->ensure_created()) {
-        const auto& directory = recovery_folder_->directory();
-        std::error_code error;
-        std::filesystem::rename(psb_path, recovery::document_path(directory, session_id), error);
-        if (!error) {
-          adopted = true;
-          std::filesystem::rename(sidecar_path, recovery::sidecar_path(directory, session_id), error);
-          if (error) {
-            // The sidecar's content is in hand: rewrite it rather than leave the moved
-            // copy to recover as untitled next time.
-            try {
-              recovery::write_sidecar(directory, session_id, entry);
-            } catch (const std::exception&) {
-              // The PSB is what matters; a missing sidecar only costs the title.
-            }
-          }
-          recovery_marks_[session_id] =
-              RecoveryMark{session_id, target_session->revision, target_session->current_state_id};
-        }
-      }
-      if (adopted) {
-        recovery::remove_entry(orphan.directory, orphan_session_id);
-      } else {
-        ++left_in_place;
-        folder_clean = false;
-      }
-    }
-    if (folder_clean) {
-      (void)RecoveryInstanceFolder::remove_folder(orphan.directory);
-    }
-  }
-  if (!recovered.empty()) {
-    statusBar()->showMessage(tr("Recovered %n unsaved document(s) from the last session", nullptr,
-                                static_cast<int>(recovered.size())));
-  }
-  if (failed > 0) {
-    show_status_error(tr("%n recovery file(s) could not be opened; see %1", nullptr, failed)
-                          .arg(QDir::toNativeSeparators(RecoveryInstanceFolder::recovery_root())));
-  } else if (left_in_place > 0) {
-    show_status_error(tr("%n recovered document(s) could not be moved to this session's recovery folder; "
-                         "the copies stay in %1",
-                         nullptr, left_in_place)
-                          .arg(QDir::toNativeSeparators(RecoveryInstanceFolder::recovery_root())));
-  }
-  return recovered;
+  return recovery_coordinator_ != nullptr ? recovery_coordinator_->recover_orphaned_documents()
+                                          : std::vector<std::int64_t>{};
 }
 
 int MainWindow::discard_orphaned_recovery() {
-  int dropped = 0;
-  for (const auto& orphan : list_orphaned_recovery()) {
-    dropped += static_cast<int>(orphan.entries.size());
-    (void)RecoveryInstanceFolder::remove_folder(orphan.directory);
-  }
-  return dropped;
+  return recovery_coordinator_ != nullptr ? recovery_coordinator_->discard_orphaned() : 0;
 }
 
 #endif  // Q_OS_WASM

@@ -29,7 +29,7 @@ Read this before moving functions, adding members to the large UI classes, split
 - `main_window_paths.cpp` - the Paths panel, path thumbnails, and path/selection conversions.
 - `main_window_scripting.cpp` - the Scripts menu, per-script commands and hotkeys (`refresh_script_commands`), the script context menu, the script editor, and CLI script execution ([scripting.md](scripting.md)).
 - `main_window_brush_automation.cpp` - the automation brush-preset library used by scripted and MCP strokes.
-- `main_window_recovery.cpp` - document recovery scheduling, writes, and orphaned-recovery handling ([document-recovery.md](document-recovery.md)).
+- `main_window_recovery.cpp` - MainWindow's half of document recovery: the `RecoveryHost` adapter over the session list, the user-facing recovery text (kept here so its translation context is unchanged), and the public forwarders. The lifecycle itself (timer, instance folder, marks, the background write, the orphan reopen) is `ui/document_recovery_coordinator.{hpp,cpp}`, which knows the window only through that interface ([document-recovery.md](document-recovery.md)).
 - `main_window_stress_test.cpp` - the stress-test runner and its CLI entry points.
 - `main_window_shared.{hpp,cpp}` - helpers used by more than one MainWindow TU, including the async pixel-preview state/launcher and the progress-dialog filter-progress adapter.
 
@@ -40,6 +40,13 @@ Per-file helpers stay in an anonymous namespace. When a second TU needs one, mov
 `main_window.cpp` keeps the constructor and event/input plumbing, `configure_canvas`, the text tool and render pipeline, text-dependent rasterize/merge operations, registration helpers, `PreviewDialogEditLock`, and document-action-state machinery. Do not move the rest of the text tool as a simple split: it requires designed modules with their own interfaces. The first of those exists: `ui/text_layout.{hpp,cpp}` owns the line-layout plan (the Photoshop leading model, the boxed line gate, the OS/2 typographic ascent) plus `TextLineGeometry`, the single authority for caret, selection and hit-test geometry. Anything that needs to know where a character sits goes through it; see [text-tool.md](text-tool.md). The document construction and raster pass stay in `main_window.cpp` for now because `build_text_render_document` pulls in the whole font-resolution and run-application helper set. The three text-settings-from-editor variants also stay here; their differences are real.
 
 ### Session lifetime and startup
+
+`DocumentSession` (the open-document record: document, title, path, history stacks, save
+state, canvas and float-window binding, Smart Object parentage) is a standalone type in
+`ui/document_session.hpp`; `MainWindow::DocumentSession` is an alias of it, so every TU and
+friend keeps its spelling. MainWindow still owns the list (`sessions_`) and the lookups;
+moving those behind a session store is the next step of that extraction
+([refactor-backlog.md](refactor-backlog.md)).
 
 Startup creates no document. The start panel in `src/ui/start_panel.cpp` overlays `document_tabs_` only while `sessions_` is empty. `load_tool_settings()` runs once when the first document session is added because it needs a canvas. Only `src/app/main.cpp` calls `MainWindow::begin_startup_update_check`, never construction, so tests start no network request unless one calls it against a local manifest server. `show_window` supplies the historical test document; use `show_window_empty` for real empty-workspace behavior.
 

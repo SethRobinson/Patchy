@@ -1111,6 +1111,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/main_window_recovery.cpp
       src/ui/document_recovery.hpp
       src/ui/document_recovery.cpp
+      src/ui/document_recovery_coordinator.cpp
       src/ui/main_window_shared.hpp
       src/ui/main_window_shared.cpp
       src/ui/font_face_name_index.hpp

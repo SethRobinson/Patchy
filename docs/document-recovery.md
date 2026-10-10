@@ -37,18 +37,32 @@ Preferences > Application: "Automatically save recovery information every" with 
 - Export, run-script, headless, and hidden-connector instances (`cli_automation_mode_`)
   never tick. `patchy.recovery.writeNow()` ignores that gate so a script can drive it.
 
+## Ownership
+
+`DocumentRecoveryCoordinator` (src/ui/document_recovery_coordinator.{hpp,cpp}) owns the
+lifecycle: the timer, the `RecoveryInstanceFolder`, the per-session marks, the one
+in-flight background write, and the orphan reopen. It reaches the window only through the
+`RecoveryHost` interface (busy predicate, automation gate, job collection over the modified
+sessions, the live mark of a session, opening a recovery copy, and the report calls).
+`MainWindow` implements that interface in src/ui/main_window_recovery.cpp (the
+`RecoveryHostAdapter`), keeps every user-facing string there (translation context
+`MainWindow`), and forwards its public recovery members (`write_recovery_now`,
+`list_recovery_entries`, `recover_orphaned_documents`, ...) to the coordinator, so scripts
+and tests are unchanged. The timer is a child of the coordinator, itself a child of the
+window, so `findChild<QTimer*>("documentRecoveryTimer")` still finds it.
+
 ## The write
 
-`MainWindow::write_recovery_now` (src/ui/main_window_recovery.cpp) snapshots each
-candidate session on the UI thread (a `Document` copy shares pixel storage copy-on-write;
+`DocumentRecoveryCoordinator::write_now` asks the host for one `RecoveryJob` per candidate
+session, snapshotted on the UI thread (a `Document` copy shares pixel storage copy-on-write;
 the live side detaches on its next edit, the worker only reads through `const Document&`),
 then one `run_tracked_background_worker` job writes them in sequence:
 `psd::DocumentIo::write_layered_rgb8(snapshot, WriteOptions{true})` (PSB, so any size fits;
 the writer keeps the document's bit depth) and `recovery::write_entry`. Completion posts back through a queued `invokeMethod` on the
-application with a `QPointer<MainWindow>`; `finish_recovery_write` stores the marks, and
-removes the copy of any session that was closed or saved during the write (its close or
-save already removed the previous copy, so the fresh one must not resurrect it). Errors go
-to the status bar once, never a modal. `main()` waits for tracked workers before the
+application with a `QPointer` to the coordinator; `finish_write` stores the marks, and
+removes the copy of any session the host no longer reports as modified (closed or saved
+during the write: its close or save already removed the previous one, so the fresh one
+must not resurrect it). Errors go to the status bar once, never a modal. `main()` waits for tracked workers before the
 application object dies, so a quit mid-write never leaves a half-written file. The
 snapshots are released on the worker, and `history_retained_bytes()` deliberately does not
 count them (worst case one extra full copy, the same as an undo state).
@@ -88,9 +102,10 @@ Both files are written through `write_file_bytes_atomically`.
 
 - `set_session_saved` (a successful save) and `close_document_session` (after the
   save-changes decision) call `discard_recovery_for_session`: the copy and its mark go.
-- An accepted `closeEvent` stops the timer. `~MainWindow` stops it and calls
-  `RecoveryInstanceFolder::discard_on_release`: the folder is deleted by whichever owner
-  releases the shared pointer last, the window or a still-running write. A crash never
+- An accepted `closeEvent` stops the timer. `~MainWindow` calls the coordinator's
+  `discard_folder_on_release` (timer stopped, `RecoveryInstanceFolder::discard_on_release`):
+  the folder is deleted by whichever owner releases the shared pointer last, the
+  coordinator or a still-running write. A crash never
   reaches the destructor, which is the whole point. One quit path skips the destructor
   on purpose: when a tracked worker is still blocked in the OS 10 s after the event loop
   returned, `main.cpp` (and `mcp_server.cpp`) calls `discard_recovery_folder_for_forced_exit` (timer stopped,

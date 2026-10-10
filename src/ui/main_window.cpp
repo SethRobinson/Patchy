@@ -2,6 +2,7 @@
 #include "ui/main_window_shared.hpp"
 #include "ui/background_workers.hpp"
 #include "ui/document_recovery.hpp"
+#include "ui/document_recovery_coordinator.hpp"
 #include "ui/font_face_name_index.hpp"
 
 #include "core/blend_math.hpp"
@@ -8413,8 +8414,8 @@ void MainWindow::closeEvent(QCloseEvent* event) {
   save_tool_settings();
 #ifndef Q_OS_WASM
   // A consented quit: no more recovery writes, and the destructor drops the folder.
-  if (recovery_timer_ != nullptr) {
-    recovery_timer_->stop();
+  if (recovery_coordinator_ != nullptr) {
+    recovery_coordinator_->stop_timer();
   }
 #endif
   // Close the tile preview with the main window: left visible, it has no visible
@@ -8466,12 +8467,9 @@ MainWindow::~MainWindow() {
 #ifndef Q_OS_WASM
   // Reaching the destructor means the process is exiting on purpose (a crash never
   // gets here): the recovery folder is deleted by whichever owner releases it last,
-  // this window or a background write still running (main() waits for those).
-  if (recovery_timer_ != nullptr) {
-    recovery_timer_->stop();
-  }
-  if (recovery_folder_ != nullptr) {
-    recovery_folder_->discard_on_release();
+  // the coordinator or a background write still running (main() waits for those).
+  if (recovery_coordinator_ != nullptr) {
+    recovery_coordinator_->discard_folder_on_release();
   }
 #endif
   // The color-picker palette hook captures this window; drop it so a picker
