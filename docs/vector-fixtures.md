@@ -80,6 +80,18 @@ stroke).
 
 ## Known render divergences
 
+- Native `sn2P` (a four-byte big-endian flag; Align Edges / Action Manager
+  `useAlignedRendering`) snaps
+  expanded rectilinear, undashed miter-stroke edges to whole pixels, with
+  half-pixel ties toward positive infinity. Before expansion it rounds the
+  band's width (double the style width for Inside/Outside). The stored width
+  and editable path stay unchanged. The renderer reads the owning layer's
+  preserved flag, which remains intact across edits and PSD saves. Photoshop
+  COM probes at widths 0.25 through 5 pin this rule; rebuilding
+  `double-stroke-effects.psd` then preserves both colored effect bands.
+  Curved/oblique contours, dashed strokes and non-miter joins retain their
+  continuous rasterization; aligned rendering for those cases is uncalibrated.
+
 - A lone closed Intersect group fills its contour but has no native stroke.
   Photoshop's translated-and-restored `intersect-first.psd` capture pins this
   distinction; Add and Xor on the same path retain the outline.

@@ -85,6 +85,70 @@ void raster_axis_aligned_rect_coverage_is_exact() {
   CHECK(coverage_pixel(quarter_coverage, 2, 3) == 64);
 }
 
+void vector_stroke_aligned_edges_match_photoshop() {
+  VectorPath path;
+  path.subpaths = {rect_subpath(4, 3, 28, 27, PathCombineOp::Add, 0)};
+  patchy::VectorStroke stroke;
+  stroke.enabled = true;
+  stroke.alignment = patchy::VectorStrokeAlignment::Center;
+  stroke.join = patchy::VectorStrokeJoin::Miter;
+  VectorRasterOptions options{Rect{0, 0, 32, 32}, true};
+  // Photoshop COM captures with useAlignedRendering=true, including odd and
+  // fractional widths. These are the OUTER bounds of the expanded border.
+  struct Probe { double width; int left; int right; };
+  for (const auto probe : {Probe{1, 4, 29}, Probe{1.5, 3, 29}, Probe{2, 3, 29},
+                           Probe{2.5, 3, 30}, Probe{3, 3, 30}}) {
+    stroke.width = probe.width;
+    const auto band = patchy::rasterize_vector_stroke(path, stroke, options);
+    CHECK(band.bounds.x == probe.left);
+    CHECK(band.bounds.x + band.bounds.width == probe.right);
+    CHECK(coverage_pixel(band, probe.left, 10) == 255);
+    CHECK(coverage_pixel(band, probe.right - 1, 10) == 255);
+    CHECK(coverage_pixel(band, probe.left, band.bounds.y) == 255);
+  }
+  stroke.width = 1;
+  options.align_stroke_edges = false;
+  const auto continuous = patchy::rasterize_vector_stroke(path, stroke, options);
+  CHECK(coverage_pixel(continuous, 3, 10) == 128);
+  CHECK(coverage_pixel(continuous, 28, 10) == 128);
+
+  patchy::VectorShapeContent content;
+  content.path = path;
+  content.stroke = stroke;
+  content.stroke.content.kind = patchy::VectorFillKind::Solid;
+  content.fill.kind = patchy::VectorFillKind::Solid;
+  patchy::Layer owner(1, "Aligned shape", patchy::LayerKind::Pixel);
+  owner.unknown_psd_blocks().push_back({"sn2P", {0, 0, 0, 1}});
+  const auto shape = patchy::rasterize_vector_shape(content, options.clip, nullptr, &owner);
+  CHECK(shape.bounds.x == 4 && shape.bounds.y == 3);
+  CHECK(shape.bounds.width == 25 && shape.bounds.height == 25);
+
+  options.align_stroke_edges = true;
+  stroke.alignment = patchy::VectorStrokeAlignment::Outside;
+  for (const auto probe : {Probe{1, 3, 29}, Probe{1.5, 3, 30}, Probe{2.5, 2, 31}}) {
+    stroke.width = probe.width;
+    const auto band = patchy::rasterize_vector_stroke(path, stroke, options);
+    CHECK(band.bounds.x == probe.left);
+    CHECK(band.bounds.x + band.bounds.width == probe.right);
+  }
+  stroke.alignment = patchy::VectorStrokeAlignment::Center;
+  stroke.width = 1;
+
+  // Negative coordinates use the same half-pixel tie direction. Clipping a
+  // tile must not change where the document-space border was snapped.
+  patchy::transform_vector_path(path, {1, 0, 0, 1, -8, -8});
+  options = VectorRasterOptions{Rect{-16, -16, 48, 48}, true};
+  const auto moved = patchy::rasterize_vector_stroke(path, stroke, options);
+  CHECK(moved.bounds.x == -4 && moved.bounds.y == -5);
+  options.clip = Rect{-4, -5, 8, 8};
+  const auto clipped = patchy::rasterize_vector_stroke(path, stroke, options);
+  for (int y = -5; y < 3; ++y) {
+    for (int x = -4; x < 4; ++x) {
+      CHECK(coverage_pixel(clipped, x, y) == coverage_pixel(moved, x, y));
+    }
+  }
+}
+
 void raster_half_plane_diagonal_ramp() {
   // Right triangle (0,0)-(8,0)-(0,8): the hypotenuse x+y=8 halves every
   // diagonal pixel; pixels well inside are full, outside empty.
@@ -1479,6 +1543,7 @@ std::vector<patchy::test::TestCase> vector_raster_tests() {
       {"raster_shape_feather_softens_edge_and_density_floors_alpha",
        raster_shape_feather_softens_edge_and_density_floors_alpha},
       {"raster_axis_aligned_rect_coverage_is_exact", raster_axis_aligned_rect_coverage_is_exact},
+      {"vector_stroke_aligned_edges_match_photoshop", vector_stroke_aligned_edges_match_photoshop},
       {"raster_half_plane_diagonal_ramp", raster_half_plane_diagonal_ramp},
       {"raster_area_sum_matches_analytic", raster_area_sum_matches_analytic},
       {"raster_combine_ops_match_photoshop_semantics", raster_combine_ops_match_photoshop_semantics},

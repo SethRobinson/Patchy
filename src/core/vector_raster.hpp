@@ -33,6 +33,7 @@ struct CoverageBuffer {
 
 struct VectorRasterOptions {
   Rect clip{};  // usually the canvas rect; coverage is clipped to it
+  bool align_stroke_edges{false};  // Photoshop's native sn2P / Align Edges flag
 };
 
 // Rasterizes the whole path (groups + combine ops) into gray8 coverage with

@@ -5,6 +5,7 @@
 #include "core/layer_render_utils.hpp"
 #include "core/pattern_sampler.hpp"
 #include "core/pixel_depth.hpp"
+#include "core/pixel_grid.hpp"
 #include "core/rect_utils.hpp"
 
 #include <algorithm>
@@ -1129,8 +1130,32 @@ CoverageBuffer rasterize_vector_stroke(const VectorPath& path, const VectorStrok
       continue;
     }
     const auto runs = apply_dashes(contour.points, contour.closed, dashes_px, offset_px);
+    // Align Edges rounds the expanded band's width, then snaps its boundaries.
+    // Thus a centered 1 px stroke on integer coordinates moves its half-pixel
+    // boundaries toward +infinity (PS 2026 COM probes, widths 1..3). Keep
+    // curved/oblique contours and round joins on the continuous raster path.
+    bool rectilinear = options.align_stroke_edges && contour.closed && stroke.dashes.empty() &&
+                       stroke.join == VectorStrokeJoin::Miter;
+    for (std::size_t i = 0; rectilinear && i < contour.points.size(); ++i) {
+      const auto& a = contour.points[i];
+      const auto& b = contour.points[(i + 1) % contour.points.size()];
+      rectilinear = a.x == b.x || a.y == b.y;
+    }
+    const auto first_edge = edges.size();
+    const auto aligned_half = rectilinear ? snap_to_pixel_grid(geometry_width) * 0.5 : half;
     for (const auto& run : runs) {
-      append_run_outline(run, half, cap_half_width, stroke.cap, stroke.join, stroke.miter_limit, 0, 0, edges);
+      append_run_outline(run, aligned_half, rectilinear ? aligned_half : cap_half_width,
+                         stroke.cap, stroke.join, stroke.miter_limit, 0, 0, edges);
+    }
+    if (rectilinear) {
+      const auto aligned = [](FixedPoint point) {
+        return FixedPoint{to_fixed(snap_to_pixel_grid(static_cast<double>(point.x) / kSub)),
+                          to_fixed(snap_to_pixel_grid(static_cast<double>(point.y) / kSub))};
+      };
+      for (auto i = first_edge; i < edges.size(); ++i) {
+        edges[i].from = aligned(edges[i].from);
+        edges[i].to = aligned(edges[i].to);
+      }
     }
   }
   if (edges.empty()) {
@@ -1816,6 +1841,18 @@ ShapeRasterResult rasterize_vector_shape(const VectorShapeContent& content, Rect
       !content.path_disabled;
   CoverageBuffer stroke_coverage;
   if (stroke_on) {
+    // Native layer flags already travel with edits, undo, duplication and PSD
+    // saves. Like fxrp (the paint anchor), sn2P belongs to the owning layer,
+    // rather than to the reusable stroke-style descriptor.
+    if (layer_for_pattern_anchor != nullptr) {
+      for (const auto& block : layer_for_pattern_anchor->unknown_psd_blocks()) {
+        if (block.key == "sn2P" && block.payload.size() >= 4U) {
+          options.align_stroke_edges = std::any_of(block.payload.begin(), block.payload.begin() + 4,
+                                                   [](std::uint8_t byte) { return byte != 0; });
+          break;
+        }
+      }
+    }
     stroke_coverage = rasterize_vector_stroke(content.path, content.stroke, options);
   }
 

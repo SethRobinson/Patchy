@@ -105,6 +105,26 @@ void psd_shape_solid_fixture_parses_and_renders() {
   check_flatten_matches_reference(document, "photoshop-shape-solid.bmp", "psd_vector_solid");
 }
 
+void psd_aligned_double_stroke_rebuild_matches_photoshop_if_available() {
+  const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" /
+                    "tests" / "psd_files" / "effects" / "double-stroke-effects.psd";
+  if (!std::filesystem::exists(path)) { return; }
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  const auto before = patchy::Compositor{}.flatten_rgb8(document);
+  for (auto& layer : document.layers()) {
+    if (std::as_const(layer).vector_shape() != nullptr) {
+      patchy::update_vector_shape_raster(layer, patchy::Rect::from_size(document.width(), document.height()),
+                                         &document.metadata().patterns);
+    }
+  }
+  const auto after = patchy::Compositor{}.flatten_rgb8(document);
+  const auto metrics = rgb_diff_metrics(before, after);
+  // The only residual is Photoshop's 150/255 vs our rounded 149/255 corner
+  // coverage at the four outside-stroke corners.
+  CHECK(metrics.max_channel_delta <= 1);
+  CHECK(metrics.differing_pixels <= 4);
+}
+
 void psd_shape_gradient_fixture_parses_and_renders() {
   const auto document = read_fixture("photoshop-shape-gradient.psd");
   const auto& shape = layer_at(document, 1);
@@ -2499,6 +2519,8 @@ void psd_testy_legacy_fills_and_masks_round_trip_if_available() {
 std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
   return {
       {"psd_shape_solid_fixture_parses_and_renders", psd_shape_solid_fixture_parses_and_renders},
+      {"psd_aligned_double_stroke_rebuild_matches_photoshop_if_available",
+       psd_aligned_double_stroke_rebuild_matches_photoshop_if_available},
       {"psd_shape_gradient_fixture_parses_and_renders", psd_shape_gradient_fixture_parses_and_renders},
       {"psd_shape_pattern_fixture_parses_and_renders", psd_shape_pattern_fixture_parses_and_renders},
       {"psd_shape_strokes_fixture_parses_and_renders", psd_shape_strokes_fixture_parses_and_renders},
