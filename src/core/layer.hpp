@@ -597,6 +597,9 @@ public:
   [[nodiscard]] const std::shared_ptr<const PsdNativeLayerColors>& psd_native_colors() const noexcept;
   // Import-only preservation state, not an edit and never serialized as a private tag.
   void set_psd_native_colors(std::shared_ptr<const PsdNativeLayerColors> colors) noexcept;
+  // Changes when mask pixels or mask bounds are mutably replaced. It remains
+  // stable for ordinary layer-style and pixel-buffer edits.
+  [[nodiscard]] std::uint64_t mask_revision() const noexcept;
   [[nodiscard]] Layer clone_with_id(LayerId id) const;
 
   void set_name(std::string name);
@@ -676,6 +679,7 @@ private:
   std::uint64_t content_revision_{1};
   std::uint64_t pixel_revision_{1};
   std::shared_ptr<const PsdNativeLayerColors> psd_native_colors_;
+  std::uint64_t mask_revision_{1};
 };
 
 // Photoshop's optional `lyid` block is a per-layer identity. Imported blocks

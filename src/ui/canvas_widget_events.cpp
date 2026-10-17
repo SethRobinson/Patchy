@@ -38,10 +38,16 @@
 #include <QRectF>
 #include <QRegion>
 #include <QResizeEvent>
+#include <QScreen>
+#include <QSet>
+#include <QShowEvent>
 #include <QSize>
 #include <QString>
+#include <QTabletEvent>
 #include <QTimerEvent>
 #include <QWheelEvent>
+#include <QRandomGenerator>
+#include <QTimer>
 #include <QWidget>
 #include <Qt>
 #include <QtGlobal>
@@ -244,6 +250,11 @@ bool CanvasWidget::event(QEvent* event) {
     notify_view_changed();
     return handled;
   }
+#ifdef PATCHY_GPU_CANVAS
+  if (event->type() == QEvent::UpdateRequest && canvas_render_backend_ != CanvasRenderBackend::Cpu) {
+    request_graphics_canvas_update(QRegion(rect()));
+  }
+#endif
   if (event->type() == QEvent::ShortcutOverride) {
     if (processing_render_wait_active_) {
       // A blocking processing wait is live and the canvas has focus (every
@@ -448,6 +459,10 @@ void CanvasWidget::wheelEvent(QWheelEvent* event) {
 
 void CanvasWidget::resizeEvent(QResizeEvent* event) {
   QWidget::resizeEvent(event);
+#ifdef PATCHY_GPU_CANVAS
+  // Keep the Qt Quick surface and its mask rect in step with the widget.
+  resize_graphics_canvas_surface();
+#endif
   if (isVisible() && constrain_pan()) {
     update();
     notify_view_changed();
@@ -455,6 +470,13 @@ void CanvasWidget::resizeEvent(QResizeEvent* event) {
   // Bar geometry and page step track the viewport even when pan was unchanged
   // (idempotent when notify_view_changed already synced above).
   sync_scroll_bars();
+}
+
+void CanvasWidget::showEvent(QShowEvent* event) {
+  QWidget::showEvent(event);
+#ifdef PATCHY_GPU_CANVAS
+  show_graphics_canvas();
+#endif
 }
 
 void CanvasWidget::mousePressEvent(QMouseEvent* event) {
