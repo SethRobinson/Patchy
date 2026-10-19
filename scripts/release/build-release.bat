@@ -217,12 +217,14 @@ rem The connector check just ran patchy-mcp.exe and antivirus scans freshly copi
 rem executables, so a staged .exe can stay locked for a moment. Wait until each one
 rem opens for reading (up to two minutes) before zipping, and make any archive error
 rem fail the step: Compress-Archive reports a locked file as a non-terminating error
-rem and would otherwise leave a zip with the file missing.
+rem and would otherwise leave a zip with the file missing. A scanner can also take the
+rem lock again between that check and the zip (1.14's first package run), so the zip
+rem itself retries a few times, starting over from an empty archive each time.
 echo Creating zip package...
 set "PATCHY_ZIP_PATH=%ZIP_PATH%"
 powershell -NoProfile -ExecutionPolicy Bypass -Command "$deadline = (Get-Date).AddSeconds(120); foreach ($f in Get-ChildItem -LiteralPath $env:PATCHY_STAGE_DIR -Recurse -File -Filter *.exe) { while ($true) { try { $s = [IO.File]::Open($f.FullName, 'Open', 'Read', 'Read'); $s.Close(); break } catch { if ((Get-Date) -gt $deadline) { Write-Host ('Still locked: ' + $f.FullName); exit 1 }; Start-Sleep -Milliseconds 500 } } }"
 if not "!ERRORLEVEL!"=="0" goto fail
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference = 'Stop'; if (Test-Path -LiteralPath $env:PATCHY_ZIP_PATH) { Remove-Item -LiteralPath $env:PATCHY_ZIP_PATH -Force }; Compress-Archive -Path $env:PATCHY_STAGE_DIR -DestinationPath $env:PATCHY_ZIP_PATH -Force"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference = 'Stop'; for ($i = 1; $i -le 6; $i++) { try { if (Test-Path -LiteralPath $env:PATCHY_ZIP_PATH) { Remove-Item -LiteralPath $env:PATCHY_ZIP_PATH -Force }; Compress-Archive -Path $env:PATCHY_STAGE_DIR -DestinationPath $env:PATCHY_ZIP_PATH -Force; exit 0 } catch { Write-Host ('Zip attempt ' + $i + ' of 6 failed: ' + $_.Exception.Message); Start-Sleep -Seconds 10 } }; exit 1"
 if not "!ERRORLEVEL!"=="0" goto fail
 if exist "%LEGACY_ZIP_PATH%" del /q "%LEGACY_ZIP_PATH%"
 
