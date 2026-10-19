@@ -738,7 +738,9 @@ void MainWindow::apply_artboard_background_option(const QString& token, bool fro
   const auto* doc = has_active_document() ? &std::as_const(document()) : nullptr;
   std::optional<LayerId> selected;
   if (doc != nullptr && canvas_ != nullptr) {
-    selected = from_properties ? canvas_->selected_root_artboard_id() : std::nullopt;
+    if (from_properties) {
+      selected = canvas_->selected_root_artboard_id();
+    }
     if (!selected.has_value()) {
       if (const auto active = doc->active_layer_id(); active.has_value()) {
         if (const auto* owner = artboard_owning_layer(*doc, *active); owner != nullptr) {
