@@ -10881,6 +10881,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Game Store Header</source>
         <translation>Spiele-Store-Header</translation>
     </message>
+    <message>
+        <source>Search all templates</source>
+        <translation>Alle Vorlagen durchsuchen</translation>
+    </message>
+    <message>
+        <source>Search every template group by name or size (%CTRL%+F)</source>
+        <translation>Alle Vorlagengruppen nach Name oder Größe durchsuchen (%CTRL%+F)</translation>
+    </message>
+    <message>
+        <source>No templates match the search.</source>
+        <translation>Keine Vorlage passt zur Suche.</translation>
+    </message>
+    <message>
+        <source>%1 (%2): %3 x %4 px at %5 ppi</source>
+        <translation>%1 (%2): %3 x %4 px bei %5 ppi</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

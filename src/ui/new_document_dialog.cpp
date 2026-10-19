@@ -13,6 +13,7 @@
 #include "ui/color_panel.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/measurement_units.hpp"
+#include "ui/modifier_names.hpp"
 #include "ui/options_flow_layout.hpp"
 #include "ui/theme_qss.hpp"
 
@@ -28,13 +29,18 @@
 #include <QFontMetrics>
 #include <QGridLayout>
 #include <QIcon>
+#include <QKeyEvent>
+#include <QKeySequence>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPen>
 #include <QPixmap>
 #include <QPushButton>
+#include <QRegularExpression>
+#include <QShortcut>
 #include <QSignalBlocker>
 #include <QStyle>
 #include <QStyledItemDelegate>
@@ -263,6 +269,20 @@ PresetCategory category_of_preset_id(const QString& id) {
   return PresetCategory::Screen;
 }
 
+// The search field's rule (GitHub issue 223): every whitespace-separated word must
+// appear, ignoring case, in the template's name, its group's name or its size
+// ("1080 x 1920", "1080x1920").
+bool preset_matches_search(const NewDocumentPreset& preset, PresetCategory category, const QString& text) {
+  const auto haystack = QStringList{preset.name, preset_category_name(category),
+                                    QStringLiteral("%1 x %2").arg(preset.size.width()).arg(preset.size.height()),
+                                    QStringLiteral("%1x%2").arg(preset.size.width()).arg(preset.size.height())}
+                            .join(QLatin1Char(' '));
+  const auto words = text.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
+  return !words.isEmpty() && std::all_of(words.begin(), words.end(), [&haystack](const QString& word) {
+    return haystack.contains(word, Qt::CaseInsensitive);
+  });
+}
+
 // Paints one preset card: rounded background, an aspect-ratio miniature (the real
 // clipboard thumbnail for the Clipboard card), the preset name, the pixel
 // dimensions, and the preset resolution.
@@ -360,8 +380,20 @@ ThemedQss new_document_dialog_style() {
       background: transparent;
       color: @text_primary;
     }
-    QDialog#patchyNewDocumentDialog QLabel#newDocumentSummaryLabel {
+    QDialog#patchyNewDocumentDialog QLabel#newDocumentSummaryLabel,
+    QDialog#patchyNewDocumentDialog QLabel#newDocumentNoMatchesLabel {
       color: @nd_section_text;
+    }
+    QDialog#patchyNewDocumentDialog QLineEdit#newDocumentSearchEdit {
+      background: @panel_card_bg;
+      border: 1px solid @nd_field_border;
+      border-radius: 3px;
+      color: @text_bright;
+      min-height: 22px;
+      padding: 0 6px;
+    }
+    QDialog#patchyNewDocumentDialog QLineEdit#newDocumentSearchEdit:focus {
+      border-color: @primary_border;
     }
     QDialog#patchyNewDocumentDialog QWidget#newDocumentChipRow {
       background: transparent;
@@ -487,10 +519,18 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   body->setSpacing(18);
   root->addLayout(body, 1);
 
-  // Left pane: the group chips over the preset card grid.
+  // Left pane: the search field and the group chips over the preset card grid.
   auto* left = new QVBoxLayout();
   left->setSpacing(8);
   body->addLayout(left, 1);
+
+  // Searches every group at once (GitHub issue 223); %CTRL%+F focuses it.
+  auto* search = new QLineEdit(&dialog);
+  search->setObjectName(QStringLiteral("newDocumentSearchEdit"));
+  search->setPlaceholderText(QObject::tr("Search all templates"));
+  search->setToolTip(resolve_modifier_names(QObject::tr("Search every template group by name or size (%CTRL%+F)")));
+  search->setClearButtonEnabled(true);
+  left->addWidget(search);
 
   auto* chips = new QWidget(&dialog);
   chips->setObjectName(QStringLiteral("newDocumentChipRow"));
@@ -511,6 +551,10 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   }
   left->addWidget(chips);
 
+  auto* no_matches = new QLabel(QObject::tr("No templates match the search."), &dialog);
+  no_matches->setObjectName(QStringLiteral("newDocumentNoMatchesLabel"));
+  no_matches->hide();
+
   auto* preset_list = new QListWidget(&dialog);
   preset_list->setObjectName(QStringLiteral("newDocumentPresetList"));
   preset_list->setViewMode(QListView::IconMode);
@@ -523,8 +567,9 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   preset_list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   preset_list->setItemDelegate(new PresetCardDelegate(preset_list));
   // Room for every group without a scroll bar: Last Used (and Clipboard on Screen) and
-  // the group's templates fill at most four rows of three.
+  // the group's templates fill at most four rows of three. Search results scroll.
   preset_list->setMinimumSize(3 * kPresetCardCell.width() + 26, 4 * kPresetCardCell.height() + 12);
+  left->addWidget(no_matches);
   left->addWidget(preset_list, 1);
 
   // Right pane: the details grid. Fixed field/unit column widths keep every row the
@@ -834,6 +879,46 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     }
   };
 
+  // The chip shown while not searching; restored when the search clears.
+  int browsing_category = static_cast<int>(PresetCategory::Screen);
+  const auto populate_search = [&](const QString& text) {
+    const QSignalBlocker blocker(preset_list);
+    preset_list->clear();
+    QListWidgetItem* current = nullptr;
+    for (const auto category : kPresetCategories) {
+      for (const auto& preset : presets_for_category(category, clipboard_size)) {
+        if (preset.clipboard || !preset_matches_search(preset, category, text)) {
+          continue;
+        }
+        auto* item = new QListWidgetItem(preset.name, preset_list);
+        item->setData(kPresetIdRole, preset.id);
+        item->setData(kPresetSizeRole, preset.size);
+        item->setData(kPresetPpiRole, preset.ppi);
+        item->setData(kPresetClipboardRole, false);
+        item->setToolTip(QObject::tr("%1 (%2): %3 x %4 px at %5 ppi")
+                             .arg(preset.name, preset_category_name(category))
+                             .arg(preset.size.width())
+                             .arg(preset.size.height())
+                             .arg(QString::number(preset.ppi)));
+        if (preset.id == current_preset_id) {
+          current = item;
+        }
+      }
+    }
+    no_matches->setVisible(preset_list->count() == 0);
+    // The current template stays selected when it matches; otherwise the first match
+    // is, so Enter creates it.
+    if (current == nullptr && preset_list->count() > 0) {
+      current = preset_list->item(0);
+    }
+    if (current != nullptr) {
+      preset_list->setCurrentItem(current);
+      current->setSelected(true);
+      preset_list->scrollToItem(current);
+    }
+    return current;
+  };
+
   const auto apply_preset_item = [&](QListWidgetItem* item) {
     if (item == nullptr) {
       return;
@@ -874,10 +959,83 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
 
   QObject::connect(preset_list, &QListWidget::currentItemChanged, &dialog,
                    [&](QListWidgetItem* item, QListWidgetItem*) { apply_preset_item(item); });
+  const auto searching = [search] { return !search->text().trimmed().isEmpty(); };
   QObject::connect(chip_group, &QButtonGroup::idToggled, &dialog, [&](int id, bool checked) {
-    if (checked) {
-      populate_list(static_cast<PresetCategory>(id));
+    if (!checked) {
+      return;
     }
+    browsing_category = id;
+    if (searching()) {
+      // A chip picked during a search leaves the search for that group.
+      const QSignalBlocker blocker(search);
+      search->clear();
+      no_matches->hide();
+      chip_group->setExclusive(true);
+    }
+    populate_list(static_cast<PresetCategory>(id));
+  });
+  QObject::connect(search, &QLineEdit::textChanged, &dialog, [&](const QString& text) {
+    if (!text.trimmed().isEmpty()) {
+      // Searching: no chip is current, and the list holds only the matches.
+      if (auto* chip = chip_group->checkedButton(); chip != nullptr) {
+        const QSignalBlocker blocker(chip_group);
+        chip_group->setExclusive(false);
+        chip->setChecked(false);
+      }
+      const auto previous = current_preset_id;
+      if (auto* item = populate_search(text); item != nullptr && item->data(kPresetIdRole).toString() != previous) {
+        apply_preset_item(item);
+      }
+      return;
+    }
+    // Cleared: back to the group that was showing, Clipboard and Last Used included.
+    no_matches->hide();
+    chip_group->setExclusive(true);
+    if (auto* chip = chip_group->button(browsing_category); chip != nullptr) {
+      const QSignalBlocker blocker(chip_group);
+      chip->setChecked(true);
+    }
+    populate_list(static_cast<PresetCategory>(browsing_category));
+  });
+  // Up, Down and the page keys move through the cards while typing; Escape clears a
+  // search before it can close the dialog. Return reaches the dialog's Create button.
+  class SearchKeys final : public QObject {
+   public:
+    SearchKeys(QLineEdit* edit, QListWidget* list) : QObject(edit), edit_(edit), list_(list) {}
+
+   protected:
+    bool eventFilter(QObject* watched, QEvent* event) override {
+      if (watched != edit_ || event->type() != QEvent::KeyPress) {
+        return false;
+      }
+      auto* key = static_cast<QKeyEvent*>(event);
+      switch (key->key()) {
+        case Qt::Key_Up:
+        case Qt::Key_Down:
+        case Qt::Key_PageUp:
+        case Qt::Key_PageDown:
+          QApplication::sendEvent(list_, key);
+          return true;
+        case Qt::Key_Escape:
+          if (!edit_->text().isEmpty()) {
+            edit_->clear();
+            return true;
+          }
+          return false;
+        default:
+          return false;
+      }
+    }
+
+   private:
+    QLineEdit* edit_;
+    QListWidget* list_;
+  };
+  search->installEventFilter(new SearchKeys(search, preset_list));
+  auto* focus_search = new QShortcut(QKeySequence::Find, &dialog);
+  QObject::connect(focus_search, &QShortcut::activated, &dialog, [search] {
+    search->setFocus(Qt::ShortcutFocusReason);
+    search->selectAll();
   });
 
   const auto handle_dimension_edit = [&state, current_unit, mark_custom](QDoubleSpinBox* spin,

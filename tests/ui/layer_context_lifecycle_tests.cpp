@@ -2675,6 +2675,145 @@ void ui_new_document_template_groups_hold_every_template() {
   }));
 }
 
+// The search field (GitHub issue 223) searches every group at once: typing hides the
+// group chips' state, Clipboard and Last Used, lists only the matches, selects the first
+// one so Return creates it, and Escape or a chip brings back the groups.
+void ui_new_document_search_filters_every_group() {
+  using new_document_templates::card_ids;
+  new_document_templates::clear_remembered_settings();
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("newDocument/lastWidth"), 640);
+    settings.setValue(QStringLiteral("newDocument/lastHeight"), 480);
+  }
+  QImage clipboard_image(40, 30, QImage::Format_RGBA8888);
+  clipboard_image.fill(QColor(200, 60, 40));
+  QApplication::clipboard()->setImage(clipboard_image);
+  QApplication::processEvents();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  CHECK(tabs != nullptr);
+  const auto tabs_before = tabs != nullptr ? tabs->count() : 0;
+
+  bool inspected = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyNewDocumentDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    // Review capture: the dialog as it opens, before any search.
+    save_widget_artifact("issue_223_new_document_dialog", *dialog);
+    auto* search = dialog->findChild<QLineEdit*>(QStringLiteral("newDocumentSearchEdit"));
+    auto* presets = dialog->findChild<QListWidget*>(QStringLiteral("newDocumentPresetList"));
+    auto* no_matches = dialog->findChild<QLabel*>(QStringLiteral("newDocumentNoMatchesLabel"));
+    auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentWidthSpin"));
+    auto* screen_chip = dialog->findChild<QToolButton*>(QStringLiteral("newDocumentScreenChip"));
+    auto* photo_chip = dialog->findChild<QToolButton*>(QStringLiteral("newDocumentPhotoChip"));
+    CHECK(search != nullptr && presets != nullptr && no_matches != nullptr && width != nullptr &&
+          screen_chip != nullptr && photo_chip != nullptr);
+    if (search == nullptr || presets == nullptr || no_matches == nullptr || width == nullptr ||
+        screen_chip == nullptr || photo_chip == nullptr) {
+      dialog->reject();
+      return;
+    }
+    const auto any_chip_checked = [dialog] {
+      for (auto* chip : dialog->findChildren<QToolButton*>()) {
+        if (chip->property("newDocumentChip").toBool() && chip->isChecked()) {
+          return true;
+        }
+      }
+      return false;
+    };
+    const auto current_id = [presets] {
+      return presets->currentItem() == nullptr
+                 ? QString()
+                 : presets->currentItem()->data(patchy::ui::kNewDocumentPresetIdRole).toString();
+    };
+    CHECK(card_ids(*presets).mid(0, 2) == QStringList({QStringLiteral("clipboard"), QStringLiteral("last-used")}));
+
+    // One word, matches in one group: no chip is current, Clipboard and Last Used go.
+    search->setText(QStringLiteral("youtube"));
+    QApplication::processEvents();
+    CHECK(!any_chip_checked());
+    CHECK(card_ids(*presets) ==
+          QStringList({QStringLiteral("social-youtube-thumbnail"), QStringLiteral("social-youtube-banner")}));
+    CHECK(current_id() == QStringLiteral("social-youtube-thumbnail"));
+    CHECK(width->value() == 1280);
+    CHECK(!no_matches->isVisible());
+
+    // A size matches across groups, in group order.
+    search->setText(QStringLiteral("1080"));
+    QApplication::processEvents();
+    const auto size_matches = card_ids(*presets);
+    CHECK(!size_matches.contains(QStringLiteral("clipboard")));
+    CHECK(!size_matches.contains(QStringLiteral("last-used")));
+    CHECK(size_matches.indexOf(QStringLiteral("screen-1080p")) >= 0);
+    CHECK(size_matches.indexOf(QStringLiteral("mobile-android-1080x2400")) >
+          size_matches.indexOf(QStringLiteral("screen-1080p")));
+    CHECK(size_matches.indexOf(QStringLiteral("phone-story-1080x1920")) >
+          size_matches.indexOf(QStringLiteral("mobile-android-1080x2400")));
+    save_widget_artifact("issue_223_search_results", *dialog);
+
+    // Every word has to match; a group name counts.
+    search->setText(QStringLiteral("print a4"));
+    QApplication::processEvents();
+    CHECK(card_ids(*presets) == QStringList({QStringLiteral("print-a4")}));
+    search->setText(QStringLiteral("zzzz"));
+    QApplication::processEvents();
+    CHECK(presets->count() == 0);
+    CHECK(no_matches->isVisible());
+
+    // Up and Down move through the matches while the field keeps focus.
+    search->setText(QStringLiteral("icon"));
+    QApplication::processEvents();
+    CHECK(presets->count() == 11);
+    CHECK(presets->currentRow() == 0);
+    send_key(*search, Qt::Key_Down);
+    QApplication::processEvents();
+    CHECK(presets->currentRow() > 0);
+    send_key(*search, Qt::Key_Up);
+    QApplication::processEvents();
+    CHECK(presets->currentRow() == 0);
+
+    // Escape clears the search, not the dialog: the Screen group is back, whole.
+    send_key(*search, Qt::Key_Escape);
+    QApplication::processEvents();
+    CHECK(dialog->isVisible());
+    CHECK(search->text().isEmpty());
+    CHECK(screen_chip->isChecked());
+    CHECK(card_ids(*presets).mid(0, 2) == QStringList({QStringLiteral("clipboard"), QStringLiteral("last-used")}));
+    CHECK(!no_matches->isVisible());
+
+    // A chip picked during a search leaves the search for that group.
+    search->setText(QStringLiteral("poster"));
+    QApplication::processEvents();
+    photo_chip->click();
+    QApplication::processEvents();
+    CHECK(search->text().isEmpty());
+    CHECK(photo_chip->isChecked());
+    CHECK(!screen_chip->isChecked());
+    CHECK(card_ids(*presets).first() == QStringLiteral("last-used"));
+
+    // Return creates the selected match.
+    search->setFocus();
+    search->setText(QStringLiteral("favicon"));
+    QApplication::processEvents();
+    CHECK(current_id() == QStringLiteral("icon-favicon-32"));
+    inspected = true;
+    send_key(*search, Qt::Key_Return);
+  });
+  require_action_by_text(window, QStringLiteral("New"))->trigger();
+  QApplication::processEvents();
+  CHECK(inspected);
+  CHECK(tabs != nullptr && tabs->count() == tabs_before + 1);
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  CHECK(document.width() == 32 && document.height() == 32);
+  QApplication::clipboard()->clear();
+}
+
 void ui_new_document_dialog_remembers_unit() {
   QApplication::clipboard()->clear();
   SettingsValueRestorer restore_units(QStringLiteral("view/rulerUnits"));
@@ -3123,6 +3262,7 @@ std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
       {"ui_new_document_preset_double_click_creates_document", ui_new_document_preset_double_click_creates_document},
       {"ui_new_document_dialog_remembers_last_settings", ui_new_document_dialog_remembers_last_settings},
       {"ui_new_document_template_groups_hold_every_template", ui_new_document_template_groups_hold_every_template},
+      {"ui_new_document_search_filters_every_group", ui_new_document_search_filters_every_group},
       {"ui_new_document_dialog_remembers_unit", ui_new_document_dialog_remembers_unit},
       {"ui_new_document_opens_fit_to_view", ui_new_document_opens_fit_to_view},
       {"ui_new_document_background_starts_locked", ui_new_document_background_starts_locked},
