@@ -21862,6 +21862,50 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         <source>Delete Group</source>
         <translation>Excluir grupo</translation>
     </message>
+    <message>
+        <source>Layer Styles</source>
+        <translation>Estilos de camada</translation>
+    </message>
+    <message>
+        <source>Bevel &amp;&amp; Emboss...</source>
+        <translation>Chanfro e entalhe...</translation>
+    </message>
+    <message>
+        <source>Stroke...</source>
+        <translation>Traçado...</translation>
+    </message>
+    <message>
+        <source>Inner Shadow...</source>
+        <translation>Sombra interna...</translation>
+    </message>
+    <message>
+        <source>Inner Glow...</source>
+        <translation>Brilho interno...</translation>
+    </message>
+    <message>
+        <source>Satin...</source>
+        <translation>Acetinado...</translation>
+    </message>
+    <message>
+        <source>Color Overlay...</source>
+        <translation>Sobreposição de cores...</translation>
+    </message>
+    <message>
+        <source>Gradient Overlay...</source>
+        <translation>Sobreposição de degradê...</translation>
+    </message>
+    <message>
+        <source>Pattern Overlay...</source>
+        <translation>Sobreposição de padrão...</translation>
+    </message>
+    <message>
+        <source>Outer Glow...</source>
+        <translation>Brilho externo...</translation>
+    </message>
+    <message>
+        <source>Drop Shadow...</source>
+        <translation>Sombra projetada...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

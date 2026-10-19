@@ -11445,6 +11445,7 @@ void MainWindow::update_document_action_state() {
     layer_list_->setEnabled(has_document && (!locked || eyes_only));
   }
   refresh_add_layer_mask_button_state();
+  refresh_layer_styles_button_state();
   update_legacy_plugin_repeat_actions();
   update_last_filter_action();
   // 16/32-bit documents (docs/high-bit-depth.md): a 32-bit document offers only the

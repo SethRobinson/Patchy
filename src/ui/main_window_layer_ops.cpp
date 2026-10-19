@@ -1617,6 +1617,23 @@ void MainWindow::refresh_add_layer_mask_button_state() {
   }
 }
 
+bool MainWindow::can_edit_layer_styles() const {
+  if (!has_active_document() || preview_dialog_edit_locked()) {
+    return false;
+  }
+  const auto& doc = std::as_const(document());
+  const auto ids = selected_or_active_layer_ids();
+  return std::any_of(ids.begin(), ids.end(), [&](LayerId id) {
+    return doc.find_layer(id) != nullptr && !layer_is_effectively_locked(doc.layers(), id);
+  });
+}
+
+void MainWindow::refresh_layer_styles_button_state() {
+  if (layer_styles_button_ != nullptr) {
+    layer_styles_button_->setEnabled(can_edit_layer_styles());
+  }
+}
+
 void MainWindow::delete_active_layer_mask() {
   auto& doc = document();
   const auto active = doc.active_layer_id();
@@ -2523,7 +2540,7 @@ void ensure_patterns_for_style(Document& doc, const LayerStyle& style,
 
 }  // namespace
 
-void MainWindow::edit_active_layer_style() {
+void MainWindow::edit_active_layer_style(std::optional<LayerStyleEffect> start_effect) {
   if (preview_dialog_edit_locked()) { show_preview_dialog_edit_lock_message(); return; }
   if (!has_active_document() || refuse_layer_dialog_during_transform()) return;
   finish_pending_shape_appearance_edit();
@@ -2634,7 +2651,7 @@ void MainWindow::edit_active_layer_style() {
       &gradient_library(),
       {static_cast<std::uint8_t>(fg.red()), static_cast<std::uint8_t>(fg.green()), static_cast<std::uint8_t>(fg.blue())},
       {static_cast<std::uint8_t>(bg.red()), static_cast<std::uint8_t>(bg.green()), static_cast<std::uint8_t>(bg.blue())},
-      &context, std::as_const(doc).color_state().bit_depth);
+      &context, std::as_const(doc).color_state().bit_depth, start_effect);
   const auto available = doc.metadata().patterns;
   restore();
   bool changed = false;

@@ -21789,6 +21789,50 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <source>Delete Group</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Layer Styles</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bevel &amp;&amp; Emboss...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stroke...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Inner Shadow...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Inner Glow...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Satin...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color Overlay...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gradient Overlay...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pattern Overlay...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Outer Glow...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drop Shadow...</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

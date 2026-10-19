@@ -21792,6 +21792,50 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <source>Delete Group</source>
         <translation>グループを削除</translation>
     </message>
+    <message>
+        <source>Layer Styles</source>
+        <translation>レイヤースタイル</translation>
+    </message>
+    <message>
+        <source>Bevel &amp;&amp; Emboss...</source>
+        <translation>ベベルとエンボス...</translation>
+    </message>
+    <message>
+        <source>Stroke...</source>
+        <translation>境界線...</translation>
+    </message>
+    <message>
+        <source>Inner Shadow...</source>
+        <translation>シャドウ（内側）...</translation>
+    </message>
+    <message>
+        <source>Inner Glow...</source>
+        <translation>光彩（内側）...</translation>
+    </message>
+    <message>
+        <source>Satin...</source>
+        <translation>サテン...</translation>
+    </message>
+    <message>
+        <source>Color Overlay...</source>
+        <translation>カラーオーバーレイ...</translation>
+    </message>
+    <message>
+        <source>Gradient Overlay...</source>
+        <translation>グラデーションオーバーレイ...</translation>
+    </message>
+    <message>
+        <source>Pattern Overlay...</source>
+        <translation>パターンオーバーレイ...</translation>
+    </message>
+    <message>
+        <source>Outer Glow...</source>
+        <translation>光彩(外側)...</translation>
+    </message>
+    <message>
+        <source>Drop Shadow...</source>
+        <translation>ドロップシャドウ...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

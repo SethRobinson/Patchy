@@ -38,6 +38,21 @@ struct LayerStyleSettings {
   bool fill_opacity_edited{false};
 };
 
+// The effect pages the dialog can open on (the Layers panel footer's Layer
+// Styles menu), in the dialog's category order.
+enum class LayerStyleEffect {
+  BevelEmboss,
+  Stroke,
+  InnerShadow,
+  InnerGlow,
+  Satin,
+  ColorOverlay,
+  GradientOverlay,
+  PatternOverlay,
+  OuterGlow,
+  DropShadow
+};
+
 // document_patterns (optional) lists the document's embedded pattern tiles.
 // pattern_library adds the persistent folder-aware user presets and enables the
 // Pattern Manager buttons. The dialog can add a transient document resource
@@ -48,7 +63,8 @@ struct LayerStyleSettings {
 // inert. open_pattern_as_image is forwarded to the Pattern Manager's "Open as
 // Image" button; the caller must DEFER the actual document creation until this
 // dialog has closed (the preview-dialog edit lock forbids
-// add_document_session).
+// add_document_session). start_effect opens the dialog on that effect's first
+// instance and turns it on, exactly as ticking its category checkbox would.
 [[nodiscard]] std::optional<LayerStyleSettings> request_layer_style_settings(
     QWidget* parent, const Layer& layer,
     std::function<void(const LayerStyleSettings&)> preview_changed = {},
@@ -60,6 +76,7 @@ struct LayerStyleSettings {
     RgbColor foreground = RgbColor{0, 0, 0},
     RgbColor background = RgbColor{255, 255, 255},
     const AppearanceDialogContext<LayerStyleSettings>* batch = nullptr,
-    BitDepth document_depth = BitDepth::UInt8);
+    BitDepth document_depth = BitDepth::UInt8,
+    std::optional<LayerStyleEffect> start_effect = std::nullopt);
 
 }  // namespace patchy::ui

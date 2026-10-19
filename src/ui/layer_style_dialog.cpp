@@ -773,7 +773,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     PatternStore* document_patterns, PatternLibrary* pattern_library, StyleLibrary* style_library,
     std::function<void(const QString& name, const PixelBuffer& tile)> open_pattern_as_image,
     GradientLibrary *gradient_library, RgbColor foreground,
-    RgbColor background, const AppearanceDialogContext<LayerStyleSettings>* batch, BitDepth document_depth) {
+    RgbColor background, const AppearanceDialogContext<LayerStyleSettings>* batch, BitDepth document_depth,
+    std::optional<LayerStyleEffect> start_effect) {
   const auto request_started = std::chrono::steady_clock::now();
   const LayerStyleSettings original_settings{
       static_cast<int>(std::round(layer.opacity() * 100.0F)),
@@ -3428,6 +3429,38 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     };
     reset_batch_capture();
     refresh_batch_mixed();
+  }
+
+  // The Layers panel footer menu (GitHub issue 94): select the effect's first
+  // row, then tick it the way its checkbox does, so the preview and the batch
+  // capture see an ordinary user edit.
+  if (start_effect.has_value()) {
+    const auto start_kind = [&] {
+      switch (*start_effect) {
+        case LayerStyleEffect::BevelEmboss: return LayerStyleEffectKind::BevelEmboss;
+        case LayerStyleEffect::Stroke: return LayerStyleEffectKind::Stroke;
+        case LayerStyleEffect::InnerShadow: return LayerStyleEffectKind::InnerShadow;
+        case LayerStyleEffect::InnerGlow: return LayerStyleEffectKind::InnerGlow;
+        case LayerStyleEffect::Satin: return LayerStyleEffectKind::Satin;
+        case LayerStyleEffect::ColorOverlay: return LayerStyleEffectKind::ColorOverlay;
+        case LayerStyleEffect::GradientOverlay: return LayerStyleEffectKind::GradientOverlay;
+        case LayerStyleEffect::PatternOverlay: return LayerStyleEffectKind::PatternOverlay;
+        case LayerStyleEffect::OuterGlow: return LayerStyleEffectKind::OuterGlow;
+        case LayerStyleEffect::DropShadow: return LayerStyleEffectKind::DropShadow;
+      }
+      return LayerStyleEffectKind::None;
+    }();
+    for (int row = 0; row < categories->count(); ++row) {
+      auto* item = categories->item(row);
+      if (item_kind(item) != start_kind || item_effect_index(item) != 0) {
+        continue;
+      }
+      categories->setCurrentItem(item);
+      if (item->checkState() != Qt::Checked) {
+        item->setCheckState(Qt::Checked);
+      }
+      break;
+    }
   }
 
   // GitHub issue 190: measure what the dialog needs around the settings pane

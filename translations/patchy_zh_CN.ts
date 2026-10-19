@@ -21792,6 +21792,50 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <source>Delete Group</source>
         <translation>删除组</translation>
     </message>
+    <message>
+        <source>Layer Styles</source>
+        <translation>图层样式</translation>
+    </message>
+    <message>
+        <source>Bevel &amp;&amp; Emboss...</source>
+        <translation>斜面和浮雕...</translation>
+    </message>
+    <message>
+        <source>Stroke...</source>
+        <translation>描边...</translation>
+    </message>
+    <message>
+        <source>Inner Shadow...</source>
+        <translation>内阴影...</translation>
+    </message>
+    <message>
+        <source>Inner Glow...</source>
+        <translation>内发光...</translation>
+    </message>
+    <message>
+        <source>Satin...</source>
+        <translation>光泽...</translation>
+    </message>
+    <message>
+        <source>Color Overlay...</source>
+        <translation>颜色叠加...</translation>
+    </message>
+    <message>
+        <source>Gradient Overlay...</source>
+        <translation>渐变叠加...</translation>
+    </message>
+    <message>
+        <source>Pattern Overlay...</source>
+        <translation>图案叠加...</translation>
+    </message>
+    <message>
+        <source>Outer Glow...</source>
+        <translation>外发光...</translation>
+    </message>
+    <message>
+        <source>Drop Shadow...</source>
+        <translation>投影...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

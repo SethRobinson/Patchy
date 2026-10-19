@@ -18,6 +18,7 @@
 #include "ui/channel_panel.hpp"
 #include "ui/hotkey_registry.hpp"
 #include "ui/image_save_options.hpp"
+#include "ui/layer_style_dialog.hpp"
 #include "ui/multipage_pdf_export_dialog.hpp"
 #include "ui/script_stroke.hpp"
 #include "ui/stress_test.hpp"
@@ -1313,6 +1314,11 @@ private:
   // selection to build one from. Drives the Layers panel footer button.
   [[nodiscard]] bool can_add_layer_mask() const;
   void refresh_add_layer_mask_button_state();
+  // Whether Edit Layer Styles... has a layer to edit: a selected or active
+  // layer that is not locked (the filter edit_active_layer_style applies).
+  // Drives the Layers panel footer's Layer Styles button (GitHub issue 94).
+  [[nodiscard]] bool can_edit_layer_styles() const;
+  void refresh_layer_styles_button_state();
   void delete_active_layer_mask();
   void set_active_layer_mask_linked(bool linked);
   void set_layer_edit_target_ui(LayerEditTarget target, bool announce);
@@ -1383,7 +1389,8 @@ private:
   // trailing frame-time token on the selected (else active) layers' names, as one
   // undoable rename batch.
   void set_selected_layers_frame_time(std::optional<std::uint32_t> delay_ms);
-  void edit_active_layer_style();
+  // start_effect opens the dialog on that effect, turned on (the footer menu).
+  void edit_active_layer_style(std::optional<LayerStyleEffect> start_effect = std::nullopt);
   void copy_active_layer_style();
   void paste_layer_style_to_selected_layers();
   void delete_selected_layer_styles();
@@ -2310,6 +2317,7 @@ private:
   QToolButton* lock_position_button_{nullptr};
   QToolButton* lock_all_button_{nullptr};
   QPushButton* add_layer_mask_button_{nullptr};
+  QToolButton* layer_styles_button_{nullptr};
   QAction* selection_new_mode_action_{nullptr};
   QAction* selection_add_mode_action_{nullptr};
   QAction* selection_subtract_mode_action_{nullptr};
