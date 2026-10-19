@@ -4,7 +4,9 @@
 #include "core/worker_budget.hpp"
 #include "formats/pdf_document_io.hpp"
 #include "psd/psd_document_io.hpp"
+#include "render/native_cmyk.hpp"
 #include "ui/qt_paths.hpp"
+#include "ui/app_settings.hpp"
 #include "ui/background_workers.hpp"
 #include "ui/canvas_widget.hpp"
 #include "test_harness.hpp"
@@ -89,6 +91,10 @@ class MainWindowTestAccess {
   static void refresh_layer_list(MainWindow& window) { window.refresh_layer_list(); }
   static void edit_active_layer_style(MainWindow& window) { window.edit_active_layer_style(); }
   static void undo(MainWindow& window) { window.undo(); }
+  static bool cmyk_proof(MainWindow& window) {
+    return window.active_session() != nullptr && window.active_session()->cmyk_proof;
+  }
+  static void set_document_cmyk_proof(MainWindow& window, bool enabled) { window.set_document_cmyk_proof(enabled); }
 };
 
 }  // namespace patchy::ui
@@ -1782,6 +1788,112 @@ void big_brush_stroke_perf() {
   }
 }
 
+// A small 8-bit CMYK PSD painted with the Brush, in CMYK Proof and after leaving it,
+// against a plain RGB document of the same size (GitHub issue 220's second sample, ag-psd's
+// test/read/cmyk/src.psd). PATCHY_PERF_CMYK_PSD overrides the fixture path.
+void cmyk_brush_stroke_perf_if_available() {
+  const auto env_path = qEnvironmentVariable("PATCHY_PERF_CMYK_PSD");
+  const auto path = env_path.isEmpty()
+      ? patchy::test::local_format_fixture_path("cmyk-brush-perf", "ag-psd-cmyk-src.psd")
+      : patchy::ui::to_filesystem_path(env_path);
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] local-test-fixtures/cmyk-brush-perf/ag-psd-cmyk-src.psd missing\n";
+    return;
+  }
+  isolate_perf_settings();
+  {
+    // Both would block the interactive open (tests/ui/main.cpp turns them off the same way).
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("imports/cmykProofOpenNotice"), false);
+    settings.setValue(QStringLiteral("imports/showMissingFontsDialog"), false);
+    settings.sync();
+  }
+  const auto rgb_path = std::filesystem::absolute("test-artifacts/perf_cmyk_brush_rgb_200.png");
+  {
+    QImage image(200, 200, QImage::Format_RGB32);
+    image.fill(Qt::white);
+    CHECK(image.save(patchy::ui::to_qstring(rgb_path)));
+  }
+  patchy::ui::MainWindow window;
+  window.resize(1600, 1000);
+  if (qEnvironmentVariableIsSet("PATCHY_PERF_ONSCREEN")) {
+    window.showMaximized();
+  } else {
+    window.show();
+  }
+  QApplication::processEvents();
+  const auto stroke = [&](const std::string& label, double radius_fraction = 0.3) {
+    auto* canvas = active_canvas(window);
+    CHECK(canvas != nullptr);
+    const auto settle = [canvas] {
+      const auto started = Clock::now();
+      while (!canvas->render_settled() && std::chrono::duration<double>(Clock::now() - started).count() < 60.0) {
+        canvas->repaint();
+        QApplication::processEvents();
+      }
+    };
+    canvas->set_tool(patchy::ui::CanvasTool::Brush);
+    canvas->set_primary_color(Qt::black);
+    canvas->set_brush_opacity(100);
+    canvas->set_brush_softness(0);
+    canvas->set_brush_size(12);
+    canvas->set_zoom_centered(3.0);
+    settle();
+    const auto center = QPointF(canvas->width() / 2.0, canvas->height() / 2.0);
+    const auto radius = 200.0 * canvas->zoom() * radius_fraction;
+    const auto at = [&](int index) {
+      const auto angle = index * 0.1;
+      return QPointF(center.x() + radius * std::cos(angle), center.y() + radius * std::sin(angle));
+    };
+    const auto send = [canvas](QEvent::Type type, QPointF position, Qt::MouseButton button, Qt::MouseButtons buttons) {
+      QMouseEvent event(type, position, canvas->mapToGlobal(position), button, buttons, Qt::NoModifier);
+      QApplication::sendEvent(canvas, &event);
+    };
+    std::vector<double> move_ms;
+    std::vector<double> paint_ms;
+    const auto stats_before = patchy::native_cmyk_render_stats();
+    const auto started = Clock::now();
+    send(QEvent::MouseButtonPress, at(0), Qt::LeftButton, Qt::LeftButton);
+    canvas->repaint();
+    for (int index = 1; index <= 60; ++index) {
+      move_ms.push_back(elapsed_ms([&] { send(QEvent::MouseMove, at(index), Qt::NoButton, Qt::LeftButton); }));
+      paint_ms.push_back(elapsed_ms([&] { canvas->repaint(); }));
+    }
+    send(QEvent::MouseButtonRelease, at(60), Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    settle();
+    const auto total = std::chrono::duration<double, std::milli>(Clock::now() - started).count();
+    const auto summary = [](std::vector<double> values) {
+      std::sort(values.begin(), values.end());
+      std::ostringstream text;
+      text << std::fixed << std::setprecision(2) << "median=" << values[values.size() / 2] << " max=" << values.back();
+      return text.str();
+    };
+    std::cout << "[perf] cmyk_brush " << label << " move_ms " << summary(move_ms) << " paint_ms "
+              << summary(paint_ms) << " stroke_total_ms=" << std::fixed << std::setprecision(1) << total << " transform_builds="
+              << patchy::native_cmyk_render_stats().transform_builds - stats_before.transform_builds
+              << " separated_px=" << patchy::native_cmyk_render_stats().separated_pixels - stats_before.separated_pixels
+              << std::endl;
+  };
+  patchy::ui::MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(path));
+  QApplication::processEvents();
+  std::cout << "[perf] cmyk_brush opened cmyk_proof=" << patchy::ui::MainWindowTestAccess::cmyk_proof(window) << std::endl;
+  stroke("cmyk_proof");
+  stroke("cmyk_proof_second_stroke", 0.2);
+  // A fresh copy left in RGB mode before its first stroke.
+  const auto rgb_mode_copy = std::filesystem::absolute("test-artifacts/perf_cmyk_brush_rgb_mode.psd");
+  std::filesystem::copy_file(path, rgb_mode_copy, std::filesystem::copy_options::overwrite_existing);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(rgb_mode_copy));
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::set_document_cmyk_proof(window, false);
+  QApplication::processEvents();
+  std::cout << "[perf] cmyk_brush copy cmyk_proof=" << patchy::ui::MainWindowTestAccess::cmyk_proof(window) << std::endl;
+  stroke("converted_to_rgb");
+  patchy::ui::MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(rgb_path));
+  QApplication::processEvents();
+  stroke("plain_rgb_200");
+}
+
 int main(int argc, char* argv[]) {
   patchy::test::suppress_crash_dialogs();
   // PATCHY_PERF_ONSCREEN=1 keeps the platform window real so paint timings include
@@ -1802,6 +1914,10 @@ int main(int argc, char* argv[]) {
     }
     if (argc > 1 && std::string_view(argv[1]) == "brushstroke") {
       big_brush_stroke_perf();
+      return 0;
+    }
+    if (argc > 1 && std::string_view(argv[1]) == "cmykbrush") {
+      cmyk_brush_stroke_perf_if_available();
       return 0;
     }
     if (argc > 1 && std::string_view(argv[1]) == "maskrotate") {

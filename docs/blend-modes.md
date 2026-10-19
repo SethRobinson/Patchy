@@ -31,7 +31,16 @@ and regenerated Smart Objects convert through the document's CMYK profile;
 native solid/gradient descriptors supply their original ink colors for fresh
 vector rendering. Pixel edits invalidate the source-plane reuse and undo
 restores it. The conversion/raster preparation cache is bounded and keyed by
-layer render revision and source-space identity.
+layer render revision and source-space identity. A layer at an uncached revision
+(the one being painted, or a Move override's pixels) separates only its part
+inside the render clip, so a brush dab costs its own rect; the profile's two
+Little CMS transforms are built once per source space (`ink_transforms`), never
+per render. Building them per render cost about 44 ms per dab on a 200 x 200
+file (GitHub issue 220's ag-psd sample), in CMYK Proof and RGB mode alike.
+`native_cmyk_render_stats` counts transform builds and separated pixels;
+`compositor_cmyk_dab_renders_reuse_transforms_and_separate_only_their_rect` holds
+both per dab, and `patchy_perf_tests cmykbrush` times strokes on that sample
+(`local-test-fixtures/cmyk-brush-perf/ag-psd-cmyk-src.psd`).
 
 Component modes use the existing byte kernels on C/M/Y and K. Hue, Saturation
 and Color retain backdrop K; Luminosity takes source K. Darker/Lighter Color
