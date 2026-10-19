@@ -6,7 +6,7 @@ and runs the test suites there.
                                   [-BuildTarget patchy_ui_visual_tests[,patchy_core_tests]] [-Preset opt-dev]
                                   [-SkipTests] [-FetchArtifacts]
   linux only:   [-NativeQt]
-  windows only: [-WindowsHost <ssh target>] [-WaitMinutes 30]
+  windows only: [-WindowsHost <ssh target>] [-WaitMinutes 30] [-PerfScenario startup] [-PerfEnv 'NAME=value;...']
 
 A typical worker loop builds only the suite it runs, in the optimized no-LTCG preset:
 
@@ -76,6 +76,10 @@ param(
   # Replace the default preset (windows release, mac mac-release, linux linux-flatpak-qt).
   [string]$Preset = '',
   [switch]$SkipTests,
+  # windows only: run `patchy_perf_tests <scenario>` after the suites, with these NAME=value;...
+  # variables (docs/startup-performance.md).
+  [string]$PerfScenario = '',
+  [string]$PerfEnv = '',
   [switch]$FetchArtifacts,
   # linux only: build against the aqt Qt in .deps instead of the Flatpak SDK's Qt.
   [switch]$NativeQt,
@@ -95,6 +99,7 @@ $ErrorActionPreference = 'Continue'
 . "$PSScriptRoot\remote-hosts.ps1"
 . "$PSScriptRoot\remote-lock.ps1"
 if (($WindowsHost -or $WaitMinutes) -and $Target -ne 'windows') { throw '-WindowsHost and -WaitMinutes are only supported for -Target windows' }
+if (($PerfScenario -or $PerfEnv) -and $Target -ne 'windows') { throw '-PerfScenario and -PerfEnv are only supported for -Target windows' }
 $repoRoot = (git rev-parse --show-toplevel 2>$null)
 if (-not $repoRoot) { throw 'remote-build.ps1 must run inside the Patchy repository' }
 $lockOwner = Get-PatchyLockOwner $repoRoot.Trim()
@@ -189,6 +194,8 @@ try {
     if ($CoreTestFilter) { $psArgs += @('-CoreFilter', "'$CoreTestFilter'") }
     if ($targets.Count) { $psArgs += @('-BuildTarget', "'$($targets -join ',')'") }
     if ($SkipTests) { $psArgs += '-SkipTests' }
+    if ($PerfScenario) { $psArgs += @('-PerfScenario', "'$PerfScenario'") }
+    if ($PerfEnv) { $psArgs += @('-PerfEnv', "'$PerfEnv'") }
     # Optional per-host parallelism from the host config; build-and-test.ps1 defaults to 8.
     if ($remote.jobs) { $psArgs += @('-Jobs', [int]$remote.jobs) }
     $wt = $remote.workTree.Replace('\', '/')

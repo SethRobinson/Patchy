@@ -1,6 +1,7 @@
 #include <QSplitter>
 #include <QWindow>
 #include "ui/main_window.hpp"
+#include "support/startup_trace.hpp"
 #include "ui/panel_column.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/gradient_stops_editor.hpp"
@@ -4265,6 +4266,8 @@ bool text_transform_keeps_missing_font_pixels(const Layer& layer) {
 }
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
+  // Startup phases (docs/startup-performance.md); each is one bool test when tracing is off.
+  startup_trace::Scope recovery_phase("mw.recovery_start");
   // Installed before the first statusBar() call so every showMessage goes through the
   // subclass that hosts the zoom percentage box (see ui/zoom_status_bar.hpp).
   zoom_status_bar_ = new ZoomStatusBar(this);
@@ -4272,9 +4275,13 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 #ifndef Q_OS_WASM
   start_document_recovery();
 #endif
+  recovery_phase.end();
+  startup_trace::Scope filters_phase("mw.filters_codecs");
   register_builtin_filters(filters_);
   install_ico_png_codec();
   install_rttex_jpeg_codec();
+  filters_phase.end();
+  startup_trace::Scope tabs_phase("mw.tabs_start_panel");
   print_page_layout_ = load_stored_print_page_layout();
   // Diagnostic kill switch for the per-stroke history entries (docs/performance.md).
   if (bool ok = false; qEnvironmentVariableIntValue("PATCHY_STROKE_PATCH_HISTORY", &ok) == 0 && ok) {
@@ -4385,13 +4392,19 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   tool_settings_save_timer_->setSingleShot(true);
   tool_settings_save_timer_->setInterval(kToolSettingsSaveDelayMs);
   connect(tool_settings_save_timer_, &QTimer::timeout, this, [this] { save_tool_settings(); });
+  tabs_phase.end();
+  startup_trace::Scope color_phase("mw.input_color_settings");
   load_pen_input_settings();
   set_working_cmyk_space(cmyk_working_space_for(stored_cmyk_working_settings()));
+  color_phase.end();
   // Startup opens with an empty workspace (the start panel); no document is
   // auto-created. The one-time load_tool_settings() runs when the first
   // document session brings a canvas (startup_tool_settings_pending_).
 
+  startup_trace::Scope actions_phase("mw.actions");
   create_actions();
+  actions_phase.end();
+  startup_trace::Scope recent_phase("mw.view_recent");
   load_view_settings();
   configure_window_chrome();
   load_recent_files();
@@ -4410,6 +4423,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
   });
   recent_history_timer->start();
   update_start_panel_visibility();
+  recent_phase.end();
 #ifdef Q_OS_WIN
   // Plug-in folders are probed on a worker after the window is up, so a folder
   // full of .8bf files never delays the first paint (docs/plugins.md). The
@@ -4420,19 +4434,28 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     start_legacy_plugin_scan(false);
   });
 #endif
+  startup_trace::Scope docks_phase("mw.docks");
   create_docks();
+  docks_phase.end();
+  startup_trace::Scope hotkeys_phase("mw.panel_entries_hotkeys");
   default_collapsed_panels_ = collapsed_panel_names();
   default_panel_order_ = panel_column_->section_order();
   install_window_panel_entries();
   hotkey_registry_.apply_to_actions();
+  hotkeys_phase.end();
   // Script hotkeys must work from the first keypress, before File > Scripts was ever
   // opened: register every script's command now (docs/scripting.md "Script hotkeys").
+  startup_trace::Scope scripts_phase("mw.scripts");
   refresh_script_commands(scan_scripts(bundled_scripts_directory(), user_scripts_directory()));
+  scripts_phase.end();
+  startup_trace::Scope refresh_phase("mw.initial_refresh");
   refresh_layer_list();
   refresh_layer_controls();
   update_document_action_state();  update_undo_redo_actions();
   qApp->installEventFilter(this);
+  refresh_phase.end();
 
+  startup_trace::Scope layout_phase("mw.geometry_layout");
   refresh_document_window_title();
   setWindowIcon(patchy_app_icon());
   if (!restore_window_geometry()) {
@@ -4440,7 +4463,11 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     clamp_window_to_available_screen();
   }
   restore_panel_layout();
+  layout_phase.end();
+  startup_trace::Scope stylesheet_phase("mw.stylesheet");
   setStyleSheet(photoshop_style());
+  stylesheet_phase.end();
+  const startup_trace::Scope status_phase("mw.status_bar");
   // Connected after the first sheet is applied: connecting earlier would let a
   // scheme change restyle a half-built window.
   connect(&ThemeManager::instance(), &ThemeManager::color_scheme_changed, this,

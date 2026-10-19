@@ -12,6 +12,7 @@
 #include "core/pixel_buffer.hpp"
 #include "plugins/pipl.hpp"
 #include "ui/main_window.hpp"
+#include "support/startup_trace.hpp"
 #include <QStatusBar>
 #include "ui/main_window_shared.hpp"
 #include "ui/qt_paths.hpp"
@@ -202,7 +203,9 @@ void MainWindow::start_legacy_plugin_scan(bool announce) {
   auto* app = QApplication::instance();
   QPointer<MainWindow> window(this);
   const auto roots = legacy_plugin_scan_roots();
-  run_tracked_background_worker([app, window, roots, generation] {
+  // The startup report shows the scan as background work (docs/startup-performance.md).
+  const double trace_start = startup_trace::enabled() ? startup_trace::now_ms() : -1.0;
+  run_tracked_background_worker([app, window, roots, generation, trace_start] {
     auto probes = std::make_shared<std::vector<std::pair<QString, LegacyPhotoshopPluginProbe>>>(
         probe_legacy_plugin_files(roots));
     if (app == nullptr) {
@@ -210,9 +213,13 @@ void MainWindow::start_legacy_plugin_scan(bool announce) {
     }
     QMetaObject::invokeMethod(
         app,
-        [window, probes, generation] {
+        [window, probes, generation, trace_start] {
           if (window != nullptr) {
+            const double apply_start = startup_trace::enabled() ? startup_trace::now_ms() : -1.0;
             window->finish_legacy_plugin_scan(generation, std::move(*probes));
+            const double end = startup_trace::now_ms();
+            startup_trace::record_background("plugins.legacy_scan", trace_start, end);
+            startup_trace::record_background("plugins.legacy_scan_apply", apply_start, end);
           }
         },
         Qt::QueuedConnection);

@@ -71,6 +71,10 @@
 #pragma comment(lib, "dbghelp.lib")
 #endif
 
+namespace patchy::perf {
+int run_startup_scenario();  // tests/perf_startup.cpp
+}
+
 namespace patchy::ui {
 
 // Same friend-backdoor pattern as the visual suite's MainWindowTestAccess (one
@@ -1811,6 +1815,10 @@ int main(int argc, char* argv[]) {
     if (argc > 1 && std::string_view(argv[1]) == "manylayers") {
       many_layers_select_and_move_perf_if_available();
       return 0;
+    }
+    // Explicit only: launches the app a dozen times (docs/startup-performance.md).
+    if (argc > 1 && std::string_view(argv[1]) == "startup") {
+      return patchy::perf::run_startup_scenario();
     }
     // Explicit only (never part of the default run): minutes on the 85-page fixture.
     if (argc > 1 && std::string_view(argv[1]) == "pdfopen") {

@@ -1,6 +1,6 @@
 # Performance: the stress test and the rendering-performance rules
 
-Read before rendering or stress-harness work. `AGENTS.md` owns universal revision/repaint rules. The optional screen-resolution renderer is documented in [Dynamic Vector Preview](vector-preview.md).
+Read before rendering or stress-harness work. `AGENTS.md` owns universal revision/repaint rules. The optional screen-resolution renderer is documented in [Dynamic Vector Preview](vector-preview.md). Startup timing, the `patchy_perf_tests startup` scenario and its regression check are in [startup-performance.md](startup-performance.md).
 
 ## Profiling stress test (PATCHY 64 scene)
 

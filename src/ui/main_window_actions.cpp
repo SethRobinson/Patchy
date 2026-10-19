@@ -15,6 +15,7 @@
 #include "ui/hotkey_registry.hpp"
 #include "core/layer.hpp"
 #include "ui/main_window.hpp"
+#include "support/startup_trace.hpp"
 #include "ui/tool_palette_footer.hpp"
 #include "ui/localization.hpp"
 #include "ui/ui_font.hpp"
@@ -66,7 +67,9 @@ void MainWindow::create_actions() {
   // which are identical to a fresh session canvas's. Once the first document
   // arrives, load_tool_settings() + sync_tool_option_controls_from_canvas()
   // re-read the controls from the real canvas with the stored settings applied.
+  startup_trace::Scope canvas_phase("mw.actions.defaults_canvas");
   CanvasWidget startup_defaults_canvas;
+  canvas_phase.end();
   // Stack-only build context threading the cross-phase locals between the
   // builders; it dies when create_actions() returns, so builder lambdas
   // capture pointer values from it, never the context itself.
@@ -76,9 +79,16 @@ void MainWindow::create_actions() {
   // Phase order is load-bearing (widget construction, hotkey registration and
   // register_retranslation callbacks all follow it): menu bar, tool palette,
   // Options bar, translation binding, final refresh.
+  startup_trace::Scope menu_phase("mw.actions.menu_bar");
   build_menu_bar_actions(ctx);
+  menu_phase.end();
+  startup_trace::Scope palette_phase("mw.actions.tool_palette");
   build_tool_palette(ctx);
+  palette_phase.end();
+  startup_trace::Scope options_phase("mw.actions.options_bar");
   build_options_bar(ctx);
+  options_phase.end();
+  startup_trace::Scope finish_phase("mw.actions.translations_finish");
   bind_action_translations(ctx);
 
   retranslate_brush_preset_combo();

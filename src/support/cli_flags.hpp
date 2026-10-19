@@ -47,4 +47,27 @@ namespace patchy {
   return nullptr;
 }
 
+// Value of "--startup-benchmark <report.json>" or "--startup-benchmark=<report.json>" for
+// main(), which must switch the startup trace on before anything it times runs. Returns
+// nullptr when absent. Same scan rules as headless_flag_present.
+[[nodiscard]] inline const char* startup_benchmark_flag_value(int argc, const char* const* argv) noexcept {
+  constexpr const char* kFlag = "--startup-benchmark";
+  constexpr int kFlagLength = 19;
+  for (int i = 1; argv != nullptr && i < argc; ++i) {
+    if (argv[i] == nullptr) {
+      continue;
+    }
+    if (std::strcmp(argv[i], "--") == 0) {
+      return nullptr;
+    }
+    if (std::strcmp(argv[i], kFlag) == 0) {
+      return i + 1 < argc ? argv[i + 1] : nullptr;
+    }
+    if (std::strncmp(argv[i], kFlag, kFlagLength) == 0 && argv[i][kFlagLength] == '=') {
+      return argv[i] + kFlagLength + 1;
+    }
+  }
+  return nullptr;
+}
+
 }  // namespace patchy

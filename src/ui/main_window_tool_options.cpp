@@ -17,6 +17,7 @@
 #include "ui/canvas_types.hpp"
 #include "core/vector_shape.hpp"
 #include "ui/main_window.hpp"
+#include "support/startup_trace.hpp"
 #include <QActionGroup>
 #include <QComboBox>
 #include <QStatusBar>
@@ -588,6 +589,8 @@ int stored_default_asset_version(const QSettings& settings, const QString& key) 
 
 BrushTipLibrary& MainWindow::brush_tip_library() {
   if (brush_tip_library_ == nullptr) {
+    // Built on first use, which is startup (docs/startup-performance.md).
+    const startup_trace::Scope library_phase("mw.lib.brush_tips");
     brush_tip_library_ = new BrushTipLibrary({}, this);
     // Seed the built-in bitmap tips once. The version gate (not an emptiness check) means a
     // user who deletes some or all of them is respected — they never come back on their own;
@@ -612,6 +615,8 @@ BrushTipLibrary& MainWindow::brush_tip_library() {
 
 PatternLibrary& MainWindow::pattern_library() {
   if (pattern_library_ == nullptr) {
+    // Built on first use, which is startup (docs/startup-performance.md).
+    const startup_trace::Scope library_phase("mw.lib.patterns");
     pattern_library_ = new PatternLibrary({}, this);
     connect(pattern_library_, &PatternLibrary::changed, this, [this] {
       refresh_pattern_stamp_pattern_combo();
@@ -636,6 +641,8 @@ PatternLibrary& MainWindow::pattern_library() {
 
 GradientLibrary& MainWindow::gradient_library() {
   if (gradient_library_ == nullptr) {
+    // Built on first use, which is startup (docs/startup-performance.md).
+    const startup_trace::Scope library_phase("mw.lib.gradients");
     gradient_library_ = new GradientLibrary({}, this);
     auto settings = app_settings();
     const auto stored_version =
@@ -651,6 +658,8 @@ GradientLibrary& MainWindow::gradient_library() {
 
 StyleLibrary& MainWindow::style_library() {
   if (style_library_ == nullptr) {
+    // Built on first use, which is startup (docs/startup-performance.md).
+    const startup_trace::Scope library_phase("mw.lib.styles");
     style_library_ = new StyleLibrary({}, this);
     // Seed code-generated defaults once. A user deletion stays deleted across
     // launches; the Style Manager's explicit restore command brings it back.
