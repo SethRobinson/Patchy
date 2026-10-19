@@ -2761,6 +2761,28 @@ void ui_new_document_search_filters_every_group() {
     search->setText(QStringLiteral("print a4"));
     QApplication::processEvents();
     CHECK(card_ids(*presets) == QStringList({QStringLiteral("print-a4")}));
+    search->setText(QStringLiteral("story 1080"));
+    QApplication::processEvents();
+    CHECK(card_ids(*presets) == QStringList({QStringLiteral("phone-story-1080x1920")}));
+    // A word without a digit matches names and groups only: a bare "x" finds the X templates
+    // and names holding an x, never every size (Seth, October 20, 2026).
+    search->setText(QStringLiteral("x"));
+    QApplication::processEvents();
+    const auto x_matches = card_ids(*presets);
+    CHECK(x_matches.contains(QStringLiteral("social-x-header")));
+    CHECK(x_matches.contains(QStringLiteral("art-pixel-16")));
+    for (const auto* unrelated : {"screen-1080p", "print-a4", "social-youtube-thumbnail", "mobile-iphone-16"}) {
+      CHECK(!x_matches.contains(QLatin1String(unrelated)));
+    }
+    // A word with a digit also matches the size forms, either side of the x.
+    search->setText(QStringLiteral("1920x"));
+    QApplication::processEvents();
+    CHECK(card_ids(*presets).contains(QStringLiteral("screen-1080p")));
+    CHECK(!card_ids(*presets).contains(QStringLiteral("phone-story-1080x1920")));
+    search->setText(QStringLiteral("x1080"));
+    QApplication::processEvents();
+    CHECK(card_ids(*presets).contains(QStringLiteral("screen-1080p")));
+    CHECK(!card_ids(*presets).contains(QStringLiteral("phone-story-1080x1920")));
     search->setText(QStringLiteral("zzzz"));
     QApplication::processEvents();
     CHECK(presets->count() == 0);
