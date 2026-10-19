@@ -144,6 +144,19 @@
     <control>tablet</control>
   </supports>
   <releases>
+    <release version="1.14" date="2026-10-19">
+      <description>
+        <ul>
+          <li>Artboards, and a PDF import that brings pages in as folders with mode, bit depth and page order options</li>
+          <li>Move tool: Auto-Select by layer or group, Distribute buttons, and outlines of the layers a selection rectangle will pick</li>
+          <li>A Missing Fonts dialog and safer handling of text whose font is not installed</li>
+          <li>The status bar shows the document's size, resolution, color mode and bit depth</li>
+          <li>Right-hand panels can be reordered, keep their layout between sessions, and the Layers panel can be much narrower</li>
+          <li>Warp stays responsive on large images and fast brush strokes follow the pointer</li>
+          <li>Linux: the system title bar by default under a global menu, and the desktop's own file dialogs in the AppImage</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.13" date="2026-10-17">
       <description>
         <ul>

@@ -3,6 +3,18 @@
 Older Patchy release notes are collected here. The two most recent releases
 remain in [README.md](README.md#whats-new).
 
+### 1.12 - October 16, 2026
+
+- Tool palette: a compact Photoshop-style color well that sits with Quick Mask in a footer pinned to the bottom of the palette. The footer stays put when a short screen expands the palette to a second column, and the overflow chevron is no longer clipped
+- Shape and text tools: a drag can now start outside the canvas, on the pasteboard, as marquee drags already could
+- Options bar: the bar keeps one row until the current tool's controls really need two, instead of reserving the tallest row of every tool ([issue 91](https://github.com/SethRobinson/Patchy/issues/91))
+- Pen tool: moving several anchors with the Direct Selection tool no longer leaves a trail of old handles, a layer mask stays targeted through undo, and the selection right-click menu is offered beside the marching ants ([issue 105](https://github.com/SethRobinson/Patchy/issues/105))
+- SVG import: a stroke more opaque than its fill becomes its own shape layer instead of vanishing ([issue 111](https://github.com/SethRobinson/Patchy/issues/111))
+- Open dialog: reopens on the format row picked last time ([issue 114](https://github.com/SethRobinson/Patchy/issues/114)), lists HEIF only where a decoder exists, such as not in the AppImage ([issue 113](https://github.com/SethRobinson/Patchy/issues/113)), and the open-failed message names the file ([issue 112](https://github.com/SethRobinson/Patchy/issues/112))
+- Interface: the Scripting Guide has the dialog chrome and a Close button and the About box has an X ([issue 107](https://github.com/SethRobinson/Patchy/issues/107)), the Feather label has the same gap to its field as every other options-bar label ([issue 106](https://github.com/SethRobinson/Patchy/issues/106)), and File Info never wraps the Created, Modified, Application and Format values ([issue 103](https://github.com/SethRobinson/Patchy/issues/103))
+- Linux: short screens keep the bottom panels on-screen, since the right column's panel floors now fit the screen height ([issue 108](https://github.com/SethRobinson/Patchy/issues/108), [issue 110](https://github.com/SethRobinson/Patchy/issues/110)), and on Wayland menus and combo lists open in place at a non-100% interface scale ([issue 100](https://github.com/SethRobinson/Patchy/issues/100))
+- Browser version: the Filter menu shows the G'MIC Filter Library row and explains that its nearly 400 filters need the desktop version
+
 ### 1.11 - October 15, 2026
 
 - G'MIC Filter Library: nearly 400 G'MIC filters built in (desktop), with a live preview on the canvas, draggable points for filters that take a position, filters that read or add several layers, and script access ([issue 87](https://github.com/SethRobinson/Patchy/issues/87))
