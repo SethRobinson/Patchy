@@ -1133,10 +1133,6 @@ void finish_photoshop_layers_import(Document& opened, const QFileInfo& info, QSt
   }
 }
 
-bool is_tiff_extension(const QString& extension) {
-  return extension == QStringLiteral("tif") || extension == QStringLiteral("tiff");
-}
-
 // A TIFF carrying Photoshop layers in tag 37724 opens with them (docs/tiff.md). False when
 // the file has none or they cannot be read: the caller then opens the composite as it
 // always has, with a note saying why the layers are missing.
@@ -2369,7 +2365,13 @@ void MainWindow::run_cli_export(const QString& output_path, const QString& appen
       const int mutated = cli_append_text_to_text_layers(append_text);
       fprintf(stderr, "Appended text to %d text layer(s)\n", mutated);
     }
-    const bool saved = save_document_to_path(output_path, std::nullopt, SaveToPathPolicy{/*flatten_confirmed=*/true, /*scripted=*/false, /*export_copy=*/false});
+    // --export writes flat images; a layered TIFF needs a script's saveAs (docs/tiff.md).
+    std::optional<ImageSaveOptions> export_options;
+    if (is_tiff_extension(extension_for_path(output_path))) {
+      export_options = image_save_defaults_for_document();
+      export_options->tiff_layers = false;
+    }
+    const bool saved = save_document_to_path(output_path, export_options, SaveToPathPolicy{/*flatten_confirmed=*/true, /*scripted=*/false, /*export_copy=*/false});
     if (!saved) {
       fprintf(stderr, "Export failed: could not save %s\n", output_path.toUtf8().constData());
     }
@@ -4073,11 +4075,20 @@ bool MainWindow::save_document_as() {
   }
   path = path_with_default_extension(path, selected_filter);
   const auto extension = extension_for_path(path);
-  const bool discards_layers = save_discards_layers(std::as_const(document()), extension);
+  bool discards_layers = save_discards_layers(std::as_const(document()), extension);
   const bool linked_external_child =
       session().smart_object_link.has_value() && session().smart_object_link->external;
   std::optional<ImageSaveOptions> image_options;
-  if (is_pdf_extension(extension) && !linked_external_child) {
+  if (is_tiff_extension(extension) && flat_save_discards_layers(std::as_const(document()))) {
+    // TIFF Options: keep the layers (a layered TIFF, the default) or save a flattened copy;
+    // the dialog says what each means, so no flatten warning follows (docs/tiff.md).
+    auto tiff_options = prompt_tiff_save_options(this, image_save_defaults_for_document());
+    if (!tiff_options.has_value() || !still_saving_same_session()) {
+      return false;
+    }
+    discards_layers = !tiff_options->tiff_layers.value_or(true);
+    image_options = std::move(tiff_options);
+  } else if (is_pdf_extension(extension) && !linked_external_child) {
     // PDF Options answers everything a PDF save asks, the flatten-or-editable question
     // included (docs/pdf.md).
     const auto choice = prompt_pdf_options(path, /*export_pages*/ false);
@@ -4352,7 +4363,20 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
     animation_preview_window_->stop_playback_for(&document());
   }
   const auto extension = extension_for_path(path);
-  const bool discards_layers = save_discards_layers(std::as_const(document()), extension);
+  // Layered TIFF (docs/tiff.md): a TIFF keeps the document's layers unless the options turn
+  // them off (TIFF Options, a script's `layers: false`, an explicit CMYK color form);
+  // exports stay flat.
+  std::optional<bool> tiff_layers;
+  if (is_tiff_extension(extension)) {
+    const bool explicit_cmyk = image_options.has_value() && image_options->export_color_explicit &&
+                               image_options->export_cmyk;
+    tiff_layers = image_options.has_value() && image_options->tiff_layers.has_value()
+                      ? *image_options->tiff_layers
+                      : !policy.export_copy && !explicit_cmyk && flat_save_discards_layers(std::as_const(document()));
+  }
+  const bool discards_layers = tiff_layers.has_value()
+                                   ? !*tiff_layers && flat_save_discards_layers(std::as_const(document()))
+                                   : save_discards_layers(std::as_const(document()), extension);
   // CLI automation saves are explicit about their target format, so flattening needs no
   // confirmation there (and an unattended run must never block on the prompt).
   const bool linked_external_child =
@@ -4407,11 +4431,15 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
   if (pdf_editable_layers.has_value()) {
     effective_image_options.pdf_editable_layers = *pdf_editable_layers;
   }
+  if (tiff_layers.has_value()) {
+    effective_image_options.tiff_layers = *tiff_layers;
+  }
   // CMYK Proof (docs/cmyk.md): unless the Export dialog or a script chose the color form,
   // the document's mode does. CMYK where the format has a CMYK form, RGB everywhere else.
   if (!effective_image_options.export_color_explicit) {
     const bool cmyk = session().cmyk_proof && working_cmyk_space()->has_profile() &&
-                      cmyk_form_available(extension, effective_image_options.pdf_editable_layers);
+                      cmyk_form_available(extension, effective_image_options.pdf_editable_layers ||
+                                                         effective_image_options.tiff_layers.value_or(false));
     effective_image_options.export_cmyk = cmyk;
     effective_image_options.export_black_ink_only =
         cmyk && app_settings().value(cmyk_black_ink_only_settings_key(extension), false).toBool();
@@ -4423,6 +4451,8 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
           is_pdf_extension(extension)
               ? tr("This document is in CMYK Proof mode, but a PDF with editable layers is saved in RGB. "
                    "Save it in RGB?")
+          : is_tiff_extension(extension)
+              ? tr("This document is in CMYK Proof mode, but a TIFF with layers is saved in RGB. Save it in RGB?")
               : tr("This document is in CMYK Proof mode, but %1 files are saved in RGB. Only JPEG, TIFF and "
                    "flattened PDF files can be saved in CMYK. Save it in RGB?")
                     .arg(extension.toUpper());

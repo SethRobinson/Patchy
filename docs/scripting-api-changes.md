@@ -8,6 +8,13 @@ Remove Object, Align/Distribute and smart objects) are in
 [scripting-api-changes-through-2026-09-30.md](scripting-api-changes-through-2026-09-30.md).
 Every entry below is API 1.
 
+2026-10-19 (additive plus behavioral): `.tif`/`.tiff` saves take `layers` (layered TIFF,
+docs/tiff.md). `doc.saveAs` of a document with layers a flat file would lose now writes a
+layered TIFF by default (the same composite plus Photoshop's layer data in tag 37724) instead
+of a flattened copy; `layers: false` keeps the old flat file, and `exportAs`, `colorMode:
+"cmyk"` and `--export` stay flat. `layers: true` with `colorMode: "cmyk"` throws. Opening a
+TIFF with Photoshop layers (`app.open`) gives a layered document. Permanent identifier: the
+key. Pinned by `ui_script_save_as_tiff_layers_option`.
 2026-10-19 (additive): right-column panels. `patchy.ui.expandPanel(name)` (the Window menu
 entry's show: reopen, front tab, expand), `collapsePanel(name)`, `closePanel(name)` and
 `panelState(name)` (`{open, front, expanded}`); unknown names throw. Permanent identifiers:

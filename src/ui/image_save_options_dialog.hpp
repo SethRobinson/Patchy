@@ -36,6 +36,12 @@ void save_image_save_option_defaults(const ImageSaveOptions& options);
                                                                         QSize document_size = {},
                                                                         const Document* document = nullptr);
 
+// TIFF Options for a layered document (Save As only, docs/tiff.md): "Keep layers", on
+// unless options.tiff_layers says otherwise. Returns options with tiff_layers set, or
+// nullopt on cancel. Outside image_save_options_apply_to_extension, like GIF: a flat
+// document saves TIFF without a dialog.
+[[nodiscard]] std::optional<ImageSaveOptions> prompt_tiff_save_options(QWidget* parent, ImageSaveOptions options);
+
 // GIF options dialog, deliberately outside image_save_options_apply_to_extension so only
 // its three call sites raise it (Save As and Export Flat Image with a 2+ layer document,
 // and the Export Layers as Animated GIF action). offer_flatten_choice shows the

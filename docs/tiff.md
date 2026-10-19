@@ -87,6 +87,52 @@ imported as layers: pages are usually separate images (scans, faxes, microscopy 
 itself asks Layers-or-Images on import, and a wrong guess would silently merge documents.
 Revisit only with a clear signal such as GIMP's PageName tags.
 
+## Writing
+
+`psd::write_layered_tiff` (psd_tiff.cpp) writes the PSD writer's output
+(`write_layered_rgb8`, `preserve_source_color_mode` off, so always RGB) as a big-endian
+(Macintosh) TIFF, which needs no byte swapping of Patchy's own blocks:
+
+- IFD0: the PSD composite (the compositor's flatten, straight color), interleaved, Adobe Deflate
+  (compression 8) in strips of about 256 KB, horizontal differencing (predictor 2) at 8 and
+  16 bits, none for 32-bit float (SampleFormat 3). Extra samples: unassociated alpha (2) when
+  the layer count is negative, then saved channels as unspecified (0). X/YResolution from the
+  print settings in inches.
+- 34377: the PSD image resources minus 1039, 1060, 1058, 1059, 1028 and 1061, which a TIFF
+  keeps in its own tags (Photoshop's own files carry none of them there). 34675: the embedded
+  profile.
+- 37724: the header, then the depth's layer block (`Layr` from the layer info section, or the
+  PSD's `Lr16`/`Lr32` global block), `LMsk` when the global layer mask info is not empty, then
+  the other global blocks in the PSD's order, each padded to 4 bytes.
+- Over 4 GB (classic TIFF offsets) throws, naming PSB.
+
+The UI (`write_flat_image_file`, image_document_io.cpp) then injects File Info like any TIFF
+(`inject_tiff`): XMP (700), IPTC (33723), the profile and EXIF. `inject_tiff` keeps a 34377
+already in the file and replaces only its IPTC record and digest (1028, 1061), so the layer
+resources survive; Qt's flat TIFFs carry no 34377, so their bytes are unchanged.
+
+### When a save is layered
+
+`ImageSaveOptions::tiff_layers` (per save, never persisted) decides; unset, the rule in
+`MainWindow::save_document_to_path` applies: layered when `flat_save_discards_layers` and
+the save is not an export (`export_copy`) and no explicit CMYK color form was asked for. So:
+
+- A document without layers a flat file would lose takes the unchanged Qt path, byte for byte.
+- Save (Ctrl+S) on a `.tif` path writes the layers in place: `save_discards_layers` is false
+  for TIFF, so it no longer routes to Save As.
+- Save As to TIFF with such a document shows TIFF Options (`prompt_tiff_save_options`,
+  `tiffSaveOptionsDialog`, `tiffLayersCheck`, on by default). Unchecked: a flattened copy, as
+  for any flat format, without the flatten warning (the dialog's hint says it).
+- Export Flat Image, a script's `exportAs` and `--export` stay flat; a script's `saveAs` takes
+  `layers` (docs/scripting.md, scripting-api-changes.md 2026-10-19).
+- A TIFF with layers is RGB: `cmyk_form_available` is false for it, so CMYK Proof asks to save
+  in RGB, and `layers: true` with `colorMode: "cmyk"` throws.
+
+Photoshop acceptance: `tiff_layers_writer_acceptance_files_if_available` writes local
+Photoshop PSDs and the synthetic document at 8, 16 and 32 bits as layered TIFFs into
+`test-artifacts/layered-tiff-acceptance`; `scripts\dev\photoshop-open-check.ps1` opens them in
+Photoshop and reports CLEAN, UNKNOWN-DATA, or DIALOG with the dialog's text.
+
 ## Tests
 
 Core `tiff_layers_*` (tests/core/tiff_layers_tests.cpp) on synthetic files from
@@ -94,5 +140,8 @@ Core `tiff_layers_*` (tests/core/tiff_layers_tests.cpp) on synthetic files from
 so a little-endian file must yield the same PSD stream byte for byte as its big-endian twin, at
 8, 16 and 32 bits. Plus groups, masks, a Color Overlay, Unicode names, merged transparency,
 dropped-block notices, refusals, page counts, damage, Unicode paths, and the local GIMP and
-Photoshop fixtures. UI `ui_layered_tiff_*` and `ui_multi_page_tiff_*`
-(tests/ui/layered_tiff_tests.cpp) drive the open path.
+Photoshop fixtures; `tiff_layers_writer_*` round-trip the writer (composite decoded and
+compared with the compositor, tags, resources, depths, Unicode paths). UI
+(tests/ui/layered_tiff_tests.cpp): `ui_layered_tiff_*` and `ui_multi_page_tiff_*` drive the
+open and save paths, `ui_tiff_options_dialog_offers_keep_layers` the dialog, and
+`ui_script_save_as_tiff_layers_option` the script key.

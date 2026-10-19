@@ -10529,6 +10529,46 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>This TIFF holds %1 pages; Patchy opened the first one.</source>
         <translation>Страниц в этом TIFF: %1; Patchy открыл первую.</translation>
     </message>
+    <message>
+        <source>Patchy writes layered TIFF files in RGB only</source>
+        <translation>Patchy записывает TIFF со слоями только в RGB</translation>
+    </message>
+    <message>
+        <source>Could not compress the TIFF image data</source>
+        <translation>Не удалось сжать данные изображения TIFF</translation>
+    </message>
+    <message>
+        <source>The document has no layers to write</source>
+        <translation>В документе нет слоёв для записи</translation>
+    </message>
+    <message>
+        <source>The layered TIFF would pass 4 GB, the TIFF limit. Save as PSB instead.</source>
+        <translation>TIFF со слоями превысил бы 4 ГБ, предел формата TIFF. Сохраните файл как PSB.</translation>
+    </message>
+    <message>
+        <source>Could not open the TIFF file for writing</source>
+        <translation>Не удалось открыть файл TIFF для записи</translation>
+    </message>
+    <message>
+        <source>Could not write the TIFF file</source>
+        <translation>Не удалось записать файл TIFF</translation>
+    </message>
+    <message>
+        <source>A TIFF with layers is saved in RGB. Turn layers off to save a CMYK TIFF.</source>
+        <translation>TIFF со слоями сохраняется в RGB. Отключите слои, чтобы сохранить TIFF в CMYK.</translation>
+    </message>
+    <message>
+        <source>TIFF Options</source>
+        <translation>Параметры TIFF</translation>
+    </message>
+    <message>
+        <source>Keep layers</source>
+        <translation>Сохранить слои</translation>
+    </message>
+    <message>
+        <source>Photoshop and Patchy open the layers; other apps show the flattened image. Without layers, Patchy saves a flattened copy and this document keeps its layers.</source>
+        <translation>Photoshop и Patchy открывают слои; другие программы показывают сведённое изображение. Без слоёв Patchy сохраняет сведённую копию, а этот документ сохраняет свои слои.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22032,6 +22072,10 @@ Patchy может скачать обновление, заменить этот
         <source>Drop Shadow...</source>
         <translation>Тень...</translation>
     </message>
+    <message>
+        <source>This document is in CMYK Proof mode, but a TIFF with layers is saved in RGB. Save it in RGB?</source>
+        <translation>Этот документ в режиме CMYK-цветопробы, но TIFF со слоями сохраняется в RGB. Сохранить в RGB?</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -23801,6 +23845,10 @@ Patchy может скачать обновление, заменить этот
     <message>
         <source>%1: blackInkOnly needs colorMode: &quot;cmyk&quot;.</source>
         <translation>%1: для blackInkOnly нужен colorMode: &quot;cmyk&quot;.</translation>
+    </message>
+    <message>
+        <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
+        <translation>%1: для layers нужен colorMode: &quot;rgb&quot;; TIFF со слоями сохраняется в RGB.</translation>
     </message>
 </context>
 <context>

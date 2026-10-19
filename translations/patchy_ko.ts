@@ -10461,6 +10461,46 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>This TIFF holds %1 pages; Patchy opened the first one.</source>
         <translation>이 TIFF에는 %1개의 페이지가 있습니다. Patchy는 첫 페이지를 열었습니다.</translation>
     </message>
+    <message>
+        <source>Patchy writes layered TIFF files in RGB only</source>
+        <translation>Patchy는 레이어가 있는 TIFF 파일을 RGB로만 저장합니다</translation>
+    </message>
+    <message>
+        <source>Could not compress the TIFF image data</source>
+        <translation>TIFF 이미지 데이터를 압축할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>The document has no layers to write</source>
+        <translation>문서에 저장할 레이어가 없습니다</translation>
+    </message>
+    <message>
+        <source>The layered TIFF would pass 4 GB, the TIFF limit. Save as PSB instead.</source>
+        <translation>레이어가 있는 TIFF가 TIFF 한도인 4GB를 넘습니다. 대신 PSB로 저장하세요.</translation>
+    </message>
+    <message>
+        <source>Could not open the TIFF file for writing</source>
+        <translation>TIFF 파일을 쓰기용으로 열 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Could not write the TIFF file</source>
+        <translation>TIFF 파일을 쓸 수 없습니다</translation>
+    </message>
+    <message>
+        <source>A TIFF with layers is saved in RGB. Turn layers off to save a CMYK TIFF.</source>
+        <translation>레이어가 있는 TIFF는 RGB로 저장됩니다. CMYK TIFF를 저장하려면 레이어를 끄세요.</translation>
+    </message>
+    <message>
+        <source>TIFF Options</source>
+        <translation>TIFF 옵션</translation>
+    </message>
+    <message>
+        <source>Keep layers</source>
+        <translation>레이어 유지</translation>
+    </message>
+    <message>
+        <source>Photoshop and Patchy open the layers; other apps show the flattened image. Without layers, Patchy saves a flattened copy and this document keeps its layers.</source>
+        <translation>Photoshop과 Patchy는 레이어를 열고, 다른 앱은 병합된 이미지를 표시합니다. 레이어 없이 저장하면 Patchy는 병합된 사본을 저장하며 이 문서는 레이어를 유지합니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21892,6 +21932,10 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <source>Drop Shadow...</source>
         <translation>그림자...</translation>
     </message>
+    <message>
+        <source>This document is in CMYK Proof mode, but a TIFF with layers is saved in RGB. Save it in RGB?</source>
+        <translation>이 문서는 CMYK 교정 모드이지만 레이어가 있는 TIFF는 RGB로 저장됩니다. RGB로 저장하시겠습니까?</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -23659,6 +23703,10 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
     <message>
         <source>%1: blackInkOnly needs colorMode: &quot;cmyk&quot;.</source>
         <translation>%1: blackInkOnly에는 colorMode: &quot;cmyk&quot;가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
+        <translation>%1: layers에는 colorMode: &quot;rgb&quot;가 필요합니다. 레이어가 있는 TIFF는 RGB로 저장됩니다.</translation>
     </message>
 </context>
 <context>

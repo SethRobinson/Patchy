@@ -61,7 +61,7 @@ Import and export: [pdf.md](pdf.md). PDF has no registry row and is a read-only 
 A document opened from a flat format that has grown structure a flat save would discard must never silently flatten back over its file:
 
 - `flat_save_discards_layers(document)` (main_window_files.cpp): more than one layer, any group/adjustment/text/smart-object/shape layer, a hand-authored mask, layer styles, or non-identity Blend If. SVG keeps vectors, so `save_discards_layers` asks its writer for a dry run and warns only when something bakes ([svg.md](svg.md)). A single pixel layer whose only mask carries the document-alpha marker stays exempt (that mask IS the flat file's alpha plane).
-- `save_extension_preserves_layers()` lists the guard-skipped formats: psd/psb, aseprite/ase, and ico/cur (multi-size icons live as hidden "WxH" layers; the guard would fire on every icon save).
+- `save_extension_preserves_layers()` lists the guard-skipped formats: psd/psb, aseprite/ase, and ico/cur (multi-size icons live as hidden "WxH" layers; the guard would fire on every icon save). TIFF keeps layers too unless its options turn them off ([tiff.md](tiff.md)).
 - Save on a layered flat-backed document routes to Save As, defaulting name and filter to `.psd`.
 - Explicitly choosing a flat format raises `flattenLayersMessageBox` (default Cancel) and on confirm performs a save-a-copy: the flat file is written but the session keeps its path, title, and modified state. Save As pre-confirms and passes `flatten_confirmed` so the box appears once.
 - Exception: a linked smart-object child session keeps real-save semantics after the same warning (the linked file IS that document; the parent refresh needs the write).

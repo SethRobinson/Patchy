@@ -10495,6 +10495,46 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>This TIFF holds %1 pages; Patchy opened the first one.</source>
         <translation>Ce TIFF contient %1 pages ; Patchy a ouvert la première.</translation>
     </message>
+    <message>
+        <source>Patchy writes layered TIFF files in RGB only</source>
+        <translation>Patchy n&apos;écrit les fichiers TIFF à calques qu&apos;en RVB</translation>
+    </message>
+    <message>
+        <source>Could not compress the TIFF image data</source>
+        <translation>Impossible de compresser les données d&apos;image du TIFF</translation>
+    </message>
+    <message>
+        <source>The document has no layers to write</source>
+        <translation>Le document n&apos;a aucun calque à écrire</translation>
+    </message>
+    <message>
+        <source>The layered TIFF would pass 4 GB, the TIFF limit. Save as PSB instead.</source>
+        <translation>Le TIFF à calques dépasserait 4 Go, la limite du format TIFF. Enregistrez plutôt en PSB.</translation>
+    </message>
+    <message>
+        <source>Could not open the TIFF file for writing</source>
+        <translation>Impossible d&apos;ouvrir le fichier TIFF en écriture</translation>
+    </message>
+    <message>
+        <source>Could not write the TIFF file</source>
+        <translation>Impossible d&apos;écrire le fichier TIFF</translation>
+    </message>
+    <message>
+        <source>A TIFF with layers is saved in RGB. Turn layers off to save a CMYK TIFF.</source>
+        <translation>Un TIFF à calques est enregistré en RVB. Désactivez les calques pour enregistrer un TIFF CMJN.</translation>
+    </message>
+    <message>
+        <source>TIFF Options</source>
+        <translation>Options TIFF</translation>
+    </message>
+    <message>
+        <source>Keep layers</source>
+        <translation>Conserver les calques</translation>
+    </message>
+    <message>
+        <source>Photoshop and Patchy open the layers; other apps show the flattened image. Without layers, Patchy saves a flattened copy and this document keeps its layers.</source>
+        <translation>Photoshop et Patchy ouvrent les calques ; les autres applications affichent l&apos;image aplatie. Sans calques, Patchy enregistre une copie aplatie et ce document garde ses calques.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21962,6 +22002,10 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <source>Drop Shadow...</source>
         <translation>Ombre portée...</translation>
     </message>
+    <message>
+        <source>This document is in CMYK Proof mode, but a TIFF with layers is saved in RGB. Save it in RGB?</source>
+        <translation>Ce document est en mode Épreuve CMJN, mais un TIFF à calques est enregistré en RVB. L&apos;enregistrer en RVB ?</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -23730,6 +23774,10 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     <message>
         <source>%1: blackInkOnly needs colorMode: &quot;cmyk&quot;.</source>
         <translation>%1 : blackInkOnly nécessite colorMode: &quot;cmyk&quot;.</translation>
+    </message>
+    <message>
+        <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
+        <translation>%1 : layers exige colorMode: &quot;rgb&quot; ; un TIFF à calques est enregistré en RVB.</translation>
     </message>
 </context>
 <context>

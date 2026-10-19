@@ -10461,6 +10461,46 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>This TIFF holds %1 pages; Patchy opened the first one.</source>
         <translation>此 TIFF 包含 %1 頁；Patchy 開啟了第一頁。</translation>
     </message>
+    <message>
+        <source>Patchy writes layered TIFF files in RGB only</source>
+        <translation>Patchy 只能以 RGB 寫入含圖層的 TIFF 檔案</translation>
+    </message>
+    <message>
+        <source>Could not compress the TIFF image data</source>
+        <translation>無法壓縮 TIFF 影像資料</translation>
+    </message>
+    <message>
+        <source>The document has no layers to write</source>
+        <translation>文件中沒有可寫入的圖層</translation>
+    </message>
+    <message>
+        <source>The layered TIFF would pass 4 GB, the TIFF limit. Save as PSB instead.</source>
+        <translation>含圖層的 TIFF 將超過 TIFF 的 4 GB 上限。請改存為 PSB。</translation>
+    </message>
+    <message>
+        <source>Could not open the TIFF file for writing</source>
+        <translation>無法開啟 TIFF 檔案以寫入</translation>
+    </message>
+    <message>
+        <source>Could not write the TIFF file</source>
+        <translation>無法寫入 TIFF 檔案</translation>
+    </message>
+    <message>
+        <source>A TIFF with layers is saved in RGB. Turn layers off to save a CMYK TIFF.</source>
+        <translation>含圖層的 TIFF 會以 RGB 儲存。要儲存 CMYK TIFF，請關閉圖層。</translation>
+    </message>
+    <message>
+        <source>TIFF Options</source>
+        <translation>TIFF 選項</translation>
+    </message>
+    <message>
+        <source>Keep layers</source>
+        <translation>保留圖層</translation>
+    </message>
+    <message>
+        <source>Photoshop and Patchy open the layers; other apps show the flattened image. Without layers, Patchy saves a flattened copy and this document keeps its layers.</source>
+        <translation>Photoshop 與 Patchy 會開啟圖層；其他應用程式顯示平面化影像。不保留圖層時，Patchy 會儲存一份平面化副本，此文件仍保留其圖層。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21892,6 +21932,10 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <source>Drop Shadow...</source>
         <translation>陰影...</translation>
     </message>
+    <message>
+        <source>This document is in CMYK Proof mode, but a TIFF with layers is saved in RGB. Save it in RGB?</source>
+        <translation>這份文件處於 CMYK 校樣模式，但含圖層的 TIFF 會以 RGB 儲存。要以 RGB 儲存嗎？</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -23659,6 +23703,10 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
     <message>
         <source>%1: blackInkOnly needs colorMode: &quot;cmyk&quot;.</source>
         <translation>%1: blackInkOnly 需要 colorMode: &quot;cmyk&quot;。</translation>
+    </message>
+    <message>
+        <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
+        <translation>%1：layers 需要 colorMode: &quot;rgb&quot;；含圖層的 TIFF 會以 RGB 儲存。</translation>
     </message>
 </context>
 <context>

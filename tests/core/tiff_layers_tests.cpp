@@ -2,6 +2,8 @@
 // Synthetic files come from tests/layered_tiff_fixture.hpp.
 
 #include "core/document.hpp"
+#include "core/document_depth.hpp"
+#include "render/compositor.hpp"
 #include "psd/psd_descriptor.hpp"
 #include "psd/psd_document_io.hpp"
 #include "psd/psd_tiff.hpp"
@@ -11,6 +13,10 @@
 #include "test_harness.hpp"
 #include "unicode_path_names.hpp"
 #include "layered_tiff_fixture.hpp"
+
+// miniz's zlib-compatibility aliases would rename identifiers; keep only the mz_* names.
+#define MINIZ_NO_ZLIB_COMPATIBLE_NAMES
+#include "formats/miniz/miniz.h"
 
 #include <algorithm>
 #include <array>
@@ -23,6 +29,7 @@
 #include <functional>
 #include <iostream>
 #include <iterator>
+#include <map>
 #include <optional>
 #include <span>
 #include <string>
@@ -83,7 +90,7 @@ void check_sample_document(const Document& document) {
   const auto& top = document.layers();
   CHECK(top.size() == 3U);
   const auto* background = find_layer(top, "Background");
-  const auto* masked = find_layer(top, utf8(u"Rot ü テ"));
+  const auto* masked = find_layer(top, utf8(u"Rot \u00FC \u30C6"));
   const auto* group = find_layer(top, "Group");
   const auto* inner = find_layer(top, "Inside");
   CHECK(background != nullptr && masked != nullptr && group != nullptr && inner != nullptr);
@@ -403,6 +410,254 @@ void tiff_layers_photoshop_byte_order_pairs_match_if_available() {
   }
 }
 
+
+// --- Writing (Save As TIFF with layers) ---
+
+// IFD0 of a big-endian TIFF as tag -> values (SHORT/LONG/RATIONAL numerators), plus the
+// raw bytes of BYTE/UNDEFINED tags.
+struct WrittenDirectory {
+  std::map<std::uint16_t, std::vector<std::uint32_t>> values;
+  std::map<std::uint16_t, std::vector<std::uint8_t>> bytes;
+};
+
+std::uint32_t be32(const std::vector<std::uint8_t>& data, std::size_t at) {
+  return (static_cast<std::uint32_t>(data[at]) << 24U) | (static_cast<std::uint32_t>(data[at + 1]) << 16U) |
+         (static_cast<std::uint32_t>(data[at + 2]) << 8U) | data[at + 3];
+}
+
+std::uint16_t be16(const std::vector<std::uint8_t>& data, std::size_t at) {
+  return static_cast<std::uint16_t>((data[at] << 8U) | data[at + 1]);
+}
+
+WrittenDirectory read_written_directory(const std::vector<std::uint8_t>& tiff) {
+  WrittenDirectory directory;
+  const auto offset = be32(tiff, 4);
+  const auto count = be16(tiff, offset);
+  for (std::size_t index = 0; index < count; ++index) {
+    const auto at = offset + 2U + index * 12U;
+    const auto tag = be16(tiff, at);
+    const auto type = be16(tiff, at + 2U);
+    const auto values = be32(tiff, at + 4U);
+    const std::size_t unit = type == 3 ? 2U : type == 4 ? 4U : type == 5 ? 8U : 1U;
+    const auto size = unit * values;
+    const std::size_t data_at = size <= 4U ? at + 8U : be32(tiff, at + 8U);
+    if (type == 1 || type == 7) {
+      directory.bytes[tag].assign(tiff.begin() + static_cast<std::ptrdiff_t>(data_at),
+                                  tiff.begin() + static_cast<std::ptrdiff_t>(data_at + size));
+      continue;
+    }
+    for (std::uint32_t value = 0; value < values; ++value) {
+      directory.values[tag].push_back(type == 3 ? be16(tiff, data_at + value * 2U) : be32(tiff, data_at + value * unit));
+    }
+  }
+  return directory;
+}
+
+// The composite in IFD0, inflated and un-differenced: interleaved 8-bit samples.
+std::vector<std::uint8_t> written_composite_8bit(const std::vector<std::uint8_t>& tiff) {
+  const auto directory = read_written_directory(tiff);
+  const auto width = directory.values.at(256).front();
+  const auto samples = directory.values.at(277).front();
+  const auto rows_per_strip = directory.values.at(278).front();
+  const auto& offsets = directory.values.at(273);
+  const auto& counts = directory.values.at(279);
+  std::vector<std::uint8_t> pixels;
+  for (std::size_t strip = 0; strip < offsets.size(); ++strip) {
+    std::vector<std::uint8_t> rows(static_cast<std::size_t>(width) * samples * rows_per_strip);
+    auto size = static_cast<mz_ulong>(rows.size());
+    CHECK(mz_uncompress(rows.data(), &size, tiff.data() + offsets[strip], counts[strip]) == MZ_OK);
+    rows.resize(size);
+    const auto row_bytes = static_cast<std::size_t>(width) * samples;
+    for (std::size_t row = 0; row * row_bytes < rows.size(); ++row) {
+      for (std::size_t index = samples; index < row_bytes; ++index) {
+        rows[row * row_bytes + index] =
+            static_cast<std::uint8_t>(rows[row * row_bytes + index] + rows[row * row_bytes + index - samples]);
+      }
+    }
+    pixels.insert(pixels.end(), rows.begin(), rows.end());
+  }
+  return pixels;
+}
+
+patchy::PixelBuffer gradient_rgba(std::int32_t width, std::int32_t height, int seed, bool transparent_corner) {
+  patchy::PixelBuffer pixels(width, height, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      auto* pixel = pixels.pixel(x, y);
+      pixel[0] = static_cast<std::uint8_t>(x * 23 + seed);
+      pixel[1] = static_cast<std::uint8_t>(y * 41 + seed * 3);
+      pixel[2] = static_cast<std::uint8_t>((x + y) * 13);
+      pixel[3] = transparent_corner && x < 3 && y < 2 ? 0 : 255;
+    }
+  }
+  return pixels;
+}
+
+// Two pixel layers (one Screen at 60%, one hidden inside a masked group), transparency in a
+// corner so the composite carries unassociated alpha.
+Document layered_document() {
+  Document document(12, 9, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Base", gradient_rgba(12, 9, 5, true));
+  auto& screen = document.add_pixel_layer(utf8(u"Screen \u00E9"), gradient_rgba(12, 9, 90, false));
+  screen.set_blend_mode(BlendMode::Screen);
+  screen.set_opacity(0.6F);
+  Layer group(document.allocate_layer_id(), "Folder", LayerKind::Group);
+  Layer hidden(document.allocate_layer_id(), "Hidden", gradient_rgba(12, 9, 200, false));
+  hidden.set_visible(false);
+  group.add_child(std::move(hidden));
+  patchy::PixelBuffer mask_pixels(6, 9, patchy::PixelFormat::gray8());
+  mask_pixels.clear(255);
+  group.set_mask(patchy::LayerMask{patchy::Rect{0, 0, 6, 9}, std::move(mask_pixels), 0, false});
+  document.add_layer(std::move(group));
+  document.print_settings().horizontal_ppi = 150.0;
+  document.print_settings().vertical_ppi = 150.0;
+  return document;
+}
+
+void tiff_layers_writer_round_trips_layers_and_composite() {
+  const auto document = layered_document();
+  const auto tiff = patchy::psd::write_layered_tiff(document);
+  CHECK(tiff.size() > 8U && tiff[0] == 'M' && tiff[1] == 'M');
+  CHECK(patchy::psd::tiff_has_photoshop_layers(tiff));
+  CHECK(patchy::psd::write_layered_tiff(document) == tiff);  // deterministic
+
+  const auto directory = read_written_directory(tiff);
+  CHECK(directory.values.at(259).front() == 8U);  // Adobe Deflate
+  CHECK(directory.values.at(317).front() == 2U);  // horizontal differencing
+  CHECK(directory.values.at(277).front() == 4U);
+  CHECK(directory.values.at(338).front() == 2U);  // unassociated alpha
+  CHECK(directory.values.at(282).front() == 150U);
+  // Tag 37724 starts with Photoshop's header and the 8-bit layer block.
+  const auto& source = directory.bytes.at(37724);
+  CHECK(std::string(source.begin(), source.begin() + 35) == "Adobe Photoshop Document Data Block");
+  CHECK(std::string(source.begin() + 40, source.begin() + 44) == "Layr");
+  // The image resources keep what only they hold (1005 resolution) and leave the profile
+  // and metadata to their TIFF tags.
+  const auto& resources = directory.bytes.at(34377);
+  bool resolution = false;
+  for (std::size_t at = 0; at + 12U <= resources.size();) {
+    const auto id = be16(resources, at + 4U);
+    resolution = resolution || id == 1005U;
+    CHECK(id != 1039U && id != 1060U && id != 1028U);
+    at += 6U + 2U;
+    const auto length = be32(resources, at);
+    at += 4U + length + (length % 2U);
+  }
+  CHECK(resolution);
+
+  // The composite is the compositor's flatten, straight alpha.
+  std::vector<std::uint8_t> alpha;
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(document, &alpha);
+  const auto composite = written_composite_8bit(tiff);
+  CHECK(composite.size() == 12U * 9U * 4U);
+  bool composite_matches = composite.size() == 12U * 9U * 4U;
+  for (std::int32_t y = 0; y < 9 && composite_matches; ++y) {
+    for (std::int32_t x = 0; x < 12; ++x) {
+      const auto* expected = flattened.pixel(x, y);
+      const auto at = (static_cast<std::size_t>(y) * 12U + static_cast<std::size_t>(x)) * 4U;
+      composite_matches = composite_matches && composite[at] == expected[0] && composite[at + 1] == expected[1] &&
+                          composite[at + 2] == expected[2] &&
+                          composite[at + 3] == alpha[static_cast<std::size_t>(y) * 12U + static_cast<std::size_t>(x)];
+    }
+  }
+  CHECK(composite_matches);
+
+  // The layers read back.
+  const auto read = patchy::psd::read_layered_tiff(tiff, eight_bit_options());
+  CHECK(read.layers().size() == 3U);
+  const auto* screen = find_layer(read.layers(), utf8(u"Screen \u00E9"));
+  const auto* folder = find_layer(read.layers(), "Folder");
+  const auto* hidden = find_layer(read.layers(), "Hidden");
+  CHECK(screen != nullptr && folder != nullptr && hidden != nullptr);
+  if (screen != nullptr && folder != nullptr && hidden != nullptr) {
+    CHECK(screen->blend_mode() == BlendMode::Screen);
+    CHECK(std::abs(screen->opacity() - 0.6F) < 0.01F);
+    CHECK(folder->kind() == LayerKind::Group && folder->mask().has_value());
+    CHECK(!hidden->visible());
+    const auto& original = std::as_const(document).layers()[1].pixels();
+    CHECK(std::equal(original.data().begin(), original.data().end(), screen->pixels().data().begin(),
+                     screen->pixels().data().end()));
+  }
+  CHECK(std::abs(read.print_settings().horizontal_ppi - 150.0) < 0.01);
+}
+
+void tiff_layers_writer_keeps_deep_documents_and_the_profile() {
+  for (const auto depth : {patchy::BitDepth::UInt16, patchy::BitDepth::Float32}) {
+    auto document = layered_document();
+    patchy::convert_document_depth(document, depth);
+    document.color_state().embedded_icc_profile = {1, 2, 3, 4, 5, 6, 7, 8};
+    const auto tiff = patchy::psd::write_layered_tiff(document);
+    const auto directory = read_written_directory(tiff);
+    CHECK(directory.values.at(258).front() == (depth == patchy::BitDepth::UInt16 ? 16U : 32U));
+    CHECK(directory.values.at(339).front() == (depth == patchy::BitDepth::UInt16 ? 1U : 3U));
+    CHECK(directory.bytes.at(34675) == document.color_state().embedded_icc_profile);
+    const auto& source = directory.bytes.at(37724);
+    CHECK(std::string(source.begin() + 40, source.begin() + 44) ==
+          (depth == patchy::BitDepth::UInt16 ? "Lr16" : "Lr32"));
+    patchy::psd::ReadOptions options;
+    options.keep_bit_depth = true;
+    const auto read = patchy::psd::read_layered_tiff(tiff, options);
+    CHECK(read.color_state().bit_depth == depth);
+    CHECK(find_layer(read.layers(), "Hidden") != nullptr);
+  }
+}
+
+void tiff_layers_writer_unicode_path_round_trips() {
+  const auto dir = patchy::test::unicode_artifact_dir(u8"layered-tiff-write");
+  const auto document = layered_document();
+  for (const auto stem : patchy::test::kUnicodePathStems) {
+    const auto path = dir / patchy::test::unicode_path_piece(std::u8string(stem) + u8".tif");
+    patchy::psd::write_layered_tiff_file(document, path);
+    const auto read = patchy::psd::read_layered_tiff_file(path, eight_bit_options());
+    CHECK(find_layer(read.layers(), "Folder") != nullptr);
+  }
+}
+
+
+// Photoshop acceptance inputs (docs/tiff.md): local Photoshop PSDs with text, effects,
+// adjustments, smart objects, vector masks and deep layers, plus the synthetic document at
+// three depths, written as layered TIFFs into test-artifacts/layered-tiff-acceptance for
+// scripts/dev/photoshop-open-check.ps1. Each must also read back with the same layer count.
+void tiff_layers_writer_acceptance_files_if_available() {
+  const auto out = std::filesystem::path("test-artifacts") / "layered-tiff-acceptance";
+  std::filesystem::create_directories(out);
+  for (const auto depth : {patchy::BitDepth::UInt8, patchy::BitDepth::UInt16, patchy::BitDepth::Float32}) {
+    auto document = layered_document();
+    patchy::convert_document_depth(document, depth);
+    const auto name = depth == patchy::BitDepth::UInt8 ? "patchy-synthetic-8.tif"
+                      : depth == patchy::BitDepth::UInt16 ? "patchy-synthetic-16.tif"
+                                                          : "patchy-synthetic-32.tif";
+    patchy::psd::write_layered_tiff_file(document, out / name);
+  }
+  std::size_t written = 0;
+  for (const auto* stem : {"generic_bg", "Flat-filter-list", "checkbox", "pinball_from_photoshop", "ps2026_smart_filter",
+                           "vectors_overlay_stroke", "akiko_cycling_okinawa_with_curves", "ps2026-16bit",
+                           "ps2026-32bit", "bevel_examine"}) {
+    const auto source = patchy::test::local_psd_fixture_path(std::string(stem) + ".psd");
+    if (!std::filesystem::exists(source)) {
+      continue;
+    }
+    patchy::psd::ReadOptions options;
+    options.keep_bit_depth = true;
+    const auto document = patchy::psd::DocumentIo::read_file(source, options);
+    const auto target = out / (std::string(stem) + ".tif");
+    patchy::psd::write_layered_tiff_file(document, target);
+    const auto read = patchy::psd::read_layered_tiff_file(target, options);
+    std::vector<const Layer*> before;
+    std::vector<const Layer*> after;
+    collect_layers(document.layers(), before);
+    collect_layers(read.layers(), after);
+    if (before.size() != after.size()) {
+      std::cerr << "  layer count changed for " << stem << ": " << before.size() << " -> " << after.size() << "\n";
+    }
+    CHECK(before.size() == after.size());
+    ++written;
+  }
+  if (written == 0U) {
+    patchy::test::skip("no Photoshop PSDs in local-test-fixtures/psd");
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> tiff_layers_tests() {
@@ -421,5 +676,10 @@ std::vector<patchy::test::TestCase> tiff_layers_tests() {
       {"tiff_layers_gimp_photoshop_samples_open_if_available", tiff_layers_gimp_photoshop_samples_open_if_available},
       {"tiff_layers_photoshop_byte_order_pairs_match_if_available",
        tiff_layers_photoshop_byte_order_pairs_match_if_available},
+      {"tiff_layers_writer_round_trips_layers_and_composite", tiff_layers_writer_round_trips_layers_and_composite},
+      {"tiff_layers_writer_keeps_deep_documents_and_the_profile",
+       tiff_layers_writer_keeps_deep_documents_and_the_profile},
+      {"tiff_layers_writer_unicode_path_round_trips", tiff_layers_writer_unicode_path_round_trips},
+      {"tiff_layers_writer_acceptance_files_if_available", tiff_layers_writer_acceptance_files_if_available},
   };
 }

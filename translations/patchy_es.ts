@@ -10495,6 +10495,46 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>This TIFF holds %1 pages; Patchy opened the first one.</source>
         <translation>Este TIFF contiene %1 páginas; Patchy abrió la primera.</translation>
     </message>
+    <message>
+        <source>Patchy writes layered TIFF files in RGB only</source>
+        <translation>Patchy solo escribe archivos TIFF con capas en RGB</translation>
+    </message>
+    <message>
+        <source>Could not compress the TIFF image data</source>
+        <translation>No se pudieron comprimir los datos de imagen del TIFF</translation>
+    </message>
+    <message>
+        <source>The document has no layers to write</source>
+        <translation>El documento no tiene capas que escribir</translation>
+    </message>
+    <message>
+        <source>The layered TIFF would pass 4 GB, the TIFF limit. Save as PSB instead.</source>
+        <translation>El TIFF con capas superaría los 4 GB, el límite de TIFF. Guárdelo como PSB.</translation>
+    </message>
+    <message>
+        <source>Could not open the TIFF file for writing</source>
+        <translation>No se pudo abrir el archivo TIFF para escribir</translation>
+    </message>
+    <message>
+        <source>Could not write the TIFF file</source>
+        <translation>No se pudo escribir el archivo TIFF</translation>
+    </message>
+    <message>
+        <source>A TIFF with layers is saved in RGB. Turn layers off to save a CMYK TIFF.</source>
+        <translation>Un TIFF con capas se guarda en RGB. Desactive las capas para guardar un TIFF CMYK.</translation>
+    </message>
+    <message>
+        <source>TIFF Options</source>
+        <translation>Opciones de TIFF</translation>
+    </message>
+    <message>
+        <source>Keep layers</source>
+        <translation>Conservar las capas</translation>
+    </message>
+    <message>
+        <source>Photoshop and Patchy open the layers; other apps show the flattened image. Without layers, Patchy saves a flattened copy and this document keeps its layers.</source>
+        <translation>Photoshop y Patchy abren las capas; otras aplicaciones muestran la imagen acoplada. Sin capas, Patchy guarda una copia acoplada y este documento conserva sus capas.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21962,6 +22002,10 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
         <source>Drop Shadow...</source>
         <translation>Sombra paralela...</translation>
     </message>
+    <message>
+        <source>This document is in CMYK Proof mode, but a TIFF with layers is saved in RGB. Save it in RGB?</source>
+        <translation>Este documento está en modo Prueba CMYK, pero un TIFF con capas se guarda en RGB. ¿Guardarlo en RGB?</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -23730,6 +23774,10 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
     <message>
         <source>%1: blackInkOnly needs colorMode: &quot;cmyk&quot;.</source>
         <translation>%1: blackInkOnly necesita colorMode: &quot;cmyk&quot;.</translation>
+    </message>
+    <message>
+        <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
+        <translation>%1: layers requiere colorMode: &quot;rgb&quot;; un TIFF con capas se guarda en RGB.</translation>
     </message>
 </context>
 <context>

@@ -10495,6 +10495,46 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>This TIFF holds %1 pages; Patchy opened the first one.</source>
         <translation>Este TIFF contém %1 páginas; o Patchy abriu a primeira.</translation>
     </message>
+    <message>
+        <source>Patchy writes layered TIFF files in RGB only</source>
+        <translation>O Patchy só grava arquivos TIFF com camadas em RGB</translation>
+    </message>
+    <message>
+        <source>Could not compress the TIFF image data</source>
+        <translation>Não foi possível compactar os dados de imagem do TIFF</translation>
+    </message>
+    <message>
+        <source>The document has no layers to write</source>
+        <translation>O documento não tem camadas para gravar</translation>
+    </message>
+    <message>
+        <source>The layered TIFF would pass 4 GB, the TIFF limit. Save as PSB instead.</source>
+        <translation>O TIFF com camadas passaria de 4 GB, o limite do TIFF. Salve como PSB.</translation>
+    </message>
+    <message>
+        <source>Could not open the TIFF file for writing</source>
+        <translation>Não foi possível abrir o arquivo TIFF para gravação</translation>
+    </message>
+    <message>
+        <source>Could not write the TIFF file</source>
+        <translation>Não foi possível gravar o arquivo TIFF</translation>
+    </message>
+    <message>
+        <source>A TIFF with layers is saved in RGB. Turn layers off to save a CMYK TIFF.</source>
+        <translation>Um TIFF com camadas é salvo em RGB. Desative as camadas para salvar um TIFF CMYK.</translation>
+    </message>
+    <message>
+        <source>TIFF Options</source>
+        <translation>Opções de TIFF</translation>
+    </message>
+    <message>
+        <source>Keep layers</source>
+        <translation>Manter as camadas</translation>
+    </message>
+    <message>
+        <source>Photoshop and Patchy open the layers; other apps show the flattened image. Without layers, Patchy saves a flattened copy and this document keeps its layers.</source>
+        <translation>O Photoshop e o Patchy abrem as camadas; outros aplicativos mostram a imagem achatada. Sem camadas, o Patchy salva uma cópia achatada e este documento mantém as camadas.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21962,6 +22002,10 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         <source>Drop Shadow...</source>
         <translation>Sombra projetada...</translation>
     </message>
+    <message>
+        <source>This document is in CMYK Proof mode, but a TIFF with layers is saved in RGB. Save it in RGB?</source>
+        <translation>Este documento está no modo Prova CMYK, mas um TIFF com camadas é salvo em RGB. Salvar em RGB?</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -23730,6 +23774,10 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
     <message>
         <source>%1: blackInkOnly needs colorMode: &quot;cmyk&quot;.</source>
         <translation>%1: blackInkOnly precisa de colorMode: &quot;cmyk&quot;.</translation>
+    </message>
+    <message>
+        <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
+        <translation>%1: layers exige colorMode: &quot;rgb&quot;; um TIFF com camadas é salvo em RGB.</translation>
     </message>
 </context>
 <context>

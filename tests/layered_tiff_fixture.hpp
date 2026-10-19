@@ -334,7 +334,7 @@ inline std::vector<LayerSpec> sample_layers(int scale = 1) {
   layers.push_back(background);
 
   LayerSpec masked;
-  masked.name = u"Rot ü テ";
+  masked.name = u"Rot \u00FC \u30C6";
   masked.top = 1;
   masked.left = 2;
   masked.bottom = 5;

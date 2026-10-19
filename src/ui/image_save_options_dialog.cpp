@@ -1916,6 +1916,28 @@ std::optional<ImageSaveOptions> prompt_image_save_options(QWidget* parent, const
   return options;
 }
 
+std::optional<ImageSaveOptions> prompt_tiff_save_options(QWidget* parent, ImageSaveOptions options) {
+  QDialog dialog(parent);
+  dialog.setObjectName(QStringLiteral("tiffSaveOptionsDialog"));
+  auto* content = create_options_dialog_chrome(dialog, QObject::tr("TIFF Options"));
+  dialog.resize(420, 170);
+  auto* layers = new QCheckBox(QObject::tr("Keep layers"), &dialog);
+  layers->setObjectName(QStringLiteral("tiffLayersCheck"));
+  layers->setChecked(options.tiff_layers.value_or(true));
+  content->addWidget(layers);
+  (void)add_export_hint(content, &dialog,
+                        QObject::tr("Photoshop and Patchy open the layers; other apps show the flattened image. "
+                                    "Without layers, Patchy saves a flattened copy and this document keeps its "
+                                    "layers."),
+                        QStringLiteral("tiffLayersHint"));
+  (void)finish_options_dialog(content, dialog, /*for_export*/ false, QStringLiteral("tif"), QSize());
+  if (exec_dialog(dialog) != QDialog::Accepted) {
+    return std::nullopt;
+  }
+  options.tiff_layers = layers->isChecked();
+  return options;
+}
+
 std::optional<ImageSaveOptions> prompt_gif_save_options(QWidget* parent, ImageSaveOptions options,
                                                         bool offer_flatten_choice, bool for_export,
                                                         bool has_visible_frames, QSize document_size) {

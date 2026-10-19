@@ -10461,6 +10461,46 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>This TIFF holds %1 pages; Patchy opened the first one.</source>
         <translation>この TIFF には %1 ページあります。Patchy は最初のページを開きました。</translation>
     </message>
+    <message>
+        <source>Patchy writes layered TIFF files in RGB only</source>
+        <translation>Patchy はレイヤー付き TIFF ファイルを RGB でのみ書き出します</translation>
+    </message>
+    <message>
+        <source>Could not compress the TIFF image data</source>
+        <translation>TIFF の画像データを圧縮できませんでした</translation>
+    </message>
+    <message>
+        <source>The document has no layers to write</source>
+        <translation>ドキュメントに書き出すレイヤーがありません</translation>
+    </message>
+    <message>
+        <source>The layered TIFF would pass 4 GB, the TIFF limit. Save as PSB instead.</source>
+        <translation>レイヤー付き TIFF が TIFF の上限である 4 GB を超えます。代わりに PSB で保存してください。</translation>
+    </message>
+    <message>
+        <source>Could not open the TIFF file for writing</source>
+        <translation>TIFF ファイルを書き込み用に開けませんでした</translation>
+    </message>
+    <message>
+        <source>Could not write the TIFF file</source>
+        <translation>TIFF ファイルを書き込めませんでした</translation>
+    </message>
+    <message>
+        <source>A TIFF with layers is saved in RGB. Turn layers off to save a CMYK TIFF.</source>
+        <translation>レイヤー付き TIFF は RGB で保存されます。CMYK の TIFF を保存するにはレイヤーをオフにしてください。</translation>
+    </message>
+    <message>
+        <source>TIFF Options</source>
+        <translation>TIFF オプション</translation>
+    </message>
+    <message>
+        <source>Keep layers</source>
+        <translation>レイヤーを保持</translation>
+    </message>
+    <message>
+        <source>Photoshop and Patchy open the layers; other apps show the flattened image. Without layers, Patchy saves a flattened copy and this document keeps its layers.</source>
+        <translation>Photoshop と Patchy はレイヤーを開きます。ほかのアプリでは統合された画像が表示されます。レイヤーなしの場合、Patchy は統合したコピーを保存し、このドキュメントのレイヤーはそのまま残ります。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21892,6 +21932,10 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <source>Drop Shadow...</source>
         <translation>ドロップシャドウ...</translation>
     </message>
+    <message>
+        <source>This document is in CMYK Proof mode, but a TIFF with layers is saved in RGB. Save it in RGB?</source>
+        <translation>このドキュメントは CMYK 校正モードですが、レイヤー付き TIFF は RGB で保存されます。RGB で保存しますか？</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -23659,6 +23703,10 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
     <message>
         <source>%1: blackInkOnly needs colorMode: &quot;cmyk&quot;.</source>
         <translation>%1: blackInkOnly には colorMode: &quot;cmyk&quot; が必要です。</translation>
+    </message>
+    <message>
+        <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
+        <translation>%1: layers には colorMode: &quot;rgb&quot; が必要です。レイヤー付き TIFF は RGB で保存されます。</translation>
     </message>
 </context>
 <context>

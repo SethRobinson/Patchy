@@ -10479,6 +10479,46 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>This TIFF holds %1 pages; Patchy opened the first one.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Patchy writes layered TIFF files in RGB only</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not compress the TIFF image data</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The document has no layers to write</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The layered TIFF would pass 4 GB, the TIFF limit. Save as PSB instead.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not open the TIFF file for writing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not write the TIFF file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A TIFF with layers is saved in RGB. Turn layers off to save a CMYK TIFF.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>TIFF Options</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Keep layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Photoshop and Patchy open the layers; other apps show the flattened image. Without layers, Patchy saves a flattened copy and this document keeps its layers.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21889,6 +21929,10 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <source>Drop Shadow...</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>This document is in CMYK Proof mode, but a TIFF with layers is saved in RGB. Save it in RGB?</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -23656,6 +23700,10 @@ Patchy can download the update, replace this AppImage, and start again. You will
     </message>
     <message>
         <source>%1: blackInkOnly needs colorMode: &quot;cmyk&quot;.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

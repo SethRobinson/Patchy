@@ -224,6 +224,13 @@ bool apply_key(KeyReader& reader, const QString& extension, const QString& key, 
     reader.read_bool(key, value, options.export_black_ink_only);
     return true;
   }
+  // Layered TIFF (docs/tiff.md): Photoshop's layer data beside the composite.
+  if (key == QStringLiteral("layers") && (extension == QStringLiteral("tif") || extension == QStringLiteral("tiff"))) {
+    bool keep = true;
+    reader.read_bool(key, value, keep);
+    options.tiff_layers = keep;
+    return true;
+  }
   if (is_jpeg_extension(extension)) {
     if (key == QStringLiteral("quality")) {
       reader.read_int(key, value, 0, 100, options.jpeg_quality);
@@ -474,6 +481,11 @@ QString apply_script_image_save_options(const QString& method, const QString& ex
     if (!reader.error.isEmpty()) {
       return reader.error;
     }
+  }
+  if (options.tiff_layers.value_or(false) && options.export_cmyk) {
+    return QCoreApplication::translate("patchy::ui::ScriptSaveOptions",
+                                       "%1: layers needs colorMode: \"rgb\"; a TIFF with layers is saved in RGB.")
+        .arg(method);
   }
   if (options.export_black_ink_only && !options.export_cmyk) {
     return QCoreApplication::translate("patchy::ui::ScriptSaveOptions",

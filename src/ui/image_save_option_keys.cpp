@@ -21,10 +21,12 @@ bool is_jpeg_extension(const QString& extension) {
   return normalized == QStringLiteral("jpg") || normalized == QStringLiteral("jpeg");
 }
 
-bool cmyk_form_available(const QString& extension, bool pdf_editable_layers) {
+bool cmyk_form_available(const QString& extension, bool keeps_layers) {
   const auto normalized = normalized_save_extension(extension);
-  return is_jpeg_extension(normalized) || normalized == QStringLiteral("tif") || normalized == QStringLiteral("tiff") ||
-         (normalized == QStringLiteral("pdf") && !pdf_editable_layers);
+  return is_jpeg_extension(normalized) ||
+         ((normalized == QStringLiteral("tif") || normalized == QStringLiteral("tiff") ||
+           normalized == QStringLiteral("pdf")) &&
+          !keeps_layers);
 }
 
 QString cmyk_color_settings_key(const QString& extension) {

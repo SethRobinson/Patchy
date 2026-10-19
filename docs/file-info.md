@@ -108,7 +108,8 @@ copyright flag.
     text chunks (tEXt when Latin-1, zTXt for compressed sources, iTXt otherwise). sBIT is
     never carried. Text chunks with other keys (PatchyPaletteNames) stay.
   - TIFF: a new IFD0 appended at the end of Qt's file with XMP, IPTC, IRB, ICC, the EXIF
-    descriptive tags and new Exif/GPS IFDs, re-encoded to the file's byte order.
+    descriptive tags and new Exif/GPS IFDs, re-encoded to the file's byte order. An IRB
+    already there (a layered TIFF's, [tiff.md](tiff.md)) keeps its other resources.
   - WebP: libwebpmux chunks, also for animated WebP.
   - GIF: Comment and XMP extensions after the global color table (the header becomes
     GIF89a), also for animated GIF.

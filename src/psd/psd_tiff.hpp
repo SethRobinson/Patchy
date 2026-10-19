@@ -5,6 +5,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <span>
 #include <string>
 #include <vector>
@@ -31,6 +32,24 @@ namespace patchy::psd {
 // The PSD stream read_layered_tiff parses, for tests and diagnostics.
 [[nodiscard]] std::vector<std::uint8_t> photoshop_document_from_tiff(std::span<const std::uint8_t> bytes,
                                                                      std::vector<std::string>* notices = nullptr);
+
+struct LayeredTiffWriteOptions {
+  // Called on the writing thread as the PSD writer advances (WriteOptions::progress).
+  std::function<void(int done, int total, const std::string& label)> progress{};
+};
+
+// A big-endian ("Macintosh") TIFF that Photoshop opens with its layers: the flattened
+// composite in IFD0 (Adobe Deflate with horizontal differencing, 8/16-bit or 32-bit float,
+// unassociated alpha, saved channels as further extra samples), the PSD writer's layer
+// data in tag 37724 and its image resources in tag 34377, minus the metadata resources a
+// TIFF keeps in its own tags (the ICC profile goes to 34675; XMP, IPTC and EXIF are File
+// Info's to inject). Always RGB. Throws std::runtime_error when the document cannot be
+// written (more than 4 GB, too many layer records).
+[[nodiscard]] std::vector<std::uint8_t> write_layered_tiff(const Document& document,
+                                                           const LayeredTiffWriteOptions& options = {});
+// The same through a sibling temporary and a replacing rename.
+void write_layered_tiff_file(const Document& document, const std::filesystem::path& path,
+                             const LayeredTiffWriteOptions& options = {});
 
 // Full-resolution pages in the file (directories not marked as reduced-resolution
 // previews), or 0 when the header or the first directory is unreadable.

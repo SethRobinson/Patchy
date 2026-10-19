@@ -10495,6 +10495,46 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>This TIFF holds %1 pages; Patchy opened the first one.</source>
         <translation>Diese TIFF-Datei enthält %1 Seiten; Patchy hat die erste geöffnet.</translation>
     </message>
+    <message>
+        <source>Patchy writes layered TIFF files in RGB only</source>
+        <translation>Patchy schreibt TIFF-Dateien mit Ebenen nur in RGB</translation>
+    </message>
+    <message>
+        <source>Could not compress the TIFF image data</source>
+        <translation>Die TIFF-Bilddaten konnten nicht komprimiert werden</translation>
+    </message>
+    <message>
+        <source>The document has no layers to write</source>
+        <translation>Das Dokument hat keine Ebenen, die geschrieben werden können</translation>
+    </message>
+    <message>
+        <source>The layered TIFF would pass 4 GB, the TIFF limit. Save as PSB instead.</source>
+        <translation>Die TIFF-Datei mit Ebenen würde 4 GB überschreiten, die Grenze von TIFF. Speichern Sie stattdessen als PSB.</translation>
+    </message>
+    <message>
+        <source>Could not open the TIFF file for writing</source>
+        <translation>Die TIFF-Datei konnte nicht zum Schreiben geöffnet werden</translation>
+    </message>
+    <message>
+        <source>Could not write the TIFF file</source>
+        <translation>Die TIFF-Datei konnte nicht geschrieben werden</translation>
+    </message>
+    <message>
+        <source>A TIFF with layers is saved in RGB. Turn layers off to save a CMYK TIFF.</source>
+        <translation>Eine TIFF-Datei mit Ebenen wird in RGB gespeichert. Schalten Sie die Ebenen aus, um eine CMYK-TIFF-Datei zu speichern.</translation>
+    </message>
+    <message>
+        <source>TIFF Options</source>
+        <translation>TIFF-Optionen</translation>
+    </message>
+    <message>
+        <source>Keep layers</source>
+        <translation>Ebenen behalten</translation>
+    </message>
+    <message>
+        <source>Photoshop and Patchy open the layers; other apps show the flattened image. Without layers, Patchy saves a flattened copy and this document keeps its layers.</source>
+        <translation>Photoshop und Patchy öffnen die Ebenen; andere Apps zeigen das reduzierte Bild. Ohne Ebenen speichert Patchy eine reduzierte Kopie, und dieses Dokument behält seine Ebenen.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21962,6 +22002,10 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <source>Drop Shadow...</source>
         <translation>Schlagschatten...</translation>
     </message>
+    <message>
+        <source>This document is in CMYK Proof mode, but a TIFF with layers is saved in RGB. Save it in RGB?</source>
+        <translation>Dieses Dokument ist im Modus CMYK-Proof, aber eine TIFF-Datei mit Ebenen wird in RGB gespeichert. In RGB speichern?</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -23730,6 +23774,10 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
     <message>
         <source>%1: blackInkOnly needs colorMode: &quot;cmyk&quot;.</source>
         <translation>%1: blackInkOnly erfordert colorMode: &quot;cmyk&quot;.</translation>
+    </message>
+    <message>
+        <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
+        <translation>%1: layers erfordert colorMode: &quot;rgb&quot;; eine TIFF-Datei mit Ebenen wird in RGB gespeichert.</translation>
     </message>
 </context>
 <context>

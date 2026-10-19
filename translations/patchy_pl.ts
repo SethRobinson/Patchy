@@ -10529,6 +10529,46 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>This TIFF holds %1 pages; Patchy opened the first one.</source>
         <translation>Liczba stron w tym pliku TIFF: %1; Patchy otworzył pierwszą.</translation>
     </message>
+    <message>
+        <source>Patchy writes layered TIFF files in RGB only</source>
+        <translation>Patchy zapisuje pliki TIFF z warstwami tylko w RGB</translation>
+    </message>
+    <message>
+        <source>Could not compress the TIFF image data</source>
+        <translation>Nie udało się skompresować danych obrazu TIFF</translation>
+    </message>
+    <message>
+        <source>The document has no layers to write</source>
+        <translation>Dokument nie ma warstw do zapisania</translation>
+    </message>
+    <message>
+        <source>The layered TIFF would pass 4 GB, the TIFF limit. Save as PSB instead.</source>
+        <translation>Plik TIFF z warstwami przekroczyłby 4 GB, limit formatu TIFF. Zapisz go zamiast tego jako PSB.</translation>
+    </message>
+    <message>
+        <source>Could not open the TIFF file for writing</source>
+        <translation>Nie udało się otworzyć pliku TIFF do zapisu</translation>
+    </message>
+    <message>
+        <source>Could not write the TIFF file</source>
+        <translation>Nie udało się zapisać pliku TIFF</translation>
+    </message>
+    <message>
+        <source>A TIFF with layers is saved in RGB. Turn layers off to save a CMYK TIFF.</source>
+        <translation>Plik TIFF z warstwami jest zapisywany w RGB. Wyłącz warstwy, aby zapisać TIFF w CMYK.</translation>
+    </message>
+    <message>
+        <source>TIFF Options</source>
+        <translation>Opcje TIFF</translation>
+    </message>
+    <message>
+        <source>Keep layers</source>
+        <translation>Zachowaj warstwy</translation>
+    </message>
+    <message>
+        <source>Photoshop and Patchy open the layers; other apps show the flattened image. Without layers, Patchy saves a flattened copy and this document keeps its layers.</source>
+        <translation>Photoshop i Patchy otwierają warstwy; inne aplikacje pokazują spłaszczony obraz. Bez warstw Patchy zapisuje spłaszczoną kopię, a ten dokument zachowuje swoje warstwy.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22032,6 +22072,10 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <source>Drop Shadow...</source>
         <translation>Cień...</translation>
     </message>
+    <message>
+        <source>This document is in CMYK Proof mode, but a TIFF with layers is saved in RGB. Save it in RGB?</source>
+        <translation>Ten dokument jest w trybie Próba CMYK, ale plik TIFF z warstwami jest zapisywany w RGB. Zapisać go w RGB?</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -23801,6 +23845,10 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
     <message>
         <source>%1: blackInkOnly needs colorMode: &quot;cmyk&quot;.</source>
         <translation>%1: blackInkOnly wymaga colorMode: &quot;cmyk&quot;.</translation>
+    </message>
+    <message>
+        <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
+        <translation>%1: layers wymaga colorMode: &quot;rgb&quot;; plik TIFF z warstwami jest zapisywany w RGB.</translation>
     </message>
 </context>
 <context>
