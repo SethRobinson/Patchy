@@ -10664,6 +10664,273 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Shape layer thumbnail</source>
         <translation>Миниатюра слоя-фигуры</translation>
     </message>
+    <message>
+        <source>Screen</source>
+        <comment>new document template group</comment>
+        <translation>Экран</translation>
+    </message>
+    <message>
+        <source>Mobile</source>
+        <comment>new document template group</comment>
+        <translation>Мобильные</translation>
+    </message>
+    <message>
+        <source>Social</source>
+        <comment>new document template group</comment>
+        <translation>Соцсети</translation>
+    </message>
+    <message>
+        <source>Web</source>
+        <comment>new document template group</comment>
+        <translation>Веб</translation>
+    </message>
+    <message>
+        <source>Print</source>
+        <comment>new document template group</comment>
+        <translation>Печать</translation>
+    </message>
+    <message>
+        <source>Photo</source>
+        <comment>new document template group</comment>
+        <translation>Фото</translation>
+    </message>
+    <message>
+        <source>Icons &amp; Games</source>
+        <comment>new document template group</comment>
+        <translation>Значки и игры</translation>
+    </message>
+    <message>
+        <source>1440p</source>
+        <translation>1440p</translation>
+    </message>
+    <message>
+        <source>8K</source>
+        <translation>8K</translation>
+    </message>
+    <message>
+        <source>Ultrawide</source>
+        <translation>Сверхширокий</translation>
+    </message>
+    <message>
+        <source>Cinema 4K</source>
+        <translation>Кино 4K</translation>
+    </message>
+    <message>
+        <source>Laptop</source>
+        <translation>Ноутбук</translation>
+    </message>
+    <message>
+        <source>iPhone 16</source>
+        <translation>iPhone 16</translation>
+    </message>
+    <message>
+        <source>iPhone 16 Pro Max</source>
+        <translation>iPhone 16 Pro Max</translation>
+    </message>
+    <message>
+        <source>iPhone SE</source>
+        <translation>iPhone SE</translation>
+    </message>
+    <message>
+        <source>Android Phone</source>
+        <translation>Телефон Android</translation>
+    </message>
+    <message>
+        <source>Android Phone QHD+</source>
+        <translation>Телефон Android QHD+</translation>
+    </message>
+    <message>
+        <source>iPad 11-inch</source>
+        <translation>iPad 11 дюймов</translation>
+    </message>
+    <message>
+        <source>iPad Pro 13-inch</source>
+        <translation>iPad Pro 13 дюймов</translation>
+    </message>
+    <message>
+        <source>Android Tablet</source>
+        <translation>Планшет Android</translation>
+    </message>
+    <message>
+        <source>Portrait Post</source>
+        <translation>Вертикальная публикация</translation>
+    </message>
+    <message>
+        <source>YouTube Thumbnail</source>
+        <translation>Миниатюра YouTube</translation>
+    </message>
+    <message>
+        <source>YouTube Banner</source>
+        <translation>Баннер YouTube</translation>
+    </message>
+    <message>
+        <source>Facebook Cover</source>
+        <translation>Обложка Facebook</translation>
+    </message>
+    <message>
+        <source>X Header</source>
+        <translation>Шапка X</translation>
+    </message>
+    <message>
+        <source>X Post</source>
+        <translation>Публикация в X</translation>
+    </message>
+    <message>
+        <source>LinkedIn Banner</source>
+        <translation>Баннер LinkedIn</translation>
+    </message>
+    <message>
+        <source>Pinterest Pin</source>
+        <translation>Пин Pinterest</translation>
+    </message>
+    <message>
+        <source>Profile Picture</source>
+        <translation>Фото профиля</translation>
+    </message>
+    <message>
+        <source>Web Page</source>
+        <translation>Веб-страница</translation>
+    </message>
+    <message>
+        <source>Link Preview</source>
+        <translation>Превью ссылки</translation>
+    </message>
+    <message>
+        <source>Email Header</source>
+        <translation>Шапка письма</translation>
+    </message>
+    <message>
+        <source>Medium Rectangle Ad</source>
+        <translation>Реклама: средний прямоугольник</translation>
+    </message>
+    <message>
+        <source>Large Rectangle Ad</source>
+        <translation>Реклама: большой прямоугольник</translation>
+    </message>
+    <message>
+        <source>Leaderboard Ad</source>
+        <translation>Реклама: лидерборд</translation>
+    </message>
+    <message>
+        <source>Billboard Ad</source>
+        <translation>Реклама: билборд</translation>
+    </message>
+    <message>
+        <source>Half Page Ad</source>
+        <translation>Реклама: полстраницы</translation>
+    </message>
+    <message>
+        <source>Skyscraper Ad</source>
+        <translation>Реклама: небоскрёб</translation>
+    </message>
+    <message>
+        <source>Mobile Banner Ad</source>
+        <translation>Мобильный рекламный баннер</translation>
+    </message>
+    <message>
+        <source>A6</source>
+        <translation>A6</translation>
+    </message>
+    <message>
+        <source>A2</source>
+        <translation>A2</translation>
+    </message>
+    <message>
+        <source>Tabloid</source>
+        <translation>Таблоид</translation>
+    </message>
+    <message>
+        <source>Business Card (US)</source>
+        <translation>Визитка (США)</translation>
+    </message>
+    <message>
+        <source>Business Card (EU)</source>
+        <translation>Визитка (ЕС)</translation>
+    </message>
+    <message>
+        <source>Poster 18 x 24 in</source>
+        <translation>Постер 18 х 24 дюйма</translation>
+    </message>
+    <message>
+        <source>4 x 6 in</source>
+        <translation>4 х 6 дюймов</translation>
+    </message>
+    <message>
+        <source>11 x 14 in</source>
+        <translation>11 х 14 дюймов</translation>
+    </message>
+    <message>
+        <source>8 x 8 in</source>
+        <translation>8 х 8 дюймов</translation>
+    </message>
+    <message>
+        <source>10 x 15 cm</source>
+        <translation>10 х 15 см</translation>
+    </message>
+    <message>
+        <source>13 x 18 cm</source>
+        <translation>13 х 18 см</translation>
+    </message>
+    <message>
+        <source>App Icon</source>
+        <translation>Значок приложения</translation>
+    </message>
+    <message>
+        <source>Store Icon</source>
+        <translation>Значок магазина</translation>
+    </message>
+    <message>
+        <source>Desktop Icon</source>
+        <translation>Значок рабочего стола</translation>
+    </message>
+    <message>
+        <source>Favicon</source>
+        <translation>Фавикон</translation>
+    </message>
+    <message>
+        <source>Pixel Art 16</source>
+        <translation>Пиксель-арт 16</translation>
+    </message>
+    <message>
+        <source>Pixel Art 32</source>
+        <translation>Пиксель-арт 32</translation>
+    </message>
+    <message>
+        <source>Pixel Art 64</source>
+        <translation>Пиксель-арт 64</translation>
+    </message>
+    <message>
+        <source>Texture 1K</source>
+        <translation>Текстура 1K</translation>
+    </message>
+    <message>
+        <source>Texture 2K</source>
+        <translation>Текстура 2K</translation>
+    </message>
+    <message>
+        <source>Texture 4K</source>
+        <translation>Текстура 4K</translation>
+    </message>
+    <message>
+        <source>Game Store Header</source>
+        <translation>Шапка магазина игр</translation>
+    </message>
+    <message>
+        <source>Search all templates</source>
+        <translation>Искать во всех шаблонах</translation>
+    </message>
+    <message>
+        <source>Search every template group by name or size (%CTRL%+F)</source>
+        <translation>Искать во всех группах шаблонов по названию или размеру (%CTRL%+F)</translation>
+    </message>
+    <message>
+        <source>No templates match the search.</source>
+        <translation>Нет шаблонов, подходящих под поиск.</translation>
+    </message>
+    <message>
+        <source>%1 (%2): %3 x %4 px at %5 ppi</source>
+        <translation>%1 (%2): %3 x %4 пикселей при %5 пикселей на дюйм</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

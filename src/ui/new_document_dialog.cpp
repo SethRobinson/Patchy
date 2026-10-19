@@ -13,6 +13,8 @@
 #include "ui/color_panel.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/measurement_units.hpp"
+#include "ui/modifier_names.hpp"
+#include "ui/options_flow_layout.hpp"
 #include "ui/theme_qss.hpp"
 
 #include <QApplication>
@@ -27,13 +29,18 @@
 #include <QFontMetrics>
 #include <QGridLayout>
 #include <QIcon>
+#include <QKeyEvent>
+#include <QKeySequence>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPen>
 #include <QPixmap>
 #include <QPushButton>
+#include <QRegularExpression>
+#include <QShortcut>
 #include <QSignalBlocker>
 #include <QStyle>
 #include <QStyledItemDelegate>
@@ -42,6 +49,7 @@
 #include <QVariant>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <numeric>
 #include <vector>
@@ -66,7 +74,54 @@ constexpr QSize kPresetCardCell(116, 100);
 // The Last Used card's id (item data only, never written to settings) - never rename.
 constexpr QLatin1StringView kLastUsedPresetId("last-used");
 
-enum class PresetCategory { Screen, Print };
+// The template groups, in chip order (GitHub issue 222). Organized by what people make
+// rather than after another editor's list; every group holds at most 11 templates, so
+// with Last Used it fits the card grid without a scroll bar.
+enum class PresetCategory { Screen, Mobile, Social, Web, Print, Photo, Icons };
+
+constexpr std::array kPresetCategories = {PresetCategory::Screen, PresetCategory::Mobile, PresetCategory::Social,
+                                          PresetCategory::Web,    PresetCategory::Print,  PresetCategory::Photo,
+                                          PresetCategory::Icons};
+
+QString preset_category_name(PresetCategory category) {
+  switch (category) {
+    case PresetCategory::Screen:
+      return QObject::tr("Screen", "new document template group");
+    case PresetCategory::Mobile:
+      return QObject::tr("Mobile", "new document template group");
+    case PresetCategory::Social:
+      return QObject::tr("Social", "new document template group");
+    case PresetCategory::Web:
+      return QObject::tr("Web", "new document template group");
+    case PresetCategory::Print:
+      return QObject::tr("Print", "new document template group");
+    case PresetCategory::Photo:
+      return QObject::tr("Photo", "new document template group");
+    case PresetCategory::Icons:
+      return QObject::tr("Icons & Games", "new document template group");
+  }
+  return {};
+}
+
+QString preset_category_chip_name(PresetCategory category) {
+  switch (category) {
+    case PresetCategory::Screen:
+      return QStringLiteral("newDocumentScreenChip");
+    case PresetCategory::Mobile:
+      return QStringLiteral("newDocumentMobileChip");
+    case PresetCategory::Social:
+      return QStringLiteral("newDocumentSocialChip");
+    case PresetCategory::Web:
+      return QStringLiteral("newDocumentWebChip");
+    case PresetCategory::Print:
+      return QStringLiteral("newDocumentPrintChip");
+    case PresetCategory::Photo:
+      return QStringLiteral("newDocumentPhotoChip");
+    case PresetCategory::Icons:
+      return QStringLiteral("newDocumentIconsChip");
+  }
+  return {};
+}
 
 struct NewDocumentPreset {
   QString id;  // persisted as newDocument/lastPresetId in user settings - never rename
@@ -76,40 +131,125 @@ struct NewDocumentPreset {
   bool clipboard{false};
 };
 
+// Sizes come from the published specs: display and video standards, the device makers'
+// native screen resolutions, each platform's own upload guidance, the IAB ad units, ISO
+// 216 and ANSI paper, and photo-print sizes, printed sizes at 300 PPI. Ids are permanent;
+// a template that moves to another group keeps its id (the first ones predate the groups).
 std::vector<NewDocumentPreset> presets_for_category(PresetCategory category, QSize clipboard_size) {
-  if (category == PresetCategory::Screen) {
-    return {
-        {QStringLiteral("clipboard"), QObject::tr("Clipboard"), clipboard_size, kScreenPpi, true},
-        {QStringLiteral("screen-1024x768"), QObject::tr("Default"), QSize(1024, 768), kScreenPpi},
-        {QStringLiteral("screen-720p"), QObject::tr("720p"), QSize(1280, 720), kScreenPpi},
-        {QStringLiteral("screen-1080p"), QObject::tr("1080p"), QSize(1920, 1080), kScreenPpi},
-        {QStringLiteral("screen-4k"), QObject::tr("4K"), QSize(3840, 2160), kScreenPpi},
-        {QStringLiteral("screen-square-2048"), QObject::tr("Square", "new document preset"), QSize(2048, 2048),
-         kScreenPpi},
-        {QStringLiteral("social-square-1080"), QObject::tr("Social Post"), QSize(1080, 1080), kScreenPpi},
-        {QStringLiteral("phone-story-1080x1920"), QObject::tr("Social Story"), QSize(1080, 1920), kScreenPpi},
-        {QStringLiteral("photo-3x2-3000"), QObject::tr("Photo 3:2"), QSize(3000, 2000), kScreenPpi},
-    };
+  switch (category) {
+    case PresetCategory::Screen:
+      return {
+          {QStringLiteral("clipboard"), QObject::tr("Clipboard"), clipboard_size, kScreenPpi, true},
+          {QStringLiteral("screen-1024x768"), QObject::tr("Default"), QSize(1024, 768), kScreenPpi},
+          {QStringLiteral("screen-720p"), QObject::tr("720p"), QSize(1280, 720), kScreenPpi},
+          {QStringLiteral("screen-1080p"), QObject::tr("1080p"), QSize(1920, 1080), kScreenPpi},
+          {QStringLiteral("screen-1440p"), QObject::tr("1440p"), QSize(2560, 1440), kScreenPpi},
+          {QStringLiteral("screen-4k"), QObject::tr("4K"), QSize(3840, 2160), kScreenPpi},
+          {QStringLiteral("screen-8k"), QObject::tr("8K"), QSize(7680, 4320), kScreenPpi},
+          {QStringLiteral("screen-ultrawide-3440"), QObject::tr("Ultrawide"), QSize(3440, 1440), kScreenPpi},
+          {QStringLiteral("screen-dci-4k"), QObject::tr("Cinema 4K"), QSize(4096, 2160), kScreenPpi},
+          {QStringLiteral("screen-laptop-1366"), QObject::tr("Laptop"), QSize(1366, 768), kScreenPpi},
+          {QStringLiteral("screen-square-2048"), QObject::tr("Square", "new document preset"), QSize(2048, 2048),
+           kScreenPpi},
+      };
+    case PresetCategory::Mobile:
+      return {
+          {QStringLiteral("mobile-iphone-16"), QObject::tr("iPhone 16"), QSize(1179, 2556), kScreenPpi},
+          {QStringLiteral("mobile-iphone-16-pro-max"), QObject::tr("iPhone 16 Pro Max"), QSize(1320, 2868),
+           kScreenPpi},
+          {QStringLiteral("mobile-iphone-se"), QObject::tr("iPhone SE"), QSize(750, 1334), kScreenPpi},
+          {QStringLiteral("mobile-android-1080x2400"), QObject::tr("Android Phone"), QSize(1080, 2400), kScreenPpi},
+          {QStringLiteral("mobile-android-1440x3120"), QObject::tr("Android Phone QHD+"), QSize(1440, 3120),
+           kScreenPpi},
+          {QStringLiteral("mobile-ipad-11"), QObject::tr("iPad 11-inch"), QSize(1640, 2360), kScreenPpi},
+          {QStringLiteral("mobile-ipad-pro-13"), QObject::tr("iPad Pro 13-inch"), QSize(2064, 2752), kScreenPpi},
+          {QStringLiteral("mobile-android-tablet-1600x2560"), QObject::tr("Android Tablet"), QSize(1600, 2560),
+           kScreenPpi},
+      };
+    case PresetCategory::Social:
+      return {
+          {QStringLiteral("social-square-1080"), QObject::tr("Social Post"), QSize(1080, 1080), kScreenPpi},
+          {QStringLiteral("social-portrait-1080x1350"), QObject::tr("Portrait Post"), QSize(1080, 1350),
+           kScreenPpi},
+          {QStringLiteral("phone-story-1080x1920"), QObject::tr("Social Story"), QSize(1080, 1920), kScreenPpi},
+          {QStringLiteral("social-youtube-thumbnail"), QObject::tr("YouTube Thumbnail"), QSize(1280, 720),
+           kScreenPpi},
+          {QStringLiteral("social-youtube-banner"), QObject::tr("YouTube Banner"), QSize(2560, 1440), kScreenPpi},
+          {QStringLiteral("social-facebook-cover"), QObject::tr("Facebook Cover"), QSize(851, 315), kScreenPpi},
+          {QStringLiteral("social-x-header"), QObject::tr("X Header"), QSize(1500, 500), kScreenPpi},
+          {QStringLiteral("social-x-post"), QObject::tr("X Post"), QSize(1600, 900), kScreenPpi},
+          {QStringLiteral("social-linkedin-banner"), QObject::tr("LinkedIn Banner"), QSize(1584, 396), kScreenPpi},
+          {QStringLiteral("social-pinterest-pin"), QObject::tr("Pinterest Pin"), QSize(1000, 1500), kScreenPpi},
+          {QStringLiteral("social-profile-picture"), QObject::tr("Profile Picture"), QSize(400, 400), kScreenPpi},
+      };
+    case PresetCategory::Web:
+      return {
+          {QStringLiteral("web-page-1440x900"), QObject::tr("Web Page"), QSize(1440, 900), kScreenPpi},
+          {QStringLiteral("web-link-preview"), QObject::tr("Link Preview"), QSize(1200, 630), kScreenPpi},
+          {QStringLiteral("web-email-header"), QObject::tr("Email Header"), QSize(600, 200), kScreenPpi},
+          {QStringLiteral("web-ad-medium-rectangle"), QObject::tr("Medium Rectangle Ad"), QSize(300, 250),
+           kScreenPpi},
+          {QStringLiteral("web-ad-large-rectangle"), QObject::tr("Large Rectangle Ad"), QSize(336, 280),
+           kScreenPpi},
+          {QStringLiteral("web-ad-leaderboard"), QObject::tr("Leaderboard Ad"), QSize(728, 90), kScreenPpi},
+          {QStringLiteral("web-ad-billboard"), QObject::tr("Billboard Ad"), QSize(970, 250), kScreenPpi},
+          {QStringLiteral("web-ad-half-page"), QObject::tr("Half Page Ad"), QSize(300, 600), kScreenPpi},
+          {QStringLiteral("web-ad-wide-skyscraper"), QObject::tr("Skyscraper Ad"), QSize(160, 600), kScreenPpi},
+          {QStringLiteral("web-ad-mobile-banner"), QObject::tr("Mobile Banner Ad"), QSize(320, 50), kScreenPpi},
+      };
+    case PresetCategory::Print:
+      return {
+          {QStringLiteral("print-a6"), QObject::tr("A6"), QSize(1240, 1748), kPrintPpi},
+          {QStringLiteral("print-a5"), QObject::tr("A5"), QSize(1748, 2480), kPrintPpi},
+          {QStringLiteral("print-a4"), QObject::tr("A4"), QSize(2480, 3508), kPrintPpi},
+          {QStringLiteral("print-a3"), QObject::tr("A3"), QSize(3508, 4961), kPrintPpi},
+          {QStringLiteral("print-a2"), QObject::tr("A2"), QSize(4961, 7016), kPrintPpi},
+          {QStringLiteral("print-us-letter"), QObject::tr("US Letter"), QSize(2550, 3300), kPrintPpi},
+          {QStringLiteral("print-us-legal"), QObject::tr("US Legal"), QSize(2550, 4200), kPrintPpi},
+          {QStringLiteral("print-tabloid"), QObject::tr("Tabloid"), QSize(3300, 5100), kPrintPpi},
+          {QStringLiteral("print-business-card-us"), QObject::tr("Business Card (US)"), QSize(1050, 600),
+           kPrintPpi},
+          {QStringLiteral("print-business-card-eu"), QObject::tr("Business Card (EU)"), QSize(1004, 650),
+           kPrintPpi},
+          {QStringLiteral("print-poster-18x24"), QObject::tr("Poster 18 x 24 in"), QSize(5400, 7200), kPrintPpi},
+      };
+    case PresetCategory::Photo:
+      return {
+          {QStringLiteral("photo-print-4x6"), QObject::tr("4 x 6 in"), QSize(1200, 1800), kPrintPpi},
+          {QStringLiteral("print-5x7"), QObject::tr("5 x 7 in"), QSize(1500, 2100), kPrintPpi},
+          {QStringLiteral("print-8x10"), QObject::tr("8 x 10 in"), QSize(2400, 3000), kPrintPpi},
+          {QStringLiteral("photo-print-11x14"), QObject::tr("11 x 14 in"), QSize(3300, 4200), kPrintPpi},
+          {QStringLiteral("photo-print-8x8"), QObject::tr("8 x 8 in"), QSize(2400, 2400), kPrintPpi},
+          {QStringLiteral("photo-print-10x15cm"), QObject::tr("10 x 15 cm"), QSize(1181, 1772), kPrintPpi},
+          {QStringLiteral("photo-print-13x18cm"), QObject::tr("13 x 18 cm"), QSize(1535, 2126), kPrintPpi},
+          {QStringLiteral("photo-3x2-3000"), QObject::tr("Photo 3:2"), QSize(3000, 2000), kScreenPpi},
+      };
+    case PresetCategory::Icons:
+      return {
+          {QStringLiteral("icon-app-1024"), QObject::tr("App Icon"), QSize(1024, 1024), kScreenPpi},
+          {QStringLiteral("icon-store-512"), QObject::tr("Store Icon"), QSize(512, 512), kScreenPpi},
+          {QStringLiteral("icon-desktop-256"), QObject::tr("Desktop Icon"), QSize(256, 256), kScreenPpi},
+          {QStringLiteral("icon-favicon-32"), QObject::tr("Favicon"), QSize(32, 32), kScreenPpi},
+          {QStringLiteral("art-pixel-16"), QObject::tr("Pixel Art 16"), QSize(16, 16), kScreenPpi},
+          {QStringLiteral("art-pixel-32"), QObject::tr("Pixel Art 32"), QSize(32, 32), kScreenPpi},
+          {QStringLiteral("art-pixel-64"), QObject::tr("Pixel Art 64"), QSize(64, 64), kScreenPpi},
+          {QStringLiteral("art-texture-1024"), QObject::tr("Texture 1K"), QSize(1024, 1024), kScreenPpi},
+          {QStringLiteral("art-texture-2048"), QObject::tr("Texture 2K"), QSize(2048, 2048), kScreenPpi},
+          {QStringLiteral("art-texture-4096"), QObject::tr("Texture 4K"), QSize(4096, 4096), kScreenPpi},
+          {QStringLiteral("game-store-header"), QObject::tr("Game Store Header"), QSize(920, 430), kScreenPpi},
+      };
   }
-  return {
-      {QStringLiteral("print-a5"), QObject::tr("A5"), QSize(1748, 2480), kPrintPpi},
-      {QStringLiteral("print-a4"), QObject::tr("A4"), QSize(2480, 3508), kPrintPpi},
-      {QStringLiteral("print-a3"), QObject::tr("A3"), QSize(3508, 4961), kPrintPpi},
-      {QStringLiteral("print-us-letter"), QObject::tr("US Letter"), QSize(2550, 3300), kPrintPpi},
-      {QStringLiteral("print-us-legal"), QObject::tr("US Legal"), QSize(2550, 4200), kPrintPpi},
-      {QStringLiteral("print-5x7"), QObject::tr("5 x 7 in"), QSize(1500, 2100), kPrintPpi},
-      {QStringLiteral("print-8x10"), QObject::tr("8 x 10 in"), QSize(2400, 3000), kPrintPpi},
-  };
+  return {};
 }
 
 }  // namespace
 
 std::vector<ArtboardSizePreset> artboard_size_presets() {
   std::vector<ArtboardSizePreset> presets;
-  for (const auto category : {PresetCategory::Screen, PresetCategory::Print}) {
+  for (const auto category : kPresetCategories) {
     for (const auto& preset : presets_for_category(category, QSize())) {
       if (!preset.clipboard) {
-        presets.push_back({preset.name, preset.size});
+        presets.push_back({preset.name, preset.size, preset_category_name(category)});
       }
     }
   }
@@ -119,12 +259,28 @@ std::vector<ArtboardSizePreset> artboard_size_presets() {
 namespace {
 
 PresetCategory category_of_preset_id(const QString& id) {
-  for (const auto& preset : presets_for_category(PresetCategory::Print, QSize())) {
-    if (preset.id == id) {
-      return PresetCategory::Print;
+  for (const auto category : kPresetCategories) {
+    for (const auto& preset : presets_for_category(category, QSize())) {
+      if (preset.id == id) {
+        return category;
+      }
     }
   }
   return PresetCategory::Screen;
+}
+
+// The search field's rule (GitHub issue 223): every whitespace-separated word must
+// appear, ignoring case, in the template's name, its group's name or its size
+// ("1080 x 1920", "1080x1920").
+bool preset_matches_search(const NewDocumentPreset& preset, PresetCategory category, const QString& text) {
+  const auto haystack = QStringList{preset.name, preset_category_name(category),
+                                    QStringLiteral("%1 x %2").arg(preset.size.width()).arg(preset.size.height()),
+                                    QStringLiteral("%1x%2").arg(preset.size.width()).arg(preset.size.height())}
+                            .join(QLatin1Char(' '));
+  const auto words = text.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
+  return !words.isEmpty() && std::all_of(words.begin(), words.end(), [&haystack](const QString& word) {
+    return haystack.contains(word, Qt::CaseInsensitive);
+  });
 }
 
 // Paints one preset card: rounded background, an aspect-ratio miniature (the real
@@ -224,8 +380,23 @@ ThemedQss new_document_dialog_style() {
       background: transparent;
       color: @text_primary;
     }
-    QDialog#patchyNewDocumentDialog QLabel#newDocumentSummaryLabel {
+    QDialog#patchyNewDocumentDialog QLabel#newDocumentSummaryLabel,
+    QDialog#patchyNewDocumentDialog QLabel#newDocumentNoMatchesLabel {
       color: @nd_section_text;
+    }
+    QDialog#patchyNewDocumentDialog QLineEdit#newDocumentSearchEdit {
+      background: @panel_card_bg;
+      border: 1px solid @nd_field_border;
+      border-radius: 3px;
+      color: @text_bright;
+      min-height: 22px;
+      padding: 0 6px;
+    }
+    QDialog#patchyNewDocumentDialog QLineEdit#newDocumentSearchEdit:focus {
+      border-color: @primary_border;
+    }
+    QDialog#patchyNewDocumentDialog QWidget#newDocumentChipRow {
+      background: transparent;
     }
     QDialog#patchyNewDocumentDialog QListWidget#newDocumentPresetList {
       background: @list_surface_bg;
@@ -348,33 +519,41 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   body->setSpacing(18);
   root->addLayout(body, 1);
 
-  // Left pane: category chips over the preset card grid.
+  // Left pane: the search field and the group chips over the preset card grid.
   auto* left = new QVBoxLayout();
   left->setSpacing(8);
   body->addLayout(left, 1);
 
-  auto* chips_row = new QHBoxLayout();
-  chips_row->setSpacing(6);
+  // Searches every group at once (GitHub issue 223); %CTRL%+F focuses it.
+  auto* search = new QLineEdit(&dialog);
+  search->setObjectName(QStringLiteral("newDocumentSearchEdit"));
+  search->setPlaceholderText(QObject::tr("Search all templates"));
+  search->setToolTip(resolve_modifier_names(QObject::tr("Search every template group by name or size (%CTRL%+F)")));
+  search->setClearButtonEnabled(true);
+  left->addWidget(search);
+
+  auto* chips = new QWidget(&dialog);
+  chips->setObjectName(QStringLiteral("newDocumentChipRow"));
+  auto* chips_row = new FlowLayout(chips, 6, 6);
+  chips_row->setContentsMargins(0, 0, 0, 0);
   auto* chip_group = new QButtonGroup(&dialog);
   chip_group->setExclusive(true);
-  const auto make_chip = [&dialog, chip_group, chips_row](const QString& label, const QString& object_name,
-                                                          PresetCategory category) {
-    auto* chip = new QToolButton(&dialog);
-    chip->setObjectName(object_name);
-    chip->setText(label);
+  for (const auto category : kPresetCategories) {
+    auto* chip = new QToolButton(chips);
+    chip->setObjectName(preset_category_chip_name(category));
+    // "&&": a button reads a single & as a mnemonic marker ("Icons & Games").
+    chip->setText(preset_category_name(category).replace(QLatin1Char('&'), QStringLiteral("&&")));
     chip->setCheckable(true);
     chip->setCursor(Qt::PointingHandCursor);
     chip->setProperty("newDocumentChip", true);
     chip_group->addButton(chip, static_cast<int>(category));
     chips_row->addWidget(chip);
-    return chip;
-  };
-  auto* screen_chip =
-      make_chip(QObject::tr("Screen"), QStringLiteral("newDocumentScreenChip"), PresetCategory::Screen);
-  auto* print_chip =
-      make_chip(QObject::tr("Print"), QStringLiteral("newDocumentPrintChip"), PresetCategory::Print);
-  chips_row->addStretch(1);
-  left->addLayout(chips_row);
+  }
+  left->addWidget(chips);
+
+  auto* no_matches = new QLabel(QObject::tr("No templates match the search."), &dialog);
+  no_matches->setObjectName(QStringLiteral("newDocumentNoMatchesLabel"));
+  no_matches->hide();
 
   auto* preset_list = new QListWidget(&dialog);
   preset_list->setObjectName(QStringLiteral("newDocumentPresetList"));
@@ -387,9 +566,10 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   preset_list->setMouseTracking(true);
   preset_list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   preset_list->setItemDelegate(new PresetCardDelegate(preset_list));
-  // Room for every Screen card without a scroll bar: Clipboard, Last Used and eight
-  // presets fill four rows of three.
+  // Room for every group without a scroll bar: Last Used (and Clipboard on Screen) and
+  // the group's templates fill at most four rows of three. Search results scroll.
   preset_list->setMinimumSize(3 * kPresetCardCell.width() + 26, 4 * kPresetCardCell.height() + 12);
+  left->addWidget(no_matches);
   left->addWidget(preset_list, 1);
 
   // Right pane: the details grid. Fixed field/unit column widths keep every row the
@@ -659,7 +839,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     preset_list->clear();
     auto presets = presets_for_category(category, clipboard_size);
     if (last_used.has_value()) {
-      // After Clipboard on Screen, first on Print.
+      // After Clipboard on Screen, first in the other groups.
       presets.insert(presets.begin() + (category == PresetCategory::Screen ? 1 : 0),
                      NewDocumentPreset{QString(kLastUsedPresetId), QObject::tr("Last Used"), last_used->size,
                                        last_used->ppi});
@@ -697,6 +877,46 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
         item->setSelected(true);
       }
     }
+  };
+
+  // The chip shown while not searching; restored when the search clears.
+  int browsing_category = static_cast<int>(PresetCategory::Screen);
+  const auto populate_search = [&](const QString& text) {
+    const QSignalBlocker blocker(preset_list);
+    preset_list->clear();
+    QListWidgetItem* current = nullptr;
+    for (const auto category : kPresetCategories) {
+      for (const auto& preset : presets_for_category(category, clipboard_size)) {
+        if (preset.clipboard || !preset_matches_search(preset, category, text)) {
+          continue;
+        }
+        auto* item = new QListWidgetItem(preset.name, preset_list);
+        item->setData(kPresetIdRole, preset.id);
+        item->setData(kPresetSizeRole, preset.size);
+        item->setData(kPresetPpiRole, preset.ppi);
+        item->setData(kPresetClipboardRole, false);
+        item->setToolTip(QObject::tr("%1 (%2): %3 x %4 px at %5 ppi")
+                             .arg(preset.name, preset_category_name(category))
+                             .arg(preset.size.width())
+                             .arg(preset.size.height())
+                             .arg(QString::number(preset.ppi)));
+        if (preset.id == current_preset_id) {
+          current = item;
+        }
+      }
+    }
+    no_matches->setVisible(preset_list->count() == 0);
+    // The current template stays selected when it matches; otherwise the first match
+    // is, so Enter creates it.
+    if (current == nullptr && preset_list->count() > 0) {
+      current = preset_list->item(0);
+    }
+    if (current != nullptr) {
+      preset_list->setCurrentItem(current);
+      current->setSelected(true);
+      preset_list->scrollToItem(current);
+    }
+    return current;
   };
 
   const auto apply_preset_item = [&](QListWidgetItem* item) {
@@ -739,10 +959,83 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
 
   QObject::connect(preset_list, &QListWidget::currentItemChanged, &dialog,
                    [&](QListWidgetItem* item, QListWidgetItem*) { apply_preset_item(item); });
+  const auto searching = [search] { return !search->text().trimmed().isEmpty(); };
   QObject::connect(chip_group, &QButtonGroup::idToggled, &dialog, [&](int id, bool checked) {
-    if (checked) {
-      populate_list(static_cast<PresetCategory>(id));
+    if (!checked) {
+      return;
     }
+    browsing_category = id;
+    if (searching()) {
+      // A chip picked during a search leaves the search for that group.
+      const QSignalBlocker blocker(search);
+      search->clear();
+      no_matches->hide();
+      chip_group->setExclusive(true);
+    }
+    populate_list(static_cast<PresetCategory>(id));
+  });
+  QObject::connect(search, &QLineEdit::textChanged, &dialog, [&](const QString& text) {
+    if (!text.trimmed().isEmpty()) {
+      // Searching: no chip is current, and the list holds only the matches.
+      if (auto* chip = chip_group->checkedButton(); chip != nullptr) {
+        const QSignalBlocker blocker(chip_group);
+        chip_group->setExclusive(false);
+        chip->setChecked(false);
+      }
+      const auto previous = current_preset_id;
+      if (auto* item = populate_search(text); item != nullptr && item->data(kPresetIdRole).toString() != previous) {
+        apply_preset_item(item);
+      }
+      return;
+    }
+    // Cleared: back to the group that was showing, Clipboard and Last Used included.
+    no_matches->hide();
+    chip_group->setExclusive(true);
+    if (auto* chip = chip_group->button(browsing_category); chip != nullptr) {
+      const QSignalBlocker blocker(chip_group);
+      chip->setChecked(true);
+    }
+    populate_list(static_cast<PresetCategory>(browsing_category));
+  });
+  // Up, Down and the page keys move through the cards while typing; Escape clears a
+  // search before it can close the dialog. Return reaches the dialog's Create button.
+  class SearchKeys final : public QObject {
+   public:
+    SearchKeys(QLineEdit* edit, QListWidget* list) : QObject(edit), edit_(edit), list_(list) {}
+
+   protected:
+    bool eventFilter(QObject* watched, QEvent* event) override {
+      if (watched != edit_ || event->type() != QEvent::KeyPress) {
+        return false;
+      }
+      auto* key = static_cast<QKeyEvent*>(event);
+      switch (key->key()) {
+        case Qt::Key_Up:
+        case Qt::Key_Down:
+        case Qt::Key_PageUp:
+        case Qt::Key_PageDown:
+          QApplication::sendEvent(list_, key);
+          return true;
+        case Qt::Key_Escape:
+          if (!edit_->text().isEmpty()) {
+            edit_->clear();
+            return true;
+          }
+          return false;
+        default:
+          return false;
+      }
+    }
+
+   private:
+    QLineEdit* edit_;
+    QListWidget* list_;
+  };
+  search->installEventFilter(new SearchKeys(search, preset_list));
+  auto* focus_search = new QShortcut(QKeySequence::Find, &dialog);
+  QObject::connect(focus_search, &QShortcut::activated, &dialog, [search] {
+    search->setFocus(Qt::ShortcutFocusReason);
+    search->selectAll();
   });
 
   const auto handle_dimension_edit = [&state, current_unit, mark_custom](QDoubleSpinBox* spin,
@@ -865,8 +1158,9 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   select_background_index_for(background_color);
   update_swatch();
 
-  const auto initial_category = category_of_preset_id(current_preset_id);
-  (initial_category == PresetCategory::Print ? print_chip : screen_chip)->setChecked(true);
+  if (auto* chip = chip_group->button(static_cast<int>(category_of_preset_id(current_preset_id))); chip != nullptr) {
+    chip->setChecked(true);
+  }
   if (auto* item = preset_list->currentItem(); item != nullptr) {
     apply_preset_item(item);
   } else {
@@ -878,7 +1172,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   QObject::connect(bit_depth, &QComboBox::currentIndexChanged, &dialog, [update_summary](int) { update_summary(); });
 
   append_themed_style(dialog, new_document_dialog_style());
-  dialog.resize(724, 470);
+  dialog.resize(724, 540);
   width->setFocus(Qt::OtherFocusReason);
   width->selectAll();
 

@@ -136,7 +136,12 @@ void populate_artboard_background_combo(QComboBox* combo) {
 void populate_artboard_size_presets(QComboBox* combo) {
   combo->clear();
   combo->addItem(QObject::tr("Custom"), QSize());
+  QString group;
   for (const auto& preset : artboard_size_presets()) {
+    if (preset.group != group) {
+      combo->insertSeparator(combo->count());
+      group = preset.group;
+    }
     combo->addItem(QObject::tr("%1 (%2 x %3)").arg(preset.name).arg(preset.size.width()).arg(preset.size.height()),
                    preset.size);
   }

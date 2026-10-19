@@ -10614,6 +10614,273 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Shape layer thumbnail</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Screen</source>
+        <comment>new document template group</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mobile</source>
+        <comment>new document template group</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Social</source>
+        <comment>new document template group</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Web</source>
+        <comment>new document template group</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Print</source>
+        <comment>new document template group</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Photo</source>
+        <comment>new document template group</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Icons &amp; Games</source>
+        <comment>new document template group</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>1440p</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>8K</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ultrawide</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cinema 4K</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Laptop</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>iPhone 16</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>iPhone 16 Pro Max</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>iPhone SE</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Android Phone</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Android Phone QHD+</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>iPad 11-inch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>iPad Pro 13-inch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Android Tablet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Portrait Post</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>YouTube Thumbnail</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>YouTube Banner</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Facebook Cover</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>X Header</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>X Post</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>LinkedIn Banner</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pinterest Pin</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Profile Picture</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Web Page</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Link Preview</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Email Header</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Medium Rectangle Ad</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Large Rectangle Ad</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Leaderboard Ad</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Billboard Ad</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Half Page Ad</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Skyscraper Ad</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mobile Banner Ad</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A6</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tabloid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Business Card (US)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Business Card (EU)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Poster 18 x 24 in</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>4 x 6 in</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>11 x 14 in</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>8 x 8 in</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>10 x 15 cm</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>13 x 18 cm</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>App Icon</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Store Icon</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Desktop Icon</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Favicon</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pixel Art 16</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pixel Art 32</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pixel Art 64</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Texture 1K</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Texture 2K</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Texture 4K</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Game Store Header</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Search all templates</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Search every template group by name or size (%CTRL%+F)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No templates match the search.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 (%2): %3 x %4 px at %5 ppi</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

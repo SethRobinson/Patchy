@@ -10596,6 +10596,273 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Shape layer thumbnail</source>
         <translation>形狀圖層縮圖</translation>
     </message>
+    <message>
+        <source>Screen</source>
+        <comment>new document template group</comment>
+        <translation>螢幕</translation>
+    </message>
+    <message>
+        <source>Mobile</source>
+        <comment>new document template group</comment>
+        <translation>行動裝置</translation>
+    </message>
+    <message>
+        <source>Social</source>
+        <comment>new document template group</comment>
+        <translation>社群</translation>
+    </message>
+    <message>
+        <source>Web</source>
+        <comment>new document template group</comment>
+        <translation>網頁</translation>
+    </message>
+    <message>
+        <source>Print</source>
+        <comment>new document template group</comment>
+        <translation>列印</translation>
+    </message>
+    <message>
+        <source>Photo</source>
+        <comment>new document template group</comment>
+        <translation>相片</translation>
+    </message>
+    <message>
+        <source>Icons &amp; Games</source>
+        <comment>new document template group</comment>
+        <translation>圖示與遊戲</translation>
+    </message>
+    <message>
+        <source>1440p</source>
+        <translation>1440p</translation>
+    </message>
+    <message>
+        <source>8K</source>
+        <translation>8K</translation>
+    </message>
+    <message>
+        <source>Ultrawide</source>
+        <translation>超寬螢幕</translation>
+    </message>
+    <message>
+        <source>Cinema 4K</source>
+        <translation>劇院 4K</translation>
+    </message>
+    <message>
+        <source>Laptop</source>
+        <translation>筆記型電腦</translation>
+    </message>
+    <message>
+        <source>iPhone 16</source>
+        <translation>iPhone 16</translation>
+    </message>
+    <message>
+        <source>iPhone 16 Pro Max</source>
+        <translation>iPhone 16 Pro Max</translation>
+    </message>
+    <message>
+        <source>iPhone SE</source>
+        <translation>iPhone SE</translation>
+    </message>
+    <message>
+        <source>Android Phone</source>
+        <translation>Android 手機</translation>
+    </message>
+    <message>
+        <source>Android Phone QHD+</source>
+        <translation>Android 手機 QHD+</translation>
+    </message>
+    <message>
+        <source>iPad 11-inch</source>
+        <translation>iPad 11 吋</translation>
+    </message>
+    <message>
+        <source>iPad Pro 13-inch</source>
+        <translation>iPad Pro 13 吋</translation>
+    </message>
+    <message>
+        <source>Android Tablet</source>
+        <translation>Android 平板電腦</translation>
+    </message>
+    <message>
+        <source>Portrait Post</source>
+        <translation>直式貼文</translation>
+    </message>
+    <message>
+        <source>YouTube Thumbnail</source>
+        <translation>YouTube 縮圖</translation>
+    </message>
+    <message>
+        <source>YouTube Banner</source>
+        <translation>YouTube 橫幅</translation>
+    </message>
+    <message>
+        <source>Facebook Cover</source>
+        <translation>Facebook 封面</translation>
+    </message>
+    <message>
+        <source>X Header</source>
+        <translation>X 標頭</translation>
+    </message>
+    <message>
+        <source>X Post</source>
+        <translation>X 貼文</translation>
+    </message>
+    <message>
+        <source>LinkedIn Banner</source>
+        <translation>LinkedIn 橫幅</translation>
+    </message>
+    <message>
+        <source>Pinterest Pin</source>
+        <translation>Pinterest 圖釘</translation>
+    </message>
+    <message>
+        <source>Profile Picture</source>
+        <translation>大頭貼</translation>
+    </message>
+    <message>
+        <source>Web Page</source>
+        <translation>網頁</translation>
+    </message>
+    <message>
+        <source>Link Preview</source>
+        <translation>連結預覽</translation>
+    </message>
+    <message>
+        <source>Email Header</source>
+        <translation>電子郵件頁首</translation>
+    </message>
+    <message>
+        <source>Medium Rectangle Ad</source>
+        <translation>中矩形廣告</translation>
+    </message>
+    <message>
+        <source>Large Rectangle Ad</source>
+        <translation>大矩形廣告</translation>
+    </message>
+    <message>
+        <source>Leaderboard Ad</source>
+        <translation>橫幅廣告</translation>
+    </message>
+    <message>
+        <source>Billboard Ad</source>
+        <translation>大型看板廣告</translation>
+    </message>
+    <message>
+        <source>Half Page Ad</source>
+        <translation>半頁廣告</translation>
+    </message>
+    <message>
+        <source>Skyscraper Ad</source>
+        <translation>摩天大樓廣告</translation>
+    </message>
+    <message>
+        <source>Mobile Banner Ad</source>
+        <translation>行動橫幅廣告</translation>
+    </message>
+    <message>
+        <source>A6</source>
+        <translation>A6</translation>
+    </message>
+    <message>
+        <source>A2</source>
+        <translation>A2</translation>
+    </message>
+    <message>
+        <source>Tabloid</source>
+        <translation>小報</translation>
+    </message>
+    <message>
+        <source>Business Card (US)</source>
+        <translation>名片（美國）</translation>
+    </message>
+    <message>
+        <source>Business Card (EU)</source>
+        <translation>名片（歐洲）</translation>
+    </message>
+    <message>
+        <source>Poster 18 x 24 in</source>
+        <translation>海報 18 x 24 英吋</translation>
+    </message>
+    <message>
+        <source>4 x 6 in</source>
+        <translation>4 x 6 英吋</translation>
+    </message>
+    <message>
+        <source>11 x 14 in</source>
+        <translation>11 x 14 英吋</translation>
+    </message>
+    <message>
+        <source>8 x 8 in</source>
+        <translation>8 x 8 英吋</translation>
+    </message>
+    <message>
+        <source>10 x 15 cm</source>
+        <translation>10 x 15 公分</translation>
+    </message>
+    <message>
+        <source>13 x 18 cm</source>
+        <translation>13 x 18 公分</translation>
+    </message>
+    <message>
+        <source>App Icon</source>
+        <translation>App 圖示</translation>
+    </message>
+    <message>
+        <source>Store Icon</source>
+        <translation>商店圖示</translation>
+    </message>
+    <message>
+        <source>Desktop Icon</source>
+        <translation>桌面圖示</translation>
+    </message>
+    <message>
+        <source>Favicon</source>
+        <translation>網站圖示</translation>
+    </message>
+    <message>
+        <source>Pixel Art 16</source>
+        <translation>像素畫 16</translation>
+    </message>
+    <message>
+        <source>Pixel Art 32</source>
+        <translation>像素畫 32</translation>
+    </message>
+    <message>
+        <source>Pixel Art 64</source>
+        <translation>像素畫 64</translation>
+    </message>
+    <message>
+        <source>Texture 1K</source>
+        <translation>紋理 1K</translation>
+    </message>
+    <message>
+        <source>Texture 2K</source>
+        <translation>紋理 2K</translation>
+    </message>
+    <message>
+        <source>Texture 4K</source>
+        <translation>紋理 4K</translation>
+    </message>
+    <message>
+        <source>Game Store Header</source>
+        <translation>遊戲商店標頭</translation>
+    </message>
+    <message>
+        <source>Search all templates</source>
+        <translation>搜尋所有範本</translation>
+    </message>
+    <message>
+        <source>Search every template group by name or size (%CTRL%+F)</source>
+        <translation>依名稱或尺寸搜尋所有範本群組 (%CTRL%+F)</translation>
+    </message>
+    <message>
+        <source>No templates match the search.</source>
+        <translation>沒有符合搜尋的範本。</translation>
+    </message>
+    <message>
+        <source>%1 (%2): %3 x %4 px at %5 ppi</source>
+        <translation>%1（%2）：%3 x %4 px，%5 ppi</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
