@@ -819,9 +819,12 @@ void apply_long_shadow_resource(Document& document, std::span<const std::uint8_t
 // Patchy's 4213 text) out of metadata().raw_psd_image_resources into file_info(), so
 // File Info edits them and image_resources_for_document writes them back from there.
 void lift_file_info_resources(Document& document, std::uint16_t source_color_mode, bool large_document);
+// `output_icc_profile`, when given, replaces resource 1039 (empty removes it): a CMYK Proof
+// save's CMYK profile.
 std::vector<std::uint8_t> image_resources_for_document(const Document& document,
                                                        std::span<const CompositeChannelInfo> channels,
-                                                       std::uint16_t output_mode = kColorModeRgb);
+                                                       std::uint16_t output_mode = kColorModeRgb,
+                                                       const std::vector<std::uint8_t>* output_icc_profile = nullptr);
 
 
 // Engine-data (TySh) text READ codec: engine-data parsing, run serialization

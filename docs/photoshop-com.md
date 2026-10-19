@@ -15,6 +15,12 @@ Drive PS from PowerShell: `(New-Object -ComObject Photoshop.Application).DoJavaS
   Photoshop kept after Keep Layers (a discarded fill layer comes back as an empty NORMAL layer).
   `-DismissUnknownData` clicks Keep Layers, which is desktop UI automation and needs Seth's
   explicit permission for the session; reading window text needs none.
+- Flatten checks: `& scripts\dev\photoshop-flatten-check.ps1 -Files a.psd, b.psb -OutDir <dir>`
+  opens each file with a watcher that logs ANY Photoshop dialog (CLEAN, DIALOG with its text,
+  or ERROR), then saves Photoshop's flatten as `<name>-<ext>.ps-flat.psd`;
+  `python scripts\dev\psd-merged-diff.py <patchy.psd> <ps-flat.psd> ...` compares merged
+  images per channel (mattes merged transparency over white). The CMYK Proof PSD acceptance
+  in [cmyk.md](cmyk.md) uses both.
 - Opening checks: `DialogModes.ALL` can show the file picker even with an explicit `app.open(File(...))` argument; complete that picker for warning-enabled validation. `DialogModes.ERROR` opens without the picker and still surfaces error alerts (a COM call that returns promptly saw none). `DialogModes.NO` can still block on a corrupt-layer composite-fallback prompt; a pending COM call is not proof that Photoshop is still loading.
 - **`maximizeCompatibility = true` is silently overridden by the app-level File Handling preference** (set to Never on the reference install), leaving a fake all-white merged composite. Fixture scripts must force `queryAlways` via the `fileSavePrefs` descriptor and restore it.
 - Headless one-script PSDs embed a STALE maximize-compat composite; re-saving does not fix it. Render fixtures pin PS's flatten through the sibling BMP (duplicate + flatten + BMP), never the embedded composite.

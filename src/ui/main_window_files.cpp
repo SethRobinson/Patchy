@@ -895,12 +895,13 @@ QString translated_file_message(const std::string& message) {
   return translate_data_text(message);
 }
 
-// A layered PSD or PSB save writes this document in CMYK: an imported CMYK file whose
-// layers are unchanged (docs/psd-native-color.md). Every other PSD save is RGB.
-bool psd_save_keeps_cmyk(const Document& document) {
-  const auto& space = document.metadata().psd_native_color_space;
-  return space != nullptr && space->mode == 4 /* PSD CMYK */ &&
-         psd::DocumentIo::layered_save_keeps_source_color_mode(document);
+// The color mode a layered PSD or PSB save of this document in CMYK Proof writes
+// (docs/cmyk.md): CMYK when its layers allow it, else RGB with the reason, or an unchanged
+// imported file's own mode (docs/psd-native-color.md).
+psd::LayeredSaveColorMode cmyk_proof_psd_save_color_mode(const Document& document) {
+  psd::WriteOptions options;
+  options.cmyk_proof = working_cmyk_space();
+  return psd::DocumentIo::layered_save_color_mode(document, options);
 }
 
 // A CMYK JPEG or TIFF (Qt hands it over as Format_CMYK8888, 255 = full ink) converted to
@@ -2543,11 +2544,10 @@ void MainWindow::open_document_path(QString path) {
         loaded->import_notices.push_back(refusal);
       }
     } else if (loaded->cmyk_source && open_cmyk_source_in_proof_mode(session())) {
-      // A PSD that a save cannot keep in CMYK (text layers, say) gets the JPEG/TIFF wording.
+      // A PSD that a save cannot write in CMYK (adjustment layers, say) gets the JPEG/TIFF wording.
       loaded->import_notices.push_back(
-          psd_save_keeps_cmyk(std::as_const(document()))
-              ? tr("Opened in Image > Mode > CMYK Proof: saving keeps this file in CMYK while its layers are "
-                   "unchanged, and JPEG, TIFF and PDF saves write CMYK")
+          cmyk_proof_psd_save_color_mode(std::as_const(document())).mode == 4 /* PSD CMYK */
+              ? tr("Opened in Image > Mode > CMYK Proof, so saving as PSD, JPEG, TIFF or PDF writes CMYK again")
               : tr("Opened in Image > Mode > CMYK Proof, so saving as JPEG, TIFF or PDF writes CMYK again"));
     }
     if (!unattended_automation() && is_photoshop_document_extension(loaded->extension) &&
@@ -4385,7 +4385,9 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
   if (pdf_editable_layers.has_value()) {
     effective_image_options.pdf_editable_layers = *pdf_editable_layers;
   }
-  bool native_cmyk_psd = false;
+  bool cmyk_psd = false;
+  // Remembered save options must not carry an earlier CMYK Proof save into this one.
+  effective_image_options.psd_cmyk_proof = false;
   // CMYK Proof (docs/cmyk.md): unless the Export dialog or a script chose the color form,
   // the document's mode does. CMYK where the format has a CMYK form, RGB everywhere else.
   if (!effective_image_options.export_color_explicit) {
@@ -4397,22 +4399,25 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
     if (cmyk && !quiet && !confirm_cmyk_proof_save(extension, effective_image_options)) {
       return false;
     }
-    // An imported CMYK PSD whose layers are unchanged saves its own inks again
-    // (docs/psd-native-color.md); any other PSD or PSB is written in RGB.
-    native_cmyk_psd = session().cmyk_proof && is_photoshop_document_extension(extension) &&
-                      psd_save_keeps_cmyk(std::as_const(session()).document_for_write());
-    if (!cmyk && !native_cmyk_psd && session().cmyk_proof && !quiet && !policy.export_copy &&
-        !session().cmyk_proof_rgb_save_accepted) {
+    // A PSD or PSB is written in CMYK, layers kept, unless a layer needs RGB; an unchanged
+    // imported CMYK, gray, Lab or duotone file keeps its own mode (docs/psd-native-color.md).
+    psd::LayeredSaveColorMode psd_color;
+    const bool photoshop_document = is_photoshop_document_extension(extension);
+    if (session().cmyk_proof && photoshop_document) {
+      effective_image_options.psd_cmyk_proof = true;
+      psd_color = cmyk_proof_psd_save_color_mode(std::as_const(session()).document_for_write());
+      cmyk_psd = psd_color.mode == 4 /* PSD CMYK */;
+    }
+    if (!cmyk && (!photoshop_document || psd_color.mode == 3 /* PSD RGB */) && session().cmyk_proof && !quiet &&
+        !policy.export_copy && !session().cmyk_proof_rgb_save_accepted) {
       const auto message =
           is_pdf_extension(extension)
               ? tr("This document is in CMYK Proof mode, but a PDF with editable layers is saved in RGB. "
                    "Save it in RGB?")
-          : is_photoshop_document_extension(extension)
-              ? tr("This document is in CMYK Proof mode, but this %1 file will be saved in RGB. Patchy saves a "
-                   "PSD in CMYK only when it was opened from a CMYK PSD and its layers are unchanged (text "
-                   "layers always need RGB). JPEG, TIFF and flattened PDF files can always be saved in CMYK. "
-                   "Save it in RGB?")
-                    .arg(extension.toUpper())
+          : photoshop_document
+              ? tr("This document is in CMYK Proof mode, but this %1 file will be saved in RGB. %2 JPEG, TIFF "
+                   "and flattened PDF files can always be saved in CMYK. Save it in RGB?")
+                    .arg(extension.toUpper(), translate_data_text(psd_color.rgb_reason))
               : tr("This document is in CMYK Proof mode, but %1 files are saved in RGB. Only JPEG, TIFF and "
                    "flattened PDF files can be saved in CMYK. Save it in RGB?")
                     .arg(extension.toUpper());
@@ -4455,7 +4460,7 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
       return true;
     }
     statusBar()->showMessage(
-        (effective_image_options.export_cmyk || native_cmyk_psd ? tr("Saved %1 in CMYK") : tr("Saved %1")).arg(path) +
+        (effective_image_options.export_cmyk || cmyk_psd ? tr("Saved %1 in CMYK") : tr("Saved %1")).arg(path) +
         export_notes_suffix);
     if (linked_external_child) {
       if (auto* saved_session = session_with_id(saving_session_id)) {

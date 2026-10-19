@@ -150,6 +150,13 @@ enum class RenderingIntent { Perceptual, RelativeColorimetric, Saturation, Absol
 [[nodiscard]] std::string_view rendering_intent_token(RenderingIntent intent) noexcept;
 [[nodiscard]] std::optional<RenderingIntent> rendering_intent_from_token(std::string_view token) noexcept;
 
+// rgb_to_native_color_space with a chosen intent and black point compensation (the form
+// above is relative colorimetric with compensation). A CMYK Proof PSD save separates its
+// layers and composite through the working space's choices (docs/cmyk.md).
+[[nodiscard]] std::optional<PixelBuffer> rgb_to_native_color_space(
+    const PixelBuffer& rgb, ColorMode mode, std::span<const std::uint8_t> profile, RenderingIntent intent,
+    bool black_point_compensation);
+
 // Choices for CmykWorkingSpace::separate_rgba8 beyond the profile's own separation.
 struct SeparationOptions {
   // Black and grays print with black ink alone (docs/cmyk.md): neutral pixels, and pixels

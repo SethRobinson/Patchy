@@ -1,6 +1,7 @@
 #include "ui/document_save_coordinator.hpp"
 #include "ui/save_progress.hpp"
 
+#include "color/color_management.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/vector_shape.hpp"
 #include "formats/format_registry.hpp"
@@ -160,8 +161,10 @@ std::optional<DocumentSaveResult> DocumentSaveCoordinator::write_prepared(
     // the Saving dialog through the composite (recovery writes the same way).
     const Document snapshot = std::as_const(*target).document_for_write();
     const bool psb = extension == QStringLiteral("psb");
-    host_.run_write(path, /*on_worker*/ true, !quiet, [&snapshot, &path, psb](SaveProgress& progress) {
+    const auto cmyk_proof = effective_image_options.psd_cmyk_proof ? working_cmyk_space() : nullptr;
+    host_.run_write(path, /*on_worker*/ true, !quiet, [&snapshot, &path, psb, &cmyk_proof](SaveProgress& progress) {
       psd::WriteOptions options{psb};
+      options.cmyk_proof = cmyk_proof;
       options.progress = [&progress](int done, int total, const std::string& label) {
         progress.report(done, total, SaveProgress::Kind::Layers, QString::fromStdString(label));
       };
