@@ -528,7 +528,7 @@ void CanvasWidget::active_edit_target_changed_impl(QRegion document_region, Docu
     }
     QRegion widget_region;
     for (const auto& rect : document_region) {
-      widget_region += widget_rect_for_document_rect(rect);
+      widget_region += widget_repaint_rect_for_document_rect(rect);
     }
     update(widget_region);
     return;
@@ -557,7 +557,7 @@ void CanvasWidget::active_edit_target_changed_impl(QRegion document_region, Docu
     }
     QRegion widget_region;
     for (const auto& rect : document_region) {
-      widget_region += widget_rect_for_document_rect(rect);
+      widget_region += widget_repaint_rect_for_document_rect(rect);
     }
     update(widget_region);
     return;
@@ -591,7 +591,7 @@ void CanvasWidget::active_edit_target_changed_impl(QRegion document_region, Docu
   }
   QRegion widget_region;
   for (const auto& rect : document_region) {
-    widget_region += widget_rect_for_document_rect(rect);
+    widget_region += widget_repaint_rect_for_document_rect(rect);
   }
   update(widget_region);
 }
@@ -692,13 +692,12 @@ void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_
   notify_document_changed(reason);
   {
     // Zoomed out, the patched display mip changes only the blocks under the
-    // region (patch_display_mip_cache); the margin covers the smooth scale's
-    // one-pixel reach into the neighbours. A whole-widget repaint here made
+    // region (patch_display_mip_cache); the repaint rect covers the smooth
+    // scale's reach into the neighbours. A whole-widget repaint here made
     // every brush frame redraw the full view (GitHub issue 165).
-    const int margin = zoom_ < 1.0 ? 2 : 0;
     QRegion widget_region;
     for (const auto& rect : document_region) {
-      widget_region += widget_rect_for_document_rect(rect).adjusted(-margin, -margin, margin, margin);
+      widget_region += widget_repaint_rect_for_document_rect(rect);
     }
     if (tiling_ghosts_visible(rect())) {
       // Seamless tiling mode: the ghost copies of the dirty region must repaint too.
@@ -712,8 +711,7 @@ void CanvasWidget::document_changed_impl(QRegion document_region, bool includes_
       for (const auto offset : offsets) {
         const QPoint delta(offset.x() * document_->width(), offset.y() * document_->height());
         for (const auto& rect : document_region) {
-          widget_region += widget_rect_for_document_rect(rect.translated(delta))
-                               .adjusted(-margin, -margin, margin, margin);
+          widget_region += widget_repaint_rect_for_document_rect(rect.translated(delta));
         }
       }
     }

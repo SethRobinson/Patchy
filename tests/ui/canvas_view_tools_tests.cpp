@@ -20,6 +20,10 @@
 #include "core/pixel_depth.hpp"
 #include "formats/metadata/metadata_view.hpp"
 #include "ui/canvas_widget_shared.hpp"
+#include "core/pattern_resource.hpp"
+#include "core/style_presets.hpp"
+#include "ui/image_document_io.hpp"
+#include "ui/photo_pattern_presets.hpp"
 #include "synthetic_dng.hpp"
 #include "test_fonts.hpp"
 #include "test_harness.hpp"
@@ -1812,6 +1816,225 @@ void ui_canvas_deep_zoom_without_grid_keeps_pixels_sharp() {
   CHECK(black_columns > 0);
   CHECK(white_columns > 0);
   CHECK(interpolated_columns == 0);
+}
+
+// The display interpolation rule (GitHub issue 210): fractional zooms between 100% and
+// 400% interpolate, whole zooms and high zooms show exact pixel blocks.
+void ui_canvas_display_smoothing_rule_pins_zoom_bands() {
+  using patchy::ui::uses_smooth_display_scaling;
+  for (const double zoom : {0.125, 0.5, 0.9, 1.25, 1.5, 1.75, 2.5, 3.333, 3.99}) {
+    if (!uses_smooth_display_scaling(zoom, false)) {
+      std::cerr << "expected smooth display scaling at " << zoom << '\n';
+      CHECK(false);
+    }
+  }
+  // 1.0000001 and 2.9999999 are a whole zoom reached through floating-point drift
+  // (view zoom = logical zoom x device pixel ratio).
+  for (const double zoom : {1.0, 1.0000001, 2.0, 2.9999999, 3.0, 4.0, 4.5, 5.5, 7.5}) {
+    if (uses_smooth_display_scaling(zoom, false)) {
+      std::cerr << "expected exact pixels at " << zoom << '\n';
+      CHECK(false);
+    }
+  }
+  // The deep-zoom pixel renderer always draws exact blocks.
+  CHECK(!uses_smooth_display_scaling(8.0, true));
+  CHECK(!uses_smooth_display_scaling(12.5, true));
+}
+
+// One-pixel black and white columns: any interpolated value on screen is smoothing.
+patchy::Document display_smoothing_stripes_document() {
+  patchy::Document document(40, 24, patchy::PixelFormat::rgb8());
+  auto pixels = solid_pixels(40, 24, patchy::PixelFormat::rgb8(), Qt::white);
+  for (int x = 0; x < 40; x += 2) {
+    fill_pixel_rect(pixels, QRect(x, 0, 1, 24), Qt::black);
+  }
+  document.add_pixel_layer("Stripes", std::move(pixels));
+  return document;
+}
+
+// Count of on-screen document pixels (one pixel inside the document edge) whose value is
+// neither black nor white.
+int interpolated_canvas_pixels(patchy::ui::CanvasWidget& canvas, const patchy::Document& document,
+                               const QImage& image) {
+  const auto top_left = canvas.widget_position_for_document_point(QPoint(0, 0));
+  const auto bottom_right = canvas.widget_position_for_document_point(QPoint(document.width(), document.height()));
+  const auto inside = QRect(top_left, bottom_right).adjusted(1, 1, -2, -2).intersected(canvas_content_rect(canvas));
+  int interpolated = 0;
+  for (int y = inside.top(); y <= inside.bottom(); ++y) {
+    for (int x = inside.left(); x <= inside.right(); ++x) {
+      const auto color = image.pixelColor(x, y);
+      if (!color_close(color, QColor(Qt::black), 2) && !color_close(color, QColor(Qt::white), 2)) {
+        ++interpolated;
+      }
+    }
+  }
+  return interpolated;
+}
+
+// The rule reaches the screen: fractional zooms between 100% and 400% interpolate, 100%,
+// whole zooms and high zooms show exact pixels, and a bounded repaint after an edit at a
+// smooth zoom matches a full repaint (the blend reaches half a document pixel past the
+// edited rect).
+void ui_canvas_fractional_zoom_smooths_between_whole_zooms() {
+  auto document = display_smoothing_stripes_document();
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(240, 180);
+  canvas.set_document(&document);
+  canvas.show();
+  QApplication::processEvents();
+
+  for (const double zoom : {1.5, 1.75, 2.5, 3.5}) {
+    canvas.set_view_zoom_centered(zoom);
+    QApplication::processEvents();
+    const auto image = render_widget_image(canvas);
+    if (interpolated_canvas_pixels(canvas, document, image) == 0) {
+      std::cerr << "no interpolated pixels at " << zoom << '\n';
+      CHECK(false);
+    }
+  }
+  for (const double zoom : {1.0, 2.0, 3.0, 4.5}) {
+    canvas.set_view_zoom_centered(zoom);
+    QApplication::processEvents();
+    const auto image = render_widget_image(canvas);
+    if (const auto interpolated = interpolated_canvas_pixels(canvas, document, image); interpolated != 0) {
+      std::cerr << interpolated << " interpolated pixels at " << zoom << '\n';
+      CHECK(false);
+    }
+  }
+
+  for (const double zoom : {1.5, 2.5}) {
+    canvas.set_view_zoom_centered(zoom);
+    QApplication::processEvents();
+    canvas.force_refresh();
+    QApplication::processEvents();
+    auto* layer = document.find_layer(document.layers().front().id());
+    CHECK(layer != nullptr);
+    if (layer == nullptr) {
+      return;
+    }
+    const QRect edited(zoom < 2.0 ? 13 : 21, 7, 5, 6);
+    fill_pixel_rect(layer->pixels(), edited, QColor(220, 30, 40));
+    canvas.document_changed(edited);
+    QApplication::processEvents();
+    const auto backing = grab_widget_window_image(canvas);
+    const auto full = render_widget_image(canvas);
+    const auto content = canvas_content_rect(canvas);
+    const auto matches = images_equal_rgba(backing.copy(content), full.copy(content));
+    if (!matches) {
+      save_image_artifact("ui_canvas_fractional_zoom_partial_backing", backing);
+      save_image_artifact("ui_canvas_fractional_zoom_partial_full", full);
+      if (const auto mismatch = image_mismatch_bounds_rgba(backing.copy(content), full.copy(content));
+          mismatch.has_value()) {
+        std::cerr << "partial repaint mismatch at " << zoom << ": " << mismatch->x() << "," << mismatch->y()
+                  << "," << mismatch->width() << "," << mismatch->height() << '\n';
+      }
+    }
+    CHECK(matches);
+  }
+}
+
+// GitHub issue 210's scene: text with the Slate Etched style at 150%. Nearest-neighbor
+// scaling repeats every other screen column at 150% (the stair-steps in the report);
+// interpolation leaves no such repeat. Saves the 100%, 150% and 200% captures as
+// artifacts for the issue's before/after images.
+void ui_canvas_styled_text_at_150_percent_has_no_repeated_columns() {
+  QImage text_image(300, 96, QImage::Format_ARGB32_Premultiplied);
+  text_image.fill(Qt::transparent);
+  {
+    QPainter painter(&text_image);
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setRenderHint(QPainter::TextAntialiasing, true);
+    auto font = visual_test_font();
+    font.setPixelSize(64);
+    painter.setFont(font);
+    painter.setPen(QColor(150, 150, 150));
+    painter.drawText(text_image.rect(), Qt::AlignCenter, QStringLiteral("Multiple"));
+  }
+  auto text_document = patchy::ui::document_from_qimage(text_image, "Text");
+  CHECK(!text_document.layers().empty());
+  if (text_document.layers().empty()) {
+    return;
+  }
+
+  constexpr const char* kSlateEtched = "57a1e500-0021-4c6d-8f2a-9b3d4e55c021";
+  patchy::Document document(300, 96, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(300, 96, patchy::PixelFormat::rgba8(), QColor(38, 38, 38)));
+  patchy::Layer text(document.allocate_layer_id(), "Text", text_document.layers().front().pixels());
+  text.layer_style() = patchy::builtin_style_preset_style(kSlateEtched);
+  std::vector<std::string> pattern_ids;
+  patchy::collect_referenced_pattern_ids(text.layer_style(), pattern_ids);
+  CHECK(!pattern_ids.empty());
+  for (const auto& id : pattern_ids) {
+    const auto pattern = patchy::ui::bundled_pattern_resource(id);
+    CHECK(pattern.has_value());
+    if (pattern.has_value()) {
+      document.metadata().patterns.adopt(*pattern);
+    }
+  }
+  document.add_layer(std::move(text));
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(520, 220);
+  canvas.set_document(&document);
+  canvas.show();
+  QApplication::processEvents();
+
+  const auto capture = [&](double zoom) {
+    canvas.set_view_zoom_centered(zoom);
+    QApplication::processEvents();
+    const auto top_left = canvas.widget_position_for_document_point(QPoint(0, 0));
+    const auto bottom_right = canvas.widget_position_for_document_point(QPoint(document.width(), document.height()));
+    return render_widget_image(canvas).copy(QRect(top_left, bottom_right).intersected(canvas_content_rect(canvas)));
+  };
+  // The largest share of identical neighbouring columns at one phase of `period`, among
+  // columns that are not flat background. Nearest-neighbor at 150% repeats one column in
+  // every three; at 200% one in every two.
+  const auto repeated_column_share = [](const QImage& image, int period) {
+    const auto column = [&image](int x) {
+      std::vector<QRgb> values;
+      for (int y = 0; y < image.height(); ++y) {
+        values.push_back(image.pixel(x, y));
+      }
+      return values;
+    };
+    std::vector<int> repeats(static_cast<std::size_t>(period), 0);
+    std::vector<int> totals(static_cast<std::size_t>(period), 0);
+    auto current = column(0);
+    for (int x = 0; x + 1 < image.width(); ++x) {
+      auto next = column(x + 1);
+      const bool flat = std::all_of(current.begin(), current.end(), [&](QRgb value) { return value == current[0]; });
+      if (!flat) {
+        ++totals[static_cast<std::size_t>(x % period)];
+        if (current == next) {
+          ++repeats[static_cast<std::size_t>(x % period)];
+        }
+      }
+      current = std::move(next);
+    }
+    double share = 0.0;
+    for (int phase = 0; phase < period; ++phase) {
+      if (totals[static_cast<std::size_t>(phase)] > 0) {
+        share = std::max(share, static_cast<double>(repeats[static_cast<std::size_t>(phase)]) /
+                                    static_cast<double>(totals[static_cast<std::size_t>(phase)]));
+      }
+    }
+    return share;
+  };
+
+  const auto at_100 = capture(1.0);
+  const auto at_150 = capture(1.5);
+  const auto at_200 = capture(2.0);
+  save_image_artifact("ui_styled_text_slate_etched_100", at_100);
+  save_image_artifact("ui_styled_text_slate_etched_150", at_150);
+  save_image_artifact("ui_styled_text_slate_etched_200", at_200);
+  // Inset past the capture's last row and column (one past the document) and the 1 px
+  // document frame, so margin columns read as flat background.
+  const auto inset = [](const QImage& image) { return image.copy(image.rect().adjusted(1, 1, -2, -2)); };
+  const auto share_150 = repeated_column_share(inset(at_150), 3);
+  const auto share_200 = repeated_column_share(inset(at_200), 2);
+  std::cerr << "repeated column share: 150% " << share_150 << ", 200% " << share_200 << '\n';
+  CHECK(share_150 < 0.2);
+  CHECK(share_200 > 0.95);
 }
 
 void ui_zoomed_out_canvas_uses_downsampled_display_mip() {
@@ -4696,6 +4919,11 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
        ui_canvas_fractional_zoom_keeps_zoomed_in_pixels_sharp},
       {"ui_canvas_deep_zoom_without_grid_keeps_pixels_sharp",
        ui_canvas_deep_zoom_without_grid_keeps_pixels_sharp},
+      {"ui_canvas_display_smoothing_rule_pins_zoom_bands", ui_canvas_display_smoothing_rule_pins_zoom_bands},
+      {"ui_canvas_fractional_zoom_smooths_between_whole_zooms",
+       ui_canvas_fractional_zoom_smooths_between_whole_zooms},
+      {"ui_canvas_styled_text_at_150_percent_has_no_repeated_columns",
+       ui_canvas_styled_text_at_150_percent_has_no_repeated_columns},
       {"ui_zoomed_out_canvas_uses_downsampled_display_mip",
        ui_zoomed_out_canvas_uses_downsampled_display_mip},
       {"ui_shape_flyout_and_zoom_tool_work", ui_shape_flyout_and_zoom_tool_work},

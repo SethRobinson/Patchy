@@ -44,6 +44,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -1820,6 +1821,18 @@ QRect CanvasWidget::widget_rect_for_document_rect(QRect document_rect) const {
   const auto top_left = widget_position(document_rect.topLeft());
   const auto bottom_right = widget_position(document_rect.bottomRight() + QPoint(1, 1));
   return QRect(top_left, bottom_right).normalized().adjusted(-2, -2, 2, 2);
+}
+
+QRect CanvasWidget::widget_repaint_rect_for_document_rect(QRect document_rect) const {
+  const auto rect = widget_rect_for_document_rect(document_rect);
+  const auto view = view_zoom();
+  if (!uses_smooth_display_scaling(view, uses_deep_zoom_pixel_renderer(view))) {
+    return rect;
+  }
+  // Zoomed out, the patched display mip blends one mip pixel into its neighbours;
+  // magnified, the bilinear scale reaches half a document pixel past the rect.
+  const int margin = zoom_ < 1.0 ? 2 : static_cast<int>(std::ceil(zoom_ * 0.5));
+  return rect.adjusted(-margin, -margin, margin, margin);
 }
 
 QRectF CanvasWidget::widget_rect_for_document_rect(QRectF document_rect) const {
