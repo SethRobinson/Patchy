@@ -106,6 +106,7 @@ back BEFORE `remove_text_editor_preview`, in commit and cancel.
 - Commit keys (`MainWindow::eventFilter`): Ctrl/Cmd+Return and the bare keypad Enter (`Key_Enter` + `KeypadModifier`, also Mac fn+Return); plain Return is a line break, Escape cancels (GitHub issue 71, `ui_text_keypad_enter_commits_and_return_breaks_line`); Preferences > Tools "Use Esc to commit text" (`input/escapeCommitsText`, default off) makes it commit (issue 173, `ui_text_escape_commits_preference`).
 - Clicking off commits through the focus-loss handler, which arms `swallow_next_canvas_left_press_` so the press that caused the commit cannot start the next session; a release clears a stale flag. The canvas event filter must leave that flag alone during a blocking processing wait: on wasm the mouseup arrives re-entrantly inside the commit's undo-snapshot wait ([wasm.md](wasm.md); `ui_text_click_off_commit_ignores_reentrant_release_during_wait`).
 - Mutating actions that take no focus (layer lock buttons) call `finish_active_text_editor()` first, or they act on a half-committed session.
+- Type-tool Ctrl+drag moves text: [move-tool.md](move-tool.md#type-tool-ctrldrag).
 
 ## Delete semantics
 
@@ -123,7 +124,7 @@ from the auto-commit (`is_text_option_widget` objectName match); `mousePressEven
 back to the editor. No focus proxy: clearing one while it holds focus makes Qt reassign the focus widget, committing
 the session mid-call (`configure()` runs on every cursor move). Tests asking whether a real click reaches the right
 widget use `click_widget_like_a_user` (tests/ui/ui_test_support.cpp), which applies the focus
-policy walk before routing the press; `send_mouse` straight to the canvas asks something else.
+walk first; `send_mouse` to the canvas asks something else.
 
 ## Options bar while an editor is open
 

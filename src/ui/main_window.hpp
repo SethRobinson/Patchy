@@ -2023,6 +2023,16 @@ private:
   bool handle_text_editor_viewport_mouse_event(QTextEdit* editor, QEvent* event);
   // Continues the press that opened a text session as a selection drag (canvas coordinates).
   bool extend_text_entry_selection(QPointF canvas_point, bool begin);
+  // Type tool + Ctrl is the temporary Move tool (GitHub issue 216). A Ctrl+press on the open
+  // session's own text commits it, drags the layer and reopens the session with its selection;
+  // a Ctrl+press on another text layer commits the session like any click off and lets the
+  // canvas drag that layer. Ctrl-key shortcuts in the editor are untouched (presses only).
+  bool handle_text_ctrl_move_press(QWidget* watched, QMouseEvent* event);
+  // Shows the four-way cursor over the inline editor while Ctrl is held (Type tool).
+  void apply_text_editor_ctrl_cursor(bool ctrl_held);
+  // Reopens a session on text layer `id` with the caret/selection anchor..position and hands it
+  // the keyboard (Warp Text and Ctrl+drag commit a live session first).
+  void resume_text_editing(LayerId id, std::pair<int, int> selection);
   void mark_text_editor_changed(QTextEdit* editor);
   void schedule_text_editor_preview(QTextEdit* editor);
   void update_text_editor_preview(QTextEdit* editor);
