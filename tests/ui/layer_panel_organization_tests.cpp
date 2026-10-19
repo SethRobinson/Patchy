@@ -2323,6 +2323,7 @@ void ui_layer_empty_folder_disclosure_toggles_and_saves() {
   CHECK(disclosure_of(QStringLiteral("Open Empty"))->toolTip().startsWith(QStringLiteral("Collapse folder")));
 
   click_disclosure(QStringLiteral("Closed Empty"), Qt::NoModifier);
+  save_widget_artifact("issue_229_empty_folder_arrows", *layer_list);
   CHECK(!collapsed(QStringLiteral("Closed Empty")));
   CHECK(disclosure_of(QStringLiteral("Closed Empty"))->arrowType() == Qt::DownArrow);
   CHECK(window.statusBar()->currentMessage() == QStringLiteral("Folder expanded"));
