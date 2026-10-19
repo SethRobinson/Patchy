@@ -2501,6 +2501,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
                                          static_cast<int>(std::lround(constrained_point.y())));
         last_document_position_f_ = constrained_point;
       }
+      dirty = dirty.united(finish_brush_tip_stroke(effective_tool == CanvasTool::Eraser));
     } else {
       last_document_position_ = document_point;
       last_document_position_f_ = document_point_f;
@@ -4132,6 +4133,11 @@ void CanvasWidget::focusOutEvent(QFocusEvent* event) {
   }
   cancel_pointer_gestures();
   if (was_painting) {
+    // A click cut short keeps its held first dab, like a released one.
+    const auto held_dab = finish_brush_tip_stroke(effective_tool_for_input() == CanvasTool::Eraser);
+    if (!held_dab.isEmpty()) {
+      active_edit_target_changed_impl(QRegion(held_dab), DocumentChangeReason::BrushStrokePreview);
+    }
     painting_ = false;
     sync_stroke_input_compression();
     last_stroke_end_document_ = last_document_position_f_;

@@ -1754,6 +1754,9 @@ private:
                                          bool stamp_endpoint = false);
   [[nodiscard]] QRect draw_brush_at(QPoint point, bool erase);
   [[nodiscard]] QRect draw_airbrush_dab(QPointF point);
+  // Stamps the first dab a Direction-controlled stroke still holds at its end (a click).
+  [[nodiscard]] QRect finish_brush_tip_stroke(bool erase);
+  void remember_held_first_dab_pen_sample(bool was_holding);
   [[nodiscard]] QRect draw_mask_brush_segment(QPointF from, QPointF to, bool erase);
   [[nodiscard]] QRect draw_mask_brush_segment(QPoint from, QPoint to, bool erase);
   [[nodiscard]] QRect draw_mask_brush_at(QPoint point, bool erase);
@@ -2491,6 +2494,8 @@ private:
   mutable std::vector<std::pair<std::pair<int, int>, std::shared_ptr<const patchy::ScaledBrushTip>>>
       brush_tip_scaled_cache_;
   patchy::BrushTipStrokeState brush_tip_stroke_state_;
+  // The pen sample of a held first dab's press: a click stamps with it, not the release's.
+  std::optional<PenInputSample> held_first_dab_pen_sample_{};
   patchy::BrushDynamics brush_dynamics_{};
   double brush_base_angle_degrees_{0.0};
   int brush_base_roundness_{100};

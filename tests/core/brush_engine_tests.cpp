@@ -1175,6 +1175,169 @@ void tool_brush_tip_angle_direction_follows_stroke() {
   CHECK(initial.pixel(26, 43)[3] == 0);
 }
 
+// #221: a press has no travel direction yet, so a Direction-controlled stroke holds its first
+// dab until the pointer has moved a few pixels and then stamps it at the press point along that
+// travel. A click with no movement keeps the base angle. The bar tip is horizontal at angle 0.
+void tool_brush_tip_direction_first_dab_follows_stroke() {
+  const auto tip = make_bar_brush_tip();
+  const auto mips = patchy::build_brush_tip_mips(tip);
+  const auto scaled = patchy::make_scaled_brush_tip(mips, 9);
+  auto options = tool_options(0, 0, 0);
+  options.brush_size = 9;
+  options.brush_tip = &scaled;
+  options.brush_tip_spacing = 2.0;  // dabs every 18px
+  options.brush_dynamics.angle_control = patchy::BrushDynamicControl::Direction;
+  const auto alpha = [](const patchy::Document& document, patchy::LayerId layer, int x, int y) {
+    return document.find_layer(layer)->pixels().pixel(x, y)[3];
+  };
+
+  // Vertical stroke, delivered like canvas input: the press dab, then short moves.
+  {
+    auto document = make_tool_document();
+    const auto layer = active_tool_layer(document);
+    patchy::BrushTipStrokeState state;
+    CHECK(patchy::paint_brush_segment(document, layer, 24.0, 10.0, 24.0, 10.0, options, false, state)
+              .empty());
+    CHECK(state.first_dab_pending);
+    CHECK(patchy::paint_brush_segment(document, layer, 24.0, 10.0, 24.0, 11.0, options, false, state)
+              .empty());
+    CHECK(patchy::paint_brush_segment(document, layer, 24.0, 11.0, 24.0, 12.0, options, false, state)
+              .empty());
+    CHECK(!patchy::paint_brush_segment(document, layer, 24.0, 12.0, 24.0, 30.0, options, false, state)
+               .empty());
+    CHECK(!state.first_dab_pending);
+    CHECK(patchy::finish_brush_tip_stroke(document, layer, options, false, state).empty());
+    CHECK(alpha(document, layer, 24, 7) == 255);  // first dab at (24,10) is vertical
+    CHECK(alpha(document, layer, 24, 13) == 255);
+    CHECK(alpha(document, layer, 21, 10) == 0);  // and no horizontal press stamp under it
+    CHECK(alpha(document, layer, 27, 10) == 0);
+    CHECK(alpha(document, layer, 24, 25) == 255);  // second dab at (24,28)
+  }
+
+  // Horizontal stroke: the bar stays horizontal, the first dab included.
+  {
+    auto document = make_tool_document();
+    const auto layer = active_tool_layer(document);
+    patchy::BrushTipStrokeState state;
+    CHECK(patchy::paint_brush_segment(document, layer, 10.0, 24.0, 10.0, 24.0, options, false, state)
+              .empty());
+    CHECK(!patchy::paint_brush_segment(document, layer, 10.0, 24.0, 30.0, 24.0, options, false, state)
+               .empty());
+    CHECK(alpha(document, layer, 13, 24) == 255);
+    CHECK(alpha(document, layer, 10, 21) == 0);
+    CHECK(alpha(document, layer, 10, 27) == 0);
+  }
+
+  // A rightward-then-down stroke: the first dab follows the first travel, not the later turn.
+  {
+    auto document = make_tool_document();
+    const auto layer = active_tool_layer(document);
+    patchy::BrushTipStrokeState state;
+    (void)patchy::paint_brush_segment(document, layer, 10.0, 20.0, 10.0, 20.0, options, false, state);
+    (void)patchy::paint_brush_segment(document, layer, 10.0, 20.0, 14.0, 20.0, options, false, state);
+    (void)patchy::paint_brush_segment(document, layer, 14.0, 20.0, 14.0, 40.0, options, false, state);
+    CHECK(alpha(document, layer, 7, 20) == 255);
+    CHECK(alpha(document, layer, 10, 23) == 0);
+  }
+
+  // Click only: the held dab stamps on finish at the base angle (pointer jitter under a pixel
+  // does not rotate it), at the press point.
+  for (const auto jitter : {0.0, 0.4}) {
+    auto document = make_tool_document();
+    const auto layer = active_tool_layer(document);
+    patchy::BrushTipStrokeState state;
+    CHECK(patchy::paint_brush_segment(document, layer, 24.0, 24.0, 24.0, 24.0, options, false, state)
+              .empty());
+    CHECK(patchy::paint_brush_segment(document, layer, 24.0, 24.0, 24.0 + jitter, 24.0 + jitter,
+                                      options, false, state)
+              .empty());
+    CHECK(!patchy::finish_brush_tip_stroke(document, layer, options, false, state).empty());
+    CHECK(alpha(document, layer, 20, 24) == 255);
+    CHECK(alpha(document, layer, 28, 24) == 255);
+    CHECK(alpha(document, layer, 24, 21) == 0);
+    CHECK(patchy::finish_brush_tip_stroke(document, layer, options, false, state).empty());
+  }
+
+  // A dash shorter than the direction distance still orients its one dab along its travel.
+  {
+    auto document = make_tool_document();
+    const auto layer = active_tool_layer(document);
+    patchy::BrushTipStrokeState state;
+    (void)patchy::paint_brush_segment(document, layer, 24.0, 24.0, 24.0, 24.0, options, false, state);
+    CHECK(patchy::paint_brush_segment(document, layer, 24.0, 24.0, 24.0, 26.0, options, false, state)
+              .empty());
+    CHECK(!patchy::finish_brush_tip_stroke(document, layer, options, false, state).empty());
+    CHECK(alpha(document, layer, 24, 21) == 255);
+    CHECK(alpha(document, layer, 27, 24) == 0);
+  }
+
+  // The stateless overload is a whole stroke: a zero-length call is a click and still paints.
+  {
+    auto document = make_tool_document();
+    const auto layer = active_tool_layer(document);
+    CHECK(!patchy::paint_brush_segment(document, layer, 24.0, 24.0, 24.0, 24.0, options, false).empty());
+    CHECK(alpha(document, layer, 27, 24) == 255);
+  }
+
+  // Initial Direction holds its first dab the same way.
+  {
+    auto initial_options = options;
+    initial_options.brush_dynamics.angle_control = patchy::BrushDynamicControl::InitialDirection;
+    auto document = make_tool_document();
+    const auto layer = active_tool_layer(document);
+    patchy::BrushTipStrokeState state;
+    (void)patchy::paint_brush_segment(document, layer, 24.0, 10.0, 24.0, 10.0, initial_options, false,
+                                      state);
+    CHECK(!patchy::paint_brush_segment(document, layer, 24.0, 10.0, 24.0, 30.0, initial_options, false,
+                                       state)
+               .empty());
+    CHECK(alpha(document, layer, 24, 13) == 255);
+    CHECK(alpha(document, layer, 27, 10) == 0);
+  }
+
+  // Stationary Airbrush ticks before the first movement wait with the held dab, then stamp at
+  // the press point along the stroke direction; a still press stamps them on finish.
+  {
+    auto document = make_tool_document();
+    const auto layer = active_tool_layer(document);
+    auto airbrush_options = options;
+    airbrush_options.brush_dynamics.flow_jitter = 0.5;
+    airbrush_options.brush_dynamics.seed = 4321;
+    patchy::BrushTipStrokeState state;
+    (void)patchy::paint_brush_segment(document, layer, 24.0, 10.0, 24.0, 10.0, airbrush_options, false,
+                                      state);
+    CHECK(patchy::paint_stationary_airbrush_dab(document, layer, 24.0, 10.0, airbrush_options, state)
+              .empty());
+    CHECK(patchy::paint_stationary_airbrush_dab(document, layer, 24.0, 10.0, airbrush_options, state)
+              .empty());
+    CHECK(state.pending_airbrush_ticks == 2);
+    CHECK(!patchy::paint_brush_segment(document, layer, 24.0, 10.0, 24.0, 30.0, airbrush_options, false,
+                                       state)
+               .empty());
+    CHECK(state.pending_airbrush_ticks == 0);
+    CHECK(state.dynamics.step_index == 4U);  // press dab, two ticks, the dab at (24,28)
+    CHECK(alpha(document, layer, 24, 13) > 0);
+    CHECK(alpha(document, layer, 27, 10) == 0);
+    CHECK(alpha(document, layer, 21, 10) == 0);
+    CHECK(!patchy::paint_stationary_airbrush_dab(document, layer, 24.0, 30.0, airbrush_options, state)
+               .empty());
+
+    auto still_document = make_tool_document();
+    const auto still_layer = active_tool_layer(still_document);
+    patchy::BrushTipStrokeState still_state;
+    (void)patchy::paint_brush_segment(still_document, still_layer, 24.0, 24.0, 24.0, 24.0,
+                                      airbrush_options, false, still_state);
+    (void)patchy::paint_stationary_airbrush_dab(still_document, still_layer, 24.0, 24.0,
+                                                airbrush_options, still_state);
+    CHECK(!patchy::finish_brush_tip_stroke(still_document, still_layer, airbrush_options, false,
+                                           still_state)
+               .empty());
+    CHECK(still_state.dynamics.step_index == 2U);
+    CHECK(alpha(still_document, still_layer, 27, 24) > 0);
+    CHECK(alpha(still_document, still_layer, 24, 27) == 0);
+  }
+}
+
 void tool_brush_tip_angle_fade_and_jitter_rotate_dabs() {
   const auto tip = make_bar_brush_tip();
   const auto mips = patchy::build_brush_tip_mips(tip);
@@ -1964,6 +2127,7 @@ std::vector<patchy::test::TestCase> brush_engine_tests() {
       {"tool_brush_tip_size_jitter_shrinks_dabs_deterministically",
        tool_brush_tip_size_jitter_shrinks_dabs_deterministically},
       {"tool_brush_tip_angle_direction_follows_stroke", tool_brush_tip_angle_direction_follows_stroke},
+      {"tool_brush_tip_direction_first_dab_follows_stroke", tool_brush_tip_direction_first_dab_follows_stroke},
       {"tool_brush_tip_angle_fade_and_jitter_rotate_dabs", tool_brush_tip_angle_fade_and_jitter_rotate_dabs},
       {"tool_brush_tip_flip_jitter_mirrors_stamp", tool_brush_tip_flip_jitter_mirrors_stamp},
       {"tool_brush_tip_scatter_offsets_perpendicular_to_stroke",

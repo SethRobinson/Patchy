@@ -38,6 +38,7 @@
 #include <QRect>
 #include <QRectF>
 #include <QRgb>
+#include <QScopeGuard>
 #include <QSize>
 #include <QString>
 #include <Qt>
@@ -893,6 +894,7 @@ void CanvasWidget::clear_brush_stroke_tracking() noexcept {
   mixer_brush_state_ = {};
   mixer_composite_snapshot_ = QImage();
   brush_tip_stroke_state_ = {};
+  held_first_dab_pen_sample_.reset();
   stroke_dynamics_seed_ = brush_dynamics_test_seed_.has_value()
                               ? *brush_dynamics_test_seed_
                               : QRandomGenerator::global()->generate();
@@ -1995,9 +1997,11 @@ QRect CanvasWidget::draw_brush_segment(QPointF from, QPointF to, bool erase, boo
   }
   if (options.brush_tip != nullptr) {
     install_brush_stroke_compositor(options, erase);
+    const auto was_holding = brush_tip_stroke_state_.first_dab_pending;
     const auto dirty = to_qrect(
         patchy::paint_brush_segment(*document_, *document_->active_layer_id(), from.x(), from.y(), to.x(), to.y(),
                                     options, erase, brush_tip_stroke_state_));
+    remember_held_first_dab_pen_sample(was_holding);
     return finalize_pending_wet_edges(dirty);
   }
 
@@ -2055,10 +2059,13 @@ QRect CanvasWidget::draw_brush_at(QPoint point, bool erase) {
     install_brush_stroke_compositor(options, erase);
     // Stateful zero-length segment: stamps exactly the press dab and starts the stroke's dab
     // spacing + dynamics RNG stream, so the first move segment does not re-stamp the press
-    // point (invisible for static stamps, visibly double-jittered with dynamics).
+    // point (invisible for static stamps, visibly double-jittered with dynamics). A tip whose
+    // angle follows the stroke direction holds this dab until the pointer moves (#221).
+    const auto was_holding = brush_tip_stroke_state_.first_dab_pending;
     const auto dirty = to_qrect(patchy::paint_brush_segment(
         *document_, *document_->active_layer_id(), point.x(), point.y(), point.x(), point.y(),
         options, erase, brush_tip_stroke_state_));
+    remember_held_first_dab_pen_sample(was_holding);
     return finalize_pending_wet_edges(dirty);
   }
   install_brush_stroke_compositor(options, erase);
@@ -2084,6 +2091,31 @@ QRect CanvasWidget::draw_airbrush_dab(QPointF point) {
   const auto dirty = to_qrect(patchy::paint_stationary_airbrush_dab(
       *document_, *document_->active_layer_id(), point.x(), point.y(), options,
       brush_tip_stroke_state_));
+  return finalize_pending_wet_edges(dirty);
+}
+
+void CanvasWidget::remember_held_first_dab_pen_sample(bool was_holding) {
+  if (!was_holding && brush_tip_stroke_state_.first_dab_pending) {
+    held_first_dab_pen_sample_ = active_pen_input_sample_;
+  }
+}
+
+QRect CanvasWidget::finish_brush_tip_stroke(bool erase) {
+  if (!brush_tip_stroke_state_.first_dab_pending || editing_grayscale_target() ||
+      document_ == nullptr || !document_->active_layer_id().has_value()) {
+    return {};
+  }
+  // A click's dab uses the press's pen sample: a tablet release reports zero pressure.
+  const auto release_sample = active_pen_input_sample_;
+  active_pen_input_sample_ = held_first_dab_pen_sample_;
+  const auto restore_sample =
+      qScopeGuard([this, release_sample] { active_pen_input_sample_ = release_sample; });
+  const auto brush = effective_brush_input();
+  auto options = current_brush_edit_options(brush);
+  apply_brush_tip_to_options(options, brush.size, brush.softness);
+  install_brush_stroke_compositor(options, erase);
+  const auto dirty = to_qrect(patchy::finish_brush_tip_stroke(
+      *document_, *document_->active_layer_id(), options, erase, brush_tip_stroke_state_));
   return finalize_pending_wet_edges(dirty);
 }
 

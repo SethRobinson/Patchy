@@ -158,6 +158,6 @@ QRect CanvasWidget::paint_script_stroke(const ScriptStroke& stroke, const std::f
   const auto end = stroke_stabilizer_.finish(raw.x(), raw.y()); const auto endpoint = QPointF(end.x, end.y);
   if (effective_brush_input().size == 1) dirty = dirty.united(draw_brush_segment(rounded(previous), rounded(endpoint), stroke.erase));
   else dirty = dirty.united(finish_smoothed_brush_stroke(endpoint, stroke.erase));
-  return dirty;
+  return dirty.united(finish_brush_tip_stroke(stroke.erase));
 }
 }  // namespace patchy::ui
