@@ -1127,6 +1127,50 @@ void CanvasWidget::update_move_hover_outline(QPoint widget_position, Qt::Keyboar
   }
 }
 
+bool CanvasWidget::move_press_drags_at(QPoint widget_position) const {
+  // Same order as mousePressEvent's Move branch (Ctrl and Shift gestures aside):
+  // artboard label, selected artboard, passive box interior on the pasteboard,
+  // Auto-Select off (the selection moves from anywhere), then the hit layer.
+  if (document_ == nullptr || edit_locked_) {
+    return false;
+  }
+  if (artboard_label_at(widget_position).has_value()) {
+    return true;
+  }
+  const auto& document = std::as_const(*document_);
+  const auto document_point = document_position(widget_position);
+  if (const auto id = selected_root_artboard_id(); id.has_value()) {
+    const auto* artboard = document.find_layer(*id);
+    if (artboard != nullptr && artboard->visible() && artboard->artboard().has_value() &&
+        artboard->artboard()->rect.contains(document_point.x(), document_point.y())) {
+      return true;
+    }
+  }
+  auto passive_handle = TransformHandle::None;
+  if (const auto rect = move_transform_controls_rect(); rect.has_value()) {
+    passive_handle = transform_handle_at(widget_position, *rect, 0.0, TransformHitZones::EdgesAndCorners);
+  }
+  const auto movable_under = [&](const Layer* root) {
+    std::vector<LayerId> ids;
+    if (root != nullptr) {
+      collect_movable_leaf_ids(*root, kLayerLockNone, ids);
+    }
+    return !ids.empty();
+  };
+  if (!auto_select_layer_ || (!document_contains(document_point) && passive_handle == TransformHandle::Move)) {
+    if (!movable_layer_ids().empty()) {
+      return true;
+    }
+    // With nothing active the press selects a one-layer document's only layer first.
+    if (document.active_layer_id().has_value()) {
+      return false;
+    }
+    const auto only = only_layer_id(document.layers());
+    return only.has_value() && movable_under(document.find_layer(*only));
+  }
+  return movable_under(auto_select_target_layer(topmost_move_layer_at(document_point, true)));
+}
+
 void CanvasWidget::clear_move_hover_outline() {
   if (!move_hover_outline_rect_.has_value()) {
     return;

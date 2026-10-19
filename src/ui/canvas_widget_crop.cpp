@@ -333,10 +333,12 @@ CanvasWidget::TransformHandle CanvasWidget::crop_handle_at(QPoint widget_point) 
   if (!crop_session_active_) {
     return TransformHandle::None;
   }
-  const auto handle = transform_handle_at(widget_point, QRectF(crop_rect_), crop_angle_);
-  // The shared hit-test reports the rotate stem hanging above the top edge;
-  // crop rotates by dragging anywhere outside the box instead, so those
-  // clicks must not grab a phantom handle.
+  const auto handle =
+      transform_handle_at(widget_point, QRectF(crop_rect_), crop_angle_, TransformHitZones::EdgesAndCorners);
+  // The shared hit-test reports the rotate stem hanging above the top edge and
+  // the bands just outside the corners; crop rotates by dragging anywhere
+  // outside the box instead, so those clicks must not grab a phantom handle.
+  // The edge bands resize like on the Move tool's box (GitHub issue 176).
   return handle == TransformHandle::Rotate ? TransformHandle::None : handle;
 }
 
@@ -385,6 +387,8 @@ void CanvasWidget::handle_crop_session_press(QMouseEvent* event) {
   crop_drag_handle_ = handle;
   crop_drag_start_rect_ = crop_rect_;
   crop_drag_start_point_ = document_position_f(event->position());
+  crop_drag_grab_offset_ =
+      transform_handle_grab_offset(handle, QRectF(crop_rect_), crop_angle_, crop_drag_start_point_);
 }
 
 void CanvasWidget::update_crop_rotate_drag(QPointF document_point, Qt::KeyboardModifiers modifiers) {
@@ -448,6 +452,9 @@ void CanvasWidget::update_crop_adjust_drag(QPointF document_point, Qt::KeyboardM
     return;
   }
 
+  // A handle grabbed beside its edge keeps the edge under the grab instead of
+  // jumping it to the pointer (GitHub issue 176's edge bands).
+  document_point += crop_drag_grab_offset_;
   // Handle drags on a rotated box work in the box's own frame: map the cursor
   // through the inverse rotation about the drag-start center, then run the
   // axis-aligned edge math there (the free-transform approach).

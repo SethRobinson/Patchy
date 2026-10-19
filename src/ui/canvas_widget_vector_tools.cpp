@@ -2426,10 +2426,40 @@ CanvasWidget::TransformHandle CanvasWidget::path_transform_handle_at(QPointF wid
   const QPointF delta = document_point - center;
   const QPointF local = center + QPointF(delta.x() * cos_a - delta.y() * sin_a,
                                          delta.x() * sin_a + delta.y() * cos_a);
-  if (rect.adjusted(-1.0, -1.0, 1.0, 1.0).contains(local)) {
-    return TransformHandle::Move;
+  const bool inside = rect.adjusted(-1.0, -1.0, 1.0, 1.0).contains(local);
+  // A band along each edge resizes that side (GitHub issue 176, the pixel
+  // session's rule): kEdgeBandPx outside the line, and inside at most a sixth of
+  // the shorter on-screen side, so a small box keeps its Move interior.
+  constexpr double kEdgeBandPx = 6.0;
+  std::array<QPointF, 4> screen{};
+  for (std::size_t i = 0; i < screen.size(); ++i) {
+    screen[i] = to_screen(corners[i]);
   }
-  return TransformHandle::Rotate;
+  const auto side_length = [&](std::size_t a, std::size_t b) {
+    return std::hypot(screen[b].x() - screen[a].x(), screen[b].y() - screen[a].y());
+  };
+  const auto inner_band = std::min(kEdgeBandPx, std::min(side_length(0, 1), side_length(1, 2)) / 6.0);
+  const std::array<TransformHandle, 4> edges = {TransformHandle::Top, TransformHandle::Right, TransformHandle::Bottom,
+                                                TransformHandle::Left};
+  for (std::size_t i = 0; i < edges.size(); ++i) {
+    const auto a = screen[i];
+    const auto b = screen[(i + 1) % screen.size()];
+    const QPointF ab = b - a;
+    const auto length_squared = ab.x() * ab.x() + ab.y() * ab.y();
+    if (length_squared < 1e-9) {
+      continue;
+    }
+    const QPointF ap = widget_point - a;
+    const auto t = (ap.x() * ab.x() + ap.y() * ab.y()) / length_squared;
+    if (t < 0.0 || t > 1.0) {
+      continue;
+    }
+    const auto distance = std::abs(ap.x() * ab.y() - ap.y() * ab.x()) / std::sqrt(length_squared);
+    if (distance <= (inside ? inner_band : kEdgeBandPx)) {
+      return edges[i];
+    }
+  }
+  return inside ? TransformHandle::Move : TransformHandle::Rotate;
 }
 
 bool CanvasWidget::handle_path_transform_press(QPointF document_point, QPointF widget_point) {

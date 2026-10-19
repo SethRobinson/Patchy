@@ -1262,6 +1262,13 @@ private:
     Rotate
   };
 
+  // Which areas of a transform box transform_handle_at reports (GitHub issue 176).
+  // HandlesOnly: the eight handle squares, the Rotate stem handle, and the inside
+  // (Move). EdgesAndCorners adds a band along each edge (that side's resize handle),
+  // a band just outside each corner (Rotate), and a Move core that a small box keeps
+  // ahead of its handles.
+  enum class TransformHitZones { HandlesOnly, EdgesAndCorners };
+
   enum class StrokeConstraintAxis {
     None,
     Horizontal,
@@ -2104,6 +2111,12 @@ private:
   [[nodiscard]] std::optional<QRect> move_hover_outline_rect_at(QPoint widget_position,
                                                                 Qt::KeyboardModifiers modifiers) const;
   void update_move_hover_outline(QPoint widget_position, Qt::KeyboardModifiers modifiers);
+  // Whether a plain left press here with the Move tool would drag something (a layer,
+  // the selected set, an artboard), mirroring the press handler (GitHub issue 170).
+  [[nodiscard]] bool move_press_drags_at(QPoint widget_position) const;
+  // The Move tool's idle cursor: transform-box zones, the four-way move cursor where
+  // a press drags, the move pointer (arrow with a move badge) where it selects.
+  void apply_move_tool_cursor(QPoint widget_position);
   void clear_move_hover_outline();
   [[nodiscard]] QRect moving_layer_outline_rect(const MovingLayer& moving_layer, QPoint delta) const;
   // The document rect the layer dirties at `delta`: bounds shifted, padded by
@@ -2124,7 +2137,8 @@ private:
   void active_edit_target_changed_impl(QRegion document_region,
                                        DocumentChangeReason reason = DocumentChangeReason::Immediate);
   void notify_document_changed(DocumentChangeReason reason = DocumentChangeReason::Immediate);
-  void set_transform_cursor_for_handle(TransformHandle handle);
+  // Resize cursors follow the box's on-screen rotation (angle in degrees).
+  void set_transform_cursor_for_handle(TransformHandle handle, double angle_degrees = 0.0);
   void update_move_transform_controls_dirty(std::optional<QRectF> old_rect);
   [[nodiscard]] std::optional<QRectF> transform_controls_rect_for_layer(const Layer& layer) const;
   [[nodiscard]] std::optional<QRectF> move_transform_target_rect() const;
@@ -2149,9 +2163,14 @@ private:
   [[nodiscard]] QRect transform_preview_document_rect() const;
   void update_transform_preview_region(QRect previous_document_rect);
   [[nodiscard]] const QImage& transform_base_display_image_for_zoom();
-  [[nodiscard]] TransformHandle transform_handle_at(QPoint widget_point) const;
-  [[nodiscard]] TransformHandle transform_handle_at(QPoint widget_point, QRectF document_rect,
-                                                    double angle_degrees) const;
+  [[nodiscard]] TransformHandle transform_handle_at(
+      QPoint widget_point, TransformHitZones zones = TransformHitZones::EdgesAndCorners) const;
+  [[nodiscard]] TransformHandle transform_handle_at(QPoint widget_point, QRectF document_rect, double angle_degrees,
+                                                    TransformHitZones zones = TransformHitZones::HandlesOnly) const;
+  // Document offset that, added to the pointer, keeps the grabbed side exactly
+  // where it was at the press (so a grab beside an edge never jumps it).
+  [[nodiscard]] QPointF transform_handle_grab_offset(TransformHandle handle, QRectF document_rect,
+                                                     double angle_degrees, QPointF document_press) const;
   [[nodiscard]] QPointF transform_handle_position(TransformHandle handle) const;
   [[nodiscard]] QPointF transform_handle_position(TransformHandle handle, QRectF document_rect,
                                                   double angle_degrees) const;
@@ -2629,6 +2648,7 @@ private:
   QRect crop_rect_;
   QRect crop_drag_start_rect_;
   QPointF crop_drag_start_point_;
+  QPointF crop_drag_grab_offset_;
   double crop_angle_{0.0};
   double crop_rotate_start_angle_{0.0};
   double crop_rotate_start_vector_degrees_{0.0};
@@ -2972,6 +2992,7 @@ private:
   QRectF transform_current_rect_{};
   QRectF transform_drag_start_rect_{};
   QPointF transform_drag_start_point_{};
+  QPointF transform_drag_grab_offset_{};
   TransformHandle transform_drag_handle_{TransformHandle::None};
   double transform_angle_{0.0};
   double transform_start_angle_{0.0};

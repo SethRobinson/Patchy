@@ -18,4 +18,10 @@ namespace patchy::ui {
 // hotspot at its center. Built once and cached.
 [[nodiscard]] QCursor rotate_cursor();
 
+// The Move tool's pointer where a press selects rather than drags (GitHub issue 170):
+// an arrow with a small four-way move badge at its lower right, hotspot on the arrow
+// tip. Over draggable content the tool shows the plain four-way move cursor instead.
+// Built once and cached.
+[[nodiscard]] QCursor move_pointer_cursor();
+
 }  // namespace patchy::ui

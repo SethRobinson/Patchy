@@ -2655,34 +2655,49 @@ bool CanvasWidget::set_transform_controls_state(QPointF reference_position, doub
   return true;
 }
 
-void CanvasWidget::set_transform_cursor_for_handle(TransformHandle handle) {
+void CanvasWidget::set_transform_cursor_for_handle(TransformHandle handle, double angle_degrees) {
+  // A resize handle's outward direction in screen degrees (y down, clockwise),
+  // turned with the box, picks the nearest of the four resize cursors.
+  double direction = 0.0;
   switch (handle) {
     case TransformHandle::Move:
       setCursor(Qt::SizeAllCursor);
-      break;
+      return;
     case TransformHandle::Rotate:
       setCursor(rotate_cursor());
-      break;
-    case TransformHandle::Top:
-    case TransformHandle::Bottom:
-      setCursor(Qt::SizeVerCursor);
-      break;
-    case TransformHandle::Left:
-    case TransformHandle::Right:
-      setCursor(Qt::SizeHorCursor);
-      break;
-    case TransformHandle::TopLeft:
-    case TransformHandle::BottomRight:
-      setCursor(Qt::SizeFDiagCursor);
-      break;
-    case TransformHandle::TopRight:
-    case TransformHandle::BottomLeft:
-      setCursor(Qt::SizeBDiagCursor);
-      break;
+      return;
     case TransformHandle::None:
       setCursor(Qt::ArrowCursor);
+      return;
+    case TransformHandle::Right:
+      direction = 0.0;
+      break;
+    case TransformHandle::BottomRight:
+      direction = 45.0;
+      break;
+    case TransformHandle::Bottom:
+      direction = 90.0;
+      break;
+    case TransformHandle::BottomLeft:
+      direction = 135.0;
+      break;
+    case TransformHandle::Left:
+      direction = 180.0;
+      break;
+    case TransformHandle::TopLeft:
+      direction = 225.0;
+      break;
+    case TransformHandle::Top:
+      direction = 270.0;
+      break;
+    case TransformHandle::TopRight:
+      direction = 315.0;
       break;
   }
+  const auto step = static_cast<long>(std::lround((direction + angle_degrees) / 45.0));
+  static constexpr std::array<Qt::CursorShape, 4> kResizeCursors = {Qt::SizeHorCursor, Qt::SizeFDiagCursor,
+                                                                    Qt::SizeVerCursor, Qt::SizeBDiagCursor};
+  setCursor(kResizeCursors[static_cast<std::size_t>(((step % 4) + 4) % 4)]);
 }
 
 QPointF CanvasWidget::transform_handle_position(TransformHandle handle) const {
@@ -2868,26 +2883,110 @@ void CanvasWidget::draw_move_transform_controls(QPainter& painter) const {
   draw_transform_controls(painter, *rect, 0.0);
 }
 
-CanvasWidget::TransformHandle CanvasWidget::transform_handle_at(QPoint widget_point) const {
+CanvasWidget::TransformHandle CanvasWidget::transform_handle_at(QPoint widget_point, TransformHitZones zones) const {
   if (!transforming_layer_) {
     return TransformHandle::None;
   }
-  return transform_handle_at(widget_point, transform_current_rect_, transform_angle_);
+  return transform_handle_at(widget_point, transform_current_rect_, transform_angle_, zones);
 }
 
 CanvasWidget::TransformHandle CanvasWidget::transform_handle_at(QPoint widget_point, QRectF document_rect,
-                                                                double angle_degrees) const {
+                                                                double angle_degrees, TransformHitZones zones) const {
   constexpr double kHandleHit = 14.0;
+  // EdgesAndCorners (GitHub issue 176), in widget pixels of the box's own frame:
+  // each edge resizes within kEdgeGrabOutside outside its line and up to half a
+  // handle square inside it, and a press within kCornerRotateReach of a corner,
+  // outside the box, rotates. Inside, the edge band shrinks to a third of the
+  // half-extent, so a small box keeps a Move core that wins over its handle
+  // squares (which used to cover all of it); from 42 px up the core starts
+  // exactly where the squares end, leaving the handle hits as they were.
+  constexpr double kEdgeGrabOutside = 6.0;
+  constexpr double kCornerRotateReach = 24.0;
+  const bool forgiving = zones == TransformHitZones::EdgesAndCorners;
+  QPointF local;
+  double half_width = 0.0;
+  double half_height = 0.0;
+  double inner_x = 0.0;
+  double inner_y = 0.0;
+  if (forgiving) {
+    const auto widget_rect = widget_rect_for_document_rect(document_rect);
+    half_width = widget_rect.width() / 2.0;
+    half_height = widget_rect.height() / 2.0;
+    local = rotate_offset(QPointF(widget_point) - widget_rect.center(), -angle_degrees);
+    inner_x = std::min(kHandleHit / 2.0, half_width / 3.0);
+    inner_y = std::min(kHandleHit / 2.0, half_height / 3.0);
+    if (std::abs(local.x()) < half_width - inner_x && std::abs(local.y()) < half_height - inner_y) {
+      return TransformHandle::Move;
+    }
+  }
   const std::array<TransformHandle, 9> handles = {
       TransformHandle::Rotate,     TransformHandle::TopLeft, TransformHandle::Top,
       TransformHandle::TopRight,   TransformHandle::Right,   TransformHandle::BottomRight,
       TransformHandle::Bottom,     TransformHandle::BottomLeft, TransformHandle::Left};
+  // On a box under 42 px the squares overlap; the forgiving zones take the
+  // nearest hit square (a corner beside its corner, not a neighboring edge).
+  auto nearest = TransformHandle::None;
+  auto nearest_distance = 0.0;
   for (const auto handle : handles) {
     const auto point = transform_handle_position(handle, document_rect, angle_degrees);
     const QRectF hit_rect(point.x() - kHandleHit / 2.0, point.y() - kHandleHit / 2.0, kHandleHit, kHandleHit);
-    if (hit_rect.contains(widget_point)) {
+    if (!hit_rect.contains(widget_point)) {
+      continue;
+    }
+    if (!forgiving || handle == TransformHandle::Rotate) {
       return handle;
     }
+    const auto distance = std::hypot(point.x() - widget_point.x(), point.y() - widget_point.y());
+    if (nearest == TransformHandle::None || distance < nearest_distance) {
+      nearest = handle;
+      nearest_distance = distance;
+    }
+  }
+  if (nearest != TransformHandle::None) {
+    return nearest;
+  }
+
+  if (forgiving) {
+    const auto within_x = std::abs(local.x()) <= half_width;
+    const auto within_y = std::abs(local.y()) <= half_height;
+    // `outward` is the side's outward sign; positive offsets lie outside the box.
+    const auto near_line = [](double coordinate, double line, double outward, double inward) {
+      const auto offset = (coordinate - line) * outward;
+      return offset <= kEdgeGrabOutside && offset >= -inward;
+    };
+    const auto left = within_y && near_line(local.x(), -half_width, -1.0, inner_x);
+    const auto right = within_y && near_line(local.x(), half_width, 1.0, inner_x);
+    const auto top = within_x && near_line(local.y(), -half_height, -1.0, inner_y);
+    const auto bottom = within_x && near_line(local.y(), half_height, 1.0, inner_y);
+    if (top && left) {
+      return TransformHandle::TopLeft;
+    }
+    if (top && right) {
+      return TransformHandle::TopRight;
+    }
+    if (bottom && left) {
+      return TransformHandle::BottomLeft;
+    }
+    if (bottom && right) {
+      return TransformHandle::BottomRight;
+    }
+    if (top) {
+      return TransformHandle::Top;
+    }
+    if (bottom) {
+      return TransformHandle::Bottom;
+    }
+    if (left) {
+      return TransformHandle::Left;
+    }
+    if (right) {
+      return TransformHandle::Right;
+    }
+    if (within_x && within_y) {
+      return TransformHandle::Move;
+    }
+    const auto corner_distance = std::hypot(std::abs(local.x()) - half_width, std::abs(local.y()) - half_height);
+    return corner_distance <= kCornerRotateReach ? TransformHandle::Rotate : TransformHandle::None;
   }
 
   QPolygonF polygon;
@@ -2903,9 +3002,49 @@ CanvasWidget::TransformHandle CanvasWidget::transform_handle_at(QPoint widget_po
   return TransformHandle::None;
 }
 
+QPointF CanvasWidget::transform_handle_grab_offset(TransformHandle handle, QRectF document_rect,
+                                                  double angle_degrees, QPointF document_press) const {
+  const QPointF half(document_rect.width() / 2.0, document_rect.height() / 2.0);
+  const auto press = rotate_offset(document_press - document_rect.center(), -angle_degrees);
+  QPointF offset;
+  switch (handle) {
+    case TransformHandle::TopLeft:
+      offset = -half - press;
+      break;
+    case TransformHandle::Top:
+      offset = QPointF(0.0, -half.y() - press.y());
+      break;
+    case TransformHandle::TopRight:
+      offset = QPointF(half.x() - press.x(), -half.y() - press.y());
+      break;
+    case TransformHandle::Right:
+      offset = QPointF(half.x() - press.x(), 0.0);
+      break;
+    case TransformHandle::BottomRight:
+      offset = half - press;
+      break;
+    case TransformHandle::Bottom:
+      offset = QPointF(0.0, half.y() - press.y());
+      break;
+    case TransformHandle::BottomLeft:
+      offset = QPointF(-half.x() - press.x(), half.y() - press.y());
+      break;
+    case TransformHandle::Left:
+      offset = QPointF(-half.x() - press.x(), 0.0);
+      break;
+    case TransformHandle::None:
+    case TransformHandle::Move:
+    case TransformHandle::Rotate:
+      return {};
+  }
+  return rotate_offset(offset, angle_degrees);
+}
+
 void CanvasWidget::update_free_transform_preview(QPointF document_point, Qt::KeyboardModifiers modifiers) {
   if (transform_drag_handle_ != TransformHandle::Rotate) {
-    document_point = snapped_document_point_f(document_point);
+    // A scale handle grabbed beside its line follows the pointer from where it
+    // sits (the offset is zero for Move), so the press never jumps the edge.
+    document_point = snapped_document_point_f(document_point + transform_drag_grab_offset_);
   }
   const auto previous_preview_rect = transform_preview_document_rect();
   auto rect = transform_drag_start_rect_;

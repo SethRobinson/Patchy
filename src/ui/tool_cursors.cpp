@@ -129,6 +129,47 @@ QCursor build_rotate_cursor() {
   return QCursor(pixmap, 16, 16);
 }
 
+// A plain arrow pointer (tip at the hotspot) with a four-way move badge below
+// right of it: four short arms, each ending in a solid arrowhead. Same
+// dark-halo/light-ink passes as the other tool cursors.
+QCursor build_move_pointer_cursor() {
+  constexpr int kSize = 32;
+  QPixmap pixmap(kSize, kSize);
+  pixmap.fill(Qt::transparent);
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+
+  const QPolygonF arrow({QPointF(2.5, 2.5), QPointF(2.5, 18.5), QPointF(6.5, 14.8), QPointF(9.4, 21.2),
+                         QPointF(12.0, 20.0), QPointF(9.2, 13.8), QPointF(14.5, 13.8)});
+  painter.setPen(QPen(QColor(20, 23, 28), 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+  painter.setBrush(QColor(245, 248, 252));
+  painter.drawPolygon(arrow);
+
+  const QPointF center(22.5, 22.5);
+  constexpr double kArm = 6.5;
+  const std::array<QPointF, 4> directions = {QPointF(1.0, 0.0), QPointF(-1.0, 0.0), QPointF(0.0, 1.0),
+                                             QPointF(0.0, -1.0)};
+  const auto pass = [&](const QColor& color, double arm_width, double head_rim) {
+    painter.setPen(QPen(color, arm_width, Qt::SolidLine, Qt::FlatCap));
+    painter.setBrush(Qt::NoBrush);
+    painter.drawLine(center - QPointF(kArm - 2.0, 0.0), center + QPointF(kArm - 2.0, 0.0));
+    painter.drawLine(center - QPointF(0.0, kArm - 2.0), center + QPointF(0.0, kArm - 2.0));
+    painter.setPen(QPen(color, head_rim, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter.setBrush(color);
+    for (const auto& direction : directions) {
+      const QPointF normal(-direction.y(), direction.x());
+      const auto tip = center + direction * kArm;
+      const auto base = center + direction * (kArm - 3.0);
+      painter.drawPolygon(QPolygonF({tip, base + normal * 2.6, base - normal * 2.6}));
+    }
+  };
+  pass(QColor(20, 23, 28), 3.6, 2.6);     // dark halo
+  pass(QColor(245, 248, 252), 1.6, 0.6);  // light core
+  painter.end();
+
+  return QCursor(pixmap, 3, 3);
+}
+
 }  // namespace
 
 QCursor eyedropper_cursor() {
@@ -146,6 +187,12 @@ QCursor eyedropper_target_cursor(bool background) {
 QCursor rotate_cursor() {
   // Built once and reused: crop hover re-applies it on every mouse move.
   static const QCursor cursor = build_rotate_cursor();
+  return cursor;
+}
+
+QCursor move_pointer_cursor() {
+  // Built once and reused: the Move tool re-applies it on every mouse move.
+  static const QCursor cursor = build_move_pointer_cursor();
   return cursor;
 }
 
