@@ -140,7 +140,9 @@ the save is not an export (`export_copy`) and no explicit CMYK color form was as
 Photoshop acceptance: `tiff_layers_writer_acceptance_files_if_available` writes local
 Photoshop PSDs and the synthetic document at 8, 16 and 32 bits as layered TIFFs into
 `test-artifacts/layered-tiff-acceptance`; `scripts\dev\photoshop-open-check.ps1` opens them in
-Photoshop and reports CLEAN, UNKNOWN-DATA, or DIALOG with the dialog's text.
+Photoshop and reports CLEAN, UNKNOWN-DATA, or DIALOG with the dialog's text. Photoshop 2026
+opened all 15 such files CLEAN, and its layer inventories (`-InventoryDir`: depth, kind, name,
+visibility, bounds) match its inventories of the source PSDs layer for layer.
 
 ## Tests
 
