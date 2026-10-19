@@ -278,7 +278,8 @@ void GmicParameterPanel::set_filter(const gmic::Filter& filter, const std::vecto
           std::string value = std::to_string(color->red()) + "," + std::to_string(color->green()) + "," +
                               std::to_string(color->blue());
           if (alpha != nullptr) {
-            value += "," + std::to_string(alpha->value());
+            value += ',';
+            value += std::to_string(alpha->value());
           }
           return value;
         };

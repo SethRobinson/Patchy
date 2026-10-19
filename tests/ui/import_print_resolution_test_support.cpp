@@ -80,7 +80,7 @@ patchy::Layer solid_rect_shape_layer(patchy::Document& document, const char* nam
     content.stroke.content.color = {20, 20, 20};
   }
   patchy::Layer layer(document.allocate_layer_id(), name, patchy::LayerKind::Pixel);
-  layer.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+  layer.metadata()[patchy::kLayerMetadataVectorShape] = std::string("1");
   patchy::mark_layer_vector_block_dirty(layer);
   layer.set_vector_shape(std::move(content));
   patchy::update_vector_shape_raster(layer, patchy::Rect::from_size(document.width(), document.height()),
