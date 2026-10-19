@@ -3432,6 +3432,14 @@ void ScriptUiObject::setSidePanelWidth(int width) { const ScriptApiCall api_call
 
 void ScriptUiObject::setStatusMessage(const QString& message) { const ScriptApiCall api_call(host_); host_.set_status_message(message); }
 
+void ScriptUiObject::expandPanel(const QString& name) { const ScriptApiCall api_call(host_); host_.expand_side_panel(name); }
+
+void ScriptUiObject::collapsePanel(const QString& name) { const ScriptApiCall api_call(host_); host_.collapse_side_panel(name); }
+
+void ScriptUiObject::closePanel(const QString& name) { const ScriptApiCall api_call(host_); host_.close_side_panel(name); }
+
+QJSValue ScriptUiObject::panelState(const QString& name) { const ScriptApiCall api_call(host_); return host_.side_panel_state(name); }
+
 double ScriptUiObject::zoom() const { const ScriptApiCall api_call(host_); return host_.view_zoom_percent(); }
 
 void ScriptUiObject::set_zoom(double percent) {

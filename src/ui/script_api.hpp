@@ -579,6 +579,14 @@ public:
   Q_INVOKABLE bool captureWindow(const QString& path);
   // Shows a message in the main window's status bar (progress readouts).
   Q_INVOKABLE void setStatusMessage(const QString& message);
+  // The right column's panels by permanent name ("layers", "channels", "paths",
+  // "history", "properties", "info", "palette"); unknown names throw.
+  // expandPanel reopens a closed panel, brings its tab to the front and expands
+  // it; panelState returns {open, front, expanded}.
+  Q_INVOKABLE void expandPanel(const QString& name);
+  Q_INVOKABLE void collapsePanel(const QString& name);
+  Q_INVOKABLE void closePanel(const QString& name);
+  Q_INVOKABLE QJSValue panelState(const QString& name);
   // The active document's view zoom in percent (0 with no document). Setting
   // clamps like the status bar; throws for NaN/non-positive values or with no
   // document. Only window captures see the view, never document previews.

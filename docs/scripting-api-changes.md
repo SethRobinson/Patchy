@@ -8,6 +8,12 @@ Remove Object, Align/Distribute and smart objects) are in
 [scripting-api-changes-through-2026-09-30.md](scripting-api-changes-through-2026-09-30.md).
 Every entry below is API 1.
 
+2026-10-19 (additive): right-column panels. `patchy.ui.expandPanel(name)` (the Window menu
+entry's show: reopen, front tab, expand), `collapsePanel(name)`, `closePanel(name)` and
+`panelState(name)` (`{open, front, expanded}`); unknown names throw. Permanent identifiers:
+the four names and the panel names `layers`, `channels`, `paths`, `history`, `properties`,
+`info`, `palette` (d.ts `PatchyPanelName`). Pinned by `ui_script_ui_side_panels_*` and
+`ui_script_ui_expand_panel_in_cli_capture`.
 2026-10-18 (behavioral): `patchy.ui.zoom` clamps to 0.01..12800 (was 5..12800), Photoshop's
 range, as the view now zooms out to 0.01%. Pinned by `ui_script_ui_view_zoom`.
 2026-10-18 (behavioral, Photoshop parity): `selection.selectAll()` selects the active

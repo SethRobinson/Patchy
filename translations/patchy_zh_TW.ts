@@ -23517,6 +23517,10 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <source>exportPdf pages must be &quot;artboards&quot;, &quot;groups&quot; or &quot;canvas&quot;.</source>
         <translation>exportPdf pages 必須是 &quot;artboards&quot;、&quot;groups&quot; 或 &quot;canvas&quot;。</translation>
     </message>
+    <message>
+        <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
+        <translation>未知的面板 &quot;%1&quot;。面板：%2。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

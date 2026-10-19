@@ -503,6 +503,16 @@ public:
   // patchy.ui.setStatusMessage: the status bar line (progress readouts, and
   // staging a clean "Ready" before a capture).
   void set_status_message(const QString& message);
+  // patchy.ui.expandPanel/collapsePanel/closePanel/panelState: the right column's
+  // panels by their permanent script names ("layers", "properties", ...; see
+  // script_side_panel_names). Expanding is the Window menu's show: reopen, bring
+  // the tab to the front, expand. Unknown names throw.
+  void expand_side_panel(const QString& name);
+  void collapse_side_panel(const QString& name);
+  void close_side_panel(const QString& name);
+  [[nodiscard]] QJSValue side_panel_state(const QString& name);
+  // The panel id for a script name; throws (returning "") when the name is unknown.
+  [[nodiscard]] QString side_panel_id(const QString& name);
   // patchy.ui.zoom / patchy.ui.fitOnScreen: the active document's canvas view
   // in percent (0 with no document). Setting throws with no document and
   // clamps like the status bar; fitting settles pending layout first so an

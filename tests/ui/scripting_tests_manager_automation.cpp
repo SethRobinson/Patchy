@@ -22,6 +22,7 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFontMetrics>
 #include <QEventLoop>
 #include <QFile>
@@ -1021,6 +1022,121 @@ void ui_script_ui_staging_apis() {
   CHECK(!run_script(window, QStringLiteral("patchy.ui.captureWindow('');")));
 }
 
+void ui_script_ui_side_panels_expand_collapse_close() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
+  CHECK(column != nullptr);
+  const auto properties = QStringLiteral("propertiesDock");
+  auto* section = column->section_widget(properties);
+  CHECK(section != nullptr);
+  // Every panel but the Layers group starts collapsed: a title row only.
+  CHECK(!column->panel_expanded(properties));
+  const auto collapsed_height = section->height();
+
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    function state(name) {
+      var s = patchy.ui.panelState(name);
+      return s.open + ',' + s.front + ',' + s.expanded;
+    }
+    console.log('before=' + state('properties'));
+    patchy.ui.expandPanel('properties');
+    console.log('after=' + state('properties'));
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("before=true,true,false")));
+  CHECK(backlog_contains(window, QStringLiteral("after=true,true,true")));
+  CHECK(column->panel_expanded(properties));
+  QApplication::processEvents();
+  auto* page = column->panel_page(properties);
+  CHECK(page != nullptr && page->isVisible());
+  CHECK(section->height() > collapsed_height + 40);
+
+  // A background tab comes to the front of its group; a closed panel reopens.
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    patchy.ui.expandPanel('channels');
+    patchy.ui.closePanel('history');
+    console.log('channels=' + patchy.ui.panelState('channels').front +
+                ' layers=' + patchy.ui.panelState('layers').front +
+                ' history=' + patchy.ui.panelState('history').open);
+    patchy.ui.expandPanel('history');
+    patchy.ui.collapsePanel('properties');
+    var h = patchy.ui.panelState('history');
+    console.log('reopened=' + h.open + ',' + h.expanded +
+                ' collapsed=' + patchy.ui.panelState('properties').expanded);
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("channels=true layers=false history=false")));
+  CHECK(backlog_contains(window, QStringLiteral("reopened=true,true collapsed=false")));
+  CHECK(column->panel_in_front(QStringLiteral("channelsDock")));
+  CHECK(column->panel_visible(QStringLiteral("historyDock")));
+  CHECK(column->panel_expanded(QStringLiteral("historyDock")));
+  CHECK(!column->panel_expanded(properties));
+
+  // Names are exact permanent identifiers: unknown or differently cased ones throw.
+  CHECK(!run_script(window, QStringLiteral("patchy.ui.expandPanel('Properties');")));
+  CHECK(backlog_contains(window, QStringLiteral("Unknown panel \"Properties\"")));
+  CHECK(!run_script(window, QStringLiteral("patchy.ui.panelState('character');")));
+  CHECK(!run_script(window, QStringLiteral("patchy.ui.closePanel('');")));
+  CHECK(!run_script(window, QStringLiteral("patchy.ui.collapsePanel('propertiesDock');")));
+  CHECK(!column->panel_expanded(properties));
+  CHECK(column->panel_visible(properties));
+}
+
+// The README/showcase flow: a --run-script file run unattended (the --headless CLI
+// path) expands Properties and captures the window with it open.
+void ui_script_ui_expand_panel_in_cli_capture() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.set_cli_automation_mode(true);
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const auto capture_path = QStringLiteral("test-artifacts/ui_script_expand_panel_capture.png");
+  QFile::remove(capture_path);
+  const auto write_script = [&](const QString& name, const QByteArray& source) {
+    const auto path = temp.filePath(name);
+    QFile file(path);
+    CHECK(file.open(QIODevice::WriteOnly | QIODevice::Text));
+    file.write(source);
+    return path;
+  };
+  const auto read_output = [&](const QString& script_path) {
+    const auto output_path = script_path + QStringLiteral(".out.txt");
+    window.run_script_command(script_path, output_path);
+    wait_for_run_end(window.script_engine_host());
+    QElapsedTimer timer;
+    timer.start();
+    while (!QFile::exists(output_path) && timer.elapsed() < 5000) {
+      QApplication::processEvents(QEventLoop::ExcludeUserInputEvents, 20);
+    }
+    QFile output(output_path);
+    CHECK(output.open(QIODevice::ReadOnly | QIODevice::Text));
+    return QString::fromUtf8(output.readAll());
+  };
+
+  const auto shot = read_output(write_script(QStringLiteral("expand-properties.js"), R"JS(
+    var doc = app.newDocument(640, 480);
+    doc.addArtboard('Phone', {x: 40, y: 40, width: 240, height: 400});
+    patchy.ui.setWindowSize(1280, 800);
+    patchy.ui.expandPanel('properties');
+    var s = patchy.ui.panelState('properties');
+    console.log('expanded=' + s.expanded);
+    if (!patchy.ui.captureWindow('test-artifacts/ui_script_expand_panel_capture.png')) {
+      throw new Error('captureWindow returned false');
+    }
+  )JS"));
+  CHECK(shot.contains(QStringLiteral("expanded=true")));
+  CHECK(shot.endsWith(QStringLiteral("[done]\n")));
+  auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
+  CHECK(column != nullptr && column->panel_expanded(QStringLiteral("propertiesDock")));
+  const QImage captured(capture_path);
+  CHECK(!captured.isNull());
+  CHECK(captured.width() == 1280);
+
+  const auto failed = read_output(write_script(QStringLiteral("unknown-panel.js"), "patchy.ui.expandPanel('swatches');\n"));
+  CHECK(failed.contains(QStringLiteral("[error]")));
+  CHECK(failed.contains(QStringLiteral("Unknown panel \"swatches\"")));
+  CHECK(failed.endsWith(QStringLiteral("[failed]\n")));
+}
+
 void ui_script_active_layer_setter_reveals_row() {
   patchy::Document document(48, 36, patchy::PixelFormat::rgba8());
   document.add_layer(patchy::Layer(document.allocate_layer_id(), "Base", patchy::PixelBuffer{}));
@@ -1382,6 +1498,8 @@ std::vector<patchy::test::TestCase> scripting_tests_part3() {
       {"ui_ai_setup_examples_keep_installation_prompt_stable", ui_ai_setup_examples_keep_installation_prompt_stable},
       {"ui_script_ui_view_zoom", ui_script_ui_view_zoom},
       {"ui_script_ui_staging_apis", ui_script_ui_staging_apis},
+      {"ui_script_ui_side_panels_expand_collapse_close", ui_script_ui_side_panels_expand_collapse_close},
+      {"ui_script_ui_expand_panel_in_cli_capture", ui_script_ui_expand_panel_in_cli_capture},
       {"ui_script_active_layer_setter_reveals_row", ui_script_active_layer_setter_reveals_row},
       {"ui_script_webp_animation_export_preserves_document_and_validates_options", ui_script_webp_animation_export_preserves_document_and_validates_options},
       {"ui_script_io_round_trips_unicode_path", ui_script_io_round_trips_unicode_path},

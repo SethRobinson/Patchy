@@ -23659,6 +23659,10 @@ Patchy может скачать обновление, заменить этот
         <source>exportPdf pages must be &quot;artboards&quot;, &quot;groups&quot; or &quot;canvas&quot;.</source>
         <translation>exportPdf pages должен быть &quot;artboards&quot;, &quot;groups&quot; или &quot;canvas&quot;.</translation>
     </message>
+    <message>
+        <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
+        <translation>Неизвестная панель &quot;%1&quot;. Панели: %2.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

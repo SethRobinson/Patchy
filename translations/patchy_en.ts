@@ -23515,6 +23515,10 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <source>exportPdf pages must be &quot;artboards&quot;, &quot;groups&quot; or &quot;canvas&quot;.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

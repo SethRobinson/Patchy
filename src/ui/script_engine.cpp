@@ -30,6 +30,7 @@
 #include "ui/main_window.hpp"
 #include "ui/mcp_activity.hpp"
 #include "ui/pdf_export.hpp"
+#include "ui/panel_column.hpp"
 #include <QScopedValueRollback>
 #include "ui/localization.hpp"
 #include "ui/qt_geometry.hpp"
@@ -3597,6 +3598,75 @@ void ScriptEngineHost::set_side_panel_width(int width) {
 void ScriptEngineHost::set_status_message(const QString& message) {
   pump_progress_indicator();
   window_.statusBar()->showMessage(message);
+}
+
+namespace {
+
+// patchy.ui panel names: permanent script identifiers, mapped to the panel ids the
+// saved layout stores (docs/right-docks.md). Append only; never rename one.
+struct ScriptSidePanel {
+  const char* script_name;
+  const char* panel_id;
+};
+constexpr ScriptSidePanel kScriptSidePanels[] = {
+    {"layers", "layersDock"},   {"channels", "channelsDock"},     {"paths", "pathsDock"},
+    {"history", "historyDock"}, {"properties", "propertiesDock"}, {"info", "infoDock"},
+    {"palette", "paletteDock"},
+};
+
+}  // namespace
+
+QString ScriptEngineHost::side_panel_id(const QString& name) {
+  const auto* column = window_.panel_column_;
+  for (const auto& panel : kScriptSidePanels) {
+    const auto id = QString::fromLatin1(panel.panel_id);
+    if (name == QLatin1String(panel.script_name) && column != nullptr && column->has_panel(id)) {
+      return id;
+    }
+  }
+  QStringList names;
+  for (const auto& panel : kScriptSidePanels) {
+    names.append(QLatin1Char('"') + QLatin1String(panel.script_name) + QLatin1Char('"'));
+  }
+  throw_js_error(tr("Unknown panel \"%1\". Panels: %2.").arg(name, names.join(QStringLiteral(", "))));
+  return {};
+}
+
+void ScriptEngineHost::expand_side_panel(const QString& name) {
+  pump_progress_indicator();
+  const auto id = side_panel_id(name);
+  if (!id.isEmpty()) {
+    window_.show_panel(id);
+  }
+}
+
+void ScriptEngineHost::collapse_side_panel(const QString& name) {
+  pump_progress_indicator();
+  const auto id = side_panel_id(name);
+  if (!id.isEmpty()) {
+    window_.panel_column_->set_panel_expanded(id, false);
+  }
+}
+
+void ScriptEngineHost::close_side_panel(const QString& name) {
+  pump_progress_indicator();
+  const auto id = side_panel_id(name);
+  if (!id.isEmpty()) {
+    window_.panel_column_->set_panel_visible(id, false);
+  }
+}
+
+QJSValue ScriptEngineHost::side_panel_state(const QString& name) {
+  const auto id = side_panel_id(name);
+  if (id.isEmpty()) {
+    return QJSValue(QJSValue::UndefinedValue);
+  }
+  const auto* column = window_.panel_column_;
+  auto state = engine()->newObject();
+  state.setProperty(QStringLiteral("open"), column->panel_visible(id));
+  state.setProperty(QStringLiteral("front"), column->panel_in_front(id));
+  state.setProperty(QStringLiteral("expanded"), column->panel_expanded(id));
+  return state;
 }
 
 double ScriptEngineHost::view_zoom_percent() const {

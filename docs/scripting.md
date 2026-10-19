@@ -263,6 +263,9 @@ script is resolved.
 - **`patchy.ui.zoom` / `patchy.ui.fitOnScreen()`** are the view controls (percent of
   device pixels, active document); fitting settles posted layout first. Window captures
   wait for [Dynamic Vector Preview](vector-preview.md).
+- **`patchy.ui.expandPanel`/`collapsePanel`/`closePanel`/`panelState`** take permanent
+  lowercase names that `kScriptSidePanels` (script_engine.cpp) maps to the panel ids of
+  [right-docks.md](right-docks.md); a new panel appends a name, none is ever renamed.
 - The script canvas window deliberately bypasses `run_non_modal_dialog` (its nested
   event loop would park the running script) and applies `keep_dialog_above_parent_window`
   directly, the macOS-critical part of the rule. The editor dialog uses

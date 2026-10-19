@@ -38,7 +38,7 @@ Panel heights must never pin the window taller.
 ## Showing, hiding and the header menu
 
 - **Showing and hiding.** `PanelColumn::set_panel_visible` closes or reopens a panel. In the group it hides the tab, passes the front to the next open tab, and hides the section once no tab is open. A reopened section takes its preferred height back from its neighbors. Every section always spans the column's full width (`ui_panel_close_and_reopen_keeps_full_width`). The old dock column could re-dock a reopened panel narrower, with the window background beside it.
-- **Header menu.** Right-clicking a title row or a tab emits `header_context_menu_requested`, and `show_panel_header_menu` opens `panelHeaderMenu`. It holds Collapse Panel or Expand Panel, then Close Panel (Close Tab Group on the tab bar, which closes every tab of the group), the panel and toolbar toggles, and Reset Panels (`ui_panel_header_right_click_opens_panel_menu`). The palette-mode status chip calls `show_panel("paletteDock")`.
+- **Header menu.** Right-clicking a title row or a tab emits `header_context_menu_requested`, and `show_panel_header_menu` opens `panelHeaderMenu`. It holds Collapse Panel or Expand Panel, then Close Panel (Close Tab Group on the tab bar, which closes every tab of the group), the panel and toolbar toggles, and Reset Panels (`ui_panel_header_right_click_opens_panel_menu`). The palette-mode status chip calls `show_panel("paletteDock")`, and `patchy.ui.expandPanel` does the same by script name ([scripting.md](scripting.md)).
 
 ## Reordering
 

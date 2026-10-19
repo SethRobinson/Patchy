@@ -249,6 +249,8 @@ interface PatchySmartObjectState {
 
 /** An artboard's background: "color" paints `color`. */
 type PatchyArtboardBackground = "white" | "black" | "transparent" | "color";
+/** The right column's panels, by permanent name (patchy.ui.expandPanel and friends). */
+type PatchyPanelName = "layers" | "channels" | "paths" | "history" | "properties" | "info" | "palette";
 
 /** An artboard's rect (document pixels) and background, as layer.artboard reads it. */
 interface PatchyArtboard {
@@ -1264,6 +1266,23 @@ interface PatchyUi {
   captureWindow(path: string): boolean;
   /** Shows a message in the main window's status bar (progress readouts). */
   setStatusMessage(message: string): void;
+  /**
+   * Opens a panel of the right column the way its Window menu entry does: reopens it
+   * if closed, brings its tab to the front of its group, and expands it. Layers,
+   * Channels and Paths share one tab group, so they expand and collapse together.
+   * Throws for an unknown name (names are exact and lowercase). Like a click, it
+   * changes the layout Patchy saves at a normal close; --headless runs save none.
+   */
+  expandPanel(name: PatchyPanelName): void;
+  /** Collapses the panel's section to its title row (it stays open). Throws for an unknown name. */
+  collapsePanel(name: PatchyPanelName): void;
+  /** Closes the panel, as its header menu's Close Panel does. Throws for an unknown name. */
+  closePanel(name: PatchyPanelName): void;
+  /**
+   * The panel's state: open (not closed; a tab behind another is open), front (its
+   * group's current tab, always true outside a group) and expanded.
+   */
+  panelState(name: PatchyPanelName): {open: boolean; front: boolean; expanded: boolean};
   /**
    * The active document's view zoom in percent, as the status bar shows it.
    * Reads 0 with no document. Setting clamps to 0.01..12800 and throws for NaN,

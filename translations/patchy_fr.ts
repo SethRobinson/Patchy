@@ -23588,6 +23588,10 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <source>exportPdf pages must be &quot;artboards&quot;, &quot;groups&quot; or &quot;canvas&quot;.</source>
         <translation>exportPdf pages doit valoir &quot;artboards&quot;, &quot;groups&quot; ou &quot;canvas&quot;.</translation>
     </message>
+    <message>
+        <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
+        <translation>Panneau inconnu &quot;%1&quot;. Panneaux : %2.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

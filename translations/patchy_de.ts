@@ -23588,6 +23588,10 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <source>exportPdf pages must be &quot;artboards&quot;, &quot;groups&quot; or &quot;canvas&quot;.</source>
         <translation>exportPdf pages muss &quot;artboards&quot;, &quot;groups&quot; oder &quot;canvas&quot; sein.</translation>
     </message>
+    <message>
+        <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
+        <translation>Unbekanntes Bedienfeld &quot;%1&quot;. Bedienfelder: %2.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

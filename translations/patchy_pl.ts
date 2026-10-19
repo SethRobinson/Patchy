@@ -23659,6 +23659,10 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <source>exportPdf pages must be &quot;artboards&quot;, &quot;groups&quot; or &quot;canvas&quot;.</source>
         <translation>exportPdf pages musi mieć wartość &quot;artboards&quot;, &quot;groups&quot; lub &quot;canvas&quot;.</translation>
     </message>
+    <message>
+        <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
+        <translation>Nieznany panel &quot;%1&quot;. Panele: %2.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

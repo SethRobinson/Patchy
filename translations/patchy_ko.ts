@@ -23517,6 +23517,10 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <source>exportPdf pages must be &quot;artboards&quot;, &quot;groups&quot; or &quot;canvas&quot;.</source>
         <translation>exportPdf pages는 &quot;artboards&quot;, &quot;groups&quot;, &quot;canvas&quot; 중 하나여야 합니다.</translation>
     </message>
+    <message>
+        <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
+        <translation>알 수 없는 패널 &quot;%1&quot;입니다. 패널: %2.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>
