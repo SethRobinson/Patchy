@@ -4451,6 +4451,142 @@ void ui_layer_blend_mode_steps_coalesce_into_one_undo_entry() {
   CHECK(blend_combo->currentText() == QStringLiteral("Normal"));
 }
 
+namespace blend_rows {
+
+struct FolderDocument {
+  patchy::LayerId pixel_id{};
+  patchy::LayerId folder_id{};
+};
+
+// A white Background, a pixel layer, and a Pass Through folder holding one child.
+FolderDocument add_folder_document(patchy::ui::MainWindow& window, const QString& title) {
+  patchy::Document document(120, 90, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Background", solid_pixels(120, 90, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  FolderDocument ids;
+  patchy::Layer pixel(document.allocate_layer_id(), "Paint",
+                      solid_pixels(120, 90, patchy::PixelFormat::rgba8(), QColor(30, 150, 220, 255)));
+  ids.pixel_id = pixel.id();
+  document.add_layer(std::move(pixel));
+  patchy::Layer folder(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  folder.set_blend_mode(patchy::BlendMode::PassThrough);
+  folder.add_child(patchy::Layer(document.allocate_layer_id(), "Inside",
+                                 solid_pixels(120, 90, patchy::PixelFormat::rgba8(), QColor(220, 60, 40, 255))));
+  ids.folder_id = folder.id();
+  document.add_layer(std::move(folder));
+  document.set_active_layer(ids.folder_id);
+  window.add_document_session(std::move(document), title);
+  return ids;
+}
+
+patchy::BlendMode blend_of(patchy::ui::MainWindow& window, patchy::LayerId id) {
+  const auto* layer = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(id);
+  CHECK(layer != nullptr);
+  return layer == nullptr ? patchy::BlendMode::Normal : layer->blend_mode();
+}
+
+void activate(patchy::ui::MainWindow& window, patchy::LayerId id) {
+  patchy::ui::MainWindowTestAccess::document(window).set_active_layer(id);
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  QApplication::processEvents();
+}
+
+void wait_for_blend_run_end(patchy::ui::MainWindow& window) {
+  QElapsedTimer pause;
+  pause.start();
+  while (patchy::ui::MainWindowTestAccess::layer_blend_edit_pending(window) && pause.elapsed() < 3000) {
+    QApplication::processEvents(QEventLoop::AllEvents, 20);
+  }
+  CHECK(!patchy::ui::MainWindowTestAccess::layer_blend_edit_pending(window));
+}
+
+// Opens Blending Options on the active layer and hands its blend combo to `inspect`.
+void with_layer_style_blend_combo(patchy::ui::MainWindow& window, const std::function<void(QComboBox&)>& inspect,
+                                  bool accept) {
+  bool saw_dialog = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog"));
+    CHECK(dialog != nullptr);
+    auto* blend =
+        dialog == nullptr ? nullptr : dialog->findChild<QComboBox*>(QStringLiteral("layerStyleBlendModeCombo"));
+    CHECK(blend != nullptr);
+    if (blend != nullptr) {
+      inspect(*blend);
+      saw_dialog = true;
+    }
+    if (dialog != nullptr) {
+      if (accept) {
+        dialog->accept();
+      } else {
+        dialog->reject();
+      }
+    }
+  });
+  require_action(window, "layerBlendingOptionsAction")->trigger();
+  QApplication::processEvents();
+  CHECK(saw_dialog);
+}
+
+}  // namespace blend_rows
+
+// Pass Through is offered first, and only, for a folder (GitHub issue 235): a folder
+// shows it, can be set back to it from another mode, and undo restores each step.
+void ui_layer_folder_blend_mode_offers_pass_through() {
+  patchy::ui::MainWindow window;
+  const auto ids = blend_rows::add_folder_document(window, QStringLiteral("Pass Through"));
+  show_window(window);
+  QApplication::processEvents();
+  using Access = patchy::ui::MainWindowTestAccess;
+  const auto pass_through = static_cast<int>(patchy::BlendMode::PassThrough);
+  const auto normal = static_cast<int>(patchy::BlendMode::Normal);
+  auto* blend_combo = window.findChild<QComboBox*>(QStringLiteral("layerBlendModeCombo"));
+  CHECK(blend_combo != nullptr);
+  if (blend_combo == nullptr) {
+    return;
+  }
+  CHECK(blend_combo->itemData(0).toInt() == pass_through);
+  CHECK(blend_combo->currentText() == QStringLiteral("Pass Through"));
+
+  const auto depth_before = Access::active_session_undo_depth(window);
+  blend_combo->setCurrentIndex(blend_combo->findData(normal));
+  QApplication::processEvents();
+  CHECK(blend_rows::blend_of(window, ids.folder_id) == patchy::BlendMode::Normal);
+  blend_rows::wait_for_blend_run_end(window);
+  blend_combo->setCurrentIndex(blend_combo->findData(pass_through));
+  QApplication::processEvents();
+  CHECK(blend_rows::blend_of(window, ids.folder_id) == patchy::BlendMode::PassThrough);
+  CHECK(Access::active_session_undo_depth(window) == depth_before + 2);
+  Access::undo(window);
+  QApplication::processEvents();
+  CHECK(blend_rows::blend_of(window, ids.folder_id) == patchy::BlendMode::Normal);
+  CHECK(blend_combo->currentText() == QStringLiteral("Normal"));
+  CHECK(blend_combo->itemData(0).toInt() == pass_through);
+  Access::undo(window);
+  QApplication::processEvents();
+  CHECK(blend_rows::blend_of(window, ids.folder_id) == patchy::BlendMode::PassThrough);
+  CHECK(blend_combo->currentText() == QStringLiteral("Pass Through"));
+
+  // The folder's Blending Options list it first and show it.
+  blend_rows::with_layer_style_blend_combo(
+      window,
+      [pass_through](QComboBox& blend) {
+        CHECK(blend.itemData(0).toInt() == pass_through);
+        CHECK(blend.currentData().toInt() == pass_through);
+      },
+      false);
+
+  // A pixel layer is offered it neither in the panel nor in its Blending Options.
+  blend_rows::activate(window, ids.pixel_id);
+  CHECK(blend_combo->findData(pass_through) < 0);
+  CHECK(blend_combo->currentText() == QStringLiteral("Normal"));
+  CHECK(blend_combo->itemData(0).toInt() == normal);
+  blend_rows::with_layer_style_blend_combo(
+      window, [pass_through](QComboBox& blend) { CHECK(blend.findData(pass_through) < 0); }, false);
+  // Back on the folder, the panel offers it again.
+  blend_rows::activate(window, ids.folder_id);
+  CHECK(blend_combo->itemData(0).toInt() == pass_through);
+  CHECK(blend_combo->currentText() == QStringLiteral("Pass Through"));
+}
+
 void ui_collapsed_right_docks_keep_deep_layer_rows_readable() {
   patchy::Document document(128, 128, patchy::PixelFormat::rgba8());
   patchy::Layer root(document.allocate_layer_id(), "Root Folder", patchy::LayerKind::Group);
@@ -5206,6 +5342,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_blend_mode_combos_step_with_left_and_right_arrows", ui_blend_mode_combos_step_with_left_and_right_arrows},
       {"ui_layer_blend_mode_steps_coalesce_into_one_undo_entry",
        ui_layer_blend_mode_steps_coalesce_into_one_undo_entry},
+      {"ui_layer_folder_blend_mode_offers_pass_through", ui_layer_folder_blend_mode_offers_pass_through},
       {"ui_collapsed_right_docks_keep_deep_layer_rows_readable",
        ui_collapsed_right_docks_keep_deep_layer_rows_readable},
       {"ui_right_dock_panels_expand_within_window_height", ui_right_dock_panels_expand_within_window_height},

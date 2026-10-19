@@ -147,6 +147,9 @@ void install_blend_mode_arrow_keys(QComboBox* combo) {
 }  // namespace
 
 void add_blend_mode_items(QComboBox* combo, BlendModeMenu menu) {
+  if (menu == BlendModeMenu::Folder) {
+    combo->addItem(blend_mode_name(BlendMode::PassThrough), static_cast<int>(BlendMode::PassThrough));
+  }
   for (const auto mode : kBlendModes) {
     if (menu == BlendModeMenu::Filter && !recipe_blend_mode_supported(mode)) {
       continue;
@@ -154,6 +157,18 @@ void add_blend_mode_items(QComboBox* combo, BlendModeMenu menu) {
     combo->addItem(blend_mode_name(mode), static_cast<int>(mode));
   }
   install_blend_mode_arrow_keys(combo);
+}
+
+void set_blend_mode_pass_through_offered(QComboBox* combo, bool offered) {
+  if (combo == nullptr) {
+    return;
+  }
+  const auto index = combo->findData(static_cast<int>(BlendMode::PassThrough));
+  if (offered && index < 0) {
+    combo->insertItem(0, blend_mode_name(BlendMode::PassThrough), static_cast<int>(BlendMode::PassThrough));
+  } else if (!offered && index >= 0) {
+    combo->removeItem(index);
+  }
 }
 
 QString paint_mode_name(PaintMode mode) {

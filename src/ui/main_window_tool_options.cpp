@@ -1197,13 +1197,15 @@ void MainWindow::set_active_layer_blend(int index) {
     layer_blend_idle_timer_->start();
   }
   auto& doc = document();
+  const auto mode = static_cast<BlendMode>(blend_combo_->itemData(index).toInt());
   Rect affected;
   for (const auto id : pending_layer_blend_ids_) {
     auto* layer = doc.find_layer(id);
-    if (layer == nullptr) {
+    // Only folders pass through; the other selected layers keep their mode.
+    if (layer == nullptr || (mode == BlendMode::PassThrough && layer->kind() != LayerKind::Group)) {
       continue;
     }
-    layer->set_blend_mode(static_cast<BlendMode>(blend_combo_->itemData(index).toInt()));
+    layer->set_blend_mode(mode);
     affected = unite_rect(affected, layer_render_bounds(*layer));
   }
   canvas_->document_changed(to_qrect(affected));

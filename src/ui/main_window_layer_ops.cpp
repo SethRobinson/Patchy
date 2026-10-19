@@ -2590,7 +2590,10 @@ void MainWindow::edit_active_layer_style(std::optional<LayerStyleEffect> start_e
     // Percent controls must not quantize untouched imported opacity values.
     target.set_opacity(!next.opacity_edited && next.opacity == baseline.opacity ? original.opacity() : next.opacity / 100.0F);
     target.set_fill_opacity(!next.fill_opacity_edited && next.fill_opacity == baseline.fill_opacity ? original.fill_opacity() : next.fill_opacity / 100.0F);
-    target.set_blend_mode(next.blend_mode);
+    // A folder's Pass Through never lands on the batch's other layers (GitHub issue 235).
+    if (next.blend_mode != BlendMode::PassThrough || target.kind() == LayerKind::Group) {
+      target.set_blend_mode(next.blend_mode);
+    }
     const bool style_changed = !effects_equal(original.layer_style(), next.style);
     target.layer_style() = next.style;
     if (style_changed) {
