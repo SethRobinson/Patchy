@@ -428,10 +428,7 @@ QDialog* open_foreground_picker_for_readme_shot(patchy::ui::MainWindow& window, 
 // palette_mode shot already shows a preset dropdown in action.
 void shot_readme_levels() {
   const auto path = patchy::test::local_psd_fixture_path("akiko_cycling_okinawa.jpg");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] akiko_cycling_okinawa fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   QImage photo(QString::fromStdString(path.string()));
   CHECK(!photo.isNull());
   // The picker tab and palette-dropdown choice persist app-wide; scope them to
@@ -520,10 +517,7 @@ void shot_readme_levels() {
 // floating on the left.
 void shot_readme_layer_styles() {
   const auto path = patchy::test::local_psd_fixture_path("ipad_main_v04.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] ipad_main_v04 fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   SettingsValueRestorer picker_tab_restorer(QStringLiteral("colorPanel/lastTab"));
   SettingsValueRestorer palette_choice_restorer(QStringLiteral("palettes/lastPaletteChoice"));
   patchy::ui::MainWindow window;
@@ -746,10 +740,7 @@ void shot_readme_brush_dynamics() {
 // left (Square mode) pinned to the document's Current palette.
 void shot_readme_palette_mode() {
   const auto path = patchy::test::local_psd_fixture_path("akiko_cycling_okinawa.jpg");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] akiko_cycling_okinawa fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   QImage photo(QString::fromStdString(path.string()));
   CHECK(!photo.isNull());
   SettingsValueRestorer picker_tab_restorer(QStringLiteral("colorPanel/lastTab"));
@@ -1069,8 +1060,7 @@ void shot_readme_warp_text() {
   }
   const auto japanese_families = QFontDatabase::families(QFontDatabase::Japanese);
   if (japanese_families.isEmpty()) {
-    std::cout << "[SKIP] no Japanese font for the typography showcase\n";
-    return;
+    patchy::test::skip("no Japanese font for the typography showcase");
   }
   QString japanese_font = japanese_families.front();
   for (const auto& family : japanese_families) {
@@ -1414,10 +1404,7 @@ void shot_readme_tile_preview() {
 // objects commit warps non-destructively.
 void shot_readme_smart_objects() {
   const auto path = patchy::test::local_psd_fixture_path("mow_master.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] mow_master fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   patchy::ui::MainWindow window;
   show_readme_shot_window(window);
   window.add_document_session(patchy::psd::DocumentIo::read_file(path), QStringLiteral("mow_master.psd"));
@@ -1625,8 +1612,7 @@ void shot_readme_tilt_shift() {
 // Offscreen because scripts cannot open the dialog (docs/readme-showcase.md).
 void shot_readme_gmic() {
   if (!patchy::gmic::engine_available()) {
-    std::cout << "[SKIP] this build has no G'MIC engine\n";
-    return;
+    patchy::test::skip("this build has no G'MIC engine");
   }
   const auto path = patchy::test::committed_format_fixture_path(
       "readme", "havana_vintage_car_cc0.jpg");
@@ -1843,11 +1829,7 @@ void shot_readme_smart_filters() {
   patchy::test::register_test_fonts(patchy::test::TestFontRole::Verdana);
   const auto path =
       patchy::test::local_psd_fixture_path("akiko_cycling_okinawa.jpg");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] akiko_cycling_okinawa fixture missing: "
-              << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   QImage photo(patchy::ui::to_qstring(path));
   CHECK(!photo.isNull());
   photo = photo.copy(0, 170, photo.width(), std::min(1180, photo.height() - 170))
@@ -2106,11 +2088,7 @@ void shot_readme_smart_filters() {
 void shot_readme_camera_raw() {
   const auto path = patchy::test::local_format_fixture_path(
       "raw", "fujifilm_xt1.raf");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] CC0 Fujifilm raw fixture missing: " << path.string()
-              << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   SettingsValueRestorer dialog_restorer(
       QStringLiteral("imports/showRawDevelopDialog"));
   {
@@ -2167,11 +2145,7 @@ void shot_readme_camera_raw() {
 void shot_readme_quick_mask() {
   const auto path =
       patchy::test::local_psd_fixture_path("akiko_cycling_okinawa.jpg");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] akiko_cycling_okinawa fixture missing: "
-              << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   QImage photo(QString::fromStdString(path.string()));
   CHECK(!photo.isNull());
   photo = photo.scaled(800, 1200, Qt::KeepAspectRatio,

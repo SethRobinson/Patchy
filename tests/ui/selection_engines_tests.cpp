@@ -1332,9 +1332,8 @@ void ui_bundled_legacy_plugin_action_applies_filter() {
 #ifndef Q_OS_WIN
   // The bundled shim plug-ins are Windows PE binaries; the probe rejects them off-Windows
   // (legacy 8BF support is Windows-only), so no legacyPluginAction exists to trigger.
-  std::cout << "[SKIP] bundled legacy 8BF plug-ins are Windows-only\n";
-  return;
-#endif
+  patchy::test::skip("bundled legacy 8BF plug-ins are Windows-only");
+#else
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
@@ -1399,6 +1398,7 @@ void ui_bundled_legacy_plugin_action_applies_filter() {
   CHECK(after.red() > 45);
   CHECK(after.red() < 120);
   save_widget_artifact("ui_legacy_plugin_greyscale", window);
+#endif
 }
 
 }  // namespace

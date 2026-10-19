@@ -611,10 +611,7 @@ void compositor_knockout_group_boundaries_match_photoshop() {
 void psd_tools_knockout_matches_photoshop_if_available() {
   const auto root = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" / "psd_files" /
                     "transparency";
-  if (!std::filesystem::exists(root)) {
-    std::cout << "[SKIP] psd-tools collection unavailable\n";
-    return;
-  }
+  patchy::test::skip_unless_exists(root);
   struct Probe { const char* name; std::array<int, 4> rgba; };
   const Probe probes[]{
       {"knockout-deep-cyanbg", {0, 127, 255, 255}},
@@ -734,10 +731,7 @@ void compositor_passthrough_clip_base_keeps_child_blending() {
 
 void psd_backglass_group_clipped_invert_matches_photoshop_if_available() {
   const auto path = patchy::test::local_format_fixture_path("backglass-invert", "Backglass_homebrew.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] local Backglass fixture unavailable\n";
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   const auto document = patchy::psd::DocumentIo::read_file(path);
   const auto* invert = find_layer_named(document.layers(), "Invert 1");
   const auto* folder = find_layer_named(document.layers(), "Group 1");

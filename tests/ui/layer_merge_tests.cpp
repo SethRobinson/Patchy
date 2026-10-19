@@ -883,7 +883,7 @@ void ui_layer_merge_script_validation_noop_and_undo() {
 
 void ui_layer_merge_little_everywhere_if_available() {
   const auto path = patchy::test::local_format_fixture_path("vector-preview", "Little-Everywhere.psd");
-  if (!std::filesystem::exists(path)) { return; }
+  patchy::test::skip_unless_exists(path);
   const auto doc = psd::DocumentIo::read_file(path);
   QElapsedTimer timer;
   timer.start();
@@ -1100,7 +1100,7 @@ void ui_layer_selection_count_includes_collapsed_descendants() {
 
 void ui_layer_selection_count_little_everywhere_if_available() {
   const auto path = patchy::test::local_format_fixture_path("vector-preview", "Little-Everywhere.psd");
-  if (!std::filesystem::exists(path)) { return; }
+  patchy::test::skip_unless_exists(path);
   auto doc = psd::DocumentIo::read_file(path);
   const auto total = layer_tree_count(std::as_const(doc).layers());
   CHECK(total == 2056);
@@ -1140,7 +1140,7 @@ void ui_layer_selection_count_little_everywhere_if_available() {
 
 void ui_layer_selection_little_everywhere_shift_range_if_available() {
   const auto path = patchy::test::local_format_fixture_path("vector-preview", "Little-Everywhere.psd");
-  if (!std::filesystem::exists(path)) { return; }
+  patchy::test::skip_unless_exists(path);
   MainWindow window;
   show_window(window);
   auto& doc = MainWindowTestAccess::document(window);
@@ -1389,7 +1389,7 @@ void ui_merge_visible_copy_single_vector_raster_and_visibility_choices() {
 
 void ui_merge_visible_copy_little_everywhere_if_available() {
   const auto path = patchy::test::local_format_fixture_path("vector-preview", "Little-Everywhere.psd");
-  if (!std::filesystem::exists(path)) { std::printf("[SKIP] Little-Everywhere fixture missing\n"); return; }
+  patchy::test::skip_unless_exists(path);
   MainWindow window;
   show_window(window);
   auto& doc = MainWindowTestAccess::document(window);

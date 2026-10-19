@@ -86,8 +86,7 @@ void composite_corpus_flatten_digests_are_stable() {
     problems += compare_corpus_baseline("flatten", directory, 1, digests);
   }
   if (documents == 0) {
-    std::cout << "[SKIP] no corpus documents found\n";
-    return;
+    patchy::test::skip("no corpus documents found");
   }
   CHECK(problems == 0);
 }

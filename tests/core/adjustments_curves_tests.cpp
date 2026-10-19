@@ -1793,10 +1793,7 @@ void adjustment_hue_saturation_bands_weight_and_composition() {
 
 void psd_wordpress_banner3_master_hue_saturation_matches_photoshop_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("wordpress_banner3.psd");
-  if (!std::filesystem::exists(path)) {
-    std::printf("[SKIP] psd_wordpress_banner3_master_hue_saturation_matches_photoshop_if_available (no local fixture)\n");
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
 
   const auto document = patchy::psd::DocumentIo::read_file(path);
   const auto* adjustment = find_layer_named(document.layers(), "Hue/Saturation 1");
@@ -1839,11 +1836,7 @@ void psd_wordpress_banner3_master_hue_saturation_matches_photoshop_if_available(
 
 void psd_eonkun_modern_brightness_contrast_matches_photoshop_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("EonKun Goodboy Chest.psd");
-  if (!std::filesystem::exists(path)) {
-    std::printf(
-        "[SKIP] psd_eonkun_modern_brightness_contrast_matches_photoshop_if_available (no local fixture)\n");
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
 
   // The July 2026 report file behind the modern Brightness/Contrast
   // calibration: a colorized grass smart object under a modern-mode
@@ -1885,10 +1878,7 @@ void psd_eonkun_modern_brightness_contrast_matches_photoshop_if_available() {
 
 void psd_generic_bg_colorize_writes_comparison_artifacts_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("generic_bg.psd");
-  if (!std::filesystem::exists(path)) {
-    std::printf("[SKIP] psd_generic_bg_colorize_writes_comparison_artifacts_if_available (no local fixture)\n");
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
 
   const auto editable = patchy::psd::DocumentIo::read_file(path);
   const auto* adjustment = find_layer_named(editable.layers(), "Hue/Saturation 1");

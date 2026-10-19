@@ -1355,10 +1355,7 @@ void compositor_effects_follow_shape_coverage_under_transparent_fill() {
 // composite is Photoshop's render; Patchy's render of the layers has to agree with it.
 void shape_effect_silhouette_matches_photoshop_probes_if_available() {
   const auto root = patchy::test::source_root_path() / "local-test-fixtures" / "shape-fx-probes";
-  if (!std::filesystem::exists(root)) {
-    std::cout << "[SKIP] shape_effect_silhouette_matches_photoshop_probes_if_available: no " << root.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(root);
   int compared = 0;
   for (const auto& entry : std::filesystem::directory_iterator(root)) {
     if (entry.path().extension() != ".psd") {
@@ -1436,11 +1433,7 @@ void shape_effect_silhouette_matches_photoshop_probes_if_available() {
 // Overprint, Multiply). The composite in each file is Photoshop's render.
 void stroke_on_semi_transparent_content_matches_photoshop_probes_if_available() {
   const auto root = patchy::test::source_root_path() / "local-test-fixtures" / "stroke-alpha-probes";
-  if (!std::filesystem::exists(root)) {
-    std::cout << "[SKIP] stroke_on_semi_transparent_content_matches_photoshop_probes_if_available: no "
-              << root.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(root);
   int compared = 0;
   for (const auto& entry : std::filesystem::directory_iterator(root)) {
     if (entry.path().extension() != ".psd") {

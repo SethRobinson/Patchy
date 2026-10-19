@@ -4,11 +4,16 @@
 #include <condition_variable>
 #include <cstdio>
 #include <cstdlib>
+#include <exception>
+#include <filesystem>
 #include <functional>
+#include <iostream>
 #include <mutex>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
+#include <vector>
 #ifndef __EMSCRIPTEN__
 #include <thread>
 #endif
@@ -29,6 +34,43 @@ struct TestCase {
   std::string name;
   TestFn run;
 };
+
+// Thrown by skip(). Deliberately not a std::exception, so a test's own
+// catch (const std::exception&) cannot swallow it.
+struct TestSkipped {
+  std::string reason;
+};
+
+// Ends the running test as skipped: the runner prints "[SKIP] <name>: <reason>" instead
+// of [PASS], because the test checked nothing. For an absent optional input (an untracked
+// local fixture, a font the machine lacks, a platform or build without the feature), never
+// to hide a failure. A test that checked part of its work before running out of inputs
+// passes instead.
+[[noreturn]] inline void skip(std::string reason) {
+  throw TestSkipped{std::move(reason)};
+}
+
+// A fixture path for a skip reason: from its test-fixtures or local-test-fixtures folder
+// on, so the line does not carry the checkout's location.
+inline std::string fixture_display_path(const std::filesystem::path& path) {
+  std::filesystem::path shown;
+  bool found = false;
+  for (const auto& part : path) {
+    found = found || part == "local-test-fixtures" || part == "test-fixtures";
+    if (found) {
+      shown /= part;
+    }
+  }
+  const auto text = (found ? shown : path).generic_u8string();
+  return std::string(text.begin(), text.end());
+}
+
+// Skips the test unless the optional fixture at `path` exists.
+inline void skip_unless_exists(const std::filesystem::path& path) {
+  if (!std::filesystem::exists(path)) {
+    skip("optional fixture missing: " + fixture_display_path(path));
+  }
+}
 
 inline void check(bool condition, const char* expression, const char* file, int line) {
   if (!condition) {
@@ -170,6 +212,151 @@ private:
   bool armed_ = false;
   bool stopping_ = false;
 };
+
+// Exit code of a run whose command line is wrong or whose filter selects no test.
+inline constexpr int kTestUsageExitCode = 2;
+
+struct TestSuiteOptions {
+  // Used when the command line names no filter (the UI suite's PATCHY_UI_TEST_FILTER).
+  std::string default_filter;
+  long long timeout_seconds = 300;
+  TestWatchdog::Report timeout_report;
+  // Runs before and after every test (the UI suite's window and settings cleanup).
+  std::function<void()> around_each;
+};
+
+inline void print_test_suite_usage(const char* program) {
+  std::cerr << "usage: " << (program != nullptr ? program : "tests") << " [--list] [--exact] [filter]\n"
+            << "  filter   comma-separated name substrings; a test runs when its name contains any of them\n"
+            << "  --exact  each filter item is a whole test name instead of a substring\n"
+            << "  --list   print the selected test names instead of running them\n"
+            << "A filter item that selects no test fails the run (exit " << kTestUsageExitCode << ").\n";
+}
+
+// The runner loop shared by patchy_core_tests (native and wasm) and patchy_ui_visual_tests.
+// Prints [PASS] on stdout, [FAIL] on stderr, [SKIP] for skip(), and a closing [SUMMARY]
+// line. Returns 0 when nothing failed (skips included), 1 when a test failed, and
+// kTestUsageExitCode for a bad command line or a filter item that selects no test.
+inline int run_test_suite(const std::vector<TestCase>& tests, int argc, char** argv,
+                          const TestSuiteOptions& options) {
+  bool list = false;
+  bool exact = false;
+  bool have_filter = false;
+  std::string filter = options.default_filter;
+  for (int index = 1; index < argc; ++index) {
+    const std::string_view argument = argv[index] != nullptr ? argv[index] : "";
+    if (argument == "--list") {
+      list = true;
+    } else if (argument == "--exact") {
+      exact = true;
+    } else if (argument == "--help" || argument == "-h") {
+      print_test_suite_usage(argv[0]);
+      return 0;
+    } else if (argument.starts_with("--") || have_filter) {
+      std::cerr << "[FAIL] command line: unexpected argument \"" << argument << "\"\n";
+      print_test_suite_usage(argv[0]);
+      return kTestUsageExitCode;
+    } else {
+      filter = std::string(argument);
+      have_filter = true;
+    }
+  }
+
+  std::vector<std::string> items;
+  for (std::size_t start = 0; start <= filter.size();) {
+    const auto comma = filter.find(',', start);
+    const auto end = comma == std::string::npos ? filter.size() : comma;
+    if (end > start) {
+      items.push_back(filter.substr(start, end - start));
+    }
+    if (comma == std::string::npos) {
+      break;
+    }
+    start = comma + 1;
+  }
+  if (exact && items.empty()) {
+    std::cerr << "[FAIL] command line: --exact needs a filter naming the tests\n";
+    return kTestUsageExitCode;
+  }
+
+  std::vector<const TestCase*> selected;
+  std::vector<bool> item_used(items.size(), false);
+  for (const auto& test : tests) {
+    bool chosen = items.empty();
+    for (std::size_t item = 0; item < items.size(); ++item) {
+      if (exact ? test.name == items[item] : test.name.find(items[item]) != std::string::npos) {
+        item_used[item] = true;
+        chosen = true;
+      }
+    }
+    if (chosen) {
+      selected.push_back(&test);
+    }
+  }
+  // A filter that selects nothing used to run nothing and exit 0, which reads as a pass.
+  bool unmatched = false;
+  for (std::size_t item = 0; item < items.size(); ++item) {
+    if (!item_used[item]) {
+      std::cerr << "[FAIL] filter: " << (exact ? "no test is named \"" : "no test name contains \"") << items[item]
+                << "\" (--list prints the test names)\n";
+      unmatched = true;
+    }
+  }
+  if (unmatched) {
+    return kTestUsageExitCode;
+  }
+
+  if (list) {
+    for (const auto* test : selected) {
+      std::cout << test->name << '\n';
+    }
+    std::cout.flush();
+    return 0;
+  }
+
+  std::size_t passed = 0;
+  std::size_t skipped = 0;
+  std::vector<std::string> failed;
+  const auto started = std::chrono::steady_clock::now();
+  TestWatchdog watchdog(options.timeout_seconds, options.timeout_report);
+  for (const auto* test : selected) {
+    watchdog.begin(test->name);
+    if (options.around_each) {
+      options.around_each();
+    }
+    // Flushed per test so the log shows how far a run got if it is killed.
+    try {
+      test->run();
+      ++passed;
+      std::cout << "[PASS] " << test->name << std::endl;
+    } catch (const TestSkipped& skipped_test) {
+      ++skipped;
+      std::cout << "[SKIP] " << test->name << ": " << skipped_test.reason << std::endl;
+    } catch (const std::exception& error) {
+      failed.push_back(test->name);
+      std::cerr << "[FAIL] " << test->name << ": " << error.what() << std::endl;
+    }
+    if (options.around_each) {
+      options.around_each();
+    }
+    watchdog.end();
+  }
+  const std::chrono::duration<double> elapsed = std::chrono::steady_clock::now() - started;
+
+  char seconds[32] = {};
+  std::snprintf(seconds, sizeof(seconds), "%.1f", elapsed.count());
+  std::cout << "[SUMMARY] executed " << selected.size() << ", passed " << passed << ", failed " << failed.size()
+            << ", skipped " << skipped << " in " << seconds << " s" << std::endl;
+  if (!selected.empty() && passed == 0 && failed.empty()) {
+    std::cout << "[SUMMARY] every selected test skipped: nothing was checked" << std::endl;
+  }
+  // Names only, without the [FAIL] tag: scripts count [FAIL] lines.
+  for (const auto& name : failed) {
+    std::cerr << "  failed: " << name << '\n';
+  }
+  std::cerr.flush();
+  return failed.empty() ? 0 : 1;
+}
 
 }  // namespace patchy::test
 

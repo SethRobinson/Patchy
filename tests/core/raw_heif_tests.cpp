@@ -678,10 +678,7 @@ void raw_develop_rejects_non_raw_bytes() {
 
 void raw_decodes_real_camera_samples_if_available() {
   const auto directory = patchy::test::source_root_path() / "local-test-fixtures" / "raw";
-  if (!std::filesystem::exists(directory)) {
-    std::cout << "[SKIP] local raw fixtures missing: " << directory.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(directory);
   std::size_t decoded = 0;
   for (const auto& entry : std::filesystem::directory_iterator(directory)) {
     if (!entry.is_regular_file()) {
@@ -822,8 +819,7 @@ void heif_reads_quadrant_fixture_if_available() {
         message.find("Flatpak codec extension") != std::string::npos ||
         message.find("cannot decode HEIC images") != std::string::npos ||  // Linux: libheif or its HEVC plug-in missing
         message.find("outside a browser") != std::string::npos) {
-      std::cout << "[SKIP] HEIC platform decoder unavailable: " << message << '\n';
-      return;
+      patchy::test::skip("HEIC platform decoder unavailable: " + message);
     }
     throw;
   }
@@ -873,12 +869,9 @@ void heif_reads_quadrant_fixture_if_available() {
 
 void heif_decodes_real_photos_if_available() {
   // Real HEICs (e.g. iPhone captures: Display P3, camera orientation) live in the
-  // untracked local fixtures; remotes and codec-less machines [SKIP].
+  // untracked local fixtures; remotes and codec-less machines skip.
   const auto directory = patchy::test::source_root_path() / "local-test-fixtures" / "heif";
-  if (!std::filesystem::exists(directory)) {
-    std::cout << "[SKIP] local heif fixtures missing: " << directory.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(directory);
   std::size_t decoded = 0;
   for (const auto& entry : std::filesystem::directory_iterator(directory)) {
     if (!entry.is_regular_file()) {
@@ -931,7 +924,10 @@ void heif_decodes_real_photos_if_available() {
           message.find("Flatpak codec extension") != std::string::npos ||
           message.find("cannot decode HEIC images") != std::string::npos ||  // Linux: libheif or its HEVC plug-in missing
           message.find("outside a browser") != std::string::npos) {
-        std::cout << "[SKIP] HEIC platform decoder unavailable: " << message << '\n';
+        if (decoded == 0) {
+          patchy::test::skip("HEIC platform decoder unavailable: " + message);
+        }
+        std::cout << "  note: HEIC platform decoder unavailable: " << message << '\n';
         return;
       }
       throw;
@@ -978,7 +974,7 @@ void heif_linux_loader_reports_missing_library() {
   if (flatpak) {
     // The Flatpak build never consults the host library (kimg_heif decodes there).
     CHECK(!patchy::heif::host_libheif_available());
-    std::cout << "[SKIP] Flatpak sandbox: the host libheif loader is not used\n";
+    std::cout << "  note: Flatpak sandbox: the host libheif loader is not used\n";
     return;
   }
   CHECK(!patchy::heif::host_libheif_available());
@@ -1002,12 +998,10 @@ void heif_linux_loader_decodes_or_names_the_missing_plugin_if_available() {
   // With the real library: either the quadrant fixture decodes (HEVC plug-in present) or
   // the failure names the plug-in package. Any other error is a loader bug.
   if (std::getenv("FLATPAK_ID") != nullptr) {
-    std::cout << "[SKIP] Flatpak sandbox: the host libheif loader is not used\n";
-    return;
+    patchy::test::skip("Flatpak sandbox: the host libheif loader is not used");
   }
   if (!patchy::heif::host_libheif_available()) {
-    std::cout << "[SKIP] host libheif unavailable: " << patchy::heif::host_libheif_load_error() << '\n';
-    return;
+    patchy::test::skip("host libheif unavailable: " + patchy::heif::host_libheif_load_error());
   }
   const auto bytes = read_binary_file(patchy::test::committed_format_fixture_path("heif", "quadrants.heic"));
   CHECK(!bytes.empty());
@@ -1024,7 +1018,7 @@ void heif_linux_loader_decodes_or_names_the_missing_plugin_if_available() {
   } catch (const std::exception& error) {
     const std::string message = error.what();
     CHECK(message.find("libheif-plugin-libde265") != std::string::npos);
-    std::cout << "[SKIP] host libheif has no HEVC decoder plug-in: " << message << '\n';
+    std::cout << "  note: host libheif has no HEVC decoder plug-in: " << message << '\n';
   }
 }
 

@@ -19,7 +19,13 @@ if [ "$MODE" = "tests" ]; then
   cmake --preset linux-appimage-tests
   nice -n 10 cmake --build --preset linux-appimage-tests -j "$JOBS"
   echo "== patchy_core_tests (gcc-12, Qt 6.8.3) =="
-  (cd build/appimage-tests && nice -n 10 ./patchy_core_tests $FILTER)
+  # The filter usually names UI tests, and a filter that selects nothing fails a suite;
+  # run the core suite only when the filter selects some of its tests.
+  if [ -z "$FILTER" ] || (cd build/appimage-tests && ./patchy_core_tests --list "$FILTER" >/dev/null 2>&1); then
+    (cd build/appimage-tests && nice -n 10 ./patchy_core_tests $FILTER)
+  else
+    echo "no core test matches \"$FILTER\"; core suite not run"
+  fi
   echo "== patchy_ui_visual_tests (offscreen, gcc-12, Qt 6.8.3) =="
   (cd build/appimage-tests && QT_QPA_PLATFORM=offscreen nice -n 10 ./patchy_ui_visual_tests $FILTER)
   exit 0

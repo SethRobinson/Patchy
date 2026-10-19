@@ -207,28 +207,7 @@ int main(int argc, char** argv) {
                      }});
   }
 
-  int failures = 0;
-  const std::string_view name_filter =
-      argc > 1 && argv[1] != nullptr ? std::string_view(argv[1])
-                                     : std::string_view{};
-  patchy::test::TestWatchdog watchdog(patchy::test::test_timeout_seconds(300));
-  for (const auto& test : tests) {
-    if (!name_filter.empty() &&
-        std::string_view(test.name).find(name_filter) ==
-            std::string_view::npos) {
-      continue;
-    }
-    // Flushed per test so the log shows how far a run got if it is killed.
-    watchdog.begin(test.name);
-    try {
-      test.run();
-      std::cout << "[PASS] " << test.name << std::endl;
-    } catch (const std::exception& error) {
-      ++failures;
-      std::cerr << "[FAIL] " << test.name << ": " << error.what() << std::endl;
-    }
-    watchdog.end();
-  }
-
-  return failures == 0 ? 0 : 1;
+  patchy::test::TestSuiteOptions options;
+  options.timeout_seconds = patchy::test::test_timeout_seconds(300);
+  return patchy::test::run_test_suite(tests, argc, argv, options);
 }

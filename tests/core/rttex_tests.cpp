@@ -737,10 +737,7 @@ void rttex_writes_inspection_artifacts() {
 
 void rttex_local_fixture_sweep_if_available() {
   const auto dir = patchy::test::local_format_fixture_path("rttex", "").parent_path();
-  if (!std::filesystem::exists(dir)) {
-    std::cout << "[SKIP] rttex_local_fixture_sweep_if_available: no local-test-fixtures/rttex\n";
-    return;
-  }
+  patchy::test::skip_unless_exists(dir);
   int decoded_count = 0;
   for (const auto& entry : std::filesystem::recursive_directory_iterator(dir)) {
     if (!entry.is_regular_file() || !patchy::rttex::is_rttex_extension(entry.path().extension().string())) {
@@ -767,7 +764,7 @@ void rttex_local_fixture_sweep_if_available() {
     ++decoded_count;
   }
   if (decoded_count == 0) {
-    std::cout << "[SKIP] rttex_local_fixture_sweep_if_available: no .rttex files in local-test-fixtures/rttex\n";
+    patchy::test::skip("no .rttex files in local-test-fixtures/rttex");
   }
 }
 

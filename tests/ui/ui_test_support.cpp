@@ -1363,13 +1363,11 @@ std::optional<QRect> dark_bounds_in_editor_line_lower_half(patchy::ui::CanvasWid
 // entering the editor correctly raises the Missing Font substitution prompt, which
 // nothing can answer under offscreen (the suite would hang in the nested dialog loop).
 // Skip honestly rather than auto-clicking through behavior the test doesn't model.
-bool skip_without_arial_for_psd_text_preview() {
+void skip_without_arial_for_psd_text_preview() {
   register_test_fonts(TestFontRole::UiDefault);
-  if (QFontDatabase::families().contains(QStringLiteral("Arial"))) {
-    return false;
+  if (!QFontDatabase::families().contains(QStringLiteral("Arial"))) {
+    patchy::test::skip("Arial is not installed (imported-PSD text fixture face)");
   }
-  std::cout << "[SKIP] Arial is not installed (imported-PSD text fixture face)\n";
-  return true;
 }
 
 // A GDI-style name such as "Arial Black" reaches the font database on some platforms only as
@@ -1407,13 +1405,18 @@ static bool font_face_is_available(const QString& family) {
 // substitute. Loosening the tolerance until the substitute fits would stop it catching the
 // Windows regression it exists for, and entering a text session without the face raises the
 // Missing Font prompt, which nothing can answer under offscreen. Skip honestly instead.
-bool skip_without_font_face(const QString& family, const char* fixture_role) {
+std::optional<std::string> missing_font_face_reason(const QString& family, const char* fixture_role) {
   register_test_fonts(TestFontRole::UiDefault);
   if (font_face_is_available(family)) {
-    return false;
+    return std::nullopt;
   }
-  std::cout << "[SKIP] " << family.toStdString() << " is not installed (" << fixture_role << ")\n";
-  return true;
+  return family.toStdString() + " is not installed (" + fixture_role + ")";
+}
+
+void skip_without_font_face(const QString& family, const char* fixture_role) {
+  if (auto reason = missing_font_face_reason(family, fixture_role)) {
+    patchy::test::skip(std::move(*reason));
+  }
 }
 
 // The same question asked of an imported layer, which adds the second way a machine lands off
@@ -1423,17 +1426,21 @@ bool skip_without_font_face(const QString& family, const char* fixture_role) {
 // face is not in the database at import time and the suffix heuristic flattened the name --
 // "Arial-Black" to family Arial plus the bold flag, which renders ~20% narrower than Arial
 // Black. The face must therefore be registered BEFORE the fixture is read.
-bool skip_without_psd_text_face(const patchy::Layer& layer, const QString& expected_family) {
+std::optional<std::string> missing_psd_text_face_reason(const patchy::Layer& layer, const QString& expected_family) {
   const auto entry = layer.metadata().find(patchy::kLayerMetadataTextFont);
   const auto resolved = entry == layer.metadata().end() ? QString()
                                                         : QString::fromStdString(entry->second);
   if (resolved.compare(expected_family, Qt::CaseInsensitive) != 0) {
-    std::cout << "[SKIP] the fixture's type resolves to \"" << resolved.toStdString()
-              << "\" here, not \"" << expected_family.toStdString()
-              << "\" (the face was not in the font database when the PSD was read)\n";
-    return true;
+    return "the fixture's type resolves to \"" + resolved.toStdString() + "\" here, not \"" +
+           expected_family.toStdString() + "\" (the face was not in the font database when the PSD was read)";
   }
-  return skip_without_font_face(expected_family, "imported-PSD text fixture face");
+  return missing_font_face_reason(expected_family, "imported-PSD text fixture face");
+}
+
+void skip_without_psd_text_face(const patchy::Layer& layer, const QString& expected_family) {
+  if (auto reason = missing_psd_text_face_reason(layer, expected_family)) {
+    patchy::test::skip(std::move(*reason));
+  }
 }
 
 void wait_for_legacy_plugin_scan(patchy::ui::MainWindow& window) {

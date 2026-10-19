@@ -433,30 +433,6 @@ int main(int argc, char* argv[]) {
                  std::make_move_iterator(group.end()));
   }
 
-  std::string filter;
-  const auto env_filter = qgetenv("PATCHY_UI_TEST_FILTER");
-  if (!env_filter.isEmpty()) {
-    filter = env_filter.toStdString();
-  }
-  if (argc > 1) {
-    filter = argv[1];
-  }
-  // The filter is a comma-separated list of name substrings; a test runs if its
-  // name contains any of them (a single substring behaves as before). Ordered
-  // cross-test repros need this: pick the polluting test and the victim in one run.
-  std::vector<std::string> filters;
-  for (std::size_t start = 0; start <= filter.size();) {
-    const auto comma = filter.find(',', start);
-    const auto end = comma == std::string::npos ? filter.size() : comma;
-    if (end > start) {
-      filters.push_back(filter.substr(start, end - start));
-    }
-    if (comma == std::string::npos) {
-      break;
-    }
-    start = comma + 1;
-  }
-
   // Proves the per-test timeout fires on a dialog nobody answers: run with
   // PATCHY_TEST_TIMEOUT_SELFTEST=1 and a short PATCHY_TEST_TIMEOUT_SECONDS; the run must
   // end with this test's timeout [FAIL] line naming timeoutSelftestDialog.
@@ -469,32 +445,19 @@ int main(int argc, char* argv[]) {
                      }});
   }
 
-  int failures = 0;
-  patchy::test::TestWatchdog watchdog(patchy::test::test_timeout_seconds(600), report_open_windows);
-  for (const auto& test : tests) {
-    const bool selected =
-        filters.empty() || std::any_of(filters.begin(), filters.end(), [&test](const std::string& item) {
-          return test.name.find(item) != std::string::npos;
-        });
-    if (!selected) {
-      continue;
-    }
-    watchdog.begin(test.name);
-    cleanup_after_visual_test();
-    try {
-      test.run();
-      std::cout << "[PASS] " << test.name << std::endl;
-    } catch (const std::exception& error) {
-      ++failures;
-      std::cerr << "[FAIL] " << test.name << ": " << error.what() << std::endl;
-    }
-    cleanup_after_visual_test();
-    watchdog.end();
-  }
+  // The filter is a comma-separated list of name substrings (tests/test_harness.hpp,
+  // run_test_suite); ordered cross-test repros pick the polluting test and the victim
+  // in one run. The command line's filter wins over PATCHY_UI_TEST_FILTER.
+  patchy::test::TestSuiteOptions options;
+  options.default_filter = qgetenv("PATCHY_UI_TEST_FILTER").toStdString();
+  options.timeout_seconds = patchy::test::test_timeout_seconds(600);
+  options.timeout_report = report_open_windows;
+  options.around_each = cleanup_after_visual_test;
+  const int result = patchy::test::run_test_suite(tests, argc, argv, options);
 
   // Detached preview/render workers capture the QApplication pointer; wait
   // for them before the suite's QApplication is destroyed (the same shutdown
   // latch src/app/main.cpp uses).
   patchy::ui::wait_for_tracked_background_workers();
-  return failures == 0 ? 0 : 1;
+  return result;
 }

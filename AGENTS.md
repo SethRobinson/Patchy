@@ -55,7 +55,7 @@ Required release handoff steps:
    - Widen to the full core suite only when the change reaches core-wide surfaces: `src/core`, shared helpers (`main_window_shared`, `canvas_widget_shared`, `psd_io_common`), PSD or other serialization, byte-pinned/canary paths, or refactors and file moves whose blast radius cannot be filtered.
    - Widen to the full UI visual suite only for changes that can affect rendering or UI behavior application-wide: compositing/rendering, application-wide QSS/theme or hotkeys, or the visual test harness itself. Never run it for build-system or other non-rendering changes.
    - **A real release (preparing release builds for final packaging and upload) always runs both full suites.** Filtered runs miss ordered cross-test state such as QSettings and artifact dependencies, so that is the one time the whole suite is mandatory.
-   - **Judge a suite by its `[FAIL]` lines as well as its exit code** (both trustworthy only through `run-throttled.bat`; see step 1).
+   - **Judge a suite by its `[FAIL]` lines as well as its exit code** (both trustworthy only through `run-throttled.bat`; see step 1), and report its `[SUMMARY]` skip count: a `[SKIP]` test checked nothing. A filter that selects no test exits 2; `--list` shows the names ([docs/testing.md](docs/testing.md)).
 
 3. Explicitly report whether `build\release\patchy.exe` exists.
 

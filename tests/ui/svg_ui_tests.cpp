@@ -470,9 +470,7 @@ void ui_svg_place_creates_smart_object() {
 // Affinity .af text uses the same main-thread post-open render pass as SVG;
 // this lives here beside the SVG text test on purpose.
 void ui_af_text_import_renders_post_open() {
-  if (patchy::test::ui::skip_without_arial_for_psd_text_preview()) {
-    return;  // the committed fixture's face is Arial
-  }
+  patchy::test::ui::skip_without_arial_for_psd_text_preview();  // the committed fixture's face is Arial
   patchy::ui::MainWindow window;
   show_window(window);
   const auto path = QString::fromStdWString(
@@ -509,9 +507,7 @@ void ui_af_text_import_renders_post_open() {
 // runs (Arial 24 red, Times New Roman 32 blue, Courier New 18 green - the
 // last with an emoji, pinning the codepoint run-boundary decode end to end).
 void ui_af_mixed_text_runs_render() {
-  if (patchy::test::ui::skip_without_arial_for_psd_text_preview()) {
-    return;
-  }
+  patchy::test::ui::skip_without_arial_for_psd_text_preview();
   patchy::test::register_test_fonts(patchy::test::TestFontRole::TimesNewRoman);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::CourierNew);
   patchy::ui::MainWindow window;
@@ -552,9 +548,7 @@ void ui_af_mixed_text_runs_render() {
 // pass composes the local anchor with the stored Xfrm, so a -90deg text lands
 // portrait, and the layer keeps the standard transformed-text metadata.
 void ui_af_rotated_text_renders_through_transform() {
-  if (patchy::test::ui::skip_without_arial_for_psd_text_preview()) {
-    return;
-  }
+  patchy::test::ui::skip_without_arial_for_psd_text_preview();
   patchy::ui::MainWindow window;
   show_window(window);
   const auto path = QString::fromStdWString(

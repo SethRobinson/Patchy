@@ -1210,9 +1210,7 @@ void ui_layer_clipping_menu_toggles_renders_and_undoes() {
 
 void ui_generic_bg_clip_toggle_repaints_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("generic_bg.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
 
   patchy::ui::MainWindow window;
   show_window(window);

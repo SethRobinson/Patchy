@@ -938,10 +938,7 @@ void ui_move_double_click_leaves_free_transform_alone() {
 // restore byte-identically on one Undo.
 void ui_pinball_folder_free_transform_end_to_end() {
   const auto path = patchy::test::local_psd_fixture_path("pinball_from_photoshop.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] local pinball_from_photoshop.psd fixture missing" << std::endl;
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   auto document = patchy::psd::DocumentIo::read_file(path);
 
   patchy::ui::MainWindow window;
@@ -1007,10 +1004,7 @@ patchy::Layer* find_locked_smart_object(std::vector<patchy::Layer>& layers, cons
 // shared delta, and one Undo restores the whole document byte-identically.
 void ui_select_all_free_transform_transforms_retronight_poster() {
   const auto path = patchy::test::local_psd_fixture_path("pinball_retronight_poster_a3.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] local pinball_retronight_poster_a3.psd fixture missing" << std::endl;
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   auto document = patchy::psd::DocumentIo::read_file(path);
 
   patchy::ui::MainWindow window;
@@ -1189,10 +1183,7 @@ patchy::Layer* find_leaf_layer(std::vector<patchy::Layer>& layers, const QString
 // so Ctrl-T on the folder or on any selection holding one showed no handles.
 void ui_group_transform_folder_with_stroke_only_shape_layers_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("bath-controls-stroke-only-shapes.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] local bath-controls-stroke-only-shapes.psd fixture missing" << std::endl;
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   auto document = patchy::psd::DocumentIo::read_file(path);
 
   patchy::ui::MainWindow window;

@@ -487,7 +487,7 @@ void ui_gmic_color_swatch_previews_while_picking() {
 
 void ui_gmic_library_dialog_previews_on_the_layer_and_commits() {
   if (!gmic::engine_available()) {
-    return;
+    patchy::test::skip("build without the G'MIC engine (PATCHY_ENABLE_GMIC off)");
   }
   patchy::ui::MainWindow window;
   show_window(window);
@@ -644,7 +644,7 @@ void ui_gmic_filter_applies_inside_selection_and_undoes() {
 // The dialog previews it and says so; OK commits the same.
 void ui_gmic_size_changing_filter_stays_inside_the_selection() {
   if (!gmic::engine_available()) {
-    return;
+    patchy::test::skip("build without the G'MIC engine (PATCHY_ENABLE_GMIC off)");
   }
   patchy::ui::MainWindow window;
   show_window(window);
@@ -727,7 +727,7 @@ void ui_gmic_size_changing_filter_stays_inside_the_selection() {
 // values and input layers) on the active layer and selection, without the dialog.
 void ui_gmic_last_filter_repeats_the_accepted_choice() {
   if (!gmic::engine_available()) {
-    return;
+    patchy::test::skip("build without the G'MIC engine (PATCHY_ENABLE_GMIC off)");
   }
   patchy::ui::MainWindow window;
   show_window(window);
@@ -781,7 +781,7 @@ void ui_gmic_last_filter_repeats_the_accepted_choice() {
 // of the clear area turning black. A result with no transparency leaves the format alone.
 void ui_gmic_filter_keeps_transparency_on_a_layer_without_alpha() {
   if (!gmic::engine_available()) {
-    return;
+    patchy::test::skip("build without the G'MIC engine (PATCHY_ENABLE_GMIC off)");
   }
   patchy::ui::MainWindow window;
   show_window(window);
@@ -826,7 +826,7 @@ void ui_gmic_filter_keeps_transparency_on_a_layer_without_alpha() {
 
 void ui_gmic_filter_adds_output_layers_in_one_undo_step() {
   if (!gmic::engine_available()) {
-    return;
+    patchy::test::skip("build without the G'MIC engine (PATCHY_ENABLE_GMIC off)");
   }
   patchy::ui::MainWindow window;
   show_window(window);
@@ -928,7 +928,7 @@ void ui_gmic_filter_adds_output_layers_in_one_undo_step() {
 // combines them, puts the result on the active layer; the layers it read stay as they are.
 void ui_gmic_filter_reads_the_layers_its_input_mode_names() {
   if (!gmic::engine_available()) {
-    return;
+    patchy::test::skip("build without the G'MIC engine (PATCHY_ENABLE_GMIC off)");
   }
   patchy::ui::MainWindow window;
   show_window(window);
@@ -979,7 +979,7 @@ void ui_gmic_filter_reads_the_layers_its_input_mode_names() {
 // quick skips the draft the next time, and OK during the full run waits for that run.
 void ui_gmic_library_dialog_drafts_then_refines() {
   if (!gmic::engine_available()) {
-    return;
+    patchy::test::skip("build without the G'MIC engine (PATCHY_ENABLE_GMIC off)");
   }
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1075,7 +1075,7 @@ void ui_gmic_library_dialog_drafts_then_refines() {
 // on every later preview).
 void ui_gmic_library_dialog_releases_a_button_after_the_run_that_read_it() {
   if (!gmic::engine_available()) {
-    return;
+    patchy::test::skip("build without the G'MIC engine (PATCHY_ENABLE_GMIC off)");
   }
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1169,7 +1169,7 @@ bool same_rect(const patchy::Rect& a, const patchy::Rect& b) {
 // Scripts get the menu command's gates as errors.
 void ui_gmic_filter_changes_every_chosen_layer() {
   if (!gmic::engine_available()) {
-    return;
+    patchy::test::skip("build without the G'MIC engine (PATCHY_ENABLE_GMIC off)");
   }
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1316,7 +1316,7 @@ void run_about_box(patchy::ui::GmicFilterLibraryDialog& dialog, Drive drive) {
 // the canvas), layers added. Cancel puts every layer back. About G'MIC credits the project.
 void ui_gmic_library_dialog_previews_every_chosen_layer_and_explains_the_result() {
   if (!gmic::engine_available()) {
-    return;
+    patchy::test::skip("build without the G'MIC engine (PATCHY_ENABLE_GMIC off)");
   }
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1529,7 +1529,9 @@ void ui_gmic_library_dialog_previews_every_chosen_layer_and_explains_the_result(
 // is part of the script's single undo entry, values go by name or by position, and
 // bad input throws instead of running.
 void ui_gmic_custom_formula_rejects_excluded_commands_without_editing_layers() {
-  if (!gmic::engine_available()) return;
+  if (!gmic::engine_available()) {
+    patchy::test::skip("build without the G'MIC engine (PATCHY_ENABLE_GMIC off)");
+  }
   patchy::ui::MainWindow window;
   show_window(window);
   CHECK(run_script(window, QStringLiteral(
@@ -1617,7 +1619,7 @@ void ui_gmic_script_api_lists_and_applies() {
 // blur filters, and gone when the dialog closes.
 void ui_gmic_library_dialog_puts_point_handles_on_the_canvas() {
   if (!gmic::engine_available()) {
-    return;
+    patchy::test::skip("build without the G'MIC engine (PATCHY_ENABLE_GMIC off)");
   }
   patchy::ui::MainWindow window;
   show_window(window);

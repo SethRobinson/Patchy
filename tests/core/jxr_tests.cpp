@@ -39,14 +39,14 @@
 
 namespace {
 
-// True when this build has no JPEG XR codec (everything but Windows). Codec-dependent tests
-// [SKIP] instead of failing, matching the HEIF and camera-raw convention.
-[[nodiscard]] bool codec_unavailable(const char* what) {
+// Why this build cannot decode JPEG XR (it has no codec: everything but Windows), or nothing
+// when it can. Codec-dependent tests skip instead of failing, matching the HEIF and
+// camera-raw convention.
+[[nodiscard]] std::optional<std::string> codec_missing_reason() {
   if (patchy::jxr::is_available()) {
-    return false;
+    return std::nullopt;
   }
-  std::cout << "[SKIP] " << what << ": JPEG XR needs the in-box Windows codec\n";
-  return true;
+  return "JPEG XR needs the in-box Windows codec";
 }
 
 [[nodiscard]] patchy::Document solid_document(std::int32_t width, std::int32_t height, bool with_alpha) {
@@ -168,8 +168,8 @@ void jxr_tone_map_scrgb_preserves_sdr_and_rolls_off_highlights() {
 }
 
 void jxr_round_trips_rgba8_if_available() {
-  if (codec_unavailable("jxr_round_trips_rgba8_if_available")) {
-    return;
+  if (const auto reason = codec_missing_reason()) {
+    patchy::test::skip(*reason);
   }
   const auto document = solid_document(32, 24, /*with_alpha*/ true);
 
@@ -215,8 +215,8 @@ void jxr_round_trips_rgba8_if_available() {
 }
 
 void jxr_rejects_garbage_and_empty_documents() {
-  if (codec_unavailable("jxr_rejects_garbage_and_empty_documents")) {
-    return;
+  if (const auto reason = codec_missing_reason()) {
+    patchy::test::skip(*reason);
   }
   // A file that sniffs as JPEG XR but has no usable image must produce a clean error, not
   // a crash or a zero-sized document.
@@ -239,8 +239,8 @@ void jxr_rejects_garbage_and_empty_documents() {
 }
 
 void jxr_unicode_path_round_trips_if_available() {
-  if (codec_unavailable("jxr_unicode_path_round_trips_if_available")) {
-    return;
+  if (const auto reason = codec_missing_reason()) {
+    patchy::test::skip(*reason);
   }
   // Every new file-writing entry point gets a Unicode-path test (AGENTS.md): the write goes
   // through std::filesystem, so a UTF-8/ANSI mix-up would write a mojibake name here.
@@ -262,7 +262,8 @@ void jxr_hdr_fixture_tone_maps_instead_of_clipping() {
       patchy::test::committed_format_fixture_path("jxr", "hdr-ramp.jxr"));
   CHECK(!bytes.empty());
   CHECK(patchy::jxr::sniff(bytes));
-  if (codec_unavailable("jxr_hdr_fixture_tone_maps_instead_of_clipping")) {
+  if (const auto reason = codec_missing_reason()) {
+    std::cout << "  note: decode not checked: " << *reason << '\n';
     return;
   }
 
@@ -298,12 +299,9 @@ void jxr_hdr_fixture_tone_maps_instead_of_clipping() {
 void jxr_reads_real_captures_if_available() {
   // Untracked real-world samples (drop an NVIDIA HDR capture into local-test-fixtures/jxr/).
   const auto dir = patchy::test::local_format_fixture_path("jxr", "").parent_path();
-  if (!std::filesystem::exists(dir)) {
-    std::cout << "[SKIP] jxr_reads_real_captures_if_available: no local-test-fixtures/jxr\n";
-    return;
-  }
-  if (codec_unavailable("jxr_reads_real_captures_if_available")) {
-    return;
+  patchy::test::skip_unless_exists(dir);
+  if (const auto reason = codec_missing_reason()) {
+    patchy::test::skip(*reason);
   }
   int decoded_count = 0;
   for (const auto& entry : std::filesystem::directory_iterator(dir)) {
@@ -349,7 +347,7 @@ void jxr_reads_real_captures_if_available() {
     ++decoded_count;
   }
   if (decoded_count == 0) {
-    std::cout << "[SKIP] jxr_reads_real_captures_if_available: no .jxr files in local-test-fixtures/jxr\n";
+    patchy::test::skip("no .jxr files in local-test-fixtures/jxr");
   }
 }
 

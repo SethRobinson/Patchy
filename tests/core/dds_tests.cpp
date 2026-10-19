@@ -1578,10 +1578,7 @@ void dds_writes_inspection_artifacts() {
 
 void dds_local_fixture_sweep_if_available() {
   const auto dir = patchy::test::local_format_fixture_path("dds", "").parent_path();
-  if (!std::filesystem::exists(dir)) {
-    std::cout << "[SKIP] dds_local_fixture_sweep_if_available: no local-test-fixtures/dds\n";
-    return;
-  }
+  patchy::test::skip_unless_exists(dir);
   int decoded_count = 0;
   for (const auto& entry : std::filesystem::recursive_directory_iterator(dir)) {
     if (!entry.is_regular_file() || !dds::is_dds_extension(entry.path().extension().string())) {
@@ -1609,7 +1606,7 @@ void dds_local_fixture_sweep_if_available() {
     ++decoded_count;
   }
   if (decoded_count == 0) {
-    std::cout << "[SKIP] dds_local_fixture_sweep_if_available: no .dds files in local-test-fixtures/dds\n";
+    patchy::test::skip("no .dds files in local-test-fixtures/dds");
   }
 }
 

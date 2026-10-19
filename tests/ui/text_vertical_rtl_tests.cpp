@@ -119,12 +119,12 @@ std::vector<std::pair<int, int>> ink_row_bands_in_columns(const patchy::PixelBuf
   return bands;
 }
 
-std::optional<QString> japanese_test_family() {
+// Skips the test (patchy::test::skip) when no Japanese-capable font is available.
+QString japanese_test_family() {
   register_test_fonts(TestFontRole::JapaneseGothic);
   const auto families = QFontDatabase::families(QFontDatabase::Japanese);
   if (families.isEmpty()) {
-    std::cout << "[SKIP] no Japanese-capable font available on this machine\n";
-    return std::nullopt;
+    patchy::test::skip("no Japanese-capable font available on this machine");
   }
   for (const auto& family : families) {
     if (family.contains(QStringLiteral("Gothic"), Qt::CaseInsensitive)) {
@@ -187,10 +187,8 @@ void rerender_through_edit_session(patchy::ui::MainWindow& window, patchy::ui::C
 void ui_vertical_text_matches_photoshop_capture() {
   const auto path = patchy::test::committed_psd_fixture_path("photoshop-text-vertical-point.psd");
   register_test_fonts(TestFontRole::UiDefault);
-  if (!japanese_test_family().has_value() ||
-      skip_without_font_face(QStringLiteral("MS Gothic"), "Photoshop vertical capture face")) {
-    return;
-  }
+  japanese_test_family();
+  skip_without_font_face(QStringLiteral("MS Gothic"), "Photoshop vertical capture face");
   auto document = patchy::psd::DocumentIo::read_file(path);
   const auto* text_layer = [&document]() -> const patchy::Layer* {
     for (const auto& layer : document.layers()) {
@@ -312,9 +310,6 @@ auto vertical_toggle_guard(patchy::ui::MainWindow& window) {
 void ui_vertical_text_lays_out_columns_top_to_bottom_right_to_left() {
   register_test_fonts(TestFontRole::UiDefault);
   const auto family = japanese_test_family();
-  if (!family.has_value()) {
-    return;
-  }
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
@@ -324,7 +319,7 @@ void ui_vertical_text_lays_out_columns_top_to_bottom_right_to_left() {
   auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
   // Two paragraphs of two full-width kana: two columns, two cells each, anchored at the click.
   const auto created = create_vertical_layer_with_tool(
-      window, *canvas, QPoint(200, 40), QString::fromUtf8("\xe3\x81\x82\xe3\x81\x84\n\xe3\x81\x86\xe3\x81\x88"), *family);
+      window, *canvas, QPoint(200, 40), QString::fromUtf8("\xe3\x81\x82\xe3\x81\x84\n\xe3\x81\x86\xe3\x81\x88"), family);
   CHECK(created.id.has_value());
   if (!created.id.has_value()) {
     return;
@@ -380,9 +375,6 @@ void ui_vertical_text_lays_out_columns_top_to_bottom_right_to_left() {
 void ui_vertical_text_caret_and_selection_follow_the_columns() {
   register_test_fonts(TestFontRole::UiDefault);
   const auto family = japanese_test_family();
-  if (!family.has_value()) {
-    return;
-  }
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
@@ -391,7 +383,7 @@ void ui_vertical_text_caret_and_selection_follow_the_columns() {
   const auto guard = vertical_toggle_guard(window);
   auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
   const auto created = create_vertical_layer_with_tool(
-      window, *canvas, QPoint(200, 40), QString::fromUtf8("\xe3\x81\x82\xe3\x81\x84\n\xe3\x81\x86\xe3\x81\x88"), *family);
+      window, *canvas, QPoint(200, 40), QString::fromUtf8("\xe3\x81\x82\xe3\x81\x84\n\xe3\x81\x86\xe3\x81\x88"), family);
   CHECK(created.id.has_value());
   if (!created.id.has_value()) {
     return;
@@ -459,9 +451,6 @@ void ui_vertical_text_caret_and_selection_follow_the_columns() {
 void ui_vertical_text_recommit_keeps_origin_and_round_trips_psd() {
   register_test_fonts(TestFontRole::UiDefault);
   const auto family = japanese_test_family();
-  if (!family.has_value()) {
-    return;
-  }
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
@@ -470,7 +459,7 @@ void ui_vertical_text_recommit_keeps_origin_and_round_trips_psd() {
   const auto guard = vertical_toggle_guard(window);
   auto& live_document = patchy::ui::MainWindowTestAccess::document(window);
   const auto created = create_vertical_layer_with_tool(
-      window, *canvas, QPoint(200, 150), QString::fromUtf8("\xe3\x81\x82\xe3\x81\x84\n\xe3\x81\x86\xe3\x81\x88"), *family,
+      window, *canvas, QPoint(200, 150), QString::fromUtf8("\xe3\x81\x82\xe3\x81\x84\n\xe3\x81\x86\xe3\x81\x88"), family,
       "textAlignCenterButton");
   CHECK(created.id.has_value());
   if (!created.id.has_value()) {
@@ -659,8 +648,7 @@ void ui_text_orientation_toggle_converts_layer_and_undoes() {
 void ui_rtl_hebrew_paragraph_direction_reorders_and_persists() {
   register_test_fonts(TestFontRole::UiDefault);
   if (QFontDatabase::families(QFontDatabase::Hebrew).isEmpty()) {
-    std::cout << "[SKIP] no Hebrew-capable font available on this machine\n";
-    return;
+    patchy::test::skip("no Hebrew-capable font available on this machine");
   }
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1028,9 +1016,6 @@ void ui_new_text_starts_horizontal_after_vertical_layer() {
 void ui_vertical_text_input_method_rect_excludes_the_column() {
   register_test_fonts(TestFontRole::UiDefault);
   const auto family = japanese_test_family();
-  if (!family.has_value()) {
-    return;
-  }
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
@@ -1038,7 +1023,7 @@ void ui_vertical_text_input_method_rect_excludes_the_column() {
   canvas->set_primary_color(QColor(0, 0, 0));
   const auto guard = vertical_toggle_guard(window);
   const auto created = create_vertical_layer_with_tool(
-      window, *canvas, QPoint(200, 40), QString::fromUtf8("\xe3\x81\x82\xe3\x81\x84\xe3\x81\x86"), *family);
+      window, *canvas, QPoint(200, 40), QString::fromUtf8("\xe3\x81\x82\xe3\x81\x84\xe3\x81\x86"), family);
   CHECK(created.id.has_value());
   if (!created.id.has_value()) {
     return;
@@ -1307,10 +1292,7 @@ void ui_vertical_text_rotated_roman_lies_along_the_column() {
 // characters, as its own run, and the exported type block names that font.
 void ui_typing_uncovered_characters_switches_their_font() {
   register_test_fonts(TestFontRole::UiDefault);
-  const auto japanese = japanese_test_family();
-  if (!japanese.has_value()) {
-    return;
-  }
+  japanese_test_family();
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);

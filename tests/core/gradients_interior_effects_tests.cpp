@@ -387,7 +387,7 @@ void compositor_aligned_gradients_use_visible_alpha_bounds() {
 void psd_bevel_examine_classic_gradient_matches_photoshop_if_available() {
   const auto psd_path = patchy::test::local_psd_fixture_path("bevel_examine.psd");
   const auto bmp_path = patchy::test::local_psd_fixture_path("bevel_examine_photoshop.bmp");
-  if (!std::filesystem::exists(psd_path)) return;
+  patchy::test::skip_unless_exists(psd_path);
   const auto document = patchy::psd::DocumentIo::read_file(psd_path);
   const patchy::LayerStyleGradient* imported_gradient = nullptr;
   std::function<void(const std::vector<patchy::Layer>&)> find_gradient = [&](const auto& layers) {

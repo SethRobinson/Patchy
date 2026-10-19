@@ -427,10 +427,7 @@ struct Title02Expectation {
 
 void psd_title02_legacy_text_layers_import_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("Title02.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] local Title02.psd fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   const auto document = patchy::psd::DocumentIo::read_file(path);
   // Photoshop 2026 over COM (September 2026): contents, size (px), color, justification.
   const std::vector<Title02Expectation> expected = {

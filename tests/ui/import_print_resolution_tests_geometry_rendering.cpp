@@ -1162,11 +1162,10 @@ void ui_file_drop_discards_work_when_owner_closes() {
 }
 
 void ui_reported_psd_open_shows_progress_dialog_if_available() {
-  const auto psd_path = QString::fromStdString(
-      patchy::test::local_psd_fixture_path("C2Kyoto Nintendo NES Cartridge Label Template (Front).psd").string());
-  if (!QFileInfo::exists(psd_path)) {
-    return;
-  }
+  const auto fixture_path =
+      patchy::test::local_psd_fixture_path("C2Kyoto Nintendo NES Cartridge Label Template (Front).psd");
+  patchy::test::skip_unless_exists(fixture_path);
+  const auto psd_path = QString::fromStdString(fixture_path.string());
 
   patchy::ui::MainWindow window;
   show_window(window);

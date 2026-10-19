@@ -116,8 +116,7 @@ void ui_text_name_table_names_resolve_to_the_registered_face() {
     }
   }
   if (path.isEmpty()) {
-    std::cout << "[SKIP] no UiDefault font file on this machine (name-table resolution)\n";
-    return;
+    patchy::test::skip("no UiDefault font file on this machine");
   }
   // Registering a file the role already registered adds nothing new; fonts are never removed.
   const int id = QFontDatabase::addApplicationFont(path);
@@ -228,7 +227,7 @@ void ui_text_windows_named_font_data_drops_macintosh_records_if_available() {
   const auto futura = QStringLiteral(PATCHY_SOURCE_DIR) + QStringLiteral("/local-test-fixtures/fonts/FUTURABC.TTF");
   const auto original = read_all(futura);
   if (original.isEmpty()) {
-    std::cout << "[SKIP] Futura fixture font missing (Macintosh name records): " << futura.toStdString() << '\n';
+    std::cout << "  note: optional fixture missing: local-test-fixtures/fonts/FUTURABC.TTF (Macintosh name records)\n";
     return;
   }
   const auto original_names = patchy::ui::opentype_table(original, "name");
@@ -400,8 +399,7 @@ void ui_script_set_text_runs_edits_existing_layer() {
     }
   }
   if (family.isEmpty()) {
-    std::cout << "[SKIP] no Arial-class family installed (setTextRuns family check)\n";
-    return;
+    patchy::test::skip("no Arial-class family installed");
   }
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1479,8 +1477,7 @@ void ui_script_save_as_options_write_jxl() {
 // saves and reopening (docs/jxl.md).
 void ui_script_save_as_options_write_avif() {
   if (!patchy::avif::is_available()) {
-    std::cout << "[SKIP] this build has no AVIF codec\n";
-    return;
+    patchy::test::skip("this build has no AVIF codec");
   }
   patchy::set_deep_editing_override(true);
   patchy::ui::MainWindow window;

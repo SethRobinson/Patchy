@@ -338,8 +338,7 @@ void atomic_write_commit_refuses_a_link_under_the_reserved_name() {
         error == std::error_code(ERROR_PRIVILEGE_NOT_HELD, std::system_category());
 #endif
     if (symlinks_unavailable) {
-      std::cout << "[SKIP] symlink half of atomic_write_commit_refuses_a_link_under_the_reserved_name: "
-                << error.message() << '\n';
+      std::cout << "  note: symlinks unavailable, the symlink half was not checked: " << error.message() << '\n';
       return;
     }
     CHECK(!error);
@@ -649,9 +648,7 @@ void test_scratch_remove_preserves_symlink_targets() {
       error == std::error_code(ERROR_PRIVILEGE_NOT_HELD, std::system_category());
 #endif
   if (symlinks_unavailable) {
-    std::cout << "[SKIP] test_scratch_remove_preserves_symlink_targets: directory symlinks unavailable: "
-              << error.message() << '\n';
-    return;
+    patchy::test::skip("directory symlinks unavailable: " + error.message());
   }
   CHECK(!error);
   CHECK(scratch_remove_refuses(root / "link" / "child"));

@@ -1080,7 +1080,7 @@ void ui_color_mode_and_ink_adjustment_imports_force_notices_popup() {
   const auto cmyk = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" /
                     "psd_files" / "adjustments" / "levels_cmyk.psd";
   if (!std::filesystem::exists(cmyk)) {
-    std::cout << "[SKIP] psd-tools collection missing: " << cmyk.string() << '\n';
+    std::cout << "  note: optional fixture missing: " << patchy::test::fixture_display_path(cmyk) << '\n';
     return;
   }
   const auto ink = forced_import_notice_text(patchy::ui::to_qstring(cmyk));
@@ -1309,8 +1309,7 @@ void ui_jxr_opens_and_saves_as_a_read_write_format() {
   // JPEG XR is Windows-only: everywhere else the filter table hides it and the reader
   // throws, which is the documented behavior rather than a failure.
   if (!patchy::jxr::is_available()) {
-    std::cout << "[SKIP] ui_jxr_opens_and_saves_as_a_read_write_format: no in-box Windows codec\n";
-    return;
+    patchy::test::skip("no in-box Windows codec");
   }
   // Alpha survives a .jxr export, unlike the formats that drop it.
   CHECK(patchy::ui::image_format_preserves_alpha("jxr"));
@@ -2889,8 +2888,7 @@ void ui_jxl_opens_and_saves_as_a_read_write_format() {
 
 void ui_avif_opens_and_saves_as_a_read_write_format() {
   if (!patchy::avif::is_available()) {
-    std::cout << "[SKIP] this build has no AVIF codec\n";
-    return;
+    patchy::test::skip("this build has no AVIF codec");
   }
   ensure_artifact_dir();
   CHECK(patchy::ui::image_format_preserves_alpha("avif"));

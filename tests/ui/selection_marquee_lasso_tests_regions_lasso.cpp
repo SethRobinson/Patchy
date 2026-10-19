@@ -379,9 +379,7 @@ void ui_ctrl_click_layer_and_mask_preserve_soft_coverage() {
 
 void ui_deko_layer_transparency_selection_and_channel_save_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("deko_test.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
 
   patchy::ui::MainWindow window;
   show_window(window);

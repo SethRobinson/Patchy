@@ -1531,8 +1531,7 @@ void ui_frameless_window_edges_resize() {
   if (!patchy::ui::MainWindow::use_custom_window_chrome()) {
     // macOS uses the native frame; the OS owns the resize borders and the Qt-level edge
     // machinery under test here is deliberately inert.
-    std::cout << "[SKIP] native window frame owns resize borders on this platform\n";
-    return;
+    patchy::test::skip("native window frame owns resize borders on this platform");
   }
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1577,8 +1576,7 @@ void ui_frameless_window_edges_resize() {
 
 void ui_maximized_title_bar_click_keeps_window_maximized() {
   if (!patchy::ui::MainWindow::use_custom_window_chrome()) {
-    std::cout << "[SKIP] native window frame owns the title bar on this platform\n";
-    return;
+    patchy::test::skip("native window frame owns the title bar on this platform");
   }
   // The Qt-level title-bar path (Linux; the real Windows window answers HTCAPTION instead,
   // see MainWindow::nativeEvent) must follow the native contract: a click or a
@@ -1661,7 +1659,7 @@ void ui_window_chrome_controls_drive_window_state() {
   CHECK(!patchy::ui::MainWindow::use_custom_window_chrome());
 #endif
   if (!patchy::ui::MainWindow::use_custom_window_chrome()) {
-    std::cout << "[SKIP] native window frame owns the window controls on this platform\n";
+    std::cout << "  note: native window frame owns the window controls on this platform\n";
     return;
   }
   patchy::ui::MainWindow window;
@@ -1722,8 +1720,7 @@ void ui_window_chrome_controls_drive_window_state() {
 // included.
 void ui_title_bar_drag_moves_window_only_past_threshold() {
   if (!patchy::ui::MainWindow::use_custom_window_chrome()) {
-    std::cout << "[SKIP] native window frame owns the title bar on this platform\n";
-    return;
+    patchy::test::skip("native window frame owns the title bar on this platform");
   }
   patchy::ui::MainWindow window;
   show_window_empty(window);

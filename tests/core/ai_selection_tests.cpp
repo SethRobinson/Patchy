@@ -294,8 +294,7 @@ void ai_mask_iou_counts_threshold_overlap() {
 
 void ai_object_selection_box_and_point_find_the_disc() {
   if (!point_engine_at_build_models()) {
-    std::printf("[SKIP] ai_object_selection_box_and_point_find_the_disc (build without automatic selection)\n");
-    return;
+    patchy::test::skip("build without automatic selection");
   }
   AiMask disc;
   const auto scene = disc_scene(1200, 900, disc);
@@ -359,8 +358,7 @@ void check_zoomed_box_finds_the_disc(const char* label) {
 
 void ai_object_selection_zoomed_box_finds_the_disc() {
   if (!point_engine_at_build_models()) {
-    std::printf("[SKIP] ai_object_selection_zoomed_box_finds_the_disc (build without automatic selection)\n");
-    return;
+    patchy::test::skip("build without automatic selection");
   }
   CHECK(patchy::ai::active_sam_model() == patchy::ai::SamModel::Standard);
   check_zoomed_box_finds_the_disc("MobileSAM");
@@ -368,13 +366,11 @@ void ai_object_selection_zoomed_box_finds_the_disc() {
 
 void ai_high_quality_object_selection_finds_the_disc() {
   if (!point_engine_at_build_models()) {
-    std::printf("[SKIP] ai_high_quality_object_selection_finds_the_disc (build without automatic selection)\n");
-    return;
+    patchy::test::skip("build without automatic selection");
   }
   const HighQualityModelScope scope;
   if (!scope.available) {
-    std::printf("[SKIP] ai_high_quality_object_selection_finds_the_disc (High Quality model not staged)\n");
-    return;
+    patchy::test::skip("High Quality model not staged");
   }
   CHECK(patchy::ai::active_sam_model() == patchy::ai::SamModel::HighQuality);
   AiMask disc;
@@ -409,12 +405,10 @@ void ai_object_selection_loose_box_skips_background_if_available() {
   const auto path = patchy::test::local_format_fixture_path("photos", "P1010437.JPG");
   std::error_code missing;
   if (!std::filesystem::is_regular_file(path, missing)) {
-    std::printf("[SKIP] ai_object_selection_loose_box_skips_background_if_available (no local fixture)\n");
-    return;
+    patchy::test::skip("optional fixture missing: " + patchy::test::fixture_display_path(path));
   }
   if (!point_engine_at_build_models()) {
-    std::printf("[SKIP] ai_object_selection_loose_box_skips_background_if_available (build without automatic selection)\n");
-    return;
+    patchy::test::skip("build without automatic selection");
   }
   std::ifstream file(path, std::ios::binary);
   const std::vector<unsigned char> bytes((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
@@ -440,8 +434,7 @@ void ai_object_selection_loose_box_skips_background_if_available() {
 
 void ai_select_subject_finds_the_disc() {
   if (!point_engine_at_build_models()) {
-    std::printf("[SKIP] ai_select_subject_finds_the_disc (build without automatic selection)\n");
-    return;
+    patchy::test::skip("build without automatic selection");
   }
   if (!patchy::ai::subject_selection_available()) {
     // Held back pending patent review (PATCHY_ENABLE_SELECT_SUBJECT off): the call refuses.
@@ -452,7 +445,7 @@ void ai_select_subject_finds_the_disc() {
       refused = std::string(error.what()).find("Select Subject") != std::string::npos;
     }
     CHECK(refused);
-    std::printf("[SKIP] ai_select_subject_finds_the_disc (build without the Select Subject model)\n");
+    std::printf("  note: build without the Select Subject model, only the refusal was checked\n");
     return;
   }
   AiMask disc;
@@ -488,8 +481,7 @@ void ai_out_of_memory_failures_are_recognized() {
 
 void ai_cancel_stops_inference_without_a_result() {
   if (!point_engine_at_build_models()) {
-    std::printf("[SKIP] ai_cancel_stops_inference_without_a_result (build without automatic selection)\n");
-    return;
+    patchy::test::skip("build without automatic selection");
   }
   AiMask disc;
   const auto scene = disc_scene(640, 480, disc);
@@ -530,8 +522,7 @@ void ai_cancel_stops_inference_without_a_result() {
 
 void ai_models_load_from_unicode_directory() {
   if (!point_engine_at_build_models()) {
-    std::printf("[SKIP] ai_models_load_from_unicode_directory (build without automatic selection)\n");
-    return;
+    patchy::test::skip("build without automatic selection");
   }
   const auto staged = patchy::ai::model_directory();
   const auto dir = patchy::test::unicode_artifact_dir(patchy::test::kUnicodeCombinedStem);

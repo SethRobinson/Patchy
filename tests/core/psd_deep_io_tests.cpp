@@ -448,7 +448,7 @@ void psd_cmyk_smart_objects_preserve_inks_and_invalidate_changed_sources() {
 
 void psd_duotone_preserves_inks_and_regenerates_colored_gradient_if_available() {
   const auto path = test::local_format_fixture_path("psd-tools/tests/psd_files/colormodes", "4x4_8bit_duotone.psd");
-  if (!std::filesystem::exists(path)) { std::cout << "[SKIP] local duotone fixture unavailable\n"; return; }
+  patchy::test::skip_unless_exists(path);
   const auto original = psd::DocumentIo::read_file(path);
   CHECK(original.metadata().psd_native_color_space != nullptr);
   const auto colors = original.metadata().psd_native_color_space->duotone_colors;
@@ -527,10 +527,7 @@ void psd_cmyk_smart_filter_saves_preserve_native_and_convert_authored_caches() {
 
 void psd_deep_non_rgb_gradients_and_adjustments_keep_native_color_if_available() {
   const auto root = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" / "psd_files";
-  if (!std::filesystem::exists(root)) {
-    std::cout << "[SKIP] psd-tools collection missing\n";
-    return;
-  }
+  patchy::test::skip_unless_exists(root);
   psd::ReadOptions read;
   read.keep_bit_depth = true;
   for (const auto* name : {"colormodes/4x4_16bit_cmyk.psd", "colormodes/4x4_16bit_grayscale.psd",
@@ -593,10 +590,7 @@ void psd_deep_non_rgb_gradients_and_adjustments_keep_native_color_if_available()
 // survives Patchy's own deep write.
 void psd_deep_photoshop_corpus_reads_and_round_trips_if_available() {
   const auto root = patchy::test::source_root_path() / "local-test-fixtures" / "deep";
-  if (!std::filesystem::exists(root / "manifest.json")) {
-    std::cout << "[SKIP] deep fixture corpus missing: " << root.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(root / "manifest.json");
   int checked = 0;
   for (const auto& scene : std::filesystem::directory_iterator(root)) {
     if (!scene.is_directory()) {

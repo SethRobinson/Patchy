@@ -74,10 +74,7 @@ using namespace patchy::test::ui;
 
 void ui_warp_render_matches_photoshop_preview_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("ps2026_e6_warp_before.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] e6 warp fixture missing\n";
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   // The fixture's stored pixels ARE Photoshop's warped render; re-rendering through
   // Patchy's warp pipeline must stay close to them.
   auto document = patchy::psd::DocumentIo::read_file(path);
@@ -131,10 +128,7 @@ void ui_warp_render_matches_photoshop_preview_if_available() {
 
 void ui_warped_smart_object_free_transform_rerenders() {
   const auto path = patchy::test::local_psd_fixture_path("ps2026_e6_warp_before.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] e6 warp fixture missing\n";
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   patchy::ui::MainWindow window;
   show_window(window);
   patchy::ui::MainWindowTestAccess::open_document_path(window, QString::fromStdWString(path.wstring()));
@@ -220,10 +214,7 @@ void ui_warped_smart_object_free_transform_rerenders() {
 
 void ui_warped_smart_object_edit_commit_keeps_warp() {
   const auto path = patchy::test::local_psd_fixture_path("ps2026_e6_warp_before.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] e6 warp fixture missing\n";
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   patchy::ui::MainWindow window;
   show_window(window);
   patchy::ui::MainWindowTestAccess::open_document_path(window, QString::fromStdWString(path.wstring()));
@@ -578,9 +569,7 @@ void ui_warp_text_render_matches_photoshop_if_available() {
   // unwarped. Re-rendering the warp through Patchy's pipeline must land on the
   // same geometry (IoU + bounds tolerances absorb the Qt-vs-PS anti-aliasing and
   // font-metric differences).
-  if (skip_without_arial_for_psd_text_preview()) {
-    return;
-  }
+  skip_without_arial_for_psd_text_preview();
   struct WarpRenderCase {
     const char* name;
     double min_iou;
@@ -702,8 +691,7 @@ void ui_warp_text_render_matches_photoshop_if_available() {
     ++verified;
   }
   if (verified == 0) {
-    std::cout << "[SKIP] ps2026_warptext capture fixtures missing\n";
-    return;
+    patchy::test::skip("no optional fixture present (ps2026_warptext captures)");
   }
   // Every case reports before anything fails: one run then shows the whole picture, which is
   // what a cross-platform rasterizer difference needs (a first-case throw hid the other eight).
@@ -1987,9 +1975,7 @@ void ui_text_thumbnail_double_click_selects_all_without_zoom() {
 void ui_warped_text_allows_real_bold_face() {
   // Photoshop's restriction covers FAUX bold only: a family that ships a real Bold
   // face keeps toggling bold on warped text with no refusal.
-  if (skip_without_arial_for_psd_text_preview()) {
-    return;
-  }
+  skip_without_arial_for_psd_text_preview();
   patchy::ui::MainWindow window;
   const auto text_id = build_warped_text_session_document(window, "WarpRealBold", QPoint(110, 130),
                                                           "Bend", QStringLiteral("Arial"));

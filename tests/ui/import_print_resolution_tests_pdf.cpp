@@ -352,8 +352,7 @@ void ui_pdf_export_editable_keeps_psd_preview_text_and_substitutes_missing_fonts
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   const auto installed_family = patchy::test::visual_test_font().family();
   if (installed_family.isEmpty() || !QFontDatabase::families().contains(installed_family)) {
-    std::printf("[skip] no registered UI-default family for the PSD preview text export test\n");
-    return;
+    patchy::test::skip("no registered UI-default family for the PSD preview text export test");
   }
 
   patchy::Document built(320, 200, patchy::PixelFormat::rgba8());
@@ -2157,12 +2156,9 @@ void ui_pdf_import_editable_mode_builds_vector_and_text_layers() {
 // The whole feature end to end on a real document: the untracked brochure fixture
 // imports editable, and the composite is saved as a visual-QA artifact.
 void ui_pdf_local_brochure_editable_import_composites_if_available() {
-  const auto fixture =
-      QString::fromStdString(patchy::test::local_format_fixture_path("pdf", "HoloVCS_C2_A4_Brochure.pdf").string());
-  if (!QFileInfo::exists(fixture)) {
-    std::printf("[SKIP] ui_pdf_local_brochure_editable_import_composites_if_available (no local fixture)\n");
-    return;
-  }
+  const auto fixture_path = patchy::test::local_format_fixture_path("pdf", "HoloVCS_C2_A4_Brochure.pdf");
+  patchy::test::skip_unless_exists(fixture_path);
+  const auto fixture = QString::fromStdString(fixture_path.string());
   ensure_artifact_dir();
   patchy::ui::MainWindow window;
   show_window(window);

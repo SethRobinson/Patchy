@@ -94,8 +94,7 @@ void composite_corpus_render_digests_are_stable() {
     problems += compare_corpus_baseline("render", directory, 2, digests);
   }
   if (documents == 0) {
-    std::cout << "[SKIP] no corpus documents found\n";
-    return;
+    patchy::test::skip("no corpus documents found");
   }
   CHECK(problems == 0);
 }
@@ -254,10 +253,7 @@ void group_clipped_adjustment_preview_keeps_backdrop_and_tracks_child_move() {
 
 void backglass_group_clipped_invert_preview_matches_photoshop_if_available() {
   const auto path = patchy::test::local_format_fixture_path("backglass-invert", "Backglass_homebrew.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] local Backglass fixture unavailable\n";
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   const auto document = patchy::psd::DocumentIo::read_file(path);
   patchy::psd::ReadOptions options;
   options.prefer_flat_composite = true;

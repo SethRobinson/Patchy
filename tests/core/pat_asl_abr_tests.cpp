@@ -866,10 +866,7 @@ void psd_descriptor_rejects_runaway_nesting() {
 
 void asl_reader_reads_photoshop_shipped_styles_if_available() {
   const auto path = patchy::test::local_format_fixture_path("asl", "Abstract Styles.asl");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] local ASL fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   std::ifstream input(path, std::ios::binary);
   const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(input)),
                                         std::istreambuf_iterator<char>());
