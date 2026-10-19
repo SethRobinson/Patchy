@@ -1,3 +1,4 @@
+#include "psd/psd_document_io.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/measurement_units.hpp"
 #include "ui/main_window.hpp"
@@ -42,6 +43,7 @@
 #include <string_view>
 #include <utility>
 #include <vector>
+#include "local_psd_fixtures.hpp"
 #include "ui_test_access.hpp"
 #include "ui_test_groups.hpp"
 #include "ui_test_support.hpp"
@@ -1203,6 +1205,190 @@ void ui_guide_drag_shows_position_readout() {
   CHECK(!canvas.transform_drag_readout().has_value());
 }
 
+// GitHub issue 231: a guide is a line across the whole view, pasteboard included, as in
+// Photoshop. Guides used to stop at the canvas edges, so one placed off the canvas showed
+// as a short stub beside it, or not at all.
+bool guide_drawn_near(const QImage& frame, QPoint point, bool vertical, QColor guide) {
+  guide.setAlpha(255);
+  for (int offset = -1; offset <= 1; ++offset) {
+    const auto probe = point + (vertical ? QPoint(offset, 0) : QPoint(0, offset));
+    if (frame.rect().contains(probe) && color_close(frame.pixelColor(probe), guide, 40)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+void ui_guides_draw_across_the_pasteboard() {
+  patchy::Document document(40, 30, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(40, 30, patchy::PixelFormat::rgb8(), Qt::white));
+  // One guide inside the canvas per axis, and the rest on the pasteboard: before it,
+  // and past its far edge.
+  document.guides() = {
+      patchy::DocumentGuide{patchy::GuideOrientation::Vertical, 10 * 32},
+      patchy::DocumentGuide{patchy::GuideOrientation::Vertical, -20 * 32},
+      patchy::DocumentGuide{patchy::GuideOrientation::Vertical, 60 * 32},
+      patchy::DocumentGuide{patchy::GuideOrientation::Horizontal, 12 * 32},
+      patchy::DocumentGuide{patchy::GuideOrientation::Horizontal, -15 * 32},
+      patchy::DocumentGuide{patchy::GuideOrientation::Horizontal, 45 * 32},
+  };
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(360, 260);
+  canvas.set_document(&document);
+  canvas.set_rulers_visible(true);
+  canvas.set_guides_visible(true);
+  canvas.show();
+  QApplication::processEvents();
+  // Centered, with pasteboard on every side of the canvas.
+  canvas.set_zoom_centered(2.0);
+  QApplication::processEvents();
+  const auto frame = canvas.grab().toImage();
+  save_widget_artifact("issue231_guides_across_pasteboard", canvas);
+
+  const auto top_left = canvas.widget_position_for_document_point(QPoint(0, 0));
+  const auto bottom_right = canvas.widget_position_for_document_point(QPoint(40, 30));
+  // Pasteboard rows above and below the canvas, columns left and right of it.
+  const int above = top_left.y() - 20;
+  const int below = bottom_right.y() + 20;
+  const int left = top_left.x() - 30;
+  const int right = bottom_right.x() + 50;
+  CHECK(above > 24 && below < canvas.height() && left > 32 && right < canvas.width());
+  const auto guide = canvas.guide_color();
+  for (const int x_pixels : {10, -20, 60}) {
+    const int x = canvas.widget_position_for_document_point(QPoint(x_pixels, 0)).x();
+    CHECK(guide_drawn_near(frame, QPoint(x, above), true, guide));
+    CHECK(guide_drawn_near(frame, QPoint(x, below), true, guide));
+  }
+  for (const int y_pixels : {12, -15, 45}) {
+    const int y = canvas.widget_position_for_document_point(QPoint(0, y_pixels)).y();
+    CHECK(guide_drawn_near(frame, QPoint(left, y), false, guide));
+    CHECK(guide_drawn_near(frame, QPoint(right, y), false, guide));
+  }
+  // Hidden guides draw nowhere.
+  canvas.set_guides_visible(false);
+  const auto hidden = canvas.grab().toImage();
+  const int x = canvas.widget_position_for_document_point(QPoint(-20, 0)).x();
+  CHECK(!guide_drawn_near(hidden, QPoint(x, above), true, guide));
+}
+
+// A guide dropped on the pasteboard stays there (GitHub issue 231); a drop on a ruler or
+// outside the view still removes it, and a guide on the pasteboard can be grabbed again.
+void ui_guide_dragged_onto_pasteboard_stays() {
+  patchy::Document document(40, 30, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(40, 30, patchy::PixelFormat::rgb8(), Qt::white));
+  document.guides().push_back(patchy::DocumentGuide{patchy::GuideOrientation::Vertical, 10 * 32});
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(360, 260);
+  canvas.set_document(&document);
+  canvas.set_rulers_visible(true);
+  canvas.set_guides_visible(true);
+  canvas.set_snap_enabled(false);
+  canvas.set_tool(patchy::ui::CanvasTool::Move);
+  canvas.show();
+  QApplication::processEvents();
+  canvas.set_zoom_centered(2.0);
+  QApplication::processEvents();
+
+  // Inside the canvas, dragged 15 px past its left edge.
+  const auto on_guide = canvas.widget_position_for_document_point(QPoint(10, 15));
+  const auto on_pasteboard = canvas.widget_position_for_document_point(QPoint(-15, 15));
+  send_mouse(canvas, QEvent::MouseButtonPress, on_guide, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, on_pasteboard, Qt::NoButton, Qt::LeftButton);
+  CHECK(canvas.transform_drag_readout().has_value());
+  send_mouse(canvas, QEvent::MouseButtonRelease, on_pasteboard, Qt::LeftButton, Qt::NoButton);
+  CHECK(document.guides().size() == 1);
+  if (document.guides().size() == 1) {
+    std::cout << "guide dropped on the pasteboard at position_32: " << document.guides().front().position_32
+              << std::endl;
+    CHECK(document.guides().front().position_32 == -15 * 32);
+  }
+  save_widget_artifact("issue231_guide_dropped_on_pasteboard", canvas);
+
+  // Grabbed again on the pasteboard above the canvas and moved further out.
+  const auto above_canvas = canvas.widget_position_for_document_point(QPoint(-15, -10));
+  const auto further_left = canvas.widget_position_for_document_point(QPoint(-25, -10));
+  send_mouse(canvas, QEvent::MouseButtonPress, above_canvas, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, further_left, Qt::NoButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, further_left, Qt::LeftButton, Qt::NoButton);
+  CHECK(document.guides().size() == 1);
+  CHECK(!document.guides().empty() && document.guides().front().position_32 == -25 * 32);
+
+  // Onto the left ruler: removed, with no readout while it hovers there.
+  const auto on_moved = canvas.widget_position_for_document_point(QPoint(-25, 5));
+  const QPoint left_ruler(12, on_moved.y());
+  send_mouse(canvas, QEvent::MouseButtonPress, on_moved, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, left_ruler, Qt::NoButton, Qt::LeftButton);
+  CHECK(!canvas.transform_drag_readout().has_value());
+  send_mouse(canvas, QEvent::MouseButtonRelease, left_ruler, Qt::LeftButton, Qt::NoButton);
+  CHECK(document.guides().empty());
+
+  // A new guide from the top ruler kept below the canvas, past its far edge.
+  const auto below_canvas = canvas.widget_position_for_document_point(QPoint(20, 50));
+  const QPoint top_ruler(below_canvas.x(), 12);
+  CHECK(below_canvas.y() < canvas.height());
+  send_mouse(canvas, QEvent::MouseButtonPress, top_ruler, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, below_canvas, Qt::NoButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, below_canvas, Qt::LeftButton, Qt::NoButton);
+  CHECK(document.guides().size() == 1);
+  CHECK(!document.guides().empty() && document.guides().front().orientation == patchy::GuideOrientation::Horizontal &&
+        document.guides().front().position_32 == 50 * 32);
+
+  // Released outside the view: no guide.
+  const QPoint outside(below_canvas.x(), canvas.height() + 40);
+  send_mouse(canvas, QEvent::MouseButtonPress, top_ruler, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, outside, Qt::NoButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, outside, Qt::LeftButton, Qt::NoButton);
+  CHECK(document.guides().size() == 1);
+
+  // New Guide places a typed position off the canvas too.
+  canvas.add_guide(patchy::GuideOrientation::Vertical, -7 * 32);
+  CHECK(document.guides().size() == 2);
+  CHECK(document.guides().size() == 2 && document.guides().back().position_32 == -7 * 32);
+}
+
+// The reporter's file (ag-psd's test/read/psb-test/src.psb, GitHub issue 231), a 549 x 864
+// PSB whose guides sit at x -154.2 and 1617.0 and y -1637.3 and 864.3, all on the
+// pasteboard. At 12% every one of them shows across the view.
+void ui_issue231_sample_guides_outside_document_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("ag-psd-psb-test-src.psb");
+  patchy::test::skip_unless_exists(path);
+  auto document = patchy::psd::DocumentIo::read_file(path);
+  CHECK(document.guides().size() == 5);
+
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(600, 600);
+  canvas.set_document(&document);
+  canvas.set_rulers_visible(true);
+  canvas.set_guides_visible(true);
+  canvas.show();
+  QApplication::processEvents();
+  canvas.set_zoom_centered(0.12);
+  CHECK(process_events_until([&canvas] { return canvas.render_settled(); }, 10000));
+  QApplication::processEvents();
+  const auto frame = canvas.grab().toImage();
+  save_widget_artifact("issue231_sample_pasteboard_guides", canvas);
+
+  const auto bottom_right = canvas.widget_position_for_document_point(QPoint(549, 864));
+  const int below = bottom_right.y() + 40;
+  const int right = bottom_right.x() + 40;
+  CHECK(below < canvas.height() && right < canvas.width());
+  const auto guide = canvas.guide_color();
+  for (const auto& sample : document.guides()) {
+    const auto pixels = static_cast<int>(std::lround(sample.position_32 / 32.0));
+    if (sample.orientation == patchy::GuideOrientation::Vertical) {
+      const int x = canvas.widget_position_for_document_point(QPoint(pixels, 0)).x();
+      CHECK(x > 32 && x < canvas.width());
+      CHECK(guide_drawn_near(frame, QPoint(x, below), true, guide));
+    } else {
+      const int y = canvas.widget_position_for_document_point(QPoint(0, pixels)).y();
+      CHECK(y > 24 && y < canvas.height());
+      CHECK(guide_drawn_near(frame, QPoint(right, y), false, guide));
+    }
+  }
+}
+
 void ui_deep_zoom_pixel_grid_matches_rendered_pixels() {
   patchy::Document document(24, 12, patchy::PixelFormat::rgb8());
   auto pixels = solid_pixels(24, 12, patchy::PixelFormat::rgb8(), Qt::white);
@@ -2287,6 +2473,10 @@ std::vector<patchy::test::TestCase> selection_marquee_lasso_tests_part1() {
       {"ui_rulers_grid_guides_render_and_edit", ui_rulers_grid_guides_render_and_edit},
       {"ui_guide_drag_shows_position_readout", ui_guide_drag_shows_position_readout},
       {"ui_guide_drag_lands_on_whole_pixels", ui_guide_drag_lands_on_whole_pixels},
+      {"ui_guides_draw_across_the_pasteboard", ui_guides_draw_across_the_pasteboard},
+      {"ui_guide_dragged_onto_pasteboard_stays", ui_guide_dragged_onto_pasteboard_stays},
+      {"ui_issue231_sample_guides_outside_document_if_available",
+       ui_issue231_sample_guides_outside_document_if_available},
       {"ui_deep_zoom_pixel_grid_matches_rendered_pixels",
        ui_deep_zoom_pixel_grid_matches_rendered_pixels},
       {"ui_deep_zoom_one_pixel_brush_marks_match_pixel_grid",
