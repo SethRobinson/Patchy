@@ -1759,6 +1759,13 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
         PATCHY_PYTHON_EXECUTABLE="${Python3_EXECUTABLE}")
       patchy_configure_target(patchy_translation_checks)
       target_compile_options(patchy_translation_checks PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/bigobj>)
+      if(MSVC)
+        # The app and connector link after this check, so its whole-program LTCG link
+        # used to sit on their critical path. The checker never ships: incremental LTCG
+        # (state in patchy_translation_checks.iobj) regenerates code only for changed
+        # functions. The release binaries keep full /LTCG. See docs/building.md.
+        target_link_options(patchy_translation_checks PRIVATE $<$<CONFIG:Release>:/LTCG:INCREMENTAL>)
+      endif()
       patchy_copy_translations(patchy_translation_checks)
       patchy_copy_qt_runtime(patchy_translation_checks)
       patchy_copy_bundled_fonts(patchy_translation_checks)
