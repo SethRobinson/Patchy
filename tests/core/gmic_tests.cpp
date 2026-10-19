@@ -311,9 +311,12 @@ void gmic_allowlisted_filters_run_with_defaults() {
     }
     gmic::RunControl control;
     std::atomic<bool> finished{false};
-    // A filter that neither finishes nor fails within the limit is stopped.
+    // A filter that neither finishes nor fails within the limit is stopped. The limit
+    // catches hangs, not slowness: at 10 s, fx_pack_sprites (about 12.5 s on a busy
+    // laptop host) raced the abort and failed only when G'MIC polled it first.
+    constexpr int kLimitSeconds = 30;
     std::thread limit([&] {
-      for (int tick = 0; tick < 200 && !finished.load(); ++tick) {
+      for (int tick = 0; tick < kLimitSeconds * 20 && !finished.load(); ++tick) {
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
       }
       control.abort.store(true);
@@ -330,7 +333,8 @@ void gmic_allowlisted_filters_run_with_defaults() {
     }
     if (!result.ok) {
       ++failures;
-      std::string reason = result.aborted ? "did not finish in 10 s" : result.error;
+      std::string reason =
+          result.aborted ? "did not finish in " + std::to_string(kLimitSeconds) + " s" : result.error;
       for (auto& ch : reason) {
         if (ch == '\n' || ch == '\r') {
           ch = ' ';
