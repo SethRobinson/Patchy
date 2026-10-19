@@ -486,6 +486,12 @@ void process_events_for(int milliseconds);
 bool process_events_until(const std::function<bool()>& condition, int timeout_ms = 3000);
 
 QDialog* find_top_level_dialog(const QString& object_name);
+
+// A hidden stand-in parent for a dialog a test opens without a MainWindow. The app's QSS
+// (photoshop_style()) is set on the MainWindow, not on qApp, and reaches a dialog only
+// through its parent: with a null parent, combo boxes, spin boxes and buttons render in
+// Qt's light defaults. Parent any dialog whose artifact is meant as a screenshot to this.
+std::unique_ptr<QWidget> make_themed_dialog_parent();
 // Once the save dialog `object_name` is up, chooses `path` in it and accepts, then runs
 // `next` for the dialog that follows (PDF Options after its file dialog). Call before
 // triggering the command.
