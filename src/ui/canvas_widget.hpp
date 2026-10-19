@@ -1821,6 +1821,12 @@ private:
   [[nodiscard]] int pen_session_anchor_at(QPointF widget_point) const;
   // Path editing (canvas_widget_vector_tools.cpp).
   [[nodiscard]] bool path_edit_tool_active() const noexcept;
+  // Line, Rectangle, Ellipse, Polygon or Custom Shape.
+  [[nodiscard]] bool shape_tool_active() const noexcept;
+  // Whether the target path's outline draws with the current tool (GitHub issue 238): always
+  // under a path tool; otherwise only while a Paths-panel row is targeted, and a shape layer's
+  // own path only under a shape tool. Show Target Path, Ctrl+H and a pen session still apply.
+  [[nodiscard]] bool target_path_outline_tool_allows() const;
   // The tool the path-edit handlers should behave as: DirectSelect while the
   // Pen's Ctrl latch is held, the actual tool otherwise.
   [[nodiscard]] CanvasTool path_edit_tool() const noexcept;

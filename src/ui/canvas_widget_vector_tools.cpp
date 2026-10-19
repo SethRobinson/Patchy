@@ -30,6 +30,7 @@
 #include <QLatin1String>
 #include <QMenu>
 #include <QMouseEvent>
+#include <QPaintDevice>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPen>
@@ -429,8 +430,6 @@ constexpr double kKnobRadius = 4.0;  // 8 px round knob
 // Widget pixels a glyph can reach past its point (half size, edge, antialiasing and
 // the line halo); repaint regions around path points pad by this much.
 constexpr double kGlyphReach = 8.0;
-constexpr double kOutlineWidth = 2.0;
-constexpr double kOutlineHaloWidth = 4.0;
 
 [[nodiscard]] QColor path_overlay_accent() {
   return QColor(30, 136, 255);
@@ -472,15 +471,18 @@ void draw_handle_line(QPainter& painter, QPointF from, QPointF to, const QColor&
   painter.drawLine(from, to);
 }
 
-// A path outline: the accent at 2 px on a 4 px translucent dark halo, the handle
-// lines' recipe, so the curve reads over a pale, dark or busy image at 100%.
+// A path outline: a 1-device-pixel accent hairline with no halo (GitHub issue 238), so it
+// reads as an overlay rather than a stroke of the artwork. It shifts half a device pixel so an
+// edge on whole widget pixels covers one pixel row instead of smearing over two.
 void draw_path_outline(QPainter& painter, const QPainterPath& outline, const QColor& accent,
                        Qt::PenStyle style = Qt::SolidLine) {
+  const qreal ratio = painter.device() != nullptr ? std::max<qreal>(1.0, painter.device()->devicePixelRatioF()) : 1.0;
+  painter.save();
+  painter.translate(0.5 / ratio, 0.5 / ratio);
   painter.setBrush(Qt::NoBrush);
-  painter.setPen(QPen(QColor(0, 0, 0, 120), kOutlineHaloWidth, style, Qt::RoundCap, Qt::RoundJoin));
+  painter.setPen(QPen(accent, 1.0 / ratio, style, Qt::FlatCap, Qt::MiterJoin));
   painter.drawPath(outline);
-  painter.setPen(QPen(accent, kOutlineWidth, style, Qt::RoundCap, Qt::RoundJoin));
-  painter.drawPath(outline);
+  painter.restore();
 }
 }  // namespace
 
@@ -543,6 +545,26 @@ void CanvasWidget::draw_pen_overlay(QPainter& painter) {
 bool CanvasWidget::path_edit_tool_active() const noexcept {
   return tool_ == CanvasTool::PathSelect || tool_ == CanvasTool::DirectSelect ||
          pen_family_tool_active();
+}
+
+bool CanvasWidget::shape_tool_active() const noexcept {
+  return tool_ == CanvasTool::Line || tool_ == CanvasTool::Rectangle || tool_ == CanvasTool::Ellipse ||
+         tool_ == CanvasTool::Polygon || tool_ == CanvasTool::CustomShape;
+}
+
+bool CanvasWidget::target_path_outline_tool_allows() const {
+  if (path_edit_tool_active()) {
+    return true;
+  }
+  if (!panel_path_targeted_) {
+    return false;
+  }
+  // A work path, saved path or vector mask outline draws with any tool. A shape layer's own
+  // path draws only under the shape tools: under Brush or Move, Photoshop shows none, and
+  // the outline read as part of the artwork.
+  const auto* layer = path_edit_target_layer();
+  const bool shape_layer_path = layer != nullptr && path_edit_target_path() == &layer->vector_shape()->path;
+  return !shape_layer_path || shape_tool_active();
 }
 
 bool CanvasWidget::pen_family_tool_active() const noexcept {
@@ -1016,7 +1038,7 @@ QRectF CanvasWidget::path_overlay_preview_document_rect() const {
     return {};
   }
   const bool editing = path_edit_tool_active();
-  if (!editing && !panel_path_targeted_) {
+  if (!target_path_outline_tool_allows()) {
     return {};
   }
   QRectF dirty;
@@ -2128,11 +2150,11 @@ void CanvasWidget::draw_path_edit_overlay(QPainter& painter) {
   if (!selection_edges_visible_) {
     return;  // Ctrl+H (Photoshop's Extras toggle) hides the points and outline too
   }
-  // The outline draws with ANY tool while a Paths-panel row is targeted
-  // (Photoshop's target-path display); anchors, handles, and the marquee are
-  // editing surfaces and stay path-tool-only.
+  // A targeted Paths-panel row draws its outline with other tools too (a shape
+  // layer's own path only under the shape tools, GitHub issue 238); anchors,
+  // handles, and the marquee are editing surfaces and stay path-tool-only.
   const bool editing = path_edit_tool_active();
-  if ((!editing && !panel_path_targeted_) || pen_session_active_) {
+  if (!target_path_outline_tool_allows() || pen_session_active_) {
     return;
   }
   const auto* path = path_edit_target_path();
