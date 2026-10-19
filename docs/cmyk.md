@@ -292,6 +292,10 @@ session-only, never written to a file, not an undo step.
   Open Folder, also shows that in `cmykProofOpenNoticeDialog` (`show_cmyk_proof_open_notice`)
   until its "Don't show this again" sets `imports/cmykProofOpenNotice` false; unattended and
   scripted opens never show it, and the UI suite turns it off by default (tests/ui/main.cpp).
+- **Painting.** An imported 8-bit CMYK PSD composites on its inks in CMYK Proof and RGB
+  mode alike, so its cost per brush dab does not depend on the mode: the dab separates only
+  its own rect and the profile's transforms are built once per file
+  ([blend-modes.md](blend-modes.md#imported-cmyk-documents), with the regression test).
 - **Scripting.** `doc.cmykProof` (read/write; refusals throw).
 
 ## CMYK Proof PSD saves

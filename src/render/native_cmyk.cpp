@@ -5,11 +5,17 @@
 #include "core/psd_source_colors.hpp"
 #include "render/layer_compositor.hpp"
 
+#include <algorithm>
+#include <atomic>
 #include <list>
 #include <mutex>
+#include <unordered_map>
 
 namespace patchy {
 namespace {
+
+std::atomic<std::uint64_t> transform_builds{0};
+std::atomic<std::uint64_t> separated_pixels{0};
 
 // CMYK's stored inverted channels use the same component blend kernels as RGB.
 // K is a separate neutral triplet. Hue/Saturation/Color keep backdrop K;
@@ -174,21 +180,82 @@ void composite_native_layers(NativeTarget& target, const std::vector<Layer>& cmy
   }
 }
 
-PixelBuffer ink_pixels(const PixelBuffer& pixels, std::span<const std::uint8_t> profile) {
-  PixelBuffer rgb(pixels.width(), pixels.height(), PixelFormat::rgb8());
-  for (int y = 0; y < pixels.height(); ++y) {
-    auto* dst = rgb.row(y).data();
-    const auto* src = pixels.row(y).data();
-    for (int x = 0; x < pixels.width(); ++x, src += pixels.format().channels, dst += 3) {
-      std::copy_n(src, 3, dst);
-    }
+// The document profile's transforms, built once per imported color space: building one
+// from a table-based press profile costs tens of milliseconds, and a brush stroke renders
+// once per dab. Entries keep the color space alive, so a pointer key is never reused.
+struct InkTransforms {
+  std::optional<CmykToRgbTransform> to_rgb;
+  std::optional<RgbToCmykTransform> to_ink;
+};
+
+std::shared_ptr<const InkTransforms> ink_transforms(const std::shared_ptr<const PsdNativeColorSpace>& space,
+                                                    std::span<const std::uint8_t> profile) {
+  static std::mutex mutex;
+  static std::list<std::pair<std::shared_ptr<const PsdNativeColorSpace>, std::shared_ptr<const InkTransforms>>> entries;
+  // Held while building, so parallel strips of the first render wait instead of building twice.
+  const std::lock_guard lock(mutex);
+  const auto found = std::find_if(entries.begin(), entries.end(), [&](const auto& entry) { return entry.first == space; });
+  if (found != entries.end()) {
+    entries.splice(entries.begin(), entries, found);
+    return entries.front().second;
   }
-  auto inks = rgb_to_native_color_space(rgb, ColorMode::CMYK, profile);
-  if (!inks) inks = rgb_to_native_color_space(rgb, ColorMode::CMYK, {});
-  return std::move(*inks);
+  auto built = std::make_shared<InkTransforms>();
+  built->to_rgb = CmykToRgbTransform::from_icc_profile(profile);
+  built->to_ink = RgbToCmykTransform::from_icc_profile(profile);
+  transform_builds.fetch_add(2, std::memory_order_relaxed);
+  entries.emplace_front(space, built);
+  if (entries.size() > 8U) entries.pop_back();
+  return built;
 }
 
-VectorFill channel_fill(const VectorFill& fill, bool black, std::span<const std::uint8_t> profile) {
+// Separates `region` (buffer-local) of RGB or RGBA pixels into inverted CMYK. Without a
+// usable profile, the profile-free inverse of rgb_to_native_color_space: no black ink.
+PixelBuffer ink_pixels(const PixelBuffer& pixels, Rect region, const RgbToCmykTransform* to_ink) {
+  PixelBuffer inks(region.width, region.height, PixelFormat{ColorMode::CMYK, BitDepth::UInt8, 4});
+  std::vector<std::uint8_t> rgb(static_cast<std::size_t>(region.width) * 3U);
+  const auto channels = static_cast<std::size_t>(pixels.format().channels);
+  for (int y = 0; y < region.height; ++y) {
+    const auto* src = pixels.row(region.y + y).data() + static_cast<std::size_t>(region.x) * channels;
+    for (int x = 0; x < region.width; ++x, src += channels) std::copy_n(src, 3, rgb.data() + x * 3);
+    auto* dst = inks.row(y).data();
+    if (to_ink != nullptr) {
+      to_ink->convert(rgb.data(), dst, static_cast<std::size_t>(region.width));
+    } else {
+      for (int x = 0; x < region.width; ++x) {
+        std::copy_n(rgb.data() + x * 3, 3, dst + x * 4);
+        dst[x * 4 + 3] = 255;
+      }
+    }
+  }
+  separated_pixels.fetch_add(static_cast<std::uint64_t>(region.width) * static_cast<std::uint64_t>(region.height),
+                             std::memory_order_relaxed);
+  return inks;
+}
+
+// Whether a layer's pixels are still its imported samples, so its own ink planes apply. A
+// painted layer keeps differing from its import, usually at the same byte stroke after
+// stroke, so the offset of the last difference found per layer is checked first and a
+// full comparison runs only when that byte matches again.
+bool pixels_match_import(LayerId layer, std::span<const std::uint8_t> pixels,
+                         std::span<const std::uint8_t> imported) {
+  if (pixels.data() == imported.data()) return true;
+  static std::mutex mutex;
+  static std::unordered_map<LayerId, std::size_t> last_difference;
+  {
+    const std::lock_guard lock(mutex);
+    const auto found = last_difference.find(layer);
+    if (found != last_difference.end() && found->second < pixels.size() &&
+        pixels[found->second] != imported[found->second]) return false;
+  }
+  const auto difference = std::mismatch(pixels.begin(), pixels.end(), imported.begin()).first;
+  if (difference == pixels.end()) return true;
+  const std::lock_guard lock(mutex);
+  if (last_difference.size() >= 4096U) last_difference.clear();
+  last_difference[layer] = static_cast<std::size_t>(difference - pixels.begin());
+  return false;
+}
+
+VectorFill channel_fill(const VectorFill& fill, bool black, const RgbToCmykTransform* to_ink) {
   if (fill.native_cmyk) {
     auto reference = fill;
     reference.native_cmyk.reset();
@@ -205,7 +272,7 @@ VectorFill channel_fill(const VectorFill& fill, bool black, std::span<const std:
     auto* p = rgb.pixel(static_cast<int>(i), 0);
     p[0] = colors[i].red; p[1] = colors[i].green; p[2] = colors[i].blue;
   }
-  const auto inks = ink_pixels(rgb, profile);
+  const auto inks = ink_pixels(rgb, Rect::from_size(rgb.width(), rgb.height()), to_ink);
   for (std::size_t i = 0; i < colors.size(); ++i) {
     const auto* p = inks.pixel(static_cast<int>(i), 0);
     const auto color = black ? RgbColor{p[3], p[3], p[3]} : RgbColor{p[0], p[1], p[2]};
@@ -215,16 +282,19 @@ VectorFill channel_fill(const VectorFill& fill, bool black, std::span<const std:
   return converted;
 }
 
-ChannelPixels prepare_pixels(const Layer& layer, const PixelBuffer* replacement, Rect canvas,
-                             const PatternStore& patterns, const PsdNativeColorSpace& space,
-                             std::span<const std::uint8_t> profile) {
+// `origin` places the pixels (the layer's bounds, or the override's). `region`, in buffer
+// coordinates, limits the work to the part a render needs; the result is then placed
+// there. Without it the whole layer is prepared.
+ChannelPixels prepare_pixels(const Layer& layer, const PixelBuffer* replacement, Rect origin,
+                             std::optional<Rect> region, Rect canvas, const PatternStore& patterns,
+                             const PsdNativeColorSpace& space, const RgbToCmykTransform* to_ink) {
   if (const auto* shape = layer.vector_shape(); shape != nullptr && replacement == nullptr &&
       shape->fill.kind != VectorFillKind::Pattern && shape->stroke.content.kind != VectorFillKind::Pattern &&
       shape->parts.empty()) {
     const auto raster = [&](bool black) {
       auto content = *shape;
-      content.fill = channel_fill(content.fill, black, profile);
-      content.stroke.content = channel_fill(content.stroke.content, black, profile);
+      content.fill = channel_fill(content.fill, black, to_ink);
+      content.stroke.content = channel_fill(content.stroke.content, black, to_ink);
       auto proxy = layer;
       proxy.set_vector_shape(std::move(content));
       update_vector_shape_raster(proxy, canvas, &patterns);
@@ -242,20 +312,22 @@ ChannelPixels prepare_pixels(const Layer& layer, const PixelBuffer* replacement,
       native->width == pixels.width() && native->height == pixels.height() && imported != nullptr &&
       imported->format() == pixels.format() && imported->byte_size() == pixels.byte_size() &&
       std::all_of(native->planes.begin(), native->planes.end(), [size](const auto& p) { return p.size() == size; }) &&
-      (imported->data().data() == pixels.data().data() ||
-       std::equal(pixels.data().begin(), pixels.data().end(), imported->data().begin()));
+      pixels_match_import(layer.id(), pixels.data(), imported->data());
+  const auto area = region.value_or(Rect::from_size(pixels.width(), pixels.height()));
   std::optional<PixelBuffer> converted;
-  if (!original) converted = ink_pixels(pixels, profile);
+  if (!original) converted = ink_pixels(pixels, area, to_ink);
   // Keep RGB versus RGBA here: the compositor uses that distinction to recognize
   // an actual Background for knockout, not merely an opaque ordinary layer.
-  ChannelPixels result{PixelBuffer(pixels.width(), pixels.height(), pixels.format()),
-                       PixelBuffer(pixels.width(), pixels.height(), pixels.format()), layer.bounds()};
-  for (int y = 0; y < pixels.height(); ++y) {
-    const auto* src = pixels.row(y).data();
+  ChannelPixels result{PixelBuffer(area.width, area.height, pixels.format()),
+                       PixelBuffer(area.width, area.height, pixels.format()),
+                       region ? Rect{origin.x + area.x, origin.y + area.y, area.width, area.height} : origin};
+  const auto channels = static_cast<std::size_t>(pixels.format().channels);
+  for (int y = 0; y < area.height; ++y) {
+    const auto* src = pixels.row(area.y + y).data() + static_cast<std::size_t>(area.x) * channels;
     auto* cmy = result.cmy.row(y).data();
     auto* black = result.black.row(y).data();
-    for (int x = 0; x < pixels.width(); ++x) {
-      const auto i = static_cast<std::size_t>(y) * pixels.width() + x;
+    for (int x = 0; x < area.width; ++x) {
+      const auto i = static_cast<std::size_t>(area.y + y) * pixels.width() + area.x + x;
       const auto* ink = converted ? converted->pixel(x, y) : nullptr;
       for (int c = 0; c < 3; ++c) cmy[c] = original ? native->planes[c][i] : ink[c];
       black[0] = black[1] = black[2] = original ? native->planes[3][i] : ink[3];
@@ -270,19 +342,17 @@ ChannelPixels prepare_pixels(const Layer& layer, const PixelBuffer* replacement,
 // Entries retain the source color-space owner so pointer keys cannot be reused.
 class ChannelCache {
 public:
-  ChannelPixels get(const Layer& layer, Rect canvas, const PatternStore& patterns,
-                    const std::shared_ptr<const PsdNativeColorSpace>& space,
-                    std::span<const std::uint8_t> profile) {
+  // The whole layer's channels at its current revision, if prepared before.
+  std::optional<ChannelPixels> find(const Layer& layer, Rect canvas,
+                                    const std::shared_ptr<const PsdNativeColorSpace>& space) {
     const std::lock_guard lock(mutex_);
-    const auto found = std::find_if(entries_.begin(), entries_.end(), [&](const Entry& entry) {
-      return entry.revision == layer.render_revision() && entry.space == space &&
-             entry.width == canvas.width && entry.height == canvas.height;
-    });
-    if (found != entries_.end()) {
-      entries_.splice(entries_.begin(), entries_, found);
-      return entries_.front().pixels;
-    }
-    auto pixels = prepare_pixels(layer, nullptr, canvas, patterns, *space, profile);
+    return find_locked(layer, canvas, space);
+  }
+  ChannelPixels get(const Layer& layer, Rect canvas, const PatternStore& patterns,
+                    const std::shared_ptr<const PsdNativeColorSpace>& space, const RgbToCmykTransform* to_ink) {
+    const std::lock_guard lock(mutex_);
+    if (auto found = find_locked(layer, canvas, space)) return std::move(*found);
+    auto pixels = prepare_pixels(layer, nullptr, layer.bounds(), std::nullopt, canvas, patterns, *space, to_ink);
     const auto bytes = pixels.cmy.byte_size() + pixels.black.byte_size();
     constexpr std::size_t budget = 128U * 1024U * 1024U;
     while (!entries_.empty() && (bytes_ + bytes > budget || entries_.size() >= 1024U)) {
@@ -296,6 +366,16 @@ public:
     return pixels;
   }
 private:
+  std::optional<ChannelPixels> find_locked(const Layer& layer, Rect canvas,
+                                           const std::shared_ptr<const PsdNativeColorSpace>& space) {
+    const auto found = std::find_if(entries_.begin(), entries_.end(), [&](const Entry& entry) {
+      return entry.revision == layer.render_revision() && entry.space == space &&
+             entry.width == canvas.width && entry.height == canvas.height;
+    });
+    if (found == entries_.end()) return std::nullopt;
+    entries_.splice(entries_.begin(), entries_, found);
+    return entries_.front().pixels;
+  }
   struct Entry {
     std::uint64_t revision;
     std::shared_ptr<const PsdNativeColorSpace> space;
@@ -308,9 +388,12 @@ private:
   std::size_t bytes_{0};
 };
 
+// Prepares what `clip` needs. A layer whose revision has no cached channels (one being
+// painted, or an override's pixels) separates only its part inside the clip, so a brush
+// dab costs its own rect, not the layer (docs/cmyk.md). Whole layers are cached.
 bool prepare_layers(std::vector<Layer>& cmy, std::vector<Layer>& black,
-                    const std::vector<Layer>& source, const Document& document,
-                    std::span<const std::uint8_t> profile,
+                    const std::vector<Layer>& source, const Document& document, Rect clip,
+                    const RgbToCmykTransform* to_ink,
                     const std::vector<render_detail::LayerBoundsOverride>* overrides) {
   static ChannelCache cache;
   cmy = source;
@@ -328,7 +411,8 @@ bool prepare_layers(std::vector<Layer>& cmy, std::vector<Layer>& black,
       }
     }
     if (layer.kind() == LayerKind::Group) {
-      if (!prepare_layers(cmy[i].children(), black[i].children(), layer.children(), document, profile, overrides)) return false;
+      if (!prepare_layers(cmy[i].children(), black[i].children(), layer.children(), document, clip, to_ink,
+                          overrides)) return false;
       continue;
     }
     if (layer.kind() == LayerKind::Adjustment) {
@@ -339,9 +423,26 @@ bool prepare_layers(std::vector<Layer>& cmy, std::vector<Layer>& black,
     const auto& input = pixels != nullptr ? *pixels : layer.pixels();
     if (input.empty()) continue;
     if (input.format() != PixelFormat::rgb8() && input.format() != PixelFormat::rgba8()) return false;
-    auto channels = pixels != nullptr ? prepare_pixels(layer, pixels, canvas, document.metadata().patterns, *space, profile)
-                                    : cache.get(layer, canvas, document.metadata().patterns, space, profile);
-    const auto bounds = replacement != nullptr ? replacement->bounds : channels.bounds;
+    const auto& patterns = document.metadata().patterns;
+    // The part of pixels placed at `origin` that the clip shows: nullopt for all of them. An
+    // empty part still replaces the layer's own pixels, which an override may have moved.
+    const auto visible_region = [clip](Rect origin, const PixelBuffer& placed) -> std::optional<Rect> {
+      const auto visible = intersect_rect(clip, Rect{origin.x, origin.y, placed.width(), placed.height()});
+      if (visible.width == placed.width() && visible.height == placed.height()) return std::nullopt;
+      return Rect{visible.x - origin.x, visible.y - origin.y, std::max(visible.width, 0), std::max(visible.height, 0)};
+    };
+    ChannelPixels channels;
+    if (pixels != nullptr) {
+      const auto region = visible_region(replacement->bounds, *pixels);
+      channels = prepare_pixels(layer, pixels, replacement->bounds, region, canvas, patterns, *space, to_ink);
+    } else if (auto cached = cache.find(layer, canvas, space)) {
+      channels = std::move(*cached);
+    } else {
+      const auto region = layer.vector_shape() == nullptr ? visible_region(layer.bounds(), input) : std::nullopt;
+      channels = region ? prepare_pixels(layer, nullptr, layer.bounds(), region, canvas, patterns, *space, to_ink)
+                        : cache.get(layer, canvas, patterns, space, to_ink);
+    }
+    const auto bounds = channels.bounds;
     cmy[i].clear_vector_shape(); black[i].clear_vector_shape();
     cmy[i].set_pixels(std::move(channels.cmy)); black[i].set_pixels(std::move(channels.black));
     cmy[i].set_bounds(bounds); black[i].set_bounds(bounds);
@@ -371,13 +472,15 @@ std::optional<PixelBuffer> render_native_cmyk8(
   clip = intersect_rect(clip, Rect::from_size(document.width(), document.height()));
   if (clip.empty()) return PixelBuffer{};
   const auto& profile = space->profile.empty() ? default_cmyk_profile() : space->profile;
+  const auto transforms = ink_transforms(space, profile);
+  const auto* to_ink = transforms->to_ink ? &*transforms->to_ink : nullptr;
   std::vector<Layer> cmy_layers, black_layers;
-  if (!prepare_layers(cmy_layers, black_layers, document.layers(), document, profile, overrides)) return std::nullopt;
+  if (!prepare_layers(cmy_layers, black_layers, document.layers(), document, clip, to_ink, overrides)) return std::nullopt;
   NativeTarget target(clip);
   composite_native_layers(target, cmy_layers, black_layers, clip);
   const auto cmy = target.cmy.to_pixel_buffer();
   const auto black = target.black.to_pixel_buffer();
-  auto transform = CmykToRgbTransform::from_icc_profile(profile);
+  const auto& transform = transforms->to_rgb;
   PixelBuffer output(clip.width, clip.height, PixelFormat::rgba8());
   std::vector<std::uint8_t> inks(static_cast<std::size_t>(clip.width) * 4U);
   std::vector<std::uint8_t> rgb(static_cast<std::size_t>(clip.width) * 3U);
@@ -400,6 +503,10 @@ std::optional<PixelBuffer> render_native_cmyk8(
     }
   }
   return output;
+}
+
+NativeCmykRenderStats native_cmyk_render_stats() noexcept {
+  return {transform_builds.load(std::memory_order_relaxed), separated_pixels.load(std::memory_order_relaxed)};
 }
 
 }  // namespace patchy

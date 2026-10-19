@@ -178,6 +178,49 @@ const std::string& CmykToRgbTransform::profile_description() const {
   return impl_->description;
 }
 
+struct RgbToCmykTransform::Impl {
+  cmsContext context{nullptr};
+  cmsHTRANSFORM transform{nullptr};
+
+  ~Impl() {
+    if (transform != nullptr) cmsDeleteTransform(transform);
+    if (context != nullptr) cmsDeleteContext(context);
+  }
+};
+
+std::optional<RgbToCmykTransform> RgbToCmykTransform::from_icc_profile(
+    std::span<const std::uint8_t> profile_bytes) {
+  if (profile_bytes.empty() || profile_bytes.size() > 0xFFFFFFFFULL) return std::nullopt;
+  auto impl = std::make_unique<Impl>();
+  impl->context = cmsCreateContext(nullptr, nullptr);
+  if (impl->context == nullptr) return std::nullopt;
+  cmsSetLogErrorHandlerTHR(impl->context, ignore_lcms_error);
+  // The same profiles, formats, intent and flags as rgb_to_native_color_space, so both
+  // produce the same inks.
+  const auto source = cmsCreate_sRGBProfileTHR(impl->context);
+  const auto destination = cmsOpenProfileFromMemTHR(impl->context, profile_bytes.data(),
+                                                    static_cast<cmsUInt32Number>(profile_bytes.size()));
+  if (source != nullptr && destination != nullptr && cmsGetColorSpace(destination) == cmsSigCmykData) {
+    impl->transform = cmsCreateTransformTHR(impl->context, source, TYPE_RGB_8, destination, TYPE_CMYK_8_REV,
+                                            INTENT_RELATIVE_COLORIMETRIC,
+                                            cmsFLAGS_BLACKPOINTCOMPENSATION | cmsFLAGS_NOCACHE);
+  }
+  if (source != nullptr) cmsCloseProfile(source);
+  if (destination != nullptr) cmsCloseProfile(destination);
+  if (impl->transform == nullptr) return std::nullopt;
+  return RgbToCmykTransform(std::move(impl));
+}
+
+RgbToCmykTransform::RgbToCmykTransform(std::unique_ptr<Impl> impl) : impl_(std::move(impl)) {}
+RgbToCmykTransform::RgbToCmykTransform(RgbToCmykTransform&&) noexcept = default;
+RgbToCmykTransform& RgbToCmykTransform::operator=(RgbToCmykTransform&&) noexcept = default;
+RgbToCmykTransform::~RgbToCmykTransform() = default;
+
+void RgbToCmykTransform::convert(const std::uint8_t* rgb, std::uint8_t* cmyk_inverted_out,
+                                 std::size_t pixel_count) const {
+  cmsDoTransform(impl_->transform, rgb, cmyk_inverted_out, static_cast<cmsUInt32Number>(pixel_count));
+}
+
 std::shared_ptr<const InkSpace> build_cmyk_ink_space(std::span<const std::uint8_t> profile_bytes,
                                                      std::string id) {
   if (profile_bytes.empty() || profile_bytes.size() > 0xFFFFFFFFULL) {

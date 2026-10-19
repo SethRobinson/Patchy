@@ -63,6 +63,31 @@ private:
   std::unique_ptr<Impl> impl_;
 };
 
+// The reverse direction for 8-bit samples: packed sRGB (3 bytes each) to inverted CMYK
+// (4 bytes each, 255 = no ink), relative colorimetric with black point compensation. Its
+// output equals rgb_to_native_color_space(rgb8, ColorMode::CMYK, profile); building it once
+// and reusing it avoids that function's per-call transform build, which costs tens of
+// milliseconds for a table-based press profile. Cache-free, so shareable across threads.
+class RgbToCmykTransform {
+public:
+  // Returns nullopt when the bytes are not a usable CMYK ICC profile.
+  [[nodiscard]] static std::optional<RgbToCmykTransform> from_icc_profile(
+      std::span<const std::uint8_t> profile_bytes);
+
+  RgbToCmykTransform(RgbToCmykTransform&&) noexcept;
+  RgbToCmykTransform& operator=(RgbToCmykTransform&&) noexcept;
+  RgbToCmykTransform(const RgbToCmykTransform&) = delete;
+  RgbToCmykTransform& operator=(const RgbToCmykTransform&) = delete;
+  ~RgbToCmykTransform();
+
+  void convert(const std::uint8_t* rgb, std::uint8_t* cmyk_inverted_out, std::size_t pixel_count) const;
+
+private:
+  struct Impl;
+  explicit RgbToCmykTransform(std::unique_ptr<Impl> impl);
+  std::unique_ptr<Impl> impl_;
+};
+
 // Samples a CMYK ICC profile into the two tables of an InkSpace (core/ink_space.hpp):
 // sRGB to the profile's inks and back, with the same intent and black point compensation
 // as CmykToRgbTransform. `id` names the space in layer metadata. Returns null when the

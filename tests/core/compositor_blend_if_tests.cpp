@@ -1503,6 +1503,65 @@ void compositor_cmyk_cache_tracks_edits_and_undo() {
   CHECK(!patchy::render_native_cmyk8(document, {0, 0, 8, 26}));
 }
 
+// A brush stroke renders the canvas once per dab. Each dab used to build three Little CMS
+// transforms and separate the whole painted layer (about 44 ms a dab on a 200 x 200 file),
+// so the work per dab must stay bounded by the dab's own rect.
+void compositor_cmyk_dab_renders_reuse_transforms_and_separate_only_their_rect() {
+  auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("cmyk-render/threshold.psd"));
+  const patchy::Layer* painted = nullptr;
+  for (auto& layer : document.layers()) {
+    if (std::as_const(layer).kind() == patchy::LayerKind::Adjustment) layer.set_visible(false);
+    else if (std::as_const(layer).kind() == patchy::LayerKind::Pixel) painted = &std::as_const(layer);
+  }
+  CHECK(painted != nullptr);
+  const auto id = painted->id();
+  const auto whole = patchy::Rect::from_size(document.width(), document.height());
+  CHECK(patchy::render_native_cmyk8(document, whole).has_value());
+  const auto before = patchy::native_cmyk_render_stats();
+  constexpr int kDabs = 12;
+  patchy::Rect dab_rect{};
+  std::optional<patchy::PixelBuffer> dab;
+  for (int i = 0; i < kDabs; ++i) {
+    auto* layer = document.find_layer(id);
+    auto pixels = std::as_const(*layer).pixels();
+    const int x = 20 + i * 17;
+    const int y = 2 + i % 10;
+    auto* pixel = pixels.pixel(x - layer->bounds().x, y - layer->bounds().y);
+    pixel[0] = 255; pixel[1] = static_cast<std::uint8_t>(i * 20); pixel[2] = 0;
+    const auto bounds = layer->bounds();
+    layer->set_pixels(std::move(pixels)); layer->set_bounds(bounds);
+    dab_rect = {x - 1, y - 1, 3, 3};
+    dab = patchy::render_native_cmyk8(document, dab_rect);
+    CHECK(dab.has_value() && dab->width() == 3 && dab->height() == 3);
+  }
+  const auto after = patchy::native_cmyk_render_stats();
+  CHECK(after.transform_builds == before.transform_builds);
+  CHECK(after.separated_pixels - before.separated_pixels <= static_cast<std::uint64_t>(kDabs * 9));
+  // The dab's rect matches a whole render of the same, now edited, state.
+  const auto full = patchy::render_native_cmyk8(document, whole);
+  CHECK(full.has_value());
+  CHECK(patchy::native_cmyk_render_stats().separated_pixels - after.separated_pixels ==
+        static_cast<std::uint64_t>(painted->pixels().width()) * static_cast<std::uint64_t>(painted->pixels().height()));
+  for (int y = 0; y < 3; ++y) for (int x = 0; x < 3; ++x) for (int c = 0; c < 4; ++c) {
+    CHECK(dab->pixel(x, y)[c] == full->pixel(dab_rect.x + x, dab_rect.y + y)[c]);
+  }
+  // The reusable separation gives the per-call function's inks.
+  const auto& profile = document.metadata().psd_native_color_space->profile;
+  const auto to_ink = patchy::RgbToCmykTransform::from_icc_profile(profile);
+  CHECK(to_ink.has_value());
+  patchy::PixelBuffer ramp(256, 1, patchy::PixelFormat::rgb8());
+  for (int x = 0; x < 256; ++x) {
+    auto* p = ramp.pixel(x, 0);
+    p[0] = static_cast<std::uint8_t>(x); p[1] = static_cast<std::uint8_t>(255 - x); p[2] = static_cast<std::uint8_t>(x * 7);
+  }
+  const auto expected = patchy::rgb_to_native_color_space(ramp, patchy::ColorMode::CMYK, profile);
+  CHECK(expected.has_value());
+  std::vector<std::uint8_t> inks(256U * 4U);
+  to_ink->convert(ramp.data().data(), inks.data(), 256U);
+  CHECK(std::equal(inks.begin(), inks.end(), expected->data().begin(), expected->data().end()));
+}
+
 void compositor_cmyk_flat_preview_avoids_a_second_profile_conversion() {
   const auto source = patchy::psd::DocumentIo::read_file(
       patchy::test::committed_psd_fixture_path("cmyk-render/calibration.psd"));
@@ -1920,6 +1979,8 @@ std::vector<patchy::test::TestCase> compositor_blend_if_tests() {
       {"compositor_cmyk_matches_photoshop_and_partial_bounds", compositor_cmyk_matches_photoshop_and_partial_bounds},
       {"compositor_cmyk_threshold_matches_photoshop", compositor_cmyk_threshold_matches_photoshop},
       {"compositor_cmyk_cache_tracks_edits_and_undo", compositor_cmyk_cache_tracks_edits_and_undo},
+      {"compositor_cmyk_dab_renders_reuse_transforms_and_separate_only_their_rect",
+       compositor_cmyk_dab_renders_reuse_transforms_and_separate_only_their_rect},
       {"compositor_cmyk_noise_gradient_keeps_rgb_fallback", compositor_cmyk_noise_gradient_keeps_rgb_fallback},
       {"compositor_cmyk_flat_preview_avoids_a_second_profile_conversion", compositor_cmyk_flat_preview_avoids_a_second_profile_conversion},
       {"cmyk_profile_reader_accepts_unicode_paths_and_rejects_bad_data", cmyk_profile_reader_accepts_unicode_paths_and_rejects_bad_data},
