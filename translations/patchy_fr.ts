@@ -10440,6 +10440,102 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Calque de texte. Police manquante sur cet ordinateur : %1.</translation>
     </message>
     <message>
+        <source>The TIFF&apos;s Photoshop layer records are damaged</source>
+        <translation>Les enregistrements de calques Photoshop du TIFF sont endommagés</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data mixes byte orders</source>
+        <translation>Les données de calques Photoshop du TIFF mélangent des ordres d&apos;octets</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data is cut short</source>
+        <translation>Les données de calques Photoshop du TIFF sont tronquées</translation>
+    </message>
+    <message>
+        <source>Patchy reads TIFF layers only in RGB, CMYK, grayscale and Lab files</source>
+        <translation>Patchy ne lit les calques TIFF que dans les fichiers RVB, CMJN, en niveaux de gris et Lab</translation>
+    </message>
+    <message>
+        <source>Not a TIFF file Patchy reads layers from</source>
+        <translation>Ce n&apos;est pas un fichier TIFF dont Patchy lit les calques</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s first directory is damaged</source>
+        <translation>Le premier répertoire du TIFF est endommagé</translation>
+    </message>
+    <message>
+        <source>The TIFF has no Photoshop layer data</source>
+        <translation>Le TIFF ne contient aucune donnée de calques Photoshop</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s first directory lacks its image size or color layout</source>
+        <translation>Le premier répertoire du TIFF n&apos;indique pas la taille de l&apos;image ou la disposition des couleurs</translation>
+    </message>
+    <message>
+        <source>Patchy reads TIFF layers only at 8 or 16 bits or 32-bit float</source>
+        <translation>Patchy ne lit les calques TIFF qu&apos;en 8 ou 16 bits ou en virgule flottante 32 bits</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data holds no layers</source>
+        <translation>Les données de calques Photoshop du TIFF ne contiennent aucun calque</translation>
+    </message>
+    <message>
+        <source>This TIFF stores its layers in IBM PC byte order, and some of that layer data is in a form Patchy cannot convert yet. Patchy left it out, so some layers may look different than in Photoshop.</source>
+        <translation>Ce TIFF enregistre ses calques dans l&apos;ordre d&apos;octets IBM PC, et une partie de ces données de calques a une forme que Patchy ne sait pas encore convertir. Patchy l&apos;a laissée de côté : certains calques peuvent donc s&apos;afficher autrement que dans Photoshop.</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data is too large</source>
+        <translation>Les données de calques Photoshop du TIFF sont trop volumineuses</translation>
+    </message>
+    <message>
+        <source>The Photoshop layers in this TIFF could not be read, so it opened as a flat image: %1</source>
+        <translation>Les calques Photoshop de ce TIFF n&apos;ont pas pu être lus ; il a donc été ouvert comme image aplatie : %1</translation>
+    </message>
+    <message>
+        <source>This TIFF holds %1 pages; Patchy opened the first one.</source>
+        <translation>Ce TIFF contient %1 pages ; Patchy a ouvert la première.</translation>
+    </message>
+    <message>
+        <source>Patchy writes layered TIFF files in RGB only</source>
+        <translation>Patchy n&apos;écrit les fichiers TIFF à calques qu&apos;en RVB</translation>
+    </message>
+    <message>
+        <source>Could not compress the TIFF image data</source>
+        <translation>Impossible de compresser les données d&apos;image du TIFF</translation>
+    </message>
+    <message>
+        <source>The document has no layers to write</source>
+        <translation>Le document n&apos;a aucun calque à écrire</translation>
+    </message>
+    <message>
+        <source>The layered TIFF would pass 4 GB, the TIFF limit. Save as PSB instead.</source>
+        <translation>Le TIFF à calques dépasserait 4 Go, la limite du format TIFF. Enregistrez plutôt en PSB.</translation>
+    </message>
+    <message>
+        <source>Could not open the TIFF file for writing</source>
+        <translation>Impossible d&apos;ouvrir le fichier TIFF en écriture</translation>
+    </message>
+    <message>
+        <source>Could not write the TIFF file</source>
+        <translation>Impossible d&apos;écrire le fichier TIFF</translation>
+    </message>
+    <message>
+        <source>A TIFF with layers is saved in RGB. Turn layers off to save a CMYK TIFF.</source>
+        <translation>Un TIFF à calques est enregistré en RVB. Désactivez les calques pour enregistrer un TIFF CMJN.</translation>
+    </message>
+    <message>
+        <source>TIFF Options</source>
+        <translation>Options TIFF</translation>
+    </message>
+    <message>
+        <source>Keep layers</source>
+        <translation>Conserver les calques</translation>
+    </message>
+    <message>
+        <source>Photoshop and Patchy open the layers; other apps show the flattened image. Without layers, Patchy saves a flattened copy and this document keeps its layers.</source>
+        <translation>Photoshop et Patchy ouvrent les calques ; les autres applications affichent l&apos;image aplatie. Sans calques, Patchy enregistre une copie aplatie et ce document garde ses calques.</translation>
+    </message>
+    <message>
         <source>The file&apos;s CMYK profile %1 differs from the working CMYK profile %2, which CMYK Proof and CMYK JPEG, TIFF and PDF saves use</source>
         <translation>Le profil CMJN du fichier, %1, diffère du profil CMJN de travail %2, utilisé par l&apos;Épreuve CMJN et les enregistrements CMJN en JPEG, TIFF et PDF</translation>
     </message>
@@ -21923,6 +22019,10 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Ce document est en mode Épreuve CMJN, mais ce fichier %1 sera enregistré en RVB. Patchy n&apos;enregistre un PSD en CMJN que s&apos;il a été ouvert depuis un PSD CMJN et que ses calques sont inchangés (les calques de texte demandent toujours du RVB). Les fichiers JPEG, TIFF et PDF aplatis peuvent toujours être enregistrés en CMJN. L&apos;enregistrer en RVB ?</translation>
     </message>
     <message>
+        <source>This document is in CMYK Proof mode, but a TIFF with layers is saved in RGB. Save it in RGB?</source>
+        <translation>Ce document est en mode Épreuve CMJN, mais un TIFF à calques est enregistré en RVB. L&apos;enregistrer en RVB ?</translation>
+    </message>
+    <message>
         <source>Brush mode: how the paint combines with the pixels under it</source>
         <translation>Mode du pinceau : comment la peinture se combine avec les pixels en dessous</translation>
     </message>
@@ -23705,6 +23805,10 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     <message>
         <source>%1: blackInkOnly needs colorMode: &quot;cmyk&quot;.</source>
         <translation>%1 : blackInkOnly nécessite colorMode: &quot;cmyk&quot;.</translation>
+    </message>
+    <message>
+        <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
+        <translation>%1 : layers exige colorMode: &quot;rgb&quot; ; un TIFF à calques est enregistré en RVB.</translation>
     </message>
 </context>
 <context>

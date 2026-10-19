@@ -557,7 +557,9 @@ Bytes inject_tiff(Bytes encoded, const SaveMetadata& metadata) {
   if (!metadata.exif.empty()) {
     exif = parse_tiff(metadata.exif);
   }
-  std::set<std::uint16_t> replaced{700, 33723, 34377, 34675, kTagExifIfd, kTagGpsIfd};
+  // 34377 is replaced only when IPTC is written (below): a layered TIFF's Photoshop image
+  // resources live there too (docs/tiff.md).
+  std::set<std::uint16_t> replaced{700, 33723, 34675, kTagExifIfd, kTagGpsIfd};
   std::vector<TiffEntry> additions;
   const auto add = [&](TiffEntry entry, bool from_big) {
     convert_byte_order(entry, from_big, writer.big);
@@ -582,7 +584,29 @@ Bytes inject_tiff(Bytes encoded, const SaveMetadata& metadata) {
     add(TiffEntry{33723, static_cast<std::uint16_t>(TiffType::Undefined),
                   static_cast<std::uint32_t>(metadata.iptc.size()), metadata.iptc},
         writer.big);
-    const auto irb = iptc_irb(metadata);
+    auto irb = iptc_irb(metadata);
+    // Resources already in the file (a layered TIFF's) stay; only the IPTC record and its
+    // digest are replaced.
+    for (std::size_t i = 0; i < count; ++i) {
+      const auto at = ifd0 + 2 + i * 12;
+      if (writer.read(at, 2) != 34377) {
+        continue;
+      }
+      const auto length = static_cast<std::size_t>(writer.read(at + 4, 4));
+      const auto offset = length <= 4 ? at + 8 : static_cast<std::size_t>(writer.read(at + 8, 4));
+      if (offset > encoded.size() || length > encoded.size() - offset) {
+        break;
+      }
+      auto merged = parse_irb(Span(encoded.data() + offset, length));
+      std::erase_if(merged, [](const IrbResource& resource) {
+        return resource.id == psd_resource::kIptc || resource.id == psd_resource::kCaptionDigest;
+      });
+      for (auto& resource : parse_irb(irb)) {
+        merged.push_back(std::move(resource));
+      }
+      irb = write_irb(merged);
+      break;
+    }
     add(TiffEntry{34377, static_cast<std::uint16_t>(TiffType::Byte), static_cast<std::uint32_t>(irb.size()), irb},
         writer.big);
   }

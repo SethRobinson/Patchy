@@ -717,6 +717,12 @@ interface PatchySaveOptions {
    *  instead of four-ink rich black, so small text stays sharp. Colors still separate
    *  through the profile. Default false; throws without colorMode "cmyk". */
   blackInkOnly?: boolean;
+  /** .tif/.tiff: write the layers as Photoshop does (a layered TIFF: the flattened image
+   *  plus Photoshop's layer data, which Photoshop and Patchy open as layers). saveAs
+   *  defaults to true when the document has layers a flat file would lose; exportAs and
+   *  colorMode "cmyk" default to false. A TIFF with layers is RGB, so true with colorMode
+   *  "cmyk" throws. */
+  layers?: boolean;
 }
 
 /** File > File Info fields (doc.fileInfo, doc.setFileInfo). Strings are empty and arrays

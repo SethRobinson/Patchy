@@ -15,6 +15,7 @@ class SaveProgress;
 
 // Classification shared by Save routing and the dialog preflight.
 [[nodiscard]] bool is_photoshop_document_extension(const QString& extension);
+[[nodiscard]] bool is_tiff_extension(const QString& extension);
 [[nodiscard]] bool is_read_only_source_extension(const QString& extension);
 [[nodiscard]] bool flat_save_discards_layers(const Document& document);
 [[nodiscard]] bool save_discards_layers(const Document& document, const QString& extension);

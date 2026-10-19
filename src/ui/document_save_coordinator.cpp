@@ -22,6 +22,10 @@ bool is_photoshop_document_extension(const QString& extension) {
   return extension == QStringLiteral("psd") || extension == QStringLiteral("psb");
 }
 
+bool is_tiff_extension(const QString& extension) {
+  return extension == QStringLiteral("tif") || extension == QStringLiteral("tiff");
+}
+
 // Formats whose writers keep the document's layer structure: PSD/PSB and Aseprite save
 // the layer tree, and ICO/CUR are exempt because multi-size icons deliberately live as
 // one hidden "WxH" layer per size that their writers round-trip.
@@ -82,7 +86,10 @@ bool flat_save_discards_layers(const Document& document) {
 // adjustments, styles, raster masks, inexpressible blend modes): a shape-only
 // document saves in place with no warning.
 bool save_discards_layers(const Document& document, const QString& extension) {
-  if (save_extension_preserves_layers(extension) || !flat_save_discards_layers(document)) {
+  // A TIFF keeps the layers unless its options turn them off, which
+  // MainWindow::save_document_to_path decides (docs/tiff.md).
+  if (save_extension_preserves_layers(extension) || is_tiff_extension(extension) ||
+      !flat_save_discards_layers(document)) {
     return false;
   }
   if (extension == QStringLiteral("svg")) {

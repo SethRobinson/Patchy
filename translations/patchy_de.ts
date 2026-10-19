@@ -10440,6 +10440,102 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Textebene. Schrift fehlt auf diesem Computer: %1.</translation>
     </message>
     <message>
+        <source>The TIFF&apos;s Photoshop layer records are damaged</source>
+        <translation>Die Photoshop-Ebenendatensätze der TIFF-Datei sind beschädigt</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data mixes byte orders</source>
+        <translation>Die Photoshop-Ebenendaten der TIFF-Datei mischen Bytereihenfolgen</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data is cut short</source>
+        <translation>Die Photoshop-Ebenendaten der TIFF-Datei sind unvollständig</translation>
+    </message>
+    <message>
+        <source>Patchy reads TIFF layers only in RGB, CMYK, grayscale and Lab files</source>
+        <translation>Patchy liest TIFF-Ebenen nur in RGB-, CMYK-, Graustufen- und Lab-Dateien</translation>
+    </message>
+    <message>
+        <source>Not a TIFF file Patchy reads layers from</source>
+        <translation>Keine TIFF-Datei, aus der Patchy Ebenen liest</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s first directory is damaged</source>
+        <translation>Das erste Verzeichnis der TIFF-Datei ist beschädigt</translation>
+    </message>
+    <message>
+        <source>The TIFF has no Photoshop layer data</source>
+        <translation>Die TIFF-Datei enthält keine Photoshop-Ebenendaten</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s first directory lacks its image size or color layout</source>
+        <translation>Im ersten Verzeichnis der TIFF-Datei fehlen Bildgröße oder Farbaufbau</translation>
+    </message>
+    <message>
+        <source>Patchy reads TIFF layers only at 8 or 16 bits or 32-bit float</source>
+        <translation>Patchy liest TIFF-Ebenen nur mit 8 oder 16 Bit oder als 32-Bit-Gleitkomma</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data holds no layers</source>
+        <translation>Die Photoshop-Ebenendaten der TIFF-Datei enthalten keine Ebenen</translation>
+    </message>
+    <message>
+        <source>This TIFF stores its layers in IBM PC byte order, and some of that layer data is in a form Patchy cannot convert yet. Patchy left it out, so some layers may look different than in Photoshop.</source>
+        <translation>Diese TIFF-Datei speichert ihre Ebenen in der Bytereihenfolge IBM PC, und ein Teil dieser Ebenendaten liegt in einer Form vor, die Patchy noch nicht umwandeln kann. Patchy hat ihn weggelassen, daher können einige Ebenen anders aussehen als in Photoshop.</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data is too large</source>
+        <translation>Die Photoshop-Ebenendaten der TIFF-Datei sind zu groß</translation>
+    </message>
+    <message>
+        <source>The Photoshop layers in this TIFF could not be read, so it opened as a flat image: %1</source>
+        <translation>Die Photoshop-Ebenen in dieser TIFF-Datei konnten nicht gelesen werden, daher wurde sie als flaches Bild geöffnet: %1</translation>
+    </message>
+    <message>
+        <source>This TIFF holds %1 pages; Patchy opened the first one.</source>
+        <translation>Diese TIFF-Datei enthält %1 Seiten; Patchy hat die erste geöffnet.</translation>
+    </message>
+    <message>
+        <source>Patchy writes layered TIFF files in RGB only</source>
+        <translation>Patchy schreibt TIFF-Dateien mit Ebenen nur in RGB</translation>
+    </message>
+    <message>
+        <source>Could not compress the TIFF image data</source>
+        <translation>Die TIFF-Bilddaten konnten nicht komprimiert werden</translation>
+    </message>
+    <message>
+        <source>The document has no layers to write</source>
+        <translation>Das Dokument hat keine Ebenen, die geschrieben werden können</translation>
+    </message>
+    <message>
+        <source>The layered TIFF would pass 4 GB, the TIFF limit. Save as PSB instead.</source>
+        <translation>Die TIFF-Datei mit Ebenen würde 4 GB überschreiten, die Grenze von TIFF. Speichern Sie stattdessen als PSB.</translation>
+    </message>
+    <message>
+        <source>Could not open the TIFF file for writing</source>
+        <translation>Die TIFF-Datei konnte nicht zum Schreiben geöffnet werden</translation>
+    </message>
+    <message>
+        <source>Could not write the TIFF file</source>
+        <translation>Die TIFF-Datei konnte nicht geschrieben werden</translation>
+    </message>
+    <message>
+        <source>A TIFF with layers is saved in RGB. Turn layers off to save a CMYK TIFF.</source>
+        <translation>Eine TIFF-Datei mit Ebenen wird in RGB gespeichert. Schalten Sie die Ebenen aus, um eine CMYK-TIFF-Datei zu speichern.</translation>
+    </message>
+    <message>
+        <source>TIFF Options</source>
+        <translation>TIFF-Optionen</translation>
+    </message>
+    <message>
+        <source>Keep layers</source>
+        <translation>Ebenen behalten</translation>
+    </message>
+    <message>
+        <source>Photoshop and Patchy open the layers; other apps show the flattened image. Without layers, Patchy saves a flattened copy and this document keeps its layers.</source>
+        <translation>Photoshop und Patchy öffnen die Ebenen; andere Apps zeigen das reduzierte Bild. Ohne Ebenen speichert Patchy eine reduzierte Kopie, und dieses Dokument behält seine Ebenen.</translation>
+    </message>
+    <message>
         <source>The file&apos;s CMYK profile %1 differs from the working CMYK profile %2, which CMYK Proof and CMYK JPEG, TIFF and PDF saves use</source>
         <translation>Das CMYK-Profil der Datei, %1, weicht vom CMYK-Arbeitsprofil %2 ab, das CMYK-Proof sowie CMYK-Speichern als JPEG, TIFF und PDF verwenden</translation>
     </message>
@@ -21923,6 +22019,10 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <translation>Dieses Dokument ist im Modus CMYK-Proof, aber diese %1-Datei wird in RGB gespeichert. Patchy speichert eine PSD nur dann in CMYK, wenn sie aus einer CMYK-PSD geöffnet wurde und ihre Ebenen unverändert sind (Textebenen brauchen immer RGB). JPEG-, TIFF- und reduzierte PDF-Dateien können immer in CMYK gespeichert werden. In RGB speichern?</translation>
     </message>
     <message>
+        <source>This document is in CMYK Proof mode, but a TIFF with layers is saved in RGB. Save it in RGB?</source>
+        <translation>Dieses Dokument ist im Modus CMYK-Proof, aber eine TIFF-Datei mit Ebenen wird in RGB gespeichert. In RGB speichern?</translation>
+    </message>
+    <message>
         <source>Brush mode: how the paint combines with the pixels under it</source>
         <translation>Pinselmodus: wie die Farbe mit den Pixeln darunter verrechnet wird</translation>
     </message>
@@ -23705,6 +23805,10 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
     <message>
         <source>%1: blackInkOnly needs colorMode: &quot;cmyk&quot;.</source>
         <translation>%1: blackInkOnly erfordert colorMode: &quot;cmyk&quot;.</translation>
+    </message>
+    <message>
+        <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
+        <translation>%1: layers erfordert colorMode: &quot;rgb&quot;; eine TIFF-Datei mit Ebenen wird in RGB gespeichert.</translation>
     </message>
 </context>
 <context>

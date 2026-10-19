@@ -61,3 +61,4 @@ std::vector<patchy::test::TestCase> deep_filter_tests();
 std::vector<patchy::test::TestCase> ai_selection_tests();
 std::vector<patchy::test::TestCase> gmic_tests();
 std::vector<patchy::test::TestCase> file_info_metadata_tests();
+std::vector<patchy::test::TestCase> tiff_layers_tests();

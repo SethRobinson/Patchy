@@ -10440,6 +10440,102 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Capa de texto. La fuente falta en este equipo: %1.</translation>
     </message>
     <message>
+        <source>The TIFF&apos;s Photoshop layer records are damaged</source>
+        <translation>Los registros de capas de Photoshop del TIFF están dañados</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data mixes byte orders</source>
+        <translation>Los datos de capas de Photoshop del TIFF mezclan órdenes de bytes</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data is cut short</source>
+        <translation>Los datos de capas de Photoshop del TIFF están incompletos</translation>
+    </message>
+    <message>
+        <source>Patchy reads TIFF layers only in RGB, CMYK, grayscale and Lab files</source>
+        <translation>Patchy solo lee capas TIFF en archivos RGB, CMYK, en escala de grises y Lab</translation>
+    </message>
+    <message>
+        <source>Not a TIFF file Patchy reads layers from</source>
+        <translation>No es un archivo TIFF del que Patchy lea capas</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s first directory is damaged</source>
+        <translation>El primer directorio del TIFF está dañado</translation>
+    </message>
+    <message>
+        <source>The TIFF has no Photoshop layer data</source>
+        <translation>El TIFF no contiene datos de capas de Photoshop</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s first directory lacks its image size or color layout</source>
+        <translation>Al primer directorio del TIFF le falta el tamaño de la imagen o la disposición del color</translation>
+    </message>
+    <message>
+        <source>Patchy reads TIFF layers only at 8 or 16 bits or 32-bit float</source>
+        <translation>Patchy solo lee capas TIFF de 8 o 16 bits o de 32 bits de coma flotante</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data holds no layers</source>
+        <translation>Los datos de capas de Photoshop del TIFF no contienen capas</translation>
+    </message>
+    <message>
+        <source>This TIFF stores its layers in IBM PC byte order, and some of that layer data is in a form Patchy cannot convert yet. Patchy left it out, so some layers may look different than in Photoshop.</source>
+        <translation>Este TIFF guarda sus capas en el orden de bytes de IBM PC, y parte de esos datos de capas tiene una forma que Patchy aún no puede convertir. Patchy la omitió, así que algunas capas pueden verse distintas que en Photoshop.</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data is too large</source>
+        <translation>Los datos de capas de Photoshop del TIFF son demasiado grandes</translation>
+    </message>
+    <message>
+        <source>The Photoshop layers in this TIFF could not be read, so it opened as a flat image: %1</source>
+        <translation>No se pudieron leer las capas de Photoshop de este TIFF, así que se abrió como imagen plana: %1</translation>
+    </message>
+    <message>
+        <source>This TIFF holds %1 pages; Patchy opened the first one.</source>
+        <translation>Este TIFF contiene %1 páginas; Patchy abrió la primera.</translation>
+    </message>
+    <message>
+        <source>Patchy writes layered TIFF files in RGB only</source>
+        <translation>Patchy solo escribe archivos TIFF con capas en RGB</translation>
+    </message>
+    <message>
+        <source>Could not compress the TIFF image data</source>
+        <translation>No se pudieron comprimir los datos de imagen del TIFF</translation>
+    </message>
+    <message>
+        <source>The document has no layers to write</source>
+        <translation>El documento no tiene capas que escribir</translation>
+    </message>
+    <message>
+        <source>The layered TIFF would pass 4 GB, the TIFF limit. Save as PSB instead.</source>
+        <translation>El TIFF con capas superaría los 4 GB, el límite de TIFF. Guárdelo como PSB.</translation>
+    </message>
+    <message>
+        <source>Could not open the TIFF file for writing</source>
+        <translation>No se pudo abrir el archivo TIFF para escribir</translation>
+    </message>
+    <message>
+        <source>Could not write the TIFF file</source>
+        <translation>No se pudo escribir el archivo TIFF</translation>
+    </message>
+    <message>
+        <source>A TIFF with layers is saved in RGB. Turn layers off to save a CMYK TIFF.</source>
+        <translation>Un TIFF con capas se guarda en RGB. Desactive las capas para guardar un TIFF CMYK.</translation>
+    </message>
+    <message>
+        <source>TIFF Options</source>
+        <translation>Opciones de TIFF</translation>
+    </message>
+    <message>
+        <source>Keep layers</source>
+        <translation>Conservar las capas</translation>
+    </message>
+    <message>
+        <source>Photoshop and Patchy open the layers; other apps show the flattened image. Without layers, Patchy saves a flattened copy and this document keeps its layers.</source>
+        <translation>Photoshop y Patchy abren las capas; otras aplicaciones muestran la imagen acoplada. Sin capas, Patchy guarda una copia acoplada y este documento conserva sus capas.</translation>
+    </message>
+    <message>
         <source>The file&apos;s CMYK profile %1 differs from the working CMYK profile %2, which CMYK Proof and CMYK JPEG, TIFF and PDF saves use</source>
         <translation>El perfil CMYK del archivo, %1, es distinto del perfil CMYK de trabajo %2, que usan la Prueba CMYK y los guardados CMYK en JPEG, TIFF y PDF</translation>
     </message>
@@ -21923,6 +22019,10 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
         <translation>Este documento está en modo Prueba CMYK, pero este archivo %1 se guardará en RGB. Patchy guarda un PSD en CMYK solo cuando se abrió desde un PSD CMYK y sus capas no han cambiado (las capas de texto siempre necesitan RGB). Los archivos JPEG, TIFF y PDF acoplados siempre pueden guardarse en CMYK. ¿Guardarlo en RGB?</translation>
     </message>
     <message>
+        <source>This document is in CMYK Proof mode, but a TIFF with layers is saved in RGB. Save it in RGB?</source>
+        <translation>Este documento está en modo Prueba CMYK, pero un TIFF con capas se guarda en RGB. ¿Guardarlo en RGB?</translation>
+    </message>
+    <message>
         <source>Brush mode: how the paint combines with the pixels under it</source>
         <translation>Modo de pincel: cómo se combina la pintura con los píxeles de debajo</translation>
     </message>
@@ -23705,6 +23805,10 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
     <message>
         <source>%1: blackInkOnly needs colorMode: &quot;cmyk&quot;.</source>
         <translation>%1: blackInkOnly necesita colorMode: &quot;cmyk&quot;.</translation>
+    </message>
+    <message>
+        <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
+        <translation>%1: layers requiere colorMode: &quot;rgb&quot;; un TIFF con capas se guarda en RGB.</translation>
     </message>
 </context>
 <context>

@@ -10474,6 +10474,102 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Текстовый слой. Шрифт отсутствует на этом компьютере: %1.</translation>
     </message>
     <message>
+        <source>The TIFF&apos;s Photoshop layer records are damaged</source>
+        <translation>Записи слоёв Photoshop в файле TIFF повреждены</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data mixes byte orders</source>
+        <translation>В данных слоёв Photoshop в файле TIFF смешаны порядки байтов</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data is cut short</source>
+        <translation>Данные слоёв Photoshop в файле TIFF обрываются</translation>
+    </message>
+    <message>
+        <source>Patchy reads TIFF layers only in RGB, CMYK, grayscale and Lab files</source>
+        <translation>Patchy читает слои TIFF только в файлах RGB, CMYK, в оттенках серого и Lab</translation>
+    </message>
+    <message>
+        <source>Not a TIFF file Patchy reads layers from</source>
+        <translation>Это не файл TIFF, из которого Patchy читает слои</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s first directory is damaged</source>
+        <translation>Первый каталог файла TIFF повреждён</translation>
+    </message>
+    <message>
+        <source>The TIFF has no Photoshop layer data</source>
+        <translation>В файле TIFF нет данных слоёв Photoshop</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s first directory lacks its image size or color layout</source>
+        <translation>В первом каталоге файла TIFF нет размера изображения или цветовой схемы</translation>
+    </message>
+    <message>
+        <source>Patchy reads TIFF layers only at 8 or 16 bits or 32-bit float</source>
+        <translation>Patchy читает слои TIFF только с глубиной 8 или 16 бит либо 32 бита с плавающей точкой</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data holds no layers</source>
+        <translation>Данные слоёв Photoshop в файле TIFF не содержат слоёв</translation>
+    </message>
+    <message>
+        <source>This TIFF stores its layers in IBM PC byte order, and some of that layer data is in a form Patchy cannot convert yet. Patchy left it out, so some layers may look different than in Photoshop.</source>
+        <translation>Этот TIFF хранит слои в порядке байтов IBM PC, и часть этих данных слоёв записана в виде, который Patchy пока не умеет преобразовывать. Patchy пропустил её, поэтому некоторые слои могут выглядеть иначе, чем в Photoshop.</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data is too large</source>
+        <translation>Данные слоёв Photoshop в файле TIFF слишком велики</translation>
+    </message>
+    <message>
+        <source>The Photoshop layers in this TIFF could not be read, so it opened as a flat image: %1</source>
+        <translation>Не удалось прочитать слои Photoshop в этом TIFF, поэтому он открыт как плоское изображение: %1</translation>
+    </message>
+    <message>
+        <source>This TIFF holds %1 pages; Patchy opened the first one.</source>
+        <translation>Страниц в этом TIFF: %1; Patchy открыл первую.</translation>
+    </message>
+    <message>
+        <source>Patchy writes layered TIFF files in RGB only</source>
+        <translation>Patchy записывает TIFF со слоями только в RGB</translation>
+    </message>
+    <message>
+        <source>Could not compress the TIFF image data</source>
+        <translation>Не удалось сжать данные изображения TIFF</translation>
+    </message>
+    <message>
+        <source>The document has no layers to write</source>
+        <translation>В документе нет слоёв для записи</translation>
+    </message>
+    <message>
+        <source>The layered TIFF would pass 4 GB, the TIFF limit. Save as PSB instead.</source>
+        <translation>TIFF со слоями превысил бы 4 ГБ, предел формата TIFF. Сохраните файл как PSB.</translation>
+    </message>
+    <message>
+        <source>Could not open the TIFF file for writing</source>
+        <translation>Не удалось открыть файл TIFF для записи</translation>
+    </message>
+    <message>
+        <source>Could not write the TIFF file</source>
+        <translation>Не удалось записать файл TIFF</translation>
+    </message>
+    <message>
+        <source>A TIFF with layers is saved in RGB. Turn layers off to save a CMYK TIFF.</source>
+        <translation>TIFF со слоями сохраняется в RGB. Отключите слои, чтобы сохранить TIFF в CMYK.</translation>
+    </message>
+    <message>
+        <source>TIFF Options</source>
+        <translation>Параметры TIFF</translation>
+    </message>
+    <message>
+        <source>Keep layers</source>
+        <translation>Сохранить слои</translation>
+    </message>
+    <message>
+        <source>Photoshop and Patchy open the layers; other apps show the flattened image. Without layers, Patchy saves a flattened copy and this document keeps its layers.</source>
+        <translation>Photoshop и Patchy открывают слои; другие программы показывают сведённое изображение. Без слоёв Patchy сохраняет сведённую копию, а этот документ сохраняет свои слои.</translation>
+    </message>
+    <message>
         <source>The file&apos;s CMYK profile %1 differs from the working CMYK profile %2, which CMYK Proof and CMYK JPEG, TIFF and PDF saves use</source>
         <translation>Профиль CMYK файла, %1, отличается от рабочего профиля CMYK %2, который используется CMYK-цветопробой и при сохранении в CMYK в форматах JPEG, TIFF и PDF</translation>
     </message>
@@ -21993,6 +22089,10 @@ Patchy может скачать обновление, заменить этот
         <translation>Этот документ в режиме CMYK-цветопробы, но этот файл %1 будет сохранен в RGB. Patchy сохраняет PSD в CMYK, только если он открыт из PSD в CMYK и его слои не изменены (текстовым слоям всегда нужен RGB). Файлы JPEG, TIFF и сведенные PDF всегда можно сохранить в CMYK. Сохранить в RGB?</translation>
     </message>
     <message>
+        <source>This document is in CMYK Proof mode, but a TIFF with layers is saved in RGB. Save it in RGB?</source>
+        <translation>Этот документ в режиме CMYK-цветопробы, но TIFF со слоями сохраняется в RGB. Сохранить в RGB?</translation>
+    </message>
+    <message>
         <source>Brush mode: how the paint combines with the pixels under it</source>
         <translation>Режим кисти: как краска сочетается с пикселями под ней</translation>
     </message>
@@ -23776,6 +23876,10 @@ Patchy может скачать обновление, заменить этот
     <message>
         <source>%1: blackInkOnly needs colorMode: &quot;cmyk&quot;.</source>
         <translation>%1: для blackInkOnly нужен colorMode: &quot;cmyk&quot;.</translation>
+    </message>
+    <message>
+        <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
+        <translation>%1: для layers нужен colorMode: &quot;rgb&quot;; TIFF со слоями сохраняется в RGB.</translation>
     </message>
 </context>
 <context>

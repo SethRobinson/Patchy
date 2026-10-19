@@ -28,8 +28,9 @@ namespace patchy::ui {
 [[nodiscard]] bool is_rttex_extension(const QString& extension);
 [[nodiscard]] bool is_dds_extension(const QString& extension);
 
-// JPEG, TIFF and flattened PDF have a CMYK form (docs/cmyk.md).
-[[nodiscard]] bool cmyk_form_available(const QString& extension, bool pdf_editable_layers);
+// JPEG, TIFF and flattened PDF have a CMYK form (docs/cmyk.md); a PDF with editable layers
+// and a TIFF with layers (`keeps_layers`) are RGB.
+[[nodiscard]] bool cmyk_form_available(const QString& extension, bool keeps_layers);
 // The per-format saveOptions/exportColor* and saveOptions/exportBlackInkOnly* keys of a
 // format with a CMYK form; empty for any other format.
 [[nodiscard]] QString cmyk_color_settings_key(const QString& extension);

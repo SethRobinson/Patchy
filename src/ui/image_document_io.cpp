@@ -1,5 +1,7 @@
 #include "ui/image_document_io.hpp"
 #include "formats/metadata/metadata_inject.hpp"
+#include "psd/psd_tiff.hpp"
+#include "ui/save_progress.hpp"
 #include "ui/memory_info.hpp"
 #include "ui/qt_paths.hpp"
 
@@ -2716,6 +2718,24 @@ void write_flat_image_file(const Document& document, const QString& path, const 
     pdf_options.include_ungrouped_layers = options.pdf_include_ungrouped_layers;
     pdf_options.include_hidden_groups = options.pdf_include_hidden_groups;
     write_pdf_document_file(document, path, pdf_options, notices);
+    return;
+  }
+  if ((lower == "tif" || lower == "tiff") && options.tiff_layers.value_or(false)) {
+    // Layered TIFF (docs/tiff.md): the composite plus Photoshop's layer data, from the real
+    // document like the editable PDF. Always RGB; the export transforms do not apply.
+    if (options.export_cmyk) {
+      throw std::runtime_error(PATCHY_TRANSLATE_NOOP(
+          "QObject", "A TIFF with layers is saved in RGB. Turn layers off to save a CMYK TIFF."));
+    }
+    psd::LayeredTiffWriteOptions tiff_options;
+    tiff_options.progress = [](int done, int total, const std::string& label) {
+      report_save_progress(done, total, SaveProgress::Kind::Layers, QString::fromStdString(label));
+    };
+    auto bytes = psd::write_layered_tiff(document, tiff_options);
+    if (const auto metadata = save_metadata_for(document, options, lower, document.width(), document.height())) {
+      bytes = metadata::inject_metadata(std::move(bytes), lower, *metadata);
+    }
+    write_bytes_with_save_file(path, bytes);
     return;
   }
   if (document.color_state().bit_depth != BitDepth::UInt8 &&

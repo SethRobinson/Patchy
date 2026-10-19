@@ -53,6 +53,7 @@
 #include "formats/rttex_document_io.hpp"
 #include "formats/svg_document_io.hpp"
 #include "psd/psd_document_io.hpp"
+#include "psd/psd_tiff.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/image_save_option_keys.hpp"
 #include "ui/background_workers.hpp"
@@ -1089,6 +1090,108 @@ void capture_file_info(Document& opened, const QString& path, bool pixels_in_sou
   }
 }
 
+// After a PSD reader import (a PSD, PSB or layered TIFF): force the Import Notes popup for
+// conversions a save makes permanent, open CMYK sources in CMYK Proof (`cmyk_source`), note
+// Blend If it cannot render, and put stale or missing linked smart-object files first.
+void finish_photoshop_layers_import(Document& opened, const QFileInfo& info, QStringList& import_notices,
+                                    bool& force_import_notices_popup, bool& cmyk_source) {
+  // Only when the depth was converted: a document that kept it lost nothing.
+  if (const auto depth = opened.metadata().values.find("psd.depth");
+      depth != opened.metadata().values.end() && depth->second != "8" &&
+      opened.color_state().bit_depth == BitDepth::UInt8) {
+    force_import_notices_popup = true;
+  }
+  // The other conversions a save makes permanent: a color mode with no RGB, CMYK or
+  // Grayscale equivalent, and adjustment layers that acted on CMYK inks.
+  if (const auto mode = opened.metadata().values.find("psd.color_mode");
+      mode != opened.metadata().values.end() && mode->second != "RGB" && mode->second != "CMYK" &&
+      mode->second != "Grayscale") {
+    force_import_notices_popup = true;
+  }
+  if (opened.metadata().values.contains("psd.ink_adjustments")) {
+    force_import_notices_popup = true;
+  }
+  // A CMYK PSD opens in CMYK Proof like a CMYK JPEG or TIFF (GitHub issue 220). The reader
+  // already converted through the file's profile and said so; an unchanged file saves its
+  // own inks and profile again (docs/psd-native-color.md), everything else the working one.
+  if (const auto mode = opened.metadata().values.find("psd.color_mode");
+      mode != opened.metadata().values.end() && mode->second == "CMYK") {
+    cmyk_source = true;
+    const auto working = working_cmyk_space();
+    const auto profile = psd::DocumentIo::source_icc_profile(opened);
+    if (const auto transform = CmykToRgbTransform::from_icc_profile(profile);
+        transform.has_value() && working->has_profile()) {
+      const auto profile_name = QString::fromStdString(transform->profile_description());
+      if (const auto working_name = QString::fromStdString(working->profile_description());
+          working_name != profile_name) {
+        import_notices.push_back(
+            QObject::tr("The file's CMYK profile %1 differs from the working CMYK profile %2, which CMYK Proof "
+                        "and CMYK JPEG, TIFF and PDF saves use")
+                .arg(profile_name, working_name));
+      }
+    }
+  }
+  if (const auto notice = unsupported_blend_if_import_notice(opened); !notice.isEmpty()) {
+    import_notices.push_back(notice);
+  }
+  // Linked-file staleness: compare each external source's stored date/size with
+  // the file on disk (Photoshop's own check). These are actionable, so they go
+  // FIRST in the notice list (the status bar shows only the leading note).
+  QStringList link_notices;
+  const auto document_dir = info.absolutePath();
+  for (const auto& block : std::as_const(opened.metadata().smart_objects.blocks)) {
+    for (const auto& source : block.sources) {
+      if (source.kind != SmartObjectSourceKind::ExternalFile) {
+        continue;
+      }
+      const auto file_name = QString::fromStdString(source.filename);
+      const auto resolved = resolve_smart_object_external_path(source, document_dir);
+      if (!resolved.has_value()) {
+        link_notices.push_back(QObject::tr("Linked file %1 was not found").arg(file_name));
+        continue;
+      }
+      if (smart_object_link_changed_on_disk(source, QFileInfo(*resolved))) {
+        link_notices.push_back(
+            QObject::tr("Linked file %1 has changed on disk; use Update Smart Object Content")
+                .arg(file_name));
+      }
+    }
+  }
+  for (int i = 0; i < link_notices.size(); ++i) {
+    import_notices.insert(i, link_notices.at(i));
+  }
+}
+
+// A TIFF carrying Photoshop layers in tag 37724 opens with them (docs/tiff.md). False when
+// the file has none or they cannot be read: the caller then opens the composite as it
+// always has, with a note saying why the layers are missing.
+bool open_layered_tiff(const QString& path, const QFileInfo& info, Document& opened, QStringList& import_notices,
+                       bool& force_import_notices_popup, bool& cmyk_source) {
+  const auto bytes = read_all_file_bytes(path);
+  if (!psd::tiff_has_photoshop_layers(bytes)) {
+    return false;
+  }
+  std::vector<std::string> notices;
+  psd::ReadOptions options;
+  options.notices = &notices;
+  try {
+    auto document = psd::read_layered_tiff(bytes, options);
+    // File Info comes from the TIFF itself (capture_file_info), not the PSD resources.
+    document.file_info() = DocumentFileInfo{};
+    opened = std::move(document);
+  } catch (const std::exception& error) {
+    import_notices.push_back(
+        QObject::tr("The Photoshop layers in this TIFF could not be read, so it opened as a flat image: %1")
+            .arg(translated_file_message(error.what())));
+    return false;
+  }
+  for (const auto& notice : notices) {
+    import_notices.push_back(translated_file_message(notice));
+  }
+  finish_photoshop_layers_import(opened, info, import_notices, force_import_notices_popup, cmyk_source);
+  return true;
+}
+
 OpenDocumentResult load_document_from_path(QString path) {
   const auto info = QFileInfo(path);
   const auto extension = info.suffix().toLower();
@@ -1162,7 +1265,7 @@ OpenDocumentResult load_document_from_path(QString path) {
     QImageReader reader(path);
     reader.setAutoTransform(true);
     auto image = reader.read();
-    if (image.isNull() && (extension == QStringLiteral("tif") || extension == QStringLiteral("tiff"))) {
+    if (image.isNull() && is_tiff_extension(extension)) {
       // Qt's libtiff has no JPEG codec; JPEG-compressed TIFFs decode strip by strip
       // through Qt's JPEG reader instead (GitHub issue 117).
       const auto bytes = read_all_file_bytes(path);
@@ -1174,6 +1277,14 @@ OpenDocumentResult load_document_from_path(QString path) {
       throw std::runtime_error(open_failure_reason(reader.errorString(), path, extension).toStdString());
     }
     orientation_applied = reader.transformation() != QImageIOHandler::TransformationNone;
+    // A multi-page TIFF opens its first page, as in Photoshop; pages are separate images
+    // (scans, faxes, GIMP's layers-as-pages export), not a layer stack (docs/tiff.md).
+    if (is_tiff_extension(extension)) {
+      if (const auto pages = psd::tiff_page_count(read_all_file_bytes(path)); pages > 1U) {
+        import_notices.push_back(
+            QObject::tr("This TIFF holds %1 pages; Patchy opened the first one.").arg(static_cast<qulonglong>(pages)));
+      }
+    }
     // Animated GIFs import every frame as a layer, frame 1 on TOP and all layers visible,
     // each frame's delay stamped as a trailing seconds token ("Frame 3 0.4s") that the
     // animated GIF export parses back, so a straight open-then-save round-trips. qgif
@@ -1266,71 +1377,11 @@ OpenDocumentResult load_document_from_path(QString path) {
     for (const auto& notice : psd_notices) {
       import_notices.push_back(translated_file_message(notice));
     }
-    // Only when the depth was converted: a document that kept it lost nothing.
-    if (const auto depth = opened.metadata().values.find("psd.depth");
-        depth != opened.metadata().values.end() && depth->second != "8" &&
-        opened.color_state().bit_depth == BitDepth::UInt8) {
-      force_import_notices_popup = true;
-    }
-    // The other conversions a save makes permanent: a color mode with no RGB, CMYK or
-    // Grayscale equivalent, and adjustment layers that acted on CMYK inks.
-    if (const auto mode = opened.metadata().values.find("psd.color_mode");
-        mode != opened.metadata().values.end() && mode->second != "RGB" && mode->second != "CMYK" &&
-        mode->second != "Grayscale") {
-      force_import_notices_popup = true;
-    }
-    if (opened.metadata().values.contains("psd.ink_adjustments")) {
-      force_import_notices_popup = true;
-    }
-    // A CMYK PSD opens in CMYK Proof like a CMYK JPEG or TIFF (GitHub issue 220). The reader
-    // already converted through the file's profile and said so; an unchanged file saves its
-    // own inks and profile again (docs/psd-native-color.md), everything else the working one.
-    if (const auto mode = opened.metadata().values.find("psd.color_mode");
-        mode != opened.metadata().values.end() && mode->second == "CMYK") {
-      cmyk_source = true;
-      const auto working = working_cmyk_space();
-      const auto profile = psd::DocumentIo::source_icc_profile(opened);
-      if (const auto transform = CmykToRgbTransform::from_icc_profile(profile);
-          transform.has_value() && working->has_profile()) {
-        const auto profile_name = QString::fromStdString(transform->profile_description());
-        if (const auto working_name = QString::fromStdString(working->profile_description());
-            working_name != profile_name) {
-          import_notices.push_back(
-              QObject::tr("The file's CMYK profile %1 differs from the working CMYK profile %2, which CMYK Proof "
-                          "and CMYK JPEG, TIFF and PDF saves use")
-                  .arg(profile_name, working_name));
-        }
-      }
-    }
-    if (const auto notice = unsupported_blend_if_import_notice(opened); !notice.isEmpty()) {
-      import_notices.push_back(notice);
-    }
-    // Linked-file staleness: compare each external source's stored date/size with
-    // the file on disk (Photoshop's own check). These are actionable, so they go
-    // FIRST in the notice list (the status bar shows only the leading note).
-    QStringList link_notices;
-    const auto document_dir = info.absolutePath();
-    for (const auto& block : std::as_const(opened.metadata().smart_objects.blocks)) {
-      for (const auto& source : block.sources) {
-        if (source.kind != SmartObjectSourceKind::ExternalFile) {
-          continue;
-        }
-        const auto file_name = QString::fromStdString(source.filename);
-        const auto resolved = resolve_smart_object_external_path(source, document_dir);
-        if (!resolved.has_value()) {
-          link_notices.push_back(QObject::tr("Linked file %1 was not found").arg(file_name));
-          continue;
-        }
-        if (smart_object_link_changed_on_disk(source, QFileInfo(*resolved))) {
-          link_notices.push_back(
-              QObject::tr("Linked file %1 has changed on disk; use Update Smart Object Content")
-                  .arg(file_name));
-        }
-      }
-    }
-    for (int i = 0; i < link_notices.size(); ++i) {
-      import_notices.insert(i, link_notices.at(i));
-    }
+    finish_photoshop_layers_import(opened, info, import_notices, force_import_notices_popup, cmyk_source);
+  } else if (is_tiff_extension(extension) &&
+             open_layered_tiff(path, info, opened, import_notices, force_import_notices_popup, cmyk_source)) {
+    // The layers' pixels are the file's own values, as in a PSD.
+    pixels_in_source_space = true;
   } else if (jxl::is_jxl_extension(extension.toStdString())) {
     // Before the registry row so animation frames get translated layer names and the
     // decoder's color and orientation facts reach File Info.
@@ -2343,7 +2394,13 @@ void MainWindow::run_cli_export(const QString& output_path, const QString& appen
       const int mutated = cli_append_text_to_text_layers(append_text);
       fprintf(stderr, "Appended text to %d text layer(s)\n", mutated);
     }
-    const bool saved = save_document_to_path(output_path, std::nullopt, SaveToPathPolicy{/*flatten_confirmed=*/true, /*scripted=*/false, /*export_copy=*/false});
+    // --export writes flat images; a layered TIFF needs a script's saveAs (docs/tiff.md).
+    std::optional<ImageSaveOptions> export_options;
+    if (is_tiff_extension(extension_for_path(output_path))) {
+      export_options = image_save_defaults_for_document();
+      export_options->tiff_layers = false;
+    }
+    const bool saved = save_document_to_path(output_path, export_options, SaveToPathPolicy{/*flatten_confirmed=*/true, /*scripted=*/false, /*export_copy=*/false});
     if (!saved) {
       fprintf(stderr, "Export failed: could not save %s\n", output_path.toUtf8().constData());
     }
@@ -4051,11 +4108,20 @@ bool MainWindow::save_document_as() {
   }
   path = path_with_default_extension(path, selected_filter);
   const auto extension = extension_for_path(path);
-  const bool discards_layers = save_discards_layers(std::as_const(document()), extension);
+  bool discards_layers = save_discards_layers(std::as_const(document()), extension);
   const bool linked_external_child =
       session().smart_object_link.has_value() && session().smart_object_link->external;
   std::optional<ImageSaveOptions> image_options;
-  if (is_pdf_extension(extension) && !linked_external_child) {
+  if (is_tiff_extension(extension) && flat_save_discards_layers(std::as_const(document()))) {
+    // TIFF Options: keep the layers (a layered TIFF, the default) or save a flattened copy;
+    // the dialog says what each means, so no flatten warning follows (docs/tiff.md).
+    auto tiff_options = prompt_tiff_save_options(this, image_save_defaults_for_document());
+    if (!tiff_options.has_value() || !still_saving_same_session()) {
+      return false;
+    }
+    discards_layers = !tiff_options->tiff_layers.value_or(true);
+    image_options = std::move(tiff_options);
+  } else if (is_pdf_extension(extension) && !linked_external_child) {
     // PDF Options answers everything a PDF save asks, the flatten-or-editable question
     // included (docs/pdf.md).
     const auto choice = prompt_pdf_options(path, /*export_pages*/ false);
@@ -4330,7 +4396,20 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
     animation_preview_window_->stop_playback_for(&document());
   }
   const auto extension = extension_for_path(path);
-  const bool discards_layers = save_discards_layers(std::as_const(document()), extension);
+  // Layered TIFF (docs/tiff.md): a TIFF keeps the document's layers unless the options turn
+  // them off (TIFF Options, a script's `layers: false`, an explicit CMYK color form);
+  // exports stay flat.
+  std::optional<bool> tiff_layers;
+  if (is_tiff_extension(extension)) {
+    const bool explicit_cmyk = image_options.has_value() && image_options->export_color_explicit &&
+                               image_options->export_cmyk;
+    tiff_layers = image_options.has_value() && image_options->tiff_layers.has_value()
+                      ? *image_options->tiff_layers
+                      : !policy.export_copy && !explicit_cmyk && flat_save_discards_layers(std::as_const(document()));
+  }
+  const bool discards_layers = tiff_layers.has_value()
+                                   ? !*tiff_layers && flat_save_discards_layers(std::as_const(document()))
+                                   : save_discards_layers(std::as_const(document()), extension);
   // CLI automation saves are explicit about their target format, so flattening needs no
   // confirmation there (and an unattended run must never block on the prompt).
   const bool linked_external_child =
@@ -4385,12 +4464,16 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
   if (pdf_editable_layers.has_value()) {
     effective_image_options.pdf_editable_layers = *pdf_editable_layers;
   }
+  if (tiff_layers.has_value()) {
+    effective_image_options.tiff_layers = *tiff_layers;
+  }
   bool native_cmyk_psd = false;
   // CMYK Proof (docs/cmyk.md): unless the Export dialog or a script chose the color form,
   // the document's mode does. CMYK where the format has a CMYK form, RGB everywhere else.
   if (!effective_image_options.export_color_explicit) {
     const bool cmyk = session().cmyk_proof && working_cmyk_space()->has_profile() &&
-                      cmyk_form_available(extension, effective_image_options.pdf_editable_layers);
+                      cmyk_form_available(extension, effective_image_options.pdf_editable_layers ||
+                                                         effective_image_options.tiff_layers.value_or(false));
     effective_image_options.export_cmyk = cmyk;
     effective_image_options.export_black_ink_only =
         cmyk && app_settings().value(cmyk_black_ink_only_settings_key(extension), false).toBool();
@@ -4407,6 +4490,8 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
           is_pdf_extension(extension)
               ? tr("This document is in CMYK Proof mode, but a PDF with editable layers is saved in RGB. "
                    "Save it in RGB?")
+          : is_tiff_extension(extension)
+              ? tr("This document is in CMYK Proof mode, but a TIFF with layers is saved in RGB. Save it in RGB?")
           : is_photoshop_document_extension(extension)
               ? tr("This document is in CMYK Proof mode, but this %1 file will be saved in RGB. Patchy saves a "
                    "PSD in CMYK only when it was opened from a CMYK PSD and its layers are unchanged (text "

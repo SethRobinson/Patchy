@@ -10406,6 +10406,102 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>텍스트 레이어. 이 컴퓨터에 없는 글꼴: %1.</translation>
     </message>
     <message>
+        <source>The TIFF&apos;s Photoshop layer records are damaged</source>
+        <translation>TIFF의 Photoshop 레이어 레코드가 손상되었습니다</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data mixes byte orders</source>
+        <translation>TIFF의 Photoshop 레이어 데이터에 바이트 순서가 섞여 있습니다</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data is cut short</source>
+        <translation>TIFF의 Photoshop 레이어 데이터가 중간에 잘려 있습니다</translation>
+    </message>
+    <message>
+        <source>Patchy reads TIFF layers only in RGB, CMYK, grayscale and Lab files</source>
+        <translation>Patchy는 RGB, CMYK, 회색조, Lab 파일에서만 TIFF 레이어를 읽습니다</translation>
+    </message>
+    <message>
+        <source>Not a TIFF file Patchy reads layers from</source>
+        <translation>Patchy가 레이어를 읽을 수 있는 TIFF 파일이 아닙니다</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s first directory is damaged</source>
+        <translation>TIFF의 첫 번째 디렉터리가 손상되었습니다</translation>
+    </message>
+    <message>
+        <source>The TIFF has no Photoshop layer data</source>
+        <translation>TIFF에 Photoshop 레이어 데이터가 없습니다</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s first directory lacks its image size or color layout</source>
+        <translation>TIFF의 첫 번째 디렉터리에 이미지 크기나 색상 구성이 없습니다</translation>
+    </message>
+    <message>
+        <source>Patchy reads TIFF layers only at 8 or 16 bits or 32-bit float</source>
+        <translation>Patchy는 8비트, 16비트 또는 32비트 부동소수점 TIFF 레이어만 읽습니다</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data holds no layers</source>
+        <translation>TIFF의 Photoshop 레이어 데이터에 레이어가 없습니다</translation>
+    </message>
+    <message>
+        <source>This TIFF stores its layers in IBM PC byte order, and some of that layer data is in a form Patchy cannot convert yet. Patchy left it out, so some layers may look different than in Photoshop.</source>
+        <translation>이 TIFF는 레이어를 IBM PC 바이트 순서로 저장하며, 그 레이어 데이터 일부는 Patchy가 아직 변환할 수 없는 형식입니다. Patchy가 그 부분을 제외했으므로 일부 레이어는 Photoshop과 다르게 보일 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data is too large</source>
+        <translation>TIFF의 Photoshop 레이어 데이터가 너무 큽니다</translation>
+    </message>
+    <message>
+        <source>The Photoshop layers in this TIFF could not be read, so it opened as a flat image: %1</source>
+        <translation>이 TIFF의 Photoshop 레이어를 읽을 수 없어 병합된 이미지로 열었습니다: %1</translation>
+    </message>
+    <message>
+        <source>This TIFF holds %1 pages; Patchy opened the first one.</source>
+        <translation>이 TIFF에는 %1개의 페이지가 있습니다. Patchy는 첫 페이지를 열었습니다.</translation>
+    </message>
+    <message>
+        <source>Patchy writes layered TIFF files in RGB only</source>
+        <translation>Patchy는 레이어가 있는 TIFF 파일을 RGB로만 저장합니다</translation>
+    </message>
+    <message>
+        <source>Could not compress the TIFF image data</source>
+        <translation>TIFF 이미지 데이터를 압축할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>The document has no layers to write</source>
+        <translation>문서에 저장할 레이어가 없습니다</translation>
+    </message>
+    <message>
+        <source>The layered TIFF would pass 4 GB, the TIFF limit. Save as PSB instead.</source>
+        <translation>레이어가 있는 TIFF가 TIFF 한도인 4GB를 넘습니다. 대신 PSB로 저장하세요.</translation>
+    </message>
+    <message>
+        <source>Could not open the TIFF file for writing</source>
+        <translation>TIFF 파일을 쓰기용으로 열 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Could not write the TIFF file</source>
+        <translation>TIFF 파일을 쓸 수 없습니다</translation>
+    </message>
+    <message>
+        <source>A TIFF with layers is saved in RGB. Turn layers off to save a CMYK TIFF.</source>
+        <translation>레이어가 있는 TIFF는 RGB로 저장됩니다. CMYK TIFF를 저장하려면 레이어를 끄세요.</translation>
+    </message>
+    <message>
+        <source>TIFF Options</source>
+        <translation>TIFF 옵션</translation>
+    </message>
+    <message>
+        <source>Keep layers</source>
+        <translation>레이어 유지</translation>
+    </message>
+    <message>
+        <source>Photoshop and Patchy open the layers; other apps show the flattened image. Without layers, Patchy saves a flattened copy and this document keeps its layers.</source>
+        <translation>Photoshop과 Patchy는 레이어를 열고, 다른 앱은 병합된 이미지를 표시합니다. 레이어 없이 저장하면 Patchy는 병합된 사본을 저장하며 이 문서는 레이어를 유지합니다.</translation>
+    </message>
+    <message>
         <source>The file&apos;s CMYK profile %1 differs from the working CMYK profile %2, which CMYK Proof and CMYK JPEG, TIFF and PDF saves use</source>
         <translation>파일의 CMYK 프로파일 %1이(가) CMYK 교정과 JPEG, TIFF, PDF CMYK 저장에 사용되는 작업 CMYK 프로파일 %2과(와) 다릅니다</translation>
     </message>
@@ -21853,6 +21949,10 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <translation>이 문서는 CMYK 교정 모드이지만 이 %1 파일은 RGB로 저장됩니다. Patchy는 CMYK PSD에서 열었고 레이어가 변경되지 않은 경우에만 PSD를 CMYK로 저장합니다(텍스트 레이어는 항상 RGB가 필요합니다). JPEG, TIFF, 병합된 PDF 파일은 언제나 CMYK로 저장할 수 있습니다. RGB로 저장하시겠습니까?</translation>
     </message>
     <message>
+        <source>This document is in CMYK Proof mode, but a TIFF with layers is saved in RGB. Save it in RGB?</source>
+        <translation>이 문서는 CMYK 교정 모드이지만 레이어가 있는 TIFF는 RGB로 저장됩니다. RGB로 저장하시겠습니까?</translation>
+    </message>
+    <message>
         <source>Brush mode: how the paint combines with the pixels under it</source>
         <translation>브러시 모드: 칠이 아래 픽셀과 합쳐지는 방식</translation>
     </message>
@@ -23634,6 +23734,10 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
     <message>
         <source>%1: blackInkOnly needs colorMode: &quot;cmyk&quot;.</source>
         <translation>%1: blackInkOnly에는 colorMode: &quot;cmyk&quot;가 필요합니다.</translation>
+    </message>
+    <message>
+        <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
+        <translation>%1: layers에는 colorMode: &quot;rgb&quot;가 필요합니다. 레이어가 있는 TIFF는 RGB로 저장됩니다.</translation>
     </message>
 </context>
 <context>

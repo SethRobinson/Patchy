@@ -8,6 +8,7 @@
 
 #include <QColor>
 #include <QString>
+#include <optional>
 #include <vector>
 
 namespace patchy::ui {
@@ -60,6 +61,11 @@ struct ImageSaveOptions {
   // sets it from the saveOptions/pdfLayerPolicy preference or the flatten-or-keep question.
   // See PdfExportOptions::editable_layers.
   bool pdf_editable_layers{false};
+  // TIFF: write Photoshop's layer data beside the composite (docs/tiff.md). Per save, never
+  // persisted. Unset means the default MainWindow::save_document_to_path applies: on when
+  // a flat save would discard the document's layers, off for exports. The TIFF Options
+  // dialog (Save As) and scripts' `layers` set it.
+  std::optional<bool> tiff_layers;
   // PDF, editable layers only: text whose font is not installed is embedded as the layer's
   // pixels instead of drawn as real text in a substitute face. Persists as
   // saveOptions/pdfMissingFontsAsImages. See PdfExportOptions::missing_fonts_as_images.

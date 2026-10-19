@@ -11,7 +11,9 @@
 # pass the array parameter.
 #
 # Output: one line per file, "CLEAN <file>" or "UNKNOWN-DATA <file>", plus "ERROR" when the
-# open failed. With -InventoryDir every opened document's layers (depth, kind, name, visible,
+# open failed and "DIALOG <file> :: <text>" when any other Photoshop dialog appeared during the
+# open (a layered TIFF Photoshop cannot read raises its own warning; docs/tiff.md). Such a
+# dialog parks the run until it is answered by hand. With -InventoryDir every opened document's layers (depth, kind, name, visible,
 # bounds) are written to <dir>\<file>.layers.txt, which shows what Photoshop kept after
 # Keep Layers (a discarded fill layer comes back as an empty NORMAL layer).
 param(
@@ -39,6 +41,11 @@ public class PsOpenCheck {
 "@
 
 $log = [System.IO.Path]::GetTempFileName()
+if ($InventoryDir -ne '') {
+  # ExtendScript cannot create a file in a folder that does not exist.
+  New-Item -ItemType Directory -Force -Path $InventoryDir | Out-Null
+  $InventoryDir = (Resolve-Path $InventoryDir).Path
+}
 $inventoryJs = if ($InventoryDir -ne '') { ($InventoryDir -replace '\\', '/') } else { '' }
 
 # The watcher polls Photoshop's top-level windows for the prompt while the COM open blocks.
@@ -66,12 +73,16 @@ public class PsWatchJob {
     $p = Get-Process Photoshop -ErrorAction SilentlyContinue
     if ($p) {
       $dlg = [PsWatchJob]::Dialog([uint32]$p.Id)
-      if ($dlg -ne [IntPtr]::Zero -and ([PsWatchJob]::DialogText($dlg) -like '*unknown data*')) {
-        $current = ($lines | Where-Object { $_ -like 'OPENING *' } | Select-Object -Last 1)
+      $text = if ($dlg -ne [IntPtr]::Zero) { [PsWatchJob]::DialogText($dlg) } else { '' }
+      $current = ($lines | Where-Object { $_ -like 'OPENING *' } | Select-Object -Last 1)
+      if ($dlg -ne [IntPtr]::Zero -and ($text -like '*unknown data*')) {
         if (-not ($lines -contains ('UNKNOWN-DATA ' + $current))) {
           Add-Content -Path $LogPath -Value ('UNKNOWN-DATA ' + $current)
         }
         if ($Dismiss) { [PsWatchJob]::ClickButton($dlg, 'Keep Layers') | Out-Null; Start-Sleep -Milliseconds 800 }
+      } elseif ($dlg -ne [IntPtr]::Zero -and $text -ne '' -and $current) {
+        $line = 'DIALOG ' + $current + ' :: ' + ($text -replace '[\r\n]+', ' ')
+        if (-not ($lines -contains $line)) { Add-Content -Path $LogPath -Value $line }
       }
     }
     Start-Sleep -Milliseconds 200
@@ -85,6 +96,8 @@ foreach ($file in $Files) {
   $logJs = $log -replace '\\', '/'
   $inventory = if ($inventoryJs -ne '') { $inventoryJs + '/' + [System.IO.Path]::GetFileName($full) + '.layers.txt' } else { '' }
   $jsx = @"
+var savedDialogs = app.displayDialogs;
+var savedRulerUnits = app.preferences.rulerUnits;
 app.displayDialogs = DialogModes.ERROR;
 app.preferences.rulerUnits = Units.PIXELS;
 var log = new File("$logJs");
@@ -108,6 +121,8 @@ if (d !== null) {
   }
   d.close(SaveOptions.DONOTSAVECHANGES);
 }
+app.preferences.rulerUnits = savedRulerUnits;
+app.displayDialogs = savedDialogs;
 "@
   $app.DoJavaScript($jsx) | Out-Null
 }
@@ -118,7 +133,9 @@ Remove-Job $watcher -Force -ErrorAction SilentlyContinue
 $lines = Get-Content $log
 foreach ($file in $Files) {
   $js = ((Resolve-Path $file).Path) -replace '\\', '/'
+  $dialogs = @($lines | Where-Object { $_ -like ('DIALOG OPENING ' + $js + ' :: *') })
   if ($lines -contains ('UNKNOWN-DATA OPENING ' + $js)) { Write-Output ('UNKNOWN-DATA ' + $file) }
+  elseif ($dialogs.Count -gt 0) { foreach ($dialog in $dialogs) { Write-Output ('DIALOG ' + $file + ' :: ' + $dialog.Substring($dialog.IndexOf(' :: ') + 4)) } }
   elseif ($lines | Where-Object { $_ -like ('ERROR ' + $js + '*') }) { Write-Output ('ERROR ' + $file) }
   elseif ($lines -contains ('OPENED ' + $js)) { Write-Output ('CLEAN ' + $file) }
   else { Write-Output ('UNKNOWN ' + $file) }

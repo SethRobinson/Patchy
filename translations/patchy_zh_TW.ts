@@ -10406,6 +10406,102 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>文字圖層。此電腦上遺失字體：%1。</translation>
     </message>
     <message>
+        <source>The TIFF&apos;s Photoshop layer records are damaged</source>
+        <translation>TIFF 中的 Photoshop 圖層記錄已損毀</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data mixes byte orders</source>
+        <translation>TIFF 中的 Photoshop 圖層資料混用了位元組順序</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data is cut short</source>
+        <translation>TIFF 中的 Photoshop 圖層資料不完整</translation>
+    </message>
+    <message>
+        <source>Patchy reads TIFF layers only in RGB, CMYK, grayscale and Lab files</source>
+        <translation>Patchy 只能讀取 RGB、CMYK、灰階和 Lab 檔案中的 TIFF 圖層</translation>
+    </message>
+    <message>
+        <source>Not a TIFF file Patchy reads layers from</source>
+        <translation>不是 Patchy 可讀取圖層的 TIFF 檔案</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s first directory is damaged</source>
+        <translation>TIFF 的第一個目錄已損毀</translation>
+    </message>
+    <message>
+        <source>The TIFF has no Photoshop layer data</source>
+        <translation>TIFF 中沒有 Photoshop 圖層資料</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s first directory lacks its image size or color layout</source>
+        <translation>TIFF 的第一個目錄缺少影像尺寸或色彩配置</translation>
+    </message>
+    <message>
+        <source>Patchy reads TIFF layers only at 8 or 16 bits or 32-bit float</source>
+        <translation>Patchy 只能讀取 8 位元、16 位元或 32 位元浮點的 TIFF 圖層</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data holds no layers</source>
+        <translation>TIFF 中的 Photoshop 圖層資料不含任何圖層</translation>
+    </message>
+    <message>
+        <source>This TIFF stores its layers in IBM PC byte order, and some of that layer data is in a form Patchy cannot convert yet. Patchy left it out, so some layers may look different than in Photoshop.</source>
+        <translation>此 TIFF 以 IBM PC 位元組順序儲存圖層，其中部分圖層資料的形式 Patchy 尚無法轉換。Patchy 已將其略去，因此某些圖層的外觀可能與 Photoshop 中不同。</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data is too large</source>
+        <translation>TIFF 中的 Photoshop 圖層資料過大</translation>
+    </message>
+    <message>
+        <source>The Photoshop layers in this TIFF could not be read, so it opened as a flat image: %1</source>
+        <translation>無法讀取此 TIFF 中的 Photoshop 圖層，因此已作為平面化影像開啟：%1</translation>
+    </message>
+    <message>
+        <source>This TIFF holds %1 pages; Patchy opened the first one.</source>
+        <translation>此 TIFF 包含 %1 頁；Patchy 開啟了第一頁。</translation>
+    </message>
+    <message>
+        <source>Patchy writes layered TIFF files in RGB only</source>
+        <translation>Patchy 只能以 RGB 寫入含圖層的 TIFF 檔案</translation>
+    </message>
+    <message>
+        <source>Could not compress the TIFF image data</source>
+        <translation>無法壓縮 TIFF 影像資料</translation>
+    </message>
+    <message>
+        <source>The document has no layers to write</source>
+        <translation>文件中沒有可寫入的圖層</translation>
+    </message>
+    <message>
+        <source>The layered TIFF would pass 4 GB, the TIFF limit. Save as PSB instead.</source>
+        <translation>含圖層的 TIFF 將超過 TIFF 的 4 GB 上限。請改存為 PSB。</translation>
+    </message>
+    <message>
+        <source>Could not open the TIFF file for writing</source>
+        <translation>無法開啟 TIFF 檔案以寫入</translation>
+    </message>
+    <message>
+        <source>Could not write the TIFF file</source>
+        <translation>無法寫入 TIFF 檔案</translation>
+    </message>
+    <message>
+        <source>A TIFF with layers is saved in RGB. Turn layers off to save a CMYK TIFF.</source>
+        <translation>含圖層的 TIFF 會以 RGB 儲存。要儲存 CMYK TIFF，請關閉圖層。</translation>
+    </message>
+    <message>
+        <source>TIFF Options</source>
+        <translation>TIFF 選項</translation>
+    </message>
+    <message>
+        <source>Keep layers</source>
+        <translation>保留圖層</translation>
+    </message>
+    <message>
+        <source>Photoshop and Patchy open the layers; other apps show the flattened image. Without layers, Patchy saves a flattened copy and this document keeps its layers.</source>
+        <translation>Photoshop 與 Patchy 會開啟圖層；其他應用程式顯示平面化影像。不保留圖層時，Patchy 會儲存一份平面化副本，此文件仍保留其圖層。</translation>
+    </message>
+    <message>
         <source>The file&apos;s CMYK profile %1 differs from the working CMYK profile %2, which CMYK Proof and CMYK JPEG, TIFF and PDF saves use</source>
         <translation>檔案的 CMYK 描述檔 %1 與 CMYK 校樣以及 JPEG、TIFF 和 PDF 的 CMYK 儲存所用的工作 CMYK 描述檔 %2 不同</translation>
     </message>
@@ -21853,6 +21949,10 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>這份文件處於 CMYK 校樣模式，但此 %1 檔案會以 RGB 儲存。只有從 CMYK PSD 開啟且圖層未變更時，Patchy 才會將 PSD 儲存為 CMYK（文字圖層一律需要 RGB）。JPEG、TIFF 和平面化的 PDF 檔案一律可以儲存為 CMYK。要以 RGB 儲存嗎？</translation>
     </message>
     <message>
+        <source>This document is in CMYK Proof mode, but a TIFF with layers is saved in RGB. Save it in RGB?</source>
+        <translation>這份文件處於 CMYK 校樣模式，但含圖層的 TIFF 會以 RGB 儲存。要以 RGB 儲存嗎？</translation>
+    </message>
+    <message>
         <source>Brush mode: how the paint combines with the pixels under it</source>
         <translation>筆刷模式：顏料與下方像素的混合方式</translation>
     </message>
@@ -23634,6 +23734,10 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
     <message>
         <source>%1: blackInkOnly needs colorMode: &quot;cmyk&quot;.</source>
         <translation>%1: blackInkOnly 需要 colorMode: &quot;cmyk&quot;。</translation>
+    </message>
+    <message>
+        <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
+        <translation>%1：layers 需要 colorMode: &quot;rgb&quot;；含圖層的 TIFF 會以 RGB 儲存。</translation>
     </message>
 </context>
 <context>
