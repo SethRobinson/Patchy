@@ -694,6 +694,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       transform_drag_start_point_ = document_position_f(event->position());
       transform_drag_start_rect_ = transform_current_rect_;
       transform_start_angle_ = transform_angle_;
+      transform_drag_grab_offset_ = transform_handle_grab_offset(handle, transform_current_rect_, transform_angle_,
+                                                                 transform_drag_start_point_);
       transform_drag_start_scale_x_sign_ = transform_scale_x_sign_;
       transform_drag_start_scale_y_sign_ = transform_scale_y_sign_;
       event->accept();
@@ -1036,7 +1038,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     const auto passive_transform_rect = move_transform_controls_rect();
     auto passive_handle = TransformHandle::None;
     if (passive_transform_rect.has_value()) {
-      passive_handle = transform_handle_at(event->pos(), *passive_transform_rect, 0.0);
+      passive_handle =
+          transform_handle_at(event->pos(), *passive_transform_rect, 0.0, TransformHitZones::EdgesAndCorners);
       if (passive_handle != TransformHandle::None && passive_handle != TransformHandle::Move) {
         // A handle grab starts a Free Transform session; at zoom <= 50% its
         // source preparation builds the preview-scaled document (every raster
@@ -1050,6 +1053,8 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
           transform_drag_start_point_ = document_position_f(event->position());
           transform_drag_start_rect_ = transform_current_rect_;
           transform_start_angle_ = transform_angle_;
+          transform_drag_grab_offset_ = transform_handle_grab_offset(
+              passive_handle, transform_current_rect_, transform_angle_, transform_drag_start_point_);
           transform_drag_start_scale_x_sign_ = transform_scale_x_sign_;
           transform_drag_start_scale_y_sign_ = transform_scale_y_sign_;
         } else {
@@ -1739,7 +1744,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
 
   if (transforming_layer_) {
     clear_move_hover_outline();
-    set_transform_cursor_for_handle(transform_handle_at(event->pos()));
+    set_transform_cursor_for_handle(transform_handle_at(event->pos()), transform_angle_);
     last_mouse_position_ = event->pos();
     return;
   }
@@ -1781,7 +1786,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     if (spacebar_repositioning_drag_rect_) {
       setCursor(Qt::SizeAllCursor);
     } else {
-      set_transform_cursor_for_handle(crop_drag_handle_);
+      set_transform_cursor_for_handle(crop_drag_handle_, crop_angle_);
     }
     last_mouse_position_ = event->pos();
     return;
@@ -1794,7 +1799,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       // Off the box a drag rotates it; hint that with the rotate cursor.
       setCursor(rotate_cursor());
     } else {
-      set_transform_cursor_for_handle(crop_handle);
+      set_transform_cursor_for_handle(crop_handle, crop_angle_);
     }
     last_mouse_position_ = event->pos();
     return;
@@ -2180,7 +2185,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     } else {
       if (tool_ == CanvasTool::Move) {
         if (const auto rect = move_transform_controls_rect(); rect.has_value()) {
-          const auto handle = transform_handle_at(event->pos(), *rect, 0.0);
+          const auto handle = transform_handle_at(event->pos(), *rect, 0.0, TransformHitZones::EdgesAndCorners);
           if (handle != TransformHandle::None) {
             set_transform_cursor_for_handle(handle);
             if (handle == TransformHandle::Move && auto_select_layer_) {
@@ -3219,7 +3224,7 @@ void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
   if (event->button() == Qt::LeftButton) {
     const bool inside_document = document_contains(document_point);
     if (inside_document && transforming_layer_ && transform_layer_id_.has_value()) {
-      const auto transform_hit = transform_handle_at(event->pos());
+      const auto transform_hit = transform_handle_at(event->pos(), TransformHitZones::HandlesOnly);
       const auto text_layer_id = *transform_layer_id_;
       auto* transformed_layer = document_ != nullptr ? document_->find_layer(text_layer_id) : nullptr;
       if (transformed_layer != nullptr && layer_is_text(*transformed_layer) &&

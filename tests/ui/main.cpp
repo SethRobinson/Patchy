@@ -376,6 +376,7 @@ int main(int argc, char* argv[]) {
            brush_pattern_palette_tests,
            layer_panel_organization_tests,
            move_tool_processing_overlay_tests,
+           move_transform_zones_tests,
            alignment_tests,
            selection_marquee_lasso_tests,
            crop_tool_tests,

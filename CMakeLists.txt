@@ -2124,6 +2124,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/layer_panel_organization_tests_cross_document.cpp
       tests/ui/layer_panel_organization_tests_files_as_layers.cpp
       tests/ui/move_tool_processing_overlay_tests.cpp
+      tests/ui/move_transform_zones_tests.cpp
       tests/ui/alignment_tests.cpp
       tests/ui/selection_marquee_lasso_tests.cpp
       tests/ui/selection_marquee_lasso_tests_marquee_geometry.cpp
