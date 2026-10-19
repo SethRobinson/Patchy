@@ -10862,6 +10862,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>preview write</source>
         <translation>zapis podglądu</translation>
     </message>
+    <message>
+        <source>mode: brush only</source>
+        <translation>mode: tylko pędzel</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushDynamicsButton</name>
@@ -21988,6 +21992,10 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. Patchy saves a PSD in CMYK only when it was opened from a CMYK PSD and its layers are unchanged (text layers always need RGB). JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
         <translation>Ten dokument jest w trybie Próba CMYK, ale ten plik %1 zostanie zapisany w RGB. Patchy zapisuje plik PSD w CMYK tylko wtedy, gdy otwarto go z pliku PSD w CMYK, a jego warstwy są niezmienione (warstwy tekstowe zawsze wymagają RGB). Pliki JPEG, TIFF i spłaszczone pliki PDF zawsze można zapisać w CMYK. Zapisać go w RGB?</translation>
     </message>
+    <message>
+        <source>Brush mode: how the paint combines with the pixels under it</source>
+        <translation>Tryb pędzla: jak farba łączy się z pikselami pod spodem</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -22144,6 +22152,17 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
     <message>
         <source>Alt</source>
         <translation>Alt</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::PaintMode</name>
+    <message>
+        <source>Behind</source>
+        <translation>Pod spodem</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>Wyczyść</translation>
     </message>
 </context>
 <context>

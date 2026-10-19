@@ -10812,6 +10812,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Square</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>mode: brush only</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushDynamicsButton</name>
@@ -21843,6 +21847,10 @@ Patchy can download the update, replace this AppImage, and start again. You will
     </message>
     <message>
         <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. Patchy saves a PSD in CMYK only when it was opened from a CMYK PSD and its layers are unchanged (text layers always need RGB). JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Brush mode: how the paint combines with the pixels under it</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -22000,6 +22008,17 @@ Patchy can download the update, replace this AppImage, and start again. You will
     </message>
     <message>
         <source>Alt</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::PaintMode</name>
+    <message>
+        <source>Behind</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clear</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

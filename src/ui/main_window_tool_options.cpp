@@ -17,6 +17,8 @@
 #include "ui/canvas_types.hpp"
 #include "core/vector_shape.hpp"
 #include "ui/main_window.hpp"
+#include "ui/blend_mode_ui.hpp"
+#include "ui/script_api.hpp"
 #include <QActionGroup>
 #include <QComboBox>
 #include <QStatusBar>
@@ -1705,6 +1707,16 @@ void MainWindow::load_tool_settings() {
   current_brush_smoothing_zoom_adjust_ =
       settings.value(QStringLiteral("tools/brushSmoothingZoomAdjust"), current_brush_smoothing_zoom_adjust_)
           .toBool();
+  if (patchy::PaintMode stored_mode;
+      script_paint_mode_from_id(settings.value(QStringLiteral("tools/brushMode")).toString(), &stored_mode)) {
+    current_brush_paint_mode_ = stored_mode;
+  }
+  canvas_->set_brush_paint_mode(current_brush_paint_mode_);
+  if (brush_mode_combo_ != nullptr) {
+    const QSignalBlocker blocker(brush_mode_combo_);
+    brush_mode_combo_->setCurrentIndex(
+        std::max(0, brush_mode_combo_->findData(paint_mode_item_data(current_brush_paint_mode_))));
+  }
   canvas_->set_brush_smoothing(current_brush_smoothing_);
   canvas_->set_brush_smoothing_pulled_string(current_brush_smoothing_pulled_string_);
   canvas_->set_brush_smoothing_catch_up(current_brush_smoothing_catch_up_);
@@ -2075,6 +2087,7 @@ void MainWindow::save_tool_settings() const {
   settings.setValue(QStringLiteral("tools/mixerMix"), current_mixer_mix_);
   settings.setValue(QStringLiteral("tools/mixerFlow"), current_mixer_flow_);
   settings.setValue(QStringLiteral("tools/mixerSampleAllLayers"), canvas_->mixer_sample_all_layers());
+  settings.setValue(QStringLiteral("tools/brushMode"), script_paint_mode_id(current_brush_paint_mode_));
   settings.setValue(QStringLiteral("tools/brushSmoothing"), current_brush_smoothing_);
   settings.setValue(QStringLiteral("tools/brushSmoothingPulledString"), current_brush_smoothing_pulled_string_);
   settings.setValue(QStringLiteral("tools/brushSmoothingCatchUp"), current_brush_smoothing_catch_up_);
@@ -2247,6 +2260,7 @@ void MainWindow::apply_active_brush_settings_to_canvas() {
     settings.size = values.size; settings.opacity = values.opacity;
     settings.flow = settings.mixer ? current_mixer_flow_ : values.flow;
     settings.softness = values.softness; settings.airbrush = values.airbrush && !settings.mixer && !settings.erase;
+    settings.mode = current_brush_paint_mode_;
     settings.dynamics = round_brush_dynamics_;
     canvas_->apply_script_brush(settings); canvas_->set_tool(tool);
   }
@@ -2998,6 +3012,11 @@ void MainWindow::sync_brush_controls_from_canvas() {
   if (canvas_ == nullptr) {
     return;
   }
+  if (brush_mode_combo_ != nullptr) {
+    const QSignalBlocker blocker(brush_mode_combo_);
+    brush_mode_combo_->setCurrentIndex(
+        std::max(0, brush_mode_combo_->findData(paint_mode_item_data(canvas_->brush_paint_mode()))));
+  }
   if (auto* brush_size = findChild<QSpinBox*>(QStringLiteral("brushSizeSpin")); brush_size != nullptr) {
     QSignalBlocker blocker(brush_size);
     brush_size->setValue(canvas_->brush_size());
@@ -3010,11 +3029,6 @@ void MainWindow::sync_brush_controls_from_canvas() {
   if (auto* brush_opacity = findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin")); brush_opacity != nullptr) {
     QSignalBlocker blocker(brush_opacity);
     brush_opacity->setValue(canvas_->brush_opacity());
-  }
-  if (auto* brush_opacity_slider = findChild<QSlider*>(QStringLiteral("brushOpacitySlider"));
-      brush_opacity_slider != nullptr) {
-    QSignalBlocker blocker(brush_opacity_slider);
-    brush_opacity_slider->setValue(canvas_->brush_opacity());
   }
   if (auto* brush_flow = findChild<QSpinBox*>(QStringLiteral("brushFlowSpin")); brush_flow != nullptr) {
     QSignalBlocker blocker(brush_flow);
@@ -3044,11 +3058,6 @@ void MainWindow::sync_brush_controls_from_canvas() {
   if (auto* brush_softness = findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin")); brush_softness != nullptr) {
     QSignalBlocker blocker(brush_softness);
     brush_softness->setValue(canvas_->brush_softness());
-  }
-  if (auto* brush_softness_slider = findChild<QSlider*>(QStringLiteral("brushSoftnessSlider"));
-      brush_softness_slider != nullptr) {
-    QSignalBlocker blocker(brush_softness_slider);
-    brush_softness_slider->setValue(canvas_->brush_softness());
   }
   if (auto* brush_smoothing = findChild<QSpinBox*>(QStringLiteral("brushSmoothingSpin"));
       brush_smoothing != nullptr) {

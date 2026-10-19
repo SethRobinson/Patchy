@@ -30,6 +30,7 @@ ScriptStroke CanvasWidget::current_script_brush() const {
   s.spacing = script_brush_spacing_;
   if (!s.spacing && s.tip) s.spacing = s.tip->default_spacing;
   s.airbrush = !s.erase && !s.mixer && brush_build_up_;
+  s.mode = brush_paint_mode_;
   s.wet = mixer_wet_; s.load = mixer_load_; s.mix = mixer_mix_; s.sample_all_layers = mixer_sample_all_layers_;
   s.pressure_size = pen_input_settings_.enabled && pen_input_settings_.pressure_size;
   s.pressure_opacity = pen_input_settings_.enabled && pen_input_settings_.pressure_opacity;
@@ -47,6 +48,7 @@ void CanvasWidget::apply_script_brush(const ScriptStroke& s) {
   primary_color_ = s.color; secondary_color_ = s.background;
   brush_size_ = s.size; brush_opacity_ = s.opacity; brush_flow_ = s.flow;
   brush_softness_ = s.softness; brush_build_up_ = s.airbrush;
+  set_brush_paint_mode(s.mode);
   set_brush_tip(s.tip, s.tip_id); script_brush_spacing_ = s.spacing;
   set_brush_shape(!s.tip && s.tip_id == builtin_square_brush_tip_id() ? patchy::BrushShape::Square
                                                                      : patchy::BrushShape::Round);

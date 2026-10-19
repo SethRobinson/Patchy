@@ -335,6 +335,10 @@ public:
   [[nodiscard]] int mixer_flow() const noexcept;
   void set_mixer_sample_all_layers(bool sample_all_layers) noexcept;
   [[nodiscard]] bool mixer_sample_all_layers() const noexcept;
+  // The Brush tool's Mode (core/paint_mode.hpp). Only Brush strokes on pixel layers
+  // use it; every other tool and the mask/channel targets paint Normal.
+  void set_brush_paint_mode(PaintMode mode) noexcept;
+  [[nodiscard]] PaintMode brush_paint_mode() const noexcept;
   // Photoshop-style stroke Smoothing for Brush, Mixer Brush, and Eraser
   // strokes: the percent (0-100) becomes the stabilizer leash radius through
   // stroke_stabilizer_leash_radius(); 0 is exact pass-through.
@@ -2447,6 +2451,10 @@ private:
   int brush_softness_{75};
   std::optional<BrushCursorCache> brush_cursor_cache_;
   bool brush_build_up_{false};
+  PaintMode brush_paint_mode_{};
+  // The mode the current stroke's pixel writer applies, chosen when the stroke
+  // compositor is installed (Normal for every tool but Brush).
+  PaintMode brush_stroke_paint_mode_{};
   int mixer_wet_{50};
   std::optional<double> script_brush_spacing_;
   std::function<bool(const QRect&)> script_brush_progress_;

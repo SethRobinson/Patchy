@@ -8,6 +8,12 @@ Remove Object, Align/Distribute and smart objects) are in
 [scripting-api-changes-through-2026-09-30.md](scripting-api-changes-through-2026-09-30.md).
 Every entry below is API 1.
 
+2026-10-19 (additive): Brush Mode. `drawStrokes` strokes and `patchy.brushes` settings take
+`mode` (Brush only, default `"normal"`): every blend mode id except `"pass-through"`, plus
+`"behind"` and `"clear"`; Eraser and Mixer strokes reject any other value. `getCurrent`,
+`resolve` and saved presets report it for the Brush. Permanent identifiers: the key, the two
+new tokens, and the setting `tools/brushMode`. Pinned by
+`ui_brush_mode_combo_lists_paint_modes_and_persists` and `ui_script_brush_mode_*`.
 2026-10-19 (additive): right-column panels. `patchy.ui.expandPanel(name)` (the Window menu
 entry's show: reopen, front tab, expand), `collapsePanel(name)`, `closePanel(name)` and
 `panelState(name)` (`{open, front, expanded}`); unknown names throw. Permanent identifiers:

@@ -2,6 +2,7 @@
 #include "ui/brush_automation.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/brush_presets.hpp"
+#include "ui/script_api.hpp"
 #include <QBuffer>
 #include <QCryptographicHash>
 #include <QDir>
@@ -166,7 +167,8 @@ QJsonObject BrushAutomationLibrary::preset(const QString& id) const {
 }
 QStringList BrushAutomationLibrary::setting_keys() {
   return {"tool", "color", "backgroundColor", "size", "opacity", "flow", "softness", "seed", "sizeJitter", "scatter",
-          "tipId", "presetId", "spacing", "angle", "roundness", "dynamics", "mixer", "pen", "smoothing", "airbrush"};
+          "tipId", "presetId", "spacing", "angle", "roundness", "dynamics", "mixer", "pen", "smoothing", "airbrush",
+          "mode"};
 }
 ScriptStroke BrushAutomationLibrary::resolve(const QJsonObject& input) const {
   keys(input, setting_keys());
@@ -247,6 +249,9 @@ ScriptStroke BrushAutomationLibrary::resolve(const QJsonObject& input) const {
   else (void)dynamics(dyn, {}); // Keep legacy jitter/scatter acceptance on Eraser.
   s.dynamics.seed = static_cast<std::uint32_t>(number(args, "seed", 0, 0, 4294967295.0, true));
   if (s.airbrush && (s.erase || s.mixer)) invalid(QCoreApplication::translate("patchy::ui::BrushAutomationLibrary", "airbrush: brush only"));
+  const auto mode_id = string(args, "mode", QStringLiteral("normal"));
+  if (!script_paint_mode_from_id(mode_id, &s.mode)) invalid("mode");
+  if (!s.mode.is_normal() && (s.erase || s.mixer)) invalid(QCoreApplication::translate("patchy::ui::BrushAutomationLibrary", "mode: brush only"));
   const auto mix = object(args, "mixer"); keys(mix, {"wet", "load", "mix", "sampleAllLayers"});
   if (!mix.isEmpty() && !s.mixer) invalid(QCoreApplication::translate("patchy::ui::BrushAutomationLibrary", "mixer: mixer tool only"));
   s.wet = static_cast<int>(number(mix, "wet", 50, 0, 100, true));
@@ -282,7 +287,10 @@ QJsonObject BrushAutomationLibrary::settings(const ScriptStroke& s) {
   if (!s.preset_id.isEmpty()) o["presetId"] = s.preset_id;
   if (s.spacing) o["spacing"] = *s.spacing;
   if (s.mixer) o["mixer"] = QJsonObject{{"wet", s.wet}, {"load", s.load}, {"mix", s.mix}, {"sampleAllLayers", s.sample_all_layers}};
-  if (!s.mixer && !s.erase) o["dynamics"] = brush_dynamics_to_json(s.dynamics);
+  if (!s.mixer && !s.erase) {
+    o["dynamics"] = brush_dynamics_to_json(s.dynamics);
+    o["mode"] = script_paint_mode_id(s.mode);
+  }
   return o;
 }
 QJsonObject BrushAutomationLibrary::capture(const ScriptStroke& s) {

@@ -10794,6 +10794,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Square</source>
         <translation>正方形</translation>
     </message>
+    <message>
+        <source>mode: brush only</source>
+        <translation>mode: ブラシのみ使用できます</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushDynamicsButton</name>
@@ -21848,6 +21852,10 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. Patchy saves a PSD in CMYK only when it was opened from a CMYK PSD and its layers are unchanged (text layers always need RGB). JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
         <translation>このドキュメントは CMYK 校正モードですが、この %1 ファイルは RGB で保存されます。Patchy が PSD を CMYK で保存するのは、CMYK の PSD から開き、レイヤーが変更されていない場合だけです（テキストレイヤーには常に RGB が必要です）。JPEG、TIFF、統合された PDF ファイルはいつでも CMYK で保存できます。RGB で保存しますか？</translation>
     </message>
+    <message>
+        <source>Brush mode: how the paint combines with the pixels under it</source>
+        <translation>ブラシの描画モード: 塗料と下のピクセルの合成方法</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -22004,6 +22012,17 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
     <message>
         <source>Option</source>
         <translation>Option</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::PaintMode</name>
+    <message>
+        <source>Behind</source>
+        <translation>背面</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>消去</translation>
     </message>
 </context>
 <context>

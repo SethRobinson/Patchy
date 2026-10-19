@@ -10794,6 +10794,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Square</source>
         <translation>方形</translation>
     </message>
+    <message>
+        <source>mode: brush only</source>
+        <translation>mode:僅限筆刷</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushDynamicsButton</name>
@@ -21848,6 +21852,10 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. Patchy saves a PSD in CMYK only when it was opened from a CMYK PSD and its layers are unchanged (text layers always need RGB). JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
         <translation>這份文件處於 CMYK 校樣模式，但此 %1 檔案會以 RGB 儲存。只有從 CMYK PSD 開啟且圖層未變更時，Patchy 才會將 PSD 儲存為 CMYK（文字圖層一律需要 RGB）。JPEG、TIFF 和平面化的 PDF 檔案一律可以儲存為 CMYK。要以 RGB 儲存嗎？</translation>
     </message>
+    <message>
+        <source>Brush mode: how the paint combines with the pixels under it</source>
+        <translation>筆刷模式：顏料與下方像素的混合方式</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -22004,6 +22012,17 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
     <message>
         <source>Alt</source>
         <translation>Alt</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::PaintMode</name>
+    <message>
+        <source>Behind</source>
+        <translation>背後</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>清除</translation>
     </message>
 </context>
 <context>

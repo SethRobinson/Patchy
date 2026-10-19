@@ -10828,6 +10828,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Square</source>
         <translation>Quadrat</translation>
     </message>
+    <message>
+        <source>mode: brush only</source>
+        <translation>mode: nur Pinsel</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushDynamicsButton</name>
@@ -21918,6 +21922,10 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. Patchy saves a PSD in CMYK only when it was opened from a CMYK PSD and its layers are unchanged (text layers always need RGB). JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
         <translation>Dieses Dokument ist im Modus CMYK-Proof, aber diese %1-Datei wird in RGB gespeichert. Patchy speichert eine PSD nur dann in CMYK, wenn sie aus einer CMYK-PSD geöffnet wurde und ihre Ebenen unverändert sind (Textebenen brauchen immer RGB). JPEG-, TIFF- und reduzierte PDF-Dateien können immer in CMYK gespeichert werden. In RGB speichern?</translation>
     </message>
+    <message>
+        <source>Brush mode: how the paint combines with the pixels under it</source>
+        <translation>Pinselmodus: wie die Farbe mit den Pixeln darunter verrechnet wird</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -22074,6 +22082,17 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
     <message>
         <source>Alt</source>
         <translation>Alt</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::PaintMode</name>
+    <message>
+        <source>Behind</source>
+        <translation>Dahinter auftragen</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>Löschen</translation>
     </message>
 </context>
 <context>

@@ -10862,6 +10862,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>preview write</source>
         <translation>предварительный просмотр запись</translation>
     </message>
+    <message>
+        <source>mode: brush only</source>
+        <translation>mode: только кисть</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushDynamicsButton</name>
@@ -21988,6 +21992,10 @@ Patchy может скачать обновление, заменить этот
         <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. Patchy saves a PSD in CMYK only when it was opened from a CMYK PSD and its layers are unchanged (text layers always need RGB). JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
         <translation>Этот документ в режиме CMYK-цветопробы, но этот файл %1 будет сохранен в RGB. Patchy сохраняет PSD в CMYK, только если он открыт из PSD в CMYK и его слои не изменены (текстовым слоям всегда нужен RGB). Файлы JPEG, TIFF и сведенные PDF всегда можно сохранить в CMYK. Сохранить в RGB?</translation>
     </message>
+    <message>
+        <source>Brush mode: how the paint combines with the pixels under it</source>
+        <translation>Режим кисти: как краска сочетается с пикселями под ней</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -22144,6 +22152,17 @@ Patchy может скачать обновление, заменить этот
     <message>
         <source>Alt</source>
         <translation>Alt</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::PaintMode</name>
+    <message>
+        <source>Behind</source>
+        <translation>Подложка</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>Очистка</translation>
     </message>
 </context>
 <context>

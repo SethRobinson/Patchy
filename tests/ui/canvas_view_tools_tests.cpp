@@ -16,6 +16,7 @@
 #include "ui/zoom_status_bar.hpp"
 #include "ui/status_document_info.hpp"
 #include "ui/script_engine.hpp"
+#include "ui/script_api.hpp"
 #include "color/color_management.hpp"
 #include "core/pixel_depth.hpp"
 #include "formats/metadata/metadata_view.hpp"
@@ -49,6 +50,7 @@
 #include <QFrame>
 #include <QImage>
 #include <QLabel>
+#include <QKeyEvent>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QLocale>
@@ -427,16 +429,18 @@ void ui_options_bar_keeps_one_height_across_tools() {
 }
 
 void ui_options_bar_drops_duplicate_sliders_before_wrapping() {
-  // GitHub issue 91: the inline Size/Opacity/Soft sliders repeat the spin box beside them
-  // (popup slider and scrub label), so they are the first thing a narrow bar drops.
+  // GitHub issue 91: the inline Size slider repeats the spin box beside it (popup slider
+  // and scrub handles), so it is the first thing a narrow bar drops. Opacity and Soft
+  // have no inline slider at all any more.
   patchy::ui::MainWindow window;
   show_window(window);
   auto* size_spin = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
   auto* size_slider = window.findChild<QSlider*>(QStringLiteral("brushSizeSlider"));
-  auto* opacity_slider = window.findChild<QSlider*>(QStringLiteral("brushOpacitySlider"));
   auto* gradient_slider = window.findChild<QSlider*>(QStringLiteral("gradientOpacitySlider"));
-  CHECK(size_spin != nullptr && size_slider != nullptr && opacity_slider != nullptr && gradient_slider != nullptr);
-  for (const auto* slider : {size_slider, opacity_slider, gradient_slider}) {
+  CHECK(size_spin != nullptr && size_slider != nullptr && gradient_slider != nullptr);
+  CHECK(window.findChild<QSlider*>(QStringLiteral("brushOpacitySlider")) == nullptr);
+  CHECK(window.findChild<QSlider*>(QStringLiteral("brushSoftnessSlider")) == nullptr);
+  for (const auto* slider : {size_slider, gradient_slider}) {
     CHECK(slider->property(patchy::ui::kOptionsBarCollapsibleProperty).toBool());
   }
   const auto settle = [] {
@@ -446,12 +450,12 @@ void ui_options_bar_drops_duplicate_sliders_before_wrapping() {
   require_action(window, "toolBrushAction")->trigger();
   window.resize(2600, 800);
   settle();
-  CHECK(size_spin->isVisible() && size_slider->isVisible() && opacity_slider->isVisible());
+  CHECK(size_spin->isVisible() && size_slider->isVisible());
 
   window.resize(1000, 800);
   settle();
   CHECK(size_spin->isVisible());
-  CHECK(!size_slider->isVisible() && !opacity_slider->isVisible());
+  CHECK(!size_slider->isVisible());
   // The decision covers every tool at this width, not just the active one.
   require_action(window, "toolGradientAction")->trigger();
   settle();
@@ -464,7 +468,7 @@ void ui_options_bar_drops_duplicate_sliders_before_wrapping() {
 
   window.resize(2600, 800);
   settle();
-  CHECK(size_slider->isVisible() && opacity_slider->isVisible());
+  CHECK(size_slider->isVisible());
 }
 
 void ui_options_bar_checkboxes_paint_without_a_frame() {
@@ -3104,9 +3108,7 @@ void ui_options_bar_tracks_active_tool() {
   auto* brush_size = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
   auto* brush_size_slider = window.findChild<QSlider*>(QStringLiteral("brushSizeSlider"));
   auto* brush_opacity = window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"));
-  auto* brush_opacity_slider = window.findChild<QSlider*>(QStringLiteral("brushOpacitySlider"));
   auto* brush_softness = window.findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin"));
-  auto* brush_softness_slider = window.findChild<QSlider*>(QStringLiteral("brushSoftnessSlider"));
   auto* gradient_method = window.findChild<QComboBox*>(QStringLiteral("gradientMethodCombo"));
   auto* gradient_opacity = window.findChild<QSpinBox*>(QStringLiteral("gradientOpacitySpin"));
   auto* gradient_opacity_slider = window.findChild<QSlider*>(QStringLiteral("gradientOpacitySlider"));
@@ -3139,9 +3141,9 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(brush_size != nullptr);
   CHECK(brush_size_slider != nullptr);
   CHECK(brush_opacity != nullptr);
-  CHECK(brush_opacity_slider != nullptr);
+  CHECK(window.findChild<QSlider*>(QStringLiteral("brushOpacitySlider")) == nullptr);
   CHECK(brush_softness != nullptr);
-  CHECK(brush_softness_slider != nullptr);
+  CHECK(window.findChild<QSlider*>(QStringLiteral("brushSoftnessSlider")) == nullptr);
   CHECK(gradient_method != nullptr);
   CHECK(gradient_opacity != nullptr);
   CHECK(gradient_opacity_slider != nullptr);
@@ -3169,9 +3171,7 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(brush_size->isVisible());
   CHECK(brush_size_slider->isVisible());
   CHECK(brush_opacity->isVisible());
-  CHECK(brush_opacity_slider->isVisible());
   CHECK(brush_softness->isVisible());
-  CHECK(brush_softness_slider->isVisible());
   CHECK(!clone_aligned->isVisible());
   CHECK(!healing_diffusion->isVisible());
   CHECK(!local_strength->isVisible());
@@ -3200,9 +3200,7 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(!brush_size->isVisible());
   CHECK(!brush_size_slider->isVisible());
   CHECK(!brush_opacity->isVisible());
-  CHECK(!brush_opacity_slider->isVisible());
   CHECK(!brush_softness->isVisible());
-  CHECK(!brush_softness_slider->isVisible());
   CHECK(!clone_aligned->isVisible());
   CHECK(!text_font->isVisible());
   move_auto_select->setChecked(false);
@@ -3263,9 +3261,7 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(brush_size->isVisible());
   CHECK(brush_size_slider->isVisible());
   CHECK(brush_opacity->isVisible());
-  CHECK(brush_opacity_slider->isVisible());
   CHECK(brush_softness->isVisible());
-  CHECK(brush_softness_slider->isVisible());
   CHECK(clone_aligned->isVisible());
   CHECK(clone_aligned->isChecked());
   clone_aligned->setChecked(false);
@@ -3905,6 +3901,214 @@ void ui_options_bar_label_scrub_changes_spin_value() {
   CHECK(handles >= 30);
 }
 
+// A drag inside a numeric field scrubs it like its label: past the drag distance
+// the value moves one step per pixel, the field shows SizeHor while dragging, and
+// the drag ends with one editingFinished and the number selected. A click, a move
+// short of the drag distance, a double-click, Ctrl+A and Shift+arrow selection all
+// behave as an ordinary text field.
+void ui_options_bar_field_drag_scrubs_and_click_edits() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  auto* size_spin = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
+  CHECK(size_spin != nullptr);
+  auto* editor = size_spin->findChild<QLineEdit*>();
+  CHECK(editor != nullptr);
+  CHECK(editor->cursor().shape() == Qt::IBeamCursor);
+  int finished = 0;
+  QObject::connect(size_spin, &QAbstractSpinBox::editingFinished, size_spin, [&finished] { ++finished; });
+
+  size_spin->setValue(40);
+  const int drag_start = QApplication::startDragDistance();
+  const QPoint origin(editor->width() / 2, editor->height() / 2);
+  // Focus first, as a real click hands it out before the press reaches the line edit.
+  size_spin->setFocus(Qt::MouseFocusReason);
+  QApplication::processEvents();
+  send_mouse(*editor, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*editor, QEvent::MouseMove, origin + QPoint(drag_start + 15, 0), Qt::NoButton, Qt::LeftButton);
+  CHECK(size_spin->value() == 40 + drag_start + 15);
+  CHECK(editor->cursor().shape() == Qt::SizeHorCursor);
+  send_mouse(*editor, QEvent::MouseMove, origin + QPoint(-(drag_start + 1), 0), Qt::NoButton, Qt::LeftButton,
+             Qt::ShiftModifier);
+  CHECK(size_spin->value() == std::max(size_spin->minimum(), 40 - 10 * (drag_start + 1)));
+  send_mouse(*editor, QEvent::MouseMove, origin + QPoint(-(drag_start + 4), 0), Qt::NoButton, Qt::LeftButton);
+  CHECK(size_spin->value() == 40 - (drag_start + 4));
+  send_mouse(*editor, QEvent::MouseButtonRelease, origin + QPoint(-(drag_start + 4), 0), Qt::LeftButton,
+             Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(finished == 1);
+  CHECK(size_spin->value() == 40 - (drag_start + 4));
+  CHECK(editor->cursor().shape() == Qt::IBeamCursor);
+  CHECK(size_spin->hasFocus());
+  CHECK(editor->selectedText() == size_spin->cleanText());
+
+  // A click edits: the caret lands where the press was, nothing changes, no editingFinished.
+  size_spin->setValue(40);
+  editor->deselect();
+  const QPoint click_point(editor->width() - editor->textMargins().right() - 8, editor->height() / 2);
+  send_mouse(*editor, QEvent::MouseButtonPress, click_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*editor, QEvent::MouseButtonRelease, click_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(size_spin->value() == 40);
+  CHECK(finished == 1);
+  CHECK(!editor->hasSelectedText());
+  CHECK(editor->cursorPosition() == editor->cursorPositionAt(click_point));
+  // A move short of the drag distance neither scrubs nor drag-selects.
+  send_mouse(*editor, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*editor, QEvent::MouseMove, origin + QPoint(std::max(0, drag_start - 2), 0), Qt::NoButton,
+             Qt::LeftButton);
+  send_mouse(*editor, QEvent::MouseButtonRelease, origin + QPoint(std::max(0, drag_start - 2), 0),
+             Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(size_spin->value() == 40);
+  CHECK(finished == 1);
+  CHECK(!editor->hasSelectedText());
+  // Typing still edits the field.
+  send_key(*size_spin, Qt::Key_A, Qt::ControlModifier);
+  for (int typed = 0; typed < 2; ++typed) {
+    QKeyEvent digit(QEvent::KeyPress, Qt::Key_5, Qt::NoModifier, QStringLiteral("5"));
+    QApplication::sendEvent(size_spin, &digit);
+  }
+  send_key(*size_spin, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(size_spin->value() == 55);
+  // A double-click, Ctrl+A and Shift+Home still select.
+  editor->deselect();
+  send_mouse(*editor, QEvent::MouseButtonPress, click_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*editor, QEvent::MouseButtonRelease, click_point, Qt::LeftButton, Qt::NoButton);
+  send_mouse(*editor, QEvent::MouseButtonDblClick, click_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*editor, QEvent::MouseButtonRelease, click_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(editor->hasSelectedText());
+  CHECK(size_spin->value() == 55);
+  editor->deselect();
+  send_key(*size_spin, Qt::Key_A, Qt::ControlModifier);
+  CHECK(editor->selectedText() == size_spin->cleanText());
+  send_key(*size_spin, Qt::Key_End);
+  send_key(*size_spin, Qt::Key_Home, Qt::ShiftModifier);
+  CHECK(editor->hasSelectedText());
+  CHECK(size_spin->value() == 55);
+
+  // Review artifact: the Size field before and after a 25 px drag inside it.
+  size_spin->setValue(40);
+  editor->deselect();
+  const auto grab_field = [size_spin] {
+    return size_spin->grab().toImage().scaled(size_spin->size() * 3, Qt::IgnoreAspectRatio, Qt::FastTransformation);
+  };
+  QList<QImage> strips{grab_field()};
+  send_mouse(*editor, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*editor, QEvent::MouseMove, origin + QPoint(25, 0), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*editor, QEvent::MouseButtonRelease, origin + QPoint(25, 0), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  strips.append(grab_field());
+  CHECK(size_spin->value() == 65);
+  save_stacked_artifact("ui_options_bar_field_drag", strips);
+
+  // The Opacity field scrubs from inside the field as well.
+  auto* opacity_spin = window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"));
+  CHECK(opacity_spin != nullptr);
+  auto* opacity_editor = opacity_spin->findChild<QLineEdit*>();
+  CHECK(opacity_editor != nullptr);
+  opacity_spin->setValue(80);
+  const QPoint opacity_origin(opacity_editor->width() / 2, opacity_editor->height() / 2);
+  send_mouse(*opacity_editor, QEvent::MouseButtonPress, opacity_origin, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*opacity_editor, QEvent::MouseMove, opacity_origin + QPoint(-(drag_start + 10), 0), Qt::NoButton,
+             Qt::LeftButton);
+  send_mouse(*opacity_editor, QEvent::MouseButtonRelease, opacity_origin + QPoint(-(drag_start + 10), 0),
+             Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(opacity_spin->value() == 80 - (drag_start + 10));
+}
+
+// The Brush bar's Mode combo (core/paint_mode.hpp): Normal, Dissolve, Behind, Clear,
+// then the layer list's modes in its order without Pass Through; Brush only; the choice
+// reaches the canvas, persists as tools/brushMode and comes back in a new window, and
+// the bar still fits one row at the default window width.
+void ui_brush_mode_combo_lists_paint_modes_and_persists() {
+  SettingsValueRestorer saved_mode(QStringLiteral("tools/brushMode"));
+  patchy::ui::app_settings().remove(QStringLiteral("tools/brushMode"));
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.resize(1280, 860);
+    require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+    QApplication::processEvents();
+    process_events_for(20);
+    auto* combo = window.findChild<QComboBox*>(QStringLiteral("brushModeCombo"));
+    CHECK(combo != nullptr);
+    CHECK(combo->isVisible());
+    QComboBox layer_modes;
+    patchy::ui::add_blend_mode_items(&layer_modes);
+    CHECK(combo->count() == layer_modes.count() + 2);
+    const QStringList head{QStringLiteral("Normal"), QStringLiteral("Dissolve"), QStringLiteral("Behind"),
+                           QStringLiteral("Clear")};
+    for (int i = 0; i < head.size(); ++i) {
+      CHECK(combo->itemText(i) == head.at(i));
+    }
+    for (int i = 2; i < layer_modes.count(); ++i) {
+      CHECK(combo->itemText(i + 2) == layer_modes.itemText(i));
+    }
+    CHECK(combo->findText(QStringLiteral("Pass Through")) < 0);
+    CHECK(combo->currentText() == QStringLiteral("Normal"));
+    // The Brush row keeps one line at the default window width.
+    auto* bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+    auto* size_spin = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
+    auto* dynamics = window.findChild<QWidget*>(QStringLiteral("brushDynamicsButton"));
+    CHECK(bar != nullptr && size_spin != nullptr);
+    if (dynamics != nullptr && dynamics->isVisible()) {
+      CHECK(std::abs(dynamics->mapTo(bar, QPoint(0, 0)).y() - size_spin->mapTo(bar, QPoint(0, 0)).y()) <= 4);
+    }
+    CHECK(std::abs(combo->mapTo(bar, QPoint(0, 0)).y() + combo->height() / 2 -
+                   size_spin->mapTo(bar, QPoint(0, 0)).y() - size_spin->height() / 2) <= 4);
+    ensure_artifact_dir();
+    save_widget_artifact("ui_brush_mode_options_bar", *bar);
+    window.resize(1920, 860);
+    QApplication::processEvents();
+    process_events_for(20);
+    save_widget_artifact("ui_brush_mode_options_bar_1920", *bar);
+    window.resize(1280, 860);
+    QApplication::processEvents();
+    process_events_for(20);
+
+    combo->setCurrentIndex(combo->findText(QStringLiteral("Multiply")));
+    QApplication::processEvents();
+    auto* canvas = require_canvas(window);
+    CHECK(canvas->brush_paint_mode() == patchy::PaintMode::of(patchy::BlendMode::Multiply));
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/brushMode")).toString() == QStringLiteral("multiply"));
+    for (const char* tool : {"Eraser", "Clone", "Mixer Brush"}) {
+      if (auto* action = find_action_by_text(window, QString::fromLatin1(tool)); action != nullptr) {
+        action->trigger();
+        QApplication::processEvents();
+        CHECK(!combo->isVisible());
+      }
+    }
+    require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+    QApplication::processEvents();
+    combo->setCurrentIndex(combo->findText(QStringLiteral("Behind")));
+    QApplication::processEvents();
+    CHECK(canvas->brush_paint_mode() == patchy::PaintMode::behind());
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/brushMode")).toString() == QStringLiteral("behind"));
+  }
+  patchy::ui::MainWindow reopened;
+  show_window(reopened);
+  require_action_by_text(reopened, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  auto* combo = reopened.findChild<QComboBox*>(QStringLiteral("brushModeCombo"));
+  CHECK(combo != nullptr);
+  CHECK(combo->currentText() == QStringLiteral("Behind"));
+  CHECK(require_canvas(reopened)->brush_paint_mode() == patchy::PaintMode::behind());
+  // Script ids round-trip, including the two paint-only modes; Pass Through is no paint mode.
+  for (const char* id : {"normal", "dissolve", "behind", "clear", "multiply", "linear-dodge", "luminosity"}) {
+    patchy::PaintMode mode;
+    CHECK(patchy::ui::script_paint_mode_from_id(QString::fromLatin1(id), &mode));
+    CHECK(patchy::ui::script_paint_mode_id(mode) == QString::fromLatin1(id));
+  }
+  patchy::PaintMode rejected;
+  CHECK(!patchy::ui::script_paint_mode_from_id(QStringLiteral("pass-through"), &rejected));
+  CHECK(!patchy::ui::script_paint_mode_from_id(QStringLiteral("Multiply"), &rejected));
+}
+
 // Dialogs get scrub handles from exec_dialog / run_non_modal_dialog through
 // install_scrub_labels_in, whose pairing must reach every row shape the dialogs
 // use (GitHub issue 46): a direct form row, a "[slider] [spin]" row widget, a
@@ -4019,11 +4223,24 @@ void ui_dialog_scrub_labels_pair_every_row_shape() {
              Qt::NoButton);
   QApplication::processEvents();
   CHECK(slider_row_spin->value() == 40 + drag_start + 12);
+
+  // A drag inside the field itself scrubs the same way.
+  auto* direct_editor = direct->findChild<QLineEdit*>();
+  CHECK(direct_editor != nullptr);
+  const QPoint field_origin(direct_editor->width() / 2, direct_editor->height() / 2);
+  send_mouse(*direct_editor, QEvent::MouseButtonPress, field_origin, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*direct_editor, QEvent::MouseMove, field_origin + QPoint(drag_start + 7, 0), Qt::NoButton,
+             Qt::LeftButton);
+  send_mouse(*direct_editor, QEvent::MouseButtonRelease, field_origin + QPoint(drag_start + 7, 0), Qt::LeftButton,
+             Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(direct->value() == 20 + drag_start + 7);
 }
 
 // The Layers panel's "Opacity:" prefix scrubs the field (GitHub issue 46): the
 // drag is one undo entry, a plain click on the prefix focuses the field with the
-// number selected, and a drag on the number still selects text.
+// number selected, and a drag that starts on the number scrubs too, also as one
+// undo entry.
 void ui_layer_opacity_prefix_scrub_is_one_undo_entry() {
   patchy::Document document(180, 120, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(180, 120, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -4091,9 +4308,9 @@ void ui_layer_opacity_prefix_scrub_is_one_undo_entry() {
   CHECK(opacity_spin->value() == 100);
   CHECK(editor->hasSelectedText());
 
-  // A drag that starts on the number is ordinary text selection. Toolbar spin
-  // boxes right-align their text, so the number's x comes from the editor's own
-  // cursor geometry rather than from the left margin.
+  // A drag that starts on the number scrubs as well. Toolbar spin boxes right-align
+  // their text, so the number's x comes from the editor's own cursor geometry rather
+  // than from the left margin.
   editor->deselect();
   QPoint number_point(-1, editor->height() / 2);
   for (int x = 0; x < editor->width() && number_point.x() < 0; ++x) {
@@ -4104,10 +4321,28 @@ void ui_layer_opacity_prefix_scrub_is_one_undo_entry() {
   CHECK(number_point.x() >= 0);
   CHECK(editor->cursorPositionAt(number_point) >= static_cast<int>(opacity_spin->prefix().length()));
   send_mouse(*editor, QEvent::MouseButtonPress, number_point, Qt::LeftButton, Qt::LeftButton);
-  send_mouse(*editor, QEvent::MouseMove, number_point + QPoint(drag_start + 20, 0), Qt::NoButton, Qt::LeftButton);
-  send_mouse(*editor, QEvent::MouseButtonRelease, number_point + QPoint(drag_start + 20, 0), Qt::LeftButton,
+  send_mouse(*editor, QEvent::MouseMove, number_point + QPoint(-(drag_start + 20), 0), Qt::NoButton, Qt::LeftButton);
+  CHECK(opacity_spin->value() == 100 - (drag_start + 20));
+  send_mouse(*editor, QEvent::MouseButtonRelease, number_point + QPoint(-(drag_start + 20), 0), Qt::LeftButton,
              Qt::NoButton);
   QApplication::processEvents();
+  wait_for_apply.restart();
+  const float dragged_opacity = static_cast<float>(100 - (drag_start + 20)) / 100.0F;
+  edited_layer = patchy::ui::MainWindowTestAccess::document(window).find_layer(layer_id);
+  while (edited_layer != nullptr && std::abs(edited_layer->opacity() - dragged_opacity) > 0.001F &&
+         wait_for_apply.elapsed() < 900) {
+    QApplication::processEvents(QEventLoop::AllEvents, 20);
+    edited_layer = patchy::ui::MainWindowTestAccess::document(window).find_layer(layer_id);
+  }
+  CHECK(edited_layer != nullptr);
+  CHECK(std::abs(edited_layer->opacity() - dragged_opacity) <= 0.001F);
+  CHECK(undo->isEnabled());
+  undo->trigger();
+  QApplication::processEvents();
+  edited_layer = patchy::ui::MainWindowTestAccess::document(window).find_layer(layer_id);
+  CHECK(edited_layer != nullptr);
+  CHECK(std::abs(edited_layer->opacity() - 1.0F) <= 0.001F);
+  CHECK(!undo->isEnabled());
   CHECK(opacity_spin->value() == 100);
 }
 
@@ -4962,6 +5197,8 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
        ui_right_docks_collapse_layers_show_metadata_and_info_updates},
       {"ui_options_bar_labels_drop_the_trailing_colon", ui_options_bar_labels_drop_the_trailing_colon},
       {"ui_options_bar_label_scrub_changes_spin_value", ui_options_bar_label_scrub_changes_spin_value},
+      {"ui_options_bar_field_drag_scrubs_and_click_edits", ui_options_bar_field_drag_scrubs_and_click_edits},
+      {"ui_brush_mode_combo_lists_paint_modes_and_persists", ui_brush_mode_combo_lists_paint_modes_and_persists},
       {"ui_dialog_scrub_labels_pair_every_row_shape", ui_dialog_scrub_labels_pair_every_row_shape},
       {"ui_layer_opacity_prefix_scrub_is_one_undo_entry", ui_layer_opacity_prefix_scrub_is_one_undo_entry},
       {"ui_layer_opacity_control_defers_slow_rendering_and_undoes_once",

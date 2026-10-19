@@ -10828,6 +10828,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Square</source>
         <translation>Carré</translation>
     </message>
+    <message>
+        <source>mode: brush only</source>
+        <translation>mode : pinceau uniquement</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushDynamicsButton</name>
@@ -21918,6 +21922,10 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. Patchy saves a PSD in CMYK only when it was opened from a CMYK PSD and its layers are unchanged (text layers always need RGB). JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
         <translation>Ce document est en mode Épreuve CMJN, mais ce fichier %1 sera enregistré en RVB. Patchy n&apos;enregistre un PSD en CMJN que s&apos;il a été ouvert depuis un PSD CMJN et que ses calques sont inchangés (les calques de texte demandent toujours du RVB). Les fichiers JPEG, TIFF et PDF aplatis peuvent toujours être enregistrés en CMJN. L&apos;enregistrer en RVB ?</translation>
     </message>
+    <message>
+        <source>Brush mode: how the paint combines with the pixels under it</source>
+        <translation>Mode du pinceau : comment la peinture se combine avec les pixels en dessous</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -22074,6 +22082,17 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     <message>
         <source>Alt</source>
         <translation>Alt</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::PaintMode</name>
+    <message>
+        <source>Behind</source>
+        <translation>Arrière</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>Effacer</translation>
     </message>
 </context>
 <context>

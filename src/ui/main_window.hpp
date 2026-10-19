@@ -2423,6 +2423,7 @@ private:
   QComboBox* local_tone_range_combo_{nullptr};
   QCheckBox* local_protect_tones_check_{nullptr};
   QComboBox* sponge_mode_combo_{nullptr};
+  QComboBox* brush_mode_combo_{nullptr};
   QComboBox* eyedropper_sample_size_combo_{nullptr};
   QComboBox* eyedropper_sample_layers_combo_{nullptr};
   QPushButton* eyedropper_sets_foreground_button_{nullptr};
@@ -2800,6 +2801,9 @@ private:
   bool current_brush_smoothing_catch_up_{true};
   bool current_brush_smoothing_catch_up_end_{true};
   bool current_brush_smoothing_zoom_adjust_{true};
+  // Brush Mode (core/paint_mode.hpp), persisted as tools/brushMode (a script paint
+  // mode id) and pushed to every session's canvas.
+  patchy::PaintMode current_brush_paint_mode_{};
   // Combine mode per selection tool (indexed by CanvasWidget::selection_tool_index),
   // persisted across documents; each selection tool keeps its own mode.
   std::array<SelectionMode, kSelectionToolCount> selection_modes_{

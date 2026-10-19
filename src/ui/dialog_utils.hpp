@@ -79,10 +79,15 @@ inline constexpr char kToolbarSpinboxSliderCurvedProperty[] = "patchy.popupSlide
 // on `label` changes `spin`'s value by one singleStep per pixel (ten with Shift),
 // the label shows the SizeHor cursor, and the drag ends with the spin box's
 // editingFinished so undo paths that coalesce an edit session record one edit. A
-// press without a drag changes nothing. `install_prefix_scrub` makes the prefix text
-// inside a prefixed spin box (Layers panel Opacity/Fill) the handle instead: a drag
-// there scrubs, a plain click focuses the field and selects the number, and the
-// number itself keeps ordinary text selection. `install_scrub_labels_in` walks a
+// press without a drag changes nothing. The field's own text is a handle too: a
+// horizontal drag past the drag distance that starts on the number scrubs the same
+// way (SizeHor cursor once dragging, the number selected afterwards when the field has
+// focus), while the press itself reaches the line edit unchanged, so a click still
+// focuses and places the caret and a double-click or Ctrl+A still selects; only
+// drag-selecting text inside the number is gone. `install_prefix_scrub` gives a
+// prefixed spin box with no label (Layers panel Opacity/Fill) the same field handle,
+// and makes its prefix text a label-like handle: a drag there scrubs and a plain click
+// focuses the field and selects the number. `install_scrub_labels_in` walks a
 // container's layout (nested layouts, child containers, QScrollArea contents and
 // QTabWidget pages included) and pairs every QLabel with letters in its text with the
 // spin box it names: the label's buddy when that is a spin box, else the next item in
@@ -97,7 +102,8 @@ inline constexpr char kToolbarSpinboxSliderCurvedProperty[] = "patchy.popupSlide
 // the bool property kScrubHandleInstalledProperty, so repeated installs are no-ops. A
 // label that must not become a handle (the "to" between a range's two fields) sets
 // kScrubLabelExemptProperty. Tests: ui_dialog_scrub_labels_pair_every_row_shape,
-// ui_options_bar_label_scrub_changes_spin_value, ui_layer_opacity_prefix_scrub_is_one_undo_entry.
+// ui_options_bar_label_scrub_changes_spin_value, ui_options_bar_field_drag_scrubs_and_click_edits,
+// ui_layer_opacity_prefix_scrub_is_one_undo_entry.
 inline constexpr char kScrubHandleInstalledProperty[] = "patchy.scrubHandleInstalled";
 inline constexpr char kScrubLabelExemptProperty[] = "patchy.scrubLabelExempt";
 void install_scrub_label(QLabel* label, QAbstractSpinBox* spin);
