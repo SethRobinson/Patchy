@@ -362,9 +362,11 @@ std::optional<PixelBuffer> render_native_cmyk8(
       document_has_artboards(document)) return std::nullopt;  // artboard paper is RGB: the RGB path draws it
   // A flat PSD has already converted its composite through the source profile.
   // With no native layer records there is no ink blend to reconstruct; an RGB
-  // round trip through the CMYK gamut would only damage that correct preview.
+  // round trip through the CMYK gamut would only damage that correct preview. Its
+  // retained merged-image inks (flat_composite) serve saves only.
   if (document.layers().size() == 1 && document.layers().front().kind() == LayerKind::Pixel &&
-      !document.layers().front().psd_native_colors() && document.layers().front().vector_shape() == nullptr)
+      document.layers().front().vector_shape() == nullptr &&
+      (!document.layers().front().psd_native_colors() || document.layers().front().psd_native_colors()->flat_composite))
     return std::nullopt;
   clip = intersect_rect(clip, Rect::from_size(document.width(), document.height()));
   if (clip.empty()) return PixelBuffer{};

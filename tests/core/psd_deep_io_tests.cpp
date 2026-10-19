@@ -46,6 +46,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <functional>
@@ -405,6 +406,101 @@ void psd_deep_native_colors_survive_saves_but_never_shadow_edits() {
   }
 }
 
+// A flat CMYK PSD as Photoshop saves a one-layer document: no layer records, only the
+// merged image (GitHub issue 220). A 64-pixel ink ramp, 8 or 16 bits.
+std::vector<std::uint8_t> flat_cmyk_ramp(bool eight_bit, std::span<const std::uint8_t> profile) {
+  using namespace patchy::test;
+  psd::BigEndianWriter resources;
+  if (!profile.empty()) {
+    write_ascii4(resources, "8BIM");
+    resources.write_u16(1039);
+    resources.write_u16(0);  // empty Pascal name, padded to even
+    resources.write_u32(static_cast<std::uint32_t>(profile.size()));
+    resources.write_bytes(profile);
+    if (profile.size() % 2U != 0U) resources.write_u8(0);
+  }
+  psd::BigEndianWriter file;
+  psd::write_header(file, psd::Header{false, 4, 1, 64, static_cast<std::uint16_t>(eight_bit ? 8 : 16), 4});
+  file.write_u32(0);
+  file.write_u32(static_cast<std::uint32_t>(resources.bytes().size()));
+  file.write_bytes(resources.bytes());
+  file.write_u32(0);  // no layer and mask information
+  file.write_u16(0);  // raw
+  for (std::uint16_t c = 0; c < 4; ++c) {
+    for (std::uint16_t x = 0; x < 64; ++x) {
+      const auto ink = c == 0 ? 60U + x * 3U : c == 1 ? 250U - x * 2U : c == 2 ? 255U : 230U;
+      if (eight_bit) file.write_u8(static_cast<std::uint8_t>(ink));
+      else file.write_u16(static_cast<std::uint16_t>(ink * 257U + (c == 0 ? x : 0U)));
+    }
+  }
+  return file.bytes();
+}
+
+void psd_flat_cmyk_saves_its_inks_while_unchanged() {
+  const auto mode_of = [](const auto& bytes) { return (bytes[24] << 8U) | bytes[25]; };
+  const auto cmyk_source = psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-cmyk-style-colors.psd"));
+  const auto tagged = patchy::test::test_image_resource_payload(cmyk_source.metadata().raw_psd_image_resources, 1039);
+  CHECK(tagged.has_value());
+  psd::ReadOptions read;
+  read.keep_bit_depth = true;
+  for (const bool eight_bit : {true, false}) {
+    for (const bool with_profile : {false, true}) {
+      const auto profile = with_profile ? std::span<const std::uint8_t>(*tagged) : std::span<const std::uint8_t>{};
+      const auto original = psd::DocumentIo::read(flat_cmyk_ramp(eight_bit, profile), read);
+      CHECK(original.layers().size() == 1);
+      const auto& background = original.layers().front();
+      CHECK(background.psd_native_colors() != nullptr && background.psd_native_colors()->flat_composite);
+      CHECK(psd::DocumentIo::source_icc_profile(original) ==
+            std::vector<std::uint8_t>(profile.begin(), profile.end()));
+      // The flat preview stays the reader's conversion: the inks are kept for saves only.
+      if (eight_bit) {
+        CHECK(same_bytes(Compositor{}.flatten_rgb8(original), background.pixels()));
+      }
+      CHECK(psd::DocumentIo::layered_save_keeps_source_color_mode(original));
+      for (const bool large : {false, true}) {
+        psd::WriteOptions write;
+        write.large_document = large;
+        auto document = original;
+        (void)document.layers()[0].pixels();  // revision churn alone keeps the inks
+        CHECK(psd::DocumentIo::layered_save_keeps_source_color_mode(document, write));
+        const auto bytes = psd::DocumentIo::write_layered_rgb8(document, write);
+        CHECK(mode_of(bytes) == 4);
+        const auto reopened = psd::DocumentIo::read(bytes, read);
+        CHECK(reopened.layers().size() == 1);
+        CHECK(reopened.layers()[0].psd_native_colors() != nullptr);
+        CHECK(reopened.layers()[0].psd_native_colors()->planes == background.psd_native_colors()->planes);
+        CHECK(psd::DocumentIo::source_icc_profile(reopened) == psd::DocumentIo::source_icc_profile(original));
+        if (eight_bit) {
+          // The layer record converts the same inks the same way. Its preview then goes
+          // through the layered CMYK compositor, whose rounding may differ slightly.
+          const auto& before_pixels = background.pixels();
+          const auto& after_pixels = reopened.layers()[0].pixels();
+          const auto before_render = Compositor{}.flatten_rgb8(original);
+          const auto after_render = Compositor{}.flatten_rgb8(reopened);
+          int render_difference = 0;
+          for (int x = 0; x < 64; ++x) {
+            for (int c = 0; c < 3; ++c) {
+              CHECK(before_pixels.pixel(x, 0)[c] == after_pixels.pixel(x, 0)[c]);
+              render_difference = std::max(render_difference,
+                  std::abs(int{before_render.pixel(x, 0)[c]} - int{after_render.pixel(x, 0)[c]}));
+            }
+          }
+          std::cout << "[INFO] flat CMYK reopened render differs by at most " << render_difference << '\n';
+          CHECK(render_difference <= 3);
+        }
+        // An edited pixel needs RGB, and the predicate says so before the save.
+        document.layers()[0].pixels().pixel(3, 0)[0] ^= 0x40;
+        CHECK(!psd::DocumentIo::layered_save_keeps_source_color_mode(document, write));
+        CHECK(mode_of(psd::DocumentIo::write_layered_rgb8(document, write)) == 3);
+        psd::WriteOptions rgb = write;
+        rgb.preserve_source_color_mode = false;
+        CHECK(!psd::DocumentIo::layered_save_keeps_source_color_mode(original, rgb));
+      }
+    }
+  }
+}
+
 void psd_cmyk_smart_objects_preserve_inks_and_invalidate_changed_sources() {
   const auto original = psd::DocumentIo::read_file(patchy::test::source_root_path() /
       "test-fixtures/psd/cmyk-render/smart-gradient.psd");
@@ -706,6 +802,7 @@ std::vector<patchy::test::TestCase> psd_deep_io_tests() {
        psd_deep_color_conversions_keep_sub_byte_samples_and_alpha},
       {"psd_deep_native_colors_survive_saves_but_never_shadow_edits",
        psd_deep_native_colors_survive_saves_but_never_shadow_edits},
+      {"psd_flat_cmyk_saves_its_inks_while_unchanged", psd_flat_cmyk_saves_its_inks_while_unchanged},
       {"psd_cmyk_smart_objects_preserve_inks_and_invalidate_changed_sources",
        psd_cmyk_smart_objects_preserve_inks_and_invalidate_changed_sources},
       {"psd_duotone_preserves_inks_and_regenerates_colored_gradient_if_available",

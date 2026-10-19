@@ -29,6 +29,9 @@ struct PsdNativeLayerColors {
   // immutable import state too so replacing embedded contents invalidates inks.
   std::shared_ptr<const SmartObjectSource> smart_object_source;
   std::uint64_t content_revision{0};
+  // The planes are a flat file's merged image (no layer records). Its RGB pixels already
+  // are those inks converted, so rendering never rebuilds them from the planes.
+  bool flat_composite{false};
 };
 
 }  // namespace patchy

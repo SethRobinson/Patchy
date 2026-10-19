@@ -203,7 +203,7 @@ Document read_flat_composite(BigEndianReader& reader, const Header& header,
                              const CmykColorConverter& source_colors,
                              const ParsedCompositeChannelResources& channel_resources,
                              bool has_merged_transparency, std::size_t* damaged_rows = nullptr,
-                             bool keep_depth = false) {
+                             bool keep_depth = false, bool retain_native_colors = false) {
   const auto format = format_from_header(header);
   const auto compression = reader.read_u16();
   const auto source_is_cmyk = is_cmyk_color_mode(header.color_mode);
@@ -290,6 +290,18 @@ Document read_flat_composite(BigEndianReader& reader, const Header& header,
     pixels = std::move(deep);
   }
   Layer& background = document.add_pixel_layer("Background", std::move(pixels));
+  // A flat CMYK file keeps its ink planes like a layer record does, so an unchanged
+  // document saves CMYK again (GitHub issue 220, docs/psd-native-color.md).
+  if (retain_native_colors && source_is_cmyk) {
+    auto colors = std::make_shared<PsdNativeLayerColors>();
+    colors->width = document.width();
+    colors->height = document.height();
+    colors->flat_composite = true;
+    for (std::size_t c = 0; c < colors->planes.size(); ++c) {
+      colors->planes[c] = native_depth ? native_planes[c] : channel_data[c];
+    }
+    background.set_psd_native_colors(std::move(colors));
+  }
   if (has_merged_transparency) {
     const auto& merged_alpha = channel_data[color_channel_count];
     if (merged_alpha.size() != channel_pixels) {
@@ -1831,7 +1843,8 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     auto grid_settings = document.grid_settings();
     auto guides = std::move(document.guides());
     document = read_flat_composite(reader, header, source_colors, channel_resources,
-                                   has_merged_transparency, &damaged_rows, keep_depth);
+                                   has_merged_transparency, &damaged_rows, keep_depth,
+                                   retain_source_color && is_cmyk_color_mode(header.color_mode));
     document.metadata() = std::move(metadata);
     document.color_state().embedded_icc_profile = std::move(color_state.embedded_icc_profile);
     document.color_state().ocio_view = std::move(color_state.ocio_view);
@@ -2003,6 +2016,11 @@ Document DocumentIo::read_file(const std::filesystem::path& path, ReadOptions op
   return read(bytes, options);
 }
 
+std::vector<std::uint8_t> DocumentIo::source_icc_profile(const Document& document) {
+  return find_image_resource_payload(document.metadata().raw_psd_image_resources, kImageResourceIccProfile)
+      .value_or(std::vector<std::uint8_t>{});
+}
+
 namespace {
 
 // Merged transparency or a saved alpha channel, then every document channel, at `depth`.
@@ -2131,15 +2149,20 @@ bool native_layer_colors_unchanged(const std::vector<Layer>& layers,
   return true;
 }
 
-std::optional<PixelBuffer> native_color_composite(const Document& document, const PixelBuffer& rgb,
-                                                 const WriteOptions& options) {
+bool native_color_save_eligible(const Document& document, const WriteOptions& options) {
   const auto& space = document.metadata().psd_native_color_space;
   if (!options.preserve_source_color_mode || !space || document_bit_depth(document) != space->depth ||
       !document.color_state().embedded_icc_profile.empty() ||
-      !native_layer_colors_unchanged(document.layers(), space, document.metadata().smart_objects)) return std::nullopt;
+      !native_layer_colors_unchanged(document.layers(), space, document.metadata().smart_objects)) return false;
   const auto profile = find_image_resource_payload(document.metadata().raw_psd_image_resources,
                                                    kImageResourceIccProfile);
-  if (profile.value_or(std::vector<std::uint8_t>{}) != space->profile) return std::nullopt;
+  return profile.value_or(std::vector<std::uint8_t>{}) == space->profile;
+}
+
+std::optional<PixelBuffer> native_color_composite(const Document& document, const PixelBuffer& rgb,
+                                                 const WriteOptions& options) {
+  if (!native_color_save_eligible(document, options)) return std::nullopt;
+  const auto& space = document.metadata().psd_native_color_space;
   if (space->mode == kColorModeDuotone) {
     const auto gray = render_native_duotone8(document, Rect::from_size(document.width(), document.height()),
                                              nullptr, /*display_colors=*/false);
@@ -2280,6 +2303,28 @@ void DocumentIo::write_flat_rgb8_file(const Document& document, const std::files
                                       WriteOptions options) {
   const auto bytes = write_flat_rgb8(document, options);
   write_file_bytes(path, bytes);
+}
+
+bool DocumentIo::layered_save_keeps_source_color_mode(const Document& document, WriteOptions options) {
+  // The same decisions write_layered_rgb8 makes before it writes a native composite.
+  if (auto prepared = prepare_compound_vector_psd(document)) {
+    return layered_save_keeps_source_color_mode(*prepared, options);
+  }
+  if (document.layers().empty() || !native_color_save_eligible(document, options)) {
+    return false;
+  }
+  const auto& space = document.metadata().psd_native_color_space;
+  for (const auto& block : document.metadata().smart_filter_effects.blocks) {
+    for (const auto& record : block.records) {
+      if (!native_filter_effects_cache(record, space)) {
+        return false;
+      }
+    }
+  }
+  // Counts a merged transparency channel whether or not the composite needs one, so the
+  // answer never promises a native save the writer then turns down.
+  return composite_color_channel_count(space->mode) + document.channels().size() + 1U <=
+         kMaximumPhotoshopChannelCount;
 }
 
 std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& document, WriteOptions options) {
