@@ -15,6 +15,7 @@
 #include "ui/layer_list_widget.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
+#include "ui/main_window_shared.hpp"
 #include "ui/new_document_dialog.hpp"
 #include "ui/app_settings.hpp"
 #include "psd/psd_document_io.hpp"
@@ -796,6 +797,13 @@ bool process_events_until(const std::function<bool()>& condition, int timeout_ms
     }
   }
   return condition();
+}
+
+std::unique_ptr<QWidget> make_themed_dialog_parent() {
+  auto parent = std::make_unique<QWidget>();
+  parent->setObjectName(QStringLiteral("testThemedDialogParent"));
+  parent->setStyleSheet(patchy::ui::photoshop_style());
+  return parent;
 }
 
 QDialog* find_top_level_dialog(const QString& object_name) {

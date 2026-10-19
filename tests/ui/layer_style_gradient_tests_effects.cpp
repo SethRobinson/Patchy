@@ -882,7 +882,9 @@ void ui_layer_style_gradient_stop_picker_follows_the_selected_stop() {
     swatch->click();
   });
 
-  const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
+  // Themed like the app: the dialog's artifact is the issue's screenshot.
+  const auto themed_parent = make_themed_dialog_parent();
+  const auto settings = patchy::ui::request_layer_style_settings(themed_parent.get(), layer, {});
   CHECK(settings.has_value());
   CHECK(picker_closed_on_switch);
   CHECK(saw_second_stop_selected);
