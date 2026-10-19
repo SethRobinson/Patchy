@@ -47,7 +47,7 @@ Dragging a title row, or the group's tab bar, up or down moves that section. `Pa
 ## Window menu entries
 
 The Window menu lists every panel and both toolbars as checkable entries (`install_window_panel_entries`, GitHub issue 163). `sorted_window_panel_actions` sorts them by their current text with `QCollator` each time the menu opens. The document-window commands sit under Window > Arrange.
-- **Panel entries.** An entry follows Photoshop (`toggle_window_panel`): a panel that is open, in front and expanded closes; any other opens, comes to the front and expands (`show_panel`). The check mark is `panel_visible`, re-read on every open.
+- **Panel entries.** `toggle_window_panel`: a panel that is open and in front closes, collapsed or not (GitHub issue 234; Photoshop expands a collapsed one instead); any other opens, comes to the front and expands (`show_panel`), so a tab behind another of its group comes forward. The check mark is `panel_visible`, re-read on every open (`ui_window_menu_hides_collapsed_panel`).
 - **Toolbars.** The toolbars use Qt's own `toggleViewAction`.
 - **Reset Panels.** Window > Reset Panels (`window.reset_panels`) ends the list.
 - **During automation.** Panel entries and Reset Panels stay usable while MCP automation runs (`McpActivity::action_allowed`).

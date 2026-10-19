@@ -912,6 +912,48 @@ void ui_start_panel_shows_about_info_and_update_status() {
 // entries, alphabetically, with the document-window commands under Window > Arrange.
 // Picking a closed, background-tab or collapsed panel brings it forward expanded; picking
 // one already in front closes it.
+// A checked Window menu entry hides its panel even while the panel is collapsed
+// (GitHub issue 234); choosing it again shows the panel, expanded.
+void ui_window_menu_hides_collapsed_panel() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* column = patchy::ui::MainWindowTestAccess::panel_column(window);
+  auto* window_menu = window.findChild<QMenu*>(QStringLiteral("windowMenu"));
+  auto* palette_toggle = window.findChild<QToolButton*>(QStringLiteral("paletteDockCollapseButton"));
+  auto* palette_entry = require_action(window, "windowPanelPaletteAction");
+  CHECK(column != nullptr && window_menu != nullptr && palette_toggle != nullptr);
+  if (column == nullptr || window_menu == nullptr || palette_toggle == nullptr) {
+    return;
+  }
+  const auto palette = QStringLiteral("paletteDock");
+  if (!column->panel_expanded(palette)) {
+    palette_toggle->click();
+    QApplication::processEvents();
+  }
+  CHECK(column->panel_expanded(palette));
+  palette_toggle->click();
+  QApplication::processEvents();
+  CHECK(column->panel_visible(palette));
+  CHECK(!column->panel_expanded(palette));
+  emit window_menu->aboutToShow();
+  QApplication::processEvents();
+  CHECK(palette_entry->isChecked());
+
+  palette_entry->trigger();
+  QApplication::processEvents();
+  CHECK(!column->panel_visible(palette));
+  CHECK(column->section_widget(palette)->isHidden());
+  CHECK(!palette_entry->isChecked());
+
+  palette_entry->trigger();
+  QApplication::processEvents();
+  CHECK(column->panel_visible(palette));
+  CHECK(column->section_widget(palette)->isVisible());
+  CHECK(column->panel_expanded(palette));
+  CHECK(palette_toggle->isChecked());
+  CHECK(palette_entry->isChecked());
+}
+
 void ui_window_menu_lists_panels_and_toolbars() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -950,17 +992,11 @@ void ui_window_menu_lists_panels_and_toolbars() {
   if (history_toggle == nullptr) {
     return;
   }
-  // Collapsed: the entry expands it and leaves it open.
-  history_toggle->setChecked(false);
-  QApplication::processEvents();
-  CHECK(!column->panel_expanded(history));
-  history_entry->trigger();
-  QApplication::processEvents();
-  CHECK(column->panel_visible(history));
-  CHECK(column->panel_expanded(history));
-  CHECK(history_toggle->isChecked());
-  CHECK(history_entry->isChecked());
   // In front and expanded: the entry closes it, and the next pick brings it back.
+  // A collapsed panel closes the same way (ui_window_menu_hides_collapsed_panel).
+  history_toggle->setChecked(true);
+  QApplication::processEvents();
+  CHECK(column->panel_expanded(history));
   history_entry->trigger();
   QApplication::processEvents();
   CHECK(!column->panel_visible(history));
@@ -2960,6 +2996,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part1() {
       {"ui_start_panel_shows_about_info_and_update_status", ui_start_panel_shows_about_info_and_update_status},
       {"ui_main_window_renders_color_controls", ui_main_window_renders_color_controls},
       {"ui_window_menu_lists_panels_and_toolbars", ui_window_menu_lists_panels_and_toolbars},
+      {"ui_window_menu_hides_collapsed_panel", ui_window_menu_hides_collapsed_panel},
       {"ui_panel_close_and_reopen_keeps_full_width", ui_panel_close_and_reopen_keeps_full_width},
       {"ui_panel_collapse_and_close_leave_no_gap", ui_panel_collapse_and_close_leave_no_gap},
       {"ui_panel_title_drag_reorders_sections", ui_panel_title_drag_reorders_sections},

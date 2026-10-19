@@ -683,8 +683,10 @@ void MainWindow::toggle_window_panel(const QString& panel_id) {
   if (panel_column_ == nullptr || !panel_column_->has_panel(panel_id)) {
     return;
   }
-  if (panel_column_->panel_visible(panel_id) && panel_column_->panel_in_front(panel_id) &&
-      panel_column_->panel_expanded(panel_id)) {
+  // A checked entry hides its panel, collapsed or not (GitHub issue 234; Photoshop
+  // expands a collapsed panel instead). A tab behind another one of its group still
+  // comes to the front.
+  if (panel_column_->panel_visible(panel_id) && panel_column_->panel_in_front(panel_id)) {
     panel_column_->set_panel_visible(panel_id, false);
     return;
   }
