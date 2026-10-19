@@ -69,7 +69,8 @@ update source catalogs. `scripts/update-translations.ps1 -Check` runs this same 
 the update target remains independent so unfinished catalogs can still be regenerated.
 
 The desktop `patchy_translation_checks` executable runs offscreen with private temporary
-settings. It is required even with `PATCHY_BUILD_TESTS=OFF`. It loads every compiled
+settings. It is required even with `PATCHY_BUILD_TESTS=OFF`. Because the app waits for
+it, its MSVC Release link is incremental LTCG ([building.md](building.md)). It loads every compiled
 Patchy and Qt catalog, checks compiled messages against the source translations, and
 compares persistent UI text after language changes with a fresh window in that language.
 The comparison walks actual properties, including controls without binding metadata:
