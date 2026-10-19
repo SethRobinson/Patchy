@@ -17,9 +17,10 @@
 //
 // Two deliberate exclusions:
 //   * default-colors.svg and swap-colors.svg draw the black and white paint
-//     swatches. Those fills depict colors and must never be recolored, which is
-//     why #ffffff and #111111 are absent from the substitution map. Their
-//     outlines are ordinary icon ink and do recolor.
+//     swatches, and quick-mask(-on).svg the mask overlay's red. Those fills
+//     depict colors and must never be recolored, which is why #ffffff, #111111
+//     and #eb5f6e are absent from the substitution map. Their outlines are
+//     ordinary icon ink and do recolor.
 //   * The SVGs referenced from QSS by url() (checkmark, scroll-dither,
 //     tool-flyout-corner, the four spin arrows) cannot go through a QIconEngine
 //     at all: QStyleSheetStyle loads them as plain files. They get hand-authored
@@ -45,6 +46,9 @@ namespace patchy::ui {
 // A QIcon backed by the recoloring engine. `name` is the resource stem, without
 // the directory or the .svg suffix.
 [[nodiscard]] QIcon themed_svg_icon(const QString& name);
+// The same with a second stem drawn for QIcon::On, for checkable actions whose
+// checked look is its own drawing (Quick Mask).
+[[nodiscard]] QIcon themed_svg_icon(const QString& name, const QString& on_name);
 
 // Resource path for a QSS url(): the icons/light/ variant when the active scheme
 // is Light and that variant exists, otherwise the base path.

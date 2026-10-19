@@ -49,6 +49,7 @@
 #include <QTabBar>
 #include <QSplitter>
 #include <QToolBar>
+#include <QPainter>
 #include <QToolButton>
 #include <QWidget>
 #include <algorithm>
@@ -58,6 +59,7 @@
 #include <array>
 #include <cstdint>
 #include <cmath>
+#include <cstdlib>
 #include <exception>
 #include <filesystem>
 #include <fstream>
@@ -1722,6 +1724,92 @@ void ui_main_window_renders_color_controls() {
   save_widget_artifact("ui_main_window", window);
 }
 
+// GitHub issue 224: the footer's Quick Mask button shows Patchy's own icon (a framed
+// window half tinted with the mask red; fully tinted when checked) instead of "QM"
+// text, in both schemes; the action keeps its id, Q shortcut and tooltip.
+void ui_tool_palette_quick_mask_button_shows_its_icon() {
+  ensure_artifact_dir();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* button = window.findChild<QToolButton*>(QStringLiteral("quickMaskButton"));
+  auto* palette = window.findChild<QToolBar*>(QStringLiteral("toolPalette"));
+  auto* action = require_hotkey_action(window, QStringLiteral("select.quick_mask"));
+  CHECK(button != nullptr);
+  CHECK(palette != nullptr);
+  if (button == nullptr || palette == nullptr || action == nullptr) {
+    return;
+  }
+  CHECK(button->defaultAction() == action);
+  CHECK(action->objectName() == QStringLiteral("selectQuickMaskAction"));
+  CHECK(button->toolButtonStyle() == Qt::ToolButtonIconOnly);
+  CHECK(button->iconSize() == QSize(22, 22));
+  CHECK(!button->icon().isNull());
+  CHECK(action->iconText() != QStringLiteral("QM"));
+  CHECK(action->shortcut() == QKeySequence(Qt::Key_Q));
+  CHECK(action->toolTip().contains(QStringLiteral("Quick Mask")));
+  CHECK(action->toolTip().contains(QStringLiteral("(Q)")));
+
+  // Off and On are different drawings: On tints the whole window, so it has
+  // clearly more mask-red pixels. The frame is icon ink in each scheme.
+  const auto red_pixels = [](const QImage& image) {
+    int count = 0;
+    for (int y = 0; y < image.height(); ++y) {
+      for (int x = 0; x < image.width(); ++x) {
+        const auto color = image.pixelColor(x, y);
+        if (color.alpha() > 100 && color.red() > color.green() + 60 && color.red() > color.blue() + 40) {
+          ++count;
+        }
+      }
+    }
+    return count;
+  };
+  const auto ink_pixels = [](const QImage& image, QColor ink) {
+    int count = 0;
+    for (int y = 0; y < image.height(); ++y) {
+      for (int x = 0; x < image.width(); ++x) {
+        const auto color = image.pixelColor(x, y);
+        if (color.alpha() > 200 && std::abs(color.red() - ink.red()) < 24 && std::abs(color.green() - ink.green()) < 24 &&
+            std::abs(color.blue() - ink.blue()) < 24) {
+          ++count;
+        }
+      }
+    }
+    return count;
+  };
+  QList<QImage> strips;
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restorer(scheme);
+    process_events_for(60);
+    const auto ink = patchy::ui::theme().icon_ink;
+    const auto off = action->icon().pixmap(QSize(22, 22), QIcon::Normal, QIcon::Off).toImage();
+    const auto on = action->icon().pixmap(QSize(22, 22), QIcon::Normal, QIcon::On).toImage();
+    CHECK(!off.isNull());
+    CHECK(!on.isNull());
+    CHECK(off != on);
+    CHECK(red_pixels(off) >= 20);
+    CHECK(red_pixels(on) > red_pixels(off) + 30);
+    CHECK(ink_pixels(off, ink) >= 20);
+    CHECK(ink_pixels(on, ink) >= 20);
+    // The footer as it sits under the tools, unchecked then checked.
+    const auto footer_rect = QRect(0, std::max(0, palette->height() - 110), palette->width(), 110);
+    action->setChecked(false);
+    palette->repaint();
+    const auto unchecked = palette->grab(footer_rect).toImage();
+    action->setChecked(true);
+    palette->repaint();
+    const auto checked = palette->grab(footer_rect).toImage();
+    action->setChecked(false);
+    QImage pair(unchecked.width() * 2 + 8, unchecked.height(), QImage::Format_ARGB32);
+    pair.fill(patchy::ui::theme().tool_palette_bg);
+    QPainter painter(&pair);
+    painter.drawImage(0, 0, unchecked);
+    painter.drawImage(unchecked.width() + 8, 0, checked);
+    painter.end();
+    strips << pair;
+  }
+  save_stacked_artifact("ui_tool_palette_quick_mask_icon", strips);
+}
+
 void ui_tool_palette_overflow_hides_quick_mask_before_swatches() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -3004,6 +3092,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part1() {
       {"ui_panel_layout_returns_in_the_next_window", ui_panel_layout_returns_in_the_next_window},
       {"ui_reset_panels_restores_first_launch_layout", ui_reset_panels_restores_first_launch_layout},
       {"ui_reset_panels_keeps_the_window_geometry", ui_reset_panels_keeps_the_window_geometry},
+      {"ui_tool_palette_quick_mask_button_shows_its_icon", ui_tool_palette_quick_mask_button_shows_its_icon},
       {"ui_tool_palette_overflow_hides_quick_mask_before_swatches", ui_tool_palette_overflow_hides_quick_mask_before_swatches},
       {"ui_tool_palette_extension_survives_resize_cycles", ui_tool_palette_extension_survives_resize_cycles},
       {"ui_tool_palette_extension_button_expands_palette", ui_tool_palette_extension_button_expands_palette},

@@ -24,6 +24,7 @@
 #include "core/vector_shape.hpp"
 #include "core/pixel_depth.hpp"
 #include "ui/action_icons.hpp"
+#include "ui/icon_theme.hpp"
 #include "ui/canvas_widget_shared.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/filter_workflows.hpp"
@@ -581,10 +582,9 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   quick_mask_action_ = new QAction(tr("Edit in &Quick Mask Mode"), this);
   quick_mask_action_->setObjectName(QStringLiteral("selectQuickMaskAction"));
   quick_mask_action_->setCheckable(true);
-  quick_mask_action_->setIcon(
-      simple_icon(QStringLiteral("QM"), QColor(235, 95, 110)));
-  // The tool palette footer shows this as a text-only button (tool_palette_footer.cpp).
-  quick_mask_action_->setIconText(QStringLiteral("QM"));
+  // A framed window half tinted with the mask red; checked, the whole window is
+  // tinted (GitHub issue 224). The tool palette footer shows it icon-only.
+  quick_mask_action_->setIcon(themed_svg_icon(QStringLiteral("quick-mask"), QStringLiteral("quick-mask-on")));
   bind_action_text(quick_mask_action_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Edit in &Quick Mask Mode"));
   auto* grow_selection_action = new QAction(tr("&Grow"), this);
   auto* similar_selection_action = new QAction(tr("Simi&lar"), this);

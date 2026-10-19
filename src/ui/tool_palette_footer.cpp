@@ -140,10 +140,11 @@ ToolPaletteFooter::ToolPaletteFooter(QAction* default_colors, QAction* swap_colo
   quick_mask_->setObjectName(QStringLiteral("quickMaskButton"));
   quick_mask_->setDefaultAction(quick_mask);
   quick_mask_->setAutoRaise(true);
-  // Text, not the action's tiny procedural icon: the whole footer width is free
-  // for a readable "QM" (the action's iconText; QSS widens the button to 36 px
-  // and sets the type).
-  quick_mask_->setToolButtonStyle(Qt::ToolButtonTextOnly);
+  // The action's two-state icon (GitHub issue 224), at the 22 px the palette's
+  // 24 px button height leaves: its frame fills less of the 32 px art than the
+  // tool glyphs do. QSS widens the button to the footer's 36 px.
+  quick_mask_->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  quick_mask_->setIconSize(QSize(22, 22));
   quick_mask_->move(3, kWellHeight + 3);
 }
 
