@@ -21,6 +21,9 @@ namespace patchy::ui {
 // what nearly every caller wants. Pass an explicit color only when it carries
 // meaning independent of the scheme, such as a red destructive marker; those are
 // never recolored and must stay legible on both light and dark chrome.
+// A name with an authored SVG (":/patchy/icons/<name>.svg", e.g. "ok", "clear",
+// "cancel") ignores `accent` entirely: the SVG's colors come from the icon color
+// map (icon_success, icon_danger, ...), so pass nothing for those.
 QIcon simple_icon(QString text, QColor accent = QColor());
 
 // Same, but the accent is a palette role resolved at paint time, so the glyph

@@ -1,8 +1,12 @@
+#include <QPushButton>
 #include <QScrollBar>
+#include <QToolBar>
 #include <QVBoxLayout>
 
 
 
+#include "ui/action_icons.hpp"
+#include "ui/canvas_widget.hpp"
 #include "ui/palette_panel.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/dialog_utils.hpp"
@@ -585,6 +589,133 @@ void ui_blocking_refusal_shows_error_status_and_info_clears_it() {
   CHECK(!bar->error_message_active());
 }
 
+// Transform, Crop and Type sessions share one Apply/Cancel pair (GitHub issue
+// 182). Their tints come from icon_success and icon_danger at paint time, so the
+// same buttons have to recolor on a live scheme switch and read on the options
+// bar in both schemes. Cancel is a round "stop" sign of its own: the square
+// "clear" glyph it used to borrow is also Layer > Clear, which erases pixels.
+void ui_session_commit_cancel_icons_read_in_both_schemes() {
+  ColorSchemeRestorer restore_active;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.resize(1800, 900);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(90, 80)),
+       canvas->widget_position_for_document_point(QPoint(150, 125)));
+  canvas->set_primary_color(QColor(40, 130, 230));
+  require_action(window, "layerFillForegroundAction")->trigger();
+  require_action(window, "editDeselectAction")->trigger();
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+
+  // Captures of the Transform bar's Apply/Cancel pair in both schemes for the
+  // issue thread, from the warp toggle to just past Cancel. Taken before the
+  // checks so a failing run still leaves them.
+  auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+  auto* warp_mode = window.findChild<QPushButton*>(QStringLiteral("transformWarpModeButton"));
+  auto* transform_cancel = window.findChild<QPushButton*>(QStringLiteral("freeTransformCancelButton"));
+  CHECK(options_bar != nullptr && warp_mode != nullptr && transform_cancel != nullptr);
+  if (options_bar != nullptr && warp_mode != nullptr && transform_cancel != nullptr) {
+    for (const auto preference :
+         {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+      ColorSchemeRestorer::apply(preference);
+      CHECK(transform_cancel->isVisible());
+      const auto left = warp_mode->mapTo(options_bar, QPoint(0, 0)).x() - 10;
+      const auto right = transform_cancel->mapTo(options_bar, QPoint(transform_cancel->width(), 0)).x() + 10;
+      const auto shot = options_bar->grab(QRect(left, 0, right - left, options_bar->height())).toImage();
+      save_image_artifact(preference == patchy::ui::ColorSchemePreference::Light
+                              ? "issue182-transform-session-buttons-light"
+                              : "issue182-transform-session-buttons-dark",
+                          shot);
+    }
+  }
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+
+  struct SessionPair {
+    const char* label;
+    const char* apply;
+    const char* cancel;
+  };
+  const std::array<SessionPair, 3> pairs{{
+      {"transform", "freeTransformApplyButton", "freeTransformCancelButton"},
+      {"crop", "cropApplyButton", "cropCancelButton"},
+      {"text", "textApplyButton", "textCancelButton"},
+  }};
+  constexpr QSize kIconSize(20, 20);
+  const auto render = [&](const QIcon& icon) {
+    return icon.pixmap(kIconSize, 1.0, QIcon::Normal).toImage().convertToFormat(QImage::Format_ARGB32);
+  };
+  // Every well-covered pixel of the glyph is the role's color (antialiased edges
+  // aside), and there is enough of it to read.
+  const auto check_glyph_ink = [&](const QImage& glyph, const QColor& expected, const char* what) {
+    int inked = 0;
+    int off_color = 0;
+    for (int y = 0; y < glyph.height(); ++y) {
+      for (int x = 0; x < glyph.width(); ++x) {
+        const auto pixel = glyph.pixelColor(x, y);
+        if (pixel.alpha() < 230) {
+          continue;
+        }
+        ++inked;
+        if (channel_delta(pixel, expected) > 12) {
+          ++off_color;
+        }
+      }
+    }
+    if (inked < 20 || off_color != 0) {
+      fprintf(stderr, "  %s: %d inked pixels, %d not %s\n", what, inked, off_color,
+              qPrintable(expected.name(QColor::HexRgb)));
+    }
+    CHECK(inked >= 20);
+    CHECK(off_color == 0);
+  };
+
+  const auto clear_glyph = [&] { return render(patchy::ui::simple_icon(QStringLiteral("clear"))); };
+  for (const auto preference :
+       {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    // No setIcon after the switch: the icons built in Dark must repaint themselves.
+    ColorSchemeRestorer::apply(preference);
+    const bool light = preference == patchy::ui::ColorSchemePreference::Light;
+    const char* scheme = light ? "light" : "dark";
+    const auto& palette = patchy::ui::theme();
+    for (const auto* role : {&palette.icon_success, &palette.icon_danger}) {
+      const double ratio = contrast_ratio(*role, palette.options_button_bg);
+      if (ratio < 3.0) {
+        fprintf(stderr, "  %s: %s on the options-bar button -> contrast %.2f, want >= 3.0\n", scheme,
+                qPrintable(role->name(QColor::HexRgb)), ratio);
+      }
+      CHECK(ratio >= 3.0);
+    }
+
+    for (const auto& pair : pairs) {
+      auto* apply = window.findChild<QPushButton*>(QString::fromLatin1(pair.apply));
+      auto* cancel = window.findChild<QPushButton*>(QString::fromLatin1(pair.cancel));
+      CHECK(apply != nullptr && cancel != nullptr);
+      if (apply == nullptr || cancel == nullptr) {
+        continue;
+      }
+      CHECK(apply->iconSize() == kIconSize && cancel->iconSize() == kIconSize);
+      const auto apply_glyph = render(apply->icon());
+      const auto cancel_glyph = render(cancel->icon());
+      const auto what = [&](const char* button) {
+        return QStringLiteral("%1 %2 %3").arg(QString::fromLatin1(scheme), QString::fromLatin1(pair.label),
+                                              QString::fromLatin1(button));
+      };
+      check_glyph_ink(apply_glyph, palette.icon_success, qPrintable(what("apply")));
+      check_glyph_ink(cancel_glyph, palette.icon_danger, qPrintable(what("cancel")));
+      // A round sign: no ink in the corners, where the square "clear" glyph has it.
+      for (const QPoint corner : {QPoint(3, 3), QPoint(16, 3), QPoint(3, 16), QPoint(16, 16)}) {
+        CHECK(cancel_glyph.pixelColor(corner).alpha() < 40);
+      }
+      CHECK(cancel_glyph != clear_glyph());
+    }
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> app_shell_tests_part4() {
@@ -600,5 +731,6 @@ std::vector<patchy::test::TestCase> app_shell_tests_part4() {
       {"ui_theme_qss_resolves_every_token", ui_theme_qss_resolves_every_token},
       {"ui_status_bar_error_message_flashes_then_persists_until_replaced", ui_status_bar_error_message_flashes_then_persists_until_replaced},
       {"ui_blocking_refusal_shows_error_status_and_info_clears_it", ui_blocking_refusal_shows_error_status_and_info_clears_it},
+      {"ui_session_commit_cancel_icons_read_in_both_schemes", ui_session_commit_cancel_icons_read_in_both_schemes},
   };
 }

@@ -29,6 +29,7 @@
     <file alias="merge.svg">icons/merge.svg</file>
     <file alias="fill.svg">icons/fill.svg</file>
     <file alias="clear.svg">icons/clear.svg</file>
+    <file alias="cancel.svg">icons/cancel.svg</file>
     <file alias="flip-h.svg">icons/flip-h.svg</file>
     <file alias="flip-v.svg">icons/flip-v.svg</file>
     <file alias="select-all.svg">icons/select-all.svg</file>
