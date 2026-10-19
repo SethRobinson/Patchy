@@ -1972,7 +1972,9 @@ void ui_move_auto_select_group_picks_outermost_group() {
   outer.add_child(std::move(sibling));
   scene.document.add_layer(std::move(outer));
   patchy::Layer board(scene.document.allocate_layer_id(), "Board", patchy::LayerKind::Group);
-  board.set_artboard(patchy::LayerArtboard{patchy::Rect{100, 0, 60, 60}});
+  patchy::LayerArtboard board_frame;
+  board_frame.rect = patchy::Rect{100, 0, 60, 60};
+  board.set_artboard(board_frame);
   patchy::Layer card(scene.document.allocate_layer_id(), "Card", patchy::LayerKind::Group);
   auto card_leaf = leaf("Card Leaf", QRect(130, 10, 10, 10), QColor(20, 160, 160));
   auto loose = leaf("Loose", QRect(130, 40, 10, 10), QColor(160, 160, 20));
