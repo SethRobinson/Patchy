@@ -3011,11 +3011,6 @@ void MainWindow::sync_brush_controls_from_canvas() {
     QSignalBlocker blocker(brush_opacity);
     brush_opacity->setValue(canvas_->brush_opacity());
   }
-  if (auto* brush_opacity_slider = findChild<QSlider*>(QStringLiteral("brushOpacitySlider"));
-      brush_opacity_slider != nullptr) {
-    QSignalBlocker blocker(brush_opacity_slider);
-    brush_opacity_slider->setValue(canvas_->brush_opacity());
-  }
   if (auto* brush_flow = findChild<QSpinBox*>(QStringLiteral("brushFlowSpin")); brush_flow != nullptr) {
     QSignalBlocker blocker(brush_flow);
     brush_flow->setValue(canvas_->brush_flow());
@@ -3044,11 +3039,6 @@ void MainWindow::sync_brush_controls_from_canvas() {
   if (auto* brush_softness = findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin")); brush_softness != nullptr) {
     QSignalBlocker blocker(brush_softness);
     brush_softness->setValue(canvas_->brush_softness());
-  }
-  if (auto* brush_softness_slider = findChild<QSlider*>(QStringLiteral("brushSoftnessSlider"));
-      brush_softness_slider != nullptr) {
-    QSignalBlocker blocker(brush_softness_slider);
-    brush_softness_slider->setValue(canvas_->brush_softness());
   }
   if (auto* brush_smoothing = findChild<QSpinBox*>(QStringLiteral("brushSmoothingSpin"));
       brush_smoothing != nullptr) {

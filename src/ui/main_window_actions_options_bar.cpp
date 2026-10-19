@@ -1509,17 +1509,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   add_option_widget(brush_opacity,
                     {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
                      CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
-  auto* brush_opacity_slider = new QSlider(Qt::Horizontal, toolbar);
-  brush_opacity_slider->setObjectName(QStringLiteral("brushOpacitySlider"));
-  brush_opacity_slider->setProperty(kOptionsBarCollapsibleProperty, true);
-  brush_opacity_slider->setRange(1, 100);
-  brush_opacity_slider->setValue(canvas_defaults->brush_opacity());
-  brush_opacity_slider->setFixedWidth(100);  // was 120; see the size-slider note
-
-  bind_tooltip(brush_opacity_slider, QT_TR_NOOP("Brush opacity: press number keys (5 = 50%, 0 = 100%)"));
-  add_option_widget(brush_opacity_slider,
-                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
-                     CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+  // Opacity and Soft have no inline slider (Flow and Smooth never did): the field's
+  // popup slider, a drag on its label or inside the field, and the number keys set them.
+  bind_tooltip(brush_opacity, QT_TR_NOOP("Brush opacity: press number keys (5 = 50%, 0 = 100%)"));
   vector_pixel_only_option_widgets_.push_back(add_option_label(
       QT_TR_NOOP("Soft:"),
       {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::Smudge,
@@ -1537,23 +1529,11 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
                      CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
                      CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
                      CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
-  auto* brush_softness_slider = new QSlider(Qt::Horizontal, toolbar);
-  brush_softness_slider->setObjectName(QStringLiteral("brushSoftnessSlider"));
-  brush_softness_slider->setProperty(kOptionsBarCollapsibleProperty, true);
-  brush_softness_slider->setRange(0, 100);
-  brush_softness_slider->setValue(canvas_defaults->brush_softness());
-  brush_softness_slider->setFixedWidth(96);  // was 110; see the size-slider note
-  register_retranslation([brush_softness_slider] {
-    brush_softness_slider->setToolTip(resolve_modifier_names(MainWindow::tr("Brush edge softness: %ALT%+Right-drag up or down on the canvas")));
+  register_retranslation([brush_softness] {
+    brush_softness->setToolTip(resolve_modifier_names(MainWindow::tr("Brush edge softness: %ALT%+Right-drag up or down on the canvas")));
   });
-  add_option_widget(brush_softness_slider,
-                    {CanvasTool::Brush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::Smudge,
-                     CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
-                     CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
-                     CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
   for (auto* raster_only :
-       std::initializer_list<QWidget*>{brush_size, brush_size_slider, brush_opacity,
-                                       brush_opacity_slider, brush_softness, brush_softness_slider}) {
+       std::initializer_list<QWidget*>{brush_size, brush_size_slider, brush_opacity, brush_softness}) {
     vector_pixel_only_option_widgets_.push_back(raster_only);
   }
   connect(brush_size, &QSpinBox::valueChanged, this, [this](int value) {
@@ -1563,8 +1543,6 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       refresh_document_info();
     }
   });
-  connect(brush_opacity, &QSpinBox::valueChanged, brush_opacity_slider, &QSlider::setValue);
-  connect(brush_opacity_slider, &QSlider::valueChanged, brush_opacity, &QSpinBox::setValue);
   connect(brush_opacity, &QSpinBox::valueChanged, this, [this](int value) {
     if (canvas_ != nullptr) {
       canvas_->set_brush_opacity(value);
@@ -1805,8 +1783,6 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   add_option_widget(brush_smoothing, smoothing_tools);
   add_option_widget(brush_smoothing_options_button_, smoothing_tools);
 
-  connect(brush_softness, &QSpinBox::valueChanged, brush_softness_slider, &QSlider::setValue);
-  connect(brush_softness_slider, &QSlider::valueChanged, brush_softness, &QSpinBox::setValue);
   connect(brush_softness, &QSpinBox::valueChanged, this, [this](int value) {
     if (canvas_ != nullptr) {
       canvas_->set_brush_softness(value);

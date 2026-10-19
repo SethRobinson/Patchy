@@ -428,16 +428,18 @@ void ui_options_bar_keeps_one_height_across_tools() {
 }
 
 void ui_options_bar_drops_duplicate_sliders_before_wrapping() {
-  // GitHub issue 91: the inline Size/Opacity/Soft sliders repeat the spin box beside them
-  // (popup slider and scrub label), so they are the first thing a narrow bar drops.
+  // GitHub issue 91: the inline Size slider repeats the spin box beside it (popup slider
+  // and scrub handles), so it is the first thing a narrow bar drops. Opacity and Soft
+  // have no inline slider at all any more.
   patchy::ui::MainWindow window;
   show_window(window);
   auto* size_spin = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
   auto* size_slider = window.findChild<QSlider*>(QStringLiteral("brushSizeSlider"));
-  auto* opacity_slider = window.findChild<QSlider*>(QStringLiteral("brushOpacitySlider"));
   auto* gradient_slider = window.findChild<QSlider*>(QStringLiteral("gradientOpacitySlider"));
-  CHECK(size_spin != nullptr && size_slider != nullptr && opacity_slider != nullptr && gradient_slider != nullptr);
-  for (const auto* slider : {size_slider, opacity_slider, gradient_slider}) {
+  CHECK(size_spin != nullptr && size_slider != nullptr && gradient_slider != nullptr);
+  CHECK(window.findChild<QSlider*>(QStringLiteral("brushOpacitySlider")) == nullptr);
+  CHECK(window.findChild<QSlider*>(QStringLiteral("brushSoftnessSlider")) == nullptr);
+  for (const auto* slider : {size_slider, gradient_slider}) {
     CHECK(slider->property(patchy::ui::kOptionsBarCollapsibleProperty).toBool());
   }
   const auto settle = [] {
@@ -447,12 +449,12 @@ void ui_options_bar_drops_duplicate_sliders_before_wrapping() {
   require_action(window, "toolBrushAction")->trigger();
   window.resize(2600, 800);
   settle();
-  CHECK(size_spin->isVisible() && size_slider->isVisible() && opacity_slider->isVisible());
+  CHECK(size_spin->isVisible() && size_slider->isVisible());
 
   window.resize(1000, 800);
   settle();
   CHECK(size_spin->isVisible());
-  CHECK(!size_slider->isVisible() && !opacity_slider->isVisible());
+  CHECK(!size_slider->isVisible());
   // The decision covers every tool at this width, not just the active one.
   require_action(window, "toolGradientAction")->trigger();
   settle();
@@ -465,7 +467,7 @@ void ui_options_bar_drops_duplicate_sliders_before_wrapping() {
 
   window.resize(2600, 800);
   settle();
-  CHECK(size_slider->isVisible() && opacity_slider->isVisible());
+  CHECK(size_slider->isVisible());
 }
 
 void ui_options_bar_checkboxes_paint_without_a_frame() {
@@ -3105,9 +3107,7 @@ void ui_options_bar_tracks_active_tool() {
   auto* brush_size = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
   auto* brush_size_slider = window.findChild<QSlider*>(QStringLiteral("brushSizeSlider"));
   auto* brush_opacity = window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"));
-  auto* brush_opacity_slider = window.findChild<QSlider*>(QStringLiteral("brushOpacitySlider"));
   auto* brush_softness = window.findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin"));
-  auto* brush_softness_slider = window.findChild<QSlider*>(QStringLiteral("brushSoftnessSlider"));
   auto* gradient_method = window.findChild<QComboBox*>(QStringLiteral("gradientMethodCombo"));
   auto* gradient_opacity = window.findChild<QSpinBox*>(QStringLiteral("gradientOpacitySpin"));
   auto* gradient_opacity_slider = window.findChild<QSlider*>(QStringLiteral("gradientOpacitySlider"));
@@ -3140,9 +3140,9 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(brush_size != nullptr);
   CHECK(brush_size_slider != nullptr);
   CHECK(brush_opacity != nullptr);
-  CHECK(brush_opacity_slider != nullptr);
+  CHECK(window.findChild<QSlider*>(QStringLiteral("brushOpacitySlider")) == nullptr);
   CHECK(brush_softness != nullptr);
-  CHECK(brush_softness_slider != nullptr);
+  CHECK(window.findChild<QSlider*>(QStringLiteral("brushSoftnessSlider")) == nullptr);
   CHECK(gradient_method != nullptr);
   CHECK(gradient_opacity != nullptr);
   CHECK(gradient_opacity_slider != nullptr);
@@ -3170,9 +3170,7 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(brush_size->isVisible());
   CHECK(brush_size_slider->isVisible());
   CHECK(brush_opacity->isVisible());
-  CHECK(brush_opacity_slider->isVisible());
   CHECK(brush_softness->isVisible());
-  CHECK(brush_softness_slider->isVisible());
   CHECK(!clone_aligned->isVisible());
   CHECK(!healing_diffusion->isVisible());
   CHECK(!local_strength->isVisible());
@@ -3201,9 +3199,7 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(!brush_size->isVisible());
   CHECK(!brush_size_slider->isVisible());
   CHECK(!brush_opacity->isVisible());
-  CHECK(!brush_opacity_slider->isVisible());
   CHECK(!brush_softness->isVisible());
-  CHECK(!brush_softness_slider->isVisible());
   CHECK(!clone_aligned->isVisible());
   CHECK(!text_font->isVisible());
   move_auto_select->setChecked(false);
@@ -3264,9 +3260,7 @@ void ui_options_bar_tracks_active_tool() {
   CHECK(brush_size->isVisible());
   CHECK(brush_size_slider->isVisible());
   CHECK(brush_opacity->isVisible());
-  CHECK(brush_opacity_slider->isVisible());
   CHECK(brush_softness->isVisible());
-  CHECK(brush_softness_slider->isVisible());
   CHECK(clone_aligned->isVisible());
   CHECK(clone_aligned->isChecked());
   clone_aligned->setChecked(false);
