@@ -11,7 +11,8 @@
 #   & scripts\dev\tiff\ps-save-layered-tiffs.ps1 -Files a.psd, b.psd -OutDir <dir>
 #
 # Call it from a PowerShell prompt (or `powershell -Command "& ..."`): `powershell -File` cannot
-# pass the array parameter. Only documents this script opened are closed, without saving.
+# pass the array parameter. Only documents this script opened are closed, without saving, and the
+# ruler units and dialog mode it changes are restored.
 param(
   [Parameter(Mandatory = $true)][string[]]$Files,
   [Parameter(Mandatory = $true)][string]$OutDir
@@ -25,6 +26,8 @@ foreach ($file in $Files) {
   $js = $full -replace '\\', '/'
   $stem = [System.IO.Path]::GetFileNameWithoutExtension($full)
   $jsx = @"
+var savedDialogs = app.displayDialogs;
+var savedRulerUnits = app.preferences.rulerUnits;
 app.displayDialogs = DialogModes.NO;
 app.preferences.rulerUnits = Units.PIXELS;
 var result = [];
@@ -63,6 +66,8 @@ if (d !== null) {
   save("flat", ByteOrder.IBM, false, LayerCompression.RLE, TIFFEncoding.TIFFLZW);
   d.close(SaveOptions.DONOTSAVECHANGES);
 }
+app.preferences.rulerUnits = savedRulerUnits;
+app.displayDialogs = savedDialogs;
 result.join("\n");
 "@
   Write-Output ("== " + $file)

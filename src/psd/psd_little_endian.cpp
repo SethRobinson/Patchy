@@ -1,10 +1,12 @@
 #include "psd/psd_little_endian.hpp"
 
+#include "psd/psd_descriptor.hpp"
 #include "psd/psd_io_internal.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
 #include <cstdlib>
+#include <span>
 #include <stdexcept>
 #include <utility>
 
@@ -49,6 +51,12 @@ class Walker {
     swap(4);
     const auto* bytes = data_->data() + position_ - 4U;
     return std::string(reinterpret_cast<const char*>(bytes), 4U);
+  }
+
+  // The next `count` bytes as they are, without moving.
+  [[nodiscard]] std::span<const std::uint8_t> peek(std::size_t count) const {
+    require(count);
+    return std::span<const std::uint8_t>(data_->data() + position_, count);
   }
 
   void skip(std::uint64_t count) {
@@ -377,8 +385,23 @@ void walk_type_tool(Walker& walker) {
   for (int index = 0; index < 6; ++index) {
     (void)walker.u64();
   }
-  (void)walker.u16();
-  walk_versioned_descriptor(walker);
+  // Photoshop copies an unedited legacy text layer's text version and descriptor verbatim,
+  // big-endian, even into an IBM PC file, while the fields around them are little-endian
+  // (the CS4-era Flat-filter-list.psd saved as TIFF by Photoshop 2026). The descriptor
+  // version (16) shows which order it is in; a big-endian one is left as it is.
+  const auto head = walker.peek(6U);
+  if (head[2] == 0U && head[3] == 0U && head[4] == 0U && head[5] == 16U) {
+    BigEndianReader reader(walker.peek(walker.remaining()).subspan(6U));
+    try {
+      (void)read_descriptor(reader);
+    } catch (const std::exception&) {
+      throw WalkError();
+    }
+    walker.skip(6U + reader.position());
+  } else {
+    (void)walker.u16();
+    walk_versioned_descriptor(walker);
+  }
   (void)walker.u16();
   walk_versioned_descriptor(walker);
   for (int index = 0; index < 4; ++index) {
@@ -443,6 +466,11 @@ void walk_link_elements(Walker& walker) {
     }
     if (version >= 7U) {
       (void)element.u8();
+    }
+    if (version >= 8U && element.remaining() >= 4U) {
+      // Version 8 (Photoshop 2026) ends with a versioned descriptor ({contentID: TEXT}),
+      // pinned on Photoshop's IBM PC and Macintosh saves of pinball_from_photoshop.psd.
+      walk_versioned_descriptor(element);
     }
     element.finish_with_padding();
     walker.skip(std::min<std::uint64_t>((4U - (length % 4U)) % 4U, walker.remaining()));
@@ -510,13 +538,147 @@ void walk_patterns(Walker& walker) {
   walker.finish_with_padding();
 }
 
+// Legacy effects (lrFX, Adobe's "Effects Layer" table): u16 version, u16 count, then per
+// effect '8BIM', its key and a u32 size covering the rest. Colors are a u16 space and four
+// u16 components.
+void walk_legacy_effects(Walker& walker) {
+  const auto walk_color = [](Walker& effect) {
+    for (int index = 0; index < 5; ++index) {
+      (void)effect.u16();
+    }
+  };
+  (void)walker.u16();
+  const auto count = walker.u16();
+  for (std::uint16_t index = 0; index < count; ++index) {
+    if (walker.ostype() != "8BIM") {
+      throw WalkError();
+    }
+    const auto key = walker.ostype();
+    auto effect = walker.sub(walker.u32());
+    const auto version = effect.u32();
+    if (key == "cmnS") {
+      (void)effect.u8();  // visible
+      effect.skip(2U);
+    } else if (key == "dsdw" || key == "isdw") {
+      for (int field = 0; field < 4; ++field) {
+        (void)effect.u32();  // blur, intensity, angle, distance
+      }
+      walk_color(effect);
+      (void)effect.ostype();
+      (void)effect.ostype();
+      effect.skip(3U);  // enabled, use global angle, opacity
+      if (version >= 2U) {
+        walk_color(effect);
+      }
+    } else if (key == "oglw" || key == "iglw") {
+      (void)effect.u32();  // blur
+      (void)effect.u32();  // intensity
+      walk_color(effect);
+      (void)effect.ostype();
+      (void)effect.ostype();
+      effect.skip(2U);  // enabled, opacity
+      if (version >= 2U) {
+        if (key == "iglw") {
+          (void)effect.u8();  // invert
+        }
+        walk_color(effect);
+      }
+    } else if (key == "bevl") {
+      for (int field = 0; field < 3; ++field) {
+        (void)effect.u32();  // angle, strength, blur
+      }
+      for (int field = 0; field < 4; ++field) {
+        (void)effect.ostype();  // highlight and shadow blend signatures and keys
+      }
+      walk_color(effect);
+      walk_color(effect);
+      effect.skip(6U);  // style, two opacities, enabled, use global angle, up or down
+      if (version >= 2U) {
+        walk_color(effect);
+        walk_color(effect);
+      }
+    } else if (key == "sofi") {
+      (void)effect.ostype();
+      (void)effect.ostype();
+      walk_color(effect);
+      effect.skip(2U);  // opacity, enabled
+      walk_color(effect);
+    } else {
+      throw WalkError();
+    }
+    effect.finish_with_padding();
+  }
+}
+
+// Smart filter caches (FEid/FXid, parse_filter_effects_block): u32 version, then records
+// of u64 length, each aligned to four bytes: pascal placed-layer id, u32 version, a u64-long
+// cache (rectangle, depth, channel count, then per slot a u32 written flag, a u64 length and
+// a plane), and an optional filter mask (presence byte, rectangle, u64-long plane). A plane
+// is a u16 compression code, u32 row counts when RLE, and samples.
+void walk_filter_plane(Walker& plane, std::int64_t rows) {
+  if (plane.remaining() == 0U) {
+    return;
+  }
+  if (plane.u16() == 1U) {
+    if (rows < 0) {
+      throw WalkError();
+    }
+    plane.require(static_cast<std::uint64_t>(rows) * 4U);
+    for (std::int64_t row = 0; row < rows; ++row) {
+      (void)plane.u32();
+    }
+  }
+  plane.skip(plane.remaining());
+}
+
+std::int64_t walk_filter_rectangle(Walker& walker) {
+  const auto top = static_cast<std::int32_t>(walker.u32());
+  (void)walker.u32();
+  const auto bottom = static_cast<std::int32_t>(walker.u32());
+  (void)walker.u32();
+  return static_cast<std::int64_t>(bottom) - static_cast<std::int64_t>(top);
+}
+
+void walk_filter_effects(Walker& walker) {
+  (void)walker.u32();
+  while (walker.remaining() >= 8U) {
+    auto record = walker.sub(walker.u64());
+    walk_pascal(record);
+    (void)record.u32();
+    auto cache = record.sub(record.u64());
+    const auto rows = walk_filter_rectangle(cache);
+    (void)cache.u32();  // depth
+    const auto channels = cache.u32();
+    if (channels > 64U) {
+      throw WalkError();
+    }
+    for (std::uint32_t slot = 0; slot < channels + 2U; ++slot) {
+      if (cache.u32() == 0U) {
+        continue;
+      }
+      auto plane = cache.sub(cache.u64());
+      walk_filter_plane(plane, rows);
+    }
+    cache.finish_with_padding();
+    if (record.remaining() > 0U && record.u8() != 0U) {
+      const auto mask_rows = walk_filter_rectangle(record);
+      auto mask = record.sub(record.u64());
+      walk_filter_plane(mask, mask_rows);
+    }
+    record.finish_with_padding();
+    const auto padding = (4U - (walker.position() % 4U)) % 4U;
+    walker.skip(std::min<std::size_t>(padding, walker.remaining()));
+  }
+  walker.finish_with_padding();
+}
+
 bool is_one_byte_flag_block(std::string_view key) noexcept {
   return key == "clbl" || key == "infx" || key == "knko" || key == "tsly" || key == "iOpa" ||
          key == "lmgm" || key == "vmgm";
 }
 
 bool is_u32_block(std::string_view key) noexcept {
-  return key == "lyid" || key == "lspf" || key == "lyvr" || key == "ffxi" || key == "sn2P" || key == "brst";
+  return key == "lyid" || key == "lspf" || key == "lyvr" || key == "ffxi" || key == "sn2P" || key == "brst" || key == "vowv";
 }
 
 }  // namespace
@@ -529,6 +691,9 @@ std::string little_endian_ostype(std::span<const std::uint8_t, 4> bytes) {
 std::optional<std::vector<std::uint8_t>> layer_block_to_big_endian(std::string_view key,
                                                                    std::span<const std::uint8_t> payload,
                                                                    const LittleEndianSource& /*source*/) {
+  if (payload.empty()) {
+    return std::vector<std::uint8_t>{};  // nothing to swap (MTrn, an empty Patt)
+  }
   if (is_one_byte_flag_block(key)) {
     return std::vector<std::uint8_t>(payload.begin(), payload.end());
   }
@@ -546,12 +711,24 @@ std::optional<std::vector<std::uint8_t>> layer_block_to_big_endian(std::string_v
     return convert(payload, [](Walker& walker) { (void)walker.ostype(); });
   }
   if (key == "lclr" || key == "hue2" || key == "selc" || key == "mixr" || key == "post" || key == "thrs") {
-    // All-u16 payloads (hue2: version, colorize byte pair, then u16 values to the end;
-    // the byte pair swaps as a u16 of its own only if it were one, so it is skipped).
+    // All-u16 payloads. hue2: version, the colorize byte and a pad byte, then 132 bytes of
+    // i16 settings, band records and trailer, then doubles to the end (Photoshop 2026's
+    // hue2 ends in NaN-filled doubles; pinned on the IBM PC and Macintosh saves of
+    // generic_bg.psd).
     return convert(payload, [key](Walker& walker) {
       if (key == "hue2") {
         (void)walker.u16();
         walker.skip(2U);
+        for (int index = 0; index < 66 && walker.remaining() >= 2U; ++index) {
+          (void)walker.u16();
+        }
+        if (walker.remaining() % 8U != 0U) {
+          throw WalkError();
+        }
+        while (walker.remaining() >= 8U) {
+          (void)walker.u64();
+        }
+        return;
       }
       walk_u16_run(walker);
     });
@@ -639,10 +816,13 @@ std::optional<std::vector<std::uint8_t>> layer_block_to_big_endian(std::string_v
   if (key == "shmd") {
     return convert(payload, walk_metadata_items);
   }
+  if (key == "lrFX") {
+    return convert(payload, walk_legacy_effects);
+  }
   // Blocks known to hold something other than a descriptor, which the generic attempt
-  // below must never reinterpret: the legacy effects and type records (lfx2 and TySh
-  // carry the same content), and smart filter caches.
-  if (key == "lrFX" || key == "tySh" || key == "FEid" || key == "FXid" || key == "grdm" || key == "phfl") {
+  // below must never reinterpret: the legacy type record (TySh carries the same content),
+  // smart filter caches, and layouts not pinned yet.
+  if (key == "tySh" || key == "FEid" || key == "FXid" || key == "grdm" || key == "phfl") {
     return std::nullopt;
   }
   return convert_descriptor_block(payload);
@@ -651,6 +831,9 @@ std::optional<std::vector<std::uint8_t>> layer_block_to_big_endian(std::string_v
 std::optional<std::vector<std::uint8_t>> document_block_to_big_endian(std::string_view key,
                                                                       std::span<const std::uint8_t> payload,
                                                                       const LittleEndianSource& /*source*/) {
+  if (payload.empty()) {
+    return std::vector<std::uint8_t>{};  // nothing to swap (MTrn, an empty Patt)
+  }
   if (key == "LMsk" || key == "FMsk") {
     // Overlay color space, four color components and opacity (u16 each), then the kind
     // byte (LMsk) and padding.
@@ -667,8 +850,15 @@ std::optional<std::vector<std::uint8_t>> document_block_to_big_endian(std::strin
   if (key == "lnk2" || key == "lnkD" || key == "lnk3" || key == "lnkE") {
     return convert(payload, walk_link_elements);
   }
-  if (key == "FEid" || key == "FXid" || key == "Mt16" || key == "Mt32" || key == "Mtrn" || key == "Alph" ||
-      key == "Anno" || key == "Txt2") {
+  if (key == "Txt2") {
+    // The text engine data is a byte stream Photoshop writes identically in both byte
+    // orders (pinned on Photoshop's IBM PC and Macintosh saves of generic_bg.psd).
+    return std::vector<std::uint8_t>(payload.begin(), payload.end());
+  }
+  if (key == "FEid" || key == "FXid") {
+    return convert(payload, walk_filter_effects);
+  }
+  if (key == "Mt16" || key == "Mt32" || key == "Mtrn" || key == "Alph" || key == "Anno") {
     return std::nullopt;
   }
   return convert_descriptor_block(payload);

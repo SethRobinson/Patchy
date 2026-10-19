@@ -31,12 +31,21 @@ request 910 (local fixture `layered-tiff/gimp-mr910`): their IBM PC and Macintos
 decode to identical 16-bit layers. Each block's own signature (`8BIM` or `MIB8`) decides the
 order it is read in; a file that mixes them is refused.
 
-Not yet pinned against a Photoshop IBM PC and Macintosh pair of one document (the
-`tiff_layers_photoshop_byte_order_pairs_match_if_available` oracle runs once
-`scripts/dev/tiff/ps-save-layered-tiffs.ps1` output is in `local-test-fixtures/layered-tiff/photoshop`):
-blending ranges (read as byte quadruples, which identity ranges cannot distinguish), the path
-length record's fields past the knot count, `lrFX`, `Txt2` and the EngineData inside `TySh`
-(kept as raw bytes).
+Pinned byte for byte: `scripts/dev/tiff/ps-save-layered-tiffs.ps1` saves Photoshop PSDs as
+IBM PC and Macintosh TIFFs into `local-test-fixtures/layered-tiff/photoshop` (11 documents with
+text, effects, adjustments, embedded smart objects with smart filters, vector masks, patterns,
+8/16/32 bits), and `tiff_layers_photoshop_byte_order_pairs_match_if_available` requires each
+little-endian file to convert to exactly its big-endian twin's layer data, nothing dropped.
+Exceptions Photoshop makes, all pinned there:
+
+- `Txt2` and the EngineData inside `TySh` are byte streams, identical in both orders.
+- An unedited legacy text layer keeps its `TySh` text version and descriptor big-endian inside
+  an IBM PC file (the CS4-era Flat-filter-list.psd); the descriptor version (16) tells which.
+- `hue2` ends in doubles after its 136 bytes of i16 fields.
+- `liFD` version 8 ends with a versioned descriptor (`contentID`).
+
+Still unpinned: non-identity blending ranges (read as byte quadruples; identity ranges look the
+same either way).
 
 ## Reading
 
@@ -59,12 +68,12 @@ length record's fields past the knot count, `lrFX`, `Txt2` and the EngineData in
 Little-endian data converts first (src/psd/psd_little_endian.cpp): a walker reads each field
 little-endian and rewrites it big-endian in place, mirroring the PSD parsers field for field
 (layer records, mask data, channel data, descriptors and every value type the descriptor reader
-knows, `TySh`, `PlLd`, `SoLd`, `shmd`, path records, `levl`, `curv`, `hue2`, `blnc`, `brit`,
-`expA`, `selc`, `mixr`, `post`, `thrs`, `lsct`, `fxrp`, `Patt`, `lnk2`, `LMsk`, `FMsk`, and any
-key holding a version-16 descriptor). A block that does not walk to its end (zero padding
-allowed) is dropped rather than guessed, and the open says so once: `lrFX` and `tySh` (their
-modern twins carry the content), `FEid`/`FXid` smart filter caches, `grdm`, `phfl`, `Txt2`,
-`Mt16`/`Mt32`/`Mtrn`/`Alph`, `Anno`, and unknown layouts.
+knows, `TySh`, `PlLd`, `SoLd`, `shmd`, `lrFX`, path records, `levl`, `curv`, `hue2`, `blnc`,
+`brit`, `expA`, `selc`, `mixr`, `post`, `thrs`, `lsct`, `fxrp`, `Patt`, `lnk2`, `FEid`/`FXid`,
+`LMsk`, `FMsk`, and any key holding a version-16 descriptor; empty payloads and `Txt2` pass
+as they are). A block that does not walk to its end (zero padding allowed) is dropped rather
+than guessed, and the open says so once: `tySh` (the modern `TySh` carries the content),
+`grdm`, `phfl`, `Mt16`/`Mt32`/`Mtrn`/`Alph`, `Anno`, and unknown layouts.
 
 Hostile input: the IFD walk bounds every offset and count (4096 entries, 65536 pages, cycle
 check), the walker bounds every read and nesting (64 levels), and the PSD reader's own limits

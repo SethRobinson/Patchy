@@ -392,6 +392,13 @@ void tiff_layers_photoshop_byte_order_pairs_match_if_available() {
     const bool same = layer_section(little) == layer_section(big);
     if (!same || !notices.empty()) {
       std::cerr << "  layer data differs or was dropped: " << stem << "\n";
+      // Both converted streams, for a byte diff.
+      const auto dump = std::filesystem::path("test-artifacts") / "layered-tiff-pairs";
+      std::filesystem::create_directories(dump);
+      for (const auto& [suffix, stream] : {std::pair{".ibm.psd", &little}, std::pair{".mac.psd", &big}}) {
+        std::ofstream out(dump / (stem + suffix), std::ios::binary);
+        out.write(reinterpret_cast<const char*>(stream->data()), static_cast<std::streamsize>(stream->size()));
+      }
     }
     CHECK(same);
     CHECK(notices.empty());
