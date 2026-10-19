@@ -1,18 +1,30 @@
 <#
 Windows half of scripts\remote\remote-build.ps1 -Target windows. Runs inside the
 work tree right after the snapshot checkout: configure + build the preset in the VS
-developer environment, then run both test suites. Mirrors build-and-test.sh.
+developer environment, then run the test suites. Mirrors build-and-test.sh.
 
-  build-and-test.ps1 [-Preset release] [-Filter <ui substr>] [-CoreFilter <core substr>]
-                     [-SkipTests] [-Jobs 8]
+  build-and-test.ps1 [-Preset release] [-BuildTarget <target>[,<target>...]]
+                     [-Filter <ui substr>] [-CoreFilter <core substr>] [-SkipTests] [-Jobs 8]
+
+-BuildTarget builds only the named CMake targets instead of the preset's default target,
+and then only the suites whose executables this run built are run: patchy_core_tests and
+patchy_ui_visual_tests each run only when named. A suite that was not built is reported
+and skipped, never run from whatever older binary the build directory still holds.
 
 Everything heavy goes through scripts\run-throttled.bat (below-normal priority, real exit
-codes, crash codes included), exactly like the dev box's release handoff, so the build
-machine stays usable for whatever else it does. -Jobs 8 suits a 12-thread / 16 GB box;
-drop it to 6 if the LTCG links run short of memory.
+codes, crash codes included, and the machine-wide build lock), exactly like the dev box's
+release handoff, so the build machine stays usable for whatever else it does. -Jobs 8 suits
+a 12-thread / 16 GB box; drop it to 6 if the LTCG links run short of memory.
+
+The build output is also written to build\<preset>\remote-build.log, and the run ends the
+build with a count of the warning lines it printed. Ninja only prints what it compiled or
+linked in this run, so that count covers exactly the targets built and only the sources
+that changed: zero-warning verification still needs the release preset's default target
+from a clean build directory (docs/platform.md, "Warning verification").
 #>
 param(
   [string]$Preset = 'release',
+  [string]$BuildTarget = '',
   [string]$Filter = '',
   [string]$CoreFilter = '',
   [switch]$SkipTests,
@@ -24,19 +36,44 @@ $repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 Set-Location $repo
 $vsEnv = 'scripts\vs-env.bat -arch=x64 -host_arch=x64 >nul'
 $buildDir = Join-Path $repo "build\$Preset"
+$targets = @($BuildTarget -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+$targetArgs = ''
+$targetNote = 'default target'
+if ($targets.Count) {
+  $targetArgs = ' --target ' + ($targets -join ' ')
+  $targetNote = 'targets ' + ($targets -join ', ')
+}
 
+# Tee-Object streams every line as it arrives; $LASTEXITCODE still comes from cmd. The log
+# holds configure and build output, so a CMake warning counts too.
+New-Item -ItemType Directory -Force $buildDir | Out-Null
+$buildLog = Join-Path $buildDir 'remote-build.log'
 Write-Host "== configure ($Preset) =="
-cmd /s /c "$vsEnv && cmake --preset $Preset"
+cmd /s /c "$vsEnv && cmake --preset $Preset 2>&1" | Tee-Object -FilePath $buildLog
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-Write-Host "== build ($Preset, -j $Jobs, below-normal priority) =="
-cmd /s /c "$vsEnv && scripts\run-throttled.bat cmake --build --preset $Preset -j $Jobs"
+Write-Host "== build ($Preset, $targetNote, -j $Jobs, below-normal priority) =="
+cmd /s /c "$vsEnv && scripts\run-throttled.bat cmake --build --preset $Preset -j $Jobs$targetArgs 2>&1" | Tee-Object -FilePath $buildLog -Append
 $buildExit = $LASTEXITCODE
-Write-Host "patchy.exe exists: $(Test-Path (Join-Path $buildDir 'patchy.exe'))"
+# MSVC (C4xxx), linker (LNKxxxx), command-line (D9xxx), CMake and lrelease warnings all carry
+# the word; the ninja progress lines name objects, never "warning".
+$warnings = @(Get-Content $buildLog -ErrorAction SilentlyContinue | Where-Object { $_ -match '(?i)\bwarning\b' })
+Write-Host "== warnings printed by this build: $($warnings.Count) ($Preset, $targetNote; only what this run compiled and linked) =="
+$warnings | Select-Object -Unique -First 40 | ForEach-Object { Write-Host "  $_" }
+if (-not $targets.Count -or $targets -contains 'patchy') {
+  Write-Host "patchy.exe exists: $(Test-Path (Join-Path $buildDir 'patchy.exe'))"
+}
 if ($buildExit -ne 0) { exit $buildExit }
 
 if ($SkipTests) {
   Write-Host '== tests skipped =='
+  exit 0
+}
+
+$runCore = (-not $targets.Count) -or ($targets -contains 'patchy_core_tests')
+$runUi = (-not $targets.Count) -or ($targets -contains 'patchy_ui_visual_tests')
+if (-not $runCore -and -not $runUi) {
+  Write-Host '== no test suite among the built targets; tests skipped =='
   exit 0
 }
 
@@ -51,14 +88,20 @@ if ($Filter) { $uiArgs = @($Filter) }
 
 Push-Location $buildDir
 try {
-  Write-Host "== patchy_core_tests $CoreFilter =="
-  & $throttled .\patchy_core_tests.exe @coreArgs
-  if ($LASTEXITCODE -ne 0 -and $firstFailure -eq 0) { $firstFailure = $LASTEXITCODE }
+  if ($runCore) {
+    Write-Host "== patchy_core_tests $CoreFilter =="
+    & $throttled .\patchy_core_tests.exe @coreArgs
+    if ($LASTEXITCODE -ne 0 -and $firstFailure -eq 0) { $firstFailure = $LASTEXITCODE }
+  }
+  else { Write-Host '== patchy_core_tests not built in this run; skipped ==' }
 
-  Write-Host "== patchy_ui_visual_tests (offscreen) $Filter =="
-  $env:QT_QPA_PLATFORM = 'offscreen'
-  & $throttled .\patchy_ui_visual_tests.exe @uiArgs
-  if ($LASTEXITCODE -ne 0 -and $firstFailure -eq 0) { $firstFailure = $LASTEXITCODE }
+  if ($runUi) {
+    Write-Host "== patchy_ui_visual_tests (offscreen) $Filter =="
+    $env:QT_QPA_PLATFORM = 'offscreen'
+    & $throttled .\patchy_ui_visual_tests.exe @uiArgs
+    if ($LASTEXITCODE -ne 0 -and $firstFailure -eq 0) { $firstFailure = $LASTEXITCODE }
+  }
+  else { Write-Host '== patchy_ui_visual_tests not built in this run; skipped ==' }
 }
 finally {
   Pop-Location

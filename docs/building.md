@@ -21,7 +21,8 @@ cmake --build --preset qt-local
 
 The local Qt app preset writes `patchy.exe` under `build/app`.
 
-Run the standard local test script:
+Run the standard local test script (configure, build and ctest of `build/app`; the build
+and ctest go through `scripts\run-throttled.bat` and its build lock, `-Jobs 20` by default):
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts/run-tests.ps1
@@ -111,6 +112,7 @@ AGENTS.md gives the handoff command and the short rules; these are the details b
 
 - `scripts\run-throttled.bat` runs the build (and tests, and batch files as-is) at below-normal priority and returns the program's real exit code. A bare `start "" /b /wait /belownormal` reports 0 once the program launched, so never use it. `-j 20` caps ninja on the dev box; remote builds use every core but four.
 - It refuses a `cmake --build` (exit 3) while another build runs on the box. Wait, or offload with `scripts\remote\remote-build.ps1 -Target windows` (host order and the busy check are in `agents_local.md`). `PATCHY_ALLOW_CONCURRENT_BUILD=1` only when Seth says. Never edit the helper while a build runs: cmd rereads a batch file as it executes.
+- The refusal is a lock, not a look: `build-busy-check.ps1` takes the named mutex `Global\PatchyLocalBuild` without waiting and holds it for the whole build, running the build itself (it calls the batch file again with `PATCHY_BUILD_LOCK_HELD=1`; the argument line travels in `PATCHY_THROTTLED_ARGS`). Of two builds started in the same instant exactly one runs; a killed holder leaves an abandoned mutex the next build takes. With the mutex held it still refuses when a ninja, MSBuild or `cmake --build` started outside the lock (an IDE, an older checkout's wrapper) is running. A mutex, not a lock file: cl.exe's lingering mspdbsrv.exe can inherit a file handle and keep the lock after the build. Tests and other commands without `--build` take no lock.
 - Git Bash's nested quoting can drop the inner command and still exit 0, which is why the build runs from PowerShell or real cmd and why only compile/link lines or `ninja: no work to do` prove it built.
 - Call `scripts\vs-env.bat`, never VsDevCmd.bat directly ([release-process.md](release-process.md)).
 - The version comes from the generated `patchy_version.hpp` (`cmake/patchy_version.hpp.in`), included only where used. Never make it a target-wide define: that recompiles all of `patchy_ui` on every version change.
@@ -141,6 +143,41 @@ Visual Studio environment and throttling wrapper as the release build in AGENTS.
 `opt-dev-no-pch` uses its own directory and sets `PATCHY_USE_PCH=OFF` for include
 hygiene checks and timing comparisons.
 
+### Remote iteration: one target, opt-dev
+
+`remote-build.ps1` takes the same two levers on every target ("Remote build machinery"
+below). `-BuildTarget a,b` builds only those CMake targets, and the remote
+half then runs only the suites it built (`patchy_core_tests`, `patchy_ui_visual_tests`, and on
+macOS `patchy_mac_a11y_tests`), never a stale binary left from an earlier run. `-Preset`
+replaces the default preset (`release`, `mac-release`, `linux-flatpak-qt`). `-CoreTestFilter`
+works on all three targets. A worker's loop on a Windows host:
+
+```powershell
+scripts\remote\remote-build.ps1 -Target windows -WindowsHost <host> -Preset opt-dev `
+  -BuildTarget patchy_ui_visual_tests -TestFilter ui_palette
+```
+
+Measured on the 16-thread offload host (October 19, 2026) after a one-line change to a
+`patchy_ui` source, end to end including the snapshot push and the filtered suites: the
+default full `release` build took 1164 s, `-Preset opt-dev -BuildTarget
+patchy_ui_visual_tests` 96 s, and 79 s once reconfiguring stopped rewriting the codec
+headers (below). The first opt-dev build in a host's work tree is a full compile of that
+suite (462 s). Finish with the default `release` run (or the local handoff build) before
+committing: opt-dev skips the LTCG links, which can report warnings and failures of their
+own.
+
+Every remote run reconfigures (`cmake --preset`), so a file the configure step generates
+must only be rewritten when its content changes: `file(WRITE)` always touches it, and the
+vendored aom, dav1d and OpenJPEG config headers once made each remote run recompile about
+220 C sources. Configure-time generated sources go through `patchy_write_if_different`
+(cmake/patchy_incremental.cmake) or `configure_file`, never a bare `file(WRITE)`.
+
+Both remote halves log configure and build output to `build/<preset>/remote-build.log` and
+print the number of warning lines the build printed. Ninja prints only what it compiled or
+linked in that run, so the count covers exactly the targets built and the sources that
+changed; it is a quick signal, not the zero-warning verification, which still needs a clean
+build directory and the default target ([platform.md](platform.md), "Warning verification").
+
 `PATCHY_USE_PCH` defaults on for native `patchy_ui`, the translation checker and UI
 tests. Their private precompiled headers contain stable Qt/STL headers only, never
 Patchy headers. Sources with their own flags, defines or include directories skip
@@ -166,6 +203,26 @@ Translation gates cache only successful unchanged inputs; see [localization.md](
 no-op/reconfigure, source/header changes, added/removed inputs, failed/retried
 checks, missing outputs and explicit packaging refresh. Fixtures remain under
 `build/test-output/build-graph` for diagnosis.
+
+## Remote build machinery
+
+Build machines are developer-specific and never named in the repository. Their ssh targets live in `scripts/remote/hosts.local.json` (gitignored; copy `hosts.example.json`), read through `scripts/remote/remote-hosts.ps1`; hardware notes and quirks go in `agents_local.md`. Both live in the main checkout (worktree runs fall back to it). Below, `<mac-build-host>`, `<linux-build-host>` and `<windows-build-host>` are those targets.
+
+macOS (arm64, preset `mac-release`, Qt at `.deps/Qt/6.8.3/macos`) and Linux (preset `linux-flatpak-qt` inside the Flatpak SDK, see [linux-testing.md](linux-testing.md); `-NativeQt` for `linux-release` on `.deps/Qt/6.8.3/gcc_64`) build remotely via `scripts\remote\remote-build.ps1 -Target mac|linux`, which snapshots the working tree (uncommitted changes included; no commits, branches or index changes) to a bare repo (`~/patchy.git`) on the build host, builds there, and runs the suites with output streamed back (`-BuildTarget`, `-Preset` and `-CoreTestFilter` work on every target: "Remote iteration" above). One-time provisioning: `scripts/remote/setup-mac.sh` / `setup-linux.sh` (idempotent: venv tools + Qt via aqtinstall + apt deps).
+
+`remote-build.ps1` checks out over the one shared `~/patchy/src`, so it takes the host's lock and then probes it (pgrep for compilers, linkers, ninja, cmake and the suites); a busy host stops the run (exit 75). Neither wait on nor kill that run: for a build beside it, push the snapshot to a private ref (`refs/snapshots/<topic>`), clone `~/patchy.git` into `~/patchy-<topic>/src`, symlink `.deps` to `~/patchy/src/.deps`, configure and build the preset there with the environment lines from `build-and-test.sh`, then delete the clone and the ref.
+
+### Windows offload build (on request only)
+
+`remote-build.ps1 -Target windows` builds the real MSVC `release` preset on another Windows machine, only when Seth explicitly asks. The local `build\release` stays the release gate and the only packaging source.
+
+- **Hosts.** The `windows` config entry may be an ordered list. The script probes each over ssh: unreachable is skipped, one running cl/link/ninja/cmake or a suite is busy, the first idle one builds. All reachable hosts busy: exit 75, never a build beside them (`-WaitMinutes N` waits). `-WindowsHost <ssh>` picks one (still probed). Runs hold a per-host lock (remote-lock.ps1; locked: exit 75). A leftover lock from this machine is taken over only when its run's local process is gone AND the host probes idle: a remote build outlives a killed ssh client. Any other lock needs `-BreakLock` after checking its holder is gone. Never kill another session's build there.
+- **Layout.** Bare repo `~\patchy.git`; work tree = the entry's `workTree`. Qt is the dev box's `.deps\Qt\6.8.3\msvc2022_64` copied to the same relative path, so the unmodified `release` preset resolves it.
+- **Toolchain.** VS 2026 Build Tools (MSVC x64, SDK 10.0.26100, VS-bundled CMake and Ninja), Git for Windows, Python 3.8+ (the WindowsApps `python.exe` is only a Store alias). `vs-env.bat` and `setup-windows.ps1` take VS 18+ only through vswhere (`-version 18.0`), so an older VS with VC tools on the box never wins. Bootstrapper: `https://aka.ms/vs/18/stable/vs_buildtools.exe` (the `release` URL redirects to Bing).
+- **Provisioning.** First, on the host: `setup-windows-ssh.cmd` beside its `.ps1` and the dev box's `.pub` in a local folder (its header has the details). It forces 64-bit Windows PowerShell 5.1, self-elevates, installs sshd, sets the ssh default shell to Windows PowerShell 5.1 (Windows OpenSSH starts `cmd.exe` otherwise, breaking every remote command), authorizes the key, and logs PASS/FAIL. Then over ssh: `setup-windows.ps1 -Root <dir>` (idempotent; admin account) installs the toolchain, bare repo and work tree, and prints the Qt copy command.
+- **Remote half.** `build-and-test.ps1` configures, builds throttled at `-j 8` (or the entry's `jobs`) under the host's own run-throttled build lock, counts the warning lines, reports `patchy.exe`, and runs the suites it built (`-TestFilter` UI, `-CoreTestFilter` core; scoped-filter rule as on the dev box).
+- **Shell quirks.** Remote commands run in Windows PowerShell 5.1: no `&&`; send ad-hoc scripts as a file (local PowerShell expands `$_` and mangles embedded double quotes). `Get-Process a,b` exits 1 when any name is absent.
+- **Smart App Control must be off.** Otherwise Code Integrity randomly blocks the fresh unsigned executables (events 3033/3077). It has no exclusions, and turning it back on means reinstalling Windows: the owner's decision. Check `(Get-MpComputerStatus).SmartAppControlState`.
 
 ## Windows Release Package
 

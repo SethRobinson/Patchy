@@ -16,7 +16,7 @@ rem "'vswhere.exe' is not recognized", which reads like a build failure in a rel
 rem log. See docs/release-process.md.
 rem
 rem The dev box has VS Community 2026 at the fixed path below. Other machines (the
-rem Windows offload box's VS 2026 Build Tools, see docs/platform.md) are found through
+rem Windows offload box's VS 2026 Build Tools, see docs/building.md) are found through
 rem vswhere instead, VS 18 or newer only (an older VS on the same box must not win). The
 rem lookup uses goto rather than an if-block because %ProgramFiles(x86)%'s closing
 rem parenthesis would end a parenthesized block early.
