@@ -11,20 +11,30 @@ fitting, selection coverage, stroke sampling, and mask baking through
 `src/ui/vector_operations.cpp`). Tests:
 `tests/ui/vector_point_editing_tests.cpp`, `tests/ui/vector_commands_tests.cpp`.
 
+Which tools show the target outline (`target_path_outline_tool_allows`): path tools always,
+with their editing glyphs; otherwise only while a Paths-panel row is targeted, the work path,
+saved paths and vector masks with any tool, but a shape layer's own path only under the shape
+tools (Line, Rectangle, Ellipse, Polygon, Custom Shape). Photoshop 2026 shows none under Brush
+and only the transform box under Move; Patchy's every-tool outline read as part of the artwork
+(GitHub issue 238; `ui_shape_layer_outline_shows_only_under_path_and_shape_tools`). Under a
+path tool the overlay also outlines every Layers-panel-selected shape layer with hollow anchors
+(`set_panel_selected_layer_ids`); only the target path gets filled anchors, handles, and edits.
+
 Overlay glyphs (`draw_pen_overlay`, `draw_path_edit_overlay`, canvas_widget_vector_tools.cpp):
 visibility comes from contrast, not size (GitHub issue 105; a first, larger-only pass still
 vanished on a light pasteboard). The accent is a saturated blue (`path_overlay_accent`, 30 136
-255), every glyph is three-tone, and lines sit on a translucent dark halo: handle lines
-(`draw_handle_line`: 3.5 px black at 47 percent under a 1.6 px accent line) and, since a second
-pass found the bare 1.2 px curve still lost on a busy photo, every path outline and the Pen's
-preview segment (`draw_path_outline`: 4 px halo under a 2 px accent). Anchors are 8 px
+255), every glyph is three-tone, and handle lines sit on a translucent dark halo
+(`draw_handle_line`: 3.5 px black at 47 percent under a 1.6 px accent line). Every path outline
+and the Pen's preview segment are a 1-device-pixel accent hairline with no halo
+(`draw_path_outline`, Photoshop's path display), shifted half a device pixel so an edge on whole
+pixels covers one row: the 2 px haloed outline issue 105 introduced read as a stroke of the
+artwork (GitHub issue 238; `ui_path_overlay_outline_is_hairline`). Anchors are 8 px
 squares with a dark 1 px edge: white with an accent inner ring when unselected (Photoshop's
 hollow anchor), accent with a white inner ring when selected. Handle knobs are 8 px white
 discs with the dark edge and an accent dot (10 and 12 px glyphs read as too big beside
 Photoshop's), and grab from 9 px (`kHandleHitRadiusPx`; a press
 nearer the anchor stays the anchor's; `ui_path_handle_knobs_read_and_grab`). `kGlyphReach` (8 px) is how far a glyph reaches
-past its point; every repaint region around path points pads by it
-(`ui_path_overlay_outline_has_halo`). The tests'
+past its point; every repaint region around path points pads by it. The tests'
 `accent_overlay_near` probes 3 px around a point for the accent, which the inner ring and the
 knob dot satisfy.
 

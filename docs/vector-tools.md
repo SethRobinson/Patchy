@@ -130,17 +130,15 @@ Writer invariants: new paths allocate ABOVE the highest stored id, ids
 outside 2000..2997 never enter the saved set, path-range entries normalize
 to ascending id order after upserts.
 
-A selected row's outline draws with EVERY tool; anchors/handles stay
-path-tool-only. A layer-owned outline follows its layer's Move drag or Free
-Transform preview ([interactive-previews.md](interactive-previews.md)). Under
-a path tool the overlay also outlines every Layers-panel-selected shape layer
-with hollow anchors (`set_panel_selected_layer_ids`); only the target path
-gets filled anchors, handles, and edits. View > Show Target Path
+A selected row's outline draws with every tool, except a shape layer's own
+path: path and shape tools only ([vector-commands.md](vector-commands.md)).
+Anchors/handles stay path-tool-only. A drawn layer-owned outline follows its
+layer's Move drag or Free Transform preview
+([interactive-previews.md](interactive-previews.md)). View > Show Target Path
 (Ctrl+Shift+H, view.target_path, not persisted) hides the overlay without
 touching targeting; a path-transform session always draws its box. Ctrl+H
-(view.selection_edges, PS's Extras toggle) hides it with the selection edges;
-a new selection re-shows both
-(ui_ctrl_h_hides_path_points_with_selection_edges). The context menu's
+(view.selection_edges) hides it with the selection edges; a new selection
+re-shows both (ui_ctrl_h_hides_path_points_with_selection_edges). The context menu's
 Clipping Path entry makes ONE saved path the document clipping path
 (resource 2999; name underlines). Work-path draws and layer activation
 auto-select/target their rows; activating a layer with its own path drops a

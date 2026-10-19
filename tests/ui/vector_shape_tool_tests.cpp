@@ -2819,7 +2819,7 @@ void ui_shape_layer_auto_targets_path_row_until_dismissed() {
   auto& document = patchy::ui::MainWindowTestAccess::document(window);
 
   // A Shape-mode drag creates a shape layer; its transient row auto-targets
-  // so the outline shows on canvas with any tool.
+  // so the outline shows on canvas under the path and shape tools.
   canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
   auto* radius_spin = window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"));
   radius_spin->setValue(0);
@@ -2832,7 +2832,6 @@ void ui_shape_layer_auto_targets_path_row_until_dismissed() {
   CHECK(paths_list->count() == 1);  // the transient layer row
   CHECK(!paths_list->selectedItems().isEmpty());
   CHECK(canvas->panel_path_targeted());
-  canvas->set_tool(patchy::ui::CanvasTool::Move);
   QApplication::processEvents();
   CHECK(accent_overlay_near(*canvas, QPoint(120, 200)));  // shape left edge
 
@@ -3982,31 +3981,106 @@ void ui_options_bar_never_shows_pixel_widgets_in_shape_mode() {
   options_bar->removeEventFilter(&recorder);
 }
 
+// Presses at `from` and drags to `to` (document points) with the left button held.
+void drag_held(patchy::ui::CanvasWidget& canvas, QPoint from, QPoint to) {
+  const auto press = canvas.widget_position_for_document_point(from);
+  const auto end = canvas.widget_position_for_document_point(to);
+  send_mouse(canvas, QEvent::MouseButtonPress, press, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, (press + end) / 2, Qt::NoButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton);
+  QApplication::processEvents();
+}
+
 void ui_path_overlay_follows_move_drag() {
+  VectorSettingsGuard settings_guard;
+  {
+    // A shape layer shows no path outline under Move (GitHub issue 238), before,
+    // during or after a drag. An ellipse, probed where its curve runs inside the
+    // bounds: the Move tool's own layer box draws on the bounds edges.
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* canvas = require_canvas(window);
+    canvas->set_tool(patchy::ui::CanvasTool::Ellipse);
+    shape_drag(*canvas, QPoint(100, 100), QPoint(300, 220));  // center (200,160), radii 100 x 60
+    CHECK(canvas->panel_path_targeted());
+    const QPoint on_curve(271, 118);  // 45 degrees up and right
+    CHECK(accent_overlay_near(*canvas, on_curve));  // drawn under the Ellipse tool
+    canvas->set_tool(patchy::ui::CanvasTool::Move);
+    QApplication::processEvents();
+    CHECK(!accent_overlay_near(*canvas, on_curve));
+    drag_held(*canvas, QPoint(200, 160), QPoint(300, 160));
+    CHECK(!accent_overlay_near(*canvas, on_curve + QPoint(100, 0)));
+    send_mouse(*canvas, QEvent::MouseButtonRelease, canvas->widget_position_for_document_point(QPoint(300, 160)),
+               Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    CHECK(!accent_overlay_near(*canvas, on_curve + QPoint(100, 0)));
+  }
+
+  // A vector mask's outline draws with any tool and rides its layer's Move drag.
+  patchy::Document base(400, 300, patchy::PixelFormat::rgb8());
+  base.add_pixel_layer("Red", solid_pixels(400, 300, patchy::PixelFormat::rgb8(), QColor(200, 30, 30)));
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(base), QStringLiteral("Masked Move"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"))->setCurrentIndex(1);  // Path
+  window.findChild<QSpinBox*>(QStringLiteral("shapeCornerRadiusSpin"))->setValue(0);
+  shape_drag(*canvas, QPoint(40, 60), QPoint(200, 240));
+  window.findChild<QAction*>(QStringLiteral("layerVectorMaskCurrentPathAction"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->layer_edit_target() == patchy::ui::CanvasWidget::LayerEditTarget::VectorMask);
+  canvas->set_tool(patchy::ui::CanvasTool::Move);
+  QApplication::processEvents();
+  CHECK(accent_overlay_near(*canvas, QPoint(200, 150)));  // the mask's right edge
+  // Drag 100 px right without releasing: the right edge previews at x=300, and
+  // the old edge lies inside the moved red area (no accent there).
+  drag_held(*canvas, QPoint(120, 150), QPoint(220, 150));
+  CHECK(accent_overlay_near(*canvas, QPoint(300, 150)));
+  CHECK(!accent_overlay_near(*canvas, QPoint(200, 150)));
+  send_mouse(*canvas, QEvent::MouseButtonRelease, canvas->widget_position_for_document_point(QPoint(220, 150)),
+             Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(accent_overlay_near(*canvas, QPoint(300, 150)));
+}
+
+// GitHub issue 238: a selected shape layer's path outline draws only under the
+// path and shape tools, as in Photoshop; under Brush or Move it read as part of
+// the artwork. View > Show Target Path still hides it under a path tool.
+void ui_shape_layer_outline_shows_only_under_path_and_shape_tools() {
   VectorSettingsGuard settings_guard;
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
   make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220); its path row auto-targets
   CHECK(canvas->panel_path_targeted());
+  const auto outline_shown = [&](patchy::ui::CanvasTool tool) {
+    canvas->set_tool(tool);
+    QApplication::processEvents();
+    // Left and top edge midpoints, away from the corner anchors.
+    return accent_overlay_near(*canvas, QPoint(100, 160)) && accent_overlay_near(*canvas, QPoint(200, 100));
+  };
+  using patchy::ui::CanvasTool;
+  for (const auto tool : {CanvasTool::Brush, CanvasTool::Move, CanvasTool::Eraser, CanvasTool::Marquee,
+                          CanvasTool::Text, CanvasTool::Eyedropper}) {
+    CHECK(!outline_shown(tool));
+  }
+  for (const auto tool : {CanvasTool::PathSelect, CanvasTool::DirectSelect, CanvasTool::Pen,
+                          CanvasTool::ConvertPoint, CanvasTool::Rectangle, CanvasTool::Ellipse,
+                          CanvasTool::Polygon, CanvasTool::Line, CanvasTool::CustomShape}) {
+    CHECK(outline_shown(tool));
+  }
+  CHECK(canvas->panel_path_targeted());  // switching tools never touched the targeting
 
-  canvas->set_tool(patchy::ui::CanvasTool::Move);
+  auto* toggle = window.findChild<QAction*>(QStringLiteral("viewToggleTargetPathAction"));
+  CHECK(toggle != nullptr);
+  CHECK(outline_shown(CanvasTool::PathSelect));
+  toggle->trigger();
   QApplication::processEvents();
-  CHECK(accent_overlay_near(*canvas, QPoint(300, 160)));  // right edge midpoint
-  // Press inside the shape and drag 100 px right without releasing.
-  const auto press = canvas->widget_position_for_document_point(QPoint(200, 160));
-  const auto to = canvas->widget_position_for_document_point(QPoint(300, 160));
-  send_mouse(*canvas, QEvent::MouseButtonPress, press, Qt::LeftButton, Qt::LeftButton);
-  send_mouse(*canvas, QEvent::MouseMove, (press + to) / 2, Qt::NoButton, Qt::LeftButton);
-  send_mouse(*canvas, QEvent::MouseMove, to, Qt::NoButton, Qt::LeftButton);
+  CHECK(!accent_overlay_near(*canvas, QPoint(100, 160)));
+  toggle->trigger();
   QApplication::processEvents();
-  // The outline rides the drag: the right edge now sits at x=400, and the old
-  // edge position lies inside the moved fill (no accent there).
-  CHECK(accent_overlay_near(*canvas, QPoint(400, 160)));
-  CHECK(!accent_overlay_near(*canvas, QPoint(300, 160)));
-  send_mouse(*canvas, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
-  QApplication::processEvents();
-  CHECK(accent_overlay_near(*canvas, QPoint(400, 160)));
+  CHECK(accent_overlay_near(*canvas, QPoint(100, 160)));
 }
 
 void ui_path_overlay_follows_free_transform() {
@@ -4016,6 +4090,8 @@ void ui_path_overlay_follows_free_transform() {
   auto* canvas = require_canvas(window);
   make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
   CHECK(canvas->panel_path_targeted());
+  // The Rectangle tool stays active, so the shape layer's outline draws (GitHub issue 238).
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Rectangle);
 
   auto* free_transform_action = window.findChild<QAction*>(QStringLiteral("editFreeTransformAction"));
   CHECK(free_transform_action != nullptr);
@@ -5050,6 +5126,8 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
       {"ui_options_bar_never_shows_pixel_widgets_in_shape_mode",
        ui_options_bar_never_shows_pixel_widgets_in_shape_mode},
       {"ui_path_overlay_follows_move_drag", ui_path_overlay_follows_move_drag},
+      {"ui_shape_layer_outline_shows_only_under_path_and_shape_tools",
+       ui_shape_layer_outline_shows_only_under_path_and_shape_tools},
       {"ui_path_overlay_follows_free_transform", ui_path_overlay_follows_free_transform},
       {"ui_layer_dialogs_refuse_during_transform", ui_layer_dialogs_refuse_during_transform},
       {"ui_shape_appearance_dialog_edits_opacity_feather_and_stroke_opacity",

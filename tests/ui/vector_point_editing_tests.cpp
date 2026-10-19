@@ -766,10 +766,10 @@ void ui_layer_row_click_shows_anchors_for_shape_layer() {
   CHECK(hover(*canvas, QPoint(100, 100)).pixmap().toImage() != plain);
 }
 
-// The path overlay reads at 100% on any image (GitHub issue 105, second pass):
-// the outline rides a dark halo outside its 2 px accent line (the bare 1.2 px
-// outline had none) and the anchors stay 8 px, Photoshop's scale.
-void ui_path_overlay_outline_has_halo() {
+// The path outline is a 1-device-pixel accent hairline with no halo (GitHub issue
+// 238: the 2 px haloed outline read as part of the artwork), and the anchors stay
+// 8 px, Photoshop's scale.
+void ui_path_overlay_outline_is_hairline() {
   VectorSettingsGuard settings_guard;
   patchy::ui::MainWindow window;
   show_window(window);
@@ -779,22 +779,24 @@ void ui_path_overlay_outline_has_halo() {
   require_action(window, "toolPenAction")->trigger();
   QApplication::processEvents();
   const auto image = canvas->grab().toImage();
-  save_widget_artifact("ui_path_overlay_bold", *canvas);
+  save_widget_artifact("ui_path_overlay_hairline", *canvas);
   const auto is_accent = [](QColor color) {
     return color.blue() >= 200 && color.blue() - color.red() >= 60 && color.green() > color.red();
   };
 
-  // Midway along the top edge, outside the shape (white document above it).
+  // Midway along the top edge: one accent row on the shape's first row, plain
+  // white document right above it (no halo).
   const auto edge = canvas->widget_position_for_document_point(QPoint(200, 100));
   int accent_rows = 0;
   for (int dy = -3; dy <= 3; ++dy) {
     accent_rows += is_accent(image.pixelColor(edge.x(), edge.y() + dy)) ? 1 : 0;
   }
-  CHECK(accent_rows >= 2);
-  const auto halo = image.pixelColor(edge.x(), edge.y() - 2);
-  const auto above = image.pixelColor(edge.x(), edge.y() - 8);
-  CHECK(above.red() > 240 && above.green() > 240 && above.blue() > 240);  // plain document
-  CHECK(halo.lightness() < above.lightness() - 40 || is_accent(halo));
+  CHECK(accent_rows == 1);
+  CHECK(is_accent(image.pixelColor(edge.x(), edge.y())));
+  for (int dy = 1; dy <= 3; ++dy) {
+    const auto above = image.pixelColor(edge.x(), edge.y() - dy);
+    CHECK(above.red() > 240 && above.green() > 240 && above.blue() > 240);
+  }
 
   // The corner anchor's dark edge sits 4 px out; 6 px above it is plain document.
   const auto corner = canvas->widget_position_for_document_point(QPoint(100, 100));
@@ -1358,7 +1360,7 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
       {"ui_shape_layer_activation_drops_stale_path_target",
        ui_shape_layer_activation_drops_stale_path_target},
       {"ui_layer_row_click_shows_anchors_for_shape_layer", ui_layer_row_click_shows_anchors_for_shape_layer},
-      {"ui_path_overlay_outline_has_halo", ui_path_overlay_outline_has_halo},
+      {"ui_path_overlay_outline_is_hairline", ui_path_overlay_outline_is_hairline},
       {"ui_path_handle_knobs_read_and_grab", ui_path_handle_knobs_read_and_grab},
       {"ui_ctrl_h_hides_path_points_with_selection_edges",
        ui_ctrl_h_hides_path_points_with_selection_edges},
