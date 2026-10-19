@@ -5,7 +5,7 @@
 // non-ASCII bytes: the Qt-free core test binary compiles without -utf-8, so raw
 // bytes would be read through the ANSI code page (and 0x81-style bytes raise C4819).
 // u8 literals are UTF-8 whatever the execution charset, and
-// std::filesystem::path(std::u8string) decodes them as UTF-8 on every platform.
+// std::filesystem::path(std::u8string_view) decodes them as UTF-8 on every platform.
 
 #include "test_scratch_remove.hpp"
 
@@ -47,9 +47,7 @@ inline constexpr std::u8string_view kUnicodeCombinedStem =
 
 inline std::string utf8_string(std::u8string_view text) { return std::string(text.begin(), text.end()); }
 
-inline std::filesystem::path unicode_path_piece(std::u8string_view text) {
-  return std::filesystem::path(std::u8string(text));
-}
+inline std::filesystem::path unicode_path_piece(std::u8string_view text) { return std::filesystem::path(text); }
 
 // A fresh test-artifacts/<kUnicodeDirName>/<leaf> directory (removed first so stale
 // or mojibake files from an earlier run cannot satisfy the listing checks).

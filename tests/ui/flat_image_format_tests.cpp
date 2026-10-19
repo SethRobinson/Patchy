@@ -2697,7 +2697,7 @@ void ui_webp_animation_import_export_unicode_round_trip() {
     const auto& layer = document.layers()[2 - frame];
     CHECK(layer.visible());
     CHECK(patchy::animation::parse_layer_name_delay_ms(layer.name()) == delays[frame]);
-    QImage expected(patchy::ui::to_qstring(fixture.parent_path() / ("animation-frame-" + std::to_string(frame + 1) + ".png")));
+    QImage expected(patchy::ui::to_qstring(fixture.parent_path()) + QStringLiteral("/animation-frame-%1.png").arg(frame + 1));
     expected = expected.convertToFormat(QImage::Format_RGBA8888);
     for (int y = 0; y < 24; ++y) for (int x = 0; x < 32; ++x) {
       const auto* pixel = layer.pixels().pixel(x, y);

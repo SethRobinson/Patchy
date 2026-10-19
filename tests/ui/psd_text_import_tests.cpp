@@ -3727,8 +3727,9 @@ void ui_faux_italic_shears_the_rendered_glyphs() {
     layer.metadata()[patchy::kLayerMetadataTextSize] = "64";
     layer.metadata()[patchy::kLayerMetadataTextColor] = "#000000";
     // start len size bold italic color family leading tracking hscale vscale fauxbold style fauxitalic
-    layer.metadata()[patchy::kLayerMetadataTextRuns] =
-        std::string("v6\n0\t2\t64\t0\t0\t#000000\tArial\tauto\t0\t1\t1\t0\t\t") + (faux_italic ? "1" : "0");
+    std::string runs = "v6\n0\t2\t64\t0\t0\t#000000\tArial\tauto\t0\t1\t1\t0\t\t";
+    runs.push_back(faux_italic ? '1' : '0');
+    layer.metadata()[patchy::kLayerMetadataTextRuns] = std::move(runs);
     return document.add_layer(std::move(layer)).id();
   };
   const auto upright_id = add_layer("Upright", false, 20);

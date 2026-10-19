@@ -1275,16 +1275,16 @@ void MainWindow::paste_clipboard(bool in_place) {
   // from this document go back to their place while it is in view (GitHub issue 193), and
   // to the view center otherwise.
   const auto& doc = std::as_const(document());
-  const auto selection_rect = in_place ? std::nullopt : canvas_->selected_document_rect();
+  const auto selection_rect = in_place ? QRect() : canvas_->selected_document_rect().value_or(QRect());
   const auto* target = anchor_id.has_value() ? artboard_owning_layer(doc, *anchor_id) : nullptr;
   QPointF center = view_center;
   bool source_place_in_view = false;
   // A marquee outside every artboard with a layer on one selected: the root, right above
   // that artboard (insert_layer_after_anchor would put it inside an artboard anchor).
   std::optional<LayerId> root_anchor;
-  if (selection_rect.has_value() && !selection_rect->isEmpty()) {
-    center = QPointF(selection_rect->x() + selection_rect->width() / 2.0,
-                     selection_rect->y() + selection_rect->height() / 2.0);
+  if (!selection_rect.isEmpty()) {
+    center = QPointF(selection_rect.x() + selection_rect.width() / 2.0,
+                     selection_rect.y() + selection_rect.height() / 2.0);
     const auto* under = artboard_at(doc, static_cast<std::int32_t>(std::floor(center.x())),
                                     static_cast<std::int32_t>(std::floor(center.y())));
     if (under != nullptr && under != target) {
