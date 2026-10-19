@@ -49,6 +49,7 @@
 #include <QPixmap>
 #include <QTabWidget>
 #include <QTimer>
+#include <QToolTip>
 #include <QToolButton>
 #include <algorithm>
 #include <atomic>
@@ -300,6 +301,27 @@ void ui_layer_thumbnail_tooltip_names_smart_object_and_shape_layers() {
     }
   }
   CHECK(saw_pixel_layer);
+  // Review capture: the smart object's row with its thumbnail tooltip drawn under it.
+  if (auto* smart_item = require_layer_item(*layer_list, QStringLiteral("small")); smart_item != nullptr) {
+    auto* thumbnail = layer_list->itemWidget(smart_item)->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
+    CHECK(thumbnail != nullptr);
+    if (thumbnail != nullptr) {
+      QToolTip::showText(thumbnail->mapToGlobal(thumbnail->rect().center()), thumbnail->toolTip(), thumbnail);
+      QApplication::processEvents();
+      QWidget* tip = nullptr;
+      for (auto* widget : QApplication::topLevelWidgets()) {
+        if (widget->inherits("QTipLabel") && widget->isVisible()) {
+          tip = widget;
+        }
+      }
+      CHECK(tip != nullptr);
+      if (tip != nullptr) {
+        save_stacked_artifact("issue_232_thumbnail_tooltip",
+                              {layer_list->grab().toImage(), tip->grab().toImage()});
+      }
+      QToolTip::hideText();
+    }
+  }
 
   auto* canvas = require_canvas(window);
   canvas->set_tool(patchy::ui::CanvasTool::Rectangle);

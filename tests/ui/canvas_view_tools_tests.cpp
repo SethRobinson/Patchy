@@ -4561,6 +4561,17 @@ void ui_layer_folder_blend_mode_offers_pass_through() {
   if (blend_combo == nullptr) {
     return;
   }
+  // Review capture: the folder's open blend list with the panel above it.
+  blend_combo->showPopup();
+  QApplication::processEvents();
+  if (auto* popup = blend_combo->view() != nullptr ? blend_combo->view()->window() : nullptr; popup != nullptr) {
+    auto* panel = window.findChild<QWidget*>(QStringLiteral("layersDock"));
+    save_stacked_artifact("issue_235_folder_blend_list",
+                          {panel != nullptr ? panel->grab(QRect(0, 0, panel->width(), 120)).toImage() : QImage(),
+                           popup->grab().toImage()});
+  }
+  blend_combo->hidePopup();
+  QApplication::processEvents();
   CHECK(blend_combo->itemData(0).toInt() == pass_through);
   CHECK(blend_combo->currentText() == QStringLiteral("Pass Through"));
 
@@ -4621,6 +4632,9 @@ void ui_layer_row_shows_blend_mode_change_at_once() {
 
   blend_combo->setCurrentIndex(blend_combo->findData(static_cast<int>(patchy::BlendMode::Multiply)));
   QApplication::processEvents();
+  if (auto* panel = window.findChild<QWidget*>(QStringLiteral("layersDock")); panel != nullptr) {
+    save_widget_artifact("issue_236_row_after_mode_change", *panel);
+  }
   CHECK(blend_rows::row_details(window, ids.folder_id).startsWith(QStringLiteral("Multiply  100%")));
   blend_rows::wait_for_blend_run_end(window);
 
