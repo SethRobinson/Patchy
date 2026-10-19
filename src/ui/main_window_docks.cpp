@@ -360,8 +360,8 @@ private:
 // The Layers panel footer (GitHub issue 199). The buttons sit at their maximum
 // width in one row while it fits, the width the column opens at. Narrower, they
 // share the row evenly down to their minimum width (the theme's
-// layerActionButton rule sets both), then wrap into balanced rows (nine
-// buttons: five over four), so the footer never holds the column wider.
+// layerActionButton rule sets both), then wrap into balanced rows (eight
+// buttons: four over four), so the footer never holds the column wider.
 class WrappingButtonRowLayout final : public WrappingPanelRowLayout {
 public:
   WrappingButtonRowLayout(int natural_spacing, int compact_spacing)
@@ -1430,7 +1430,7 @@ void MainWindow::create_docks() {
   layers_layout->addWidget(layer_list_, 1);
 
   // One row of full-width buttons at 5 px spacing is the row the column opens
-  // to fit. A narrower column narrows them at 3 px spacing, then wraps them five
+  // to fit. A narrower column narrows them at 3 px spacing, then wraps them four
   // over four (GitHub issue 199).
   auto* layer_buttons = new WrappingButtonRowLayout(5, 3);
   auto* add_button = new QPushButton(layers_panel);
@@ -1441,7 +1441,6 @@ void MainWindow::create_docks() {
   add_layer_mask_button_ = new QPushButton(layers_panel);
   auto* add_mask_button = add_layer_mask_button_;
   auto* duplicate_button = new QPushButton(layers_panel);
-  auto* rename_button = new QPushButton(layers_panel);
   auto* animation_button = new QPushButton(layers_panel);
   auto* delete_button = new QPushButton(layers_panel);
   add_button->setObjectName(QStringLiteral("layerNewButton"));
@@ -1450,16 +1449,15 @@ void MainWindow::create_docks() {
   add_folder_button->setObjectName(QStringLiteral("layerNewFolderButton"));
   add_mask_button->setObjectName(QStringLiteral("layerAddMaskButton"));
   duplicate_button->setObjectName(QStringLiteral("layerDuplicateButton"));
-  rename_button->setObjectName(QStringLiteral("layerRenameButton"));
   animation_button->setObjectName(QStringLiteral("layerAnimationButton"));
   delete_button->setObjectName(QStringLiteral("layerDeleteButton"));
   add_button->setIcon(simple_icon(QStringLiteral("new")));
   add_folder_button->setIcon(simple_icon(QStringLiteral("dir"), QColor(245, 205, 105)));
   adjustment_button->setIcon(simple_icon(QStringLiteral("ADJ"), QColor(190, 220, 255)));
-  styles_button->setIcon(simple_icon(QStringLiteral("layer-styles")));
+  // The same fx art as the layer-row badge, so the button and the badge read as one feature.
+  styles_button->setIcon(simple_icon(QStringLiteral("badge-fx")));
   add_mask_button->setIcon(simple_icon(QStringLiteral("mask"), QColor(210, 220, 230)));
   duplicate_button->setIcon(simple_icon(QStringLiteral("dup")));
-  rename_button->setIcon(simple_icon(QStringLiteral("RN")));
   animation_button->setIcon(simple_icon(QStringLiteral("film")));
   delete_button->setIcon(simple_icon(QStringLiteral("trash")));
   bind_tooltip(add_button, QT_TR_NOOP("New Layer"));
@@ -1468,12 +1466,10 @@ void MainWindow::create_docks() {
   bind_tooltip(styles_button, QT_TR_NOOP("Layer Styles"));
   bind_tooltip(add_mask_button, QT_TR_NOOP("Add Layer Mask"));
   bind_tooltip(duplicate_button, QT_TR_NOOP("Duplicate Layer"));
-  bind_tooltip(rename_button, QT_TR_NOOP("Rename Layer"));
   bind_tooltip(animation_button, QT_TR_NOOP("Animation Preview"));
   bind_tooltip(delete_button, QT_TR_NOOP("Delete Layer"));
   for (auto* button :
-       {add_button, add_folder_button, add_mask_button, duplicate_button, rename_button, animation_button,
-        delete_button}) {
+       {add_button, add_folder_button, add_mask_button, duplicate_button, animation_button, delete_button}) {
     button->setProperty("layerActionButton", true);
     button->setIconSize(QSize(24, 24));
     button->setFixedSize(38, 34);
@@ -1542,7 +1538,6 @@ void MainWindow::create_docks() {
   layer_buttons->addWidget(styles_button);
   layer_buttons->addWidget(add_mask_button);
   layer_buttons->addWidget(duplicate_button);
-  layer_buttons->addWidget(rename_button);
   layer_buttons->addWidget(animation_button);
   layer_buttons->addWidget(delete_button);
   layers_layout->addLayout(layer_buttons);
@@ -1550,13 +1545,11 @@ void MainWindow::create_docks() {
   connect(add_folder_button, &QPushButton::clicked, this, [this] { create_layer_folder(); });
   connect(add_mask_button, &QPushButton::clicked, this, [this] { add_layer_mask(); });
   connect(duplicate_button, &QPushButton::clicked, this, [this] { duplicate_active_layer(); });
-  connect(rename_button, &QPushButton::clicked, this, [this] { rename_active_layer(); });
   connect(animation_button, &QPushButton::clicked, this, [this] { toggle_animation_preview_window(); });
   connect(delete_button, &QPushButton::clicked, this, [this] { delete_active_layer(); });
   for (auto* widget : {static_cast<QWidget*>(add_button), static_cast<QWidget*>(add_folder_button),
                        static_cast<QWidget*>(adjustment_button), static_cast<QWidget*>(duplicate_button),
-                       static_cast<QWidget*>(rename_button), static_cast<QWidget*>(animation_button),
-                       static_cast<QWidget*>(delete_button)}) {
+                       static_cast<QWidget*>(animation_button), static_cast<QWidget*>(delete_button)}) {
     register_document_widget(widget);
   }
   // Not document widgets: their enabled state also depends on the layer

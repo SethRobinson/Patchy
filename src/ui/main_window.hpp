@@ -1378,7 +1378,7 @@ private:
   // destination document (another open session, or a new document the
   // source's size).
   void duplicate_layer_to_document();
-  // Rename Layer (menu, context menu, footer button, F2): edits the active
+  // Rename Layer (menu, context menu, F2): edits the active
   // layer's name in place in the Layers panel when its row is visible and it is
   // the only selected layer (Photoshop), else through the rename dialog.
   void rename_active_layer();

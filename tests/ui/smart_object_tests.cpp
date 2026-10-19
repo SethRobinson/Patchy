@@ -147,6 +147,7 @@ void ui_layer_fx_and_smart_badges_stay_visible_in_narrow_panel() {
   assert_badges_visible();
   CHECK(name->text() == long_name);
   CHECK(name->fontMetrics().horizontalAdvance(name->text()) > name->width());
+  CHECK(details->fontMetrics().horizontalAdvance(details->text()) > details->width());
   patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(window, narrow_width + 180);
   QApplication::processEvents();
   assert_badges_visible();
@@ -161,9 +162,6 @@ void ui_layer_fx_and_smart_badges_stay_visible_in_narrow_panel() {
   QApplication::processEvents();
   QApplication::processEvents();
   CHECK(layers_dock->width() == compact_width);
-  // The details line fits at the opening width since the footer grew a ninth
-  // button (GitHub issue 94); here it is squeezed too, and the badges still win.
-  CHECK(details->fontMetrics().horizontalAdvance(details->text()) > details->width());
   assert_badges_visible();
   save_widget_artifact("ui_layer_fx_smart_badges_compact_panel", *layers_dock);
 }
