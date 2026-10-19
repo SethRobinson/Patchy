@@ -43,7 +43,8 @@ if compgen -G "$endpoint_dir/PatchyMcp-*" >/dev/null; then
   echo 'Check that nothing listens on them (ss -xlp | grep PatchyMcp) and remove them by hand.' >&2
   exit 1
 fi
-flatpak install --user -y "$FLATPAK_BUNDLE"
+# --reinstall: a rerun finds this same version already installed by the first run.
+flatpak install --user -y --reinstall "$FLATPAK_BUNDLE"
 echo '== FLATPAK MCP SUITE =='
 nice -n 10 flatpak run --user --devel --command=bash com.rtsoft.patchy -c 'cd "$HOME/patchy/src" && .deps/mcp-client-flatpak/bin/python tests/mcp_client_tests.py /app/bin/patchy-mcp'
 echo '== SEPARATE SANDBOX ATTACHMENT =='
