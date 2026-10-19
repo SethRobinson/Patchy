@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cmath>
+#include <cstddef>
 #include <numbers>
 
 #include <QColor>
@@ -129,6 +130,64 @@ QCursor build_rotate_cursor() {
   return QCursor(pixmap, 16, 16);
 }
 
+// The corner rotate hint, drawn for the top-right corner and turned by
+// `quarter_turns` clockwise about the hotspot for the others: a quarter arc
+// whose middle sits on the hotspot and bows up and to the right (away from the
+// box), with a solid head at each end following the arc. Same dark-halo,
+// light-ink passes as the other tool cursors.
+QCursor build_corner_rotate_cursor(int quarter_turns) {
+  constexpr int kSize = 32;
+  QPixmap pixmap(kSize, kSize);
+  pixmap.fill(Qt::transparent);
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+  const QPointF hotspot(16.0, 16.0);
+  painter.translate(hotspot);
+  painter.rotate(90.0 * quarter_turns);
+
+  constexpr double kRadius = 10.0;
+  constexpr double kSpanDegrees = 84.0;
+  // Arc center down-left of the hotspot, so the arc's midpoint (45 degrees) is the hotspot.
+  const QPointF center(-kRadius / std::numbers::sqrt2, kRadius / std::numbers::sqrt2);
+  const QRectF arc_rect(center.x() - kRadius, center.y() - kRadius, 2.0 * kRadius, 2.0 * kRadius);
+  const auto start_degrees = 45.0 - kSpanDegrees / 2.0;
+  const auto point_at = [&](double degrees) {
+    const auto radians = degrees * std::numbers::pi / 180.0;
+    return center + QPointF(kRadius * std::cos(radians), -kRadius * std::sin(radians));
+  };
+  // Each head points along the arc, away from its middle: clockwise (down) at the
+  // low-angle end, counterclockwise (left) at the high-angle end.
+  const auto head_direction = [](double degrees, double sign) {
+    const auto radians = degrees * std::numbers::pi / 180.0;
+    return QPointF(-std::sin(radians), -std::cos(radians)) * sign;
+  };
+  struct Head {
+    QPointF end;
+    QPointF direction;
+  };
+  const std::array<Head, 2> heads = {Head{point_at(start_degrees), head_direction(start_degrees, -1.0)},
+                                     Head{point_at(start_degrees + kSpanDegrees),
+                                          head_direction(start_degrees + kSpanDegrees, 1.0)}};
+  const auto pass = [&](const QColor& color, double arc_width, double head_rim) {
+    painter.setPen(QPen(color, arc_width, Qt::SolidLine, Qt::FlatCap));
+    painter.setBrush(Qt::NoBrush);
+    painter.drawArc(arc_rect, static_cast<int>(std::lround(start_degrees * 16.0)),
+                    static_cast<int>(std::lround(kSpanDegrees * 16.0)));
+    painter.setPen(QPen(color, head_rim, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter.setBrush(color);
+    for (const auto& head : heads) {
+      const QPointF normal(-head.direction.y(), head.direction.x());
+      painter.drawPolygon(QPolygonF(
+          {head.end + head.direction * 4.8, head.end + normal * 2.9, head.end - normal * 2.9}));
+    }
+  };
+  pass(QColor(20, 23, 28), 4.0, 2.8);     // dark halo
+  pass(QColor(245, 248, 252), 2.0, 0.8);  // light core
+  painter.end();
+
+  return QCursor(pixmap, 16, 16);
+}
+
 // A plain arrow pointer (tip at the hotspot) with a four-way move badge below
 // right of it: four short arms, each ending in a solid arrowhead. Same
 // dark-halo/light-ink passes as the other tool cursors.
@@ -188,6 +247,20 @@ QCursor rotate_cursor() {
   // Built once and reused: crop hover re-applies it on every mouse move.
   static const QCursor cursor = build_rotate_cursor();
   return cursor;
+}
+
+QCursor corner_rotate_cursor(double corner_direction_degrees) {
+  // Index 0 is the top-right art (outward direction 315 degrees), each next one
+  // a quarter turn clockwise: bottom right, bottom left, top left.
+  static const std::array<QCursor, 4> cursors = [] {
+    std::array<QCursor, 4> result;
+    for (std::size_t i = 0; i < result.size(); ++i) {
+      result[i] = build_corner_rotate_cursor(static_cast<int>(i));
+    }
+    return result;
+  }();
+  const auto quarter = static_cast<long>(std::lround((corner_direction_degrees - 315.0) / 90.0));
+  return cursors[static_cast<std::size_t>(((quarter % 4) + 4) % 4)];
 }
 
 QCursor move_pointer_cursor() {

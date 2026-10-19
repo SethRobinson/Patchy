@@ -2139,6 +2139,14 @@ private:
   void notify_document_changed(DocumentChangeReason reason = DocumentChangeReason::Immediate);
   // Resize cursors follow the box's on-screen rotation (angle in degrees).
   void set_transform_cursor_for_handle(TransformHandle handle, double angle_degrees = 0.0);
+  // As above, but a Rotate hit shows the rotate cursor of the corner the pointer
+  // is beside (the stem handle keeps the plain rotate cursor).
+  void set_transform_cursor_at(QPoint widget_point, TransformHandle handle, QRectF document_rect,
+                               double angle_degrees);
+  // The corner rotate cursor for a pointer off the box: the nearest corner's, by its
+  // on-screen direction. `stem_counts` keeps the plain rotate cursor over the stem handle.
+  [[nodiscard]] QCursor transform_rotate_cursor_at(QPoint widget_point, QRectF document_rect,
+                                                   double angle_degrees, bool stem_counts) const;
   void update_move_transform_controls_dirty(std::optional<QRectF> old_rect);
   [[nodiscard]] std::optional<QRectF> transform_controls_rect_for_layer(const Layer& layer) const;
   [[nodiscard]] std::optional<QRectF> move_transform_target_rect() const;

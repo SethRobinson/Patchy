@@ -2700,6 +2700,35 @@ void CanvasWidget::set_transform_cursor_for_handle(TransformHandle handle, doubl
   setCursor(kResizeCursors[static_cast<std::size_t>(((step % 4) + 4) % 4)]);
 }
 
+void CanvasWidget::set_transform_cursor_at(QPoint widget_point, TransformHandle handle, QRectF document_rect,
+                                           double angle_degrees) {
+  if (handle == TransformHandle::Rotate) {
+    setCursor(transform_rotate_cursor_at(widget_point, document_rect, angle_degrees, true));
+  } else {
+    set_transform_cursor_for_handle(handle, angle_degrees);
+  }
+}
+
+QCursor CanvasWidget::transform_rotate_cursor_at(QPoint widget_point, QRectF document_rect, double angle_degrees,
+                                                 bool stem_counts) const {
+  if (stem_counts) {
+    constexpr double kStemHit = 14.0;
+    const auto stem = transform_handle_position(TransformHandle::Rotate, document_rect, angle_degrees);
+    if (std::abs(widget_point.x() - stem.x()) <= kStemHit / 2.0 &&
+        std::abs(widget_point.y() - stem.y()) <= kStemHit / 2.0) {
+      return rotate_cursor();
+    }
+  }
+  // The corner on the pointer's side of the box (in the box's own frame), whose
+  // outward direction, turned with the box, picks one of four cursors.
+  const auto widget_rect = widget_rect_for_document_rect(document_rect);
+  const auto local = rotate_offset(QPointF(widget_point) - widget_rect.center(), -angle_degrees);
+  const auto right = local.x() >= 0.0;
+  const auto below = local.y() >= 0.0;
+  const auto corner_direction = right ? (below ? 45.0 : 315.0) : (below ? 135.0 : 225.0);
+  return corner_rotate_cursor(corner_direction + angle_degrees);
+}
+
 QPointF CanvasWidget::transform_handle_position(TransformHandle handle) const {
   return transform_handle_position(handle, transform_current_rect_, transform_angle_);
 }
@@ -2901,7 +2930,7 @@ CanvasWidget::TransformHandle CanvasWidget::transform_handle_at(QPoint widget_po
   // squares (which used to cover all of it); from 42 px up the core starts
   // exactly where the squares end, leaving the handle hits as they were.
   constexpr double kEdgeGrabOutside = 6.0;
-  constexpr double kCornerRotateReach = 24.0;
+  constexpr double kCornerRotateReach = 28.8;  // 24 px plus 20 percent: the band was hard to grab
   const bool forgiving = zones == TransformHitZones::EdgesAndCorners;
   QPointF local;
   double half_width = 0.0;

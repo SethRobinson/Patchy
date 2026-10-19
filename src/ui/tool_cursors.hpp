@@ -18,6 +18,13 @@ namespace patchy::ui {
 // hotspot at its center. Built once and cached.
 [[nodiscard]] QCursor rotate_cursor();
 
+// The rotate hint beside a transform or crop box corner (GitHub issue 176): a quarter arc
+// bowed outward around the corner with an arrowhead at each end, one of four orientations.
+// `corner_direction_degrees` is the corner's outward direction on screen (y down, clockwise;
+// 45 = bottom right, 315 = top right); the nearest quarter wins. Hotspot at the arc's middle.
+// Built once per orientation and cached.
+[[nodiscard]] QCursor corner_rotate_cursor(double corner_direction_degrees);
+
 // The Move tool's pointer where a press selects rather than drags (GitHub issue 170):
 // an arrow with a small four-way move badge at its lower right, hotspot on the arrow
 // tip. Over draggable content the tool shows the plain four-way move cursor instead.

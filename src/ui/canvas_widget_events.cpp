@@ -1744,7 +1744,8 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
 
   if (transforming_layer_) {
     clear_move_hover_outline();
-    set_transform_cursor_for_handle(transform_handle_at(event->pos()), transform_angle_);
+    set_transform_cursor_at(event->pos(), transform_handle_at(event->pos()), transform_current_rect_,
+                            transform_angle_);
     last_mouse_position_ = event->pos();
     return;
   }
@@ -1796,8 +1797,8 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     clear_move_hover_outline();
     const auto crop_handle = crop_handle_at(event->pos());
     if (crop_handle == TransformHandle::None) {
-      // Off the box a drag rotates it; hint that with the rotate cursor.
-      setCursor(rotate_cursor());
+      // Off the box a drag rotates it; hint that with the nearest corner's rotate cursor.
+      setCursor(transform_rotate_cursor_at(event->pos(), QRectF(crop_rect_), crop_angle_, false));
     } else {
       set_transform_cursor_for_handle(crop_handle, crop_angle_);
     }
@@ -2190,7 +2191,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
             if (handle == TransformHandle::Move) {
               apply_move_tool_cursor(event->pos());
             } else {
-              set_transform_cursor_for_handle(handle);
+              set_transform_cursor_at(event->pos(), handle, *rect, 0.0);
             }
             if (handle == TransformHandle::Move && auto_select_layer_) {
               update_move_hover_outline(event->pos(), event->modifiers());

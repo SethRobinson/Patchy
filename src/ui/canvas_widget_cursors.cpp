@@ -280,13 +280,14 @@ void CanvasWidget::apply_zoom_cursor(bool zoom_out) {
 
 void CanvasWidget::apply_move_tool_cursor(QPoint widget_position) {
   if (transforming_layer_) {
-    set_transform_cursor_for_handle(transform_handle_at(widget_position), transform_angle_);
+    set_transform_cursor_at(widget_position, transform_handle_at(widget_position), transform_current_rect_,
+                            transform_angle_);
     return;
   }
   if (const auto rect = move_transform_controls_rect(); rect.has_value()) {
     const auto handle = transform_handle_at(widget_position, *rect, 0.0, TransformHitZones::EdgesAndCorners);
     if (handle != TransformHandle::None && handle != TransformHandle::Move) {
-      set_transform_cursor_for_handle(handle);
+      set_transform_cursor_at(widget_position, handle, *rect, 0.0);
       return;
     }
   }
@@ -346,7 +347,7 @@ void CanvasWidget::update_tool_cursor() {
       // and the rotate hint everywhere off the box (the straighten gesture).
       const auto handle = crop_handle_at(last_mouse_position_);
       if (handle == TransformHandle::None) {
-        setCursor(rotate_cursor());
+        setCursor(transform_rotate_cursor_at(last_mouse_position_, QRectF(crop_rect_), crop_angle_, false));
       } else {
         set_transform_cursor_for_handle(handle, crop_angle_);
       }
