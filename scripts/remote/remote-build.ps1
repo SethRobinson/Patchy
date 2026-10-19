@@ -30,7 +30,14 @@ probed over ssh in that order: an unreachable one (switched off) is skipped, one
 is already compiling or testing is busy, and the first idle one builds. When every
 reachable host is busy the run stops (exit 75) rather than start another build beside
 them; -WaitMinutes N re-probes every minute for up to N minutes instead. -WindowsHost
-picks one configured host by its ssh target and skips the probing.
+picks one configured host by its ssh target; it is still probed, and a busy one stops the
+run (exit 75).
+
+Every target holds a per-host build lock (remote-lock.ps1) from before the snapshot push
+until the artifacts are fetched: each host has one work tree and one snapshot ref, so a
+second run on a locked host stops (exit 75) and names the holder instead of overwriting
+the first run's snapshot mid-build. -BreakLock clears a leftover lock from a run that is
+really gone (a stale lock from this machine is taken over automatically).
 
 The ssh target of each machine comes from scripts\remote\hosts.local.json (gitignored;
 see remote-hosts.ps1 and hosts.example.json).
@@ -50,7 +57,9 @@ param(
   # windows only: build on this configured host (its ssh target) instead of the first idle one.
   [string]$WindowsHost = '',
   # windows only: when every reachable host is busy, keep re-probing for this many minutes.
-  [int]$WaitMinutes = 0
+  [int]$WaitMinutes = 0,
+  # Clear the target host's build lock first. Only after checking its holder is really gone.
+  [switch]$BreakLock
 )
 
 # 'Continue', not 'Stop': under Windows PowerShell 5.1 any native stderr line
@@ -59,7 +68,12 @@ param(
 $ErrorActionPreference = 'Continue'
 
 . "$PSScriptRoot\remote-hosts.ps1"
+. "$PSScriptRoot\remote-lock.ps1"
 if (($WindowsHost -or $WaitMinutes) -and $Target -ne 'windows') { throw '-WindowsHost and -WaitMinutes are only supported for -Target windows' }
+$repoRoot = (git rev-parse --show-toplevel 2>$null)
+if (-not $repoRoot) { throw 'remote-build.ps1 must run inside the Patchy repository' }
+$lockOwner = Get-PatchyLockOwner $repoRoot.Trim()
+$lockPath = $null
 
 # Probes one windows host. Returns 'idle', 'busy: <process names>', or 'unreachable'.
 # The remote shell is Windows PowerShell 5.1 (setup-windows-ssh.ps1 sets it). Get-Process
@@ -79,6 +93,17 @@ if ($Target -eq 'windows') {
   if ($WindowsHost) {
     $remote = $candidates | Where-Object { $_.ssh -eq $WindowsHost } | Select-Object -First 1
     if (-not $remote) { throw "-WindowsHost '$WindowsHost' is not a windows entry in hosts.local.json ($(($candidates | ForEach-Object { $_.ssh }) -join ', '))" }
+    $path = Get-PatchyLockPath $true $remote
+    $why = Enter-PatchyRemoteLock $remote.ssh $true $path $lockOwner -BreakLock:$BreakLock
+    if ($why) { Write-Host "== not starting: $why =="; exit 75 }
+    $lockPath = $path
+    # A run from a checkout without the lock (an older remote-build.ps1) shows only as processes.
+    $state = Get-WindowsHostState $remote.ssh
+    if ($state -ne 'idle') {
+      Exit-PatchyRemoteLock $remote.ssh $true $lockPath $lockOwner
+      Write-Host "== not starting: windows host $($remote.ssh) is $state =="
+      exit 75
+    }
   }
   else {
     $remote = $null
@@ -87,6 +112,11 @@ if ($Target -eq 'windows') {
       $anyReachable = $false
       foreach ($c in $candidates) {
         $state = Get-WindowsHostState $c.ssh
+        if ($state -eq 'idle') {
+          $path = Get-PatchyLockPath $true $c
+          $why = Enter-PatchyRemoteLock $c.ssh $true $path $lockOwner
+          if ($why) { $state = "busy: $why" } else { $lockPath = $path }
+        }
         Write-Host "== windows host $($c.ssh): $state =="
         if ($state -eq 'idle') { $remote = $c; break }
         if ($state -ne 'unreachable') { $anyReachable = $true }
@@ -103,18 +133,20 @@ if ($Target -eq 'windows') {
 }
 else {
   $remote = Get-PatchyRemoteHost $Target
+  $path = Get-PatchyLockPath $false $remote
+  $why = Enter-PatchyRemoteLock $remote.ssh $false $path $lockOwner -BreakLock:$BreakLock
+  if ($why) { Write-Host "== not starting: $why =="; exit 75 }
+  $lockPath = $path
 }
 $remoteHost = $remote.ssh
 $preset = if ($Target -eq 'windows') { 'release' }
   elseif ($Target -eq 'linux' -and -not $NativeQt) { 'linux-flatpak-qt' }
   else { "$Target-release" }
-if ($NativeQt -and $Target -ne 'linux') { throw '-NativeQt is only supported for -Target linux' }
-if ($CoreTestFilter -and $Target -ne 'windows') { throw '-CoreTestFilter is only supported for -Target windows' }
 
-$repoRoot = (git rev-parse --show-toplevel 2>$null)
-if (-not $repoRoot) { throw 'remote-build.ps1 must run inside the Patchy repository' }
 Push-Location $repoRoot.Trim()
 try {
+  if ($NativeQt -and $Target -ne 'linux') { throw '-NativeQt is only supported for -Target linux' }
+  if ($CoreTestFilter -and $Target -ne 'windows') { throw '-CoreTestFilter is only supported for -Target windows' }
   # Snapshot the working tree with a temporary index; the real index stays untouched
   # (remote-snapshot.ps1).
   . "$PSScriptRoot\remote-snapshot.ps1"
@@ -158,5 +190,6 @@ try {
   exit $remoteExit
 }
 finally {
+  if ($lockPath) { Exit-PatchyRemoteLock $remoteHost ($Target -eq 'windows') $lockPath $lockOwner }
   Pop-Location
 }
