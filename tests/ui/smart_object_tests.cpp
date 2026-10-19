@@ -46,6 +46,7 @@
 #include <QMouseEvent>
 #include <QMessageBox>
 #include <QIODevice>
+#include <QPixmap>
 #include <QTabWidget>
 #include <QTimer>
 #include <QToolButton>
@@ -196,6 +197,73 @@ void ui_layer_smart_object_badge_button_opens_contents() {
   CHECK(tabs->count() == tab_count_before + 1);
   CHECK(patchy::ui::MainWindowTestAccess::active_session_is_smart_object_child(window));
   CHECK(tabs->tabText(tabs->currentIndex()).contains(QStringLiteral("small.png (embedded in")));
+}
+
+// A hidden layer's badges stay clickable and only look dimmed (GitHub issue 230):
+// the smart-object badge of a hidden layer still opens its contents.
+void ui_layer_hidden_smart_object_badge_opens_contents() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto layer_id = open_smart_object_fixture(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* layer = document.find_layer(layer_id);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return;
+  }
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(tabs != nullptr);
+  CHECK(layer_list != nullptr);
+  const auto smart_badge_for_row = [&] {
+    auto* row = layer_list->itemWidget(require_layer_item(*layer_list, QStringLiteral("small")));
+    CHECK(row != nullptr);
+    return row == nullptr ? nullptr : row->findChild<QToolButton*>(QStringLiteral("layerSmartObjectBadgeButton"));
+  };
+
+  auto* shown_badge = smart_badge_for_row();
+  CHECK(shown_badge != nullptr);
+  if (shown_badge == nullptr) {
+    return;
+  }
+  CHECK(!shown_badge->property("layerRowBadgeDimmed").toBool());
+  const auto shown_image = shown_badge->grab().toImage();
+  save_widget_artifact("ui_layer_shown_smart_object_badge_row", *layer_list);
+
+  // The eye updates the row in place: the same badge dims and stays enabled.
+  auto* eye = layer_list->itemWidget(require_layer_item(*layer_list, QStringLiteral("small")))
+                  ->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck"));
+  CHECK(eye != nullptr);
+  if (eye == nullptr) {
+    return;
+  }
+  eye->click();
+  QApplication::processEvents();
+  CHECK(!layer->visible());
+  CHECK(smart_badge_for_row() == shown_badge);
+  CHECK(shown_badge->isEnabled());
+  CHECK(shown_badge->property("layerRowBadgeDimmed").toBool());
+  // The dimmed badge paints differently from the visible layer's badge.
+  CHECK(shown_badge->grab().toImage() != shown_image);
+
+  // A rebuilt row keeps the hidden layer's badge enabled and dimmed too.
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  QApplication::processEvents();
+  auto* smart_badge = smart_badge_for_row();
+  CHECK(smart_badge != nullptr);
+  if (smart_badge == nullptr) {
+    return;
+  }
+  CHECK(smart_badge->isEnabled());
+  CHECK(smart_badge->property("layerRowBadgeDimmed").toBool());
+  save_widget_artifact("ui_layer_hidden_smart_object_badge_row", *layer_list);
+
+  const auto tab_count_before = tabs->count();
+  send_mouse(*smart_badge, QEvent::MouseButtonPress, smart_badge->rect().center(), Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*smart_badge, QEvent::MouseButtonRelease, smart_badge->rect().center(), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(tabs->count() == tab_count_before + 1);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_smart_object_child(window));
 }
 
 // "Convert to Normal Layer (Rasterize)" in the Smart Objects menus is a
@@ -3011,6 +3079,7 @@ std::vector<patchy::test::TestCase> smart_object_tests() {
       {"ui_layer_fx_and_smart_badges_stay_visible_in_narrow_panel",
        ui_layer_fx_and_smart_badges_stay_visible_in_narrow_panel},
       {"ui_layer_smart_object_badge_button_opens_contents", ui_layer_smart_object_badge_button_opens_contents},
+      {"ui_layer_hidden_smart_object_badge_opens_contents", ui_layer_hidden_smart_object_badge_opens_contents},
       {"ui_smart_object_to_normal_layer_action_rasterizes", ui_smart_object_to_normal_layer_action_rasterizes},
       {"ui_smart_object_paint_prompt_rasterize_choice", ui_smart_object_paint_prompt_rasterize_choice},
       {"ui_smart_object_paint_prompt_edit_contents_choice", ui_smart_object_paint_prompt_edit_contents_choice},

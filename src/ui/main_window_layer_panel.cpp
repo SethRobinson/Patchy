@@ -94,6 +94,7 @@
 #include <QStringLiteral>
 #include <QStyle>
 #include <QStyleOption>
+#include <QStylePainter>
 #include <QTimer>
 #include <QToolButton>
 #include <QToolTip>
@@ -233,6 +234,43 @@ protected:
                           option.state.testFlag(QStyle::State_Enabled), visible_text, foregroundRole());
   }
 };
+
+// A row badge (fx, smart object, vector shape) stays clickable on a hidden layer
+// (GitHub issue 230): it opens the same editor, so only its look follows the
+// row's dimming. With kLayerRowBadgeDimmedProperty set it paints its icon in the
+// disabled mode, the grayed art a disabled badge showed before. The pixmap is
+// taken at paint time, so a scheme change still repaints it. QSS cannot dim an
+// icon, so the paint path reads the property itself.
+constexpr char kLayerRowBadgeDimmedProperty[] = "layerRowBadgeDimmed";
+
+class LayerRowBadgeButton final : public QToolButton {
+public:
+  using QToolButton::QToolButton;
+
+protected:
+  void paintEvent(QPaintEvent* /*event*/) override {
+    QStylePainter painter(this);
+    QStyleOptionToolButton option;
+    initStyleOption(&option);
+    if (property(kLayerRowBadgeDimmedProperty).toBool() && !option.icon.isNull()) {
+      option.icon = QIcon(option.icon.pixmap(option.iconSize, devicePixelRatioF(), QIcon::Disabled));
+    }
+    painter.drawComplexControl(QStyle::CC_ToolButton, option);
+  }
+};
+
+// The eye's in-place update (set_layer_visibility) dims or restores a row's badges
+// without rebuilding the row.
+void set_layer_row_badges_dimmed(QWidget* row, bool dimmed) {
+  // dynamic_cast, not findChildren<LayerRowBadgeButton*>: the class has no Q_OBJECT.
+  for (auto* button : row->findChildren<QToolButton*>()) {
+    auto* badge = dynamic_cast<LayerRowBadgeButton*>(button);
+    if (badge != nullptr && badge->property(kLayerRowBadgeDimmedProperty).toBool() != dimmed) {
+      badge->setProperty(kLayerRowBadgeDimmedProperty, dimmed);
+      badge->update();
+    }
+  }
+}
 
 QString layer_visibility_tooltip(bool visible) {
   return visible ? QObject::tr("Layer visible. Click to hide.") : QObject::tr("Layer hidden. Click to show.");
@@ -1557,7 +1595,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   badge_row->setSpacing(3);
   const auto add_badge_button = [&](const QString& object_name, const QString& icon_key,
                                     const QString& tooltip, std::function<void(LayerId)> open) {
-    auto* badge = new QToolButton(row);
+    auto* badge = new LayerRowBadgeButton(row);
     badge->setObjectName(object_name);
     badge->setToolButtonStyle(Qt::ToolButtonIconOnly);
     badge->setIcon(simple_icon(icon_key));
@@ -1565,7 +1603,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     badge->setFixedSize(20, 20);
     badge->setFocusPolicy(Qt::NoFocus);
     badge->setToolTip(tooltip);
-    badge->setEnabled(ancestors_visible && layer.visible());
+    badge->setProperty(kLayerRowBadgeDimmedProperty, !(ancestors_visible && layer.visible()));
     if (list_parent != nullptr) {
       badge->installEventFilter(list_parent);
     }
@@ -2914,14 +2952,7 @@ void MainWindow::set_layer_visibility(LayerId id, bool visible) {
       if (auto* details = row_widget->findChild<QLabel*>(QStringLiteral("layerRowDetails")); details != nullptr) {
         details->setEnabled(visible);
       }
-      if (auto* fx_badge = row_widget->findChild<QToolButton*>(QStringLiteral("layerFxBadgeButton"));
-          fx_badge != nullptr) {
-        fx_badge->setEnabled(visible);
-      }
-      if (auto* smart_badge = row_widget->findChild<QToolButton*>(QStringLiteral("layerSmartObjectBadgeButton"));
-          smart_badge != nullptr) {
-        smart_badge->setEnabled(visible);
-      }
+      set_layer_row_badges_dimmed(row_widget, !visible);
     }
     updating_layer_list_ = was_updating;
   }
