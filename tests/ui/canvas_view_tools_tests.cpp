@@ -108,6 +108,7 @@
 #include "ui_test_access.hpp"
 #include "ui_test_groups.hpp"
 #include "ui_test_support.hpp"
+#include "scripting_test_support.hpp"
 #if PATCHY_HAVE_QT_DBUS
 #include "ui/portal_color_pick.hpp"
 #endif
@@ -4499,6 +4500,23 @@ void wait_for_blend_run_end(patchy::ui::MainWindow& window) {
   CHECK(!patchy::ui::MainWindowTestAccess::layer_blend_edit_pending(window));
 }
 
+// The second line of the layer's row ("Multiply  100%").
+QString row_details(patchy::ui::MainWindow& window, patchy::LayerId id) {
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  for (int index = 0; layer_list != nullptr && index < layer_list->count(); ++index) {
+    auto* item = layer_list->item(index);
+    if (item->data(Qt::UserRole).toULongLong() != static_cast<qulonglong>(id)) {
+      continue;
+    }
+    auto* row = layer_list->itemWidget(item);
+    auto* details = row == nullptr ? nullptr : row->findChild<QLabel*>(QStringLiteral("layerRowDetails"));
+    return details == nullptr ? QString() : details->text();
+  }
+  CHECK(false);
+  return {};
+}
+
 // Opens Blending Options on the active layer and hands its blend combo to `inspect`.
 void with_layer_style_blend_combo(patchy::ui::MainWindow& window, const std::function<void(QComboBox&)>& inspect,
                                   bool accept) {
@@ -4585,6 +4603,45 @@ void ui_layer_folder_blend_mode_offers_pass_through() {
   blend_rows::activate(window, ids.folder_id);
   CHECK(blend_combo->itemData(0).toInt() == pass_through);
   CHECK(blend_combo->currentText() == QStringLiteral("Pass Through"));
+}
+
+// A blend mode change shows in the layer's row at once (GitHub issue 236), from the
+// panel combo, the Layer Style dialog and a script alike, for a folder and a layer.
+void ui_layer_row_shows_blend_mode_change_at_once() {
+  patchy::ui::MainWindow window;
+  const auto ids = blend_rows::add_folder_document(window, QStringLiteral("Row Blend"));
+  show_window(window);
+  QApplication::processEvents();
+  auto* blend_combo = window.findChild<QComboBox*>(QStringLiteral("layerBlendModeCombo"));
+  CHECK(blend_combo != nullptr);
+  if (blend_combo == nullptr) {
+    return;
+  }
+  CHECK(blend_rows::row_details(window, ids.folder_id).startsWith(QStringLiteral("Pass Through  100%")));
+
+  blend_combo->setCurrentIndex(blend_combo->findData(static_cast<int>(patchy::BlendMode::Multiply)));
+  QApplication::processEvents();
+  CHECK(blend_rows::row_details(window, ids.folder_id).startsWith(QStringLiteral("Multiply  100%")));
+  blend_rows::wait_for_blend_run_end(window);
+
+  blend_rows::activate(window, ids.pixel_id);
+  blend_combo->setCurrentIndex(blend_combo->findData(static_cast<int>(patchy::BlendMode::Screen)));
+  QApplication::processEvents();
+  CHECK(blend_rows::row_details(window, ids.pixel_id).startsWith(QStringLiteral("Screen  100%")));
+  blend_rows::wait_for_blend_run_end(window);
+
+  blend_rows::with_layer_style_blend_combo(
+      window,
+      [](QComboBox& blend) { blend.setCurrentIndex(blend.findData(static_cast<int>(patchy::BlendMode::Overlay))); },
+      true);
+  CHECK(blend_rows::blend_of(window, ids.pixel_id) == patchy::BlendMode::Overlay);
+  CHECK(blend_rows::row_details(window, ids.pixel_id).startsWith(QStringLiteral("Overlay  100%")));
+
+  CHECK(patchy::test::ui::scripting_support::run_script(
+      window, QStringLiteral("app.activeDocument.activeLayer.blendMode = 'difference';")));
+  QApplication::processEvents();
+  CHECK(blend_rows::blend_of(window, ids.pixel_id) == patchy::BlendMode::Difference);
+  CHECK(blend_rows::row_details(window, ids.pixel_id).startsWith(QStringLiteral("Difference  100%")));
 }
 
 void ui_collapsed_right_docks_keep_deep_layer_rows_readable() {
@@ -5343,6 +5400,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_layer_blend_mode_steps_coalesce_into_one_undo_entry",
        ui_layer_blend_mode_steps_coalesce_into_one_undo_entry},
       {"ui_layer_folder_blend_mode_offers_pass_through", ui_layer_folder_blend_mode_offers_pass_through},
+      {"ui_layer_row_shows_blend_mode_change_at_once", ui_layer_row_shows_blend_mode_change_at_once},
       {"ui_collapsed_right_docks_keep_deep_layer_rows_readable",
        ui_collapsed_right_docks_keep_deep_layer_rows_readable},
       {"ui_right_dock_panels_expand_within_window_height", ui_right_dock_panels_expand_within_window_height},

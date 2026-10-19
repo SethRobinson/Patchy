@@ -1328,6 +1328,25 @@ QString layer_content_thumbnail_tooltip(const Layer& layer, bool report_font_pro
                                                       : QObject::tr("Layer thumbnail");
 }
 
+// The row's second line: blend mode, opacity, and the mask and clipping notes. Built
+// at row creation and re-synced by refresh_layer_thumbnails, so a mode or opacity
+// change shows at once (GitHub issue 236). Clipping changes rebuild the rows, so the
+// row keeps its clipped state in kLayerRowDetailsClippedProperty.
+constexpr char kLayerRowDetailsClippedProperty[] = "layerRowDetailsClipped";
+
+QString layer_row_details_text(const Layer& layer, bool clipped) {
+  auto detail_text = QStringLiteral("%1  %2%")
+                         .arg(blend_mode_name(layer.blend_mode()))
+                         .arg(static_cast<int>(std::round(layer.opacity() * 100.0F)));
+  if (layer.mask().has_value()) {
+    detail_text += QStringLiteral("  %1").arg(QObject::tr("mask"));
+  }
+  if (clipped) {
+    detail_text += QStringLiteral("  %1").arg(QObject::tr("clipped"));
+  }
+  return detail_text;
+}
+
 QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidget* parent,
                                const std::function<QPixmap(const Layer&)>& content_thumbnail,
                                const std::function<QPixmap(const Layer&)>& mask_thumbnail, int depth = 0,
@@ -1566,18 +1585,9 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   }
   text_column->addWidget(name);
 
-  const auto mode = blend_mode_name(layer.blend_mode());
-  auto detail_text = QStringLiteral("%1  %2%")
-                         .arg(mode)
-                         .arg(static_cast<int>(std::round(layer.opacity() * 100.0F)));
-  if (layer.mask().has_value()) {
-    detail_text += QStringLiteral("  %1").arg(QObject::tr("mask"));
-  }
-  if (clipped) {
-    detail_text += QStringLiteral("  %1").arg(QObject::tr("clipped"));
-  }
-  auto* details = new LayerRowElidingLabel(detail_text, row);
+  auto* details = new LayerRowElidingLabel(layer_row_details_text(layer, clipped), row);
   details->setObjectName(QStringLiteral("layerRowDetails"));
+  details->setProperty(kLayerRowDetailsClippedProperty, clipped);
   details->setTextFormat(Qt::PlainText);
   details->setEnabled(ancestors_visible && layer.visible());
   if (list_parent != nullptr) {
@@ -3527,6 +3537,12 @@ void MainWindow::refresh_layer_thumbnails() {
     auto* row = layer_list_->itemWidget(item);
     if (layer == nullptr || row == nullptr) {
       continue;
+    }
+    if (auto* details = row->findChild<QLabel*>(QStringLiteral("layerRowDetails")); details != nullptr) {
+      auto text = layer_row_details_text(*layer, details->property(kLayerRowDetailsClippedProperty).toBool());
+      if (details->text() != text) {
+        details->setText(text);
+      }
     }
     const auto revision = static_cast<qulonglong>(layer->render_revision());
     if (auto* thumbnail = row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail")); thumbnail != nullptr &&
