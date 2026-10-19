@@ -1234,8 +1234,9 @@ bool MainWindow::confirm_close_session(DocumentSession& target_session) {
   }
 
   const auto title = target_session.title.isEmpty() ? tr("Untitled") : target_session.title;
-  // Save / Don't Save / Cancel name the outcomes (GitHub issue 70); Save is the
-  // default, and the helper answers S, D and the older Y/N keys.
+  // The helper labels Save / Discard / Cancel as Yes / No / Cancel with Y, N and C
+  // underlined, and keeps S and D as aliases (GitHub issues 70 and 240). Yes is the
+  // default; the text stays a yes/no question.
   const auto answer = show_warning_message(this, tr("Save changes?"),
                                            tr("Save changes to %1 before closing?").arg(title),
                                            QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel,

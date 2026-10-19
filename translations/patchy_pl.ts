@@ -8925,10 +8925,6 @@ RGB: %2, %3, %4</translation>
         <translation>Warstwa %1 pochodzi z dokumentu w skali szarości i tutaj koryguje jego kanał szarości. Patchy zapisuje pliki RGB, więc w zapisanym pliku Photoshop i Patchy zastosują ją do RGB, a jej tony będą wyglądać inaczej.</translation>
     </message>
     <message>
-        <source>Don&apos;t Save</source>
-        <translation>Nie zapisuj</translation>
-    </message>
-    <message>
         <source>Incredible people who donated suggestions, bug reports, and code: %1</source>
         <translation>Wspaniali ludzie, którzy podarowali sugestie, zgłoszenia błędów i kod: %1</translation>
     </message>
@@ -10930,6 +10926,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>%1 (%2): %3 x %4 px at %5 ppi</source>
         <translation>%1 (%2): %3 x %4 px przy %5 ppi</translation>
+    </message>
+    <message>
+        <source>&amp;Yes</source>
+        <translation>&amp;Tak</translation>
+    </message>
+    <message>
+        <source>&amp;No</source>
+        <translation>&amp;Nie</translation>
+    </message>
+    <message>
+        <source>&amp;Cancel</source>
+        <translation>&amp;Anuluj</translation>
     </message>
 </context>
 <context>

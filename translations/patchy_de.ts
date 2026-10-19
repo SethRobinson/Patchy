@@ -8895,10 +8895,6 @@ RGB: %2, %3, %4</translation>
         <translation>%1 stammt aus einem Graustufendokument und wirkt hier auf dessen Graukanal. Patchy speichert RGB-Dateien; in der gespeicherten Datei wenden Photoshop und Patchy die Ebene auf RGB an, und ihre Tonwerte sehen anders aus.</translation>
     </message>
     <message>
-        <source>Don&apos;t Save</source>
-        <translation>Nicht speichern</translation>
-    </message>
-    <message>
         <source>Incredible people who donated suggestions, bug reports, and code: %1</source>
         <translation>Großartige Menschen, die Vorschläge, Fehlerberichte und Code beigesteuert haben: %1</translation>
     </message>
@@ -10896,6 +10892,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>%1 (%2): %3 x %4 px at %5 ppi</source>
         <translation>%1 (%2): %3 x %4 px bei %5 ppi</translation>
+    </message>
+    <message>
+        <source>&amp;Yes</source>
+        <translation>&amp;Ja</translation>
+    </message>
+    <message>
+        <source>&amp;No</source>
+        <translation>&amp;Nein</translation>
+    </message>
+    <message>
+        <source>&amp;Cancel</source>
+        <translation>&amp;Abbrechen</translation>
     </message>
 </context>
 <context>

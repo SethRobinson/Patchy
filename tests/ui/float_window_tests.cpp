@@ -361,7 +361,7 @@ void ui_float_window_close_prompts_and_closes_document() {
   CHECK(find_document_float_window(window) == float_window);
   CHECK(float_window->isVisible());
 
-  // Don't Save closes the floated document; activation falls back to the tab.
+  // No (the Discard role) closes the floated document; activation falls back to the tab.
   bool discard_prompt_seen = false;
   dismiss_save_prompt(QMessageBox::Discard, discard_prompt_seen);
   CHECK(float_window->close());

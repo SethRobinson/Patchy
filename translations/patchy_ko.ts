@@ -8865,10 +8865,6 @@ RGB: %2, %3, %4</translation>
         <translation>%1은(는) 회색 음영 문서에서 가져온 것으로, 여기서는 회색 채널에 적용됩니다. Patchy는 RGB 파일로 저장하므로 저장된 파일에서는 Photoshop과 Patchy 모두 RGB에 적용하여 색조가 달라집니다.</translation>
     </message>
     <message>
-        <source>Don&apos;t Save</source>
-        <translation>저장 안 함</translation>
-    </message>
-    <message>
         <source>Incredible people who donated suggestions, bug reports, and code: %1</source>
         <translation>제안, 버그 보고, 코드를 보내 주신 멋진 분들: %1</translation>
     </message>
@@ -10862,6 +10858,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>%1 (%2): %3 x %4 px at %5 ppi</source>
         <translation>%1 (%2): %5ppi에서 %3 x %4픽셀</translation>
+    </message>
+    <message>
+        <source>&amp;Yes</source>
+        <translation>예(&amp;Y)</translation>
+    </message>
+    <message>
+        <source>&amp;No</source>
+        <translation>아니요(&amp;N)</translation>
+    </message>
+    <message>
+        <source>&amp;Cancel</source>
+        <translation>취소(&amp;C)</translation>
     </message>
 </context>
 <context>

@@ -64,7 +64,7 @@ Use `exec_dialog` or `run_non_modal_dialog`, never `QDialog::exec`. `place_dialo
 
 Placement clamps the full frame to the screen's available area (no taskbars or docks), again after Show finalizes sizes and margins and on Resize, for unnamed and transient dialogs too. Automatic moves never enter position memory.
 
-`show_warning_message` answers bare letter keys: Y/N for Yes/No, S/D for Save/Discard (Y/N also work), and labels Discard "Don't Save"; the default button carries the accent outline (`QPushButton:default`, follows focus). The close-document prompt offers Save / Don't Save / Cancel, Save default (GitHub issue 70; `ui_save_prompt_uses_save_dont_save_cancel_with_letter_hotkeys`).
+`show_warning_message` answers bare letters: Y/N (Yes/No, Save/Discard), S/D, C (Cancel). A Save + Discard box reads "&Yes", "&No", "&Cancel" (keeping those roles), so its text must be a yes/no question; the close prompt is one, Yes default (issues 70, 240; `ui_save_prompt_uses_yes_no_cancel_with_letter_hotkeys`). The default button has the accent outline.
 
 Fields typing replaces (hex, ratios) call `select_all_on_focus`: select-all on focus-in, queued past the click. The color picker focuses its HTML field on show (Ctrl+V, Return pastes a hex) (GitHub issue 68; `ui_color_picker_opens_with_hex_field_selected_for_paste`).
 

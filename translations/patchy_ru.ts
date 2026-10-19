@@ -8925,10 +8925,6 @@ RGB: %2, %3, %4</translation>
         <translation>Слой «%1» взят из документа в градациях серого и здесь корректирует его серый канал. Patchy сохраняет файлы RGB, поэтому в сохранённом файле Photoshop и Patchy применят его к RGB, и тона будут выглядеть иначе.</translation>
     </message>
     <message>
-        <source>Don&apos;t Save</source>
-        <translation>Не сохранять</translation>
-    </message>
-    <message>
         <source>Incredible people who donated suggestions, bug reports, and code: %1</source>
         <translation>Замечательные люди, подарившие предложения, отчёты об ошибках и код: %1</translation>
     </message>
@@ -10930,6 +10926,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>%1 (%2): %3 x %4 px at %5 ppi</source>
         <translation>%1 (%2): %3 x %4 пикселей при %5 пикселей на дюйм</translation>
+    </message>
+    <message>
+        <source>&amp;Yes</source>
+        <translation>&amp;Да</translation>
+    </message>
+    <message>
+        <source>&amp;No</source>
+        <translation>&amp;Нет</translation>
+    </message>
+    <message>
+        <source>&amp;Cancel</source>
+        <translation>&amp;Отмена</translation>
     </message>
 </context>
 <context>

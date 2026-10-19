@@ -8895,10 +8895,6 @@ RGB: %2, %3, %4</translation>
         <translation>%1 procede de un documento en escala de grises y aquí ajusta su canal de gris. Patchy guarda archivos RGB, así que en el archivo guardado Photoshop y Patchy la aplican a RGB y sus tonos se verán distintos.</translation>
     </message>
     <message>
-        <source>Don&apos;t Save</source>
-        <translation>No guardar</translation>
-    </message>
-    <message>
         <source>Incredible people who donated suggestions, bug reports, and code: %1</source>
         <translation>Personas increíbles que aportaron sugerencias, informes de errores y código: %1</translation>
     </message>
@@ -10896,6 +10892,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>%1 (%2): %3 x %4 px at %5 ppi</source>
         <translation>%1 (%2): %3 x %4 px a %5 ppp</translation>
+    </message>
+    <message>
+        <source>&amp;Yes</source>
+        <translation>&amp;Sí</translation>
+    </message>
+    <message>
+        <source>&amp;No</source>
+        <translation>&amp;No</translation>
+    </message>
+    <message>
+        <source>&amp;Cancel</source>
+        <translation>&amp;Cancelar</translation>
     </message>
 </context>
 <context>

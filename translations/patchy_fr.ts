@@ -8895,10 +8895,6 @@ RVB : %2, %3, %4</translation>
         <translation>%1 provient d&apos;un document en niveaux de gris et règle ici sa couche de gris. Patchy enregistre des fichiers RVB : dans le fichier enregistré, Photoshop et Patchy l&apos;appliquent au RVB et ses tons seront différents.</translation>
     </message>
     <message>
-        <source>Don&apos;t Save</source>
-        <translation>Ne pas enregistrer</translation>
-    </message>
-    <message>
         <source>Incredible people who donated suggestions, bug reports, and code: %1</source>
         <translation>Des personnes formidables qui ont offert suggestions, rapports de bogues et code : %1</translation>
     </message>
@@ -10896,6 +10892,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>%1 (%2): %3 x %4 px at %5 ppi</source>
         <translation>%1 (%2) : %3 x %4 px à %5 ppp</translation>
+    </message>
+    <message>
+        <source>&amp;Yes</source>
+        <translation>&amp;Oui</translation>
+    </message>
+    <message>
+        <source>&amp;No</source>
+        <translation>&amp;Non</translation>
+    </message>
+    <message>
+        <source>&amp;Cancel</source>
+        <translation>&amp;Annuler</translation>
     </message>
 </context>
 <context>

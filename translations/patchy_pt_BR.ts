@@ -8895,10 +8895,6 @@ RGB: %2, %3, %4</translation>
         <translation>%1 veio de um documento em tons de cinza e aqui ajusta o canal de cinza dele. O Patchy salva arquivos RGB; no arquivo salvo, o Photoshop e o Patchy aplicam a camada em RGB e os tons ficarão diferentes.</translation>
     </message>
     <message>
-        <source>Don&apos;t Save</source>
-        <translation>Não salvar</translation>
-    </message>
-    <message>
         <source>Incredible people who donated suggestions, bug reports, and code: %1</source>
         <translation>Pessoas incríveis que doaram sugestões, relatórios de bugs e código: %1</translation>
     </message>
@@ -10896,6 +10892,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>%1 (%2): %3 x %4 px at %5 ppi</source>
         <translation>%1 (%2): %3 x %4 px a %5 ppi</translation>
+    </message>
+    <message>
+        <source>&amp;Yes</source>
+        <translation>&amp;Sim</translation>
+    </message>
+    <message>
+        <source>&amp;No</source>
+        <translation>&amp;Não</translation>
+    </message>
+    <message>
+        <source>&amp;Cancel</source>
+        <translation>&amp;Cancelar</translation>
     </message>
 </context>
 <context>
