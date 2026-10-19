@@ -10596,6 +10596,257 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Shape layer thumbnail</source>
         <translation>シェイプレイヤーのサムネイル</translation>
     </message>
+    <message>
+        <source>Screen</source>
+        <comment>new document template group</comment>
+        <translation>画面</translation>
+    </message>
+    <message>
+        <source>Mobile</source>
+        <comment>new document template group</comment>
+        <translation>モバイル</translation>
+    </message>
+    <message>
+        <source>Social</source>
+        <comment>new document template group</comment>
+        <translation>ソーシャル</translation>
+    </message>
+    <message>
+        <source>Web</source>
+        <comment>new document template group</comment>
+        <translation>Web</translation>
+    </message>
+    <message>
+        <source>Print</source>
+        <comment>new document template group</comment>
+        <translation>印刷</translation>
+    </message>
+    <message>
+        <source>Photo</source>
+        <comment>new document template group</comment>
+        <translation>写真</translation>
+    </message>
+    <message>
+        <source>Icons &amp; Games</source>
+        <comment>new document template group</comment>
+        <translation>アイコンとゲーム</translation>
+    </message>
+    <message>
+        <source>1440p</source>
+        <translation>1440p</translation>
+    </message>
+    <message>
+        <source>8K</source>
+        <translation>8K</translation>
+    </message>
+    <message>
+        <source>Ultrawide</source>
+        <translation>ウルトラワイド</translation>
+    </message>
+    <message>
+        <source>Cinema 4K</source>
+        <translation>シネマ 4K</translation>
+    </message>
+    <message>
+        <source>Laptop</source>
+        <translation>ノート PC</translation>
+    </message>
+    <message>
+        <source>iPhone 16</source>
+        <translation>iPhone 16</translation>
+    </message>
+    <message>
+        <source>iPhone 16 Pro Max</source>
+        <translation>iPhone 16 Pro Max</translation>
+    </message>
+    <message>
+        <source>iPhone SE</source>
+        <translation>iPhone SE</translation>
+    </message>
+    <message>
+        <source>Android Phone</source>
+        <translation>Android スマートフォン</translation>
+    </message>
+    <message>
+        <source>Android Phone QHD+</source>
+        <translation>Android スマートフォン QHD+</translation>
+    </message>
+    <message>
+        <source>iPad 11-inch</source>
+        <translation>iPad 11 インチ</translation>
+    </message>
+    <message>
+        <source>iPad Pro 13-inch</source>
+        <translation>iPad Pro 13 インチ</translation>
+    </message>
+    <message>
+        <source>Android Tablet</source>
+        <translation>Android タブレット</translation>
+    </message>
+    <message>
+        <source>Portrait Post</source>
+        <translation>縦長投稿</translation>
+    </message>
+    <message>
+        <source>YouTube Thumbnail</source>
+        <translation>YouTube サムネイル</translation>
+    </message>
+    <message>
+        <source>YouTube Banner</source>
+        <translation>YouTube バナー</translation>
+    </message>
+    <message>
+        <source>Facebook Cover</source>
+        <translation>Facebook カバー</translation>
+    </message>
+    <message>
+        <source>X Header</source>
+        <translation>X ヘッダー</translation>
+    </message>
+    <message>
+        <source>X Post</source>
+        <translation>X 投稿</translation>
+    </message>
+    <message>
+        <source>LinkedIn Banner</source>
+        <translation>LinkedIn バナー</translation>
+    </message>
+    <message>
+        <source>Pinterest Pin</source>
+        <translation>Pinterest ピン</translation>
+    </message>
+    <message>
+        <source>Profile Picture</source>
+        <translation>プロフィール画像</translation>
+    </message>
+    <message>
+        <source>Web Page</source>
+        <translation>Web ページ</translation>
+    </message>
+    <message>
+        <source>Link Preview</source>
+        <translation>リンクプレビュー</translation>
+    </message>
+    <message>
+        <source>Email Header</source>
+        <translation>メールヘッダー</translation>
+    </message>
+    <message>
+        <source>Medium Rectangle Ad</source>
+        <translation>ミディアムレクタングル広告</translation>
+    </message>
+    <message>
+        <source>Large Rectangle Ad</source>
+        <translation>ラージレクタングル広告</translation>
+    </message>
+    <message>
+        <source>Leaderboard Ad</source>
+        <translation>リーダーボード広告</translation>
+    </message>
+    <message>
+        <source>Billboard Ad</source>
+        <translation>ビルボード広告</translation>
+    </message>
+    <message>
+        <source>Half Page Ad</source>
+        <translation>ハーフページ広告</translation>
+    </message>
+    <message>
+        <source>Skyscraper Ad</source>
+        <translation>スカイスクレイパー広告</translation>
+    </message>
+    <message>
+        <source>Mobile Banner Ad</source>
+        <translation>モバイルバナー広告</translation>
+    </message>
+    <message>
+        <source>A6</source>
+        <translation>A6</translation>
+    </message>
+    <message>
+        <source>A2</source>
+        <translation>A2</translation>
+    </message>
+    <message>
+        <source>Tabloid</source>
+        <translation>タブロイド</translation>
+    </message>
+    <message>
+        <source>Business Card (US)</source>
+        <translation>名刺 (US)</translation>
+    </message>
+    <message>
+        <source>Business Card (EU)</source>
+        <translation>名刺 (EU)</translation>
+    </message>
+    <message>
+        <source>Poster 18 x 24 in</source>
+        <translation>ポスター 18 x 24 インチ</translation>
+    </message>
+    <message>
+        <source>4 x 6 in</source>
+        <translation>4 x 6 インチ</translation>
+    </message>
+    <message>
+        <source>11 x 14 in</source>
+        <translation>11 x 14 インチ</translation>
+    </message>
+    <message>
+        <source>8 x 8 in</source>
+        <translation>8 x 8 インチ</translation>
+    </message>
+    <message>
+        <source>10 x 15 cm</source>
+        <translation>10 x 15 cm</translation>
+    </message>
+    <message>
+        <source>13 x 18 cm</source>
+        <translation>13 x 18 cm</translation>
+    </message>
+    <message>
+        <source>App Icon</source>
+        <translation>アプリアイコン</translation>
+    </message>
+    <message>
+        <source>Store Icon</source>
+        <translation>ストアアイコン</translation>
+    </message>
+    <message>
+        <source>Desktop Icon</source>
+        <translation>デスクトップアイコン</translation>
+    </message>
+    <message>
+        <source>Favicon</source>
+        <translation>ファビコン</translation>
+    </message>
+    <message>
+        <source>Pixel Art 16</source>
+        <translation>ピクセルアート 16</translation>
+    </message>
+    <message>
+        <source>Pixel Art 32</source>
+        <translation>ピクセルアート 32</translation>
+    </message>
+    <message>
+        <source>Pixel Art 64</source>
+        <translation>ピクセルアート 64</translation>
+    </message>
+    <message>
+        <source>Texture 1K</source>
+        <translation>テクスチャ 1K</translation>
+    </message>
+    <message>
+        <source>Texture 2K</source>
+        <translation>テクスチャ 2K</translation>
+    </message>
+    <message>
+        <source>Texture 4K</source>
+        <translation>テクスチャ 4K</translation>
+    </message>
+    <message>
+        <source>Game Store Header</source>
+        <translation>ゲームストアヘッダー</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

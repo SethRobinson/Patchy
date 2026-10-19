@@ -53,11 +53,12 @@ struct NewDocumentSettings {
 // clipboard's format list, never the image, so it costs no transfer or decode.
 [[nodiscard]] bool clipboard_offers_image();
 
-// The New Document size presets an artboard can take (every screen and print card but
-// Clipboard), for the Artboard tool and the New Artboard dialog.
+// The New Document size presets an artboard can take (every template but Clipboard), for
+// the Artboard tool and the New Artboard dialog, in the dialog's group order.
 struct ArtboardSizePreset {
   QString name;
   QSize size;
+  QString group;  // the template group's name; the combos separate the groups
 };
 [[nodiscard]] std::vector<ArtboardSizePreset> artboard_size_presets();
 

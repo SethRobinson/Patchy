@@ -10596,6 +10596,257 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Shape layer thumbnail</source>
         <translation>모양 레이어 축소판</translation>
     </message>
+    <message>
+        <source>Screen</source>
+        <comment>new document template group</comment>
+        <translation>화면</translation>
+    </message>
+    <message>
+        <source>Mobile</source>
+        <comment>new document template group</comment>
+        <translation>모바일</translation>
+    </message>
+    <message>
+        <source>Social</source>
+        <comment>new document template group</comment>
+        <translation>소셜</translation>
+    </message>
+    <message>
+        <source>Web</source>
+        <comment>new document template group</comment>
+        <translation>웹</translation>
+    </message>
+    <message>
+        <source>Print</source>
+        <comment>new document template group</comment>
+        <translation>인쇄</translation>
+    </message>
+    <message>
+        <source>Photo</source>
+        <comment>new document template group</comment>
+        <translation>사진</translation>
+    </message>
+    <message>
+        <source>Icons &amp; Games</source>
+        <comment>new document template group</comment>
+        <translation>아이콘 및 게임</translation>
+    </message>
+    <message>
+        <source>1440p</source>
+        <translation>1440p</translation>
+    </message>
+    <message>
+        <source>8K</source>
+        <translation>8K</translation>
+    </message>
+    <message>
+        <source>Ultrawide</source>
+        <translation>울트라와이드</translation>
+    </message>
+    <message>
+        <source>Cinema 4K</source>
+        <translation>시네마 4K</translation>
+    </message>
+    <message>
+        <source>Laptop</source>
+        <translation>노트북</translation>
+    </message>
+    <message>
+        <source>iPhone 16</source>
+        <translation>iPhone 16</translation>
+    </message>
+    <message>
+        <source>iPhone 16 Pro Max</source>
+        <translation>iPhone 16 Pro Max</translation>
+    </message>
+    <message>
+        <source>iPhone SE</source>
+        <translation>iPhone SE</translation>
+    </message>
+    <message>
+        <source>Android Phone</source>
+        <translation>Android 휴대폰</translation>
+    </message>
+    <message>
+        <source>Android Phone QHD+</source>
+        <translation>Android 휴대폰 QHD+</translation>
+    </message>
+    <message>
+        <source>iPad 11-inch</source>
+        <translation>iPad 11인치</translation>
+    </message>
+    <message>
+        <source>iPad Pro 13-inch</source>
+        <translation>iPad Pro 13인치</translation>
+    </message>
+    <message>
+        <source>Android Tablet</source>
+        <translation>Android 태블릿</translation>
+    </message>
+    <message>
+        <source>Portrait Post</source>
+        <translation>세로 포스트</translation>
+    </message>
+    <message>
+        <source>YouTube Thumbnail</source>
+        <translation>YouTube 썸네일</translation>
+    </message>
+    <message>
+        <source>YouTube Banner</source>
+        <translation>YouTube 배너</translation>
+    </message>
+    <message>
+        <source>Facebook Cover</source>
+        <translation>Facebook 커버</translation>
+    </message>
+    <message>
+        <source>X Header</source>
+        <translation>X 헤더</translation>
+    </message>
+    <message>
+        <source>X Post</source>
+        <translation>X 포스트</translation>
+    </message>
+    <message>
+        <source>LinkedIn Banner</source>
+        <translation>LinkedIn 배너</translation>
+    </message>
+    <message>
+        <source>Pinterest Pin</source>
+        <translation>Pinterest 핀</translation>
+    </message>
+    <message>
+        <source>Profile Picture</source>
+        <translation>프로필 사진</translation>
+    </message>
+    <message>
+        <source>Web Page</source>
+        <translation>웹 페이지</translation>
+    </message>
+    <message>
+        <source>Link Preview</source>
+        <translation>링크 미리보기</translation>
+    </message>
+    <message>
+        <source>Email Header</source>
+        <translation>이메일 헤더</translation>
+    </message>
+    <message>
+        <source>Medium Rectangle Ad</source>
+        <translation>미디엄 렉탱글 광고</translation>
+    </message>
+    <message>
+        <source>Large Rectangle Ad</source>
+        <translation>라지 렉탱글 광고</translation>
+    </message>
+    <message>
+        <source>Leaderboard Ad</source>
+        <translation>리더보드 광고</translation>
+    </message>
+    <message>
+        <source>Billboard Ad</source>
+        <translation>빌보드 광고</translation>
+    </message>
+    <message>
+        <source>Half Page Ad</source>
+        <translation>하프 페이지 광고</translation>
+    </message>
+    <message>
+        <source>Skyscraper Ad</source>
+        <translation>스카이스크레이퍼 광고</translation>
+    </message>
+    <message>
+        <source>Mobile Banner Ad</source>
+        <translation>모바일 배너 광고</translation>
+    </message>
+    <message>
+        <source>A6</source>
+        <translation>A6</translation>
+    </message>
+    <message>
+        <source>A2</source>
+        <translation>A2</translation>
+    </message>
+    <message>
+        <source>Tabloid</source>
+        <translation>타블로이드</translation>
+    </message>
+    <message>
+        <source>Business Card (US)</source>
+        <translation>명함 (미국)</translation>
+    </message>
+    <message>
+        <source>Business Card (EU)</source>
+        <translation>명함 (유럽)</translation>
+    </message>
+    <message>
+        <source>Poster 18 x 24 in</source>
+        <translation>포스터 18x24인치</translation>
+    </message>
+    <message>
+        <source>4 x 6 in</source>
+        <translation>4x6인치</translation>
+    </message>
+    <message>
+        <source>11 x 14 in</source>
+        <translation>11x14인치</translation>
+    </message>
+    <message>
+        <source>8 x 8 in</source>
+        <translation>8x8인치</translation>
+    </message>
+    <message>
+        <source>10 x 15 cm</source>
+        <translation>10 x 15cm</translation>
+    </message>
+    <message>
+        <source>13 x 18 cm</source>
+        <translation>13 x 18cm</translation>
+    </message>
+    <message>
+        <source>App Icon</source>
+        <translation>앱 아이콘</translation>
+    </message>
+    <message>
+        <source>Store Icon</source>
+        <translation>스토어 아이콘</translation>
+    </message>
+    <message>
+        <source>Desktop Icon</source>
+        <translation>데스크톱 아이콘</translation>
+    </message>
+    <message>
+        <source>Favicon</source>
+        <translation>파비콘</translation>
+    </message>
+    <message>
+        <source>Pixel Art 16</source>
+        <translation>픽셀 아트 16</translation>
+    </message>
+    <message>
+        <source>Pixel Art 32</source>
+        <translation>픽셀 아트 32</translation>
+    </message>
+    <message>
+        <source>Pixel Art 64</source>
+        <translation>픽셀 아트 64</translation>
+    </message>
+    <message>
+        <source>Texture 1K</source>
+        <translation>텍스처 1K</translation>
+    </message>
+    <message>
+        <source>Texture 2K</source>
+        <translation>텍스처 2K</translation>
+    </message>
+    <message>
+        <source>Texture 4K</source>
+        <translation>텍스처 4K</translation>
+    </message>
+    <message>
+        <source>Game Store Header</source>
+        <translation>게임 스토어 헤더</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

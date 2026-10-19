@@ -1623,7 +1623,8 @@ void accept_clipboard_new_document_dialog(QSize clipboard_size) {
       CHECK(!background->isEnabled());
 
       // Preset cards carry a resolution: screen/web/video cards follow
-      // Photoshop's 72 PPI convention, physical print cards are 300 PPI.
+      // Photoshop's 72 PPI convention, physical print cards are 300 PPI. The first
+      // templates keep their ids in their new groups (GitHub issue 222).
       struct ExpectedPreset {
         QString id;
         QSize size;
@@ -1635,9 +1636,10 @@ void accept_clipboard_new_document_dialog(QSize clipboard_size) {
           {QStringLiteral("screen-1080p"), QSize(1920, 1080), 72.0},
           {QStringLiteral("screen-4k"), QSize(3840, 2160), 72.0},
           {QStringLiteral("screen-square-2048"), QSize(2048, 2048), 72.0},
+      };
+      const std::vector<ExpectedPreset> social_presets = {
           {QStringLiteral("social-square-1080"), QSize(1080, 1080), 72.0},
           {QStringLiteral("phone-story-1080x1920"), QSize(1080, 1920), 72.0},
-          {QStringLiteral("photo-3x2-3000"), QSize(3000, 2000), 72.0},
       };
       const std::vector<ExpectedPreset> print_presets = {
           {QStringLiteral("print-a5"), QSize(1748, 2480), 300.0},
@@ -1645,8 +1647,11 @@ void accept_clipboard_new_document_dialog(QSize clipboard_size) {
           {QStringLiteral("print-a3"), QSize(3508, 4961), 300.0},
           {QStringLiteral("print-us-letter"), QSize(2550, 3300), 300.0},
           {QStringLiteral("print-us-legal"), QSize(2550, 4200), 300.0},
+      };
+      const std::vector<ExpectedPreset> photo_presets = {
           {QStringLiteral("print-5x7"), QSize(1500, 2100), 300.0},
           {QStringLiteral("print-8x10"), QSize(2400, 3000), 300.0},
+          {QStringLiteral("photo-3x2-3000"), QSize(3000, 2000), 72.0},
       };
       const auto check_presets = [&](const std::vector<ExpectedPreset>& expected) {
         for (const auto& preset : expected) {
@@ -1661,9 +1666,19 @@ void accept_clipboard_new_document_dialog(QSize clipboard_size) {
         }
       };
       check_presets(screen_presets);
-      print_chip->click();
-      QApplication::processEvents();
-      check_presets(print_presets);
+      const auto check_group = [&](const char* chip_name, const std::vector<ExpectedPreset>& expected) {
+        auto* chip = dialog->findChild<QToolButton*>(QLatin1String(chip_name));
+        CHECK(chip != nullptr);
+        if (chip != nullptr) {
+          chip->click();
+          QApplication::processEvents();
+          check_presets(expected);
+        }
+      };
+      check_group("newDocumentSocialChip", social_presets);
+      CHECK(print_chip != nullptr);
+      check_group("newDocumentPrintChip", print_presets);
+      check_group("newDocumentPhotoChip", photo_presets);
 
       // Back to the Clipboard card; accepting creates the clipboard document.
       screen_chip->click();

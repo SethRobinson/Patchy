@@ -10664,6 +10664,257 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Shape layer thumbnail</source>
         <translation>Miniatura warstwy kształtu</translation>
     </message>
+    <message>
+        <source>Screen</source>
+        <comment>new document template group</comment>
+        <translation>Ekran</translation>
+    </message>
+    <message>
+        <source>Mobile</source>
+        <comment>new document template group</comment>
+        <translation>Urządzenia mobilne</translation>
+    </message>
+    <message>
+        <source>Social</source>
+        <comment>new document template group</comment>
+        <translation>Media społecznościowe</translation>
+    </message>
+    <message>
+        <source>Web</source>
+        <comment>new document template group</comment>
+        <translation>Sieć</translation>
+    </message>
+    <message>
+        <source>Print</source>
+        <comment>new document template group</comment>
+        <translation>Druk</translation>
+    </message>
+    <message>
+        <source>Photo</source>
+        <comment>new document template group</comment>
+        <translation>Zdjęcia</translation>
+    </message>
+    <message>
+        <source>Icons &amp; Games</source>
+        <comment>new document template group</comment>
+        <translation>Ikony i gry</translation>
+    </message>
+    <message>
+        <source>1440p</source>
+        <translation>1440p</translation>
+    </message>
+    <message>
+        <source>8K</source>
+        <translation>8K</translation>
+    </message>
+    <message>
+        <source>Ultrawide</source>
+        <translation>Ultrapanoramiczny</translation>
+    </message>
+    <message>
+        <source>Cinema 4K</source>
+        <translation>Kino 4K</translation>
+    </message>
+    <message>
+        <source>Laptop</source>
+        <translation>Laptop</translation>
+    </message>
+    <message>
+        <source>iPhone 16</source>
+        <translation>iPhone 16</translation>
+    </message>
+    <message>
+        <source>iPhone 16 Pro Max</source>
+        <translation>iPhone 16 Pro Max</translation>
+    </message>
+    <message>
+        <source>iPhone SE</source>
+        <translation>iPhone SE</translation>
+    </message>
+    <message>
+        <source>Android Phone</source>
+        <translation>Telefon z Androidem</translation>
+    </message>
+    <message>
+        <source>Android Phone QHD+</source>
+        <translation>Telefon z Androidem QHD+</translation>
+    </message>
+    <message>
+        <source>iPad 11-inch</source>
+        <translation>iPad 11 cali</translation>
+    </message>
+    <message>
+        <source>iPad Pro 13-inch</source>
+        <translation>iPad Pro 13 cali</translation>
+    </message>
+    <message>
+        <source>Android Tablet</source>
+        <translation>Tablet z Androidem</translation>
+    </message>
+    <message>
+        <source>Portrait Post</source>
+        <translation>Post pionowy</translation>
+    </message>
+    <message>
+        <source>YouTube Thumbnail</source>
+        <translation>Miniatura YouTube</translation>
+    </message>
+    <message>
+        <source>YouTube Banner</source>
+        <translation>Baner YouTube</translation>
+    </message>
+    <message>
+        <source>Facebook Cover</source>
+        <translation>Okładka Facebooka</translation>
+    </message>
+    <message>
+        <source>X Header</source>
+        <translation>Nagłówek X</translation>
+    </message>
+    <message>
+        <source>X Post</source>
+        <translation>Post na X</translation>
+    </message>
+    <message>
+        <source>LinkedIn Banner</source>
+        <translation>Baner LinkedIn</translation>
+    </message>
+    <message>
+        <source>Pinterest Pin</source>
+        <translation>Pin na Pintereście</translation>
+    </message>
+    <message>
+        <source>Profile Picture</source>
+        <translation>Zdjęcie profilowe</translation>
+    </message>
+    <message>
+        <source>Web Page</source>
+        <translation>Strona internetowa</translation>
+    </message>
+    <message>
+        <source>Link Preview</source>
+        <translation>Podgląd linku</translation>
+    </message>
+    <message>
+        <source>Email Header</source>
+        <translation>Nagłówek e-maila</translation>
+    </message>
+    <message>
+        <source>Medium Rectangle Ad</source>
+        <translation>Reklama średni prostokąt</translation>
+    </message>
+    <message>
+        <source>Large Rectangle Ad</source>
+        <translation>Reklama duży prostokąt</translation>
+    </message>
+    <message>
+        <source>Leaderboard Ad</source>
+        <translation>Reklama leaderboard</translation>
+    </message>
+    <message>
+        <source>Billboard Ad</source>
+        <translation>Reklama billboard</translation>
+    </message>
+    <message>
+        <source>Half Page Ad</source>
+        <translation>Reklama pół strony</translation>
+    </message>
+    <message>
+        <source>Skyscraper Ad</source>
+        <translation>Reklama wieżowiec</translation>
+    </message>
+    <message>
+        <source>Mobile Banner Ad</source>
+        <translation>Mobilny baner reklamowy</translation>
+    </message>
+    <message>
+        <source>A6</source>
+        <translation>A6</translation>
+    </message>
+    <message>
+        <source>A2</source>
+        <translation>A2</translation>
+    </message>
+    <message>
+        <source>Tabloid</source>
+        <translation>Tabloid</translation>
+    </message>
+    <message>
+        <source>Business Card (US)</source>
+        <translation>Wizytówka (USA)</translation>
+    </message>
+    <message>
+        <source>Business Card (EU)</source>
+        <translation>Wizytówka (UE)</translation>
+    </message>
+    <message>
+        <source>Poster 18 x 24 in</source>
+        <translation>Plakat 18 x 24 cali</translation>
+    </message>
+    <message>
+        <source>4 x 6 in</source>
+        <translation>4 x 6 cali</translation>
+    </message>
+    <message>
+        <source>11 x 14 in</source>
+        <translation>11 x 14 cali</translation>
+    </message>
+    <message>
+        <source>8 x 8 in</source>
+        <translation>8 x 8 cali</translation>
+    </message>
+    <message>
+        <source>10 x 15 cm</source>
+        <translation>10 x 15 cm</translation>
+    </message>
+    <message>
+        <source>13 x 18 cm</source>
+        <translation>13 x 18 cm</translation>
+    </message>
+    <message>
+        <source>App Icon</source>
+        <translation>Ikona aplikacji</translation>
+    </message>
+    <message>
+        <source>Store Icon</source>
+        <translation>Ikona sklepu</translation>
+    </message>
+    <message>
+        <source>Desktop Icon</source>
+        <translation>Ikona pulpitu</translation>
+    </message>
+    <message>
+        <source>Favicon</source>
+        <translation>Favicon</translation>
+    </message>
+    <message>
+        <source>Pixel Art 16</source>
+        <translation>Pixel art 16</translation>
+    </message>
+    <message>
+        <source>Pixel Art 32</source>
+        <translation>Pixel art 32</translation>
+    </message>
+    <message>
+        <source>Pixel Art 64</source>
+        <translation>Pixel art 64</translation>
+    </message>
+    <message>
+        <source>Texture 1K</source>
+        <translation>Tekstura 1K</translation>
+    </message>
+    <message>
+        <source>Texture 2K</source>
+        <translation>Tekstura 2K</translation>
+    </message>
+    <message>
+        <source>Texture 4K</source>
+        <translation>Tekstura 4K</translation>
+    </message>
+    <message>
+        <source>Game Store Header</source>
+        <translation>Nagłówek sklepu z grami</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
