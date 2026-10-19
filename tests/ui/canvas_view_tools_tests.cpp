@@ -875,6 +875,94 @@ void ui_status_bar_zoom_percent_box_edits_zoom() {
   save_widget_artifact("ui_status_zoom_percent_box", *window.statusBar());
 }
 
+// Values of 1000% and up lost their leading digits (GitHub issue 237). The box now
+// drops decimals as the value grows (display only) and is as wide as its widest
+// value needs in the current font, its text running up to the presets chevron.
+void ui_status_bar_zoom_box_fits_large_values() {
+  using patchy::ui::ZoomPercentEdit;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* bar = window.statusBar();
+  auto* zoom_edit = bar->findChild<ZoomPercentEdit*>(QStringLiteral("statusZoomEdit"));
+  auto* controls = bar->findChild<QWidget*>(QStringLiteral("statusZoomControls"));
+  CHECK(zoom_edit != nullptr && controls != nullptr);
+  if (zoom_edit == nullptr || controls == nullptr) {
+    return;
+  }
+
+  // Typed decimals still apply exactly; the box shows the value rounded.
+  zoom_edit->setFocus();
+  QApplication::processEvents();
+  zoom_edit->setText(QStringLiteral("1521.88"));
+  send_key(*zoom_edit, Qt::Key_Return);
+  QApplication::processEvents();
+  save_widget_artifact("ui_status_zoom_box_1521_88", *controls);
+  CHECK(std::abs(canvas->view_zoom() - 15.2188) < 1e-6);
+  CHECK(zoom_edit->text() == QStringLiteral("1522%"));
+  // Enter on the shown value keeps the exact zoom it rounds.
+  canvas->set_view_zoom_centered(15.218834);
+  QApplication::processEvents();
+  const auto exact = canvas->view_zoom();
+  CHECK(zoom_edit->text() == QStringLiteral("1522%"));
+  zoom_edit->setFocus();
+  QApplication::processEvents();
+  send_key(*zoom_edit, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(canvas->view_zoom() == exact);
+
+  CHECK(ZoomPercentEdit::format_zoom_text(0.3333) == QStringLiteral("33.33%"));
+  CHECK(ZoomPercentEdit::format_zoom_text(0.125) == QStringLiteral("12.5%"));
+  CHECK(ZoomPercentEdit::format_zoom_text(1.505) == QStringLiteral("150.5%"));
+  CHECK(ZoomPercentEdit::format_zoom_text(15.2188) == QStringLiteral("1522%"));
+  CHECK(ZoomPercentEdit::format_zoom_text(0.99996) == QStringLiteral("100%"));
+  CHECK(ZoomPercentEdit::format_zoom_text(9.9996) == QStringLiteral("1000%"));
+  CHECK(ZoomPercentEdit::format_zoom_text(0.0001) == QStringLiteral("0.01%"));
+
+  QToolButton* chevron = nullptr;
+  for (auto* button : zoom_edit->findChildren<QToolButton*>()) {
+    if (button->isVisible()) {
+      chevron = button;
+    }
+  }
+  CHECK(chevron != nullptr);
+  if (chevron == nullptr) {
+    return;
+  }
+  // QLineEdit scrolls text that overflows its room so the cursor (at the end after
+  // setText) stays visible, shifting every character left. A text fits when its
+  // first character sits where it does in a two-character text that cannot
+  // overflow, and its end stays clear of the chevron's button.
+  const auto mid_y = zoom_edit->height() / 2;
+  const auto first_x_reaching = [&](const QString& text, int position) {
+    zoom_edit->setText(text);
+    (void)zoom_edit->grab();  // painting settles the horizontal scroll
+    int x = 0;
+    while (x < zoom_edit->width() && zoom_edit->cursorPositionAt(QPoint(x, mid_y)) < position) {
+      ++x;
+    }
+    return x;  // the middle of character position - 1
+  };
+  const auto fits = [&](const QString& text) {
+    const auto unscrolled = first_x_reaching(text.left(1) + QLatin1Char('%'), 1);
+    if (first_x_reaching(text, 1) != unscrolled) {
+      return false;
+    }
+    const auto half_last = (zoom_edit->fontMetrics().horizontalAdvance(text.right(1)) + 1) / 2;
+    return first_x_reaching(text, static_cast<int>(text.size())) + half_last <= chevron->x();
+  };
+  canvas->set_view_zoom_centered(128.0);  // the zoom limit
+  QApplication::processEvents();
+  const auto at_limit = zoom_edit->text();
+  CHECK(at_limit == QStringLiteral("12800%"));
+  CHECK(fits(at_limit));
+  CHECK(fits(QStringLiteral("999.9%")));
+  CHECK(fits(QStringLiteral("99.99%")));
+  // No wider than it needs: one more digit no longer fits.
+  CHECK(!fits(QStringLiteral("128000%")));
+  zoom_edit->setText(at_limit);
+}
+
 // The status zoom box works like an options-bar field (GitHub issue 159): the
 // wheel and Up/Down step the zoom ladder, a sideways drag from the unfocused box
 // scrubs the zoom while a plain click still focuses it for typing, the chevron
@@ -5336,6 +5424,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
        ui_canvas_trackpad_scroll_ignored_during_pointer_gesture},
       {"ui_status_bar_zoom_percent_box_edits_zoom", ui_status_bar_zoom_percent_box_edits_zoom},
       {"ui_status_bar_zoom_box_wheel_scrub_and_buttons", ui_status_bar_zoom_box_wheel_scrub_and_buttons},
+      {"ui_status_bar_zoom_box_fits_large_values", ui_status_bar_zoom_box_fits_large_values},
       {"ui_status_bar_document_info_fits_at_1366", ui_status_bar_document_info_fits_at_1366},
       {"ui_status_bar_document_info_shows_document_facts", ui_status_bar_document_info_shows_document_facts},
       {"ui_status_bar_document_info_drops_parts_when_narrow",
