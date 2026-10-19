@@ -2259,6 +2259,9 @@ private:
   void commit_warp_transform();
   void reset_warp_state();
   bool constrain_pan() noexcept;
+  // Re-anchors the view after the viewport changed from old_size (GitHub issue 241); true
+  // when the pan moved. See docs/view-navigation.md, "Viewport resizes".
+  bool keep_view_centered_across_resize(QSize old_size) noexcept;
   void notify_view_changed();
   void sync_scroll_bars();
   void handle_scroll_bar_value_changed(Qt::Orientation orientation, int value);
@@ -2315,6 +2318,10 @@ private:
   Document* document_{nullptr};
   double zoom_{1.0};
   QPointF pan_{40.0, 40.0};
+  // The viewport size pan_ was last placed or re-anchored for; invalid until something
+  // places the view. A hidden tab's resize arrives at show time without an old size, so
+  // the re-anchor reads this instead.
+  QSize view_size_;
   bool wheel_zooms_{true};
   // Set by a press, cleared by the next ScrollBegin: drops leftover flick momentum.
   bool swallow_scroll_momentum_{false};

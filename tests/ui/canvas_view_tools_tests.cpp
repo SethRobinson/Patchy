@@ -1489,6 +1489,116 @@ void ui_zoom_preset_recovers_parked_view() {
   CHECK(std::abs(center.y() - 150) <= 2);
 }
 
+// GitHub issue 241: a viewport resize keeps a fitting document centered, keeps a fitting
+// document the user parked off center at its offset from the center, and keeps the
+// document point under the view center in place when the document overflows.
+void ui_canvas_resize_keeps_document_centered_and_view_center_stable() {
+  patchy::Document document(200, 150, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Paint", solid_pixels(200, 150, patchy::PixelFormat::rgba8(), QColor(90, 120, 200)));
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(400, 300);
+  canvas.set_document(&document);
+  canvas.show();
+  QApplication::processEvents();
+  const auto offset_from_center = [&canvas](QPointF document_point) {
+    return canvas.widget_position_f(document_point) - QPointF(canvas.width() / 2.0, canvas.height() / 2.0);
+  };
+  const auto close_to = [](QPointF a, QPointF b) { return std::abs(a.x() - b.x()) <= 1.0 && std::abs(a.y() - b.y()) <= 1.0; };
+
+  canvas.set_zoom_centered(1.0);
+  CHECK(close_to(offset_from_center({100.0, 75.0}), {0.0, 0.0}));
+  canvas.resize(700, 520);
+  QApplication::processEvents();
+  CHECK(close_to(offset_from_center({100.0, 75.0}), {0.0, 0.0}));
+  canvas.resize(320, 240);
+  QApplication::processEvents();
+  CHECK(close_to(offset_from_center({100.0, 75.0}), {0.0, 0.0}));
+
+  canvas.resize(600, 450);
+  QApplication::processEvents();
+  CHECK(canvas.begin_pan_at_global_position(canvas.mapToGlobal(QPoint(300, 225))));
+  CHECK(canvas.pan_to_global_position(canvas.mapToGlobal(QPoint(360, 185))));
+  CHECK(canvas.end_pan());
+  const auto parked = offset_from_center({100.0, 75.0});
+  CHECK(close_to(parked, {60.0, -40.0}));
+  canvas.resize(800, 600);
+  QApplication::processEvents();
+  CHECK(close_to(offset_from_center({100.0, 75.0}), parked));
+
+  // Zoomed in past the viewport and panned: the point under the center stays there.
+  canvas.set_zoom_centered(6.0);
+  CHECK(canvas.begin_pan_at_global_position(canvas.mapToGlobal(QPoint(400, 300))));
+  CHECK(canvas.pan_to_global_position(canvas.mapToGlobal(QPoint(350, 330))));
+  CHECK(canvas.end_pan());
+  const auto probe = canvas.document_point_for_widget_position(QPointF(400.0, 300.0));
+  CHECK(probe.x() > 10.0 && probe.x() < 190.0 && probe.y() > 10.0 && probe.y() < 140.0);
+  for (const auto size : {QSize(520, 380), QSize(900, 560), QSize(640, 700)}) {
+    canvas.resize(size);
+    QApplication::processEvents();
+    CHECK(canvas.width() == size.width() && canvas.height() == size.height());
+    CHECK(close_to(offset_from_center(probe), {0.0, 0.0}));
+  }
+}
+
+// The issue's window-level cases: a maximized (larger) window, the panel column closing
+// and opening, a document in a background tab, and a resized float window.
+void ui_window_resize_panels_tabs_and_floats_keep_small_document_centered() {
+  patchy::ui::MainWindow window;
+  window.resize(900, 640);
+  window.show();
+  QApplication::processEvents();
+  patchy::ui::MainWindowTestAccess::create_document(window, 300, 200);
+  QApplication::processEvents();
+  auto* first = require_canvas(window);
+  first->set_view_zoom_centered(1.0);
+  const auto centered = [](patchy::ui::CanvasWidget* canvas, QPointF document_center) {
+    const auto position = canvas->widget_position_f(document_center);
+    return std::abs(position.x() - canvas->width() / 2.0) <= 1.0 &&
+           std::abs(position.y() - canvas->height() / 2.0) <= 1.0;
+  };
+  CHECK(centered(first, {150.0, 100.0}));
+  patchy::ui::MainWindowTestAccess::create_document(window, 260, 180);
+  QApplication::processEvents();
+  auto* second = require_canvas(window);
+  CHECK(second != first);
+  second->set_view_zoom_centered(1.0);
+  const auto old_width = second->width();
+  window.resize(1500, 1000);
+  QApplication::processEvents();
+  window.grab().save(QStringLiteral("test-artifacts/issue_241_window_after_resize.png"));
+  CHECK(second->width() > old_width);
+  CHECK(centered(second, {130.0, 90.0}));
+
+  auto* splitter = window.findChild<QSplitter*>(QStringLiteral("workspaceSplitter"));
+  CHECK(splitter != nullptr && splitter->count() >= 2);
+  const auto with_panels = second->width();
+  splitter->widget(1)->hide();
+  QApplication::processEvents();
+  CHECK(second->width() > with_panels);
+  CHECK(centered(second, {130.0, 90.0}));
+  splitter->widget(1)->show();
+  QApplication::processEvents();
+  CHECK(second->width() == with_panels);
+  CHECK(centered(second, {130.0, 90.0}));
+
+  patchy::ui::MainWindowTestAccess::activate_session(window, 0);
+  QApplication::processEvents();
+  CHECK(require_canvas(window) == first);
+  CHECK(first->width() == second->width());
+  CHECK(centered(first, {150.0, 100.0}));
+
+  patchy::ui::MainWindowTestAccess::float_active_document(window);
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_is_floated(window));
+  auto* float_window = first->window();
+  CHECK(float_window != &window);
+  const auto floated_width = first->width();
+  float_window->resize(float_window->width() + 260, float_window->height() + 140);
+  QApplication::processEvents();
+  CHECK(first->width() > floated_width);
+  CHECK(centered(first, {150.0, 100.0}));
+}
+
 void ui_canvas_focus_in_restores_tool_cursor() {
   patchy::Document document(64, 64, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Paint", solid_pixels(64, 64, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
@@ -5438,6 +5548,10 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_size_dialogs_open_with_width_focused_and_selected",
        ui_size_dialogs_open_with_width_focused_and_selected},
       {"ui_zoom_preset_recovers_parked_view", ui_zoom_preset_recovers_parked_view},
+      {"ui_canvas_resize_keeps_document_centered_and_view_center_stable",
+       ui_canvas_resize_keeps_document_centered_and_view_center_stable},
+      {"ui_window_resize_panels_tabs_and_floats_keep_small_document_centered",
+       ui_window_resize_panels_tabs_and_floats_keep_small_document_centered},
       {"ui_canvas_focus_in_restores_tool_cursor", ui_canvas_focus_in_restores_tool_cursor},
       {"ui_max_brush_uses_overlay_cursor", ui_max_brush_uses_overlay_cursor},
       {"ui_canvas_pan_keeps_document_partly_visible", ui_canvas_pan_keeps_document_partly_visible},
