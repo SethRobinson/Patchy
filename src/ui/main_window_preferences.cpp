@@ -1896,7 +1896,8 @@ void MainWindow::new_guide_dialog() {
                                  static_cast<double>(horizontal ? document().height() : document().width())};
   });
   position_spin->setObjectName(QStringLiteral("newGuidePositionSpin"));
-  position_spin->setRange(0.0, std::max(document().width(), document().height()));
+  // Negative or past the canvas puts the guide on the pasteboard (GitHub issue 231).
+  position_spin->setRange(-static_cast<double>(kMaxGuideOffsetPixels), static_cast<double>(kMaxGuideOffsetPixels));
   position_spin->setDecimals(3);
   position_spin->setValue(0.0);
   // Shown in the ruler unit, like the guide readout; enrolled for the dialog's

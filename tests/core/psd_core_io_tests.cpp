@@ -690,6 +690,81 @@ void psd_grid_guides_resource_round_trip_and_replaces_duplicates() {
   CHECK(!test_image_resource_payload(blank_resources, 1032).has_value());
 }
 
+// GitHub issue 231: Photoshop keeps guides on the pasteboard, so resource 1032 carries
+// negative positions and ones past the canvas. Read and write keep them exactly (they
+// used to clamp negatives to 0, piling those guides onto the canvas edge).
+void psd_grid_guides_keep_positions_outside_the_canvas() {
+  // The reporter's file's guides on a 549 x 864 canvas, in 32nds of a pixel.
+  const std::vector<std::pair<std::int32_t, patchy::GuideOrientation>> outside{
+      {-4935, patchy::GuideOrientation::Vertical},    {51745, patchy::GuideOrientation::Vertical},
+      {-52393, patchy::GuideOrientation::Horizontal}, {27657, patchy::GuideOrientation::Horizontal},
+      {4057, patchy::GuideOrientation::Vertical}};
+  const auto payload = psd_grid_guides_payload(576, 576, outside);
+
+  patchy::psd::BigEndianWriter resources;
+  write_test_image_resource(resources, 1032, "", payload);
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{false, 3, 2, 2, 8, 3});
+  writer.write_u32(0);
+  writer.write_u32(static_cast<std::uint32_t>(resources.bytes().size()));
+  writer.write_bytes(resources.bytes());
+  writer.write_u32(0);
+  writer.write_u16(0);
+  for (int channel = 0; channel < 3; ++channel) {
+    for (int pixel = 0; pixel < 4; ++pixel) {
+      writer.write_u8(static_cast<std::uint8_t>(channel * 20 + pixel));
+    }
+  }
+
+  auto document = patchy::psd::DocumentIo::read(writer.bytes());
+  CHECK(document.guides().size() == outside.size());
+  for (std::size_t index = 0; index < std::min(outside.size(), document.guides().size()); ++index) {
+    CHECK(document.guides()[index].position_32 == outside[index].first);
+    CHECK(document.guides()[index].orientation == outside[index].second);
+  }
+
+  // Flat, layered and PSB saves write them back unchanged, and they read back the same.
+  CHECK(test_image_resource_payload(psd_raw_image_resources(patchy::psd::DocumentIo::write_flat_rgb8(document)), 1032)
+            .value() == payload);
+  const auto layered = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  CHECK(test_image_resource_payload(psd_raw_image_resources(layered), 1032).value() == payload);
+  patchy::psd::WriteOptions psb;
+  psb.large_document = true;
+  const auto large = patchy::psd::DocumentIo::write_layered_rgb8(document, psb);
+  for (const auto* bytes : {&layered, &large}) {
+    const auto reread = patchy::psd::DocumentIo::read(*bytes);
+    CHECK(reread.guides().size() == outside.size());
+    for (std::size_t index = 0; index < std::min(outside.size(), reread.guides().size()); ++index) {
+      CHECK(reread.guides()[index].position_32 == outside[index].first);
+      CHECK(reread.guides()[index].orientation == outside[index].second);
+    }
+  }
+}
+
+// The reporter's sample itself (ag-psd test/read/psb-test/src.psb, copied into
+// local-test-fixtures/psd): every guide survives the read and a PSB save.
+void psd_issue231_sample_keeps_pasteboard_guides_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("ag-psd-psb-test-src.psb");
+  patchy::test::skip_unless_exists(path);
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  CHECK(document.width() == 549 && document.height() == 864);
+  const std::vector<std::pair<std::int32_t, patchy::GuideOrientation>> expected{
+      {-4935, patchy::GuideOrientation::Vertical},    {51745, patchy::GuideOrientation::Vertical},
+      {-52393, patchy::GuideOrientation::Horizontal}, {27657, patchy::GuideOrientation::Horizontal},
+      {4057, patchy::GuideOrientation::Vertical}};
+  CHECK(document.guides().size() == expected.size());
+  patchy::psd::WriteOptions psb;
+  psb.large_document = true;
+  const auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document, psb));
+  for (const auto* guides : {&document.guides(), &reread.guides()}) {
+    CHECK(guides->size() == expected.size());
+    for (std::size_t index = 0; index < std::min(expected.size(), guides->size()); ++index) {
+      CHECK((*guides)[index].position_32 == expected[index].first);
+      CHECK((*guides)[index].orientation == expected[index].second);
+    }
+  }
+}
+
 void psd_layered_rgb8_round_trips_pixel_layers() {
   patchy::Document document(3, 2, patchy::PixelFormat::rgb8());
   auto& background = document.add_pixel_layer("Background", solid_rgb(3, 2, 255, 255, 255));
@@ -3226,6 +3301,9 @@ std::vector<patchy::test::TestCase> psd_core_io_tests() {
       {"psd_resolution_resource_units_are_display_only", psd_resolution_resource_units_are_display_only},
       {"psd_grid_guides_resource_round_trip_and_replaces_duplicates",
        psd_grid_guides_resource_round_trip_and_replaces_duplicates},
+      {"psd_grid_guides_keep_positions_outside_the_canvas", psd_grid_guides_keep_positions_outside_the_canvas},
+      {"psd_issue231_sample_keeps_pasteboard_guides_if_available",
+       psd_issue231_sample_keeps_pasteboard_guides_if_available},
       {"psd_layered_rgb8_round_trips_pixel_layers", psd_layered_rgb8_round_trips_pixel_layers},
       {"psd_zero_length_layer_channels_read_as_empty", psd_zero_length_layer_channels_read_as_empty},
       {"psd_interface_mock2_loads_if_available", psd_interface_mock2_loads_if_available},

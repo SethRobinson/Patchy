@@ -1556,6 +1556,8 @@ private:
   [[nodiscard]] int guide_at_widget_position(QPoint widget_position) const;
   [[nodiscard]] GuideOrientation guide_orientation_from_ruler(QPoint widget_position) const noexcept;
   [[nodiscard]] bool widget_position_in_ruler(QPoint widget_position) const noexcept;
+  // Over either ruler or their shared corner: guides are neither grabbed nor kept there.
+  [[nodiscard]] bool over_ruler_bars(QPoint widget_position) const noexcept;
   void clear_guide_selection() noexcept;
   void begin_guide_drag(int guide_index, QPoint widget_position);
   void begin_new_guide_drag(QPoint widget_position);

@@ -126,10 +126,16 @@ enum class GuideOrientation {
   Horizontal
 };
 
+// position_32 is in 32nds of a pixel and may lie outside the canvas: Photoshop keeps
+// guides on the pasteboard (negative, or past the far edge; GitHub issue 231).
 struct DocumentGuide {
   GuideOrientation orientation{GuideOrientation::Vertical};
   std::int32_t position_32{0};
 };
+
+// How far from the canvas origin the UI places a guide, in pixels either way (the PSB
+// dimension cap); files may carry any int32 position.
+inline constexpr std::int32_t kMaxGuideOffsetPixels = 300000;
 
 struct DocumentGridSettings {
   std::int32_t horizontal_cycle_32{576};

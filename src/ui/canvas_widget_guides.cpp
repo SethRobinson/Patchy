@@ -367,8 +367,9 @@ void CanvasWidget::add_guide(GuideOrientation orientation, std::int32_t position
   if (document_ == nullptr) {
     return;
   }
-  const auto limit_32 = (orientation == GuideOrientation::Vertical ? document_->width() : document_->height()) * 32;
-  DocumentGuide guide{orientation, std::clamp(position_32, 0, limit_32)};
+  // A guide may sit on the pasteboard, before or past the canvas (GitHub issue 231).
+  constexpr auto limit_32 = kMaxGuideOffsetPixels * 32;
+  DocumentGuide guide{orientation, std::clamp(position_32, -limit_32, limit_32)};
   if (before_edit_callback_) {
     before_edit_callback_(tr("New Guide"));
   }
@@ -830,12 +831,12 @@ int CanvasWidget::guide_at_widget_position(QPoint widget_position) const {
   if (document_ == nullptr || !guides_visible_) {
     return -1;
   }
-  const auto document_point = document_position_f(QPointF(widget_position));
-  if (document_point.x() < 0.0 || document_point.y() < 0.0 ||
-      document_point.x() > static_cast<double>(document_->width()) ||
-      document_point.y() > static_cast<double>(document_->height())) {
+  // Guides run across the whole view, so one on the pasteboard is grabbed there too
+  // (GitHub issue 231); the rulers and their corner belong to the rulers.
+  if (!rect().contains(widget_position) || over_ruler_bars(widget_position)) {
     return -1;
   }
+  const auto document_point = document_position_f(QPointF(widget_position));
 
   constexpr double kGuideHitPixels = 4.0;
   const auto tolerance = kGuideHitPixels / std::max(zoom_, 0.0001);
@@ -865,6 +866,10 @@ bool CanvasWidget::widget_position_in_ruler(QPoint widget_position) const noexce
            widget_position.x() >= kLeftRulerWidth) ||
           (widget_position.x() >= 0 && widget_position.x() < kLeftRulerWidth &&
            widget_position.y() >= kTopRulerHeight));
+}
+
+bool CanvasWidget::over_ruler_bars(QPoint widget_position) const noexcept {
+  return rulers_visible_ && (widget_position.x() < kLeftRulerWidth || widget_position.y() < kTopRulerHeight);
 }
 
 void CanvasWidget::clear_guide_selection() noexcept {
@@ -941,7 +946,7 @@ void CanvasWidget::update_guide_drag(QPoint widget_position, Qt::KeyboardModifie
   const auto grab_offset = orientation == guide_drag_original_orientation_ ? guide_drag_grab_offset_ : 0.0;
   const auto axis_position =
       (orientation == GuideOrientation::Vertical ? document_point.x() : document_point.y()) + grab_offset;
-  const auto limit = static_cast<double>(orientation == GuideOrientation::Vertical ? document_->width() : document_->height());
+  const auto extent = static_cast<double>(orientation == GuideOrientation::Vertical ? document_->width() : document_->height());
   // A free drag lands on a whole pixel (GitHub issue 197), rounded like every other
   // pixel-grid placement (halves up, core/pixel_grid.hpp). The Shift ruler ticks and the
   // snap targets below keep their exact lines: a grid line or an odd canvas's center can
@@ -978,8 +983,8 @@ void CanvasWidget::update_guide_drag(QPoint widget_position, Qt::KeyboardModifie
     }
     if (snap_to_document_) {
       consider(0.0);
-      consider(limit * 0.5);
-      consider(limit);
+      consider(extent * 0.5);
+      consider(extent);
     }
     // Selection and layer lines through the shared walker (guides and the
     // document are handled above, so only those two kinds are consumed).
@@ -994,8 +999,11 @@ void CanvasWidget::update_guide_drag(QPoint widget_position, Qt::KeyboardModifie
     }
   }
 
-  guide_drag_remove_ = snapped_position < 0.0 || snapped_position > limit;
-  snapped_position = std::clamp(snapped_position, 0.0, limit);
+  // A guide dropped on the pasteboard stays there, as in Photoshop (GitHub issue 231);
+  // dropping it on a ruler or outside the view removes it (and cancels a new one).
+  guide_drag_remove_ = !rect().contains(widget_position) || over_ruler_bars(widget_position);
+  constexpr auto limit = static_cast<double>(kMaxGuideOffsetPixels);
+  snapped_position = std::clamp(snapped_position, -limit, limit);
   guide_drag_position_32_ = guide_position_32(snapped_position);
   update();
   // The whole widget repaints above; this keeps the status-bar mirror current.

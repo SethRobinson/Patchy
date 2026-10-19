@@ -391,10 +391,6 @@ std::int32_t sanitized_grid_cycle_32(std::int32_t value) noexcept {
   return value > 0 ? value : kDefaultGridCycle32;
 }
 
-std::int32_t sanitized_guide_position_32(std::int32_t value) noexcept {
-  return std::max<std::int32_t>(0, value);
-}
-
 std::vector<std::uint8_t> grid_guides_resource_for_document(const Document& document) {
   BigEndianWriter writer;
   writer.write_u32(1);
@@ -402,7 +398,8 @@ std::vector<std::uint8_t> grid_guides_resource_for_document(const Document& docu
   writer.write_u32(static_cast<std::uint32_t>(sanitized_grid_cycle_32(document.grid_settings().vertical_cycle_32)));
   writer.write_u32(checked_u32(document.guides().size(), "guide count"));
   for (const auto& guide : document.guides()) {
-    writer.write_u32(static_cast<std::uint32_t>(sanitized_guide_position_32(guide.position_32)));
+    // Signed: a guide on the pasteboard is negative or past the canvas (GitHub issue 231).
+    writer.write_u32(static_cast<std::uint32_t>(guide.position_32));
     writer.write_u8(guide.orientation == GuideOrientation::Horizontal ? 1U : 0U);
   }
   return writer.bytes();
@@ -750,7 +747,9 @@ grid_guides_from_resource(std::span<const std::uint8_t> payload) {
     guides.reserve(static_cast<std::size_t>(guide_count));
     for (std::uint32_t index = 0; index < guide_count; ++index) {
       DocumentGuide guide;
-      guide.position_32 = sanitized_guide_position_32(read_i32(reader));
+      // Photoshop keeps guides on the pasteboard: a negative or past-the-canvas position
+      // is real data, never clamped (GitHub issue 231).
+      guide.position_32 = read_i32(reader);
       const auto direction = reader.read_u8();
       guide.orientation = direction == 1U ? GuideOrientation::Horizontal : GuideOrientation::Vertical;
       guides.push_back(guide);

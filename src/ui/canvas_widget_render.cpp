@@ -2441,15 +2441,12 @@ void CanvasWidget::draw_guides_overlay(QPainter& painter) const {
   }
 
   painter.save();
-  const auto raw_top_left = widget_position_f(QPointF(0.0, 0.0));
-  const auto raw_bottom_right = widget_position_f(QPointF(document_->width(), document_->height()));
-  const QPointF top_left(pixel_aligned_coordinate(raw_top_left.x(), zoom_),
-                         pixel_aligned_coordinate(raw_top_left.y(), zoom_));
-  const QPointF bottom_right(pixel_aligned_coordinate(raw_bottom_right.x(), zoom_),
-                             pixel_aligned_coordinate(raw_bottom_right.y(), zoom_));
-  auto draw_guide = [this, &painter, top_left, bottom_right](GuideOrientation orientation,
-                                                            std::int32_t position_32, bool selected,
-                                                            bool transient, bool remove) {
+  // Every guide spans the whole view, pasteboard included, like Photoshop's: a guide
+  // placed off the canvas is still a guide (GitHub issue 231). The rulers paint over the
+  // ends afterwards; a guide whose line falls outside the widget is skipped.
+  const QRectF view(0.0, 0.0, static_cast<double>(width()), static_cast<double>(height()));
+  auto draw_guide = [this, &painter, view](GuideOrientation orientation, std::int32_t position_32,
+                                           bool selected, bool transient, bool remove) {
     auto color = selected ? QColor(255, 235, 105, 230) : guide_color_;
     if (transient && remove) {
       color = QColor(255, 96, 96, 210);
@@ -2460,10 +2457,14 @@ void CanvasWidget::draw_guides_overlay(QPainter& painter) const {
     const auto pixels = static_cast<double>(position_32) / 32.0;
     if (orientation == GuideOrientation::Vertical) {
       const auto x = pixel_aligned_coordinate(widget_position_f(QPointF(pixels, 0.0)).x(), zoom_);
-      painter.drawLine(QPointF(x, top_left.y()), QPointF(x, bottom_right.y()));
+      if (x >= view.left() - 2.0 && x <= view.right() + 2.0) {
+        painter.drawLine(QPointF(x, view.top()), QPointF(x, view.bottom()));
+      }
     } else {
       const auto y = pixel_aligned_coordinate(widget_position_f(QPointF(0.0, pixels)).y(), zoom_);
-      painter.drawLine(QPointF(top_left.x(), y), QPointF(bottom_right.x(), y));
+      if (y >= view.top() - 2.0 && y <= view.bottom() + 2.0) {
+        painter.drawLine(QPointF(view.left(), y), QPointF(view.right(), y));
+      }
     }
   };
 
