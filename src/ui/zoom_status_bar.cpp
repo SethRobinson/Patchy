@@ -1,7 +1,9 @@
 #include "ui/zoom_status_bar.hpp"
 #include "ui/theme_palette.hpp"
 
+#include <QAction>
 #include <QApplication>
+#include <QFontMetricsF>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
@@ -31,11 +33,14 @@ constexpr int kErrorFlashFrameMs = 33;     // ~30 fps, only while the flash runs
 [[nodiscard]] QColor warning_fill_color() { return theme().status_warning_fill; }
 [[nodiscard]] QColor warning_mark_color() { return theme().status_error_mark; }
 
+// QLineEdit's fixed inset between its contents rect and the text (QLineEditPrivate::horizontalMargin).
+constexpr int kLineEditHorizontalMargin = 2;
+
 }  // namespace
 
 ZoomPercentEdit::ZoomPercentEdit(QWidget* parent) : QLineEdit(parent) {
   setObjectName(QStringLiteral("statusZoomEdit"));
-  setFixedSize(80, 18);  // room for "12800%" beside the trailing presets chevron
+  setFixedSize(80, 18);  // refit_to_font() sets the width once the font and chevron are known
   setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
   setFocusPolicy(Qt::ClickFocus);
   static const QRegularExpression zoom_pattern(QStringLiteral("^\\s*\\d{1,6}([.,]\\d{0,2})?\\s*%?\\s*$"));
@@ -121,13 +126,14 @@ void ZoomPercentEdit::clear_display() {
 }
 
 QString ZoomPercentEdit::format_zoom_text(double zoom) {
+  // Fewer decimals as the value grows (GitHub issue 237): two below 100%, one below
+  // 1000%, none from there up, trailing zeros dropped. Display only: the view keeps
+  // its exact zoom, and typed decimals still apply.
   const auto percent = zoom * 100.0;
-  const auto rounded = std::round(percent * 100.0) / 100.0;
-  QString text;
-  if (std::abs(rounded - std::round(rounded)) < 0.005) {
-    text = QString::number(static_cast<qlonglong>(std::llround(rounded)));
-  } else {
-    text = QString::number(rounded, 'f', 2);
+  const int decimals = percent < 100.0 ? 2 : (percent < 1000.0 ? 1 : 0);
+  const auto scale = std::pow(10.0, decimals);
+  auto text = QString::number(std::round(percent * scale) / scale, 'f', decimals);
+  if (decimals > 0) {
     while (text.endsWith(QLatin1Char('0'))) {
       text.chop(1);
     }
@@ -136,6 +142,72 @@ QString ZoomPercentEdit::format_zoom_text(double zoom) {
     }
   }
   return text + QLatin1Char('%');
+}
+
+bool ZoomPercentEdit::event(QEvent* event) {
+  const auto handled = QLineEdit::event(event);
+  switch (event->type()) {
+    case QEvent::Polish:
+    case QEvent::FontChange:
+    case QEvent::StyleChange:
+    case QEvent::ActionAdded:
+    case QEvent::ActionChanged:
+    case QEvent::ActionRemoved:
+      refit_to_font();
+      break;
+    default:
+      break;
+  }
+  return handled;
+}
+
+int ZoomPercentEdit::trailing_reserve() const {
+  // Each visible action button takes this much of the right edge, the same sum
+  // QLineEditPrivate::sideWidgetParameters() makes (icon size + 6, plus its margin).
+  const auto visible = std::count_if(actions().cbegin(), actions().cend(),
+                                     [](const QAction* action) { return action->isVisible(); });
+  const auto icon_size = style()->pixelMetric(QStyle::PM_LineEditIconSize, nullptr, this);
+  const auto icon_margin = style()->pixelMetric(QStyle::PM_LineEditIconMargin, nullptr, this);
+  return static_cast<int>(visible) * (icon_size + 6 + icon_margin);
+}
+
+int ZoomPercentEdit::widest_display_width() const {
+  // Every value the box shows has at most five digits ("12800%", the zoom limit) or
+  // the shape "99.99%" / "999.9%" (format_zoom_text). Spelled with the font's widest
+  // digit, the widest of the three covers any value in any language's UI font.
+  const QFontMetricsF metrics(font());
+  auto digit = QLatin1Char('0');
+  for (char c = '1'; c <= '9'; ++c) {
+    if (metrics.horizontalAdvance(QLatin1Char(c)) > metrics.horizontalAdvance(digit)) {
+      digit = QLatin1Char(c);
+    }
+  }
+  qreal widest = 0.0;
+  for (const auto* shape : {"#####%", "##.##%", "###.#%"}) {
+    auto text = QString::fromLatin1(shape);
+    text.replace(QLatin1Char('#'), digit);
+    widest = std::max(widest, metrics.horizontalAdvance(text));
+  }
+  // QLineEdit scrolls its text once the text plus the one-pixel cursor exceeds the
+  // room; one more pixel absorbs rounding.
+  return static_cast<int>(std::ceil(widest)) + 2;
+}
+
+void ZoomPercentEdit::refit_to_font() {
+  if (refitting_) {
+    return;
+  }
+  refitting_ = true;
+  QStyleOptionFrame option;
+  initStyleOption(&option);
+  const auto contents = style()->subElementRect(QStyle::SE_LineEditContents, &option, this);
+  // The frame's right border and padding sit beyond the presets chevron, so the text
+  // may use them: it then runs to the chevron's button instead of stopping short of it.
+  const auto right_chrome = width() - (contents.right() + 1);
+  setTextMargins(0, 0, -(right_chrome + kLineEditHorizontalMargin), 0);
+  const auto left_chrome = contents.left() + kLineEditHorizontalMargin;
+  setFixedWidth(left_chrome + widest_display_width() + trailing_reserve());
+  refitting_ = false;
 }
 
 void ZoomPercentEdit::focusInEvent(QFocusEvent* event) {
@@ -177,6 +249,11 @@ void ZoomPercentEdit::keyPressEvent(QKeyEvent* event) {
 }
 
 void ZoomPercentEdit::commit_editor_text() {
+  if (text() == display_text_) {
+    // Enter or focus loss on the shown value keeps the exact zoom it rounds.
+    setModified(false);
+    return;
+  }
   auto value_text = text();
   value_text.remove(QLatin1Char('%'));
   value_text.replace(QLatin1Char(','), QLatin1Char('.'));

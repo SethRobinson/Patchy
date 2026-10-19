@@ -23,6 +23,9 @@ inline constexpr char kViewNavigationActionProperty[] = "patchy.viewNavigation";
 // Up/Down keys step along the zoom ladder, and a horizontal drag that starts on
 // the unfocused box scrubs the zoom (right = in); a click without a drag still
 // focuses it for typing.
+//
+// The box is as wide as its widest possible value needs in the current font, and
+// that text may run up to the presets chevron (GitHub issue 237).
 class ZoomPercentEdit final : public QLineEdit {
   Q_OBJECT
 
@@ -46,6 +49,7 @@ signals:
   void zoom_scrub_requested(double factor);
 
 protected:
+  bool event(QEvent* event) override;
   void focusInEvent(QFocusEvent* event) override;
   void focusOutEvent(QFocusEvent* event) override;
   void keyPressEvent(QKeyEvent* event) override;
@@ -57,6 +61,9 @@ protected:
 private:
   void commit_editor_text();
   void update_scrub_cursor();
+  void refit_to_font();
+  [[nodiscard]] int trailing_reserve() const;
+  [[nodiscard]] int widest_display_width() const;
 
   QString display_text_;
   int wheel_remainder_{0};
@@ -64,6 +71,7 @@ private:
   bool scrubbing_{false};
   int scrub_last_x_{0};
   int scrub_press_x_{0};
+  bool refitting_{false};
 };
 
 // QStatusBar hides every non-permanent widget while a message is showing, and
