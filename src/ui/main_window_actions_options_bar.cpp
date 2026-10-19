@@ -377,7 +377,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     // Written by the user's choice, like tools/moveAutoSelect above.
     app_settings().setValue(QLatin1String(kMoveAutoSelectTargetSettingsKey), token);
   });
-  move_show_transform_controls_check_ = new CheckGlyphBox(tr("Show Transform Controls"), toolbar);
+  move_show_transform_controls_check_ = new CheckGlyphBox(tr("Transform Controls"), toolbar);
   move_show_transform_controls_check_->setObjectName(QStringLiteral("moveShowTransformControlsCheck"));
   bind_tooltip(move_show_transform_controls_check_, QT_TR_NOOP("Show transform controls when selecting a layer with Move"));
   move_show_transform_controls_check_->setChecked(canvas_defaults->show_transform_controls());
