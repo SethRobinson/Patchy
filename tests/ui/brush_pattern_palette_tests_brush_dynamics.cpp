@@ -444,7 +444,9 @@ void ui_brush_dynamics_round_brush_session() {
     popup->findChild<QSpinBox*>(QStringLiteral("dynamicsScatterSpin"))->setValue(200);
     popup->findChild<QSpinBox*>(QStringLiteral("dynamicsCountSpin"))->setValue(2);
     popup->close();
-    process_events_for(350);  // the popup edit commit is debounced ~200ms
+    // The popup commits edits on a ~200ms debounce timer; wait for it rather than a fixed
+    // sleep, which a loaded machine can outrun.
+    CHECK(process_events_until([canvas] { return canvas->brush_dynamics().count == 2; }, 5000));
     CHECK(std::abs(canvas->brush_dynamics().scatter - 2.0) < 1e-9);
     CHECK(canvas->brush_dynamics().count == 2);
     CHECK(!canvas->has_brush_tip());                      // still the procedural Round brush
@@ -574,7 +576,8 @@ void ui_brush_dynamics_popup_edits_apply_and_persist() {
   QApplication::processEvents();
   save_widget_artifact("ui_brush_dynamics_popup_transfer", *popup);
   popup->close();
-  process_events_for(350);  // the popup edit commit is debounced ~200ms
+  // One debounced (~200ms) commit applies every edit; wait for it to land, not a fixed sleep.
+  CHECK(process_events_until([canvas] { return canvas->brush_dynamics().wet_edges; }, 5000));
 
   const auto& dynamics = canvas->brush_dynamics();
   CHECK(std::abs(dynamics.size_jitter - 0.40) < 1e-9);
@@ -709,7 +712,10 @@ void ui_brush_dynamics_popup_control_edits_persist() {
   QApplication::processEvents();
   save_widget_artifact("ui_brush_dynamics_popup_controls", *popup);
   popup->close();
-  process_events_for(350);  // the popup edit commit is debounced ~200ms
+  // One debounced (~200ms) commit applies every edit and writes the sidecar in the same slot;
+  // wait for it to land, not a fixed sleep.
+  CHECK(process_events_until(
+      [canvas] { return canvas->brush_dynamics().scatter_fade_steps == 40; }, 5000));
 
   const auto& dynamics = canvas->brush_dynamics();
   CHECK(dynamics.size_control == patchy::BrushDynamicControl::Off);
