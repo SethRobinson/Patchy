@@ -6,8 +6,11 @@
 
 
 #include "ui/recent_file_list.hpp"
+#include "ui/wayland_pointer_cursor.hpp"
 #include "ui/wayland_popup_anchor.hpp"
+#include "ui/canvas_widget.hpp"
 #include "ui/main_window.hpp"
+#include "ui/missing_fonts_dialog.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/theme_file.hpp"
 #include "ui/theme_palette.hpp"
@@ -33,6 +36,7 @@
 #include <QTime>
 #include <QTimeZone>
 #include <QDialog>
+#include <QEnterEvent>
 #include <QCoreApplication>
 #include <QCryptographicHash>
 #include <QDir>
@@ -43,6 +47,7 @@
 #include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QPixmap>
 #include <QLineEdit>
 #include <QList>
 #include <QJsonArray>
@@ -81,6 +86,7 @@
 #include <iostream>
 #include <limits>
 #include <memory>
+#include <initializer_list>
 #include <optional>
 #include <span>
 #include <stdexcept>
@@ -382,6 +388,153 @@ void ui_wayland_popup_anchor_fix_scales_qt_anchor_rects() {
         scale_popup_anchor_rect(QRect(button->mapTo(&window, QPoint(0, 0)), button->size()), kScale));
   button_menu->close();
 
+  qApp->removeEventFilter(filter);
+}
+
+// GitHub issue 215: before Qt 6.10 the Wayland plug-in applies a cursor change in any
+// window to the pointer, so the canvas refreshing its tool cursor behind a dialog put the
+// brush cursor over the dialog. The filter re-applies the cursor of the widget under the
+// pointer to the window the pointer is in. Offscreen runs the filter on any platform and
+// sends the Enter and Leave events Qt sends when the pointer crosses windows; the cursor
+// each window holds is what the Wayland plug-in would show.
+void ui_wayland_pointer_cursor_fix_keeps_the_dialog_cursor() {
+  using patchy::ui::wayland_pointer_cursor_fix_needed;
+  CHECK(wayland_pointer_cursor_fix_needed(QStringLiteral("wayland"), QVersionNumber(6, 8, 3)));
+  CHECK(wayland_pointer_cursor_fix_needed(QStringLiteral("wayland-egl"), QVersionNumber(6, 9, 2)));
+  CHECK(!wayland_pointer_cursor_fix_needed(QStringLiteral("wayland"), QVersionNumber(6, 10, 0)));
+  CHECK(!wayland_pointer_cursor_fix_needed(QStringLiteral("wayland"), QVersionNumber(6, 11, 2)));
+  CHECK(!wayland_pointer_cursor_fix_needed(QStringLiteral("xcb"), QVersionNumber(6, 8, 3)));
+  CHECK(!wayland_pointer_cursor_fix_needed(QStringLiteral("windows"), QVersionNumber(6, 8, 3)));
+
+  QWidget window;
+  auto* canvas = new QWidget(&window);
+  canvas->setGeometry(0, 0, 400, 300);
+  window.resize(400, 300);
+  QDialog dialog(&window);
+  auto* field = new QLabel(QStringLiteral("Replace with"), &dialog);
+  field->setGeometry(10, 10, 120, 24);
+  field->setCursor(Qt::IBeamCursor);  // before the window exists, so nothing applies it yet
+  auto* button = new QPushButton(QStringLiteral("Cancel"), &dialog);
+  button->setGeometry(10, 50, 90, 24);
+  dialog.resize(200, 100);
+  window.show();
+  dialog.show();
+  QCoreApplication::processEvents();
+  QWindow* window_handle = window.windowHandle();
+  QWindow* dialog_handle = dialog.windowHandle();
+  CHECK(window_handle != nullptr && dialog_handle != nullptr && window_handle != dialog_handle);
+
+  QObject* filter = patchy::ui::create_wayland_pointer_cursor_filter(&window);
+  qApp->installEventFilter(filter);
+  const auto enter = [](std::initializer_list<QWidget*> path) {
+    for (QWidget* widget : path) {
+      QEnterEvent event(QPointF(5, 5), QPointF(5, 5), QPointF(5, 5));
+      QCoreApplication::sendEvent(widget, &event);
+    }
+  };
+  const auto leave = [](std::initializer_list<QWidget*> path) {
+    for (QWidget* widget : path) {
+      QEvent event(QEvent::Leave);
+      QCoreApplication::sendEvent(widget, &event);
+    }
+  };
+
+  // The pointer rests on the dialog's field; the canvas behind it refreshes its tool cursor.
+  enter({&dialog, field});
+  dialog_handle->unsetCursor();
+  CHECK(dialog_handle->cursor().shape() == Qt::ArrowCursor);
+  canvas->setCursor(Qt::CrossCursor);
+  CHECK(dialog_handle->cursor().shape() == Qt::IBeamCursor);
+  // Over the button, which sets no cursor of its own: the arrow, re-sent to the plug-in.
+  leave({field});
+  enter({button});
+  QPixmap brush_tip(17, 17);
+  brush_tip.fill(Qt::transparent);
+  canvas->setCursor(QCursor(brush_tip, 8, 8));
+  CHECK(dialog_handle->cursor().shape() == Qt::ArrowCursor);
+  // A disabled widget shows the arrow even when it sets a cursor.
+  leave({button});
+  enter({field});
+  field->setEnabled(false);
+  dialog_handle->setCursor(Qt::IBeamCursor);
+  canvas->setCursor(Qt::SizeAllCursor);
+  CHECK(dialog_handle->cursor().shape() == Qt::ArrowCursor);
+  field->setEnabled(true);
+
+  // Back over the canvas: a change in the canvas's own window is Qt's to apply, while a
+  // change inside the dialog no longer reaches the dialog's window.
+  leave({field, &dialog});
+  enter({&window, canvas});
+  dialog_handle->unsetCursor();
+  canvas->setCursor(Qt::OpenHandCursor);
+  CHECK(dialog_handle->cursor().shape() == Qt::ArrowCursor);
+  window_handle->unsetCursor();
+  button->setCursor(Qt::WaitCursor);
+  CHECK(window_handle->cursor().shape() == Qt::OpenHandCursor);
+
+  // The pointer left the application: nothing to re-apply.
+  leave({canvas, &window});
+  window_handle->unsetCursor();
+  button->setCursor(Qt::PointingHandCursor);
+  CHECK(window_handle->cursor().shape() == Qt::ArrowCursor);
+
+  qApp->removeEventFilter(filter);
+}
+
+// The issue 215 cases on the real dialogs: Missing Fonts and Preferences open modally over a
+// document whose canvas shows the brush cursor, the pointer rests on the dialog, and the
+// canvas refreshes its brush cursor behind it. Each dialog window starts from the leaked
+// cursor and must end with its own arrow.
+void ui_wayland_pointer_cursor_fix_covers_preferences_and_missing_fonts() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  canvas->set_brush_size(30);
+  QApplication::processEvents();
+  QObject* filter = patchy::ui::create_wayland_pointer_cursor_filter(&window);
+  qApp->installEventFilter(filter);
+
+  int brush_size = 30;
+  int dialogs_checked = 0;
+  const auto check_dialog = [&](const QString& object_name, const QString& child_name) {
+    auto* dialog = find_top_level_dialog(object_name);
+    CHECK(dialog != nullptr && dialog->isModal());
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* child = dialog->findChild<QWidget*>(child_name);
+    CHECK(child != nullptr && child->isVisible());
+    QWindow* handle = dialog->windowHandle();
+    CHECK(handle != nullptr && handle != window.windowHandle());
+    if (child != nullptr && handle != nullptr) {
+      for (QWidget* widget : {static_cast<QWidget*>(dialog), child}) {
+        QEnterEvent enter(QPointF(4, 4), QPointF(4, 4), QPointF(4, 4));
+        QCoreApplication::sendEvent(widget, &enter);
+      }
+      handle->setCursor(Qt::CrossCursor);  // what the plug-in showed after the last leak
+      brush_size += 7;
+      canvas->set_brush_size(brush_size);
+      CHECK(handle->cursor().shape() == Qt::ArrowCursor);
+      ++dialogs_checked;
+    }
+    dialog->reject();
+  };
+
+  QTimer::singleShot(0, [&] {
+    check_dialog(QStringLiteral("missingFontsDialog"), QStringLiteral("missingFontsIntroLabel"));
+  });
+  const std::vector<patchy::ui::MissingFontEntry> fonts{
+      {QStringLiteral("Anydore"), false, 1, QStringLiteral("Noto Sans")}};
+  static_cast<void>(patchy::ui::run_missing_fonts_dialog(&window, fonts, true));
+  QApplication::processEvents();
+
+  QTimer::singleShot(0, [&] {
+    check_dialog(QStringLiteral("patchyPreferencesDialog"), QStringLiteral("preferencesTabWidget"));
+  });
+  require_action(window, "filePreferencesAction")->trigger();
+  QApplication::processEvents();
+  CHECK(dialogs_checked == 2);
   qApp->removeEventFilter(filter);
 }
 
@@ -2398,6 +2551,9 @@ void ui_custom_theme_cleared_by_switching_to_a_builtin_scheme() {
 std::vector<patchy::test::TestCase> app_shell_tests_part2() {
   return {
       {"ui_wayland_popup_anchor_fix_scales_qt_anchor_rects", ui_wayland_popup_anchor_fix_scales_qt_anchor_rects},
+      {"ui_wayland_pointer_cursor_fix_keeps_the_dialog_cursor", ui_wayland_pointer_cursor_fix_keeps_the_dialog_cursor},
+      {"ui_wayland_pointer_cursor_fix_covers_preferences_and_missing_fonts",
+       ui_wayland_pointer_cursor_fix_covers_preferences_and_missing_fonts},
       {"ui_recent_history_checks_in_background_and_skips_network_paths", ui_recent_history_checks_in_background_and_skips_network_paths},
       {"ui_open_dialog_hides_name_filter_details", ui_open_dialog_hides_name_filter_details},
       {"ui_open_dialog_opens_every_selected_file", ui_open_dialog_opens_every_selected_file},

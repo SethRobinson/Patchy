@@ -12,9 +12,11 @@ the image's full pixel dimensions, including high-DPI clipboard images, and alph
 creates an 8-bit document with one Clipboard Image layer at (0, 0), assigns 72 PPI, fits oversized images
 to the view, and marks the session modified so closing warns about unsaved work.
 It reads the system image rather than Patchy's private editable-layer payload.
-Text, file URLs without image data, and empty clipboards report the existing
-"Clipboard does not contain an image" status without creating a tab. Copy an
-image itself to use this command; Edit > Paste retains its separate Files as
+The action is enabled only while `clipboard_offers_image()` (new_document_dialog.cpp)
+holds, the same rule that enables the New Document dialog's Clipboard card (GitHub
+issue 218): text, file URLs without image data, and empty clipboards disable it.
+Image data that still fails to read reports "Clipboard does not contain an image"
+without creating a tab. Copy an image itself to use this command; Edit > Paste retains its separate Files as
 Layers behavior for copied file URLs.
 
 ## Edit > Copy and the system clipboard
@@ -49,8 +51,10 @@ on its artboard or in its folder (`ui_layer_via_copy_finds_a_layer_on_an_artboar
 
 Native builds read `QClipboard::Clipboard` in response to the action. This uses
 the ordinary clipboard on Windows, macOS, X11, and Wayland, not X11's primary
-mouse selection. There is no polling or background image decoding to enable the
-menu item; the click reads the current data and validates it. Qt's
+mouse selection. The enabled state follows `QClipboard::dataChanged`, checking only
+the offered formats (`QMimeData::hasImage`), never the image; the File menu does not
+query the clipboard when it opens, so a slow clipboard owner cannot delay it. The
+click reads the current data and validates it. Qt's
 [QClipboard documentation](https://doc.qt.io/qt-6/qclipboard.html) describes the
 event-loop requirement on X11 and activation-based change notification on macOS.
 

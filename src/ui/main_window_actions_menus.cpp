@@ -33,6 +33,7 @@
 #include "ui/layer_style_dialog.hpp"
 #include "ui/layer_list_widget.hpp"
 #include "ui/pattern_manager_dialog.hpp"
+#include "ui/new_document_dialog.hpp"
 #include "ui/scanner_import.hpp"
 #include "ui/warp_text_dialog.hpp"
 #include "ui/update_checker.hpp"
@@ -150,6 +151,14 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   open_clipboard_action->setVisible(false);
   open_clipboard_action->setEnabled(false);
 #else
+  // Enabled while the clipboard offers an image, like the New Document dialog's Clipboard
+  // card (GitHub issue 218). Kept current from the clipboard's change signal rather than
+  // checked when the File menu opens, so opening the menu never waits on the clipboard.
+  const auto update_open_clipboard_enabled = [open_clipboard_action] {
+    open_clipboard_action->setEnabled(clipboard_offers_image());
+  };
+  update_open_clipboard_enabled();
+  connect(QApplication::clipboard(), &QClipboard::dataChanged, open_clipboard_action, update_open_clipboard_enabled);
   connect(open_clipboard_action, &QAction::triggered, this, [this] {
     if (preview_dialog_edit_locked()) {
       show_preview_dialog_edit_lock_message();

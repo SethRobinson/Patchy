@@ -1298,6 +1298,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   bind_widget_text(artboard_add, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Add Artboard"));
   bind_tooltip(artboard_add, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Add an artboard of this size beside the others"));
   add_option_widget(artboard_add, {CanvasTool::Artboard});
+  // Set apart from the Add Artboard button and the Move bar's Distribute buttons (GitHub issue 211).
+  add_option_separator({CanvasTool::Artboard, CanvasTool::Move});
   artboard_auto_nest_ = app_settings().value(QStringLiteral("tools/artboardAutoNest"), true).toBool();
   auto* artboard_auto_nest = new CheckGlyphBox(tr("Auto-Nest Layers"), toolbar);
   artboard_auto_nest->setObjectName(QStringLiteral("artboardAutoNestCheck"));

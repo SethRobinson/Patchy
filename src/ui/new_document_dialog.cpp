@@ -19,6 +19,7 @@
 #include <QBoxLayout>
 #include <QButtonGroup>
 #include <QClipboard>
+#include <QMimeData>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
@@ -325,8 +326,14 @@ ThemedQss new_document_dialog_style() {
 
 }  // namespace
 
+bool clipboard_offers_image() {
+  const auto* clipboard = QApplication::clipboard();
+  const auto* mime = clipboard != nullptr ? clipboard->mimeData() : nullptr;
+  return mime != nullptr && mime->hasImage();
+}
+
 std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent) {
-  const auto clipboard_image = QApplication::clipboard()->image();
+  const auto clipboard_image = clipboard_offers_image() ? QApplication::clipboard()->image() : QImage();
   const auto clipboard_size = clipboard_image.isNull() ? QSize() : clipboard_image.size();
 
   QDialog dialog(parent);

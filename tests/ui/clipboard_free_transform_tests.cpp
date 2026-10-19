@@ -9,6 +9,7 @@
 #include "ui/edit_conversions.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/main_window.hpp"
+#include "ui/new_document_dialog.hpp"
 #include "ui/app_settings.hpp"
 #include "synthetic_dng.hpp"
 #include "test_harness.hpp"
@@ -67,7 +68,6 @@ void ui_open_clipboard_creates_unsaved_document_with_exact_pixels() {
   auto* action = require_hotkey_action(window, QStringLiteral("file.open_clipboard"));
   CHECK(action == require_action(window, "fileOpenClipboardAction"));
   CHECK(action->isVisible());
-  CHECK(action->isEnabled());
   CHECK(action->shortcut() == QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_N));
   auto* file_menu = window.menuBar()->actions().front()->menu();
   CHECK(file_menu != nullptr);
@@ -80,6 +80,7 @@ void ui_open_clipboard_creates_unsaved_document_with_exact_pixels() {
   image.setPixelColor(18, 12, QColor(240, 110, 15, 255));
   image.setDevicePixelRatio(2.0);  // Canvas dimensions are pixels, not logical display points.
   QApplication::clipboard()->setImage(image);
+  CHECK(action->isEnabled());
   action->trigger();
 
   using Access = patchy::ui::MainWindowTestAccess;
@@ -400,24 +401,52 @@ void ui_open_clipboard_shortcut_keeps_existing_document_and_uses_current_image()
   QApplication::clipboard()->clear();
 }
 
+// GitHub issue 218: the command is disabled while the clipboard holds no image (the New
+// Document dialog's Clipboard card rule) and follows the clipboard as it changes. Image
+// data that cannot be read still reports the status error instead of creating a tab.
 void ui_open_clipboard_rejects_empty_and_non_image_data_without_creating_tabs() {
   patchy::ui::MainWindow window;
   show_window_empty(window);
   using Access = patchy::ui::MainWindowTestAccess;
   auto* action = require_action(window, "fileOpenClipboardAction");
+  QImage image(5, 4, QImage::Format_RGB32);
+  image.fill(QColor(40, 90, 160));
   for (const bool with_document : {false, true}) {
     if (with_document) {
       Access::create_default_document(window);
-      require_action(window, "editCopyMergedAction")->trigger();
     }
     const auto count = Access::session_count(window);
     for (const auto& text : {QString(), QStringLiteral("Plain text is not an image")}) {
+      QApplication::clipboard()->setImage(image);
+      CHECK(action->isEnabled());
       QApplication::clipboard()->setText(text);
+      CHECK(!action->isEnabled());
+      CHECK(!patchy::ui::clipboard_offers_image());
       action->trigger();
       CHECK(Access::session_count(window) == count);
-      CHECK(window.statusBar()->currentMessage() == QStringLiteral("Clipboard does not contain an image"));
     }
+    QApplication::clipboard()->clear();
+    CHECK(!action->isEnabled());
+    auto* unreadable = new QMimeData;
+    unreadable->setImageData(QImage());
+    QApplication::clipboard()->setMimeData(unreadable);
+    CHECK(action->isEnabled());
+    action->trigger();
+    CHECK(Access::session_count(window) == count);
+    CHECK(window.statusBar()->currentMessage() == QStringLiteral("Clipboard does not contain an image"));
   }
+  // The File menu with text on the clipboard: Open from Clipboard shows disabled.
+  QApplication::clipboard()->setText(QStringLiteral("Plain text is not an image"));
+  auto* file_menu = window.menuBar()->actions().front()->menu();
+  file_menu->popup(window.mapToGlobal(QPoint(8, 24)));
+  QApplication::processEvents();
+  save_widget_artifact("ui_file_menu_open_clipboard_with_text", *file_menu);
+  file_menu->hide();
+  QApplication::clipboard()->clear();
+  // A window built while the clipboard already holds an image starts enabled.
+  QApplication::clipboard()->setImage(image);
+  patchy::ui::MainWindow second;
+  CHECK(require_action(second, "fileOpenClipboardAction")->isEnabled());
   QApplication::clipboard()->clear();
 }
 
