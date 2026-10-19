@@ -1322,7 +1322,10 @@ QString layer_content_thumbnail_tooltip(const Layer& layer, bool report_font_pro
                  ? QObject::tr("Adjustment Layer")
                  : !font_problems.empty()
                        ? font_problem_tooltip()
-                       : layer_is_text(layer) ? QObject::tr("Text layer") : QObject::tr("Layer thumbnail");
+                       : layer_is_text(layer)         ? QObject::tr("Text layer")
+                       : layer_is_smart_object(layer) ? QObject::tr("Smart object thumbnail")
+                       : layer_is_vector_shape(layer) ? QObject::tr("Shape layer thumbnail")
+                                                      : QObject::tr("Layer thumbnail");
 }
 
 QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidget* parent,

@@ -10549,6 +10549,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>The CMYK profile could not separate the image</source>
         <translation>CMYK 프로필로 이미지를 분판할 수 없습니다</translation>
     </message>
+    <message>
+        <source>Smart object thumbnail</source>
+        <translation>스마트 개체 축소판</translation>
+    </message>
+    <message>
+        <source>Shape layer thumbnail</source>
+        <translation>모양 레이어 축소판</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

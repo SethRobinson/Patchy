@@ -266,6 +266,56 @@ void ui_layer_hidden_smart_object_badge_opens_contents() {
   CHECK(patchy::ui::MainWindowTestAccess::active_session_is_smart_object_child(window));
 }
 
+// The content thumbnail's tooltip names what the row holds (GitHub issue 232):
+// smart objects and shape layers say so instead of the generic "Layer thumbnail".
+void ui_layer_thumbnail_tooltip_names_smart_object_and_shape_layers() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  open_smart_object_fixture(window);
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  if (layer_list == nullptr) {
+    return;
+  }
+  const auto thumbnail_tooltip = [layer_list](patchy::LayerId id) {
+    for (int index = 0; index < layer_list->count(); ++index) {
+      auto* item = layer_list->item(index);
+      if (item->data(Qt::UserRole).toULongLong() != static_cast<qulonglong>(id)) {
+        continue;
+      }
+      auto* row = layer_list->itemWidget(item);
+      auto* thumbnail = row == nullptr ? nullptr : row->findChild<QLabel*>(QStringLiteral("layerContentThumbnail"));
+      return thumbnail == nullptr ? QString() : thumbnail->toolTip();
+    }
+    return QString();
+  };
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  bool saw_pixel_layer = false;
+  for (const auto& layer : document.layers()) {
+    if (patchy::layer_is_smart_object(layer)) {
+      CHECK(thumbnail_tooltip(layer.id()) == QStringLiteral("Smart object thumbnail"));
+    } else if (layer.kind() == patchy::LayerKind::Pixel && !layer.mask().has_value()) {
+      CHECK(thumbnail_tooltip(layer.id()) == QStringLiteral("Layer thumbnail"));
+      saw_pixel_layer = true;
+    }
+  }
+  CHECK(saw_pixel_layer);
+
+  auto* canvas = require_canvas(window);
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(4, 4)),
+       canvas->widget_position_for_document_point(QPoint(20, 16)));
+  QApplication::processEvents();
+  const auto shape_id = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).active_layer_id();
+  CHECK(shape_id.has_value());
+  if (!shape_id.has_value()) {
+    return;
+  }
+  const auto* shape = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(*shape_id);
+  CHECK(shape != nullptr && patchy::layer_is_vector_shape(*shape));
+  CHECK(thumbnail_tooltip(*shape_id) == QStringLiteral("Shape layer thumbnail"));
+}
+
 // "Convert to Normal Layer (Rasterize)" in the Smart Objects menus is a
 // discoverable alias for Rasterize: it demotes the smart object to a plain
 // pixel layer while keeping its rendered pixels.
@@ -3080,6 +3130,8 @@ std::vector<patchy::test::TestCase> smart_object_tests() {
        ui_layer_fx_and_smart_badges_stay_visible_in_narrow_panel},
       {"ui_layer_smart_object_badge_button_opens_contents", ui_layer_smart_object_badge_button_opens_contents},
       {"ui_layer_hidden_smart_object_badge_opens_contents", ui_layer_hidden_smart_object_badge_opens_contents},
+      {"ui_layer_thumbnail_tooltip_names_smart_object_and_shape_layers",
+       ui_layer_thumbnail_tooltip_names_smart_object_and_shape_layers},
       {"ui_smart_object_to_normal_layer_action_rasterizes", ui_smart_object_to_normal_layer_action_rasterizes},
       {"ui_smart_object_paint_prompt_rasterize_choice", ui_smart_object_paint_prompt_rasterize_choice},
       {"ui_smart_object_paint_prompt_edit_contents_choice", ui_smart_object_paint_prompt_edit_contents_choice},

@@ -10567,6 +10567,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>This TIFF holds %1 pages; Patchy opened the first one.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Smart object thumbnail</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shape layer thumbnail</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

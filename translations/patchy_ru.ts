@@ -10617,6 +10617,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>The CMYK profile could not separate the image</source>
         <translation>Профилю CMYK не удалось выполнить цветоделение изображения</translation>
     </message>
+    <message>
+        <source>Smart object thumbnail</source>
+        <translation>Миниатюра смарт-объекта</translation>
+    </message>
+    <message>
+        <source>Shape layer thumbnail</source>
+        <translation>Миниатюра слоя-фигуры</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
