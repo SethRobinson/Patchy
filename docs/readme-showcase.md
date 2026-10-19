@@ -1,6 +1,6 @@
 # Rebuilding the README showcase
 
-The README uses a hero image and seven feature captures. The [full gallery](screenshots.md)
+The README uses a hero image and eight feature captures. The [full gallery](screenshots.md)
 keeps the other examples. Every capture has a script or a `shot_readme_*` scene;
 do not replace one with a manually arranged desktop screenshot.
 
@@ -30,6 +30,7 @@ or `-Scene plugin_kpt5`. It requires the Windows 32-bit legacy helper.
 | `plugin_kpt5.png` | `scripts/dev/readme-shots/plugin-kpt5.js` | Licensed KPT 5 fixture and the existing CC0 city photograph |
 | `plugin_dialog.png` | `scripts/dev/readme-shots/plugin-dialog.js` | `local-test-fixtures/photoshop-plugins/mehdi` (Mehdi's Absolute Color, not committed; skipped when absent) and the CC0 city photograph |
 | `object_select.png` | `scripts/dev/readme-shots/object-select.js` | `test-fixtures/readme/havana_vintage_car_cc0.jpg` (CC0), cropped in the script; needs the High Quality model (the script downloads it when missing) |
+| `artboards.png` | `scripts/dev/readme-shots/artboards.js` | `test-fixtures/readme/havana_vintage_car_cc0.jpg` (CC0), placed as a smart object on each artboard; generated type and vector shapes |
 | `smart_objects.png` (gallery only) | `shot_readme_smart_objects` | Local PSD fixtures used by the existing scene |
 | `vector_tools.png` | `shot_readme_vector_tools` | Generated vector artwork with gradient fill, rounded corners, and a dashed pattern stroke |
 | `warp_text.png` | `shot_readme_warp_text` | Generated editable type; Japanese-capable font required |
@@ -55,8 +56,8 @@ The separate Levels, brush-dynamics, shape-appearance, and Affinity images are r
 from the gallery. Their existing scenes remain regression coverage; the driver
 does not publish those artifacts. Brush dynamics are described with brush tips.
 Long Shadow and Smart Objects remain in the gallery; the README's feature cards use
-Layer Styles and Object Selection instead. The G'MIC card spans both columns below the
-six paired cards.
+Layer Styles and Object Selection instead. Every card is the same width, in pairs; the
+last row pairs Artboards with G'MIC.
 
 The Object Selection scene crops the Havana street photo to its lower half and runs
 `doc.selection.objectSelect` with one loose box around the vintage car, on the High
@@ -66,6 +67,13 @@ One-pixel marching ants vanish at thumbnail size, so the script inverts the sele
 fills a gray Saturation-mode layer and a 45% black layer through it, and inverts back
 (fill layers rather than a filter on the photo, so the photo layer stays untouched; a
 Desaturate menu command run from the script did not apply). The status bar shows "Running script", as in the KPT shot.
+
+The Artboards scene builds a fictional car-weekend campaign as four artboards, one per
+background type: Story (white), Banner (black), Post (custom cream) and Icon (transparent,
+so the checkerboard shows only inside it). Each photo is larger than its artboard and
+vector-masked, so the artboards visibly clip it. The Post is selected with the Artboard tool
+(handles, "+" buttons, options bar) and `patchy.ui.expandPanel('properties')` shows its
+X, Y, W, H and background. Check that no text overlaps after a font or layout change.
 
 The G'MIC scene opens the real Filter Library (scripts cannot open it) with the right half
 of the street photo selected, picks Rodilius with Lighter strokes, waits for the full-quality

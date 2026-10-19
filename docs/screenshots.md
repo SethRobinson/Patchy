@@ -13,6 +13,16 @@ Click any image to inspect it at full size. These are captures of the real edito
 <td align="center" valign="top" width="50%"><a href="images/screenshots/plugin_kpt5.png"><img src="images/screenshots/plugin_kpt5.png" width="430" alt="Kai's Power Tools 5"></a><br><sub>The real KPT interface over Patchy, composed from two application-window captures.</sub></td>
 </tr>
 <tr>
+<td align="center" valign="top" width="50%">
+      <a href="images/screenshots/artboards.png"><img src="images/screenshots/artboards.png" width="430" alt="One document holding four artboards for a car-weekend campaign: a white story, a black banner, a cream post selected with the Artboard tool's handles and add buttons, and a transparent icon, with the Properties panel showing the post's position, size and background"></a>
+      <br><sub>Artboards: a story, banner, post and icon in one document, each with its own size and background, exported to separate files or PDF pages</sub>
+    </td>
+<td align="center" valign="top" width="50%">
+      <a href="images/screenshots/gmic.png"><img src="images/screenshots/gmic.png" width="430" alt="G'MIC Filter Library with Rodilius chosen among the Artistic filters and previewing live inside a selection on the right half of a Havana street photo"></a>
+      <br><sub>The G'MIC Filter Library: nearly 400 filters with generated controls and a live preview on the canvas, here inside a selection</sub>
+    </td>
+</tr>
+<tr>
 <td align="center" valign="top" width="50%"><a href="images/screenshots/long_shadow.png"><img src="images/screenshots/long_shadow.png" width="430" alt="Layer Style dialog with effects and blending controls beside editable text casting continuous long shadows"></a><br><sub>Layer styles with bevels, strokes, glows, overlays, and blending controls, shown here with continuous long shadows on editable type. This Patchy-specific extension opens in Photoshop as an ordinary drop shadow at the chosen distance; Photoshop may discard the extension when saving.</sub></td>
 <td align="center" valign="top" width="50%">
       <a href="images/screenshots/layer_styles.png"><img src="images/screenshots/layer_styles.png" width="430" alt="Layer Style dialog editing stroke, gradient overlay, and drop shadow, with the gradient color picker beside layered artwork"></a>
@@ -26,7 +36,7 @@ Click any image to inspect it at full size. These are captures of the real edito
     </td>
 <td align="center" valign="top" width="50%">
       <a href="images/screenshots/palette_mode.png"><img src="images/screenshots/palette_mode.png" width="430" alt="Palette editing mode with a limited color palette and indexed-looking pixel art"></a>
-      <br><sub>Palette mode constrains painting and editing to a document color set</sub>
+      <br><sub>Palette mode with full layer support: layers, blend modes, text, and live layer effects stay editable while painting and the canvas snap to a fixed palette</sub>
     </td>
 </tr>
 <tr>
@@ -67,12 +77,6 @@ Click any image to inspect it at full size. These are captures of the real edito
 <td align="center" valign="top" width="50%">
       <a href="images/screenshots/material_styles.png"><img src="images/screenshots/material_styles.png" width="430" alt="Layer Style dialog applying Riveted Steel to large text from the built-in Materials preset folder"></a>
       <br><sub>Material layer styles backed by bundled CC0 wood, stone, metal, fabric, and ground textures</sub>
-    </td>
-</tr>
-<tr>
-<td align="center" valign="top" colspan="2">
-      <a href="images/screenshots/gmic.png"><img src="images/screenshots/gmic.png" width="880" alt="G'MIC Filter Library with Rodilius chosen among the Artistic filters and previewing live inside a selection on the right half of a Havana street photo"></a>
-      <br><sub>The G'MIC Filter Library: nearly 400 filters with generated controls and a live preview on the canvas, here inside a selection</sub>
     </td>
 </tr>
 <tr>

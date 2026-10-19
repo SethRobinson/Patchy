@@ -96,6 +96,10 @@ $jsScenes = [ordered]@{
         Script = Join-Path $repo 'scripts\dev\readme-shots\object-select.js'
         Args = @("photo=$(Join-Path $repo 'test-fixtures\readme\havana_vintage_car_cc0.jpg')")
     }
+    'artboards' = @{
+        Script = Join-Path $repo 'scripts\dev\readme-shots\artboards.js'
+        Args = @("photo=$(Join-Path $repo 'test-fixtures\readme\havana_vintage_car_cc0.jpg')")
+    }
     'plugin_dialog' = @{
         # A third-party 8bf plug-in's own settings dialog, captured through
         # layer.applyPlugin's captureDialog option and answered by the scene.
