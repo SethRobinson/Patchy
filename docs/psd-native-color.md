@@ -33,6 +33,14 @@ text are excluded. Styles need their preserved Photoshop blocks.
 Changing the embedded profile, depth, or source ICC resource disables reuse.
 A layer pasted from another document cannot inherit the destination's inks.
 
+A flat 8/16-bit CMYK file (no layer records, the merged image only: Photoshop's save of a
+one-layer document) keeps its merged ink planes on the Background layer it opens as, marked
+`PsdNativeLayerColors::flat_composite`, so it saves CMYK while unchanged (GitHub issue 220).
+Its preview stays the reader's conversion: `render_native_cmyk8` never rebuilds a lone flat
+layer from those planes. Flat gray, Lab and duotone files still save RGB.
+`DocumentIo::layered_save_keeps_source_color_mode` answers ahead of a save whether the
+writer will keep the source mode (the UI's CMYK Proof save question uses it).
+
 Color/content edits conservatively fall back to the existing RGB writer
 for the entire document. Renaming, visibility, opacity, raster masks, reordering,
 deletion and raster translations can keep the native samples. Undo restores
@@ -43,8 +51,8 @@ require RGB saving and change gradients or adjustments.
 
 `WriteOptions::preserve_source_color_mode = false` explicitly selects RGB.
 Flat exports, 32-bit documents, other color modes, reads with discarded
-unknown blocks, and documents without eligible layer records use the
-existing RGB path. The historical `write_layered_rgb8` name also handles
+unknown blocks, and documents without eligible layer records (flat CMYK files
+excepted, above) use the existing RGB path. The historical `write_layered_rgb8` name also handles
 these native saves, as it already handles deep RGB saves.
 
 ## Wire output and verification

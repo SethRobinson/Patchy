@@ -10439,6 +10439,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Text layer. Font is missing on this computer: %1.</source>
         <translation>Calque de texte. Police manquante sur cet ordinateur : %1.</translation>
     </message>
+    <message>
+        <source>The file&apos;s CMYK profile %1 differs from the working CMYK profile %2, which CMYK Proof and CMYK JPEG, TIFF and PDF saves use</source>
+        <translation>Le profil CMJN du fichier, %1, diffère du profil CMJN de travail %2, utilisé par l&apos;Épreuve CMJN et les enregistrements CMJN en JPEG, TIFF et PDF</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21905,6 +21909,14 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     <message>
         <source>Drop Shadow...</source>
         <translation>Ombre portée...</translation>
+    </message>
+    <message>
+        <source>Opened in Image &gt; Mode &gt; CMYK Proof: saving keeps this file in CMYK while its layers are unchanged, and JPEG, TIFF and PDF saves write CMYK</source>
+        <translation>Ouverte en Image &gt; Mode &gt; Épreuve CMJN : l&apos;enregistrement garde ce fichier en CMJN tant que ses calques ne changent pas, et les enregistrements en JPEG, TIFF et PDF écrivent du CMJN</translation>
+    </message>
+    <message>
+        <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. Patchy saves a PSD in CMYK only when it was opened from a CMYK PSD and its layers are unchanged (text layers always need RGB). JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
+        <translation>Ce document est en mode Épreuve CMJN, mais ce fichier %1 sera enregistré en RVB. Patchy n&apos;enregistre un PSD en CMJN que s&apos;il a été ouvert depuis un PSD CMJN et que ses calques sont inchangés (les calques de texte demandent toujours du RVB). Les fichiers JPEG, TIFF et PDF aplatis peuvent toujours être enregistrés en CMJN. L&apos;enregistrer en RVB ?</translation>
     </message>
 </context>
 <context>

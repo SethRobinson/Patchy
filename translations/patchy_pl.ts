@@ -10473,6 +10473,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Text layer. Font is missing on this computer: %1.</source>
         <translation>Warstwa tekstowa. Brak czcionki na tym komputerze: %1.</translation>
     </message>
+    <message>
+        <source>The file&apos;s CMYK profile %1 differs from the working CMYK profile %2, which CMYK Proof and CMYK JPEG, TIFF and PDF saves use</source>
+        <translation>Profil CMYK pliku, %1, różni się od roboczego profilu CMYK %2, którego używają Próba CMYK oraz zapisy CMYK do JPEG, TIFF i PDF</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21975,6 +21979,14 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
     <message>
         <source>Drop Shadow...</source>
         <translation>Cień...</translation>
+    </message>
+    <message>
+        <source>Opened in Image &gt; Mode &gt; CMYK Proof: saving keeps this file in CMYK while its layers are unchanged, and JPEG, TIFF and PDF saves write CMYK</source>
+        <translation>Otwarto w trybie Obraz &gt; Tryb &gt; Próba CMYK: zapis zachowuje ten plik w CMYK, dopóki jego warstwy się nie zmienią, a zapisy do JPEG, TIFF i PDF zapisują w CMYK</translation>
+    </message>
+    <message>
+        <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. Patchy saves a PSD in CMYK only when it was opened from a CMYK PSD and its layers are unchanged (text layers always need RGB). JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
+        <translation>Ten dokument jest w trybie Próba CMYK, ale ten plik %1 zostanie zapisany w RGB. Patchy zapisuje plik PSD w CMYK tylko wtedy, gdy otwarto go z pliku PSD w CMYK, a jego warstwy są niezmienione (warstwy tekstowe zawsze wymagają RGB). Pliki JPEG, TIFF i spłaszczone pliki PDF zawsze można zapisać w CMYK. Zapisać go w RGB?</translation>
     </message>
 </context>
 <context>

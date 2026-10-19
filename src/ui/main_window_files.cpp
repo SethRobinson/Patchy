@@ -10,6 +10,7 @@
 #include "core/layer_metadata.hpp"
 #include "core/vector_shape.hpp"
 #include "color/color_management.hpp"
+#include "core/psd_source_colors.hpp"
 #include "core/document_file_info.hpp"
 #include "core/pixel_buffer.hpp"
 #include "formats/format_registry.hpp"
@@ -894,6 +895,14 @@ QString translated_file_message(const std::string& message) {
   return translate_data_text(message);
 }
 
+// A layered PSD or PSB save writes this document in CMYK: an imported CMYK file whose
+// layers are unchanged (docs/psd-native-color.md). Every other PSD save is RGB.
+bool psd_save_keeps_cmyk(const Document& document) {
+  const auto& space = document.metadata().psd_native_color_space;
+  return space != nullptr && space->mode == 4 /* PSD CMYK */ &&
+         psd::DocumentIo::layered_save_keeps_source_color_mode(document);
+}
+
 // A CMYK JPEG or TIFF (Qt hands it over as Format_CMYK8888, 255 = full ink) converted to
 // sRGB through its embedded CMYK profile, or the working profile when it has none,
 // relative colorimetric with black point compensation as Photoshop converts back
@@ -943,8 +952,8 @@ struct OpenDocumentResult {
   // and every further page as its own document. Empty for every other open.
   QString document_title;
   std::vector<PdfImportedDocument> extra_documents;
-  // The file held CMYK pixels (a CMYK JPEG or TIFF): the session opens in Image > Mode >
-  // CMYK Proof so a save writes CMYK again (docs/cmyk.md).
+  // The file held CMYK pixels (a CMYK JPEG, TIFF, PSD or PSB): the session opens in
+  // Image > Mode > CMYK Proof so a save writes CMYK again (docs/cmyk.md).
   bool cmyk_source{false};
   // A PDF import's Mode and Bit Depth, applied once the pages are finished documents.
   // Unset for every other open: nothing else is converted on the way in.
@@ -1272,6 +1281,26 @@ OpenDocumentResult load_document_from_path(QString path) {
     }
     if (opened.metadata().values.contains("psd.ink_adjustments")) {
       force_import_notices_popup = true;
+    }
+    // A CMYK PSD opens in CMYK Proof like a CMYK JPEG or TIFF (GitHub issue 220). The reader
+    // already converted through the file's profile and said so; an unchanged file saves its
+    // own inks and profile again (docs/psd-native-color.md), everything else the working one.
+    if (const auto mode = opened.metadata().values.find("psd.color_mode");
+        mode != opened.metadata().values.end() && mode->second == "CMYK") {
+      cmyk_source = true;
+      const auto working = working_cmyk_space();
+      const auto profile = psd::DocumentIo::source_icc_profile(opened);
+      if (const auto transform = CmykToRgbTransform::from_icc_profile(profile);
+          transform.has_value() && working->has_profile()) {
+        const auto profile_name = QString::fromStdString(transform->profile_description());
+        if (const auto working_name = QString::fromStdString(working->profile_description());
+            working_name != profile_name) {
+          import_notices.push_back(
+              QObject::tr("The file's CMYK profile %1 differs from the working CMYK profile %2, which CMYK Proof "
+                          "and CMYK JPEG, TIFF and PDF saves use")
+                  .arg(profile_name, working_name));
+        }
+      }
     }
     if (const auto notice = unsupported_blend_if_import_notice(opened); !notice.isEmpty()) {
       import_notices.push_back(notice);
@@ -2514,8 +2543,12 @@ void MainWindow::open_document_path(QString path) {
         loaded->import_notices.push_back(refusal);
       }
     } else if (loaded->cmyk_source && open_cmyk_source_in_proof_mode(session())) {
+      // A PSD that a save cannot keep in CMYK (text layers, say) gets the JPEG/TIFF wording.
       loaded->import_notices.push_back(
-          tr("Opened in Image > Mode > CMYK Proof, so saving as JPEG, TIFF or PDF writes CMYK again"));
+          psd_save_keeps_cmyk(std::as_const(document()))
+              ? tr("Opened in Image > Mode > CMYK Proof: saving keeps this file in CMYK while its layers are "
+                   "unchanged, and JPEG, TIFF and PDF saves write CMYK")
+              : tr("Opened in Image > Mode > CMYK Proof, so saving as JPEG, TIFF or PDF writes CMYK again"));
     }
     if (!unattended_automation() && is_photoshop_document_extension(loaded->extension) &&
         app_settings().value(QStringLiteral("imports/showPsdWarningsAndInfo"), false).toBool()) {
@@ -4352,6 +4385,7 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
   if (pdf_editable_layers.has_value()) {
     effective_image_options.pdf_editable_layers = *pdf_editable_layers;
   }
+  bool native_cmyk_psd = false;
   // CMYK Proof (docs/cmyk.md): unless the Export dialog or a script chose the color form,
   // the document's mode does. CMYK where the format has a CMYK form, RGB everywhere else.
   if (!effective_image_options.export_color_explicit) {
@@ -4363,11 +4397,22 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
     if (cmyk && !quiet && !confirm_cmyk_proof_save(extension, effective_image_options)) {
       return false;
     }
-    if (!cmyk && session().cmyk_proof && !quiet && !policy.export_copy && !session().cmyk_proof_rgb_save_accepted) {
+    // An imported CMYK PSD whose layers are unchanged saves its own inks again
+    // (docs/psd-native-color.md); any other PSD or PSB is written in RGB.
+    native_cmyk_psd = session().cmyk_proof && is_photoshop_document_extension(extension) &&
+                      psd_save_keeps_cmyk(std::as_const(session()).document_for_write());
+    if (!cmyk && !native_cmyk_psd && session().cmyk_proof && !quiet && !policy.export_copy &&
+        !session().cmyk_proof_rgb_save_accepted) {
       const auto message =
           is_pdf_extension(extension)
               ? tr("This document is in CMYK Proof mode, but a PDF with editable layers is saved in RGB. "
                    "Save it in RGB?")
+          : is_photoshop_document_extension(extension)
+              ? tr("This document is in CMYK Proof mode, but this %1 file will be saved in RGB. Patchy saves a "
+                   "PSD in CMYK only when it was opened from a CMYK PSD and its layers are unchanged (text "
+                   "layers always need RGB). JPEG, TIFF and flattened PDF files can always be saved in CMYK. "
+                   "Save it in RGB?")
+                    .arg(extension.toUpper())
               : tr("This document is in CMYK Proof mode, but %1 files are saved in RGB. Only JPEG, TIFF and "
                    "flattened PDF files can be saved in CMYK. Save it in RGB?")
                     .arg(extension.toUpper());
@@ -4409,8 +4454,9 @@ bool MainWindow::save_document_to_path(QString path, std::optional<ImageSaveOpti
                                export_notes_suffix);
       return true;
     }
-    statusBar()->showMessage((effective_image_options.export_cmyk ? tr("Saved %1 in CMYK") : tr("Saved %1")).arg(path) +
-                             export_notes_suffix);
+    statusBar()->showMessage(
+        (effective_image_options.export_cmyk || native_cmyk_psd ? tr("Saved %1 in CMYK") : tr("Saved %1")).arg(path) +
+        export_notes_suffix);
     if (linked_external_child) {
       if (auto* saved_session = session_with_id(saving_session_id)) {
         refresh_external_smart_object_after_save(*saved_session);
