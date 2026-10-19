@@ -5,6 +5,7 @@ developer environment, then run the test suites. Mirrors build-and-test.sh.
 
   build-and-test.ps1 [-Preset release] [-BuildTarget <target>[,<target>...]]
                      [-Filter <ui substr>] [-CoreFilter <core substr>] [-SkipTests] [-Jobs 8]
+                     [-PerfScenario startup] [-PerfEnv 'NAME=value;NAME=value']
 
 -BuildTarget builds only the named CMake targets instead of the preset's default target,
 and then only the suites whose executables this run built are run: patchy_core_tests and
@@ -21,6 +22,10 @@ build with a count of the warning lines it printed. Ninja only prints what it co
 linked in this run, so that count covers exactly the targets built and only the sources
 that changed: zero-warning verification still needs the release preset's default target
 from a clean build directory (docs/platform.md, "Warning verification").
+
+-PerfScenario runs `patchy_perf_tests <scenario>` after the suites (alone with -SkipTests)
+when this run built patchy_perf_tests, with each -PerfEnv NAME=value set first; `startup` is
+the startup timing and regression check (docs/startup-performance.md).
 #>
 param(
   [string]$Preset = 'release',
@@ -28,6 +33,8 @@ param(
   [string]$Filter = '',
   [string]$CoreFilter = '',
   [switch]$SkipTests,
+  [string]$PerfScenario = '',
+  [string]$PerfEnv = '',
   [int]$Jobs = 8
 )
 
@@ -65,14 +72,15 @@ if (-not $targets.Count -or $targets -contains 'patchy') {
 }
 if ($buildExit -ne 0) { exit $buildExit }
 
-if ($SkipTests) {
+if ($SkipTests -and -not $PerfScenario) {
   Write-Host '== tests skipped =='
   exit 0
 }
 
-$runCore = (-not $targets.Count) -or ($targets -contains 'patchy_core_tests')
-$runUi = (-not $targets.Count) -or ($targets -contains 'patchy_ui_visual_tests')
-if (-not $runCore -and -not $runUi) {
+$runCore = (-not $SkipTests) -and ((-not $targets.Count) -or ($targets -contains 'patchy_core_tests'))
+$runUi = (-not $SkipTests) -and ((-not $targets.Count) -or ($targets -contains 'patchy_ui_visual_tests'))
+$runPerf = $PerfScenario -and ((-not $targets.Count) -or ($targets -contains 'patchy_perf_tests'))
+if (-not $runCore -and -not $runUi -and -not $runPerf) {
   Write-Host '== no test suite among the built targets; tests skipped =='
   exit 0
 }
@@ -93,7 +101,7 @@ try {
     & $throttled .\patchy_core_tests.exe @coreArgs
     if ($LASTEXITCODE -ne 0 -and $firstFailure -eq 0) { $firstFailure = $LASTEXITCODE }
   }
-  else { Write-Host '== patchy_core_tests not built in this run; skipped ==' }
+  elseif (-not $SkipTests) { Write-Host '== patchy_core_tests not built in this run; skipped ==' }
 
   if ($runUi) {
     Write-Host "== patchy_ui_visual_tests (offscreen) $Filter =="
@@ -101,7 +109,17 @@ try {
     & $throttled .\patchy_ui_visual_tests.exe @uiArgs
     if ($LASTEXITCODE -ne 0 -and $firstFailure -eq 0) { $firstFailure = $LASTEXITCODE }
   }
-  else { Write-Host '== patchy_ui_visual_tests not built in this run; skipped ==' }
+  elseif (-not $SkipTests) { Write-Host '== patchy_ui_visual_tests not built in this run; skipped ==' }
+
+  if ($runPerf) {
+    foreach ($pair in ($PerfEnv -split ';')) {
+      if ($pair -match '^\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)$') { Set-Item -Path "env:$($Matches[1])" -Value $Matches[2] }
+    }
+    Write-Host "== patchy_perf_tests $PerfScenario ($PerfEnv) =="
+    & $throttled .\patchy_perf_tests.exe $PerfScenario
+    if ($LASTEXITCODE -ne 0 -and $firstFailure -eq 0) { $firstFailure = $LASTEXITCODE }
+  }
+  elseif ($PerfScenario) { Write-Host '== patchy_perf_tests not built in this run; skipped ==' }
 }
 finally {
   Pop-Location

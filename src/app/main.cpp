@@ -1,10 +1,12 @@
 #include "support/cli_flags.hpp"
+#include "support/startup_trace.hpp"
 #include "ui/action_icons.hpp"
 #include "ui/app_data_migration.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/ui_font.hpp"
 #include "ui/background_workers.hpp"
 #include "ui/cli_exit.hpp"
+#include "ui/document_recovery.hpp"
 #include "ui/localization.hpp"
 #include "ui/main_window.hpp"
 #include "ui/mcp_attachment.hpp"
@@ -23,11 +25,13 @@
 #include <cstring>
 #endif
 
+#include <QAbstractEventDispatcher>
 #include <QApplication>
 #include <QByteArray>
 #include <QCommandLineParser>
 #include <QCoreApplication>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFileInfo>
 #include <QDataStream>
 #include <QFileOpenEvent>
@@ -37,10 +41,13 @@
 #include <QLocalServer>
 #include <QLocalSocket>
 #include <QRect>
+#include <QSaveFile>
 #include <QSettings>
 #include <QScopedValueRollback>
 #include <QStringList>
+#include <QSysInfo>
 #include <QTimer>
+#include <QWidget>
 
 #include <array>
 #include <chrono>
@@ -50,6 +57,8 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
+#include <thread>
 
 #include "patchy_version.hpp"
 
@@ -280,9 +289,121 @@ QFont application_font() {
 #endif
 }
 
+bool startup_trace_requested() {
+  return qEnvironmentVariableIsSet("PATCHY_STARTUP_TRACE") && qgetenv("PATCHY_STARTUP_TRACE") != "0";
+}
+
+// Exists only while the startup trace is on (PATCHY_STARTUP_TRACE=1 or
+// --startup-benchmark; docs/startup-performance.md), so an untraced launch installs
+// nothing. Marks the main window's first paint and "startup.idle": the first time
+// the main event loop is about to wait once that paint happened, which is when the
+// window has drawn and every queued startup task has run. It then waits (bounded)
+// for the startup plug-in scan, prints the table and/or writes the JSON report, and
+// a benchmark run exits.
+class StartupTraceObserver : public QObject {
+ public:
+  StartupTraceObserver(patchy::ui::MainWindow& window, QString report_path, bool print_table)
+      : window_(window), report_path_(std::move(report_path)), print_table_(print_table) {
+    qApp->installEventFilter(this);
+    connect(QAbstractEventDispatcher::instance(), &QAbstractEventDispatcher::aboutToBlock, this,
+            [this] { about_to_block(); });
+    if (!report_path_.isEmpty()) {
+      // A benchmark must never hang a test run: report what there is and fail.
+      QTimer::singleShot(120000, this, [this] { finish(/*complete=*/false); });
+    }
+  }
+
+  // Queued right before app.exec(): nested loops before it (a command-line open's
+  // progress) must not count as startup idle.
+  void event_loop_started() {
+    patchy::startup_trace::mark("event_loop.enter");
+    event_loop_running_ = true;
+  }
+
+ protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (!first_paint_seen_ && event->type() == QEvent::Paint) {
+      if (auto* widget = qobject_cast<QWidget*>(watched); widget != nullptr && widget->window() == &window_) {
+        first_paint_seen_ = true;
+        patchy::startup_trace::mark("first_paint");
+        qApp->removeEventFilter(this);
+      }
+    }
+    return false;
+  }
+
+ private:
+  void about_to_block() {
+    if (idle_seen_ || !event_loop_running_ || !first_paint_seen_) {
+      return;
+    }
+    idle_seen_ = true;
+    patchy::startup_trace::mark("startup.idle");
+    disconnect(QAbstractEventDispatcher::instance(), nullptr, this, nullptr);
+    idle_clock_.start();
+    wait_for_background();
+  }
+
+  // The plug-in scan runs on a worker after the first paint; its span is reported
+  // under "background", so the report waits for it (at most 20 s).
+  void wait_for_background() {
+    if (window_.legacy_plugin_scan_in_flight() && idle_clock_.elapsed() < 20000) {
+      QTimer::singleShot(10, this, [this] { wait_for_background(); });
+      return;
+    }
+    finish(/*complete=*/true);
+  }
+
+  void finish(bool complete) {
+    if (finished_) {
+      return;
+    }
+    finished_ = true;
+    if (print_table_) {
+      std::fputs(patchy::startup_trace::format_table().c_str(), stderr);
+      std::fflush(stderr);
+    }
+    if (report_path_.isEmpty()) {
+      patchy::startup_trace::stop();
+      return;
+    }
+    const auto json = patchy::startup_trace::format_json({
+        {"patchy_version", PATCHY_VERSION},
+        {"qt_version", qVersion()},
+        {"platform", QGuiApplication::platformName().toStdString()},
+        {"os", QSysInfo::prettyProductName().toStdString()},
+        {"cpu_architecture", QSysInfo::currentCpuArchitecture().toStdString()},
+        {"logical_cpus", std::to_string(std::thread::hardware_concurrency())},
+        {"complete", complete ? "true" : "false"},
+    });
+    patchy::startup_trace::stop();
+    QSaveFile file(report_path_);
+    const bool written = file.open(QIODevice::WriteOnly) &&
+                         file.write(json.data(), static_cast<qint64>(json.size())) ==
+                             static_cast<qint64>(json.size()) &&
+                         file.commit();
+    if (!written) {
+      fprintf(stderr, "Could not write the startup report %s\n", qPrintable(report_path_));
+    }
+    patchy::ui::exit_cli_application(written && complete ? 0 : 3);
+  }
+
+  patchy::ui::MainWindow& window_;
+  QString report_path_;
+  bool print_table_ = false;
+  bool event_loop_running_ = false;
+  bool first_paint_seen_ = false;
+  bool idle_seen_ = false;
+  bool finished_ = false;
+  QElapsedTimer idle_clock_;
+};
+
 }  // namespace
 
 int main(int argc, char* argv[]) {
+  // First, so the trace times everything after the OS created the process.
+  const bool startup_benchmark_requested = patchy::startup_benchmark_flag_value(argc, argv) != nullptr;
+  patchy::startup_trace::initialize(startup_benchmark_requested || startup_trace_requested());
 #ifdef PATCHY_MCP_EXECUTABLE
   // Share brushes and recent paths with the artist, while keeping window preferences
   // isolated. Honor an automation settings root before capturing its filename.
@@ -338,8 +459,13 @@ int main(int argc, char* argv[]) {
     qputenv("DBUS_SESSION_BUS_ADDRESS", "disabled:");
   }
 #endif
+  patchy::startup_trace::Scope gui_scale_phase("settings.gui_scale");
   apply_gui_scale_factor();
+  gui_scale_phase.end();
+  patchy::startup_trace::Scope application_phase("qt.application");
   PatchyApplication app(argc, argv);
+  application_phase.end();
+  patchy::startup_trace::Scope identity_phase("app.style_identity");
   // Qt adopts the user's locale for the C runtime on Unix (setlocale(LC_ALL, "")), which turns
   // every strtod/to_string in the file codecs decimal-comma under de_DE and friends and
   // corrupts what PSD text engine data and other text formats write and parse. Keep the C
@@ -375,7 +501,10 @@ int main(int argc, char* argv[]) {
   // enough to trip it). Patchy opens exactly such files on purpose, so the
   // guard is disabled; the format readers keep their own sanity checks.
   QImageReader::setAllocationLimit(0);
+  identity_phase.end();
+  patchy::startup_trace::Scope bundled_fonts_phase("fonts.bundled");
   load_bundled_fonts();
+  bundled_fonts_phase.end();
 #ifdef Q_OS_WASM
   // Rendering-level stand-ins for system families the browser cannot provide.
   // The text tool's family matching has its own lookup over the same table
@@ -386,24 +515,35 @@ int main(int argc, char* argv[]) {
   }
 #endif
   // Before anything reads AppDataLocation: moves 0.98-era fonts and scripts across.
+  patchy::startup_trace::Scope migration_phase("app_data.migration");
   patchy::ui::app_data_migration::migrate_legacy_app_data();
+  migration_phase.end();
+  patchy::startup_trace::Scope user_fonts_phase("fonts.user_store");
   patchy::ui::user_fonts::restore_user_fonts_at_startup();
   patchy::ui::install_font_database_psd_font_resolver();
+  user_fonts_phase.end();
+  patchy::startup_trace::Scope localization_phase("localization.load");
   patchy::ui::LocalizationManager::instance().load_saved_language();
   // --language overrides the saved preference for this run only (screenshots, tests,
   // trying a language); a code Patchy does not ship falls back to English.
   if (const char* language = patchy::language_flag_value(argc, argv); language != nullptr) {
     patchy::ui::LocalizationManager::instance().set_language(QString::fromUtf8(language), /*persist=*/false);
   }
+  localization_phase.end();
   // After the language: on wasm the app font's CJK fallback order depends on it.
+  patchy::startup_trace::Scope ui_font_phase("fonts.ui_family");
   app.setFont(application_font());
+  ui_font_phase.end();
+  patchy::startup_trace::Scope theme_phase("theme.load");
   patchy::ui::ThemeManager::instance().load_saved_preference();
+  theme_phase.end();
 
 #ifdef PATCHY_MCP_EXECUTABLE
   if (connector_settings.isValid()) { return patchy::run_mcp_server(app); }
 #endif
 
   // Parse command-line arguments after translations load so option descriptions are localized.
+  patchy::startup_trace::Scope parse_phase("cli.parse");
   QCommandLineParser parser;
   parser.setApplicationDescription(
       QCoreApplication::translate("QObject", "Patchy raster image editor."));
@@ -499,6 +639,14 @@ int main(int argc, char* argv[]) {
                      "(repeatable)."),
       QStringLiteral("key=value"));
   parser.addOption(script_arg_option);
+  // Developer timing (docs/startup-performance.md): writes the phase report to <path>
+  // once startup is idle, then exits; never reuses a running instance. Hidden from
+  // --help like the PATCHY_* diagnostics. Read before the QApplication too
+  // (startup_benchmark_flag_value turns the trace on).
+  QCommandLineOption startup_benchmark_option(QStringLiteral("startup-benchmark"), QString(),
+                                              QStringLiteral("path"));
+  startup_benchmark_option.setFlags(QCommandLineOption::HiddenFromHelp);
+  parser.addOption(startup_benchmark_option);
   // QCommandLineParser has no optional-value options, so let a bare
   // `--stress-test` mean the default (quick) preset.
   QStringList arguments = app.arguments();
@@ -566,10 +714,23 @@ int main(int argc, char* argv[]) {
   }
   const QStringList script_args = parser.values(script_arg_option);
 
+  // The benchmark times the interactive startup, so it combines with files but with no
+  // other unattended mode.
+  const bool startup_benchmark_mode = parser.isSet(startup_benchmark_option);
+  QString startup_report_path;
+  if (startup_benchmark_mode) {
+    startup_report_path = QFileInfo(parser.value(startup_benchmark_option)).absoluteFilePath();
+    if (stress_mode || export_mode || run_script_mode || screenshot_mode) {
+      fprintf(stderr, "--startup-benchmark cannot be combined with --stress-test, --export, --run-script, or --screenshot\n");
+      return 2;
+    }
+  }
+
   // A headless session with nothing to do would sit in the event loop forever with
   // no window anyone can close; refuse it the way a bad preset is refused.
-  if (headless_mode && !stress_mode && !export_mode && !run_script_mode && !screenshot_mode) {
-    fprintf(stderr, "--headless needs --run-script, --export, --stress-test, or --screenshot\n");
+  if (headless_mode && !stress_mode && !export_mode && !run_script_mode && !screenshot_mode &&
+      !startup_benchmark_mode) {
+    fprintf(stderr, "--headless needs --run-script, --export, --stress-test, --screenshot, or --startup-benchmark\n");
     return 2;
   }
 
@@ -586,7 +747,7 @@ int main(int argc, char* argv[]) {
 #else
   const bool single_instance_enabled = !headless_mode &&
                                        !qEnvironmentVariableIsSet("PATCHY_NO_SINGLE_INSTANCE") &&
-                                       !stress_mode && !export_mode;
+                                       !stress_mode && !export_mode && !startup_benchmark_mode;
 #endif
   QStringList forward_payload = files;
   if (screenshot_mode) {
@@ -596,11 +757,16 @@ int main(int argc, char* argv[]) {
     forward_payload.append(
         encode_run_script_command(run_script_path, script_output_path, script_args));
   }
+  parse_phase.end();
+  patchy::startup_trace::Scope forward_phase("single_instance.forward_probe");
   if (single_instance_enabled && forward_to_running_instance(forward_payload)) {
     return 0;
   }
+  forward_phase.end();
 
+  patchy::startup_trace::Scope window_phase("main_window.construct");
   patchy::ui::MainWindow window;
+  window_phase.end();
 
   if (headless_mode) {
     // Nobody can answer a prompt with no display; export and run-script set this
@@ -645,6 +811,7 @@ int main(int argc, char* argv[]) {
     }
   });
   QLocalServer single_instance_server;
+  patchy::startup_trace::Scope listen_phase("single_instance.listen");
   if (single_instance_enabled) {
     // A previous crash can leave a stale pipe/socket that blocks listen(); clear it first.
     QLocalServer::removeServer(single_instance_server_name());
@@ -701,7 +868,15 @@ int main(int argc, char* argv[]) {
     }
   }
 
+  listen_phase.end();
+
+  std::unique_ptr<StartupTraceObserver> startup_observer;
+  if (patchy::startup_trace::enabled()) {
+    startup_observer = std::make_unique<StartupTraceObserver>(window, startup_report_path, startup_trace_requested());
+  }
+  patchy::startup_trace::Scope show_phase("main_window.show");
   window.show();
+  show_phase.end();
   // Every exit path ends here once the event loop has returned. Detached
   // preview/render/recovery workers capture the QCoreApplication pointer, so the
   // window and application must outlive them; a worker still running after the
@@ -750,7 +925,9 @@ int main(int argc, char* argv[]) {
   }
   // No startup splash: the start panel carries the branding, and the update-check status
   // lands on its footer (an available update still raises the update dialog).
+  patchy::startup_trace::Scope update_phase("update_check.start");
   window.begin_startup_update_check();
+  update_phase.end();
   // Finder opens reuse the second-launch path (raise the window, open the file); any
   // that arrived before the window existed join the command-line batch below.
   app.file_open_handler = [&window, &forwarded_requests, &forwarded_request_timer](const QString& path) {
@@ -768,11 +945,18 @@ int main(int argc, char* argv[]) {
   // Documents a crashed instance left recovery copies of come back first, as
   // modified "(Recovered)" sessions (docs/document-recovery.md). Never for a
   // screenshot or headless launch: nobody is there to save them.
-  if (!headless_mode && !screenshot_mode) {
+  patchy::startup_trace::Scope recovery_phase("recovery.orphan_scan");
+  if (startup_benchmark_mode) {
+    // Time the scan without adopting anything: a benchmark exits right after startup,
+    // and another instance's recovery copies must stay where they are.
+    (void)window.list_orphaned_recovery();
+  } else if (!headless_mode && !screenshot_mode) {
     window.recover_orphaned_documents();
   }
+  recovery_phase.end();
 #endif
   if (!files.isEmpty()) {
+    const patchy::startup_trace::Scope open_phase("cli.open_files");
     window.open_command_line_files(files);
   }
 
@@ -793,6 +977,7 @@ int main(int argc, char* argv[]) {
   // It is destroyed before the window and its scripting host.
   std::unique_ptr<patchy::ui::McpAttachment> mcp_attachment;
   if (!headless_mode && !screenshot_mode) {
+    const patchy::startup_trace::Scope attachment_phase("mcp.attachment");
     mcp_attachment = std::make_unique<patchy::ui::McpAttachment>(window);
     if (!mcp_attachment->error().isEmpty()) {
       qWarning("Patchy MCP attachment: %s", qPrintable(mcp_attachment->error()));
@@ -823,6 +1008,9 @@ int main(int argc, char* argv[]) {
       }
     });
   });
+  if (startup_observer != nullptr) {
+    QTimer::singleShot(0, startup_observer.get(), [observer = startup_observer.get()] { observer->event_loop_started(); });
+  }
   const int exec_result = app.exec();
   // The window (declared after `app`) is destroyed before the application object; drop
   // the handler so a late event cannot reach a dead window.

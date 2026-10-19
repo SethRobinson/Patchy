@@ -17,6 +17,7 @@
 #include <Qt>
 #include "ui/canvas_types.hpp"
 #include "ui/main_window.hpp"
+#include "support/startup_trace.hpp"
 #include <QComboBox>
 #include "ui/canvas_widget.hpp"
 #include "ui/brush_automation.hpp"
@@ -34,6 +35,8 @@
 namespace patchy::ui {
 BrushAutomationLibrary& MainWindow::brush_automation_library() {
   if (!brush_automation_library_) {
+    // Built on first use, which is startup (docs/startup-performance.md).
+    const startup_trace::Scope library_phase("mw.lib.brush_presets");
     brush_automation_library_ = new BrushAutomationLibrary(brush_tip_library(), this);
     connect(brush_automation_library_, &BrushAutomationLibrary::changed, this, &MainWindow::refresh_automation_brush_presets);
     auto* timer = new QTimer(this); timer->setInterval(1000);

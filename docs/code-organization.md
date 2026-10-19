@@ -73,6 +73,8 @@ Session data must outlive canvas event delivery. `~MainWindow` detaches every ca
 
 ### App lifecycle (startup and quit)
 
+- Startup is timed phase by phase (`support/startup_trace.hpp`); new startup work gets its own
+  phase and is measured with `patchy_perf_tests startup` ([startup-performance.md](startup-performance.md)).
 - Never leave a Qt host lookup pending at quit: `~QCoreApplication` waits for `QHostInfo`'s thread
   pool with no timeout (GitHub issue 48, a macOS quit freeze). `update_checker.cpp` resolves the host
   on a detached thread first; any new network client does the same.

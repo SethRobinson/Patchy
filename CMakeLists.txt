@@ -149,6 +149,7 @@ add_library(patchy_core
   src/core/stroke_patch.cpp
   src/core/document_recovery_store.cpp
   src/support/atomic_file_write.cpp
+  src/support/startup_trace.cpp
   src/core/environment.cpp
   src/core/artboard.cpp
   src/core/document_geometry.cpp
@@ -2245,8 +2246,13 @@ if(PATCHY_BUILD_TESTS)
 
     add_executable(patchy_perf_tests
       tests/perf_tests.cpp
+      tests/perf_startup.cpp
     )
     target_link_libraries(patchy_perf_tests PRIVATE patchy_ui)
+    # The startup scenario launches the app beside it (docs/startup-performance.md).
+    if(TARGET patchy)
+      add_dependencies(patchy_perf_tests patchy)
+    endif()
     # The pdfopen scenario times QPdfDocument directly (the cost of the import dialog
     # thumbnails); patchy_ui links Qt PDF privately.
     if(TARGET Qt6::Pdf)

@@ -8,6 +8,7 @@
 #include "ui/canvas_types.hpp"
 #include "ui/appearance_edits.hpp"
 #include "ui/main_window.hpp"
+#include "support/startup_trace.hpp"
 #include <QComboBox>
 #include <QPushButton>
 #include <QStatusBar>
@@ -1235,6 +1236,8 @@ void MainWindow::populate_vector_mask_menu(QMenu* menu, const QString& object_na
 
 CustomShapeLibrary& MainWindow::custom_shape_library() {
   if (custom_shape_library_ == nullptr) {
+    // Built on first use, which is startup (docs/startup-performance.md).
+    const startup_trace::Scope library_phase("mw.lib.custom_shapes");
     custom_shape_library_ = new CustomShapeLibrary({}, this);
     custom_shape_library_->restore_default_shapes();
     connect(custom_shape_library_, &CustomShapeLibrary::changed, this, [this] {

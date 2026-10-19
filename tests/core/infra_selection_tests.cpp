@@ -10,6 +10,7 @@
 #include "core/spot_heal.hpp"
 #include "render/tile_cache.hpp"
 #include "support/cli_flags.hpp"
+#include "support/startup_trace.hpp"
 #include "test_harness.hpp"
 #include "remove_object_fixture.hpp"
 #include "synthetic_dng.hpp"
@@ -1244,6 +1245,91 @@ void cli_headless_flag_matches_exact_token() {
   CHECK(!patchy::headless_flag_present(0, nullptr));
 }
 
+// The startup trace must be on before QApplication is built, so main() reads
+// --startup-benchmark from argv itself; both spellings, "--" ends the scan.
+void cli_startup_benchmark_flag_reads_value() {
+  const auto value = [](std::initializer_list<const char*> args) -> std::string {
+    std::vector<const char*> argv(args);
+    const char* found = patchy::startup_benchmark_flag_value(static_cast<int>(argv.size()), argv.data());
+    return found == nullptr ? std::string("<none>") : std::string(found);
+  };
+  CHECK(value({"patchy", "a.psd"}) == "<none>");
+  CHECK(value({"patchy", "--startup-benchmark", "r.json"}) == "r.json");
+  CHECK(value({"patchy", "--headless", "--startup-benchmark=r.json"}) == "r.json");
+  CHECK(value({"patchy", "--startup-benchmark"}) == "<none>");
+  CHECK(value({"patchy", "--startup-benchmarks=r.json"}) == "<none>");
+  CHECK(value({"patchy", "--", "--startup-benchmark", "r.json"}) == "<none>");
+}
+
+// Off, nothing is recorded; on, nested scopes come back parent first with their
+// depth, marks keep their order, and both reports name every event.
+void startup_trace_records_nested_phases_and_reports() {
+  namespace trace = patchy::startup_trace;
+  trace::initialize(false);
+  {
+    const trace::Scope ignored("test.off");
+    trace::mark("test.off_mark");
+  }
+  bool any_off = false;
+  for (const auto& event : trace::events()) {
+    any_off = any_off || std::string_view(event.name).starts_with("test.off");
+  }
+  CHECK(!any_off);
+
+  trace::initialize(true);
+  CHECK(trace::enabled());
+  {
+    const trace::Scope outer("test.outer");
+    {
+      const trace::Scope inner("test.inner");
+    }
+    trace::mark("startup.idle");
+  }
+  const double worker_start = trace::now_ms();
+  trace::record_background("test.worker", worker_start, worker_start + 2.0);
+  const auto events = trace::events();
+  std::vector<std::string> names;
+  for (const auto& event : events) {
+    names.emplace_back(event.name);
+  }
+  const auto position = [&names](const char* name) {
+    return std::find(names.begin(), names.end(), name) - names.begin();
+  };
+  CHECK(position("test.outer") < position("test.inner"));
+  CHECK(position("test.inner") < static_cast<std::ptrdiff_t>(names.size()));
+  for (const auto& event : events) {
+    if (std::string_view(event.name) == "test.inner") {
+      CHECK(event.depth == 1);
+      CHECK(event.kind == trace::Kind::Phase);
+    }
+    if (std::string_view(event.name) == "test.worker") {
+      CHECK(event.kind == trace::Kind::Background);
+      CHECK(event.end_ms - event.start_ms >= 1.9);
+    }
+    CHECK(event.end_ms >= event.start_ms);
+  }
+  CHECK(trace::mark_time("startup.idle") >= 0.0);
+  CHECK(trace::mark_time("missing") < 0.0);
+  if (trace::process_start_known()) {
+    CHECK(names.front() == "process.pre_main");
+  }
+
+  const auto json = trace::format_json({{"patchy_version", "1.0"}, {"note", "quote\" and \\"}});
+  CHECK(json.find("\"format\": \"patchy-startup-report\"") != std::string::npos);
+  CHECK(json.find("\"name\": \"test.inner\", \"kind\": \"phase\"") != std::string::npos);
+  CHECK(json.find("\"kind\": \"background\"") != std::string::npos);
+  CHECK(json.find("\"note\": \"quote\\\" and \\\\\"") != std::string::npos);
+  CHECK(json.find("\"ready_ms\": -1") == std::string::npos);
+  const auto table = trace::format_table();
+  CHECK(table.find("test.outer") != std::string::npos);
+  CHECK(table.find("(rest of test.outer)") != std::string::npos);
+  CHECK(table.find("test.worker") != std::string::npos);
+
+  trace::stop();
+  trace::mark("test.after_stop");
+  CHECK(trace::mark_time("test.after_stop") < 0.0);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> infra_selection_tests() {
@@ -1279,5 +1365,7 @@ std::vector<patchy::test::TestCase> infra_selection_tests() {
        exemplar_inpaint_banner_tone_match_stays_dark_and_varies_by_attempt},
       {"heal_membrane_interpolates_boundary_offsets", heal_membrane_interpolates_boundary_offsets},
       {"cli_headless_flag_matches_exact_token", cli_headless_flag_matches_exact_token},
+      {"cli_startup_benchmark_flag_reads_value", cli_startup_benchmark_flag_reads_value},
+      {"startup_trace_records_nested_phases_and_reports", startup_trace_records_nested_phases_and_reports},
   };
 }

@@ -155,7 +155,7 @@ Read the linked document before working on a feature; it owns the constraints.
 - **Automatic document recovery and atomic file writes:** [docs/document-recovery.md](docs/document-recovery.md).
 - **Single-instance forwarding, CLI screenshots, and `--headless` runs:** `src/app/main.cpp`, [docs/testing.md](docs/testing.md), and the CLI section of [docs/scripting.md](docs/scripting.md).
 - **Logo and icon art:** `packaging/branding/`.
-- **Performance and the stress harness:** [docs/performance.md](docs/performance.md); the Move/Free Transform drag-preview machinery is in [docs/interactive-previews.md](docs/interactive-previews.md).
+- **Performance and the stress harness:** [docs/performance.md](docs/performance.md); the Move/Free Transform drag-preview machinery is in [docs/interactive-previews.md](docs/interactive-previews.md). Cold-startup phases, `patchy_perf_tests startup` and its baselines: [docs/startup-performance.md](docs/startup-performance.md); phase names are baseline keys, never rename one.
 - **Testy PSD benchmark:** [docs/testy.md](docs/testy.md).
 - **Flatpak packaging and update repository:** [packaging/linux/README.md](packaging/linux/README.md).
 - **Linux AppImage:** [docs/appimage.md](docs/appimage.md).

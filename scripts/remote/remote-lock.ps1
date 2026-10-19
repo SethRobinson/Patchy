@@ -41,7 +41,7 @@ function Get-PatchyLockPath([bool]$Windows, $Remote) {
 # inside the Flatpak SDK sandbox are visible to the host's pgrep.
 function Get-PatchyRemoteBuildState([string]$RemoteHost, [bool]$Windows) {
   if ($Windows) {
-    $probe = 'Get-Process cl,link,ninja,cmake,patchy_core_tests,patchy_ui_visual_tests -ErrorAction SilentlyContinue | ForEach-Object { $_.Name } | Sort-Object -Unique; ''patchy-probe-ok'''
+    $probe = 'Get-Process cl,link,ninja,cmake,patchy_core_tests,patchy_ui_visual_tests,patchy_perf_tests -ErrorAction SilentlyContinue | ForEach-Object { $_.Name } | Sort-Object -Unique; ''patchy-probe-ok'''
   }
   else {
     $probe = "pgrep -l '^(ninja|cmake|cc1plus|cc1|clang|clang\+\+|ld|ld64|ld\.lld|ld\.gold|collect2|lto1|patchy_core_tes.*|patchy_ui_visua.*|patchy_perf_tes.*|patchy_mac_a11y.*)`$' | awk '{print `$2}' | sort -u; echo patchy-probe-ok"
