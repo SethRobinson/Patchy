@@ -21932,6 +21932,50 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <source>Delete Group</source>
         <translation>Usuń grupę</translation>
     </message>
+    <message>
+        <source>Layer Styles</source>
+        <translation>Style warstwy</translation>
+    </message>
+    <message>
+        <source>Bevel &amp;&amp; Emboss...</source>
+        <translation>Faza i płaskorzeźba...</translation>
+    </message>
+    <message>
+        <source>Stroke...</source>
+        <translation>Obrys...</translation>
+    </message>
+    <message>
+        <source>Inner Shadow...</source>
+        <translation>Cień wewnętrzny...</translation>
+    </message>
+    <message>
+        <source>Inner Glow...</source>
+        <translation>Blask wewnętrzny...</translation>
+    </message>
+    <message>
+        <source>Satin...</source>
+        <translation>Satyna...</translation>
+    </message>
+    <message>
+        <source>Color Overlay...</source>
+        <translation>Nałożenie koloru...</translation>
+    </message>
+    <message>
+        <source>Gradient Overlay...</source>
+        <translation>Nałożenie gradientu...</translation>
+    </message>
+    <message>
+        <source>Pattern Overlay...</source>
+        <translation>Nałożenie wzorka...</translation>
+    </message>
+    <message>
+        <source>Outer Glow...</source>
+        <translation>Blask zewnętrzny...</translation>
+    </message>
+    <message>
+        <source>Drop Shadow...</source>
+        <translation>Cień...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

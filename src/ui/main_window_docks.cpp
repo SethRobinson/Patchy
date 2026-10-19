@@ -360,8 +360,8 @@ private:
 // The Layers panel footer (GitHub issue 199). The buttons sit at their maximum
 // width in one row while it fits, the width the column opens at. Narrower, they
 // share the row evenly down to their minimum width (the theme's
-// layerActionButton rule sets both), then wrap into balanced rows (eight
-// buttons: four over four), so the footer never holds the column wider.
+// layerActionButton rule sets both), then wrap into balanced rows (nine
+// buttons: five over four), so the footer never holds the column wider.
 class WrappingButtonRowLayout final : public WrappingPanelRowLayout {
 public:
   WrappingButtonRowLayout(int natural_spacing, int compact_spacing)
@@ -1430,12 +1430,14 @@ void MainWindow::create_docks() {
   layers_layout->addWidget(layer_list_, 1);
 
   // One row of full-width buttons at 5 px spacing is the row the column opens
-  // to fit. A narrower column narrows them at 3 px spacing, then wraps them four
+  // to fit. A narrower column narrows them at 3 px spacing, then wraps them five
   // over four (GitHub issue 199).
   auto* layer_buttons = new WrappingButtonRowLayout(5, 3);
   auto* add_button = new QPushButton(layers_panel);
   auto* add_folder_button = new QPushButton(layers_panel);
   auto* adjustment_button = new QToolButton(layers_panel);
+  layer_styles_button_ = new QToolButton(layers_panel);
+  auto* styles_button = layer_styles_button_;
   add_layer_mask_button_ = new QPushButton(layers_panel);
   auto* add_mask_button = add_layer_mask_button_;
   auto* duplicate_button = new QPushButton(layers_panel);
@@ -1444,6 +1446,7 @@ void MainWindow::create_docks() {
   auto* delete_button = new QPushButton(layers_panel);
   add_button->setObjectName(QStringLiteral("layerNewButton"));
   adjustment_button->setObjectName(QStringLiteral("layerNewAdjustmentButton"));
+  styles_button->setObjectName(QStringLiteral("layerStylesButton"));
   add_folder_button->setObjectName(QStringLiteral("layerNewFolderButton"));
   add_mask_button->setObjectName(QStringLiteral("layerAddMaskButton"));
   duplicate_button->setObjectName(QStringLiteral("layerDuplicateButton"));
@@ -1453,6 +1456,7 @@ void MainWindow::create_docks() {
   add_button->setIcon(simple_icon(QStringLiteral("new")));
   add_folder_button->setIcon(simple_icon(QStringLiteral("dir"), QColor(245, 205, 105)));
   adjustment_button->setIcon(simple_icon(QStringLiteral("ADJ"), QColor(190, 220, 255)));
+  styles_button->setIcon(simple_icon(QStringLiteral("layer-styles")));
   add_mask_button->setIcon(simple_icon(QStringLiteral("mask"), QColor(210, 220, 230)));
   duplicate_button->setIcon(simple_icon(QStringLiteral("dup")));
   rename_button->setIcon(simple_icon(QStringLiteral("RN")));
@@ -1461,6 +1465,7 @@ void MainWindow::create_docks() {
   bind_tooltip(add_button, QT_TR_NOOP("New Layer"));
   bind_tooltip(add_folder_button, QT_TR_NOOP("New Folder"));
   bind_tooltip(adjustment_button, QT_TR_NOOP("New Adjustment Layer"));
+  bind_tooltip(styles_button, QT_TR_NOOP("Layer Styles"));
   bind_tooltip(add_mask_button, QT_TR_NOOP("Add Layer Mask"));
   bind_tooltip(duplicate_button, QT_TR_NOOP("Duplicate Layer"));
   bind_tooltip(rename_button, QT_TR_NOOP("Rename Layer"));
@@ -1484,19 +1489,57 @@ void MainWindow::create_docks() {
     button->setAcceptDrops(true);
     button->installEventFilter(this);
   }
-  adjustment_button->setProperty("layerActionButton", true);
-  adjustment_button->setIconSize(QSize(24, 24));
-  adjustment_button->setFixedSize(38, 34);
-  adjustment_button->setFocusPolicy(Qt::NoFocus);
+  for (auto* button : {adjustment_button, styles_button}) {
+    button->setProperty("layerActionButton", true);
+    button->setIconSize(QSize(24, 24));
+    button->setFixedSize(38, 34);
+    button->setFocusPolicy(Qt::NoFocus);
+    button->setPopupMode(QToolButton::InstantPopup);
+  }
   auto* adjustment_button_menu = new QMenu(adjustment_button);
   adjustment_button_menu->setObjectName(QStringLiteral("layerNewAdjustmentButtonMenu"));
   populate_new_adjustment_layer_menu(adjustment_button_menu);
   hide_menu_action_icons(adjustment_button_menu);
   adjustment_button->setMenu(adjustment_button_menu);
-  adjustment_button->setPopupMode(QToolButton::InstantPopup);
+  // GitHub issue 94: the effects are reachable from the footer, not only from a
+  // row's double-click or context menu. Every entry opens the one Layer Style
+  // dialog; an effect entry opens it on that effect, turned on.
+  auto* styles_button_menu = new QMenu(styles_button);
+  styles_button_menu->setObjectName(QStringLiteral("layerStylesButtonMenu"));
+  if (layer_blending_options_action_ != nullptr) {
+    styles_button_menu->addAction(layer_blending_options_action_);
+    styles_button_menu->addSeparator();
+  }
+  const auto add_effect_entry = [&](const char* text, const char* object_name, LayerStyleEffect effect) {
+    auto* action = styles_button_menu->addAction(QString());
+    action->setObjectName(QLatin1String(object_name));
+    bind_action_text(action, text);
+    connect(action, &QAction::triggered, this, [this, effect] { edit_active_layer_style(effect); });
+  };
+  add_effect_entry(QT_TR_NOOP("Bevel && Emboss..."), "layerStylesBevelEmbossAction", LayerStyleEffect::BevelEmboss);
+  add_effect_entry(QT_TR_NOOP("Stroke..."), "layerStylesStrokeAction", LayerStyleEffect::Stroke);
+  add_effect_entry(QT_TR_NOOP("Inner Shadow..."), "layerStylesInnerShadowAction", LayerStyleEffect::InnerShadow);
+  add_effect_entry(QT_TR_NOOP("Inner Glow..."), "layerStylesInnerGlowAction", LayerStyleEffect::InnerGlow);
+  add_effect_entry(QT_TR_NOOP("Satin..."), "layerStylesSatinAction", LayerStyleEffect::Satin);
+  add_effect_entry(QT_TR_NOOP("Color Overlay..."), "layerStylesColorOverlayAction", LayerStyleEffect::ColorOverlay);
+  add_effect_entry(QT_TR_NOOP("Gradient Overlay..."), "layerStylesGradientOverlayAction",
+                   LayerStyleEffect::GradientOverlay);
+  add_effect_entry(QT_TR_NOOP("Pattern Overlay..."), "layerStylesPatternOverlayAction",
+                   LayerStyleEffect::PatternOverlay);
+  add_effect_entry(QT_TR_NOOP("Outer Glow..."), "layerStylesOuterGlowAction", LayerStyleEffect::OuterGlow);
+  add_effect_entry(QT_TR_NOOP("Drop Shadow..."), "layerStylesDropShadowAction", LayerStyleEffect::DropShadow);
+  // The shared Edit Layer Styles... action is also gated by the layer context
+  // menu; give it this button's state while this menu is open.
+  connect(styles_button_menu, &QMenu::aboutToShow, this, [this] {
+    if (layer_blending_options_action_ != nullptr) {
+      layer_blending_options_action_->setEnabled(can_edit_layer_styles());
+    }
+  });
+  styles_button->setMenu(styles_button_menu);
   layer_buttons->addWidget(add_button);
   layer_buttons->addWidget(add_folder_button);
   layer_buttons->addWidget(adjustment_button);
+  layer_buttons->addWidget(styles_button);
   layer_buttons->addWidget(add_mask_button);
   layer_buttons->addWidget(duplicate_button);
   layer_buttons->addWidget(rename_button);
@@ -1516,9 +1559,11 @@ void MainWindow::create_docks() {
                        static_cast<QWidget*>(delete_button)}) {
     register_document_widget(widget);
   }
-  // Not a document widget: its enabled state also depends on the layer
-  // selection, so refresh_add_layer_mask_button_state owns it.
+  // Not document widgets: their enabled state also depends on the layer
+  // selection, so refresh_add_layer_mask_button_state and
+  // refresh_layer_styles_button_state own it.
   add_mask_button->setEnabled(false);
+  styles_button->setEnabled(false);
 
   tab_specs.push_back(PanelSpec{.id = QStringLiteral("layersDock"),
                                 .object_prefix = QStringLiteral("layers"),

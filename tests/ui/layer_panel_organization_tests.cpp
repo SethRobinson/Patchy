@@ -33,6 +33,9 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMenu>
+#include <QPainter>
+#include <QStackedWidget>
 #include <QTest>
 #include <QMetaObject>
 #include <QPointer>
@@ -1844,6 +1847,225 @@ void ui_layer_add_mask_button_tracks_selection_and_adds_mask() {
   CHECK(!mask_button->isEnabled());
 }
 
+// GitHub issue 94: the Layers panel footer's Layer Styles button. Its menu holds
+// Edit Layer Styles... and every effect in the dialog's own order, and it is
+// enabled while a selected layer can take styles (not locked).
+void ui_layer_styles_button_tracks_selection_and_lists_effects() {
+  patchy::Document document(160, 120, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(160, 120, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
+  document.add_pixel_layer("Badge", solid_pixels(160, 120, patchy::PixelFormat::rgba8(), QColor(220, 90, 40)));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Layer Styles Button"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* styles_button = window.findChild<QToolButton*>(QStringLiteral("layerStylesButton"));
+  CHECK(layer_list != nullptr);
+  CHECK(styles_button != nullptr);
+  CHECK(!styles_button->toolTip().isEmpty());
+  CHECK(!styles_button->icon().isNull());
+  CHECK(styles_button->property("layerActionButton").toBool());
+  CHECK(styles_button->popupMode() == QToolButton::InstantPopup);
+  CHECK(styles_button->focusPolicy() == Qt::NoFocus);
+
+  auto* menu = styles_button->menu();
+  CHECK(menu != nullptr);
+  CHECK(menu->objectName() == QStringLiteral("layerStylesButtonMenu"));
+  const auto actions = menu->actions();
+  const std::array<std::pair<const char*, const char*>, 10> effects{{
+      {"layerStylesBevelEmbossAction", "Bevel && Emboss..."},
+      {"layerStylesStrokeAction", "Stroke..."},
+      {"layerStylesInnerShadowAction", "Inner Shadow..."},
+      {"layerStylesInnerGlowAction", "Inner Glow..."},
+      {"layerStylesSatinAction", "Satin..."},
+      {"layerStylesColorOverlayAction", "Color Overlay..."},
+      {"layerStylesGradientOverlayAction", "Gradient Overlay..."},
+      {"layerStylesPatternOverlayAction", "Pattern Overlay..."},
+      {"layerStylesOuterGlowAction", "Outer Glow..."},
+      {"layerStylesDropShadowAction", "Drop Shadow..."},
+  }};
+  CHECK(actions.size() == static_cast<qsizetype>(effects.size() + 2));
+  // The full dialog first, through the same action as Layer > Edit Layer Styles...
+  CHECK(actions[0] == require_action(window, "layerBlendingOptionsAction"));
+  CHECK(actions[1]->isSeparator());
+  for (std::size_t index = 0; index < effects.size(); ++index) {
+    const auto* action = actions[static_cast<qsizetype>(index + 2)];
+    CHECK(action->objectName() == QLatin1String(effects[index].first));
+    CHECK(action->text() == QLatin1String(effects[index].second));
+  }
+
+  // The active layer can take styles.
+  auto* badge = require_layer_item(*layer_list, QStringLiteral("Badge"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(badge);
+  badge->setSelected(true);
+  QApplication::processEvents();
+  CHECK(styles_button->isEnabled());
+
+  // The footer with its menu open: the issue's AFTER picture.
+  auto* panel = window.findChild<QWidget*>(QStringLiteral("layersPanel"));
+  CHECK(panel != nullptr);
+  menu->popup(styles_button->mapToGlobal(QPoint(0, styles_button->height())));
+  QApplication::processEvents();
+  CHECK(menu->isVisible());
+  const auto panel_image = panel->grab().toImage();
+  const auto menu_image = menu->grab().toImage();
+  menu->hide();
+  QApplication::processEvents();
+  const QRect button_rect(styles_button->mapTo(panel, QPoint()), styles_button->size());
+  const auto ratio = panel_image.devicePixelRatio();
+  const auto menu_size = (QSizeF(menu_image.size()) / menu_image.devicePixelRatio()).toSize();
+  // Drawn where Qt places it at the bottom of a window: above the button.
+  const auto menu_top = button_rect.top() - menu_size.height();
+  const auto lift = std::max(0, -menu_top);
+  const QSize composed_size(std::max(panel->width(), button_rect.left() + menu_size.width()), panel->height() + lift);
+  QImage composed((QSizeF(composed_size) * ratio).toSize(), QImage::Format_ARGB32_Premultiplied);
+  composed.setDevicePixelRatio(ratio);
+  composed.fill(panel_image.pixelColor(0, 0));
+  {
+    QPainter painter(&composed);
+    painter.drawImage(QPoint(0, lift), panel_image);
+    painter.drawImage(QPoint(button_rect.left(), menu_top + lift), menu_image);
+  }
+  save_image_artifact("ui_layer_styles_button_menu", composed);
+
+  // Two selected layers still take styles together.
+  require_layer_item(*layer_list, QStringLiteral("Background"))->setSelected(true);
+  QApplication::processEvents();
+  CHECK(styles_button->isEnabled());
+
+  // A locked layer cannot.
+  layer_list->clearSelection();
+  badge = require_layer_item(*layer_list, QStringLiteral("Badge"));
+  layer_list->setCurrentItem(badge);
+  badge->setSelected(true);
+  QApplication::processEvents();
+  auto* lock_all = window.findChild<QToolButton*>(QStringLiteral("layerLockAllButton"));
+  CHECK(lock_all != nullptr);
+  lock_all->click();
+  QApplication::processEvents();
+  CHECK(!styles_button->isEnabled());
+  lock_all->click();
+  QApplication::processEvents();
+  CHECK(styles_button->isEnabled());
+}
+
+// GitHub issue 94: an effect entry in the footer's Layer Styles menu opens the
+// one Layer Style dialog on that effect, turned on; OK keeps it, Cancel leaves
+// the layer as it was, and an existing turned-off effect is turned on rather
+// than duplicated.
+void ui_layer_styles_menu_entry_opens_dialog_on_effect() {
+  patchy::Document document(64, 48, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(64, 48, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
+  document.add_pixel_layer("Badge", solid_pixels(64, 48, patchy::PixelFormat::rgba8(), QColor(220, 90, 40)));
+  const auto badge_id = document.layers().back().id();
+  patchy::LayerStroke stroke;
+  stroke.enabled = false;
+  document.find_layer(badge_id)->layer_style().strokes.push_back(stroke);
+  document.set_active_layer(badge_id);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Layer Styles Menu"));
+  QApplication::processEvents();
+
+  auto* styles_button = window.findChild<QToolButton*>(QStringLiteral("layerStylesButton"));
+  CHECK(styles_button != nullptr && styles_button->menu() != nullptr);
+  CHECK(styles_button->isEnabled());
+  const auto& doc = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  const auto badge_style = [&]() -> const patchy::LayerStyle& {
+    const auto* layer = doc.find_layer(badge_id);
+    CHECK(layer != nullptr);
+    return layer->layer_style();
+  };
+
+  struct Seen {
+    bool found{false};
+    QString current_label;
+    QString current_page;
+    bool checked{false};
+  };
+  // Triggers a menu entry. The dialog is read, then closed before any CHECK
+  // runs, so a failure can never leave it open.
+  const auto run_entry = [&](const char* action_name, const char* check_name, bool accept) {
+    QAction* entry = nullptr;
+    for (auto* action : styles_button->menu()->actions()) {
+      if (action->objectName() == QLatin1String(action_name)) {
+        entry = action;
+      }
+    }
+    CHECK(entry != nullptr);
+    Seen seen;
+    QTimer::singleShot(0, [&seen, check_name, accept] {
+      for (auto* widget : QApplication::topLevelWidgets()) {
+        auto* dialog = qobject_cast<QDialog*>(widget);
+        if (dialog == nullptr || dialog->objectName() != QStringLiteral("patchyLayerStyleDialog") ||
+            !dialog->isVisible()) {
+          continue;
+        }
+        seen.found = true;
+        auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+        auto* stack = dialog->findChild<QStackedWidget*>(QStringLiteral("layerStyleOptionsStack"));
+        if (categories != nullptr && categories->currentItem() != nullptr) {
+          seen.current_label = categories->currentItem()->text();
+        }
+        if (stack != nullptr && stack->currentWidget() != nullptr) {
+          seen.current_page = stack->currentWidget()->objectName();
+        }
+        if (check_name != nullptr) {
+          auto* check = dialog->findChild<QCheckBox*>(QLatin1String(check_name));
+          seen.checked = check != nullptr && check->isChecked();
+        }
+        if (accept) {
+          dialog->accept();
+        } else {
+          dialog->reject();
+        }
+        return;
+      }
+    });
+    entry->trigger();
+    QApplication::processEvents();
+    CHECK(seen.found);
+    return seen;
+  };
+
+  // Drop Shadow: opens on its page, ticked; OK adds one enabled drop shadow.
+  auto seen = run_entry("layerStylesDropShadowAction", "layerStyleDropShadowCategoryCheck", true);
+  CHECK(seen.current_label == QStringLiteral("Drop Shadow"));
+  CHECK(seen.current_page == QStringLiteral("layerStyleDropShadowPage"));
+  CHECK(seen.checked);
+  CHECK(badge_style().drop_shadows.size() == 1U);
+  CHECK(badge_style().drop_shadows.front().enabled);
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(badge_style().drop_shadows.empty());
+
+  // Cancel leaves the turned-off stroke as it was.
+  seen = run_entry("layerStylesStrokeAction", "layerStyleStrokeCategoryCheck", false);
+  CHECK(seen.current_label == QStringLiteral("Stroke"));
+  CHECK(seen.current_page == QStringLiteral("layerStyleStrokePage"));
+  CHECK(seen.checked);
+  CHECK(badge_style().strokes.size() == 1U);
+  CHECK(!badge_style().strokes.front().enabled);
+
+  // OK turns that stroke on instead of adding a second one.
+  seen = run_entry("layerStylesStrokeAction", "layerStyleStrokeCategoryCheck", true);
+  CHECK(seen.checked);
+  CHECK(badge_style().strokes.size() == 1U);
+  CHECK(badge_style().strokes.front().enabled);
+
+  // Bevel & Emboss (not stackable) opens on its page too.
+  seen = run_entry("layerStylesBevelEmbossAction", "layerStyleBevelEmbossCategoryCheck", false);
+  CHECK(seen.current_page == QStringLiteral("layerStyleBevelEmbossPage"));
+  CHECK(seen.checked);
+  CHECK(badge_style().bevels.empty());
+
+  // Edit Layer Styles... opens the dialog on Blending Options, nothing turned on.
+  seen = run_entry("layerBlendingOptionsAction", nullptr, false);
+  CHECK(seen.current_page == QStringLiteral("layerStyleBlendingPage"));
+}
+
 void ui_layer_folders_expand_and_contract_children() {
   patchy::Document document(32, 32, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background",
@@ -2910,7 +3132,7 @@ void ui_layer_blend_row_wraps_in_narrow_panel() {
 }
 
 // GitHub issue 199: below the width the column opens at, the Layers panel
-// rows wrap instead of clipping: the footer buttons narrow and then wrap four
+// rows wrap instead of clipping: the footer buttons narrow and then wrap five
 // over four, Fill drops under Opacity, and the name filter takes a line of its
 // own. The compact width (every row wrapped) sits far under the opening width,
 // and there every control is whole, apart, and inside the panel, with no
@@ -2963,13 +3185,13 @@ void ui_layer_panel_compact_width_keeps_controls_whole() {
       const char* name;
       bool natural_width;  // laid out at its own width hint, never narrower
     };
-    const std::array<Control, 17> controls{{
+    const std::array<Control, 18> controls{{
         {"layerBlendModeCombo", true},     {"layerOpacitySpin", true},         {"layerFillOpacitySpin", true},
         {"layerLockTransparentButton", true}, {"layerLockPixelsButton", true}, {"layerLockPositionButton", true},
         {"layerLockAllButton", true},      {"layerNameFilterEdit", false},     {"layerList", false},
         {"layerNewButton", false},         {"layerNewFolderButton", false},    {"layerNewAdjustmentButton", false},
-        {"layerAddMaskButton", false},     {"layerDuplicateButton", false},    {"layerRenameButton", false},
-        {"layerAnimationButton", false},   {"layerDeleteButton", false},
+        {"layerStylesButton", false},      {"layerAddMaskButton", false},      {"layerDuplicateButton", false},
+        {"layerRenameButton", false},      {"layerAnimationButton", false},    {"layerDeleteButton", false},
     }};
     std::vector<QRect> rects;
     for (const auto& control : controls) {
@@ -4028,6 +4250,9 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
       {"ui_layer_action_buttons_accept_multiselect_drops", ui_layer_action_buttons_accept_multiselect_drops},
       {"ui_layer_add_mask_button_tracks_selection_and_adds_mask",
        ui_layer_add_mask_button_tracks_selection_and_adds_mask},
+      {"ui_layer_styles_button_tracks_selection_and_lists_effects",
+       ui_layer_styles_button_tracks_selection_and_lists_effects},
+      {"ui_layer_styles_menu_entry_opens_dialog_on_effect", ui_layer_styles_menu_entry_opens_dialog_on_effect},
       {"ui_layer_folders_expand_and_contract_children", ui_layer_folders_expand_and_contract_children},
       {"ui_layer_folders_open_with_saved_expansion_state", ui_layer_folders_open_with_saved_expansion_state},
       {"ui_layer_folder_toggle_saves_without_marking_modified", ui_layer_folder_toggle_saves_without_marking_modified},

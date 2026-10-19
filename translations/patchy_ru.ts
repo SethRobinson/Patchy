@@ -21932,6 +21932,50 @@ Patchy может скачать обновление, заменить этот
         <source>Delete Group</source>
         <translation>Удалить группу</translation>
     </message>
+    <message>
+        <source>Layer Styles</source>
+        <translation>Стили слоя</translation>
+    </message>
+    <message>
+        <source>Bevel &amp;&amp; Emboss...</source>
+        <translation>Тиснение...</translation>
+    </message>
+    <message>
+        <source>Stroke...</source>
+        <translation>Обводка...</translation>
+    </message>
+    <message>
+        <source>Inner Shadow...</source>
+        <translation>Внутренняя тень...</translation>
+    </message>
+    <message>
+        <source>Inner Glow...</source>
+        <translation>Внутреннее свечение...</translation>
+    </message>
+    <message>
+        <source>Satin...</source>
+        <translation>Глянец...</translation>
+    </message>
+    <message>
+        <source>Color Overlay...</source>
+        <translation>Наложение цвета...</translation>
+    </message>
+    <message>
+        <source>Gradient Overlay...</source>
+        <translation>Наложение градиента...</translation>
+    </message>
+    <message>
+        <source>Pattern Overlay...</source>
+        <translation>Наложение узора...</translation>
+    </message>
+    <message>
+        <source>Outer Glow...</source>
+        <translation>Внешнее свечение...</translation>
+    </message>
+    <message>
+        <source>Drop Shadow...</source>
+        <translation>Тень...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

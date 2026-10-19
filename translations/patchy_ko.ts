@@ -21792,6 +21792,50 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <source>Delete Group</source>
         <translation>그룹 삭제</translation>
     </message>
+    <message>
+        <source>Layer Styles</source>
+        <translation>레이어 스타일</translation>
+    </message>
+    <message>
+        <source>Bevel &amp;&amp; Emboss...</source>
+        <translation>베벨 및 엠보싱...</translation>
+    </message>
+    <message>
+        <source>Stroke...</source>
+        <translation>획...</translation>
+    </message>
+    <message>
+        <source>Inner Shadow...</source>
+        <translation>내부 그림자...</translation>
+    </message>
+    <message>
+        <source>Inner Glow...</source>
+        <translation>내부 광선...</translation>
+    </message>
+    <message>
+        <source>Satin...</source>
+        <translation>새틴...</translation>
+    </message>
+    <message>
+        <source>Color Overlay...</source>
+        <translation>색상 오버레이...</translation>
+    </message>
+    <message>
+        <source>Gradient Overlay...</source>
+        <translation>그레이디언트 오버레이...</translation>
+    </message>
+    <message>
+        <source>Pattern Overlay...</source>
+        <translation>패턴 오버레이...</translation>
+    </message>
+    <message>
+        <source>Outer Glow...</source>
+        <translation>외부 광선...</translation>
+    </message>
+    <message>
+        <source>Drop Shadow...</source>
+        <translation>그림자...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
