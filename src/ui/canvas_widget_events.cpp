@@ -2770,7 +2770,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
         } else {
           QRegion widget_region;
           for (const auto& rect : patched_region) {
-            widget_region += widget_rect_for_document_rect(rect);
+            widget_region += widget_repaint_rect_for_document_rect(rect);
           }
           update(widget_region);
         }

@@ -646,11 +646,26 @@ bool zoom_trace_enabled() {
   return enabled;
 }
 
+// The display interpolation rule, in view zoom (GitHub issue 210). Zoomed out the
+// canvas always interpolates. Between 100% and 400% nearest-neighbor makes document
+// pixels alternate between two screen sizes (1 and 2 screen pixels at 150%), which
+// draws edges as irregular stairs, so fractional zooms there interpolate. Whole zooms
+// (100%, 200%, 300%) map each pixel to an exact block and stay crisp, as does
+// everything from 400% up, where pixels read as blocks and users edit them one by one.
+constexpr double kSmoothMagnificationLimit = 4.0;
+constexpr double kWholeZoomTolerance = 0.001;
+
 bool uses_smooth_display_scaling(double zoom, bool deep_pixel_renderer) noexcept {
-  if (deep_pixel_renderer) {
+  if (deep_pixel_renderer || !std::isfinite(zoom)) {
     return false;
   }
-  return zoom < 1.0;
+  if (zoom < 1.0) {
+    return true;
+  }
+  if (zoom >= kSmoothMagnificationLimit) {
+    return false;
+  }
+  return std::abs(zoom - std::round(zoom)) > kWholeZoomTolerance;
 }
 
 QString default_new_layer_name(const Document& document) {

@@ -192,6 +192,8 @@ double grid_cycle_pixels(std::int32_t cycle_32) noexcept;
 // cache code and the view/event/shape-preview code still in canvas_widget.cpp.
 bool uses_pixel_aligned_view(double zoom) noexcept;
 bool uses_deep_zoom_pixel_renderer(double zoom) noexcept;
+// Whether the canvas interpolates at this view zoom: the one display smoothing rule
+// (docs/view-navigation.md, "Display interpolation").
 bool uses_smooth_display_scaling(double zoom, bool deep_pixel_renderer) noexcept;
 int display_mip_level_for_zoom(double zoom) noexcept;
 // "Layer N", one past the top-level count and not taken anywhere in the tree (New Layer,

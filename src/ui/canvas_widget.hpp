@@ -1627,6 +1627,9 @@ private:
   [[nodiscard]] QPoint layer_position(const Layer& layer, QPoint document_point) const noexcept;
   [[nodiscard]] QRect widget_rect_for_document_rect(QRect document_rect) const;
   [[nodiscard]] QRectF widget_rect_for_document_rect(QRectF document_rect) const;
+  // The widget rect to repaint after the displayed pixels of document_rect change: the
+  // smooth display scale blends each pixel into its neighbours on screen.
+  [[nodiscard]] QRect widget_repaint_rect_for_document_rect(QRect document_rect) const;
   bool begin_edit(QString label);
   // Called right after a successful begin_edit by the painting_ gestures: emits the
   // Begin history event and starts collecting the stroke's dirty rectangles.

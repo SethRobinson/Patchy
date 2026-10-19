@@ -1708,15 +1708,27 @@ void big_brush_stroke_perf() {
   canvas->set_primary_color(Qt::black);
   canvas->set_brush_opacity(100);
   canvas->set_brush_softness(0);
-  for (const bool fit : {true, false}) {
+  // 0 is fit; 150% interpolates and 100% / 200% draw exact pixels (GitHub issue 210).
+  for (const double zoom : {0.0, 1.0, 1.5, 2.0}) {
+    const auto label = zoom == 0.0 ? std::string("fit") : std::to_string(static_cast<int>(zoom * 100.0)) + "%";
     for (const int brush_size : {40, 300}) {
-      if (fit) {
+      if (zoom == 0.0) {
         canvas->fit_to_view();
       } else {
-        canvas->set_zoom_centered(1.0);
+        canvas->set_zoom_centered(zoom);
       }
       canvas->set_brush_size(brush_size);
       settle();
+      if (brush_size == 40) {
+        std::vector<double> full_ms;
+        for (int index = 0; index < 20; ++index) {
+          full_ms.push_back(elapsed_ms([&] { canvas->repaint(); }));
+        }
+        std::sort(full_ms.begin(), full_ms.end());
+        std::cout << "[perf] full_view_paint " << label << " zoom=" << canvas->zoom() << " paint_ms median="
+                  << std::fixed << std::setprecision(2) << full_ms[full_ms.size() / 2] << " max=" << full_ms.back()
+                  << '\n';
+      }
       const auto center = QPointF(canvas->width() / 2.0, canvas->height() / 2.0);
       const auto radius = std::min(canvas->width(), canvas->height()) * 0.35;
       const auto at = [&](int index) {
@@ -1745,7 +1757,7 @@ void big_brush_stroke_perf() {
       }
 #ifdef Q_OS_WIN
       if (sampler) {
-        std::cout << "[SAMPLER_PHASE] brush_stroke " << (fit ? "fit" : "100%") << " size=" << brush_size << '\n';
+        std::cout << "[SAMPLER_PHASE] brush_stroke " << label << " size=" << brush_size << '\n';
         sampler.reset();
       }
 #endif
@@ -1759,7 +1771,7 @@ void big_brush_stroke_perf() {
              << " max=" << values.back();
         return text.str();
       };
-      std::cout << "[perf] brush_stroke " << (fit ? "fit" : "100%") << " zoom=" << canvas->zoom()
+      std::cout << "[perf] brush_stroke " << label << " zoom=" << canvas->zoom()
                 << " size=" << brush_size << " move_ms " << summary(move_ms) << " paint_ms " << summary(paint_ms)
                 << '\n';
     }
