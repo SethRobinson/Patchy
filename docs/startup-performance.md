@@ -34,7 +34,7 @@ Phases, in order (`mw.*` are children of `main_window.construct`):
 | `mw.tabs_start_panel` | document tabs, start panel, timers |
 | `mw.input_color_settings` | pen settings, CMYK working space (ICC load) |
 | `mw.actions` | `create_actions`; children `mw.actions.defaults_canvas`, `.menu_bar`, `.tool_palette`, `.options_bar`, `.translations_finish` |
-| `mw.lib.*` | a preset library built on first use (`brush_tips`, `brush_presets`, `patterns`, `gradients`, `styles`, `custom_shapes`): nested under whatever phase first touched it, today `mw.actions.options_bar` |
+| `mw.lib.*` | a preset library built on first use (`brush_tips`, `brush_presets`, `patterns`, `gradients`, `styles`, `custom_shapes`): nested under whatever phase first touched it, today `mw.actions.options_bar`; `mw.lib.patterns` is the adoption of the startup preload, usually after `first_paint` |
 | `mw.view_recent` | view settings, window chrome, recent files and folders menus |
 | `mw.docks` | `create_docks` (every panel) |
 | `mw.panel_entries_hotkeys` | Window menu panel entries, hotkey application |
@@ -94,11 +94,11 @@ Cold costs 60 to 100 ms over warm, almost all in `pre_main` (mapping Qt and the 
 
 ### Slowest phases (warm headless) and proposals
 
-Nothing below is implemented; each is a proposal to pick from.
+Rows marked Done are implemented; the rest are proposals to pick from.
 
 | Rank | Phase | Warm | First launch | Proposal and risk |
 |---|---|---|---|---|
-| 1 | `mw.lib.patterns` | 154 ms (47% of ready) | 2466 ms | The options bar builds the Pattern Stamp combo at startup, so `PatternLibrary::reload` decodes every stored pattern PNG (32 files, 10 MB, mostly 512x512) and makes its tile and thumbnail; a fresh profile first generates and PNG-encodes the factory patterns. Build the library on first use (the getter is already lazy; only the combo forces it), or load names and sizes only (sidecar JSON plus `QImageReader::size()`) and decode tiles and thumbnails on a worker or on first popup; cache 48 px thumbnails beside the PNGs; on a fresh profile generate the factory set on a worker after the first paint. Risk: everything that reads the library early (tool-settings restore of the selected pattern when the first document opens, scripts and MCP pattern calls) must still get a complete library, so the lazy path has to load synchronously when asked; `changed` must be emitted on the GUI thread; a deferred first-launch write must not race a user import. Saves about 150 ms warm and 2.4 s on a first launch. |
+| 1 | `mw.lib.patterns` | 154 ms (47% of ready) | 2466 ms | **Done** (see "Preloaded libraries" below). Was: the Pattern Stamp combo built at startup made `PatternLibrary::reload` decode every stored pattern (32 files, 10 MB, mostly 512x512), and a fresh profile first generated and PNG-encoded the factory set. |
 | 2 | `mw.stylesheet` | 38 ms | 40 ms | `setStyleSheet(photoshop_style())` runs after every widget exists, so the whole tree is re-polished once. Setting the sheet before `create_actions`/`create_docks` (widgets are then polished once, when shown) may save part of it. Risk: code that reads style metrics during construction would see the styled values earlier, and the scheme-change connection order (connected after the first sheet) must stay. Measure before keeping. |
 | 3 | `mw.lib.brush_presets` (includes `mw.lib.brush_tips`, 10 ms) | 23 ms | 141 ms | Same shape as patterns: every tip PNG is decoded and turned into a 48 px thumbnail, and a fresh profile seeds the default tips. Thumbnail cache or lazy load as above; same risks (brush presets are read when the first document arrives). |
 | 4 | `process.pre_main` | 16 ms | cold 78 to 88 ms | The exe names Qt6Pdf, Qt6Qml, Qt6Network, Qt6PrintSupport, Qt6Svg and onnxruntime (a string scan; confirm with `dumpbin /imports`). Delay-load (`/DELAYLOAD`) what startup never calls (likely Qt6Pdf, onnxruntime, Qt6PrintSupport). Risk: a DLL whose data Patchy imports (a `staticMetaObject` of a subclassed class) cannot be delay-loaded (the linker refuses, LNK1194), and a missing DLL then fails at first use instead of at launch. Helps cold starts only. |
@@ -108,3 +108,21 @@ Nothing below is implemented; each is a proposal to pick from.
 | 8 | everything else | 5 ms or less each | | `mw.tabs_start_panel`, `mw.input_color_settings` (ICC working space), `mw.view_recent`, `mw.docks`, `mw.actions.translations_finish`, `main_window.show`, `mw.actions.menu_bar`. |
 
 Off the startup path already: the legacy plug-in scan (14 ms, on a worker after the first paint, reported as background), the update check (asynchronous; host lookup on a detached thread), G'MIC (its library loads at the first filter run, not at startup). Not measured: a real window. Headless never enumerates installed fonts, so `fonts.ui_family` (about 1 ms here) can be much larger in a real window on a machine with many fonts; measure it with the desktop procedure above.
+
+## Preloaded libraries
+
+`MainWindow::start_library_preloads()`, the first statement of the constructor, starts tracked workers that read, decode and seed preset libraries while the window is built (`PatternLibrary::load_off_gui_thread`). A worker-side library keeps its thumbnails as `QImage`s (QPixmap is GUI-thread only; `pattern_thumbnail_image`), and the GUI adopts the result with `from_load()`, which reads nothing. Rules:
+
+- Every reader goes through the window getter (`pattern_library()`), which adopts the preload and waits for the worker when it is still running, so an early reader (a document opened at once, a script, the MCP connector) gets the complete library, never a partial one. Never read a library folder directly while a preload may still be writing it.
+- The seeding version gates are read on the GUI thread before the worker starts and written back after adoption, as the synchronous path did; adoption emits the library's `changed` when the worker seeded, like the seeding itself did.
+- The Pattern Stamp list stays empty until the library exists: the pattern worker posts its adoption to the GUI as soon as it finishes (`adopt_preloaded_pattern_library`), and the first click, key or wheel on the list adopts it at once (`FirstUseHook`).
+- A window destroyed before adopting waits for its workers (`~StartupLibraryPreloads`), so no worker keeps writing into a settings folder a test is about to delete.
+- `ui_pattern_library_off_thread_load_matches_direct_load` pins that the adopted library equals the GUI-thread one (entries, thumbnails, tiles) and that the worker's files read back the same.
+
+Measured on the baseline host (medians, headless, against a baseline recorded from the same day's main):
+
+| Change | Phase before -> after | ready warm | ready cold | first launch |
+|---|---|---|---|---|
+| Patterns on a worker | `mw.lib.patterns` 152.7 -> 0.5 ms warm (adoption after the first paint), 153.1 -> 0.8 ms cold; `mw.actions.options_bar` 193.2 -> 40.0 | 328.5 -> 177.8 ms | 419.6 -> 352.7 ms (MAD 40) | 2838 -> 397 ms |
+
+Cold launches vary by 50 ms or more from disk and page-fault noise (every phase on the path still drops by the same 150 ms); read cold medians with their MAD.

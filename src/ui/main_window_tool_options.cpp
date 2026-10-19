@@ -37,6 +37,7 @@
 #include "ui/app_settings.hpp"
 #include "ui/brush_dynamics_popup.hpp"
 #include "ui/brush_presets.hpp"
+#include "ui/background_workers.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/brush_tip_picker.hpp"
@@ -130,6 +131,8 @@
 #include <initializer_list>
 #include <numeric>
 #include <functional>
+#include <exception>
+#include <future>
 #include <memory>
 #include <optional>
 #include <qlatin1stringview.h>
@@ -587,7 +590,91 @@ int stored_default_asset_version(const QSettings& settings, const QString& key) 
 #endif
 }
 
+// Seed code-generated default patterns once. A user deletion stays deleted across
+// launches; the Pattern Manager's explicit restore command brings it back. Returns how many
+// were added. Any thread.
+int seed_default_patterns(PatternLibrary& library, int stored_version) {
+  return stored_version < kDefaultPatternsVersion ? library.restore_default_patterns(stored_version) : 0;
+}
+
+// Runs `work` on a tracked background worker; `done` runs on the worker after the result is
+// published.
+template <typename Load, typename Work>
+std::future<Load> start_preload(Work work, std::function<void()> done = {}) {
+  auto promise = std::make_shared<std::promise<Load>>();
+  auto future = promise->get_future();
+  run_tracked_background_worker([promise, work = std::move(work), done = std::move(done)] {
+    try {
+      promise->set_value(work());
+    } catch (...) {
+      promise->set_exception(std::current_exception());
+    }
+    if (done) {
+      done();
+    }
+  });
+  return future;
+}
+
+// A preload's result, waiting for the worker if it is still running. A failed preload
+// returns nothing and the caller reads the library itself.
+template <typename Load>
+std::optional<Load> take_preloaded(std::future<Load>& future) {
+  if (!future.valid()) {
+    return std::nullopt;
+  }
+  try {
+    return future.get();
+  } catch (...) {
+    return std::nullopt;
+  }
+}
+
 }  // namespace
+
+struct StartupLibraryPreloads {
+  std::future<PatternLibraryLoad> patterns;
+  StartupLibraryPreloads() = default;
+  StartupLibraryPreloads(const StartupLibraryPreloads&) = delete;
+  StartupLibraryPreloads& operator=(const StartupLibraryPreloads&) = delete;
+  // A window destroyed before adopting must not leave a worker seeding its settings folder.
+  ~StartupLibraryPreloads() {
+    if (patterns.valid()) {
+      patterns.wait();
+    }
+  }
+};
+
+// Called first in the constructor. The patterns are needed only when the Pattern Stamp list,
+// a pattern fill, or a document needs them, so the worker also hands its result to the
+// window as soon as it is ready.
+void MainWindow::start_library_preloads() {
+  library_preloads_ = std::make_shared<StartupLibraryPreloads>();
+  const auto patterns_version =
+      stored_default_asset_version(app_settings(), QStringLiteral("patterns/defaultPatternsVersion"));
+  auto* app = QCoreApplication::instance();
+  QPointer<MainWindow> window(this);
+  library_preloads_->patterns = start_preload<PatternLibraryLoad>(
+      [directory = PatternLibrary::resolved_storage_dir(), patterns_version] {
+        return PatternLibrary::load_off_gui_thread(directory, [patterns_version](PatternLibrary& library) {
+          return seed_default_patterns(library, patterns_version);
+        });
+      },
+      [app, window] {
+        QMetaObject::invokeMethod(
+            app,
+            [window] {
+              if (window != nullptr) {
+                window->adopt_preloaded_pattern_library();
+              }
+            },
+            Qt::QueuedConnection);
+      });
+}
+
+void MainWindow::adopt_preloaded_pattern_library() {
+  (void)pattern_library();
+}
 
 BrushTipLibrary& MainWindow::brush_tip_library() {
   if (brush_tip_library_ == nullptr) {
@@ -617,26 +704,34 @@ BrushTipLibrary& MainWindow::brush_tip_library() {
 
 PatternLibrary& MainWindow::pattern_library() {
   if (pattern_library_ == nullptr) {
-    // Built on first use, which is startup (docs/startup-performance.md).
+    // Adopted from the startup preload (start_library_preloads), waiting for it if needed.
     const startup_trace::Scope library_phase("mw.lib.patterns");
-    pattern_library_ = new PatternLibrary({}, this);
+    auto settings = app_settings();
+    const auto stored_version =
+        stored_default_asset_version(settings, QStringLiteral("patterns/defaultPatternsVersion"));
+    std::optional<PatternLibraryLoad> preloaded;
+    if (library_preloads_ != nullptr) {
+      preloaded = take_preloaded(library_preloads_->patterns);
+    }
+    const int preseeded = preloaded.has_value() ? preloaded->prepared : 0;
+    pattern_library_ = preloaded.has_value() ? PatternLibrary::from_load(std::move(*preloaded), this)
+                                             : new PatternLibrary({}, this);
     connect(pattern_library_, &PatternLibrary::changed, this, [this] {
       refresh_pattern_stamp_pattern_combo();
       apply_pattern_stamp_settings_to_canvas(canvas_);
       schedule_save_tool_settings();
     });
-    // Seed code-generated defaults once. A user deletion stays deleted across
-    // launches; the Pattern Manager's explicit restore command brings it back.
-    auto settings = app_settings();
-    const auto stored_version =
-        stored_default_asset_version(settings, QStringLiteral("patterns/defaultPatternsVersion"));
-    if (stored_version < kDefaultPatternsVersion) {
-      pattern_library_->restore_default_patterns(stored_version);
-      if (pattern_library_->has_all_default_patterns_introduced_after(stored_version)) {
-        settings.setValue(QStringLiteral("patterns/defaultPatternsVersion"),
-                          kDefaultPatternsVersion);
-      }
+    if (preseeded > 0) {
+      emit pattern_library_->changed();  // what the seeding below emits when it runs here
+    } else if (!preloaded.has_value()) {
+      (void)seed_default_patterns(*pattern_library_, stored_version);
     }
+    if (stored_version < kDefaultPatternsVersion &&
+        pattern_library_->has_all_default_patterns_introduced_after(stored_version)) {
+      settings.setValue(QStringLiteral("patterns/defaultPatternsVersion"), kDefaultPatternsVersion);
+    }
+    // The Pattern Stamp list stays empty until the library exists (refresh_pattern_stamp_pattern_combo).
+    refresh_pattern_stamp_pattern_combo();
   }
   return *pattern_library_;
 }
@@ -2284,7 +2379,9 @@ void MainWindow::apply_pattern_stamp_settings_to_canvas(CanvasWidget* canvas) {
 }
 
 void MainWindow::refresh_pattern_stamp_pattern_combo() {
-  if (pattern_stamp_pattern_combo_ == nullptr) {
+  // Before the startup preload lands there is nothing to list: pattern_library() fills the
+  // list when it adopts the preload, or at once when the list is used first.
+  if (pattern_stamp_pattern_combo_ == nullptr || pattern_library_ == nullptr) {
     return;
   }
   const QSignalBlocker blocker(pattern_stamp_pattern_combo_);

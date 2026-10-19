@@ -26,6 +26,10 @@ class PresetLibraryBase : public QObject {
  public:
   [[nodiscard]] const QString& storage_dir() const noexcept { return storage_dir_; }
 
+  // The directory a library constructed with `storage_dir` uses: an empty one resolves to
+  // <settings dir>/<subdir>. Read on the GUI thread before handing the path to a worker.
+  [[nodiscard]] static QString resolve_storage_dir(QString storage_dir, const char* subdir);
+
  signals:
   // Emitted once after any mutation that changed the library (adds, renames,
   // folder moves, removals, default restores/resets).
