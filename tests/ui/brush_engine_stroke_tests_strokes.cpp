@@ -5,6 +5,7 @@
 
 #include "ui/canvas_widget.hpp"
 #include "ui/qt_paths.hpp"
+#include "ui/tool_cursors.hpp"
 #include "core/palette.hpp"
 #include "ui/pattern_library.hpp"
 #include "ui/brush_tip_library.hpp"
@@ -2991,14 +2992,24 @@ void ui_move_tool_after_text_edit_keeps_spacebar_pan_active() {
   QApplication::processEvents();
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
   CHECK(QApplication::focusWidget() == canvas);
-  CHECK(canvas->cursor().shape() == Qt::SizeAllCursor);
+  // A Move-tool cursor, not the text I-beam. Which one depends on whether the
+  // pointer rests on the committed text's pixels (GitHub issue 170): the
+  // four-way cursor there, the arrow with a move badge elsewhere.
+  const auto move_cursor_image = [&] { return canvas->cursor().pixmap().toImage(); };
+  const auto move_shape = canvas->cursor().shape();
+  CHECK(move_shape == Qt::SizeAllCursor ||
+        (move_shape == Qt::BitmapCursor &&
+         move_cursor_image() == patchy::ui::move_pointer_cursor().pixmap().toImage()));
+  const auto move_image = move_cursor_image();
 
   auto* focused = QApplication::focusWidget();
   CHECK(focused == canvas);
   send_key_press(*focused, Qt::Key_Space);
   CHECK(canvas->cursor().shape() == Qt::OpenHandCursor);
   send_key_release(*focused, Qt::Key_Space);
-  CHECK(canvas->cursor().shape() == Qt::SizeAllCursor);
+  // Releasing Space brings back exactly the Move cursor shown before it.
+  CHECK(canvas->cursor().shape() == move_shape);
+  CHECK(move_cursor_image() == move_image);
 }
 
 void ui_spacebar_pan_works_while_child_dialog_focused() {
