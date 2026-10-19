@@ -590,6 +590,24 @@ int stored_default_asset_version(const QSettings& settings, const QString& key) 
 #endif
 }
 
+constexpr int kDefaultTipsVersion = 4;  // v4 (July 2026): texture, dual, color, wet-edge tips
+
+// Seed the built-in bitmap tips once. The version gate (not an emptiness check) means a
+// user who deletes some or all of them is respected — they never come back on their own;
+// the manager's "Restore Defaults" button brings them back on demand. On upgrade only tips
+// NEWER than the stored version are seeded, so a bump never resurrects deleted defaults.
+// Any thread: it only touches the library it is given.
+void seed_default_brush_tips(BrushTipLibrary& library, int stored_version) {
+  if (stored_version < kDefaultTipsVersion) {
+    library.restore_default_tips(stored_version);
+    if (stored_version < 2) {
+      // The v2 dynamics migration. Never re-run once applied: it cannot tell "user reset
+      // dynamics after v2" from "never migrated", so a later re-run would stomp the reset.
+      library.apply_default_tip_dynamics();
+    }
+  }
+}
+
 // Seed code-generated default patterns once. A user deletion stays deleted across
 // launches; the Pattern Manager's explicit restore command brings it back. Returns how many
 // were added. Any thread.
@@ -633,23 +651,34 @@ std::optional<Load> take_preloaded(std::future<Load>& future) {
 }  // namespace
 
 struct StartupLibraryPreloads {
+  std::future<BrushTipLibraryLoad> brush_tips;
   std::future<PatternLibraryLoad> patterns;
   StartupLibraryPreloads() = default;
   StartupLibraryPreloads(const StartupLibraryPreloads&) = delete;
   StartupLibraryPreloads& operator=(const StartupLibraryPreloads&) = delete;
   // A window destroyed before adopting must not leave a worker seeding its settings folder.
   ~StartupLibraryPreloads() {
+    if (brush_tips.valid()) {
+      brush_tips.wait();
+    }
     if (patterns.valid()) {
       patterns.wait();
     }
   }
 };
 
-// Called first in the constructor. The patterns are needed only when the Pattern Stamp list,
-// a pattern fill, or a document needs them, so the worker also hands its result to the
-// window as soon as it is ready.
+// Called first in the constructor: the tips are needed by the options bar a few milliseconds
+// later, the patterns only when the Pattern Stamp list, a pattern fill, or a document needs
+// them, so the pattern worker also hands its result to the window as soon as it is ready.
 void MainWindow::start_library_preloads() {
   library_preloads_ = std::make_shared<StartupLibraryPreloads>();
+  const auto tips_version =
+      stored_default_asset_version(brush_library_settings(), QStringLiteral("brushes/defaultTipsVersion"));
+  library_preloads_->brush_tips = start_preload<BrushTipLibraryLoad>(
+      [directory = BrushTipLibrary::resolved_storage_dir(), tips_version] {
+        return BrushTipLibrary::load_off_gui_thread(
+            directory, [tips_version](BrushTipLibrary& library) { seed_default_brush_tips(library, tips_version); });
+      });
   const auto patterns_version =
       stored_default_asset_version(app_settings(), QStringLiteral("patterns/defaultPatternsVersion"));
   auto* app = QCoreApplication::instance();
@@ -678,24 +707,23 @@ void MainWindow::adopt_preloaded_pattern_library() {
 
 BrushTipLibrary& MainWindow::brush_tip_library() {
   if (brush_tip_library_ == nullptr) {
-    // Built on first use, which is startup (docs/startup-performance.md).
+    // Adopted from the startup preload (start_library_preloads), waiting for it if needed.
     const startup_trace::Scope library_phase("mw.lib.brush_tips");
-    brush_tip_library_ = new BrushTipLibrary({}, this);
-    // Seed the built-in bitmap tips once. The version gate (not an emptiness check) means a
-    // user who deletes some or all of them is respected — they never come back on their own;
-    // the manager's "Restore Defaults" button brings them back on demand. On upgrade only tips
-    // NEWER than the stored version are seeded, so a bump never resurrects deleted defaults.
     auto settings = brush_library_settings();
-    constexpr int kDefaultTipsVersion = 4;  // v4 (July 2026): texture, dual, color, wet-edge tips
     const auto stored_version =
         stored_default_asset_version(settings, QStringLiteral("brushes/defaultTipsVersion"));
+    std::optional<BrushTipLibraryLoad> preloaded;
+    if (library_preloads_ != nullptr) {
+      preloaded = take_preloaded(library_preloads_->brush_tips);
+    }
+    if (preloaded.has_value()) {
+      brush_tip_library_ = BrushTipLibrary::from_load(std::move(*preloaded), this);
+    } else {
+      brush_tip_library_ = new BrushTipLibrary({}, this);
+      seed_default_brush_tips(*brush_tip_library_, stored_version);
+      brush_tip_library_->note_disk_state();
+    }
     if (stored_version < kDefaultTipsVersion) {
-      brush_tip_library_->restore_default_tips(stored_version);
-      if (stored_version < 2) {
-        // The v2 dynamics migration. Never re-run once applied: it cannot tell "user reset
-        // dynamics after v2" from "never migrated", so a later re-run would stomp the reset.
-        brush_tip_library_->apply_default_tip_dynamics();
-      }
       settings.setValue(QStringLiteral("brushes/defaultTipsVersion"), kDefaultTipsVersion);
     }
   }

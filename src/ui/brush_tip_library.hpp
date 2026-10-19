@@ -3,6 +3,7 @@
 #include "core/brush_tip.hpp"
 #include "ui/preset_library.hpp"
 
+#include <QByteArray>
 #include <QImage>
 #include <QJsonObject>
 #include <QPixmap>
@@ -52,12 +53,37 @@ struct BrushTipLibraryTraits {
 
 using BrushTipLibraryBase = PresetLibraryT<BrushTipLibraryTraits>;
 
+// A library read (and seeded) off the GUI thread, waiting to be adopted by
+// BrushTipLibrary::from_load(). Thumbnails stay QImages here: QPixmap is GUI-thread only.
+struct BrushTipLibraryLoad {
+  QString storage_dir;
+  std::vector<BrushTipEntry> entries;  // thumbnails empty
+  std::vector<QImage> thumbnails;      // parallel to entries
+  std::vector<std::pair<QString, std::shared_ptr<const patchy::BrushTip>>> tip_cache;
+  QByteArray loaded_signature;
+};
+
 class BrushTipLibrary : public BrushTipLibraryBase {
   Q_OBJECT
 
 public:
   // storage_dir is overridable for tests; empty = <settings dir>/brushes.
   explicit BrushTipLibrary(QString storage_dir = {}, QObject* parent = nullptr);
+  // Adopts a load_off_gui_thread() result: the same library the constructor builds,
+  // without reading or decoding anything (docs/startup-performance.md). GUI thread.
+  [[nodiscard]] static BrushTipLibrary* from_load(BrushTipLibraryLoad load, QObject* parent = nullptr);
+
+  // What the constructor reads, done on any thread: loads `storage_dir` (resolve it
+  // with resolved_storage_dir() on the GUI thread first), then runs `prepare` on that
+  // library (default seeding) before handing the result over.
+  [[nodiscard]] static BrushTipLibraryLoad load_off_gui_thread(
+      const QString& storage_dir, const std::function<void(BrushTipLibrary&)>& prepare = {});
+  [[nodiscard]] static QString resolved_storage_dir(QString storage_dir = {});
+
+  // preset_storage_signature() of the storage directory as of the last read from disk
+  // (refreshed by note_disk_state() after the library's own seeding writes).
+  [[nodiscard]] const QByteArray& loaded_signature() const noexcept { return loaded_signature_; }
+  void note_disk_state();
   // Refresh an external process's committed library edits without selecting a tip.
   void refresh_from_disk();
 
@@ -110,7 +136,16 @@ public:
 private:
   struct StoredTip;
 
+  struct OffGuiThread {};
+  struct Adopt {};
+  BrushTipLibrary(const QString& storage_dir, OffGuiThread);
+  BrushTipLibrary(BrushTipLibraryLoad load, QObject* parent, Adopt);
   void reload();
+  // QPixmap off the GUI thread is not allowed: a worker-side library keeps QImages aside.
+  void set_thumbnail(BrushTipEntry& entry, const patchy::BrushTip& tip);
+  bool off_gui_thread_ = false;
+  std::vector<std::pair<QString, QImage>> pending_thumbnails_;
+  QByteArray loaded_signature_;
   QString add_tip_internal(const QString& name, const QImage& coverage_mask, double spacing,
                            const QString& folder, const patchy::BrushDynamics& dynamics = {},
                            double base_angle_degrees = 0.0, double base_roundness = 100.0,
@@ -137,6 +172,13 @@ private:
 [[nodiscard]] QImage brush_coverage_from_image(const QImage& image,
     const std::function<int(int, int)>& selection_alpha = {});
 [[nodiscard]] QPixmap brush_tip_thumbnail(const patchy::BrushTip& tip, int extent);
+// The same picture as a QImage, safe on any thread.
+[[nodiscard]] QImage brush_tip_thumbnail_image(const patchy::BrushTip& tip, int extent);
+
+// Path, size, modification time, and the SHA-256 of each JSON file, for every *.json and *.png
+// in `directory` by name: what BrushAutomationLibrary watches to notice another process's
+// library edits.
+[[nodiscard]] QByteArray preset_storage_signature(const QString& directory);
 
 // JSON (de)serialization for the sidecar "dynamics" object; exported for the popup and tests.
 // Unknown keys/enum tokens read as the field's default (per-dynamic controls default to
