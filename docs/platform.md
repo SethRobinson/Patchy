@@ -72,23 +72,7 @@ rather than being compiled by something that never reported it.
 
 ## Remote build machinery
 
-Build machines are developer-specific and never named in the repository. Their ssh targets live in `scripts/remote/hosts.local.json` (gitignored; copy `hosts.example.json`), read through `scripts/remote/remote-hosts.ps1`; hardware notes and quirks go in `agents_local.md`. Both live in the main checkout (worktree runs fall back to it). Below, `<mac-build-host>`, `<linux-build-host>` and `<windows-build-host>` are those targets.
-
-macOS (arm64, preset `mac-release`, Qt at `.deps/Qt/6.8.3/macos`) and Linux (preset `linux-flatpak-qt` inside the Flatpak SDK, see [linux-testing.md](linux-testing.md); `-NativeQt` for `linux-release` on `.deps/Qt/6.8.3/gcc_64`) build remotely via `scripts\remote\remote-build.ps1 -Target mac|linux`, which snapshots the working tree (uncommitted changes included; no commits, branches or index changes) to a bare repo (`~/patchy.git`) on the build host, builds there, and runs both suites with output streamed back. One-time provisioning: `scripts/remote/setup-mac.sh` / `setup-linux.sh` (idempotent: venv tools + Qt via aqtinstall + apt deps).
-
-`remote-build.ps1` checks out over the one shared `~/patchy/src`, so first check nobody else is using the box: `ssh <linux-build-host> "pgrep -af 'patchy_|ninja|cc1plus'"`. When it is busy, neither wait on nor kill that run: push the snapshot to a private ref (`refs/snapshots/<topic>`), clone `~/patchy.git` into `~/patchy-<topic>/src`, symlink `.deps` to `~/patchy/src/.deps`, configure and build the preset there with the environment lines from `build-and-test.sh`, then delete the clone and the ref.
-
-### Windows offload build (on request only)
-
-`remote-build.ps1 -Target windows` builds the real MSVC `release` preset on another Windows machine, only when Seth explicitly asks. The local `build\release` stays the release gate and the only packaging source.
-
-- **Hosts.** The `windows` config entry may be an ordered list. The script probes each over ssh: unreachable is skipped, one running cl/link/ninja/cmake or a suite is busy, the first idle one builds. All reachable hosts busy: exit 75, never a build beside them (`-WaitMinutes N` waits). `-WindowsHost <ssh>` picks one (still probed). Runs hold a per-host lock (remote-lock.ps1; locked: exit 75). Never kill another session's build there.
-- **Layout.** Bare repo `~\patchy.git`; work tree = the entry's `workTree`. Qt is the dev box's `.deps\Qt\6.8.3\msvc2022_64` copied to the same relative path, so the unmodified `release` preset resolves it.
-- **Toolchain.** VS 2026 Build Tools (MSVC x64, SDK 10.0.26100, VS-bundled CMake and Ninja), Git for Windows, Python 3.8+ (the WindowsApps `python.exe` is only a Store alias). `vs-env.bat` and `setup-windows.ps1` take VS 18+ only through vswhere (`-version 18.0`), so an older VS with VC tools on the box never wins. Bootstrapper: `https://aka.ms/vs/18/stable/vs_buildtools.exe` (the `release` URL redirects to Bing).
-- **Provisioning.** First, on the host: `setup-windows-ssh.cmd` beside its `.ps1` and the dev box's `.pub` in a local folder (its header has the details). It forces 64-bit Windows PowerShell 5.1, self-elevates, installs sshd, sets the ssh default shell to Windows PowerShell 5.1 (Windows OpenSSH starts `cmd.exe` otherwise, breaking every remote command), authorizes the key, and logs PASS/FAIL. Then over ssh: `setup-windows.ps1 -Root <dir>` (idempotent; admin account) installs the toolchain, bare repo and work tree, and prints the Qt copy command.
-- **Remote half.** `build-and-test.ps1` configures, builds throttled at `-j 8` (or the entry's `jobs`), reports `patchy.exe`, and runs both suites (`-TestFilter` UI, `-CoreTestFilter` core; scoped-filter rule as on the dev box).
-- **Shell quirks.** Remote commands run in Windows PowerShell 5.1: no `&&`; send ad-hoc scripts as a file (local PowerShell expands `$_` and mangles embedded double quotes). `Get-Process a,b` exits 1 when any name is absent.
-- **Smart App Control must be off.** Otherwise Code Integrity randomly blocks the fresh unsigned executables (events 3033/3077). It has no exclusions, and turning it back on means reinstalling Windows: the owner's decision. Check `(Get-MpComputerStatus).SmartAppControlState`.
+Remote builds (ssh targets, the per-host lock and busy probe, `-BuildTarget`, `-Preset`, the Windows offload hosts) are in [building.md](building.md#remote-build-machinery).
 
 ## AddressSanitizer runs (order-dependent heap bugs)
 

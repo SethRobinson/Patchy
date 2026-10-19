@@ -1,6 +1,19 @@
+<#
+Configures, builds and tests the Qt developer build (build/app by default, the qt-local
+layout), deploying the Qt runtime beside patchy.exe first.
+
+  powershell -ExecutionPolicy Bypass -File scripts/run-tests.ps1 [-BuildDir build/app] [-Jobs 20]
+
+The build and the ctest run go through scripts\run-throttled.bat like every other build on
+this machine: below-normal priority, the program's real exit code, and the machine-wide
+build lock, so this script never starts a build beside another one (exit 3 says another
+build is running; see docs/building.md). -Jobs caps ninja's parallelism (the dev box's
+handoff uses 20); ctest still runs one test at a time.
+#>
 param(
   [string]$BuildDir = "build/app",
-  [string]$QtPrefix = ".deps/Qt/6.8.3/msvc2022_64"
+  [string]$QtPrefix = ".deps/Qt/6.8.3/msvc2022_64",
+  [int]$Jobs = 20
 )
 
 $ErrorActionPreference = "Stop"
@@ -8,6 +21,9 @@ $ErrorActionPreference = "Stop"
 function Invoke-CheckedCmd {
   param([string]$Command)
   cmd.exe /s /c $Command
+  if ($LASTEXITCODE -eq 3 -and $Command -match 'run-throttled\.bat') {
+    throw "Another build is running on this machine (run-throttled.bat exit 3); not starting this one beside it: $Command"
+  }
   if ($LASTEXITCODE -ne 0) {
     throw "Command failed with exit code $LASTEXITCODE`: $Command"
   }
@@ -20,6 +36,7 @@ $ctest = "C:\Program Files\Microsoft Visual Studio\18\Community\Common7\IDE\Comm
 # keeps the spurious "'vswhere.exe' is not recognized" line out of the log. See
 # docs/release-process.md.
 $vsDev = Join-Path $PSScriptRoot "vs-env.bat"
+$throttled = Join-Path $PSScriptRoot "run-throttled.bat"
 
 if (!(Test-Path $cmake)) {
   $cmake = "cmake"
@@ -31,10 +48,10 @@ if (!(Test-Path $ctest)) {
 $prefix = Join-Path $repo $QtPrefix
 $build = Join-Path $repo $BuildDir
 $configure = "`"$vsDev`" -arch=x64 && `"$cmake`" -S `"$repo`" -B `"$build`" -G Ninja -DPATCHY_BUILD_APP=ON -DPATCHY_BUILD_TESTS=ON -DCMAKE_PREFIX_PATH=`"$prefix`""
-$buildCommand = "`"$vsDev`" -arch=x64 && `"$cmake`" --build `"$build`""
+$buildCommand = "`"$vsDev`" -arch=x64 && `"$throttled`" `"$cmake`" --build `"$build`" -j $Jobs"
 $deploy = Join-Path $prefix "bin/windeployqt.exe"
 $app = Join-Path $build "patchy.exe"
-$testCommand = "`"$vsDev`" -arch=x64 && `"$ctest`" --test-dir `"$build`" --output-on-failure"
+$testCommand = "`"$vsDev`" -arch=x64 && `"$throttled`" `"$ctest`" --test-dir `"$build`" --output-on-failure"
 
 Invoke-CheckedCmd $configure
 Invoke-CheckedCmd $buildCommand

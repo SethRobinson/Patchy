@@ -23,14 +23,18 @@ rem reports exit 0 for a failed build once stdin hits EOF (September 25, 2026: a
 rem failed build-wasm.bat parked a remote session for two hours this way). The
 rem wrapper below applies it, so callers pass the batch file as-is.
 rem
-rem A `cmake --build` (any argument is exactly --build) first runs build-busy-check.ps1
-rem and exits 3 without building when another build is already compiling on this machine:
-rem several AI sessions share the dev box, and a second build beside the first slows both.
-rem The message says what is running and how to build on the offload host instead.
-rem PATCHY_ALLOW_CONCURRENT_BUILD=1 skips the check. `shift /1` keeps %0 (this script's
-rem path) for %~dp0, and %* is never affected by shift, so the command runs unchanged.
+rem A `cmake --build` (any argument is exactly --build) runs under the machine-wide build
+rem lock: several AI sessions share the dev box, and a second build beside the first slows
+rem both. build-busy-check.ps1 takes a named mutex for the whole build, then runs this file
+rem again with the same arguments and PATCHY_BUILD_LOCK_HELD=1, which starts the build below.
+rem When another build holds the lock (or a build that bypassed it is compiling) it exits 3
+rem without building and says what is running and how to build on the offload host instead.
+rem There is no gap between the check and the start for a second build to slip through.
+rem The argument line travels in PATCHY_THROTTLED_ARGS. PATCHY_ALLOW_CONCURRENT_BUILD=1
+rem skips the lock. `shift /1` keeps %0 (this script's path) for %~dp0, and %* is never
+rem affected by shift, so the command runs unchanged.
 rem
-rem No setlocal: nothing here needs to be undone, and %ERRORLEVEL% must survive.
+rem No setlocal: %ERRORLEVEL% must survive. The two variables are cleared again here.
 if "%~1"=="" (
   echo usage: scripts\run-throttled.bat ^<command^> [args...]>&2
   exit /b 2
@@ -44,8 +48,15 @@ shift /1
 goto scan
 
 :busy_check
+if "%PATCHY_BUILD_LOCK_HELD%"=="1" (
+  set "PATCHY_BUILD_LOCK_HELD="
+  goto run
+)
+if "%PATCHY_ALLOW_CONCURRENT_BUILD%"=="1" goto run
+set "PATCHY_THROTTLED_ARGS=%*"
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0build-busy-check.ps1"
-if not "%ERRORLEVEL%"=="0" exit /b 3
+rem %ERRORLEVEL% expands when this line is read, before set runs.
+set "PATCHY_THROTTLED_ARGS=" & exit /b %ERRORLEVEL%
 
 :run
 start "" /b /wait /belownormal %*

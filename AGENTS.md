@@ -40,7 +40,7 @@ Required release handoff steps:
    Rules (reasons and details: "Local Windows release build" in [docs/building.md](docs/building.md)):
    - Builds, tests and batch files run only through `scripts\run-throttled.bat`, builds with `-j 20`. It refuses a second `cmake --build` on the box (exit 3): wait, or offload with `scripts\remote\remote-build.ps1 -Target windows`.
    - Run from the repository root in PowerShell or real cmd, never Git Bash. Require compile/link lines or `ninja: no work to do`, not just exit 0.
-   - Iterate with `--target <the test/app you run>`; the full build (five LTCG links, about 12 minutes) runs once, at handoff.
+   - Iterate with `--target <the test/app you run>` (remote: `-BuildTarget`, with `-Preset opt-dev`); the full build (five LTCG links, about 12 minutes) runs once, at handoff.
    - A worktree configures once with `--preset release -DCMAKE_PREFIX_PATH=<main-checkout>/.deps/Qt/6.8.3/msvc2022_64`.
    - Never kill a running `patchy.exe` or `patchy-mcp.exe` (the link renames it aside), never package a `.stale-` file, never hand-edit `build\release\CMakeCache.txt`, never make the version a target-wide define.
 
@@ -59,7 +59,7 @@ Required release handoff steps:
 
 3. Explicitly report whether `build\release\patchy.exe` exists.
 
-4. Changes to platform-guarded code, CMake files/presets, or packaging also require the affected best-effort remote build: `scripts\remote\remote-build.ps1 -Target mac` and/or `-Target linux` (Linux tests on the Flatpak's Qt: [docs/linux-testing.md](docs/linux-testing.md)). Report failures even though Windows remains the release gate. When Seth explicitly asks to offload a Windows build, `-Target windows` builds the `release` preset on the offload host; local `build\release` stays the release gate and packaging source. See [docs/platform.md](docs/platform.md).
+4. Changes to platform-guarded code, CMake files/presets, or packaging also require the affected best-effort remote build: `scripts\remote\remote-build.ps1 -Target mac` and/or `-Target linux` (Linux tests on the Flatpak's Qt: [docs/linux-testing.md](docs/linux-testing.md)). Report failures even though Windows remains the release gate. When Seth explicitly asks to offload a Windows build, `-Target windows` builds the `release` preset on the offload host; local `build\release` stays the release gate and packaging source. See [docs/building.md](docs/building.md) ("Remote build machinery") and [docs/platform.md](docs/platform.md).
 
 Do not say a release was created unless the release preset build succeeded.
 
@@ -90,7 +90,7 @@ Read these before acting in the named area:
 | User-facing text, translation catalogs, languages, `LocalizationManager`, unit suffixes | [docs/localization.md](docs/localization.md) |
 | Layers panel (rows, thumbnails, click selection, disclosure arrow, visibility eye, drags to another document, Alt-drag duplicate) | [docs/layer-panel.md](docs/layer-panel.md) |
 | Tests, offscreen behavior, visual QA, app and README screenshots, suite failure diagnosis | [docs/testing.md](docs/testing.md) |
-| Platform-guarded code, macOS/Linux behavior, remote builds | [docs/platform.md](docs/platform.md); Wayland: [docs/wayland.md](docs/wayland.md) |
+| Platform-guarded code, macOS/Linux behavior | [docs/platform.md](docs/platform.md); Wayland: [docs/wayland.md](docs/wayland.md) |
 | WebAssembly builds, the wasm-core preset, emsdk provisioning | [docs/wasm.md](docs/wasm.md); wasm memory/telemetry in [docs/wasm-memory.md](docs/wasm-memory.md); wasm input/focus/hotkeys in [docs/wasm-input.md](docs/wasm-input.md) |
 | Patents, licensing, trademarks, bundled assets, or a feature adjacent to a legal boundary | [docs/legal-constraints.md](docs/legal-constraints.md), which links every patent research record (`docs/patent-research*.md`) |
 | PSD descriptors, layer styles, write/corruption rules | [docs/ps-compat.md](docs/ps-compat.md) |
@@ -101,7 +101,7 @@ Read these before acting in the named area:
 | Native Smart Filter descriptors, FEid cache, per-filter render semantics | [docs/smart-filters-native.md](docs/smart-filters-native.md) |
 | Contributor pull-request review | [docs/pr-review.md](docs/pr-review.md) |
 | Release/version/package/upload work | [docs/release-process.md](docs/release-process.md) |
-| Build scripts, `run-throttled.bat`, presets, the version header, batch-file exit codes | [docs/building.md](docs/building.md) |
+| Build scripts, `run-throttled.bat` and its build lock, presets, the version header, batch-file exit codes, remote builds (`remote-build.ps1`, host locks) | [docs/building.md](docs/building.md) |
 | Update prompt, one-click update, installer update mode | [docs/auto-update.md](docs/auto-update.md) |
 
 ## Cross-cutting implementation rules

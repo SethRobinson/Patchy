@@ -19,7 +19,7 @@ Idempotent. It:
     administrators_authorized_keys with the ACL sshd requires, so the ssh session of
     any administrator account is elevated, as setup-windows.ps1 requires
   - verifies each of those, prints host facts (accounts, CPU, memory, free disk, Smart
-    App Control state; see docs/platform.md), and ends with PASS or FAIL
+    App Control state; see docs/building.md), and ends with PASS or FAIL
 
 Everything is also written to setup-windows-ssh.log beside the script, so the dev box
 can read the result over a file share. Exit code 0 means PASS.

@@ -10,6 +10,20 @@ function(patchy_write_input_manifest path)
   file(GENERATE OUTPUT "${path}" CONTENT "${contents}\n")
 endfunction()
 
+# Writes a configure-time generated file only when its content changed. file(WRITE) always
+# touches the file, so every reconfigure (every remote build runs `cmake --preset`) would
+# recompile everything that includes it: about 220 vendored C sources for the codec config
+# headers.
+function(patchy_write_if_different path content)
+  if(EXISTS "${path}")
+    file(READ "${path}" existing)
+    if(existing STREQUAL content)
+      return()
+    endif()
+  endif()
+  file(WRITE "${path}" "${content}")
+endfunction()
+
 function(patchy_add_success_check target)
   cmake_parse_arguments(CHECK "" "STAMP;COMMENT;WORKING_DIRECTORY" "COMMAND;DEPENDS" ${ARGN})
   if(NOT CHECK_STAMP OR NOT CHECK_COMMAND)
