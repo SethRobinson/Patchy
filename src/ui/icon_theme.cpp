@@ -42,7 +42,9 @@ QString light_icon_resource_path(const QString& name) {
 // the XML is not, and a pixmap cache is one more thing that can go stale.
 class ThemedIconEngine final : public QIconEngine {
  public:
-  explicit ThemedIconEngine(QString name) : name_(std::move(name)) {}
+  // `on_name`, when set, is drawn for QIcon::On (a checked button or menu item).
+  explicit ThemedIconEngine(QString name, QString on_name = {})
+      : name_(std::move(name)), on_name_(std::move(on_name)) {}
 
   void paint(QPainter* painter, const QRect& rect, QIcon::Mode mode, QIcon::State state) override {
     if (painter == nullptr) {
@@ -61,9 +63,9 @@ class ThemedIconEngine final : public QIconEngine {
   // supports a 67-200% interface scale, so every icon would go soft at 150%.
   QPixmap scaledPixmap(const QSize& size, QIcon::Mode mode, QIcon::State state,
                        qreal scale) override {
-    Q_UNUSED(state);
-    ensure_renderer();
-    if (size.isEmpty() || renderer_ == nullptr || !renderer_->isValid()) {
+    ensure_renderers();
+    const auto& renderer = state == QIcon::On && on_renderer_ != nullptr ? on_renderer_ : renderer_;
+    if (size.isEmpty() || renderer == nullptr || !renderer->isValid()) {
       return {};
     }
     const qreal ratio = scale > 0.0 ? scale : qreal(1.0);
@@ -72,7 +74,7 @@ class ThemedIconEngine final : public QIconEngine {
     rendered.setDevicePixelRatio(ratio);
     QPainter painter(&rendered);
     painter.setRenderHint(QPainter::Antialiasing);
-    renderer_->render(&painter, QRectF(QPointF(0.0, 0.0), QSizeF(size)));
+    renderer->render(&painter, QRectF(QPointF(0.0, 0.0), QSizeF(size)));
     painter.end();
     if (mode == QIcon::Normal) {
       return rendered;
@@ -106,27 +108,33 @@ class ThemedIconEngine final : public QIconEngine {
   QString iconName() override { return name_; }
 
   bool isNull() override {
-    ensure_renderer();
+    ensure_renderers();
     return renderer_ == nullptr || !renderer_->isValid();
   }
 
-  QIconEngine* clone() const override { return new ThemedIconEngine(name_); }
+  QIconEngine* clone() const override { return new ThemedIconEngine(name_, on_name_); }
 
   QString key() const override { return QStringLiteral("PatchyThemedIcon"); }
 
  private:
-  void ensure_renderer() {
+  void ensure_renderers() {
     const int generation = theme_generation();
     if (renderer_ != nullptr && generation_ == generation) {
       return;
     }
     generation_ = generation;
-    const auto svg = themed_icon_svg(name_);
-    renderer_ = svg.isEmpty() ? nullptr : std::make_unique<QSvgRenderer>(svg);
+    const auto load = [](const QString& name) -> std::unique_ptr<QSvgRenderer> {
+      const auto svg = name.isEmpty() ? QByteArray() : themed_icon_svg(name);
+      return svg.isEmpty() ? nullptr : std::make_unique<QSvgRenderer>(svg);
+    };
+    renderer_ = load(name_);
+    on_renderer_ = load(on_name_);
   }
 
   QString name_;
+  QString on_name_;
   std::unique_ptr<QSvgRenderer> renderer_;
+  std::unique_ptr<QSvgRenderer> on_renderer_;
   int generation_ = -1;
 };
 
@@ -156,7 +164,10 @@ QStringList literal_color_icon_names() {
   // allowed to sit outside the substitution map. Their outlines are ordinary
   // icon ink and still recolor, which is what keeps the glyph visible on a light
   // toolbar.
-  return {QStringLiteral("default-colors"), QStringLiteral("swap-colors")};
+  // The Quick Mask tint is the mask overlay's own red, which does not change
+  // with the scheme either; its frame and diagonal are icon ink.
+  return {QStringLiteral("default-colors"), QStringLiteral("swap-colors"), QStringLiteral("quick-mask"),
+          QStringLiteral("quick-mask-on")};
 }
 
 QStringList stylesheet_referenced_icon_names() {
@@ -190,6 +201,11 @@ QByteArray themed_icon_svg(const QString& name) {
 QIcon themed_svg_icon(const QString& name) {
   ensure_icon_resources();
   return QIcon(new ThemedIconEngine(name));
+}
+
+QIcon themed_svg_icon(const QString& name, const QString& on_name) {
+  ensure_icon_resources();
+  return QIcon(new ThemedIconEngine(name, on_name));
 }
 
 QString themed_icon_url(const QString& name) {

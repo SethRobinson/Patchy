@@ -14,6 +14,8 @@
     <file alias="paste.svg">icons/paste.svg</file>
     <file alias="transform.svg">icons/transform.svg</file>
     <file alias="mask.svg">icons/mask.svg</file>
+    <file alias="quick-mask.svg">icons/quick-mask.svg</file>
+    <file alias="quick-mask-on.svg">icons/quick-mask-on.svg</file>
     <file alias="link.svg">icons/link.svg</file>
     <file alias="off.svg">icons/off.svg</file>
     <file alias="invert.svg">icons/invert.svg</file>

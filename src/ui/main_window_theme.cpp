@@ -238,12 +238,6 @@ QString photoshop_style_template() {
     QToolBar#toolPalette QToolButton#quickMaskButton {
       min-width: 36px;
       max-width: 36px;
-      font-size: 13px;
-      font-weight: 700;
-      color: @text_bright;
-    }
-    QToolBar#toolPalette QToolButton#quickMaskButton:checked {
-      color: @text_on_accent_bright;
     }
     QToolBar#toolPalette QToolButton#qt_toolbar_ext_button {
       min-height: 14px;
