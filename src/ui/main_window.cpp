@@ -1425,7 +1425,7 @@ protected:
       return;
     }
     if (!selecting_ || (event->buttons() & Qt::LeftButton) == 0 || editor_ == nullptr) {
-      update_hover_cursor(event->position());
+      update_hover_cursor(event->position(), event->modifiers());
       event->ignore();
       return;
     }
@@ -1447,7 +1447,7 @@ protected:
     if (event->button() == Qt::LeftButton && resize_drag_.has_value()) {
       resize_text_box(event);
       resize_drag_.reset();
-      update_hover_cursor(event->position());
+      update_hover_cursor(event->position(), event->modifiers());
       schedule_resize_callback();
       event->accept();
       return;
@@ -1639,8 +1639,11 @@ private:
     return Qt::IBeamCursor;
   }
 
-  void update_hover_cursor(QPointF point) {
-    setCursor(cursor_for_handle(resize_handle_at(point)));
+  void update_hover_cursor(QPointF point, Qt::KeyboardModifiers modifiers) {
+    const auto handle = resize_handle_at(point);
+    // Ctrl+drag moves the text (GitHub issue 216); the resize handles keep their cursors.
+    setCursor(handle == ResizeHandle::None && modifiers.testFlag(Qt::ControlModifier) ? Qt::SizeAllCursor
+                                                                                     : cursor_for_handle(handle));
   }
 
   [[nodiscard]] bool caret_visible() const {
@@ -4972,6 +4975,18 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
   }
   if (handle_spacebar_canvas_pan_event(watched, event)) {
     return true;
+  }
+  if (event->type() == QEvent::MouseButtonPress && watched->isWidgetType() &&
+      handle_text_ctrl_move_press(static_cast<QWidget*>(watched), static_cast<QMouseEvent*>(event))) {
+    return true;
+  }
+  if ((event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease) && canvas_ != nullptr &&
+      canvas_->tool() == CanvasTool::Text) {
+    if (auto* key_event = static_cast<QKeyEvent*>(event);
+        key_event->key() == Qt::Key_Control && !key_event->isAutoRepeat()) {
+      // The event reports the modifiers from before this key: fold the key in.
+      apply_text_editor_ctrl_cursor(event->type() == QEvent::KeyPress);
+    }
   }
 
   // The start panel is a manual overlay of the tab area (no layout owns it).
@@ -8570,15 +8585,94 @@ void MainWindow::request_warp_text_dialog() {
   if (layer == nullptr || !layer_is_text(*layer)) {
     return;
   }
-  edit_text_layer(*active);
+  resume_text_editing(*active, *resume_selection);
+}
+
+void MainWindow::resume_text_editing(LayerId id, std::pair<int, int> selection) {
+  if (canvas_ == nullptr || !has_active_document()) {
+    return;
+  }
+  edit_text_layer(id);
   if (auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
-      editor != nullptr && editor->property("patchy.editingLayerId").toULongLong() == *active) {
+      editor != nullptr && editor->property("patchy.editingLayerId").toULongLong() == id) {
     const int end = std::max(0, editor->document()->characterCount() - 1);
     QTextCursor cursor(editor->document());
-    cursor.setPosition(std::clamp(resume_selection->first, 0, end));
-    cursor.setPosition(std::clamp(resume_selection->second, 0, end), QTextCursor::KeepAnchor);
+    cursor.setPosition(std::clamp(selection.first, 0, end));
+    cursor.setPosition(std::clamp(selection.second, 0, end), QTextCursor::KeepAnchor);
     editor->setTextCursor(cursor);
-    return_keyboard_to_text_editor();  // the modal dialog took the window's activation with it
+    return_keyboard_to_text_editor();  // a modal dialog takes the window's activation with it
+  }
+}
+
+bool MainWindow::handle_text_ctrl_move_press(QWidget* watched, QMouseEvent* event) {
+  if (canvas_ == nullptr || watched == nullptr || event->button() != Qt::LeftButton ||
+      !event->modifiers().testFlag(Qt::ControlModifier) || canvas_->tool() != CanvasTool::Text ||
+      (watched != canvas_ && !canvas_->isAncestorOf(watched)) || !has_active_document()) {
+    return false;
+  }
+  const auto canvas_point = watched->mapTo(canvas_, event->position().toPoint());
+  auto* editor = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  const bool session_open = editor != nullptr && !editor->property(kTextEditorFinishedProperty).toBool();
+  if (watched == canvas_) {
+    // Off the session's text, over another text layer: commit like any click off (Qt's focus
+    // walk may already have, arming the press swallow), then let the canvas start the drag.
+    if (!canvas_->text_layer_move_target_at(canvas_point)) {
+      return false;
+    }
+    if (session_open) {
+      commit_active_text_editor();
+    }
+    swallow_next_canvas_left_press_ = false;
+    return false;
+  }
+  if (!session_open ||
+      (watched != editor && !editor->isAncestorOf(watched) &&
+       watched->objectName() != QLatin1String(kTransformedTextEditOverlayObjectName))) {
+    return false;
+  }
+  // On the session's own text: commit, drag the committed layer, then type on where the caret
+  // was. The editor that took this press goes away with the commit, so the canvas grabs the
+  // rest of the gesture.
+  const auto text_cursor = editor->textCursor();
+  const std::pair selection{text_cursor.anchor(), text_cursor.position()};
+  std::optional<LayerId> layer_id;
+  if (editor->property("patchy.editingLayerId").isValid()) {
+    layer_id = static_cast<LayerId>(editor->property("patchy.editingLayerId").toULongLong());
+  }
+  commit_active_text_editor();
+  swallow_next_canvas_left_press_ = false;
+  event->accept();
+  if (!layer_id.has_value() || std::as_const(document()).find_layer(*layer_id) == nullptr) {
+    layer_id = document().active_layer_id();
+  }
+  const auto* layer = layer_id.has_value() ? std::as_const(document()).find_layer(*layer_id) : nullptr;
+  if (layer == nullptr || !layer_is_text(*layer)) {
+    return true;  // nothing was committed (an empty new session)
+  }
+  const auto id = *layer_id;
+  const auto resume = [this, id, selection] {
+    if (canvas_ != nullptr && canvas_->tool() == CanvasTool::Text) {
+      resume_text_editing(id, selection);
+    }
+  };
+  if (!canvas_->begin_text_layer_move(id, canvas_point, [this, resume] { QTimer::singleShot(0, this, resume); })) {
+    resume();  // position-locked: back to typing
+  }
+  return true;
+}
+
+void MainWindow::apply_text_editor_ctrl_cursor(bool ctrl_held) {
+  auto* editor = canvas_ == nullptr ? nullptr : canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  if (editor == nullptr || editor->property(kTextEditorFinishedProperty).toBool()) {
+    return;
+  }
+  const auto shape = ctrl_held ? Qt::SizeAllCursor : Qt::IBeamCursor;
+  if (editor->viewport() != nullptr) {
+    editor->viewport()->setCursor(shape);
+  }
+  if (auto* overlay = transformed_text_edit_overlay_for_canvas(canvas_);
+      overlay != nullptr && overlay->editor() == editor) {
+    overlay->setCursor(shape);
   }
 }
 

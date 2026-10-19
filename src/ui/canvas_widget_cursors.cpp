@@ -408,6 +408,13 @@ void CanvasWidget::update_tool_cursor() {
     return;
   }
   if (tool_ == CanvasTool::Text) {
+    // Ctrl+drag moves text (GitHub issue 216): the four-way cursor while it drags, and while
+    // Ctrl is held over a text layer a press would move.
+    if (text_layer_move_active_ ||
+        (text_ctrl_cursor_override_.value_or(false) && text_layer_move_target_at(last_mouse_position_))) {
+      setCursor(Qt::SizeAllCursor);
+      return;
+    }
     if (text_area_at(document_position(last_mouse_position_))) {
       static const QCursor area_cursor = [] {
         QPixmap pixmap(25, 25);

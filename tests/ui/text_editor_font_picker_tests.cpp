@@ -1474,6 +1474,168 @@ void ui_text_mouse_and_keyboard_selection_match_glyphs() {
 // session AND selects the dragged range, as in Photoshop. The press that opens the session goes
 // to the canvas, so the canvas has to carry the rest of that gesture to the new editor; it used
 // to drop it, and selecting took a second press-drag.
+// Commits "Handgloves" at document (60, 80) with the Type tool and returns its layer id; the
+// Type tool is active again on return. Snapping is off so drag deltas land exactly.
+std::optional<patchy::LayerId> commit_ctrl_move_test_text(patchy::ui::MainWindow& window,
+                                                           patchy::ui::CanvasWidget& canvas) {
+  canvas.set_zoom(1.0);
+  canvas.set_snap_enabled(false);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  canvas.set_primary_color(QColor(20, 20, 20));
+  const auto widget_point = canvas.widget_position_for_document_point(QPoint(60, 80));
+  send_mouse(canvas, QEvent::MouseButtonPress, widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* editor = canvas.findChild<QTextEdit*>(QStringLiteral("inlineTextEditor"));
+  CHECK(editor != nullptr);
+  if (editor == nullptr) {
+    return std::nullopt;
+  }
+  editor->setPlainText(QStringLiteral("Handgloves"));
+  process_events_for(150);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  process_events_for(150);
+  require_action_by_text(window, QStringLiteral("Type"))->trigger();
+  QApplication::processEvents();
+  return patchy::ui::MainWindowTestAccess::document(window).active_layer_id();
+}
+
+// GitHub issue 216: with the Type tool, Ctrl is the temporary Move tool. Ctrl+drag on a
+// committed text layer moves it as one undo step, opens no session and keeps the Type tool;
+// the four-way cursor shows over text while Ctrl is held.
+void ui_text_ctrl_drag_moves_text_without_switching_tools() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  const auto layer_id = commit_ctrl_move_test_text(window, *canvas);
+  CHECK(layer_id.has_value());
+  if (!layer_id.has_value()) {
+    return;
+  }
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* layer = std::as_const(document).find_layer(*layer_id);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return;
+  }
+  const auto before = layer->bounds();
+  const auto centre =
+      canvas->widget_position_for_document_point(QPoint(before.x + before.width / 2, before.y + before.height / 2));
+  const auto live_editor = [&] { return canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")); };
+  CHECK(live_editor() == nullptr);
+
+  send_mouse(*canvas, QEvent::MouseMove, centre, Qt::NoButton, Qt::NoButton, Qt::ControlModifier);
+  CHECK(canvas->cursor().shape() == Qt::SizeAllCursor);
+  send_mouse(*canvas, QEvent::MouseMove, centre, Qt::NoButton, Qt::NoButton);
+  CHECK(canvas->cursor().shape() == Qt::IBeamCursor);
+  // Ctrl off the text changes nothing: the I-beam stays.
+  const auto empty_point = canvas->widget_position_for_document_point(QPoint(before.x + before.width + 60, before.y));
+  send_mouse(*canvas, QEvent::MouseMove, empty_point, Qt::NoButton, Qt::NoButton, Qt::ControlModifier);
+  CHECK(canvas->cursor().shape() == Qt::IBeamCursor);
+
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  send_mouse(*canvas, QEvent::MouseButtonPress, centre, Qt::LeftButton, Qt::LeftButton, Qt::ControlModifier);
+  CHECK(live_editor() == nullptr);
+  CHECK(canvas->cursor().shape() == Qt::SizeAllCursor);
+  send_mouse(*canvas, QEvent::MouseMove, centre + QPoint(15, 4), Qt::NoButton, Qt::LeftButton, Qt::ControlModifier);
+  send_mouse(*canvas, QEvent::MouseMove, centre + QPoint(30, 10), Qt::NoButton, Qt::LeftButton, Qt::ControlModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, centre + QPoint(30, 10), Qt::LeftButton, Qt::NoButton,
+             Qt::ControlModifier);
+  process_events_for(150);
+  CHECK(live_editor() == nullptr);
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Text);
+  layer = std::as_const(document).find_layer(*layer_id);
+  CHECK(layer != nullptr);
+  if (layer != nullptr) {
+    CHECK(layer->bounds().x == before.x + 30);
+    CHECK(layer->bounds().y == before.y + 10);
+  }
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 1);
+
+  // A plain press on the moved text still opens it for typing.
+  const auto moved_centre = centre + QPoint(30, 10);
+  send_mouse(*canvas, QEvent::MouseButtonPress, moved_centre, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, moved_centre, Qt::LeftButton, Qt::NoButton);
+  process_events_for(150);
+  auto* editor = live_editor();
+  CHECK(editor != nullptr);
+  if (editor != nullptr) {
+    send_key(*editor, Qt::Key_Escape);
+    process_events_for(100);
+  }
+}
+
+// GitHub issue 216: Ctrl+drag on the text being edited commits it, moves the layer and reopens
+// the session with the caret where it was, so typing continues; Ctrl shortcuts in the editor
+// still work (Ctrl+A selects all).
+void ui_text_ctrl_drag_in_session_moves_and_resumes_typing() {
+  patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  const auto layer_id = commit_ctrl_move_test_text(window, *canvas);
+  CHECK(layer_id.has_value());
+  if (!layer_id.has_value()) {
+    return;
+  }
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto before = std::as_const(document).find_layer(*layer_id)->bounds();
+  const auto centre =
+      canvas->widget_position_for_document_point(QPoint(before.x + before.width / 2, before.y + before.height / 2));
+  const auto live_editor = [&] { return canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")); };
+  send_mouse(*canvas, QEvent::MouseButtonPress, centre, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, centre, Qt::LeftButton, Qt::NoButton);
+  process_events_for(200);
+  auto* editor = live_editor();
+  CHECK(editor != nullptr);
+  if (editor == nullptr || editor->viewport() == nullptr) {
+    return;
+  }
+  auto caret = editor->textCursor();
+  caret.setPosition(3);
+  editor->setTextCursor(caret);
+  QApplication::processEvents();
+
+  // Ctrl held over the editor shows the four-way cursor; releasing Ctrl restores the I-beam.
+  send_key_press(*editor, Qt::Key_Control);
+  CHECK(editor->viewport()->cursor().shape() == Qt::SizeAllCursor);
+  send_key_release(*editor, Qt::Key_Control, Qt::ControlModifier);
+  CHECK(editor->viewport()->cursor().shape() == Qt::IBeamCursor);
+
+  const auto press_viewport = editor->viewport()->rect().center();
+  const auto press_canvas = editor->viewport()->mapTo(canvas, press_viewport);
+  send_mouse(*editor->viewport(), QEvent::MouseButtonPress, press_viewport, Qt::LeftButton, Qt::LeftButton,
+             Qt::ControlModifier);
+  // The press committed the session; the canvas carries the rest of the gesture.
+  send_mouse(*canvas, QEvent::MouseMove, press_canvas + QPoint(10, 10), Qt::NoButton, Qt::LeftButton,
+             Qt::ControlModifier);
+  send_mouse(*canvas, QEvent::MouseMove, press_canvas + QPoint(20, 25), Qt::NoButton, Qt::LeftButton,
+             Qt::ControlModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, press_canvas + QPoint(20, 25), Qt::LeftButton, Qt::NoButton,
+             Qt::ControlModifier);
+  process_events_for(250);
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Text);
+  const auto* moved = std::as_const(document).find_layer(*layer_id);
+  CHECK(moved != nullptr);
+  if (moved != nullptr) {
+    CHECK(moved->bounds().x == before.x + 20);
+    CHECK(moved->bounds().y == before.y + 25);
+  }
+  auto* resumed = live_editor();
+  CHECK(resumed != nullptr);
+  if (resumed == nullptr) {
+    return;
+  }
+  CHECK(resumed->property("patchy.editingLayerId").toULongLong() == *layer_id);
+  CHECK(!resumed->textCursor().hasSelection());
+  CHECK(resumed->textCursor().position() == 3);
+  send_key(*resumed, Qt::Key_A, Qt::ControlModifier);
+  CHECK(resumed->textCursor().selectedText() == QStringLiteral("Handgloves"));
+  send_key(*resumed, Qt::Key_Escape);
+  process_events_for(100);
+}
+
 void ui_text_press_drag_from_outside_session_selects_range() {
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   patchy::ui::MainWindow window;
@@ -3003,6 +3165,9 @@ std::vector<patchy::test::TestCase> text_editor_font_picker_tests() {
        ui_text_mouse_and_keyboard_selection_match_glyphs},
       {"ui_text_press_drag_from_outside_session_selects_range",
        ui_text_press_drag_from_outside_session_selects_range},
+      {"ui_text_ctrl_drag_moves_text_without_switching_tools", ui_text_ctrl_drag_moves_text_without_switching_tools},
+      {"ui_text_ctrl_drag_in_session_moves_and_resumes_typing",
+       ui_text_ctrl_drag_in_session_moves_and_resumes_typing},
       {"ui_text_keypad_enter_commits_and_return_breaks_line", ui_text_keypad_enter_commits_and_return_breaks_line},
       {"ui_text_triple_click_selects_the_line", ui_text_triple_click_selects_the_line},
       {"ui_text_placeholder_survives_options_bar_changes", ui_text_placeholder_survives_options_bar_changes},

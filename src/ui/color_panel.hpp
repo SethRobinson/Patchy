@@ -88,6 +88,11 @@ void refresh_color_picker_cmyk_fields();
 // when no request picker is open.
 bool apply_color_to_open_color_picker(QColor color);
 
+// The open transient color picker (request_patchy_color), or null. A requester
+// whose target can change while the picker is open (the gradient stop editor)
+// closes it with accept(), which keeps the color picked so far.
+[[nodiscard]] QDialog* open_color_picker_dialog();
+
 // The picker containing this widget (walking up the parent chain), or null —
 // MainWindow's Edit > Cut/Copy/Paste handlers use it for focus routing.
 [[nodiscard]] PatchyColorPicker* color_picker_ancestor_of(QWidget* widget);
@@ -96,6 +101,10 @@ bool apply_color_to_open_color_picker(QColor color);
 [[nodiscard]] QString inline_text_editor_style(QColor color, int pixel_size);
 [[nodiscard]] QDialog* create_patchy_color_panel(QWidget* parent, QColor initial, const QString& title,
                                                     std::function<void(QColor)> color_changed);
+// Runs the transient picker. Accepting the dialog that launched it while the
+// picker is still open keeps the picked color: its live preview showed it as
+// applied, so OK on the parent must not revert it. Closing the parent any other
+// way cancels the picker.
 [[nodiscard]] std::optional<QColor> request_patchy_color(QWidget* parent, QColor initial, const QString& title,
                                                          std::function<void(QColor)> color_changed = {},
                                                          bool* user_selected = nullptr);

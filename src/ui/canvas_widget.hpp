@@ -1136,6 +1136,16 @@ public:
   // the drag to the host: begin = true right after the session opened (returns whether a live
   // editor is there to select in), then begin = false with each left-held move's widget point.
   void set_text_entry_selection_drag_callback(std::function<bool(QPointF, bool)> callback);
+  // Type tool + Ctrl (GitHub issue 216): a press on a text layer drags it like the Move tool and
+  // the Type tool stays active. text_layer_move_target_at says whether a Ctrl press at
+  // widget_point has a text layer to move.
+  [[nodiscard]] bool text_layer_move_target_at(QPoint widget_point) const;
+  // Starts that drag of `id` from a press at widget_point (false, with the status message, when
+  // the layer cannot move). `finished` runs once when the gesture ends (released, a click that
+  // never dragged, or canceled). A host whose widget took the press (the inline editor, which
+  // its commit removes) passes one to resume typing; the canvas then grabs the mouse so the rest
+  // of the gesture reaches it.
+  bool begin_text_layer_move(LayerId id, QPoint widget_point, std::function<void()> finished = {});
   void set_active_layer_changed_callback(std::function<void(LayerId)> callback);
   // The canvas asks the host (the layer panel is the selection's source of
   // truth) to make exactly these layers selected with active_id current; the
@@ -2580,6 +2590,12 @@ private:
   // event's authoritative (folded) Alt state instead of the global keyboard
   // state, which may not have refreshed yet when the app-level filter runs.
   std::optional<bool> alt_color_pick_cursor_override_;
+  // Type-tool Ctrl+drag (begin_text_layer_move): the gesture is live, and Ctrl as the event
+  // reported it for the cursor (the four-way cursor shows over a text layer it would move).
+  bool text_layer_move_active_{false};
+  std::function<void()> text_layer_move_finished_;
+  std::optional<bool> text_ctrl_cursor_override_;
+  void finish_text_layer_move();
   // Same rationale for the pen cursor's Alt/Ctrl badges: folded modifiers from
   // the key filter, never the (possibly stale) live keyboard state.
   std::optional<Qt::KeyboardModifiers> pen_cursor_modifier_override_;

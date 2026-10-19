@@ -1748,6 +1748,44 @@ Layer* CanvasWidget::topmost_text_layer_at(QPoint document_point) const noexcept
   return const_cast<Layer*>(topmost_text_layer_at_recursive(std::as_const(*document_).layers(), document_point));
 }
 
+bool CanvasWidget::text_layer_move_target_at(QPoint widget_point) const {
+  return document_ != nullptr && topmost_text_layer_at(document_position(widget_point)) != nullptr;
+}
+
+bool CanvasWidget::begin_text_layer_move(LayerId id, QPoint widget_point, std::function<void()> finished) {
+  auto* layer = document_ == nullptr ? nullptr : document_->find_layer(id);
+  if (layer == nullptr || !layer_is_text(*layer)) {
+    return false;
+  }
+  if (layer_effectively_locks_position(*layer)) {
+    show_layer_position_locked_message();
+    return false;
+  }
+  activate_layer(*layer);
+  begin_move_drag({id}, document_position(widget_point), widget_point);
+  text_layer_move_active_ = true;
+  text_layer_move_finished_ = std::move(finished);
+  if (text_layer_move_finished_) {
+    grabMouse();
+  }
+  update_tool_cursor();
+  return true;
+}
+
+void CanvasWidget::finish_text_layer_move() {
+  if (!text_layer_move_active_) {
+    return;
+  }
+  text_layer_move_active_ = false;
+  if (mouseGrabber() == this) {
+    releaseMouse();
+  }
+  update_tool_cursor();
+  if (auto finished = std::exchange(text_layer_move_finished_, {}); finished) {
+    finished();
+  }
+}
+
 std::optional<VectorPath> CanvasWidget::text_area_at(QPoint document_point) const {
   if (!document_ || topmost_text_layer_at(document_point)) return std::nullopt;
   const auto pick = [&](const VectorPath& source) -> std::optional<VectorPath> {
