@@ -1961,6 +1961,16 @@ void ui_save_prompt_uses_save_dont_save_cancel_with_letter_hotkeys() {
       prompt_seen = true;
       prompt_is_inside_screen = dialog->screen() != nullptr &&
                                 dialog->screen()->availableGeometry().contains(dialog->frameGeometry());
+      if (!prompt_is_inside_screen) {
+        // Fails only after other tests in a full run: report what grew or moved.
+        const auto f = dialog->frameGeometry();
+        const auto s = dialog->screen() != nullptr ? dialog->screen()->availableGeometry() : QRect();
+        const auto w = window.frameGeometry();
+        std::cerr << "  save prompt frame " << f.x() << ',' << f.y() << ' ' << f.width() << 'x' << f.height()
+                  << " screen " << s.x() << ',' << s.y() << ' ' << s.width() << 'x' << s.height() << " window "
+                  << w.x() << ',' << w.y() << ' ' << w.width() << 'x' << w.height() << " font pt "
+                  << dialog->font().pointSizeF() << " dpr " << dialog->devicePixelRatioF() << '\n';
+      }
       auto* save = dialog->button(QMessageBox::Save);
       auto* discard = dialog->button(QMessageBox::Discard);
       buttons_are_save_dont_save_cancel =
