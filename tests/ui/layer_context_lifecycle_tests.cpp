@@ -1953,9 +1953,22 @@ void ui_save_prompt_uses_save_dont_save_cancel_with_letter_hotkeys() {
     prompt_is_inside_screen = false;
     auto* dismiss_timer = new QTimer(&window);
     dismiss_timer->setInterval(10);
-    QObject::connect(dismiss_timer, &QTimer::timeout, &window, [&, key, dismiss_timer] {
+    // The placement filter re-clamps the box one event-loop turn after each Show and
+    // Resize (QMessageBox settles its size late), so judge the position only once the
+    // frame has held still for three ticks; earlier reads caught the box mid-placement.
+    auto last_frame = std::make_shared<QRect>();
+    auto steady_ticks = std::make_shared<int>(0);
+    QObject::connect(dismiss_timer, &QTimer::timeout, &window, [&, key, dismiss_timer, last_frame, steady_ticks] {
       auto* dialog = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("saveChangesMessageBox")));
       if (dialog == nullptr) {
+        return;
+      }
+      if (dialog->frameGeometry() != *last_frame) {
+        *last_frame = dialog->frameGeometry();
+        *steady_ticks = 0;
+        return;
+      }
+      if (++*steady_ticks < 3) {
         return;
       }
       prompt_seen = true;
