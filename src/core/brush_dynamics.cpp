@@ -136,6 +136,11 @@ void advance_stroke_direction(BrushDynamicsStrokeContext& context, double dx, do
   context.direction_y = blended_y;
 }
 
+bool angle_follows_direction(const BrushDynamics& dynamics) noexcept {
+  return dynamics.angle_control == BrushDynamicControl::Direction ||
+         dynamics.angle_control == BrushDynamicControl::InitialDirection;
+}
+
 int sample_dab_count(const BrushDynamics& dynamics, BrushDynamicsRng& rng,
                      const BrushDynamicsStrokeContext& context) noexcept {
   const auto count = std::clamp(dynamics.count, 1, 16);

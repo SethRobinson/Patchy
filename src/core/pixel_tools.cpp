@@ -1715,23 +1715,23 @@ Rect paint_brush_dab(Document& document, LayerId layer_id, double x, double y, c
   return dirty;
 }
 
-Rect paint_stationary_airbrush_dab(Document& document, LayerId layer_id, double x, double y,
-                                   const EditOptions& options, BrushTipStrokeState& state) {
-  if (options.brush_tip == nullptr || options.brush_tip->empty() ||
-      !options.brush_dynamics.active()) {
-    return paint_brush_dab(document, layer_id, x, y, options, false);
-  }
+namespace {
 
-  if (!state.initialized) {
-    state.initialized = true;
-    state.rng.seed(options.brush_dynamics.seed);
-  }
+// Pointer travel from the press point (document pixels) before a stroke whose angle follows its
+// direction places its first dab: far enough that the angle is not one-pixel-step noise, short
+// enough that the held dab never visibly lags.
+constexpr double kFirstDabDirectionDistance = 3.0;
+// A held first dab whose stroke ends closer than this to the press point was a click: it keeps
+// the base angle instead of following pointer jitter.
+constexpr double kFirstDabClickDistance = 1.0;
 
-  // Patent/design boundary: a stationary Airbrush tick is one current flat stamp. Shape and
-  // Transfer dynamics still advance (including Fade), but Scattering and Count are movement-
-  // stroke features here. Omitting their offsets, extra dabs, and RNG draws prevents a held
-  // pointer from becoming a simulated spray-particle burst. The regular segment path retains
-  // the full Photoshop-compatible dynamics behavior while the pointer moves.
+// Patent/design boundary: a stationary Airbrush tick is one current flat stamp. Shape and
+// Transfer dynamics still advance (including Fade), but Scattering and Count are movement-
+// stroke features here. Omitting their offsets, extra dabs, and RNG draws prevents a held
+// pointer from becoming a simulated spray-particle burst. The regular segment path retains
+// the full Photoshop-compatible dynamics behavior while the pointer moves.
+Rect stamp_stationary_tip_dab(Document& document, LayerId layer_id, double x, double y,
+                              const EditOptions& options, BrushTipStrokeState& state) {
   auto stationary_dynamics = options.brush_dynamics;
   stationary_dynamics.scatter = 0.0;
   const auto variation =
@@ -1744,14 +1744,46 @@ Rect paint_stationary_airbrush_dab(Document& document, LayerId layer_id, double 
   return dirty;
 }
 
+void hold_first_dab(BrushTipStrokeState& state, double x, double y) {
+  if (!state.first_dab_pending) {
+    state.first_dab_pending = true;
+    state.pending_x = x;
+    state.pending_y = y;
+    state.pending_end_x = x;
+    state.pending_end_y = y;
+  }
+}
+
+}  // namespace
+
+Rect paint_stationary_airbrush_dab(Document& document, LayerId layer_id, double x, double y,
+                                   const EditOptions& options, BrushTipStrokeState& state) {
+  if (options.brush_tip == nullptr || options.brush_tip->empty() ||
+      !options.brush_dynamics.active()) {
+    return paint_brush_dab(document, layer_id, x, y, options, false);
+  }
+
+  if (!state.initialized && angle_follows_direction(options.brush_dynamics)) {
+    // No direction yet: the tick waits with the held first dab and stamps beside it.
+    hold_first_dab(state, x, y);
+    ++state.pending_airbrush_ticks;
+    return {};
+  }
+  if (!state.initialized) {
+    state.initialized = true;
+    state.rng.seed(options.brush_dynamics.seed);
+  }
+  return stamp_stationary_tip_dab(document, layer_id, x, y, options, state);
+}
+
 // Places tip dabs along [x0,y0]→[x1,y1] every brush_size * brush_tip_spacing pixels, resuming
 // from state.residual_distance so chained segments keep a uniform dab cadence. With active
 // brush dynamics each spacing step stamps `count` independently varied dabs (scatter offsets,
 // per-dab transform, opacity/flow jitter); the RNG is seeded from options.brush_dynamics.seed on the
 // stroke's first dab and its draw order is the contract documented in brush_dynamics.hpp.
 // Scatter and count never perturb the spacing walk or residual_distance.
-Rect paint_tip_segment(Document& document, LayerId layer_id, double x0, double y0, double x1, double y1,
-                       const EditOptions& options, bool erase, BrushTipStrokeState& state) {
+Rect walk_tip_segment(Document& document, LayerId layer_id, double x0, double y0, double x1, double y1,
+                      const EditOptions& options, bool erase, BrushTipStrokeState& state) {
   const auto spacing =
       std::max(1.0, static_cast<double>(std::max(1, options.brush_size)) *
                         std::clamp(options.brush_tip_spacing, 0.01, 10.0));
@@ -1792,6 +1824,11 @@ Rect paint_tip_segment(Document& document, LayerId layer_id, double x0, double y
       advance_stroke_direction(state.dynamics, dx, dy);
     }
     stamp_step(x0, y0);
+    for (auto tick = 0; tick < state.pending_airbrush_ticks; ++tick) {
+      dirty = unite_rect(dirty, stamp_stationary_tip_dab(document, layer_id, x0, y0, options, state));
+    }
+    state.first_dab_pending = false;
+    state.pending_airbrush_ticks = 0;
     state.residual_distance = spacing;
   } else if (moved) {
     advance_stroke_direction(state.dynamics, dx, dy);
@@ -1816,6 +1853,38 @@ Rect paint_tip_segment(Document& document, LayerId layer_id, double x0, double y
   return dirty;
 }
 
+// A stroke whose angle follows its direction has none at the press, so its first dab waits at
+// the press point until the pointer has travelled kFirstDabDirectionDistance, then stamps there
+// along that travel, followed by the regular walk from the press point (#221).
+Rect paint_tip_segment(Document& document, LayerId layer_id, double x0, double y0, double x1, double y1,
+                       const EditOptions& options, bool erase, BrushTipStrokeState& state) {
+  if (!state.initialized && options.brush_dynamics.active() &&
+      angle_follows_direction(options.brush_dynamics)) {
+    hold_first_dab(state, x0, y0);
+    state.pending_end_x = x1;
+    state.pending_end_y = y1;
+    if (std::hypot(x1 - state.pending_x, y1 - state.pending_y) < kFirstDabDirectionDistance) {
+      return {};
+    }
+    x0 = state.pending_x;
+    y0 = state.pending_y;
+  }
+  return walk_tip_segment(document, layer_id, x0, y0, x1, y1, options, erase, state);
+}
+
+Rect finish_brush_tip_stroke(Document& document, LayerId layer_id, const EditOptions& options, bool erase,
+                             BrushTipStrokeState& state) {
+  if (!state.first_dab_pending || state.initialized || options.brush_tip == nullptr ||
+      options.brush_tip->empty()) {
+    return {};
+  }
+  const auto clicked = std::hypot(state.pending_end_x - state.pending_x,
+                                  state.pending_end_y - state.pending_y) < kFirstDabClickDistance;
+  return walk_tip_segment(document, layer_id, state.pending_x, state.pending_y,
+                          clicked ? state.pending_x : state.pending_end_x,
+                          clicked ? state.pending_y : state.pending_end_y, options, erase, state);
+}
+
 Rect paint_brush(Document& document, LayerId layer_id, std::int32_t x, std::int32_t y, const EditOptions& options,
                  bool erase) {
   return paint_brush_dab(document, layer_id, static_cast<double>(x), static_cast<double>(y), options, erase);
@@ -1833,7 +1902,8 @@ Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double
                          const EditOptions& options, bool erase) {
   if (options.brush_tip != nullptr && !options.brush_tip->empty()) {
     BrushTipStrokeState state;
-    return paint_tip_segment(document, layer_id, x0, y0, x1, y1, options, erase, state);
+    const auto dirty = paint_tip_segment(document, layer_id, x0, y0, x1, y1, options, erase, state);
+    return unite_rect(dirty, finish_brush_tip_stroke(document, layer_id, options, erase, state));
   }
 
   auto* layer = paintable_layer(document, layer_id);

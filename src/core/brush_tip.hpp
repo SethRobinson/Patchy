@@ -59,6 +59,15 @@ struct BrushTipStrokeState {
   double residual_distance{0.0};  // distance from the next segment's start to the next dab
   BrushDynamicsRng rng;
   BrushDynamicsStrokeContext dynamics;
+  // A stroke whose angle follows its direction holds its first dab (and any stationary Airbrush
+  // ticks) at the press point until the pointer has moved far enough to give a direction; then
+  // they stamp oriented along it. finish_brush_tip_stroke stamps a dab still held at the end.
+  bool first_dab_pending{false};
+  double pending_x{0.0};
+  double pending_y{0.0};
+  double pending_end_x{0.0};  // where the pointer is while the dab is held
+  double pending_end_y{0.0};
+  int pending_airbrush_ticks{0};
 };
 
 }  // namespace patchy

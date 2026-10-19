@@ -150,6 +150,10 @@ struct BrushDynamicsStrokeContext {
 // also latches the initial direction.
 void advance_stroke_direction(BrushDynamicsStrokeContext& context, double dx, double dy);
 
+// True when the dab angle comes from the stroke's travel (Direction or Initial Direction), so a
+// dab stamped before the pointer moves has no angle to follow.
+[[nodiscard]] bool angle_follows_direction(const BrushDynamics& dynamics) noexcept;
+
 // One dab's sampled deviation from the base stamp.
 struct BrushDabVariation {
   double scale{1.0};                // (0, 1]; size jitter only shrinks the stamp

@@ -187,10 +187,16 @@ enum class CanvasAnchor {
                                        std::int32_t x1, std::int32_t y1, const EditOptions& options, bool erase);
 // Stateful overload for bitmap brush tips: carries dab spacing across chained segments so the
 // canvas stroke smoother's short steps do not cluster dabs at joins. Falls back to the
-// procedural path when options.brush_tip is null.
+// procedural path when options.brush_tip is null. When the angle follows the stroke direction,
+// the first dab waits at the press point until the pointer has moved a few pixels, so a
+// stateful stroke must end with finish_brush_tip_stroke.
 [[nodiscard]] Rect paint_brush_segment(Document& document, LayerId layer_id, double x0, double y0, double x1,
                                        double y1, const EditOptions& options, bool erase,
                                        BrushTipStrokeState& state);
+// Stamps a first dab the stroke still holds (a click, or a stroke shorter than the direction
+// distance): at the press point, along the stroke's travel, or at the base angle for a click.
+[[nodiscard]] Rect finish_brush_tip_stroke(Document& document, LayerId layer_id, const EditOptions& options,
+                                           bool erase, BrushTipStrokeState& state);
 [[nodiscard]] Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0,
                                         std::int32_t x1, std::int32_t y1, const EditOptions& options);
 [[nodiscard]] Rect smudge_brush_segment(Document& document, LayerId layer_id, std::int32_t x0, std::int32_t y0,

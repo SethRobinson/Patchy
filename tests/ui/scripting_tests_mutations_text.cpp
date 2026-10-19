@@ -606,6 +606,7 @@ void ui_script_advanced_brush_native_parity() {
     R"({"dynamics":{"dualBrushEnabled":true,"dualBrushSize":0.4,"dualBrushSpacing":0.7}})",
     R"({"dynamics":{"colorDynamicsEnabled":true,"foregroundBackgroundJitter":0.6,"hueJitter":0.1}})",
     R"({"dynamics":{"sizeJitter":0.3,"angleJitter":0.3,"roundnessJitter":0.5,"flipXJitter":true}})",
+    R"({"roundness":30,"dynamics":{"angleControl":"direction"}})",
     R"({"dynamics":{"scatter":0.4,"scatterBothAxes":true,"count":3,"countJitter":0.4}})",
     R"({"dynamics":{"opacityJitter":0.3,"flowJitter":0.4,"flowControl":"fade","flowFadeSteps":40}})",
     R"({"tool":"mixer","mixer":{"wet":65,"load":40,"mix":75,"sampleAllLayers":true}})",

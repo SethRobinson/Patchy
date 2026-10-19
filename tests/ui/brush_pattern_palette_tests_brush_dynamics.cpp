@@ -854,6 +854,65 @@ void ui_brush_dynamics_stroke_scatters_with_seed() {
   clear_brush_tip_test_state();
 }
 
+// #221: with a Direction-controlled tip the press dab waits for the stroke's direction, so a
+// canvas stroke's first dab follows it like the rest (with or without Smoothing); a click with
+// no movement keeps the base angle. The bar tip is horizontal at angle 0.
+void ui_brush_direction_first_dab_follows_stroke() {
+  clear_brush_tip_test_state();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  canvas->set_zoom(1.0);
+
+  auto& library = window.brush_tip_library();
+  const auto tip_id = library.add_tip(QStringLiteral("Bar"), make_bar_tip_image(), 1.5);
+  CHECK(!tip_id.isEmpty());
+  window.set_active_brush_tip(tip_id, false);
+  canvas->set_primary_color(QColor(0, 0, 0));
+  canvas->set_brush_size(24);  // a 24x6 bar, dabs every 36px
+  canvas->set_brush_softness(0);
+  canvas->set_brush_opacity(100);
+  canvas->set_brush_flow(100);
+  patchy::BrushDynamics dynamics;
+  dynamics.angle_control = patchy::BrushDynamicControl::Direction;
+  canvas->set_brush_dynamics(dynamics);
+
+  canvas->set_brush_smoothing(0);
+  drag_document_path(*canvas, {QPoint(200, 130), QPoint(200, 310)}, 45);  // 4px moves
+  canvas->set_brush_smoothing(25);
+  drag_document_path(*canvas, {QPoint(260, 200), QPoint(440, 200)}, 45);
+  canvas->set_brush_smoothing(0);
+  const auto click = canvas->widget_position_for_document_point(QPoint(500, 280));
+  send_mouse(*canvas, QEvent::MouseButtonPress, click, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, click, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+
+  const auto image = canvas->grab().toImage().convertToFormat(QImage::Format_RGB32);
+  const auto top_left = canvas->widget_position_for_document_point(QPoint(160, 100));
+  const auto bottom_right = canvas->widget_position_for_document_point(QPoint(540, 330));
+  save_image_artifact("ui_brush_direction_first_dab", image.copy(QRect(top_left, bottom_right)));
+  const auto dark = [&](int x, int y) {
+    const auto point = canvas->widget_position_for_document_point(QPoint(x, y));
+    return image.rect().contains(point) && QColor(image.pixel(point)).lightness() < 100;
+  };
+
+  // Vertical stroke: the first dab at (200,130) is a vertical bar, with no horizontal stamp.
+  CHECK(dark(200, 122));
+  CHECK(!dark(209, 130));
+  CHECK(!dark(191, 130));
+  // Horizontal stroke (Smoothing on): the first dab at (260,200) stays horizontal.
+  CHECK(dark(268, 200));
+  CHECK(!dark(260, 191));
+  CHECK(!dark(260, 209));
+  // Click: one dab at the base angle.
+  CHECK(dark(489, 280));
+  CHECK(dark(511, 280));
+  CHECK(!dark(500, 271));
+  clear_brush_tip_test_state();
+}
+
 void ui_brush_color_dynamics_reaches_stroke_compositor() {
   clear_brush_tip_test_state();
   patchy::ui::MainWindow window;
@@ -1389,6 +1448,7 @@ std::vector<patchy::test::TestCase> brush_pattern_palette_tests_part2() {
       {"ui_brush_dynamics_popup_control_edits_persist", ui_brush_dynamics_popup_control_edits_persist},
       {"ui_brush_dynamics_button_toggles_popup_closed", ui_brush_dynamics_button_toggles_popup_closed},
       {"ui_brush_dynamics_stroke_scatters_with_seed", ui_brush_dynamics_stroke_scatters_with_seed},
+      {"ui_brush_direction_first_dab_follows_stroke", ui_brush_direction_first_dab_follows_stroke},
       {"ui_brush_color_dynamics_reaches_stroke_compositor",
        ui_brush_color_dynamics_reaches_stroke_compositor},
       {"ui_brush_dynamics_abr_import_carries_dynamics", ui_brush_dynamics_abr_import_carries_dynamics},
