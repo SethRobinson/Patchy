@@ -983,6 +983,12 @@ int main(int argc, char* argv[]) {
       qWarning("Patchy MCP attachment: %s", qPrintable(mcp_attachment->error()));
     }
   }
+  // AppImage only: keep an applications menu entry Patchy added pointing at this file, or
+  // offer once to add one (GitHub issue 226). Nobody is there to answer in the other modes.
+  if (!headless_mode && !screenshot_mode && !startup_benchmark_mode) {
+    const patchy::startup_trace::Scope menu_entry_phase("appimage.menu_entry");
+    window.begin_appimage_menu_entry_startup();
+  }
 #endif
   // Everything above runs nested event processing before the main loop exists: opening a
   // file from the command line shows its "Opening ..." progress and pumps events until the

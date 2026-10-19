@@ -43,6 +43,8 @@
 #include <QApplication>
 #include <QColor>
 #include <QDesktopServices>
+#include <QEvent>
+#include <QHelpEvent>
 #include <QImage>
 #include <QKeySequence>
 #include <QLatin1String>
@@ -56,6 +58,7 @@
 #include <QString>
 #include <QStringLiteral>
 #include <QStyle>
+#include <QToolTip>
 #include <QUrl>
 #include <QWidget>
 #include <Qt>
@@ -105,6 +108,28 @@ void exclude_submenus_from_native_menu_roles(QMenu& menu) {
     exclude_submenus_from_native_menu_roles(*submenu);
   }
 }
+
+// Shows one action's tooltip in its menu (QMenu::setToolTipsVisible would show every
+// action's, which for most is only its own label), disabled or not.
+class ActionToolTipFilter final : public QObject {
+ public:
+  ActionToolTipFilter(QAction* action, QMenu* menu) : QObject(menu), action_(action), menu_(menu) {}
+
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (watched == menu_ && event->type() == QEvent::ToolTip && action_ != nullptr) {
+      const auto* help = static_cast<QHelpEvent*>(event);
+      if (menu_->actionAt(help->pos()) == action_ && !action_->isEnabled()) {
+        QToolTip::showText(help->globalPos(), action_->toolTip(), menu_);
+        return true;
+      }
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+ private:
+  QPointer<QAction> action_;
+  QMenu* menu_;
+};
 
 }  // namespace
 
@@ -2151,6 +2176,19 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   // registered so saved hotkey tables stay stable across platforms.
   ai_setup_action->setVisible(false);
 #endif
+
+  // AppImage only (GitHub issue 226): its text, visibility and enabled state follow the
+  // entry's state each time Help opens. The tooltip explains an unavailable entry; menus
+  // show no tooltips by default, so Help shows this one action's.
+  appimage_menu_entry_action_ = help_menu->addAction(tr("Add Patchy to Applications Menu..."));
+  appimage_menu_entry_action_->setObjectName(QStringLiteral("helpAppImageMenuEntryAction"));
+  appimage_menu_entry_action_->setMenuRole(QAction::NoRole);
+  register_hotkey(appimage_menu_entry_action_, "help.appimage_menu_entry");
+  connect(appimage_menu_entry_action_, &QAction::triggered, this, [this] { toggle_appimage_menu_entry(); });
+  connect(help_menu, &QMenu::aboutToShow, this, [this] { refresh_appimage_menu_entry_action(); });
+  help_menu->installEventFilter(new ActionToolTipFilter(appimage_menu_entry_action_, help_menu));
+  register_retranslation([this] { refresh_appimage_menu_entry_action(); });
+  refresh_appimage_menu_entry_action();
 
   auto* about_action = help_menu->addAction(tr("&About Patchy"));
   about_action->setMenuRole(QAction::AboutRole);

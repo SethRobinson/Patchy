@@ -72,5 +72,6 @@ std::vector<patchy::test::TestCase> history_panel_tests();
 std::vector<patchy::test::TestCase> history_stroke_patch_tests();
 std::vector<patchy::test::TestCase> file_info_tests();
 std::vector<patchy::test::TestCase> layered_tiff_ui_tests();
+std::vector<patchy::test::TestCase> appimage_menu_entry_tests();
 std::vector<patchy::test::TestCase> composite_render_tests();
 std::vector<patchy::test::TestCase> readme_screenshot_tests();

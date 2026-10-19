@@ -2,6 +2,49 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="ko" sourcelanguage="en">
 <context>
+    <name>AppImageMenuEntry</name>
+    <message>
+        <source>Could not create the folder for %1</source>
+        <translation>%1의 폴더를 만들 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Could not write %1</source>
+        <translation>%1을(를) 쓸 수 없습니다</translation>
+    </message>
+    <message>
+        <source>This AppImage contains no Patchy icons</source>
+        <translation>이 AppImage에는 Patchy 아이콘이 없습니다</translation>
+    </message>
+    <message>
+        <source>This AppImage contains no Patchy desktop file</source>
+        <translation>이 AppImage에는 Patchy .desktop 파일이 없습니다</translation>
+    </message>
+    <message>
+        <source>This AppImage&apos;s desktop file has no Exec line</source>
+        <translation>이 AppImage의 .desktop 파일에 Exec 줄이 없습니다</translation>
+    </message>
+    <message>
+        <source>Patchy is not running from an AppImage</source>
+        <translation>Patchy가 AppImage에서 실행되고 있지 않습니다</translation>
+    </message>
+    <message>
+        <source>Patchy is already in the applications menu</source>
+        <translation>Patchy가 이미 애플리케이션 메뉴에 있습니다</translation>
+    </message>
+    <message>
+        <source>Patchy did not add the applications menu entry</source>
+        <translation>애플리케이션 메뉴 항목은 Patchy가 추가한 것이 아닙니다</translation>
+    </message>
+    <message>
+        <source>Could not remove %1</source>
+        <translation>%1을(를) 제거할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>The AppImage&apos;s file name cannot be used in a menu entry</source>
+        <translation>AppImage 파일 이름은 메뉴 항목에 사용할 수 없습니다</translation>
+    </message>
+</context>
+<context>
     <name>FilterGalleryControls</name>
     <message>
         <source>Angle</source>
@@ -22015,6 +22058,54 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
     <message>
         <source>Brush mode: how the paint combines with the pixels under it</source>
         <translation>브러시 모드: 칠이 아래 픽셀과 합쳐지는 방식</translation>
+    </message>
+    <message>
+        <source>Add Patchy to Applications Menu...</source>
+        <translation>애플리케이션 메뉴에 Patchy 추가...</translation>
+    </message>
+    <message>
+        <source>Remove Patchy from Applications Menu</source>
+        <translation>애플리케이션 메뉴에서 Patchy 제거</translation>
+    </message>
+    <message>
+        <source>Patchy is already in the applications menu, added by another tool or package.</source>
+        <translation>다른 도구나 패키지가 이미 Patchy를 애플리케이션 메뉴에 추가했습니다.</translation>
+    </message>
+    <message>
+        <source>Could not add Patchy to the applications menu: %1</source>
+        <translation>애플리케이션 메뉴에 Patchy를 추가할 수 없습니다: %1</translation>
+    </message>
+    <message>
+        <source>Could not remove Patchy from the applications menu: %1</source>
+        <translation>애플리케이션 메뉴에서 Patchy를 제거할 수 없습니다: %1</translation>
+    </message>
+    <message>
+        <source>Patchy was added to the applications menu</source>
+        <translation>애플리케이션 메뉴에 Patchy를 추가했습니다</translation>
+    </message>
+    <message>
+        <source>Patchy was removed from the applications menu</source>
+        <translation>애플리케이션 메뉴에서 Patchy를 제거했습니다</translation>
+    </message>
+    <message>
+        <source>Applications Menu</source>
+        <translation>애플리케이션 메뉴</translation>
+    </message>
+    <message>
+        <source>Add Patchy to your applications menu?
+
+Patchy then starts from the menu and shows its own icon in the taskbar. This writes a menu entry and icons to your home folder.
+
+You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
+        <translation>애플리케이션 메뉴에 Patchy를 추가할까요?
+
+메뉴에서 Patchy를 시작할 수 있고 작업 표시줄에 Patchy 아이콘이 표시됩니다. 메뉴 항목과 아이콘을 홈 폴더에 기록합니다.
+
+나중에 도움말 &gt; 애플리케이션 메뉴에 Patchy 추가에서 할 수도 있습니다.</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Ask Again</source>
+        <translation>다시 묻지 않음</translation>
     </message>
 </context>
 <context>

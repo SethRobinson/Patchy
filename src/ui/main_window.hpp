@@ -240,6 +240,11 @@ public:
   // only, so tests constructing MainWindow never fire network requests; the result lands on
   // the start panel's status line and, for an available update, show_update_available.
   void begin_startup_update_check();
+  // AppImage only (docs/appimage.md, "Applications menu entry", GitHub issue 226): refreshes
+  // an entry Patchy added when the AppImage moved or a new release changed it, and otherwise
+  // offers once to add one. Called from src/app/main.cpp only, never for headless, script or
+  // screenshot runs, so tests see the offer only when they ask for it.
+  void begin_appimage_menu_entry_startup();
   // Forced-exit path only (main.cpp, a worker still blocked after the bounded quit
   // wait): stops recovery writes and deletes the recovery folder now, since the
   // destructor that normally drops it will not run. See docs/document-recovery.md.
@@ -377,6 +382,15 @@ public:
   // Help > Set up AI Control: the paste-into-your-assistant dialog
   // (ai_setup_dialog.hpp), single non-modal instance like the guide.
   void open_ai_setup_dialog();
+  // Help > Add Patchy to Applications Menu... / Remove Patchy from Applications Menu
+  // (main_window_appimage_menu_entry.cpp): shown only when running from an AppImage,
+  // unavailable when another tool or package already put Patchy in the menu.
+  void refresh_appimage_menu_entry_action();
+  void toggle_appimage_menu_entry();
+  void set_appimage_menu_entry(bool add);
+  // The one-time startup offer (Add / Not Now / Don't Ask Again). True when it was shown.
+  bool offer_appimage_menu_entry();
+  void schedule_appimage_menu_entry_offer(int delay_ms);
   // Marginal history bytes retained across all sessions, cached by the last
   // enforce_history_memory_budget run (push-time; slightly stale by design).
   // The wasm memory telemetry (ui/wasm_memory_telemetry.cpp) reads it at 1 Hz.
@@ -3047,6 +3061,10 @@ private:
   void request_application_exit();
   std::optional<UpdateInstallerLaunch> pending_update_install_;
   std::optional<bool> self_update_override_for_tests_;
+  QAction* appimage_menu_entry_action_{nullptr};
+  // MainWindowTestAccess: stands in for $APPDIR/usr/share (the AppImage's own desktop file
+  // and icons) and skips the desktop cache refresh tools.
+  QString appimage_bundled_share_for_tests_;
   QString update_download_folder_for_tests_;
   std::function<UpdateLaunchResult(const UpdateInstallerLaunch&)> update_installer_launcher_for_tests_;
   std::function<void()> application_exit_hook_for_tests_;

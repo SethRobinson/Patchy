@@ -2,6 +2,49 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="ru" sourcelanguage="en">
 <context>
+    <name>AppImageMenuEntry</name>
+    <message>
+        <source>Could not create the folder for %1</source>
+        <translation>Не удалось создать папку для %1</translation>
+    </message>
+    <message>
+        <source>Could not write %1</source>
+        <translation>Не удалось записать %1</translation>
+    </message>
+    <message>
+        <source>This AppImage contains no Patchy icons</source>
+        <translation>В этом AppImage нет значков Patchy</translation>
+    </message>
+    <message>
+        <source>This AppImage contains no Patchy desktop file</source>
+        <translation>В этом AppImage нет файла .desktop Patchy</translation>
+    </message>
+    <message>
+        <source>This AppImage&apos;s desktop file has no Exec line</source>
+        <translation>В файле .desktop этого AppImage нет строки Exec</translation>
+    </message>
+    <message>
+        <source>Patchy is not running from an AppImage</source>
+        <translation>Patchy запущен не из AppImage</translation>
+    </message>
+    <message>
+        <source>Patchy is already in the applications menu</source>
+        <translation>Patchy уже есть в меню приложений</translation>
+    </message>
+    <message>
+        <source>Patchy did not add the applications menu entry</source>
+        <translation>Пункт в меню приложений добавлен не Patchy</translation>
+    </message>
+    <message>
+        <source>Could not remove %1</source>
+        <translation>Не удалось удалить %1</translation>
+    </message>
+    <message>
+        <source>The AppImage&apos;s file name cannot be used in a menu entry</source>
+        <translation>Имя файла AppImage нельзя использовать в пункте меню</translation>
+    </message>
+</context>
+<context>
     <name>FilterGalleryControls</name>
     <message>
         <source>Angle</source>
@@ -22155,6 +22198,54 @@ Patchy может скачать обновление, заменить этот
     <message>
         <source>Brush mode: how the paint combines with the pixels under it</source>
         <translation>Режим кисти: как краска сочетается с пикселями под ней</translation>
+    </message>
+    <message>
+        <source>Add Patchy to Applications Menu...</source>
+        <translation>Добавить Patchy в меню приложений...</translation>
+    </message>
+    <message>
+        <source>Remove Patchy from Applications Menu</source>
+        <translation>Удалить Patchy из меню приложений</translation>
+    </message>
+    <message>
+        <source>Patchy is already in the applications menu, added by another tool or package.</source>
+        <translation>Patchy уже есть в меню приложений: его добавила другая программа или пакет.</translation>
+    </message>
+    <message>
+        <source>Could not add Patchy to the applications menu: %1</source>
+        <translation>Не удалось добавить Patchy в меню приложений: %1</translation>
+    </message>
+    <message>
+        <source>Could not remove Patchy from the applications menu: %1</source>
+        <translation>Не удалось удалить Patchy из меню приложений: %1</translation>
+    </message>
+    <message>
+        <source>Patchy was added to the applications menu</source>
+        <translation>Patchy добавлен в меню приложений</translation>
+    </message>
+    <message>
+        <source>Patchy was removed from the applications menu</source>
+        <translation>Patchy удалён из меню приложений</translation>
+    </message>
+    <message>
+        <source>Applications Menu</source>
+        <translation>Меню приложений</translation>
+    </message>
+    <message>
+        <source>Add Patchy to your applications menu?
+
+Patchy then starts from the menu and shows its own icon in the taskbar. This writes a menu entry and icons to your home folder.
+
+You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
+        <translation>Добавить Patchy в меню приложений?
+
+Patchy можно будет запускать из меню, а на панели задач появится его собственный значок. В домашнюю папку будут записаны пункт меню и значки.
+
+Это можно сделать и позже: Справка &gt; Добавить Patchy в меню приложений.</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Ask Again</source>
+        <translation>Больше не спрашивать</translation>
     </message>
 </context>
 <context>
