@@ -18,7 +18,9 @@
 #include <QPointF>
 #include <QRect>
 #include <QTransform>
+#include <array>
 #include <cmath>
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <utility>
@@ -60,9 +62,25 @@ void hover(patchy::ui::CanvasWidget& canvas, QPoint position) {
   send_mouse(canvas, QEvent::MouseMove, position, Qt::NoButton, Qt::NoButton);
 }
 
+// Any rotate hint: the stem's rotate cursor or a corner's (all four share the
+// centered hotspot; the Move pointer's sits on its arrow tip).
 bool is_rotate_cursor(const QCursor& cursor) {
-  return cursor.shape() == Qt::BitmapCursor &&
-         cursor.pixmap().toImage() == patchy::ui::rotate_cursor().pixmap().toImage();
+  return cursor.shape() == Qt::BitmapCursor && cursor.hotSpot() == patchy::ui::rotate_cursor().hotSpot();
+}
+
+QImage cursor_image(const QCursor& cursor) {
+  return cursor.pixmap().toImage().convertToFormat(QImage::Format_ARGB32_Premultiplied);
+}
+
+bool all_different(const std::vector<QImage>& images) {
+  for (std::size_t i = 0; i < images.size(); ++i) {
+    for (std::size_t j = i + 1; j < images.size(); ++j) {
+      if (images[i] == images[j]) {
+        return false;
+      }
+    }
+  }
+  return true;
 }
 
 bool is_resize_shape(Qt::CursorShape shape) {
@@ -310,12 +328,108 @@ void ui_transform_zone_crop_edges_resize() {
   CHECK(canvas->cursor().shape() == Qt::SizeHorCursor);
   hover(*canvas, canvas->widget_position_for_document_point(QPoint(201, 181)) + QPoint(15, 15));
   CHECK(is_rotate_cursor(canvas->cursor()));
+  // Off the box, each corner's side shows its own rotate cursor.
+  std::vector<QImage> crop_corners;
+  for (const auto& offset : {QPoint(40, 40), QPoint(-40, 40), QPoint(-40, -40), QPoint(40, -40)}) {
+    const auto corner = canvas->widget_position_for_document_point(
+        QPoint(offset.x() > 0 ? 201 : 100, offset.y() > 0 ? 181 : 100));
+    hover(*canvas, corner + offset);
+    CHECK(is_rotate_cursor(canvas->cursor()));
+    crop_corners.push_back(cursor_image(canvas->cursor()));
+  }
+  CHECK(all_different(crop_corners));
 
   // The top edge follows the drag without jumping by the 3 px grab offset.
   drag(*canvas, top_inside, top_inside + QPoint(0, -20));
   CHECK(canvas->crop_session_rect() == QRect(100, 80, 101, 101));
   drag(*canvas, right_outside, right_outside + QPoint(10, 0));
   CHECK(canvas->crop_session_rect() == QRect(100, 80, 111, 101));
+}
+
+// Each corner's rotate band shows its own rotate cursor, a curved arrow turned
+// toward that corner, chosen by the corner's on-screen direction so a rotated
+// box shows the cursor of the corner as it now sits. The band reaches 20
+// percent farther (28.8 px from the corner) than the first 24 px; the stem
+// handle keeps the plain rotate cursor.
+void ui_transform_zone_corner_rotate_cursors_match_each_corner() {
+  patchy::ui::MainWindow window;
+  const QRect bounds(100, 70, 160, 110);
+  prepare_zone_scene(window, bounds, true);
+  auto* canvas = require_canvas(window);
+  const auto center = canvas->widget_position_for_document_point(bounds.center());
+  send_mouse(*canvas, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  const auto tl = canvas->widget_position_for_document_point(bounds.topLeft());
+  const auto br = canvas->widget_position_for_document_point(bounds.topLeft() + QPoint(bounds.width(), bounds.height()));
+  // Bottom right, bottom left, top left, top right: just outside each corner.
+  const std::array<QPoint, 4> corners = {br, QPoint(tl.x(), br.y()), tl, QPoint(br.x(), tl.y())};
+  const std::array<QPoint, 4> outward = {QPoint(1, 1), QPoint(-1, 1), QPoint(-1, -1), QPoint(1, -1)};
+
+  std::vector<QImage> images;
+  std::vector<QCursor> cursors;
+  for (std::size_t i = 0; i < corners.size(); ++i) {
+    hover(*canvas, corners[i] + outward[i] * 14);
+    cursors.push_back(canvas->cursor());
+    images.push_back(cursor_image(canvas->cursor()));
+  }
+  const auto area_origin = tl - QPoint(50, 70);
+  auto map = hover_zone_map(*canvas, QRect(area_origin, br + QPoint(50, 50)), ZoneLegend::Transform);
+  {
+    QPainter painter(&map);
+    for (std::size_t i = 0; i < corners.size(); ++i) {
+      if (cursors[i].shape() == Qt::BitmapCursor) {
+        painter.drawPixmap(corners[i] + outward[i] * 14 - area_origin - cursors[i].hotSpot(), cursors[i].pixmap());
+      }
+    }
+  }
+  save_image_artifact("ui_transform_zone_corner_cursors", scaled_up(map, 2));
+
+  for (const auto& cursor : cursors) {
+    CHECK(is_rotate_cursor(cursor));
+  }
+  CHECK(all_different(images));
+  // The same corner keeps its cursor anywhere along its band.
+  hover(*canvas, br + QPoint(4, 24));
+  CHECK(cursor_image(canvas->cursor()) == images[0]);
+  // The stem handle above the top edge keeps the plain rotate cursor.
+  hover(*canvas, QPoint((tl.x() + br.x()) / 2, tl.y() - 32));
+  CHECK(cursor_image(canvas->cursor()) == cursor_image(patchy::ui::rotate_cursor()));
+
+  // The band reaches 28.8 px from the corner: 26.9 px out still rotates, 31.1 px does not.
+  hover(*canvas, br + QPoint(19, 19));
+  CHECK(is_rotate_cursor(canvas->cursor()));
+  hover(*canvas, tl - QPoint(19, 19));
+  CHECK(is_rotate_cursor(canvas->cursor()));
+  hover(*canvas, br + QPoint(22, 22));
+  CHECK(!is_rotate_cursor(canvas->cursor()));
+  // A grab out there rotates.
+  const auto grab = br + QPoint(19, 19);
+  send_mouse(*canvas, QEvent::MouseButtonPress, grab, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, grab + QPoint(-40, 20), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, grab + QPoint(-40, 20), Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  CHECK(std::abs(require_state(*canvas).rotation_degrees) > 5.0);
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+
+  // Turned a quarter clockwise, the box's own top-right corner sits at the
+  // bottom right on screen and shows the bottom-right cursor.
+  CHECK(canvas->begin_free_transform());
+  const auto start = require_state(*canvas);
+  CHECK(canvas->set_transform_controls_state(start.reference_position, 100.0, 100.0, 90.0));
+  QApplication::processEvents();
+  const QPointF box_center(canvas->widget_position_for_document_point(
+      QPoint(bounds.x() + bounds.width() / 2, bounds.y() + bounds.height() / 2)));
+  QTransform to_widget;
+  to_widget.translate(box_center.x(), box_center.y());
+  to_widget.rotate(90.0);
+  hover(*canvas, to_widget.map(QPointF(bounds.width() / 2.0 + 12.0, -bounds.height() / 2.0 - 12.0)).toPoint());
+  CHECK(cursor_image(canvas->cursor()) == images[0]);
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
 }
 
 // GitHub issue 170: the four-way move cursor shows only where a press drags
@@ -385,6 +499,8 @@ std::vector<patchy::test::TestCase> move_transform_zones_tests() {
       {"ui_transform_zone_rotated_session_edges_follow_the_box", ui_transform_zone_rotated_session_edges_follow_the_box},
       {"ui_transform_zone_tiny_box_keeps_move_area", ui_transform_zone_tiny_box_keeps_move_area},
       {"ui_transform_zone_crop_edges_resize", ui_transform_zone_crop_edges_resize},
+      {"ui_transform_zone_corner_rotate_cursors_match_each_corner",
+       ui_transform_zone_corner_rotate_cursors_match_each_corner},
       {"ui_move_cursor_shows_drag_only_where_a_press_moves", ui_move_cursor_shows_drag_only_where_a_press_moves},
   };
 }
