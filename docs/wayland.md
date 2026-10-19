@@ -161,6 +161,36 @@ menu, submenu, the same menu as a context menu, combo list, QPushButton menu) an
 the property against the rectangles Qt computes. Offscreen cannot show the compositor's
 placement; the probe does.
 
+## A tool cursor over dialogs (GitHub issue 215)
+
+Before Qt 6.10, `QWaylandCursor::changeCursor` ignores the window whose cursor changed and
+sets the cursor on every seat's pointer, whatever surface the pointer is over (qtwayland
+6.8.3 `src/client/qwaylandcursor.cpp`; 6.10 stores the cursor per window and applies it
+only to the window under the pointer). A dialog that opens under the pointer gets the arrow
+on `wl_pointer.enter`, but the canvas behind it keeps refreshing its tool cursor (the zoom
+fit after a document opens, a modifier key, a brush size change), and each refresh put the
+brush or crosshair cursor over the dialog. Qt applies a widget's cursor to its window only
+when it changes, so the wrong cursor stayed until the pointer crossed a widget with a
+cursor of its own. The AppImage (Qt 6.8.3) and source builds on Qt 6.8 or 6.9 have it; the
+Flatpak (Qt 6.11), X11, Windows and macOS apply cursors per window.
+
+`install_wayland_pointer_cursor_fix()` (`src/ui/wayland_pointer_cursor.cpp`, called from
+`main()`) installs an application event filter when `wayland_pointer_cursor_fix_needed()`
+holds: a `wayland*` platform and Qt before 6.10. It tracks the widget under the pointer
+from the Enter and Leave events Qt sends as the pointer crosses widgets and windows. After
+a `CursorChange` on a created widget in another native window, it re-applies the cursor
+Qt shows over the pointer's widget (its own or its nearest ancestor's, the arrow when
+disabled) to the pointer's window, unsetting it first because `QWindow::setCursor` skips a
+shape the window already holds. It does nothing while an application override cursor is
+set, which shows everywhere by design. The fix covers every window, modal or not, and the
+reverse case of a dialog widget changing its cursor while the pointer is on the canvas.
+
+`ui_wayland_pointer_cursor_fix_keeps_the_dialog_cursor` drives the filter offscreen with
+the Enter and Leave events Qt sends and checks the cursor each window holds, which is what
+the plug-in would show; `ui_wayland_pointer_cursor_fix_covers_preferences_and_missing_fonts`
+does the same over the real modal dialogs while the canvas changes its brush cursor.
+Offscreen cannot show the compositor's cursor.
+
 ## A window taller than the screen (GitHub issue 108)
 
 Qt's `QScreen::availableGeometry` on Wayland is the whole output: no protocol reports a
