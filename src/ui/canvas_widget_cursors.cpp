@@ -278,6 +278,27 @@ void CanvasWidget::apply_zoom_cursor(bool zoom_out) {
   setCursor(QCursor(pixmap, 10, 10));
 }
 
+void CanvasWidget::apply_move_tool_cursor(QPoint widget_position) {
+  if (transforming_layer_) {
+    set_transform_cursor_for_handle(transform_handle_at(widget_position), transform_angle_);
+    return;
+  }
+  if (const auto rect = move_transform_controls_rect(); rect.has_value()) {
+    const auto handle = transform_handle_at(widget_position, *rect, 0.0, TransformHitZones::EdgesAndCorners);
+    if (handle != TransformHandle::None && handle != TransformHandle::Move) {
+      set_transform_cursor_for_handle(handle);
+      return;
+    }
+  }
+  // The four-way cursor promises a drag (GitHub issue 170); where a press starts
+  // a layer selection rectangle instead, the move pointer says so.
+  if (moving_layer_ || move_press_drags_at(widget_position)) {
+    setCursor(Qt::SizeAllCursor);
+  } else {
+    setCursor(move_pointer_cursor());
+  }
+}
+
 void CanvasWidget::update_tool_cursor() {
   ZoomTraceScope trace("tool_cursor", zoom_);
   if (spacebar_panning_ || tool_ == CanvasTool::Pan) {
@@ -292,7 +313,7 @@ void CanvasWidget::update_tool_cursor() {
     return;
   }
   if (tool_ == CanvasTool::Move) {
-    setCursor(Qt::SizeAllCursor);
+    apply_move_tool_cursor(last_mouse_position_);
     return;
   }
   if (tool_ == CanvasTool::Artboard) {

@@ -1,6 +1,8 @@
-// Move tool and transform box hit zones (GitHub issue 176): a drag anywhere
-// along an edge of the transform box resizes that side, a drag just outside a
-// corner rotates, a tiny box keeps a Move area, and the Crop box edges resize too.
+// Move tool and transform box hit zones (GitHub issues 176 and 170): a drag
+// anywhere along an edge of the transform box resizes that side, a drag just
+// outside a corner rotates, a tiny box keeps a Move area, the Crop box edges
+// resize too, and the Move tool shows its four-way cursor only where a press
+// would drag something (an arrow with a move badge elsewhere).
 #include "ui/canvas_widget.hpp"
 #include "core/layer_metadata.hpp"
 #include "ui/main_window.hpp"
@@ -316,6 +318,64 @@ void ui_transform_zone_crop_edges_resize() {
   CHECK(canvas->crop_session_rect() == QRect(100, 80, 111, 101));
 }
 
+// GitHub issue 170: the four-way move cursor shows only where a press drags
+// something. Over empty canvas or the pasteboard a press with Auto-Select on
+// starts a layer selection rectangle, so the pointer is an arrow with a move
+// badge there. Auto-Select off drags the selected layers from anywhere.
+void ui_move_cursor_shows_drag_only_where_a_press_moves() {
+  patchy::ui::MainWindow window;
+  const QRect bounds(100, 70, 160, 110);
+  const auto id = prepare_zone_scene(window, bounds, false);
+  auto* canvas = require_canvas(window);
+  const auto origin = canvas->widget_position_for_document_point(QPoint(0, 0));
+  const auto over_layer = canvas->widget_position_for_document_point(bounds.center());
+  const auto over_background = canvas->widget_position_for_document_point(QPoint(40, 220));
+  const auto pasteboard = origin - QPoint(30, -40);
+  CHECK(canvas->rect().contains(pasteboard));
+
+  auto map = hover_zone_map(*canvas, QRect(origin - QPoint(40, 30), QSize(440, 320)), ZoneLegend::MoveCursor, 2);
+  {
+    // Show the cursor drawn at two sample spots: over empty canvas and the pasteboard.
+    QPainter painter(&map);
+    for (const auto spot : {over_background, pasteboard}) {
+      hover(*canvas, spot);
+      const auto cursor = canvas->cursor();
+      if (cursor.shape() == Qt::BitmapCursor) {
+        painter.drawPixmap(spot - (origin - QPoint(40, 30)) - cursor.hotSpot(), cursor.pixmap());
+      }
+    }
+  }
+  save_image_artifact("ui_move_cursor_map", scaled_up(map, 2));
+
+  hover(*canvas, over_layer);
+  CHECK(canvas->cursor().shape() == Qt::SizeAllCursor);
+  hover(*canvas, over_background);
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+  CHECK(!is_rotate_cursor(canvas->cursor()));
+  const auto pointer_image = canvas->cursor().pixmap().toImage();
+  hover(*canvas, pasteboard);
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+  CHECK(canvas->cursor().pixmap().toImage() == pointer_image);
+
+  // The pointer's promise holds: a drag from empty canvas draws a selection
+  // rectangle (matching nothing, it deselects) and leaves the layer put.
+  drag(*canvas, over_background, over_background + QPoint(30, -20));
+  QApplication::processEvents();
+  const auto* box = patchy::ui::MainWindowTestAccess::document(window).find_layer(id);
+  CHECK(box != nullptr && box->bounds().x == bounds.x() && box->bounds().y == bounds.y());
+
+  // Auto-Select off: a press anywhere drags the selected layer.
+  send_mouse(*canvas, QEvent::MouseButtonPress, over_layer, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, over_layer, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->active_layer_document_rect() == bounds);
+  canvas->set_auto_select_layer(false);
+  hover(*canvas, over_background);
+  CHECK(canvas->cursor().shape() == Qt::SizeAllCursor);
+  hover(*canvas, pasteboard);
+  CHECK(canvas->cursor().shape() == Qt::SizeAllCursor);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> move_transform_zones_tests() {
@@ -325,5 +385,6 @@ std::vector<patchy::test::TestCase> move_transform_zones_tests() {
       {"ui_transform_zone_rotated_session_edges_follow_the_box", ui_transform_zone_rotated_session_edges_follow_the_box},
       {"ui_transform_zone_tiny_box_keeps_move_area", ui_transform_zone_tiny_box_keeps_move_area},
       {"ui_transform_zone_crop_edges_resize", ui_transform_zone_crop_edges_resize},
+      {"ui_move_cursor_shows_drag_only_where_a_press_moves", ui_move_cursor_shows_drag_only_where_a_press_moves},
   };
 }

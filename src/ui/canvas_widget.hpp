@@ -2111,6 +2111,12 @@ private:
   [[nodiscard]] std::optional<QRect> move_hover_outline_rect_at(QPoint widget_position,
                                                                 Qt::KeyboardModifiers modifiers) const;
   void update_move_hover_outline(QPoint widget_position, Qt::KeyboardModifiers modifiers);
+  // Whether a plain left press here with the Move tool would drag something (a layer,
+  // the selected set, an artboard), mirroring the press handler (GitHub issue 170).
+  [[nodiscard]] bool move_press_drags_at(QPoint widget_position) const;
+  // The Move tool's idle cursor: transform-box zones, the four-way move cursor where
+  // a press drags, the move pointer (arrow with a move badge) where it selects.
+  void apply_move_tool_cursor(QPoint widget_position);
   void clear_move_hover_outline();
   [[nodiscard]] QRect moving_layer_outline_rect(const MovingLayer& moving_layer, QPoint delta) const;
   // The document rect the layer dirties at `delta`: bounds shifted, padded by

@@ -2187,7 +2187,11 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
         if (const auto rect = move_transform_controls_rect(); rect.has_value()) {
           const auto handle = transform_handle_at(event->pos(), *rect, 0.0, TransformHitZones::EdgesAndCorners);
           if (handle != TransformHandle::None) {
-            set_transform_cursor_for_handle(handle);
+            if (handle == TransformHandle::Move) {
+              apply_move_tool_cursor(event->pos());
+            } else {
+              set_transform_cursor_for_handle(handle);
+            }
             if (handle == TransformHandle::Move && auto_select_layer_) {
               update_move_hover_outline(event->pos(), event->modifiers());
             } else {

@@ -1,6 +1,6 @@
-# Move tool: options bar, Auto-Select, transform box zones
+# Move tool: options bar, Auto-Select, transform box zones, cursor
 
-The Move tool's options-bar row, what a click or selection rectangle picks, and where its transform box takes a grab. Canvas click, drag and rectangle selection rules live in the "Move tool on the canvas" section of [layer-panel.md](layer-panel.md); snapping and Align/Distribute in [alignment.md](alignment.md), whose legal boundaries ([legal-constraints.md](legal-constraints.md), Alignment guides) bind everything here: the buttons only trigger the one-shot commands, nothing joins the drag path.
+The Move tool's options-bar row, what a click or selection rectangle picks, where its transform box takes a grab, and its cursor. Canvas click, drag and rectangle selection rules live in the "Move tool on the canvas" section of [layer-panel.md](layer-panel.md); snapping and Align/Distribute in [alignment.md](alignment.md), whose legal boundaries ([legal-constraints.md](legal-constraints.md), Alignment guides) bind everything here: the buttons only trigger the one-shot commands, nothing joins the drag path.
 
 ## Options-bar row
 
@@ -25,6 +25,10 @@ GitHub issue 176. `CanvasWidget::transform_handle_at(..., TransformHitZones)` (c
 Callers: the passive Move box (press and hover) and the Free Transform session use `EdgesAndCorners`; Crop uses it too with Rotate mapped to None (off the box already rotates, crop-tool.md); artboard handles, marquee resize handles and the text double-click inside a session keep `HandlesOnly`. The path transform session (`path_transform_handle_at`, canvas_widget_vector_tools.cpp) has its own test with the same edge band (6 px outside, inside at most a sixth of the shorter side); outside it rotates everywhere, as before.
 
 A grab beside a line must not jump it: the press records `transform_handle_grab_offset` (the document offset from the press to the grabbed side, along the moving axes, in the box frame) and the drag adds it to the pointer before snapping (`transform_drag_grab_offset_`, `crop_drag_grab_offset_`). A press exactly on a handle has a zero offset. Resize cursors follow the box's rotation (`set_transform_cursor_for_handle(handle, angle)` picks the nearest of the four resize shapes). Coverage: `ui_transform_zone_` (passive edges and corners, rotated session, tiny box, crop edges).
+
+## Cursor
+
+GitHub issue 170. The four-way move cursor shows only where a plain press drags something: `move_press_drags_at` mirrors the press handler (artboard label, selected artboard, the passive box interior on the pasteboard, Auto-Select off moving the selection from anywhere, then the Auto-Select hit through `topmost_move_layer_at` and the group target, counting only movable leaves). Elsewhere, where a press starts a layer selection rectangle (empty canvas, a position-locked Background, the pasteboard), `apply_move_tool_cursor` shows `move_pointer_cursor()` (tool_cursors.cpp): Patchy's own arrow with a four-way badge, hotspot on the tip, theme-exempt like the other tool cursors. Transform zones take their resize/rotate cursors first. Coverage: `ui_move_cursor_shows_drag_only_where_a_press_moves`.
 
 ## Layer outline
 
