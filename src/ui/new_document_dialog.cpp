@@ -270,16 +270,19 @@ PresetCategory category_of_preset_id(const QString& id) {
 }
 
 // The search field's rule (GitHub issue 223): every whitespace-separated word must
-// appear, ignoring case, in the template's name, its group's name or its size
-// ("1080 x 1920", "1080x1920").
+// appear, ignoring case, in the template's name or its group's name. A word holding a
+// digit may also match the size ("1080 x 1920", "1080x1920"); a bare "x" matching every
+// size made the field show nearly every template.
 bool preset_matches_search(const NewDocumentPreset& preset, PresetCategory category, const QString& text) {
-  const auto haystack = QStringList{preset.name, preset_category_name(category),
-                                    QStringLiteral("%1 x %2").arg(preset.size.width()).arg(preset.size.height()),
-                                    QStringLiteral("%1x%2").arg(preset.size.width()).arg(preset.size.height())}
-                            .join(QLatin1Char(' '));
+  const auto names = preset.name + QLatin1Char(' ') + preset_category_name(category);
+  const auto sizes = QStringLiteral("%1 x %2 %1x%2").arg(preset.size.width()).arg(preset.size.height());
   const auto words = text.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
-  return !words.isEmpty() && std::all_of(words.begin(), words.end(), [&haystack](const QString& word) {
-    return haystack.contains(word, Qt::CaseInsensitive);
+  return !words.isEmpty() && std::all_of(words.begin(), words.end(), [&names, &sizes](const QString& word) {
+    if (names.contains(word, Qt::CaseInsensitive)) {
+      return true;
+    }
+    const bool has_digit = std::any_of(word.begin(), word.end(), [](QChar character) { return character.isDigit(); });
+    return has_digit && sizes.contains(word, Qt::CaseInsensitive);
   });
 }
 
