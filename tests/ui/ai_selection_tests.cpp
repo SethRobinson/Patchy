@@ -66,26 +66,22 @@ void pin_downloaded_models_to_nothing() {
   patchy::ai::set_downloaded_model_directory(std::filesystem::current_path() / "ai-models-none");
 }
 
-bool automatic_selection_or_skip(const char* test_name) {
+void automatic_selection_or_skip() {
   pin_downloaded_models_to_nothing();
   patchy::ui::configure_automatic_selection_models();
-  if (patchy::ai::segmentation_available()) {
-    return true;
+  if (!patchy::ai::segmentation_available()) {
+    patchy::test::skip("build without automatic selection");
   }
-  std::printf("[SKIP] %s (build without automatic selection)\n", test_name);
-  return false;
 }
 
 // Select Subject, Select Background and Remove Background need the subject model, which
 // builds leave out while PATCHY_ENABLE_SELECT_SUBJECT is off (docs/ai-selection.md).
-bool subject_selection_or_skip(const char* test_name) {
+void subject_selection_or_skip() {
   pin_downloaded_models_to_nothing();
   patchy::ui::configure_automatic_selection_models();
-  if (patchy::ai::subject_selection_available()) {
-    return true;
+  if (!patchy::ai::subject_selection_available()) {
+    patchy::test::skip("build without the Select Subject model");
   }
-  std::printf("[SKIP] %s (build without the Select Subject model)\n", test_name);
-  return false;
 }
 
 // A self-authored scene: a shaded red disc (the one object) on mottled green noise.
@@ -124,9 +120,7 @@ patchy::Document disc_document(int width, int height, QPoint center, int radius)
 }
 
 void ui_object_select_box_and_clicks_select_on_release() {
-  if (!automatic_selection_or_skip("ui_object_select_box_and_clicks_select_on_release")) {
-    return;
-  }
+  automatic_selection_or_skip();
   const QPoint center(170, 130);
   const int radius = 60;
   patchy::ui::MainWindow window;
@@ -210,9 +204,7 @@ void ui_object_select_box_and_clicks_select_on_release() {
 }
 
 void ui_object_select_tool_and_options_are_listed() {
-  if (!automatic_selection_or_skip("ui_object_select_tool_and_options_are_listed")) {
-    return;
-  }
+  automatic_selection_or_skip();
   patchy::ui::MainWindow window;
   show_window(window);
   window.add_document_session(disc_document(64, 64, QPoint(32, 32), 12), QStringLiteral("Options"));
@@ -235,9 +227,7 @@ void ui_object_select_tool_and_options_are_listed() {
 // The options bar's Model choice, and zoom-to-box: a box much smaller than the image encodes
 // its own region on release (one extra encode) and still selects just the object.
 void ui_object_select_model_option_and_zoomed_box() {
-  if (!automatic_selection_or_skip("ui_object_select_model_option_and_zoomed_box")) {
-    return;
-  }
+  automatic_selection_or_skip();
   const QPoint center(700, 520);
   const int radius = 90;
   patchy::ui::MainWindow window;
@@ -298,9 +288,7 @@ void ui_object_select_model_option_and_zoomed_box() {
 // The High Quality offer: "Not Now" downloads nothing and keeps Standard; with the model
 // already present, the download call returns at once without any dialog.
 void ui_object_selection_model_offer_not_now_keeps_standard() {
-  if (!automatic_selection_or_skip("ui_object_selection_model_offer_not_now_keeps_standard")) {
-    return;
-  }
+  automatic_selection_or_skip();
   patchy::ui::MainWindow window;
   show_window(window);
   window.add_document_session(disc_document(200, 160, QPoint(100, 80), 30), QStringLiteral("Offer"));
@@ -344,9 +332,7 @@ void ui_object_selection_model_offer_not_now_keeps_standard() {
 // files by name: anything else in the folder stays (and so does the folder); with nothing
 // else left, the folder goes too. A scratch Unicode folder stands in for the app-data one.
 void ui_preferences_deletes_only_the_downloaded_model_files() {
-  if (!automatic_selection_or_skip("ui_preferences_deletes_only_the_downloaded_model_files")) {
-    return;
-  }
+  automatic_selection_or_skip();
   const auto root = patchy::ui::to_qstring(std::filesystem::absolute(
       patchy::test::unicode_artifact_dir(patchy::test::kUnicodeCombinedStem) / "ai-models"));
   QDir().mkpath(root);
@@ -492,9 +478,7 @@ void ui_object_selection_model_download_verifies_files() {
 }
 
 void ui_select_subject_menu_selects_the_subject() {
-  if (!subject_selection_or_skip("ui_select_subject_menu_selects_the_subject")) {
-    return;
-  }
+  subject_selection_or_skip();
   const QPoint center(150, 120);
   const int radius = 55;
   patchy::ui::MainWindow window;
@@ -517,9 +501,7 @@ void ui_select_subject_menu_selects_the_subject() {
 }
 
 void ui_script_automatic_selection_selects_objects() {
-  if (!automatic_selection_or_skip("ui_script_automatic_selection_selects_objects")) {
-    return;
-  }
+  automatic_selection_or_skip();
   patchy::ui::MainWindow window;
   show_window(window);
   window.add_document_session(disc_document(300, 240, QPoint(150, 120), 55), QStringLiteral("Script"));
@@ -573,9 +555,7 @@ void ui_script_automatic_selection_selects_objects() {
 }
 
 void ui_select_background_selects_everything_but_the_subject() {
-  if (!subject_selection_or_skip("ui_select_background_selects_everything_but_the_subject")) {
-    return;
-  }
+  subject_selection_or_skip();
   const QPoint center(150, 120);
   patchy::ui::MainWindow window;
   show_window(window);
@@ -595,9 +575,7 @@ void ui_select_background_selects_everything_but_the_subject() {
 }
 
 void ui_remove_background_masks_the_layer_in_one_undo_step() {
-  if (!subject_selection_or_skip("ui_remove_background_masks_the_layer_in_one_undo_step")) {
-    return;
-  }
+  subject_selection_or_skip();
   const QPoint center(150, 120);
   patchy::ui::MainWindow window;
   show_window(window);
@@ -625,9 +603,7 @@ void ui_remove_background_masks_the_layer_in_one_undo_step() {
 }
 
 void ui_selection_tool_context_menu_offers_subject_commands() {
-  if (!subject_selection_or_skip("ui_selection_tool_context_menu_offers_subject_commands")) {
-    return;
-  }
+  subject_selection_or_skip();
   patchy::ui::MainWindow window;
   show_window(window);
   window.add_document_session(disc_document(300, 240, QPoint(150, 120), 55), QStringLiteral("Context menu"));
@@ -663,9 +639,7 @@ void ui_selection_tool_context_menu_offers_subject_commands() {
 }
 
 void ui_select_object_in_marquee_selection_finds_the_object() {
-  if (!automatic_selection_or_skip("ui_select_object_in_marquee_selection_finds_the_object")) {
-    return;
-  }
+  automatic_selection_or_skip();
   const QPoint center(150, 120);
   patchy::ui::MainWindow window;
   show_window(window);
@@ -722,9 +696,7 @@ void ui_select_object_in_marquee_selection_finds_the_object() {
 // Select Object's first use offers the High Quality model once, like the tool's first
 // activation: "Not Now" still selects the object (Standard model), and later uses never ask.
 void ui_select_object_offers_the_high_quality_model_once() {
-  if (!automatic_selection_or_skip("ui_select_object_offers_the_high_quality_model_once")) {
-    return;
-  }
+  automatic_selection_or_skip();
   patchy::ui::app_settings().remove(QStringLiteral("automaticSelection/highQualityModelOffered"));
   const QPoint center(150, 120);
   patchy::ui::MainWindow window;
@@ -807,9 +779,7 @@ bool run_test_script(patchy::ui::MainWindow& window, const QString& source) {
 // Seth's case: a vector shape layer over a photo, Sample All Layers off, a loose box drag.
 // The tool must analyze the shape layer alone, never a stale all-layers analysis.
 void ui_object_select_samples_the_active_shape_layer_alone() {
-  if (!automatic_selection_or_skip("ui_object_select_samples_the_active_shape_layer_alone")) {
-    return;
-  }
+  automatic_selection_or_skip();
   const QPoint center(150, 120);
   patchy::ui::MainWindow window;
   show_window(window);
@@ -852,9 +822,7 @@ void ui_object_select_samples_the_active_shape_layer_alone() {
 }
 
 void ui_select_subject_follows_sample_all_layers() {
-  if (!subject_selection_or_skip("ui_select_subject_follows_sample_all_layers")) {
-    return;
-  }
+  subject_selection_or_skip();
   const QPoint center(150, 120);
   auto document = disc_document(300, 240, center, 55);
   patchy::PixelBuffer top(300, 240, patchy::PixelFormat::rgba8());
@@ -896,9 +864,7 @@ void ui_select_subject_follows_sample_all_layers() {
 }
 
 void ui_automatic_selection_refuses_an_empty_layer_without_sample_all() {
-  if (!automatic_selection_or_skip("ui_automatic_selection_refuses_an_empty_layer_without_sample_all")) {
-    return;
-  }
+  automatic_selection_or_skip();
   auto document = disc_document(200, 160, QPoint(100, 80), 40);
   patchy::PixelBuffer empty(200, 160, patchy::PixelFormat::rgba8());
   empty.clear(0);
@@ -925,9 +891,7 @@ void ui_automatic_selection_refuses_an_empty_layer_without_sample_all() {
 }
 
 void ui_script_select_background_and_remove_background() {
-  if (!subject_selection_or_skip("ui_script_select_background_and_remove_background")) {
-    return;
-  }
+  subject_selection_or_skip();
   patchy::ui::MainWindow window;
   show_window(window);
   window.add_document_session(disc_document(300, 240, QPoint(150, 120), 55), QStringLiteral("Script background"));
@@ -968,12 +932,9 @@ void ui_script_select_background_and_remove_background() {
 // commands are absent everywhere: menus, options bar, the selection-tool right-click menu
 // and the script calls.
 void ui_select_subject_is_left_out_without_the_subject_model() {
-  if (!automatic_selection_or_skip("ui_select_subject_is_left_out_without_the_subject_model")) {
-    return;
-  }
+  automatic_selection_or_skip();
   if (patchy::ai::subject_selection_available()) {
-    std::printf("[SKIP] ui_select_subject_is_left_out_without_the_subject_model (build includes Select Subject)\n");
-    return;
+    patchy::test::skip("build includes Select Subject");
   }
   patchy::ui::MainWindow window;
   show_window(window);

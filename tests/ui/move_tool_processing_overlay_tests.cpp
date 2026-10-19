@@ -4079,10 +4079,7 @@ void ui_move_commit_ignores_reentrant_input_during_processing_wait() {
 // the real PSD when the local fixture is present.
 void ui_move_pinball_poster_second_folder_drag_has_no_sync_composite_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("pinball_retronight_poster_a3.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] pinball poster fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   auto document = patchy::psd::DocumentIo::read_file(path);
   patchy::LayerId arcade_id = 0;
   patchy::LayerId three_d_id = 0;
@@ -4345,9 +4342,7 @@ void ui_layer_move_repaints_only_active_document_tab() {
 
 void ui_arduboy_psd_render_path_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("Arduboy.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
 
   const auto document = patchy::psd::DocumentIo::read_file(path);
   const auto image = patchy::ui::qimage_from_document(document, true);
@@ -4371,9 +4366,7 @@ void ui_arduboy_psd_render_path_if_available() {
 
 void ui_duke_psd_text_edit_stays_responsive_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("Duke nukem mobile.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
 
   QElapsedTimer timer;
   timer.start();
@@ -4503,9 +4496,7 @@ void ui_duke_psd_text_edit_stays_responsive_if_available() {
 
 void ui_duke_psd_seth_text_edit_preview_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("Duke nukem mobile.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
 
   auto document = patchy::psd::DocumentIo::read_file(path);
   struct TextTarget {
@@ -4585,9 +4576,7 @@ void ui_duke_psd_seth_text_edit_preview_if_available() {
 // sessions).
 void ui_audio_splitter_scaled_psd_text_edit_preview_stays_crisp_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("AudioSplitterProject.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   // The fixture's text face (Century Gothic); offscreen does not enumerate installed fonts.
   register_test_fonts(TestFontRole::CenturyGothic);
 

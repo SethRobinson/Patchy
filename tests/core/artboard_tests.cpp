@@ -526,17 +526,19 @@ void psd_artboard_round_trip_and_edits() {
 // including the ones whose records leave out the background type or the guide list.
 void psd_artboard_local_fixtures_open_if_available() {
   const auto root = patchy::test::local_format_fixture_path("psd-tools", "tests/psd_files");
-  if (!std::filesystem::exists(root)) {
-    std::printf("[SKIP] psd_artboard_local_fixtures_open_if_available (no local fixtures)\n");
-    return;
-  }
+  patchy::test::skip_unless_exists(root);
+  std::size_t checked = 0;
   for (const char* name : {"artboard.psd", "artboard-bgcolor.psd", "gradient-sizes.psd"}) {
     const auto path = root / name;
     if (!std::filesystem::exists(path)) {
       continue;
     }
+    ++checked;
     const auto document = patchy::psd::DocumentIo::read_file(path);
     CHECK(patchy::document_has_artboards(document));
+  }
+  if (checked == 0) {
+    patchy::test::skip("no optional fixture present (" + patchy::test::fixture_display_path(root) + ")");
   }
 }
 

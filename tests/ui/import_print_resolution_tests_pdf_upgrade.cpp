@@ -779,12 +779,9 @@ void ui_pdf_import_artboard_pages_pass_through() {
 // the empty-area warning). It composites only the selected rect: blank space between the
 // pages refuses at once, and a rect on a page copies that page's pixels.
 void ui_pdf_local_scans_copy_merged_renders_only_the_selection_if_available() {
-  const auto fixture = QString::fromStdString(
-      patchy::test::local_format_fixture_path("pdf", "C2_Kyoto_House_Plans_Compressed.pdf").string());
-  if (!QFileInfo::exists(fixture)) {
-    std::printf("[SKIP] ui_pdf_local_scans_copy_merged_renders_only_the_selection_if_available (no local fixture)\n");
-    return;
-  }
+  const auto fixture_path = patchy::test::local_format_fixture_path("pdf", "C2_Kyoto_House_Plans_Compressed.pdf");
+  patchy::test::skip_unless_exists(fixture_path);
+  const auto fixture = QString::fromStdString(fixture_path.string());
   patchy::ui::MainWindow window;
   show_window(window);
   auto step = std::make_shared<std::function<bool()>>();
@@ -863,12 +860,9 @@ void ui_pdf_local_scans_copy_merged_renders_only_the_selection_if_available() {
 }
 
 void ui_pdf_local_scans_round_trip_as_folders_and_artboards_if_available() {
-  const auto fixture = QString::fromStdString(
-      patchy::test::local_format_fixture_path("pdf", "C2_Kyoto_House_Plans_Compressed.pdf").string());
-  if (!QFileInfo::exists(fixture)) {
-    std::printf("[SKIP] ui_pdf_local_scans_round_trip_as_folders_and_artboards_if_available (no local fixture)\n");
-    return;
-  }
+  const auto fixture_path = patchy::test::local_format_fixture_path("pdf", "C2_Kyoto_House_Plans_Compressed.pdf");
+  patchy::test::skip_unless_exists(fixture_path);
+  const auto fixture = QString::fromStdString(fixture_path.string());
   const auto source_streams = [](const QString& written, int limit) {
     std::vector<QByteArray> streams;
     const QByteArray bytes = read_file_bytes(written);

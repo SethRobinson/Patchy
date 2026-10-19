@@ -375,12 +375,14 @@ void pdf_local_real_documents_parse_if_available() {
       {"Arduino_vs_ESP32_Spider_Bot_A4_Poster.pdf", 1, 595.2756},
   };
 
+  std::size_t checked = 0;
   for (const auto& sample : samples) {
     const auto path = patchy::test::local_format_fixture_path("pdf", sample.file_name);
     if (!std::filesystem::exists(path)) {
-      std::cout << "[SKIP] local pdf fixture missing: " << path.string() << '\n';
+      std::cout << "  note: optional fixture missing: " << patchy::test::fixture_display_path(path) << '\n';
       continue;
     }
+    ++checked;
     std::ifstream stream(path, std::ios::binary);
     CHECK(stream.good());
     const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)),
@@ -431,6 +433,9 @@ void pdf_local_real_documents_parse_if_available() {
         CHECK(!data.data.empty());
       }
     }
+  }
+  if (checked == 0) {
+    patchy::test::skip("no optional fixture present (local-test-fixtures/pdf)");
   }
 }
 
@@ -601,10 +606,7 @@ void pdf_composite_font_reads_two_byte_codes_and_w_widths() {
 
 void pdf_local_real_document_fonts_decode_if_available() {
   const auto path = patchy::test::local_format_fixture_path("pdf", "HoloVCS_C2_A4_Brochure.pdf");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] local pdf fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   std::ifstream stream(path, std::ios::binary);
   CHECK(stream.good());
   const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)),
@@ -1035,10 +1037,7 @@ void pdf_interpreter_survives_damaged_content() {
 
 void pdf_local_brochure_interprets_to_shapes_and_text_if_available() {
   const auto path = patchy::test::local_format_fixture_path("pdf", "HoloVCS_C2_A4_Brochure.pdf");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] local pdf fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   std::ifstream stream(path, std::ios::binary);
   CHECK(stream.good());
   const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)),
@@ -1920,10 +1919,7 @@ void pdf_vector_import_refuses_what_it_must() {
 
 void pdf_local_brochure_imports_as_editable_layers_if_available() {
   const auto path = patchy::test::local_format_fixture_path("pdf", "HoloVCS_C2_A4_Brochure.pdf");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] local pdf fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   std::ifstream stream(path, std::ios::binary);
   CHECK(stream.good());
   const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)),

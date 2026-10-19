@@ -490,6 +490,8 @@ void ui_recovery_crashed_instance_with_this_pid_is_orphaned() {
   CHECK(window.discard_orphaned_recovery() == 1);
   CHECK(!QDir(root + QLatin1Char('/') + folder).exists());
   CHECK(QDir(window.recovery_directory()).exists());
+#else
+  patchy::test::skip("Unix only (pid-namespace lock reuse)");
 #endif
 }
 
@@ -584,8 +586,7 @@ void ui_recovery_sweep_keeps_foreign_date_named_folders() {
       error == std::error_code(ERROR_PRIVILEGE_NOT_HELD, std::system_category());
 #endif
   if (symlinks_unavailable) {
-    std::cout << "[SKIP] link half of ui_recovery_sweep_keeps_foreign_date_named_folders: " << error.message()
-              << '\n';
+    std::cout << "  note: directory links unavailable, link half not checked: " << error.message() << '\n';
     return;
   }
   CHECK(!error);

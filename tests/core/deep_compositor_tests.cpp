@@ -534,10 +534,7 @@ void deep_documents_flatten_to_display_values_at_8_bits() {
 
 void deep_compositor_matches_photoshop_corpus_if_available() {
   const auto root = patchy::test::source_root_path() / "local-test-fixtures" / "deep";
-  if (!std::filesystem::exists(root / "manifest.json")) {
-    std::cout << "[SKIP] deep fixture corpus missing: " << root.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(root / "manifest.json");
   // Scenes whose Photoshop math Patchy models only within its 8-bit calibration (the
   // gradient fill's interpolation, Exposure's 16-bit pipeline, the layer effects'
   // 8-bit parameters): held to the 8-bit tolerance instead of 16-bit precision.

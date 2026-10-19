@@ -688,8 +688,7 @@ QWidget* find_font_picker_popup() {
 void ui_text_font_picker_popup_filters_and_commits() {
   register_test_fonts(TestFontRole::Verdana);
   if (!QFontDatabase::families().contains(QStringLiteral("Verdana"))) {
-    std::cout << "[SKIP] Verdana unavailable on this machine\n";
-    return;
+    patchy::test::skip("Verdana unavailable on this machine");
   }
   patchy::ui::MainWindow window;
   show_window(window);
@@ -747,16 +746,19 @@ void ui_text_font_picker_rows_render_in_their_own_font() {
   auto* picker = window.findChild<patchy::ui::FontPickerCombo*>(QStringLiteral("textFontCombo"));
   CHECK(picker != nullptr);
 
+  int checked = 0;
   if (QFontDatabase::families().contains(QStringLiteral("Verdana"))) {
+    ++checked;
     const auto info = picker->family_render_info(QStringLiteral("Verdana"));
     CHECK(info.latin_capable);
     CHECK(info.display_font.family() == QStringLiteral("Verdana"));  // row renders in its own face
     CHECK(info.systems.contains(QFontDatabase::Latin));
     CHECK(info.row_sample.isEmpty());
   } else {
-    std::cout << "[SKIP] Verdana unavailable; latin-row checks skipped\n";
+    std::cout << "  note: Verdana unavailable; latin-row checks not run\n";
   }
   if (QFontDatabase::families().contains(QStringLiteral("Wingdings"))) {
+    ++checked;
     const auto info = picker->family_render_info(QStringLiteral("Wingdings"));
     CHECK(!info.latin_capable);
     // A symbol face cannot draw its own Latin name: the row keeps the UI font for the name
@@ -766,7 +768,10 @@ void ui_text_font_picker_rows_render_in_their_own_font() {
     CHECK(!info.row_sample.isEmpty());
     CHECK(info.row_sample.size() <= 9);  // decoration, not a wall of dingbats
   } else {
-    std::cout << "[SKIP] Wingdings unavailable; symbol-row checks skipped\n";
+    std::cout << "  note: Wingdings unavailable; symbol-row checks not run\n";
+  }
+  if (checked == 0) {
+    patchy::test::skip("neither Verdana nor Wingdings is available");
   }
 }
 
@@ -776,8 +781,7 @@ void ui_text_font_picker_preview_shows_supported_scripts() {
   register_test_fonts(TestFontRole::JapaneseGothic);
   const auto japanese_families = QFontDatabase::families(QFontDatabase::Japanese);
   if (japanese_families.isEmpty()) {
-    std::cout << "[SKIP] no Japanese-capable font available on this machine\n";
-    return;
+    patchy::test::skip("no Japanese-capable font available on this machine");
   }
   patchy::ui::MainWindow window;
   show_window(window);
@@ -826,10 +830,9 @@ void ui_text_font_picker_preview_shows_supported_scripts() {
     }
   }
   if (japanese_family.isEmpty()) {
-    std::cout << "[SKIP] no Japanese-capable font reaches the picker's list on this machine\n";
     popup->close();
     QApplication::processEvents();
-    return;
+    patchy::test::skip("no Japanese-capable font reaches the picker's list on this machine");
   }
   CHECK(select_family(japanese_family));
   CHECK(preview->family() == japanese_family);
@@ -1179,13 +1182,11 @@ void ui_point_text_render_keeps_glyph_overhang() {
   probe_font.setPixelSize(96);
   const auto raw = QRawFont::fromFont(probe_font);
   if (!raw.isValid() || raw.familyName() != QStringLiteral("Arial") || !raw.styleName().contains(QStringLiteral("Italic"))) {
-    std::printf("[SKIP] Arial Italic is not registered (glyph overhang probe)\n");
-    return;
+    patchy::test::skip("Arial Italic is not registered");
   }
   const auto glyphs = raw.glyphIndexesForString(QStringLiteral("jf"));
   if (glyphs.size() != 2) {
-    std::printf("[SKIP] Arial Italic has no glyphs for \"jf\"\n");
-    return;
+    patchy::test::skip("Arial Italic has no glyphs for \"jf\"");
   }
   const auto j_left = raw.boundingRect(glyphs[0]).left();
   const auto f_overhang = raw.boundingRect(glyphs[1]).right() - raw.advancesForGlyphIndexes({glyphs[1]}).value(0).x();
@@ -1193,8 +1194,7 @@ void ui_point_text_render_keeps_glyph_overhang() {
               j_left, f_overhang);
   std::fflush(stdout);
   if (j_left > -1.0 || f_overhang < 1.0) {
-    std::printf("[SKIP] this Arial Italic has no overhanging glyphs to probe\n");
-    return;
+    patchy::test::skip("this Arial Italic has no overhanging glyphs to probe");
   }
 
   patchy::ui::MainWindow window;

@@ -562,7 +562,7 @@ void ui_vector_preview_action_persistence_script_and_history() {
 
 void ui_vector_preview_little_everywhere_if_available() {
   const auto path = patchy::test::local_format_fixture_path("vector-preview", "Little-Everywhere.psd");
-  if (!std::filesystem::exists(path)) { return; }
+  patchy::test::skip_unless_exists(path);
   auto doc = psd::DocumentIo::read_file(path);
   const auto scene = build_vector_preview_scene(doc);
   CHECK(scene.fallback == VectorPreviewFallback::None);

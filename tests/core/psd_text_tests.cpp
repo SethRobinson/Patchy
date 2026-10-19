@@ -1476,7 +1476,7 @@ void psd_text_gdi_family_wins_when_directwrite_renames_the_face() {
       CHECK(std::search(written->begin(), written->end(), postscript.begin(), postscript.end()) != written->end());
     }
   } else {
-    std::cout << "[SKIP] framd.ttf is not installed (Franklin Gothic Medium PostScript round trip)\n";
+    std::cout << "  note: framd.ttf is not installed (Franklin Gothic Medium PostScript round trip skipped)\n";
   }
 #endif
 }
@@ -1492,8 +1492,7 @@ void psd_text_heavy_legacy_face_keeps_the_gdi_family_if_available() {
   // document that stored the full name as its family exports the real face as well.
 #ifdef _WIN32
   if (!patchy::psd::installed_font_for_name("FuturaBT-ExtraBlack").has_value()) {
-    std::cout << "[SKIP] Futura Extra Black BT is not installed (heavy legacy face round trip)\n";
-    return;
+    patchy::test::skip("Futura Extra Black BT is not installed (heavy legacy face round trip)");
   }
   const auto read = patchy::psd::DocumentIo::read(single_run_text_psd("Diorama\r", "FuturaBT-ExtraBlack"));
   CHECK(read.layers().size() == 1);
@@ -1542,7 +1541,7 @@ void psd_text_heavy_legacy_face_keeps_the_gdi_family_if_available() {
     CHECK(std::search(written->begin(), written->end(), verbatim.begin(), verbatim.end()) == written->end());
   }
 #else
-  std::cout << "[SKIP] DirectWrite-only (heavy legacy face round trip)\n";
+  patchy::test::skip("DirectWrite-only (heavy legacy face round trip)");
 #endif
 }
 
@@ -1890,9 +1889,7 @@ void psd_restaurant_menu_dishes_runs_parse_photoshop_layout_if_available() {
   // Campanile names with 7.24564 Candara-BoldItalic descriptions, fixed leadings 19.43333/11.1,
   // tracking -20, under a TySh transform with yy ~4.479144 (so effective sizes are ~54/32 px).
   const auto path = patchy::test::local_psd_fixture_path("restaurant-menu-inside.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   const auto read = patchy::psd::DocumentIo::read_file(path);
   const patchy::Layer* dishes = nullptr;
   std::function<void(const std::vector<patchy::Layer>&)> find_dishes =
@@ -1954,9 +1951,7 @@ void psd_restaurant_menu_dishes_leading_survives_save_round_trip_if_available() 
   // converted document reopens with the same layout (and Photoshop honors the fixed leading,
   // which requires /AutoLeading false in the regenerated engine data).
   const auto path = patchy::test::local_psd_fixture_path("restaurant-menu-inside.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   auto document = patchy::psd::DocumentIo::read_file(path);
   patchy::Layer* dishes = nullptr;
   std::function<void(std::vector<patchy::Layer>&)> find_dishes = [&](std::vector<patchy::Layer>& layers) {
@@ -2235,9 +2230,7 @@ void psd_reader_regenerates_patchy_generated_type_blocks_after_reopen() {
 
 void psd_horror_virtualboy_imports_multiline_bold_text_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("Horror VirtualBoy.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
 
   const auto document = patchy::psd::DocumentIo::read_file(path);
   bool found_body_text = false;
@@ -2262,9 +2255,7 @@ void psd_horror_virtualboy_imports_multiline_bold_text_if_available() {
 
 void psd_arduboy_real_file_renders_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("Arduboy.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
 
   const auto document = patchy::psd::DocumentIo::read_file(path);
   CHECK(document.width() == 2550);
@@ -2294,9 +2285,7 @@ void psd_arduboy_real_file_renders_if_available() {
 
 void psd_title_screen_demo_layer_styles_render_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("Title Screen_demo.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
 
   const auto document = patchy::psd::DocumentIo::read_file(path);
   CHECK(document.width() == 640);
@@ -2346,9 +2335,7 @@ void psd_title_screen_demo_layer_styles_render_if_available() {
 
 void psd_duke_nukem_mobile_text_style_renders_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("Duke nukem mobile.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
 
   const auto document = patchy::psd::DocumentIo::read_file(path);
   CHECK(document.width() == 2480);
@@ -2408,9 +2395,7 @@ void psd_polymega_text_keeps_photoshop_raster_if_available() {
   // (the white fill comes from a Color Overlay effect), so the import must keep
   // Photoshop's pixels and leave substitution to an actual edit.
   const auto path = patchy::test::local_psd_fixture_path("Polymega jump test.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
 
   const auto document = patchy::psd::DocumentIo::read_file(path);
   const patchy::Layer* text_layer = nullptr;
@@ -2710,9 +2695,7 @@ void psd_writer_writes_tracking_as_an_integer() {
 // writes the integer tracking. The artifact is kept for the Photoshop re-render check by COM.
 void psd_vertical_tracking_bug_file_resaves_with_integer_tracking_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("vtext-bugs/vertical_text_test_from_patchy.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   auto document = patchy::psd::DocumentIo::read_file(path);
   const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
   const std::string written(bytes.begin(), bytes.end());

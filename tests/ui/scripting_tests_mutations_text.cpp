@@ -1146,10 +1146,7 @@ void ui_script_remove_object_heals_selection() {
 // fixture copied per AGENTS.md; skips without it.
 void ui_script_remove_object_then_reopen_large_document() {
   const auto fixture = patchy::test::local_format_fixture_path("remove-object-reopen", "door.jpg");
-  if (!std::filesystem::exists(fixture)) {
-    std::cout << "[SKIP] local remove-object-reopen fixture missing\n";
-    return;
-  }
+  patchy::test::skip_unless_exists(fixture);
   patchy::ui::MainWindow window;
   show_window(window);
   const auto path = QDir::fromNativeSeparators(patchy::ui::to_qstring(fixture));
@@ -1902,8 +1899,7 @@ void ui_script_text_face_ignores_the_options_bar_style() {
     }
   }
   if (black_row < 0) {
-    std::cout << "[SKIP] the font database lists no Black face under Arial (picker face leak)\n";
-    return;
+    patchy::test::skip("the font database lists no Black face under Arial");
   }
   style_combo->setCurrentIndex(black_row);
   QApplication::processEvents();
@@ -1957,8 +1953,7 @@ void ui_script_text_full_face_name_resolves_like_its_family() {
 #ifdef Q_OS_WIN
   const auto fixture = QStringLiteral(PATCHY_SOURCE_DIR "/local-test-fixtures/fonts/FUTURAXK.TTF");
   if (!QFileInfo::exists(fixture) || !patchy::psd::installed_font_for_name("Futura Extra Black BT").has_value()) {
-    std::cout << "[SKIP] Futura Extra Black BT is not installed and staged (full face name resolution)\n";
-    return;
+    patchy::test::skip("Futura Extra Black BT is not installed and staged in local-test-fixtures/fonts");
   }
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1980,7 +1975,7 @@ void ui_script_text_full_face_name_resolves_like_its_family() {
   CHECK(backlog_contains(window, QStringLiteral("stored=Futura Extra Black BT")));
   CHECK(!backlog_contains(window, QStringLiteral("font not available")));
 #else
-  std::cout << "[SKIP] DirectWrite-only (full face name resolution)\n";
+  patchy::test::skip("full face name resolution is DirectWrite-only");
 #endif
 }
 

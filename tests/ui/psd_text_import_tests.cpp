@@ -462,9 +462,7 @@ std::optional<double> layer_metric(const patchy::Layer& layer, const char* key) 
 // test-artifacts so the Photoshop read-back can be re-measured by COM
 // (docs/text-render-calibration.md).
 void ui_text_commit_records_photoshop_baseline_metrics_and_round_trips_psd() {
-  if (skip_without_arial_for_psd_text_preview()) {
-    return;
-  }
+  skip_without_arial_for_psd_text_preview();
   patchy::ui::MainWindow window;
   show_window(window);
   // The second box reaches document y 890 at zoom 1, so the canvas must be taller than
@@ -703,9 +701,7 @@ void ui_text_commit_records_photoshop_baseline_metrics_and_round_trips_psd() {
 // along with it) and leaves the pixels alone; entering the layer afterwards does not move it, and
 // the re-save is on the new convention.
 void ui_reopened_old_convention_point_text_migrates_to_baseline_anchor() {
-  if (skip_without_arial_for_psd_text_preview()) {
-    return;
-  }
+  skip_without_arial_for_psd_text_preview();
   patchy::ui::MainWindow window;
   show_window(window);
   patchy::Document document(800, 400, patchy::PixelFormat::rgba8());
@@ -960,9 +956,7 @@ void ui_box_text_edit_keeps_fractional_anchor() {
 }
 
 void ui_imported_psd_text_preview_preserves_paragraph_layout() {
-  if (skip_without_arial_for_psd_text_preview()) {
-    return;
-  }
+  skip_without_arial_for_psd_text_preview();
   patchy::Document document(520, 280, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(520, 280, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
   auto pixels = solid_pixels(340, 150, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
@@ -1091,9 +1085,7 @@ void ui_imported_psd_text_preview_preserves_paragraph_layout() {
 }
 
 void ui_imported_psd_box_text_preview_uses_visual_bounds_after_edit() {
-  if (skip_without_arial_for_psd_text_preview()) {
-    return;
-  }
+  skip_without_arial_for_psd_text_preview();
   patchy::Document document(360, 220, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(360, 220, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
   auto pixels = solid_pixels(220, 115, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
@@ -1165,9 +1157,7 @@ void ui_imported_psd_box_text_preview_uses_visual_bounds_after_edit() {
 }
 
 void ui_imported_psd_box_text_preview_preserves_descender_bleed_after_edit() {
-  if (skip_without_arial_for_psd_text_preview()) {
-    return;
-  }
+  skip_without_arial_for_psd_text_preview();
   patchy::Document document(320, 160, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(320, 160, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
   auto pixels = solid_pixels(180, 68, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
@@ -1233,9 +1223,7 @@ void ui_imported_psd_box_text_preview_preserves_descender_bleed_after_edit() {
 }
 
 void ui_imported_psd_box_text_reedit_after_commit_preserves_descender_bleed() {
-  if (skip_without_arial_for_psd_text_preview()) {
-    return;
-  }
+  skip_without_arial_for_psd_text_preview();
   patchy::Document document(340, 180, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(340, 180, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
   auto pixels = solid_pixels(190, 72, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
@@ -1340,9 +1328,8 @@ void ui_imported_psd_box_text_line_clip_renders_full_visible_line_after_edit() {
   // CoreText/fontconfig databases produce slightly different line metrics, shifting which
   // line straddles the box edge. The behavior under test is platform-independent; the
   // pinned numbers are not.
-  std::cout << "[SKIP] pins Windows Arial line metrics\n";
-  return;
-#endif
+  patchy::test::skip("pins Windows Arial line metrics");
+#else
   patchy::Document document(420, 220, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(420, 220, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
   auto pixels = solid_pixels(320, 74, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
@@ -1433,15 +1420,15 @@ void ui_imported_psd_box_text_line_clip_renders_full_visible_line_after_edit() {
 
   send_key(*editor, Qt::Key_Escape);
   QApplication::processEvents();
+#endif
 }
 
 void ui_imported_psd_box_text_line_clip_hides_overflow_after_edit() {
 #ifndef Q_OS_WIN
   // Same Windows-Arial line-metric pinning as
   // ui_imported_psd_box_text_line_clip_renders_full_visible_line_after_edit above.
-  std::cout << "[SKIP] pins Windows Arial line metrics\n";
-  return;
-#endif
+  patchy::test::skip("pins Windows Arial line metrics");
+#else
   patchy::Document document(460, 250, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(460, 250, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
   auto pixels = solid_pixels(340, 74, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
@@ -1511,13 +1498,12 @@ void ui_imported_psd_box_text_line_clip_hides_overflow_after_edit() {
 
   send_key(*editor, Qt::Key_Escape);
   QApplication::processEvents();
+#endif
 }
 
 void ui_cdi_a4_title_text_import_edit_visual_bounds_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("CDi_A4.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
 
   auto document = patchy::psd::DocumentIo::read_file(path);
   patchy::ui::MainWindow window;
@@ -1596,9 +1582,7 @@ void ui_psd_point_text_edit_origin_survives_scale_transform_if_available() {
   // (psd_point_text_local_bounds_transform_for_pixels), which used to bail once the user's transform
   // diverged from the PSD source.
   const auto path = patchy::test::local_psd_fixture_path("ipad_main_v04.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   auto document = patchy::psd::DocumentIo::read_file(path);
   std::function<const patchy::Layer*(const std::vector<patchy::Layer>&)> find_continue =
       [&](const std::vector<patchy::Layer>& layers) -> const patchy::Layer* {
@@ -1694,9 +1678,7 @@ void ui_psd_point_text_installed_font_scales_and_edits_crisply() {
   // dropping to a blocky resample.  The test machine lacks that font, so retarget the "Continue" layer
   // to an installed font (Arial) to exercise the installed-font PSD path end to end.
   const auto path = patchy::test::local_psd_fixture_path("ipad_main_v04.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   auto document = patchy::psd::DocumentIo::read_file(path);
   std::function<const patchy::Layer*(const std::vector<patchy::Layer>&)> find_continue =
       [&](const std::vector<patchy::Layer>& layers) -> const patchy::Layer* {
@@ -1844,9 +1826,7 @@ void ui_psd_point_text_transform_scales_crisply() {
   // not installed in the test environment, so this exercises the missing-font path: the scaled layer
   // must NOT become a crisp substitute render.  Before/after artifacts are saved for inspection.
   const auto path = patchy::test::local_psd_fixture_path("ipad_main_v04.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   auto document = patchy::psd::DocumentIo::read_file(path);
   std::function<const patchy::Layer*(const std::vector<patchy::Layer>&)> find_continue =
       [&](const std::vector<patchy::Layer>& layers) -> const patchy::Layer* {
@@ -1964,9 +1944,7 @@ void ui_imported_psd_box_text_follows_markers_after_edit_if_available() {
   // their original import position because the marker-drag handler dropped the editor's transform
   // override, so the preview fell back to the layer's original Photoshop transform.
   const auto path = patchy::test::local_psd_fixture_path("ipad_main_v04.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   auto document = patchy::psd::DocumentIo::read_file(path);
 
   // Locate the "Continue" text layer (the reported repro) anywhere in the layer/group tree.
@@ -2141,9 +2119,7 @@ void ui_box_text_metric_scale_narrows_the_drawn_glyphs() {
 
 void ui_tips_psd_speed_mode_line_clip_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("tips.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
 
   auto document = patchy::psd::DocumentIo::read_file(path);
   std::vector<AlphaRowBand> source_bands;
@@ -2281,9 +2257,7 @@ void ui_tips_psd_speed_mode_line_clip_if_available() {
 
 void ui_horror_virtualboy_caret_tracks_zoom_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("Horror VirtualBoy.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
 
   auto document = patchy::psd::DocumentIo::read_file(path);
   patchy::Rect text_bounds{};
@@ -2361,9 +2335,7 @@ void ui_imported_psd_raster_point_text_renders_live_when_font_available_if_avail
   // When the font is available, render live from the start so the caret lands on the glyphs -- but
   // still restore Photoshop's original pixels if the session ends without a real edit.
   const auto path = patchy::test::local_psd_fixture_path("Horror VirtualBoy.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   // The reported machine has Verdana installed (it ships with Windows).  The offscreen Qt platform
   // does not auto-enumerate system fonts, so register Verdana before import to take the live path.
   // (Leaving it registered is harmless: the only test that relies on Verdana being absent --
@@ -2371,7 +2343,7 @@ void ui_imported_psd_raster_point_text_renders_live_when_font_available_if_avail
   // can crash when invalidating an in-use font cache.)
   register_test_fonts(TestFontRole::Verdana);
   if (!QFontDatabase::families().contains(QStringLiteral("Verdana"))) {
-    return;  // font genuinely unavailable; the live path can't be exercised
+    patchy::test::skip("Verdana is unavailable, so the live path cannot be exercised");
   }
   auto document = patchy::psd::DocumentIo::read_file(path);
 
@@ -2496,9 +2468,7 @@ void ui_imported_psd_raster_point_text_renders_live_when_font_available_if_avail
 }
 
 void ui_imported_psd_raster_preview_keeps_layer_fx_on_entry() {
-  if (skip_without_arial_for_psd_text_preview()) {
-    return;
-  }
+  skip_without_arial_for_psd_text_preview();
   patchy::Document document(340, 220, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(340, 220, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
   auto pixels = solid_pixels(120, 70, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
@@ -2646,9 +2616,7 @@ void ui_imported_psd_point_text_reedit_uses_auto_width() {
 }
 
 void ui_imported_psd_point_text_baseline_origin_converts_in_place() {
-  if (skip_without_arial_for_psd_text_preview()) {
-    return;
-  }
+  skip_without_arial_for_psd_text_preview();
   patchy::Document document(900, 620, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(900, 620, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
   auto pixels = solid_pixels(235, 47, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
@@ -2780,9 +2748,7 @@ void ui_imported_psd_point_text_baseline_origin_converts_in_place() {
 }
 
 void ui_imported_psd_mirrored_point_text_uses_local_bounds() {
-  if (skip_without_arial_for_psd_text_preview()) {
-    return;
-  }
+  skip_without_arial_for_psd_text_preview();
   patchy::Document document(2200, 320, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background", solid_pixels(2200, 320, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
   auto pixels = solid_pixels(1951, 167, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0));
@@ -2947,7 +2913,7 @@ void ui_imported_psd_raster_preview_warns_before_missing_font_substitution() {
 void ui_text_layer_font_without_glyph_coverage_counts_as_missing() {
   const auto noto_path = QStringLiteral(PATCHY_SOURCE_DIR "/third_party/fonts/noto_naskh_arabic/NotoNaskhArabic-Bold.ttf");
   if (!QFileInfo::exists(noto_path)) {
-    return;  // bundled tree not staged; nothing to assert against
+    patchy::test::skip("bundled Noto Naskh Arabic font is not staged");
   }
   CHECK(QFontDatabase::addApplicationFont(noto_path) >= 0);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
@@ -3162,9 +3128,7 @@ void ui_imported_gdi_family_edits_without_the_missing_font_prompt() {
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::FranklinGothicMedium);
   const auto family = QStringLiteral("Franklin Gothic Medium");
-  if (skip_without_font_face(family, "GDI-versus-DirectWrite family naming fixture face")) {
-    return;
-  }
+  skip_without_font_face(family, "GDI-versus-DirectWrite family naming fixture face");
 
   patchy::Document authored(320, 180, patchy::PixelFormat::rgba8());
   authored.add_pixel_layer("Background", solid_pixels(320, 180, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -3413,7 +3377,7 @@ void ui_text_style_picker_selects_a_face_the_flags_cannot_name() {
   const auto family = QStringLiteral("Arial");
   const auto style = QStringLiteral("Black");
   if (!QFontDatabase::styles(family).contains(style)) {
-    return;  // no such face on this machine; nothing to assert against
+    patchy::test::skip("no Arial Black face on this machine");
   }
 
   patchy::Document document(320, 180, patchy::PixelFormat::rgba8());
@@ -3510,7 +3474,7 @@ void ui_text_style_combo_lists_real_faces_in_photoshop_order() {
   for (const auto& required : {QStringLiteral("Regular"), QStringLiteral("Italic"),
                                QStringLiteral("Bold"), QStringLiteral("Bold Italic")}) {
     if (!installed_styles.contains(required)) {
-      return;  // this machine lacks the four-face family the probe needs
+      patchy::test::skip("this machine lacks the four-face Arial family the probe needs");
     }
   }
 
@@ -3580,7 +3544,7 @@ void ui_picking_bold_in_style_combo_stays_flag_expressible() {
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   const auto family = QStringLiteral("Arial");
   if (!QFontDatabase::styles(family).contains(QStringLiteral("Bold"))) {
-    return;  // no real Bold face registered on this machine
+    patchy::test::skip("no real Arial Bold face registered on this machine");
   }
 
   patchy::Document document(320, 180, patchy::PixelFormat::rgba8());
@@ -3664,7 +3628,7 @@ void ui_bold_italic_pick_works_on_sub_bold_weight_family() {
   patchy::test::register_test_fonts(patchy::test::TestFontRole::BookmanOldStyle);
   const auto family = QStringLiteral("Bookman Old Style");
   if (!QFontDatabase::styles(family).contains(QStringLiteral("Bold Italic"))) {
-    return;  // no four-face Bookman family on this machine
+    patchy::test::skip("no four-face Bookman Old Style family on this machine");
   }
 
   patchy::Document document(320, 180, patchy::PixelFormat::rgba8());
@@ -3855,7 +3819,7 @@ void ui_bold_italic_fall_back_to_faux_when_the_family_lacks_the_face() {
   const auto family = QStringLiteral("Century Gothic");
   const auto styles = QFontDatabase::styles(family);
   if (!styles.contains(QStringLiteral("Bold")) || styles.contains(QStringLiteral("Italic"))) {
-    return;  // not the Regular+Bold-only family this probe needs
+    patchy::test::skip("no Regular+Bold-only Century Gothic family on this machine");
   }
 
   patchy::Document document(360, 200, patchy::PixelFormat::rgba8());

@@ -121,10 +121,7 @@ void psd_dangling_smart_object_blocks_are_stripped() {
 
 void psd_smart_object_sources_survive_resave_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("eon_spider_original.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] eon_spider_original fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   const auto has_lnk2 = [](const patchy::Document& document) {
     const auto& store = document.metadata().smart_objects;
     return std::any_of(store.blocks.begin(), store.blocks.end(),
@@ -158,10 +155,7 @@ void collect_smart_object_placements(
 // reopening puts the placed content back at its original rectangle.
 void psd_smart_object_document_resize_scales_placements_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("eon_spider_original.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] eon_spider_original fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   auto document = patchy::psd::DocumentIo::read_file(path);
   const auto old_width = document.width();
   const auto old_height = document.height();
@@ -228,10 +222,7 @@ patchy::Layer* first_non_affine_locked_layer(std::vector<patchy::Layer>& layers)
 // instead of the translation-only additive fallback.
 void psd_smart_object_non_affine_quad_maps_through_affine_transform_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("pinball_retronight_poster_a3.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] retronight poster fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   auto document = patchy::psd::DocumentIo::read_file(path);
   auto* locked = first_non_affine_locked_layer(document.layers());
   CHECK(locked != nullptr);
@@ -741,10 +732,7 @@ void smart_object_authored_sold_matches_photoshop_shape() {
 
 void psd_unparsed_smart_object_locks_and_round_trips_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("ps2026_e6_warp_before.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] ps2026_e6_warp_before fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   // A real warped smart object: the ObAr mesh parses and the supported custom
   // envelope UNLOCKS the layer (lock empty, warp metadata present, Patchy
   // re-renders it); its blocks survive a clean resave byte-identically.
@@ -776,10 +764,7 @@ void psd_unparsed_smart_object_locks_and_round_trips_if_available() {
 
 void psb_linked_smart_objects_parse_lnke_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("PSBtest/10cm table tent.psb");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] PSBtest fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   // PS 2023 writes 'lnk2' with '8BIM' + u64 in PSBs (width by KEY, not signature);
   // misreading it used to derail the walk and drop the 'lnkE' block holding the
   // linked-file (liFE) elements, orphaning every smart object in the file.
@@ -884,10 +869,8 @@ void warp_mesh_math_behaves() {
 void psd_warp_move_matches_photoshop_if_available() {
   const auto before_path = patchy::test::local_psd_fixture_path("ps2026_e6_warp_before.psd");
   const auto after_path = patchy::test::local_psd_fixture_path("ps2026_e6_warp_after.psd");
-  if (!std::filesystem::exists(before_path) || !std::filesystem::exists(after_path)) {
-    std::cout << "[SKIP] e6 warp fixtures missing\n";
-    return;
-  }
+  patchy::test::skip_unless_exists(before_path);
+  patchy::test::skip_unless_exists(after_path);
   // PS moved the warped smart object by (+21,+13) between the captures. Applying the
   // same translation in Patchy and regenerating must reproduce PS's own SoLd
   // byte-for-byte (quad translated, mesh and bounds untouched: mesh coordinates are
@@ -946,10 +929,7 @@ void psd_warp_move_matches_photoshop_if_available() {
 
 void psd_descriptor_writer_round_trips_warp_sold_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("ps2026_e6_warp_before.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] e6 warp fixture missing\n";
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   const auto document = patchy::psd::DocumentIo::read_file(path);
   const auto* layer = find_layer_named(document.layers(), "e5_a_40x30");
   CHECK(layer != nullptr);
@@ -1032,8 +1012,7 @@ void warp_style_meshes_match_photoshop_if_available() {
     ++verified;
   }
   if (verified == 0) {
-    std::cout << "[SKIP] e9 style capture fixtures missing\n";
-    return;
+    patchy::test::skip("no optional fixture present (ps2026_e9 style captures)");
   }
   std::cout << "  style meshes: " << verified << " captures, max control-point delta " << max_delta
             << '\n';
@@ -1058,10 +1037,7 @@ void warp_style_meshes_match_photoshop_if_available() {
 
 void psd_style_only_warp_unlocks_and_regenerates_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("ps2026_e9/e9_arc_p50.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] e9 style capture fixtures missing\n";
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   // Synthesize the style-only SoLd shape (style + value, no customEnvelopeWarp) that
   // interactive Photoshop writes: Patchy must unlock it by baking the mesh itself,
   // render-identical to Photoshop's own bake, while the FILE stays style-only across
@@ -1337,8 +1313,7 @@ void warp_style_meshes_match_photoshop_e9c_if_available() {
     ++verified;
   }
   if (verified == 0) {
-    std::cout << "[SKIP] e9c/warptext style capture fixtures missing\n";
-    return;
+    patchy::test::skip("no optional fixture present (e9c/warptext style captures)");
   }
   std::cout << "  e9c style meshes: " << verified << " captures, max control-point delta "
             << max_delta << '\n';
@@ -1446,10 +1421,7 @@ void psd_text_warp_round_trips_photoshop_fixture() {
 
 void psb_life_trailer_fields_parse_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("PSBtest/10cm table tent.psb");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] PSBtest fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   const auto document = patchy::psd::DocumentIo::read_file(path);
   const patchy::SmartObjectSource* content = nullptr;
   for (const auto& block : document.metadata().smart_objects.blocks) {
@@ -1475,10 +1447,7 @@ void psb_life_trailer_fields_parse_if_available() {
 
 void smart_object_external_element_round_trips_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("PSBtest/10cm table tent.psb");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] PSBtest fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   // Marking an external element dirty re-serializes it through Patchy's liFE writer;
   // parsing that back must reproduce every modeled field (the writer mirrors PS's
   // pinned layout).
@@ -1731,13 +1700,17 @@ void psd_photoshop_linked_captures_match_authored_blocks_if_available() {
     const char* key;
     bool vector;
   };
+  int checked = 0;
   for (const auto& capture : {Capture{"ps2026_linked/linked_svg.psd", "SoLE", true},
                               Capture{"ps2026_linked/embedded_svg.psd", "SoLd", true},
                               Capture{"ps2026_linked/linked_png.psd", "SoLE", false},
                               Capture{"ps2026_linked/embedded_png.psd", "SoLd", false}}) {
     const auto path = patchy::test::local_psd_fixture_path(capture.file);
     if (!std::filesystem::exists(path)) {
-      std::cout << "[SKIP] ps2026_linked capture missing: " << path.string() << '\n';
+      if (checked == 0) {
+        patchy::test::skip("optional fixture missing: " + patchy::test::fixture_display_path(path));
+      }
+      std::cout << "  note: optional fixture missing: " << patchy::test::fixture_display_path(path) << '\n';
       return;
     }
     const auto document = patchy::psd::DocumentIo::read_file(path);
@@ -1756,6 +1729,7 @@ void psd_photoshop_linked_captures_match_authored_blocks_if_available() {
     // A linked layer reads back preview-locked as external; an embedded one editable.
     const bool linked = std::string_view(capture.key) == "SoLE";
     CHECK(patchy::smart_object_lock_reason(*layer) == (linked ? "external" : ""));
+    ++checked;
   }
 }
 
@@ -1765,10 +1739,7 @@ void psd_photoshop_linked_captures_match_authored_blocks_if_available() {
 // Update All Modified Content.
 void psd_photoshop_linked_elements_parse_if_available() {
   const auto beside_path = patchy::test::local_psd_fixture_path("ps2026_linked/linked_svg.psd");
-  if (!std::filesystem::exists(beside_path)) {
-    std::cout << "[SKIP] ps2026_linked capture missing: " << beside_path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(beside_path);
   const auto only_link = [](const patchy::Document& document) -> const patchy::SmartObjectSource* {
     const patchy::SmartObjectSource* found = nullptr;
     std::size_t count = 0;
@@ -2099,10 +2070,7 @@ void psd_writer_omits_unreferenced_smart_object_sources() {
 // a missing 'lyid'. Resaving through the fixed writer must repair both.
 void psd_local_smart_filter_file_repairs_on_resave_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("akiko_cycling_okinawa_with_filters.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] akiko_cycling_okinawa_with_filters fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   const auto document = patchy::psd::DocumentIo::read_file(path);
   const auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
   const auto* layer = find_layer_named(reread.layers(), "akiko_cycling_okinawa");

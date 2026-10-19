@@ -1900,12 +1900,12 @@ constexpr std::uint8_t kQuadrantsAvif[] = {
     0x1f, 0x56, 0x47, 0xec, 0x18, 0x5e, 0xeb, 0xe0, 0xf3, 0x88, 0x43, 0x15, 0x5f, 0xf2, 0x80,
 };
 
-[[nodiscard]] bool avif_decoder_present() {
+// Why this build cannot decode AVIF, or nothing when it can.
+[[nodiscard]] std::optional<std::string> avif_decoder_missing_reason() {
   if (!patchy::avif::is_available()) {
-    std::cout << "[SKIP] this build has no AVIF decoder" << '\n';
-    return false;
+    return "this build has no AVIF decoder";
   }
-  return true;
+  return std::nullopt;
 }
 
 void avif_decodes_synthetic_still_and_rejects_damage() {
@@ -1921,7 +1921,8 @@ void avif_decodes_synthetic_still_and_rejects_damage() {
   CHECK(!patchy::avif::sniff(heic));
   const auto* handler = patchy::builtin_format_registry().find_by_extension("avif");
   CHECK(handler != nullptr && handler->identifier == "patchy.formats.avif" && handler->can_write());
-  if (!avif_decoder_present()) {
+  if (const auto reason = avif_decoder_missing_reason()) {
+    std::cout << "  note: decode not checked: " << *reason << '\n';
     return;
   }
   const auto result = patchy::avif::read_avif_detailed(bytes);
@@ -1962,8 +1963,8 @@ void avif_decodes_synthetic_still_and_rejects_damage() {
 }
 
 void avif_imports_image_sequence_frames_as_layers() {
-  if (!avif_decoder_present()) {
-    return;
+  if (const auto reason = avif_decoder_missing_reason()) {
+    patchy::test::skip(*reason);
   }
   // Three 4x4 frames (100, 200 and 300 ms) written by Pillow as an avis sequence.
   const auto bytes = patchy::test::read_binary_file(patchy::test::committed_format_fixture_path("avif", "frames.avif"));
@@ -1995,8 +1996,8 @@ void avif_imports_image_sequence_frames_as_layers() {
 }
 
 void avif_round_trips_losslessly_and_lossy_through_libaom() {
-  if (!avif_decoder_present()) {
-    return;
+  if (const auto reason = avif_decoder_missing_reason()) {
+    patchy::test::skip(*reason);
   }
   const auto* handler = patchy::builtin_format_registry().find_by_extension("avif");
   CHECK(handler != nullptr && handler->can_write());
@@ -2083,16 +2084,13 @@ void avif_round_trips_losslessly_and_lossy_through_libaom() {
 }
 
 void avif_decodes_corpus_samples_if_available() {
-  if (!avif_decoder_present()) {
-    return;
+  if (const auto reason = avif_decoder_missing_reason()) {
+    patchy::test::skip(*reason);
   }
   // cgohlke/imagecodecs-samples (CC BY 4.0, untracked local fixtures): gray and RGB, with and
   // without alpha, 8 and 16-bit, stills and sequences.
   const auto directory = patchy::test::source_root_path() / "local-test-fixtures" / "imagecodecs-samples" / "images";
-  if (!std::filesystem::exists(directory / "rgb_u2.avif")) {
-    std::cout << "[SKIP] imagecodecs-samples fixtures missing: " << directory.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(directory / "rgb_u2.avif");
   const bool deep = patchy::deep_editing_enabled();
   int decoded = 0;
   for (const auto& entry : std::filesystem::directory_iterator(directory)) {

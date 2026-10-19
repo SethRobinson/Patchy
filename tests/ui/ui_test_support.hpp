@@ -570,11 +570,16 @@ std::optional<QRectF> editor_document_line_rect_containing(const QTextEdit& edit
 std::optional<QRect> dark_bounds_in_editor_line_lower_half(patchy::ui::CanvasWidget& canvas,
                                                           const QRectF& document_line_rect);
 
-bool skip_without_arial_for_psd_text_preview();
+// The skip_without_* helpers end the test as [SKIP] (patchy::test::skip) when the machine
+// lacks the face; the *_reason helpers return why instead, for a test that checks other
+// things without it.
+void skip_without_arial_for_psd_text_preview();
 
-bool skip_without_font_face(const QString& family, const char* fixture_role);
+std::optional<std::string> missing_font_face_reason(const QString& family, const char* fixture_role);
+void skip_without_font_face(const QString& family, const char* fixture_role);
 
-bool skip_without_psd_text_face(const patchy::Layer& layer, const QString& expected_family);
+std::optional<std::string> missing_psd_text_face_reason(const patchy::Layer& layer, const QString& expected_family);
+void skip_without_psd_text_face(const patchy::Layer& layer, const QString& expected_family);
 
 QAction* require_legacy_plugin_action(QWidget& root, const QString& text);
 // Blocks (pumping events) until the window's startup plug-in scan has applied

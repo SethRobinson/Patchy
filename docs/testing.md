@@ -1,6 +1,6 @@
 # Testing and visual QA
 
-Read this before adding tests, changing test infrastructure, diagnosing suite-only failures, or driving Patchy for visual verification.
+Read before adding tests, changing test infrastructure, diagnosing suite-only failures, or driving Patchy for visual QA.
 
 ## Suite organization
 
@@ -25,7 +25,7 @@ Move helpers shared across parts into `<group>_test_support.{hpp,cpp}`; single-p
 helpers stay anonymous. Core parts must stay under ~3,000 lines: the target has no
 `/bigobj`.
 
-Local-fixture tests skip on a remote machine until `local-test-fixtures` is copied there, because that directory is deliberately untracked. Sync it from the repo root with `tar -cf - local-test-fixtures | ssh <host> 'tar -xf - -C ~/patchy/src'` (Git Bash; macOS tar drops four `__MACOSX/._*` AppleDouble entries, which are not test inputs). The snapshot checkout leaves untracked files alone, so one sync persists across later `remote-build.ps1` runs. A synced corpus enables the face-gated text tests; the gates and per-platform tolerances in [platform.md](platform.md) keep them passing (a test that reaches a missing face raises an unanswerable Missing Font prompt and hangs). The repository-wide fixture sourcing rule lives in `AGENTS.md`.
+Local-fixture tests skip on a remote machine until the untracked `local-test-fixtures` is copied there: from the repo root, `tar -cf - local-test-fixtures | ssh <host> 'tar -xf - -C ~/patchy/src'` (Git Bash; macOS tar drops four harmless `__MACOSX/._*` entries). The snapshot checkout leaves untracked files alone, so one sync persists. A synced corpus enables the face-gated text tests; the gates and per-platform tolerances in [platform.md](platform.md) keep them passing (a test that reaches a missing face raises an unanswerable Missing Font prompt and hangs). The repository-wide fixture sourcing rule lives in `AGENTS.md`.
 
 The harnesses turn deep editing off by default (`set_deep_editing_default(false)`), so tests written for 8-bit opening keep their meaning; deep tests set `set_deep_editing_override` ([high-bit-depth.md](high-bit-depth.md)).
 
@@ -41,13 +41,19 @@ for documents dropped into that directory only; a snapshot sync never copies it.
 
 ## Running and filtering
 
-Run `patchy_ui_visual_tests.exe` with `QT_QPA_PLATFORM=offscreen`. The harness forces offscreen itself; `PATCHY_UI_TEST_PLATFORM=<qpa plugin>` (`cocoa`, `windows`, `xcb`) runs it on a real platform instead, which is the only way to reach native menubar and window-activation code (the issue 29 macOS crash; `NSZombieEnabled=YES` there makes a message to a freed Cocoa object abort). Screens and fonts differ there, so run a filter, never the whole suite. Both release test binaries accept a name substring as their first argument. The UI suite also reads `PATCHY_UI_TEST_FILTER`; there is no `--test` flag. The UI filter may also be a comma-separated list of substrings (any match runs), which reproduces ordered cross-test interactions: the state-leaking test and its victim in one run. The core suite takes a single substring only.
+Run `patchy_ui_visual_tests.exe` with `QT_QPA_PLATFORM=offscreen`. The harness forces offscreen itself; `PATCHY_UI_TEST_PLATFORM=<qpa plugin>` (`cocoa`, `windows`, `xcb`) runs it on a real platform instead, which is the only way to reach native menubar and window-activation code (the issue 29 macOS crash; `NSZombieEnabled=YES` there makes a message to a freed Cocoa object abort). Screens and fonts differ there, so run a filter, never the whole suite.
+
+Both suites (wasm core included) share `run_test_suite` (`tests/test_harness.hpp`): `<binary> [--list] [--exact] [filter]`. The filter is a comma-separated list of name substrings (any match runs), which reproduces ordered cross-test interactions: the leaking test and its victim in one run. `--exact` matches whole names; `--list` prints the selection without running it. A filter item that selects no test fails the run (exit 2), so a typo never reads as a pass. The UI suite also reads `PATCHY_UI_TEST_FILTER`; the command line wins.
+
+A run ends with `[SUMMARY] executed N, passed P, failed F, skipped S in T s`. Exit codes: 0 nothing failed (skips allowed), 1 a test failed, 2 a bad command line or empty selection, 124 a timeout. `[FAIL]` goes to stderr, everything else to stdout: capture both and judge a run by exit code, `[FAIL]` lines and counts. Report skips with results: an all-skip run checked nothing.
+
+A test whose optional input is absent (untracked fixture, missing face, build or platform without the feature) calls `patchy::test::skip(reason)` or `skip_unless_exists(path)` before asserting anything; the runner prints `[SKIP] <test>: <reason>`. Never return early silently or print `[SKIP]` yourself: the runner then printed `[PASS]` for nothing checked. A missing optional input never fails a test; one that checked part of its work prints a `  note:` line and passes. `TestSkipped` is not a `std::exception`: never skip inside a `try` with `catch (...)`. UI face gates: `skip_without_font_face`, `skip_without_psd_text_face`, `skip_without_arial_for_psd_text_preview` (`missing_*_reason` for a partial check).
 
 Never run two test processes (or a test process and the app) at the same time: they share the QSettings store, and a concurrent run rewrites preference keys mid-test, producing failures such as `ui_language_saved_preference_overrides_system_language` seeing its saved language clobbered. Run suites sequentially.
 
 The QSettings store also persists across runs, and a killed run skips every customize-then-restore test's restore step. Any settings group that one test customizes while another test asserts its defaults without seeding them (the `hotkeys` group is the known case) must be removed by the bootstrap block in `tests/ui/main.cpp`; groups whose assertion sites all clear or seed their own keys first (`palettes`, `colorPanel`, `saveOptions`, `newDocument`, `recentFiles`) need no bootstrap entry.
 
-Tests save PNG artifacts through `save_widget_artifact(...)` into `test-artifacts/` beside the binary. Inspect them directly when verifying rendering. Renaming an artifact also requires updating the contact-sheet list in `tests/ui/readme_screenshot_tests_classic.cpp` (the readme_screenshot_tests group is split into part files behind an order-preserving aggregator); stale files in long-lived build directories can otherwise hide the mismatch.
+Tests save PNG artifacts through `save_widget_artifact(...)` into `test-artifacts/` beside the binary; inspect them when verifying rendering. Renaming an artifact also requires updating the contact-sheet list in `tests/ui/readme_screenshot_tests_classic.cpp`; stale files in long-lived build directories can otherwise hide the mismatch.
 
 ## Offscreen fonts and input
 
@@ -84,7 +90,6 @@ Offscreen does not clear `QApplication::keyboardModifiers()` after synthetic key
 
 - A test that sets an environment variable declares an `EnvironmentVariableRestorer` (tests/ui/ui_test_support.hpp) before the `qputenv`, never a trailing `qunsetenv`: a failed `CHECK` skips the cleanup and the value leaks into every later test (a leaked 300 ms `PATCHY_SCRIPT_TIMEOUT_MS` once killed 16 later scripted runs).
 - The test `CHECK()` macro throws. A failure while a MainWindow still owns an open inline text editor can abort during unwind without printing a `[FAIL]` line. Commit or close the editor before assertions that may throw.
-- The test binaries can exit 0 even when tests fail: judge a run by its `[FAIL]` lines too. Runners print `[PASS]` on stdout and `[FAIL]` on stderr, so grep the stderr capture (a stdout-only grep finds no failures).
 - Never let a driver lambda (a `QTimer::singleShot` body or any slot) throw across Qt event dispatch; Qt does not support it, and on macOS the suite aborts in the CFRunLoop frames. Wrap the driver body in try/catch and pass `std::current_exception()` to `patchy::ui::unwind_non_modal_dialog_loop` when the code under test is parked in `run_non_modal_dialog`. `ui_filter_gallery_unwinding_call_disarms_in_flight_renders` is the reference.
 - Clicking a layer-row content or mask thumbnail may rebuild and delete the row widget between press and release. Use `click_layer_row_thumbnail(...)`, which refetches the widget for both events; never retain the old pointer.
 - If the UI suite dies with an access violation, read the symbolized stack appended by the dbghelp vectored handler in `tests/ui/main.cpp`. It also writes `test-artifacts/crash-<pid>.dmp`; when the walk prints no frames (a fault inside the heap manager), symbolize it offline against `build\release`.
@@ -103,14 +108,11 @@ Two pipelines:
 
 - **Script-driven scenes** (`scripts/dev/readme-shots/*.js`, listed in the driver's
   `$jsScenes` table): a fresh unattended `patchy.exe --run-script` run stages the UI with the
-  `patchy.ui` staging APIs (setWindowSize/setSidePanelWidth/captureWindow/setStatusMessage,
-  plus the activeLayer panel reveal) on the REAL windows platform, so every installed font
-  renders. Offscreen enumerates no installed fonts, so scenes needing unregistered
-  installed faces use this pipeline. The driver pins DPI (`QT_ENABLE_HIGHDPI_SCALING=0`, `QT_FONT_DPI=96`),
-  sets `PATCHY_NO_SINGLE_INSTANCE=1`, and isolates settings with `PATCHY_SETTINGS_DIR` (an
-  app-level env hook in src/app/main.cpp that redirects the ini-backed `app_settings()` store)
-  so a run never touches the user's real Patchy state. The app window appears on screen for a
-  few seconds per scene.
+  `patchy.ui` staging APIs on the REAL windows platform, so every installed font renders
+  (offscreen enumerates none). The driver pins DPI (`QT_ENABLE_HIGHDPI_SCALING=0`,
+  `QT_FONT_DPI=96`), sets `PATCHY_NO_SINGLE_INSTANCE=1`, and isolates settings with
+  `PATCHY_SETTINGS_DIR`, so a run never touches the user's Patchy state. The window shows
+  on screen for a few seconds per scene.
 - **Offscreen test scenes** (everything not yet migrated): the `shot_readme_*` scenes in
   `patchy_ui_visual_tests` run offscreen and their artifacts are copied out. New scenes should
   be authored as scripts in the first pipeline; the remaining test scenes migrate over time and
@@ -174,24 +176,21 @@ python -m venv .deps/mcp-client
 cmd /s /c 'scripts\run-throttled.bat .deps\mcp-client\Scripts\python.exe tests\mcp_client_tests.py build\release\patchy-mcp.exe'
 ```
 
-Run from the repository root. Artifacts stay under `test-artifacts/mcp`. The test
-uses only owned offscreen processes and also accepts a connector in a staged
-package directory, exercising resource discovery without source-relative paths.
-Python is not required by the shipped connector.
-On the mac build host, use `.deps/mcp-client-py312/bin/python` (project-local Python 3.12);
-its system Python 3.9 cannot install the MCP dependency. On the linux build host, use
-`.deps/mcp-client/bin/python`. Run from the remote repository root with
-`nice -n 10 <python> tests/mcp_client_tests.py <connector>`.
-The full suite includes both owned and attached workspaces, competing clients,
-cancellation, disconnect cleanup, app restart, stale tokens, and shared history.
-Unix crash simulations remove their own socket paths during cleanup.
+Run from the repository root; artifacts stay under `test-artifacts/mcp`. The test
+uses only owned offscreen processes and also accepts a staged package's connector
+(resource discovery without source-relative paths). The shipped connector needs no Python.
+Mac host: `.deps/mcp-client-py312/bin/python` (system Python 3.9 cannot install the MCP
+dependency); linux host: `.deps/mcp-client/bin/python`; run
+`nice -n 10 <python> tests/mcp_client_tests.py <connector>` from the remote repository root.
+The suite covers owned and attached workspaces, competing clients, cancellation,
+disconnect cleanup, app restart, stale tokens, and shared history; Unix crash
+simulations remove their own sockets.
 Pass `--attachment-recovery-only` after the connector path to reproduce offline
 discovery, late app startup, restart with fresh state tokens, and interruption
 without replay. This test owns its offscreen apps and requires no prior artifacts.
-The client suite also passes `--visible` with an explicit offscreen Qt backend
-to verify option handling and truthful mode/preview metadata without opening a
-desktop window. A real visible smoke test may use a task-owned Patchy instance under
-the rules above without separate permission for Patchy-only input or captures.
+The client suite also checks `--visible` option handling and mode/preview metadata on an
+explicit offscreen backend. A real visible smoke test may use a task-owned Patchy instance
+under the rules above.
 On Linux it also holds a fake desktop bus open without answering and verifies that
 headless scripting and an immediately closed MCP client still exit promptly.
 After installing the current Flatpak user bundle, run `nice -n 10 .deps/mcp-client/bin/python
@@ -206,11 +205,11 @@ with owned headless and MCP processes. The UI filters `ui_unicode_recent_history
 and `ui_vector_preview_action_persistence` cover history merging/live refresh and
 the restored preview preference's menu/Preferences synchronization.
 
-`patchy.exe --screenshot <out.png>` captures the running instance without raising or focusing it. Add `--screenshot-widget <qtObjectName>` and/or `--screenshot-rect x,y,w,h` to narrow the capture, and combine it with positional files to open a document. The invoking process exits immediately, so poll for the output. If no instance is running, Patchy opens, waits about 1.5 seconds, captures, and exits with code 0 on success or 3 on failure. Add `--language <code>` (with `--headless`, so no running instance is reused) to capture a specific UI language without changing the saved preference; see [localization.md](localization.md). Never run `patchy.exe --help` or `--version` during verification: the Windows GUI build has no console, so Qt shows them in a message box that pops over whatever Seth is doing.
+`patchy.exe --screenshot <out.png>` captures the running instance without raising or focusing it; `--screenshot-widget <qtObjectName>` and/or `--screenshot-rect x,y,w,h` narrow it, and positional files open a document. The invoker exits at once, so poll for the output. With no instance running, Patchy opens, waits about 1.5 s, captures, and exits 0 (or 3 on failure). Add `--language <code>` (with `--headless`, so no running instance is reused) to capture a specific UI language without changing the saved preference; see [localization.md](localization.md). Never run `patchy.exe --help` or `--version` during verification: the Windows GUI build has no console, so Qt shows them in a message box that pops over whatever Seth is doing.
 
 `patchy.exe --stress-test[=quick|small|standard|huge] [--stress-report-dir <dir>] [--stress-depth 16|32]` builds the deterministic performance scene (optionally converted to 16 or 32 bits) and exits. Reports default to `%APPDATA%\Patchy\stress-reports\`; read `stress-latest.json`. Use quick at 1024 px for iteration and standard at 4096 px for full-scale measurements. Meaningful timings require a real screen. See [performance.md](performance.md).
 
-`patchy.exe --headless ...` runs any of those modes with no display (Qt's offscreen platform). It never forwards to a running instance, so the exit code and the `--script-output` file belong to the run itself; prompts are suppressed and sound is muted. Prefer it for unattended `--run-script` runs from tooling and agents. Leave it off when a capture must show the real platform and its installed fonts (the offscreen platform sees only bundled fonts; on Windows a headless run loads the installed fonts from the registry on the first text request instead).
+`patchy.exe --headless ...` runs any of those modes on Qt's offscreen platform. It never forwards to a running instance, so the exit code and `--script-output` file are the run's own; prompts are suppressed and sound is muted. Prefer it for unattended `--run-script` runs. Leave it off when a capture must show the real platform and installed fonts (offscreen sees only bundled fonts; on Windows a headless run loads installed fonts from the registry on the first text request).
 
 Useful diagnostic variables:
 
@@ -223,12 +222,11 @@ Useful diagnostic variables:
 - `PATCHY_RENDER_THREADS=<n>` caps every parallel fan-out at n workers in place of the hardware thread count (perf harness emulation of a low-core machine; the transform proxy gate scales with it).
 - `PATCHY_PROCESSING_OVERLAY_MIN_PIXELS` overrides the processing-overlay threshold.
 - `PATCHY_NO_SOUND=1` suppresses script audio; offscreen suites rely on it.
-- `PATCHY_UPDATE_MANIFEST_URL=<url>` replaces the startup update check's manifest URL (a loopback server in the update-check tests). Pointing it at an unresolvable host such as `https://x.local/m.json` holds a resolver call open for seconds, which reproduced the issue 48 quit freeze on macOS: quit within that window and time the exit (AGENTS.md). `PATCHY_NO_UPDATE_CHECK=1` removes the check, like a `PATCHY_STORE_BUILD` build.
+- `PATCHY_UPDATE_MANIFEST_URL=<url>` replaces the update check's manifest URL (a loopback server in the update-check tests). An unresolvable host such as `https://x.local/m.json` holds a resolver call open for seconds and reproduced the issue 48 macOS quit freeze (quit within that window and time the exit). `PATCHY_NO_UPDATE_CHECK=1` removes the check, like a `PATCHY_STORE_BUILD` build.
 - `PATCHY_SETTINGS_DIR=<dir>` redirects the app's ini settings store (automation isolation).
 - `PATCHY_RECOVERY_DIR=<dir>` redirects the automatic document recovery store (the UI suite uses `test-artifacts/recovery`); `PATCHY_RECOVERY_INTERVAL_MS=<ms>` overrides the timer interval ([document-recovery.md](document-recovery.md)). `PATCHY_USER_FONTS_DIR=<dir>` moves the font store ([fonts.md](fonts.md)); `PATCHY_USER_SCRIPTS_DIR=<dir>` moves the user scripts folder (the UI suite uses `test-artifacts/user-scripts/<pid>`).
 - `PATCHY_HEADLESS=1` marks a `--headless` app run (main.cpp sets it). Never set it for the suites: it re-enables the registry font rescue and makes layouts machine-dependent.
 - `QT_COMMAND_LINE_PARSER_NO_GUI_MESSAGE_BOXES=1` makes `patchy.exe --help` and command-line parse errors print to the redirected stdout/stderr instead of a modal Win32 message box (patchy.exe is a GUI-subsystem binary), which is what an automated `--help` check needs.
-- `PATCHY_UI_TEST_FILTER` selects a UI test substring.
 - `PATCHY_UI_PROFILE=1` prints stderr timing lines for instrumented UI stages (layer-panel rebuild phases, layer-style dialog open/close, undo snapshots).
 - `PATCHY_PERF_SAMPLER=1` (patchy_perf_tests only) samples the main thread's stacks every 10 ms and prints the hottest ones at exit.
 

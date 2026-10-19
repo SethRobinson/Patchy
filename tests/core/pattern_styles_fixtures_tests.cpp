@@ -1226,11 +1226,7 @@ void psd_photoshop_bevel_gloss_fixture_matches_render() {
 // below sat in that fog at 21-34/255; assert they stay near black.
 void psd_pinball_gloss_pillow_renders_clean_background_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("pinball_from_photoshop.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] local pinball_from_photoshop.psd fixture missing: " << path.string()
-              << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   const auto document = patchy::psd::DocumentIo::read_file(path);
   const auto flat = patchy::Compositor{}.flatten_rgb8(document);
   CHECK(flat.width() == 1200);
@@ -2006,10 +2002,7 @@ void psd_lfx2_charid_blend_mode_enum_parses() {
 // displays Darken; Patchy imported Normal before the charID table was filled in.
 void psd_weedkiller_legacy_charid_styles_parse_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("weedkiller_skin.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] local weedkiller_skin.psd fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   std::ifstream stream(path, std::ios::binary);
   std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
   const auto document = patchy::psd::DocumentIo::read(bytes);
@@ -2029,10 +2022,7 @@ void psd_weedkiller_legacy_charid_styles_parse_if_available() {
 // lrFX block whose legacy shadow must NOT leak back in.
 void psd_lfx2_disabled_effect_suppresses_legacy_lrfx_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("tips.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] local tips.psd fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   std::ifstream stream(path, std::ios::binary);
   std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)), std::istreambuf_iterator<char>());
   const std::vector<std::uint8_t> lfx2_marker{'8', 'B', 'I', 'M', 'l', 'f', 'x', '2'};
@@ -2068,10 +2058,7 @@ void psd_lfx2_disabled_effect_suppresses_legacy_lrfx_if_available() {
 // 0 px blur. Patchy imported neither and the title screen rendered flat.
 void psd_lrfx_legacy_title_screen_imports_drop_shadows_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("Title02.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] local Title02.psd fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   const auto document = patchy::psd::DocumentIo::read_file(path);
 
   const auto* buttons = find_layer_named(document.layers(), "highlighted buttons");
@@ -2139,10 +2126,7 @@ void psd_lrfx_legacy_title_screen_imports_drop_shadows_if_available() {
 // back into the hole moves these by 60+.
 void psd_lrfx_legacy_title_screen_clips_stack_to_base_mask_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("Title02.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] local Title02.psd fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   const auto document = patchy::psd::DocumentIo::read_file(path);
   const auto* box = find_layer_named(document.layers(), "box");
   CHECK(box != nullptr);
@@ -2359,9 +2343,7 @@ void psd_qual_rca_pinout_writes_comparison_artifacts() {
 
 void psd_checkbox_bevel_emboss_writes_comparison_artifacts_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("checkbox.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
 
   patchy::psd::ReadOptions flat_options;
   flat_options.prefer_flat_composite = true;

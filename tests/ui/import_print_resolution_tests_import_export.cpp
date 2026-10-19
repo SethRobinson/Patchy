@@ -84,10 +84,7 @@ using namespace patchy::test::ui::import_print_resolution_support;
 
 void ui_single_text_layer_psb_keeps_transparency_without_mask() {
   const auto path = patchy::test::local_psd_fixture_path("PSBtest/Content.psb");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] PSBtest fixture missing\n";
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   // The table-tent child: one text layer on a transparent canvas. TWO code paths used
   // to invent a layer mask Photoshop never shows (the reader adopting the composite
   // "Transparency" channel, then the flat-import alpha promotion stripping the glyph

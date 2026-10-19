@@ -427,10 +427,7 @@ void ui_layer_mask_add_without_selection_targets_mask_and_chip_exits() {
 
 void ui_eon_spider_canvas_matches_compositor_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("eon_spider.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] eon_spider fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   auto document = patchy::psd::DocumentIo::read_file(path);
   const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
 

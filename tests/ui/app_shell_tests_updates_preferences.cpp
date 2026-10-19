@@ -1015,6 +1015,8 @@ void ui_update_available_dialog_offers_one_click_update_for_installed_copy() {
   patchy::ui::MainWindowTestAccess::set_self_update_override(window, true);
   CHECK(!shown_with_update_now({QStringLiteral("windows"), QStringLiteral("9.9"), update.download_url}, nullptr));
   CHECK(!patchy::ui::MainWindowTestAccess::update_install_pending(window));
+#else
+  patchy::test::skip("Windows only (one-click update)");
 #endif
 }
 
@@ -1150,6 +1152,8 @@ void ui_update_available_dialog_offers_appimage_download() {
                                 QUrl(QStringLiteral(
                                     "https://github.com/SethRobinson/Patchy/releases/latest/download/PatchyLinux.flatpak"))});
   CHECK(saw_dialog);
+#else
+  patchy::test::skip("Linux only (AppImage update prompt)");
 #endif
 }
 
@@ -1334,6 +1338,8 @@ void ui_update_one_click_replaces_appimage_on_close() {
   });
   second.show_update_available(update);
   CHECK(saw_download_prompt);
+#else
+  patchy::test::skip("Linux only (AppImage one-click update)");
 #endif
 }
 
@@ -1538,6 +1544,8 @@ void ui_update_one_click_downloads_installer_and_hands_over_on_close() {
   }
   CHECK(!window.isVisible());
   CHECK(exit_requests == 1);
+#else
+  patchy::test::skip("Windows only (one-click update)");
 #endif
 }
 

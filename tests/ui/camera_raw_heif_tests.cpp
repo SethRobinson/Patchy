@@ -880,13 +880,15 @@ void ui_zoomable_preview_downsampling_and_logical_dimensions() {
 
 void ui_raw_local_photo_visual_acceptance_if_available() {
   using namespace patchy::ui;
+  int checked = 0;
   for (const bool shelves : {false, true}) {
     const auto source = patchy::test::source_root_path() / "local-test-fixtures" / "raw" /
         (shelves ? "sony_fx30_fx300354.arw" : "sony_fx30_fx300416.arw");
     if (!std::filesystem::exists(source)) {
-      std::cout << "[SKIP] local Sony FX30 fixture missing\n";
+      std::cout << "  note: optional fixture missing: " << patchy::test::fixture_display_path(source) << '\n';
       continue;
     }
+    ++checked;
     const auto path = to_qstring(source);
     const auto original = raw_test_bytes(path);
     bool captured_draft = false, captured_progress = false;
@@ -915,6 +917,9 @@ void ui_raw_local_photo_visual_acceptance_if_available() {
     }));
     CHECK(captured_draft && captured_progress);
     CHECK(raw_test_bytes(path) == original);
+  }
+  if (checked == 0) {
+    patchy::test::skip("no optional fixture present (local-test-fixtures/raw Sony FX30 photos)");
   }
 }
 
@@ -1251,8 +1256,7 @@ void ui_heif_open_is_read_only_if_available() {
                                    error_text.contains(QStringLiteral("Flatpak codec extension")) ||
                                    error_text.contains(QStringLiteral("cannot decode HEIC images"));  // Linux libheif
     CHECK(codec_unavailable);
-    std::cout << "[SKIP] HEIC platform decoder unavailable: " << error_text.toStdString() << '\n';
-    return;
+    patchy::test::skip("HEIC platform decoder unavailable: " + error_text.toStdString());
   }
 
   auto& document = patchy::ui::MainWindowTestAccess::document(window);

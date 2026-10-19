@@ -52,9 +52,8 @@ void ui_transparency_checkerboard_and_copy_paste_preserve_alpha() {
   // Builds its alpha content through the bundled "White to Transparent" legacy shim,
   // which is Windows-only (see the probe). Portable clipboard-alpha coverage is the
   // ui_copy_* tests; revisit if a cross-platform variant of this scene is wanted.
-  std::cout << "[SKIP] uses the Windows-only bundled legacy 8BF shim\n";
-  return;
-#endif
+  patchy::test::skip("uses the Windows-only bundled legacy 8BF shim");
+#else
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
@@ -114,6 +113,7 @@ void ui_transparency_checkerboard_and_copy_paste_preserve_alpha() {
   CHECK(std::abs(pasted_preview.red() - pasted_preview.green()) <= 4);
   CHECK(std::abs(pasted_preview.green() - pasted_preview.blue()) <= 4);
   save_widget_artifact("ui_transparent_copy_paste", window);
+#endif
 }
 
 void ui_crop_rotate_stroke_merge_and_filter_render_visually() {

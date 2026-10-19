@@ -246,10 +246,7 @@ void shot_readme_script_manager() {
 // re-runs in GUI mode and is cancelled after the capture.
 void shot_readme_script_options() {
   const auto photo_path = patchy::test::local_psd_fixture_path("akiko_cycling_okinawa.jpg");
-  if (!std::filesystem::exists(photo_path)) {
-    std::cout << "[SKIP] akiko_cycling_okinawa fixture missing: " << photo_path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(photo_path);
   QImage photo(QString::fromStdString(photo_path.string()));
   CHECK(!photo.isNull());
   patchy::ui::MainWindow window;
@@ -344,10 +341,7 @@ void readme_collect_text_layers(const std::vector<patchy::Layer>& layers,
 // layer panel showing the imported structure with a text row selected.
 void shot_readme_affinity_import() {
   const auto path = patchy::test::local_format_fixture_path("af-spike/corpus", "tips.af");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] af-spike tips fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   SettingsValueRestorer notices_restorer(QStringLiteral("imports/showPsdWarningsAndInfo"));
   {
     auto settings = patchy::ui::app_settings();

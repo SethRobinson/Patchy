@@ -77,9 +77,7 @@ void ui_psd_centered_point_text_keeps_center_on_commit() {
   // showed doubled/overlapping text because the editor, caret layout, and committed raster each
   // laid the text out differently.
   const auto path = patchy::test::local_psd_fixture_path("tlm-main-mockup.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   auto document = patchy::psd::DocumentIo::read_file(path);
 
   patchy::Rect text_bounds{};
@@ -404,9 +402,10 @@ struct PhotoshopTextCommitProbe {
 };
 
 // `required_family` (optional) is the face the caller's tolerances were measured against: the
-// probe skips before it opens any editing session when this machine will not lay the text out
-// with it (see skip_without_psd_text_face). Skipping BEFORE the session also keeps a machine
-// without the face out of the Missing Font prompt, which nothing can answer under offscreen.
+// probe returns nullopt, with a note line, before it opens any editing session when this machine
+// will not lay the text out with it (see missing_psd_text_face_reason). Stopping BEFORE the
+// session also keeps a machine without the face out of the Missing Font prompt, which nothing
+// can answer under offscreen. A caller that needs the probe for the whole test skips on nullopt.
 std::optional<PhotoshopTextCommitProbe> run_photoshop_text_commit_probe(const std::filesystem::path& path,
                                                                         const char* needle,
                                                                         double zoom,
@@ -438,8 +437,11 @@ std::optional<PhotoshopTextCommitProbe> run_photoshop_text_commit_probe(const st
   if (required_family != nullptr) {
     const auto* text_layer = std::as_const(document).find_layer(layer_id);
     CHECK(text_layer != nullptr);
-    if (text_layer == nullptr ||
-        skip_without_psd_text_face(*text_layer, QString::fromUtf8(required_family))) {
+    if (text_layer == nullptr) {
+      return std::nullopt;
+    }
+    if (const auto reason = missing_psd_text_face_reason(*text_layer, QString::fromUtf8(required_family))) {
+      std::cout << "  note: probe \"" << needle << "\" not checked: " << *reason << '\n';
       return std::nullopt;
     }
   }
@@ -639,9 +641,7 @@ void ui_restaurant_menu_dishes_commit_matches_photoshop_bands_if_available() {
   // baseline structure must match Photoshop's raster: same line count, same baseline
   // positions within a few pixels, and the alternating 87/50px advance pattern.
   const auto path = patchy::test::local_psd_fixture_path("restaurant-menu-inside.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   // The description face (Candara-BoldItalic) is a stock Windows font: registering it keeps the
   // description lines' descender ink (italic f, the slashes) comparable against Photoshop's
   // raster. The name face (Campanile) stays unavailable -- name rows compare on baselines.
@@ -894,15 +894,13 @@ void ui_snes_box_rotated_hscale_commit_matches_if_available() {
   // through DirectWrite on Windows and the font database elsewhere, so the ArialBlack role must
   // register BEFORE the read; the probes skip only where the face does not exist (stock Linux).
   const auto path = patchy::test::local_psd_fixture_path("snes-box-a3.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::ArialBlack);
   const auto probe =
       run_photoshop_text_commit_probe(path, "Mit deutschen", 0.25, "ui_snes_box_rotated_commit", "Arial Black");
   if (!probe.has_value()) {
-    return;
+    patchy::test::skip("Arial Black is not available for the fixture's type");
   }
   std::printf("  snes blurb ink: orig %dx%d at (%d,%d) -> committed %dx%d at (%d,%d), mid-alpha %.3f\n",
               probe->original_ink.width, probe->original_ink.height, probe->original_ink.x,
@@ -924,7 +922,7 @@ void ui_snes_box_rotated_hscale_commit_matches_if_available() {
   const auto back_panel = run_photoshop_text_commit_probe(path, "Diese Spielkassette", 0.25,
                                                           "ui_snes_back_panel_commit", "Arial Black");
   if (!back_panel.has_value()) {
-    return;
+    patchy::test::skip("Arial Black is not available for the fixture's type");
   }
   std::printf("  snes back panel ink: orig %dx%d at (%d,%d) -> committed %dx%d at (%d,%d)\n",
               back_panel->original_ink.width, back_panel->original_ink.height, back_panel->original_ink.x,
@@ -949,9 +947,7 @@ void ui_restaurant_menu_other_layers_commit_match_if_available() {
   // leading). Each converts via an unchanged edit -> apply and must keep Photoshop's band
   // structure.
   const auto path = patchy::test::local_psd_fixture_path("restaurant-menu-inside.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::Candara);
 
@@ -1040,7 +1036,7 @@ void ui_psd_centered_text_commit_rounds_line_start_like_photoshop() {
     const auto probe = run_photoshop_text_commit_probe(patchy::test::committed_psd_fixture_path(entry.fixture), "Hg",
                                                        1.0, entry.artifact, "Arial");
     if (!probe.has_value()) {
-      return;
+      patchy::test::skip("Arial is not available for the fixtures' type");
     }
     std::printf("  %-44s photoshop ink (%d,%d %dx%d) -> patchy ink (%d,%d %dx%d)\n", entry.fixture,
                 probe->original_ink.x, probe->original_ink.y, probe->original_ink.width, probe->original_ink.height,
@@ -1112,7 +1108,10 @@ void ui_psd_left_text_commit_rounds_each_glyph_like_photoshop() {
     const auto& entry = cases[i];
     const auto probe = run_photoshop_text_commit_probe(patchy::test::committed_psd_fixture_path(entry.fixture), "Hg",
                                                        1.0, entry.artifact, "Arial");
-    if (!probe.has_value() || !probe->original_layer.has_value() || !probe->committed_layer.has_value()) {
+    if (!probe.has_value()) {
+      patchy::test::skip("Arial is not available for the fixtures' type");
+    }
+    if (!probe->original_layer.has_value() || !probe->committed_layer.has_value()) {
       return;
     }
     photoshop_span[i] = half_alpha_column_span(*probe->original_layer);
@@ -1153,9 +1152,7 @@ void ui_psd_left_text_commit_rounds_each_glyph_like_photoshop() {
 // document positions (tx 267.35, ty 305.4) and both rasters land on the whole-pixel grid.
 void ui_dungeon_scroll_psd_text_commit_keeps_placement_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("dungeon-scroll-game-screen.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::Georgia);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::BookmanOldStyle);
@@ -1259,14 +1256,11 @@ void ui_dungeon_scroll_psd_text_commit_keeps_placement_if_available() {
 // (794, 700) and (1635, 710).
 void ui_la_methode_psd_text_commit_keeps_glyph_overhang_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("La methode.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::BalmoralLet);
   if (!QFontDatabase::hasFamily(QStringLiteral("Balmoral LET"))) {
-    std::printf("[SKIP] Balmoral LET Plain.ttf is not in local-test-fixtures/fonts\n");
-    return;
+    patchy::test::skip("Balmoral LET Plain.ttf is not in local-test-fixtures/fonts");
   }
   // The reader names the face through DirectWrite only when the font is installed system-wide;
   // as an application font it falls to the PostScript-name heuristic ("Balmoral Let Plain"),
@@ -1281,8 +1275,7 @@ void ui_la_methode_psd_text_commit_keeps_glyph_overhang_if_available() {
         std::printf("  layer \"%s\": font \"%s\"%s\n", layer.name().c_str(), font->second.c_str(),
                     missing.isEmpty() ? "" : " (MISSING here)");
         if (!missing.isEmpty()) {
-          std::printf("[SKIP] the fixture's face does not resolve on this machine\n");
-          return;
+          patchy::test::skip("the fixture's face does not resolve on this machine");
         }
         checked = true;
       }
@@ -1361,22 +1354,18 @@ void ui_la_methode_psd_text_commit_keeps_glyph_overhang_if_available() {
 // byte for byte (a fractional zoom like the reporter's 223.84% is where a rounding slip shows).
 void ui_la_methode_psd_text_commit_is_zoom_and_edit_independent_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("La methode.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::BalmoralLet);
   if (!QFontDatabase::hasFamily(QStringLiteral("Balmoral LET"))) {
-    std::printf("[SKIP] Balmoral LET Plain.ttf is not in local-test-fixtures/fonts\n");
-    return;
+    patchy::test::skip("Balmoral LET Plain.ttf is not in local-test-fixtures/fonts");
   }
   {
     const auto document = patchy::psd::DocumentIo::read_file(path);
     for (const auto& layer : document.layers()) {
       if (layer.metadata().contains(patchy::kLayerMetadataTextFont) &&
           !patchy::ui::missing_text_families_for_layer(layer).isEmpty()) {
-        std::printf("[SKIP] the fixture's face does not resolve on this machine\n");
-        return;
+        patchy::test::skip("the fixture's face does not resolve on this machine");
       }
     }
   }
@@ -1432,22 +1421,18 @@ void ui_la_methode_psd_text_commit_is_zoom_and_edit_independent_if_available() {
 // edit that ends with the original text.
 void ui_la_methode_psd_text_preview_sits_on_photoshop_ink_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("La methode.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::BalmoralLet);
   if (!QFontDatabase::hasFamily(QStringLiteral("Balmoral LET"))) {
-    std::printf("[SKIP] Balmoral LET Plain.ttf is not in local-test-fixtures/fonts\n");
-    return;
+    patchy::test::skip("Balmoral LET Plain.ttf is not in local-test-fixtures/fonts");
   }
   auto document = patchy::psd::DocumentIo::read_file(path);
   patchy::LayerId layer_id = 0;
   for (const auto& layer : std::as_const(document).layers()) {
     if (layer.metadata().contains(patchy::kLayerMetadataTextFont) &&
         !patchy::ui::missing_text_families_for_layer(layer).isEmpty()) {
-      std::printf("[SKIP] the fixture's face does not resolve on this machine\n");
-      return;
+      patchy::test::skip("the fixture's face does not resolve on this machine");
     }
     if (const auto it = layer.metadata().find(patchy::kLayerMetadataText);
         it != layer.metadata().end() && it->second.find("thode") != std::string::npos) {
@@ -1556,22 +1541,18 @@ patchy::Rect live_document_layer_bounds_for_scroll(patchy::ui::MainWindow& windo
 // Photoshop's ink, and the selection must survive the edit untouched.
 void ui_la_methode_psd_text_commit_scrolled_with_selection_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("La methode.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::BalmoralLet);
   if (!QFontDatabase::hasFamily(QStringLiteral("Balmoral LET"))) {
-    std::printf("[SKIP] Balmoral LET Plain.ttf is not in local-test-fixtures/fonts\n");
-    return;
+    patchy::test::skip("Balmoral LET Plain.ttf is not in local-test-fixtures/fonts");
   }
   auto document = patchy::psd::DocumentIo::read_file(path);
   patchy::LayerId layer_id = 0;
   for (const auto& layer : std::as_const(document).layers()) {
     if (layer.metadata().contains(patchy::kLayerMetadataTextFont) &&
         !patchy::ui::missing_text_families_for_layer(layer).isEmpty()) {
-      std::printf("[SKIP] the fixture's face does not resolve on this machine\n");
-      return;
+      patchy::test::skip("the fixture's face does not resolve on this machine");
     }
     if (const auto it = layer.metadata().find(patchy::kLayerMetadataText);
         it != layer.metadata().end() && it->second.find("thode") != std::string::npos) {
@@ -1723,22 +1704,18 @@ void ui_la_methode_psd_text_commit_scrolled_with_selection_if_available() {
 // of 964x697 (Photoshop 965x697) and the saved TySh baseline landed at 745 instead of 700.
 void ui_la_methode_script_text_setter_matches_interactive_commit_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("La methode.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::BalmoralLet);
   if (!QFontDatabase::hasFamily(QStringLiteral("Balmoral LET"))) {
-    std::printf("[SKIP] Balmoral LET Plain.ttf is not in local-test-fixtures/fonts\n");
-    return;
+    patchy::test::skip("Balmoral LET Plain.ttf is not in local-test-fixtures/fonts");
   }
   {
     const auto document = patchy::psd::DocumentIo::read_file(path);
     for (const auto& layer : document.layers()) {
       if (layer.metadata().contains(patchy::kLayerMetadataTextFont) &&
           !patchy::ui::missing_text_families_for_layer(layer).isEmpty()) {
-        std::printf("[SKIP] the fixture's face does not resolve on this machine\n");
-        return;
+        patchy::test::skip("the fixture's face does not resolve on this machine");
       }
     }
   }
@@ -1838,9 +1815,7 @@ void ui_la_methode_script_text_setter_matches_interactive_commit_if_available() 
 // while Photoshop shows Italic with Faux Bold ticked in the Character panel.
 void ui_dungeon_scroll_faux_bold_reads_as_faux_not_bold_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("dungeon-scroll-game-screen.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::Georgia);
 
@@ -1959,9 +1934,7 @@ void ui_restaurant_menu_box_text_edit_commit_keeps_leading_if_available() {
   // pin the size-driven invariants: the description advance (auto leading depends only on the
   // size) and the headline's height (Candara-Bold is installed).
   const auto path = patchy::test::local_psd_fixture_path("restaurant-menu-inside.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::Candara);
 
@@ -1997,9 +1970,7 @@ void ui_restaurant_menu_box_text_edit_commit_keeps_leading_if_available() {
   CHECK(original_bands.size() >= 3);
   // The band assertions below are measured off Candara-Bold's ascender (the headline run), so
   // they need that face; it is a stock Windows font with no macOS/Linux equivalent.
-  if (skip_without_font_face(QStringLiteral("Candara"), "restaurant-menu-inside.psd headline face")) {
-    return;
-  }
+  skip_without_font_face(QStringLiteral("Candara"), "restaurant-menu-inside.psd headline face");
 
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2092,9 +2063,7 @@ void ui_psd_sheared_point_text_edit_lands_on_glyphs() {
   // the text to the wrong spot.  The document-space fallback pins the re-rendered glyphs to the
   // imported raster's visible bounds instead.
   const auto path = patchy::test::local_psd_fixture_path("mow_master.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   // The layer uses Arial Black.  ariblk.ttf's typographic family is "Arial" (subfamily "Black"),
   // so the offscreen FreeType database exposes it as a style of Arial rather than as an
   // "Arial Black" family; available_text_family_style_match() resolves that, so registering the
@@ -2253,9 +2222,7 @@ void ui_duke_psd_text_runs_survive_reedit() {
   // must be a fixed point: applying twice with no text change leaves metadata, bounds, and pixels
   // identical.
   const auto path = patchy::test::local_psd_fixture_path("Duke nukem mobile.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   auto document = patchy::psd::DocumentIo::read_file(path);
 
   patchy::Rect text_bounds{};
@@ -3607,9 +3574,7 @@ void ui_psd_frame_text_tracking_click_lands_on_glyphs() {
 // letter typed there must widen the text where the caret was.
 void ui_title02_tracked_legacy_text_caret_matches_glyphs_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("Title02.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   patchy::test::register_test_fonts(patchy::test::TestFontRole::UiDefault);
   const auto futura = QStringLiteral(PATCHY_SOURCE_DIR) + QStringLiteral("/local-test-fixtures/fonts/FUTURABC.TTF");
   // Registered the way user fonts are: on macOS under the Windows names, so the face is
@@ -3617,8 +3582,7 @@ void ui_title02_tracked_legacy_text_caret_matches_glyphs_if_available() {
   const int futura_id = QFile::exists(futura) ? patchy::ui::add_application_font_by_windows_names(futura) : -1;
   const bool futura_registered = futura_id >= 0;
   if (!futura_registered) {
-    std::cout << "[SKIP] Futura fixture font missing: " << futura.toStdString() << '\n';
-    return;
+    patchy::test::skip("Futura fixture font missing or not registered: local-test-fixtures/fonts/FUTURABC.TTF");
   }
   // What the platform database made of the fixture: CoreText files FUTURABC.TTF under its
   // Macintosh names ("Futura" + "Bold"), the Windows engines under "Futura BdCn BT" + "Bold".

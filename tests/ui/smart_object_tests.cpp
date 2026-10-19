@@ -1405,10 +1405,7 @@ void ui_smart_object_psbtest_repro_decodes_transparent_if_available() {
   // Seth's actual July 2026 repro file: a Convert-to-Smart-Object child saved by the
   // pre-fix writer whose composite turned the parent's transparent parts black.
   const auto path = patchy::test::local_psd_fixture_path("PSBtest/Paint Layer.psb");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] PSBtest/Paint Layer.psb not present\n";
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   auto bytes = read_smart_object_fixture_bytes(path);
   CHECK(!bytes.empty());
 
@@ -2936,8 +2933,9 @@ void ui_smart_object_photoshop_linked_capture_resolves_if_available() {
   const auto psd_path = dir + QStringLiteral("/linked_svg.psd");
   const auto svg_path = dir + QStringLiteral("/logo.svg");
   if (!QFileInfo::exists(psd_path) || !QFileInfo::exists(svg_path)) {
-    std::cout << "[SKIP] ps2026_linked capture missing: " << psd_path.toStdString() << '\n';
-    return;
+    patchy::test::skip("optional fixture missing: " +
+                       patchy::test::fixture_display_path(patchy::ui::to_filesystem_path(psd_path)) +
+                       " (with logo.svg)");
   }
   const auto document = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(psd_path));
   const auto sources = linked_sources(document);
@@ -2961,7 +2959,8 @@ void ui_smart_object_photoshop_linked_capture_resolves_if_available() {
     const auto capture_path = dir + QLatin1Char('/') + psd_name;
     const auto linked_path = dir + QLatin1Char('/') + svg_name;
     if (!QFileInfo::exists(capture_path) || !QFileInfo::exists(linked_path)) {
-      std::cout << "[SKIP] ps2026_linked capture missing: " << capture_path.toStdString() << '\n';
+      std::cout << "  note: optional fixture missing: "
+                << patchy::test::fixture_display_path(patchy::ui::to_filesystem_path(capture_path)) << '\n';
       return;
     }
     const auto capture = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(capture_path));

@@ -411,9 +411,7 @@ void ui_merge_down_discards_hidden_layers() {
 
 void ui_merge_down_flattens_entire_psd_to_single_layer() {
   const auto path = patchy::test::local_psd_fixture_path("ipad_main_v04.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   auto document = patchy::psd::DocumentIo::read_file(path);
 
   patchy::ui::MainWindow window;

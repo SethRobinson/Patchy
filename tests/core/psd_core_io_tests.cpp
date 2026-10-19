@@ -1390,10 +1390,7 @@ void psd_opaque_allows_53_saved_channels_but_transparent_throws() {
 
 void psb_transparency_channel_is_not_a_layer_mask_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("PSBtest/Content.psb");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] PSBtest fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   // The real Photoshop file behind the bug report: one text layer on a transparent
   // canvas, 4 composite channels, resource 1006 = "Transparency". Photoshop shows no
   // layer mask; neither may Patchy.
@@ -1438,9 +1435,7 @@ void psd_layer_record_flags_mark_photoshop5_layers() {
 // layer channel length".
 void psd_interface_mock2_loads_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("interface_mock2.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
 
   const auto document = patchy::psd::DocumentIo::read_file(path);
   CHECK(document.width() == 1024);
@@ -1567,10 +1562,7 @@ void psd_other_color_modes_convert_to_rgb_on_read() {
 // The psd-tools files in those modes all open (testy/fetch_psd_tools_corpus.py).
 void psd_tools_other_color_modes_open_if_available() {
   const auto root = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" / "psd_files";
-  if (!std::filesystem::exists(root / "colormodes" / "4x4_8bit_lab.psd")) {
-    std::cout << "[SKIP] psd-tools collection missing: " << root.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(root / "colormodes" / "4x4_8bit_lab.psd");
   const std::array<std::pair<const char*, const char*>, 11> files{{
       {"colormodes/100x20_1bit_bitmap_rle.psd", "Bitmap"},
       {"colormodes/20x5_1bit_bitmap.psd", "Bitmap"},
@@ -1618,10 +1610,7 @@ void psd_tools_other_color_modes_open_if_available() {
 void psd_tools_cmyk_levels_run_on_the_inks_if_available() {
   const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" /
                     "psd_files" / "adjustments" / "levels_cmyk.psd";
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] psd-tools collection missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   const auto document = patchy::psd::DocumentIo::read_file(path);
   int ink_adjustments = 0;
   const std::function<void(const std::vector<patchy::Layer>&)> count = [&](const std::vector<patchy::Layer>& layers) {
@@ -1750,10 +1739,14 @@ void psd_tools_grayscale_adjustments_apply_to_the_gray_channel_if_available() {
          {75, 185, 125}, {125, 40, 205}, {125, 100, 186}, {125, 150, 123}, {125, 185, 182}, {175, 40, 70},
          {175, 100, 158}, {175, 150, 44}, {175, 185, 166}}}},
   }};
+  int checked = 0;
   for (const auto& entry : cases) {
     const auto path = root / entry.name;
     if (!std::filesystem::exists(path)) {
-      std::cout << "[SKIP] psd-tools collection missing: " << path.string() << '\n';
+      if (checked == 0) {
+        patchy::test::skip("optional fixture missing: " + patchy::test::fixture_display_path(path));
+      }
+      std::cout << "  note: optional fixture missing: " << patchy::test::fixture_display_path(path) << '\n';
       return;
     }
     const auto flattened = patchy::Compositor{}.flatten_rgb8(patchy::psd::DocumentIo::read_file(path));
@@ -1774,6 +1767,7 @@ void psd_tools_grayscale_adjustments_apply_to_the_gray_channel_if_available() {
     // A threshold is all or nothing per pixel, so a probe beside an edge may flip; the
     // other files are smooth and every probe has to be close.
     CHECK(std::string_view(entry.name).starts_with("threshold") ? far_off <= 1 : worst <= 12);
+    ++checked;
   }
 }
 
@@ -1783,10 +1777,7 @@ void psd_tools_grayscale_adjustments_apply_to_the_gray_channel_if_available() {
 void psd_tools_gradient_fill_without_angle_runs_left_to_right_if_available() {
   const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" /
                     "psd_files" / "gradient-styles.psd";
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] psd-tools collection missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   const auto document = patchy::psd::DocumentIo::read_file(path);
   int noise = 0;
   int angled = 0;
@@ -1825,10 +1816,7 @@ void psd_tools_gradient_fill_without_angle_runs_left_to_right_if_available() {
 void psd_tools_lab_color_descriptors_parse_if_available() {
   const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" /
                     "psd_files" / "descriptors" / "lab-color-swatches.psd";
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] psd-tools collection missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   const auto document = patchy::psd::DocumentIo::read_file(path);
   int fills = 0;
   int worst = 0;
@@ -1868,10 +1856,7 @@ void psd_tools_lab_color_descriptors_parse_if_available() {
 void psd_tools_corpus_reads_and_round_trips_if_available() {
   const auto root =
       patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" / "psd_files";
-  if (!std::filesystem::exists(root)) {
-    std::cout << "[SKIP] psd-tools collection missing: " << root.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(root);
 
   std::vector<std::filesystem::path> files;
   for (const auto& entry : std::filesystem::recursive_directory_iterator(root)) {
@@ -1924,10 +1909,14 @@ void psd_tools_corpus_reads_and_round_trips_if_available() {
 void psd_tools_group_fill_matches_photoshop_if_available() {
   const auto root = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" / "psd_files" /
                     "transparency";
+  int checked = 0;
   for (const char* name : {"knockout-none-normal.psd", "knockout-none-passthrough.psd"}) {
     const auto path = root / name;
     if (!std::filesystem::exists(path)) {
-      std::cout << "[SKIP] psd-tools collection missing: " << path.string() << '\n';
+      if (checked == 0) {
+        patchy::test::skip("optional fixture missing: " + patchy::test::fixture_display_path(path));
+      }
+      std::cout << "  note: optional fixture missing: " << patchy::test::fixture_display_path(path) << '\n';
       return;
     }
     const auto document = patchy::psd::DocumentIo::read_file(path);
@@ -1940,6 +1929,7 @@ void psd_tools_group_fill_matches_photoshop_if_available() {
     CHECK(std::abs(px[0] - 127) <= 1);
     CHECK(px[1] == 0);
     CHECK(std::abs(px[2] - 128) <= 1);
+    ++checked;
   }
 
   // A Pass Through group at Fill 40% holding a red layer and an Exposure adjustment: the
@@ -1971,10 +1961,7 @@ void psd_tools_group_fill_matches_photoshop_if_available() {
 void psd_tools_32_bit_fill_color_is_linear_if_available() {
   const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" / "psd_files" /
                     "300dpi.psb";
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] psd-tools collection missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   const auto document = patchy::psd::DocumentIo::read_file(path);
   CHECK(document.metadata().values.at("psd.depth") == "32");
   const auto* shape = patchy::test::find_layer_named(std::as_const(document).layers(), "Shape 2");
@@ -1996,10 +1983,7 @@ void psd_tools_32_bit_fill_color_is_linear_if_available() {
 void psd_tools_noise_gradient_fill_survives_resave_if_available() {
   const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" / "psd_files" /
                     "gradients" / "noise-gradient-rgb.psd";
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] psd-tools collection missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   const auto document = patchy::psd::DocumentIo::read_file(path);
   CHECK(document.layers().size() == 4);
   const auto resaved = patchy::psd::DocumentIo::write_layered_rgb8(document);
@@ -2058,10 +2042,7 @@ void psd_tools_noise_gradient_fill_survives_resave_if_available() {
 void psd_tools_linear_gradient_fill_redraw_matches_photoshop_if_available() {
   const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" / "psd_files" /
                     "adjustments" / "adjustment_clipping.psd";
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] psd-tools collection missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   auto document = patchy::psd::DocumentIo::read_file(path);
   patchy::Layer* fill = nullptr;
   const auto find = [&](auto&& self, std::vector<patchy::Layer>& layers) -> void {
@@ -2117,10 +2098,8 @@ void psd_tools_unnamed_layers_take_photoshop_names_if_available() {
   const auto root = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" / "tests" / "psd_files";
   const auto swatches = root / "descriptors" / "stroke-color-descriptors-hsb-with-rgb-mode.psd";
   const auto nested = root / "issues" / "issue397.psd";
-  if (!std::filesystem::exists(swatches) || !std::filesystem::exists(nested)) {
-    std::cout << "[SKIP] psd-tools collection missing: " << swatches.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(swatches);
+  patchy::test::skip_unless_exists(nested);
   const auto document = patchy::psd::DocumentIo::read_file(swatches);
   CHECK(document.layers().size() == 8);
   for (std::size_t index = 0; index < document.layers().size(); ++index) {
@@ -2713,10 +2692,7 @@ void psd_32_bit_lr32_zip_prediction_layer_converts() {
 // Real Photoshop-written 16-bit file (raw composite + zip-prediction Lr16 layers).
 void psd_16_bit_flat_filter_list_loads_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("Flat-filter-list.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] local 16-bit fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
 
   std::vector<std::string> notices;
   patchy::psd::ReadOptions options;
@@ -2777,12 +2753,13 @@ void psd_16_bit_flat_filter_list_loads_if_available() {
 // composite, flat variants carry the real image as an RLE composite. 32-bit fills
 // store value/255 as linear floats, so the expected colors for those are exactly
 // what Photoshop itself produced when converting the same files to 8-bit.
-void check_photoshop_deep_fixture(const std::string& file_name, bool layered,
+// Returns false, checking nothing, when the optional fixture is missing.
+bool check_photoshop_deep_fixture(const std::string& file_name, bool layered,
                                   const std::array<int, 3>& sky, const std::array<int, 3>& hot) {
   const auto path = patchy::test::local_psd_fixture_path(file_name);
   if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] local deep fixture missing: " << path.string() << '\n';
-    return;
+    std::cout << "  note: optional fixture missing: " << patchy::test::fixture_display_path(path) << '\n';
+    return false;
   }
   const auto document = patchy::psd::DocumentIo::read_file(path);
   CHECK(document.width() == 64);
@@ -2807,24 +2784,28 @@ void check_photoshop_deep_fixture(const std::string& file_name, bool layered,
   } else {
     check_pixel(background.pixels().pixel(24, 24), hot);
   }
+  return true;
 }
 
 void psd_photoshop_16_bit_fixtures_load_if_available() {
-  check_photoshop_deep_fixture("ps2026-16bit-flat.psd", false, {135, 206, 235}, {255, 64, 0});
-  check_photoshop_deep_fixture("ps2026-16bit.psd", true, {135, 206, 235}, {255, 64, 0});
+  const bool flat = check_photoshop_deep_fixture("ps2026-16bit-flat.psd", false, {135, 206, 235}, {255, 64, 0});
+  const bool layered = check_photoshop_deep_fixture("ps2026-16bit.psd", true, {135, 206, 235}, {255, 64, 0});
+  if (!flat && !layered) {
+    patchy::test::skip("no optional fixture present (ps2026-16bit-flat.psd, ps2026-16bit.psd)");
+  }
 }
 
 void psd_photoshop_32_bit_fixtures_load_if_available() {
-  check_photoshop_deep_fixture("ps2026-32bit-flat.psd", false, {192, 232, 246}, {255, 137, 0});
-  check_photoshop_deep_fixture("ps2026-32bit.psd", true, {192, 232, 246}, {255, 137, 0});
+  const bool flat = check_photoshop_deep_fixture("ps2026-32bit-flat.psd", false, {192, 232, 246}, {255, 137, 0});
+  const bool layered = check_photoshop_deep_fixture("ps2026-32bit.psd", true, {192, 232, 246}, {255, 137, 0});
+  if (!flat && !layered) {
+    patchy::test::skip("no optional fixture present (ps2026-32bit-flat.psd, ps2026-32bit.psd)");
+  }
 }
 
 void psd_app_icon_legacy_fixture_loads_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("APP_Icon_1024x1024.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] local APP icon fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
 
   const auto document = patchy::psd::DocumentIo::read_file(path);
   CHECK(document.width() == 1024);
@@ -2839,10 +2820,7 @@ void psd_app_icon_legacy_fixture_loads_if_available() {
 // folder or selection holding one. They import as editable stroke-only shapes.
 void psd_stroke_only_shape_layers_fixture_loads_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("bath-controls-stroke-only-shapes.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] local bath-controls fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
 
   const auto document = patchy::psd::DocumentIo::read_file(path);
   const patchy::Layer* group = nullptr;
@@ -3154,10 +3132,7 @@ void psd_gray_descriptor_and_engine_colors_use_black_percentage() {
 // The issue 39 reporter's file: 8-bit grayscale, nine pixel layers, Dot Gain 20% embedded.
 void psd_issue39_grayscale_fixture_imports_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("issue-39/grayscale.psd");
-  if (!std::filesystem::exists(path)) {
-    std::printf("[SKIP] psd_issue39_grayscale_fixture_imports_if_available (no local fixture)\n");
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   std::vector<std::string> notices;
   patchy::psd::ReadOptions options;
   options.notices = &notices;
@@ -3198,10 +3173,7 @@ void psd_issue39_grayscale_fixture_imports_if_available() {
 // the same document. The residue is lcms2-vs-ACE curve interpolation, as for CMYK.
 void psd_gray_ramp_dotgain20_matches_photoshop_srgb_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("issue-39/gray-ramp-dotgain20.psd");
-  if (!std::filesystem::exists(path)) {
-    std::printf("[SKIP] psd_gray_ramp_dotgain20_matches_photoshop_srgb_if_available (no local fixture)\n");
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   const auto document = patchy::psd::DocumentIo::read_file(path);
   CHECK(document.width() == 256);
   CHECK(document.layers().size() == 1);

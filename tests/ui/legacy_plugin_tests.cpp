@@ -350,10 +350,7 @@ void ui_legacy_plugin_run_respects_selection_and_undoes() {
 // that opens one anyway is answered by the runner's auto-accept.
 void ui_legacy_plugin_mehdi_filters_run_if_available() {
   const auto mehdi = patchy::test::source_root_path() / "local-test-fixtures" / "photoshop-plugins" / "mehdi";
-  if (!std::filesystem::exists(mehdi)) {
-    std::cout << "[SKIP] local-test-fixtures/photoshop-plugins/mehdi not present\n";
-    return;
-  }
+  patchy::test::skip_unless_exists(mehdi);
   patchy::ui::MainWindow window;
   show_window(window);
   wait_for_legacy_plugin_scan(window);
@@ -395,13 +392,9 @@ void ui_legacy_plugin_mehdi_filters_run_if_available() {
 // what makes it capturable unattended.
 void ui_legacy_plugin_mehdi_dialog_capture_if_available() {
   const auto mehdi = patchy::test::source_root_path() / "local-test-fixtures" / "photoshop-plugins" / "mehdi";
-  if (!std::filesystem::exists(mehdi)) {
-    std::cout << "[SKIP] local-test-fixtures/photoshop-plugins/mehdi not present\n";
-    return;
-  }
+  patchy::test::skip_unless_exists(mehdi);
   if (!on_interactive_window_station()) {
-    std::cout << "[SKIP] plug-in dialog capture needs the interactive desktop (not a service or ssh session)\n";
-    return;
+    patchy::test::skip("plug-in dialog capture needs the interactive desktop (not a service or ssh session)");
   }
   patchy::ui::MainWindow window;
   show_window(window);

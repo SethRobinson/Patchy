@@ -731,10 +731,7 @@ void psd_channel_restrictions_empty_payload_reads_unrestricted_if_available() {
   // editable mask, and a resave drops the empty block (absence means the same
   // thing to Photoshop, matching the lmgm/infx omit-default precedent).
   const auto path = patchy::test::local_psd_fixture_path("polymega_famicom.psd");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] local polymega_famicom.psd fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   const auto document = patchy::psd::DocumentIo::read_file(path);
   const auto check_layers = [](const auto& self, const std::vector<patchy::Layer>& layers) -> void {
     for (const auto& layer : layers) {
@@ -764,10 +761,8 @@ void psd_akiko_channel_restriction_imports_green_if_available() {
   // Photoshop 2026's own flatten of the file.
   const auto psd_path = patchy::test::local_psd_fixture_path("akiko_cycling_okinawa.psd");
   const auto bmp_path = patchy::test::local_psd_fixture_path("akiko_cycling_okinawa_photoshop.bmp");
-  if (!std::filesystem::exists(psd_path) || !std::filesystem::exists(bmp_path)) {
-    std::cout << "[SKIP] local akiko_cycling_okinawa fixtures missing: " << psd_path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(psd_path);
+  patchy::test::skip_unless_exists(bmp_path);
   const auto document = patchy::psd::DocumentIo::read_file(psd_path);
   const auto* restricted = find_layer_named(document.layers(), "Layer 0");
   CHECK(restricted != nullptr);
@@ -1319,9 +1314,7 @@ void psd_far_offcanvas_layer_keeps_true_origin() {
 
 void psd_ipad_main_v04_preserves_folders_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("ipad_main_v04.psd");
-  if (!std::filesystem::exists(path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
 
   const auto document = patchy::psd::DocumentIo::read_file(path);
   CHECK(document.width() == 1024);

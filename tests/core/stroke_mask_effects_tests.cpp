@@ -1321,12 +1321,14 @@ void psd_bad_stroke_text_has_no_stroke_nubs_if_available() {
   // turned lattice-phase fringe pixels (and, on the transformed raster,
   // stretched glyph-corner ramp tips) into isolated solid islands and the
   // band bloomed a square nub around each one.
+  int checked = 0;
   for (const auto* name : {"bad_stroke.psd", "bad_stroke_transformed.psd"}) {
     const auto path = patchy::test::local_psd_fixture_path(name);
     if (!std::filesystem::exists(path)) {
-      std::cout << "[SKIP] local " << name << " fixture missing: " << path.string() << '\n';
+      std::cout << "  note: optional fixture missing: " << patchy::test::fixture_display_path(path) << '\n';
       continue;
     }
+    ++checked;
     const auto document = patchy::psd::DocumentIo::read_file(path);
     const patchy::Layer* stroked = nullptr;
     for (const auto& layer : document.layers()) {
@@ -1352,6 +1354,9 @@ void psd_bad_stroke_text_has_no_stroke_nubs_if_available() {
     std::cout << name << " worst band distance from solid: " << worst << " (limit "
               << stroke.size + 2.0F << ")\n";
     CHECK(worst <= stroke.size + 2.0F);
+  }
+  if (checked == 0) {
+    patchy::test::skip("no optional fixture present (bad_stroke.psd, bad_stroke_transformed.psd)");
   }
 }
 

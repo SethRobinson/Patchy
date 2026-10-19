@@ -1464,10 +1464,7 @@ void af_reads_esdreika_wild_file_if_available() {
   // from their originals, and unnamed ImgN nodes taking their IRFN file name.
   const auto path = patchy::test::local_format_fixture_path(
       "af-spike/from_esdreika", "interior_textures_v3_1024k.afphoto");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] local wild fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   std::ifstream stream(path, std::ios::binary);
   const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)),
                                         std::istreambuf_iterator<char>());
@@ -1574,12 +1571,14 @@ void af_reads_old_generation_wild_files_if_available() {
   // unwrapped AND the nested v3-era document's BFil fill descriptor is read
   // (the logo is an orange-gradient curve). qlmarkdown-icon.afdesign: the
   // enabled gradient overlay's stops are HSLA color classes (white -> black).
+  std::size_t checked = 0;
   {
     const auto path = patchy::test::local_format_fixture_path("af-spike/web_samples",
                                                               "fladder-banner2.afphoto");
     if (!std::filesystem::exists(path)) {
-      std::cout << "[SKIP] local wild fixture missing: " << path.string() << '\n';
+      std::cout << "  note: optional fixture missing: " << patchy::test::fixture_display_path(path) << '\n';
     } else {
+      ++checked;
       std::ifstream stream(path, std::ios::binary);
       const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)),
                                             std::istreambuf_iterator<char>());
@@ -1604,8 +1603,9 @@ void af_reads_old_generation_wild_files_if_available() {
     const auto path = patchy::test::local_format_fixture_path("af-spike/web_samples",
                                                               "qlmarkdown-icon.afdesign");
     if (!std::filesystem::exists(path)) {
-      std::cout << "[SKIP] local wild fixture missing: " << path.string() << '\n';
+      std::cout << "  note: optional fixture missing: " << patchy::test::fixture_display_path(path) << '\n';
     } else {
+      ++checked;
       std::ifstream stream(path, std::ios::binary);
       const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)),
                                             std::istreambuf_iterator<char>());
@@ -1634,8 +1634,9 @@ void af_reads_old_generation_wild_files_if_available() {
     const auto path = patchy::test::local_format_fixture_path(
         "af-spike/web_samples2", "dbacchet_crt_mods_restorations__osd-mux-v2.afphoto");
     if (!std::filesystem::exists(path)) {
-      std::cout << "[SKIP] local wild fixture missing: " << path.string() << '\n';
+      std::cout << "  note: optional fixture missing: " << patchy::test::fixture_display_path(path) << '\n';
     } else {
+      ++checked;
       std::ifstream stream(path, std::ios::binary);
       const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)),
                                             std::istreambuf_iterator<char>());
@@ -1675,8 +1676,9 @@ void af_reads_old_generation_wild_files_if_available() {
     const auto path = patchy::test::local_format_fixture_path(
         "af-spike/web_samples2", "Hiswe_vh-check__issue-schema.afdesign");
     if (!std::filesystem::exists(path)) {
-      std::cout << "[SKIP] local wild fixture missing: " << path.string() << '\n';
+      std::cout << "  note: optional fixture missing: " << patchy::test::fixture_display_path(path) << '\n';
     } else {
+      ++checked;
       std::ifstream stream(path, std::ios::binary);
       const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)),
                                             std::istreambuf_iterator<char>());
@@ -1694,6 +1696,9 @@ void af_reads_old_generation_wild_files_if_available() {
       CHECK(probe(40, 500) == (std::array<std::uint8_t, 3>{68, 68, 85}));      // PFil outline
     }
   }
+  if (checked == 0) {
+    patchy::test::skip("no optional fixture present (af-spike/web_samples, web_samples2)");
+  }
 }
 
 void af_modern_embeds_are_center_anchored_if_available() {
@@ -1708,16 +1713,11 @@ void af_modern_embeds_are_center_anchored_if_available() {
     // The tier-1 import of this fixture holds a dozen 75-150 MB scan layers
     // live at once and exceeds a 32-bit address space (wasm32 throws
     // std::bad_alloc and falls back to the preview, which has no swash layer).
-    std::cout << "[SKIP] af_modern_embeds_are_center_anchored_if_available: "
-                 "this import needs a 64-bit address space\n";
-    return;
+    patchy::test::skip("this import needs a 64-bit address space");
   }
   const auto path =
       patchy::test::local_format_fixture_path("af-spike/corpus", "restaurant-menu-inside.af");
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] local corpus fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
   std::ifstream stream(path, std::ios::binary);
   const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)),
                                         std::istreambuf_iterator<char>());
@@ -1746,6 +1746,7 @@ void af_modern_embeds_are_center_anchored_if_available() {
 // enclosures compose through their owner node's transform, and Designer
 // symbol instances resolve geometry/paint through their SLnk/ILOb rings.
 void af_reads_affinity2_wild_files_if_available() {
+  std::size_t checked = 0;
   const auto read_document = [](const std::filesystem::path& path) {
     std::ifstream stream(path, std::ios::binary);
     const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(stream)),
@@ -1759,8 +1760,9 @@ void af_reads_affinity2_wild_files_if_available() {
     const auto path = patchy::test::local_format_fixture_path(
         "af-spike/web_samples2", "bluefeet_bluefeet.dev__favicon.afphoto");
     if (!std::filesystem::exists(path)) {
-      std::cout << "[SKIP] local wild fixture missing: " << path.string() << '\n';
+      std::cout << "  note: optional fixture missing: " << patchy::test::fixture_display_path(path) << '\n';
     } else {
+      ++checked;
       const auto document = read_document(path);
       CHECK(document.width() == 800);
       CHECK(document.height() == 800);
@@ -1775,8 +1777,9 @@ void af_reads_affinity2_wild_files_if_available() {
     const auto path = patchy::test::local_format_fixture_path(
         "af-spike/web_samples2", "paulgessinger_swift-paperless__single.afphoto");
     if (!std::filesystem::exists(path)) {
-      std::cout << "[SKIP] local wild fixture missing: " << path.string() << '\n';
+      std::cout << "  note: optional fixture missing: " << patchy::test::fixture_display_path(path) << '\n';
     } else {
+      ++checked;
       const auto document = read_document(path);
       const auto flat = patchy::flatten_document_rgba8(document);
       // A point inside the app screenshot area: opaque and bright (the
@@ -1794,8 +1797,9 @@ void af_reads_affinity2_wild_files_if_available() {
     const auto path = patchy::test::local_format_fixture_path(
         "af-spike/web_samples2", "spensbot_beat-bot__logo.afdesign");
     if (!std::filesystem::exists(path)) {
-      std::cout << "[SKIP] local wild fixture missing: " << path.string() << '\n';
+      std::cout << "  note: optional fixture missing: " << patchy::test::fixture_display_path(path) << '\n';
     } else {
+      ++checked;
       const auto document = read_document(path);
       const auto flat = patchy::flatten_document_rgba8(document);
       // A cheek point on each raccoon: opaque, blue-leaning fur (blue is the
@@ -1819,8 +1823,9 @@ void af_reads_affinity2_wild_files_if_available() {
     const auto path = patchy::test::local_format_fixture_path(
         "af-spike/web_samples2", "The-Noah_steam-screenshot-organizer__logo.afdesign");
     if (!std::filesystem::exists(path)) {
-      std::cout << "[SKIP] local wild fixture missing: " << path.string() << '\n';
+      std::cout << "  note: optional fixture missing: " << patchy::test::fixture_display_path(path) << '\n';
     } else {
+      ++checked;
       const auto document = read_document(path);
       const patchy::Layer* masked = nullptr;
       for (const auto& layer : document.layers()) {
@@ -1844,8 +1849,9 @@ void af_reads_affinity2_wild_files_if_available() {
     const auto path = patchy::test::local_format_fixture_path(
         "af-spike/web_samples2", "filiph_game_benchmarks__sprite.afdesign");
     if (!std::filesystem::exists(path)) {
-      std::cout << "[SKIP] local wild fixture missing: " << path.string() << '\n';
+      std::cout << "  note: optional fixture missing: " << patchy::test::fixture_display_path(path) << '\n';
     } else {
+      ++checked;
       const auto document = read_document(path);
       CHECK(document.width() == 64 && document.height() == 64);
       CHECK(document.layers().size() == 1);
@@ -1863,6 +1869,9 @@ void af_reads_affinity2_wild_files_if_available() {
       CHECK(edge[3] > 0);
       CHECK(edge[0] > 100 || edge[2] > 100);  // magenta-ish ring, not black
     }
+  }
+  if (checked == 0) {
+    patchy::test::skip("no optional fixture present (af-spike/web_samples2)");
   }
 }
 

@@ -375,10 +375,7 @@ void psd_photoshop_global_light_shadow_fixture_resolves_angle() {
 
 void psd_arrows_load_save_stays_compressed_if_available() {
   const auto path = arrows_fixture_path();
-  if (!std::filesystem::exists(path)) {
-    std::cout << "[SKIP] arrows PSD fixture missing: " << path.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
 
   const auto source_size = std::filesystem::file_size(path);
   const auto document = patchy::psd::DocumentIo::read_file(path);
@@ -1362,7 +1359,7 @@ void psd_compound_vectors_use_plugin_resource_and_read_legacy_markers() {
 void psd_compound_vectors_repair_little_everywhere_if_available() {
   using namespace patchy;
   const auto path = test::local_format_fixture_path("merge-visible", "Little-Everywhere_merged.psd");
-  if (!std::filesystem::exists(path)) { std::cout << "[SKIP] merged Little-Everywhere fixture missing\n"; return; }
+  patchy::test::skip_unless_exists(path);
   const auto document = psd::DocumentIo::read_file(path);
   CHECK(layer_tree_count(document.layers()) == 305);
   const auto repaired = psd::DocumentIo::write_layered_rgb8(document);
@@ -1383,11 +1380,7 @@ void psd_pinball_resave_writes_even_blocks_and_no_plad_if_available() {
   // Levels layer carried the private plAD key at an odd 143-byte length.
   const auto original =
       patchy::test::local_psd_fixture_path("pinball_retronight_poster_a3_from_photoshop.psd");
-  if (!std::filesystem::exists(original)) {
-    std::cout << "[SKIP] local pinball_retronight_poster_a3_from_photoshop.psd fixture missing: "
-              << original.string() << '\n';
-    return;
-  }
+  patchy::test::skip_unless_exists(original);
   const auto document = patchy::psd::DocumentIo::read_file(original);
   const auto resaved = patchy::psd::DocumentIo::write_layered_rgb8(document);
   const auto keys = collect_layer_block_keys_checking_even_envelopes(resaved, false);

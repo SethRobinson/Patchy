@@ -129,7 +129,7 @@ void psd_shape_solid_fixture_parses_and_renders() {
 void psd_aligned_double_stroke_rebuild_matches_photoshop_if_available() {
   const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "psd-tools" /
                     "tests" / "psd_files" / "effects" / "double-stroke-effects.psd";
-  if (!std::filesystem::exists(path)) { return; }
+  patchy::test::skip_unless_exists(path);
   auto document = patchy::psd::DocumentIo::read_file(path);
   const auto before = patchy::Compositor{}.flatten_rgb8(document);
   for (auto& layer : document.layers()) {
@@ -1608,9 +1608,8 @@ void psd_pattern_params_probe_render_parity_if_available() {
       patchy::test::local_format_fixture_path("vector-probe", "probe-pat-full-combo.psd");
   const auto reference_path =
       patchy::test::local_format_fixture_path("vector-probe", "probe-pat-full-combo.bmp");
-  if (!std::filesystem::exists(path) || !std::filesystem::exists(reference_path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
+  patchy::test::skip_unless_exists(reference_path);
   const auto document = patchy::psd::DocumentIo::read_file(path);
   CHECK(document.layers().size() == 2);
   const auto* fill_content = layer_at(document, 1).vector_shape();
@@ -1677,9 +1676,8 @@ void psd_interior_overlay_vs_stroke_probe_if_available() {
       patchy::test::local_format_fixture_path("vector-probe", "probe-fx-sofi-center.psd");
   const auto reference_path =
       patchy::test::local_format_fixture_path("vector-probe", "probe-fx-sofi-center.bmp");
-  if (!std::filesystem::exists(path) || !std::filesystem::exists(reference_path)) {
-    return;
-  }
+  patchy::test::skip_unless_exists(path);
+  patchy::test::skip_unless_exists(reference_path);
   const auto document = patchy::psd::DocumentIo::read_file(path);
   const auto reference_doc = patchy::bmp::DocumentIo::read_file(reference_path);
   const auto& reference = std::as_const(reference_doc).layers().front().pixels();
@@ -2488,13 +2486,15 @@ void psd_empty_user_masks_round_trip_all_layer_kinds() {
 }
 
 void psd_testy_legacy_fills_and_masks_round_trip_if_available() {
+  int checked = 0;
   for (const auto* filename : {"APP_Icon_1024x1024.psd",
                               "C2Kyoto Nintendo NES Cartridge Label Template (Front).psd"}) {
     const auto path = patchy::test::local_psd_fixture_path(filename);
     if (!std::filesystem::exists(path)) {
-      std::cout << "[SKIP] local legacy preservation fixture missing: " << filename << '\n';
+      std::cout << "  note: optional fixture missing: " << filename << '\n';
       continue;
     }
+    ++checked;
     const bool icon = std::string_view(filename).starts_with("APP_");
     const auto check = [icon](const Document& document) {
       std::size_t masks = 0;
@@ -2524,7 +2524,7 @@ void psd_testy_legacy_fills_and_masks_round_trip_if_available() {
         if (!icon) {
           // Import fits, but this 415-layer fixture's decoded data plus the
           // writer's buffers exceed wasm32's 4 GB address-space limit.
-          std::cout << "[SKIP] C2Kyoto legacy preservation save/readback needs a 64-bit address space; "
+          std::cout << "  note: C2Kyoto legacy preservation save/readback needs a 64-bit address space; "
                        "import checked\n";
           continue;
         }
@@ -2532,6 +2532,9 @@ void psd_testy_legacy_fills_and_masks_round_trip_if_available() {
       bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
     }  // Release decoded layers before decoding the saved bytes again.
     check(patchy::psd::DocumentIo::read(bytes));
+  }
+  if (checked == 0) {
+    patchy::test::skip("no optional fixture present (APP_Icon_1024x1024.psd, C2Kyoto NES cartridge label template)");
   }
 }
 
