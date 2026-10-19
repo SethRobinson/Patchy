@@ -41,6 +41,11 @@ public class PsOpenCheck {
 "@
 
 $log = [System.IO.Path]::GetTempFileName()
+if ($InventoryDir -ne '') {
+  # ExtendScript cannot create a file in a folder that does not exist.
+  New-Item -ItemType Directory -Force -Path $InventoryDir | Out-Null
+  $InventoryDir = (Resolve-Path $InventoryDir).Path
+}
 $inventoryJs = if ($InventoryDir -ne '') { ($InventoryDir -replace '\\', '/') } else { '' }
 
 # The watcher polls Photoshop's top-level windows for the prompt while the COM open blocks.
@@ -91,6 +96,8 @@ foreach ($file in $Files) {
   $logJs = $log -replace '\\', '/'
   $inventory = if ($inventoryJs -ne '') { $inventoryJs + '/' + [System.IO.Path]::GetFileName($full) + '.layers.txt' } else { '' }
   $jsx = @"
+var savedDialogs = app.displayDialogs;
+var savedRulerUnits = app.preferences.rulerUnits;
 app.displayDialogs = DialogModes.ERROR;
 app.preferences.rulerUnits = Units.PIXELS;
 var log = new File("$logJs");
@@ -114,6 +121,8 @@ if (d !== null) {
   }
   d.close(SaveOptions.DONOTSAVECHANGES);
 }
+app.preferences.rulerUnits = savedRulerUnits;
+app.displayDialogs = savedDialogs;
 "@
   $app.DoJavaScript($jsx) | Out-Null
 }
