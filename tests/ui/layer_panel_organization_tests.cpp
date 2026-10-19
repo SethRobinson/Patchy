@@ -2260,6 +2260,120 @@ void ui_layer_folder_toggle_saves_without_marking_modified() {
   CHECK(!require_layer_item(*reopened_list, QStringLiteral("Open Folder"))->data(Qt::UserRole + 3).toBool());
 }
 
+// An empty folder's arrow works like any other (GitHub issue 229): a PSD's closed empty
+// folder opens, an open one closes, Alt and Ctrl+Alt clicks keep their scope, and the
+// state saves to PSD.
+void ui_layer_empty_folder_disclosure_toggles_and_saves() {
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const auto psd_path = temp.filePath(QStringLiteral("empty-folders.psd"));
+  {
+    patchy::Document document(32, 32, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background",
+                             solid_pixels(32, 32, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
+    patchy::Layer closed_group(document.allocate_layer_id(), "Closed Empty", patchy::LayerKind::Group);
+    patchy::set_layer_group_expanded(closed_group, false);
+    document.add_layer(std::move(closed_group));
+    document.add_layer(patchy::Layer(document.allocate_layer_id(), "Open Empty", patchy::LayerKind::Group));
+    patchy::psd::DocumentIo::write_layered_rgb8_file(document, patchy::ui::to_filesystem_path(psd_path));
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, psd_path);
+  QApplication::processEvents();
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  if (layer_list == nullptr) {
+    return;
+  }
+  // Rows are rebuilt on every toggle, so refetch the disclosure button per click.
+  const auto disclosure_of = [layer_list](const QString& name) {
+    auto* row_widget = layer_list->itemWidget(require_layer_item(*layer_list, name));
+    CHECK(row_widget != nullptr);
+    auto* disclosure = row_widget == nullptr
+                           ? nullptr
+                           : row_widget->findChild<QToolButton*>(QStringLiteral("layerFolderDisclosureButton"));
+    CHECK(disclosure != nullptr);
+    return disclosure;
+  };
+  const auto click_disclosure = [&disclosure_of](const QString& name, Qt::KeyboardModifiers modifiers) {
+    auto* disclosure = disclosure_of(name);
+    if (disclosure == nullptr) {
+      return;
+    }
+    CHECK(disclosure->isEnabled());
+    const auto center = disclosure->rect().center();
+    send_mouse(*disclosure, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton, modifiers);
+    send_mouse(*disclosure, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton, modifiers);
+    QApplication::processEvents();
+    QApplication::processEvents();
+  };
+  const auto collapsed = [layer_list](const QString& name) {
+    return !require_layer_item(*layer_list, name)->data(patchy::ui::kLayerGroupExpandedRole).toBool();
+  };
+
+  CHECK(collapsed(QStringLiteral("Closed Empty")));
+  CHECK(!collapsed(QStringLiteral("Open Empty")));
+  for (const auto& name : {QStringLiteral("Closed Empty"), QStringLiteral("Open Empty")}) {
+    auto* disclosure = disclosure_of(name);
+    CHECK(disclosure != nullptr && disclosure->isEnabled());
+  }
+  CHECK(disclosure_of(QStringLiteral("Closed Empty"))->toolTip().startsWith(QStringLiteral("Expand folder")));
+  CHECK(disclosure_of(QStringLiteral("Open Empty"))->toolTip().startsWith(QStringLiteral("Collapse folder")));
+
+  click_disclosure(QStringLiteral("Closed Empty"), Qt::NoModifier);
+  CHECK(!collapsed(QStringLiteral("Closed Empty")));
+  CHECK(disclosure_of(QStringLiteral("Closed Empty"))->arrowType() == Qt::DownArrow);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Folder expanded"));
+  click_disclosure(QStringLiteral("Open Empty"), Qt::AltModifier);
+  CHECK(collapsed(QStringLiteral("Open Empty")));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Folder and nested folders collapsed"));
+  // Ctrl+Alt sets every folder to the clicked empty folder's new state.
+  click_disclosure(QStringLiteral("Open Empty"), Qt::ControlModifier | Qt::AltModifier);
+  CHECK(!collapsed(QStringLiteral("Open Empty")));
+  CHECK(!collapsed(QStringLiteral("Closed Empty")));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("All folders expanded"));
+  click_disclosure(QStringLiteral("Closed Empty"), Qt::ControlModifier | Qt::AltModifier);
+  CHECK(collapsed(QStringLiteral("Open Empty")));
+  CHECK(collapsed(QStringLiteral("Closed Empty")));
+  click_disclosure(QStringLiteral("Closed Empty"), Qt::NoModifier);
+  CHECK(!collapsed(QStringLiteral("Closed Empty")));
+  CHECK(collapsed(QStringLiteral("Open Empty")));
+
+  const auto group_expanded = [](const patchy::Document& document, const std::string& name) {
+    for (const auto& layer : document.layers()) {
+      if (layer.name() == name) {
+        CHECK(layer.kind() == patchy::LayerKind::Group);
+        CHECK(layer.children().empty());
+        return patchy::layer_group_expanded(layer);
+      }
+    }
+    CHECK(false);
+    return false;
+  };
+  CHECK(patchy::ui::MainWindowTestAccess::save_document(window));
+  const auto saved = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(psd_path));
+  CHECK(group_expanded(saved, "Closed Empty"));
+  CHECK(!group_expanded(saved, "Open Empty"));
+
+  patchy::ui::MainWindow reopened;
+  show_window(reopened);
+  patchy::ui::MainWindowTestAccess::open_document_path(reopened, psd_path);
+  QApplication::processEvents();
+  auto* reopened_list = reopened.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(reopened_list != nullptr);
+  if (reopened_list != nullptr) {
+    // Saved the other way round from how the file came in.
+    CHECK(require_layer_item(*reopened_list, QStringLiteral("Closed Empty"))
+              ->data(patchy::ui::kLayerGroupExpandedRole)
+              .toBool());
+    CHECK(!require_layer_item(*reopened_list, QStringLiteral("Open Empty"))
+               ->data(patchy::ui::kLayerGroupExpandedRole)
+               .toBool());
+  }
+}
+
 void ui_layer_folder_alt_click_toggles_nested_folders() {
   patchy::Document document(32, 32, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background",
@@ -4254,6 +4368,7 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
       {"ui_layer_folders_expand_and_contract_children", ui_layer_folders_expand_and_contract_children},
       {"ui_layer_folders_open_with_saved_expansion_state", ui_layer_folders_open_with_saved_expansion_state},
       {"ui_layer_folder_toggle_saves_without_marking_modified", ui_layer_folder_toggle_saves_without_marking_modified},
+      {"ui_layer_empty_folder_disclosure_toggles_and_saves", ui_layer_empty_folder_disclosure_toggles_and_saves},
       {"ui_move_auto_select_reveals_layers_in_collapsed_folders",
        ui_move_auto_select_reveals_layers_in_collapsed_folders},
       {"ui_folder_visibility_preserves_layer_panel_scroll", ui_folder_visibility_preserves_layer_panel_scroll},

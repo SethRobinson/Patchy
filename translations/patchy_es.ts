@@ -6179,10 +6179,6 @@ Flujo: %6
         <translation>Recortada a la capa inferior. Haga clic para liberarla.</translation>
     </message>
     <message>
-        <source>Folder is empty</source>
-        <translation>La carpeta está vacía</translation>
-    </message>
-    <message>
         <source>Collapse folder (%ALT%-click includes nested folders, %CTRL%+%ALT%-click all folders)</source>
         <translation>Contraer carpeta (%ALT%+clic incluye las carpetas anidadas, %CTRL%+%ALT%+clic todas las carpetas)</translation>
     </message>

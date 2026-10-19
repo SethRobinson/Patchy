@@ -6169,10 +6169,6 @@ Flow: %6
         <translation>已剪贴到下方图层。单击可释放。</translation>
     </message>
     <message>
-        <source>Folder is empty</source>
-        <translation>文件夹为空</translation>
-    </message>
-    <message>
         <source>Collapse folder (%ALT%-click includes nested folders, %CTRL%+%ALT%-click all folders)</source>
         <translation>折叠文件夹 (%ALT%+单击包含嵌套文件夹，%CTRL%+%ALT%+单击折叠所有文件夹)</translation>
     </message>

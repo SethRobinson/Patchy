@@ -1447,15 +1447,14 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     disclosure->setArrowType(group_expanded ? Qt::DownArrow : Qt::RightArrow);
     disclosure->setToolButtonStyle(Qt::ToolButtonIconOnly);
     disclosure->setFixedSize(kLayerFolderDisclosureWidth, kLayerFolderDisclosureHeight);
-    disclosure->setEnabled(!layer.children().empty());
+    // An empty folder toggles too (GitHub issue 229): a new folder can be closed before
+    // anything goes in, and a PSD's closed empty folder can be opened.
     disclosure->setToolTip(
-        layer.children().empty()
-            ? QObject::tr("Folder is empty")
-            : group_expanded
-                ? resolve_modifier_names(QObject::tr(
-                      "Collapse folder (%ALT%-click includes nested folders, %CTRL%+%ALT%-click all folders)"))
-                : resolve_modifier_names(QObject::tr(
-                      "Expand folder (%ALT%-click includes nested folders, %CTRL%+%ALT%-click all folders)")));
+        group_expanded
+            ? resolve_modifier_names(QObject::tr(
+                  "Collapse folder (%ALT%-click includes nested folders, %CTRL%+%ALT%-click all folders)"))
+            : resolve_modifier_names(QObject::tr(
+                  "Expand folder (%ALT%-click includes nested folders, %CTRL%+%ALT%-click all folders)")));
     disclosure->installEventFilter(new ClickModifierRecorder(disclosure));
     QObject::connect(disclosure, &QToolButton::clicked, row,
                      [parent, disclosure, id = layer.id(),
@@ -2641,7 +2640,7 @@ void MainWindow::reorder_layers_from_list() {
 
 void MainWindow::toggle_layer_folder_expanded(LayerId id, bool include_nested) {
   const auto* layer = document().find_layer(id);
-  if (layer == nullptr || layer->kind() != LayerKind::Group || layer->children().empty()) {
+  if (layer == nullptr || layer->kind() != LayerKind::Group) {
     return;
   }
 
@@ -2668,7 +2667,7 @@ void MainWindow::toggle_layer_folder_expanded(LayerId id, bool include_nested) {
 
 void MainWindow::toggle_all_layer_folders_expanded(LayerId reference_id) {
   const auto* layer = document().find_layer(reference_id);
-  if (layer == nullptr || layer->kind() != LayerKind::Group || layer->children().empty()) {
+  if (layer == nullptr || layer->kind() != LayerKind::Group) {
     return;
   }
 

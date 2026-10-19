@@ -6174,10 +6174,6 @@ Flow: %6
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Folder is empty</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Collapse folder (%ALT%-click includes nested folders, %CTRL%+%ALT%-click all folders)</source>
         <translation type="unfinished"></translation>
     </message>

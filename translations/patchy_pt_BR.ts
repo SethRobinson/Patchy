@@ -6426,10 +6426,6 @@ Fluxo: %6
         <translation>Recortada pela camada abaixo. Clique para liberar.</translation>
     </message>
     <message>
-        <source>Folder is empty</source>
-        <translation>A pasta está vazia</translation>
-    </message>
-    <message>
         <source>Collapse folder (%ALT%-click includes nested folders, %CTRL%+%ALT%-click all folders)</source>
         <translation>Recolher pasta (%ALT%-clique inclui pastas aninhadas, %CTRL%+%ALT%-clique em todas as pastas)</translation>
     </message>

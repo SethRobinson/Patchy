@@ -6437,10 +6437,6 @@ Przepływ:%6
         <translation>Przycięty do warstwy poniżej. Kliknij, aby zwolnić.</translation>
     </message>
     <message>
-        <source>Folder is empty</source>
-        <translation>Folder jest pusty</translation>
-    </message>
-    <message>
         <source>Collapse folder (%ALT%-click includes nested folders, %CTRL%+%ALT%-click all folders)</source>
         <translation>Zwiń folder (%ALT%-kliknięcie uwzględnia foldery zagnieżdżone, %CTRL%+%ALT%-kliknięcie wszystkich folderów)</translation>
     </message>

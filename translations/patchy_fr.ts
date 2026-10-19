@@ -6179,10 +6179,6 @@ Flux : %6
         <translation>Écrêté sur le calque inférieur. Cliquez pour annuler l&apos;écrêtage.</translation>
     </message>
     <message>
-        <source>Folder is empty</source>
-        <translation>Le dossier est vide</translation>
-    </message>
-    <message>
         <source>Collapse folder (%ALT%-click includes nested folders, %CTRL%+%ALT%-click all folders)</source>
         <translation>Réduire le dossier (%ALT%-clic inclut les sous-dossiers, %CTRL%+%ALT%-clic tous les dossiers)</translation>
     </message>

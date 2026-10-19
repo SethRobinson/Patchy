@@ -6179,10 +6179,6 @@ Flusso: %6
         <translation>Ritagliato sul livello sottostante. Fai clic per rilasciare.</translation>
     </message>
     <message>
-        <source>Folder is empty</source>
-        <translation>La cartella è vuota</translation>
-    </message>
-    <message>
         <source>Collapse folder (%ALT%-click includes nested folders, %CTRL%+%ALT%-click all folders)</source>
         <translation>Comprimi cartella (%ALT%+clic include le cartelle nidificate, %CTRL%+%ALT%+clic tutte le cartelle)</translation>
     </message>

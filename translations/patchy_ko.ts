@@ -6415,10 +6415,6 @@ Flow: %6
         <translation>아래 레이어에 클리핑됩니다. 해제하려면 클릭하세요.</translation>
     </message>
     <message>
-        <source>Folder is empty</source>
-        <translation>폴더가 비어 있습니다.</translation>
-    </message>
-    <message>
         <source>Collapse folder (%ALT%-click includes nested folders, %CTRL%+%ALT%-click all folders)</source>
         <translation>폴더 접기(%ALT%-클릭: 하위 폴더 포함, %CTRL%+%ALT%-클릭: 모든 폴더)</translation>
     </message>

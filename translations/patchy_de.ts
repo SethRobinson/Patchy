@@ -6179,10 +6179,6 @@ Textfluss: %6
         <translation>Auf die darunterliegende Ebene beschnitten. Klicken, um die Schnittmaske zu lösen.</translation>
     </message>
     <message>
-        <source>Folder is empty</source>
-        <translation>Der Ordner ist leer</translation>
-    </message>
-    <message>
         <source>Collapse folder (%ALT%-click includes nested folders, %CTRL%+%ALT%-click all folders)</source>
         <translation>Ordner einklappen (%ALT%-Klick: auch verschachtelte Ordner, %CTRL%+%ALT%-Klick: alle Ordner)</translation>
     </message>

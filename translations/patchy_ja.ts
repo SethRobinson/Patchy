@@ -3243,10 +3243,6 @@ Flow: %6
         <translation>、%1</translation>
     </message>
     <message>
-        <source>Folder is empty</source>
-        <translation>フォルダーは空です</translation>
-    </message>
-    <message>
         <source>Collapse folder (%ALT%-click includes nested folders, %CTRL%+%ALT%-click all folders)</source>
         <translation>フォルダーを折りたたむ（%ALT%クリックで中のフォルダーもまとめて、%CTRL%+%ALT%クリックで全フォルダー）</translation>
     </message>

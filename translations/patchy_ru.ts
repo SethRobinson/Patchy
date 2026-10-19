@@ -6437,10 +6437,6 @@ Flow: %6
         <translation>Применена обтравочная маска по нижележащему слою. Щёлкните, чтобы освободить.</translation>
     </message>
     <message>
-        <source>Folder is empty</source>
-        <translation>Папка пуста</translation>
-    </message>
-    <message>
         <source>Collapse folder (%ALT%-click includes nested folders, %CTRL%+%ALT%-click all folders)</source>
         <translation>Свернуть папку (щелчок %ALT% включает вложенные папки, клик %CTRL%+%ALT% — все папки)</translation>
     </message>

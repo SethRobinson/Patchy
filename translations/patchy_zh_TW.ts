@@ -6169,10 +6169,6 @@ Flow: %6
         <translation>已剪裁至下方圖層。按一下可釋放。</translation>
     </message>
     <message>
-        <source>Folder is empty</source>
-        <translation>資料夾是空的</translation>
-    </message>
-    <message>
         <source>Collapse folder (%ALT%-click includes nested folders, %CTRL%+%ALT%-click all folders)</source>
         <translation>收合資料夾（按住 %ALT% 按一下可包含巢狀資料夾，按住 %CTRL%+%ALT% 按一下可套用至所有資料夾）</translation>
     </message>
