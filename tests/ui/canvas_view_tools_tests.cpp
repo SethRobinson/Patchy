@@ -60,6 +60,7 @@
 #include <QPointer>
 #include <QProxyStyle>
 #include <QPixmap>
+#include <QAbstractButton>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QStringList>
@@ -3659,7 +3660,7 @@ void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
   CHECK(properties_dock->height() <= 240);
   CHECK(window.minimumSizeHint().height() <= 780);
   CHECK(layer_list->contextMenuPolicy() == Qt::CustomContextMenu);
-  const auto layer_action_buttons = window.findChildren<QPushButton*>();
+  const auto layer_action_buttons = window.findChildren<QAbstractButton*>();
   int visible_layer_action_buttons = 0;
   for (const auto* button : layer_action_buttons) {
     if (button->property("layerActionButton").toBool()) {
@@ -3672,9 +3673,9 @@ void ui_right_docks_collapse_layers_show_metadata_and_info_updates() {
       CHECK(button->iconSize().height() >= 24);
     }
   }
-  // add, folder, add mask, duplicate, rename, animation preview, delete (the adjustment
-  // button is a QToolButton and is not counted here).
-  CHECK(visible_layer_action_buttons == 7);
+  // add, folder, adjustment, layer styles, add mask, duplicate, animation preview,
+  // delete (rename lives on the row and its context menu, GitHub issue 94).
+  CHECK(visible_layer_action_buttons == 8);
   CHECK(history_toggle != nullptr);
   CHECK(properties_toggle != nullptr);
   CHECK(info_toggle != nullptr);

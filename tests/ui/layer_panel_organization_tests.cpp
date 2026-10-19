@@ -3132,7 +3132,7 @@ void ui_layer_blend_row_wraps_in_narrow_panel() {
 }
 
 // GitHub issue 199: below the width the column opens at, the Layers panel
-// rows wrap instead of clipping: the footer buttons narrow and then wrap five
+// rows wrap instead of clipping: the footer buttons narrow and then wrap four
 // over four, Fill drops under Opacity, and the name filter takes a line of its
 // own. The compact width (every row wrapped) sits far under the opening width,
 // and there every control is whole, apart, and inside the panel, with no
@@ -3185,13 +3185,13 @@ void ui_layer_panel_compact_width_keeps_controls_whole() {
       const char* name;
       bool natural_width;  // laid out at its own width hint, never narrower
     };
-    const std::array<Control, 18> controls{{
+    const std::array<Control, 17> controls{{
         {"layerBlendModeCombo", true},     {"layerOpacitySpin", true},         {"layerFillOpacitySpin", true},
         {"layerLockTransparentButton", true}, {"layerLockPixelsButton", true}, {"layerLockPositionButton", true},
         {"layerLockAllButton", true},      {"layerNameFilterEdit", false},     {"layerList", false},
         {"layerNewButton", false},         {"layerNewFolderButton", false},    {"layerNewAdjustmentButton", false},
         {"layerStylesButton", false},      {"layerAddMaskButton", false},      {"layerDuplicateButton", false},
-        {"layerRenameButton", false},      {"layerAnimationButton", false},    {"layerDeleteButton", false},
+        {"layerAnimationButton", false},   {"layerDeleteButton", false},
     }};
     std::vector<QRect> rects;
     for (const auto& control : controls) {
