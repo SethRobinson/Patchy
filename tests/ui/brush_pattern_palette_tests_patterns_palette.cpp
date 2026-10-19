@@ -9,6 +9,7 @@
 #include "ui/palette_panel.hpp"
 #include "ui/pattern_library.hpp"
 #include "ui/brush_tip_library.hpp"
+#include "ui/brush_automation.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/brush_tip_picker.hpp"
 #include "ui/color_panel.hpp"
@@ -39,6 +40,8 @@
 #include <QFrame>
 #include <QImage>
 #include <QImageReader>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLabel>
 #include <QTemporaryDir>
 #include <QMimeData>
@@ -75,6 +78,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <utility>
 #include <vector>
 #include "ui_test_access.hpp"
@@ -1811,6 +1815,134 @@ void ui_pattern_library_delete_requires_tile_removal() {
   CHECK(QFileInfo(sidecar_path).isDir());  // sidecar cleanup is deliberately best-effort
 }
 
+// The startup preloads (docs/startup-performance.md) read and seed the libraries on a worker
+// thread and the window adopts the result. What it adopts must equal what the constructor
+// builds on the GUI thread, and the files the worker wrote must read back the same.
+bool same_pixel_tiles(const patchy::PixelBuffer& a, const patchy::PixelBuffer& b) {
+  if (a.width() != b.width() || a.height() != b.height() || a.format() != b.format()) {
+    return false;
+  }
+  for (std::int32_t y = 0; y < a.height(); ++y) {
+    const auto row_a = a.row(y);
+    const auto row_b = b.row(y);
+    if (row_a.size() != row_b.size() || std::memcmp(row_a.data(), row_b.data(), row_a.size()) != 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
+void ui_pattern_library_off_thread_load_matches_direct_load() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  const auto worker_dir = directory.filePath(QStringLiteral("worker"));
+  patchy::ui::PatternLibraryLoad load;
+  std::thread worker([&load, &worker_dir] {
+    load = patchy::ui::PatternLibrary::load_off_gui_thread(
+        worker_dir, [](patchy::ui::PatternLibrary& library) { return library.restore_default_patterns(0); });
+  });
+  worker.join();
+  const auto prepared = load.prepared;
+  CHECK(prepared > 0);
+  const std::unique_ptr<patchy::ui::PatternLibrary> adopted(patchy::ui::PatternLibrary::from_load(std::move(load)));
+  patchy::ui::PatternLibrary direct(directory.filePath(QStringLiteral("direct")));
+  CHECK(direct.restore_default_patterns(0) == prepared);
+  const patchy::ui::PatternLibrary reread(worker_dir);
+
+  const auto same = [](const patchy::ui::PatternLibrary& a, const patchy::ui::PatternLibrary& b) {
+    CHECK(a.entries().size() == b.entries().size());
+    for (std::size_t index = 0; index < a.entries().size(); ++index) {
+      const auto& x = a.entries()[index];
+      const auto& y = b.entries()[index];
+      CHECK(x.id == y.id);
+      CHECK(x.source_id == y.source_id);
+      CHECK(x.name == y.name);
+      CHECK(x.folder == y.folder);
+      CHECK(x.size == y.size);
+      CHECK(!x.thumbnail.isNull());
+      CHECK(x.thumbnail.toImage() == y.thumbnail.toImage());
+      const auto tile_x = a.resource(x.id);
+      const auto tile_y = b.resource(y.id);
+      CHECK(tile_x.has_value() && tile_y.has_value());
+      CHECK(same_pixel_tiles(tile_x->tile, tile_y->tile));
+    }
+  };
+  same(*adopted, direct);
+  same(*adopted, reread);
+  CHECK(adopted->default_patterns_match_factory());
+}
+
+void ui_brush_tip_library_off_thread_load_matches_direct_load() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  const auto worker_dir = directory.filePath(QStringLiteral("worker"));
+  const auto seed = [](patchy::ui::BrushTipLibrary& library) {
+    library.restore_default_tips(0);
+    library.apply_default_tip_dynamics();
+  };
+  patchy::ui::BrushTipLibraryLoad load;
+  std::thread worker([&load, &worker_dir, &seed] {
+    load = patchy::ui::BrushTipLibrary::load_off_gui_thread(worker_dir, seed);
+  });
+  worker.join();
+  // The signature covers the seeded files, so the automation library below needs no reload.
+  CHECK(load.loaded_signature == patchy::ui::preset_storage_signature(worker_dir));
+  const std::unique_ptr<patchy::ui::BrushTipLibrary> adopted(patchy::ui::BrushTipLibrary::from_load(std::move(load)));
+  patchy::ui::BrushTipLibrary direct(directory.filePath(QStringLiteral("direct")));
+  seed(direct);
+  const patchy::ui::BrushTipLibrary reread(worker_dir);
+  CHECK(!adopted->entries().empty());
+
+  // Thumbnails are compared against the direct build only: a reread makes them from the decoded
+  // PNG, the seeding from the generated tip, which the old code never promised to match.
+  const auto same = [](const patchy::ui::BrushTipLibrary& a, const patchy::ui::BrushTipLibrary& b,
+                       bool same_thumbnails) {
+    CHECK(a.entries().size() == b.entries().size());
+    for (std::size_t index = 0; index < a.entries().size(); ++index) {
+      const auto& x = a.entries()[index];
+      const auto& y = b.entries()[index];
+      CHECK(x.name == y.name);
+      CHECK(x.folder == y.folder);
+      CHECK(x.spacing == y.spacing);
+      CHECK(x.base_angle_degrees == y.base_angle_degrees);
+      CHECK(x.base_roundness == y.base_roundness);
+      CHECK(patchy::ui::brush_dynamics_to_json(x.dynamics) == patchy::ui::brush_dynamics_to_json(y.dynamics));
+      CHECK(x.tool_flow_percent == y.tool_flow_percent);
+      CHECK(x.tool_airbrush == y.tool_airbrush);
+      CHECK(x.size == y.size);
+      CHECK(!x.thumbnail.isNull());
+      CHECK(!same_thumbnails || x.thumbnail.toImage() == y.thumbnail.toImage());
+      const auto tip_x = a.tip(x.id);
+      const auto tip_y = b.tip(y.id);
+      CHECK(tip_x != nullptr && tip_y != nullptr);
+      CHECK(tip_x->width == tip_y->width && tip_x->height == tip_y->height && tip_x->mask == tip_y->mask);
+    }
+  };
+  same(*adopted, direct, true);
+  same(*adopted, reread, false);
+
+  // The automation library's first refresh used to reload every tip right after the library
+  // had read them; it must not, yet a later edit by another process still reloads.
+  int reloads = 0;
+  QObject::connect(adopted.get(), &patchy::ui::BrushTipLibrary::changed, [&reloads] { ++reloads; });
+  patchy::ui::BrushAutomationLibrary automation(*adopted, nullptr, directory.filePath(QStringLiteral("presets")));
+  CHECK(reloads == 0);
+  const auto renamed_id = adopted->entries().front().id;
+  {
+    QFile sidecar(QDir(worker_dir).filePath(renamed_id + QStringLiteral(".json")));
+    CHECK(sidecar.open(QIODevice::ReadOnly));
+    auto object = QJsonDocument::fromJson(sidecar.readAll()).object();
+    sidecar.close();
+    object.insert(QStringLiteral("name"), QStringLiteral("Renamed Elsewhere"));
+    CHECK(sidecar.open(QIODevice::WriteOnly | QIODevice::Truncate));
+    CHECK(sidecar.write(QJsonDocument(object).toJson()) > 0);
+  }
+  automation.refresh();
+  CHECK(reloads == 1);
+  const auto* renamed = adopted->find_entry(renamed_id);
+  CHECK(renamed != nullptr && renamed->name == QStringLiteral("Renamed Elsewhere"));
+}
+
 void ui_default_patterns_seed_once_and_restore() {
   clear_pattern_test_state();
   clear_brush_tip_test_state();
@@ -2083,6 +2215,10 @@ std::vector<patchy::test::TestCase> brush_pattern_palette_tests_part1() {
        ui_pattern_library_delete_requires_tile_removal},
       {"ui_pattern_library_imports_image_files", ui_pattern_library_imports_image_files},
       {"ui_default_patterns_seed_once_and_restore", ui_default_patterns_seed_once_and_restore},
+      {"ui_pattern_library_off_thread_load_matches_direct_load",
+       ui_pattern_library_off_thread_load_matches_direct_load},
+      {"ui_brush_tip_library_off_thread_load_matches_direct_load",
+       ui_brush_tip_library_off_thread_load_matches_direct_load},
       {"ui_brush_tip_softness_feathers_stroke_and_size_reaches_1024",
        ui_brush_tip_softness_feathers_stroke_and_size_reaches_1024},
       {"ui_palette_panel_click_sets_foreground_and_chip_tracks_mode",

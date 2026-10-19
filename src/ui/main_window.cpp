@@ -4268,6 +4268,8 @@ bool text_transform_keeps_missing_font_pixels(const Layer& layer) {
 }
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
+  // First, so the workers overlap everything below (docs/startup-performance.md).
+  start_library_preloads();
   // Startup phases (docs/startup-performance.md); each is one bool test when tracing is off.
   startup_trace::Scope recovery_phase("mw.recovery_start");
   // Installed before the first statusBar() call so every showMessage goes through the

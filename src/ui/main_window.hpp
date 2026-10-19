@@ -159,6 +159,7 @@ class PalettePanel;
 class PathsPanel;
 class StartPanel;
 class PatternLibrary;
+struct StartupLibraryPreloads;
 class GradientLibrary;
 class ScriptEngineHost;
 class ScriptEditorDialog;
@@ -2466,6 +2467,11 @@ private:
   QString active_automation_preset_id_;
   std::optional<ScriptStroke> active_automation_brush_;
   PatternLibrary* pattern_library_{nullptr};
+  // Workers that read, decode and seed preset libraries while the window is built;
+  // the getters adopt their results (docs/startup-performance.md).
+  std::shared_ptr<StartupLibraryPreloads> library_preloads_;
+  void start_library_preloads();
+  void adopt_preloaded_pattern_library();
   GradientLibrary* gradient_library_{nullptr};
   CustomShapeLibrary* custom_shape_library_{nullptr};
   StyleLibrary* style_library_{nullptr};

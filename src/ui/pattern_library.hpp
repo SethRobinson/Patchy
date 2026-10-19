@@ -3,11 +3,13 @@
 #include "core/pattern_resource.hpp"
 #include "ui/preset_library.hpp"
 
+#include <QImage>
 #include <QPixmap>
 #include <QSize>
 #include <QString>
 #include <QStringList>
 
+#include <functional>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -42,6 +44,16 @@ struct PatternLibraryTraits {
 
 using PatternLibraryBase = PresetLibraryT<PatternLibraryTraits>;
 
+// A library read (and seeded) off the GUI thread, waiting to be adopted by
+// PatternLibrary::from_load(). Thumbnails stay QImages here: QPixmap is GUI-thread only.
+struct PatternLibraryLoad {
+  QString storage_dir;
+  std::vector<PatternLibraryEntry> entries;  // thumbnails empty
+  std::vector<QImage> thumbnails;            // parallel to entries
+  std::vector<std::pair<QString, PixelBuffer>> tile_cache;
+  int prepared = 0;  // what the prepare step returned (patterns it added)
+};
+
 // Persistent application-wide pattern collection. Each entry is one lossless
 // RGBA PNG plus a JSON sidecar {"id", "sourceId" (when remapped), "name",
 // "folder"} in
@@ -54,6 +66,16 @@ class PatternLibrary : public PatternLibraryBase {
 public:
   // storage_dir is overridable for tests; empty = <settings dir>/patterns.
   explicit PatternLibrary(QString storage_dir = {}, QObject* parent = nullptr);
+
+  // Adopts a load_off_gui_thread() result: the same library the constructor builds,
+  // without reading or decoding anything (docs/startup-performance.md). GUI thread.
+  [[nodiscard]] static PatternLibrary* from_load(PatternLibraryLoad load, QObject* parent = nullptr);
+  // What the constructor reads, done on any thread: loads `storage_dir` (resolve it with
+  // resolved_storage_dir() on the GUI thread first), then runs `prepare` on that library
+  // (default seeding; it returns how many patterns it added).
+  [[nodiscard]] static PatternLibraryLoad load_off_gui_thread(
+      const QString& storage_dir, const std::function<int(PatternLibrary&)>& prepare = {});
+  [[nodiscard]] static QString resolved_storage_dir(QString storage_dir = {});
 
   [[nodiscard]] const PatternLibraryEntry* find_entry_by_pattern_id(const QString& id) const;
 
@@ -122,6 +144,15 @@ public:
   int reset_default_patterns_to_factory();
 
 private:
+  struct OffGuiThread {};
+  struct Adopt {};
+  PatternLibrary(const QString& storage_dir, OffGuiThread);
+  PatternLibrary(PatternLibraryLoad load, QObject* parent, Adopt);
+  // QPixmap off the GUI thread is not allowed: a worker-side library keeps QImages aside.
+  void set_thumbnail(PatternLibraryEntry& entry, const PixelBuffer& tile);
+  bool off_gui_thread_ = false;
+  std::vector<std::pair<QString, QImage>> pending_thumbnails_;
+
   void reload();
   QString add_pattern_internal(const QString& name, const PixelBuffer& tile,
                                const QString& folder, const QString& pattern_id,
@@ -149,5 +180,7 @@ private:
 
 // Checkerboard-backed, repeated-tile preview shared by pickers and the manager.
 [[nodiscard]] QPixmap pattern_thumbnail(const PixelBuffer& tile, int extent = 48);
+// The same picture as a QImage, safe on any thread.
+[[nodiscard]] QImage pattern_thumbnail_image(const PixelBuffer& tile, int extent = 48);
 
 }  // namespace patchy::ui

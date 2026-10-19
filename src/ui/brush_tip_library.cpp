@@ -5,6 +5,8 @@
 #include "ui/app_settings.hpp"
 #include "ui/localization.hpp"
 
+#include <QCryptographicHash>
+#include <QDateTime>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -209,6 +211,27 @@ QString abr_import_summary(int imported, const QStringList& warnings) {
 }
 
 QPixmap brush_tip_thumbnail(const patchy::BrushTip& tip, int extent) {
+  return QPixmap::fromImage(brush_tip_thumbnail_image(tip, extent));
+}
+
+QByteArray preset_storage_signature(const QString& directory) {
+  QByteArray signature;
+  for (const auto& file : QDir(directory).entryInfoList({"*.json", "*.png"}, QDir::Files, QDir::Name)) {
+    signature += file.absoluteFilePath().toUtf8() + QByteArray::number(file.size()) +
+                 QByteArray::number(file.lastModified().toMSecsSinceEpoch());
+    // Same-size edits can commit within one millisecond. Include JSON content so
+    // those updates cannot evade cross-process refresh or attached state tokens.
+    if (file.suffix() == "json" && file.size() <= 32 * 1024 * 1024) {
+      QFile json(file.absoluteFilePath());
+      if (json.open(QIODevice::ReadOnly)) {
+        signature += QCryptographicHash::hash(json.readAll(), QCryptographicHash::Sha256);
+      }
+    }
+  }
+  return signature;
+}
+
+QImage brush_tip_thumbnail_image(const patchy::BrushTip& tip, int extent) {
   QImage canvas(extent, extent, QImage::Format_ARGB32_Premultiplied);
   canvas.fill(Qt::transparent);
   QPainter painter(&canvas);
@@ -234,7 +257,7 @@ QPixmap brush_tip_thumbnail(const patchy::BrushTip& tip, int extent) {
     painter.drawImage((extent - fitted.width()) / 2, (extent - fitted.height()) / 2, fitted);
   }
   painter.end();
-  return QPixmap::fromImage(canvas);
+  return canvas;
 }
 
 struct BrushTipLibrary::StoredTip {
@@ -247,6 +270,70 @@ BrushTipLibrary::BrushTipLibrary(QString storage_dir, QObject* parent)
   reload();
 }
 
+BrushTipLibrary::BrushTipLibrary(const QString& storage_dir, OffGuiThread)
+    : BrushTipLibraryBase(storage_dir, nullptr) {
+  off_gui_thread_ = true;
+  reload();
+}
+
+BrushTipLibrary* BrushTipLibrary::from_load(BrushTipLibraryLoad load, QObject* parent) {
+  return new BrushTipLibrary(std::move(load), parent, Adopt{});
+}
+
+BrushTipLibrary::BrushTipLibrary(BrushTipLibraryLoad load, QObject* parent, Adopt)
+    : BrushTipLibraryBase(std::move(load.storage_dir), parent) {
+  entries_ = std::move(load.entries);
+  for (std::size_t index = 0; index < entries_.size() && index < load.thumbnails.size(); ++index) {
+    entries_[index].thumbnail = QPixmap::fromImage(load.thumbnails[index]);
+  }
+  tip_cache_ = std::move(load.tip_cache);
+  loaded_signature_ = std::move(load.loaded_signature);
+}
+
+QString BrushTipLibrary::resolved_storage_dir(QString storage_dir) {
+  return resolve_storage_dir(automation_storage_dir(std::move(storage_dir)), BrushTipLibraryTraits::kSubdir);
+}
+
+BrushTipLibraryLoad BrushTipLibrary::load_off_gui_thread(const QString& storage_dir,
+                                                         const std::function<void(BrushTipLibrary&)>& prepare) {
+  BrushTipLibrary library(storage_dir, OffGuiThread{});
+  if (prepare) {
+    prepare(library);
+    library.note_disk_state();
+  }
+  BrushTipLibraryLoad load;
+  load.storage_dir = library.storage_dir_;
+  load.thumbnails.reserve(library.entries_.size());
+  for (const auto& entry : library.entries_) {
+    const auto found = std::find_if(library.pending_thumbnails_.begin(), library.pending_thumbnails_.end(),
+                                    [&entry](const auto& pending) { return pending.first == entry.id; });
+    load.thumbnails.push_back(found == library.pending_thumbnails_.end() ? QImage() : found->second);
+  }
+  load.entries = std::move(library.entries_);
+  load.tip_cache = std::move(library.tip_cache_);
+  load.loaded_signature = std::move(library.loaded_signature_);
+  return load;
+}
+
+void BrushTipLibrary::note_disk_state() {
+  loaded_signature_ = preset_storage_signature(storage_dir_);
+}
+
+void BrushTipLibrary::set_thumbnail(BrushTipEntry& entry, const patchy::BrushTip& tip) {
+  if (!off_gui_thread_) {
+    entry.thumbnail = brush_tip_thumbnail(tip, 48);
+    return;
+  }
+  auto image = brush_tip_thumbnail_image(tip, 48);
+  for (auto& pending : pending_thumbnails_) {
+    if (pending.first == entry.id) {
+      pending.second = std::move(image);
+      return;
+    }
+  }
+  pending_thumbnails_.emplace_back(entry.id, std::move(image));
+}
+
 QString BrushTipLibrary::png_path(const QString& id) const {
   return storage_path(id, ".png");
 }
@@ -254,6 +341,9 @@ QString BrushTipLibrary::png_path(const QString& id) const {
 void BrushTipLibrary::reload() {
   entries_.clear();
   tip_cache_.clear();
+  pending_thumbnails_.clear();
+  // Before reading: a file that changes during the read then differs from the signature.
+  loaded_signature_ = preset_storage_signature(storage_dir_);
   QDir dir(storage_dir_);
   if (!dir.exists()) {
     return;
@@ -295,7 +385,7 @@ void BrushTipLibrary::reload() {
       }
     }
     entry.size = mask.size();
-    entry.thumbnail = brush_tip_thumbnail(brush_tip_from_coverage_image(mask, entry.spacing), 48);
+    set_thumbnail(entry, brush_tip_from_coverage_image(mask, entry.spacing));
     entries_.push_back(std::move(entry));
   }
   sort_entries();
@@ -417,7 +507,7 @@ QString BrushTipLibrary::add_tip_internal(const QString& name, const QImage& cov
   entry.tool_flow_percent = tool_flow_percent;
   entry.tool_airbrush = tool_airbrush;
   entry.size = QSize(tip.width, tip.height);
-  entry.thumbnail = brush_tip_thumbnail(tip, 48);
+  set_thumbnail(entry, tip);
   if (!write_sidecar(entry)) {
     return {};
   }
@@ -601,7 +691,7 @@ int BrushTipLibrary::reset_default_tips_to_factory() {
                                       [&](const auto& cached) { return cached.first == found->id; }),
                        tip_cache_.end());
       updated.size = QSize(factory_tip.width, factory_tip.height);
-      updated.thumbnail = brush_tip_thumbnail(factory_tip, 48);
+      set_thumbnail(updated, factory_tip);
     }
     if (write_sidecar(updated)) {
       *found = updated;

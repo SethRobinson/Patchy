@@ -111,6 +111,10 @@ QString pattern_library_entry_display_name(const PatternLibraryEntry& entry) {
 }
 
 QPixmap pattern_thumbnail(const PixelBuffer& tile, int extent) {
+  return QPixmap::fromImage(pattern_thumbnail_image(tile, extent));
+}
+
+QImage pattern_thumbnail_image(const PixelBuffer& tile, int extent) {
   extent = std::max(8, extent);
   QImage canvas(extent, extent, QImage::Format_ARGB32_Premultiplied);
   canvas.fill(Qt::transparent);
@@ -144,8 +148,15 @@ QPixmap pattern_thumbnail(const PixelBuffer& tile, int extent) {
       const auto repeated_tile = source.scaled(repeat_extent, repeat_extent, Qt::KeepAspectRatio,
                                                Qt::SmoothTransformation);
       if (!repeated_tile.isNull()) {
+        // Tiled from the inner rectangle's corner, as drawTiledPixmap did; drawn as images
+        // so a worker thread can make thumbnails (QPixmap is GUI-thread only).
+        const auto tile_image = repeated_tile.convertToFormat(QImage::Format_ARGB32_Premultiplied);
         painter.setClipRect(QRect(1, 1, inner, inner));
-        painter.drawTiledPixmap(QRect(1, 1, inner, inner), QPixmap::fromImage(repeated_tile));
+        for (int y = 1; y < 1 + inner; y += tile_image.height()) {
+          for (int x = 1; x < 1 + inner; x += tile_image.width()) {
+            painter.drawImage(x, y, tile_image);
+          }
+        }
         painter.setClipping(false);
       }
     }
@@ -154,12 +165,69 @@ QPixmap pattern_thumbnail(const PixelBuffer& tile, int extent) {
   painter.setBrush(Qt::NoBrush);
   painter.drawRect(0, 0, extent - 1, extent - 1);
   painter.end();
-  return QPixmap::fromImage(canvas);
+  return canvas;
 }
 
 PatternLibrary::PatternLibrary(QString storage_dir, QObject* parent)
     : PatternLibraryBase(std::move(storage_dir), parent) {
   reload();
+}
+
+PatternLibrary::PatternLibrary(const QString& storage_dir, OffGuiThread)
+    : PatternLibraryBase(storage_dir, nullptr) {
+  off_gui_thread_ = true;
+  reload();
+}
+
+PatternLibrary::PatternLibrary(PatternLibraryLoad load, QObject* parent, Adopt)
+    : PatternLibraryBase(std::move(load.storage_dir), parent) {
+  entries_ = std::move(load.entries);
+  for (std::size_t index = 0; index < entries_.size() && index < load.thumbnails.size(); ++index) {
+    entries_[index].thumbnail = QPixmap::fromImage(load.thumbnails[index]);
+  }
+  tile_cache_ = std::move(load.tile_cache);
+}
+
+PatternLibrary* PatternLibrary::from_load(PatternLibraryLoad load, QObject* parent) {
+  return new PatternLibrary(std::move(load), parent, Adopt{});
+}
+
+QString PatternLibrary::resolved_storage_dir(QString storage_dir) {
+  return resolve_storage_dir(std::move(storage_dir), PatternLibraryTraits::kSubdir);
+}
+
+PatternLibraryLoad PatternLibrary::load_off_gui_thread(const QString& storage_dir,
+                                                       const std::function<int(PatternLibrary&)>& prepare) {
+  PatternLibrary library(storage_dir, OffGuiThread{});
+  PatternLibraryLoad load;
+  if (prepare) {
+    load.prepared = prepare(library);
+  }
+  load.storage_dir = library.storage_dir_;
+  load.thumbnails.reserve(library.entries_.size());
+  for (const auto& entry : library.entries_) {
+    const auto found = std::find_if(library.pending_thumbnails_.begin(), library.pending_thumbnails_.end(),
+                                    [&entry](const auto& pending) { return pending.first == entry.storage_id; });
+    load.thumbnails.push_back(found == library.pending_thumbnails_.end() ? QImage() : found->second);
+  }
+  load.entries = std::move(library.entries_);
+  load.tile_cache = std::move(library.tile_cache_);
+  return load;
+}
+
+void PatternLibrary::set_thumbnail(PatternLibraryEntry& entry, const PixelBuffer& tile) {
+  if (!off_gui_thread_) {
+    entry.thumbnail = pattern_thumbnail(tile);
+    return;
+  }
+  auto image = pattern_thumbnail_image(tile);
+  for (auto& pending : pending_thumbnails_) {
+    if (pending.first == entry.storage_id) {
+      pending.second = std::move(image);
+      return;
+    }
+  }
+  pending_thumbnails_.emplace_back(entry.storage_id, std::move(image));
 }
 
 const PatternLibraryEntry* PatternLibrary::find_entry_by_pattern_id(const QString& id) const {
@@ -173,6 +241,7 @@ QString PatternLibrary::png_path(const QString& storage_id) const {
 void PatternLibrary::reload() {
   entries_.clear();
   tile_cache_.clear();
+  pending_thumbnails_.clear();
   const QDir dir(storage_dir_);
   if (!dir.exists()) {
     return;
@@ -212,7 +281,7 @@ void PatternLibrary::reload() {
       continue;  // ids are unique within the installed library; first file wins
     }
     entry.size = image.size();
-    entry.thumbnail = pattern_thumbnail(*tile);
+    set_thumbnail(entry, *tile);
     entries_.push_back(std::move(entry));
   }
   sort_entries();
@@ -338,7 +407,7 @@ QString PatternLibrary::add_pattern_internal(const QString& name, const PixelBuf
   entry.name = name.trimmed().isEmpty() ? tr("Untitled Pattern") : name.trimmed();
   entry.folder = folder.trimmed();
   entry.size = QSize(tile.width(), tile.height());
-  entry.thumbnail = pattern_thumbnail(tile);
+  set_thumbnail(entry, tile);
   if (!write_sidecar(entry)) {
     return {};
   }
@@ -714,7 +783,7 @@ int PatternLibrary::reset_default_patterns_to_factory() {
       const auto expected_image = image_from_pattern_tile(expected.tile);
       if (save_png(expected_image, png_path(found->storage_id))) {
         found->size = QSize(expected.tile.width(), expected.tile.height());
-        found->thumbnail = pattern_thumbnail(expected.tile);
+        set_thumbnail(*found, expected.tile);
         cache_tile(found->storage_id, expected.tile);
         tile_saved = true;
         any_changed = true;

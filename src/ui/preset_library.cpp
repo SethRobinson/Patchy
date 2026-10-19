@@ -10,21 +10,21 @@
 namespace patchy::ui {
 
 PresetLibraryBase::PresetLibraryBase(QString storage_dir, const char* subdir, QObject* parent)
-    : QObject(parent) {
-  if (storage_dir.isEmpty()) {
-#ifdef Q_OS_WASM
-    // The wasm settings store is window.localStorage, so fileName() names no
-    // usable directory. Libraries live under a fixed MEMFS root instead: fully
-    // functional within the session, recreated from the defaults on reload.
-    storage_dir_ = QStringLiteral("/presets/") + QLatin1String(subdir);
-#else
-    const auto settings = app_settings();
-    storage_dir_ =
-        QFileInfo(settings.fileName()).absolutePath() + QLatin1Char('/') + QLatin1String(subdir);
-#endif
-  } else {
-    storage_dir_ = std::move(storage_dir);
+    : QObject(parent), storage_dir_(resolve_storage_dir(std::move(storage_dir), subdir)) {}
+
+QString PresetLibraryBase::resolve_storage_dir(QString storage_dir, const char* subdir) {
+  if (!storage_dir.isEmpty()) {
+    return storage_dir;
   }
+#ifdef Q_OS_WASM
+  // The wasm settings store is window.localStorage, so fileName() names no
+  // usable directory. Libraries live under a fixed MEMFS root instead: fully
+  // functional within the session, recreated from the defaults on reload.
+  return QStringLiteral("/presets/") + QLatin1String(subdir);
+#else
+  const auto settings = app_settings();
+  return QFileInfo(settings.fileName()).absolutePath() + QLatin1Char('/') + QLatin1String(subdir);
+#endif
 }
 
 QString PresetLibraryBase::storage_path(const QString& id, const char* suffix) const {

@@ -93,29 +93,19 @@ BrushAutomationLibrary::BrushAutomationLibrary(BrushTipLibrary& tips, QObject* p
   refresh();
 }
 void BrushAutomationLibrary::refresh() {
-  QByteArray signature;
-  QByteArray tip_signature;
-  for (const auto& directory : {directory_, tips_.storage_dir()}) {
-    for (const auto& file : QDir(directory).entryInfoList({"*.json", "*.png"}, QDir::Files, QDir::Name)) {
-      signature += file.absoluteFilePath().toUtf8() + QByteArray::number(file.size()) +
-                   QByteArray::number(file.lastModified().toMSecsSinceEpoch());
-      // Same-size edits can commit within one millisecond. Include JSON content so
-      // those updates cannot evade cross-process refresh or attached state tokens.
-      QByteArray json_digest;
-      if (file.suffix() == "json" && file.size() <= 32 * 1024 * 1024) {
-        QFile json(file.absoluteFilePath());
-        if (json.open(QIODevice::ReadOnly)) json_digest = QCryptographicHash::hash(json.readAll(), QCryptographicHash::Sha256);
-        signature += json_digest;
-      }
-      if (directory == tips_.storage_dir()) tip_signature += file.absoluteFilePath().toUtf8() + QByteArray::number(file.size()) +
-                   QByteArray::number(file.lastModified().toMSecsSinceEpoch()) + json_digest;
-    }
-  }
+  const auto tip_signature = preset_storage_signature(tips_.storage_dir());
+  const auto signature = preset_storage_signature(directory_) + tip_signature;
   const auto fingerprint = QString::fromLatin1(QCryptographicHash::hash(signature, QCryptographicHash::Sha256).toHex());
   if (fingerprint == fingerprint_) return;
   fingerprint_ = fingerprint; presets_ = {}; preset_tips_.clear();
   const auto tip_fingerprint = QString::fromLatin1(QCryptographicHash::hash(tip_signature, QCryptographicHash::Sha256).toHex());
-  if (tip_fingerprint != tip_fingerprint_) { tip_fingerprint_ = tip_fingerprint; tips_.refresh_from_disk(); }
+  if (tip_fingerprint != tip_fingerprint_) {
+    // The first refresh usually follows the tip library's own read of the same files; a
+    // reload then would decode every tip a second time (docs/startup-performance.md).
+    const bool first = tip_fingerprint_.isEmpty();
+    tip_fingerprint_ = tip_fingerprint;
+    if (!first || tip_signature != tips_.loaded_signature()) tips_.refresh_from_disk();
+  }
   for (const auto& f : QDir(directory_).entryInfoList({"*.json"}, QDir::Files, QDir::Name)) {
     QFile file(f.absoluteFilePath());
     if (!file.open(QIODevice::ReadOnly) || file.size() > 32 * 1024 * 1024) continue;

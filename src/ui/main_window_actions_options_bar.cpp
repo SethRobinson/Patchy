@@ -207,6 +207,30 @@ void widen_combo_popup_to_items(QComboBox* combo) {
   combo->view()->setMinimumWidth(width + 36);
 }
 
+// Runs `callback` once, on the first click, key press or wheel turn on `widget`, before the
+// widget handles it. Owned by the widget.
+class FirstUseHook final : public QObject {
+ public:
+  FirstUseHook(QWidget* widget, std::function<void()> callback) : QObject(widget), callback_(std::move(callback)) {
+    widget->installEventFilter(this);
+  }
+
+ protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    const auto type = event->type();
+    if (callback_ && (type == QEvent::MouseButtonPress || type == QEvent::KeyPress || type == QEvent::Wheel)) {
+      watched->removeEventFilter(this);
+      const auto callback = std::move(callback_);
+      callback_ = nullptr;
+      callback();
+    }
+    return false;
+  }
+
+ private:
+  std::function<void()> callback_;
+};
+
 }  // namespace
 
 void MainWindow::retranslate_mixer_combination_combo() {
@@ -1963,6 +1987,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   pattern_stamp_pattern_combo_->setIconSize(QSize(18, 18));
   pattern_stamp_pattern_combo_->setMinimumWidth(150);
   register_retranslation([this] { refresh_pattern_stamp_pattern_combo(); });
+  // The list fills when the startup pattern preload lands; using it before then loads it now.
+  new FirstUseHook(pattern_stamp_pattern_combo_, [this] { (void)pattern_library(); });
   add_option_widget(pattern_stamp_pattern_combo_, {CanvasTool::PatternStamp});
   connect(pattern_stamp_pattern_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
     if (pattern_stamp_pattern_combo_ == nullptr || index < 0) {
