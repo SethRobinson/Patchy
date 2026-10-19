@@ -2481,9 +2481,10 @@ namespace {
 // Qt only wires the Alt+mnemonic. An event filter rather than QShortcut so a
 // key press reaching the box (directly or by propagating up from a focused
 // button) behaves the same for real input and synthetic events in offscreen
-// tests, which never go through the platform shortcut map. A Save / Don't Save
-// box answers S and D, and keeps Y and N as aliases so the habit from the
-// Yes/No days (and from native boxes) still works (GitHub issue 70).
+// tests, which never go through the platform shortcut map. The unsaved-changes
+// box (Save and Discard, labeled Yes and No) answers Y and N, and keeps S and D
+// from its Save / Don't Save days as hidden aliases (GitHub issues 70 and 240).
+// C answers Cancel in every box.
 class MessageBoxLetterKeyFilter : public QObject {
  public:
   explicit MessageBoxLetterKeyFilter(QMessageBox& dialog) : QObject(&dialog), dialog_(dialog) {}
@@ -2505,6 +2506,9 @@ class MessageBoxLetterKeyFilter : public QObject {
             break;
           case Qt::Key_D:
             button = dialog_.button(QMessageBox::Discard);
+            break;
+          case Qt::Key_C:
+            button = dialog_.button(QMessageBox::Cancel);
             break;
           default:
             break;
@@ -2544,11 +2548,18 @@ QMessageBox::StandardButton show_warning_message(QWidget* parent, const QString&
   if (default_button != QMessageBox::NoButton) {
     dialog.setDefaultButton(default_button);
   }
-  // Qt labels Discard "Discard" except on macOS, where it reads "Don't Save".
-  // Patchy says "Don't Save" everywhere: the button sits next to Save, and the
-  // pair names the two outcomes instead of asking the user to map a verb.
-  if (auto* discard = dialog.button(QMessageBox::Discard); discard != nullptr) {
-    discard->setText(QObject::tr("Don't Save"));
+  // A box offering Save and Discard asks whether to save unsaved changes, so its text
+  // must be a yes/no question. Its buttons read Yes, No and Cancel with their letters
+  // underlined (GitHub issue 240); the Save and Discard roles keep the answers and the
+  // S and D aliases.
+  auto* save = dialog.button(QMessageBox::Save);
+  auto* discard = dialog.button(QMessageBox::Discard);
+  if (save != nullptr && discard != nullptr) {
+    save->setText(QObject::tr("&Yes"));
+    discard->setText(QObject::tr("&No"));
+    if (auto* cancel = dialog.button(QMessageBox::Cancel); cancel != nullptr) {
+      cancel->setText(QObject::tr("&Cancel"));
+    }
   }
   dialog.installEventFilter(new MessageBoxLetterKeyFilter(dialog));
   return static_cast<QMessageBox::StandardButton>(exec_dialog(dialog));

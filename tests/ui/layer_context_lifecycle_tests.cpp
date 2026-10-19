@@ -1901,13 +1901,13 @@ void ui_close_last_tab_with_active_text_edit_commits_editor_first() {
   CHECK(tabs->count() == 0);
 }
 
-// The close-document save prompt offers Save / Don't Save / Cancel with Save as
-// the default (GitHub issue 70), and bare key presses (no Alt) answer it like
-// native Windows message boxes: S and D for the two buttons, plus Y and N as
-// aliases from the Yes/No days. Qt itself only wires the Alt+mnemonic;
-// show_warning_message adds the plain letters, so both the button set and the
-// accelerators are pinned here.
-void ui_save_prompt_uses_save_dont_save_cancel_with_letter_hotkeys() {
+// The close-document save prompt asks a yes/no question with Yes / No / Cancel, Y, N and
+// C underlined and Yes the default (GitHub issues 70 and 240). The buttons keep the Save
+// and Discard roles. Bare key presses (no Alt) answer it like native Windows message
+// boxes: Y, N and C, plus S and D as aliases from the Save / Don't Save days. Qt itself
+// only wires the Alt+mnemonic; show_warning_message adds the plain letters, so both the
+// button set and the accelerators are pinned here.
+void ui_save_prompt_uses_yes_no_cancel_with_letter_hotkeys() {
   std::filesystem::create_directories("test-artifacts");
   const auto path = QFileInfo(QDir(QStringLiteral("test-artifacts"))
                                   .filePath(QStringLiteral("ui_save_prompt_yes_no.tga")))
@@ -1949,11 +1949,11 @@ void ui_save_prompt_uses_save_dont_save_cancel_with_letter_hotkeys() {
   // Dismisses the save prompt with a bare letter key once it appears, recording
   // the button layout. The prompt runs a nested event loop, hence the timer.
   bool prompt_seen = false;
-  bool buttons_are_save_dont_save_cancel = false;
+  bool buttons_are_yes_no_cancel = false;
   bool prompt_is_inside_screen = false;
   const auto dismiss_prompt_with_key = [&](int key) {
     prompt_seen = false;
-    buttons_are_save_dont_save_cancel = false;
+    buttons_are_yes_no_cancel = false;
     prompt_is_inside_screen = false;
     auto* dismiss_timer = new QTimer(&window);
     dismiss_timer->setInterval(10);
@@ -1990,14 +1990,17 @@ void ui_save_prompt_uses_save_dont_save_cancel_with_letter_hotkeys() {
       }
       auto* save = dialog->button(QMessageBox::Save);
       auto* discard = dialog->button(QMessageBox::Discard);
-      buttons_are_save_dont_save_cancel =
-          save != nullptr && discard != nullptr && dialog->button(QMessageBox::Cancel) != nullptr &&
+      auto* cancel = dialog->button(QMessageBox::Cancel);
+      buttons_are_yes_no_cancel =
+          save != nullptr && discard != nullptr && cancel != nullptr &&
           dialog->button(QMessageBox::Yes) == nullptr && dialog->button(QMessageBox::No) == nullptr &&
-          dialog->defaultButton() == save && discard->text() == QStringLiteral("Don't Save");
+          dialog->defaultButton() == save && save->text() == QStringLiteral("&Yes") &&
+          discard->text() == QStringLiteral("&No") && cancel->text() == QStringLiteral("&Cancel") &&
+          dialog->text().endsWith(QLatin1Char('?'));
       dismiss_timer->stop();
       dismiss_timer->deleteLater();
       if (key == Qt::Key_D) {
-        save_widget_artifact("ui_save_prompt", *dialog);  // Save carries the default outline
+        save_widget_artifact("ui_save_prompt", *dialog);  // Yes carries the default outline
       }
       // Send to the focused button when there is one: the bare letter must reach
       // the box by propagating up from the child, the interactive path.
@@ -2014,37 +2017,48 @@ void ui_save_prompt_uses_save_dont_save_cancel_with_letter_hotkeys() {
     QApplication::processEvents();
     const int tabs_before_close = tabs->count();
     dismiss_prompt_with_key(key);
-    CHECK(patchy::ui::MainWindowTestAccess::close_document_tab(window, tabs->currentIndex()));
+    const bool closed = patchy::ui::MainWindowTestAccess::close_document_tab(window, tabs->currentIndex());
     QApplication::processEvents();
     CHECK(prompt_seen);
-    CHECK(buttons_are_save_dont_save_cancel);
+    CHECK(buttons_are_yes_no_cancel);
     CHECK(prompt_is_inside_screen);
-    CHECK(tabs->count() == tabs_before_close - 1);
+    // C cancels: the tab stays open with its changes.
+    CHECK(closed == (key != Qt::Key_C));
+    CHECK(tabs->count() == tabs_before_close - (key == Qt::Key_C ? 0 : 1));
   };
   const auto reopen = [&] {
     patchy::ui::MainWindowTestAccess::open_document_path(window, path);
     QApplication::processEvents();
   };
 
-  // D answers Don't Save: the document closes and the file keeps its pixels.
+  // N answers No: the document closes and the file keeps its pixels.
   reopen();
   CHECK(corner_color() == left_color);
-  flip_and_close_with_key(Qt::Key_D);
-  reopen();
-  CHECK(corner_color() == left_color);
-
-  // N still means Don't Save.
   flip_and_close_with_key(Qt::Key_N);
   reopen();
   CHECK(corner_color() == left_color);
 
-  // S answers Save: the flipped pixels reach disk before the tab closes.
-  flip_and_close_with_key(Qt::Key_S);
+  // D still means No.
+  flip_and_close_with_key(Qt::Key_D);
+  reopen();
+  CHECK(corner_color() == left_color);
+
+  // Y answers Yes: the flipped pixels reach disk before the tab closes.
+  flip_and_close_with_key(Qt::Key_Y);
   reopen();
   CHECK(corner_color() == right_color);
 
-  // Y still means Save.
-  flip_and_close_with_key(Qt::Key_Y);
+  // S still means Yes.
+  flip_and_close_with_key(Qt::Key_S);
+  reopen();
+  CHECK(corner_color() == left_color);
+
+  // C answers Cancel: the flipped document stays open, unsaved; N then closes it.
+  flip_and_close_with_key(Qt::Key_C);
+  CHECK(corner_color() == right_color);
+  dismiss_prompt_with_key(Qt::Key_N);
+  CHECK(patchy::ui::MainWindowTestAccess::close_document_tab(window, tabs->currentIndex()));
+  QApplication::processEvents();
   reopen();
   CHECK(corner_color() == left_color);
 }
@@ -3273,8 +3287,8 @@ std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
       {"ui_closing_last_document_leaves_empty_workspace", ui_closing_last_document_leaves_empty_workspace},
       {"ui_close_last_tab_with_active_text_edit_commits_editor_first",
        ui_close_last_tab_with_active_text_edit_commits_editor_first},
-      {"ui_save_prompt_uses_save_dont_save_cancel_with_letter_hotkeys",
-       ui_save_prompt_uses_save_dont_save_cancel_with_letter_hotkeys},
+      {"ui_save_prompt_uses_yes_no_cancel_with_letter_hotkeys",
+       ui_save_prompt_uses_yes_no_cancel_with_letter_hotkeys},
       {"ui_document_tab_context_menu_closes_tabs_and_file_menu_closes_all",
        ui_document_tab_context_menu_closes_tabs_and_file_menu_closes_all},
       {"ui_new_document_and_canvas_size_dialogs_work", ui_new_document_and_canvas_size_dialogs_work},

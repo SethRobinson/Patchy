@@ -8885,10 +8885,6 @@ RGB: %2, %3, %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Don&apos;t Save</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Incredible people who donated suggestions, bug reports, and code: %1</source>
         <translation type="unfinished"></translation>
     </message>
@@ -10879,6 +10875,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>%1 (%2): %3 x %4 px at %5 ppi</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Yes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;No</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Cancel</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -8865,10 +8865,6 @@ RGB：%2, %3, %4</translation>
         <translation>%1 來自灰階文件，在這裡調整的是它的灰色色版。Patchy 儲存的是 RGB 檔案，因此在儲存後的檔案中，Photoshop 和 Patchy 都會將它套用於 RGB，色調會有所不同。</translation>
     </message>
     <message>
-        <source>Don&apos;t Save</source>
-        <translation>不儲存</translation>
-    </message>
-    <message>
         <source>Incredible people who donated suggestions, bug reports, and code: %1</source>
         <translation>慷慨貢獻建議、錯誤回報與程式碼的了不起的人們：%1</translation>
     </message>
@@ -10862,6 +10858,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>%1 (%2): %3 x %4 px at %5 ppi</source>
         <translation>%1（%2）：%3 x %4 px，%5 ppi</translation>
+    </message>
+    <message>
+        <source>&amp;Yes</source>
+        <translation>是(&amp;Y)</translation>
+    </message>
+    <message>
+        <source>&amp;No</source>
+        <translation>否(&amp;N)</translation>
+    </message>
+    <message>
+        <source>&amp;Cancel</source>
+        <translation>取消(&amp;C)</translation>
     </message>
 </context>
 <context>

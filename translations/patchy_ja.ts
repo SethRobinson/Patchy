@@ -8865,10 +8865,6 @@ Mixed selection</source>
         <translation>%1 はグレースケールドキュメントのもので、ここではグレーチャンネルに対して調整されます。Patchy は RGB ファイルを保存するため、保存したファイルでは Photoshop でも Patchy でも RGB に適用され、階調が変わります。</translation>
     </message>
     <message>
-        <source>Don&apos;t Save</source>
-        <translation>保存しない</translation>
-    </message>
-    <message>
         <source>Incredible people who donated suggestions, bug reports, and code: %1</source>
         <translation>提案、バグ報告、コードを寄せてくれた素晴らしい方々: %1</translation>
     </message>
@@ -10862,6 +10858,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>%1 (%2): %3 x %4 px at %5 ppi</source>
         <translation>%1 (%2): %3 x %4 px、%5 ppi</translation>
+    </message>
+    <message>
+        <source>&amp;Yes</source>
+        <translation>はい(&amp;Y)</translation>
+    </message>
+    <message>
+        <source>&amp;No</source>
+        <translation>いいえ(&amp;N)</translation>
+    </message>
+    <message>
+        <source>&amp;Cancel</source>
+        <translation>キャンセル(&amp;C)</translation>
     </message>
 </context>
 <context>
