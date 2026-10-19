@@ -631,9 +631,14 @@ void ui_layer_style_opacity_slider_does_not_block_on_slow_preview_render() {
 
   bool exercised_slider = false;
   qint64 elapsed_ms = 0;
-  // Keep the loop far below synchronous per-change rendering, while allowing
-  // full-suite timer jitter around the synthetic 520 ms render delay below.
-  constexpr qint64 kResponsiveSliderLoopBudgetMs = 1200;
+  int awaited_renders = -1;
+  // The property under test is structural: no slider change may make the GUI
+  // thread wait on the (synthetically 520 ms) render, which awaited_renders
+  // counts exactly. The wall clock is only a backstop against per-change
+  // synchronous rendering (48 changes x 520 ms = about 25 s); a tight budget
+  // here measured host load, not blocking (a full suite on a busy host
+  // overran 1200 ms while the loop itself takes about 160 ms and awaits none).
+  constexpr qint64 kResponsiveSliderLoopBudgetMs = 6000;
   QTimer::singleShot(0, [&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
@@ -641,6 +646,7 @@ void ui_layer_style_opacity_slider_does_not_block_on_slow_preview_render() {
     auto* opacity_slider = dialog->findChild<QSlider*>(QStringLiteral("layerStyleOpacitySlider"));
     CHECK(opacity != nullptr);
     CHECK(opacity_slider != nullptr);
+    const auto before = canvas->render_cache_diagnostics();
     QElapsedTimer timer;
     timer.start();
     for (int value = 99; value >= 52; --value) {
@@ -649,7 +655,12 @@ void ui_layer_style_opacity_slider_does_not_block_on_slow_preview_render() {
       QApplication::processEvents(QEventLoop::AllEvents, 1);
     }
     elapsed_ms = timer.elapsed();
+    const auto after = canvas->render_cache_diagnostics();
+    awaited_renders = after.awaited_renders - before.awaited_renders;
+    std::cout << "[INFO] opacity slider loop: " << elapsed_ms << " ms, awaited renders " << awaited_renders
+              << '\n';
     exercised_slider = true;
+    CHECK(awaited_renders == 0);
     CHECK(elapsed_ms < kResponsiveSliderLoopBudgetMs);
     QTimer::singleShot(120, dialog, [dialog] { dialog->accept(); });
   });
@@ -657,6 +668,7 @@ void ui_layer_style_opacity_slider_does_not_block_on_slow_preview_render() {
   require_action(window, "layerBlendingOptionsAction")->trigger();
   QApplication::processEvents();
   CHECK(exercised_slider);
+  CHECK(awaited_renders == 0);
   CHECK(elapsed_ms < kResponsiveSliderLoopBudgetMs);
   const auto* edited_layer = patchy::ui::MainWindowTestAccess::document(window).find_layer(layer_id);
   CHECK(edited_layer != nullptr);

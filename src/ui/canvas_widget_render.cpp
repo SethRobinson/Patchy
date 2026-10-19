@@ -1348,6 +1348,7 @@ std::vector<RenderedDocumentPatch> CanvasWidget::render_document_patches_with_pr
 }
 
 bool CanvasWidget::wait_for_processing_operation(std::function<bool()> operation_ready, bool allow_overlay) {
+  ++render_cache_diagnostics_.awaited_renders;
   const auto previous_wait_active = processing_render_wait_active_;
   processing_render_wait_active_ = true;
   const auto start_temporary_operation = allow_overlay && !processing_operation_active();

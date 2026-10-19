@@ -307,6 +307,9 @@ struct CanvasRenderCacheDiagnostics {
   std::uint64_t dirty_region_pixels{0};
   int move_preview_patch_reuses{0};
   int processing_overlays_shown{0};
+  // Renders the GUI thread waited on (wait_for_processing_operation). An interactive preview
+  // such as a Layer Style slider drag must add none.
+  int awaited_renders{0};
   int processing_overlay_frames{0};
   // Times a move drag latched onto the translated-snapshot proxy preview
   // because its summed per-layer work area crossed the
