@@ -2738,6 +2738,11 @@ void ui_imported_psd_point_text_baseline_origin_converts_in_place() {
   send_mouse(*canvas, QEvent::MouseButtonRelease, canvas->widget_position_for_document_point(move_end_doc),
              Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
+  // The release leaves the Move hover outline on the layer, a near-black line one pixel
+  // outside it; the pointer leaving the canvas drops it, so the scan below sees only text.
+  QEvent leave_event(QEvent::Leave);
+  QApplication::sendEvent(canvas, &leave_event);
+  QApplication::processEvents();
   const auto moved_bounds = dark_document_bounds(*canvas, QRect(540, 480, 360, 140));
   CHECK(moved_bounds.has_value());
   CHECK(moved_bounds->left() > converted_bounds->left() + 24);
