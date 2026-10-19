@@ -214,9 +214,9 @@ macOS (arm64, preset `mac-release`, Qt at `.deps/Qt/6.8.3/macos`) and Linux (pre
 
 `remote-build.ps1` checks out over the one shared `~/patchy/src`, so it takes the host's lock and then probes it (pgrep for compilers, linkers, ninja, cmake and the suites); a busy host stops the run (exit 75). Neither wait on nor kill that run: for a build beside it, push the snapshot to a private ref (`refs/snapshots/<topic>`), clone `~/patchy.git` into `~/patchy-<topic>/src`, symlink `.deps` to `~/patchy/src/.deps`, configure and build the preset there with the environment lines from `build-and-test.sh`, then delete the clone and the ref.
 
-### Windows offload build (on request only)
+### Windows offload build (with Seth's permission)
 
-`remote-build.ps1 -Target windows` builds the real MSVC `release` preset on another Windows machine, only when Seth explicitly asks. The local `build\release` stays the release gate and the only packaging source.
+`remote-build.ps1 -Target windows` builds the real MSVC `release` preset on another Windows machine when Seth asks for it or has given a standing permission (recorded in `agents_local.md`). The local `build\release` stays the release gate and the only packaging source.
 
 - **Hosts.** The `windows` config entry may be an ordered list. The script probes each over ssh: unreachable is skipped, one running cl/link/ninja/cmake or a suite is busy, the first idle one builds. All reachable hosts busy: exit 75, never a build beside them (`-WaitMinutes N` waits). `-WindowsHost <ssh>` picks one (still probed). Runs hold a per-host lock (remote-lock.ps1; locked: exit 75). A leftover lock from this machine is taken over only when its run's local process is gone AND the host probes idle: a remote build outlives a killed ssh client. Any other lock needs `-BreakLock` after checking its holder is gone. Never kill another session's build there.
 - **Layout.** Bare repo `~\patchy.git`; work tree = the entry's `workTree`. Qt is the dev box's `.deps\Qt\6.8.3\msvc2022_64` copied to the same relative path, so the unmodified `release` preset resolves it.

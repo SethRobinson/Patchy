@@ -93,12 +93,8 @@ canaries.
   coexist.
 - PSD import copies preserved tagged blocks, including potentially large Smart Object
   data. Use mutable ownership carefully to remove the copies.
-- PSD writer layer count is cast to signed 16-bit without guarding overflow above
-  32,767 records.
 - `estimate_text_size_from_alpha` uses a revision-bumping pixel accessor on a local
   layer before insertion.
-- `CanvasWidget::focusOutEvent` does not cancel a plain content-target shape drag, so
-  `drawing_shape_` can survive an application switch.
 - `VisibleSizeGrip` (dialog_utils.cpp) paints a hardcoded light gray, chosen for the
   Dark scheme; it is not scheme-aware, so its strokes can lose contrast on Light's
   pale popups. Route the color through a theme role.

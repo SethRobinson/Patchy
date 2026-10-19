@@ -4,7 +4,7 @@ Repository-wide policy: read before any project action at task start. Reread onl
 
 If `agents_local.md` exists at the repository root, read it too: checkout- and developer-specific knowledge (build hosts, ssh targets). Anything sensitive goes in `agents_secret.md` beside it, read only when a task needs it. Both are gitignored, never checked in. This repository is public: machine names, users, addresses, local paths, and credentials belong in those files, never in tracked files. A git worktree has no untracked files: look in the main checkout, the parent of `git rev-parse --path-format=absolute --git-common-dir`.
 
-Keep this file at or below 30,000 bytes. Implementation knowledge belongs in `docs/<topic>.md`; read the linked document before working in that area, update it when behavior changes, and do not duplicate its details here. Every file under `docs/` must also stay at or below 30,000 bytes: keep docs dense and current-state only. Cut narrative history, experiment logs, and restatements of constants that live in code; never cut normative rules, calibration facts recorded only in the doc, or headings cited from code comments.
+Keep this file at or below 30,000 bytes. Implementation knowledge belongs in `docs/<topic>.md`; read the linked document before working in that area, update it when behavior changes, and do not duplicate its details here. Every file under `docs/` must also stay at or below 30,000 bytes: keep docs dense and current-state only. Cut narrative history, experiment logs, and restatements of constants that live in code; never cut normative rules, calibration facts recorded only in the doc, or headings cited from code comments. `python scripts/check-docs.py` checks the sizes and every relative link and anchor; run it after doc edits.
 
 ## Repository-wide rules
 
@@ -59,7 +59,7 @@ Required release handoff steps:
 
 3. Explicitly report whether `build\release\patchy.exe` exists.
 
-4. Changes to platform-guarded code, CMake files/presets, or packaging also require the affected best-effort remote build: `scripts\remote\remote-build.ps1 -Target mac` and/or `-Target linux` (Linux tests on the Flatpak's Qt: [docs/linux-testing.md](docs/linux-testing.md)). Report failures even though Windows remains the release gate. When Seth explicitly asks to offload a Windows build, `-Target windows` builds the `release` preset on the offload host; local `build\release` stays the release gate and packaging source. See [docs/building.md](docs/building.md) ("Remote build machinery") and [docs/platform.md](docs/platform.md).
+4. Changes to platform-guarded code, CMake files/presets, or packaging also require the affected best-effort remote build: `scripts\remote\remote-build.ps1 -Target mac` and/or `-Target linux` (Linux tests on the Flatpak's Qt: [docs/linux-testing.md](docs/linux-testing.md)). Report failures even though Windows remains the release gate. When Seth asks for it (a standing permission in `agents_local.md` counts), `-Target windows` builds the `release` preset on the offload host; local `build\release` stays the release gate and packaging source. See [docs/building.md](docs/building.md) ("Remote build machinery") and [docs/platform.md](docs/platform.md).
 
 Do not say a release was created unless the release preset build succeeded.
 

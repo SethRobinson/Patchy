@@ -4,7 +4,7 @@ Read before changing wasm presets, emsdk/Qt provisioning, or `scripts/wasm/`.
 
 ## What exists today
 
-All three configurations use Emscripten 4.0.7:
+All three use Emscripten 4.0.7:
 
 - **`wasm-core`**: the Qt-free engine libraries plus `patchy_core_tests`,
   run under node (`PATCHY_BUILD_APP=OFF`).
@@ -17,8 +17,6 @@ All three configurations use Emscripten 4.0.7:
   `setup-qt-wasm.ps1 -WasmArch wasm_singlethread`. ST lacks the declared
   `QThread::loopLevel()` definition; `canvas_widget_move.cpp` instead reads
   `QThreadData` through `Qt6::CorePrivate`.
-
-Stress/A-B harness: [wasm-memory.md](wasm-memory.md).
 
 ## Toolchain setup
 
