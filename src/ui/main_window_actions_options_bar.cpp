@@ -809,9 +809,13 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   transform_warp_mode_button_->setProperty("optionsSessionButton", true);
   add_session_option_widget(transform_warp_mode_button_);
   transform_session_actions_.push_back(make_option_separator());
+  // Apply/Cancel are the same pair on the Transform, Crop and Type bars: the
+  // authored apply and cancel SVGs take their green and red from icon_success and
+  // icon_danger at paint time. Cancel's round stop sign is its own glyph, not the
+  // square "clear" one, which is also Layer > Clear (GitHub issue 182).
   transform_apply_button_ = new QPushButton(toolbar);
   transform_apply_button_->setObjectName(QStringLiteral("freeTransformApplyButton"));
-  transform_apply_button_->setIcon(simple_icon(QStringLiteral("ok"), QColor(160, 220, 165)));
+  transform_apply_button_->setIcon(simple_icon(QStringLiteral("ok")));
   bind_tooltip(transform_apply_button_, QT_TR_NOOP("Apply transform"));
   transform_apply_button_->setFixedWidth(30);
   transform_apply_button_->setIconSize(QSize(20, 20));
@@ -819,7 +823,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   add_session_option_widget(transform_apply_button_);
   transform_cancel_button_ = new QPushButton(toolbar);
   transform_cancel_button_->setObjectName(QStringLiteral("freeTransformCancelButton"));
-  transform_cancel_button_->setIcon(simple_icon(QStringLiteral("clear"), QColor(255, 150, 150)));
+  transform_cancel_button_->setIcon(simple_icon(QStringLiteral("cancel")));
   bind_tooltip(transform_cancel_button_, QT_TR_NOOP("Cancel transform"));
   transform_cancel_button_->setFixedWidth(30);
   transform_cancel_button_->setIconSize(QSize(20, 20));
@@ -1211,7 +1215,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   });
   crop_apply_button_ = new QPushButton(toolbar);
   crop_apply_button_->setObjectName(QStringLiteral("cropApplyButton"));
-  crop_apply_button_->setIcon(simple_icon(QStringLiteral("ok"), QColor(160, 220, 165)));
+  crop_apply_button_->setIcon(simple_icon(QStringLiteral("ok")));
   bind_tooltip(crop_apply_button_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Apply crop (Enter)"));
   crop_apply_button_->setFixedWidth(30);
   crop_apply_button_->setIconSize(QSize(20, 20));
@@ -1219,7 +1223,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   add_option_widget(crop_apply_button_, {CanvasTool::Crop});
   crop_cancel_button_ = new QPushButton(toolbar);
   crop_cancel_button_->setObjectName(QStringLiteral("cropCancelButton"));
-  crop_cancel_button_->setIcon(simple_icon(QStringLiteral("clear"), QColor(255, 150, 150)));
+  crop_cancel_button_->setIcon(simple_icon(QStringLiteral("cancel")));
   bind_tooltip(crop_cancel_button_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Reset the crop box to the canvas (Esc)"));
   crop_cancel_button_->setFixedWidth(30);
   crop_cancel_button_->setIconSize(QSize(20, 20));
@@ -3442,7 +3446,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // mouse press, committing the text before a Cancel click could cancel it.
   text_apply_button_ = new QPushButton(toolbar);
   text_apply_button_->setObjectName(QStringLiteral("textApplyButton"));
-  text_apply_button_->setIcon(simple_icon(QStringLiteral("ok"), QColor(160, 220, 165)));
+  text_apply_button_->setIcon(simple_icon(QStringLiteral("ok")));
   bind_tooltip(text_apply_button_, QT_TR_NOOP("Apply text edit"));
   text_apply_button_->setFixedWidth(30);
   text_apply_button_->setIconSize(QSize(20, 20));
@@ -3451,7 +3455,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   options_flow->addWidget(text_apply_button_);
   text_cancel_button_ = new QPushButton(toolbar);
   text_cancel_button_->setObjectName(QStringLiteral("textCancelButton"));
-  text_cancel_button_->setIcon(simple_icon(QStringLiteral("clear"), QColor(255, 150, 150)));
+  text_cancel_button_->setIcon(simple_icon(QStringLiteral("cancel")));
   bind_tooltip(text_cancel_button_, QT_TR_NOOP("Cancel text edit"));
   text_cancel_button_->setFixedWidth(30);
   text_cancel_button_->setIconSize(QSize(20, 20));
