@@ -349,6 +349,35 @@ bool script_blend_mode_from_id(const QString& id, BlendMode* mode) {
   return false;
 }
 
+QString script_paint_mode_id(PaintMode mode) {
+  switch (mode.kind) {
+    case PaintModeKind::Behind:
+      return QStringLiteral("behind");
+    case PaintModeKind::Clear:
+      return QStringLiteral("clear");
+    case PaintModeKind::Blend:
+      break;
+  }
+  return blend_mode_is_paint_mode(mode.blend) ? script_blend_mode_id(mode.blend) : QStringLiteral("normal");
+}
+
+bool script_paint_mode_from_id(const QString& id, PaintMode* mode) {
+  if (id == QLatin1String("behind")) {
+    *mode = PaintMode::behind();
+    return true;
+  }
+  if (id == QLatin1String("clear")) {
+    *mode = PaintMode::clear();
+    return true;
+  }
+  BlendMode blend{};
+  if (!script_blend_mode_from_id(id, &blend) || !blend_mode_is_paint_mode(blend)) {
+    return false;
+  }
+  *mode = PaintMode::of(blend);
+  return true;
+}
+
 QJSValue make_document_value(ScriptEngineHost& host, std::int64_t session_id) {
   return host.engine()->newQObject(new ScriptDocumentObject(host, session_id));
 }

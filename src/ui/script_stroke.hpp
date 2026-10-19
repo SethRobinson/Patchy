@@ -2,6 +2,7 @@
 
 #include "core/brush_dynamics.hpp"
 #include "core/brush_tip.hpp"
+#include "core/paint_mode.hpp"
 #include <QColor>
 #include <QPointF>
 #include <optional>
@@ -43,6 +44,8 @@ struct ScriptStroke {
   bool pressure_size{true}, pressure_opacity{true}, tilt_shape{false};
   int pressure_size_min{20}, pressure_opacity_min{15}, tilt_min_roundness{35};
   BrushDynamics dynamics;
+  // Brush Mode (script "mode"); Eraser and Mixer strokes always paint Normal.
+  PaintMode mode{};
 };
 
 }  // namespace patchy::ui

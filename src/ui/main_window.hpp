@@ -2023,6 +2023,16 @@ private:
   bool handle_text_editor_viewport_mouse_event(QTextEdit* editor, QEvent* event);
   // Continues the press that opened a text session as a selection drag (canvas coordinates).
   bool extend_text_entry_selection(QPointF canvas_point, bool begin);
+  // Type tool + Ctrl is the temporary Move tool (GitHub issue 216). A Ctrl+press on the open
+  // session's own text commits it, drags the layer and reopens the session with its selection;
+  // a Ctrl+press on another text layer commits the session like any click off and lets the
+  // canvas drag that layer. Ctrl-key shortcuts in the editor are untouched (presses only).
+  bool handle_text_ctrl_move_press(QWidget* watched, QMouseEvent* event);
+  // Shows the four-way cursor over the inline editor while Ctrl is held (Type tool).
+  void apply_text_editor_ctrl_cursor(bool ctrl_held);
+  // Reopens a session on text layer `id` with the caret/selection anchor..position and hands it
+  // the keyboard (Warp Text and Ctrl+drag commit a live session first).
+  void resume_text_editing(LayerId id, std::pair<int, int> selection);
   void mark_text_editor_changed(QTextEdit* editor);
   void schedule_text_editor_preview(QTextEdit* editor);
   void update_text_editor_preview(QTextEdit* editor);
@@ -2413,6 +2423,7 @@ private:
   QComboBox* local_tone_range_combo_{nullptr};
   QCheckBox* local_protect_tones_check_{nullptr};
   QComboBox* sponge_mode_combo_{nullptr};
+  QComboBox* brush_mode_combo_{nullptr};
   QComboBox* eyedropper_sample_size_combo_{nullptr};
   QComboBox* eyedropper_sample_layers_combo_{nullptr};
   QPushButton* eyedropper_sets_foreground_button_{nullptr};
@@ -2790,6 +2801,9 @@ private:
   bool current_brush_smoothing_catch_up_{true};
   bool current_brush_smoothing_catch_up_end_{true};
   bool current_brush_smoothing_zoom_adjust_{true};
+  // Brush Mode (core/paint_mode.hpp), persisted as tools/brushMode (a script paint
+  // mode id) and pushed to every session's canvas.
+  patchy::PaintMode current_brush_paint_mode_{};
   // Combine mode per selection tool (indexed by CanvasWidget::selection_tool_index),
   // persisted across documents; each selection tool keeps its own mode.
   std::array<SelectionMode, kSelectionToolCount> selection_modes_{

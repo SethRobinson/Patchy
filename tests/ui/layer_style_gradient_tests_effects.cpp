@@ -795,6 +795,186 @@ void ui_layer_style_gradient_editor_drag_updates_stops_and_previews() {
   CHECK(preview_calls >= 1);
 }
 
+QDialog* visible_color_picker_dialog() {
+  for (auto* widget : QApplication::topLevelWidgets()) {
+    if (widget->objectName() == QStringLiteral("patchyColorDialog") && widget->isVisible()) {
+      return qobject_cast<QDialog*>(widget);
+    }
+  }
+  return nullptr;
+}
+
+// Sets the open picker's color the way a user edit does (live callback fires).
+void set_visible_picker_color(QColor color) {
+  auto* picker_dialog = visible_color_picker_dialog();
+  CHECK(picker_dialog != nullptr);
+  if (picker_dialog == nullptr) {
+    return;
+  }
+  auto* picker = picker_dialog->findChild<patchy::ui::PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"));
+  CHECK(picker != nullptr);
+  if (picker != nullptr) {
+    picker->setCurrentColor(color);
+  }
+}
+
+void click_gradient_color_tag(patchy::ui::GradientStopsEditorWidget& editor, bool right_end) {
+  // Two-track geometry: color tags sit below the bar; the 0% tag at x=10, the
+  // 100% tag at width-11.
+  const QPoint tag(right_end ? editor.width() - 11 : 10, editor.height() - 18);
+  send_mouse(editor, QEvent::MouseButtonPress, tag, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(editor, QEvent::MouseButtonRelease, tag, Qt::LeftButton, Qt::NoButton);
+}
+
+bool stop_color_is(const patchy::GradientColorStop& stop, int red, int green, int blue) {
+  return stop.color.red == red && stop.color.green == green && stop.color.blue == blue;
+}
+
+// GitHub issue 216: the stop-color picker is non-modal. With it open on the 0%
+// stop, clicking the 100% stop selected that stop in the dialog while the
+// picker went on editing the 0% stop, so the next color meant for the right end
+// replaced the left end's and the right end never changed.
+void ui_layer_style_gradient_stop_picker_follows_the_selected_stop() {
+  ensure_artifact_dir();
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  auto layer = make_gradient_fill_test_layer(document);
+  bool picker_closed_on_switch = false;
+  bool saw_second_stop_selected = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    select_layer_style_gradient_page(*dialog);
+    auto* editor =
+        dialog->findChild<patchy::ui::GradientStopsEditorWidget*>(QStringLiteral("layerStyleGradientStopsEditor"));
+    auto* swatch = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleGradientStopSwatchButton"));
+    auto* hex = dialog->findChild<QLineEdit*>(QStringLiteral("layerStyleGradientStopHexEdit"));
+    CHECK(editor != nullptr);
+    CHECK(swatch != nullptr);
+    CHECK(hex != nullptr);
+    if (editor == nullptr || swatch == nullptr || hex == nullptr) {
+      return;
+    }
+    CHECK(hex->text() == QStringLiteral("#FFFFFF"));
+    QTimer::singleShot(0, dialog, [&, dialog, editor, swatch, hex] {
+      // The 0% stop's picker is open: pick red and leave the picker open, then
+      // select the 100% stop in the dialog.
+      set_visible_picker_color(QColor(220, 30, 40));
+      click_gradient_color_tag(*editor, true);
+      QTimer::singleShot(0, dialog, [&, dialog, swatch, hex] {
+        picker_closed_on_switch = visible_color_picker_dialog() == nullptr;
+        saw_second_stop_selected = hex->text() == QStringLiteral("#000000");
+        QTimer::singleShot(0, dialog, [dialog] {
+          set_visible_picker_color(QColor(30, 60, 200));
+          if (auto* picker_dialog = visible_color_picker_dialog(); picker_dialog != nullptr) {
+            picker_dialog->accept();
+          }
+          QTimer::singleShot(0, dialog, [dialog] {
+            save_widget_artifact("ui_layer_style_gradient_stop_picker_follows_the_selected_stop", *dialog);
+            dialog->accept();
+          });
+        });
+        swatch->click();
+      });
+    });
+    swatch->click();
+  });
+
+  const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
+  CHECK(settings.has_value());
+  CHECK(picker_closed_on_switch);
+  CHECK(saw_second_stop_selected);
+  if (!settings.has_value() || settings->style.gradient_fills.size() != 1) {
+    CHECK(false);
+    return;
+  }
+  const auto& stops = settings->style.gradient_fills.front().gradient.color_stops;
+  CHECK(stops.size() == 2);
+  if (stops.size() == 2) {
+    CHECK(stop_color_is(stops.front(), 220, 30, 40));
+    CHECK(stop_color_is(stops.back(), 30, 60, 200));
+  }
+}
+
+// GitHub issue 216: choosing OK in Layer Style while a stop's picker was still
+// open (its live preview already showed the color) rejected the picker and put
+// the stop back to its old color. Also covers a second dialog session on the
+// committed gradient.
+void ui_layer_style_ok_keeps_the_open_stop_picker_color() {
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  auto layer = make_gradient_fill_test_layer(document);
+  QTimer::singleShot(0, [] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    select_layer_style_gradient_page(*dialog);
+    auto* swatch = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleGradientStopSwatchButton"));
+    CHECK(swatch != nullptr);
+    if (swatch == nullptr) {
+      return;
+    }
+    QTimer::singleShot(0, dialog, [dialog] {
+      set_visible_picker_color(QColor(200, 120, 20));
+      dialog->accept();
+    });
+    swatch->click();
+  });
+  const auto first = patchy::ui::request_layer_style_settings(nullptr, layer, {});
+  CHECK(first.has_value());
+  if (!first.has_value() || first->style.gradient_fills.size() != 1) {
+    CHECK(false);
+    return;
+  }
+  CHECK(stop_color_is(first->style.gradient_fills.front().gradient.color_stops.front(), 200, 120, 20));
+  CHECK(visible_color_picker_dialog() == nullptr);
+
+  // Second session on the committed style: edit the right end through its
+  // picker's OK; the left end keeps the color from the first session.
+  layer.layer_style() = first->style;
+  QTimer::singleShot(0, [] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    select_layer_style_gradient_page(*dialog);
+    auto* editor =
+        dialog->findChild<patchy::ui::GradientStopsEditorWidget*>(QStringLiteral("layerStyleGradientStopsEditor"));
+    auto* swatch = dialog->findChild<QPushButton*>(QStringLiteral("layerStyleGradientStopSwatchButton"));
+    CHECK(editor != nullptr);
+    CHECK(swatch != nullptr);
+    if (editor == nullptr || swatch == nullptr) {
+      return;
+    }
+    click_gradient_color_tag(*editor, true);
+    QApplication::processEvents();
+    QTimer::singleShot(0, dialog, [dialog] {
+      set_visible_picker_color(QColor(10, 140, 90));
+      if (auto* picker_dialog = visible_color_picker_dialog(); picker_dialog != nullptr) {
+        picker_dialog->accept();
+      }
+      QTimer::singleShot(0, dialog, [dialog] { dialog->accept(); });
+    });
+    swatch->click();
+  });
+  const auto second = patchy::ui::request_layer_style_settings(nullptr, layer, {});
+  CHECK(second.has_value());
+  if (!second.has_value() || second->style.gradient_fills.size() != 1) {
+    CHECK(false);
+    return;
+  }
+  const auto& stops = second->style.gradient_fills.front().gradient.color_stops;
+  CHECK(stops.size() == 2);
+  if (stops.size() == 2) {
+    CHECK(stop_color_is(stops.front(), 200, 120, 20));
+    CHECK(stop_color_is(stops.back(), 10, 140, 90));
+  }
+}
+
 void ui_layer_style_gradient_opacity_track_adds_and_edits_alpha_stops() {
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   auto layer = make_gradient_fill_test_layer(document);
@@ -2106,6 +2286,9 @@ std::vector<patchy::test::TestCase> layer_style_gradient_tests_part1() {
        ui_layer_style_blend_if_unsupported_requires_explicit_replace},
       {"ui_layer_style_gradient_editor_drag_updates_stops_and_previews",
        ui_layer_style_gradient_editor_drag_updates_stops_and_previews},
+      {"ui_layer_style_gradient_stop_picker_follows_the_selected_stop",
+       ui_layer_style_gradient_stop_picker_follows_the_selected_stop},
+      {"ui_layer_style_ok_keeps_the_open_stop_picker_color", ui_layer_style_ok_keeps_the_open_stop_picker_color},
       {"ui_layer_style_gradient_opacity_track_adds_and_edits_alpha_stops",
        ui_layer_style_gradient_opacity_track_adds_and_edits_alpha_stops},
       {"ui_layer_style_gradient_midpoints_edit_color_and_opacity_tracks",

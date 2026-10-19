@@ -48,6 +48,11 @@ struct NewDocumentSettings {
 // unit preference (`view/rulerUnits`).
 [[nodiscard]] std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent);
 
+// Whether the system clipboard offers image data: the New Document dialog's Clipboard card
+// and File > Open from Clipboard (GitHub issue 218) are enabled only then. It reads the
+// clipboard's format list, never the image, so it costs no transfer or decode.
+[[nodiscard]] bool clipboard_offers_image();
+
 // The New Document size presets an artboard can take (every screen and print card but
 // Clipboard), for the Artboard tool and the New Artboard dialog.
 struct ArtboardSizePreset {

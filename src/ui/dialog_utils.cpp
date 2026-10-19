@@ -87,6 +87,7 @@ constexpr auto kDialogPositionMemoryIdProperty = "patchy.dialogPositionMemoryId"
 constexpr auto kDialogAlwaysCenteredProperty = "patchy.dialogAlwaysCentered";
 
 constexpr int kChevronAreaWidth = 14;
+constexpr char kNumericPopupInstalledProperty[] = "patchy.numericPopupInstalled";
 
 QIcon dialog_close_icon() {
   // Ink follows the scheme: this X sits on the dialog's own title bar, which
@@ -478,20 +479,24 @@ private:
   qint64 popup_dismissed_ms_{-1};
 };
 
-// One controller for both scrub handle kinds (dialog_utils.hpp): `handle` is either a
-// label beside the field or the field's own line edit, where only the prefix text
-// counts. Presses on the handle are consumed so no text selection starts; moves and
-// the release arrive through Qt's implicit grab on the pressed widget.
+// One controller per scrub handle (dialog_utils.hpp). A Label handle is a label beside
+// the field: its presses are consumed so no text selection starts, and moves and the
+// release arrive through Qt's implicit grab on the pressed widget. A Field handle is the
+// spin box's own line edit: a press on its prefix text (when `prefix_scrub`) is consumed
+// the same way, while a press on the number passes through untouched (focus, caret,
+// double-click) and only the moves are held back until the drag distance, so a click
+// still edits and a drag scrubs.
 template <typename SpinBox>
 class ScrubDragController final : public QObject {
 public:
-  ScrubDragController(QWidget* handle, SpinBox* spin, bool prefix_only)
-      : QObject(handle), handle_(handle), spin_(spin), prefix_only_(prefix_only) {
+  enum class Kind { Label, Field };
+
+  ScrubDragController(QWidget* handle, SpinBox* spin, Kind kind, bool prefix_scrub = false)
+      : QObject(handle), handle_(handle), spin_(spin), kind_(kind), prefix_scrub_(prefix_scrub) {
     handle_->installEventFilter(this);
-    if (!prefix_only_) {
+    if (kind_ == Kind::Label) {
       handle_->setCursor(Qt::SizeHorCursor);
     }
-    spin_->setProperty(kScrubHandleInstalledProperty, true);
   }
 
 protected:
@@ -503,20 +508,26 @@ protected:
       case QEvent::MouseButtonPress: {
         const auto* mouse = static_cast<QMouseEvent*>(event);
         if (mouse->button() != Qt::LeftButton || !spin_->isEnabled() || spin_->isReadOnly() ||
-            !over_handle(mouse->position().toPoint())) {
+            over_popup_chevron(mouse->position().toPoint())) {
           return false;
         }
         pressed_ = true;
         scrubbing_ = false;
+        press_on_prefix_ = kind_ == Kind::Field && over_prefix(mouse->position().toPoint());
         press_global_ = mouse->globalPosition().toPoint();
         start_value_ = spin_->value();
-        return true;
+        // A press on the number reaches the line edit as an ordinary click.
+        return kind_ == Kind::Label || press_on_prefix_;
       }
       case QEvent::MouseMove: {
         const auto* mouse = static_cast<QMouseEvent*>(event);
+        if (pressed_ && (mouse->buttons() & Qt::LeftButton) == 0) {
+          pressed_ = false;  // the release went elsewhere
+          scrubbing_ = false;
+        }
         if (!pressed_) {
-          if (prefix_only_) {
-            handle_->setCursor(over_handle(mouse->position().toPoint()) ? Qt::SizeHorCursor : Qt::IBeamCursor);
+          if (kind_ == Kind::Field) {
+            handle_->setCursor(idle_field_cursor(mouse->position().toPoint()));
           }
           return false;
         }
@@ -526,8 +537,11 @@ protected:
             return true;
           }
           scrubbing_ = true;
-          if (prefix_only_) {
+          if (kind_ == Kind::Field) {
             handle_->setCursor(Qt::SizeHorCursor);
+            if (auto* editor = qobject_cast<QLineEdit*>(handle_.data()); editor != nullptr) {
+              editor->deselect();
+            }
           }
         }
         const double steps = static_cast<double>(delta) * ((mouse->modifiers() & Qt::ShiftModifier) != 0 ? 10.0 : 1.0);
@@ -543,17 +557,25 @@ protected:
         if (scrubbing_) {
           scrubbing_ = false;
           Q_EMIT spin_->editingFinished();
-          if (prefix_only_) {
-            handle_->setCursor(over_handle(mouse->position().toPoint()) ? Qt::SizeHorCursor : Qt::IBeamCursor);
+          if (kind_ == Kind::Field) {
+            handle_->setCursor(idle_field_cursor(mouse->position().toPoint()));
+            // A field the press focused keeps focus with its number selected, as a
+            // click into a toolbar field leaves it, so typing replaces the value.
+            if (spin_->hasFocus()) {
+              spin_->selectAll();
+            }
           }
-        } else if (prefix_only_) {
+          return true;
+        }
+        if (press_on_prefix_) {
           spin_->setFocus(Qt::MouseFocusReason);
           spin_->selectAll();
+          return true;
         }
-        return true;
+        return kind_ == Kind::Label;
       }
       case QEvent::Leave:
-        if (prefix_only_ && !pressed_) {
+        if (kind_ == Kind::Field && !pressed_) {
           handle_->setCursor(Qt::IBeamCursor);
         }
         break;
@@ -564,9 +586,9 @@ protected:
   }
 
 private:
-  bool over_handle(QPoint position) const {
-    if (!prefix_only_) {
-      return true;
+  bool over_prefix(QPoint position) const {
+    if (!prefix_scrub_) {
+      return false;
     }
     auto* editor = qobject_cast<QLineEdit*>(handle_.data());
     const auto prefix = spin_->prefix();
@@ -576,14 +598,41 @@ private:
     return editor->cursorPositionAt(position) < static_cast<int>(prefix.length());
   }
 
+  // The trailing area of a toolbar field opens its popup slider (NumericPopupController).
+  bool over_popup_chevron(QPoint position) const {
+    return kind_ == Kind::Field && spin_->property(kNumericPopupInstalledProperty).toBool() &&
+           position.x() >= handle_->width() - kChevronAreaWidth;
+  }
+
+  Qt::CursorShape idle_field_cursor(QPoint position) const {
+    return over_prefix(position) ? Qt::SizeHorCursor : Qt::IBeamCursor;
+  }
+
   QPointer<QWidget> handle_;
   QPointer<SpinBox> spin_;
-  bool prefix_only_{false};
+  Kind kind_{Kind::Label};
+  bool prefix_scrub_{false};
   bool pressed_{false};
+  bool press_on_prefix_{false};
   bool scrubbing_{false};
   QPoint press_global_;
   decltype(std::declval<SpinBox>().value()) start_value_{};
 };
+
+// The label handle (when `label` is set) and the field handle on the spin box's own
+// line edit, marking the spin box installed.
+template <typename SpinBox>
+void install_scrub_handles(QLabel* label, SpinBox* spin, bool prefix_scrub) {
+  using Controller = ScrubDragController<SpinBox>;
+  spin->setProperty(kScrubHandleInstalledProperty, true);
+  if (label != nullptr) {
+    new Controller(label, spin, Controller::Kind::Label);
+  }
+  if (auto* editor = spin->template findChild<QLineEdit*>(); editor != nullptr) {
+    editor->setCursor(Qt::IBeamCursor);
+    new Controller(editor, spin, Controller::Kind::Field, prefix_scrub);
+  }
+}
 
 bool label_names_a_field(const QLabel* label) {
   if (label->property(kScrubLabelExemptProperty).toBool()) {
@@ -729,11 +778,10 @@ void install_scrub_labels_in_layout(QLayout* layout) {
 
 template <typename SpinBox>
 void install_numeric_popup(SpinBox* spin) {
-  constexpr auto kInstalledProperty = "patchy.numericPopupInstalled";
-  if (spin->property(kInstalledProperty).toBool()) {
+  if (spin->property(kNumericPopupInstalledProperty).toBool()) {
     return;
   }
-  spin->setProperty(kInstalledProperty, true);
+  spin->setProperty(kNumericPopupInstalledProperty, true);
   new NumericPopupController<SpinBox>(spin);
 }
 
@@ -1485,9 +1533,9 @@ void install_scrub_label(QLabel* label, QAbstractSpinBox* spin) {
     return;
   }
   if (auto* int_spin = qobject_cast<QSpinBox*>(spin); int_spin != nullptr) {
-    new ScrubDragController<QSpinBox>(label, int_spin, false);
+    install_scrub_handles(label, int_spin, false);
   } else if (auto* double_spin = qobject_cast<QDoubleSpinBox*>(spin); double_spin != nullptr) {
-    new ScrubDragController<QDoubleSpinBox>(label, double_spin, false);
+    install_scrub_handles(label, double_spin, false);
   }
 }
 
@@ -1495,12 +1543,7 @@ void install_prefix_scrub(QSpinBox* spin) {
   if (spin == nullptr || spin->property(kScrubHandleInstalledProperty).toBool()) {
     return;
   }
-  auto* editor = spin->findChild<QLineEdit*>();
-  if (editor == nullptr) {
-    return;
-  }
-  editor->setCursor(Qt::IBeamCursor);
-  new ScrubDragController<QSpinBox>(editor, spin, true);
+  install_scrub_handles(static_cast<QLabel*>(nullptr), spin, true);
 }
 
 void install_scrub_labels_in(QWidget* container) {

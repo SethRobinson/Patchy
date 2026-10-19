@@ -15,6 +15,7 @@
 #include "ui/app_style.hpp"
 #include "ui/theme_manager.hpp"
 #include "ui/user_fonts.hpp"
+#include "ui/wayland_pointer_cursor.hpp"
 #include "ui/wayland_popup_anchor.hpp"
 #ifdef PATCHY_MCP_EXECUTABLE
 #include "app/mcp_server.hpp"
@@ -352,6 +353,9 @@ int main(int argc, char* argv[]) {
   // Qt 6.11 places menus and combo lists off their anchor on Wayland at a non-100% interface
   // scale (GitHub issue 100); a no-op elsewhere.
   patchy::ui::install_wayland_popup_anchor_fix();
+  // Qt before 6.10 shows a cursor change in one window over whatever window the pointer is
+  // in on Wayland, so the canvas tool cursor appeared over dialogs (GitHub issue 215).
+  patchy::ui::install_wayland_pointer_cursor_fix();
   // Slider grooves snap to the click; tool flyouts open on a short hold (see the style above).
   app.setStyle(new patchy::ui::AppStyle);
   app.setApplicationName(QStringLiteral("Patchy"));

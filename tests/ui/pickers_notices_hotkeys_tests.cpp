@@ -245,6 +245,36 @@ void ui_color_picker_closes_with_parent_dialog() {
   CHECK(second_picker_opened);
   CHECK(second.has_value());
 }
+// GitHub issue 216: OK on the dialog that launched a picker confirms what the
+// picker's live preview showed, so the picked color stands instead of reverting.
+void ui_color_picker_keeps_its_color_when_parent_is_accepted() {
+  QDialog parent;
+  parent.setObjectName(QStringLiteral("testPickerAcceptedParentDialog"));
+  parent.show();
+  QApplication::processEvents();
+  std::optional<QColor> live;
+  QTimer::singleShot(0, &parent, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("patchyColorDialog") || !widget->isVisible()) {
+        continue;
+      }
+      auto* picker = widget->findChild<patchy::ui::PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"));
+      CHECK(picker != nullptr);
+      if (picker != nullptr) {
+        picker->setCurrentColor(QColor(40, 160, 210));
+      }
+      break;
+    }
+    parent.accept();
+  });
+  const auto kept = patchy::ui::request_patchy_color(&parent, QColor(10, 20, 30), QStringLiteral("Kept"),
+                                                     [&](QColor color) { live = color; });
+  CHECK(live.has_value() && *live == QColor(40, 160, 210));
+  CHECK(kept.has_value() && *kept == QColor(40, 160, 210));
+  for (auto* widget : QApplication::topLevelWidgets()) {
+    CHECK(!(widget->objectName() == QStringLiteral("patchyColorDialog") && widget->isVisible()));
+  }
+}
 // A picker opened from a dialog styled with dialog_spinbox_button_style() (the G'MIC
 // Filter Library's color swatches) keeps room for its digits: that style reserves 54 px
 // on the right for -/+ buttons, and the picker's 44 px fields have none.
@@ -2212,20 +2242,18 @@ void ui_photoshop_shortcuts_are_registered() {
   auto* brush_size = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
   auto* brush_size_slider = window.findChild<QSlider*>(QStringLiteral("brushSizeSlider"));
   auto* brush_opacity = window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"));
-  auto* brush_opacity_slider = window.findChild<QSlider*>(QStringLiteral("brushOpacitySlider"));
   auto* brush_flow = window.findChild<QSpinBox*>(QStringLiteral("brushFlowSpin"));
   auto* brush_airbrush = window.findChild<QCheckBox*>(QStringLiteral("brushAirbrushCheck"));
   auto* brush_softness = window.findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin"));
-  auto* brush_softness_slider = window.findChild<QSlider*>(QStringLiteral("brushSoftnessSlider"));
   auto* brush_preset = window.findChild<QComboBox*>(QStringLiteral("brushPresetCombo"));
   CHECK(brush_size != nullptr);
   CHECK(brush_size_slider != nullptr);
   CHECK(brush_opacity != nullptr);
-  CHECK(brush_opacity_slider != nullptr);
+  CHECK(window.findChild<QSlider*>(QStringLiteral("brushOpacitySlider")) == nullptr);
   CHECK(brush_flow != nullptr);
   CHECK(brush_airbrush != nullptr);
   CHECK(brush_softness != nullptr);
-  CHECK(brush_softness_slider != nullptr);
+  CHECK(window.findChild<QSlider*>(QStringLiteral("brushSoftnessSlider")) == nullptr);
   CHECK(brush_preset != nullptr);
   CHECK(brush_size->maximum() == patchy::ui::kMaxBrushSize);
   CHECK(brush_size_slider->maximum() == patchy::ui::kCurvedSliderPositions);
@@ -2239,7 +2267,6 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(brush_flow->value() == 100);
   CHECK(!brush_airbrush->isChecked());
   CHECK(brush_softness->value() == 0);
-  CHECK(brush_softness_slider->value() == 0);
   CHECK(canvas->brush_size() == 25);
   CHECK(canvas->brush_opacity() == 100);
   CHECK(canvas->brush_flow() == 100);
@@ -2298,10 +2325,10 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(brush_size->value() == patchy::ui::kMaxBrushSize);
   CHECK(canvas->brush_size() == patchy::ui::kMaxBrushSize);
   brush_size->setValue(20);
-  brush_opacity_slider->setValue(45);
+  brush_opacity->setValue(45);
   CHECK(brush_opacity->value() == 45);
   CHECK(canvas->brush_opacity() == 45);
-  brush_softness_slider->setValue(65);
+  brush_softness->setValue(65);
   CHECK(brush_softness->value() == 65);
   CHECK(canvas->brush_softness() == 65);
   auto settings = patchy::ui::app_settings();
@@ -3272,6 +3299,8 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_color_picker_changes_foreground_color", ui_color_picker_changes_foreground_color},
       {"ui_color_picker_ignores_reentrant_requests", ui_color_picker_ignores_reentrant_requests},
       {"ui_color_picker_closes_with_parent_dialog", ui_color_picker_closes_with_parent_dialog},
+      {"ui_color_picker_keeps_its_color_when_parent_is_accepted",
+       ui_color_picker_keeps_its_color_when_parent_is_accepted},
       {"ui_color_picker_fields_keep_their_digits_in_a_styled_dialog",
        ui_color_picker_fields_keep_their_digits_in_a_styled_dialog},
       {"ui_color_picker_wheel_and_sliders_modes", ui_color_picker_wheel_and_sliders_modes},

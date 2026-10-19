@@ -10,6 +10,7 @@
 #include <QStandardItemModel>
 #include <QObject>
 
+#include <algorithm>
 #include <array>
 
 namespace patchy::ui {
@@ -116,10 +117,11 @@ QString blend_mode_name(BlendMode mode) {
 }
 
 
-void add_blend_mode_items(QComboBox* combo, BlendModeMenu menu) {
-  // Photoshop's menu grouping order; item data carries the enum value, so display order is
-  // free to differ from enum order.
-  constexpr std::array kBlendModes = {
+namespace {
+
+// Photoshop's menu grouping order; item data carries the enum value, so display order is
+// free to differ from enum order.
+constexpr std::array kBlendModes = {
       BlendMode::Normal,     BlendMode::Dissolve,
       BlendMode::Darken,     BlendMode::Multiply,    BlendMode::ColorBurn,
       BlendMode::LinearBurn, BlendMode::DarkerColor,
@@ -129,16 +131,85 @@ void add_blend_mode_items(QComboBox* combo, BlendModeMenu menu) {
       BlendMode::VividLight, BlendMode::LinearLight, BlendMode::PinLight,   BlendMode::HardMix,
       BlendMode::Difference, BlendMode::Exclusion,   BlendMode::Subtract,   BlendMode::Divide,
       BlendMode::Hue,        BlendMode::Saturation,  BlendMode::Color,      BlendMode::Luminosity,
-  };
+};
+
+// Behind and Clear are not BlendMode values; their item data sits past the enum.
+constexpr int kPaintModeBehindData = 1000;
+constexpr int kPaintModeClearData = 1001;
+
+void install_blend_mode_arrow_keys(QComboBox* combo) {
+  if (!combo->property(kBlendModeArrowKeysProperty).toBool()) {
+    combo->setProperty(kBlendModeArrowKeysProperty, true);
+    new BlendModeArrowKeys(combo);
+  }
+}
+
+}  // namespace
+
+void add_blend_mode_items(QComboBox* combo, BlendModeMenu menu) {
   for (const auto mode : kBlendModes) {
     if (menu == BlendModeMenu::Filter && !recipe_blend_mode_supported(mode)) {
       continue;
     }
     combo->addItem(blend_mode_name(mode), static_cast<int>(mode));
   }
-  if (!combo->property(kBlendModeArrowKeysProperty).toBool()) {
-    combo->setProperty(kBlendModeArrowKeysProperty, true);
-    new BlendModeArrowKeys(combo);
+  install_blend_mode_arrow_keys(combo);
+}
+
+QString paint_mode_name(PaintMode mode) {
+  switch (mode.kind) {
+    case PaintModeKind::Behind:
+      return QCoreApplication::translate("patchy::ui::PaintMode", "Behind");
+    case PaintModeKind::Clear:
+      return QCoreApplication::translate("patchy::ui::PaintMode", "Clear");
+    case PaintModeKind::Blend:
+      break;
+  }
+  return blend_mode_name(mode.blend);
+}
+
+int paint_mode_item_data(PaintMode mode) {
+  switch (mode.kind) {
+    case PaintModeKind::Behind:
+      return kPaintModeBehindData;
+    case PaintModeKind::Clear:
+      return kPaintModeClearData;
+    case PaintModeKind::Blend:
+      break;
+  }
+  return static_cast<int>(mode.blend);
+}
+
+PaintMode paint_mode_from_item_data(int data) {
+  if (data == kPaintModeBehindData) {
+    return PaintMode::behind();
+  }
+  if (data == kPaintModeClearData) {
+    return PaintMode::clear();
+  }
+  const auto found = std::find_if(kBlendModes.begin(), kBlendModes.end(),
+                                  [data](BlendMode mode) { return static_cast<int>(mode) == data; });
+  return found != kBlendModes.end() ? PaintMode::of(*found) : PaintMode{};
+}
+
+void add_paint_mode_items(QComboBox* combo) {
+  const auto add = [combo](PaintMode mode) { combo->addItem(paint_mode_name(mode), paint_mode_item_data(mode)); };
+  for (const auto mode : kBlendModes) {
+    add(PaintMode::of(mode));
+    if (mode == BlendMode::Dissolve) {
+      add(PaintMode::behind());
+      add(PaintMode::clear());
+    }
+  }
+  install_blend_mode_arrow_keys(combo);
+}
+
+void retranslate_paint_mode_items(QComboBox* combo) {
+  if (combo == nullptr) {
+    return;
+  }
+  for (int index = 0; index < combo->count(); ++index) {
+    combo->setItemText(index, paint_mode_name(paint_mode_from_item_data(combo->itemData(index).toInt())));
   }
 }
 

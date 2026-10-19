@@ -139,6 +139,7 @@ add_library(patchy_core
   src/core/blend_math.cpp
   src/core/blend_math_deep.cpp
   src/core/brush_dynamics.cpp
+  src/core/paint_mode.cpp
   src/core/brush_tip.cpp
   src/core/contour_presets.cpp
   src/core/document.cpp
@@ -1226,6 +1227,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/network_mounts.cpp
       src/ui/wayland_popup_anchor.hpp
       src/ui/wayland_popup_anchor.cpp
+      src/ui/wayland_pointer_cursor.hpp
+      src/ui/wayland_pointer_cursor.cpp
       src/ui/main_window_history.cpp
       src/ui/main_window_layer_ops.cpp
       src/ui/main_window_ai_selection.cpp

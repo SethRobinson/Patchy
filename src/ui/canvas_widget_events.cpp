@@ -38,6 +38,7 @@
 #include <QRectF>
 #include <QRegion>
 #include <QResizeEvent>
+#include <QScopeGuard>
 #include <QSize>
 #include <QString>
 #include <QTimerEvent>
@@ -217,7 +218,8 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
     auto* key_event = static_cast<QKeyEvent*>(event);
     if (!key_event->isAutoRepeat() &&
         (key_event->key() == Qt::Key_Shift || key_event->key() == Qt::Key_Alt ||
-         (key_event->key() == Qt::Key_Control && (pen_family_tool_active() || tool_ == CanvasTool::Move)))) {
+         (key_event->key() == Qt::Key_Control &&
+          (pen_family_tool_active() || tool_ == CanvasTool::Move || tool_ == CanvasTool::Text)))) {
       // The event reports the modifier state before this key, so fold the
       // pressed/released key into the modifiers we evaluate.
       const auto bit = key_event->key() == Qt::Key_Shift   ? Qt::ShiftModifier
@@ -243,6 +245,14 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
           pen_cursor_modifier_override_ = modifiers;
           update_tool_cursor();
           pen_cursor_modifier_override_.reset();
+        }
+      } else if (key_event->key() == Qt::Key_Control && tool_ == CanvasTool::Text) {
+        // Ctrl is the Type tool's temporary Move (GitHub issue 216): the four-way cursor shows
+        // over a text layer a press would drag, from the folded modifiers, no motion needed.
+        if (!text_layer_move_active_) {
+          text_ctrl_cursor_override_ = (modifiers & Qt::ControlModifier) != 0;
+          update_tool_cursor();
+          text_ctrl_cursor_override_.reset();
         }
       } else if (key_event->key() == Qt::Key_Control && tool_ == CanvasTool::Move) {
         // With Auto-Select off, Ctrl held over artwork previews the layer a
@@ -985,6 +995,15 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   }
 
   if (tool_ == CanvasTool::Text) {
+    // Ctrl is the temporary Move tool (GitHub issue 216): the press drags the text layer under
+    // the pointer instead of opening it; elsewhere Ctrl changes nothing (the I-beam says so).
+    if (event->button() == Qt::LeftButton && event->modifiers().testFlag(Qt::ControlModifier)) {
+      if (auto* layer = topmost_text_layer_at(document_point); layer != nullptr) {
+        begin_text_layer_move(layer->id(), event->pos());
+        event->accept();
+        return;
+      }
+    }
     if (auto* layer = topmost_text_layer_at(document_point); layer != nullptr) {
       if (layer_effectively_locks_image_pixels(*layer)) {
         show_layer_pixels_locked_message();
@@ -2219,7 +2238,11 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
         // The idle tool cursor reads last_mouse_position_ (the marquee and
         // crop handle checks), so it must already be this event's position.
         last_mouse_position_ = event->pos();
+        if (tool_ == CanvasTool::Text) {
+          text_ctrl_cursor_override_ = event->modifiers().testFlag(Qt::ControlModifier);
+        }
         update_tool_cursor();
+        text_ctrl_cursor_override_.reset();
       }
       update_move_hover_outline(event->pos(), event->modifiers());
     }
@@ -2276,6 +2299,13 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     event->accept();
     return;
   }
+  // A Type-tool Ctrl+drag ends with this release, once the Move commit below has run.
+  const bool ends_text_layer_move = text_layer_move_active_ && event->button() == Qt::LeftButton;
+  const auto finish_text_move = qScopeGuard([this, ends_text_layer_move] {
+    if (ends_text_layer_move) {
+      finish_text_layer_move();
+    }
+  });
   if (!handling_tablet_event_) {
     active_pen_input_sample_.reset();
   }
@@ -4026,6 +4056,8 @@ void CanvasWidget::cancel_pointer_gestures() {
   cancel_patch_tool_drag();
   drawing_shape_ = dragging_text_rect_ = dragging_text_entry_selection_ = false;
   move_drag_pending_ = moving_layer_ = false;
+  // After the move state above is cleared, so a resumed text session starts from a quiet canvas.
+  const auto finish_text_move = qScopeGuard([this] { finish_text_layer_move(); });
   moving_layers_.clear();
   move_readout_base_rect_.reset();
   clear_drag_readout();

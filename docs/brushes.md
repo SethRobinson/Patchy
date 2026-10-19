@@ -72,6 +72,10 @@ Patent review (July 15, 2026): this is the classic flat-stamp behavior Adobe doc
 
 `ui_brush_flow_builds_only_to_opacity_cap_and_round_trips_psd` pins the Opacity ceiling and exact layered PSD reopen; `ui_airbrush_fast_strokes_ignore_mouse_event_density` pins the spatial cadence.
 
+## Brush Mode
+
+The Brush bar's Mode (`brushModeCombo`, setting `tools/brushMode`, script `mode`; ids in `script_paint_mode_id`) offers every layer blend mode except Pass Through plus Behind and Clear, which are `PaintMode` kinds, not `BlendMode` values (`core/paint_mode.hpp`). `install_brush_stroke_compositor` picks the stroke's mode (Normal for every tool but Brush; masks and channels have their own path), and the snapshot writer applies it to the accumulated coverage against the stroke-start pixel, so dabs never compound a mode. Normal keeps the historical byte-exact path. Blend modes use `composite_blended_rgb(_deep)` and paint plainly over transparency; Dissolve uses `DissolveField::Paint`; Behind is destination-over; Clear removes alpha. Without an alpha channel or with Lock Transparent Pixels, Behind and Clear change nothing. Palette mode snaps the blended color. CMYK documents blend in their RGB pixels (cmyk.md). The Eraser has no Mode (Photoshop's Eraser Mode means its tip shape). These are generic compositing operators; nothing in legal-constraints.md touches them. Tests: `paint_mode_*` (core), `ui_brush_mode_*`, `ui_script_brush_mode_strokes_and_validation`.
+
 ## Mixer Brush, Smoothing, and the healing family
 
 The Mixer Brush pickup engine and its calibration, plus the shared Brush/Mixer/Eraser stroke Smoothing stabilizer, live in [mixer.md](mixer.md). The Healing Brush, Spot Healing, Patch, Remove Object, and the shared retouch Sample All Layers option live in [healing.md](healing.md) with their binding legal envelope.

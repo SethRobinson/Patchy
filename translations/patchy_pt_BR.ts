@@ -10535,6 +10535,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Photoshop and Patchy open the layers; other apps show the flattened image. Without layers, Patchy saves a flattened copy and this document keeps its layers.</source>
         <translation>O Photoshop e o Patchy abrem as camadas; outros aplicativos mostram a imagem achatada. Sem camadas, o Patchy salva uma cópia achatada e este documento mantém as camadas.</translation>
     </message>
+    <message>
+        <source>The file&apos;s CMYK profile %1 differs from the working CMYK profile %2, which CMYK Proof and CMYK JPEG, TIFF and PDF saves use</source>
+        <translation>O perfil CMYK do arquivo, %1, é diferente do perfil CMYK de trabalho %2, usado pela Prova CMYK e pelos salvamentos em CMYK como JPEG, TIFF e PDF</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -10919,6 +10923,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>preview write</source>
         <translation>gravação da visualização</translation>
+    </message>
+    <message>
+        <source>mode: brush only</source>
+        <translation>mode: somente pincel</translation>
     </message>
 </context>
 <context>
@@ -22003,8 +22011,20 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         <translation>Sombra projetada...</translation>
     </message>
     <message>
+        <source>Opened in Image &gt; Mode &gt; CMYK Proof: saving keeps this file in CMYK while its layers are unchanged, and JPEG, TIFF and PDF saves write CMYK</source>
+        <translation>Aberta em Imagem &gt; Modo &gt; Prova CMYK: salvar mantém este arquivo em CMYK enquanto suas camadas não mudarem, e salvar como JPEG, TIFF e PDF grava em CMYK</translation>
+    </message>
+    <message>
+        <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. Patchy saves a PSD in CMYK only when it was opened from a CMYK PSD and its layers are unchanged (text layers always need RGB). JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
+        <translation>Este documento está no modo Prova CMYK, mas este arquivo %1 será salvo em RGB. O Patchy salva um PSD em CMYK só quando ele foi aberto de um PSD CMYK e suas camadas não mudaram (camadas de texto sempre precisam de RGB). Arquivos JPEG, TIFF e PDF achatados sempre podem ser salvos em CMYK. Salvar em RGB?</translation>
+    </message>
+    <message>
         <source>This document is in CMYK Proof mode, but a TIFF with layers is saved in RGB. Save it in RGB?</source>
         <translation>Este documento está no modo Prova CMYK, mas um TIFF com camadas é salvo em RGB. Salvar em RGB?</translation>
+    </message>
+    <message>
+        <source>Brush mode: how the paint combines with the pixels under it</source>
+        <translation>Modo do pincel: como a tinta se combina com os pixels abaixo</translation>
     </message>
 </context>
 <context>
@@ -22162,6 +22182,17 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
     <message>
         <source>Alt</source>
         <translation>Alt</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::PaintMode</name>
+    <message>
+        <source>Behind</source>
+        <translation>Atrás</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>Limpar</translation>
     </message>
 </context>
 <context>

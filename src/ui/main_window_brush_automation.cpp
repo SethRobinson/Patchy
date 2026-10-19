@@ -81,6 +81,9 @@ void MainWindow::activate_automation_brush(const ScriptStroke& input) {
   current_brush_smoothing_ = s.smoothing; current_brush_smoothing_pulled_string_ = s.pulled_string;
   current_brush_smoothing_catch_up_ = s.catch_up; current_brush_smoothing_catch_up_end_ = s.catch_up_end;
   current_brush_smoothing_zoom_adjust_ = s.zoom_adjust;
+  // Eraser and Mixer settings carry no Mode, so activating one keeps the Brush's.
+  if (!s.erase && !s.mixer) current_brush_paint_mode_ = s.mode;
+  canvas_->set_brush_paint_mode(current_brush_paint_mode_);
   stash_active_brush_settings(); sync_brush_controls_from_canvas();
   if (brush_dynamics_button_) brush_dynamics_button_->set_round_session(
       is_builtin_brush_tip_id(active_brush_tip_id_) ? active_brush_tip_id_ : builtin_round_brush_tip_id(),

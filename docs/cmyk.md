@@ -18,8 +18,8 @@ Warning ("The proof view" below). They change what is painted, never the documen
 It also drives CMYK export of JPEG, TIFF and flattened PDF ("CMYK export" below).
 
 Not built: CMYK PSD saves of edited documents (layers, adjustments, text and styles would
-need CMYK forms Photoshop accepts; unchanged imported CMYK PSDs still save natively,
-[psd-native-color.md](psd-native-color.md)), a true CMYK document mode, opening a CMYK PDF
+need CMYK forms Photoshop accepts; unchanged imported CMYK PSDs, flat ones included, still
+save natively, [psd-native-color.md](psd-native-color.md)), a true CMYK document mode, opening a CMYK PDF
 into CMYK Proof (Qt PDF renders pages to RGB), Assign or Convert to Profile, a separate Proof
 Setup dialog (the proof uses the working space from Preferences).
 
@@ -210,7 +210,7 @@ ignore the export's black-ink-only option.
 File > Export offers a Color row (`exportColorCombo`, RGB or CMYK with the profile's name)
 for JPEG, TIFF and PDF, remembered per format under `saveOptions/exportColorJpeg`,
 `saveOptions/exportColorTiff` and `saveOptions/exportColorPdf` (`rgb`/`cmyk`). Save and Save As
-never offer it: the file is a print deliverable, and Patchy reads CMYK files back as RGB. The
+never offer it (the file is a print deliverable); for them CMYK Proof mode (below) decides the color form. The
 CMYK entry is disabled under the formula, and PDF's editable-layers mode forces RGB (Qt's PDF
 engine writes RGB only). Scripts pass `colorMode: "cmyk"`.
 
@@ -267,7 +267,11 @@ session-only, never written to a file, not an undo step.
   until "Don't show this again" sets `saveOptions/cmykProofSaveNotice` false. Interactive
   saves and Save As to other formats (PSD, PNG, editable-layer PDF) ask
   `cmykProofRgbSaveMessageBox` once per session (`cmyk_proof_rgb_save_accepted`); exports
-  and scripted saves never prompt. The status line says "Saved ... in CMYK".
+  and scripted saves never prompt. A PSD or PSB save skips the question when
+  `psd::DocumentIo::layered_save_keeps_source_color_mode` says the writer keeps the imported
+  CMYK inks (an unchanged CMYK PSD, [psd-native-color.md](psd-native-color.md)); otherwise
+  its question says a PSD stays CMYK only while opened from a CMYK PSD and unchanged, text
+  layers always needing RGB. The status line says "Saved ... in CMYK" for both kinds.
 - **Opening.** Qt hands a CMYK JPEG or TIFF over as `Format_CMYK8888`.
   `srgb_image_from_cmyk` (`main_window_files.cpp`) converts it through the embedded CMYK
   profile, else the working profile, relative colorimetric with black point compensation
@@ -276,6 +280,13 @@ session-only, never written to a file, not an undo step.
   profile). `OpenDocumentResult::cmyk_source` then puts the session in CMYK Proof
   (`open_cmyk_source_in_proof_mode`, on Open, background multi-file Open and Reopen), so a
   plain Save writes CMYK again. Without any profile the file opens through Qt in RGB mode.
+  A CMYK PSD or PSB (`psd.color_mode` "CMYK", layered or flat, GitHub issue 220) sets
+  `cmyk_source` too. The PSD reader converts through the embedded profile (else the
+  untagged fallback) and notes it; the open adds a note when that profile differs from the
+  working one, which the proof view and CMYK JPEG, TIFF and PDF saves use, while an unchanged
+  PSD save keeps the file's own profile. Its CMYK Proof note promises a CMYK PSD save only when
+  `psd_save_keeps_cmyk` holds at open (text layers, for one, need RGB); otherwise it gets
+  the JPEG/TIFF wording.
 - **Scripting.** `doc.cmykProof` (read/write; refusals throw).
 
 ## Tests
@@ -293,7 +304,9 @@ UI: `ui_color_picker_cmyk_fields_follow_working_space`,
 (`tests/ui/pickers_notices_hotkeys_tests.cpp`) and
 `ui_script_cmyk_conversions_use_working_space` and
 `ui_proof_colors_and_gamut_warning_change_only_the_view`,
-`ui_script_export_cmyk_writes_jpeg_tiff_and_pdf`, `ui_cmyk_proof_mode_saves_cmyk`, `ui_cmyk_files_open_in_cmyk_proof` (`tests/ui/scripting_tests.cpp`), and
+`ui_script_export_cmyk_writes_jpeg_tiff_and_pdf`, `ui_cmyk_proof_mode_saves_cmyk`, `ui_cmyk_files_open_in_cmyk_proof`,
+`ui_cmyk_psd_opens_in_cmyk_proof` and the local-fixture
+`ui_issue_220_photoshop_cmyk_psd_opens_in_cmyk_proof_if_available` (`tests/ui/scripting_tests_color_formats.cpp`), and
 `ui_export_dialog_offers_cmyk_for_print_formats` (`tests/ui/flat_image_format_tests.cpp`). UI tests
 that assert ink numbers store the `formula` choice first: Automatic is Adobe's profile on a
 machine that has it.

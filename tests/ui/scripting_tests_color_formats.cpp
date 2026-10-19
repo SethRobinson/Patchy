@@ -1,10 +1,14 @@
 #include <QStatusBar>
+#include "color/color_management.hpp"
 #include "core/document.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/pixel_depth.hpp"
 #include "formats/avif_document_io.hpp"
 #include "formats/jxl_document_io.hpp"
 #include "formats/webp_animation_io.hpp"
+#include "psd/psd_binary.hpp"
+#include "ui/qt_paths.hpp"
+#include "local_psd_fixtures.hpp"
 #include <QImageReader>
 #include "ui/canvas_widget.hpp"
 #include "ui/brush_tip_library.hpp"
@@ -34,6 +38,7 @@
 #include <QLabel>
 #include <QMenu>
 #include <QMessageBox>
+#include <QPainter>
 #if defined(PATCHY_HAVE_QT_PDF)
 #include <QPdfDocument>
 #endif
@@ -46,6 +51,7 @@
 #include <QTreeWidget>
 #include <QTreeWidgetItem>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -849,6 +855,182 @@ void ui_cmyk_files_open_in_cmyk_proof() {
   // The active document (the RGB JPEG) is plain RGB; the Mode menu follows the active tab.
   auto* cmyk_action = window.findChild<QAction*>(QStringLiteral("imageModeCmykProofAction"));
   CHECK(cmyk_action != nullptr && !cmyk_action->isChecked());
+}
+
+// A flat 8-bit CMYK PSD as Photoshop saves a one-layer document (no layer records, the
+// merged image only), every pixel 75/20/0/0 ink (the separation of #00a0e0), with
+// `profile` as its ICC resource (GitHub issue 220).
+void write_flat_cmyk_psd(const QString& path, std::span<const std::uint8_t> profile) {
+  constexpr std::uint32_t width = 8;
+  constexpr std::uint32_t height = 6;
+  patchy::psd::BigEndianWriter resources;
+  for (const char letter : {'8', 'B', 'I', 'M'}) resources.write_u8(static_cast<std::uint8_t>(letter));
+  resources.write_u16(1039);
+  resources.write_u16(0);  // empty Pascal name, padded to even
+  resources.write_u32(static_cast<std::uint32_t>(profile.size()));
+  resources.write_bytes(profile);
+  if (profile.size() % 2U != 0U) resources.write_u8(0);
+  patchy::psd::BigEndianWriter file;
+  patchy::psd::write_header(file, patchy::psd::Header{false, 4, height, width, 8, 4});
+  file.write_u32(0);
+  file.write_u32(static_cast<std::uint32_t>(resources.bytes().size()));
+  file.write_bytes(resources.bytes());
+  file.write_u32(0);  // no layer and mask information
+  file.write_u16(0);  // raw
+  // PSD stores ink inverted: 255 is no ink.
+  for (const int ink : {255 - 191, 255 - 51, 255, 255}) {
+    for (std::uint32_t i = 0; i < width * height; ++i) file.write_u8(static_cast<std::uint8_t>(ink));
+  }
+  QFile out(path);
+  CHECK(out.open(QIODevice::WriteOnly | QIODevice::Truncate));
+  const auto& bytes = file.bytes();
+  CHECK(out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qint64>(bytes.size())) ==
+        static_cast<qint64>(bytes.size()));
+}
+
+// The PSD header's color mode (3 RGB, 4 CMYK), or -1.
+int psd_file_color_mode(const QString& path) {
+  QFile file(path);
+  if (!file.open(QIODevice::ReadOnly)) return -1;
+  const auto header = file.read(26);
+  if (header.size() < 26 || !header.startsWith("8BPS")) return -1;
+  return (static_cast<unsigned char>(header[24]) << 8) | static_cast<unsigned char>(header[25]);
+}
+
+// Saves through the interactive path; true when CMYK Proof's "Save in RGB" question came
+// up, answered with `answer`. `text` receives its wording.
+bool save_asks_rgb_question(patchy::ui::MainWindow& window, const QString& path, QMessageBox::StandardButton answer,
+                            QString* text = nullptr) {
+  bool asked = false;
+  QTimer::singleShot(0, [&asked, answer, text] {
+    auto* box = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("cmykProofRgbSaveMessageBox")));
+    if (box == nullptr) return;
+    asked = true;
+    if (text != nullptr) *text = box->text();
+    box->button(answer)->click();
+  });
+  static_cast<void>(patchy::ui::MainWindowTestAccess::save_document_to_path(window, path));
+  QApplication::processEvents();
+  return asked;
+}
+
+// The Image > Mode menu as it stands, with the status bar's document info field under it.
+QImage image_mode_capture(patchy::ui::MainWindow& window) {
+  auto* menu = window.findChild<QMenu*>(QStringLiteral("imageModeMenu"));
+  auto* info = window.findChild<QLabel*>(QStringLiteral("statusDocumentInfoLabel"));
+  CHECK(menu != nullptr && info != nullptr);
+  menu->popup(QPoint(0, 0));
+  QApplication::processEvents();
+  const auto menu_image = menu->grab().toImage();
+  menu->hide();
+  const auto info_image = info->grab().toImage();
+  constexpr int gap = 12;
+  QImage composed(std::max(menu_image.width(), info_image.width()) + 2 * gap,
+                  menu_image.height() + info_image.height() + 3 * gap, QImage::Format_ARGB32);
+  composed.fill(window.palette().color(QPalette::Window));
+  QPainter painter(&composed);
+  painter.drawImage(gap, gap, menu_image);
+  painter.drawImage(gap, menu_image.height() + 2 * gap, info_image);
+  painter.end();
+  return composed;
+}
+
+// A CMYK PSD opens in Image > Mode > CMYK Proof like a CMYK JPEG or TIFF (GitHub issue 220).
+// Saved unchanged it stays CMYK with no question; once edited the save asks, saying why
+// the PSD needs RGB now, and writes RGB.
+void ui_cmyk_psd_opens_in_cmyk_proof() {
+  const auto previous = patchy::working_cmyk_space();
+  const auto restore = qScopeGuard([&previous] { patchy::set_working_cmyk_space(previous); });
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::set_working_cmyk_space(patchy::CmykWorkingSpace::from_icc_profile(
+      patchy::ui::bundled_cmyk_profile(), patchy::RenderingIntent::RelativeColorimetric, true));
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  const auto source = directory.filePath(QStringLiteral("print.psd"));
+  write_flat_cmyk_psd(source, patchy::ui::bundled_cmyk_profile());
+  patchy::ui::MainWindowTestAccess::open_document_path(window, source);
+  QApplication::processEvents();
+  auto* cmyk_action = window.findChild<QAction*>(QStringLiteral("imageModeCmykProofAction"));
+  auto* rgb_action = window.findChild<QAction*>(QStringLiteral("imageModeRgbAction"));
+  CHECK(cmyk_action != nullptr && rgb_action != nullptr);
+  CHECK(cmyk_action->isChecked());
+  CHECK(!rgb_action->isChecked());
+  auto* info = window.findChild<QLabel*>(QStringLiteral("statusDocumentInfoLabel"));
+  CHECK(info != nullptr && info->text().contains(QStringLiteral("CMYK Proof")));
+  // Converted through the file's own profile (PSD ink storage, 255 = no ink).
+  {
+    const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    CHECK(document.layers().size() == 1);
+    const auto transform = patchy::CmykToRgbTransform::from_icc_profile(patchy::ui::bundled_cmyk_profile());
+    CHECK(transform.has_value());
+    const std::array<std::uint8_t, 4> inks{255 - 191, 255 - 51, 255, 255};
+    std::array<std::uint8_t, 3> expected{};
+    transform->convert(inks.data(), expected.data(), 1);
+    const auto* pixel = document.layers().front().pixels().pixel(2, 2);
+    for (int c = 0; c < 3; ++c) CHECK(std::abs(int{pixel[c]} - int{expected[static_cast<std::size_t>(c)]}) <= 1);
+  }
+
+  // Unchanged: Save writes CMYK again and asks nothing.
+  const auto unchanged = directory.filePath(QStringLiteral("unchanged.psd"));
+  CHECK(!save_asks_rgb_question(window, unchanged, QMessageBox::Cancel));
+  CHECK(psd_file_color_mode(unchanged) == 4);
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("in CMYK")));
+
+  // Edited: the save explains that a PSD keeps CMYK only while its layers are unchanged.
+  patchy::ui::MainWindowTestAccess::document(window).layers().front().pixels().pixel(0, 0)[0] ^= 0x40;
+  patchy::ui::MainWindowTestAccess::canvas(window)->document_changed();
+  const auto edited = directory.filePath(QStringLiteral("edited.psd"));
+  QString question;
+  CHECK(save_asks_rgb_question(window, edited, QMessageBox::Cancel, &question));
+  CHECK(question.contains(QStringLiteral("opened from a CMYK PSD and its layers are unchanged")));
+  CHECK(!QFileInfo::exists(edited));
+  CHECK(save_asks_rgb_question(window, edited, QMessageBox::Save));
+  CHECK(psd_file_color_mode(edited) == 3);
+  CHECK(!window.statusBar()->currentMessage().contains(QStringLiteral("in CMYK")));
+
+  // Scripts see the mode too.
+  auto& host = window.script_engine_host();
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.name = QStringLiteral("cmyk-psd-open");
+  options.args = QStringList{QStringLiteral("path=") + source};
+  options.unattended = true;
+  CHECK(host.run_source(QStringLiteral(R"JS(
+    console.log('psd proof=' + app.open(patchy.args.path).cmykProof);
+  )JS"), options));
+  QElapsedTimer timer;
+  timer.start();
+  while (host.run_active() && timer.elapsed() < 60000) {
+    QApplication::processEvents(QEventLoop::AllEvents, 20);
+  }
+  QApplication::processEvents();
+  CHECK(!host.last_run_had_error());
+  CHECK(backlog_contains(window, QStringLiteral("psd proof=true")));
+}
+
+// The reporter's Photoshop file from GitHub issue 220: a flat 8-bit CMYK PSD. It opens in
+// CMYK Proof, and saving it unchanged writes CMYK. The capture shows the Mode menu.
+void ui_issue_220_photoshop_cmyk_psd_opens_in_cmyk_proof_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("issue-220/Photoshop CMYK test.psd");
+  if (!std::filesystem::exists(path)) {
+    patchy::test::skip("local fixture local-test-fixtures/psd/issue-220/Photoshop CMYK test.psd is absent");
+  }
+  const auto previous = patchy::working_cmyk_space();
+  const auto restore = qScopeGuard([&previous] { patchy::set_working_cmyk_space(previous); });
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::set_working_cmyk_space(patchy::CmykWorkingSpace::from_icc_profile(
+      patchy::ui::bundled_cmyk_profile(), patchy::RenderingIntent::RelativeColorimetric, true));
+  patchy::ui::MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(path));
+  QApplication::processEvents();
+  save_image_artifact("ui_issue_220_cmyk_psd_image_mode", image_mode_capture(window));
+  auto* cmyk_action = window.findChild<QAction*>(QStringLiteral("imageModeCmykProofAction"));
+  CHECK(cmyk_action != nullptr && cmyk_action->isChecked());
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  const auto saved = directory.filePath(QStringLiteral("again.psd"));
+  CHECK(!save_asks_rgb_question(window, saved, QMessageBox::Cancel));
+  CHECK(psd_file_color_mode(saved) == 4);
 }
 
 void ui_script_export_cmyk_writes_jpeg_tiff_and_pdf() {
@@ -2086,6 +2268,9 @@ std::vector<patchy::test::TestCase> scripting_tests_part2() {
       {"ui_script_cmyk_conversions_use_working_space", ui_script_cmyk_conversions_use_working_space},
       {"ui_cmyk_proof_mode_saves_cmyk", ui_cmyk_proof_mode_saves_cmyk},
       {"ui_cmyk_files_open_in_cmyk_proof", ui_cmyk_files_open_in_cmyk_proof},
+      {"ui_cmyk_psd_opens_in_cmyk_proof", ui_cmyk_psd_opens_in_cmyk_proof},
+      {"ui_issue_220_photoshop_cmyk_psd_opens_in_cmyk_proof_if_available",
+       ui_issue_220_photoshop_cmyk_psd_opens_in_cmyk_proof_if_available},
       {"ui_script_export_cmyk_writes_jpeg_tiff_and_pdf", ui_script_export_cmyk_writes_jpeg_tiff_and_pdf},
       {"ui_proof_colors_and_gamut_warning_change_only_the_view", ui_proof_colors_and_gamut_warning_change_only_the_view},
       {"ui_proof_colors_follow_brush_strokes_and_move_drags", ui_proof_colors_follow_brush_strokes_and_move_drags},

@@ -11,7 +11,7 @@ How the Options bar keeps one height and fits narrow windows (GitHub issue 91). 
 
 ## Duplicate sliders drop first
 
-- An inline slider that repeats the spin box beside it (the spin box already has the popup slider and the scrub label) carries `kOptionsBarCollapsibleProperty`. Today: Brush Size, Opacity and Soft, Gradient Opacity, Quick Select Size, Fill Opacity and Soft.
+- An inline slider that repeats the spin box beside it (the spin box already has the popup slider and the scrub label) carries `kOptionsBarCollapsibleProperty`. Today: Brush Size, Gradient Opacity, Quick Select Size, Fill Opacity and Soft. The brush family's Opacity and Soft have no inline slider at all (October 2026), like Flow and Smooth: the popup slider, a drag on the label or inside the field, and the number keys reach them.
 - At a width where any row holding one would wrap with it, all of them hide, for every tool at once, so the bar looks the same from tool to tool. A resize across that width calls back into `refresh_options_bar`.
 - Mark only true duplicates. Never mark a control that is the only way to reach a setting.
 

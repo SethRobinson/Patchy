@@ -1953,14 +1953,37 @@ void ui_save_prompt_uses_save_dont_save_cancel_with_letter_hotkeys() {
     prompt_is_inside_screen = false;
     auto* dismiss_timer = new QTimer(&window);
     dismiss_timer->setInterval(10);
-    QObject::connect(dismiss_timer, &QTimer::timeout, &window, [&, key, dismiss_timer] {
+    // The placement filter re-clamps the box one event-loop turn after each Show and
+    // Resize (QMessageBox settles its size late), so judge the position only once the
+    // frame has held still for three ticks; earlier reads caught the box mid-placement.
+    auto last_frame = std::make_shared<QRect>();
+    auto steady_ticks = std::make_shared<int>(0);
+    QObject::connect(dismiss_timer, &QTimer::timeout, &window, [&, key, dismiss_timer, last_frame, steady_ticks] {
       auto* dialog = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("saveChangesMessageBox")));
       if (dialog == nullptr) {
+        return;
+      }
+      if (dialog->frameGeometry() != *last_frame) {
+        *last_frame = dialog->frameGeometry();
+        *steady_ticks = 0;
+        return;
+      }
+      if (++*steady_ticks < 3) {
         return;
       }
       prompt_seen = true;
       prompt_is_inside_screen = dialog->screen() != nullptr &&
                                 dialog->screen()->availableGeometry().contains(dialog->frameGeometry());
+      if (!prompt_is_inside_screen) {
+        // Fails only after other tests in a full run: report what grew or moved.
+        const auto f = dialog->frameGeometry();
+        const auto s = dialog->screen() != nullptr ? dialog->screen()->availableGeometry() : QRect();
+        const auto w = window.frameGeometry();
+        std::cerr << "  save prompt frame " << f.x() << ',' << f.y() << ' ' << f.width() << 'x' << f.height()
+                  << " screen " << s.x() << ',' << s.y() << ' ' << s.width() << 'x' << s.height() << " window "
+                  << w.x() << ',' << w.y() << ' ' << w.width() << 'x' << w.height() << " font pt "
+                  << dialog->font().pointSizeF() << " dpr " << dialog->devicePixelRatioF() << '\n';
+      }
       auto* save = dialog->button(QMessageBox::Save);
       auto* discard = dialog->button(QMessageBox::Discard);
       buttons_are_save_dont_save_cancel =

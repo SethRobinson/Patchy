@@ -15,6 +15,12 @@ of a flattened copy; `layers: false` keeps the old flat file, and `exportAs`, `c
 "cmyk"` and `--export` stay flat. `layers: true` with `colorMode: "cmyk"` throws. Opening a
 TIFF with Photoshop layers (`app.open`) gives a layered document. Permanent identifier: the
 key. Pinned by `ui_script_save_as_tiff_layers_option`.
+2026-10-19 (additive): Brush Mode. `drawStrokes` strokes and `patchy.brushes` settings take
+`mode` (Brush only, default `"normal"`): every blend mode id except `"pass-through"`, plus
+`"behind"` and `"clear"`; Eraser and Mixer strokes reject any other value. `getCurrent`,
+`resolve` and saved presets report it for the Brush. Permanent identifiers: the key, the two
+new tokens, and the setting `tools/brushMode`. Pinned by
+`ui_brush_mode_combo_lists_paint_modes_and_persists` and `ui_script_brush_mode_*`.
 2026-10-19 (additive): right-column panels. `patchy.ui.expandPanel(name)` (the Window menu
 entry's show: reopen, front tab, expand), `collapsePanel(name)`, `closePanel(name)` and
 `panelState(name)` (`{open, front, expanded}`); unknown names throw. Permanent identifiers:

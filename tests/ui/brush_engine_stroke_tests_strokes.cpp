@@ -10,6 +10,9 @@
 #include "ui/pattern_library.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/brush_tip_picker.hpp"
+#include "ui/blend_mode_ui.hpp"
+#include "core/document_depth.hpp"
+#include "core/pixel_depth.hpp"
 #include "formats/acv_curves_io.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "formats/aseprite_document_io.hpp"
@@ -1419,6 +1422,283 @@ void ui_airbrush_preset_builds_while_stationary() {
   QApplication::processEvents();
   CHECK(window.brush_tip_library().remove_tip(sampled_tip_id));
   save_widget_artifact("ui_airbrush_stationary_build_up", window);
+}
+
+// Brush Mode on real strokes (core/paint_mode.hpp): the options-bar choice reaches the
+// stroke compositor, which blends against the stroke-start pixels through blend_math.
+// One dab per mode on a mid-gray layer, each one undo entry; Lock Transparent Pixels
+// stops Clear; the Eraser ignores the Brush's Mode.
+namespace brush_mode_test {
+
+struct Fixture {
+  patchy::ui::MainWindow window;
+  patchy::LayerId layer_id{};
+  patchy::ui::CanvasWidget* canvas{nullptr};
+  QComboBox* mode_combo{nullptr};
+
+  explicit Fixture(patchy::Document document) {
+    layer_id = document.layers().front().id();
+    window.add_document_session(std::move(document), QStringLiteral("Brush Mode"));
+    show_window(window);
+    canvas = require_canvas(window);
+    require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+    canvas->set_zoom(1.0);
+    canvas->set_primary_color(QColor(255, 0, 0));
+    canvas->set_brush_size(9);
+    canvas->set_brush_opacity(100);
+    canvas->set_brush_flow(100);
+    canvas->set_brush_softness(0);
+    canvas->set_brush_build_up(false);
+    mode_combo = window.findChild<QComboBox*>(QStringLiteral("brushModeCombo"));
+    CHECK(mode_combo != nullptr);
+    QApplication::processEvents();
+  }
+
+  void select(patchy::PaintMode mode) {
+    mode_combo->setCurrentIndex(mode_combo->findData(patchy::ui::paint_mode_item_data(mode)));
+    QApplication::processEvents();
+    CHECK(canvas->brush_paint_mode() == mode);
+  }
+
+  void dab(QPoint point) {
+    const auto position = canvas->widget_position_for_document_point(point);
+    send_mouse(*canvas, QEvent::MouseButtonPress, position, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, position, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  }
+
+  [[nodiscard]] const patchy::Layer& layer() {
+    return *std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(layer_id);
+  }
+
+  [[nodiscard]] std::array<std::uint8_t, 4> pixel(QPoint point) {
+    const auto* px = layer().pixels().pixel(point.x(), point.y());
+    return {px[0], px[1], px[2], px[3]};
+  }
+
+  void undo() {
+    auto* action = require_action_by_text(window, QStringLiteral("Undo"));
+    CHECK(action->isEnabled());
+    action->trigger();
+    QApplication::processEvents();
+  }
+};
+
+using Rgba = std::array<std::uint8_t, 4>;
+
+}  // namespace brush_mode_test
+
+void ui_brush_mode_strokes_blend_clear_behind_and_undo() {
+  using brush_mode_test::Rgba;
+  using patchy::BlendMode;
+  using patchy::PaintMode;
+  SettingsValueRestorer saved_mode(QStringLiteral("tools/brushMode"));
+  patchy::Document document(64, 64, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Paint", solid_pixels(64, 64, patchy::PixelFormat::rgba8(), QColor(128, 128, 128)));
+  brush_mode_test::Fixture f(std::move(document));
+  const Rgba gray{128, 128, 128, 255};
+
+  f.select(PaintMode::of(BlendMode::Multiply));
+  f.dab(QPoint(16, 16));
+  CHECK((f.pixel(QPoint(16, 16)) == Rgba{128, 0, 0, 255}));
+  CHECK((f.pixel(QPoint(30, 30)) == gray));
+  f.undo();
+  CHECK((f.pixel(QPoint(16, 16)) == gray));
+
+  f.select(PaintMode::of(BlendMode::Screen));
+  f.dab(QPoint(16, 16));
+  CHECK((f.pixel(QPoint(16, 16)) == Rgba{255, 128, 128, 255}));
+  f.undo();
+
+  f.select(PaintMode::clear());
+  f.dab(QPoint(44, 16));
+  CHECK(f.pixel(QPoint(44, 16))[3] == 0);
+  // Behind leaves opaque pixels alone and fills the cleared hole.
+  f.select(PaintMode::behind());
+  const auto depth_before_noop = patchy::ui::MainWindowTestAccess::active_session_undo_depth(f.window);
+  f.dab(QPoint(16, 44));
+  CHECK((f.pixel(QPoint(16, 44)) == gray));
+  // A stroke that changed nothing may still be a history entry, like any stroke.
+  while (patchy::ui::MainWindowTestAccess::active_session_undo_depth(f.window) > depth_before_noop) {
+    f.undo();
+  }
+  f.dab(QPoint(44, 16));
+  CHECK((f.pixel(QPoint(44, 16)) == Rgba{255, 0, 0, 255}));
+  f.undo();
+  CHECK(f.pixel(QPoint(44, 16))[3] == 0);
+  f.undo();
+  CHECK((f.pixel(QPoint(44, 16)) == gray));
+
+  // Dissolve at 50% Opacity paints whole pixels or none.
+  f.select(PaintMode::of(BlendMode::Dissolve));
+  f.canvas->set_brush_size(21);
+  f.canvas->set_brush_opacity(50);
+  f.dab(QPoint(40, 44));
+  int painted = 0;
+  int untouched = 0;
+  for (int y = 41; y <= 47; ++y) {
+    for (int x = 37; x <= 43; ++x) {
+      const auto value = f.pixel(QPoint(x, y));
+      CHECK((value == Rgba{255, 0, 0, 255} || value == gray));
+      painted += value == gray ? 0 : 1;
+      untouched += value == gray ? 1 : 0;
+    }
+  }
+  CHECK(painted > 0 && untouched > 0);
+  f.undo();
+  f.canvas->set_brush_size(9);
+  f.canvas->set_brush_opacity(100);
+
+  // Lock Transparent Pixels: Clear cannot remove alpha.
+  patchy::ui::MainWindowTestAccess::document(f.window).find_layer(f.layer_id)->set_lock_flags(
+      patchy::kLayerLockTransparentPixels);
+  f.select(PaintMode::clear());
+  f.dab(QPoint(16, 48));
+  CHECK((f.pixel(QPoint(16, 48)) == gray));
+  patchy::ui::MainWindowTestAccess::document(f.window).find_layer(f.layer_id)->set_lock_flags(patchy::kLayerLockNone);
+
+  // The Mode belongs to the Brush: the Eraser hides it and erases as always.
+  f.select(PaintMode::of(BlendMode::Multiply));
+  require_action_by_text(f.window, QStringLiteral("Eraser"))->trigger();
+  QApplication::processEvents();
+  CHECK(!f.mode_combo->isVisible());
+  f.canvas->set_brush_size(9);
+  f.canvas->set_brush_opacity(100);
+  f.canvas->set_brush_softness(0);
+  f.dab(QPoint(48, 48));
+  CHECK(f.pixel(QPoint(48, 48))[3] == 0);
+  require_action_by_text(f.window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  CHECK(f.mode_combo->isVisible());
+  CHECK(f.canvas->brush_paint_mode() == PaintMode::of(BlendMode::Multiply));
+}
+
+// The same compositor on a 16-bit layer and in palette mode: Multiply lands at depth,
+// and an indexed document snaps the blended color (not the paint color) to its palette.
+void ui_brush_mode_paints_16_bit_and_palette_documents() {
+  using brush_mode_test::Rgba;
+  using patchy::BlendMode;
+  using patchy::PaintMode;
+  SettingsValueRestorer saved_mode(QStringLiteral("tools/brushMode"));
+  patchy::set_deep_editing_override(true);
+  {
+    patchy::Document document(48, 48, patchy::PixelFormat::rgba8());
+    document.add_pixel_layer("Paint", solid_pixels(48, 48, patchy::PixelFormat::rgba8(), QColor(128, 128, 128)));
+    patchy::convert_document_depth(document, patchy::BitDepth::UInt16);
+    brush_mode_test::Fixture f(std::move(document));
+    CHECK(f.layer().pixels().format().bit_depth == patchy::BitDepth::UInt16);
+    f.select(PaintMode::of(BlendMode::Multiply));
+    f.dab(QPoint(20, 20));
+    const auto format = f.layer().pixels().format();
+    const auto deep = patchy::load_pixel(format, f.layer().pixels().pixel(20, 20));
+    CHECK(std::abs(deep[0] - 128.0F) < 0.01F);
+    CHECK(std::abs(deep[1]) < 0.01F);
+    CHECK(std::abs(deep[2]) < 0.01F);
+    CHECK(std::abs(deep[3] - 255.0F) < 0.01F);
+    f.select(PaintMode::clear());
+    f.dab(QPoint(36, 20));
+    CHECK(patchy::load_pixel(format, f.layer().pixels().pixel(36, 20))[3] < 0.01F);
+    f.undo();
+    f.undo();
+    CHECK(std::abs(patchy::load_pixel(format, f.layer().pixels().pixel(20, 20))[1] - 128.0F) < 0.01F);
+  }
+  patchy::set_deep_editing_override(std::nullopt);
+
+  patchy::Document indexed(48, 48, patchy::PixelFormat::rgba8());
+  indexed.add_pixel_layer("Paint", solid_pixels(48, 48, patchy::PixelFormat::rgba8(), QColor(128, 128, 128)));
+  patchy::DocumentPaletteEditing editing;
+  editing.palette.colors = {patchy::RgbColor{128, 128, 128}, patchy::RgbColor{128, 0, 0}, patchy::RgbColor{255, 0, 0},
+                            patchy::RgbColor{255, 255, 255}};
+  indexed.palette_editing() = editing;
+  brush_mode_test::Fixture f(std::move(indexed));
+  f.select(PaintMode::of(BlendMode::Multiply));
+  f.dab(QPoint(20, 20));
+  CHECK((f.pixel(QPoint(20, 20)) == Rgba{128, 0, 0, 255}));
+  f.select(PaintMode{});
+  f.dab(QPoint(36, 36));
+  CHECK((f.pixel(QPoint(36, 36)) == Rgba{255, 0, 0, 255}));
+}
+
+// A visual sample of Brush Mode (artifact ui_brush_mode_stroke_samples.png): one orange
+// stroke per mode across a hue ramp with a transparent band, so Behind shows only in the
+// band and Clear cuts through the ramp. Checks only that each stroke changed its row.
+void ui_brush_mode_stroke_samples_artifact() {
+  using patchy::BlendMode;
+  using patchy::PaintMode;
+  SettingsValueRestorer saved_mode(QStringLiteral("tools/brushMode"));
+  constexpr int kWidth = 420;
+  constexpr int kRow = 40;
+  const std::vector<std::pair<PaintMode, QString>> modes = {
+      {PaintMode{}, QStringLiteral("Normal")},
+      {PaintMode::of(BlendMode::Dissolve), QStringLiteral("Dissolve 60%")},
+      {PaintMode::behind(), QStringLiteral("Behind")},
+      {PaintMode::clear(), QStringLiteral("Clear")},
+      {PaintMode::of(BlendMode::Multiply), QStringLiteral("Multiply")},
+      {PaintMode::of(BlendMode::Screen), QStringLiteral("Screen")},
+      {PaintMode::of(BlendMode::Overlay), QStringLiteral("Overlay")},
+      {PaintMode::of(BlendMode::Difference), QStringLiteral("Difference")},
+      {PaintMode::of(BlendMode::Color), QStringLiteral("Color")},
+  };
+  const int height = kRow * static_cast<int>(modes.size());
+  patchy::PixelBuffer ramp(kWidth, height, patchy::PixelFormat::rgba8());
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < kWidth; ++x) {
+      const auto color = QColor::fromHsvF(static_cast<float>(x) / kWidth * 0.83F, 0.65F, 0.9F);
+      auto* px = ramp.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(color.red());
+      px[1] = static_cast<std::uint8_t>(color.green());
+      px[2] = static_cast<std::uint8_t>(color.blue());
+      px[3] = x >= 250 && x < 320 ? 0 : 255;
+    }
+  }
+  patchy::Document document(kWidth, height, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Ramp", ramp);
+  brush_mode_test::Fixture f(std::move(document));
+  f.canvas->set_primary_color(QColor(255, 140, 0));
+  f.canvas->set_brush_size(22);
+  f.canvas->set_brush_softness(40);
+  const auto before = f.layer().pixels();
+  for (std::size_t i = 0; i < modes.size(); ++i) {
+    f.select(modes[i].first);
+    f.canvas->set_brush_opacity(modes[i].first.blend == BlendMode::Dissolve ? 60 : 100);
+    const int y = static_cast<int>(i) * kRow + kRow / 2;
+    const auto at = [&](int x) { return f.canvas->widget_position_for_document_point(QPoint(x, y)); };
+    send_mouse(*f.canvas, QEvent::MouseButtonPress, at(110), Qt::LeftButton, Qt::LeftButton);
+    for (int x = 120; x <= kWidth - 20; x += 8) {
+      send_mouse(*f.canvas, QEvent::MouseMove, at(x), Qt::NoButton, Qt::LeftButton);
+    }
+    send_mouse(*f.canvas, QEvent::MouseButtonRelease, at(kWidth - 20), Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    bool changed = false;
+    for (int x = 120; x < kWidth - 20 && !changed; ++x) {
+      changed = !std::equal(before.pixel(x, y), before.pixel(x, y) + 4, f.layer().pixels().pixel(x, y));
+    }
+    CHECK(changed);
+  }
+  // Composite over a checkerboard (transparency stays visible) and label each row.
+  QImage sample(kWidth, height, QImage::Format_ARGB32);
+  {
+    QPainter painter(&sample);
+    for (int y = 0; y < height; y += 8) {
+      for (int x = 0; x < kWidth; x += 8) {
+        painter.fillRect(x, y, 8, 8, ((x + y) / 8) % 2 == 0 ? QColor(255, 255, 255) : QColor(204, 204, 204));
+      }
+    }
+    const auto& pixels = f.layer().pixels();
+    QImage layer_image(kWidth, height, QImage::Format_RGBA8888);
+    for (int y = 0; y < height; ++y) {
+      std::memcpy(layer_image.scanLine(y), pixels.pixel(0, y), static_cast<std::size_t>(kWidth) * 4U);
+    }
+    painter.drawImage(0, 0, layer_image);
+    painter.setPen(Qt::black);
+    for (std::size_t i = 0; i < modes.size(); ++i) {
+      const QRect label(4, static_cast<int>(i) * kRow + 10, 96, kRow - 20);
+      painter.fillRect(label, QColor(255, 255, 255, 220));
+      painter.drawText(label.adjusted(4, 0, 0, 0), Qt::AlignVCenter | Qt::AlignLeft, modes[i].second);
+    }
+  }
+  ensure_artifact_dir();
+  CHECK(sample.save(QStringLiteral("test-artifacts/ui_brush_mode_stroke_samples.png")));
 }
 
 void ui_brush_flow_builds_only_to_opacity_cap_and_round_trips_psd() {
@@ -3454,6 +3734,9 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part1() {
        ui_square_brush_preset_paints_square_tip_and_round_presets_restore_round},
       {"ui_airbrush_preset_builds_while_stationary",
        ui_airbrush_preset_builds_while_stationary},
+      {"ui_brush_mode_strokes_blend_clear_behind_and_undo", ui_brush_mode_strokes_blend_clear_behind_and_undo},
+      {"ui_brush_mode_paints_16_bit_and_palette_documents", ui_brush_mode_paints_16_bit_and_palette_documents},
+      {"ui_brush_mode_stroke_samples_artifact", ui_brush_mode_stroke_samples_artifact},
       {"ui_brush_flow_builds_only_to_opacity_cap_and_round_trips_psd",
        ui_brush_flow_builds_only_to_opacity_cap_and_round_trips_psd},
       {"ui_pattern_stamp_alignment_palette_and_psd_round_trip",

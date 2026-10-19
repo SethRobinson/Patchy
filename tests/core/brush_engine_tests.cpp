@@ -7,6 +7,7 @@
 #include "formats/pcx_document_io.hpp"
 #include "formats/tga_document_io.hpp"
 #include "psd/psd_document_io.hpp"
+#include "core/paint_mode.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/stroke_stabilizer.hpp"
 #include "test_harness.hpp"
@@ -1817,11 +1818,119 @@ void stroke_stabilizer_pass_through_and_leash_geometry() {
   CHECK(held.y == held_output.y);
 }
 
+// Brush Mode dabs (core/paint_mode.hpp): exact 8-bit results through blend_math for a
+// blend mode, Behind, Clear and Dissolve, with and without an alpha channel or Lock
+// Transparent Pixels.
+void paint_mode_rgba8_composites_exact_values() {
+  using patchy::BlendMode;
+  using patchy::PaintMode;
+  using Rgba = std::array<std::uint8_t, 4>;
+  const auto paint = [](Rgba original, std::array<std::uint8_t, 3> color, float alpha, PaintMode mode,
+                        bool has_alpha = true, bool lock_alpha = false, std::int32_t x = 0, std::int32_t y = 0) {
+    return patchy::composite_paint_rgba8(original, color, alpha, mode, x, y, has_alpha, lock_alpha);
+  };
+  CHECK(!patchy::blend_mode_is_paint_mode(BlendMode::PassThrough));
+  CHECK(patchy::blend_mode_is_paint_mode(BlendMode::Dissolve));
+  CHECK(PaintMode{}.is_normal());
+  CHECK(!PaintMode::behind().is_normal());
+
+  // A blend mode blends where the destination is opaque...
+  CHECK((paint({128, 128, 128, 255}, {255, 0, 0}, 1.0F, PaintMode::of(BlendMode::Multiply)) == Rgba{128, 0, 0, 255}));
+  CHECK((paint({128, 128, 128, 255}, {255, 0, 0}, 0.5F, PaintMode::of(BlendMode::Multiply)) == Rgba{128, 64, 64, 255}));
+  CHECK((paint({100, 200, 50, 255}, {150, 150, 150}, 1.0F, PaintMode::of(BlendMode::Darken)) == Rgba{100, 150, 50, 255}));
+  CHECK((paint({100, 200, 50, 255}, {150, 150, 150}, 1.0F, PaintMode::of(BlendMode::Lighten)) == Rgba{150, 200, 150, 255}));
+  CHECK((paint({128, 128, 128, 255}, {255, 255, 255}, 1.0F, PaintMode::of(BlendMode::Screen)) == Rgba{255, 255, 255, 255}));
+  // ...and paints plainly over transparency, as Photoshop's paint modes do.
+  CHECK((paint({10, 20, 30, 0}, {200, 100, 50}, 0.5F, PaintMode::of(BlendMode::Screen)) == Rgba{200, 100, 50, 128}));
+  // Lock Transparent Pixels keeps alpha and mixes toward the blend result.
+  CHECK((paint({100, 100, 100, 128}, {255, 255, 255}, 0.5F, PaintMode::of(BlendMode::Screen), true, true) ==
+         Rgba{178, 178, 178, 128}));
+  // A target with no alpha channel keeps its alpha byte untouched.
+  CHECK((paint({100, 100, 100, 7}, {0, 0, 0}, 1.0F, PaintMode::of(BlendMode::Multiply), false) == Rgba{0, 0, 0, 7}));
+
+  // Behind fills only what is transparent.
+  CHECK((paint({0, 0, 255, 255}, {255, 0, 0}, 1.0F, PaintMode::behind()) == Rgba{0, 0, 255, 255}));
+  CHECK((paint({9, 9, 9, 0}, {255, 0, 0}, 0.25F, PaintMode::behind()) == Rgba{255, 0, 0, 64}));
+  CHECK((paint({0, 0, 255, 128}, {255, 0, 0}, 1.0F, PaintMode::behind()) == Rgba{127, 0, 128, 255}));
+  CHECK((paint({0, 0, 255, 128}, {255, 0, 0}, 1.0F, PaintMode::behind(), true, true) == Rgba{0, 0, 255, 128}));
+  // Clear removes alpha like the Eraser; locked or alpha-less targets are left alone.
+  CHECK((paint({10, 20, 30, 200}, {255, 0, 0}, 0.5F, PaintMode::clear()) == Rgba{10, 20, 30, 100}));
+  CHECK((paint({10, 20, 30, 200}, {255, 0, 0}, 1.0F, PaintMode::clear()) == Rgba{10, 20, 30, 0}));
+  CHECK((paint({10, 20, 30, 200}, {255, 0, 0}, 1.0F, PaintMode::clear(), true, true) == Rgba{10, 20, 30, 200}));
+  CHECK((paint({10, 20, 30, 200}, {255, 0, 0}, 1.0F, PaintMode::clear(), false) == Rgba{10, 20, 30, 200}));
+  // No coverage changes nothing in any mode.
+  CHECK((paint({10, 20, 30, 200}, {255, 0, 0}, 0.0F, PaintMode::of(BlendMode::Difference)) == Rgba{10, 20, 30, 200}));
+
+  // Dissolve: every pixel is either untouched or fully painted, chosen by the paint
+  // dissolve field at the document coordinate, which differs from a layer's field.
+  int painted = 0;
+  int differs_from_layer_field = 0;
+  for (std::int32_t y = 0; y < 64; ++y) {
+    for (std::int32_t x = 0; x < 64; ++x) {
+      const auto out = paint({0, 0, 0, 255}, {255, 255, 255}, 0.5F, PaintMode::of(BlendMode::Dissolve), true, false, x, y);
+      const bool hit = patchy::dissolve_coverage(x, y, 0.5F, patchy::DissolveField::Paint) > 0.0F;
+      CHECK((out == (hit ? Rgba{255, 255, 255, 255} : Rgba{0, 0, 0, 255})));
+      painted += hit ? 1 : 0;
+      differs_from_layer_field +=
+          hit != (patchy::dissolve_coverage(x, y, 0.5F, patchy::DissolveField::Layer) > 0.0F) ? 1 : 0;
+    }
+  }
+  CHECK(painted > 1800 && painted < 2300);
+  CHECK(differs_from_layer_field > 0);
+  // A dissolved dab over transparency paints opaque pixels or nothing.
+  const auto over_clear = paint({0, 0, 0, 0}, {255, 0, 0}, 1.0F, PaintMode::of(BlendMode::Dissolve));
+  CHECK((over_clear == Rgba{255, 0, 0, 255}));
+}
+
+// The deep variant follows the same formulas without rounding: byte-valued inputs give
+// the 8-bit results in the Encoded domain, and Linear Dodge stays unclamped in Linear.
+void paint_mode_deep_composites_exact_values() {
+  using patchy::BlendMode;
+  using patchy::DeepDomain;
+  using patchy::PaintMode;
+  using Deep = std::array<float, 4>;
+  const auto deep_equal = [](Deep a, Deep b) {
+    for (std::size_t c = 0; c < 4U; ++c) {
+      if (std::abs(a[c] - b[c]) > 0.001F) {
+        return false;
+      }
+    }
+    return true;
+  };
+  CHECK(deep_equal(patchy::composite_paint_deep({128, 128, 128, 255}, {255, 0, 0}, 1.0F, PaintMode::of(BlendMode::Multiply),
+                                          0, 0, true, false, DeepDomain::Encoded),
+             {128, 0, 0, 255}));
+  CHECK(deep_equal(patchy::composite_paint_deep({128, 128, 128, 255}, {255, 0, 0}, 0.5F, PaintMode::of(BlendMode::Multiply),
+                                          0, 0, true, false, DeepDomain::Encoded),
+             {128, 64, 64, 255}));
+  CHECK(deep_equal(patchy::composite_paint_deep({300, 0, 0, 255}, {100, 0, 0}, 1.0F, PaintMode::of(BlendMode::LinearDodge),
+                                          0, 0, true, false, DeepDomain::Linear),
+             {400, 0, 0, 255}));
+  CHECK(deep_equal(patchy::composite_paint_deep({10, 20, 30, 200}, {255, 0, 0}, 0.5F, PaintMode::clear(), 0, 0, true, false,
+                                          DeepDomain::Encoded),
+             {10, 20, 30, 100}));
+  CHECK(deep_equal(patchy::composite_paint_deep({9, 9, 9, 0}, {255, 0, 0}, 0.25F, PaintMode::behind(), 0, 0, true, false,
+                                          DeepDomain::Encoded),
+             {255, 0, 0, 63.75F}));
+  CHECK(deep_equal(patchy::composite_paint_deep({0, 0, 255, 255}, {255, 0, 0}, 1.0F, PaintMode::behind(), 0, 0, true, false,
+                                          DeepDomain::Linear),
+             {0, 0, 255, 255}));
+  for (std::int32_t x = 0; x < 32; ++x) {
+    const auto out = patchy::composite_paint_deep({0, 0, 0, 255}, {255, 255, 255}, 0.5F,
+                                                  PaintMode::of(BlendMode::Dissolve), x, 3, true, false,
+                                                  DeepDomain::Encoded);
+    const bool hit = patchy::dissolve_coverage(x, 3, 0.5F, patchy::DissolveField::Paint) > 0.0F;
+    CHECK(deep_equal(out, hit ? Deep{255, 255, 255, 255} : Deep{0, 0, 0, 255}));
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> brush_engine_tests() {
   return {
       {"tool_brush_draws_color_and_writes_artifact", tool_brush_draws_color_and_writes_artifact},
+      {"paint_mode_rgba8_composites_exact_values", paint_mode_rgba8_composites_exact_values},
+      {"paint_mode_deep_composites_exact_values", paint_mode_deep_composites_exact_values},
       {"tool_brush_opacity_and_bounded_layer_expansion_work",
        tool_brush_opacity_and_bounded_layer_expansion_work},
       {"tool_brush_softness_feathers_edge_alpha", tool_brush_softness_feathers_edge_alpha},

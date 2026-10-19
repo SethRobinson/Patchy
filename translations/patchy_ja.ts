@@ -10501,6 +10501,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Photoshop and Patchy open the layers; other apps show the flattened image. Without layers, Patchy saves a flattened copy and this document keeps its layers.</source>
         <translation>Photoshop と Patchy はレイヤーを開きます。ほかのアプリでは統合された画像が表示されます。レイヤーなしの場合、Patchy は統合したコピーを保存し、このドキュメントのレイヤーはそのまま残ります。</translation>
     </message>
+    <message>
+        <source>The file&apos;s CMYK profile %1 differs from the working CMYK profile %2, which CMYK Proof and CMYK JPEG, TIFF and PDF saves use</source>
+        <translation>ファイルの CMYK プロファイル %1 は、CMYK 校正と JPEG、TIFF、PDF の CMYK 保存に使われる作業用 CMYK プロファイル %2 と異なります</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -10885,6 +10889,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Square</source>
         <translation>正方形</translation>
+    </message>
+    <message>
+        <source>mode: brush only</source>
+        <translation>mode: ブラシのみ使用できます</translation>
     </message>
 </context>
 <context>
@@ -21933,8 +21941,20 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>ドロップシャドウ...</translation>
     </message>
     <message>
+        <source>Opened in Image &gt; Mode &gt; CMYK Proof: saving keeps this file in CMYK while its layers are unchanged, and JPEG, TIFF and PDF saves write CMYK</source>
+        <translation>画像 &gt; モード &gt; CMYK 校正で開きました。レイヤーが変更されていない間は保存してもこのファイルは CMYK のままで、JPEG、TIFF、PDF で保存すると CMYK で書き込まれます</translation>
+    </message>
+    <message>
+        <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. Patchy saves a PSD in CMYK only when it was opened from a CMYK PSD and its layers are unchanged (text layers always need RGB). JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
+        <translation>このドキュメントは CMYK 校正モードですが、この %1 ファイルは RGB で保存されます。Patchy が PSD を CMYK で保存するのは、CMYK の PSD から開き、レイヤーが変更されていない場合だけです（テキストレイヤーには常に RGB が必要です）。JPEG、TIFF、統合された PDF ファイルはいつでも CMYK で保存できます。RGB で保存しますか？</translation>
+    </message>
+    <message>
         <source>This document is in CMYK Proof mode, but a TIFF with layers is saved in RGB. Save it in RGB?</source>
         <translation>このドキュメントは CMYK 校正モードですが、レイヤー付き TIFF は RGB で保存されます。RGB で保存しますか？</translation>
+    </message>
+    <message>
+        <source>Brush mode: how the paint combines with the pixels under it</source>
+        <translation>ブラシの描画モード: 塗料と下のピクセルの合成方法</translation>
     </message>
 </context>
 <context>
@@ -22092,6 +22112,17 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
     <message>
         <source>Option</source>
         <translation>Option</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::PaintMode</name>
+    <message>
+        <source>Behind</source>
+        <translation>背面</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>消去</translation>
     </message>
 </context>
 <context>

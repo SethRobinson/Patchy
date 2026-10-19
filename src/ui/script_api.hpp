@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/layer.hpp"
+#include "core/paint_mode.hpp"
 
 #include <QJSValue>
 #include <QObject>
@@ -31,6 +32,10 @@ struct ScriptScan;
 // (scripts in the wild will hard-code them), so never rename one.
 [[nodiscard]] QString script_blend_mode_id(BlendMode mode);
 [[nodiscard]] bool script_blend_mode_from_id(const QString& id, BlendMode* mode);
+// Brush Mode ids (the drawStrokes "mode" field and the tools/brushMode setting): the
+// blend mode ids above except "pass-through", plus "behind" and "clear". Permanent.
+[[nodiscard]] QString script_paint_mode_id(PaintMode mode);
+[[nodiscard]] bool script_paint_mode_from_id(const QString& id, PaintMode* mode);
 
 class ScriptLayerObject : public QObject {
   Q_OBJECT

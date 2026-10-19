@@ -2395,10 +2395,24 @@ std::optional<QColor> request_patchy_color(QWidget* parent, QColor initial, cons
   QObject::connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
   QObject::connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
 
-  if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
+  // run_non_modal_dialog rejects the picker when its parent dialog closes. When
+  // that close was the parent's OK, the user confirmed what the live preview
+  // showed, so the picked color stands (GitHub issue 216: OK on Layer Style
+  // with a gradient stop's picker still open reverted the stop).
+  bool parent_accepted = false;
+  if (parent != nullptr) {
+    if (auto* parent_dialog = qobject_cast<QDialog*>(parent->window()); parent_dialog != nullptr) {
+      QObject::connect(parent_dialog, &QDialog::accepted, &dialog, [&parent_accepted] { parent_accepted = true; });
+    }
+  }
+  if (run_non_modal_dialog(dialog) != QDialog::Accepted && !parent_accepted) {
     return std::nullopt;
   }
   return normalized_rgb_color(picker->currentColor());
+}
+
+QDialog* open_color_picker_dialog() {
+  return g_open_request_picker.data();
 }
 
 void set_color_picker_document_palette(std::vector<QColor> colors, bool palette_mode_active,

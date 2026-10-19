@@ -40,6 +40,12 @@ public:
   [[nodiscard]] static bool can_read(std::span<const std::uint8_t> bytes) noexcept;
   [[nodiscard]] static Document read(std::span<const std::uint8_t> bytes, ReadOptions options = {});
   [[nodiscard]] static Document read_file(const std::filesystem::path& path, ReadOptions options = {});
+  // The ICC profile image resource a read file carried (empty without one).
+  [[nodiscard]] static std::vector<std::uint8_t> source_icc_profile(const Document& document);
+  // True when write_layered_rgb8 with `options` writes the imported file's own color mode
+  // (unchanged CMYK, gray, Lab or duotone content, docs/psd-native-color.md) instead of RGB.
+  [[nodiscard]] static bool layered_save_keeps_source_color_mode(const Document& document,
+                                                                 WriteOptions options = {});
 
   [[nodiscard]] static std::vector<std::uint8_t> write_flat_rgb8(const Document& document,
                                                                  WriteOptions options = {});

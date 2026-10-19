@@ -6,6 +6,7 @@
 #include <QApplication>
 #include <QByteArray>
 #include <QCheckBox>
+#include <QFrame>
 #include <QIcon>
 #include <QImage>
 #include <QPixmap>
@@ -13,6 +14,7 @@
 #include <atomic>
 #include <array>
 #include <cstdint>
+#include <cstdlib>
 #include <cmath>
 #include <cstring>
 #include <exception>
@@ -608,7 +610,32 @@ void ui_layer_arrange_menu_hosts_align_and_distribute() {
       CHECK(glyphs[i] != glyphs[j]);
     }
   }
+  // GitHub issue 211: a separator sets Auto-Nest Layers apart from the buttons before it,
+  // on the Move bar ("...") and on the Artboard bar (Add Artboard).
+  const auto separated = [&](const char* before_name) {
+    auto* before = window.findChild<QWidget*>(QLatin1String(before_name));
+    auto* nest = window.findChild<QWidget*>(QStringLiteral("artboardAutoNestCheck"));
+    CHECK(before != nullptr && before->isVisible() && nest != nullptr && nest->isVisible());
+    if (before == nullptr || nest == nullptr) {
+      return false;
+    }
+    const QPoint before_right = before->mapTo(options_bar, QPoint(before->width(), 0));
+    const QPoint nest_left = nest->mapTo(options_bar, QPoint(0, 0));
+    for (auto* line : options_bar->findChildren<QFrame*>(QStringLiteral("optionSeparator"))) {
+      const QPoint at = line->mapTo(options_bar, QPoint(0, 0));
+      if (line->isVisible() && at.x() >= before_right.x() && at.x() + line->width() <= nest_left.x() &&
+          std::abs(at.y() - nest_left.y()) < options_bar->height()) {
+        return true;
+      }
+    }
+    return false;
+  };
+  CHECK(separated("moveAlignMoreButton"));
   save_widget_artifact("ui_move_options_bar_align_distribute", *options_bar);
+  require_hotkey_action(window, QStringLiteral("tools.artboard"))->trigger();
+  QApplication::processEvents();
+  CHECK(separated("artboardAddButton"));
+  save_widget_artifact("ui_artboard_options_bar_auto_nest", *options_bar);
 }
 
 }  // namespace
