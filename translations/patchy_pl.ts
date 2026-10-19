@@ -22032,6 +22032,22 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. %2 JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
         <translation>Ten dokument jest w trybie Próba CMYK, ale ten plik %1 zostanie zapisany w RGB. %2 Pliki JPEG, TIFF i spłaszczone pliki PDF zawsze można zapisać w CMYK. Zapisać go w RGB?</translation>
     </message>
+    <message>
+        <source>CMYK Proof is an emulation: Patchy edits in RGB and converts to CMYK through the color profile, so colors and ink numbers can differ slightly from a true CMYK editor</source>
+        <translation>Próba CMYK to emulacja: Patchy edytuje w RGB i konwertuje do CMYK przez profil kolorów, więc kolory i wartości farb mogą nieco różnić się od prawdziwego edytora CMYK</translation>
+    </message>
+    <message>
+        <source>CMYK Proof</source>
+        <translation>Próba CMYK</translation>
+    </message>
+    <message>
+        <source>This CMYK file is open in Image &gt; Mode &gt; CMYK Proof.</source>
+        <translation>Ten plik CMYK jest otwarty w trybie Obraz &gt; Tryb &gt; Próba CMYK.</translation>
+    </message>
+    <message>
+        <source>CMYK Proof is an emulation. Patchy edits in RGB: it converts the file&apos;s inks to RGB when it opens it, shows the print through the CMYK color profile, and converts back to CMYK when it saves. Colors and ink numbers can therefore differ slightly from a true CMYK editor such as Photoshop. Layers of a CMYK PSD that you do not change keep their original inks.</source>
+        <translation>Próba CMYK to emulacja. Patchy edytuje w RGB: przy otwieraniu konwertuje farby pliku do RGB, pokazuje wydruk przez profil kolorów CMYK, a przy zapisie konwertuje z powrotem do CMYK. Dlatego kolory i wartości farb mogą nieco różnić się od prawdziwego edytora CMYK, takiego jak Photoshop. Warstwy pliku PSD w CMYK, których nie zmienisz, zachowują oryginalne farby.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

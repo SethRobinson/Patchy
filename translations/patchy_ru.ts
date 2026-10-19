@@ -22032,6 +22032,22 @@ Patchy может скачать обновление, заменить этот
         <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. %2 JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
         <translation>Этот документ в режиме CMYK-цветопробы, но этот файл %1 будет сохранен в RGB. %2 Файлы JPEG, TIFF и сведенные PDF всегда можно сохранить в CMYK. Сохранить в RGB?</translation>
     </message>
+    <message>
+        <source>CMYK Proof is an emulation: Patchy edits in RGB and converts to CMYK through the color profile, so colors and ink numbers can differ slightly from a true CMYK editor</source>
+        <translation>CMYK-цветопроба является эмуляцией: Patchy редактирует в RGB и преобразует в CMYK через цветовой профиль, поэтому цвета и значения красок могут немного отличаться от настоящего редактора CMYK</translation>
+    </message>
+    <message>
+        <source>CMYK Proof</source>
+        <translation>CMYK-цветопроба</translation>
+    </message>
+    <message>
+        <source>This CMYK file is open in Image &gt; Mode &gt; CMYK Proof.</source>
+        <translation>Этот файл CMYK открыт в режиме Изображение &gt; Режим &gt; CMYK-цветопроба.</translation>
+    </message>
+    <message>
+        <source>CMYK Proof is an emulation. Patchy edits in RGB: it converts the file&apos;s inks to RGB when it opens it, shows the print through the CMYK color profile, and converts back to CMYK when it saves. Colors and ink numbers can therefore differ slightly from a true CMYK editor such as Photoshop. Layers of a CMYK PSD that you do not change keep their original inks.</source>
+        <translation>CMYK-цветопроба является эмуляцией. Patchy редактирует в RGB: при открытии он преобразует краски файла в RGB, показывает печать через цветовой профиль CMYK, а при сохранении преобразует обратно в CMYK. Поэтому цвета и значения красок могут немного отличаться от настоящего редактора CMYK, например Photoshop. Слои PSD в CMYK, которые вы не меняете, сохраняют исходные краски.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

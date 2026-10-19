@@ -21892,6 +21892,22 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. %2 JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
         <translation>這份文件處於 CMYK 校樣模式，但此 %1 檔案會以 RGB 儲存。%2 JPEG、TIFF 和平面化的 PDF 檔案一律可以儲存為 CMYK。要以 RGB 儲存嗎？</translation>
     </message>
+    <message>
+        <source>CMYK Proof is an emulation: Patchy edits in RGB and converts to CMYK through the color profile, so colors and ink numbers can differ slightly from a true CMYK editor</source>
+        <translation>CMYK 校樣是一種模擬：Patchy 在 RGB 中編輯，並透過色彩描述檔轉換為 CMYK，因此顏色和油墨數值可能與真正的 CMYK 編輯器略有不同</translation>
+    </message>
+    <message>
+        <source>CMYK Proof</source>
+        <translation>CMYK 校樣</translation>
+    </message>
+    <message>
+        <source>This CMYK file is open in Image &gt; Mode &gt; CMYK Proof.</source>
+        <translation>此 CMYK 檔案已在影像 &gt; 模式 &gt; CMYK 校樣中開啟。</translation>
+    </message>
+    <message>
+        <source>CMYK Proof is an emulation. Patchy edits in RGB: it converts the file&apos;s inks to RGB when it opens it, shows the print through the CMYK color profile, and converts back to CMYK when it saves. Colors and ink numbers can therefore differ slightly from a true CMYK editor such as Photoshop. Layers of a CMYK PSD that you do not change keep their original inks.</source>
+        <translation>CMYK 校樣是一種模擬。Patchy 在 RGB 中編輯：開啟時將檔案的油墨轉換為 RGB，透過 CMYK 色彩描述檔顯示印刷效果，儲存時再轉換回 CMYK。因此顏色和油墨數值可能與 Photoshop 等真正的 CMYK 編輯器略有不同。CMYK PSD 中未變更的圖層會保留原始油墨。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

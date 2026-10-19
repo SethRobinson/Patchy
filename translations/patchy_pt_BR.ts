@@ -21962,6 +21962,22 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. %2 JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
         <translation>Este documento está no modo Prova CMYK, mas este arquivo %1 será salvo em RGB. %2 Arquivos JPEG, TIFF e PDF achatados sempre podem ser salvos em CMYK. Salvar em RGB?</translation>
     </message>
+    <message>
+        <source>CMYK Proof is an emulation: Patchy edits in RGB and converts to CMYK through the color profile, so colors and ink numbers can differ slightly from a true CMYK editor</source>
+        <translation>Prova CMYK é uma emulação: o Patchy edita em RGB e converte para CMYK pelo perfil de cores, então as cores e os valores de tinta podem diferir um pouco de um editor CMYK de verdade</translation>
+    </message>
+    <message>
+        <source>CMYK Proof</source>
+        <translation>Prova CMYK</translation>
+    </message>
+    <message>
+        <source>This CMYK file is open in Image &gt; Mode &gt; CMYK Proof.</source>
+        <translation>Este arquivo CMYK está aberto em Imagem &gt; Modo &gt; Prova CMYK.</translation>
+    </message>
+    <message>
+        <source>CMYK Proof is an emulation. Patchy edits in RGB: it converts the file&apos;s inks to RGB when it opens it, shows the print through the CMYK color profile, and converts back to CMYK when it saves. Colors and ink numbers can therefore differ slightly from a true CMYK editor such as Photoshop. Layers of a CMYK PSD that you do not change keep their original inks.</source>
+        <translation>Prova CMYK é uma emulação. O Patchy edita em RGB: converte as tintas do arquivo para RGB ao abri-lo, mostra a impressão pelo perfil de cores CMYK e converte de volta para CMYK ao salvar. Por isso as cores e os valores de tinta podem diferir um pouco de um editor CMYK de verdade como o Photoshop. Camadas de um PSD CMYK que você não alterar mantêm as tintas originais.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

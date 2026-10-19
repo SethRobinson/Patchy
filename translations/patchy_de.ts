@@ -21962,6 +21962,22 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. %2 JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
         <translation>Dieses Dokument ist im Modus CMYK-Proof, aber diese %1-Datei wird in RGB gespeichert. %2 JPEG-, TIFF- und reduzierte PDF-Dateien können immer in CMYK gespeichert werden. In RGB speichern?</translation>
     </message>
+    <message>
+        <source>CMYK Proof is an emulation: Patchy edits in RGB and converts to CMYK through the color profile, so colors and ink numbers can differ slightly from a true CMYK editor</source>
+        <translation>CMYK-Proof ist eine Emulation: Patchy bearbeitet in RGB und wandelt über das Farbprofil in CMYK um, daher können Farben und Farbanteile leicht von einem echten CMYK-Editor abweichen</translation>
+    </message>
+    <message>
+        <source>CMYK Proof</source>
+        <translation>CMYK-Proof</translation>
+    </message>
+    <message>
+        <source>This CMYK file is open in Image &gt; Mode &gt; CMYK Proof.</source>
+        <translation>Diese CMYK-Datei ist in Bild &gt; Modus &gt; CMYK-Proof geöffnet.</translation>
+    </message>
+    <message>
+        <source>CMYK Proof is an emulation. Patchy edits in RGB: it converts the file&apos;s inks to RGB when it opens it, shows the print through the CMYK color profile, and converts back to CMYK when it saves. Colors and ink numbers can therefore differ slightly from a true CMYK editor such as Photoshop. Layers of a CMYK PSD that you do not change keep their original inks.</source>
+        <translation>CMYK-Proof ist eine Emulation. Patchy bearbeitet in RGB: Beim Öffnen wandelt es die Druckfarben der Datei in RGB um, zeigt den Druck über das CMYK-Farbprofil an und wandelt beim Speichern zurück in CMYK. Farben und Farbanteile können daher leicht von einem echten CMYK-Editor wie Photoshop abweichen. Ebenen einer CMYK-PSD, die Sie nicht ändern, behalten ihre ursprünglichen Druckfarben.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

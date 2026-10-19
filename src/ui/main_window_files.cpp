@@ -1847,6 +1847,7 @@ int MainWindow::open_folder_path(const QString& directory) {
 
   std::int64_t first_session_id = 0;
   int opened = 0;
+  bool cmyk_proof_opened = false;
   bool cancelled = false;
   QStringList failed;
   for (int index = 0; index < total; ++index) {
@@ -1887,8 +1888,8 @@ int MainWindow::open_folder_path(const QString& directory) {
       record_text_layout_metrics_for_reopened_text(loaded->document);
       add_document_session(std::move(loaded->document), loaded->file_name, path, tr("Open"),
                            SessionActivation::Background);
-      if (loaded->cmyk_source) {
-        open_cmyk_source_in_proof_mode(**sessions_.rbegin());
+      if (loaded->cmyk_source && open_cmyk_source_in_proof_mode(**sessions_.rbegin())) {
+        cmyk_proof_opened = true;
       }
       ++opened;
       // Background files drop their ordinary notes (no status bar of their own), but a
@@ -1931,6 +1932,9 @@ int MainWindow::open_folder_path(const QString& directory) {
   }
   statusBar()->showMessage(status);
   update_undo_redo_actions();
+  if (cmyk_proof_opened) {
+    show_cmyk_proof_open_notice();
+  }
   return opened;
 }
 
@@ -2538,6 +2542,7 @@ void MainWindow::open_document_path(QString path) {
       const UiProfileScope profile_scope("open.add_session");
       add_document_session(std::move(loaded->document), first_title, session_path, tr("Open"));
     }
+    bool cmyk_proof_opened = false;
     if (loaded->pdf_color_mode == PdfImportColorMode::Cmyk) {
       // The Import PDF dialog's CMYK Color: say so when there is no CMYK profile to proof with.
       if (const auto refusal = set_session_cmyk_proof(session(), true); !refusal.isEmpty()) {
@@ -2549,6 +2554,10 @@ void MainWindow::open_document_path(QString path) {
           cmyk_proof_psd_save_color_mode(std::as_const(document())).mode == 4 /* PSD CMYK */
               ? tr("Opened in Image > Mode > CMYK Proof, so saving as PSD, JPEG, TIFF or PDF writes CMYK again")
               : tr("Opened in Image > Mode > CMYK Proof, so saving as JPEG, TIFF or PDF writes CMYK again"));
+      loaded->import_notices.push_back(
+          tr("CMYK Proof is an emulation: Patchy edits in RGB and converts to CMYK through the color profile, so "
+             "colors and ink numbers can differ slightly from a true CMYK editor"));
+      cmyk_proof_opened = true;
     }
     if (!unattended_automation() && is_photoshop_document_extension(loaded->extension) &&
         app_settings().value(QStringLiteral("imports/showPsdWarningsAndInfo"), false).toBool()) {
@@ -2584,6 +2593,9 @@ void MainWindow::open_document_path(QString path) {
         show_import_notices_popup(this, loaded_file_name, loaded->import_notices,
                                   loaded->force_import_notices_popup);
       }
+    }
+    if (cmyk_proof_opened) {
+      show_cmyk_proof_open_notice();
     }
     // Photoshop's Missing Fonts dialog on open (GitHub issue 169; off in Preferences). Last, so
     // its own status message is not overwritten by the "Opened" one.
@@ -4201,6 +4213,42 @@ bool MainWindow::confirm_cmyk_proof_save(const QString& extension, ImageSaveOpti
 
 bool MainWindow::open_cmyk_source_in_proof_mode(DocumentSession& session) {
   return set_session_cmyk_proof(session, true).isEmpty();
+}
+
+void MainWindow::show_cmyk_proof_open_notice() {
+  // Persisted settings key (never rename).
+  const auto key = QStringLiteral("imports/cmykProofOpenNotice");
+  auto settings = app_settings();
+  if (unattended_automation() || (script_engine_host_ != nullptr && script_engine_host_->run_active()) ||
+      !settings.value(key, true).toBool()) {
+    return;
+  }
+  QDialog dialog(this);
+  dialog.setObjectName(QStringLiteral("cmykProofOpenNoticeDialog"));
+  dialog.setWindowTitle(tr("CMYK Proof"));
+  auto* layout = new QVBoxLayout(&dialog);
+  auto* summary = new QLabel(tr("This CMYK file is open in Image > Mode > CMYK Proof."), &dialog);
+  summary->setWordWrap(true);
+  layout->addWidget(summary);
+  auto* details = new QLabel(
+      tr("CMYK Proof is an emulation. Patchy edits in RGB: it converts the file's inks to RGB when it opens it, "
+         "shows the print through the CMYK color profile, and converts back to CMYK when it saves. Colors and ink "
+         "numbers can therefore differ slightly from a true CMYK editor such as Photoshop. Layers of a CMYK PSD "
+         "that you do not change keep their original inks."),
+      &dialog);
+  details->setWordWrap(true);
+  layout->addWidget(details);
+  auto* dont_show = new QCheckBox(tr("Don't show this again"), &dialog);
+  dont_show->setObjectName(QStringLiteral("cmykProofOpenNoticeDontShowCheck"));
+  layout->addWidget(dont_show);
+  auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok, &dialog);
+  connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+  layout->addWidget(buttons);
+  dialog.setMinimumWidth(460);
+  exec_dialog(dialog);
+  if (dont_show->isChecked()) {
+    settings.setValue(key, false);
+  }
 }
 
 // A layered document going to PDF has two honest forms (one flattened image, or layers

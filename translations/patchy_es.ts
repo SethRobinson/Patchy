@@ -21962,6 +21962,22 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
         <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. %2 JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
         <translation>Este documento está en modo Prueba CMYK, pero este archivo %1 se guardará en RGB. %2 Los archivos JPEG, TIFF y PDF acoplados siempre pueden guardarse en CMYK. ¿Guardarlo en RGB?</translation>
     </message>
+    <message>
+        <source>CMYK Proof is an emulation: Patchy edits in RGB and converts to CMYK through the color profile, so colors and ink numbers can differ slightly from a true CMYK editor</source>
+        <translation>Prueba CMYK es una emulación: Patchy edita en RGB y convierte a CMYK mediante el perfil de color, así que los colores y los valores de tinta pueden diferir ligeramente de un editor CMYK real</translation>
+    </message>
+    <message>
+        <source>CMYK Proof</source>
+        <translation>Prueba CMYK</translation>
+    </message>
+    <message>
+        <source>This CMYK file is open in Image &gt; Mode &gt; CMYK Proof.</source>
+        <translation>Este archivo CMYK está abierto en Imagen &gt; Modo &gt; Prueba CMYK.</translation>
+    </message>
+    <message>
+        <source>CMYK Proof is an emulation. Patchy edits in RGB: it converts the file&apos;s inks to RGB when it opens it, shows the print through the CMYK color profile, and converts back to CMYK when it saves. Colors and ink numbers can therefore differ slightly from a true CMYK editor such as Photoshop. Layers of a CMYK PSD that you do not change keep their original inks.</source>
+        <translation>Prueba CMYK es una emulación. Patchy edita en RGB: convierte las tintas del archivo a RGB al abrirlo, muestra la impresión mediante el perfil de color CMYK y vuelve a convertir a CMYK al guardar. Por eso los colores y los valores de tinta pueden diferir ligeramente de un editor CMYK real como Photoshop. Las capas de un PSD CMYK que no cambie conservan sus tintas originales.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

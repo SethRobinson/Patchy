@@ -1086,6 +1086,92 @@ void ui_cmyk_proof_saves_layered_psd_in_cmyk() {
   CHECK(!window.statusBar()->currentMessage().contains(QStringLiteral("in CMYK")));
 }
 
+// Opening a CMYK file into CMYK Proof says once, in a dialog, that the mode is an emulation
+// (Patchy edits in RGB), until "Don't show this again"; the import note says it every time.
+// Scripted opens never show the dialog.
+void ui_cmyk_open_explains_cmyk_proof_emulation() {
+  const auto previous = patchy::working_cmyk_space();
+  const auto key = QStringLiteral("imports/cmykProofOpenNotice");
+  const auto restore = qScopeGuard([&previous, &key] {
+    patchy::set_working_cmyk_space(previous);
+    patchy::ui::app_settings().setValue(key, false);  // the suite default (tests/ui/main.cpp)
+  });
+  patchy::set_working_cmyk_space(patchy::CmykWorkingSpace::from_icc_profile(
+      patchy::ui::bundled_cmyk_profile(), patchy::RenderingIntent::RelativeColorimetric, true));
+  patchy::ui::app_settings().setValue(key, true);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  const auto source = directory.filePath(QStringLiteral("print.psd"));
+  write_flat_cmyk_psd(source, patchy::ui::bundled_cmyk_profile());
+  // Opens interactively; true when the notice came up. `dont_show` ticks its check box.
+  const auto open_sees_notice = [&window](const QString& path, bool dont_show, QString* text = nullptr) {
+    bool seen = false;
+    // Polled for the whole open: the open pumps events itself before the notice comes up.
+    QTimer poll;
+    poll.setInterval(20);
+    QObject::connect(&poll, &QTimer::timeout, [&poll, &seen, dont_show, text] {
+      auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("cmykProofOpenNoticeDialog")));
+      if (dialog == nullptr) return;
+      poll.stop();
+      seen = true;
+      if (text != nullptr) {
+        for (const auto* label : dialog->findChildren<QLabel*>()) *text += label->text() + QLatin1Char('\n');
+      }
+      auto* check = dialog->findChild<QCheckBox*>(QStringLiteral("cmykProofOpenNoticeDontShowCheck"));
+      CHECK(check != nullptr);
+      check->setChecked(dont_show);
+      dialog->accept();
+    });
+    poll.start();
+    patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+    QApplication::processEvents();
+    poll.stop();
+    return seen;
+  };
+  QString text;
+  CHECK(open_sees_notice(source, false, &text));
+  CHECK(text.contains(QStringLiteral("emulation")));
+  CHECK(text.contains(QStringLiteral("edits in RGB")));
+  auto* cmyk_action = window.findChild<QAction*>(QStringLiteral("imageModeCmykProofAction"));
+  CHECK(cmyk_action != nullptr && cmyk_action->isChecked());
+  // The short note rides the status bar after the CMYK Proof one.
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("more import note")));
+  CHECK(patchy::ui::app_settings().value(key, true).toBool());
+  // Shown again until it is turned off; then never.
+  CHECK(open_sees_notice(source, true));
+  CHECK(!patchy::ui::app_settings().value(key, true).toBool());
+  CHECK(!open_sees_notice(source, false));
+  // A script's open never shows it, even with the notice on.
+  patchy::ui::app_settings().setValue(key, true);
+  bool scripted_seen = false;
+  QTimer scripted_poll;
+  scripted_poll.setInterval(20);
+  QObject::connect(&scripted_poll, &QTimer::timeout, [&scripted_seen] {
+    if (auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("cmykProofOpenNoticeDialog")))) {
+      scripted_seen = true;
+      dialog->accept();
+    }
+  });
+  scripted_poll.start();
+  auto& host = window.script_engine_host();
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.name = QStringLiteral("cmyk-open-notice");
+  options.args = QStringList{QStringLiteral("path=") + source};
+  CHECK(host.run_source(QStringLiteral("console.log('opened proof=' + app.open(patchy.args.path).cmykProof);"),
+                        options));
+  QElapsedTimer timer;
+  timer.start();
+  while ((host.run_active() || timer.elapsed() < 400) && timer.elapsed() < 60000) {
+    QApplication::processEvents(QEventLoop::AllEvents, 20);
+  }
+  scripted_poll.stop();
+  CHECK(!host.last_run_had_error());
+  CHECK(backlog_contains(window, QStringLiteral("opened proof=true")));
+  CHECK(!scripted_seen);
+}
+
 // The reporter's Photoshop file from GitHub issue 220: a flat 8-bit CMYK PSD. It opens in
 // CMYK Proof, and saving it unchanged writes CMYK. The capture shows the Mode menu.
 void ui_issue_220_photoshop_cmyk_psd_opens_in_cmyk_proof_if_available() {
@@ -2348,6 +2434,7 @@ std::vector<patchy::test::TestCase> scripting_tests_part2() {
       {"ui_cmyk_files_open_in_cmyk_proof", ui_cmyk_files_open_in_cmyk_proof},
       {"ui_cmyk_psd_opens_in_cmyk_proof", ui_cmyk_psd_opens_in_cmyk_proof},
       {"ui_cmyk_proof_saves_layered_psd_in_cmyk", ui_cmyk_proof_saves_layered_psd_in_cmyk},
+      {"ui_cmyk_open_explains_cmyk_proof_emulation", ui_cmyk_open_explains_cmyk_proof_emulation},
       {"ui_issue_220_photoshop_cmyk_psd_opens_in_cmyk_proof_if_available",
        ui_issue_220_photoshop_cmyk_psd_opens_in_cmyk_proof_if_available},
       {"ui_script_export_cmyk_writes_jpeg_tiff_and_pdf", ui_script_export_cmyk_writes_jpeg_tiff_and_pdf},

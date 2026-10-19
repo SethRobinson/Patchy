@@ -286,7 +286,12 @@ session-only, never written to a file, not an undo step.
   working one, which the proof view and CMYK JPEG, TIFF and PDF saves use, while a PSD save
   keeps the file's own profile. Its CMYK Proof note names PSD saves only when
   `cmyk_proof_psd_save_color_mode` says CMYK at open (an adjustment layer, for one, needs
-  RGB); otherwise it gets the JPEG/TIFF wording.
+  RGB); otherwise it gets the JPEG/TIFF wording. A second note says every time that CMYK Proof
+  is an emulation (Patchy edits in RGB and converts through the profile, so colors and ink
+  numbers can differ slightly from a true CMYK editor). An interactive open, single file or
+  Open Folder, also shows that in `cmykProofOpenNoticeDialog` (`show_cmyk_proof_open_notice`)
+  until its "Don't show this again" sets `imports/cmykProofOpenNotice` false; unattended and
+  scripted opens never show it, and the UI suite turns it off by default (tests/ui/main.cpp).
 - **Scripting.** `doc.cmykProof` (read/write; refusals throw).
 
 ## CMYK Proof PSD saves
@@ -360,7 +365,8 @@ UI: `ui_color_picker_cmyk_fields_follow_working_space`,
 `ui_script_cmyk_conversions_use_working_space` and
 `ui_proof_colors_and_gamut_warning_change_only_the_view`,
 `ui_script_export_cmyk_writes_jpeg_tiff_and_pdf`, `ui_cmyk_proof_mode_saves_cmyk`, `ui_cmyk_files_open_in_cmyk_proof`,
-`ui_cmyk_psd_opens_in_cmyk_proof`, `ui_cmyk_proof_saves_layered_psd_in_cmyk` and the local-fixture
+`ui_cmyk_psd_opens_in_cmyk_proof`, `ui_cmyk_proof_saves_layered_psd_in_cmyk`,
+`ui_cmyk_open_explains_cmyk_proof_emulation` and the local-fixture
 `ui_issue_220_photoshop_cmyk_psd_opens_in_cmyk_proof_if_available` (`tests/ui/scripting_tests_color_formats.cpp`), and
 `ui_export_dialog_offers_cmyk_for_print_formats` (`tests/ui/flat_image_format_tests.cpp`). UI tests
 that assert ink numbers store the `formula` choice first: Automatic is Adobe's profile on a

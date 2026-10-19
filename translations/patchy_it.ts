@@ -21962,6 +21962,22 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
         <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. %2 JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
         <translation>Questo documento è in modalità Prova CMYK, ma questo file %1 verrà salvato in RGB. %2 I file JPEG, TIFF e PDF uniti possono sempre essere salvati in CMYK. Salvarlo in RGB?</translation>
     </message>
+    <message>
+        <source>CMYK Proof is an emulation: Patchy edits in RGB and converts to CMYK through the color profile, so colors and ink numbers can differ slightly from a true CMYK editor</source>
+        <translation>Prova CMYK è un&apos;emulazione: Patchy lavora in RGB e converte in CMYK tramite il profilo colore, quindi colori e valori degli inchiostri possono differire leggermente da un vero editor CMYK</translation>
+    </message>
+    <message>
+        <source>CMYK Proof</source>
+        <translation>Prova CMYK</translation>
+    </message>
+    <message>
+        <source>This CMYK file is open in Image &gt; Mode &gt; CMYK Proof.</source>
+        <translation>Questo file CMYK è aperto in Immagine &gt; Metodo &gt; Prova CMYK.</translation>
+    </message>
+    <message>
+        <source>CMYK Proof is an emulation. Patchy edits in RGB: it converts the file&apos;s inks to RGB when it opens it, shows the print through the CMYK color profile, and converts back to CMYK when it saves. Colors and ink numbers can therefore differ slightly from a true CMYK editor such as Photoshop. Layers of a CMYK PSD that you do not change keep their original inks.</source>
+        <translation>Prova CMYK è un&apos;emulazione. Patchy lavora in RGB: converte gli inchiostri del file in RGB all&apos;apertura, mostra la stampa tramite il profilo colore CMYK e riconverte in CMYK al salvataggio. Colori e valori degli inchiostri possono quindi differire leggermente da un vero editor CMYK come Photoshop. I livelli di un PSD CMYK che non modifichi mantengono gli inchiostri originali.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

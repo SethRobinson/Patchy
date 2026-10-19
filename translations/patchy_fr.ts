@@ -21962,6 +21962,22 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. %2 JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
         <translation>Ce document est en mode Épreuve CMJN, mais ce fichier %1 sera enregistré en RVB. %2 Les fichiers JPEG, TIFF et PDF aplatis peuvent toujours être enregistrés en CMJN. L&apos;enregistrer en RVB ?</translation>
     </message>
+    <message>
+        <source>CMYK Proof is an emulation: Patchy edits in RGB and converts to CMYK through the color profile, so colors and ink numbers can differ slightly from a true CMYK editor</source>
+        <translation>Épreuve CMJN est une émulation : Patchy travaille en RVB et convertit en CMJN via le profil colorimétrique, donc les couleurs et les valeurs d&apos;encre peuvent différer légèrement d&apos;un véritable éditeur CMJN</translation>
+    </message>
+    <message>
+        <source>CMYK Proof</source>
+        <translation>Épreuve CMJN</translation>
+    </message>
+    <message>
+        <source>This CMYK file is open in Image &gt; Mode &gt; CMYK Proof.</source>
+        <translation>Ce fichier CMJN est ouvert en Image &gt; Mode &gt; Épreuve CMJN.</translation>
+    </message>
+    <message>
+        <source>CMYK Proof is an emulation. Patchy edits in RGB: it converts the file&apos;s inks to RGB when it opens it, shows the print through the CMYK color profile, and converts back to CMYK when it saves. Colors and ink numbers can therefore differ slightly from a true CMYK editor such as Photoshop. Layers of a CMYK PSD that you do not change keep their original inks.</source>
+        <translation>Épreuve CMJN est une émulation. Patchy travaille en RVB : il convertit les encres du fichier en RVB à l&apos;ouverture, affiche l&apos;impression via le profil colorimétrique CMJN et reconvertit en CMJN à l&apos;enregistrement. Les couleurs et les valeurs d&apos;encre peuvent donc différer légèrement d&apos;un véritable éditeur CMJN comme Photoshop. Les calques d&apos;un PSD CMJN que vous ne modifiez pas gardent leurs encres d&apos;origine.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

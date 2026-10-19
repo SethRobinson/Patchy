@@ -21892,6 +21892,22 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. %2 JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
         <translation>このドキュメントは CMYK 校正モードですが、この %1 ファイルは RGB で保存されます。%2 JPEG、TIFF、統合された PDF ファイルはいつでも CMYK で保存できます。RGB で保存しますか？</translation>
     </message>
+    <message>
+        <source>CMYK Proof is an emulation: Patchy edits in RGB and converts to CMYK through the color profile, so colors and ink numbers can differ slightly from a true CMYK editor</source>
+        <translation>CMYK 校正はエミュレーションです。Patchy は RGB で編集し、カラープロファイルを通して CMYK に変換するため、色やインキの値は本来の CMYK エディターとわずかに異なることがあります</translation>
+    </message>
+    <message>
+        <source>CMYK Proof</source>
+        <translation>CMYK 校正</translation>
+    </message>
+    <message>
+        <source>This CMYK file is open in Image &gt; Mode &gt; CMYK Proof.</source>
+        <translation>この CMYK ファイルは 画像 &gt; モード &gt; CMYK 校正 で開かれています。</translation>
+    </message>
+    <message>
+        <source>CMYK Proof is an emulation. Patchy edits in RGB: it converts the file&apos;s inks to RGB when it opens it, shows the print through the CMYK color profile, and converts back to CMYK when it saves. Colors and ink numbers can therefore differ slightly from a true CMYK editor such as Photoshop. Layers of a CMYK PSD that you do not change keep their original inks.</source>
+        <translation>CMYK 校正はエミュレーションです。Patchy は RGB で編集します。開くときにファイルのインキを RGB に変換し、CMYK カラープロファイルを通して印刷結果を表示し、保存するときに CMYK に戻します。そのため、色やインキの値は Photoshop などの本来の CMYK エディターとわずかに異なることがあります。CMYK の PSD のうち変更しないレイヤーは元のインキを保ちます。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
