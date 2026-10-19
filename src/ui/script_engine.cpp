@@ -2950,7 +2950,10 @@ constexpr GmicInputToken kGmicInputTokens[] = {
       }
       std::string text;
       for (std::size_t index = 0; index < (parameter.has_alpha ? 4U : 3U); ++index) {
-        text += (index == 0 ? "" : ",") + std::to_string(channels[index]);
+        if (index > 0) {
+          text += ',';
+        }
+        text += std::to_string(channels[index]);
       }
       return text;
     }

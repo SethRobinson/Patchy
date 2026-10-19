@@ -3410,7 +3410,9 @@ std::string quoted_font_list(const QStringList& families) {
     if (!names.empty()) {
       names += ", ";
     }
-    names += "\"" + family.toStdString() + "\"";
+    names += '"';
+    names += family.toStdString();
+    names += '"';
   }
   return names;
 }

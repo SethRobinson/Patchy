@@ -1254,7 +1254,8 @@ std::string next_duplicate_name(std::string_view source_name,
   for (int copy_index = 1;; ++copy_index) {
     auto candidate = stem + " copy";
     if (copy_index > 1) {
-      candidate += " " + std::to_string(copy_index);
+      candidate += ' ';
+      candidate += std::to_string(copy_index);
     }
     if (!existing_names.contains(candidate)) {
       return candidate;

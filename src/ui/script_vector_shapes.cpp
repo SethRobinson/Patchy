@@ -30,7 +30,7 @@ QJSValue create_shape(ScriptEngineHost& host, std::int64_t session, const QStrin
   const auto& before = document(host, session);
   Layer prepared(0, name.toStdString(), PixelBuffer{});
   prepared.set_vector_shape(std::move(content));
-  prepared.metadata()[kLayerMetadataVectorShape] = "1";
+  prepared.metadata()[kLayerMetadataVectorShape] = std::string("1");
   mark_layer_vector_block_dirty(prepared);
   update_vector_shape_raster(prepared, Rect::from_size(before.width(), before.height()), &patterns);
   auto& doc = writable(host, session);
