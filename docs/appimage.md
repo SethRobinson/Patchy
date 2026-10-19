@@ -148,6 +148,64 @@ behind. Wherever a path is shown, stored or compared across launches, use it (or
 Single-instance forwarding needs nothing: its name is per user, not per path. Settings and
 recovery live in the normal per-user folders (shared with a native Linux build).
 
+## Applications menu entry
+
+A Wayland compositor finds a window's icon through the installed `.desktop` file named after
+its app id (`com.rtsoft.patchy`, `setDesktopFileName` in `main.cpp`), and an AppImage installs
+none, so without one the taskbar shows a generic icon (GitHub issue 226). Most AppImages leave
+this to helpers (Gear Lever, AppImageLauncher); Patchy offers it itself, never silently.
+Code: `ui/appimage_menu_entry.{hpp,cpp}` (files), `main_window_appimage_menu_entry.cpp` (UI).
+
+- **Help > Add Patchy to Applications Menu...** (`help.appimage_menu_entry`, after Set up AI
+  Control) is visible only when `appimage_file_path()` is set: never in the Flatpak, a native
+  build, Windows or macOS. Once added it reads **Remove Patchy from Applications Menu**.
+  The state is re-read each time Help opens.
+- **Add** writes `$XDG_DATA_HOME/applications/com.rtsoft.patchy.desktop` (default
+  `~/.local/share`; a relative `XDG_DATA_HOME` is ignored, as the spec says): the AppImage's own
+  shipped desktop file with every `Exec` program replaced by the quoted `.AppImage` path
+  (`%F` kept; quoting and `%%` per the Desktop Entry spec, `desktop_entry_exec_argument`), a
+  `TryExec` naming the file (a deleted AppImage hides the entry instead of leaving a dead one)
+  and the marker `X-Patchy-AppImage=true`. Then the hicolor icons from `$APPDIR/usr/share`
+  (7 PNG sizes and the scalable SVG, `appimage_menu_entry_icon_names`), icons first. Only
+  files whose bytes differ are written, all through `write_file_bytes_atomically`.
+- **Remove** deletes exactly those 9 paths (built from the fixed name list, no listing or
+  wildcard), only when the desktop file carries the marker. Folders stay. Removing also sets
+  `appimage/menuEntryPromptDeclined`.
+- After a change Patchy runs `update-desktop-database -q <applications>` when installed, and
+  `gtk-update-icon-cache` only when `icons/hicolor/icon-theme.cache` already exists: GTK
+  trusts a cache newer than the theme folder, so a new user cache would hide icons other
+  programs add later without refreshing it. Both detached, best effort.
+- **Already in the menu** (`AddedElsewhere`): a `com.rtsoft.patchy.desktop` without the marker
+  (a native install to `~/.local`), any desktop file in the user's applications folder whose
+  `Exec` starts a `.AppImage` and that names Patchy (icon containing `com.rtsoft.patchy`, as
+  AppImageLauncher's `appimagekit_<hash>_com.rtsoft.patchy`; `Name=Patchy`; or a file name
+  containing "patchy", as Gear Lever's moved `patchy.appimage`), or a `com.rtsoft.patchy.desktop`
+  in any `$XDG_DATA_DIRS` (the Flatpak export, a package; the window already gets its icon,
+  and ours would hide that entry). Then there is no offer, and the item is disabled with a
+  tooltip saying why; Help shows that one action's tooltip (`ActionToolTipFilter`).
+- **Startup** (`begin_appimage_menu_entry_startup`, main.cpp only, phase
+  `appimage.menu_entry`; never `--headless`, `--run-script`, export, stress, screenshot or
+  benchmark runs, and tests call the offer explicitly): an entry Patchy added is rewritten
+  when the AppImage moved or a new release ships different files (consent was given). Else,
+  unless declined, a non-modal offer appears 2 s after startup (retrying while another dialog
+  is up): Add / Not Now (asks again next launch) / Don't Ask Again (`appimage/menuEntryPromptDeclined`,
+  a compatibility contract). It names the Help command for later. Its Add only adds: Help may
+  have added the entry while it was open.
+- Tests (`appimage_menu_entry_tests.cpp`): a Unicode data folder and an AppImage name with
+  every reserved Exec character; Add writes the expected entry and icons, Remove deletes only
+  them; the moved-AppImage refresh; AppImageLauncher, Gear Lever, packaged and foreign entries;
+  the item's visibility and texts and the offer's buttons (Linux, faked `APPIMAGE`/`APPDIR`,
+  `MainWindowTestAccess::set_appimage_bundled_share`, which also skips the cache tools).
+- GNOME check on the headless rig ([wayland.md](wayland.md)): give the shell and the AppImage the
+  same scratch `XDG_DATA_HOME` and `XDG_DATA_DIRS=/usr/local/share:/usr/share` (a user Flatpak's
+  export would otherwise provide the entry), add through a forwarded `--run-script` calling
+  `app.runCommand("help.appimage_menu_entry")`, and read
+  `Shell.WindowTracker.get_default().get_window_app(w).get_id()` through `Shell.Eval`: it is
+  `window:N` (the generic icon) without the entry and `com.rtsoft.patchy.desktop` with it (GNOME
+  Shell 46, October 2026). A shell whose GLib has no file monitor (all inotify instances in use;
+  its log says "Unable to find default local file monitor type") never sees an entry added while
+  it runs, so whether a running GNOME picks the entry up live is checked on a real desktop.
+
 ## Testing
 
 - `packaging/linux/appimage/test-appimage.sh <file> [ubuntu22 debian12 fedora40]` runs the
@@ -164,7 +222,7 @@ recovery live in the normal per-user folders (shared with a native Linux build).
   refuses `APPIMAGE_EXTRACT_AND_RUN`.
 - A real release runs all of the above plus `make-appimage.sh --tests`:
   `release-all-automated.bat verify-linux` (`scripts/release/verify-linux.sh`) does it.
-- App-side unit tests: `appimage_environment_names_the_appimage_file`,
+- App-side unit tests: the `appimage_menu_entry` group (above), `appimage_environment_names_the_appimage_file`,
   `ui_update_available_dialog_offers_appimage_download` (Linux only),
   `ui_ai_setup_blurb_reports_missing_and_flatpak_forms`, and the `appimage_url` cases in
   `update_manifest_parser_handles_supported_cases` (app_shell_tests.cpp).

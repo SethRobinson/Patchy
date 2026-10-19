@@ -2,6 +2,49 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="en" sourcelanguage="en">
 <context>
+    <name>AppImageMenuEntry</name>
+    <message>
+        <source>Could not create the folder for %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not write %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This AppImage contains no Patchy icons</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This AppImage contains no Patchy desktop file</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This AppImage&apos;s desktop file has no Exec line</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Patchy is not running from an AppImage</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Patchy is already in the applications menu</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Patchy did not add the applications menu entry</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not remove %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The AppImage&apos;s file name cannot be used in a menu entry</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>FilterGalleryControls</name>
     <message>
         <source>Angle</source>
@@ -22015,6 +22058,50 @@ Patchy can download the update, replace this AppImage, and start again. You will
     </message>
     <message>
         <source>This document is in CMYK Proof mode, but a TIFF with layers is saved in RGB. Save it in RGB?</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add Patchy to Applications Menu...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Remove Patchy from Applications Menu</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Patchy is already in the applications menu, added by another tool or package.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not add Patchy to the applications menu: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not remove Patchy from the applications menu: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Patchy was added to the applications menu</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Patchy was removed from the applications menu</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Applications Menu</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add Patchy to your applications menu?
+
+Patchy then starts from the menu and shows its own icon in the taskbar. This writes a menu entry and icons to your home folder.
+
+You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Don&apos;t Ask Again</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

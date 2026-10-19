@@ -1202,6 +1202,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/ai_control_paths.cpp
       src/ui/appimage_environment.hpp
       src/ui/appimage_environment.cpp
+      src/ui/appimage_menu_entry.hpp
+      src/ui/appimage_menu_entry.cpp
       src/ui/ai_setup_dialog.hpp
       src/ui/ai_setup_dialog.cpp
       src/ui/main_window.hpp
@@ -1233,6 +1235,7 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/main_window_history.cpp
       src/ui/main_window_layer_ops.cpp
       src/ui/main_window_ai_selection.cpp
+      src/ui/main_window_appimage_menu_entry.cpp
       src/ui/main_window_layer_panel.cpp
       src/ui/main_window_palette.cpp
       src/ui/main_window_missing_fonts.cpp
@@ -2210,6 +2213,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/history_stroke_patch_tests.cpp
       tests/ui/file_info_tests.cpp
       tests/ui/layered_tiff_tests.cpp
+      tests/ui/appimage_menu_entry_tests.cpp
       tests/ui/composite_render_tests.cpp
       tests/ui/readme_screenshot_tests.cpp
       tests/ui/readme_screenshot_tests_classic.cpp

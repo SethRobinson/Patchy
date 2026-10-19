@@ -2,6 +2,49 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="pl" sourcelanguage="en">
 <context>
+    <name>AppImageMenuEntry</name>
+    <message>
+        <source>Could not create the folder for %1</source>
+        <translation>Nie można utworzyć folderu dla %1</translation>
+    </message>
+    <message>
+        <source>Could not write %1</source>
+        <translation>Nie można zapisać %1</translation>
+    </message>
+    <message>
+        <source>This AppImage contains no Patchy icons</source>
+        <translation>Ten AppImage nie zawiera ikon Patchy</translation>
+    </message>
+    <message>
+        <source>This AppImage contains no Patchy desktop file</source>
+        <translation>Ten AppImage nie zawiera pliku .desktop Patchy</translation>
+    </message>
+    <message>
+        <source>This AppImage&apos;s desktop file has no Exec line</source>
+        <translation>Plik .desktop tego AppImage nie ma wiersza Exec</translation>
+    </message>
+    <message>
+        <source>Patchy is not running from an AppImage</source>
+        <translation>Patchy nie działa z pliku AppImage</translation>
+    </message>
+    <message>
+        <source>Patchy is already in the applications menu</source>
+        <translation>Patchy jest już w menu aplikacji</translation>
+    </message>
+    <message>
+        <source>Patchy did not add the applications menu entry</source>
+        <translation>Wpis w menu aplikacji nie został dodany przez Patchy</translation>
+    </message>
+    <message>
+        <source>Could not remove %1</source>
+        <translation>Nie można usunąć %1</translation>
+    </message>
+    <message>
+        <source>The AppImage&apos;s file name cannot be used in a menu entry</source>
+        <translation>Nazwy pliku AppImage nie można użyć we wpisie menu</translation>
+    </message>
+</context>
+<context>
     <name>FilterGalleryControls</name>
     <message>
         <source>Angle</source>
@@ -22159,6 +22202,54 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
     <message>
         <source>Brush mode: how the paint combines with the pixels under it</source>
         <translation>Tryb pędzla: jak farba łączy się z pikselami pod spodem</translation>
+    </message>
+    <message>
+        <source>Add Patchy to Applications Menu...</source>
+        <translation>Dodaj Patchy do menu aplikacji...</translation>
+    </message>
+    <message>
+        <source>Remove Patchy from Applications Menu</source>
+        <translation>Usuń Patchy z menu aplikacji</translation>
+    </message>
+    <message>
+        <source>Patchy is already in the applications menu, added by another tool or package.</source>
+        <translation>Patchy jest już w menu aplikacji, dodany przez inne narzędzie lub pakiet.</translation>
+    </message>
+    <message>
+        <source>Could not add Patchy to the applications menu: %1</source>
+        <translation>Nie można dodać Patchy do menu aplikacji: %1</translation>
+    </message>
+    <message>
+        <source>Could not remove Patchy from the applications menu: %1</source>
+        <translation>Nie można usunąć Patchy z menu aplikacji: %1</translation>
+    </message>
+    <message>
+        <source>Patchy was added to the applications menu</source>
+        <translation>Dodano Patchy do menu aplikacji</translation>
+    </message>
+    <message>
+        <source>Patchy was removed from the applications menu</source>
+        <translation>Usunięto Patchy z menu aplikacji</translation>
+    </message>
+    <message>
+        <source>Applications Menu</source>
+        <translation>Menu aplikacji</translation>
+    </message>
+    <message>
+        <source>Add Patchy to your applications menu?
+
+Patchy then starts from the menu and shows its own icon in the taskbar. This writes a menu entry and icons to your home folder.
+
+You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
+        <translation>Dodać Patchy do menu aplikacji?
+
+Patchy będzie można wtedy uruchamiać z menu, a na pasku zadań pojawi się jego własna ikona. W folderze domowym zostanie zapisany wpis menu i ikony.
+
+Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Ask Again</source>
+        <translation>Nie pytaj ponownie</translation>
     </message>
 </context>
 <context>

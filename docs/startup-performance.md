@@ -49,6 +49,7 @@ Phases, in order (`mw.*` are children of `main_window.construct`):
 | `recovery.orphan_scan` | crashed-instance recovery scan |
 | `cli.open_files` | command-line documents, when given |
 | `mcp.attachment` | `--attach` listener thread start (blocks until listening) |
+| `appimage.menu_entry` | AppImage only: refresh of the applications menu entry, or scheduling its one-time offer ([appimage.md](appimage.md)) |
 
 ## Measuring: `patchy_perf_tests startup`
 

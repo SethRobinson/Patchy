@@ -2,6 +2,49 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="ja" sourcelanguage="en">
 <context>
+    <name>AppImageMenuEntry</name>
+    <message>
+        <source>Could not create the folder for %1</source>
+        <translation>%1 のフォルダーを作成できませんでした</translation>
+    </message>
+    <message>
+        <source>Could not write %1</source>
+        <translation>%1 を書き込めませんでした</translation>
+    </message>
+    <message>
+        <source>This AppImage contains no Patchy icons</source>
+        <translation>この AppImage には Patchy のアイコンが含まれていません</translation>
+    </message>
+    <message>
+        <source>This AppImage contains no Patchy desktop file</source>
+        <translation>この AppImage には Patchy の .desktop ファイルが含まれていません</translation>
+    </message>
+    <message>
+        <source>This AppImage&apos;s desktop file has no Exec line</source>
+        <translation>この AppImage の .desktop ファイルに Exec 行がありません</translation>
+    </message>
+    <message>
+        <source>Patchy is not running from an AppImage</source>
+        <translation>Patchy は AppImage から実行されていません</translation>
+    </message>
+    <message>
+        <source>Patchy is already in the applications menu</source>
+        <translation>Patchy はすでにアプリケーションメニューにあります</translation>
+    </message>
+    <message>
+        <source>Patchy did not add the applications menu entry</source>
+        <translation>アプリケーションメニューの項目は Patchy が追加したものではありません</translation>
+    </message>
+    <message>
+        <source>Could not remove %1</source>
+        <translation>%1 を削除できませんでした</translation>
+    </message>
+    <message>
+        <source>The AppImage&apos;s file name cannot be used in a menu entry</source>
+        <translation>AppImage のファイル名はメニュー項目に使用できません</translation>
+    </message>
+</context>
+<context>
     <name>FilterGalleryControls</name>
     <message>
         <source>Angle</source>
@@ -22019,6 +22062,54 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
     <message>
         <source>Brush mode: how the paint combines with the pixels under it</source>
         <translation>ブラシの描画モード: 塗料と下のピクセルの合成方法</translation>
+    </message>
+    <message>
+        <source>Add Patchy to Applications Menu...</source>
+        <translation>Patchy をアプリケーションメニューに追加...</translation>
+    </message>
+    <message>
+        <source>Remove Patchy from Applications Menu</source>
+        <translation>Patchy をアプリケーションメニューから削除</translation>
+    </message>
+    <message>
+        <source>Patchy is already in the applications menu, added by another tool or package.</source>
+        <translation>Patchy は別のツールまたはパッケージによって、すでにアプリケーションメニューに追加されています。</translation>
+    </message>
+    <message>
+        <source>Could not add Patchy to the applications menu: %1</source>
+        <translation>Patchy をアプリケーションメニューに追加できませんでした: %1</translation>
+    </message>
+    <message>
+        <source>Could not remove Patchy from the applications menu: %1</source>
+        <translation>Patchy をアプリケーションメニューから削除できませんでした: %1</translation>
+    </message>
+    <message>
+        <source>Patchy was added to the applications menu</source>
+        <translation>Patchy をアプリケーションメニューに追加しました</translation>
+    </message>
+    <message>
+        <source>Patchy was removed from the applications menu</source>
+        <translation>Patchy をアプリケーションメニューから削除しました</translation>
+    </message>
+    <message>
+        <source>Applications Menu</source>
+        <translation>アプリケーションメニュー</translation>
+    </message>
+    <message>
+        <source>Add Patchy to your applications menu?
+
+Patchy then starts from the menu and shows its own icon in the taskbar. This writes a menu entry and icons to your home folder.
+
+You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
+        <translation>Patchy をアプリケーションメニューに追加しますか？
+
+メニューから Patchy を起動できるようになり、タスクバーに Patchy のアイコンが表示されます。メニュー項目とアイコンをホームフォルダーに書き込みます。
+
+後から [ヘルプ] &gt; [Patchy をアプリケーションメニューに追加] で行うこともできます。</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Ask Again</source>
+        <translation>今後確認しない</translation>
     </message>
 </context>
 <context>

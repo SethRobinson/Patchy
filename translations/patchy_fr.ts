@@ -2,6 +2,49 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="fr" sourcelanguage="en">
 <context>
+    <name>AppImageMenuEntry</name>
+    <message>
+        <source>Could not create the folder for %1</source>
+        <translation>Impossible de créer le dossier pour %1</translation>
+    </message>
+    <message>
+        <source>Could not write %1</source>
+        <translation>Impossible d&apos;écrire %1</translation>
+    </message>
+    <message>
+        <source>This AppImage contains no Patchy icons</source>
+        <translation>Cet AppImage ne contient aucune icône de Patchy</translation>
+    </message>
+    <message>
+        <source>This AppImage contains no Patchy desktop file</source>
+        <translation>Cet AppImage ne contient pas de fichier .desktop de Patchy</translation>
+    </message>
+    <message>
+        <source>This AppImage&apos;s desktop file has no Exec line</source>
+        <translation>Le fichier .desktop de cet AppImage n&apos;a pas de ligne Exec</translation>
+    </message>
+    <message>
+        <source>Patchy is not running from an AppImage</source>
+        <translation>Patchy ne s&apos;exécute pas depuis un AppImage</translation>
+    </message>
+    <message>
+        <source>Patchy is already in the applications menu</source>
+        <translation>Patchy est déjà dans le menu des applications</translation>
+    </message>
+    <message>
+        <source>Patchy did not add the applications menu entry</source>
+        <translation>Patchy n&apos;a pas ajouté l&apos;entrée du menu des applications</translation>
+    </message>
+    <message>
+        <source>Could not remove %1</source>
+        <translation>Impossible de supprimer %1</translation>
+    </message>
+    <message>
+        <source>The AppImage&apos;s file name cannot be used in a menu entry</source>
+        <translation>Le nom de fichier de l&apos;AppImage ne peut pas être utilisé dans une entrée de menu</translation>
+    </message>
+</context>
+<context>
     <name>FilterGalleryControls</name>
     <message>
         <source>Angle</source>
@@ -22089,6 +22132,54 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     <message>
         <source>Brush mode: how the paint combines with the pixels under it</source>
         <translation>Mode du pinceau : comment la peinture se combine avec les pixels en dessous</translation>
+    </message>
+    <message>
+        <source>Add Patchy to Applications Menu...</source>
+        <translation>Ajouter Patchy au menu des applications...</translation>
+    </message>
+    <message>
+        <source>Remove Patchy from Applications Menu</source>
+        <translation>Retirer Patchy du menu des applications</translation>
+    </message>
+    <message>
+        <source>Patchy is already in the applications menu, added by another tool or package.</source>
+        <translation>Patchy est déjà dans le menu des applications, ajouté par un autre outil ou paquet.</translation>
+    </message>
+    <message>
+        <source>Could not add Patchy to the applications menu: %1</source>
+        <translation>Impossible d&apos;ajouter Patchy au menu des applications : %1</translation>
+    </message>
+    <message>
+        <source>Could not remove Patchy from the applications menu: %1</source>
+        <translation>Impossible de retirer Patchy du menu des applications : %1</translation>
+    </message>
+    <message>
+        <source>Patchy was added to the applications menu</source>
+        <translation>Patchy a été ajouté au menu des applications</translation>
+    </message>
+    <message>
+        <source>Patchy was removed from the applications menu</source>
+        <translation>Patchy a été retiré du menu des applications</translation>
+    </message>
+    <message>
+        <source>Applications Menu</source>
+        <translation>Menu des applications</translation>
+    </message>
+    <message>
+        <source>Add Patchy to your applications menu?
+
+Patchy then starts from the menu and shows its own icon in the taskbar. This writes a menu entry and icons to your home folder.
+
+You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
+        <translation>Ajouter Patchy au menu des applications ?
+
+Patchy pourra alors être lancé depuis le menu et affichera sa propre icône dans la barre des tâches. Une entrée de menu et des icônes sont écrites dans votre dossier personnel.
+
+Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des applications.</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Ask Again</source>
+        <translation>Ne plus demander</translation>
     </message>
 </context>
 <context>

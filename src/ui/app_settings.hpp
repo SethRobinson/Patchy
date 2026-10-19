@@ -80,6 +80,12 @@ void set_stored_update_last_check_secs(qint64 secs_since_epoch);
 [[nodiscard]] QString stored_update_skipped_version();
 void set_stored_update_skipped_version(const QString& version);
 
+// AppImage only: the user chose "Don't Ask Again" on the startup offer to add Patchy to the
+// applications menu, or removed the entry Patchy added (key `appimage/menuEntryPromptDeclined`,
+// default false, a compatibility contract). Help keeps the command either way.
+[[nodiscard]] bool stored_appimage_menu_entry_prompt_declined();
+void set_stored_appimage_menu_entry_prompt_declined(bool declined);
+
 // Linux only: whether the main window keeps the desktop's own title bar and frame
 // instead of Patchy's frameless chrome (key `window/systemTitleBar`, default false, a
 // compatibility contract). Read once at startup by MainWindow::use_custom_window_chrome;

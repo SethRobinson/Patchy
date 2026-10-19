@@ -2,6 +2,49 @@
 <!DOCTYPE TS>
 <TS version="2.1" language="zh_TW" sourcelanguage="en">
 <context>
+    <name>AppImageMenuEntry</name>
+    <message>
+        <source>Could not create the folder for %1</source>
+        <translation>無法為 %1 建立資料夾</translation>
+    </message>
+    <message>
+        <source>Could not write %1</source>
+        <translation>無法寫入 %1</translation>
+    </message>
+    <message>
+        <source>This AppImage contains no Patchy icons</source>
+        <translation>此 AppImage 不含 Patchy 圖示</translation>
+    </message>
+    <message>
+        <source>This AppImage contains no Patchy desktop file</source>
+        <translation>此 AppImage 不含 Patchy 的 .desktop 檔案</translation>
+    </message>
+    <message>
+        <source>This AppImage&apos;s desktop file has no Exec line</source>
+        <translation>此 AppImage 的 .desktop 檔案沒有 Exec 行</translation>
+    </message>
+    <message>
+        <source>Patchy is not running from an AppImage</source>
+        <translation>Patchy 不是從 AppImage 執行的</translation>
+    </message>
+    <message>
+        <source>Patchy is already in the applications menu</source>
+        <translation>Patchy 已在應用程式選單中</translation>
+    </message>
+    <message>
+        <source>Patchy did not add the applications menu entry</source>
+        <translation>應用程式選單項目不是由 Patchy 加入的</translation>
+    </message>
+    <message>
+        <source>Could not remove %1</source>
+        <translation>無法移除 %1</translation>
+    </message>
+    <message>
+        <source>The AppImage&apos;s file name cannot be used in a menu entry</source>
+        <translation>AppImage 的檔案名稱無法用於選單項目</translation>
+    </message>
+</context>
+<context>
     <name>FilterGalleryControls</name>
     <message>
         <source>Angle</source>
@@ -22019,6 +22062,54 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
     <message>
         <source>Brush mode: how the paint combines with the pixels under it</source>
         <translation>筆刷模式：顏料與下方像素的混合方式</translation>
+    </message>
+    <message>
+        <source>Add Patchy to Applications Menu...</source>
+        <translation>將 Patchy 加入應用程式選單...</translation>
+    </message>
+    <message>
+        <source>Remove Patchy from Applications Menu</source>
+        <translation>從應用程式選單移除 Patchy</translation>
+    </message>
+    <message>
+        <source>Patchy is already in the applications menu, added by another tool or package.</source>
+        <translation>Patchy 已由其他工具或套件加入應用程式選單。</translation>
+    </message>
+    <message>
+        <source>Could not add Patchy to the applications menu: %1</source>
+        <translation>無法將 Patchy 加入應用程式選單：%1</translation>
+    </message>
+    <message>
+        <source>Could not remove Patchy from the applications menu: %1</source>
+        <translation>無法從應用程式選單移除 Patchy：%1</translation>
+    </message>
+    <message>
+        <source>Patchy was added to the applications menu</source>
+        <translation>已將 Patchy 加入應用程式選單</translation>
+    </message>
+    <message>
+        <source>Patchy was removed from the applications menu</source>
+        <translation>已從應用程式選單移除 Patchy</translation>
+    </message>
+    <message>
+        <source>Applications Menu</source>
+        <translation>應用程式選單</translation>
+    </message>
+    <message>
+        <source>Add Patchy to your applications menu?
+
+Patchy then starts from the menu and shows its own icon in the taskbar. This writes a menu entry and icons to your home folder.
+
+You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
+        <translation>要將 Patchy 加入應用程式選單嗎？
+
+之後即可從選單啟動 Patchy，工作列也會顯示 Patchy 自己的圖示。這會在你的家目錄中寫入一個選單項目和圖示。
+
+你也可以稍後透過「說明 &gt; 將 Patchy 加入應用程式選單」完成。</translation>
+    </message>
+    <message>
+        <source>Don&apos;t Ask Again</source>
+        <translation>不再詢問</translation>
     </message>
 </context>
 <context>

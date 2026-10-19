@@ -62,6 +62,14 @@ public:
     window.application_exit_hook_for_tests_ = std::move(hook);
   }
 
+  // Help > Add Patchy to Applications Menu (GitHub issue 226): the AppImage's own share
+  // folder (a test copy of the shipped desktop file and icons), which also keeps the
+  // desktop cache tools from running.
+  static void set_appimage_bundled_share(MainWindow& window, const QString& share) {
+    window.appimage_bundled_share_for_tests_ = share;
+  }
+  static bool offer_appimage_menu_entry(MainWindow& window) { return window.offer_appimage_menu_entry(); }
+
   // The historical startup document (startup now opens an empty workspace):
   // show_window creates one so pre-existing tests keep their canvas.
   static std::uint64_t gmic_draft_previews_shown(const MainWindow& window) {
