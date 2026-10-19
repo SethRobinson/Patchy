@@ -10790,6 +10790,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Square</source>
         <translation>正方形</translation>
     </message>
+    <message>
+        <source>mode: brush only</source>
+        <translation>mode: ブラシのみ使用できます</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushDynamicsButton</name>
@@ -21836,6 +21840,10 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <source>Drop Shadow...</source>
         <translation>ドロップシャドウ...</translation>
     </message>
+    <message>
+        <source>Brush mode: how the paint combines with the pixels under it</source>
+        <translation>ブラシの描画モード: 塗料と下のピクセルの合成方法</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -21992,6 +22000,17 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
     <message>
         <source>Option</source>
         <translation>Option</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::PaintMode</name>
+    <message>
+        <source>Behind</source>
+        <translation>背面</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>消去</translation>
     </message>
 </context>
 <context>

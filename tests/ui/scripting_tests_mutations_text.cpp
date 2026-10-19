@@ -743,6 +743,44 @@ void ui_script_advanced_brush_creation_preview_and_psd() {
   save_widget_artifact("advanced_brush_presets",window);
 }
 
+// drawStrokes `mode` (Brush Mode, core/paint_mode.hpp): a Multiply dab blends with the
+// layer, unknown ids, Pass Through and a Mode on the Eraser fail before painting, and
+// getCurrent/activate carry the Brush's mode.
+void ui_script_brush_mode_strokes_and_validation() {
+  SettingsValueRestorer saved_mode(QStringLiteral("tools/brushMode"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& host = window.script_engine_host();
+  CHECK(run_script(window, QStringLiteral(
+      "var d=app.newDocument(32,32); var l=d.addLayer('Ink'); l.fill('#808080');"
+      "l.drawStrokes([{tool:'brush',color:'#ff0000',size:9,mode:'multiply',points:[{x:16,y:16}]}]);")));
+  const auto* document = host.session_document_const(host.active_session_id());
+  CHECK(document != nullptr);
+  const auto* ink = patchy::test::ui::scripting_support::layer_named(*document, "Ink");
+  CHECK(ink != nullptr);
+  const auto* px = ink->pixels().pixel(16 - ink->bounds().x, 16 - ink->bounds().y);
+  CHECK(px[0] == 128 && px[1] == 0 && px[2] == 0 && px[3] == 255);
+  for (const auto* stroke : {"{mode:'pass-through',points:[{x:4,y:4}]}", "{mode:'Multiply',points:[{x:4,y:4}]}",
+                             "{mode:7,points:[{x:4,y:4}]}", "{tool:'eraser',mode:'multiply',points:[{x:4,y:4}]}",
+                             "{tool:'mixer',mode:'clear',points:[{x:4,y:4}]}"}) {
+    CHECK(run_script(window, QStringLiteral(
+        "var r='painted'; try { app.activeDocument.activeLayer.drawStrokes([%1]); } catch (e) { r='threw'; }"
+        "patchy.setResult(r);").arg(QString::fromLatin1(stroke))));
+    CHECK(host.last_result().toString() == QStringLiteral("threw"));
+  }
+  CHECK(run_script(window, QStringLiteral(
+      "patchy.brushes.activate({tool:'brush',mode:'behind'});"
+      "var a=patchy.brushes.getCurrent().mode;"
+      "var e=patchy.brushes.resolve({tool:'eraser'}).settings.mode;"
+      "patchy.brushes.activate({tool:'brush'});"
+      "patchy.setResult([a, e === undefined, patchy.brushes.getCurrent().mode]);")));
+  const auto result = host.last_result().toArray();
+  CHECK(result.size() == 3);
+  CHECK(result.at(0).toString() == QStringLiteral("behind"));
+  CHECK(result.at(1).toBool());
+  CHECK(result.at(2).toString() == QStringLiteral("normal"));
+}
+
 void ui_script_automation_strokes_match_native_and_undo() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2074,6 +2112,7 @@ std::vector<patchy::test::TestCase> scripting_tests_part1() {
       {"ui_script_advanced_brush_timing_validation_and_restore", ui_script_advanced_brush_timing_validation_and_restore},
       {"ui_script_advanced_brush_presets_snapshots_and_refresh", ui_script_advanced_brush_presets_snapshots_and_refresh},
       {"ui_script_advanced_brush_creation_preview_and_psd", ui_script_advanced_brush_creation_preview_and_psd},
+      {"ui_script_brush_mode_strokes_and_validation", ui_script_brush_mode_strokes_and_validation},
       {"ui_script_automation_strokes_match_native_and_undo", ui_script_automation_strokes_match_native_and_undo},
       {"ui_script_automation_preview_ids_and_errors", ui_script_automation_preview_ids_and_errors},
       {"ui_script_automation_pressure_seed_selection_palette", ui_script_automation_pressure_seed_selection_palette},

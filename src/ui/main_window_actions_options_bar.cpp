@@ -28,6 +28,7 @@
 #include "ui/brush_dynamics_popup.hpp"
 #include "ui/brush_presets.hpp"
 #include "ui/brush_automation.hpp"
+#include "ui/blend_mode_ui.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/brush_tip_picker.hpp"
@@ -1496,6 +1497,38 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
                      CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
                      CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
                      CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+  // Brush Mode (core/paint_mode.hpp), Brush only: the Eraser's Mode would mean its tip
+  // shape (Round/Square already cover that) and the retouch tools paint by their own math.
+  add_option_label(QT_TR_NOOP("Mode:"), {CanvasTool::Brush});
+  brush_mode_combo_ = new QComboBox(toolbar);
+  brush_mode_combo_->setObjectName(QStringLiteral("brushModeCombo"));
+  add_paint_mode_items(brush_mode_combo_);
+  brush_mode_combo_->setCurrentIndex(
+      std::max(0, brush_mode_combo_->findData(paint_mode_item_data(current_brush_paint_mode_))));
+  // Compact closed width (the list still shows full names), like the mixer combinations.
+  brush_mode_combo_->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+  brush_mode_combo_->setMinimumContentsLength(7);
+  widen_combo_popup_to_items(brush_mode_combo_);
+  bind_tooltip(brush_mode_combo_, QT_TR_NOOP("Brush mode: how the paint combines with the pixels under it"));
+  add_option_widget(brush_mode_combo_, {CanvasTool::Brush});
+  connect(brush_mode_combo_, &QComboBox::currentIndexChanged, this, [this](int index) {
+    if (index < 0 || brush_mode_combo_ == nullptr) {
+      return;
+    }
+    current_brush_paint_mode_ = paint_mode_from_item_data(brush_mode_combo_->itemData(index).toInt());
+    if (canvas_ != nullptr) {
+      canvas_->set_brush_paint_mode(current_brush_paint_mode_);
+      save_tool_settings();
+      refresh_document_info();
+    }
+  });
+  QPointer<QComboBox> brush_mode_combo(brush_mode_combo_);
+  register_retranslation([brush_mode_combo] {
+    if (brush_mode_combo != nullptr) {
+      const QSignalBlocker blocker(brush_mode_combo);
+      retranslate_paint_mode_items(brush_mode_combo);
+    }
+  });
   vector_pixel_only_option_widgets_.push_back(add_option_label(
       QT_TR_NOOP("Opacity:"),
       {CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,

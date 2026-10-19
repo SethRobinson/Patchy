@@ -46,7 +46,8 @@ enum class DissolveField : std::uint32_t {
   PatternOverlay,
   Satin,
   Stroke,
-  Bevel
+  Bevel,
+  Paint  // a Dissolve-mode brush dab (core/paint_mode.hpp)
 };
 
 // Photoshop's Dissolve replaces partial coverage with a stochastic all-or-

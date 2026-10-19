@@ -243,6 +243,14 @@ bool CanvasWidget::mixer_sample_all_layers() const noexcept {
   return mixer_sample_all_layers_;
 }
 
+void CanvasWidget::set_brush_paint_mode(PaintMode mode) noexcept {
+  brush_paint_mode_ = mode.kind == PaintModeKind::Blend && !blend_mode_is_paint_mode(mode.blend) ? PaintMode{} : mode;
+}
+
+PaintMode CanvasWidget::brush_paint_mode() const noexcept {
+  return brush_paint_mode_;
+}
+
 void CanvasWidget::set_brush_smoothing(int percent) noexcept {
   brush_smoothing_ = std::clamp(percent, 0, 100);
 }
@@ -879,6 +887,7 @@ void CanvasWidget::clear_brush_stroke_tracking() noexcept {
   brush_stroke_wet_edge_primary_.clear();
   brush_stroke_wet_edge_pending_rect_ = {};
   brush_stroke_layer_snapshot_.reset();
+  brush_stroke_paint_mode_ = {};
   brush_stroke_last_stamp_position_.reset();
   brush_stroke_distance_since_last_stamp_ = 0.0;
   mixer_brush_state_ = {};
@@ -1364,6 +1373,9 @@ bool CanvasWidget::render_brush_stroke_pixel_deep(std::int32_t x, std::int32_t y
         value[c] = background[c] * target_alpha + original[c] * (1.0F - target_alpha);
       }
     }
+  } else if (!brush_stroke_paint_mode_.is_normal()) {
+    value = patchy::composite_paint_deep(original, color_of(primary), target_alpha, brush_stroke_paint_mode_, x, y,
+                                         channels >= 4, locked_alpha, linear ? DeepDomain::Linear : DeepDomain::Encoded);
   } else {
     const auto paint = color_of(primary);
     if (channels >= 4 && !locked_alpha) {
@@ -1566,6 +1578,15 @@ bool CanvasWidget::render_brush_stroke_pixel_from_snapshot_target(
                           static_cast<float>(original[1]) * (1.0F - target_alpha));
     pixel[2] = clamp_byte(static_cast<float>(secondary.b) * target_alpha +
                           static_cast<float>(original[2]) * (1.0F - target_alpha));
+    return changed();
+  }
+
+  if (!brush_stroke_paint_mode_.is_normal()) {
+    const auto painted = patchy::composite_paint_rgba8(original, {primary.r, primary.g, primary.b}, target_alpha,
+                                                       brush_stroke_paint_mode_, x, y, channels >= 4, locked_alpha);
+    for (std::uint16_t channel = 0; channel < channels && channel < painted.size(); ++channel) {
+      pixel[channel] = painted[channel];
+    }
     return changed();
   }
 
@@ -1788,6 +1809,7 @@ void CanvasWidget::install_brush_stroke_compositor(EditOptions& options, bool er
   }
 
   ensure_brush_stroke_layer_snapshot(layer_id, *layer);
+  brush_stroke_paint_mode_ = !erase && tool_ == CanvasTool::Brush ? brush_paint_mode_ : PaintMode{};
   const auto primary = options.primary;
   const auto secondary = options.secondary;
   const auto lock_transparent_pixels = options.lock_transparent_pixels;

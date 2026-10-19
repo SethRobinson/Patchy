@@ -42,6 +42,8 @@
 // "luminosity", "exclusion", "hue", "color", "linear-dodge", "subtract",
 // "divide", "vivid-light", "linear-light", "hard-mix", "darker-color",
 // "lighter-color".
+// Brush Mode ids (stroke `mode`): every blend mode id except "pass-through", plus
+// "behind" (paints only into transparent pixels) and "clear" (removes alpha).
 
 interface PatchyRect {
   x: number;
@@ -113,6 +115,9 @@ interface PatchyBrushSettings {
   /** Brush only. Input fields are validated before the batch paints. */
   dynamics?: PatchyBrushDynamics;
   airbrush?: boolean;
+  /** Brush only, default "normal": how each dab combines with the pixels under it, a
+   * Brush Mode id (see the header). Eraser and Mixer strokes reject any other value. */
+  mode?: string;
   /** Mixer only; Wet/Mix 0..100, Load 1..100. Defaults 50; Sample All Layers false. */
   mixer?: {wet?: number; load?: number; mix?: number; sampleAllLayers?: boolean};
   /** Explicit mapping of "global" controls; independent of artist preferences. */

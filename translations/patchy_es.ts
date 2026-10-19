@@ -10824,6 +10824,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Square</source>
         <translation>Cuadrado</translation>
     </message>
+    <message>
+        <source>mode: brush only</source>
+        <translation>mode: solo pincel</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushDynamicsButton</name>
@@ -21906,6 +21910,10 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
         <source>Drop Shadow...</source>
         <translation>Sombra paralela...</translation>
     </message>
+    <message>
+        <source>Brush mode: how the paint combines with the pixels under it</source>
+        <translation>Modo de pincel: cómo se combina la pintura con los píxeles de debajo</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -22062,6 +22070,17 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
     <message>
         <source>Alt</source>
         <translation>Alt</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::PaintMode</name>
+    <message>
+        <source>Behind</source>
+        <translation>Detrás</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>Borrar</translation>
     </message>
 </context>
 <context>

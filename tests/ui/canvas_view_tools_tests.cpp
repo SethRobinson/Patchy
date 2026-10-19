@@ -16,6 +16,7 @@
 #include "ui/zoom_status_bar.hpp"
 #include "ui/status_document_info.hpp"
 #include "ui/script_engine.hpp"
+#include "ui/script_api.hpp"
 #include "color/color_management.hpp"
 #include "core/pixel_depth.hpp"
 #include "formats/metadata/metadata_view.hpp"
@@ -4020,6 +4021,94 @@ void ui_options_bar_field_drag_scrubs_and_click_edits() {
   CHECK(opacity_spin->value() == 80 - (drag_start + 10));
 }
 
+// The Brush bar's Mode combo (core/paint_mode.hpp): Normal, Dissolve, Behind, Clear,
+// then the layer list's modes in its order without Pass Through; Brush only; the choice
+// reaches the canvas, persists as tools/brushMode and comes back in a new window, and
+// the bar still fits one row at the default window width.
+void ui_brush_mode_combo_lists_paint_modes_and_persists() {
+  SettingsValueRestorer saved_mode(QStringLiteral("tools/brushMode"));
+  patchy::ui::app_settings().remove(QStringLiteral("tools/brushMode"));
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.resize(1280, 860);
+    require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+    QApplication::processEvents();
+    process_events_for(20);
+    auto* combo = window.findChild<QComboBox*>(QStringLiteral("brushModeCombo"));
+    CHECK(combo != nullptr);
+    CHECK(combo->isVisible());
+    QComboBox layer_modes;
+    patchy::ui::add_blend_mode_items(&layer_modes);
+    CHECK(combo->count() == layer_modes.count() + 2);
+    const QStringList head{QStringLiteral("Normal"), QStringLiteral("Dissolve"), QStringLiteral("Behind"),
+                           QStringLiteral("Clear")};
+    for (int i = 0; i < head.size(); ++i) {
+      CHECK(combo->itemText(i) == head.at(i));
+    }
+    for (int i = 2; i < layer_modes.count(); ++i) {
+      CHECK(combo->itemText(i + 2) == layer_modes.itemText(i));
+    }
+    CHECK(combo->findText(QStringLiteral("Pass Through")) < 0);
+    CHECK(combo->currentText() == QStringLiteral("Normal"));
+    // The Brush row keeps one line at the default window width.
+    auto* bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+    auto* size_spin = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
+    auto* dynamics = window.findChild<QWidget*>(QStringLiteral("brushDynamicsButton"));
+    CHECK(bar != nullptr && size_spin != nullptr);
+    if (dynamics != nullptr && dynamics->isVisible()) {
+      CHECK(std::abs(dynamics->mapTo(bar, QPoint(0, 0)).y() - size_spin->mapTo(bar, QPoint(0, 0)).y()) <= 4);
+    }
+    CHECK(std::abs(combo->mapTo(bar, QPoint(0, 0)).y() + combo->height() / 2 -
+                   size_spin->mapTo(bar, QPoint(0, 0)).y() - size_spin->height() / 2) <= 4);
+    ensure_artifact_dir();
+    save_widget_artifact("ui_brush_mode_options_bar", *bar);
+    window.resize(1920, 860);
+    QApplication::processEvents();
+    process_events_for(20);
+    save_widget_artifact("ui_brush_mode_options_bar_1920", *bar);
+    window.resize(1280, 860);
+    QApplication::processEvents();
+    process_events_for(20);
+
+    combo->setCurrentIndex(combo->findText(QStringLiteral("Multiply")));
+    QApplication::processEvents();
+    auto* canvas = require_canvas(window);
+    CHECK(canvas->brush_paint_mode() == patchy::PaintMode::of(patchy::BlendMode::Multiply));
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/brushMode")).toString() == QStringLiteral("multiply"));
+    for (const char* tool : {"Eraser", "Clone", "Mixer Brush"}) {
+      if (auto* action = find_action_by_text(window, QString::fromLatin1(tool)); action != nullptr) {
+        action->trigger();
+        QApplication::processEvents();
+        CHECK(!combo->isVisible());
+      }
+    }
+    require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+    QApplication::processEvents();
+    combo->setCurrentIndex(combo->findText(QStringLiteral("Behind")));
+    QApplication::processEvents();
+    CHECK(canvas->brush_paint_mode() == patchy::PaintMode::behind());
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/brushMode")).toString() == QStringLiteral("behind"));
+  }
+  patchy::ui::MainWindow reopened;
+  show_window(reopened);
+  require_action_by_text(reopened, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  auto* combo = reopened.findChild<QComboBox*>(QStringLiteral("brushModeCombo"));
+  CHECK(combo != nullptr);
+  CHECK(combo->currentText() == QStringLiteral("Behind"));
+  CHECK(require_canvas(reopened)->brush_paint_mode() == patchy::PaintMode::behind());
+  // Script ids round-trip, including the two paint-only modes; Pass Through is no paint mode.
+  for (const char* id : {"normal", "dissolve", "behind", "clear", "multiply", "linear-dodge", "luminosity"}) {
+    patchy::PaintMode mode;
+    CHECK(patchy::ui::script_paint_mode_from_id(QString::fromLatin1(id), &mode));
+    CHECK(patchy::ui::script_paint_mode_id(mode) == QString::fromLatin1(id));
+  }
+  patchy::PaintMode rejected;
+  CHECK(!patchy::ui::script_paint_mode_from_id(QStringLiteral("pass-through"), &rejected));
+  CHECK(!patchy::ui::script_paint_mode_from_id(QStringLiteral("Multiply"), &rejected));
+}
+
 // Dialogs get scrub handles from exec_dialog / run_non_modal_dialog through
 // install_scrub_labels_in, whose pairing must reach every row shape the dialogs
 // use (GitHub issue 46): a direct form row, a "[slider] [spin]" row widget, a
@@ -5109,6 +5198,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_options_bar_labels_drop_the_trailing_colon", ui_options_bar_labels_drop_the_trailing_colon},
       {"ui_options_bar_label_scrub_changes_spin_value", ui_options_bar_label_scrub_changes_spin_value},
       {"ui_options_bar_field_drag_scrubs_and_click_edits", ui_options_bar_field_drag_scrubs_and_click_edits},
+      {"ui_brush_mode_combo_lists_paint_modes_and_persists", ui_brush_mode_combo_lists_paint_modes_and_persists},
       {"ui_dialog_scrub_labels_pair_every_row_shape", ui_dialog_scrub_labels_pair_every_row_shape},
       {"ui_layer_opacity_prefix_scrub_is_one_undo_entry", ui_layer_opacity_prefix_scrub_is_one_undo_entry},
       {"ui_layer_opacity_control_defers_slow_rendering_and_undoes_once",

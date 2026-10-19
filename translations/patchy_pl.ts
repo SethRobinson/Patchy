@@ -10858,6 +10858,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>preview write</source>
         <translation>zapis podglądu</translation>
     </message>
+    <message>
+        <source>mode: brush only</source>
+        <translation>mode: tylko pędzel</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushDynamicsButton</name>
@@ -21976,6 +21980,10 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <source>Drop Shadow...</source>
         <translation>Cień...</translation>
     </message>
+    <message>
+        <source>Brush mode: how the paint combines with the pixels under it</source>
+        <translation>Tryb pędzla: jak farba łączy się z pikselami pod spodem</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -22132,6 +22140,17 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
     <message>
         <source>Alt</source>
         <translation>Alt</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::PaintMode</name>
+    <message>
+        <source>Behind</source>
+        <translation>Pod spodem</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>Wyczyść</translation>
     </message>
 </context>
 <context>

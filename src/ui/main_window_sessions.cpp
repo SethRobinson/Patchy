@@ -180,6 +180,7 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   if (mixer_sample_all_layers_check_ != nullptr) {
     session->canvas->set_mixer_sample_all_layers(mixer_sample_all_layers_check_->isChecked());
   }
+  session->canvas->set_brush_paint_mode(current_brush_paint_mode_);
   session->canvas->set_brush_smoothing(current_brush_smoothing_);
   session->canvas->set_brush_smoothing_pulled_string(current_brush_smoothing_pulled_string_);
   session->canvas->set_brush_smoothing_catch_up(current_brush_smoothing_catch_up_);
@@ -429,6 +430,7 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas, const std::funct
   if (mixer_sample_all_layers_check_ != nullptr) {
     canvas_->set_mixer_sample_all_layers(mixer_sample_all_layers_check_->isChecked());
   }
+  canvas_->set_brush_paint_mode(current_brush_paint_mode_);
   canvas_->set_brush_smoothing(current_brush_smoothing_);
   canvas_->set_brush_smoothing_pulled_string(current_brush_smoothing_pulled_string_);
   canvas_->set_brush_smoothing_catch_up(current_brush_smoothing_catch_up_);

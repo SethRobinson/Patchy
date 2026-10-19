@@ -10858,6 +10858,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>preview write</source>
         <translation>предварительный просмотр запись</translation>
     </message>
+    <message>
+        <source>mode: brush only</source>
+        <translation>mode: только кисть</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushDynamicsButton</name>
@@ -21976,6 +21980,10 @@ Patchy может скачать обновление, заменить этот
         <source>Drop Shadow...</source>
         <translation>Тень...</translation>
     </message>
+    <message>
+        <source>Brush mode: how the paint combines with the pixels under it</source>
+        <translation>Режим кисти: как краска сочетается с пикселями под ней</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -22132,6 +22140,17 @@ Patchy может скачать обновление, заменить этот
     <message>
         <source>Alt</source>
         <translation>Alt</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::PaintMode</name>
+    <message>
+        <source>Behind</source>
+        <translation>Подложка</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>Очистка</translation>
     </message>
 </context>
 <context>

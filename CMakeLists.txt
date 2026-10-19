@@ -139,6 +139,7 @@ add_library(patchy_core
   src/core/blend_math.cpp
   src/core/blend_math_deep.cpp
   src/core/brush_dynamics.cpp
+  src/core/paint_mode.cpp
   src/core/brush_tip.cpp
   src/core/contour_presets.cpp
   src/core/document.cpp

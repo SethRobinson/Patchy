@@ -10790,6 +10790,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>preview write</source>
         <translation>미리 보기 쓰기</translation>
     </message>
+    <message>
+        <source>mode: brush only</source>
+        <translation>mode: 브러시만</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::BrushDynamicsButton</name>
@@ -21836,6 +21840,10 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <source>Drop Shadow...</source>
         <translation>그림자...</translation>
     </message>
+    <message>
+        <source>Brush mode: how the paint combines with the pixels under it</source>
+        <translation>브러시 모드: 칠이 아래 픽셀과 합쳐지는 방식</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -21992,6 +22000,17 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
     <message>
         <source>Alt</source>
         <translation>Alt</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::PaintMode</name>
+    <message>
+        <source>Behind</source>
+        <translation>배경</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>지우기</translation>
     </message>
 </context>
 <context>
