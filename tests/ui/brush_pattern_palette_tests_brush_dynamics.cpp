@@ -21,6 +21,7 @@
 #include <QIODevice>
 #include <QPainter>
 #include <QPixmap>
+#include <QPointer>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QStringList>
@@ -711,9 +712,16 @@ void ui_brush_dynamics_popup_control_edits_persist() {
   scatter_fade->setValue(40);
   QApplication::processEvents();
   save_widget_artifact("ui_brush_dynamics_popup_controls", *popup);
+  const QPointer<QWidget> closed_popup(popup);
   popup->close();
-  // One debounced (~200ms) commit applies every edit and writes the sidecar in the same slot;
-  // wait for it to land, not a fixed sleep.
+  // A library reload after the popup is gone but before the ~200ms debounced commit fires (the
+  // brush preset library's one-second disk refresh re-resolves the active tip) must not revert
+  // the pending edit.
+  QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+  CHECK(closed_popup.isNull());
+  CHECK(!library.add_tip(QStringLiteral("Reload"), make_bar_tip_image(), 0.5).isEmpty());
+  // One debounced commit applies every edit and writes the sidecar in the same slot; wait for
+  // it to land, not a fixed sleep.
   CHECK(process_events_until(
       [canvas] { return canvas->brush_dynamics().scatter_fade_steps == 40; }, 5000));
 

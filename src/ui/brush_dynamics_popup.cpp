@@ -609,8 +609,10 @@ void BrushDynamicsButton::set_active_entry(const BrushTipEntry* entry) {
     refresh_active_indicator();
     return;
   }
-  if (popup_ != nullptr && entry->id == tip_id_) {
-    // Our own edit echoing back through the library's changed(); the open popup owns the values.
+  if ((popup_ != nullptr || edit_pending()) && entry->id == tip_id_) {
+    // Our own edit echoing back through the library's changed(), or any reload (the brush
+    // preset library's one-second disk refresh re-resolves the active tip) before a pending
+    // edit is emitted: the open popup or the pending edit owns the values.
     return;
   }
   tip_id_ = entry->id;
@@ -626,8 +628,9 @@ void BrushDynamicsButton::set_active_entry(const BrushTipEntry* entry) {
 void BrushDynamicsButton::set_round_session(const QString& round_tip_id,
                                             const patchy::BrushDynamics& dynamics,
                                             double base_angle_degrees, double base_roundness) {
-  if (popup_ != nullptr && tip_id_ == round_tip_id) {
-    // Our own edit echoing back through MainWindow's re-apply; the open popup owns the values.
+  if ((popup_ != nullptr || edit_pending()) && tip_id_ == round_tip_id) {
+    // Our own edit echoing back through MainWindow's re-apply; the open popup or the pending
+    // edit owns the values.
     return;
   }
   tip_id_ = round_tip_id;
@@ -657,20 +660,26 @@ void BrushDynamicsButton::refresh_active_indicator() {
 void BrushDynamicsButton::schedule_emit() {
   refresh_active_indicator();
   static constexpr int kDebounceMs = 200;
-  static const char kTimerProperty[] = "patchyEmitTimer";
-  auto* timer = property(kTimerProperty).value<QTimer*>();
-  if (timer == nullptr) {
-    timer = new QTimer(this);
-    timer->setSingleShot(true);
-    timer->setInterval(kDebounceMs);
-    connect(timer, &QTimer::timeout, this, [this] {
-      if (!tip_id_.isEmpty()) {
-        emit dynamics_edited(tip_id_, dynamics_, base_angle_degrees_, base_roundness_);
+  pending_tip_id_ = tip_id_;
+  pending_dynamics_ = dynamics_;
+  pending_base_angle_degrees_ = base_angle_degrees_;
+  pending_base_roundness_ = base_roundness_;
+  if (emit_timer_ == nullptr) {
+    emit_timer_ = new QTimer(this);
+    emit_timer_->setSingleShot(true);
+    emit_timer_->setInterval(kDebounceMs);
+    connect(emit_timer_, &QTimer::timeout, this, [this] {
+      if (!pending_tip_id_.isEmpty()) {
+        emit dynamics_edited(pending_tip_id_, pending_dynamics_, pending_base_angle_degrees_,
+                             pending_base_roundness_);
       }
     });
-    setProperty(kTimerProperty, QVariant::fromValue(timer));
   }
-  timer->start();
+  emit_timer_->start();
+}
+
+bool BrushDynamicsButton::edit_pending() const {
+  return emit_timer_ != nullptr && emit_timer_->isActive();
 }
 
 void BrushDynamicsButton::show_popup() {

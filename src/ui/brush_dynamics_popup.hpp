@@ -12,6 +12,7 @@ class QCheckBox;
 class QComboBox;
 class QFrame;
 class QSpinBox;
+class QTimer;
 
 namespace patchy::ui {
 
@@ -107,8 +108,8 @@ public:
   explicit BrushDynamicsButton(QWidget* parent = nullptr);
 
   // Loads the button's model from the active tip entry (null = clear/disable). While the
-  // popup is open for the same tip, the reload is skipped so a library changed() echo of our
-  // own edit does not fight the open controls.
+  // popup is open for the same tip, or an edit is still waiting on its debounce, the reload is
+  // skipped so a library changed() echo does not fight the controls or revert the edit.
   void set_active_entry(const BrushTipEntry* entry);
   // Loads the button's model for the procedural Round brush's session-only dynamics; the id is
   // the builtin round key MainWindow routes on. Same popup/edit flow as a bitmap tip.
@@ -126,6 +127,7 @@ signals:
 private:
   void show_popup();
   void schedule_emit();
+  [[nodiscard]] bool edit_pending() const;
   void refresh_active_indicator();
 
   QString tip_id_;
@@ -134,6 +136,13 @@ private:
   double base_angle_degrees_{0.0};
   double base_roundness_{100.0};
   QPointer<QFrame> popup_;
+  // The debounced edit, captured when scheduled: the timer emits these, not the live model, so
+  // a reload that lands before it fires cannot turn the edit back into the stored values.
+  QTimer* emit_timer_{nullptr};
+  QString pending_tip_id_;
+  patchy::BrushDynamics pending_dynamics_{};
+  double pending_base_angle_degrees_{0.0};
+  double pending_base_roundness_{100.0};
   // Toggle guard: the click that dismisses the Qt::Popup is replayed onto the button (or lands
   // while the popup is still closing), which would instantly reopen it. See show_popup().
   QElapsedTimer popup_clock_;
