@@ -31,6 +31,7 @@
 #include <bit>
 #include <cmath>
 #include <cctype>
+#include <cstring>
 #include <climits>
 #include <cstdlib>
 #include <fstream>
@@ -2083,70 +2084,77 @@ bool native_smart_preview_unchanged(const Layer& layer, const SmartObjectStore& 
       (before.data().data() == after.data().data() || std::ranges::equal(before.data(), after.data()));
 }
 
+// One layer's own record (not its children) still matches its imported native content, so
+// its retained planes and native blocks are written unchanged.
+bool native_layer_unchanged(const Layer& layer, const std::shared_ptr<const PsdNativeColorSpace>& space,
+                            const SmartObjectStore& smart_objects) {
+  const auto& source = layer.psd_native_colors();
+  const bool preserved_style = std::any_of(layer.unknown_psd_blocks().begin(), layer.unknown_psd_blocks().end(),
+      [](const UnknownPsdBlock& block) { return block.key == "lfx2" || block.key == "lrFX" || block.key == "lmfx"; });
+  if (!source || source->space != space || !source->imported ||
+      layer_vector_block_dirty(layer) || layer_is_text(layer) ||
+      ((!layer.layer_style().empty() || !layer.layer_style().satins.empty()) &&
+       !preserved_style)) {
+    return false;
+  }
+  const auto& imported = *source->imported;
+  if (layer_is_smart_object(layer)) {
+    const auto* placed = smart_objects.find(smart_object_source_uuid(layer));
+    // CMYK previews can be regenerated independently of the unchanged native
+    // layers. The save path validates/converts each Smart Filter cache too.
+    if (space->mode == kColorModeCmyk && placed && layer.kind() == LayerKind::Pixel &&
+        !layer.vector_shape() && !layer.pixels().empty() &&
+        layer.pixels().format().color_mode == ColorMode::RGB &&
+        layer.pixels().format().bit_depth == space->depth &&
+        (layer.pixels().format().channels == 3 || layer.pixels().format().channels == 4) &&
+        photoshop_lfx2_layer_style_payload(layer.layer_style()) ==
+            photoshop_lfx2_layer_style_payload(imported.layer_style())) return true;
+    if (layer_smart_object_block_dirty(layer) || layer.smart_filter_stack() ||
+        !placed || !source->smart_object_source || placed->dirty ||
+        *placed != *source->smart_object_source) return false;
+  }
+  if (layer.kind() != imported.kind() || layer.vector_shape() != imported.vector_shape() ||
+      layer.vector_mask() != imported.vector_mask() ||
+      layer.metadata() != imported.metadata()) return false;
+  const auto& blocks = layer.unknown_psd_blocks();
+  const auto& original_blocks = imported.unknown_psd_blocks();
+  if (layer.kind() == LayerKind::Adjustment &&
+      !std::any_of(blocks.begin(), blocks.end(), [](const auto& block) {
+        return block.key == "levl" || block.key == "curv" || block.key == "hue2" || block.key == "nvrt" ||
+               block.key == "post" || block.key == "thrs" || block.key == "brit" || block.key == "blnc" ||
+               block.key == "expA";
+      })) return false;  // Legacy private adjustments need the RGB/native-block emitter.
+  if (blocks.size() != original_blocks.size() ||
+      !std::equal(blocks.begin(), blocks.end(), original_blocks.begin(), [](const auto& a, const auto& b) {
+        return a.key == b.key && a.payload == b.payload && a.long_length == b.long_length;
+      })) return false;
+  // Mutable reads in import/UI preparation can bump revisions. Compare real
+  // content before discarding source samples; no pixel work runs during repaint.
+  if (source->content_revision != layer.content_revision() &&
+      photoshop_lfx2_layer_style_payload(layer.layer_style()) !=
+          photoshop_lfx2_layer_style_payload(imported.layer_style())) return false;
+  if (layer.kind() == LayerKind::Pixel && !layer_is_vector_shape(layer)) {
+    if (source->width != layer.pixels().width() || source->height != layer.pixels().height()) return false;
+    const auto pixels = layer.pixels().data();
+    const auto original_pixels = imported.pixels().data();
+    if (layer.pixels().format() != imported.pixels().format() ||
+        (pixels.data() != original_pixels.data() && !std::ranges::equal(pixels, original_pixels))) return false;
+    const auto plane_size = static_cast<std::size_t>(source->width) * source->height *
+                            (space->depth == BitDepth::UInt8 ? 1U : 2U);
+    for (std::size_t channel = 0; channel < composite_color_channel_count(space->mode); ++channel) {
+      if (source->planes[channel].size() != plane_size) return false;
+    }
+  }
+  return true;
+}
+
 bool native_layer_colors_unchanged(const std::vector<Layer>& layers,
                                   const std::shared_ptr<const PsdNativeColorSpace>& space,
                                   const SmartObjectStore& smart_objects) {
-  for (const auto& layer : layers) {
-    const auto& source = layer.psd_native_colors();
-    const bool preserved_style = std::any_of(layer.unknown_psd_blocks().begin(), layer.unknown_psd_blocks().end(),
-        [](const UnknownPsdBlock& block) { return block.key == "lfx2" || block.key == "lrFX" || block.key == "lmfx"; });
-    if (!source || source->space != space || !source->imported ||
-        layer_vector_block_dirty(layer) || layer_is_text(layer) ||
-        ((!layer.layer_style().empty() || !layer.layer_style().satins.empty()) &&
-         !preserved_style)) {
-      return false;
-    }
-    const auto& imported = *source->imported;
-    if (layer_is_smart_object(layer)) {
-      const auto* placed = smart_objects.find(smart_object_source_uuid(layer));
-      // CMYK previews can be regenerated independently of the unchanged native
-      // layers. The save path validates/converts each Smart Filter cache too.
-      if (space->mode == kColorModeCmyk && placed && layer.kind() == LayerKind::Pixel &&
-          !layer.vector_shape() && !layer.pixels().empty() &&
-          layer.pixels().format().color_mode == ColorMode::RGB &&
-          layer.pixels().format().bit_depth == space->depth &&
-          (layer.pixels().format().channels == 3 || layer.pixels().format().channels == 4) &&
-          photoshop_lfx2_layer_style_payload(layer.layer_style()) ==
-              photoshop_lfx2_layer_style_payload(imported.layer_style())) continue;
-      if (layer_smart_object_block_dirty(layer) || layer.smart_filter_stack() ||
-          !placed || !source->smart_object_source || placed->dirty ||
-          *placed != *source->smart_object_source) return false;
-    }
-    if (layer.kind() != imported.kind() || layer.vector_shape() != imported.vector_shape() ||
-        layer.vector_mask() != imported.vector_mask() ||
-        layer.metadata() != imported.metadata()) return false;
-    const auto& blocks = layer.unknown_psd_blocks();
-    const auto& original_blocks = imported.unknown_psd_blocks();
-    if (layer.kind() == LayerKind::Adjustment &&
-        !std::any_of(blocks.begin(), blocks.end(), [](const auto& block) {
-          return block.key == "levl" || block.key == "curv" || block.key == "hue2" || block.key == "nvrt" ||
-                 block.key == "post" || block.key == "thrs" || block.key == "brit" || block.key == "blnc" ||
-                 block.key == "expA";
-        })) return false;  // Legacy private adjustments need the RGB/native-block emitter.
-    if (blocks.size() != original_blocks.size() ||
-        !std::equal(blocks.begin(), blocks.end(), original_blocks.begin(), [](const auto& a, const auto& b) {
-          return a.key == b.key && a.payload == b.payload && a.long_length == b.long_length;
-        })) return false;
-    // Mutable reads in import/UI preparation can bump revisions. Compare real
-    // content before discarding source samples; no pixel work runs during repaint.
-    if (source->content_revision != layer.content_revision() &&
-        photoshop_lfx2_layer_style_payload(layer.layer_style()) !=
-            photoshop_lfx2_layer_style_payload(imported.layer_style())) return false;
-    if (layer.kind() == LayerKind::Pixel && !layer_is_vector_shape(layer)) {
-      if (source->width != layer.pixels().width() || source->height != layer.pixels().height()) return false;
-      const auto pixels = layer.pixels().data();
-      const auto original_pixels = imported.pixels().data();
-      if (layer.pixels().format() != imported.pixels().format() ||
-          (pixels.data() != original_pixels.data() && !std::ranges::equal(pixels, original_pixels))) return false;
-      const auto plane_size = static_cast<std::size_t>(source->width) * source->height *
-                              (space->depth == BitDepth::UInt8 ? 1U : 2U);
-      for (std::size_t channel = 0; channel < composite_color_channel_count(space->mode); ++channel) {
-        if (source->planes[channel].size() != plane_size) return false;
-      }
-    }
-    if (!native_layer_colors_unchanged(layer.children(), space, smart_objects)) return false;
-  }
-  return true;
+  return std::all_of(layers.begin(), layers.end(), [&](const Layer& layer) {
+    return native_layer_unchanged(layer, space, smart_objects) &&
+           native_layer_colors_unchanged(layer.children(), space, smart_objects);
+  });
 }
 
 bool native_color_save_eligible(const Document& document, const WriteOptions& options) {
@@ -2179,35 +2187,260 @@ std::optional<PixelBuffer> native_color_composite(const Document& document, cons
   return rgb_to_native_color_space(rgb, color_mode, conversion_profile);
 }
 
+// One encoded record's color channels become its retained native planes (or, for a
+// regenerated Smart Object preview, its pixels converted back through the source profile).
+void restore_native_layer_color_channels(EncodedLayer& encoded, std::uint16_t count, bool large_document,
+                                         const SmartObjectStore& smart_objects) {
+  encoded.preserve_native_color_blocks = true;
+  if (encoded.kind != EncodedLayerKind::Pixel) return;
+  const auto& source = *encoded.layer->psd_native_colors();
+  std::erase_if(encoded.channels, [](const EncodedChannel& channel) { return channel.id <= kChannelBlack; });
+  const bool vector = layer_is_vector_shape(*encoded.layer);
+  std::optional<PixelBuffer> regenerated;
+  if (layer_is_smart_object(*encoded.layer) && !native_smart_preview_unchanged(*encoded.layer, smart_objects)) {
+    const auto& pixels = encoded.layer->pixels();
+    PixelBuffer rgb(pixels.width(), pixels.height(), with_bit_depth(PixelFormat::rgb8(), source.space->depth));
+    const auto bytes = source.space->depth == BitDepth::UInt8 ? 1U : 2U;
+    for (int y = 0; y < pixels.height(); ++y)
+      for (int x = 0; x < pixels.width(); ++x) std::copy_n(pixels.pixel(x, y), 3U * bytes, rgb.pixel(x, y));
+    const auto& profile = source.space->profile.empty() ? default_cmyk_profile() : source.space->profile;
+    regenerated = rgb_to_native_color_space(rgb, ColorMode::CMYK, profile);
+  }
+  for (std::uint16_t channel = 0; channel < count; ++channel) {
+    if (regenerated) {
+      encoded.channels.push_back(encode_channel_at_depth(channel, regenerated->width(), regenerated->height(),
+          big_endian_plane(*regenerated, channel), source.space->depth, large_document));
+      continue;
+    }
+    encoded.channels.push_back(vector ? EncodedChannel{channel, 0, 0, kCompressionRaw, {}}
+        : encode_channel_at_depth(channel, source.width, source.height, source.planes[channel],
+                                   source.space->depth, large_document));
+  }
+}
+
 void restore_native_layer_colors(std::vector<EncodedLayer>& layers, std::uint16_t mode, bool large_document,
                                  const SmartObjectStore& smart_objects) {
   const auto count = composite_color_channel_count(mode);
-  for (auto& encoded : layers) {
-    encoded.preserve_native_color_blocks = true;
-    if (encoded.kind == EncodedLayerKind::Pixel) {
-      const auto& source = *encoded.layer->psd_native_colors();
-      std::erase_if(encoded.channels, [](const EncodedChannel& channel) { return channel.id <= kChannelBlack; });
-      const bool vector = layer_is_vector_shape(*encoded.layer);
-      std::optional<PixelBuffer> regenerated;
-      if (layer_is_smart_object(*encoded.layer) && !native_smart_preview_unchanged(*encoded.layer, smart_objects)) {
-        const auto& pixels = encoded.layer->pixels();
-        PixelBuffer rgb(pixels.width(), pixels.height(), with_bit_depth(PixelFormat::rgb8(), source.space->depth));
-        const auto bytes = source.space->depth == BitDepth::UInt8 ? 1U : 2U;
-        for (int y = 0; y < pixels.height(); ++y)
-          for (int x = 0; x < pixels.width(); ++x) std::copy_n(pixels.pixel(x, y), 3U * bytes, rgb.pixel(x, y));
-        const auto& profile = source.space->profile.empty() ? default_cmyk_profile() : source.space->profile;
-        regenerated = rgb_to_native_color_space(rgb, ColorMode::CMYK, profile);
+  for (auto& encoded : layers) restore_native_layer_color_channels(encoded, count, large_document, smart_objects);
+}
+
+// CMYK Proof saves (docs/cmyk.md): an RGB-born or edited document written as a CMYK file
+// with its layers. Raster pixels separate through one CMYK profile; layers of an imported
+// CMYK file that are still unchanged keep their own planes and blocks.
+struct CmykProofPlan {
+  // What RGB separates through. Empty only for an untagged CMYK source on a machine without
+  // the fallback profile (the profile-free inverse, as its preview used).
+  std::vector<std::uint8_t> separation_profile;
+  // Resource 1039. Empty writes none: an untagged CMYK source stays untagged.
+  std::vector<std::uint8_t> embedded_profile;
+  RenderingIntent intent{RenderingIntent::RelativeColorimetric};
+  bool black_point_compensation{true};
+  // The imported CMYK file's space while its unchanged layers can keep their planes.
+  std::shared_ptr<const PsdNativeColorSpace> native_space;
+  // Smart Filter caches, converted to CMYK.
+  SmartFilterEffectsStore filters;
+};
+
+// What write_layered_rgb8 writes, decided once for the writer and the save predicate.
+struct LayeredSaveColorPlan {
+  enum class Kind { Rgb, SourceMode, CmykProof };
+  Kind kind{Kind::Rgb};
+  // SourceMode: the imported mode's converted Smart Filter caches.
+  SmartFilterEffectsStore source_filters;
+  std::optional<CmykProofPlan> cmyk;
+  // CMYK Proof was asked for but the file is RGB: why (a "QObject" source string).
+  const char* rgb_reason{nullptr};
+};
+
+// Kinds the Photoshop acceptance (docs/cmyk.md, "CMYK Proof PSD saves") found would change
+// in a CMYK file: Photoshop evaluates them on the inks, or rebuilds them from RGB colors.
+constexpr const char* kCmykProofAdjustmentReason = PATCHY_TRANSLATE_NOOP(
+    "QObject", "In a CMYK file its adjustment layers would act on the inks and change the colors.");
+constexpr const char* kCmykProofBlendModeReason = PATCHY_TRANSLATE_NOOP(
+    "QObject", "In a CMYK file its layer blend modes would mix the inks and change the colors.");
+constexpr const char* kCmykProofShapeReason = PATCHY_TRANSLATE_NOOP(
+    "QObject", "Patchy can save shape and fill layers only in an RGB PSD.");
+constexpr const char* kCmykProofSmartFilterReason = PATCHY_TRANSLATE_NOOP(
+    "QObject", "Its Smart Filter previews cannot be converted to CMYK.");
+constexpr const char* kCmykProofStyleReason = PATCHY_TRANSLATE_NOOP(
+    "QObject", "Patchy can save layer styles only in an RGB PSD.");
+constexpr const char* kCmykProofBlendIfReason = PATCHY_TRANSLATE_NOOP(
+    "QObject", "Its Blend If or channel blending settings refer to RGB channels.");
+constexpr const char* kCmykProofDeepReason = PATCHY_TRANSLATE_NOOP(
+    "QObject", "32-bit documents are saved in RGB.");
+constexpr const char* kCmykProofChannelsReason = PATCHY_TRANSLATE_NOOP(
+    "QObject", "It has too many saved channels for a CMYK file.");
+constexpr const char* kCmykProofProfileReason = PATCHY_TRANSLATE_NOOP(
+    "QObject", "Its CMYK color profile cannot convert colors.");
+
+// An RGB(A) buffer's color channels at `depth`, separated through the plan's profile: four
+// PSD-convention ink planes (255 = no ink).
+std::optional<PixelBuffer> separate_for_cmyk_proof(const PixelBuffer& pixels, BitDepth depth,
+                                                   const CmykProofPlan& plan) {
+  const auto at_depth = pixels.format().bit_depth == depth
+                            ? pixels
+                            : convert_pixel_buffer_depth(pixels, depth, SampleKind::Color);
+  const auto channels = static_cast<std::size_t>(at_depth.format().channels);
+  if (channels < 3) return std::nullopt;
+  PixelBuffer rgb(at_depth.width(), at_depth.height(), with_bit_depth(PixelFormat::rgb8(), depth));
+  const auto bytes = depth == BitDepth::UInt8 ? 1U : 2U;
+  for (int y = 0; y < at_depth.height(); ++y) {
+    const auto* in = at_depth.row(y).data();
+    auto* out = rgb.row(y).data();
+    for (int x = 0; x < at_depth.width(); ++x) {
+      std::memcpy(out + static_cast<std::size_t>(x) * 3U * bytes,
+                  in + static_cast<std::size_t>(x) * channels * bytes, 3U * bytes);
+    }
+  }
+  return rgb_to_native_color_space(rgb, ColorMode::CMYK, plan.separation_profile, plan.intent,
+                                   plan.black_point_compensation);
+}
+
+// The first layer a CMYK Proof save cannot write in CMYK, as its reason; null when all can.
+const char* cmyk_proof_layer_refusal(const std::vector<Layer>& layers, const CmykProofPlan& plan,
+                                     const SmartObjectStore& smart_objects) {
+  for (const auto& layer : layers) {
+    // Raster, text and Smart Object layers write their separated pixels, which Photoshop
+    // shows as they are (text keeps its RGB EngineData colors; Photoshop accepts them).
+    if (!plan.native_space || !native_layer_unchanged(layer, plan.native_space, smart_objects)) {
+      if (layer.kind() == LayerKind::Adjustment) return kCmykProofAdjustmentReason;
+      if (layer_is_vector_shape(layer) || layer.vector_shape() != nullptr) return kCmykProofShapeReason;
+      if (layer.blend_mode() != BlendMode::Normal && layer.blend_mode() != BlendMode::PassThrough) {
+        return kCmykProofBlendModeReason;
       }
-      for (std::uint16_t channel = 0; channel < count; ++channel) {
-        if (regenerated) {
-          encoded.channels.push_back(encode_channel_at_depth(channel, regenerated->width(), regenerated->height(),
-              big_endian_plane(*regenerated, channel), source.space->depth, large_document));
-          continue;
+      if (!layer.layer_style().empty() || !layer.layer_style().satins.empty()) return kCmykProofStyleReason;
+      if (blend_if_payload_has_non_identity_or_unsupported(layer.raw_psd_blending_ranges()) ||
+          layer.restricted_channels() != 0U) {
+        return kCmykProofBlendIfReason;
+      }
+    }
+    if (const auto* reason = cmyk_proof_layer_refusal(layer.children(), plan, smart_objects)) return reason;
+  }
+  return nullptr;
+}
+
+LayeredSaveColorPlan layered_save_color_plan(const Document& document, const WriteOptions& options) {
+  LayeredSaveColorPlan result;
+  const auto& source = document.metadata().psd_native_color_space;
+  const auto channel_room = [&document](std::uint16_t mode) {
+    // Counts a merged transparency channel whether or not the composite needs one.
+    return composite_color_channel_count(mode) + document.channels().size() + 1U <= kMaximumPhotoshopChannelCount;
+  };
+  if (!document.layers().empty() && native_color_save_eligible(document, options) && channel_room(source->mode)) {
+    result.source_filters = document.metadata().smart_filter_effects;
+    bool converted_all = true;
+    for (auto& block : result.source_filters.blocks) {
+      for (auto& record : block.records) {
+        auto converted = native_filter_effects_cache(record, source);
+        if (!converted) {
+          converted_all = false;
+          break;
         }
-        encoded.channels.push_back(vector ? EncodedChannel{channel, 0, 0, kCompressionRaw, {}}
-            : encode_channel_at_depth(channel, source.width, source.height, source.planes[channel],
-                                       source.space->depth, large_document));
+        if (converted->raw_storage != record.raw_storage) block.original_payload.reset();
+        record = std::move(*converted);
       }
+      if (!converted_all) break;
+    }
+    if (converted_all) {
+      result.kind = LayeredSaveColorPlan::Kind::SourceMode;
+      return result;
+    }
+    result.source_filters = {};
+  }
+  const auto& working = options.cmyk_proof;
+  if (!working || !working->has_profile() || !options.preserve_source_color_mode) return result;
+  const auto depth = document_bit_depth(document);
+  if (depth == BitDepth::Float32) {
+    result.rgb_reason = kCmykProofDeepReason;
+    return result;
+  }
+  CmykProofPlan plan;
+  plan.intent = working->intent();
+  plan.black_point_compensation = working->black_point_compensation();
+  std::shared_ptr<const PsdNativeColorSpace> filter_space;
+  if (source && source->mode == kColorModeCmyk) {
+    // A CMYK file keeps its own profile (or stays untagged), so its unchanged planes and the
+    // separated layers share one meaning.
+    plan.embedded_profile = source->profile;
+    plan.separation_profile = source->profile.empty() ? default_cmyk_profile() : source->profile;
+    const auto stored = find_image_resource_payload(document.metadata().raw_psd_image_resources,
+                                                    kImageResourceIccProfile);
+    if (depth == source->depth && document.color_state().embedded_icc_profile.empty() &&
+        stored.value_or(std::vector<std::uint8_t>{}) == source->profile) {
+      plan.native_space = source;
+    }
+    filter_space = source;
+  } else {
+    plan.embedded_profile = working->profile_bytes();
+    plan.separation_profile = working->profile_bytes();
+    auto space = std::make_shared<PsdNativeColorSpace>();
+    space->mode = kColorModeCmyk;
+    space->depth = depth;
+    space->profile = plan.embedded_profile;
+    filter_space = std::move(space);
+  }
+  if (const auto* reason = cmyk_proof_layer_refusal(document.layers(), plan, document.metadata().smart_objects)) {
+    result.rgb_reason = reason;
+    return result;
+  }
+  plan.filters = document.metadata().smart_filter_effects;
+  for (auto& block : plan.filters.blocks) {
+    for (auto& record : block.records) {
+      auto converted = native_filter_effects_cache(record, filter_space);
+      // Photoshop shows a converted 8-bit cache wrongly in a 16-bit document (two plates
+      // off in the acceptance run); a cache the CMYK file already had is fine.
+      const bool rebuilt = converted && converted->raw_storage != record.raw_storage;
+      if (!converted || (rebuilt && depth != BitDepth::UInt8)) {
+        result.rgb_reason = kCmykProofSmartFilterReason;
+        return result;
+      }
+      if (rebuilt) block.original_payload.reset();
+      record = std::move(*converted);
+    }
+  }
+  if (!channel_room(kColorModeCmyk)) {
+    result.rgb_reason = kCmykProofChannelsReason;
+    return result;
+  }
+  if (!separate_for_cmyk_proof(PixelBuffer(1, 1, with_bit_depth(PixelFormat::rgb8(), depth)), depth, plan)) {
+    result.rgb_reason = kCmykProofProfileReason;
+    return result;
+  }
+  result.kind = LayeredSaveColorPlan::Kind::CmykProof;
+  result.cmyk = std::move(plan);
+  return result;
+}
+
+// A CMYK Proof save's layer records: unchanged layers of the imported CMYK file restore their
+// planes and native blocks; every other pixel record's RGB channels become separated inks.
+void apply_cmyk_proof_layer_colors(std::vector<EncodedLayer>& layers, const CmykProofPlan& plan, BitDepth depth,
+                                   bool large_document, const SmartObjectStore& smart_objects) {
+  for (auto& encoded : layers) {
+    if (encoded.layer != nullptr && plan.native_space &&
+        native_layer_unchanged(*encoded.layer, plan.native_space, smart_objects)) {
+      restore_native_layer_color_channels(encoded, 4, large_document, smart_objects);
+      continue;
+    }
+    if (encoded.layer != nullptr && encoded.blending_ranges == &encoded.layer->raw_psd_blending_ranges()) {
+      // The (identity, cmyk_proof_layer_refusal checked) ranges of an RGB record count RGB
+      // channels; a record without ranges means the same in any mode.
+      encoded.blending_ranges = nullptr;
+    }
+    if (encoded.kind != EncodedLayerKind::Pixel) continue;
+    std::erase_if(encoded.channels, [](const EncodedChannel& channel) { return channel.id <= kChannelBlack; });
+    if (layer_is_vector_shape(*encoded.layer)) {
+      for (std::uint16_t channel = 0; channel < 4; ++channel) {
+        encoded.channels.push_back(EncodedChannel{channel, 0, 0, kCompressionRaw, {}});
+      }
+      continue;
+    }
+    const auto inks = separate_for_cmyk_proof(encoded.layer->pixels(), depth, plan);
+    if (!inks) {
+      throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "The CMYK profile could not separate a layer"));
+    }
+    for (std::uint16_t channel = 0; channel < 4; ++channel) {
+      encoded.channels.push_back(encode_channel_at_depth(channel, inks->width(), inks->height(),
+                                                         big_endian_plane(*inks, channel), depth, large_document));
     }
   }
 }
@@ -2305,26 +2538,25 @@ void DocumentIo::write_flat_rgb8_file(const Document& document, const std::files
   write_file_bytes(path, bytes);
 }
 
-bool DocumentIo::layered_save_keeps_source_color_mode(const Document& document, WriteOptions options) {
-  // The same decisions write_layered_rgb8 makes before it writes a native composite.
+LayeredSaveColorMode DocumentIo::layered_save_color_mode(const Document& document, WriteOptions options) {
+  // The decision write_layered_rgb8 makes before it writes its composite.
   if (auto prepared = prepare_compound_vector_psd(document)) {
-    return layered_save_keeps_source_color_mode(*prepared, options);
+    return layered_save_color_mode(*prepared, options);
   }
-  if (document.layers().empty() || !native_color_save_eligible(document, options)) {
-    return false;
+  const auto plan = layered_save_color_plan(document, options);
+  switch (plan.kind) {
+    case LayeredSaveColorPlan::Kind::SourceMode:
+      return {document.metadata().psd_native_color_space->mode, nullptr};
+    case LayeredSaveColorPlan::Kind::CmykProof:
+      return {kColorModeCmyk, nullptr};
+    case LayeredSaveColorPlan::Kind::Rgb:
+      break;
   }
-  const auto& space = document.metadata().psd_native_color_space;
-  for (const auto& block : document.metadata().smart_filter_effects.blocks) {
-    for (const auto& record : block.records) {
-      if (!native_filter_effects_cache(record, space)) {
-        return false;
-      }
-    }
-  }
-  // Counts a merged transparency channel whether or not the composite needs one, so the
-  // answer never promises a native save the writer then turns down.
-  return composite_color_channel_count(space->mode) + document.channels().size() + 1U <=
-         kMaximumPhotoshopChannelCount;
+  return {kColorModeRgb, plan.rgb_reason};
+}
+
+bool DocumentIo::layered_save_keeps_source_color_mode(const Document& document, WriteOptions options) {
+  return layered_save_color_mode(document, std::move(options)).mode != kColorModeRgb;
 }
 
 std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& document, WriteOptions options) {
@@ -2374,24 +2606,24 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
     composite = merged_flatten_composite(document);
   }
 
-  auto native_composite = native_color_composite(document, deep ? deep_composite->rgb : composite.rgb, options);
-  auto native_filters = document.metadata().smart_filter_effects;
-  if (native_composite) {
-    for (auto& block : native_filters.blocks) {
-      for (auto& record : block.records) {
-        auto converted = native_filter_effects_cache(record, document.metadata().psd_native_color_space);
-        if (!converted) { native_composite.reset(); break; }
-        if (converted->raw_storage != record.raw_storage) block.original_payload.reset();
-        record = std::move(*converted);
-      }
-      if (!native_composite) break;
+  // The color form (docs/psd-native-color.md, docs/cmyk.md): the imported mode while its content
+  // is unchanged, CMYK in CMYK Proof, RGB otherwise.
+  const auto color_plan = layered_save_color_plan(document, options);
+  const auto& composite_rgb = deep ? deep_composite->rgb : composite.rgb;
+  std::optional<PixelBuffer> native_composite;
+  if (color_plan.kind == LayeredSaveColorPlan::Kind::SourceMode) {
+    native_composite = native_color_composite(document, composite_rgb, options);
+  } else if (color_plan.kind == LayeredSaveColorPlan::Kind::CmykProof) {
+    native_composite = separate_for_cmyk_proof(composite_rgb, depth, *color_plan.cmyk);
+    if (!native_composite) {
+      throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "The CMYK profile could not separate the image"));
     }
   }
-  if (native_composite && native_composite->format().channels + document.channels().size() +
-          (composite.channel_name.empty() ? 0U : 1U) > kMaximumPhotoshopChannelCount) {
-    native_composite.reset();  // Added saved channels may fit RGB but not four-ink CMYK.
-  }
-  const auto output_mode = native_composite ? document.metadata().psd_native_color_space->mode : kColorModeRgb;
+  // A source profile that cannot convert the composite falls back to RGB, as it always has.
+  const auto source_mode = color_plan.kind == LayeredSaveColorPlan::Kind::SourceMode && native_composite;
+  const auto output_mode = source_mode ? document.metadata().psd_native_color_space->mode
+                           : color_plan.kind == LayeredSaveColorPlan::Kind::CmykProof ? kColorModeCmyk
+                                                                                       : kColorModeRgb;
   const auto color_channels = composite_color_channel_count(output_mode);
 
   const bool merged_transparency_channel = composite.channel_name == "Transparency";
@@ -2425,8 +2657,13 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
   if (options.progress) {
     options.progress(progress_total, progress_total, {});
   }
-  if (native_composite) restore_native_layer_colors(encoded_layers, output_mode, options.large_document,
-                                                    document.metadata().smart_objects);
+  if (source_mode) {
+    restore_native_layer_colors(encoded_layers, output_mode, options.large_document,
+                                document.metadata().smart_objects);
+  } else if (color_plan.kind == LayeredSaveColorPlan::Kind::CmykProof) {
+    apply_cmyk_proof_layer_colors(encoded_layers, *color_plan.cmyk, depth, options.large_document,
+                                  document.metadata().smart_objects);
+  }
 
   BigEndianWriter layer_info;
   // A NEGATIVE layer count is the spec's "first alpha channel contains the merged
@@ -2530,7 +2767,9 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
   }
   {
     const auto& store = document.metadata().smart_objects;
-    const auto& filter_store = native_composite ? native_filters : document.metadata().smart_filter_effects;
+    const auto& filter_store = source_mode ? color_plan.source_filters
+                               : color_plan.kind == LayeredSaveColorPlan::Kind::CmykProof ? color_plan.cmyk->filters
+                                                                                          : document.metadata().smart_filter_effects;
     // Photoshop 2026 refuses to open a file whose link block carries an element no
     // layer references ("program error"), whether Patchy or Photoshop wrote the
     // element, for embedded (lnk2) and linked (lnkE) elements alike, and drops
@@ -2745,7 +2984,9 @@ std::vector<std::uint8_t> DocumentIo::write_layered_rgb8(const Document& documen
     write_length_prefixed_block(writer, document.metadata().raw_psd_color_mode_data);
   else
     write_color_mode_data(writer, document, depth);
-  write_length_prefixed_block(writer, image_resources_for_document(document, channel_info, output_mode));
+  write_length_prefixed_block(writer, image_resources_for_document(document, channel_info, output_mode,
+                                                                   color_plan.cmyk ? &color_plan.cmyk->embedded_profile
+                                                                                   : nullptr));
   if (options.large_document) {
     writer.write_u64(layer_mask.bytes().size());
     writer.write_bytes(layer_mask.bytes());

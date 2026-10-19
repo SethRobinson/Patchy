@@ -1044,6 +1044,11 @@ private:
   // A CMYK JPEG or TIFF opens in CMYK Proof when the working space has a profile, so a
   // save writes CMYK again. True when the mode came on.
   bool open_cmyk_source_in_proof_mode(DocumentSession& session);
+  // After an interactive open put a CMYK file in CMYK Proof: says once that Patchy edits in
+  // RGB and converts to CMYK, so colors and ink numbers can differ slightly from a true CMYK
+  // editor, until "Don't show this again" (imports/cmykProofOpenNotice). Never for scripted
+  // or unattended opens.
+  void show_cmyk_proof_open_notice();
   void apply_pen_input_settings(CanvasWidget* canvas) const;
   void load_pen_input_settings();
   void save_pen_input_settings() const;

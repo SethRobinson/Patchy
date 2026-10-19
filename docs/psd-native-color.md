@@ -38,11 +38,14 @@ one-layer document) keeps its merged ink planes on the Background layer it opens
 `PsdNativeLayerColors::flat_composite`, so it saves CMYK while unchanged (GitHub issue 220).
 Its preview stays the reader's conversion: `render_native_cmyk8` never rebuilds a lone flat
 layer from those planes. Flat gray, Lab and duotone files still save RGB.
-`DocumentIo::layered_save_keeps_source_color_mode` answers ahead of a save whether the
-writer will keep the source mode (the UI's CMYK Proof save question uses it).
+`DocumentIo::layered_save_color_mode` answers ahead of a save which mode the writer will
+write (`layered_save_keeps_source_color_mode`: not RGB); both come from the writer's own
+`layered_save_color_plan`.
 
 Color/content edits conservatively fall back to the existing RGB writer
-for the entire document. Renaming, visibility, opacity, raster masks, reordering,
+for the entire document, except in CMYK Proof: there a CMYK file keeps each unchanged
+layer's planes (`native_layer_unchanged`, per record) and separates the edited ones through
+its own profile ([cmyk.md](cmyk.md), "CMYK Proof PSD saves"). Renaming, visibility, opacity, raster masks, reordering,
 deletion and raster translations can keep the native samples. Undo restores
 eligibility with the original content.
 This is preservation of imported content, not native CMYK/Lab editing.

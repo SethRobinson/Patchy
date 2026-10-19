@@ -351,6 +351,9 @@ int main(int argc, char* argv[]) {
     // interactive open of them. The tests that cover it turn it on themselves.
     settings.setValue(QStringLiteral("imports/showMissingFontsDialog"), false);
     settings.setValue(QStringLiteral("text/warnMissingFontsOnTransform"), false);
+    // The CMYK Proof notice would block every interactive open of a CMYK fixture the same way;
+    // ui_cmyk_open_explains_cmyk_proof_emulation turns it on.
+    settings.setValue(QStringLiteral("imports/cmykProofOpenNotice"), false);
     settings.sync();
   }
   patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("en"), false);

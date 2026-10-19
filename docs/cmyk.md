@@ -15,11 +15,12 @@ rendering: pixels are always RGB, also in CMYK Proof mode ("CMYK Proof mode" bel
 The same space drives two views of the canvas, View > Proof Colors and View > Gamut
 Warning ("The proof view" below). They change what is painted, never the document.
 
-It also drives CMYK export of JPEG, TIFF and flattened PDF ("CMYK export" below).
+It also drives CMYK export of JPEG, TIFF and flattened PDF ("CMYK export" below), and
+layered CMYK PSD and PSB saves in CMYK Proof mode ("CMYK Proof PSD saves" below).
 
-Not built: CMYK PSD saves of edited documents (layers, adjustments, text and styles would
-need CMYK forms Photoshop accepts; unchanged imported CMYK PSDs, flat ones included, still
-save natively, [psd-native-color.md](psd-native-color.md)), a true CMYK document mode, opening a CMYK PDF
+Not built: CMYK forms of adjustment layers, layer styles, shape and fill layers, Blend If
+and non-Normal blend modes (each makes a CMYK Proof PSD save RGB), a true CMYK document
+mode, opening a CMYK PDF
 into CMYK Proof (Qt PDF renders pages to RGB), Assign or Convert to Profile, a separate Proof
 Setup dialog (the proof uses the working space from Preferences).
 
@@ -267,11 +268,10 @@ session-only, never written to a file, not an undo step.
   until "Don't show this again" sets `saveOptions/cmykProofSaveNotice` false. Interactive
   saves and Save As to other formats (PSD, PNG, editable-layer PDF) ask
   `cmykProofRgbSaveMessageBox` once per session (`cmyk_proof_rgb_save_accepted`); exports
-  and scripted saves never prompt. A PSD or PSB save skips the question when
-  `psd::DocumentIo::layered_save_keeps_source_color_mode` says the writer keeps the imported
-  CMYK inks (an unchanged CMYK PSD, [psd-native-color.md](psd-native-color.md)); otherwise
-  its question says a PSD stays CMYK only while opened from a CMYK PSD and unchanged, text
-  layers always needing RGB. The status line says "Saved ... in CMYK" for both kinds.
+  and scripted saves never prompt. A PSD or PSB save sets `ImageSaveOptions::psd_cmyk_proof`
+  and writes CMYK with its layers ("CMYK Proof PSD saves" below); it asks only when
+  `psd::DocumentIo::layered_save_color_mode` says the file will be RGB, and the question
+  names its `rgb_reason`. The status line says "Saved ... in CMYK" whenever the file is CMYK.
 - **Opening.** Qt hands a CMYK JPEG or TIFF over as `Format_CMYK8888`.
   `srgb_image_from_cmyk` (`main_window_files.cpp`) converts it through the embedded CMYK
   profile, else the working profile, relative colorimetric with black point compensation
@@ -283,11 +283,68 @@ session-only, never written to a file, not an undo step.
   A CMYK PSD or PSB (`psd.color_mode` "CMYK", layered or flat, GitHub issue 220) sets
   `cmyk_source` too. The PSD reader converts through the embedded profile (else the
   untagged fallback) and notes it; the open adds a note when that profile differs from the
-  working one, which the proof view and CMYK JPEG, TIFF and PDF saves use, while an unchanged
-  PSD save keeps the file's own profile. Its CMYK Proof note promises a CMYK PSD save only when
-  `psd_save_keeps_cmyk` holds at open (text layers, for one, need RGB); otherwise it gets
-  the JPEG/TIFF wording.
+  working one, which the proof view and CMYK JPEG, TIFF and PDF saves use, while a PSD save
+  keeps the file's own profile. Its CMYK Proof note names PSD saves only when
+  `cmyk_proof_psd_save_color_mode` says CMYK at open (an adjustment layer, for one, needs
+  RGB); otherwise it gets the JPEG/TIFF wording. A second note says every time that CMYK Proof
+  is an emulation (Patchy edits in RGB and converts through the profile, so colors and ink
+  numbers can differ slightly from a true CMYK editor). An interactive open, single file or
+  Open Folder, also shows that in `cmykProofOpenNoticeDialog` (`show_cmyk_proof_open_notice`)
+  until its "Don't show this again" sets `imports/cmykProofOpenNotice` false; unattended and
+  scripted opens never show it, and the UI suite turns it off by default (tests/ui/main.cpp).
 - **Scripting.** `doc.cmykProof` (read/write; refusals throw).
+
+## CMYK Proof PSD saves
+
+`psd::WriteOptions::cmyk_proof` (the working space; the UI passes it for a CMYK Proof
+document) makes `write_layered_rgb8` write an 8 or 16-bit CMYK PSD or PSB with its layers.
+`layered_save_color_plan` decides once for the writer and for
+`DocumentIo::layered_save_color_mode`, which the save question and the open note use, so
+the answer always matches the file:
+
+1. An imported file whose content is unchanged keeps its own mode, as without CMYK Proof
+   ([psd-native-color.md](psd-native-color.md)).
+2. Otherwise CMYK, unless a refusal below applies. The profile is the imported CMYK file's
+   own (an untagged file stays untagged and separates through the same assumed profile as
+   its preview), else the working profile, embedded as resource 1039 in place of any RGB
+   profile. The working space's intent and black point compensation apply (relative
+   colorimetric with compensation by default, as JPEG/TIFF export).
+3. Layers of an imported CMYK file that `native_layer_unchanged` accepts write their own
+   planes and blocks byte for byte, while the depth, profile resource and document profile
+   still match the import. Every other raster, text and Smart Object record separates its
+   RGB pixels (`separate_for_cmyk_proof`); alpha, masks, opacity and names pass through, and
+   RGB identity blending ranges are dropped (none means the same in CMYK). The merged image
+   is the separation of Patchy's own composite. Smart Filter caches convert to CMYK
+   (`native_filter_effects_cache`) in 8-bit documents; a 16-bit document keeps only caches
+   its CMYK source already had (Photoshop showed a converted 8-bit cache with two plates
+   off), else the save refuses.
+
+Refusals, each a `rgb_reason` string the save question shows: adjustment layers, layer
+styles, shape and fill layers, Blend If or channel restrictions, blend modes other than
+Normal and Pass Through (on layers not kept natively), 32-bit documents, too many saved
+channels for four inks, Smart Filter caches that cannot convert, and a profile Little CMS
+cannot use. `WriteOptions::preserve_source_color_mode = false` still forces RGB. Saves outside
+CMYK Proof are unchanged.
+
+Photoshop acceptance (Photoshop 2026, October 19, 2026, ISO Coated v2 working profile;
+`scripts\dev\photoshop-flatten-check.ps1` opens each file with a dialog watcher and saves
+Photoshop's flatten, `scripts\dev\psd-merged-diff.py` compares it with the file's merged
+image, in 8-bit ink steps):
+
+- Opened with no dialog, PSD and PSB, 8 and 16 bits: RGB-born layered documents, edited
+  CMYK files, Patchy-authored and Photoshop text (RGB EngineData colors are accepted in a
+  CMYK file), Smart Objects, and Smart Filters in 8-bit documents. Files of every refused kind also
+  opened clean; they are refused for fidelity, not acceptance.
+- Opaque raster pixels, Smart Objects and Smart Filter previews flatten identically (0).
+  Translucent pixels differ (RGB-born test stack: up to 16, mean under 1) because
+  Photoshop blends in ink, as it does after its own mode conversion; text differs only on
+  antialiased edges (up to 67 on black, 0.4 percent of pixels). The CMYK Proof view shows
+  the separation of the RGB composite, so it can differ from the saved file there by as much.
+- Refused, measured with the refusal bypassed: adjustment layers act on the inks (master
+  Levels and Curves mean 9 steps, Invert, Threshold and Hue/Saturation 40 to 230); styles,
+  shapes and fills are rebuilt from RGB descriptor colors (means 2 to 13, patterns 64);
+  Blend If ranges name RGB channels (mean 74); non-Normal modes mix inks (Difference up to
+  178, Multiply mean 2).
 
 ## Tests
 
@@ -295,7 +352,10 @@ Core (`tests/core/palette_tests.cpp`): `cmyk_working_space_formula_converts_both
 `cmyk_working_space_reads_profile_from_unicode_path` (the bundled profile), `palette_io_converts_cmyk_swatches_through_working_space`,
 `cmyk_proof_transform_simulates_colors_and_marks_gamut`,
 `cmyk_working_space_separates_rows_for_export`,
-`cmyk_black_ink_only_keeps_black_and_grays_on_the_black_plate`.
+`cmyk_black_ink_only_keeps_black_and_grays_on_the_black_plate`. CMYK Proof PSD saves
+(`tests/core/psd_cmyk_proof_tests.cpp`): RGB-born and edited CMYK documents at 8 and 16 bits,
+PSD and PSB, text and Smart Objects, every refusal, and the Photoshop acceptance files it
+writes under `test-artifacts/cmyk-proof`.
 
 UI: `ui_color_picker_cmyk_fields_follow_working_space`,
 `ui_color_picker_warns_when_a_color_cannot_print`,
@@ -305,7 +365,8 @@ UI: `ui_color_picker_cmyk_fields_follow_working_space`,
 `ui_script_cmyk_conversions_use_working_space` and
 `ui_proof_colors_and_gamut_warning_change_only_the_view`,
 `ui_script_export_cmyk_writes_jpeg_tiff_and_pdf`, `ui_cmyk_proof_mode_saves_cmyk`, `ui_cmyk_files_open_in_cmyk_proof`,
-`ui_cmyk_psd_opens_in_cmyk_proof` and the local-fixture
+`ui_cmyk_psd_opens_in_cmyk_proof`, `ui_cmyk_proof_saves_layered_psd_in_cmyk`,
+`ui_cmyk_open_explains_cmyk_proof_emulation` and the local-fixture
 `ui_issue_220_photoshop_cmyk_psd_opens_in_cmyk_proof_if_available` (`tests/ui/scripting_tests_color_formats.cpp`), and
 `ui_export_dialog_offers_cmyk_for_print_formats` (`tests/ui/flat_image_format_tests.cpp`). UI tests
 that assert ink numbers store the `formula` choice first: Automatic is Adobe's profile on a

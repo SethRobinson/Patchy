@@ -1108,7 +1108,8 @@ void lift_file_info_resources(Document& document, std::uint16_t source_color_mod
 
 std::vector<std::uint8_t> image_resources_for_document(const Document& document,
                                                        std::span<const CompositeChannelInfo> channels,
-                                                       std::uint16_t output_mode) {
+                                                       std::uint16_t output_mode,
+                                                       const std::vector<std::uint8_t>* output_icc_profile) {
   auto resources = document.metadata().raw_psd_image_resources;
   auto parsed = read_image_resources(resources);
   if (!parsed.has_value()) {
@@ -1176,7 +1177,13 @@ std::vector<std::uint8_t> image_resources_for_document(const Document& document,
   if (had_grid_guides_resource || has_non_default_grid_guides) {
     upsert_image_resource(*parsed, kImageResourceGridAndGuidesInfo, grid_guides_resource_for_document(document));
   }
-  if (output_mode == kColorModeRgb && !document.color_state().embedded_icc_profile.empty()) {
+  if (output_icc_profile != nullptr) {
+    if (output_icc_profile->empty()) {
+      remove_image_resource(*parsed, kImageResourceIccProfile);
+    } else {
+      upsert_image_resource(*parsed, kImageResourceIccProfile, *output_icc_profile);
+    }
+  } else if (output_mode == kColorModeRgb && !document.color_state().embedded_icc_profile.empty()) {
     upsert_image_resource(*parsed, kImageResourceIccProfile, document.color_state().embedded_icc_profile);
   }
   if (!channels.empty()) {

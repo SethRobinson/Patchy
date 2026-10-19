@@ -7,6 +7,7 @@
 #include "formats/jxl_document_io.hpp"
 #include "formats/webp_animation_io.hpp"
 #include "psd/psd_binary.hpp"
+#include "psd/psd_document_io.hpp"
 #include "ui/qt_paths.hpp"
 #include "local_psd_fixtures.hpp"
 #include <QImageReader>
@@ -936,8 +937,9 @@ QImage image_mode_capture(patchy::ui::MainWindow& window) {
 }
 
 // A CMYK PSD opens in Image > Mode > CMYK Proof like a CMYK JPEG or TIFF (GitHub issue 220).
-// Saved unchanged it stays CMYK with no question; once edited the save asks, saying why
-// the PSD needs RGB now, and writes RGB.
+// Saved unchanged or with edited pixels it stays CMYK with no question; once a layer uses a
+// blend mode that would mix the inks differently, the save asks, naming that reason, and
+// writes RGB.
 void ui_cmyk_psd_opens_in_cmyk_proof() {
   const auto previous = patchy::working_cmyk_space();
   const auto restore = qScopeGuard([&previous] { patchy::set_working_cmyk_space(previous); });
@@ -977,20 +979,41 @@ void ui_cmyk_psd_opens_in_cmyk_proof() {
   CHECK(psd_file_color_mode(unchanged) == 4);
   CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("in CMYK")));
 
-  // Edited: the save explains that a PSD keeps CMYK only while its layers are unchanged.
+  // Edited pixels are separated through the file's profile: still CMYK, still no question.
   patchy::ui::MainWindowTestAccess::document(window).layers().front().pixels().pixel(0, 0)[0] ^= 0x40;
   patchy::ui::MainWindowTestAccess::canvas(window)->document_changed();
   const auto edited = directory.filePath(QStringLiteral("edited.psd"));
+  CHECK(!save_asks_rgb_question(window, edited, QMessageBox::Cancel));
+  CHECK(psd_file_color_mode(edited) == 4);
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("in CMYK")));
+
+  // A Multiply layer needs RGB: the question says why, Cancel writes nothing, Save writes RGB.
+  auto& host = window.script_engine_host();
+  {
+    patchy::ui::ScriptEngineHost::RunOptions text_options;
+    text_options.name = QStringLiteral("cmyk-psd-multiply");
+    text_options.unattended = true;
+    CHECK(host.run_source(QStringLiteral("var l = app.activeDocument.addLayer('Ink'); l.fillRect(0, 0, 4, 4, "
+                                         "'#ff0000'); l.blendMode = 'multiply';"),
+                          text_options));
+    QElapsedTimer text_timer;
+    text_timer.start();
+    while (host.run_active() && text_timer.elapsed() < 60000) {
+      QApplication::processEvents(QEventLoop::AllEvents, 20);
+    }
+    QApplication::processEvents();
+    CHECK(!host.last_run_had_error());
+  }
+  const auto texted = directory.filePath(QStringLiteral("text.psd"));
   QString question;
-  CHECK(save_asks_rgb_question(window, edited, QMessageBox::Cancel, &question));
-  CHECK(question.contains(QStringLiteral("opened from a CMYK PSD and its layers are unchanged")));
-  CHECK(!QFileInfo::exists(edited));
-  CHECK(save_asks_rgb_question(window, edited, QMessageBox::Save));
-  CHECK(psd_file_color_mode(edited) == 3);
+  CHECK(save_asks_rgb_question(window, texted, QMessageBox::Cancel, &question));
+  CHECK(question.contains(QStringLiteral("blend modes would mix the inks")));
+  CHECK(!QFileInfo::exists(texted));
+  CHECK(save_asks_rgb_question(window, texted, QMessageBox::Save));
+  CHECK(psd_file_color_mode(texted) == 3);
   CHECK(!window.statusBar()->currentMessage().contains(QStringLiteral("in CMYK")));
 
   // Scripts see the mode too.
-  auto& host = window.script_engine_host();
   patchy::ui::ScriptEngineHost::RunOptions options;
   options.name = QStringLiteral("cmyk-psd-open");
   options.args = QStringList{QStringLiteral("path=") + source};
@@ -1006,6 +1029,147 @@ void ui_cmyk_psd_opens_in_cmyk_proof() {
   QApplication::processEvents();
   CHECK(!host.last_run_had_error());
   CHECK(backlog_contains(window, QStringLiteral("psd proof=true")));
+}
+
+// A document made in Patchy saves a layered CMYK PSD and PSB in CMYK Proof (docs/cmyk.md):
+// the interactive save asks nothing and says "in CMYK", the layers stay layers, scripted saves
+// follow the mode, and leaving CMYK Proof saves RGB again.
+void ui_cmyk_proof_saves_layered_psd_in_cmyk() {
+  const auto previous = patchy::working_cmyk_space();
+  const auto restore = qScopeGuard([&previous] { patchy::set_working_cmyk_space(previous); });
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::set_working_cmyk_space(patchy::CmykWorkingSpace::from_icc_profile(
+      patchy::ui::bundled_cmyk_profile(), patchy::RenderingIntent::RelativeColorimetric, true));
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  auto& host = window.script_engine_host();
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.name = QStringLiteral("cmyk-proof-psd");
+  options.args = QStringList{QStringLiteral("base=") + directory.path() + QStringLiteral("/layers")};
+  options.unattended = true;
+  CHECK(host.run_source(QStringLiteral(R"JS(
+    var d = app.newDocument(40, 30);
+    d.activeLayer.fill('#00a0e0');
+    var top = d.addLayer('Top');
+    top.fillRect(4, 4, 12, 10, '#e02060');
+    d.cmykProof = true;
+    if (!d.exportAs(patchy.args.base + '-script.psd')) throw Error('psd');
+  )JS"), options));
+  QElapsedTimer timer;
+  timer.start();
+  while (host.run_active() && timer.elapsed() < 60000) {
+    QApplication::processEvents(QEventLoop::AllEvents, 20);
+  }
+  QApplication::processEvents();
+  CHECK(!host.last_run_had_error());
+  const auto base = directory.path() + QStringLiteral("/layers");
+  CHECK(psd_file_color_mode(base + QStringLiteral("-script.psd")) == 4);
+  for (const auto* suffix : {".psd", ".psb"}) {
+    const auto path = base + QString::fromLatin1(suffix);
+    CHECK(!save_asks_rgb_question(window, path, QMessageBox::Cancel));
+    CHECK(psd_file_color_mode(path) == 4);
+    CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("in CMYK")));
+    const auto reopened = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(path));
+    CHECK(reopened.layers().size() == 2);
+    CHECK(reopened.layers()[1].name() == "Top");
+    CHECK(reopened.layers()[1].psd_native_colors() != nullptr);
+  }
+  // RGB Color leaves the mode: the next PSD save is RGB.
+  auto* rgb_action = window.findChild<QAction*>(QStringLiteral("imageModeRgbAction"));
+  CHECK(rgb_action != nullptr);
+  rgb_action->trigger();
+  QApplication::processEvents();
+  const auto rgb_path = base + QStringLiteral("-rgb.psd");
+  CHECK(!save_asks_rgb_question(window, rgb_path, QMessageBox::Cancel));
+  CHECK(psd_file_color_mode(rgb_path) == 3);
+  CHECK(!window.statusBar()->currentMessage().contains(QStringLiteral("in CMYK")));
+}
+
+// Opening a CMYK file into CMYK Proof says once, in a dialog, that the mode is an emulation
+// (Patchy edits in RGB), until "Don't show this again"; the import note says it every time.
+// Scripted opens never show the dialog.
+void ui_cmyk_open_explains_cmyk_proof_emulation() {
+  const auto previous = patchy::working_cmyk_space();
+  const auto key = QStringLiteral("imports/cmykProofOpenNotice");
+  const auto restore = qScopeGuard([&previous, &key] {
+    patchy::set_working_cmyk_space(previous);
+    patchy::ui::app_settings().setValue(key, false);  // the suite default (tests/ui/main.cpp)
+  });
+  patchy::set_working_cmyk_space(patchy::CmykWorkingSpace::from_icc_profile(
+      patchy::ui::bundled_cmyk_profile(), patchy::RenderingIntent::RelativeColorimetric, true));
+  patchy::ui::app_settings().setValue(key, true);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  const auto source = directory.filePath(QStringLiteral("print.psd"));
+  write_flat_cmyk_psd(source, patchy::ui::bundled_cmyk_profile());
+  // Opens interactively; true when the notice came up. `dont_show` ticks its check box.
+  const auto open_sees_notice = [&window](const QString& path, bool dont_show, QString* text = nullptr) {
+    bool seen = false;
+    // Polled for the whole open: the open pumps events itself before the notice comes up.
+    QTimer poll;
+    poll.setInterval(20);
+    QObject::connect(&poll, &QTimer::timeout, [&poll, &seen, dont_show, text] {
+      auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("cmykProofOpenNoticeDialog")));
+      if (dialog == nullptr) return;
+      poll.stop();
+      seen = true;
+      if (text != nullptr) {
+        for (const auto* label : dialog->findChildren<QLabel*>()) *text += label->text() + QLatin1Char('\n');
+      }
+      auto* check = dialog->findChild<QCheckBox*>(QStringLiteral("cmykProofOpenNoticeDontShowCheck"));
+      CHECK(check != nullptr);
+      check->setChecked(dont_show);
+      dialog->accept();
+    });
+    poll.start();
+    patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+    QApplication::processEvents();
+    poll.stop();
+    return seen;
+  };
+  QString text;
+  CHECK(open_sees_notice(source, false, &text));
+  CHECK(text.contains(QStringLiteral("emulation")));
+  CHECK(text.contains(QStringLiteral("edits in RGB")));
+  auto* cmyk_action = window.findChild<QAction*>(QStringLiteral("imageModeCmykProofAction"));
+  CHECK(cmyk_action != nullptr && cmyk_action->isChecked());
+  // The short note rides the status bar after the CMYK Proof one.
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("more import note")));
+  CHECK(patchy::ui::app_settings().value(key, true).toBool());
+  // Shown again until it is turned off; then never.
+  CHECK(open_sees_notice(source, true));
+  CHECK(!patchy::ui::app_settings().value(key, true).toBool());
+  CHECK(!open_sees_notice(source, false));
+  // A script's open never shows it, even with the notice on.
+  patchy::ui::app_settings().setValue(key, true);
+  bool scripted_seen = false;
+  QTimer scripted_poll;
+  scripted_poll.setInterval(20);
+  QObject::connect(&scripted_poll, &QTimer::timeout, [&scripted_seen] {
+    if (auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("cmykProofOpenNoticeDialog")))) {
+      scripted_seen = true;
+      dialog->accept();
+    }
+  });
+  scripted_poll.start();
+  auto& host = window.script_engine_host();
+  patchy::ui::ScriptEngineHost::RunOptions options;
+  options.name = QStringLiteral("cmyk-open-notice");
+  options.args = QStringList{QStringLiteral("path=") + source};
+  CHECK(host.run_source(QStringLiteral("console.log('opened proof=' + app.open(patchy.args.path).cmykProof);"),
+                        options));
+  QElapsedTimer timer;
+  timer.start();
+  while ((host.run_active() || timer.elapsed() < 400) && timer.elapsed() < 60000) {
+    QApplication::processEvents(QEventLoop::AllEvents, 20);
+  }
+  scripted_poll.stop();
+  CHECK(!host.last_run_had_error());
+  CHECK(backlog_contains(window, QStringLiteral("opened proof=true")));
+  CHECK(!scripted_seen);
 }
 
 // The reporter's Photoshop file from GitHub issue 220: a flat 8-bit CMYK PSD. It opens in
@@ -2269,6 +2433,8 @@ std::vector<patchy::test::TestCase> scripting_tests_part2() {
       {"ui_cmyk_proof_mode_saves_cmyk", ui_cmyk_proof_mode_saves_cmyk},
       {"ui_cmyk_files_open_in_cmyk_proof", ui_cmyk_files_open_in_cmyk_proof},
       {"ui_cmyk_psd_opens_in_cmyk_proof", ui_cmyk_psd_opens_in_cmyk_proof},
+      {"ui_cmyk_proof_saves_layered_psd_in_cmyk", ui_cmyk_proof_saves_layered_psd_in_cmyk},
+      {"ui_cmyk_open_explains_cmyk_proof_emulation", ui_cmyk_open_explains_cmyk_proof_emulation},
       {"ui_issue_220_photoshop_cmyk_psd_opens_in_cmyk_proof_if_available",
        ui_issue_220_photoshop_cmyk_psd_opens_in_cmyk_proof_if_available},
       {"ui_script_export_cmyk_writes_jpeg_tiff_and_pdf", ui_script_export_cmyk_writes_jpeg_tiff_and_pdf},

@@ -10424,6 +10424,54 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>The file&apos;s CMYK profile %1 differs from the working CMYK profile %2, which CMYK Proof and CMYK JPEG, TIFF and PDF saves use</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>In a CMYK file its adjustment layers would act on the inks and change the colors.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>In a CMYK file its layer blend modes would mix the inks and change the colors.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Patchy can save shape and fill layers only in an RGB PSD.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Its Smart Filter previews cannot be converted to CMYK.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Patchy can save layer styles only in an RGB PSD.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Its Blend If or channel blending settings refer to RGB channels.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>32-bit documents are saved in RGB.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>It has too many saved channels for a CMYK file.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Its CMYK color profile cannot convert colors.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The CMYK profile could not separate a layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The CMYK profile could not separate the image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>The TIFF&apos;s Photoshop layer records are damaged</source>
         <translation type="unfinished"></translation>
     </message>
@@ -10472,14 +10520,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>The Photoshop layers in this TIFF could not be read, so it opened as a flat image: %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>This TIFF holds %1 pages; Patchy opened the first one.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Patchy writes layered TIFF files in RGB only</source>
         <translation type="unfinished"></translation>
     </message>
@@ -10520,7 +10560,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>The file&apos;s CMYK profile %1 differs from the working CMYK profile %2, which CMYK Proof and CMYK JPEG, TIFF and PDF saves use</source>
+        <source>The Photoshop layers in this TIFF could not be read, so it opened as a flat image: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This TIFF holds %1 pages; Patchy opened the first one.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -21938,19 +21982,35 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Opened in Image &gt; Mode &gt; CMYK Proof: saving keeps this file in CMYK while its layers are unchanged, and JPEG, TIFF and PDF saves write CMYK</source>
+        <source>Opened in Image &gt; Mode &gt; CMYK Proof, so saving as PSD, JPEG, TIFF or PDF writes CMYK again</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. Patchy saves a PSD in CMYK only when it was opened from a CMYK PSD and its layers are unchanged (text layers always need RGB). JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
-        <translation></translation>
+        <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. %2 JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
+        <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>This document is in CMYK Proof mode, but a TIFF with layers is saved in RGB. Save it in RGB?</source>
+        <source>CMYK Proof is an emulation: Patchy edits in RGB and converts to CMYK through the color profile, so colors and ink numbers can differ slightly from a true CMYK editor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>CMYK Proof</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This CMYK file is open in Image &gt; Mode &gt; CMYK Proof.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>CMYK Proof is an emulation. Patchy edits in RGB: it converts the file&apos;s inks to RGB when it opens it, shows the print through the CMYK color profile, and converts back to CMYK when it saves. Colors and ink numbers can therefore differ slightly from a true CMYK editor such as Photoshop. Layers of a CMYK PSD that you do not change keep their original inks.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Brush mode: how the paint combines with the pixels under it</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This document is in CMYK Proof mode, but a TIFF with layers is saved in RGB. Save it in RGB?</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

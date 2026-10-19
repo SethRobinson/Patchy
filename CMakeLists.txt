@@ -2044,6 +2044,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/pixel_tools_tests.cpp
     tests/core/psd_core_io_tests.cpp
     tests/core/psd_deep_io_tests.cpp
+    tests/core/psd_cmyk_proof_tests.cpp
     tests/core/psd_structure_tests.cpp
     tests/core/psd_text_tests.cpp
     tests/core/psd_legacy_text_tests.cpp

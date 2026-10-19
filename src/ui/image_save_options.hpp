@@ -102,6 +102,10 @@ struct ImageSaveOptions {
   // Otherwise a save of a CMYK Proof document takes the color form from the mode
   // (MainWindow::save_document_to_path, docs/cmyk.md).
   bool export_color_explicit{false};
+  // PSD and PSB in CMYK Proof (docs/cmyk.md): the writer gets the working CMYK space and
+  // writes CMYK whenever the layers allow it (psd::DocumentIo::layered_save_color_mode).
+  // Set from the document's mode by MainWindow::save_document_to_path.
+  bool psd_cmyk_proof{false};
   // UI-only: MainWindow reveals the written file afterwards; the writers ignore it.
   bool export_reveal_in_file_explorer{false};
   // WebP: 0-100 through QImageWriter::setQuality (75 is Qt's own default, so an unset

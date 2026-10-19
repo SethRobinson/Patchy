@@ -10539,6 +10539,50 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>The file&apos;s CMYK profile %1 differs from the working CMYK profile %2, which CMYK Proof and CMYK JPEG, TIFF and PDF saves use</source>
         <translation>O perfil CMYK do arquivo, %1, é diferente do perfil CMYK de trabalho %2, usado pela Prova CMYK e pelos salvamentos em CMYK como JPEG, TIFF e PDF</translation>
     </message>
+    <message>
+        <source>In a CMYK file its adjustment layers would act on the inks and change the colors.</source>
+        <translation>Em um arquivo CMYK, as camadas de ajuste agiriam sobre as tintas e mudariam as cores.</translation>
+    </message>
+    <message>
+        <source>In a CMYK file its layer blend modes would mix the inks and change the colors.</source>
+        <translation>Em um arquivo CMYK, os modos de mesclagem das camadas misturariam as tintas e mudariam as cores.</translation>
+    </message>
+    <message>
+        <source>Patchy can save shape and fill layers only in an RGB PSD.</source>
+        <translation>O Patchy só pode salvar camadas de forma e de preenchimento em um PSD RGB.</translation>
+    </message>
+    <message>
+        <source>Its Smart Filter previews cannot be converted to CMYK.</source>
+        <translation>As prévias dos filtros inteligentes não podem ser convertidas para CMYK.</translation>
+    </message>
+    <message>
+        <source>Patchy can save layer styles only in an RGB PSD.</source>
+        <translation>O Patchy só pode salvar estilos de camada em um PSD RGB.</translation>
+    </message>
+    <message>
+        <source>Its Blend If or channel blending settings refer to RGB channels.</source>
+        <translation>As configurações de Mesclar se ou de mesclagem de canais se referem a canais RGB.</translation>
+    </message>
+    <message>
+        <source>32-bit documents are saved in RGB.</source>
+        <translation>Documentos de 32 bits são salvos em RGB.</translation>
+    </message>
+    <message>
+        <source>It has too many saved channels for a CMYK file.</source>
+        <translation>Ele tem canais salvos demais para um arquivo CMYK.</translation>
+    </message>
+    <message>
+        <source>Its CMYK color profile cannot convert colors.</source>
+        <translation>O perfil de cores CMYK não consegue converter cores.</translation>
+    </message>
+    <message>
+        <source>The CMYK profile could not separate a layer</source>
+        <translation>O perfil CMYK não conseguiu separar uma camada</translation>
+    </message>
+    <message>
+        <source>The CMYK profile could not separate the image</source>
+        <translation>O perfil CMYK não conseguiu separar a imagem</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22011,12 +22055,28 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         <translation>Sombra projetada...</translation>
     </message>
     <message>
-        <source>Opened in Image &gt; Mode &gt; CMYK Proof: saving keeps this file in CMYK while its layers are unchanged, and JPEG, TIFF and PDF saves write CMYK</source>
-        <translation>Aberta em Imagem &gt; Modo &gt; Prova CMYK: salvar mantém este arquivo em CMYK enquanto suas camadas não mudarem, e salvar como JPEG, TIFF e PDF grava em CMYK</translation>
+        <source>Opened in Image &gt; Mode &gt; CMYK Proof, so saving as PSD, JPEG, TIFF or PDF writes CMYK again</source>
+        <translation>Aberta em Imagem &gt; Modo &gt; Prova CMYK, então salvar como PSD, JPEG, TIFF ou PDF grava em CMYK novamente</translation>
     </message>
     <message>
-        <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. Patchy saves a PSD in CMYK only when it was opened from a CMYK PSD and its layers are unchanged (text layers always need RGB). JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
-        <translation>Este documento está no modo Prova CMYK, mas este arquivo %1 será salvo em RGB. O Patchy salva um PSD em CMYK só quando ele foi aberto de um PSD CMYK e suas camadas não mudaram (camadas de texto sempre precisam de RGB). Arquivos JPEG, TIFF e PDF achatados sempre podem ser salvos em CMYK. Salvar em RGB?</translation>
+        <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. %2 JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
+        <translation>Este documento está no modo Prova CMYK, mas este arquivo %1 será salvo em RGB. %2 Arquivos JPEG, TIFF e PDF achatados sempre podem ser salvos em CMYK. Salvar em RGB?</translation>
+    </message>
+    <message>
+        <source>CMYK Proof is an emulation: Patchy edits in RGB and converts to CMYK through the color profile, so colors and ink numbers can differ slightly from a true CMYK editor</source>
+        <translation>Prova CMYK é uma emulação: o Patchy edita em RGB e converte para CMYK pelo perfil de cores, então as cores e os valores de tinta podem diferir um pouco de um editor CMYK de verdade</translation>
+    </message>
+    <message>
+        <source>CMYK Proof</source>
+        <translation>Prova CMYK</translation>
+    </message>
+    <message>
+        <source>This CMYK file is open in Image &gt; Mode &gt; CMYK Proof.</source>
+        <translation>Este arquivo CMYK está aberto em Imagem &gt; Modo &gt; Prova CMYK.</translation>
+    </message>
+    <message>
+        <source>CMYK Proof is an emulation. Patchy edits in RGB: it converts the file&apos;s inks to RGB when it opens it, shows the print through the CMYK color profile, and converts back to CMYK when it saves. Colors and ink numbers can therefore differ slightly from a true CMYK editor such as Photoshop. Layers of a CMYK PSD that you do not change keep their original inks.</source>
+        <translation>Prova CMYK é uma emulação. O Patchy edita em RGB: converte as tintas do arquivo para RGB ao abri-lo, mostra a impressão pelo perfil de cores CMYK e converte de volta para CMYK ao salvar. Por isso as cores e os valores de tinta podem diferir um pouco de um editor CMYK de verdade como o Photoshop. Camadas de um PSD CMYK que você não alterar mantêm as tintas originais.</translation>
     </message>
     <message>
         <source>This document is in CMYK Proof mode, but a TIFF with layers is saved in RGB. Save it in RGB?</source>

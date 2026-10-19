@@ -10505,6 +10505,50 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>The file&apos;s CMYK profile %1 differs from the working CMYK profile %2, which CMYK Proof and CMYK JPEG, TIFF and PDF saves use</source>
         <translation>檔案的 CMYK 描述檔 %1 與 CMYK 校樣以及 JPEG、TIFF 和 PDF 的 CMYK 儲存所用的工作 CMYK 描述檔 %2 不同</translation>
     </message>
+    <message>
+        <source>In a CMYK file its adjustment layers would act on the inks and change the colors.</source>
+        <translation>在 CMYK 檔案中，其調整圖層會作用於油墨並改變顏色。</translation>
+    </message>
+    <message>
+        <source>In a CMYK file its layer blend modes would mix the inks and change the colors.</source>
+        <translation>在 CMYK 檔案中，其圖層混合模式會混合油墨並改變顏色。</translation>
+    </message>
+    <message>
+        <source>Patchy can save shape and fill layers only in an RGB PSD.</source>
+        <translation>Patchy 只能在 RGB PSD 中儲存形狀圖層與填色圖層。</translation>
+    </message>
+    <message>
+        <source>Its Smart Filter previews cannot be converted to CMYK.</source>
+        <translation>其智慧型濾鏡預覽無法轉換為 CMYK。</translation>
+    </message>
+    <message>
+        <source>Patchy can save layer styles only in an RGB PSD.</source>
+        <translation>Patchy 只能在 RGB PSD 中儲存圖層樣式。</translation>
+    </message>
+    <message>
+        <source>Its Blend If or channel blending settings refer to RGB channels.</source>
+        <translation>其混合範圍或色版混合設定參照的是 RGB 色版。</translation>
+    </message>
+    <message>
+        <source>32-bit documents are saved in RGB.</source>
+        <translation>32 位元文件以 RGB 儲存。</translation>
+    </message>
+    <message>
+        <source>It has too many saved channels for a CMYK file.</source>
+        <translation>對 CMYK 檔案而言，它儲存的色版太多。</translation>
+    </message>
+    <message>
+        <source>Its CMYK color profile cannot convert colors.</source>
+        <translation>其 CMYK 色彩描述檔無法轉換顏色。</translation>
+    </message>
+    <message>
+        <source>The CMYK profile could not separate a layer</source>
+        <translation>CMYK 描述檔無法對圖層分色</translation>
+    </message>
+    <message>
+        <source>The CMYK profile could not separate the image</source>
+        <translation>CMYK 描述檔無法對影像分色</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -21941,12 +21985,28 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>陰影...</translation>
     </message>
     <message>
-        <source>Opened in Image &gt; Mode &gt; CMYK Proof: saving keeps this file in CMYK while its layers are unchanged, and JPEG, TIFF and PDF saves write CMYK</source>
-        <translation>已以影像 &gt; 模式 &gt; CMYK 校樣開啟：圖層未變更時，儲存會讓此檔案保持 CMYK；儲存為 JPEG、TIFF 和 PDF 時會寫入 CMYK</translation>
+        <source>Opened in Image &gt; Mode &gt; CMYK Proof, so saving as PSD, JPEG, TIFF or PDF writes CMYK again</source>
+        <translation>已以影像 &gt; 模式 &gt; CMYK 校樣開啟，因此儲存為 PSD、JPEG、TIFF 或 PDF 時會再次寫入 CMYK</translation>
     </message>
     <message>
-        <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. Patchy saves a PSD in CMYK only when it was opened from a CMYK PSD and its layers are unchanged (text layers always need RGB). JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
-        <translation>這份文件處於 CMYK 校樣模式，但此 %1 檔案會以 RGB 儲存。只有從 CMYK PSD 開啟且圖層未變更時，Patchy 才會將 PSD 儲存為 CMYK（文字圖層一律需要 RGB）。JPEG、TIFF 和平面化的 PDF 檔案一律可以儲存為 CMYK。要以 RGB 儲存嗎？</translation>
+        <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. %2 JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
+        <translation>這份文件處於 CMYK 校樣模式，但此 %1 檔案會以 RGB 儲存。%2 JPEG、TIFF 和平面化的 PDF 檔案一律可以儲存為 CMYK。要以 RGB 儲存嗎？</translation>
+    </message>
+    <message>
+        <source>CMYK Proof is an emulation: Patchy edits in RGB and converts to CMYK through the color profile, so colors and ink numbers can differ slightly from a true CMYK editor</source>
+        <translation>CMYK 校樣是一種模擬：Patchy 在 RGB 中編輯，並透過色彩描述檔轉換為 CMYK，因此顏色和油墨數值可能與真正的 CMYK 編輯器略有不同</translation>
+    </message>
+    <message>
+        <source>CMYK Proof</source>
+        <translation>CMYK 校樣</translation>
+    </message>
+    <message>
+        <source>This CMYK file is open in Image &gt; Mode &gt; CMYK Proof.</source>
+        <translation>此 CMYK 檔案已在影像 &gt; 模式 &gt; CMYK 校樣中開啟。</translation>
+    </message>
+    <message>
+        <source>CMYK Proof is an emulation. Patchy edits in RGB: it converts the file&apos;s inks to RGB when it opens it, shows the print through the CMYK color profile, and converts back to CMYK when it saves. Colors and ink numbers can therefore differ slightly from a true CMYK editor such as Photoshop. Layers of a CMYK PSD that you do not change keep their original inks.</source>
+        <translation>CMYK 校樣是一種模擬。Patchy 在 RGB 中編輯：開啟時將檔案的油墨轉換為 RGB，透過 CMYK 色彩描述檔顯示印刷效果，儲存時再轉換回 CMYK。因此顏色和油墨數值可能與 Photoshop 等真正的 CMYK 編輯器略有不同。CMYK PSD 中未變更的圖層會保留原始油墨。</translation>
     </message>
     <message>
         <source>This document is in CMYK Proof mode, but a TIFF with layers is saved in RGB. Save it in RGB?</source>

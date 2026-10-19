@@ -186,6 +186,7 @@ int main(int argc, char** argv) {
            atomic_write_recovery_tests,
            pixel_depth_tests,
            psd_deep_io_tests,
+           psd_cmyk_proof_tests,
            deep_compositor_tests,
            deep_filter_tests,
            ai_selection_tests,

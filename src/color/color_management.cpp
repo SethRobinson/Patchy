@@ -404,8 +404,32 @@ PixelBuffer ColorManager::preview_rgb8(const Document& /*document*/, const Pixel
   return source;
 }
 
+namespace {
+
+[[nodiscard]] cmsUInt32Number lcms_intent(RenderingIntent intent) noexcept {
+  switch (intent) {
+    case RenderingIntent::Perceptual:
+      return INTENT_PERCEPTUAL;
+    case RenderingIntent::RelativeColorimetric:
+      return INTENT_RELATIVE_COLORIMETRIC;
+    case RenderingIntent::Saturation:
+      return INTENT_SATURATION;
+    case RenderingIntent::AbsoluteColorimetric:
+      return INTENT_ABSOLUTE_COLORIMETRIC;
+  }
+  return INTENT_RELATIVE_COLORIMETRIC;
+}
+
+}  // namespace
+
 std::optional<PixelBuffer> rgb_to_native_color_space(
     const PixelBuffer& rgb, ColorMode mode, std::span<const std::uint8_t> profile) {
+  return rgb_to_native_color_space(rgb, mode, profile, RenderingIntent::RelativeColorimetric, true);
+}
+
+std::optional<PixelBuffer> rgb_to_native_color_space(
+    const PixelBuffer& rgb, ColorMode mode, std::span<const std::uint8_t> profile, RenderingIntent intent,
+    bool black_point_compensation) {
   if ((rgb.format() != PixelFormat::rgb16() && rgb.format() != PixelFormat::rgb8()) ||
       (mode != ColorMode::CMYK && mode != ColorMode::Lab && mode != ColorMode::Grayscale)) {
     return std::nullopt;
@@ -445,7 +469,8 @@ std::optional<PixelBuffer> rgb_to_native_color_space(
                                               : (deep ? TYPE_GRAY_16 : TYPE_GRAY_8);
   const auto transform = source != nullptr && destination != nullptr && cmsGetColorSpace(destination) == signature
       ? cmsCreateTransformTHR(context, source, deep ? TYPE_RGB_16 : TYPE_RGB_8, destination, format,
-                              INTENT_RELATIVE_COLORIMETRIC, cmsFLAGS_BLACKPOINTCOMPENSATION | cmsFLAGS_NOCACHE)
+                              lcms_intent(intent),
+                              (black_point_compensation ? cmsFLAGS_BLACKPOINTCOMPENSATION : 0U) | cmsFLAGS_NOCACHE)
       : nullptr;
   if (source != nullptr) cmsCloseProfile(source);
   if (destination != nullptr) cmsCloseProfile(destination);
@@ -460,20 +485,6 @@ std::optional<PixelBuffer> rgb_to_native_color_space(
 }
 
 namespace {
-
-[[nodiscard]] cmsUInt32Number lcms_intent(RenderingIntent intent) noexcept {
-  switch (intent) {
-    case RenderingIntent::Perceptual:
-      return INTENT_PERCEPTUAL;
-    case RenderingIntent::RelativeColorimetric:
-      return INTENT_RELATIVE_COLORIMETRIC;
-    case RenderingIntent::Saturation:
-      return INTENT_SATURATION;
-    case RenderingIntent::AbsoluteColorimetric:
-      return INTENT_ABSOLUTE_COLORIMETRIC;
-  }
-  return INTENT_RELATIVE_COLORIMETRIC;
-}
 
 [[nodiscard]] double clamped_percent(double value) noexcept {
   // A NaN compares false both ways and lands on 0.

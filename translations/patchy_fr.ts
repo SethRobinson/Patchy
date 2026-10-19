@@ -10539,6 +10539,50 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>The file&apos;s CMYK profile %1 differs from the working CMYK profile %2, which CMYK Proof and CMYK JPEG, TIFF and PDF saves use</source>
         <translation>Le profil CMJN du fichier, %1, diffère du profil CMJN de travail %2, utilisé par l&apos;Épreuve CMJN et les enregistrements CMJN en JPEG, TIFF et PDF</translation>
     </message>
+    <message>
+        <source>In a CMYK file its adjustment layers would act on the inks and change the colors.</source>
+        <translation>Dans un fichier CMJN, ses calques de réglage agiraient sur les encres et changeraient les couleurs.</translation>
+    </message>
+    <message>
+        <source>In a CMYK file its layer blend modes would mix the inks and change the colors.</source>
+        <translation>Dans un fichier CMJN, les modes de fusion de ses calques mélangeraient les encres et changeraient les couleurs.</translation>
+    </message>
+    <message>
+        <source>Patchy can save shape and fill layers only in an RGB PSD.</source>
+        <translation>Patchy ne peut enregistrer les calques de forme et de remplissage que dans un PSD RVB.</translation>
+    </message>
+    <message>
+        <source>Its Smart Filter previews cannot be converted to CMYK.</source>
+        <translation>Les aperçus de ses filtres dynamiques ne peuvent pas être convertis en CMJN.</translation>
+    </message>
+    <message>
+        <source>Patchy can save layer styles only in an RGB PSD.</source>
+        <translation>Patchy ne peut enregistrer les styles de calque que dans un PSD RVB.</translation>
+    </message>
+    <message>
+        <source>Its Blend If or channel blending settings refer to RGB channels.</source>
+        <translation>Ses réglages Comparaison sur ou de fusion des couches portent sur des couches RVB.</translation>
+    </message>
+    <message>
+        <source>32-bit documents are saved in RGB.</source>
+        <translation>Les documents 32 bits sont enregistrés en RVB.</translation>
+    </message>
+    <message>
+        <source>It has too many saved channels for a CMYK file.</source>
+        <translation>Il a trop de couches enregistrées pour un fichier CMJN.</translation>
+    </message>
+    <message>
+        <source>Its CMYK color profile cannot convert colors.</source>
+        <translation>Son profil colorimétrique CMJN ne peut pas convertir les couleurs.</translation>
+    </message>
+    <message>
+        <source>The CMYK profile could not separate a layer</source>
+        <translation>Le profil CMJN n&apos;a pas pu séparer un calque</translation>
+    </message>
+    <message>
+        <source>The CMYK profile could not separate the image</source>
+        <translation>Le profil CMJN n&apos;a pas pu séparer l&apos;image</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22011,12 +22055,28 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Ombre portée...</translation>
     </message>
     <message>
-        <source>Opened in Image &gt; Mode &gt; CMYK Proof: saving keeps this file in CMYK while its layers are unchanged, and JPEG, TIFF and PDF saves write CMYK</source>
-        <translation>Ouverte en Image &gt; Mode &gt; Épreuve CMJN : l&apos;enregistrement garde ce fichier en CMJN tant que ses calques ne changent pas, et les enregistrements en JPEG, TIFF et PDF écrivent du CMJN</translation>
+        <source>Opened in Image &gt; Mode &gt; CMYK Proof, so saving as PSD, JPEG, TIFF or PDF writes CMYK again</source>
+        <translation>Ouverte en Image &gt; Mode &gt; Épreuve CMJN : l&apos;enregistrement en PSD, JPEG, TIFF ou PDF écrit de nouveau du CMJN</translation>
     </message>
     <message>
-        <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. Patchy saves a PSD in CMYK only when it was opened from a CMYK PSD and its layers are unchanged (text layers always need RGB). JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
-        <translation>Ce document est en mode Épreuve CMJN, mais ce fichier %1 sera enregistré en RVB. Patchy n&apos;enregistre un PSD en CMJN que s&apos;il a été ouvert depuis un PSD CMJN et que ses calques sont inchangés (les calques de texte demandent toujours du RVB). Les fichiers JPEG, TIFF et PDF aplatis peuvent toujours être enregistrés en CMJN. L&apos;enregistrer en RVB ?</translation>
+        <source>This document is in CMYK Proof mode, but this %1 file will be saved in RGB. %2 JPEG, TIFF and flattened PDF files can always be saved in CMYK. Save it in RGB?</source>
+        <translation>Ce document est en mode Épreuve CMJN, mais ce fichier %1 sera enregistré en RVB. %2 Les fichiers JPEG, TIFF et PDF aplatis peuvent toujours être enregistrés en CMJN. L&apos;enregistrer en RVB ?</translation>
+    </message>
+    <message>
+        <source>CMYK Proof is an emulation: Patchy edits in RGB and converts to CMYK through the color profile, so colors and ink numbers can differ slightly from a true CMYK editor</source>
+        <translation>Épreuve CMJN est une émulation : Patchy travaille en RVB et convertit en CMJN via le profil colorimétrique, donc les couleurs et les valeurs d&apos;encre peuvent différer légèrement d&apos;un véritable éditeur CMJN</translation>
+    </message>
+    <message>
+        <source>CMYK Proof</source>
+        <translation>Épreuve CMJN</translation>
+    </message>
+    <message>
+        <source>This CMYK file is open in Image &gt; Mode &gt; CMYK Proof.</source>
+        <translation>Ce fichier CMJN est ouvert en Image &gt; Mode &gt; Épreuve CMJN.</translation>
+    </message>
+    <message>
+        <source>CMYK Proof is an emulation. Patchy edits in RGB: it converts the file&apos;s inks to RGB when it opens it, shows the print through the CMYK color profile, and converts back to CMYK when it saves. Colors and ink numbers can therefore differ slightly from a true CMYK editor such as Photoshop. Layers of a CMYK PSD that you do not change keep their original inks.</source>
+        <translation>Épreuve CMJN est une émulation. Patchy travaille en RVB : il convertit les encres du fichier en RVB à l&apos;ouverture, affiche l&apos;impression via le profil colorimétrique CMJN et reconvertit en CMJN à l&apos;enregistrement. Les couleurs et les valeurs d&apos;encre peuvent donc différer légèrement d&apos;un véritable éditeur CMJN comme Photoshop. Les calques d&apos;un PSD CMJN que vous ne modifiez pas gardent leurs encres d&apos;origine.</translation>
     </message>
     <message>
         <source>This document is in CMYK Proof mode, but a TIFF with layers is saved in RGB. Save it in RGB?</source>
