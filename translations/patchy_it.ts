@@ -10439,6 +10439,62 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Text layer. Font is missing on this computer: %1.</source>
         <translation>Livello di testo. Font mancante su questo computer: %1.</translation>
     </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer records are damaged</source>
+        <translation>I record dei livelli Photoshop del TIFF sono danneggiati</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data mixes byte orders</source>
+        <translation>I dati dei livelli Photoshop del TIFF mescolano ordini di byte diversi</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data is cut short</source>
+        <translation>I dati dei livelli Photoshop del TIFF sono troncati</translation>
+    </message>
+    <message>
+        <source>Patchy reads TIFF layers only in RGB, CMYK, grayscale and Lab files</source>
+        <translation>Patchy legge i livelli TIFF solo nei file RGB, CMYK, in scala di grigi e Lab</translation>
+    </message>
+    <message>
+        <source>Not a TIFF file Patchy reads layers from</source>
+        <translation>Non è un file TIFF da cui Patchy legge i livelli</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s first directory is damaged</source>
+        <translation>La prima directory del TIFF è danneggiata</translation>
+    </message>
+    <message>
+        <source>The TIFF has no Photoshop layer data</source>
+        <translation>Il TIFF non contiene dati dei livelli Photoshop</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s first directory lacks its image size or color layout</source>
+        <translation>Nella prima directory del TIFF mancano le dimensioni dell&apos;immagine o la struttura del colore</translation>
+    </message>
+    <message>
+        <source>Patchy reads TIFF layers only at 8 or 16 bits or 32-bit float</source>
+        <translation>Patchy legge i livelli TIFF solo a 8 o 16 bit o in virgola mobile a 32 bit</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data holds no layers</source>
+        <translation>I dati dei livelli Photoshop del TIFF non contengono livelli</translation>
+    </message>
+    <message>
+        <source>This TIFF stores its layers in IBM PC byte order, and some of that layer data is in a form Patchy cannot convert yet. Patchy left it out, so some layers may look different than in Photoshop.</source>
+        <translation>Questo TIFF memorizza i livelli nell&apos;ordine di byte IBM PC e una parte di quei dati dei livelli è in una forma che Patchy non sa ancora convertire. Patchy l&apos;ha tralasciata, quindi alcuni livelli possono apparire diversi rispetto a Photoshop.</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data is too large</source>
+        <translation>I dati dei livelli Photoshop del TIFF sono troppo grandi</translation>
+    </message>
+    <message>
+        <source>The Photoshop layers in this TIFF could not be read, so it opened as a flat image: %1</source>
+        <translation>Non è stato possibile leggere i livelli Photoshop di questo TIFF, quindi è stato aperto come immagine a livello unico: %1</translation>
+    </message>
+    <message>
+        <source>This TIFF holds %1 pages; Patchy opened the first one.</source>
+        <translation>Questo TIFF contiene %1 pagine; Patchy ha aperto la prima.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

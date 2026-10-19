@@ -10405,6 +10405,62 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Text layer. Font is missing on this computer: %1.</source>
         <translation>テキストレイヤー。このコンピューターにフォントがありません: %1。</translation>
     </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer records are damaged</source>
+        <translation>TIFF の Photoshop レイヤーレコードが壊れています</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data mixes byte orders</source>
+        <translation>TIFF の Photoshop レイヤーデータでバイト順序が混在しています</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data is cut short</source>
+        <translation>TIFF の Photoshop レイヤーデータが途中で切れています</translation>
+    </message>
+    <message>
+        <source>Patchy reads TIFF layers only in RGB, CMYK, grayscale and Lab files</source>
+        <translation>Patchy が TIFF のレイヤーを読み込めるのは RGB、CMYK、グレースケール、Lab のファイルだけです</translation>
+    </message>
+    <message>
+        <source>Not a TIFF file Patchy reads layers from</source>
+        <translation>Patchy がレイヤーを読み込める TIFF ファイルではありません</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s first directory is damaged</source>
+        <translation>TIFF の最初のディレクトリが壊れています</translation>
+    </message>
+    <message>
+        <source>The TIFF has no Photoshop layer data</source>
+        <translation>TIFF に Photoshop のレイヤーデータがありません</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s first directory lacks its image size or color layout</source>
+        <translation>TIFF の最初のディレクトリに画像サイズまたはカラー構成がありません</translation>
+    </message>
+    <message>
+        <source>Patchy reads TIFF layers only at 8 or 16 bits or 32-bit float</source>
+        <translation>Patchy が TIFF のレイヤーを読み込めるのは 8 ビット、16 ビット、32 ビット浮動小数点だけです</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data holds no layers</source>
+        <translation>TIFF の Photoshop レイヤーデータにレイヤーがありません</translation>
+    </message>
+    <message>
+        <source>This TIFF stores its layers in IBM PC byte order, and some of that layer data is in a form Patchy cannot convert yet. Patchy left it out, so some layers may look different than in Photoshop.</source>
+        <translation>この TIFF はレイヤーを IBM PC のバイト順序で保存しており、そのレイヤーデータの一部は Patchy がまだ変換できない形式です。Patchy はその部分を省いたため、一部のレイヤーは Photoshop と見た目が異なる場合があります。</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data is too large</source>
+        <translation>TIFF の Photoshop レイヤーデータが大きすぎます</translation>
+    </message>
+    <message>
+        <source>The Photoshop layers in this TIFF could not be read, so it opened as a flat image: %1</source>
+        <translation>この TIFF の Photoshop レイヤーを読み込めなかったため、統合された画像として開きました: %1</translation>
+    </message>
+    <message>
+        <source>This TIFF holds %1 pages; Patchy opened the first one.</source>
+        <translation>この TIFF には %1 ページあります。Patchy は最初のページを開きました。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -10405,6 +10405,62 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Text layer. Font is missing on this computer: %1.</source>
         <translation>文字图层。此计算机上缺少字体：%1。</translation>
     </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer records are damaged</source>
+        <translation>TIFF 中的 Photoshop 图层记录已损坏</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data mixes byte orders</source>
+        <translation>TIFF 中的 Photoshop 图层数据混用了字节顺序</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data is cut short</source>
+        <translation>TIFF 中的 Photoshop 图层数据不完整</translation>
+    </message>
+    <message>
+        <source>Patchy reads TIFF layers only in RGB, CMYK, grayscale and Lab files</source>
+        <translation>Patchy 只能读取 RGB、CMYK、灰度和 Lab 文件中的 TIFF 图层</translation>
+    </message>
+    <message>
+        <source>Not a TIFF file Patchy reads layers from</source>
+        <translation>不是 Patchy 可读取图层的 TIFF 文件</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s first directory is damaged</source>
+        <translation>TIFF 的第一个目录已损坏</translation>
+    </message>
+    <message>
+        <source>The TIFF has no Photoshop layer data</source>
+        <translation>TIFF 中没有 Photoshop 图层数据</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s first directory lacks its image size or color layout</source>
+        <translation>TIFF 的第一个目录缺少图像尺寸或颜色布局</translation>
+    </message>
+    <message>
+        <source>Patchy reads TIFF layers only at 8 or 16 bits or 32-bit float</source>
+        <translation>Patchy 只能读取 8 位、16 位或 32 位浮点的 TIFF 图层</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data holds no layers</source>
+        <translation>TIFF 中的 Photoshop 图层数据不含任何图层</translation>
+    </message>
+    <message>
+        <source>This TIFF stores its layers in IBM PC byte order, and some of that layer data is in a form Patchy cannot convert yet. Patchy left it out, so some layers may look different than in Photoshop.</source>
+        <translation>此 TIFF 以 IBM PC 字节顺序存储图层，其中部分图层数据的形式 Patchy 尚无法转换。Patchy 已将其略去，因此某些图层的外观可能与 Photoshop 中不同。</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data is too large</source>
+        <translation>TIFF 中的 Photoshop 图层数据过大</translation>
+    </message>
+    <message>
+        <source>The Photoshop layers in this TIFF could not be read, so it opened as a flat image: %1</source>
+        <translation>无法读取此 TIFF 中的 Photoshop 图层，因此已作为拼合图像打开：%1</translation>
+    </message>
+    <message>
+        <source>This TIFF holds %1 pages; Patchy opened the first one.</source>
+        <translation>此 TIFF 包含 %1 页；Patchy 打开了第一页。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

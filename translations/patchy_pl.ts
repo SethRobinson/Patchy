@@ -10473,6 +10473,62 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Text layer. Font is missing on this computer: %1.</source>
         <translation>Warstwa tekstowa. Brak czcionki na tym komputerze: %1.</translation>
     </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer records are damaged</source>
+        <translation>Rekordy warstw Photoshopa w pliku TIFF są uszkodzone</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data mixes byte orders</source>
+        <translation>Dane warstw Photoshopa w pliku TIFF mieszają kolejności bajtów</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data is cut short</source>
+        <translation>Dane warstw Photoshopa w pliku TIFF są ucięte</translation>
+    </message>
+    <message>
+        <source>Patchy reads TIFF layers only in RGB, CMYK, grayscale and Lab files</source>
+        <translation>Patchy odczytuje warstwy TIFF tylko z plików RGB, CMYK, w skali szarości i Lab</translation>
+    </message>
+    <message>
+        <source>Not a TIFF file Patchy reads layers from</source>
+        <translation>To nie jest plik TIFF, z którego Patchy odczytuje warstwy</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s first directory is damaged</source>
+        <translation>Pierwszy katalog pliku TIFF jest uszkodzony</translation>
+    </message>
+    <message>
+        <source>The TIFF has no Photoshop layer data</source>
+        <translation>Plik TIFF nie zawiera danych warstw Photoshopa</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s first directory lacks its image size or color layout</source>
+        <translation>W pierwszym katalogu pliku TIFF brakuje rozmiaru obrazu lub układu kolorów</translation>
+    </message>
+    <message>
+        <source>Patchy reads TIFF layers only at 8 or 16 bits or 32-bit float</source>
+        <translation>Patchy odczytuje warstwy TIFF tylko w 8 lub 16 bitach albo w 32-bitowym formacie zmiennoprzecinkowym</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data holds no layers</source>
+        <translation>Dane warstw Photoshopa w pliku TIFF nie zawierają żadnych warstw</translation>
+    </message>
+    <message>
+        <source>This TIFF stores its layers in IBM PC byte order, and some of that layer data is in a form Patchy cannot convert yet. Patchy left it out, so some layers may look different than in Photoshop.</source>
+        <translation>Ten plik TIFF zapisuje warstwy w kolejności bajtów IBM PC, a część tych danych warstw ma postać, której Patchy nie umie jeszcze przekonwertować. Patchy ją pominął, więc niektóre warstwy mogą wyglądać inaczej niż w Photoshopie.</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data is too large</source>
+        <translation>Dane warstw Photoshopa w pliku TIFF są za duże</translation>
+    </message>
+    <message>
+        <source>The Photoshop layers in this TIFF could not be read, so it opened as a flat image: %1</source>
+        <translation>Nie udało się odczytać warstw Photoshopa w tym pliku TIFF, więc otwarto go jako spłaszczony obraz: %1</translation>
+    </message>
+    <message>
+        <source>This TIFF holds %1 pages; Patchy opened the first one.</source>
+        <translation>Liczba stron w tym pliku TIFF: %1; Patchy otworzył pierwszą.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

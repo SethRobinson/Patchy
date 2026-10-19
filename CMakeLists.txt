@@ -380,6 +380,8 @@ add_library(patchy_psd
   src/psd/psd_io_internal.hpp
   src/psd/psd_layer_records.cpp
   src/psd/psd_layer_styles.cpp
+  src/psd/psd_little_endian.cpp
+  src/psd/psd_little_endian.hpp
   src/psd/psd_patterns.cpp
   src/psd/psd_smart_objects.cpp
   src/psd/psd_text_engine_block.cpp
@@ -388,6 +390,8 @@ add_library(patchy_psd
   src/psd/psd_text_legacy.cpp
   src/psd/psd_text_read.cpp
   src/psd/psd_text_write.cpp
+  src/psd/psd_tiff.cpp
+  src/psd/psd_tiff.hpp
   src/psd/psd_vector.cpp
 )
 target_link_libraries(patchy_psd PUBLIC patchy_core patchy_render patchy_color)
@@ -2061,6 +2065,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/translation_marker_tests.cpp
     tests/core/ai_selection_tests.cpp
     tests/core/gmic_tests.cpp
+    tests/core/tiff_layers_tests.cpp
   )
   target_link_libraries(patchy_core_tests PRIVATE patchy_gmic)
   # jxl_tests.cpp builds unusual source files (PQ, gray, premultiplied) straight through libjxl.
@@ -2199,6 +2204,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/history_panel_tests.cpp
       tests/ui/history_stroke_patch_tests.cpp
       tests/ui/file_info_tests.cpp
+      tests/ui/layered_tiff_tests.cpp
       tests/ui/composite_render_tests.cpp
       tests/ui/readme_screenshot_tests.cpp
       tests/ui/readme_screenshot_tests_classic.cpp

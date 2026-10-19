@@ -10405,6 +10405,62 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Text layer. Font is missing on this computer: %1.</source>
         <translation>텍스트 레이어. 이 컴퓨터에 없는 글꼴: %1.</translation>
     </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer records are damaged</source>
+        <translation>TIFF의 Photoshop 레이어 레코드가 손상되었습니다</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data mixes byte orders</source>
+        <translation>TIFF의 Photoshop 레이어 데이터에 바이트 순서가 섞여 있습니다</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data is cut short</source>
+        <translation>TIFF의 Photoshop 레이어 데이터가 중간에 잘려 있습니다</translation>
+    </message>
+    <message>
+        <source>Patchy reads TIFF layers only in RGB, CMYK, grayscale and Lab files</source>
+        <translation>Patchy는 RGB, CMYK, 회색조, Lab 파일에서만 TIFF 레이어를 읽습니다</translation>
+    </message>
+    <message>
+        <source>Not a TIFF file Patchy reads layers from</source>
+        <translation>Patchy가 레이어를 읽을 수 있는 TIFF 파일이 아닙니다</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s first directory is damaged</source>
+        <translation>TIFF의 첫 번째 디렉터리가 손상되었습니다</translation>
+    </message>
+    <message>
+        <source>The TIFF has no Photoshop layer data</source>
+        <translation>TIFF에 Photoshop 레이어 데이터가 없습니다</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s first directory lacks its image size or color layout</source>
+        <translation>TIFF의 첫 번째 디렉터리에 이미지 크기나 색상 구성이 없습니다</translation>
+    </message>
+    <message>
+        <source>Patchy reads TIFF layers only at 8 or 16 bits or 32-bit float</source>
+        <translation>Patchy는 8비트, 16비트 또는 32비트 부동소수점 TIFF 레이어만 읽습니다</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data holds no layers</source>
+        <translation>TIFF의 Photoshop 레이어 데이터에 레이어가 없습니다</translation>
+    </message>
+    <message>
+        <source>This TIFF stores its layers in IBM PC byte order, and some of that layer data is in a form Patchy cannot convert yet. Patchy left it out, so some layers may look different than in Photoshop.</source>
+        <translation>이 TIFF는 레이어를 IBM PC 바이트 순서로 저장하며, 그 레이어 데이터 일부는 Patchy가 아직 변환할 수 없는 형식입니다. Patchy가 그 부분을 제외했으므로 일부 레이어는 Photoshop과 다르게 보일 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data is too large</source>
+        <translation>TIFF의 Photoshop 레이어 데이터가 너무 큽니다</translation>
+    </message>
+    <message>
+        <source>The Photoshop layers in this TIFF could not be read, so it opened as a flat image: %1</source>
+        <translation>이 TIFF의 Photoshop 레이어를 읽을 수 없어 병합된 이미지로 열었습니다: %1</translation>
+    </message>
+    <message>
+        <source>This TIFF holds %1 pages; Patchy opened the first one.</source>
+        <translation>이 TIFF에는 %1개의 페이지가 있습니다. Patchy는 첫 페이지를 열었습니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

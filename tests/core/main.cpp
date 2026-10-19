@@ -191,6 +191,7 @@ int main(int argc, char** argv) {
            ai_selection_tests,
            gmic_tests,
            file_info_metadata_tests,
+           tiff_layers_tests,
        }) {
     auto group = registration();
     tests.insert(tests.end(), std::make_move_iterator(group.begin()),

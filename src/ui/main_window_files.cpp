@@ -52,6 +52,7 @@
 #include "formats/rttex_document_io.hpp"
 #include "formats/svg_document_io.hpp"
 #include "psd/psd_document_io.hpp"
+#include "psd/psd_tiff.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/image_save_option_keys.hpp"
 #include "ui/background_workers.hpp"
@@ -1080,6 +1081,92 @@ void capture_file_info(Document& opened, const QString& path, bool pixels_in_sou
   }
 }
 
+// After a PSD reader import (a PSD, PSB or layered TIFF): force the Import Notes popup for
+// conversions a save makes permanent, note Blend If it cannot render, and put stale or
+// missing linked smart-object files first.
+void finish_photoshop_layers_import(Document& opened, const QFileInfo& info, QStringList& import_notices,
+                                    bool& force_import_notices_popup) {
+  // Only when the depth was converted: a document that kept it lost nothing.
+  if (const auto depth = opened.metadata().values.find("psd.depth");
+      depth != opened.metadata().values.end() && depth->second != "8" &&
+      opened.color_state().bit_depth == BitDepth::UInt8) {
+    force_import_notices_popup = true;
+  }
+  // The other conversions a save makes permanent: a color mode with no RGB, CMYK or
+  // Grayscale equivalent, and adjustment layers that acted on CMYK inks.
+  if (const auto mode = opened.metadata().values.find("psd.color_mode");
+      mode != opened.metadata().values.end() && mode->second != "RGB" && mode->second != "CMYK" &&
+      mode->second != "Grayscale") {
+    force_import_notices_popup = true;
+  }
+  if (opened.metadata().values.contains("psd.ink_adjustments")) {
+    force_import_notices_popup = true;
+  }
+  if (const auto notice = unsupported_blend_if_import_notice(opened); !notice.isEmpty()) {
+    import_notices.push_back(notice);
+  }
+  // Linked-file staleness: compare each external source's stored date/size with
+  // the file on disk (Photoshop's own check). These are actionable, so they go
+  // FIRST in the notice list (the status bar shows only the leading note).
+  QStringList link_notices;
+  const auto document_dir = info.absolutePath();
+  for (const auto& block : std::as_const(opened.metadata().smart_objects.blocks)) {
+    for (const auto& source : block.sources) {
+      if (source.kind != SmartObjectSourceKind::ExternalFile) {
+        continue;
+      }
+      const auto file_name = QString::fromStdString(source.filename);
+      const auto resolved = resolve_smart_object_external_path(source, document_dir);
+      if (!resolved.has_value()) {
+        link_notices.push_back(QObject::tr("Linked file %1 was not found").arg(file_name));
+        continue;
+      }
+      if (smart_object_link_changed_on_disk(source, QFileInfo(*resolved))) {
+        link_notices.push_back(
+            QObject::tr("Linked file %1 has changed on disk; use Update Smart Object Content")
+                .arg(file_name));
+      }
+    }
+  }
+  for (int i = 0; i < link_notices.size(); ++i) {
+    import_notices.insert(i, link_notices.at(i));
+  }
+}
+
+bool is_tiff_extension(const QString& extension) {
+  return extension == QStringLiteral("tif") || extension == QStringLiteral("tiff");
+}
+
+// A TIFF carrying Photoshop layers in tag 37724 opens with them (docs/tiff.md). False when
+// the file has none or they cannot be read: the caller then opens the composite as it
+// always has, with a note saying why the layers are missing.
+bool open_layered_tiff(const QString& path, const QFileInfo& info, Document& opened, QStringList& import_notices,
+                       bool& force_import_notices_popup) {
+  const auto bytes = read_all_file_bytes(path);
+  if (!psd::tiff_has_photoshop_layers(bytes)) {
+    return false;
+  }
+  std::vector<std::string> notices;
+  psd::ReadOptions options;
+  options.notices = &notices;
+  try {
+    auto document = psd::read_layered_tiff(bytes, options);
+    // File Info comes from the TIFF itself (capture_file_info), not the PSD resources.
+    document.file_info() = DocumentFileInfo{};
+    opened = std::move(document);
+  } catch (const std::exception& error) {
+    import_notices.push_back(
+        QObject::tr("The Photoshop layers in this TIFF could not be read, so it opened as a flat image: %1")
+            .arg(translated_file_message(error.what())));
+    return false;
+  }
+  for (const auto& notice : notices) {
+    import_notices.push_back(translated_file_message(notice));
+  }
+  finish_photoshop_layers_import(opened, info, import_notices, force_import_notices_popup);
+  return true;
+}
+
 OpenDocumentResult load_document_from_path(QString path) {
   const auto info = QFileInfo(path);
   const auto extension = info.suffix().toLower();
@@ -1153,7 +1240,7 @@ OpenDocumentResult load_document_from_path(QString path) {
     QImageReader reader(path);
     reader.setAutoTransform(true);
     auto image = reader.read();
-    if (image.isNull() && (extension == QStringLiteral("tif") || extension == QStringLiteral("tiff"))) {
+    if (image.isNull() && is_tiff_extension(extension)) {
       // Qt's libtiff has no JPEG codec; JPEG-compressed TIFFs decode strip by strip
       // through Qt's JPEG reader instead (GitHub issue 117).
       const auto bytes = read_all_file_bytes(path);
@@ -1165,6 +1252,14 @@ OpenDocumentResult load_document_from_path(QString path) {
       throw std::runtime_error(open_failure_reason(reader.errorString(), path, extension).toStdString());
     }
     orientation_applied = reader.transformation() != QImageIOHandler::TransformationNone;
+    // A multi-page TIFF opens its first page, as in Photoshop; pages are separate images
+    // (scans, faxes, GIMP's layers-as-pages export), not a layer stack (docs/tiff.md).
+    if (is_tiff_extension(extension)) {
+      if (const auto pages = psd::tiff_page_count(read_all_file_bytes(path)); pages > 1U) {
+        import_notices.push_back(
+            QObject::tr("This TIFF holds %1 pages; Patchy opened the first one.").arg(static_cast<qulonglong>(pages)));
+      }
+    }
     // Animated GIFs import every frame as a layer, frame 1 on TOP and all layers visible,
     // each frame's delay stamped as a trailing seconds token ("Frame 3 0.4s") that the
     // animated GIF export parses back, so a straight open-then-save round-trips. qgif
@@ -1257,51 +1352,11 @@ OpenDocumentResult load_document_from_path(QString path) {
     for (const auto& notice : psd_notices) {
       import_notices.push_back(translated_file_message(notice));
     }
-    // Only when the depth was converted: a document that kept it lost nothing.
-    if (const auto depth = opened.metadata().values.find("psd.depth");
-        depth != opened.metadata().values.end() && depth->second != "8" &&
-        opened.color_state().bit_depth == BitDepth::UInt8) {
-      force_import_notices_popup = true;
-    }
-    // The other conversions a save makes permanent: a color mode with no RGB, CMYK or
-    // Grayscale equivalent, and adjustment layers that acted on CMYK inks.
-    if (const auto mode = opened.metadata().values.find("psd.color_mode");
-        mode != opened.metadata().values.end() && mode->second != "RGB" && mode->second != "CMYK" &&
-        mode->second != "Grayscale") {
-      force_import_notices_popup = true;
-    }
-    if (opened.metadata().values.contains("psd.ink_adjustments")) {
-      force_import_notices_popup = true;
-    }
-    if (const auto notice = unsupported_blend_if_import_notice(opened); !notice.isEmpty()) {
-      import_notices.push_back(notice);
-    }
-    // Linked-file staleness: compare each external source's stored date/size with
-    // the file on disk (Photoshop's own check). These are actionable, so they go
-    // FIRST in the notice list (the status bar shows only the leading note).
-    QStringList link_notices;
-    const auto document_dir = info.absolutePath();
-    for (const auto& block : std::as_const(opened.metadata().smart_objects.blocks)) {
-      for (const auto& source : block.sources) {
-        if (source.kind != SmartObjectSourceKind::ExternalFile) {
-          continue;
-        }
-        const auto file_name = QString::fromStdString(source.filename);
-        const auto resolved = resolve_smart_object_external_path(source, document_dir);
-        if (!resolved.has_value()) {
-          link_notices.push_back(QObject::tr("Linked file %1 was not found").arg(file_name));
-          continue;
-        }
-        if (smart_object_link_changed_on_disk(source, QFileInfo(*resolved))) {
-          link_notices.push_back(
-              QObject::tr("Linked file %1 has changed on disk; use Update Smart Object Content")
-                  .arg(file_name));
-        }
-      }
-    }
-    for (int i = 0; i < link_notices.size(); ++i) {
-      import_notices.insert(i, link_notices.at(i));
-    }
+    finish_photoshop_layers_import(opened, info, import_notices, force_import_notices_popup);
+  } else if (is_tiff_extension(extension) &&
+             open_layered_tiff(path, info, opened, import_notices, force_import_notices_popup)) {
+    // The layers' pixels are the file's own values, as in a PSD.
+    pixels_in_source_space = true;
   } else if (jxl::is_jxl_extension(extension.toStdString())) {
     // Before the registry row so animation frames get translated layer names and the
     // decoder's color and orientation facts reach File Info.

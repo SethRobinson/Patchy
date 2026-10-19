@@ -10473,6 +10473,62 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Text layer. Font is missing on this computer: %1.</source>
         <translation>Текстовый слой. Шрифт отсутствует на этом компьютере: %1.</translation>
     </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer records are damaged</source>
+        <translation>Записи слоёв Photoshop в файле TIFF повреждены</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data mixes byte orders</source>
+        <translation>В данных слоёв Photoshop в файле TIFF смешаны порядки байтов</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data is cut short</source>
+        <translation>Данные слоёв Photoshop в файле TIFF обрываются</translation>
+    </message>
+    <message>
+        <source>Patchy reads TIFF layers only in RGB, CMYK, grayscale and Lab files</source>
+        <translation>Patchy читает слои TIFF только в файлах RGB, CMYK, в оттенках серого и Lab</translation>
+    </message>
+    <message>
+        <source>Not a TIFF file Patchy reads layers from</source>
+        <translation>Это не файл TIFF, из которого Patchy читает слои</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s first directory is damaged</source>
+        <translation>Первый каталог файла TIFF повреждён</translation>
+    </message>
+    <message>
+        <source>The TIFF has no Photoshop layer data</source>
+        <translation>В файле TIFF нет данных слоёв Photoshop</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s first directory lacks its image size or color layout</source>
+        <translation>В первом каталоге файла TIFF нет размера изображения или цветовой схемы</translation>
+    </message>
+    <message>
+        <source>Patchy reads TIFF layers only at 8 or 16 bits or 32-bit float</source>
+        <translation>Patchy читает слои TIFF только с глубиной 8 или 16 бит либо 32 бита с плавающей точкой</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data holds no layers</source>
+        <translation>Данные слоёв Photoshop в файле TIFF не содержат слоёв</translation>
+    </message>
+    <message>
+        <source>This TIFF stores its layers in IBM PC byte order, and some of that layer data is in a form Patchy cannot convert yet. Patchy left it out, so some layers may look different than in Photoshop.</source>
+        <translation>Этот TIFF хранит слои в порядке байтов IBM PC, и часть этих данных слоёв записана в виде, который Patchy пока не умеет преобразовывать. Patchy пропустил её, поэтому некоторые слои могут выглядеть иначе, чем в Photoshop.</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data is too large</source>
+        <translation>Данные слоёв Photoshop в файле TIFF слишком велики</translation>
+    </message>
+    <message>
+        <source>The Photoshop layers in this TIFF could not be read, so it opened as a flat image: %1</source>
+        <translation>Не удалось прочитать слои Photoshop в этом TIFF, поэтому он открыт как плоское изображение: %1</translation>
+    </message>
+    <message>
+        <source>This TIFF holds %1 pages; Patchy opened the first one.</source>
+        <translation>Страниц в этом TIFF: %1; Patchy открыл первую.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

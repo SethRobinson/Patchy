@@ -10439,6 +10439,62 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Text layer. Font is missing on this computer: %1.</source>
         <translation>Capa de texto. La fuente falta en este equipo: %1.</translation>
     </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer records are damaged</source>
+        <translation>Los registros de capas de Photoshop del TIFF están dañados</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data mixes byte orders</source>
+        <translation>Los datos de capas de Photoshop del TIFF mezclan órdenes de bytes</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data is cut short</source>
+        <translation>Los datos de capas de Photoshop del TIFF están incompletos</translation>
+    </message>
+    <message>
+        <source>Patchy reads TIFF layers only in RGB, CMYK, grayscale and Lab files</source>
+        <translation>Patchy solo lee capas TIFF en archivos RGB, CMYK, en escala de grises y Lab</translation>
+    </message>
+    <message>
+        <source>Not a TIFF file Patchy reads layers from</source>
+        <translation>No es un archivo TIFF del que Patchy lea capas</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s first directory is damaged</source>
+        <translation>El primer directorio del TIFF está dañado</translation>
+    </message>
+    <message>
+        <source>The TIFF has no Photoshop layer data</source>
+        <translation>El TIFF no contiene datos de capas de Photoshop</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s first directory lacks its image size or color layout</source>
+        <translation>Al primer directorio del TIFF le falta el tamaño de la imagen o la disposición del color</translation>
+    </message>
+    <message>
+        <source>Patchy reads TIFF layers only at 8 or 16 bits or 32-bit float</source>
+        <translation>Patchy solo lee capas TIFF de 8 o 16 bits o de 32 bits de coma flotante</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data holds no layers</source>
+        <translation>Los datos de capas de Photoshop del TIFF no contienen capas</translation>
+    </message>
+    <message>
+        <source>This TIFF stores its layers in IBM PC byte order, and some of that layer data is in a form Patchy cannot convert yet. Patchy left it out, so some layers may look different than in Photoshop.</source>
+        <translation>Este TIFF guarda sus capas en el orden de bytes de IBM PC, y parte de esos datos de capas tiene una forma que Patchy aún no puede convertir. Patchy la omitió, así que algunas capas pueden verse distintas que en Photoshop.</translation>
+    </message>
+    <message>
+        <source>The TIFF&apos;s Photoshop layer data is too large</source>
+        <translation>Los datos de capas de Photoshop del TIFF son demasiado grandes</translation>
+    </message>
+    <message>
+        <source>The Photoshop layers in this TIFF could not be read, so it opened as a flat image: %1</source>
+        <translation>No se pudieron leer las capas de Photoshop de este TIFF, así que se abrió como imagen plana: %1</translation>
+    </message>
+    <message>
+        <source>This TIFF holds %1 pages; Patchy opened the first one.</source>
+        <translation>Este TIFF contiene %1 páginas; Patchy abrió la primera.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -52,7 +52,7 @@ Both are undoable (`push_undo_snapshot`) and change the file only on the next sa
 |---|---|
 | JPEG | APP1 Exif, XMP and Extended XMP (merged after the GUID MD5 check), APP2 ICC chunks, APP13 IRB (IPTC, 1061, 1034/1035, thumbnails), COM, JFIF/JFXX thumbnails, APP2 MPF summary, APP11 JUMBF (C2PA), APP12 Ducky, FLIR, other APPn, data after EOI |
 | PNG | tEXt/zTXt/iTXt (zlib capped at 16 MB), `XML:com.adobe.xmp`, ImageMagick `Raw profile type exif/xmp/iptc/8bim/icc`, eXIf, iCCP, sRGB/gAMA/cHRM/cICP/mDCV/cLLI/sBIT, tIME, caBX |
-| TIFF and TIFF-based raw | IFD0 descriptive tags, 700, 33723, 34377, 34675, Exif/GPS/Interop IFDs, SubIFD previews, 37724 layer data; image-structure tags stay out of the EXIF slot |
+| TIFF and TIFF-based raw | IFD0 descriptive tags, 700, 33723, 34377, 34675, Exif/GPS/Interop IFDs, SubIFD previews, 37724 layer data (also opened as layers: [tiff.md](tiff.md)); image-structure tags stay out of the EXIF slot |
 | WebP | ICCP, EXIF (with or without the `Exif\0\0` prefix), `XMP `, C2PA |
 | JPEG XL | `Exif` and `xml ` boxes (also `brob`-compressed), the original color profile (libjxl synthesizes one for an encoded color space; none for plain sRGB), the box layout |
 | HEIF/AVIF/CR3 | `Exif` and `mime` XMP items (iloc versions 0-2, idat), primary `colr` (ICC or nclx), irot/imir, thumbnail and auxiliary items, XMP and C2PA uuid boxes, CR3 CMT1/2/4 |
