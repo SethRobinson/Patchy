@@ -2988,6 +2988,10 @@ void ui_move_tool_after_text_edit_keeps_spacebar_pan_active() {
   editor->setFocus(Qt::OtherFocusReason);
   QApplication::processEvents();
 
+  // Transform-box hit zones (GitHub issue 176) would give a resize or rotate cursor when
+  // the pointer lands near the new text's box edge, which depends on font metrics and
+  // so differs between runs; this test is about focus and Space-pan, not those zones.
+  canvas->set_show_transform_controls(false);
   require_action_by_text(window, QStringLiteral("Move"))->trigger();
   QApplication::processEvents();
   CHECK(canvas->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr);
