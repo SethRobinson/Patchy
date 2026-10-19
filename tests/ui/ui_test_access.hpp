@@ -79,6 +79,10 @@ public:
     window.reset_document(1024, 768, Qt::white, QStringLiteral("New document"));
   }
 
+  static void create_document(MainWindow& window, std::int32_t width, std::int32_t height) {
+    window.reset_document(width, height, Qt::white, QStringLiteral("New document"));
+  }
+
   static CanvasWidget* canvas(MainWindow& window) {
     return window.canvas_;
   }

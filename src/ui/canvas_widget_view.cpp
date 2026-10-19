@@ -296,6 +296,30 @@ bool CanvasWidget::constrain_pan() noexcept {
   return true;
 }
 
+bool CanvasWidget::keep_view_centered_across_resize(QSize old_size) noexcept {
+  if (document_ == nullptr || document_->width() <= 0 || document_->height() <= 0 || width() <= 0 ||
+      height() <= 0 || !old_size.isValid() || old_size.width() <= 0 || old_size.height() <= 0) {
+    return false;
+  }
+  // Per axis: a document that fits stays centered; otherwise the document point under the
+  // viewport center stays there. A fitting document the user parked off center keeps its
+  // offset from the center instead of snapping back.
+  const auto axis = [](double pan, double old_span, double new_span, double document_span) {
+    const bool was_centered =
+        document_span > old_span || std::abs(pan - (old_span - document_span) / 2.0) < 1.0;
+    if (document_span <= new_span && was_centered) {
+      return (new_span - document_span) / 2.0;
+    }
+    return pan + (new_span - old_span) / 2.0;
+  };
+  const auto old_pan = pan_;
+  pan_ = QPointF(axis(pan_.x(), static_cast<double>(old_size.width()), static_cast<double>(width()),
+                      static_cast<double>(document_->width()) * zoom_),
+                 axis(pan_.y(), static_cast<double>(old_size.height()), static_cast<double>(height()),
+                      static_cast<double>(document_->height()) * zoom_));
+  return pan_ != old_pan;
+}
+
 void CanvasWidget::shift_view_for_document_offset(QPoint document_shift) {
   if (document_shift.isNull()) {
     return;
@@ -308,6 +332,7 @@ void CanvasWidget::shift_view_for_document_offset(QPoint document_shift) {
 
 void CanvasWidget::notify_view_changed() {
   ZoomTraceScope trace("view_changed", zoom_);
+  view_size_ = size();
   sync_scroll_bars();  // before the callback so observers see consistent bars
   // The warp preview covers only the area on screen at the view's level.
   schedule_warp_preview_view_refresh();

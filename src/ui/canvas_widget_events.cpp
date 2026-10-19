@@ -507,7 +507,17 @@ void CanvasWidget::wheelEvent(QWheelEvent* event) {
 
 void CanvasWidget::resizeEvent(QResizeEvent* event) {
   QWidget::resizeEvent(event);
-  if (isVisible() && constrain_pan()) {
+  // A maximized window, a dock opening or closing and a resized float window all re-anchor
+  // the view (GitHub issue 241). Hidden tabs too, so they show centered when chosen. Only
+  // a view something placed (view_size_ is set): a canvas no command has placed keeps its
+  // default pan. Not during a drag: the options row can change height mid-gesture, and the
+  // document must not slide under the pointer.
+  const bool recentered = view_size_.isValid() && !view_gesture_blocked_by_pointer() &&
+      keep_view_centered_across_resize(view_size_);
+  if (view_size_.isValid()) {
+    view_size_ = size();
+  }
+  if (isVisible() && (constrain_pan() || recentered)) {
     update();
     notify_view_changed();
   }
