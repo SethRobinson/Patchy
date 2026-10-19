@@ -245,6 +245,36 @@ void ui_color_picker_closes_with_parent_dialog() {
   CHECK(second_picker_opened);
   CHECK(second.has_value());
 }
+// GitHub issue 216: OK on the dialog that launched a picker confirms what the
+// picker's live preview showed, so the picked color stands instead of reverting.
+void ui_color_picker_keeps_its_color_when_parent_is_accepted() {
+  QDialog parent;
+  parent.setObjectName(QStringLiteral("testPickerAcceptedParentDialog"));
+  parent.show();
+  QApplication::processEvents();
+  std::optional<QColor> live;
+  QTimer::singleShot(0, &parent, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (widget->objectName() != QStringLiteral("patchyColorDialog") || !widget->isVisible()) {
+        continue;
+      }
+      auto* picker = widget->findChild<patchy::ui::PatchyColorPicker*>(QStringLiteral("patchyAdvancedColorPicker"));
+      CHECK(picker != nullptr);
+      if (picker != nullptr) {
+        picker->setCurrentColor(QColor(40, 160, 210));
+      }
+      break;
+    }
+    parent.accept();
+  });
+  const auto kept = patchy::ui::request_patchy_color(&parent, QColor(10, 20, 30), QStringLiteral("Kept"),
+                                                     [&](QColor color) { live = color; });
+  CHECK(live.has_value() && *live == QColor(40, 160, 210));
+  CHECK(kept.has_value() && *kept == QColor(40, 160, 210));
+  for (auto* widget : QApplication::topLevelWidgets()) {
+    CHECK(!(widget->objectName() == QStringLiteral("patchyColorDialog") && widget->isVisible()));
+  }
+}
 // A picker opened from a dialog styled with dialog_spinbox_button_style() (the G'MIC
 // Filter Library's color swatches) keeps room for its digits: that style reserves 54 px
 // on the right for -/+ buttons, and the picker's 44 px fields have none.
@@ -3272,6 +3302,8 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_color_picker_changes_foreground_color", ui_color_picker_changes_foreground_color},
       {"ui_color_picker_ignores_reentrant_requests", ui_color_picker_ignores_reentrant_requests},
       {"ui_color_picker_closes_with_parent_dialog", ui_color_picker_closes_with_parent_dialog},
+      {"ui_color_picker_keeps_its_color_when_parent_is_accepted",
+       ui_color_picker_keeps_its_color_when_parent_is_accepted},
       {"ui_color_picker_fields_keep_their_digits_in_a_styled_dialog",
        ui_color_picker_fields_keep_their_digits_in_a_styled_dialog},
       {"ui_color_picker_wheel_and_sliders_modes", ui_color_picker_wheel_and_sliders_modes},

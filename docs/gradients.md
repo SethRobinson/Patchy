@@ -39,6 +39,8 @@ The quick picker (`src/ui/gradient_preset_popup.{hpp,cpp}`) and Gradient Manager
 
 `GradientStopsEditorWidget` is callback-driven: it never mutates its own stop vectors; hosts copy-and-sort, and must never sort the working vectors in place: an in-flight tag or midpoint drag holds an index into them. Photoshop `Mdpn` belongs to the destination/right stop; the first stop's midpoint is unused.
 
+The layer-style stop-color picker is non-modal, so the editor stays clickable while it is open, and it edits only the stop it opened for (`LayerStyleGradientControls::color_picker_row`). Selecting another stop closes it and keeps its color; a request for that stop reopens the picker there once the open one has unwound; a preset load or stop deletion detaches it first, since stop indices change. GitHub issue 216: the picker kept editing the first stop while the dialog showed the second one selected (`ui_layer_style_gradient_stop_picker_follows_the_selected_stop`).
+
 ## PSD layer effects
 
 Gradient Overlay `GrFl` and gradient Stroke `FrFX` share the definition codec but have different required descriptor shapes. Untouched imported `lfx2`/`lmfx` remains byte-preserved. Once edited, writers must retain Photoshop's key order and types documented in `docs/ps-compat.md`, including `Grad`, `Angl`, `Type`, `Rvrs`, `Dthr`, interpolation, `Algn`, `Scl`, and `Ofst`.

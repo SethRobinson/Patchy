@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <cmath>
 #include <numeric>
+#include <utility>
 
 namespace patchy::ui::layer_style_detail {
 LayerStyleGradient default_layer_style_gradient() {
@@ -95,6 +96,18 @@ LayerStyleGradient LayerStyleGradientControls::value() const {
                      });
     return result;
   }
+
+void LayerStyleGradientControls::close_stop_color_picker(bool detach) {
+  if (color_picker_row < 0) {
+    return;
+  }
+  if (detach) {
+    color_picker_row = -1;
+  }
+  if (auto* picker = open_color_picker_dialog(); picker != nullptr) {
+    picker->accept();
+  }
+}
 
 std::unique_ptr<LayerStyleGradientControls> make_gradient_controls(
     LayerStyleGradientContext& context, QFormLayout* form, QWidget* parent_widget,
@@ -402,6 +415,9 @@ std::unique_ptr<LayerStyleGradientControls> make_gradient_controls(
         state->selected_color_stop =
             std::clamp(state->selected_color_stop, 0, static_cast<int>(state->color_stops.size()) - 1);
       }
+      if (state->color_picker_row >= 0 && state->selected_color_stop != state->color_picker_row) {
+        state->close_stop_color_picker(false);
+      }
 
       std::vector<GradientStop> editor_stops;
       editor_stops.reserve(state->color_stops.size());
@@ -473,6 +489,7 @@ std::unique_ptr<LayerStyleGradientControls> make_gradient_controls(
       state->stop_midpoint->setEnabled(midpoint_available);
     };
     state->load = [state](const LayerStyleGradient& value) {
+      state->close_stop_color_picker(true);
       state->loading = true;
       state->template_gradient = value;
       state->color_stops = value.color_stops;
@@ -614,6 +631,7 @@ std::unique_ptr<LayerStyleGradientControls> make_gradient_controls(
       if (state->color_stops.size() <= 2U || row < 0 || row >= static_cast<int>(state->color_stops.size())) {
         return;
       }
+      state->close_stop_color_picker(true);
       state->color_stops.erase(state->color_stops.begin() + row);
       state->selected_color_stop = std::min(row, static_cast<int>(state->color_stops.size()) - 1);
       state->selected_alpha_stop = -1;
@@ -703,44 +721,71 @@ std::unique_ptr<LayerStyleGradientControls> make_gradient_controls(
       if (user_typed) mark_ramp_edit();
       notify_changed(true);
     });
+    // The picker edits the stop it opened for. It is non-modal, so selecting
+    // another stop meanwhile closes it (update_previews) and keeps its color; a
+    // request for that other stop opens the picker on it once the open picker's
+    // loop has unwound (GitHub issue 216: the picker kept editing the first stop
+    // while the dialog showed the second one selected).
     auto choose_stop_color = [&, state, notify_changed, color_picker_title, object_prefix] {
       if (state->selected_color_stop < 0 ||
           state->selected_color_stop >= static_cast<int>(state->color_stops.size())) {
         return;
       }
-      const auto row = state->selected_color_stop;
-      const auto original = state->color_stops[static_cast<std::size_t>(row)].color;
-      const auto saved_edits = *batch_edits;
+      if (state->color_picker_row >= 0) {
+        if (state->selected_color_stop != state->color_picker_row) {
+          state->pending_picker_row = state->selected_color_stop;
+          state->close_stop_color_picker(false);
+        } else if (auto* picker = open_color_picker_dialog(); picker != nullptr) {
+          picker->raise();
+          picker->activateWindow();
+        }
+        return;
+      }
       const auto ramp_key = [&] {
         return ramp_property_key(object_prefix.contains(QStringLiteral("Stroke")));
       };
-      bool selected = false;
-      auto apply_color = [state, row](QColor color) {
-        if (!color.isValid() || row >= static_cast<int>(state->color_stops.size())) {
-          return;
+      for (int row = state->selected_color_stop; row >= 0;) {
+        const auto original = state->color_stops[static_cast<std::size_t>(row)].color;
+        const auto saved_edits = *batch_edits;
+        bool selected = false;
+        // Writes only while this picker still owns the stop: a preset load or a
+        // stop deletion detaches it (color_picker_row = -1).
+        auto apply_color = [state, row](QColor color) {
+          if (!color.isValid() || state->color_picker_row != row ||
+              row >= static_cast<int>(state->color_stops.size())) {
+            return;
+          }
+          state->color_stops[static_cast<std::size_t>(row)].color =
+              RgbColor{static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
+                       static_cast<std::uint8_t>(color.blue())};
+          state->update_previews();
+        };
+        state->color_picker_row = row;
+        state->pending_picker_row = -1;
+        const auto chosen = request_patchy_color(&dialog, QColor(original.red, original.green, original.blue),
+                                                 color_picker_title, [&](QColor color) {
+                                                   apply_color(color);
+                                                   if (batch) explicit_fields = {ramp_key()};
+                                                   notify_changed(false);
+                                                 }, &selected);
+        const bool detached = state->color_picker_row != row;
+        if (!detached) {
+          if (!chosen.has_value()) {
+            apply_color(QColor(original.red, original.green, original.blue));
+            *batch_edits = saved_edits;
+            if (reset_batch_capture) reset_batch_capture();
+            notify_changed(true);
+          } else if (selected || !batch) {
+            apply_color(*chosen);
+            if (batch) explicit_fields = {ramp_key()};
+            notify_changed(true);
+          }
+          state->color_picker_row = -1;
         }
-        state->color_stops[static_cast<std::size_t>(row)].color =
-            RgbColor{static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
-                     static_cast<std::uint8_t>(color.blue())};
-        state->update_previews();
-      };
-      const auto chosen = request_patchy_color(&dialog, QColor(original.red, original.green, original.blue),
-                                               color_picker_title, [&](QColor color) {
-                                                 apply_color(color);
-                                                 if (batch) explicit_fields = {ramp_key()};
-                                                 notify_changed(false);
-                                               }, &selected);
-      if (!chosen.has_value()) {
-        apply_color(QColor(original.red, original.green, original.blue));
-        *batch_edits = saved_edits;
-        if (reset_batch_capture) reset_batch_capture();
-        notify_changed(true);
-        return;
-      }
-      if (selected || !batch) {
-        apply_color(*chosen);
-        if (batch) explicit_fields = {ramp_key()};
-        notify_changed(true);
+        row = std::exchange(state->pending_picker_row, -1);
+        if (row != state->selected_color_stop || row >= static_cast<int>(state->color_stops.size())) {
+          row = -1;
+        }
       }
     };
     QObject::connect(state->stop_swatch, &QPushButton::clicked, &dialog, choose_stop_color);
@@ -795,6 +840,7 @@ std::unique_ptr<LayerStyleGradientControls> make_gradient_controls(
         }
         const auto row =
             std::clamp(state->selected_color_stop, 0, static_cast<int>(state->color_stops.size()) - 1);
+        state->close_stop_color_picker(true);
         state->color_stops.erase(state->color_stops.begin() + row);
         state->selected_color_stop = std::min(row, static_cast<int>(state->color_stops.size()) - 1);
       }

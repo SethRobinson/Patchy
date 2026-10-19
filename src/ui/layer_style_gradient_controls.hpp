@@ -62,12 +62,21 @@ struct LayerStyleGradientControls {
   std::vector<GradientAlphaStop> alpha_stops;
   int selected_color_stop{0};
   int selected_alpha_stop{-1};
+  // The color stop the open stop-color picker edits, or -1. The picker is
+  // non-modal, so the editor stays clickable: selecting another stop closes it
+  // (keeping its color), and a request for that stop is queued in
+  // pending_picker_row until the open picker's loop unwinds.
+  int color_picker_row{-1};
+  int pending_picker_row{-1};
   bool loading{false};
   std::function<void()> update_previews;
   std::function<void(bool)> changed;
   std::function<void(const LayerStyleGradient&)> load;
 
   [[nodiscard]] LayerStyleGradient value() const;
+  // Closes the open stop-color picker, keeping its color. detach also stops it
+  // writing to color_picker_row (the stop indices are about to change).
+  void close_stop_color_picker(bool detach);
 };
 
 // Kept in request_layer_style_settings for the entire dialog execution. The
