@@ -21,9 +21,6 @@ Keep this file at or below 30,000 bytes. Implementation knowledge belongs in `do
 - Patchy's interface is its own design. It follows widely shared image-editing conventions and reads other editors' files, but never reproduces another product's icons, artwork, or screen layouts; each interface change must stand on its own usability merits.
 - User-facing documentation must not use em dashes. Write plain, direct prose without hype, emoji headings, "not just X, but Y" constructions, or stock AI phrasing such as "seamlessly", "robust", "comprehensive", and "delve".
 - When a test needs a capability Patchy lacks (an assertion surface, a file or state probe, a way to drive a flow without the desktop UI), prefer adding it to the JavaScript scripting API as a documented first-class `patchy.*` function over a test-only hook: the scripting system improves, and the same test can drive the real build through `--run-script`. Follow the API rules in [docs/scripting.md](docs/scripting.md) (d.ts, guide, change log, permanent identifiers).
-- When wasm work is finished, stop every local wasm server you started (`scripts\wasm\free-server-port.ps1 -Port <port>` per port). Seth restarts one himself when he wants it.
-
-The release process, including version bumps, README author crediting, batch-file order, the GitHub Releases publish, and mandatory `NO_PAUSE=1` for non-interactive runs, lives in [docs/release-process.md](docs/release-process.md). Read it in full before bumping a version or running a release batch file.
 
 ## Build, test, and release handoff
 
@@ -42,7 +39,7 @@ Required release handoff steps:
    - Run from the repository root in PowerShell or real cmd, never Git Bash. Require compile/link lines or `ninja: no work to do`, not just exit 0.
    - Iterate with `--target <the test/app you run>` (remote: `-BuildTarget`, with `-Preset opt-dev`); the full build (five LTCG links, about 12 minutes) runs once, at handoff.
    - A worktree configures once with `--preset release -DCMAKE_PREFIX_PATH=<main-checkout>/.deps/Qt/6.8.3/msvc2022_64`.
-   - Never kill a running `patchy.exe` or `patchy-mcp.exe` (the link renames it aside), never package a `.stale-` file, never hand-edit `build\release\CMakeCache.txt`, never make the version a target-wide define.
+   - Never kill a running `patchy.exe` or `patchy-mcp.exe` (the link renames it aside), never package a `.stale-` file.
 
 2. Run release test binaries from `build\release`, scoped to the change:
 
@@ -65,7 +62,7 @@ Do not say a release was created unless the release preset build succeeded.
 
 ## Universal engineering invariants
 
-- **Never read a variable in the same call that moves it.** C++ argument evaluation order is unspecified. Compute the read result first, then call with that local and `std::move(value)`. `CanvasWidget::combine_selection_from_mask(bounds, mask)` also provides an overload that derives the value safely.
+- **Never read a variable in the same call that moves it.** C++ argument evaluation order is unspecified. Compute the read result first, then call with that local and `std::move(value)`.
 - **Read revision-bearing objects through const access.** Mutable Layer accessors bump revisions on access, invalidating revision-keyed caches. Use `std::as_const` or another const path. `PATCHY_REV_TRACE=1` traces bumps. See [docs/performance.md](docs/performance.md).
 - **Nothing proportional to all layer pixels may run per repaint.** Cache or bound work reachable from `paintEvent`; use content revision for whole-render results and `pixel_revision()` for pixel-buffer-only results. See [docs/performance.md](docs/performance.md).
 - **Core algorithms must be deterministic across toolchains.** Use splitmix64 with explicit uniform mapping, never `std::uniform_*_distribution`. Use integer math or deterministic-double envelopes with fixed tie-breaks for geometry and graph algorithms.
@@ -76,7 +73,6 @@ Do not say a release was created unless the release preset build succeeded.
 - **File paths cross the Qt boundary as UTF-16, never as `std::string`.** `QString::toStdString()` is UTF-8 and MSVC's `std::filesystem::path(std::string)` decodes it with the ANSI code page, which mangles non-ASCII names. Convert with `to_filesystem_path`/`to_qstring` from `src/ui/qt_paths.hpp` (never `toStdWString`), and turn path pieces into UTF-8 text with `path_to_utf8` from `src/support/path_utils.hpp`, never `path::string()`. Every new file-reading or file-writing entry point gets a Unicode-path test built on `tests/unicode_path_names.hpp`. See [docs/platform.md](docs/platform.md).
 - **Never truncate a user's file in place.** Every document writer goes through `write_file_bytes_atomically`/`AtomicFileReplacement` (src/support/atomic_file_write.hpp) or `QSaveFile`: a sibling temporary and a replacing rename, so a crash or full disk mid-save keeps the old file. See [docs/document-recovery.md](docs/document-recovery.md).
 - **Serialization is fixed-width and cross-platform.** Never write `size_t`, `long`, `wchar_t`, native structs, or host-endian values into a file format. PSD I/O uses explicit big-endian primitives. See [docs/platform.md](docs/platform.md) and the relevant format document.
-- **A font face's natural width is `QFont::AnyStretch`, never `setStretch(100)`.** Qt synthesizes request / face width class, so stretch 100 on a Condensed face is a 133 percent stretch. See [docs/text-tool.md](docs/text-tool.md).
 - **Detach copy-on-write pixel storage on the launching thread before a parallel write.** `PixelBuffer` shares its bytes across copies (undo, render snapshots, `Document` copies) until the first non-const access. Worker strips calling non-const `row()`/`pixel()`/`data()` on a still-shared buffer race to detach, each copying while another's replacement frees the bytes (access violations, or heap corruption long after). Call `pixels.data()` once on the launching thread and hand the workers spans or raw pointers; `apply_row_spans_in_parallel` (src/ui/filter_workflows.cpp) and `heal_mask_from_surroundings` are the references.
 
 ## Conditional references
@@ -100,7 +96,7 @@ Read these before acting in the named area:
 | Layer-effect render calibration (Blend If, Satin, Stroke, shadows/glows, interior effects, Bevel/Emboss, Pattern Overlay, Shape Burst) | [docs/layer-effects-render.md](docs/layer-effects-render.md) |
 | Native Smart Filter descriptors, FEid cache, per-filter render semantics | [docs/smart-filters-native.md](docs/smart-filters-native.md) |
 | Contributor pull-request review | [docs/pr-review.md](docs/pr-review.md) |
-| Release/version/package/upload work | [docs/release-process.md](docs/release-process.md) |
+| Release/version/package/upload work | [docs/release-process.md](docs/release-process.md): read it in full before a version bump or any release batch file (`NO_PAUSE=1` for non-interactive runs) |
 | Build scripts, `run-throttled.bat` and its build lock, presets, the version header, batch-file exit codes, remote builds (`remote-build.ps1`, host locks) | [docs/building.md](docs/building.md) |
 | Update prompt, one-click update, installer update mode | [docs/auto-update.md](docs/auto-update.md) |
 
@@ -111,13 +107,7 @@ Read these before acting in the named area:
 - Every submenu action under the menubar gets `QAction::NoRole`: on macOS Qt merges items by translated title into the app menu and a merged submenu crashes on the next window activation (GitHub issue 29). See [docs/platform.md](docs/platform.md).
 - Read modifier state folded from the current event, not `QApplication::keyboardModifiers()`. See [docs/ui-conventions.md](docs/ui-conventions.md) and [docs/testing.md](docs/testing.md).
 - New non-modal dialogs use `run_non_modal_dialog`; closing-sensitive dialogs funnel through `done()`. See [docs/ui-conventions.md](docs/ui-conventions.md).
-- Open-dialog filter strings have a Windows/Qt-specific duplicated-pattern contract. Read [docs/file-formats.md](docs/file-formats.md) before changing them.
-- The local PSBtest tent and Content fixtures must never be overwritten. See [docs/smart-objects.md](docs/smart-objects.md).
-- Offscreen text on Windows is FreeType; a real window is DirectWrite, which ignores a QFont stretch for glyph images. Text pins pass offscreen and can still be wrong on screen; see the font-engine note in [docs/testing.md](docs/testing.md).
-- Photoshop reads a document's text fonts and content from its own `Txt2` block, not the layers, and trusts it over the TySh. Patchy rebuilds that block on every save (an authored object per regenerated type layer, untouched objects kept, no layout caches); a new TySh key needs its Txt2 twin in `psd_text_engine_block.cpp` or Photoshop shows the stale object. Format, key map and what Photoshop accepts: [docs/txt2.md](docs/txt2.md) and [docs/ps-compat.md](docs/ps-compat.md).
-- Every gradient descriptor Patchy writes carries at least two transparency stops, and a file that already has none heals on save. An empty `Trns` list makes Photoshop discard the layer behind its "unknown data" prompt; `scripts\dev\photoshop-open-check.ps1` detects that prompt per file. See [docs/ps-compat.md](docs/ps-compat.md).
-- Never leave a Qt host lookup pending at quit: `~QCoreApplication` waits for `QHostInfo`'s thread pool with no timeout (GitHub issue 48, a macOS quit freeze). `update_checker.cpp` resolves the host on a detached thread first; any new network client does the same. The tracked-worker wait after `app.exec()` is bounded (`finish_after_event_loop`): a worker still blocked after 10 s ends the process without destructors after dropping the recovery folder, so never rely on a destructor for anything the user could lose.
-- Never rely on Qt's automatic quit: inactive before `app.exec()` (startup pumps events for command-line opens and the update check), and inside exec a shown window deletes its posted event. `main.cpp` skips exec for a window closed during startup; the update close calls `QCoreApplication::exit(0)`.
+- Never rely on a destructor for anything the user could lose: the wait for workers after `app.exec()` is bounded and can end the process without destructors. Startup, quit, host lookups and Qt's automatic quit: "App lifecycle" in [docs/code-organization.md](docs/code-organization.md#app-lifecycle-startup-and-quit).
 - Bash heredocs rewrite backslash escapes (write a file and run it); Windows Python text mode writes CRLF (use `newline=''`).
 
 ## Feature index
@@ -132,7 +122,7 @@ Read the linked document before working on a feature; it owns the constraints.
 - **Healing Brush, Spot Healing, Patch tool, Remove Object (dialog, variations, tone match), and retouch Sample All Layers:** [docs/healing.md](docs/healing.md) and [docs/legal-constraints.md](docs/legal-constraints.md).
 - **Palette mode:** [docs/palette-mode.md](docs/palette-mode.md). CMYK: [docs/cmyk.md](docs/cmyk.md).
 - **16/32-bit editing (on; `PATCHY_DEEP_EDITING=0` off):** [docs/high-bit-depth.md](docs/high-bit-depth.md).
-- **File formats, PSB, and flat-image alpha:** [docs/file-formats.md](docs/file-formats.md); HEIF in [docs/heif.md](docs/heif.md), raw in [docs/camera-raw.md](docs/camera-raw.md), Affinity in [docs/af-format.md](docs/af-format.md), animation in [docs/animation.md](docs/animation.md). File Info metadata: [docs/file-info.md](docs/file-info.md).
+- **File formats, PSB, flat-image alpha, and the open-dialog filter-string contract:** [docs/file-formats.md](docs/file-formats.md); HEIF in [docs/heif.md](docs/heif.md), raw in [docs/camera-raw.md](docs/camera-raw.md), Affinity in [docs/af-format.md](docs/af-format.md), animation in [docs/animation.md](docs/animation.md). File Info metadata: [docs/file-info.md](docs/file-info.md).
 - **JPEG XR, JPEG XL, JPEG 2000, Radiance HDR, OpenEXR, AVIF:** [docs/jxr.md](docs/jxr.md), [docs/jxl.md](docs/jxl.md), [docs/hdr-formats.md](docs/hdr-formats.md), [docs/avif.md](docs/avif.md); codec rules in [docs/legal-constraints.md](docs/legal-constraints.md).
 - **Proton (.rttex) and DDS (.dds) textures:** [docs/rttex.md](docs/rttex.md), [docs/dds.md](docs/dds.md).
 - **PDF import/export:** [docs/pdf.md](docs/pdf.md); timings in [docs/pdf-performance.md](docs/pdf-performance.md).
@@ -147,7 +137,7 @@ Read the linked document before working on a feature; it owns the constraints.
 - **Layer-style and pattern presets:** [docs/style-presets.md](docs/style-presets.md).
 - **Gradients and GRD:** [docs/gradients.md](docs/gradients.md).
 - **Text tool, Character panel and Paragraph panel:** [docs/text-tool.md](docs/text-tool.md), text inside shapes in [docs/area-text.md](docs/area-text.md), with the Photoshop layout/measurement calibration in [docs/text-render-calibration.md](docs/text-render-calibration.md).
-- **Photoshop's Txt2 text engine block:** [docs/txt2.md](docs/txt2.md). Read it before any Txt2, text-run or list-style work. Vertical type and paragraph direction (Photoshop's vertical text model, the Ornt/WritingDirection encoding, the v4 paragraph column) are in both.
+- **Photoshop's Txt2 text engine block:** [docs/txt2.md](docs/txt2.md). Photoshop trusts Txt2 over the TySh: a new TySh key needs its Txt2 twin. Read it before any Txt2, text-run or list-style work. Vertical type and paragraph direction (Photoshop's vertical text model, the Ornt/WritingDirection encoding, the v4 paragraph column) are in both.
 - **Bundled, wasm-aliased and user-added fonts:** [docs/fonts.md](docs/fonts.md).
 - **Selection tools:** [docs/selection-tools.md](docs/selection-tools.md) and [docs/legal-constraints.md](docs/legal-constraints.md). ML Select Subject and Object Selection: [docs/ai-selection.md](docs/ai-selection.md); one prompt per solve, no negative points or mask feedback. Select Subject/Background and Remove Background are held back (CMake `PATCHY_ENABLE_SELECT_SUBJECT`, default off) pending patent review of US 12051225.
 - **Shape tools, the Fill tool and Fill command, Free Transform modifiers, pixel-grid snapping (Photoshop's whole-pixel rule, `core/pixel_grid.hpp`), Merge Down, and the Background lock:** [docs/tools.md](docs/tools.md); vector merges and Flatten Image in [docs/layer-merging.md](docs/layer-merging.md); the Crop tool in [docs/crop-tool.md](docs/crop-tool.md); tool palette layout, flyouts and icons in [docs/tool-palette.md](docs/tool-palette.md).
@@ -162,10 +152,10 @@ Read the linked document before working on a feature; it owns the constraints.
 - **Plug-ins and legacy 8BF support (Windows):** [docs/plugins.md](docs/plugins.md), with the clean-room ABI boundary in [docs/legal-constraints.md](docs/legal-constraints.md).
 - **G'MIC Filter Library:** [docs/gmic.md](docs/gmic.md).
 - **JavaScript scripting and bundled scripts:** [docs/scripting.md](docs/scripting.md). The MCP connector and patchy-control skill: [docs/ai-control.md](docs/ai-control.md).
-- **Automatic document recovery and atomic file writes:** [docs/document-recovery.md](docs/document-recovery.md). Recovery copies live per running instance under a QLockFile.
+- **Automatic document recovery and atomic file writes:** [docs/document-recovery.md](docs/document-recovery.md).
 - **Single-instance forwarding, CLI screenshots, and `--headless` runs:** `src/app/main.cpp`, [docs/testing.md](docs/testing.md), and the CLI section of [docs/scripting.md](docs/scripting.md).
 - **Logo and icon art:** `packaging/branding/`.
 - **Performance and the stress harness:** [docs/performance.md](docs/performance.md); the Move/Free Transform drag-preview machinery is in [docs/interactive-previews.md](docs/interactive-previews.md).
 - **Testy PSD benchmark:** [docs/testy.md](docs/testy.md).
 - **Flatpak packaging and update repository:** [packaging/linux/README.md](packaging/linux/README.md).
-- **Linux AppImage:** [docs/appimage.md](docs/appimage.md). Ubuntu 22.04 floor (ABI audit); show or store the `.AppImage` file (`appimage_file_path()`), never the per-launch mount.
+- **Linux AppImage:** [docs/appimage.md](docs/appimage.md).

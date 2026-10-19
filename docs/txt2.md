@@ -2,7 +2,10 @@
 
 The document-level `Txt2` tagged block (global section, after the layer info and the global
 layer mask) holds one text object per type layer, addressed by the layer's TySh `TextIndex`.
-Photoshop trusts it over the per-layer TySh EngineData ([ps-compat.md](ps-compat.md)). This
+Photoshop trusts it over the per-layer TySh EngineData ([ps-compat.md](ps-compat.md)). Patchy
+rebuilds the block on every save (an authored object per regenerated type layer, untouched objects
+kept, no layout caches), so a new TySh key needs its Txt2 twin in `psd_text_engine_block.cpp` or
+Photoshop shows the stale object. This
 document records its format and what Photoshop 2026 accepts, established by COM probes. Area-frame
 contour encoding and measured flow rules are in [area-text.md](area-text.md).
 

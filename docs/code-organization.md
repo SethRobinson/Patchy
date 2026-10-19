@@ -71,6 +71,19 @@ documented in [performance.md](performance.md).
 
 Session data must outlive canvas event delivery. `~MainWindow` detaches every canvas with `set_document(nullptr)` before member destruction frees Documents. `close_document_session` destroys the canvas before erasing the session because QWidget destruction can deliver focus-out events to child widgets. Preserve both orders. References into `SmartObjectStore` do not survive `add_embedded`.
 
+### App lifecycle (startup and quit)
+
+- Never leave a Qt host lookup pending at quit: `~QCoreApplication` waits for `QHostInfo`'s thread
+  pool with no timeout (GitHub issue 48, a macOS quit freeze). `update_checker.cpp` resolves the host
+  on a detached thread first; any new network client does the same.
+- The tracked-worker wait after `app.exec()` is bounded (`finish_after_event_loop`): a worker still
+  blocked after 10 s ends the process without destructors after dropping the recovery folder, so
+  never rely on a destructor for anything the user could lose.
+- Never rely on Qt's automatic quit: it is inactive before `app.exec()` (startup pumps events for
+  command-line opens and the update check), and inside exec a shown window deletes its posted event.
+  `main.cpp` skips exec for a window closed during startup; the update close calls
+  `QCoreApplication::exit(0)`.
+
 ## CanvasWidget
 
 `canvas_widget_vector_preview.cpp` owns the optional vector view's worker/cache lifecycle;
