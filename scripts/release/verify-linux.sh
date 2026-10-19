@@ -43,8 +43,13 @@ if compgen -G "$endpoint_dir/PatchyMcp-*" >/dev/null; then
   echo 'Check that nothing listens on them (ss -xlp | grep PatchyMcp) and remove them by hand.' >&2
   exit 1
 fi
-# --reinstall: a rerun finds this same version already installed by the first run.
-flatpak install --user -y --reinstall "$FLATPAK_BUNDLE"
+# A rerun finds this same version already installed by the first run, and Flatpak 1.14
+# refuses a bundle at the installed version even with --reinstall, so uninstall first
+# (the app's data stays; only the installation is replaced).
+if flatpak info --user com.rtsoft.patchy >/dev/null 2>&1; then
+  flatpak uninstall --user -y --noninteractive com.rtsoft.patchy
+fi
+flatpak install --user -y "$FLATPAK_BUNDLE"
 echo '== FLATPAK MCP SUITE =='
 nice -n 10 flatpak run --user --devel --command=bash com.rtsoft.patchy -c 'cd "$HOME/patchy/src" && .deps/mcp-client-flatpak/bin/python tests/mcp_client_tests.py /app/bin/patchy-mcp'
 echo '== SEPARATE SANDBOX ATTACHMENT =='
