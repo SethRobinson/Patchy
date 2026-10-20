@@ -219,7 +219,8 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
     if (!key_event->isAutoRepeat() &&
         (key_event->key() == Qt::Key_Shift || key_event->key() == Qt::Key_Alt ||
          (key_event->key() == Qt::Key_Control && (pen_family_tool_active() || tool_ == CanvasTool::Move ||
-                                                  tool_ == CanvasTool::Text || transforming_layer_)))) {
+                                                  tool_ == CanvasTool::Text || transforming_layer_ ||
+                                                  path_transform_active_)))) {
       // The event reports the modifier state before this key, so fold the
       // pressed/released key into the modifiers we evaluate.
       const auto bit = key_event->key() == Qt::Key_Shift   ? Qt::ShiftModifier
@@ -231,6 +232,11 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
         // A pending Free Transform: Ctrl, Alt and Shift change what a handle drag
         // does, so the cursor over a handle shows that gesture before the press.
         apply_session_transform_cursor(last_mouse_position_, modifiers);
+      } else if (path_transform_active_) {
+        // The path transform box takes the same gestures (GitHub issue 248).
+        if (path_transform_drag_handle_ == TransformHandle::None) {
+          apply_path_transform_cursor(last_mouse_position_, modifiers);
+        }
       } else if (tool_ == CanvasTool::Zoom) {
         if (key_event->key() == Qt::Key_Alt) {
           // Idle: Alt flips the magnifier badge between + and -. Mid-drag: Alt
@@ -1754,7 +1760,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     handle_path_edit_move(event, document_position_f(event->position()));
     last_mouse_position_ = event->pos();
     if (path_transform_active_) {
-      apply_path_transform_cursor(event->pos());
+      apply_path_transform_cursor(event->pos(), event->modifiers());
     }
     if ((event->buttons() & Qt::LeftButton) == 0 && !path_transform_active_) {
       update_path_select_hover_hint(path_hover_target_at(event->position()));

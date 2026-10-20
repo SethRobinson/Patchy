@@ -357,7 +357,7 @@ void CanvasWidget::update_tool_cursor() {
   }
   if (tool_ == CanvasTool::PathSelect || tool_ == CanvasTool::DirectSelect) {
     if (path_transform_active_) {
-      apply_path_transform_cursor(last_mouse_position_);
+      apply_path_transform_cursor(last_mouse_position_, path_transform_cursor_modifiers_);
     } else {
       setCursor(Qt::ArrowCursor);
     }

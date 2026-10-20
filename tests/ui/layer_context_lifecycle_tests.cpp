@@ -34,6 +34,9 @@
 #include <QFileInfo>
 #include <QImage>
 #include <QLabel>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMetaObject>
@@ -1739,15 +1742,16 @@ void inspect_new_document_dialog_without_clipboard() {
       // at Photoshop's 72 PPI screen convention.
       CHECK(screen_chip->isChecked());
       const QStringList screen_ids = {
-          QStringLiteral("clipboard"),          QStringLiteral("screen-1024x768"),
+          QStringLiteral("screen-1024x768"),
           QStringLiteral("screen-720p"),        QStringLiteral("screen-1080p"),
           QStringLiteral("screen-1440p"),       QStringLiteral("screen-4k"),
           QStringLiteral("screen-8k"),          QStringLiteral("screen-ultrawide-3440"),
           QStringLiteral("screen-dci-4k"),      QStringLiteral("screen-laptop-1366"),
           QStringLiteral("screen-square-2048")};
       CHECK(card_ids() == screen_ids);
-      // The Clipboard card is disabled without an image on the clipboard.
-      CHECK((presets->item(0)->flags() & Qt::ItemIsEnabled) == 0);
+      // Without an image on the clipboard and before any create, the Recent row is empty.
+      auto* recent = dialog->findChild<QListWidget*>(QStringLiteral("newDocumentRecentList"));
+      CHECK(recent != nullptr && recent->count() == 0);
       CHECK(presets->currentItem() != nullptr);
       CHECK(presets->currentItem()->data(patchy::ui::kNewDocumentPresetIdRole).toString() ==
             QStringLiteral("screen-1024x768"));
@@ -2342,35 +2346,38 @@ void ui_new_document_presets_and_clipboard_work() {
       return;
     }
     auto* presets = dialog->findChild<QListWidget*>(QStringLiteral("newDocumentPresetList"));
+    auto* recent = dialog->findChild<QListWidget*>(QStringLiteral("newDocumentRecentList"));
     auto* print_chip = dialog->findChild<QToolButton*>(QStringLiteral("newDocumentPrintChip"));
     auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentWidthSpin"));
     auto* height = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentHeightSpin"));
-    CHECK(presets != nullptr && print_chip != nullptr && width != nullptr && height != nullptr);
-    if (presets == nullptr || print_chip == nullptr || width == nullptr || height == nullptr) {
+    CHECK(presets != nullptr && recent != nullptr && print_chip != nullptr && width != nullptr && height != nullptr);
+    if (presets == nullptr || recent == nullptr || print_chip == nullptr || width == nullptr || height == nullptr) {
       dialog->reject();
       return;
     }
-    const auto id_at = [presets](int row) {
-      return presets->item(row)->data(patchy::ui::kNewDocumentPresetIdRole).toString();
+    const auto id_at = [recent](int row) {
+      return recent->item(row)->data(patchy::ui::kNewDocumentPresetIdRole).toString();
     };
-    CHECK(presets->count() >= 3);
+    // The Recent row: Clipboard, then the create, selected with editable fields.
+    CHECK(recent->count() == 2);
     CHECK(id_at(0) == QStringLiteral("clipboard"));
     CHECK(id_at(1) == QStringLiteral("last-used"));
-    CHECK(id_at(2) == QStringLiteral("screen-1024x768"));
-    CHECK(presets->item(1)->text() == QStringLiteral("Last Used"));
-    CHECK(presets->item(1)->data(patchy::ui::kNewDocumentPresetSizeRole).toSize() == QSize(123, 45));
-    CHECK(presets->currentItem() == presets->item(1));
+    CHECK(recent->item(1)->text() == QStringLiteral("Last Used"));
+    CHECK(recent->item(1)->data(patchy::ui::kNewDocumentPresetSizeRole).toSize() == QSize(123, 45));
+    CHECK(recent->currentItem() == recent->item(1));
+    CHECK(presets->currentItem() == nullptr);
     CHECK(width->isEnabled());
     CHECK(width->value() == 123);
     CHECK(height->value() == 45);
-    // All twelve Screen cards fit without a scroll bar.
-    CHECK(presets->count() == 12);
+    // All ten Screen templates fit without a scroll bar.
+    CHECK(presets->count() == 10);
     CHECK(!presets->verticalScrollBar()->isVisible());
     dialog->grab().save(QStringLiteral("test-artifacts/ui_new_document_dialog_last_used.png"));
+    // Another group keeps the Recent row and its selection.
     print_chip->click();
     QApplication::processEvents();
-    CHECK(id_at(0) == QStringLiteral("last-used"));
-    CHECK(presets->currentItem() == presets->item(0));
+    CHECK(recent->count() == 2);
+    CHECK(recent->currentItem() == recent->item(1));
     reopened = true;
     dialog->reject();
   });
@@ -2499,19 +2506,21 @@ void ui_new_document_dialog_remembers_last_settings() {
       }
       auto* dialog = qobject_cast<QDialog*>(widget);
       auto* presets = dialog->findChild<QListWidget*>(QStringLiteral("newDocumentPresetList"));
+      auto* recent = dialog->findChild<QListWidget*>(QStringLiteral("newDocumentRecentList"));
       auto* background = dialog->findChild<QComboBox*>(QStringLiteral("newDocumentBackgroundCombo"));
       auto* width = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentWidthSpin"));
       auto* resolution = dialog->findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentResolutionSpin"));
       auto* artboards = dialog->findChild<QCheckBox*>(QStringLiteral("newDocumentArtboardsCheck"));
       CHECK(presets != nullptr);
+      CHECK(recent != nullptr);
       CHECK(background != nullptr);
       CHECK(width != nullptr);
       CHECK(resolution != nullptr);
       CHECK(artboards != nullptr);
-      CHECK(presets->currentItem() != nullptr);
-      CHECK(presets->currentItem()->data(patchy::ui::kNewDocumentPresetIdRole).toString() ==
+      CHECK(recent->currentItem() != nullptr);
+      CHECK(recent->currentItem()->data(patchy::ui::kNewDocumentPresetIdRole).toString() ==
             QStringLiteral("last-used"));
-      CHECK(presets->currentItem() == presets->item(1));
+      CHECK(recent->currentItem() == recent->item(1));
       CHECK(width->value() == 1920);
       CHECK(std::abs(resolution->value() - 72.0) < 0.01);
       CHECK(background->currentText() == QStringLiteral("Black"));
@@ -2524,7 +2533,7 @@ void ui_new_document_dialog_remembers_last_settings() {
       artboards->setChecked(!remembered_artboards);
       QApplication::processEvents();
       CHECK(width->value() == 1024);
-      presets->setCurrentItem(find_card(presets, QStringLiteral("last-used")));
+      recent->setCurrentItem(find_card(recent, QStringLiteral("last-used")));
       QApplication::processEvents();
       CHECK(width->value() == 1920);
       CHECK(background->currentText() == QStringLiteral("Black"));
@@ -2588,7 +2597,7 @@ void ui_new_document_template_groups_hold_every_template() {
   };
   const std::vector<Group> groups = {
       {"newDocumentScreenChip", "Screen",
-       {"clipboard", "screen-1024x768", "screen-720p", "screen-1080p", "screen-1440p", "screen-4k", "screen-8k",
+       {"screen-1024x768", "screen-720p", "screen-1080p", "screen-1440p", "screen-4k", "screen-8k",
         "screen-ultrawide-3440", "screen-dci-4k", "screen-laptop-1366", "screen-square-2048"}},
       {"newDocumentMobileChip", "Mobile",
        {"mobile-iphone-16", "mobile-iphone-16-pro-max", "mobile-iphone-se", "mobile-android-1080x2400",
@@ -2750,9 +2759,18 @@ void ui_new_document_search_filters_every_group() {
                  ? QString()
                  : presets->currentItem()->data(patchy::ui::kNewDocumentPresetIdRole).toString();
     };
-    CHECK(card_ids(*presets).mid(0, 2) == QStringList({QStringLiteral("clipboard"), QStringLiteral("last-used")}));
+    auto* recent = dialog->findChild<QListWidget*>(QStringLiteral("newDocumentRecentList"));
+    CHECK(recent != nullptr);
+    if (recent == nullptr) {
+      dialog->reject();
+      return;
+    }
+    const QStringList recent_ids = {QStringLiteral("clipboard"), QStringLiteral("last-used")};
+    CHECK(card_ids(*recent) == recent_ids);
+    CHECK(!card_ids(*presets).contains(QStringLiteral("clipboard")));
 
-    // One word, matches in one group: no chip is current, Clipboard and Last Used go.
+    // One word, matches in one group: no chip is current, the grid holds only the matches,
+    // and the Recent row stays.
     search->setText(QStringLiteral("youtube"));
     QApplication::processEvents();
     CHECK(!any_chip_checked());
@@ -2824,7 +2842,7 @@ void ui_new_document_search_filters_every_group() {
     CHECK(dialog->isVisible());
     CHECK(search->text().isEmpty());
     CHECK(screen_chip->isChecked());
-    CHECK(card_ids(*presets).mid(0, 2) == QStringList({QStringLiteral("clipboard"), QStringLiteral("last-used")}));
+    CHECK(card_ids(*recent) == recent_ids);
     CHECK(!no_matches->isVisible());
 
     // A chip picked during a search leaves the search for that group.
@@ -2835,7 +2853,8 @@ void ui_new_document_search_filters_every_group() {
     CHECK(search->text().isEmpty());
     CHECK(photo_chip->isChecked());
     CHECK(!screen_chip->isChecked());
-    CHECK(card_ids(*presets).first() == QStringLiteral("last-used"));
+    CHECK(card_ids(*presets).first() == QStringLiteral("photo-print-4x6"));
+    CHECK(card_ids(*recent) == recent_ids);
 
     // Return creates the selected match.
     search->setFocus();
@@ -2911,9 +2930,9 @@ void ui_new_document_reopens_on_the_last_picked_group() {
         }) == QStringLiteral("newDocumentPrintChip"));
   CHECK(tabs != nullptr && tabs->count() == tabs_before + 1);
   CHECK(run_dialog([&](QDialog& dialog) {
-          auto* presets = dialog.findChild<QListWidget*>(QStringLiteral("newDocumentPresetList"));
-          CHECK(presets != nullptr && presets->currentItem() != nullptr &&
-                presets->currentItem()->data(patchy::ui::kNewDocumentPresetIdRole).toString() ==
+          auto* recent = dialog.findChild<QListWidget*>(QStringLiteral("newDocumentRecentList"));
+          CHECK(recent != nullptr && recent->currentItem() != nullptr &&
+                recent->currentItem()->data(patchy::ui::kNewDocumentPresetIdRole).toString() ==
                     QStringLiteral("last-used"));
           dialog.reject();
         }) == QStringLiteral("newDocumentWebChip"));
@@ -3074,6 +3093,304 @@ void ui_new_document_dialog_always_opens_centered() {
   CHECK(reopened);
 }
 
+namespace new_document_recent {
+
+// Opens New Document, hands the dialog to `drive` (which accepts or rejects it).
+void run_dialog(patchy::ui::MainWindow& window, const std::function<void(QDialog&)>& drive) {
+  bool driven = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyNewDocumentDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    QApplication::processEvents();
+    drive(*dialog);
+    driven = true;
+    // A dialog `drive` failed to close would block the suite: fail and close it.
+    QTimer::singleShot(2000, [guarded = QPointer<QDialog>(dialog)] {
+      if (guarded != nullptr && guarded->isVisible()) {
+        CHECK(false);
+        guarded->reject();
+      }
+    });
+  });
+  require_action_by_text(window, QStringLiteral("New"))->trigger();
+  QApplication::processEvents();
+  CHECK(driven);
+}
+
+QListWidget* list(QDialog& dialog, const char* name) {
+  auto* found = dialog.findChild<QListWidget*>(QLatin1String(name));
+  CHECK(found != nullptr);
+  return found;
+}
+
+// Creates a document from the template `id` (a group's card), on the group `chip`.
+void create_from_template(patchy::ui::MainWindow& window, const char* chip, const char* id) {
+  run_dialog(window, [chip, id](QDialog& dialog) {
+    if (auto* group = dialog.findChild<QToolButton*>(QLatin1String(chip)); group != nullptr) {
+      group->click();
+      QApplication::processEvents();
+    }
+    auto* presets = list(dialog, "newDocumentPresetList");
+    auto* card = presets != nullptr ? new_document_templates::card(*presets, QLatin1String(id)) : nullptr;
+    CHECK(card != nullptr);
+    if (card == nullptr) {
+      dialog.reject();
+      return;
+    }
+    presets->setCurrentItem(card);
+    QApplication::processEvents();
+    dialog.accept();
+  });
+}
+
+QSize card_size(const QListWidget& cards, int row) {
+  return cards.item(row)->data(patchy::ui::kNewDocumentPresetSizeRole).toSize();
+}
+
+}  // namespace new_document_recent
+
+// The Recent row (Seth, October 2026): the documents created here, newest first and
+// without repeats, pinned above every group's grid and through a search; a Recent card
+// restores its create and creates like a template.
+void ui_new_document_recent_row_lists_creates_newest_first() {
+  using new_document_recent::card_size;
+  using new_document_recent::list;
+  using new_document_templates::card_ids;
+  SettingsValueRestorer last_category(QStringLiteral("newDocument/lastCategory"));
+  QApplication::clipboard()->clear();
+  new_document_templates::clear_remembered_settings();
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  new_document_recent::create_from_template(window, "newDocumentScreenChip", "screen-1080p");
+  new_document_recent::create_from_template(window, "newDocumentScreenChip", "screen-720p");
+  new_document_recent::create_from_template(window, "newDocumentScreenChip", "screen-1080p");
+  new_document_recent::create_from_template(window, "newDocumentPrintChip", "print-a4");
+  const auto stored =
+      QJsonDocument::fromJson(patchy::ui::app_settings().value(QStringLiteral("newDocument/recent")).toString().toUtf8())
+          .array();
+  CHECK(stored.size() == 3);
+
+  new_document_recent::run_dialog(window, [&](QDialog& dialog) {
+    auto* recent = list(dialog, "newDocumentRecentList");
+    auto* presets = list(dialog, "newDocumentPresetList");
+    auto* label = dialog.findChild<QLabel*>(QStringLiteral("newDocumentRecentLabel"));
+    auto* search = dialog.findChild<QLineEdit*>(QStringLiteral("newDocumentSearchEdit"));
+    auto* width = dialog.findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentWidthSpin"));
+    CHECK(recent != nullptr && presets != nullptr && label != nullptr && search != nullptr && width != nullptr);
+    if (recent == nullptr || presets == nullptr || label == nullptr || search == nullptr || width == nullptr) {
+      dialog.reject();
+      return;
+    }
+    CHECK(label->isVisible() && label->text() == QStringLiteral("Recent"));
+    const QStringList ids = {QStringLiteral("last-used"), QStringLiteral("recent-1"), QStringLiteral("recent-2")};
+    CHECK(card_ids(*recent) == ids);
+    CHECK(card_size(*recent, 0) == QSize(2480, 3508));
+    CHECK(card_size(*recent, 1) == QSize(1920, 1080));
+    CHECK(card_size(*recent, 2) == QSize(1280, 720));
+    CHECK(recent->item(0)->text() == QStringLiteral("Last Used"));
+    CHECK(recent->item(1)->text() == QStringLiteral("1080p"));
+    CHECK(recent->currentItem() == recent->item(0));
+    CHECK(std::abs(width->value() - 2480.0) < 0.5);
+    // Every group, and a search, keep the row; the grids never hold Recent cards.
+    for (auto* chip : dialog.findChildren<QToolButton*>()) {
+      if (!chip->property("newDocumentChip").toBool()) {
+        continue;
+      }
+      chip->click();
+      QApplication::processEvents();
+      CHECK(recent->isVisible());
+      CHECK(card_ids(*recent) == ids);
+      CHECK(!card_ids(*presets).contains(QStringLiteral("last-used")));
+    }
+    search->setText(QStringLiteral("youtube"));
+    QApplication::processEvents();
+    CHECK(recent->isVisible());
+    CHECK(card_ids(*recent) == ids);
+    // Picking a Recent card moves the selection out of the search results.
+    recent->setCurrentItem(recent->item(2));
+    QApplication::processEvents();
+    CHECK(presets->selectedItems().isEmpty());
+    CHECK(std::abs(width->value() - 1280.0) < 0.5);
+    // A double-click creates it, like a template.
+    // A view acts on a double-click only after a press on the same card.
+    const auto center = recent->visualItemRect(recent->item(2)).center();
+    send_mouse(*recent->viewport(), QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*recent->viewport(), QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+    send_mouse(*recent->viewport(), QEvent::MouseButtonDblClick, center, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*recent->viewport(), QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+  });
+  CHECK(patchy::ui::MainWindowTestAccess::document(window).width() == 1280);
+
+  // The create moved 720p to the front.
+  new_document_recent::run_dialog(window, [&](QDialog& dialog) {
+    auto* recent = list(dialog, "newDocumentRecentList");
+    CHECK(recent != nullptr && recent->count() == 3);
+    if (recent != nullptr && recent->count() == 3) {
+      CHECK(card_size(*recent, 0) == QSize(1280, 720));
+      CHECK(card_size(*recent, 1) == QSize(2480, 3508));
+      CHECK(card_size(*recent, 2) == QSize(1920, 1080));
+    }
+    dialog.reject();
+  });
+}
+
+// The Clipboard card leads the Recent row while the clipboard holds an image, appearing
+// and disappearing as the clipboard changes, without being preselected.
+void ui_new_document_recent_row_follows_the_clipboard() {
+  using new_document_recent::list;
+  using new_document_templates::card_ids;
+  SettingsValueRestorer last_category(QStringLiteral("newDocument/lastCategory"));
+  QApplication::clipboard()->clear();
+  new_document_templates::clear_remembered_settings();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  new_document_recent::create_from_template(window, "newDocumentScreenChip", "screen-1080p");
+
+  new_document_recent::run_dialog(window, [&](QDialog& dialog) {
+    auto* recent = list(dialog, "newDocumentRecentList");
+    auto* width = dialog.findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentWidthSpin"));
+    CHECK(recent != nullptr && width != nullptr);
+    if (recent == nullptr || width == nullptr) {
+      dialog.reject();
+      return;
+    }
+    CHECK(card_ids(*recent) == QStringList({QStringLiteral("last-used")}));
+    QImage image(90, 40, QImage::Format_RGBA8888);
+    image.fill(QColor(30, 160, 220));
+    QApplication::clipboard()->setImage(image);
+    QApplication::processEvents();
+    CHECK(card_ids(*recent) == QStringList({QStringLiteral("clipboard"), QStringLiteral("last-used")}));
+    CHECK(recent->currentItem() == recent->item(1));
+    recent->setCurrentItem(recent->item(0));
+    QApplication::processEvents();
+    CHECK(width->value() == 90);
+    CHECK(!width->isEnabled());
+    QApplication::clipboard()->clear();
+    QApplication::processEvents();
+    CHECK(card_ids(*recent) == QStringList({QStringLiteral("last-used")}));
+    CHECK(width->isEnabled());
+    dialog.reject();
+  });
+}
+
+// The Recent row shows as many cards as one row holds at the dialog's width, recomputed
+// as the dialog resizes, never wrapping or scrolling.
+void ui_new_document_recent_row_fits_the_dialog_width() {
+  using new_document_recent::list;
+  SettingsValueRestorer last_category(QStringLiteral("newDocument/lastCategory"));
+  QApplication::clipboard()->clear();
+  new_document_templates::clear_remembered_settings();
+  QJsonArray entries;
+  for (int index = 0; index < 8; ++index) {
+    QJsonObject entry;
+    entry.insert(QStringLiteral("w"), 100 + index);
+    entry.insert(QStringLiteral("h"), 80);
+    entry.insert(QStringLiteral("ppi"), 72.0);
+    entries.append(entry);
+  }
+  patchy::ui::app_settings().setValue(QStringLiteral("newDocument/recent"),
+                                      QString::fromUtf8(QJsonDocument(entries).toJson(QJsonDocument::Compact)));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  new_document_recent::run_dialog(window, [&](QDialog& dialog) {
+    auto* recent = list(dialog, "newDocumentRecentList");
+    CHECK(recent != nullptr);
+    if (recent == nullptr) {
+      dialog.reject();
+      return;
+    }
+    const auto expected_count = [recent] {
+      return std::clamp(recent->viewport()->width() / recent->gridSize().width(), 1, 8);
+    };
+    CHECK(recent->count() == expected_count());
+    CHECK(!recent->horizontalScrollBar()->isVisible());
+    const auto narrow = recent->count();
+    dialog.resize(dialog.width() + 3 * recent->gridSize().width(), dialog.height());
+    QApplication::processEvents();
+    QApplication::processEvents();
+    CHECK(recent->count() == expected_count());
+    CHECK(recent->count() > narrow);
+    CHECK(recent->item(0)->data(patchy::ui::kNewDocumentPresetSizeRole).toSize() == QSize(100, 80));
+    dialog.reject();
+  });
+}
+
+// Before the Recent row's key exists, the old Last Used settings seed its first card.
+void ui_new_document_recent_row_seeds_from_old_last_used_settings() {
+  using new_document_recent::list;
+  SettingsValueRestorer last_category(QStringLiteral("newDocument/lastCategory"));
+  QApplication::clipboard()->clear();
+  new_document_templates::clear_remembered_settings();
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("newDocument/lastWidth"), 640);
+    settings.setValue(QStringLiteral("newDocument/lastHeight"), 480);
+    settings.setValue(QStringLiteral("newDocument/lastPpi"), 150.0);
+    settings.setValue(QStringLiteral("newDocument/lastBackground"), QColor(Qt::black));
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  new_document_recent::run_dialog(window, [&](QDialog& dialog) {
+    auto* recent = list(dialog, "newDocumentRecentList");
+    auto* width = dialog.findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentWidthSpin"));
+    auto* resolution = dialog.findChild<QDoubleSpinBox*>(QStringLiteral("newDocumentResolutionSpin"));
+    auto* background = dialog.findChild<QComboBox*>(QStringLiteral("newDocumentBackgroundCombo"));
+    CHECK(recent != nullptr && width != nullptr && resolution != nullptr && background != nullptr);
+    if (recent == nullptr || width == nullptr || resolution == nullptr || background == nullptr) {
+      dialog.reject();
+      return;
+    }
+    CHECK(new_document_templates::card_ids(*recent) == QStringList({QStringLiteral("last-used")}));
+    CHECK(recent->currentItem() == recent->item(0));
+    CHECK(width->value() == 640);
+    CHECK(std::abs(resolution->value() - 150.0) < 0.01);
+    CHECK(background->currentText() == QStringLiteral("Black"));
+    dialog.reject();
+  });
+  CHECK(!patchy::ui::app_settings().contains(QStringLiteral("newDocument/recent")));
+}
+
+// Review captures (dark theme): the Recent row on Print with an image on the clipboard,
+// and through a search.
+void ui_new_document_recent_row_review_captures() {
+  using new_document_recent::list;
+  SettingsValueRestorer last_category(QStringLiteral("newDocument/lastCategory"));
+  QApplication::clipboard()->clear();
+  new_document_templates::clear_remembered_settings();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  new_document_recent::create_from_template(window, "newDocumentSocialChip", "social-square-1080");
+  new_document_recent::create_from_template(window, "newDocumentScreenChip", "screen-1080p");
+  QImage image(1200, 800, QImage::Format_RGBA8888);
+  image.fill(QColor(220, 120, 40));
+  QApplication::clipboard()->setImage(image);
+  QApplication::processEvents();
+  new_document_recent::run_dialog(window, [&](QDialog& dialog) {
+    auto* print_chip = dialog.findChild<QToolButton*>(QStringLiteral("newDocumentPrintChip"));
+    auto* search = dialog.findChild<QLineEdit*>(QStringLiteral("newDocumentSearchEdit"));
+    auto* recent = list(dialog, "newDocumentRecentList");
+    CHECK(print_chip != nullptr && search != nullptr && recent != nullptr);
+    if (print_chip == nullptr || search == nullptr || recent == nullptr) {
+      dialog.reject();
+      return;
+    }
+    print_chip->click();
+    QApplication::processEvents();
+    CHECK(new_document_templates::card_ids(*recent).first() == QStringLiteral("clipboard"));
+    save_widget_artifact("newdoc_recent_print_clipboard", dialog);
+    search->setText(QStringLiteral("1080"));
+    QApplication::processEvents();
+    CHECK(recent->count() >= 3);
+    save_widget_artifact("newdoc_recent_search", dialog);
+    dialog.reject();
+  });
+  QApplication::clipboard()->clear();
+}
+
 void ui_new_document_dialog_remembers_unit() {
   QApplication::clipboard()->clear();
   SettingsValueRestorer restore_units(QStringLiteral("view/rulerUnits"));
@@ -3160,10 +3477,12 @@ void ui_new_document_dialog_remembers_unit() {
   QApplication::processEvents();
   CHECK(tabs->count() == 2);
 
-  // Points is a ruler unit but not a New Document unit: Pixels instead.
+  // Points is a ruler unit but not a New Document unit: Pixels instead. (Without the Recent
+  // row's own record the old keys seed it, unit included; each Recent card keeps its unit.)
   {
     auto settings = patchy::ui::app_settings();
     settings.setValue(QStringLiteral("newDocument/lastUnit"), QStringLiteral("pt"));
+    settings.remove(QStringLiteral("newDocument/recent"));
   }
   with_dialog([](const DialogFields& fields) {
     CHECK(fields.unit->currentText() == QStringLiteral("Pixels"));
@@ -3526,6 +3845,11 @@ std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
       {"ui_new_document_reopens_on_the_last_picked_group", ui_new_document_reopens_on_the_last_picked_group},
       {"ui_new_document_review_captures", ui_new_document_review_captures},
       {"ui_new_document_dialog_always_opens_centered", ui_new_document_dialog_always_opens_centered},
+      {"ui_new_document_recent_row_lists_creates_newest_first", ui_new_document_recent_row_lists_creates_newest_first},
+      {"ui_new_document_recent_row_follows_the_clipboard", ui_new_document_recent_row_follows_the_clipboard},
+      {"ui_new_document_recent_row_fits_the_dialog_width", ui_new_document_recent_row_fits_the_dialog_width},
+      {"ui_new_document_recent_row_seeds_from_old_last_used_settings", ui_new_document_recent_row_seeds_from_old_last_used_settings},
+      {"ui_new_document_recent_row_review_captures", ui_new_document_recent_row_review_captures},
       {"ui_new_document_dialog_remembers_unit", ui_new_document_dialog_remembers_unit},
       {"ui_new_document_opens_fit_to_view", ui_new_document_opens_fit_to_view},
       {"ui_new_document_background_starts_locked", ui_new_document_background_starts_locked},

@@ -1890,7 +1890,7 @@ private:
   [[nodiscard]] patchy::Layer* topmost_path_pick_layer_at(QPointF widget_point) const;
   // Path transform session hover cursor: Free Transform's resize, move and per-corner
   // rotate cursors for the zone a press would grab (GitHub issue 248).
-  void apply_path_transform_cursor(QPoint widget_point);
+  void apply_path_transform_cursor(QPoint widget_point, Qt::KeyboardModifiers modifiers);
   mutable std::optional<patchy::VectorPath> text_area_path_cache_;
   mutable std::optional<patchy::LayerId> text_area_path_layer_;
   mutable std::uint64_t text_area_path_revision_{0};
@@ -1937,9 +1937,19 @@ private:
   void prune_path_edit_selection(const patchy::VectorPath& path);
   void delete_selected_path_anchors();
   [[nodiscard]] QPointF path_transform_map_point(QPointF document_point) const;
+  // The box's affine (path_transform_map_point as a QTransform), the original box's
+  // corners (TL, TR, BR, BL), the corner quad in document space for some offsets (same
+  // order), the box corner under an on-screen corner handle (flips swap them), and the
+  // four on-screen corners in TL, TR, BR, BL handle order (GitHub issue 248).
+  [[nodiscard]] QTransform path_transform_affine() const;
+  [[nodiscard]] std::array<QPointF, 4> path_transform_original_corners() const;
+  [[nodiscard]] std::array<QPointF, 4> path_transform_quad(const std::array<QPointF, 4>& offsets) const;
+  [[nodiscard]] int path_transform_corner_index(TransformHandle corner) const;
+  [[nodiscard]] std::array<QPointF, 4> path_transform_handle_corners() const;
+  [[nodiscard]] bool path_transform_distorted() const noexcept;
   [[nodiscard]] patchy::VectorPath path_transform_preview_path() const;
   [[nodiscard]] TransformHandle path_transform_handle_at(QPointF widget_point) const;
-  bool handle_path_transform_press(QPointF document_point, QPointF widget_point);
+  bool handle_path_transform_press(QPointF document_point, QPointF widget_point, Qt::KeyboardModifiers modifiers);
   bool handle_path_transform_move(QMouseEvent* event, QPointF document_point);
   bool handle_path_transform_key(QKeyEvent* event);
   void draw_path_transform_overlay(QPainter& painter);
@@ -1977,6 +1987,23 @@ private:
   void apply_session_transform_cursor(QPoint widget_point, Qt::KeyboardModifiers modifiers);
   // True when the point lies inside the session's (possibly distorted) box.
   [[nodiscard]] bool transform_session_box_contains(QPoint widget_point) const;
+  // The pure Skew/Distort/Perspective pieces (GitHub issue 225), shared with the path
+  // transform session (GitHub issue 248): the gesture a handle drag makes under the held
+  // modifiers and an Edit > Transform mode; the corner offsets after a drag `delta` (in the
+  // original box's frame; corners in the layer's TL, TR, BR, BL order, `edge_corners` the
+  // grabbed edge's two corner indices); the convex-quad guard (+1/-1, 0 when concave,
+  // self-crossing or collapsed); a handle's on-screen outward direction on a quad given in
+  // on-screen TL, TR, BR, BL handle order; and the gesture cursor (false for Scale).
+  [[nodiscard]] static TransformDragKind transform_drag_kind_for_mode(TransformHandle handle,
+                                                                      Qt::KeyboardModifiers modifiers,
+                                                                      TransformDistortMode mode) noexcept;
+  [[nodiscard]] static std::array<QPointF, 4> transform_distorted_offsets(
+      TransformDragKind kind, int corner, std::pair<int, int> edge_corners, QPointF delta, bool symmetric,
+      const std::array<QPointF, 4>& start_offsets, const std::array<QPointF, 4>& original_corners);
+  [[nodiscard]] static int transform_quad_winding(const std::array<QPointF, 4>& quad);
+  [[nodiscard]] static double transform_quad_handle_direction(const std::array<QPointF, 4>& handle_corners,
+                                                              TransformHandle handle);
+  bool apply_transform_gesture_cursor(TransformDragKind kind);
   [[nodiscard]] TransformDragKind transform_drag_kind_for(TransformHandle handle,
                                                           Qt::KeyboardModifiers modifiers) const noexcept;
   // Sets up a Skew/Distort/Perspective drag at press; false (with a status message)
@@ -2559,6 +2586,14 @@ private:
   QRectF path_transform_drag_start_rect_;
   QPointF path_transform_drag_start_document_;
   double path_transform_drag_start_angle_{0.0};
+  // Free Transform's corner offsets (original box frame, TL, TR, BR, BL), so Ctrl
+  // distort, Ctrl+Shift skew and Ctrl+Alt+Shift perspective work on paths too.
+  std::array<QPointF, 4> path_transform_corner_offsets_{};
+  std::array<QPointF, 4> path_transform_drag_start_offsets_{};
+  TransformDragKind path_transform_drag_kind_{TransformDragKind::Scale};
+  QPointF path_transform_drag_grab_offset_;
+  // The modifiers the session cursor last showed, for refreshes without an event.
+  Qt::KeyboardModifiers path_transform_cursor_modifiers_{};
   QPoint move_start_{};
   QPoint selection_start_{};
   QPoint selection_current_{};

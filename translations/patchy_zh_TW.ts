@@ -6710,10 +6710,6 @@ Flow: %6
         <translation>%1 x %2 英吋，%3 ppi</translation>
     </message>
     <message>
-        <source>Clipboard does not contain an image</source>
-        <translation>剪貼簿中沒有影像</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>從剪貼簿的影像建立文件</translation>
     </message>
@@ -11000,6 +10996,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>漸層對應: %1</translation>
     </message>
     <message>
+        <source>Recent</source>
+        <comment>new document recent sizes</comment>
+        <translation>最近</translation>
+    </message>
+    <message>
+        <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
+        <translation>最近文件的設定：%1 x %2 px，%3 ppi</translation>
+    </message>
+    <message>
         <source>Tint</source>
         <translation>色調</translation>
     </message>
@@ -11012,12 +11017,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>色調顏色</translation>
     </message>
     <message>
-        <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
-        <translation>黑白: %1 / %2 / %3 / %4 / %5 / %6</translation>
-    </message>
-    <message>
         <source>Color Lookup: %1</source>
         <translation>顏色查詢: %1</translation>
+    </message>
+    <message>
+        <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
+        <translation>黑白: %1 / %2 / %3 / %4 / %5 / %6</translation>
     </message>
 </context>
 <context>

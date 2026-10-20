@@ -1595,17 +1595,27 @@ void accept_clipboard_new_document_dialog(QSize clipboard_size) {
       CHECK(resolution != nullptr);
       CHECK(background != nullptr);
 
-      const auto find_card = [presets](const QString& id) -> QListWidgetItem* {
-        for (int row = 0; row < presets->count(); ++row) {
-          if (presets->item(row)->data(patchy::ui::kNewDocumentPresetIdRole).toString() == id) {
-            return presets->item(row);
+      // Templates live in the group grid; Clipboard and the recent sizes in the Recent row.
+      auto* recent = dialog->findChild<QListWidget*>(QStringLiteral("newDocumentRecentList"));
+      CHECK(recent != nullptr);
+      const auto find_card = [presets, recent](const QString& id) -> QListWidgetItem* {
+        for (auto* list : {presets, recent}) {
+          for (int row = 0; list != nullptr && row < list->count(); ++row) {
+            if (list->item(row)->data(patchy::ui::kNewDocumentPresetIdRole).toString() == id) {
+              return list->item(row);
+            }
           }
         }
         return nullptr;
       };
+      const auto pick_card = [presets, recent](QListWidgetItem* card) {
+        if (card != nullptr) {
+          (card->listWidget() == recent ? recent : presets)->setCurrentItem(card);
+        }
+      };
 
-      // An image on the clipboard enables the Clipboard card without preselecting
-      // it; picking it locks the fields to the clipboard dimensions.
+      // An image on the clipboard adds the Clipboard card without preselecting it;
+      // picking it locks the fields to the clipboard dimensions.
       CHECK(screen_chip->isChecked());
       auto* clipboard_card = find_card(QStringLiteral("clipboard"));
       CHECK(clipboard_card != nullptr);
@@ -1613,7 +1623,7 @@ void accept_clipboard_new_document_dialog(QSize clipboard_size) {
       CHECK(presets->currentItem() != nullptr);
       CHECK(presets->currentItem() != clipboard_card);
       CHECK(width->isEnabled());
-      presets->setCurrentItem(clipboard_card);
+      pick_card(clipboard_card);
       QApplication::processEvents();
       CHECK(width->value() == clipboard_size.width());
       CHECK(height->value() == clipboard_size.height());
@@ -1685,7 +1695,7 @@ void accept_clipboard_new_document_dialog(QSize clipboard_size) {
       QApplication::processEvents();
       clipboard_card = find_card(QStringLiteral("clipboard"));
       CHECK(clipboard_card != nullptr);
-      presets->setCurrentItem(clipboard_card);
+      pick_card(clipboard_card);
       QApplication::processEvents();
       CHECK(!width->isEnabled());
       CHECK(!height->isEnabled());

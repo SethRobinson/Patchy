@@ -6720,10 +6720,6 @@ Flusso: %6
         <translation>%1 x %2 in a %3 ppi</translation>
     </message>
     <message>
-        <source>Clipboard does not contain an image</source>
-        <translation>Gli appunti non contengono un&apos;immagine</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>Crea il documento dall&apos;immagine negli appunti</translation>
     </message>
@@ -11034,6 +11030,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Mappa sfumatura: %1</translation>
     </message>
     <message>
+        <source>Recent</source>
+        <comment>new document recent sizes</comment>
+        <translation>Recenti</translation>
+    </message>
+    <message>
+        <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
+        <translation>Le impostazioni di un documento recente: %1 x %2 px a %3 ppi</translation>
+    </message>
+    <message>
         <source>Tint</source>
         <translation>Tinta</translation>
     </message>
@@ -11046,12 +11051,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Colore tinta</translation>
     </message>
     <message>
-        <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
-        <translation>Bianco e nero: %1 / %2 / %3 / %4 / %5 / %6</translation>
-    </message>
-    <message>
         <source>Color Lookup: %1</source>
         <translation>Consultazione colore: %1</translation>
+    </message>
+    <message>
+        <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
+        <translation>Bianco e nero: %1 / %2 / %3 / %4 / %5 / %6</translation>
     </message>
 </context>
 <context>

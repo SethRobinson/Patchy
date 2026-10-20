@@ -6720,10 +6720,6 @@ Flujo: %6
         <translation>%1 x %2 pulg a %3 ppp</translation>
     </message>
     <message>
-        <source>Clipboard does not contain an image</source>
-        <translation>El portapapeles no contiene ninguna imagen</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>Crear el documento a partir de la imagen del portapapeles</translation>
     </message>
@@ -11034,6 +11030,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Mapa de degradado: %1</translation>
     </message>
     <message>
+        <source>Recent</source>
+        <comment>new document recent sizes</comment>
+        <translation>Recientes</translation>
+    </message>
+    <message>
+        <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
+        <translation>Los ajustes de un documento reciente: %1 x %2 px a %3 ppp</translation>
+    </message>
+    <message>
         <source>Tint</source>
         <translation>Tono</translation>
     </message>
@@ -11046,12 +11051,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Color del tono</translation>
     </message>
     <message>
-        <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
-        <translation>Blanco y negro: %1 / %2 / %3 / %4 / %5 / %6</translation>
-    </message>
-    <message>
         <source>Color Lookup: %1</source>
         <translation>Consulta de colores: %1</translation>
+    </message>
+    <message>
+        <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
+        <translation>Blanco y negro: %1 / %2 / %3 / %4 / %5 / %6</translation>
     </message>
 </context>
 <context>

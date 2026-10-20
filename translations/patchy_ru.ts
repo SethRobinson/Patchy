@@ -7026,10 +7026,6 @@ Flow: %6
         <translation>%1 x %2 дюйм при %3 пикс./дюйм</translation>
     </message>
     <message>
-        <source>Clipboard does not contain an image</source>
-        <translation>Буфер обмена не содержит изображения</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>Создайте документ из изображения буфера обмена.</translation>
     </message>
@@ -11068,6 +11064,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Карта градиента: %1</translation>
     </message>
     <message>
+        <source>Recent</source>
+        <comment>new document recent sizes</comment>
+        <translation>Недавние</translation>
+    </message>
+    <message>
+        <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
+        <translation>Параметры недавнего документа: %1 x %2 пикселей при %3 пикселей на дюйм</translation>
+    </message>
+    <message>
         <source>Tint</source>
         <translation>Оттенок</translation>
     </message>
@@ -11080,12 +11085,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Цвет оттенка</translation>
     </message>
     <message>
-        <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
-        <translation>Черно-белое: %1 / %2 / %3 / %4 / %5 / %6</translation>
-    </message>
-    <message>
         <source>Color Lookup: %1</source>
         <translation>Поиск цвета: %1</translation>
+    </message>
+    <message>
+        <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
+        <translation>Черно-белое: %1 / %2 / %3 / %4 / %5 / %6</translation>
     </message>
 </context>
 <context>

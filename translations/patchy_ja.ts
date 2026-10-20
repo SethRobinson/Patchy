@@ -3447,10 +3447,6 @@ Flow: %6
         <translation>クリップボードの画像からドキュメントを作成</translation>
     </message>
     <message>
-        <source>Clipboard does not contain an image</source>
-        <translation>クリップボードに画像がありません</translation>
-    </message>
-    <message>
         <source>Choose background color</source>
         <translation>背景色を選択</translation>
     </message>
@@ -11000,6 +10996,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>グラデーションマップ: %1</translation>
     </message>
     <message>
+        <source>Recent</source>
+        <comment>new document recent sizes</comment>
+        <translation>最近使用</translation>
+    </message>
+    <message>
+        <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
+        <translation>最近のドキュメントの設定: %1 x %2 px、%3 ppi</translation>
+    </message>
+    <message>
         <source>Tint</source>
         <translation>着色</translation>
     </message>
@@ -11012,12 +11017,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>着色の色</translation>
     </message>
     <message>
-        <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
-        <translation>白黒: %1 / %2 / %3 / %4 / %5 / %6</translation>
-    </message>
-    <message>
         <source>Color Lookup: %1</source>
         <translation>カラールックアップ: %1</translation>
+    </message>
+    <message>
+        <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
+        <translation>白黒: %1 / %2 / %3 / %4 / %5 / %6</translation>
     </message>
 </context>
 <context>
