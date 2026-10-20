@@ -22849,6 +22849,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <source>Updated %1 Smart Filter</source>
         <translation>已更新%1智慧型濾鏡</translation>
     </message>
+    <message>
+        <source>Patchy edits Filter Gallery entries that hold one effect</source>
+        <translation>Patchy 只能編輯僅含一個效果的濾鏡收藏館項目</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -73,6 +73,8 @@ bool native_smart_filter_kind_supported(SmartFilterKind kind) {
     // Imported only: no Filter-menu action appends one, but its settings open the
     // adjustment's own dialog (docs/smart-filters-adjustments.md).
     case SmartFilterKind::Adjustment:
+    // Imported only; a single-effect gallery edits through its effect's dialog.
+    case SmartFilterKind::FilterGallery:
       return true;
     case SmartFilterKind::Unsupported:
       return false;

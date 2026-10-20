@@ -2367,6 +2367,23 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                  adjustment != nullptr) {
         entry_name = localized_adjustment_display_name(adjustment->settings.kind);
         entry_tooltip = entry_name;
+      } else if (const auto *gallery =
+                     std::get_if<FilterGallerySmartFilter>(&entry.parameters);
+                 entry.kind == SmartFilterKind::FilterGallery &&
+                 gallery != nullptr) {
+        entry_name = QObject::tr("Filter Gallery");
+        entry_tooltip = entry_name;
+        for (const auto &effect : gallery->effects) {
+          if (const auto *plastic =
+                  std::get_if<PlasticWrapSmartFilter>(&effect.settings);
+              plastic != nullptr) {
+            entry_tooltip += QStringLiteral("\n") + QObject::tr("Plastic Wrap") +
+                             QObject::tr(" (Highlight %1, Detail %2, Smoothness %3)")
+                                 .arg(plastic->highlight_strength)
+                                 .arg(plastic->detail)
+                                 .arg(plastic->smoothness);
+          }
+        }
       } else if (!entry.native_name.empty()) {
         entry_name = QString::fromStdString(entry.native_name);
         entry_tooltip = entry_name;

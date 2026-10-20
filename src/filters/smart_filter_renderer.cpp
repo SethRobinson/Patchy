@@ -2570,6 +2570,21 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
     } else if (entry.kind == SmartFilterKind::Adjustment) {
       parameters_valid =
           std::get_if<AdjustmentSmartFilter>(&entry.parameters) != nullptr;
+    } else if (entry.kind == SmartFilterKind::FilterGallery) {
+      const auto *gallery =
+          std::get_if<FilterGallerySmartFilter>(&entry.parameters);
+      parameters_valid = gallery != nullptr && !gallery->effects.empty() &&
+                         std::all_of(gallery->effects.begin(), gallery->effects.end(),
+                                     [](const FilterGalleryEffect &effect) {
+                                       const auto *plastic = std::get_if<PlasticWrapSmartFilter>(&effect.settings);
+                                       return plastic != nullptr &&
+                                              plastic->highlight_strength >= kMinimumPlasticWrapHighlightStrength &&
+                                              plastic->highlight_strength <= kMaximumPlasticWrapHighlightStrength &&
+                                              plastic->detail >= kMinimumPlasticWrapDetail &&
+                                              plastic->detail <= kMaximumPlasticWrapDetail &&
+                                              plastic->smoothness >= kMinimumPlasticWrapSmoothness &&
+                                              plastic->smoothness <= kMaximumPlasticWrapSmoothness;
+                                     });
     } else {
       throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "Unsupported Smart Filter entry"));
     }
@@ -2585,6 +2600,7 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
          entry.kind != SmartFilterKind::RadialBlur &&
          entry.kind != SmartFilterKind::AddNoise &&
          entry.kind != SmartFilterKind::Adjustment &&
+         entry.kind != SmartFilterKind::FilterGallery &&
          find_smart_filter_schema(entry.kind) == nullptr &&
          (!std::isfinite(radius) || radius < minimum_radius ||
           radius > maximum_radius)) ||
@@ -2977,6 +2993,17 @@ FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
       filtered = current;
       apply_adjustment_to_pixels(filtered.pixels, adjustment.settings);
       report_progress(&filter_progress, 1, 1, FilterProgressStage::Filtering);
+    } else if (entry.kind == SmartFilterKind::FilterGallery) {
+      // Each gallery effect runs on the previous effect's result, as in Photoshop's
+      // gallery; a Plastic Wrap effect renders exactly like the Plastic Wrap filter.
+      const auto &gallery = std::get<FilterGallerySmartFilter>(entry.parameters);
+      filtered = current;
+      for (const auto &effect : gallery.effects) {
+        const auto &plastic = std::get<PlasticWrapSmartFilter>(effect.settings);
+        filtered = render_plastic_wrap_effect(filtered, plastic.highlight_strength,
+                                              plastic.detail, plastic.smoothness,
+                                              &filter_progress);
+      }
     } else {
       const auto &box = std::get<BoxBlurSmartFilter>(entry.parameters);
       auto box_input = embed_in_filter_canvas(current.pixels, current.bounds,

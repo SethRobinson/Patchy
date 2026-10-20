@@ -22989,6 +22989,10 @@ Patchy можно будет запускать из меню, а на пане�
         <source>Updated %1 Smart Filter</source>
         <translation>Обновлён смарт-фильтр «%1»</translation>
     </message>
+    <message>
+        <source>Patchy edits Filter Gallery entries that hold one effect</source>
+        <translation>Patchy редактирует только записи галереи фильтров с одним эффектом</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

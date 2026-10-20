@@ -22919,6 +22919,10 @@ Puedes hacerlo más tarde desde Ayuda &gt; Añadir Patchy al menú de aplicacion
         <source>Updated %1 Smart Filter</source>
         <translation>Filtro inteligente %1 actualizado</translation>
     </message>
+    <message>
+        <source>Patchy edits Filter Gallery entries that hold one effect</source>
+        <translation>Patchy solo edita entradas de la Galería de filtros con un único efecto</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

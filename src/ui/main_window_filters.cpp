@@ -803,8 +803,9 @@ SmartFilterStack smart_filter_stack_with_invocation(
         invocation, "angle", motion->angle_degrees, -360, 360);
     motion->distance_pixels = smart_filter_integer_from_invocation(
         invocation, "distance", motion->distance_pixels, 1, 2000);
-  } else if (entry.kind == SmartFilterKind::PlasticWrap) {
-    auto *plastic = std::get_if<PlasticWrapSmartFilter>(&entry.parameters);
+  } else if (smart_filter_dialog_kind(entry) == SmartFilterKind::PlasticWrap) {
+    // A Plastic Wrap entry, or a Filter Gallery entry holding one Plastic Wrap.
+    auto *plastic = editable_plastic_wrap(entry);
     if (plastic == nullptr) {
       throw std::invalid_argument("Smart Filter settings are unavailable");
     }
@@ -1433,7 +1434,7 @@ void MainWindow::editable_smart_filter_dialog(
     }
     stack = *current;
     filter_index = *execution_index;
-    if (stack.entries[filter_index].kind != kind) {
+    if (smart_filter_dialog_kind(stack.entries[filter_index]) != kind) {
       show_status_error(
           tr("This Smart Filter can only be preserved, not edited"));
       return;
@@ -1585,8 +1586,7 @@ void MainWindow::editable_smart_filter_dialog(
       initial_invocation.parameters["seed"] =
           static_cast<std::int64_t>(settings->seed);
     } else {
-      const auto *settings = std::get_if<PlasticWrapSmartFilter>(
-          &stack.entries[filter_index].parameters);
+      const auto *settings = editable_plastic_wrap(stack.entries[filter_index]);
       if (settings == nullptr) {
         show_status_error(
             tr("This Smart Filter can only be preserved, not edited"));
@@ -1905,9 +1905,11 @@ void MainWindow::edit_smart_filter(LayerId layer_id,
   if (stack == nullptr || execution_index >= stack->entries.size()) {
     return;
   }
-  const auto kind = stack->entries[execution_index].kind;
+  const auto kind = smart_filter_dialog_kind(stack->entries[execution_index]);
   if (kind == SmartFilterKind::Adjustment) {
     edit_adjustment_smart_filter(layer_id, execution_index);
+  } else if (kind == SmartFilterKind::FilterGallery) {
+    show_status_error(tr("Patchy edits Filter Gallery entries that hold one effect"));
   } else if (native_smart_filter_kind_supported(kind)) {
     editable_smart_filter_dialog(layer_id, kind, execution_index);
   } else {

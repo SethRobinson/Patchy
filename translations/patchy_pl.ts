@@ -22989,6 +22989,10 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
         <source>Updated %1 Smart Filter</source>
         <translation>Zaktualizowano filtr inteligentny: %1</translation>
     </message>
+    <message>
+        <source>Patchy edits Filter Gallery entries that hold one effect</source>
+        <translation>Patchy edytuje tylko wpisy Galerii filtrów zawierające jeden efekt</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
