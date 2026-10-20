@@ -13,6 +13,7 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <initializer_list>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -1388,6 +1389,153 @@ void ui_path_transform_shows_free_transform_cursors() {
   CHECK(hover(*canvas, QPoint(200, 160)).shape() == Qt::ArrowCursor);
 }
 
+// GitHub issue 248 follow-up: the path transform box takes Free Transform's
+// distort gestures (GitHub issue 225) and maps every anchor and handle through
+// the corner quad. A rect shape (100,100)-(300,220) is selected under Path Select
+// and Ctrl+T starts the box; `gesture` drags from `from` to `to` with `modifiers`,
+// commits, and returns the four corners (TL, TR, BR, BL).
+struct PathTransformGestureScene {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  patchy::ui::CanvasWidget* canvas = nullptr;
+  patchy::LayerId layer_id{};
+
+  PathTransformGestureScene() {
+    show_window(window);
+    canvas = require_canvas(window);
+    layer_id = make_rect_shape_layer(window, *canvas);
+    canvas->set_view_zoom_centered(1.0);
+    require_action(window, "toolPathSelectAction")->trigger();
+    QApplication::processEvents();
+    pen_click(*canvas, QPoint(200, 100));
+    require_action(window, "editFreeTransformAction")->trigger();
+    QApplication::processEvents();
+    CHECK(canvas->path_transform_active());
+  }
+
+  void press_and_move(QPoint from, std::initializer_list<QPoint> path, Qt::KeyboardModifiers modifiers) {
+    send_mouse(*canvas, QEvent::MouseButtonPress, canvas->widget_position_for_document_point(from), Qt::LeftButton,
+               Qt::LeftButton, modifiers);
+    for (const auto point : path) {
+      send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(point), Qt::NoButton,
+                 Qt::LeftButton, modifiers);
+    }
+    QApplication::processEvents();
+  }
+
+  std::array<QPointF, 4> finish(QPoint release, Qt::KeyboardModifiers modifiers) {
+    send_mouse(*canvas, QEvent::MouseButtonRelease, canvas->widget_position_for_document_point(release),
+               Qt::LeftButton, Qt::NoButton, modifiers);
+    QApplication::processEvents();
+    canvas->commit_path_transform();
+    QApplication::processEvents();
+    CHECK(!canvas->path_transform_active());
+    auto& document = patchy::ui::MainWindowTestAccess::document(window);
+    std::array<QPointF, 4> corners{};
+    for (std::size_t i = 0; i < corners.size(); ++i) {
+      const auto& anchor = anchor_at(document, layer_id, i);
+      corners[i] = QPointF(anchor.anchor_x, anchor.anchor_y);
+    }
+    return corners;
+  }
+
+  std::array<QPointF, 4> gesture(QPoint from, QPoint to, Qt::KeyboardModifiers modifiers) {
+    press_and_move(from, {from + (to - from) / 2, to}, modifiers);
+    return finish(to, modifiers);
+  }
+};
+
+bool corners_near(const std::array<QPointF, 4>& corners, const std::array<QPointF, 4>& expected) {
+  for (std::size_t i = 0; i < corners.size(); ++i) {
+    if (std::abs(corners[i].x() - expected[i].x()) > 0.6 || std::abs(corners[i].y() - expected[i].y()) > 0.6) {
+      return false;
+    }
+  }
+  return true;
+}
+
+// Ctrl+drag a corner distorts it alone; Ctrl+drag a side moves both its corners.
+// One undo step restores the shape.
+void ui_path_transform_ctrl_drag_distorts_corner_and_side() {
+  {
+    PathTransformGestureScene scene;
+    save_widget_artifact("ui_path_transform_distort_before", *scene.canvas);
+    scene.press_and_move(QPoint(100, 100), {QPoint(115, 110), QPoint(130, 120)}, Qt::ControlModifier);
+    save_widget_artifact("ui_path_transform_distort_after", *scene.canvas);
+    const auto corners = scene.finish(QPoint(130, 120), Qt::ControlModifier);
+    CHECK(corners_near(corners, {QPointF(130, 120), QPointF(300, 100), QPointF(300, 220), QPointF(100, 220)}));
+    require_action_by_text(scene.window, QStringLiteral("Undo"))->trigger();
+    QApplication::processEvents();
+    auto& document = patchy::ui::MainWindowTestAccess::document(scene.window);
+    CHECK(std::abs(anchor_at(document, scene.layer_id, 0).anchor_x - 100.0) < 0.5);
+  }
+  {
+    PathTransformGestureScene scene;
+    const auto corners = scene.gesture(QPoint(300, 160), QPoint(320, 170), Qt::ControlModifier);
+    CHECK(corners_near(corners, {QPointF(100, 100), QPointF(320, 110), QPointF(320, 230), QPointF(100, 220)}));
+  }
+}
+
+// Ctrl+Alt mirrors the drag about the center: the opposite corner moves the other way.
+void ui_path_transform_ctrl_alt_drag_is_symmetric() {
+  PathTransformGestureScene scene;
+  const auto corners = scene.gesture(QPoint(100, 100), QPoint(120, 110), Qt::ControlModifier | Qt::AltModifier);
+  CHECK(corners_near(corners, {QPointF(120, 110), QPointF(300, 100), QPointF(280, 210), QPointF(100, 220)}));
+}
+
+// Ctrl+Shift+drag a side slides it along itself (a skew).
+void ui_path_transform_ctrl_shift_drag_skews_side() {
+  PathTransformGestureScene scene;
+  const auto corners = scene.gesture(QPoint(200, 100), QPoint(230, 105), Qt::ControlModifier | Qt::ShiftModifier);
+  CHECK(corners_near(corners, {QPointF(130, 100), QPointF(330, 100), QPointF(300, 220), QPointF(100, 220)}));
+}
+
+// Ctrl+Alt+Shift+drag a corner applies perspective: the corner sharing the side
+// moves the opposite way (a symmetric trapezoid).
+void ui_path_transform_ctrl_alt_shift_drag_is_perspective() {
+  PathTransformGestureScene scene;
+  const auto corners = scene.gesture(QPoint(100, 100), QPoint(130, 105),
+                                     Qt::ControlModifier | Qt::AltModifier | Qt::ShiftModifier);
+  CHECK(corners_near(corners, {QPointF(130, 100), QPointF(270, 100), QPointF(300, 220), QPointF(100, 220)}));
+}
+
+// The #225 guard: a frame that would fold the quad keeps the last good shape.
+void ui_path_transform_distort_never_folds_the_quad() {
+  PathTransformGestureScene scene;
+  scene.press_and_move(QPoint(100, 100), {QPoint(150, 130), QPoint(420, 300)}, Qt::ControlModifier);
+  const auto corners = scene.finish(QPoint(420, 300), Qt::ControlModifier);
+  CHECK(corners_near(corners, {QPointF(150, 130), QPointF(300, 100), QPointF(300, 220), QPointF(100, 220)}));
+}
+
+// The held modifiers show Free Transform's gesture cursors over the box handles.
+void ui_path_transform_modifiers_show_gesture_cursors() {
+  PathTransformGestureScene scene;
+  auto& canvas = *scene.canvas;
+  const auto image_of = [](const QCursor& cursor) {
+    return cursor.pixmap().toImage().convertToFormat(QImage::Format_ARGB32_Premultiplied);
+  };
+  using patchy::ui::TransformGestureCursor;
+  CHECK(hover(canvas, QPoint(100, 100)).shape() == Qt::SizeFDiagCursor);
+  CHECK(image_of(hover(canvas, QPoint(100, 100), Qt::ControlModifier)) ==
+        image_of(patchy::ui::transform_gesture_cursor(TransformGestureCursor::Distort)));
+  CHECK(image_of(hover(canvas, QPoint(100, 100), Qt::ControlModifier | Qt::AltModifier | Qt::ShiftModifier)) ==
+        image_of(patchy::ui::transform_gesture_cursor(TransformGestureCursor::Perspective)));
+  CHECK(image_of(hover(canvas, QPoint(200, 100), Qt::ControlModifier | Qt::ShiftModifier)) ==
+        image_of(patchy::ui::transform_gesture_cursor(TransformGestureCursor::Skew)));
+  CHECK(image_of(hover(canvas, QPoint(300, 160), Qt::ControlModifier)) ==
+        image_of(patchy::ui::transform_gesture_cursor(TransformGestureCursor::Distort)));
+  CHECK(hover(canvas, QPoint(200, 160), Qt::ControlModifier).shape() == Qt::SizeAllCursor);  // inside still moves
+  CHECK(hover(canvas, QPoint(300, 160)).shape() == Qt::SizeHorCursor);
+  // A distorted box's handles follow the true quad.
+  scene.press_and_move(QPoint(100, 100), {QPoint(130, 120)}, Qt::ControlModifier);
+  send_mouse(canvas, QEvent::MouseButtonRelease, canvas.widget_position_for_document_point(QPoint(130, 120)),
+             Qt::LeftButton, Qt::NoButton, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(hover(canvas, QPoint(130, 120)).shape() == Qt::SizeFDiagCursor);
+  CHECK(hover(canvas, QPoint(110, 110)).shape() != Qt::SizeFDiagCursor);  // the old corner is empty now
+  save_widget_artifact("ui_path_transform_distorted_box", canvas);
+}
+
 // Shift during an anchor drag constrains movement to the nearest horizontal,
 // vertical, or 45-degree axis, re-evaluated per move against the total delta
 // from the press point (Photoshop's vertex constraint, never latched).
@@ -1733,6 +1881,13 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
       {"ui_direct_select_after_path_select_drags_one_point", ui_direct_select_after_path_select_drags_one_point},
       {"ui_path_select_tools_drag_open_path_anchor", ui_path_select_tools_drag_open_path_anchor},
       {"ui_path_transform_shows_free_transform_cursors", ui_path_transform_shows_free_transform_cursors},
+      {"ui_path_transform_ctrl_drag_distorts_corner_and_side",
+       ui_path_transform_ctrl_drag_distorts_corner_and_side},
+      {"ui_path_transform_ctrl_alt_drag_is_symmetric", ui_path_transform_ctrl_alt_drag_is_symmetric},
+      {"ui_path_transform_ctrl_shift_drag_skews_side", ui_path_transform_ctrl_shift_drag_skews_side},
+      {"ui_path_transform_ctrl_alt_shift_drag_is_perspective", ui_path_transform_ctrl_alt_shift_drag_is_perspective},
+      {"ui_path_transform_distort_never_folds_the_quad", ui_path_transform_distort_never_folds_the_quad},
+      {"ui_path_transform_modifiers_show_gesture_cursors", ui_path_transform_modifiers_show_gesture_cursors},
       {"ui_ctrl_h_hides_path_points_with_selection_edges",
        ui_ctrl_h_hides_path_points_with_selection_edges},
       {"ui_direct_select_drags_marquee_selection_by_segment",
