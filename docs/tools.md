@@ -108,4 +108,4 @@ The right mouse button on the canvas is the context-menu button and never pans (
 
 ## Tool palette
 
-The palette layout, flyout groups, Shift+letter cycle commands, and tool icons live in [tool-palette.md](tool-palette.md).
+The palette layout, flyout groups, Shift+letter cycle commands, and tool icons live in [tool-palette.md](tool-palette.md). Which tool and options-bar values come back on the next launch: [tool-options.md](tool-options.md).

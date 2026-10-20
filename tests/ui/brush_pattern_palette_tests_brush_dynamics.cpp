@@ -1413,7 +1413,10 @@ void ui_default_brush_tips_seed_once_and_render_sheet() {
   clear_brush_tip_test_state();
 }
 
-void ui_brush_tip_resets_to_round_on_startup() {
+// The active bitmap tip comes back on the next launch (GitHub issue 254); a tip the
+// library has since lost falls back to Round.
+void ui_brush_tip_restores_on_startup() {
+  SettingsValueRestorer saved_tip(QStringLiteral("tools/brushTip"));
   clear_brush_tip_test_state();
   QString tip_id;
   {
@@ -1424,18 +1427,24 @@ void ui_brush_tip_resets_to_round_on_startup() {
     CHECK(!tip_id.isEmpty());
     window.set_active_brush_tip(tip_id, false);
     CHECK(require_canvas(window)->has_brush_tip());
-    process_events_for(400);  // any debounced tool-settings save must not record the tip
-    CHECK(!patchy::ui::app_settings().contains(QStringLiteral("tools/brushTip")));
+    process_events_for(400);  // the debounced tool-settings save records the tip
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("tools/brushTip")).toString() == tip_id);
   }
   {
-    // A fresh launch always starts with the procedural Round tip at 100% opacity /
-    // 0% soft, even though a bitmap tip was active when the last window closed.
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* canvas = require_canvas(window);
+    CHECK(canvas->has_brush_tip());
+    auto* picker = window.findChild<patchy::ui::BrushTipPicker*>(QStringLiteral("brushTipPicker"));
+    CHECK(picker != nullptr);
+    CHECK(picker->current_tip_id() == tip_id);
+  }
+  clear_brush_tip_test_state();  // the tip is gone from the library
+  {
     patchy::ui::MainWindow window;
     show_window(window);
     auto* canvas = require_canvas(window);
     CHECK(!canvas->has_brush_tip());
-    CHECK(canvas->brush_opacity() == 100);
-    CHECK(canvas->brush_softness() == 0);
     auto* picker = window.findChild<patchy::ui::BrushTipPicker*>(QStringLiteral("brushTipPicker"));
     CHECK(picker != nullptr);
     CHECK(picker->current_tip_id() == patchy::ui::builtin_round_brush_tip_id());
@@ -1467,6 +1476,6 @@ std::vector<patchy::test::TestCase> brush_pattern_palette_tests_part2() {
        ui_brush_color_dynamics_reaches_stroke_compositor},
       {"ui_brush_dynamics_abr_import_carries_dynamics", ui_brush_dynamics_abr_import_carries_dynamics},
       {"ui_default_brush_tips_seed_once_and_render_sheet", ui_default_brush_tips_seed_once_and_render_sheet},
-      {"ui_brush_tip_resets_to_round_on_startup", ui_brush_tip_resets_to_round_on_startup},
+      {"ui_brush_tip_restores_on_startup", ui_brush_tip_restores_on_startup},
   };
 }

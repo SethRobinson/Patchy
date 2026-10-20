@@ -933,7 +933,12 @@ void cleanup_after_visual_test() {
        {"tools/marqueeFeather", "tools/marqueeAntiAlias", "tools/ellipticalMarqueeFeather",
         "tools/ellipticalMarqueeAntiAlias", "tools/lassoFeather", "tools/lassoAntiAlias",
         "tools/magneticLassoFeather", "tools/magneticLassoAntiAlias", "tools/wandFeather", "tools/wandAntiAlias",
-        "tools/quickSelectFeather"}) {
+        "tools/quickSelectFeather",
+        // The active tool and the Brush bar persist too (GitHub issue 254); a test that
+        // switched tools or resized the brush must not start the next test's window there.
+        "tools/activeTool", "tools/brushSize", "tools/brushOpacity", "tools/brushFlow", "tools/brushSoftness",
+        "tools/brushAirbrush", "tools/brushTip", "tools/brushPreset", "tools/eraserSize", "tools/eraserOpacity",
+        "tools/eraserSoftness", "tools/marqueeCornerRadius", "tools/shapeFill"}) {
     settings.remove(QLatin1StringView(key));
   }
   settings.sync();

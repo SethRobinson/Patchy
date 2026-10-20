@@ -5,6 +5,8 @@
 #include "ui/main_window_shared.hpp"
 #include "core/palette.hpp"
 #include "ui/blend_mode_ui.hpp"
+#include "ui/brush_tip_library.hpp"
+#include "ui/brush_tip_picker.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/curved_slider.hpp"
@@ -82,6 +84,7 @@
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
+#include <list>
 #include <QToolTip>
 #include <QTreeWidget>
 #include <QTreeWidgetItemIterator>
@@ -120,12 +123,17 @@ namespace {
 
 using namespace patchy::test::ui;
 
-void ui_startup_defaults_to_round_brush() {
+// The Brush and Eraser bars come back from the settings store (GitHub issue 254; the
+// gradient keys always did), with the defaults for the keys the store lacks (Flow here).
+void ui_startup_restores_stored_brush_and_gradient_settings() {
   SettingsValueRestorer saved_brush_preset(QStringLiteral("tools/brushPreset"));
   SettingsValueRestorer saved_brush_size(QStringLiteral("tools/brushSize"));
   SettingsValueRestorer saved_brush_opacity(QStringLiteral("tools/brushOpacity"));
+  SettingsValueRestorer saved_brush_flow(QStringLiteral("tools/brushFlow"));
   SettingsValueRestorer saved_brush_softness(QStringLiteral("tools/brushSoftness"));
-  SettingsValueRestorer saved_brush_build_up(QStringLiteral("tools/brushBuildUp"));
+  SettingsValueRestorer saved_brush_airbrush(QStringLiteral("tools/brushAirbrush"));
+  SettingsValueRestorer saved_brush_tip(QStringLiteral("tools/brushTip"));
+  SettingsValueRestorer saved_active_tool(QStringLiteral("tools/activeTool"));
   SettingsValueRestorer saved_eraser_size(QStringLiteral("tools/eraserSize"));
   SettingsValueRestorer saved_eraser_opacity(QStringLiteral("tools/eraserOpacity"));
   SettingsValueRestorer saved_eraser_softness(QStringLiteral("tools/eraserSoftness"));
@@ -136,13 +144,15 @@ void ui_startup_defaults_to_round_brush() {
   SettingsValueRestorer saved_gradient_stops(QStringLiteral("tools/gradientStops"));
   {
     auto settings = patchy::ui::app_settings();
-    // Stale brush state from an earlier session. A launch must reset all of it
-    // (only the eraser size may survive a restart).
+    // The brush state an earlier session left behind: the next launch shows it.
+    settings.remove(QStringLiteral("tools/brushFlow"));
+    settings.remove(QStringLiteral("tools/brushTip"));
+    settings.remove(QStringLiteral("tools/activeTool"));
     settings.setValue(QStringLiteral("tools/brushPreset"), QStringLiteral("airbrush"));
     settings.setValue(QStringLiteral("tools/brushSize"), 56);
     settings.setValue(QStringLiteral("tools/brushOpacity"), 12);
     settings.setValue(QStringLiteral("tools/brushSoftness"), 100);
-    settings.setValue(QStringLiteral("tools/brushBuildUp"), true);
+    settings.setValue(QStringLiteral("tools/brushAirbrush"), true);
     settings.setValue(QStringLiteral("tools/eraserSize"), 77);
     settings.setValue(QStringLiteral("tools/eraserOpacity"), 15);
     settings.setValue(QStringLiteral("tools/eraserSoftness"), 95);
@@ -177,27 +187,28 @@ void ui_startup_defaults_to_round_brush() {
   CHECK(gradient_method != nullptr);
   CHECK(gradient_opacity != nullptr);
   CHECK(gradient_reverse != nullptr);
-  CHECK(brush_preset->currentData().toString() == QStringLiteral("round"));
-  CHECK(brush_size->value() == 25);
-  CHECK(brush_opacity->value() == 100);
-  CHECK(brush_flow->value() == 100);
-  CHECK(!brush_airbrush->isChecked());
-  CHECK(brush_softness->value() == 0);
-  CHECK(canvas->brush_size() == 25);
-  CHECK(canvas->brush_opacity() == 100);
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Brush);
+  CHECK(brush_preset->currentData().toString() == QStringLiteral("airbrush"));
+  CHECK(brush_size->value() == 56);
+  CHECK(brush_opacity->value() == 12);
+  CHECK(brush_flow->value() == 100);  // no stored key: the Round preset's default
+  CHECK(brush_airbrush->isChecked());
+  CHECK(brush_softness->value() == 100);
+  CHECK(canvas->brush_size() == 56);
+  CHECK(canvas->brush_opacity() == 12);
   CHECK(canvas->brush_flow() == 100);
-  CHECK(canvas->brush_softness() == 0);
-  CHECK(!canvas->brush_build_up());
-  // The eraser restores only its size; opacity/flow/Airbrush/softness reset
-  // with the brush.
+  CHECK(canvas->brush_softness() == 100);
+  CHECK(canvas->brush_build_up());
+  // The eraser keeps its own size, opacity and Soft; it has no Flow or Airbrush.
   require_action_by_text(window, QStringLiteral("Eraser"))->trigger();
   CHECK(canvas->brush_size() == 77);
-  CHECK(canvas->brush_opacity() == 100);
+  CHECK(canvas->brush_opacity() == 15);
   CHECK(canvas->brush_flow() == 100);
-  CHECK(canvas->brush_softness() == 0);
+  CHECK(canvas->brush_softness() == 95);
   CHECK(!canvas->brush_build_up());
   require_action_by_text(window, QStringLiteral("Brush"))->trigger();
-  CHECK(canvas->brush_size() == 25);
+  CHECK(canvas->brush_size() == 56);
+  CHECK(canvas->brush_opacity() == 12);
   CHECK(canvas->gradient_method() == patchy::GradientMethod::Radial);
   CHECK(canvas->gradient_reverse());
   CHECK(canvas->gradient_opacity() == 66);
@@ -3732,6 +3743,194 @@ void ui_toolbar_spin_boxes_select_all_on_focus() {
   }
 }
 
+namespace {
+
+// The keys GitHub issue 254 added (docs/tool-options.md): cleared before each window so a
+// test starts from the defaults, restored afterwards.
+constexpr const char* kIssue254SettingsKeys[] = {
+    "tools/activeTool",    "tools/brushSize",     "tools/brushOpacity",       "tools/brushFlow",
+    "tools/brushSoftness", "tools/brushAirbrush", "tools/brushTip",           "tools/brushPreset",
+    "tools/brushMode",     "tools/brushSmoothing", "tools/eraserSize",        "tools/eraserOpacity",
+    "tools/eraserSoftness", "tools/marqueeCornerRadius", "tools/shapeFill"};
+
+std::list<SettingsValueRestorer> clear_issue_254_settings() {
+  std::list<SettingsValueRestorer> restorers;
+  auto settings = patchy::ui::app_settings();
+  for (const char* key : kIssue254SettingsKeys) {
+    restorers.emplace_back(QString::fromLatin1(key));
+    settings.remove(QLatin1String(key));
+  }
+  settings.sync();
+  return restorers;
+}
+
+// The palette button that shows `action` as its flyout face, or nullptr when no flyout
+// holds it or another member is shown.
+QToolButton* flyout_button_showing(patchy::ui::MainWindow& window, QAction* action) {
+  for (auto* button : window.findChildren<QToolButton*>()) {
+    auto* menu = button->menu();
+    if (button->property("toolFlyout").toBool() && menu != nullptr && menu->actions().contains(action)) {
+      return button->defaultAction() == action ? button : nullptr;
+    }
+  }
+  return nullptr;
+}
+
+}  // namespace
+
+// GitHub issue 254: the next launch starts on the tool that was active at quit, flyout
+// member included, and the Brush, Eraser and Marquee bars show the values they had.
+void ui_active_tool_and_options_restore_on_next_launch() {
+  const auto restorers = clear_issue_254_settings();
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* canvas = require_canvas(window);
+    CHECK(canvas->tool() == patchy::ui::CanvasTool::Brush);
+    CHECK(canvas->brush_size() == 25);
+    ensure_artifact_dir();
+    window.grab().save(QStringLiteral("test-artifacts/issue_254_before.png"));
+    auto* brush_size = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
+    auto* brush_opacity = window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"));
+    auto* brush_flow = window.findChild<QSpinBox*>(QStringLiteral("brushFlowSpin"));
+    auto* brush_softness = window.findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin"));
+    auto* brush_airbrush = window.findChild<QCheckBox*>(QStringLiteral("brushAirbrushCheck"));
+    auto* brush_smoothing = window.findChild<QSpinBox*>(QStringLiteral("brushSmoothingSpin"));
+    auto* brush_mode = window.findChild<QComboBox*>(QStringLiteral("brushModeCombo"));
+    auto* corner_radius = window.findChild<QSpinBox*>(QStringLiteral("selectionCornerRadiusSpin"));
+    CHECK(brush_size != nullptr && brush_opacity != nullptr && brush_flow != nullptr && brush_softness != nullptr &&
+          brush_airbrush != nullptr && brush_smoothing != nullptr && brush_mode != nullptr && corner_radius != nullptr);
+    if (brush_size == nullptr || brush_opacity == nullptr || brush_flow == nullptr || brush_softness == nullptr ||
+        brush_airbrush == nullptr || brush_smoothing == nullptr || brush_mode == nullptr || corner_radius == nullptr) {
+      return;
+    }
+    brush_size->setValue(80);
+    brush_opacity->setValue(60);
+    brush_flow->setValue(35);
+    brush_softness->setValue(45);
+    brush_airbrush->setChecked(true);
+    brush_smoothing->setValue(20);
+    const auto multiply = brush_mode->findText(QStringLiteral("Multiply"));
+    CHECK(multiply >= 0);
+    brush_mode->setCurrentIndex(multiply);
+    QApplication::processEvents();
+    CHECK(canvas->brush_size() == 80);
+    CHECK(patchy::ui::script_paint_mode_id(canvas->brush_paint_mode()) == QStringLiteral("multiply"));
+
+    require_action(window, "toolEraserAction")->trigger();
+    QApplication::processEvents();
+    brush_size->setValue(33);
+    brush_opacity->setValue(70);
+    brush_softness->setValue(15);
+    QApplication::processEvents();
+    CHECK(canvas->brush_size() == 33);
+
+    require_action(window, "toolMarqueeAction")->trigger();
+    QApplication::processEvents();
+    corner_radius->setValue(12);
+    require_action(window, "toolEllipticalMarqueeAction")->trigger();
+    QApplication::processEvents();
+    CHECK(canvas->tool() == patchy::ui::CanvasTool::EllipticalMarquee);
+    patchy::ui::MainWindowTestAccess::save_tool_settings(window);
+    auto settings = patchy::ui::app_settings();
+    CHECK(settings.value(QStringLiteral("tools/activeTool")).toString() == QStringLiteral("tools.elliptical_marquee"));
+    CHECK(settings.value(QStringLiteral("tools/brushSize")).toInt() == 80);
+    CHECK(settings.value(QStringLiteral("tools/brushOpacity")).toInt() == 60);
+    CHECK(settings.value(QStringLiteral("tools/eraserSize")).toInt() == 33);
+    CHECK(settings.value(QStringLiteral("tools/marqueeCornerRadius")).toInt() == 12);
+  }
+  {
+    // "The next launch": a fresh window from the same settings store.
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* canvas = require_canvas(window);
+    CHECK(canvas->tool() == patchy::ui::CanvasTool::EllipticalMarquee);
+    auto* elliptical = require_action(window, "toolEllipticalMarqueeAction");
+    CHECK(elliptical->isChecked());
+    CHECK(!require_action(window, "toolBrushAction")->isChecked());
+    CHECK(flyout_button_showing(window, elliptical) != nullptr);
+    CHECK(canvas->marquee_corner_radius() == 12);
+    auto* corner_radius = window.findChild<QSpinBox*>(QStringLiteral("selectionCornerRadiusSpin"));
+    CHECK(corner_radius != nullptr && corner_radius->value() == 12);
+
+    require_action(window, "toolBrushAction")->trigger();
+    QApplication::processEvents();
+    CHECK(canvas->brush_size() == 80);
+    CHECK(canvas->brush_opacity() == 60);
+    CHECK(canvas->brush_flow() == 35);
+    CHECK(canvas->brush_softness() == 45);
+    CHECK(canvas->brush_build_up());
+    CHECK(canvas->brush_smoothing() == 20);
+    CHECK(patchy::ui::script_paint_mode_id(canvas->brush_paint_mode()) == QStringLiteral("multiply"));
+    auto* brush_size = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
+    auto* brush_opacity = window.findChild<QSpinBox*>(QStringLiteral("brushOpacitySpin"));
+    auto* brush_airbrush = window.findChild<QCheckBox*>(QStringLiteral("brushAirbrushCheck"));
+    auto* brush_mode = window.findChild<QComboBox*>(QStringLiteral("brushModeCombo"));
+    CHECK(brush_size != nullptr && brush_size->value() == 80);
+    CHECK(brush_opacity != nullptr && brush_opacity->value() == 60);
+    CHECK(brush_airbrush != nullptr && brush_airbrush->isChecked());
+    CHECK(brush_mode != nullptr && brush_mode->currentText() == QStringLiteral("Multiply"));
+
+    require_action(window, "toolEraserAction")->trigger();
+    QApplication::processEvents();
+    CHECK(canvas->brush_size() == 33);
+    CHECK(canvas->brush_opacity() == 70);
+    CHECK(canvas->brush_softness() == 15);
+    patchy::ui::MainWindowTestAccess::save_tool_settings(window);
+  }
+  {
+    // Quit on the Eraser: the next launch shows it selected with its own values in the bar.
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* canvas = require_canvas(window);
+    CHECK(canvas->tool() == patchy::ui::CanvasTool::Eraser);
+    CHECK(require_action(window, "toolEraserAction")->isChecked());
+    CHECK(canvas->brush_size() == 33);
+    auto* brush_size = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
+    CHECK(brush_size != nullptr && brush_size->isVisible() && brush_size->value() == 33);
+    window.grab().save(QStringLiteral("test-artifacts/issue_254_after.png"));
+  }
+}
+
+// A missing or hand-edited key never leaves the bar in a strange state: unknown tool
+// tokens, non-numeric values and out-of-range numbers read as the defaults (or clamp).
+void ui_tool_settings_fall_back_on_missing_or_malformed_keys() {
+  const auto restorers = clear_issue_254_settings();
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("tools/activeTool"), QStringLiteral("tools.nonsense"));
+    settings.setValue(QStringLiteral("tools/brushSize"), QStringLiteral("banana"));
+    settings.setValue(QStringLiteral("tools/brushOpacity"), 999);
+    settings.setValue(QStringLiteral("tools/brushFlow"), QStringLiteral("x"));
+    settings.setValue(QStringLiteral("tools/brushAirbrush"), QStringLiteral("maybe"));
+    settings.setValue(QStringLiteral("tools/brushTip"), QStringLiteral("no-such-tip"));
+    settings.setValue(QStringLiteral("tools/brushPreset"), QStringLiteral("no-such-preset"));
+    settings.setValue(QStringLiteral("tools/eraserSize"), QStringLiteral("huge"));
+    settings.setValue(QStringLiteral("tools/marqueeCornerRadius"), QStringLiteral("big"));
+    settings.setValue(QStringLiteral("tools/shapeFill"), QStringLiteral("sometimes"));
+    settings.sync();
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Brush);
+  CHECK(require_action(window, "toolBrushAction")->isChecked());
+  CHECK(canvas->brush_size() == 25);
+  CHECK(canvas->brush_opacity() == 100);
+  CHECK(canvas->brush_flow() == 100);
+  CHECK(!canvas->brush_build_up());
+  CHECK(canvas->marquee_corner_radius() == 0);
+  CHECK(!canvas->fill_shapes());
+  auto* tip_picker = window.findChild<patchy::ui::BrushTipPicker*>();
+  CHECK(tip_picker != nullptr && tip_picker->current_tip_id() == patchy::ui::builtin_round_brush_tip_id());
+  auto* preset_combo = window.findChild<QComboBox*>(QStringLiteral("brushPresetCombo"));
+  CHECK(preset_combo != nullptr &&
+        preset_combo->currentData().toString() == patchy::ui::default_startup_brush_preset_id());
+  require_action(window, "toolEraserAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->brush_size() == 25);
+}
+
 void ui_options_bar_tracks_active_tool() {
   SettingsValueRestorer saved_gradient_method(QStringLiteral("tools/gradientMethod"));
   SettingsValueRestorer saved_gradient_reverse(QStringLiteral("tools/gradientReverse"));
@@ -6138,7 +6337,8 @@ void ui_menu_disabled_items_render_grayed() {
 
 std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
   return {
-      {"ui_startup_defaults_to_round_brush", ui_startup_defaults_to_round_brush},
+      {"ui_startup_restores_stored_brush_and_gradient_settings",
+       ui_startup_restores_stored_brush_and_gradient_settings},
       {"ui_canvas_wheel_matches_photoshop_navigation", ui_canvas_wheel_matches_photoshop_navigation},
       {"ui_canvas_wheel_zoom_mode_zooms_at_cursor", ui_canvas_wheel_zoom_mode_zooms_at_cursor},
       {"ui_canvas_trackpad_scroll_pans_both_axes", ui_canvas_trackpad_scroll_pans_both_axes},
@@ -6212,6 +6412,9 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_filled_shape_preview_clears_after_commit", ui_filled_shape_preview_clears_after_commit},
       {"ui_toolbar_spin_boxes_select_all_on_focus", ui_toolbar_spin_boxes_select_all_on_focus},
       {"ui_options_bar_tracks_active_tool", ui_options_bar_tracks_active_tool},
+      {"ui_active_tool_and_options_restore_on_next_launch", ui_active_tool_and_options_restore_on_next_launch},
+      {"ui_tool_settings_fall_back_on_missing_or_malformed_keys",
+       ui_tool_settings_fall_back_on_missing_or_malformed_keys},
       {"ui_fill_tool_tolerance_and_contiguous_persist_across_documents",
        ui_fill_tool_tolerance_and_contiguous_persist_across_documents},
       {"ui_fill_opacity_accepts_zero_and_fills_nothing", ui_fill_opacity_accepts_zero_and_fills_nothing},
