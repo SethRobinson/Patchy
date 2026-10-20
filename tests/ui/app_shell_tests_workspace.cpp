@@ -1751,8 +1751,8 @@ void ui_tool_palette_quick_mask_button_shows_its_icon() {
   CHECK(action->toolTip().contains(QStringLiteral("(Q)")));
 
   // The whole button box, border included, sits inside the footer and is centered
-  // under the well, also in a column narrower than the designed 43 px (GitHub
-  // issue 224: a 42 px column cut off its right side and its bottom border).
+  // under the well, inside the palette's right border (GitHub
+  // issue 224: the box ran over the palette's right border and lost its bottom line).
   auto* footer = palette->findChild<QWidget*>(QStringLiteral("toolPaletteFooter"));
   CHECK(footer != nullptr);
   if (footer == nullptr) {
@@ -1762,17 +1762,54 @@ void ui_tool_palette_quick_mask_button_shows_its_icon() {
     const auto box = button->geometry();
     CHECK(footer->rect().contains(box));
     CHECK(box.top() >= patchy::ui::ToolPaletteFooter::kWellHeight);
-    const int cell = std::min(footer->width(), patchy::ui::ToolPaletteFooter::kWidth);
+    // The footer's last column is the palette's 1 px right border.
+    const int cell = std::min(footer->width(), patchy::ui::ToolPaletteFooter::kWidth) - 1;
     CHECK(std::abs(box.left() - (cell - 1 - box.right())) <= 1);
   };
   check_placement();
-  const auto footer_width = footer->width();
-  footer->resize(41, footer->height());
-  QApplication::processEvents();
-  check_placement();
-  footer->resize(footer_width, footer->height());
-  QApplication::processEvents();
-  check_placement();
+
+  // No footer control draws into the footer's left column or the two columns at its
+  // right edge (the palette's 1 px border and the column beside it), so nothing
+  // touches the toolbox border (GitHub issue 251: the swap glyph's arrow ended
+  // beside it). Rendered at 100% and 150%.
+  const auto check_edges_clear = [&](const std::string& artifact) {
+    const auto background = patchy::ui::theme().tool_palette_bg;
+    QList<QImage> renders;
+    // The real palette around the footer, its right border included, for the shot.
+    palette->repaint();
+    renders << palette->grab(QRect(0, footer->geometry().top(), palette->width(), footer->height())).toImage();
+    std::vector<int> touching_counts;
+    {
+      const int width = std::min(footer->width(), patchy::ui::ToolPaletteFooter::kWidth);
+      for (const qreal scale : {1.0, 1.5}) {
+        QPixmap rendered(QSize(qRound(footer->width() * scale), qRound(footer->height() * scale)));
+        rendered.setDevicePixelRatio(scale);
+        rendered.fill(background);
+        footer->render(&rendered);
+        const auto image = rendered.toImage();
+        int touching = 0;
+        for (int y = 0; y < image.height(); ++y) {
+          const int clear_from = static_cast<int>(std::floor((width - 2) * scale));
+          for (int x = 0; x < image.width(); x = x == 0 ? clear_from : x + 1) {
+            const auto color = image.pixelColor(x, y);
+            if (std::abs(color.red() - background.red()) > 6 || std::abs(color.green() - background.green()) > 6 ||
+                std::abs(color.blue() - background.blue()) > 6) {
+              ++touching;
+            }
+          }
+        }
+        renders << image;
+        touching_counts.push_back(touching);
+        if (touching != 0) {
+          fprintf(stderr, "  footer %d px at %.1fx: %d edge pixels drawn\n", width, scale, touching);
+        }
+      }
+    }
+    save_stacked_artifact(artifact, renders);  // before the checks: the BEFORE shot of a failing run
+    for (const int touching : touching_counts) {
+      CHECK(touching == 0);
+    }
+  };
 
   // Off and On are different drawings: On tints the whole window, so it has
   // clearly more mask-red pixels. The frame is icon ink in each scheme.
@@ -1805,6 +1842,8 @@ void ui_tool_palette_quick_mask_button_shows_its_icon() {
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
     ColorSchemeRestorer restorer(scheme);
     process_events_for(60);
+    check_edges_clear(scheme == patchy::ui::ColorSchemePreference::Dark ? "ui_tool_palette_footer_edges_dark"
+                                                                         : "ui_tool_palette_footer_edges_light");
     const auto ink = patchy::ui::theme().icon_ink;
     const auto off = action->icon().pixmap(QSize(22, 22), QIcon::Normal, QIcon::Off).toImage();
     const auto on = action->icon().pixmap(QSize(22, 22), QIcon::Normal, QIcon::On).toImage();
