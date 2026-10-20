@@ -1533,8 +1533,8 @@ void shot_readme_pattern_manager() {
   CHECK(result.isEmpty());
 }
 
-// Tilt-Shift Blur over a dense city scene, with its safe short-grip overlay
-// visible in the live gallery preview.
+// Tilt-Shift Blur over a dense city scene, with its handle-only overlay (no
+// boundary lines or bars) visible in the live gallery preview.
 void shot_readme_tilt_shift() {
   const auto path = patchy::test::committed_format_fixture_path(
       "readme", "san_francisco_cityscape_cc0.jpg");

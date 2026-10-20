@@ -187,8 +187,10 @@ zoomable_image_preview.cpp; the pinned tests `ui_filter_gallery_tilt_shift_overl
 and `ui_filter_gallery_tilt_shift_grips_never_span_the_visible_image` become one "no boundary
 marks" test; the README Tilt-Shift screenshot is re-shot). Usability cost: the band's edges are
 shown only by the handle dots and by the preview blur itself. Alternative: keep the bars, with a
-re-check at 2032-12-26. Decision (2026-10-20): B, draw no boundary marks; implemented in the
-commit that follows this record.
+re-check at 2032-12-26. Decision (2026-10-20): B, draw no boundary marks; implemented the same
+day: `draw_boundary` removed from
+`draw_tilt_shift_overlay`, the two grip tests merged into
+`ui_filter_gallery_tilt_shift_overlay_has_no_boundary_marks`.
 
 ## 6. Status sweep of application-number and "pending" entries
 

@@ -837,19 +837,12 @@ void ZoomableImagePreview::draw_tilt_shift_overlay(QPainter& painter) const {
 
   const auto& overlay = *tilt_shift_overlay_;
   const auto center = tilt_center_point(overlay);
-  const auto tangent = tilt_tangent(overlay.angle_degrees);
-  const auto normal = tilt_normal(overlay.angle_degrees);
-  const auto shorter = std::min(target.width(), target.height());
-  const auto focus_distance = overlay.focus_half_width * shorter;
-  const auto transition_distance =
-      (overlay.focus_half_width + overlay.transition_width) * shorter;
   // Patent design constraint (Apple US 8971623; docs/legal-constraints.md):
-  // the band boundaries are short grip bars near the center axis only. Never draw
-  // boundary lines that span the image and divide it around the center;
-  // ui_filter_gallery_tilt_shift_overlay_uses_grip_bars pins this.
+  // the band boundaries carry no line or bar at all, only their handle dots.
+  // Never draw a mark along a boundary, short or spanning;
+  // ui_filter_gallery_tilt_shift_overlay_has_no_boundary_marks pins this.
   const auto visible_shorter =
       std::min(visible_target.width(), visible_target.height());
-  const auto grip_half_length = std::min(26.0, visible_shorter * 0.2);
   // Keep an unpainted rim even at tiny zooms, at corners and when the image is
   // clipped by the viewport. Pen caps and the other handles must not bridge it.
   const auto rim = std::max(1.0, std::min(4.0, visible_shorter * 0.1));
@@ -862,21 +855,6 @@ void ZoomableImagePreview::draw_tilt_shift_overlay(QPainter& painter) const {
   painter.setClipRect(overlay_clip);
   painter.setRenderHint(QPainter::Antialiasing, true);
   painter.setBrush(Qt::NoBrush);
-
-  const auto draw_boundary = [&](double distance, Qt::PenStyle style) {
-    for (const auto side : {-1.0, 1.0}) {
-      const auto midpoint = center + normal * (side * distance);
-      const auto start = midpoint - tangent * grip_half_length;
-      const auto end = midpoint + tangent * grip_half_length;
-      painter.setPen(QPen(QColor(18, 20, 23, 225), 4.0, style,
-                          Qt::RoundCap));
-      painter.drawLine(start, end);
-      painter.setPen(QPen(overlay_accent(), 2.0, style, Qt::RoundCap));
-      painter.drawLine(start, end);
-    }
-  };
-  draw_boundary(focus_distance, Qt::SolidLine);
-  draw_boundary(transition_distance, Qt::DashLine);
 
   const auto angle_handle = tilt_angle_handle_point(overlay);
   const auto opposite_angle_handle = center - (angle_handle - center);
