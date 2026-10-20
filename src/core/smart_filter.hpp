@@ -35,6 +35,9 @@ enum class SmartFilterKind {
   Minimum,
   Custom,
   Fragment,
+  Crystallize,
+  Pointillize,
+  Mezzotint,
 };
 
 struct GaussianBlurSmartFilter {

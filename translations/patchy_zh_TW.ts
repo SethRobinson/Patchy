@@ -11065,6 +11065,58 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
         <translation>%1 %2</translation>
     </message>
+    <message>
+        <source>Crystallize</source>
+        <translation>結晶化</translation>
+    </message>
+    <message>
+        <source>Pointillize</source>
+        <translation>點狀化</translation>
+    </message>
+    <message>
+        <source>Mezzotint</source>
+        <translation>網線銅版</translation>
+    </message>
+    <message>
+        <source>Fine Dots</source>
+        <translation>細網點</translation>
+    </message>
+    <message>
+        <source>Medium Dots</source>
+        <translation>中網點</translation>
+    </message>
+    <message>
+        <source>Grainy Dots</source>
+        <translation>粒狀網點</translation>
+    </message>
+    <message>
+        <source>Coarse Dots</source>
+        <translation>粗網點</translation>
+    </message>
+    <message>
+        <source>Short Lines</source>
+        <translation>短線</translation>
+    </message>
+    <message>
+        <source>Medium Lines</source>
+        <translation>中線</translation>
+    </message>
+    <message>
+        <source>Long Lines</source>
+        <translation>長線</translation>
+    </message>
+    <message>
+        <source>Short Strokes</source>
+        <translation>短筆畫</translation>
+    </message>
+    <message>
+        <source>Medium Strokes</source>
+        <translation>中筆畫</translation>
+    </message>
+    <message>
+        <source>Long Strokes</source>
+        <translation>長筆畫</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

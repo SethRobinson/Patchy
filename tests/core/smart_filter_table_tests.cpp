@@ -15,6 +15,7 @@
 #include "local_psd_fixtures.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <iostream>
 #include <span>
@@ -30,6 +31,7 @@ namespace {
 using patchy::test::require_layer_named;
 
 constexpr const char *kFixture = "photoshop-smart-filter-other.psd";
+constexpr const char *kRandomFixture = "photoshop-smart-filter-random.psd";
 
 const patchy::UnknownPsdBlock &sold_block(const patchy::Layer &layer) {
   const auto &blocks = layer.unknown_psd_blocks();
@@ -257,41 +259,140 @@ void smart_filter_table_photoshop_capture_round_trips_and_patches() {
 // A fresh entry with Photoshop's values authors the same Fltr bytes Photoshop
 // wrote (Maximum's capture without preserveShape aside: Patchy always writes
 // the key, as Photoshop's dialog does).
+void check_authored_filter_matches_photoshop(const patchy::Layer &layer) {
+  const auto photoshop = sold_descriptor(sold_block(layer).payload);
+  auto stack = *layer.smart_filter_stack();
+  patchy::SmartObjectPlacement placement;
+  placement.uuid = "41414141-5151-6161-8777-828282828282";
+  placement.transform = {0.0, 0.0, 128.0, 0.0, 128.0, 96.0, 0.0, 96.0};
+  placement.width = 128.0;
+  placement.height = 96.0;
+  placement.resolution = 72.0;
+  const auto authored = sold_descriptor(patchy::psd::author_placed_layer_sold_payload(
+      placement, "dfdfdfdf-fbfb-bdbd-8444-585858585858", &stack));
+  for (std::size_t index = 0; index < stack.entries.size(); ++index) {
+    const auto *photoshop_entry = first_entry(photoshop, index);
+    const auto *authored_entry = first_entry(authored, index);
+    const auto *photoshop_filter =
+        patchy::psd::descriptor_object(*photoshop_entry, "Fltr");
+    const auto *authored_filter =
+        patchy::psd::descriptor_object(*authored_entry, "Fltr");
+    CHECK((photoshop_filter == nullptr) == (authored_filter == nullptr));
+    if (photoshop_filter != nullptr && authored_filter != nullptr) {
+      CHECK(descriptor_bytes(*photoshop_filter) ==
+            descriptor_bytes(*authored_filter));
+    }
+    CHECK(patchy::psd::descriptor_value(*authored_entry, "filterID")->integer_value ==
+          patchy::psd::descriptor_value(*photoshop_entry, "filterID")->integer_value);
+    CHECK(patchy::psd::descriptor_value(*authored_entry, "Nm  ")->string_value ==
+          patchy::psd::descriptor_value(*photoshop_entry, "Nm  ")->string_value);
+  }
+}
+
 void smart_filter_table_authored_descriptors_match_photoshop() {
   const auto document = patchy::psd::DocumentIo::read_file(
       patchy::test::committed_psd_fixture_path(kFixture));
   for (const auto &expected : kSupportedLayers) {
-    if (std::string_view(expected.name) == "Maximum 3 no shape key") {
-      continue;
+    if (std::string_view(expected.name) != "Maximum 3 no shape key") {
+      check_authored_filter_matches_photoshop(
+          require_layer_named(document, expected.name));
     }
-    const auto &layer = require_layer_named(document, expected.name);
-    const auto photoshop = sold_descriptor(sold_block(layer).payload);
-    auto stack = *layer.smart_filter_stack();
-    patchy::SmartObjectPlacement placement;
-    placement.uuid = "41414141-5151-6161-8777-828282828282";
-    placement.transform = {0.0, 0.0, 128.0, 0.0, 128.0, 96.0, 0.0, 96.0};
-    placement.width = 128.0;
-    placement.height = 96.0;
-    placement.resolution = 72.0;
-    const auto authored = sold_descriptor(patchy::psd::author_placed_layer_sold_payload(
-        placement, "dfdfdfdf-fbfb-bdbd-8444-585858585858", &stack));
-    for (std::size_t index = 0; index < stack.entries.size(); ++index) {
-      const auto *photoshop_entry = first_entry(photoshop, index);
-      const auto *authored_entry = first_entry(authored, index);
-      const auto *photoshop_filter =
-          patchy::psd::descriptor_object(*photoshop_entry, "Fltr");
-      const auto *authored_filter =
-          patchy::psd::descriptor_object(*authored_entry, "Fltr");
-      CHECK((photoshop_filter == nullptr) == (authored_filter == nullptr));
-      if (photoshop_filter != nullptr && authored_filter != nullptr) {
-        CHECK(descriptor_bytes(*photoshop_filter) ==
-              descriptor_bytes(*authored_filter));
+  }
+}
+
+// Crystallize, Pointillize and Mezzotint re-randomize on every Photoshop
+// render (no stored seed), so their pixels are Patchy's own: the descriptors
+// must still parse, author and round-trip exactly, and the renders must be
+// deterministic, keep alpha and stay in Photoshop's style.
+void smart_filter_table_random_filters_round_trip_and_render_in_style() {
+  const auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path(kRandomFixture));
+  const auto clean = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto &source = require_layer_named(document, "Source");
+  const auto canvas = patchy::Rect::from_size(document.width(), document.height());
+  const auto source_alpha = [&](std::int32_t x, std::int32_t y) -> int {
+    const auto bounds = source.bounds();
+    if (x < bounds.x || y < bounds.y || x >= bounds.x + bounds.width ||
+        y >= bounds.y + bounds.height) {
+      return 0;
+    }
+    return source.pixels().pixel(x - bounds.x, y - bounds.y)[3];
+  };
+  struct Case {
+    const char *name;
+    patchy::SmartFilterKind kind;
+    double maximum_mean_difference;  // per visible channel sample vs Photoshop
+  };
+  // Photoshop's own re-renders differ from each other by about 41
+  // (Crystallize 10) and 102 (Mezzotint fine dots) per visible channel sample
+  // on the probe; Patchy's renders stay within 1.25 times that (42 and 92
+  // today). Pointillize and long strokes, with no Photoshop pair measured,
+  // stay within 1.25 times their October 2026 values (59 and 67).
+  const Case cases[]{
+      {"Crystallize 10", patchy::SmartFilterKind::Crystallize, 52.0},
+      {"Pointillize 6", patchy::SmartFilterKind::Pointillize, 74.0},
+      {"Mezzotint fine dots", patchy::SmartFilterKind::Mezzotint, 128.0},
+      {"Mezzotint long strokes", patchy::SmartFilterKind::Mezzotint, 84.0},
+  };
+  for (const auto &item : cases) {
+    const auto &layer = require_layer_named(document, item.name);
+    const auto *stack = layer.smart_filter_stack();
+    CHECK(stack != nullptr &&
+          stack->support == patchy::SmartFilterStackSupport::Supported);
+    CHECK(stack->entries.front().kind == item.kind);
+    CHECK(sold_block(require_layer_named(clean, item.name)).payload ==
+          sold_block(layer).payload);
+    check_authored_filter_matches_photoshop(layer);
+
+    const auto first = patchy::render_smart_filter_stack(
+        source.pixels(), source.bounds(), canvas, *stack);
+    const auto second = patchy::render_smart_filter_stack(
+        source.pixels(), source.bounds(), canvas, *stack);
+    CHECK(first.bounds.x == second.bounds.x && first.bounds.y == second.bounds.y &&
+          first.bounds.width == second.bounds.width &&
+          first.bounds.height == second.bounds.height);
+    CHECK(std::equal(first.pixels.data().begin(), first.pixels.data().end(),
+                     second.pixels.data().begin()));
+
+    double difference = 0.0;
+    std::int64_t samples = 0;
+    const auto photoshop_bounds = layer.bounds();
+    for (std::int32_t y = 0; y < canvas.height; ++y) {
+      for (std::int32_t x = 0; x < canvas.width; ++x) {
+        const auto inside = x >= first.bounds.x && y >= first.bounds.y &&
+                            x < first.bounds.x + first.bounds.width &&
+                            y < first.bounds.y + first.bounds.height;
+        const auto *ours = inside ? first.pixels.pixel(x - first.bounds.x,
+                                                        y - first.bounds.y)
+                                  : nullptr;
+        CHECK((ours == nullptr ? 0 : ours[3]) == source_alpha(x, y));
+        if (ours == nullptr || ours[3] == 0) {
+          continue;
+        }
+        if (item.kind == patchy::SmartFilterKind::Mezzotint) {
+          for (int channel = 0; channel < 3; ++channel) {
+            CHECK(ours[channel] == 0 || ours[channel] == 255);
+          }
+        }
+        if (x < photoshop_bounds.x || y < photoshop_bounds.y ||
+            x >= photoshop_bounds.x + photoshop_bounds.width ||
+            y >= photoshop_bounds.y + photoshop_bounds.height) {
+          continue;
+        }
+        const auto *theirs = layer.pixels().pixel(x - photoshop_bounds.x,
+                                                  y - photoshop_bounds.y);
+        for (int channel = 0; channel < 3; ++channel) {
+          difference += std::abs(static_cast<int>(ours[channel]) -
+                                 static_cast<int>(theirs[channel]));
+          ++samples;
+        }
       }
-      CHECK(patchy::psd::descriptor_value(*authored_entry, "filterID")->integer_value ==
-            patchy::psd::descriptor_value(*photoshop_entry, "filterID")->integer_value);
-      CHECK(patchy::psd::descriptor_value(*authored_entry, "Nm  ")->string_value ==
-            patchy::psd::descriptor_value(*photoshop_entry, "Nm  ")->string_value);
     }
+    const auto mean = samples == 0 ? 0.0 : difference / static_cast<double>(samples);
+    std::cout << "[INFO] " << item.name << " mean difference from Photoshop's render "
+              << mean << "\n";
+    CHECK(samples > 0 && mean <= item.maximum_mean_difference);
   }
 }
 
@@ -393,6 +494,8 @@ std::vector<patchy::test::TestCase> smart_filter_table_tests() {
        smart_filter_table_photoshop_capture_round_trips_and_patches},
       {"smart_filter_table_authored_descriptors_match_photoshop",
        smart_filter_table_authored_descriptors_match_photoshop},
+      {"smart_filter_table_random_filters_round_trip_and_render_in_style",
+       smart_filter_table_random_filters_round_trip_and_render_in_style},
       {"smart_filter_table_kernels_keep_their_contracts",
        smart_filter_table_kernels_keep_their_contracts},
   };

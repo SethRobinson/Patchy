@@ -11099,6 +11099,58 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
         <translation>%1 %2</translation>
     </message>
+    <message>
+        <source>Crystallize</source>
+        <translation>Cristallisation</translation>
+    </message>
+    <message>
+        <source>Pointillize</source>
+        <translation>Pointillisme</translation>
+    </message>
+    <message>
+        <source>Mezzotint</source>
+        <translation>Manière noire</translation>
+    </message>
+    <message>
+        <source>Fine Dots</source>
+        <translation>Points fins</translation>
+    </message>
+    <message>
+        <source>Medium Dots</source>
+        <translation>Points moyens</translation>
+    </message>
+    <message>
+        <source>Grainy Dots</source>
+        <translation>Points granuleux</translation>
+    </message>
+    <message>
+        <source>Coarse Dots</source>
+        <translation>Points grossiers</translation>
+    </message>
+    <message>
+        <source>Short Lines</source>
+        <translation>Lignes courtes</translation>
+    </message>
+    <message>
+        <source>Medium Lines</source>
+        <translation>Lignes moyennes</translation>
+    </message>
+    <message>
+        <source>Long Lines</source>
+        <translation>Lignes longues</translation>
+    </message>
+    <message>
+        <source>Short Strokes</source>
+        <translation>Traits courts</translation>
+    </message>
+    <message>
+        <source>Medium Strokes</source>
+        <translation>Traits moyens</translation>
+    </message>
+    <message>
+        <source>Long Strokes</source>
+        <translation>Traits longs</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

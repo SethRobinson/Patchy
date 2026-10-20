@@ -93,6 +93,7 @@ bf5fa6de87028ba8 photoshop-smart-filter-other.psd
 4b98966ab184a18c photoshop-smart-filter-plastic-wrap.psd
 f63cea89bfdc33b6 photoshop-smart-filter-radial-blur-zoom.psd
 c0a39197fc4785c3 photoshop-smart-filter-radial-blur.psd
+1b98d9c7b0ac6b8d photoshop-smart-filter-random.psd
 f2bf42dce8c3d975 photoshop-smart-filter-surface-blur.psd
 9a1663806ac7eb76 photoshop-smart-filter-tilt-shift.psd
 774b771808c21f09 photoshop-smart-filter-unsharp-motion.psd

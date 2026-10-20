@@ -26,6 +26,7 @@
 #include <QToolButton>
 
 #include <filesystem>
+#include <functional>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -183,11 +184,78 @@ void ui_smart_filter_table_entry_edits_renders_and_saves() {
   CHECK(reread_values != nullptr && reread_values->values == values->values);
 }
 
+// Photoshop re-randomizes Crystallize and Mezzotint, so an edit shows
+// Patchy's own deterministic rendering; the generated dialogs still carry the
+// imported values.
+void ui_smart_filter_table_random_entries_edit_from_dialogs() {
+  SettingsValueRestorer notes_setting(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto path = QString::fromStdWString(
+      patchy::test::committed_psd_fixture_path("photoshop-smart-filter-random.psd")
+          .wstring());
+  CHECK(QFileInfo::exists(path));
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+  auto &document = patchy::ui::MainWindowTestAccess::document(window);
+
+  const auto edit_layer = [&](const QString &name, const char *before_shot,
+                              const char *after_shot,
+                              const std::function<void(QDialog &)> &change) {
+    const auto layer_id = select_named_layer(window, name);
+    save_layer_shot(*std::as_const(document).find_layer(layer_id), before_shot);
+    auto *edit = layer_row(window, name)->findChild<QToolButton *>(
+        QStringLiteral("layerSmartFilterEditButton"));
+    CHECK(edit != nullptr && edit->isEnabled());
+    bool edited = false;
+    QTimer::singleShot(20, [&] {
+      auto *dialog = qobject_cast<QDialog *>(
+          find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+      CHECK(dialog != nullptr);
+      change(*dialog);
+      edited = true;
+      dialog->accept();
+    });
+    edit->click();
+    CHECK(process_events_until([&] { return edited; }, 5000));
+    process_events_for(50);
+    const auto *layer = std::as_const(document).find_layer(layer_id);
+    CHECK(layer != nullptr && layer->smart_filter_stack() != nullptr);
+    save_layer_shot(*layer, after_shot);
+    return std::get<patchy::TableSmartFilter>(
+        layer->smart_filter_stack()->entries.front().parameters);
+  };
+
+  const auto crystallize = edit_layer(
+      QStringLiteral("Crystallize 10"), "crystallize-photoshop-preview.png",
+      "crystallize-patchy-20.png", [](QDialog &dialog) {
+        auto *cell = dialog.findChild<QSpinBox *>(QStringLiteral("filterCellSizeSpin"));
+        CHECK(cell != nullptr && cell->value() == 10);
+        cell->setValue(20);
+      });
+  CHECK(std::get<std::int32_t>(crystallize.values[0]) == 20);
+
+  const auto mezzotint = edit_layer(
+      QStringLiteral("Mezzotint fine dots"), "mezzotint-photoshop-preview.png",
+      "mezzotint-patchy-medium-lines.png", [](QDialog &dialog) {
+        auto *type = dialog.findChild<QComboBox *>(QStringLiteral("filterTypeCombo"));
+        CHECK(type != nullptr &&
+              type->currentData().toString() == QStringLiteral("fine_dots"));
+        type->setCurrentIndex(type->findData(QStringLiteral("medium_lines")));
+      });
+  CHECK(std::get<std::string>(mezzotint.values[0]) == "medium_lines");
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> smart_filter_tests_part4() {
   return {
       {"ui_smart_filter_table_entry_edits_renders_and_saves",
        ui_smart_filter_table_entry_edits_renders_and_saves},
+      {"ui_smart_filter_table_random_entries_edit_from_dialogs",
+       ui_smart_filter_table_random_entries_edit_from_dialogs},
   };
 }

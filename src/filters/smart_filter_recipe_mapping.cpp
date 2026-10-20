@@ -72,6 +72,9 @@ bool native_smart_filter_kind_supported(SmartFilterKind kind) {
     case SmartFilterKind::Minimum:
     case SmartFilterKind::Custom:
     case SmartFilterKind::Fragment:
+    case SmartFilterKind::Crystallize:
+    case SmartFilterKind::Pointillize:
+    case SmartFilterKind::Mezzotint:
       return smart_filter_table_spec(kind) != nullptr;
     case SmartFilterKind::Unsupported:
       return false;

@@ -432,6 +432,234 @@ FilterRenderResult render_fragment(const FilterRenderResult &canvas,
   return FilterRenderResult{std::move(output), canvas.bounds};
 }
 
+// --- Patchy's own renderings of Photoshop's randomized filters -------------
+// Crystallize, Pointillize and Mezzotint draw new random cells, dots and
+// screens every time Photoshop renders them and store no seed, so no render
+// can match Photoshop's preview. These are deterministic Patchy renderings in
+// the same style (integer math only, splitmix64 positions, fixed seeds); see
+// docs/smart-filters-pixelate-render.md.
+
+std::uint64_t splitmix64(std::uint64_t value) noexcept {
+  value += 0x9e3779b97f4a7c15ULL;
+  value = (value ^ (value >> 30U)) * 0xbf58476d1ce4e5b9ULL;
+  value = (value ^ (value >> 27U)) * 0x94d049bb133111ebULL;
+  return value ^ (value >> 31U);
+}
+
+std::uint64_t cell_random(std::int64_t x, std::int64_t y,
+                          std::uint64_t salt) noexcept {
+  return splitmix64(
+      splitmix64(static_cast<std::uint64_t>(x) * 0x632be59bd9b4e019ULL ^ salt) ^
+      static_cast<std::uint64_t>(y));
+}
+
+std::int64_t integer_sqrt(std::int64_t value) noexcept {
+  if (value <= 0) {
+    return 0;
+  }
+  auto root =
+      static_cast<std::int64_t>(std::sqrt(static_cast<double>(value)));
+  while (root * root > value) {
+    --root;
+  }
+  while ((root + 1) * (root + 1) <= value) {
+    ++root;
+  }
+  return root;
+}
+
+// One jittered seed per cell of a `size` px grid, in 1/256 px.
+struct CellSeed {
+  std::int64_t x{0};
+  std::int64_t y{0};
+  std::uint64_t random{0};
+};
+
+CellSeed cell_seed(std::int64_t cell_x, std::int64_t cell_y, std::int32_t size,
+                   std::uint64_t salt) noexcept {
+  const auto random = cell_random(cell_x, cell_y, salt);
+  const auto span = static_cast<std::uint64_t>(size) * 256U;
+  return CellSeed{
+      cell_x * size * 256 + static_cast<std::int64_t>(random % span),
+      cell_y * size * 256 + static_cast<std::int64_t>((random >> 24U) % span),
+      random};
+}
+
+const std::uint8_t *seed_color(const PixelBuffer &extended,
+                               const CellSeed &seed) {
+  const auto x =
+      std::clamp<std::int64_t>(seed.x / 256, 0, extended.width() - 1);
+  const auto y =
+      std::clamp<std::int64_t>(seed.y / 256, 0, extended.height() - 1);
+  return extended.pixel(static_cast<std::int32_t>(x),
+                        static_cast<std::int32_t>(y));
+}
+
+// Crystallize: Voronoi cells of jittered seeds, each filled with the color
+// under its seed (the Manhattan-extended color for a transparent seed; the
+// captures show every cell takes one source pixel's color, never an average).
+// Alpha is unchanged.
+FilterRenderResult render_crystallize(const FilterRenderResult &canvas,
+                                      const TableSmartFilter &values,
+                                      const RowProgress &progress) {
+  const auto width = canvas.bounds.width;
+  const auto height = canvas.bounds.height;
+  const auto size = integer_at(values, 0);
+  constexpr std::uint64_t kSalt = 0x43727374ULL;
+  const auto extended = extend_transparent_manhattan(canvas.pixels, progress);
+  PixelBuffer output = canvas.pixels;
+  for (std::int32_t y = 0; y < height; ++y) {
+    progress.step(height + y);
+    const auto cell_y = static_cast<std::int64_t>(y / size);
+    const auto py = static_cast<std::int64_t>(y) * 256 + 128;
+    for (std::int32_t x = 0; x < width; ++x) {
+      const auto cell_x = static_cast<std::int64_t>(x / size);
+      const auto px = static_cast<std::int64_t>(x) * 256 + 128;
+      auto best_distance = std::numeric_limits<std::int64_t>::max();
+      CellSeed best;
+      for (auto cy = cell_y - 2; cy <= cell_y + 2; ++cy) {
+        for (auto cx = cell_x - 2; cx <= cell_x + 2; ++cx) {
+          const auto seed = cell_seed(cx, cy, size, kSalt);
+          const auto dx = seed.x - px;
+          const auto dy = seed.y - py;
+          const auto distance = dx * dx + dy * dy;
+          if (distance < best_distance) {
+            best_distance = distance;
+            best = seed;
+          }
+        }
+      }
+      const auto *color = seed_color(extended, best);
+      std::copy(color, color + 3, output.pixel(x, y));
+    }
+  }
+  return FilterRenderResult{std::move(output), canvas.bounds};
+}
+
+// Pointillize: the entry's background color under anti-aliased dots, one per
+// jittered cell (radius 0.55 to 0.8 cells), each the color under its center.
+// Alpha is unchanged.
+FilterRenderResult render_pointillize(const FilterRenderResult &canvas,
+                                      const TableSmartFilter &values,
+                                      RgbColor background,
+                                      const RowProgress &progress) {
+  const auto width = canvas.bounds.width;
+  const auto height = canvas.bounds.height;
+  const auto size = integer_at(values, 0);
+  constexpr std::uint64_t kSalt = 0x506e746cULL;
+  const auto extended = extend_transparent_manhattan(canvas.pixels, progress);
+  PixelBuffer output = canvas.pixels;
+  for (std::int32_t y = 0; y < height; ++y) {
+    progress.step(height + y);
+    const auto cell_y = static_cast<std::int64_t>(y / size);
+    const auto py = static_cast<std::int64_t>(y) * 256 + 128;
+    for (std::int32_t x = 0; x < width; ++x) {
+      const auto cell_x = static_cast<std::int64_t>(x / size);
+      const auto px = static_cast<std::int64_t>(x) * 256 + 128;
+      std::int64_t color[3]{background.red, background.green, background.blue};
+      for (auto cy = cell_y - 2; cy <= cell_y + 2; ++cy) {
+        for (auto cx = cell_x - 2; cx <= cell_x + 2; ++cx) {
+          const auto seed = cell_seed(cx, cy, size, kSalt);
+          const auto radius =
+              static_cast<std::int64_t>(size) *
+              (141 + static_cast<std::int64_t>((seed.random >> 48U) % 64U));
+          const auto dx = seed.x - px;
+          const auto dy = seed.y - py;
+          const auto distance = integer_sqrt(dx * dx + dy * dy);
+          const auto coverage =
+              std::clamp<std::int64_t>(radius - distance + 128, 0, 256);
+          if (coverage == 0) {
+            continue;
+          }
+          const auto *dot = seed_color(extended, seed);
+          for (int channel = 0; channel < 3; ++channel) {
+            color[channel] =
+                (color[channel] * (256 - coverage) +
+                 static_cast<std::int64_t>(dot[channel]) * coverage + 128) /
+                256;
+          }
+        }
+      }
+      auto *destination = output.pixel(x, y);
+      for (int channel = 0; channel < 3; ++channel) {
+        destination[channel] = clamp_byte(color[channel]);
+      }
+    }
+  }
+  return FilterRenderResult{std::move(output), canvas.bounds};
+}
+
+// Mezzotint: every color channel becomes 0 or 255 against an independent
+// random threshold screen; dots vary the screen's grain, lines and strokes
+// hold it along horizontal runs. Alpha is unchanged.
+FilterRenderResult render_mezzotint(const FilterRenderResult &canvas,
+                                    const TableSmartFilter &values,
+                                    const RowProgress &progress) {
+  const auto width = canvas.bounds.width;
+  const auto height = canvas.bounds.height;
+  const auto &type = token_at(values, 0);
+  constexpr std::uint64_t kSalt = 0x4d7a746eULL;
+  std::int32_t grain = 1;
+  std::int32_t run = 0;
+  std::int32_t thickness = 1;
+  if (type == "medium_dots") {
+    grain = 2;
+  } else if (type == "coarse_dots") {
+    grain = 3;
+  } else if (type == "short_lines") {
+    run = 4;
+  } else if (type == "medium_lines") {
+    run = 8;
+  } else if (type == "long_lines") {
+    run = 16;
+  } else if (type == "short_strokes") {
+    run = 8;
+    thickness = 2;
+  } else if (type == "medium_strokes") {
+    run = 16;
+    thickness = 2;
+  } else if (type == "long_strokes") {
+    run = 32;
+    thickness = 2;
+  }
+  const bool grainy = type == "grainy_dots";
+  const auto threshold = [&](std::int32_t x, std::int32_t y,
+                             std::uint64_t lane) -> std::int64_t {
+    const auto salt = kSalt + lane * 0x1000193ULL;
+    if (grainy) {
+      // Fine noise pulled toward a coarser clump layer.
+      const auto fine =
+          static_cast<std::int64_t>(cell_random(x, y, salt) % 255U);
+      const auto clump = static_cast<std::int64_t>(
+          cell_random(x / 3, y / 3, salt ^ 0xa5a5U) % 255U);
+      return (fine + clump) / 2;
+    }
+    if (run > 0) {
+      const auto row = static_cast<std::int64_t>(y / thickness);
+      const auto phase = static_cast<std::int64_t>(
+          cell_random(-1, row, salt) % static_cast<std::uint64_t>(run));
+      const auto segment = (static_cast<std::int64_t>(x) + phase) / run;
+      return static_cast<std::int64_t>(cell_random(segment, row, salt) % 255U);
+    }
+    return static_cast<std::int64_t>(
+        cell_random(x / grain, y / grain, salt) % 255U);
+  };
+  PixelBuffer output = canvas.pixels;
+  for (std::int32_t y = 0; y < height; ++y) {
+    progress.step(y);
+    for (std::int32_t x = 0; x < width; ++x) {
+      auto *pixel = output.pixel(x, y);
+      for (int channel = 0; channel < 3; ++channel) {
+        pixel[channel] =
+            pixel[channel] > threshold(x, y, static_cast<std::uint64_t>(channel))
+                ? std::uint8_t{255}
+                : std::uint8_t{0};
+      }
+    }
+  }
+  return FilterRenderResult{std::move(output), canvas.bounds};
+}
+
 }  // namespace
 
 FilterRenderResult render_table_smart_filter(const FilterRenderResult &canvas,
@@ -468,6 +696,15 @@ FilterRenderResult render_table_smart_filter(const FilterRenderResult &canvas,
       break;
     case SmartFilterKind::Fragment:
       result = render_fragment(canvas, rows);
+      break;
+    case SmartFilterKind::Crystallize:
+      result = render_crystallize(canvas, *values, rows);
+      break;
+    case SmartFilterKind::Pointillize:
+      result = render_pointillize(canvas, *values, entry.background, rows);
+      break;
+    case SmartFilterKind::Mezzotint:
+      result = render_mezzotint(canvas, *values, rows);
       break;
     default:
       throw std::invalid_argument(

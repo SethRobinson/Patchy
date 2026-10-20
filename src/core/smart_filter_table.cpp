@@ -137,6 +137,55 @@ std::vector<SmartFilterTableSpec> make_table() {
         integer_field("Ofst", "offset",
                       PATCHY_TRANSLATE_NOOP("QObject", "Offset"), -9999.0,
                       9999.0, 0.0, -255.0, 255.0)}});
+  // Crystallize and Pointillize: one integer ClSz. Photoshop places their
+  // cells randomly on every render and stores no seed; Patchy renders its own
+  // deterministic cells (docs/smart-filters-pixelate-render.md).
+  table.push_back(
+      {SmartFilterKind::Crystallize, "Crystallize...", "Crystallize", "Crst",
+       false, 0x43727374U, PATCHY_TRANSLATE_NOOP("QObject", "Crystallize"),
+       "patchy.smart_filters.crystallize", true,
+       {integer_field("ClSz", "cell_size",
+                      PATCHY_TRANSLATE_NOOP("QObject", "Cell Size"), 3.0,
+                      300.0, 10.0, 3.0, 100.0,
+                      PATCHY_TRANSLATE_NOOP("QObject", " px"))}});
+  table.push_back(
+      {SmartFilterKind::Pointillize, "Pointillize...", "Pointillize", "Pntl",
+       false, 0x506e746cU, PATCHY_TRANSLATE_NOOP("QObject", "Pointillize"),
+       "patchy.smart_filters.pointillize", true,
+       {integer_field("ClSz", "cell_size",
+                      PATCHY_TRANSLATE_NOOP("QObject", "Cell Size"), 3.0,
+                      300.0, 3.0, 3.0, 100.0,
+                      PATCHY_TRANSLATE_NOOP("QObject", " px"))}});
+  // Mezzotint: the MztT enum (tokens confirmed through Photoshop's
+  // stringID table). Random in Photoshop too, no seed stored.
+  table.push_back(
+      {SmartFilterKind::Mezzotint, "Mezzotint...", "Mezzotint", "Mztn", false,
+       0x4d7a746eU, PATCHY_TRANSLATE_NOOP("QObject", "Mezzotint"),
+       "patchy.smart_filters.mezzotint", true,
+       {enum_field(
+           "MztT", false, "MztT", false, "type",
+           PATCHY_TRANSLATE_NOOP("QObject", "Type"),
+           {{"FnDt", false, "fine_dots",
+             PATCHY_TRANSLATE_NOOP("QObject", "Fine Dots")},
+            {"MdmD", false, "medium_dots",
+             PATCHY_TRANSLATE_NOOP("QObject", "Medium Dots")},
+            {"GrnD", false, "grainy_dots",
+             PATCHY_TRANSLATE_NOOP("QObject", "Grainy Dots")},
+            {"CrsD", false, "coarse_dots",
+             PATCHY_TRANSLATE_NOOP("QObject", "Coarse Dots")},
+            {"ShrL", false, "short_lines",
+             PATCHY_TRANSLATE_NOOP("QObject", "Short Lines")},
+            {"MdmL", false, "medium_lines",
+             PATCHY_TRANSLATE_NOOP("QObject", "Medium Lines")},
+            {"LngL", false, "long_lines",
+             PATCHY_TRANSLATE_NOOP("QObject", "Long Lines")},
+            {"ShSt", false, "short_strokes",
+             PATCHY_TRANSLATE_NOOP("QObject", "Short Strokes")},
+            {"MdmS", false, "medium_strokes",
+             PATCHY_TRANSLATE_NOOP("QObject", "Medium Strokes")},
+            {"LngS", false, "long_strokes",
+             PATCHY_TRANSLATE_NOOP("QObject", "Long Strokes")}},
+           "fine_dots")}});
   // Fragment has no settings: Photoshop writes no Fltr object.
   table.push_back({SmartFilterKind::Fragment, "Fragment", "Fragment", nullptr,
                    false, 0x4672676dU,

@@ -70,18 +70,40 @@ variants each left 69 to 324 mismatched pixels on the holed probe, this one none
   edge-clamped, averaged in byte-rounded premultiplied space: `p = round(c * a / 255)`, average
   the four `p` and `a` with round-half-up, unpremultiply `round(p * 255 / a)`.
 
+## Randomized filters (Patchy's own pixels)
+
+Crystallize `Crst`/0x43727374 and Pointillize `Pntl`/0x506e746c (entries `Crystallize...`,
+`Pointillize...`, one integer `ClSz`, 3..300) and Mezzotint `Mztn`/0x4d7a746e (`Mezzotint...`, enum
+`MztT`: `FnDt`, `MdmD`, `GrnD`, `CrsD`, `ShrL`, `MdmL`, `LngL`, `ShSt`, `MdmS`, `LngS`, confirmed
+through PS's stringID table: fineDots ... longStrokes) store no seed, and PS draws new random cells
+or screens on every application: two identical captures differ by about 41 (Crystallize 10) and
+102 (Mezzotint fine dots) per visible channel sample. No render can reproduce PS's preview, so Patchy renders its own
+deterministic version in the same style (integer math, splitmix64, fixed salts, cells anchored at
+the canvas origin), like Add Noise:
+
+- Crystallize: Voronoi cells of one jittered seed per `ClSz` grid cell, each filled with the
+  (Manhattan-extended) color under its seed. PS's cells likewise take one source pixel's color,
+  never an average. Alpha unchanged.
+- Pointillize: the entry's background color (`BckC`, as PS) under anti-aliased dots, one per
+  jittered cell, radius 0.55 to 0.8 cells, each the color under its center. Alpha unchanged.
+- Mezzotint: each RGB channel becomes 0 or 255 against an independent random threshold screen:
+  dots at grain 1, 2 or 3 px (grainy: fine noise pulled toward 3 px clumps), lines as horizontal
+  runs of 4, 8 or 16 px, strokes as 2 px tall runs of 8, 16 or 32 px. Alpha unchanged.
+
+`smart_filter_table_random_filters_round_trip_and_render_in_style` pins the descriptors
+(`photoshop-smart-filter-random.psd`), determinism, alpha, and Patchy's mean difference from PS's
+render: within 1.25 times PS's difference from itself (Crystallize 42 against PS's 41).
+
 ## Captured but not modeled yet
 
 Descriptor facts from the captures; these entries stay preview-locked:
 
 - Facet `Fct `, Despeckle `Dspc`, Clouds `Clds`, Difference Clouds `DfrC`: no `Fltr`, `hasoptions`
   false. Clouds re-rendered identically in two documents (deterministic in PS; uses `FrgC`/`BckC`).
-- Color Halftone `ClrH`: integers `Rds ` then `Ang1`..`Ang4`. Crystallize `Crst`, Pointillize
-  `Pntl`: integer `ClSz`. Mezzotint `Mztn`: enum `MztT` (`FnDt`, ...). Fibers `Fbrs`: integers
-  `Vrnc`, `Strg` (no seed stored). Lens Flare `LnsF`: integer `Brgh`, `FlrC` point object
-  (`Hrzn`, `Vrtc` #Pxl), enum `Lns `.
-- Crystallize and Mezzotint re-render differently on every application with no stored seed, so
-  PS itself cannot reproduce its own preview.
+- Color Halftone `ClrH`: integers `Rds ` then `Ang1`..`Ang4`; anti-aliased dots on a grid not
+  yet derived. Fibers `Fbrs`: integers `Vrnc`, `Strg`; no seed stored and two captures differ.
+  Lens Flare `LnsF`: integer `Brgh`, `FlrC` point object (`Hrzn`, `Vrtc` #Pxl), enum `Lns `
+  (`Zm  ` zoom, `Nkn ` 35 mm, `Nkn1` 105 mm, `PnVs` movie prime).
 - HSB/HSL: event and class `HsbP`/0x48736250, entry `HSB/HSL`, enums `Inpt` and `Otpt` (`ClrS`:
   `RGBC`, `HSBl`, `HSLC`). RGB to HSB: alpha unchanged, B = max, H = hue * 256 / 360 (blue is
   171) but a fixed-point step not yet found rounds 6 of 10281 hue samples one lower near .5; S
