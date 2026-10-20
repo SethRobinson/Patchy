@@ -827,10 +827,15 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   // the original custom curve and only a deliberate preset pick replaces it.
   StyleContour custom_gloss_contour = bevel.gloss_contour;
   StyleContour custom_bevel_sub_contour = bevel.contour.contour;
-  if (gradient.gradient.color_stops.empty()) {
+  // A Noise gradient has no stops by design: keep its seed and ranges and let
+  // the controls show the Noise page (a Photoshop file's noise overlay opened as
+  // the default white-to-black ramp, GitHub issue 262). Only a stop gradient
+  // with no stops falls back to the default ramp.
+  if (gradient.gradient.form == GradientDefinitionForm::Solid && gradient.gradient.color_stops.empty()) {
     gradient.gradient = default_layer_style_gradient();
   }
-  if (stroke.uses_gradient && stroke.gradient.color_stops.empty()) {
+  if (stroke.uses_gradient && stroke.gradient.form == GradientDefinitionForm::Solid &&
+      stroke.gradient.color_stops.empty()) {
     stroke.gradient = default_layer_style_gradient();
   }
 
@@ -2161,7 +2166,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         auto value = style.gradient_fills.size() > static_cast<std::size_t>(index)
                          ? style.gradient_fills[static_cast<std::size_t>(index)]
                          : default_gradient_fill();
-        if (value.gradient.color_stops.empty()) {
+        if (value.gradient.form == GradientDefinitionForm::Solid && value.gradient.color_stops.empty()) {
           value.gradient = default_layer_style_gradient();
         }
         set_combo_data(gradient_blend, static_cast<int>(value.blend_mode));

@@ -424,7 +424,7 @@ void psd_photoshop_bevel_subs_fixture_round_trips() {
   CHECK(document.metadata().patterns.find(texture_bevel.texture.pattern_id) != nullptr);
 
   // Simulate an edit (drop the preserved style blocks) and require the
-  // regenerated descriptors to re-read with identical modeled values —
+  // regenerated descriptors to re-read with identical modeled values â€”
   // including EXACT custom contour points, the better-than-Satin guarantee.
   for (auto& layer : document.layers()) {
     std::erase_if(layer.unknown_psd_blocks(), [](const patchy::UnknownPsdBlock& block) {
@@ -898,6 +898,113 @@ void ag_psd_float_color_outer_glow_matches_photoshop_if_available() {
   // Before the float-color fix the glow was absent: mean 2.3, worst 89.
   CHECK(mean <= 0.6);
   CHECK(share <= 0.01);
+}
+
+// ag-psd's effects/src.psd 'other' layer (GitHub issues 262 and 263): a Gradient Overlay
+// whose gradient is Photoshop's Lab-model noise (seed 43487260, Restrict Colors on) under a
+// Multiply Satin with a Gaussian contour. src-nosatin.psd is the same file with that
+// Satin's enab byte cleared (the reporter's comparison), ps-flat-nosatin.bmp Photoshop's
+// merge of it over white. The noise gradient must survive the read with its settings and
+// the overlay must render within the Lab noise tolerance recorded in docs/gradients.md.
+void ag_psd_effects_noise_gradient_overlay_matches_photoshop_if_available() {
+  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "ag-psd" / "effects";
+  patchy::test::skip_unless_exists(dir / "src-nosatin.psd");
+  patchy::test::skip_unless_exists(dir / "ps-flat-nosatin.bmp");
+  const auto document = patchy::psd::DocumentIo::read_file(dir / "src-nosatin.psd");
+  const auto* layer = find_layer_named(document.layers(), "other");
+  CHECK(layer != nullptr);
+  const auto& style = layer->layer_style();
+  CHECK(style.gradient_fills.size() == 1);
+  const auto& gradient = style.gradient_fills.front().gradient;
+  CHECK(gradient.form == patchy::GradientDefinitionForm::Noise);
+  CHECK(gradient.noise.seed == 43487260U);
+  CHECK(gradient.noise.roughness == 2048U);
+  CHECK(gradient.noise.restrict_colors);
+  CHECK(!gradient.noise.add_transparency);
+  CHECK(gradient.noise.color_model == patchy::GradientNoiseColorModel::Lab);
+  CHECK(gradient.noise.minimum[0] == 0 && gradient.noise.maximum[0] == 100);
+  CHECK(gradient.type == patchy::LayerStyleGradientType::Linear);
+  CHECK(close_float(gradient.angle_degrees, 90.0F));
+  CHECK(gradient.align_with_layer);
+  CHECK(style.satins.size() == 1);
+  CHECK(!style.satins.front().enabled);
+
+  // Photoshop's merge over white against Patchy's flatten over white, inside the
+  // layer's pixel box (11,93)-(76,121).
+  const auto reference = patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(dir / "ps-flat-nosatin.bmp"));
+  std::vector<std::uint8_t> coverage;
+  const auto flat = patchy::Compositor{}.flatten_rgb8(document, &coverage);
+  CHECK(reference.width() == flat.width() && reference.height() == flat.height());
+  double total = 0.0;
+  int worst = 0;
+  std::uint64_t count = 0;
+  for (std::int32_t y = 93; y < 121; ++y) {
+    for (std::int32_t x = 11; x < 76; ++x) {
+      const auto* a = reference.pixel(x, y);
+      const auto* b = flat.pixel(x, y);
+      const auto alpha = static_cast<double>(coverage[static_cast<std::size_t>(y) * flat.width() + x]) / 255.0;
+      for (int channel = 0; channel < 3; ++channel) {
+        const int over_white = static_cast<int>(std::lround(b[channel] * alpha + 255.0 * (1.0 - alpha)));
+        const int delta = std::abs(a[channel] - over_white);
+        total += delta;
+        worst = std::max(worst, delta);
+      }
+      ++count;
+    }
+  }
+  const double mean = total / (3.0 * static_cast<double>(count));
+  std::cout << "  effects 'other' noise overlay vs Photoshop (no satin): mean " << mean << ", worst " << worst << "\n";
+  CHECK(mean <= 16.0);
+}
+
+// ag-psd's effects/src.psd 'stroke' layer (GitHub issue 261): a soft-edged blob (its alpha
+// ramps over three pixels) with a 2 px Outside stroke at 66%. ps-flat.bmp is Photoshop's
+// flatten over white. The band must start where Photoshop's does, one pixel outside the
+// old half-coverage anchor.
+void ag_psd_effects_stroke_layer_matches_photoshop_if_available() {
+  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "ag-psd" / "effects";
+  patchy::test::skip_unless_exists(dir / "src.psd");
+  patchy::test::skip_unless_exists(dir / "ps-flat.bmp");
+  const auto document = patchy::psd::DocumentIo::read_file(dir / "src.psd");
+  const auto* layer = find_layer_named(document.layers(), "stroke");
+  CHECK(layer != nullptr);
+  CHECK(layer->layer_style().strokes.size() == 1);
+  const auto& stroke = layer->layer_style().strokes.front();
+  CHECK(stroke.position == patchy::LayerStrokePosition::Outside);
+  CHECK(close_float(stroke.size, 2.0F));
+  CHECK(close_float(stroke.opacity, 0.66F));
+  const auto reference = patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(dir / "ps-flat.bmp"));
+  std::vector<std::uint8_t> coverage;
+  const auto flat = patchy::Compositor{}.flatten_rgb8(document, &coverage);
+  CHECK(reference.width() == flat.width() && reference.height() == flat.height());
+  // The layer's pixel box (148,117)-(195,137) plus the band and a margin.
+  double total = 0.0;
+  int worst = 0;
+  std::uint64_t off = 0;
+  std::uint64_t count = 0;
+  for (std::int32_t y = 112; y < 142; ++y) {
+    for (std::int32_t x = 143; x < 200; ++x) {
+      const auto* a = reference.pixel(x, y);
+      const auto* b = flat.pixel(x, y);
+      const auto alpha = static_cast<double>(coverage[static_cast<std::size_t>(y) * flat.width() + x]) / 255.0;
+      int delta = 0;
+      for (int channel = 0; channel < 3; ++channel) {
+        const int over_white = static_cast<int>(std::lround(b[channel] * alpha + 255.0 * (1.0 - alpha)));
+        delta = std::max(delta, std::abs(a[channel] - over_white));
+      }
+      total += delta;
+      worst = std::max(worst, delta);
+      if (delta > 8) {
+        ++off;
+      }
+      ++count;
+    }
+  }
+  const double mean = total / static_cast<double>(count);
+  std::cout << "  effects 'stroke' layer vs Photoshop: mean " << mean << ", worst " << worst << ", " << off
+            << " pixels off by more than 8 of " << count << "\n";
+  CHECK(mean <= 2.0);
+  CHECK(static_cast<double>(off) / static_cast<double>(count) <= 0.03);
 }
 
 void psd_photoshop_outer_glow_fixtures_match_render() {
@@ -1423,7 +1530,7 @@ void psd_photoshop_stroke_aa_matte_fixture_matches_render() {
 // Photoshop 2026 authored photoshop-stroke-overprint.psd/.bmp via COM (July
 // 2026): eight stroke arms over an orange (255,128,0) backdrop, gray (110)
 // content, pinning the Overprint knockout model. Arms: Inside 29% white
-// overprint off (band = 0.29*white + 0.71*orange — content fully knocked
+// overprint off (band = 0.29*white + 0.71*orange â€” content fully knocked
 // out), the same with overprint ON (band = stroke over the gray content),
 // 60% off, Multiply (200,100,50) 100% off (blend mode applies against the
 // BACKDROP), an AA ellipse at 29% off (fringe compensation), a
@@ -1856,7 +1963,7 @@ void psd_photoshop_shadow_conceals_fixture_matches_render() {
 // (docs/ps-compat.md).
 void psd_photoshop_pillow_emboss_fixtures_match_render() {
   // photoshop-emboss-styles adds AA-ellipse pillow probes (fringe pixels
-  // carry BOTH sides' shading — the two-sided composite) and plain-Emboss
+  // carry BOTH sides' shading â€” the two-sided composite) and plain-Emboss
   // squares/ellipse (same calibrated model, one global sign, no flip).
   for (const auto* stem :
        {"photoshop-pillow-emboss", "photoshop-pillow-emboss2", "photoshop-emboss-styles"}) {
@@ -1899,8 +2006,8 @@ void psd_photoshop_pillow_emboss_fixtures_match_render() {
 }
 
 // Photoshop 2026 authored photoshop-stroke-shapeburst.psd via COM (July 2026):
-// three L-shaped mattes carrying Shape Burst gradient strokes — Outside 10 px,
-// Center 12 px with Reverse, and Inside 10 px at Scale 50 — saved alongside
+// three L-shaped mattes carrying Shape Burst gradient strokes â€” Outside 10 px,
+// Center 12 px with Reverse, and Inside 10 px at Scale 50 â€” saved alongside
 // Photoshop's own flatten. It pins the calibrated mapping (docs/ps-compat.md):
 // the ramp is linear in the band's Euclidean distance field with position 0 at
 // the outer band limit, Center strokes ramp continuously across the contour,
@@ -1933,7 +2040,7 @@ void psd_photoshop_stroke_shapeburst_fixture_matches_render() {
   // Straight band runs match within +/-1; the only pixels past the 6/255 AA
   // tolerance (0.09% of the canvas at capture time) are band-edge arcs at
   // shape corners, where the shared stroke coverage ramp (linear in center
-  // distance) overfills slightly against Photoshop's rounder arc coverage —
+  // distance) overfills slightly against Photoshop's rounder arc coverage â€”
   // a solid-stroke coverage property, not part of the Shape Burst mapping.
   CHECK(metrics.mean_abs_channel_delta <= 0.10);
   std::uint64_t over_aa_tolerance = 0;
@@ -2599,6 +2706,8 @@ std::vector<patchy::test::TestCase> pattern_styles_fixtures_tests() {
       {"psd_photoshop_stroke_shapeburst_fixture_matches_render",
        psd_photoshop_stroke_shapeburst_fixture_matches_render},
       {"psd_lfx2_float_color_descriptor_reads_as_rgb", psd_lfx2_float_color_descriptor_reads_as_rgb},
+      {"ag_psd_effects_noise_gradient_overlay_matches_photoshop_if_available",
+       ag_psd_effects_noise_gradient_overlay_matches_photoshop_if_available},
       {"ag_psd_float_color_outer_glow_matches_photoshop_if_available",
        ag_psd_float_color_outer_glow_matches_photoshop_if_available},
       {"psd_lrfx_legacy_drop_shadow_parses_fixed_point",

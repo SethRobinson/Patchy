@@ -243,6 +243,45 @@ void noise_gradient_matches_photoshop_samples() {
   }
 }
 
+// Lab-model noise against Photoshop 2026 captures of 4096 px noise Gradient Fills
+// (local-test-fixtures/noise-gradient-probes/lab263-{free,restrict}.bmp, seed 43487260,
+// roughness 50%, full channel ranges, Restrict Colors off and on; the 'other' layer of
+// ag-psd's effects/src.psd, GitHub issue 263). The CIELAB conversion sits 10 to 13
+// levels off on average (the OKLab stand-in it replaced was 31 to 36); the measured
+// residuals are in docs/gradients.md.
+void noise_gradient_lab_matches_photoshop_probes_if_available() {
+  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "noise-gradient-probes";
+  struct Probe {
+    const char* file;
+    bool restrict_colors;
+    double max_mean_error;
+  };
+  const std::array<Probe, 2> probes{{{"lab263-free.bmp", false, 14.0}, {"lab263-restrict.bmp", true, 12.0}}};
+  for (const auto& probe : probes) {
+    patchy::test::skip_unless_exists(dir / probe.file);
+  }
+  for (const auto& probe : probes) {
+    const auto capture = patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(dir / probe.file));
+    CHECK(capture.width() == 4096);
+    patchy::LayerStyleGradient gradient;
+    gradient.form = patchy::GradientDefinitionForm::Noise;
+    gradient.noise.seed = 43487260U;
+    gradient.noise.roughness = 2048U;
+    gradient.noise.restrict_colors = probe.restrict_colors;
+    gradient.noise.color_model = patchy::GradientNoiseColorModel::Lab;
+    double total = 0.0;
+    for (std::int32_t x = 0; x < capture.width(); ++x) {
+      const auto color = patchy::gradient_color(gradient, static_cast<float>(x) / 4096.0F);
+      const auto* expected = capture.pixel(x, 0);
+      total += std::abs(color.red - expected[0]) + std::abs(color.green - expected[1]) +
+               std::abs(color.blue - expected[2]);
+    }
+    const auto mean = total / (3.0 * capture.width());
+    std::cout << "  " << probe.file << ": mean abs error " << mean << "\n";
+    CHECK(mean <= probe.max_mean_error);
+  }
+}
+
 void gradient_methods_noise_dither_and_geometry_are_deterministic() {
   const auto same_color = [](patchy::RgbColor lhs, patchy::RgbColor rhs) {
     return lhs.red == rhs.red && lhs.green == rhs.green && lhs.blue == rhs.blue;
@@ -1038,6 +1077,8 @@ std::vector<patchy::test::TestCase> gradients_interior_effects_tests() {
       {"grd_v5_round_trips_solid_dynamic_noise_and_hierarchy",
        grd_v5_round_trips_solid_dynamic_noise_and_hierarchy},
       {"noise_gradient_matches_photoshop_samples", noise_gradient_matches_photoshop_samples},
+      {"noise_gradient_lab_matches_photoshop_probes_if_available",
+       noise_gradient_lab_matches_photoshop_probes_if_available},
       {"gradient_methods_noise_dither_and_geometry_are_deterministic",
        gradient_methods_noise_dither_and_geometry_are_deterministic},
       {"gradient_linear_geometry_uses_angle_projected_layer_span",
