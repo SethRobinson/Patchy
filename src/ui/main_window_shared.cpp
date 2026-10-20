@@ -178,6 +178,10 @@ QString localized_adjustment_display_name(AdjustmentKind kind) {
       return QObject::tr("Photo Filter");
     case AdjustmentKind::GradientMap:
       return QObject::tr("Gradient Map");
+    case AdjustmentKind::BlackWhite:
+      return QObject::tr("Black & White");
+    case AdjustmentKind::ColorLookup:
+      return QObject::tr("Color Lookup");
   }
   return QObject::tr("Adjustment");
 }

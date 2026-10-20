@@ -82,6 +82,7 @@ using ExposureSettings = ExposureAdjustment;
 using ChannelMixerSettings = ChannelMixerAdjustment;
 using PhotoFilterSettings = PhotoFilterAdjustment;
 using GradientMapSettings = GradientMapAdjustment;
+using BlackWhiteSettings = BlackWhiteAdjustment;
 class GradientLibrary;
 using BrightnessContrastSettings = BrightnessContrastAdjustment;
 
@@ -190,6 +191,9 @@ void blend_by_selection_coverage(PixelBuffer& result, const PixelBuffer& origina
     PhotoFilterSettings initial = {});
 // The gradient editor of the layer style dialog without its placement controls. The library
 // feeds the Preset button (null disables it); foreground and background resolve preset stops.
+[[nodiscard]] std::optional<BlackWhiteSettings> request_black_white_settings(
+    QWidget* parent, std::function<void(bool, const BlackWhiteSettings&)> preview_changed = {},
+    BlackWhiteSettings initial = {});
 [[nodiscard]] std::optional<GradientMapSettings> request_gradient_map_settings(
     QWidget* parent, std::function<void(bool, const GradientMapSettings&)> preview_changed = {},
     GradientMapSettings initial = {}, GradientLibrary* library = nullptr, RgbColor foreground = {0, 0, 0},

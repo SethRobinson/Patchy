@@ -334,7 +334,20 @@ them. Once distorted, the preview and commit map every anchor and handle (of the
 Free Transform Points subset when there is one) through the homography onto the
 corner quad, the map a distorted Free Transform gives a shape layer, and the hit
 zones, box and handles follow the quad (`path_transform_handle_corners`). An
-undistorted session keeps the affine path byte for byte. The canvas key filter
+undistorted session keeps the affine path byte for byte.
+
+Live fill: a shape layer or vector-mask target re-rasterizes with the preview
+path on every drag frame, nudge and distort step (`refresh_path_transform_live_fill`
+through the un-armed `replace_path_edit_target`, the Simplify Path preview's
+route; one layer's re-raster per change, the Direct Select drag cost). The
+session snapshots the owning layer at Ctrl+T; Esc, a document switch and every
+other cancel restore it (`restore_path_transform_owner`), but only while the
+layer still holds the session's last write, so a history restore wins. Commit
+restores first, then applies the result as the one armed "Transform path" entry.
+Undo during the session cancels it (MainWindow::undo) and Redo does nothing, so
+neither reaches the history behind the un-armed writes. Work paths, saved paths
+and text-area paths have no fill and keep the outline preview. Coverage:
+`ui_path_transform_fill_follows_the_box_live`. The canvas key filter
 refreshes the cursor when Ctrl, Alt or Shift changes over the box. Coverage:
 `ui_path_transform_ctrl_drag_distorts_corner_and_side`,
 `ui_path_transform_ctrl_alt_drag_is_symmetric`,

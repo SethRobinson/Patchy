@@ -6,6 +6,8 @@
 #include <charconv>
 #include <cmath>
 #include <cstddef>
+#include <map>
+#include <mutex>
 #include <string_view>
 #include <utility>
 
@@ -333,6 +335,51 @@ std::optional<LayerStyleGradient> parse_gradient_map(std::string_view encoded) {
     gradient.alpha_stops.push_back(stop);
   }
   return gradient;
+}
+
+// "a;b;c;..." integers; a malformed or short value returns nullopt.
+std::optional<std::vector<int>> parse_int_list(std::string_view encoded, std::size_t count) {
+  std::vector<int> values;
+  while (!encoded.empty()) {
+    const auto separator = encoded.find(';');
+    const auto value = parse_int(encoded.substr(0, separator));
+    if (!value.has_value()) {
+      return std::nullopt;
+    }
+    values.push_back(*value);
+    encoded = separator == std::string_view::npos ? std::string_view{} : encoded.substr(separator + 1U);
+  }
+  if (values.size() != count) {
+    return std::nullopt;
+  }
+  return values;
+}
+
+// PDF SetLum with ClipColor on the 0..255 scale, with luma (30R + 59G + 11B) / 100 rounded
+// to a whole level when byte_stages is set.
+std::array<double, 3> set_luma(std::array<double, 3> color, double target, bool byte_stages) {
+  const auto luma = [byte_stages](const std::array<double, 3>& value) {
+    const double raw = (30.0 * value[0] + 59.0 * value[1] + 11.0 * value[2]) / 100.0;
+    return byte_stages ? std::floor(raw + 0.5) : raw;
+  };
+  const double shift = target - luma(color);
+  for (auto& value : color) {
+    value += shift;
+  }
+  const double center = luma(color);
+  const double low = std::min({color[0], color[1], color[2]});
+  const double high = std::max({color[0], color[1], color[2]});
+  if (low < 0.0 && center > low) {
+    for (auto& value : color) {
+      value = center + (value - center) * center / (center - low);
+    }
+  }
+  if (high > 255.0 && high > center) {
+    for (auto& value : color) {
+      value = center + (value - center) * (255.0 - center) / (high - center);
+    }
+  }
+  return color;
 }
 
 // The luma Photoshop's Gradient Map indexes the gradient with (calibrated, #250).
@@ -1023,6 +1070,176 @@ std::array<double, 3> photo_filter_transfer(const PhotoFilterAdjustment& setting
     }
   }
   return out;
+}
+
+bool ColorLookupTable::valid() const noexcept {
+  return size >= 2 && size <= 256 &&
+         values.size() == static_cast<std::size_t>(size) * static_cast<std::size_t>(size) *
+                              static_cast<std::size_t>(size) * 3U;
+}
+
+std::array<double, 3> ColorLookupTable::apply(double red, double green, double blue) const noexcept {
+  if (!valid()) {
+    return {red, green, blue};
+  }
+  const double scale = static_cast<double>(size - 1) / 255.0;
+  const std::array<double, 3> position{std::clamp(red, 0.0, 255.0) * scale, std::clamp(green, 0.0, 255.0) * scale,
+                                       std::clamp(blue, 0.0, 255.0) * scale};
+  std::array<int, 3> base{};
+  std::array<double, 3> fraction{};
+  for (std::size_t c = 0; c < 3U; ++c) {
+    base[c] = std::min(static_cast<int>(position[c]), size - 2);
+    fraction[c] = position[c] - base[c];
+  }
+  const auto node = [this, &base](int dr, int dg, int db) {
+    const auto index = (static_cast<std::size_t>(base[0] + dr) +
+                        static_cast<std::size_t>(base[1] + dg) * static_cast<std::size_t>(size) +
+                        static_cast<std::size_t>(base[2] + db) * static_cast<std::size_t>(size) *
+                            static_cast<std::size_t>(size)) *
+                       3U;
+    return std::array<double, 3>{values[index] / 65535.0, values[index + 1] / 65535.0, values[index + 2] / 65535.0};
+  };
+  // Tetrahedral interpolation: the cube splits into six tetrahedra along its main diagonal,
+  // picked by the order of the fractions.
+  const double fr = fraction[0];
+  const double fg = fraction[1];
+  const double fb = fraction[2];
+  std::array<double, 3> v1{};
+  std::array<double, 3> v2{};
+  std::array<double, 3> t{};
+  if (fr >= fg && fg >= fb) {
+    v1 = node(1, 0, 0);
+    v2 = node(1, 1, 0);
+    t = {fr, fg, fb};
+  } else if (fr >= fb && fb >= fg) {
+    v1 = node(1, 0, 0);
+    v2 = node(1, 0, 1);
+    t = {fr, fb, fg};
+  } else if (fb >= fr && fr >= fg) {
+    v1 = node(0, 0, 1);
+    v2 = node(1, 0, 1);
+    t = {fb, fr, fg};
+  } else if (fg >= fr && fr >= fb) {
+    v1 = node(0, 1, 0);
+    v2 = node(1, 1, 0);
+    t = {fg, fr, fb};
+  } else if (fg >= fb && fb >= fr) {
+    v1 = node(0, 1, 0);
+    v2 = node(0, 1, 1);
+    t = {fg, fb, fr};
+  } else {
+    v1 = node(0, 0, 1);
+    v2 = node(0, 1, 1);
+    t = {fb, fg, fr};
+  }
+  const auto origin = node(0, 0, 0);
+  const auto far_corner = node(1, 1, 1);
+  std::array<double, 3> out{};
+  for (std::size_t c = 0; c < 3U; ++c) {
+    out[c] = 255.0 * ((1.0 - t[0]) * origin[c] + (t[0] - t[1]) * v1[c] + (t[1] - t[2]) * v2[c] + t[2] * far_corner[c]);
+  }
+  return out;
+}
+
+std::shared_ptr<const ColorLookupTable> make_color_lookup_table(int size, std::vector<std::uint16_t> values) {
+  auto table = std::make_shared<ColorLookupTable>();
+  table->size = size;
+  table->values = std::move(values);
+  if (!table->valid()) {
+    return nullptr;
+  }
+  // FNV-1a over the grid size and the nodes: equal tables share an id.
+  std::uint64_t hash = 14695981039346656037ULL;
+  const auto mix = [&hash](std::uint64_t byte) {
+    hash ^= byte;
+    hash *= 1099511628211ULL;
+  };
+  mix(static_cast<std::uint64_t>(size));
+  for (const auto value : table->values) {
+    mix(value & 0xFFU);
+    mix(value >> 8U);
+  }
+  static constexpr char kHex[] = "0123456789abcdef";
+  table->id = "lut";
+  for (int shift = 60; shift >= 0; shift -= 4) {
+    table->id += kHex[(hash >> static_cast<unsigned>(shift)) & 0xFU];
+  }
+  return table;
+}
+
+namespace {
+
+std::mutex& color_lookup_registry_mutex() {
+  static std::mutex mutex;
+  return mutex;
+}
+
+std::map<std::string, std::shared_ptr<const ColorLookupTable>, std::less<>>& color_lookup_registry() {
+  static std::map<std::string, std::shared_ptr<const ColorLookupTable>, std::less<>> registry;
+  return registry;
+}
+
+}  // namespace
+
+void register_color_lookup_table(std::shared_ptr<const ColorLookupTable> table) {
+  if (table == nullptr || table->id.empty() || !table->valid()) {
+    return;
+  }
+  const std::lock_guard lock(color_lookup_registry_mutex());
+  color_lookup_registry()[table->id] = std::move(table);
+}
+
+std::shared_ptr<const ColorLookupTable> find_color_lookup_table(std::string_view id) {
+  if (id.empty()) {
+    return nullptr;
+  }
+  const std::lock_guard lock(color_lookup_registry_mutex());
+  const auto found = color_lookup_registry().find(id);
+  return found != color_lookup_registry().end() ? found->second : nullptr;
+}
+
+BlackWhiteAdjustment clamp_black_white(BlackWhiteAdjustment settings) noexcept {
+  for (int* weight : {&settings.reds, &settings.yellows, &settings.greens, &settings.cyans, &settings.blues,
+                      &settings.magentas}) {
+    *weight = std::clamp(*weight, -200, 300);
+  }
+  return settings;
+}
+
+std::array<double, 3> black_white_transfer(const BlackWhiteAdjustment& settings, double red, double green,
+                                           double blue, bool byte_stages) {
+  const auto clamped = clamp_black_white(settings);
+  // The primary is the largest channel; the secondary is the color of the two largest. Ties
+  // resolve red, then green, which the probe's grays and pure colors cannot tell apart.
+  int primary = 0;
+  int secondary = 0;
+  if (red >= green && red >= blue) {
+    primary = clamped.reds;
+    secondary = green >= blue ? clamped.yellows : clamped.magentas;
+  } else if (green >= blue) {
+    primary = clamped.greens;
+    secondary = red >= blue ? clamped.yellows : clamped.cyans;
+  } else {
+    primary = clamped.blues;
+    secondary = green >= red ? clamped.cyans : clamped.magentas;
+  }
+  const double high = std::max({red, green, blue});
+  const double low = std::min({red, green, blue});
+  const double middle = red + green + blue - high - low;
+  // Hundredths of a level; exact for 8-bit inputs, so the byte path rounds half up in integers.
+  const double scaled = low * 100.0 + (middle - low) * secondary + (high - middle) * primary;
+  double gray = scaled / 100.0;
+  if (byte_stages) {
+    const auto hundredths = std::llround(scaled) + 50;
+    const auto level = hundredths >= 0 ? hundredths / 100 : -((-hundredths + 99) / 100);
+    gray = std::clamp(static_cast<double>(level), 0.0, 255.0);
+  }
+  if (!clamped.tint) {
+    return {gray, gray, gray};
+  }
+  return set_luma({static_cast<double>(clamped.tint_color.red), static_cast<double>(clamped.tint_color.green),
+                   static_cast<double>(clamped.tint_color.blue)},
+                  std::clamp(gray, 0.0, 255.0), byte_stages);
 }
 
 LayerStyleGradient GradientMapAdjustment::default_gradient_map_gradient() {
@@ -1855,6 +2072,10 @@ std::string adjustment_kind_key(AdjustmentKind kind) {
       return "photo_filter";
     case AdjustmentKind::GradientMap:
       return "gradient_map";
+    case AdjustmentKind::BlackWhite:
+      return "black_white";
+    case AdjustmentKind::ColorLookup:
+      return "color_lookup";
   }
   return "levels";
 }
@@ -1885,6 +2106,10 @@ std::string adjustment_display_name(AdjustmentKind kind) {
       return "Photo Filter";
     case AdjustmentKind::GradientMap:
       return "Gradient Map";
+    case AdjustmentKind::BlackWhite:
+      return "Black & White";
+    case AdjustmentKind::ColorLookup:
+      return "Color Lookup";
   }
   return "Adjustment";
 }
@@ -1925,6 +2150,12 @@ std::optional<AdjustmentKind> adjustment_kind_from_key(std::string_view key) {
   }
   if (key == "gradient_map") {
     return AdjustmentKind::GradientMap;
+  }
+  if (key == "black_white") {
+    return AdjustmentKind::BlackWhite;
+  }
+  if (key == "color_lookup") {
+    return AdjustmentKind::ColorLookup;
   }
   return std::nullopt;
 }
@@ -2036,6 +2267,28 @@ std::optional<AdjustmentSettings> adjustment_settings_from_layer(const Layer& la
       gradient.has_value()) {
     gradient->name = std::string(metadata_string_or(layer, kLayerMetadataAdjustmentGradientMapName, gradient->name));
     settings.gradient_map.gradient = std::move(*gradient);
+  }
+  if (const auto weights =
+          parse_int_list(metadata_string_or(layer, kLayerMetadataAdjustmentBlackWhiteWeights, {}), 6);
+      weights.has_value()) {
+    auto& bw = settings.black_white;
+    bw.reds = (*weights)[0];
+    bw.yellows = (*weights)[1];
+    bw.greens = (*weights)[2];
+    bw.cyans = (*weights)[3];
+    bw.blues = (*weights)[4];
+    bw.magentas = (*weights)[5];
+    bw = clamp_black_white(bw);
+  }
+  settings.color_lookup.table =
+      find_color_lookup_table(metadata_string_or(layer, kLayerMetadataAdjustmentColorLookupTable, {}));
+  settings.color_lookup.name = std::string(metadata_string_or(layer, kLayerMetadataAdjustmentColorLookupName, {}));
+  settings.black_white.tint = metadata_int_or(layer, kLayerMetadataAdjustmentBlackWhiteTint, 0) != 0;
+  if (const auto tint = parse_int_list(metadata_string_or(layer, kLayerMetadataAdjustmentBlackWhiteTintColor, {}), 3);
+      tint.has_value()) {
+    settings.black_white.tint_color = RgbColor{static_cast<std::uint8_t>(std::clamp((*tint)[0], 0, 255)),
+                                               static_cast<std::uint8_t>(std::clamp((*tint)[1], 0, 255)),
+                                               static_cast<std::uint8_t>(std::clamp((*tint)[2], 0, 255))};
   }
   settings.posterize.levels =
       std::clamp(metadata_int_or(layer, kLayerMetadataAdjustmentPosterizeLevels, 4), 2, 255);
@@ -2170,6 +2423,23 @@ void configure_adjustment_layer(Layer& layer, const AdjustmentSettings& settings
   set_metadata_string(layer, kLayerMetadataAdjustmentGradientMapGradient,
                       serialize_gradient_map(settings.gradient_map.gradient));
   set_metadata_string(layer, kLayerMetadataAdjustmentGradientMapName, settings.gradient_map.gradient.name);
+  {
+    const auto bw = clamp_black_white(settings.black_white);
+    set_metadata_string(layer, kLayerMetadataAdjustmentBlackWhiteWeights,
+                        std::to_string(bw.reds) + ';' + std::to_string(bw.yellows) + ';' + std::to_string(bw.greens) +
+                            ';' + std::to_string(bw.cyans) + ';' + std::to_string(bw.blues) + ';' +
+                            std::to_string(bw.magentas));
+    set_metadata_int(layer, kLayerMetadataAdjustmentBlackWhiteTint, bw.tint ? 1 : 0);
+    if (settings.color_lookup.table != nullptr) {
+      register_color_lookup_table(settings.color_lookup.table);
+    }
+    set_metadata_string(layer, kLayerMetadataAdjustmentColorLookupTable,
+                        settings.color_lookup.table != nullptr ? settings.color_lookup.table->id : std::string());
+    set_metadata_string(layer, kLayerMetadataAdjustmentColorLookupName, settings.color_lookup.name);
+    set_metadata_string(layer, kLayerMetadataAdjustmentBlackWhiteTintColor,
+                        std::to_string(bw.tint_color.red) + ';' + std::to_string(bw.tint_color.green) + ';' +
+                            std::to_string(bw.tint_color.blue));
+  }
   set_metadata_int(layer, kLayerMetadataAdjustmentPosterizeLevels,
                    std::clamp(settings.posterize.levels, 2, 255));
   set_metadata_int(layer, kLayerMetadataAdjustmentThresholdLevel,
@@ -2279,6 +2549,8 @@ bool adjustment_runs_in_ink_space(const AdjustmentSettings& settings) noexcept {
     case AdjustmentKind::ChannelMixer:
     case AdjustmentKind::PhotoFilter:
     case AdjustmentKind::GradientMap:
+    case AdjustmentKind::BlackWhite:
+    case AdjustmentKind::ColorLookup:
       return false;
   }
   return false;
@@ -2351,6 +2623,23 @@ RgbColor apply_adjustment_on_rgb(RgbColor color, const AdjustmentSettings& setti
     }
     case AdjustmentKind::GradientMap:
       return gradient_map_color(settings.gradient_map, color);
+    case AdjustmentKind::BlackWhite: {
+      const auto out = black_white_transfer(settings.black_white, color.red, color.green, color.blue, true);
+      const auto byte = [](double value) {
+        return static_cast<std::uint8_t>(std::clamp(std::floor(value + 0.5), 0.0, 255.0));
+      };
+      return RgbColor{byte(out[0]), byte(out[1]), byte(out[2])};
+    }
+    case AdjustmentKind::ColorLookup: {
+      if (settings.color_lookup.table == nullptr) {
+        return color;
+      }
+      const auto out = settings.color_lookup.table->apply(color.red, color.green, color.blue);
+      const auto byte = [](double value) {
+        return static_cast<std::uint8_t>(std::clamp(std::floor(value + 0.5), 0.0, 255.0));
+      };
+      return RgbColor{byte(out[0]), byte(out[1]), byte(out[2])};
+    }
   }
   return color;
 }
@@ -2390,7 +2679,8 @@ std::optional<AdjustmentLut> build_adjustment_lut(const AdjustmentSettings& sett
   // colored pixel. Both take the per-pixel path.
   if (settings.kind == AdjustmentKind::HueSaturation || settings.kind == AdjustmentKind::Threshold ||
       settings.kind == AdjustmentKind::ChannelMixer || settings.kind == AdjustmentKind::PhotoFilter ||
-      settings.kind == AdjustmentKind::GradientMap) {
+      settings.kind == AdjustmentKind::GradientMap || settings.kind == AdjustmentKind::BlackWhite ||
+      settings.kind == AdjustmentKind::ColorLookup) {
     return std::nullopt;
   }
   if (settings.kind == AdjustmentKind::Curves) {
@@ -2452,6 +2742,10 @@ bool adjustment_has_effect(const AdjustmentSettings& settings) {
       return true;  // the minimum density is 1 %, which still tints
     case AdjustmentKind::GradientMap:
       return true;  // even black to white turns color into gray
+    case AdjustmentKind::BlackWhite:
+      return true;  // every setting turns color into gray
+    case AdjustmentKind::ColorLookup:
+      return settings.color_lookup.table != nullptr;
   }
   return false;
 }

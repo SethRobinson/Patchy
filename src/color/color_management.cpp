@@ -1186,6 +1186,97 @@ std::vector<InstalledCmykProfile> installed_cmyk_profiles() {
   return profiles;
 }
 
+int color_lookup_profile_grid(std::span<const std::uint8_t> profile_bytes) {
+  const auto u32 = [&profile_bytes](std::size_t offset) -> std::uint32_t {
+    if (offset + 4U > profile_bytes.size()) {
+      return 0;
+    }
+    return (static_cast<std::uint32_t>(profile_bytes[offset]) << 24U) |
+           (static_cast<std::uint32_t>(profile_bytes[offset + 1]) << 16U) |
+           (static_cast<std::uint32_t>(profile_bytes[offset + 2]) << 8U) | profile_bytes[offset + 3];
+  };
+  const auto tags = u32(128);
+  for (std::uint32_t index = 0; index < tags && index < 256U; ++index) {
+    const std::size_t entry = 132U + 12U * index;
+    if (u32(entry) != 0x41324230U) {  // 'A2B0'
+      continue;
+    }
+    const std::size_t tag = u32(entry + 4U);
+    if (u32(tag) != 0x6D414220U || tag + 32U > profile_bytes.size()) {  // 'mAB '
+      return 0;
+    }
+    const std::size_t clut = u32(tag + 24U);
+    if (clut == 0 || tag + clut + 3U > profile_bytes.size()) {
+      return 0;
+    }
+    const int grid = profile_bytes[tag + clut];
+    if (profile_bytes[tag + clut + 1U] != grid || profile_bytes[tag + clut + 2U] != grid) {
+      return 0;
+    }
+    return grid >= 2 ? grid : 0;
+  }
+  return 0;
+}
+
+std::optional<std::vector<std::uint16_t>> sample_color_lookup_profile(std::span<const std::uint8_t> profile_bytes,
+                                                                      int grid) {
+  if (profile_bytes.empty() || profile_bytes.size() > 0xFFFFFFFFULL || grid < 2 || grid > 256) {
+    return std::nullopt;
+  }
+  const auto context = cmsCreateContext(nullptr, nullptr);
+  if (context == nullptr) {
+    return std::nullopt;
+  }
+  cmsSetLogErrorHandlerTHR(context, ignore_lcms_error);
+  std::optional<std::vector<std::uint16_t>> result;
+  cmsHPROFILE profile = cmsOpenProfileFromMemTHR(context, profile_bytes.data(),
+                                                 static_cast<cmsUInt32Number>(profile_bytes.size()));
+  if (profile != nullptr) {
+    constexpr cmsUInt32Number kFlags = cmsFLAGS_NOOPTIMIZE | cmsFLAGS_NOWHITEONWHITEFIXUP | cmsFLAGS_NOCACHE;
+    cmsHTRANSFORM transform = nullptr;
+    const auto device_class = cmsGetDeviceClass(profile);
+    if (device_class == cmsSigLinkClass && cmsGetColorSpace(profile) == cmsSigRgbData &&
+        cmsGetPCS(profile) == cmsSigRgbData) {
+      transform = cmsCreateTransformTHR(context, profile, TYPE_RGB_16, nullptr, TYPE_RGB_16, INTENT_PERCEPTUAL, kFlags);
+    } else if (device_class == cmsSigAbstractClass) {
+      cmsHPROFILE srgb_in = cmsCreate_sRGBProfileTHR(context);
+      cmsHPROFILE srgb_out = cmsCreate_sRGBProfileTHR(context);
+      if (srgb_in != nullptr && srgb_out != nullptr) {
+        std::array<cmsHPROFILE, 3> chain{srgb_in, profile, srgb_out};
+        transform = cmsCreateMultiprofileTransformTHR(context, chain.data(), 3, TYPE_RGB_16, TYPE_RGB_16,
+                                                      INTENT_RELATIVE_COLORIMETRIC, kFlags);
+      }
+      if (srgb_in != nullptr) {
+        cmsCloseProfile(srgb_in);
+      }
+      if (srgb_out != nullptr) {
+        cmsCloseProfile(srgb_out);
+      }
+    }
+    if (transform != nullptr) {
+      const auto points = static_cast<std::size_t>(grid);
+      std::vector<std::uint16_t> input(points * points * points * 3U);
+      std::size_t cursor = 0;
+      for (std::size_t b = 0; b < points; ++b) {
+        for (std::size_t g = 0; g < points; ++g) {
+          for (std::size_t r = 0; r < points; ++r) {
+            for (const auto index : {r, g, b}) {
+              input[cursor++] = static_cast<std::uint16_t>((index * 65535U + (points - 1U) / 2U) / (points - 1U));
+            }
+          }
+        }
+      }
+      std::vector<std::uint16_t> output(input.size());
+      cmsDoTransform(transform, input.data(), output.data(), static_cast<cmsUInt32Number>(points * points * points));
+      cmsDeleteTransform(transform);
+      result = std::move(output);
+    }
+    cmsCloseProfile(profile);
+  }
+  cmsDeleteContext(context);
+  return result;
+}
+
 std::filesystem::path automatic_cmyk_profile_path() {
   std::vector<std::filesystem::path> candidates;
   for (const auto& folder : adobe_profile_folders()) {

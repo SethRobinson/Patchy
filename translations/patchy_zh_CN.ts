@@ -11005,6 +11005,26 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>最近文档的设置：%1 x %2 px，%3 ppi</translation>
     </message>
     <message>
+        <source>Tint</source>
+        <translation>色调</translation>
+    </message>
+    <message>
+        <source>Tint color</source>
+        <translation>色调颜色</translation>
+    </message>
+    <message>
+        <source>Tint Color</source>
+        <translation>色调颜色</translation>
+    </message>
+    <message>
+        <source>Color Lookup: %1</source>
+        <translation>颜色查找: %1</translation>
+    </message>
+    <message>
+        <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
+        <translation>黑白: %1 / %2 / %3 / %4 / %5 / %6</translation>
+    </message>
+    <message>
         <source>Squareness</source>
         <translation>方形</translation>
     </message>
@@ -22663,6 +22683,22 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Gradient Map</source>
         <translation>已取消渐变映射</translation>
+    </message>
+    <message>
+        <source>Blac&amp;k &amp;&amp; White...</source>
+        <translation>黑白(&amp;K)...</translation>
+    </message>
+    <message>
+        <source>Black &amp; White</source>
+        <translation>黑白</translation>
+    </message>
+    <message>
+        <source>Cancelled Black &amp; White</source>
+        <translation>已取消黑白</translation>
+    </message>
+    <message>
+        <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
+        <translation>颜色查找“%1”按文件中保存的方式应用。</translation>
     </message>
     <message>
         <source>Add %1 Smart Filter</source>

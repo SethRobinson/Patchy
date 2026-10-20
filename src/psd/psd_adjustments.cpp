@@ -803,6 +803,400 @@ std::vector<std::uint8_t> photoshop_gradient_map_payload(const GradientMapAdjust
   return std::move(writer.bytes());
 }
 
+// 'blwh' (docs/adjustment-kinds.md, "Black & White"): u32 descriptor version 16 and a
+// descriptor of six weight longs (Rd, Yllw, Grn, Cyn, Bl, Mgnt), the useTint bool, a
+// tintColor RGBC object of doubles, bwPresetKind and blackAndWhitePresetFileName.
+constexpr std::array<const char*, 6> kBlackWhiteWeightKeys{"Rd  ", "Yllw", "Grn ", "Cyn ", "Bl  ", "Mgnt"};
+
+std::array<int*, 6> black_white_weights(BlackWhiteAdjustment& settings) {
+  return {&settings.reds, &settings.yellows, &settings.greens, &settings.cyans, &settings.blues, &settings.magentas};
+}
+
+std::optional<DescriptorObject> read_black_white_descriptor(std::span<const std::uint8_t> payload) {
+  try {
+    BigEndianReader reader(payload);
+    if (reader.read_u32() != 16U) {
+      return std::nullopt;
+    }
+    return read_descriptor(reader);
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
+}
+
+std::optional<AdjustmentSettings> parse_photoshop_black_white_adjustment(std::span<const std::uint8_t> payload) {
+  const auto descriptor = read_black_white_descriptor(payload);
+  if (!descriptor.has_value()) {
+    return std::nullopt;
+  }
+  AdjustmentSettings settings;
+  settings.kind = AdjustmentKind::BlackWhite;
+  auto& bw = settings.black_white;
+  const auto weights = black_white_weights(bw);
+  for (std::size_t index = 0; index < weights.size(); ++index) {
+    const auto* value = descriptor_value(*descriptor, kBlackWhiteWeightKeys[index]);
+    if (value == nullptr || value->type != DescriptorValue::Type::Integer) {
+      return std::nullopt;
+    }
+    *weights[index] = value->integer_value;
+  }
+  bw.tint = descriptor_bool(*descriptor, "useTint");
+  if (const auto* tint = descriptor_object(*descriptor, "tintColor"); tint != nullptr) {
+    const auto channel = [tint](const char* key) {
+      return static_cast<std::uint8_t>(std::clamp(std::lround(descriptor_number(*tint, key, 0.0)), 0L, 255L));
+    };
+    bw.tint_color = RgbColor{channel("Rd  "), channel("Grn "), channel("Bl  ")};
+  }
+  bw = clamp_black_white(bw);
+  return settings;
+}
+
+std::vector<std::uint8_t> photoshop_black_white_payload(const BlackWhiteAdjustment& settings,
+                                                        const UnknownPsdBlock* original) {
+  // Photoshop 2026's block for a new layer without a tint, the base for fresh layers.
+  static const std::vector<std::uint8_t> kFreshBlock{
+      0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x6E, 0x75, 0x6C, 0x6C, 0x00, 0x00, 0x00, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x52, 0x64,
+      0x20, 0x20, 0x6C, 0x6F, 0x6E, 0x67, 0x00, 0x00, 0x00, 0x28, 0x00, 0x00, 0x00, 0x00,
+      0x59, 0x6C, 0x6C, 0x77, 0x6C, 0x6F, 0x6E, 0x67, 0x00, 0x00, 0x00, 0x3C, 0x00, 0x00,
+      0x00, 0x00, 0x47, 0x72, 0x6E, 0x20, 0x6C, 0x6F, 0x6E, 0x67, 0x00, 0x00, 0x00, 0x28,
+      0x00, 0x00, 0x00, 0x00, 0x43, 0x79, 0x6E, 0x20, 0x6C, 0x6F, 0x6E, 0x67, 0x00, 0x00,
+      0x00, 0x3C, 0x00, 0x00, 0x00, 0x00, 0x42, 0x6C, 0x20, 0x20, 0x6C, 0x6F, 0x6E, 0x67,
+      0x00, 0x00, 0x00, 0x14, 0x00, 0x00, 0x00, 0x00, 0x4D, 0x67, 0x6E, 0x74, 0x6C, 0x6F,
+      0x6E, 0x67, 0x00, 0x00, 0x00, 0x50, 0x00, 0x00, 0x00, 0x07, 0x75, 0x73, 0x65, 0x54,
+      0x69, 0x6E, 0x74, 0x62, 0x6F, 0x6F, 0x6C, 0x00, 0x00, 0x00, 0x00, 0x09, 0x74, 0x69,
+      0x6E, 0x74, 0x43, 0x6F, 0x6C, 0x6F, 0x72, 0x4F, 0x62, 0x6A, 0x63, 0x00, 0x00, 0x00,
+      0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x52, 0x47, 0x42, 0x43, 0x00, 0x00, 0x00,
+      0x03, 0x00, 0x00, 0x00, 0x00, 0x52, 0x64, 0x20, 0x20, 0x64, 0x6F, 0x75, 0x62, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x47, 0x72, 0x6E,
+      0x20, 0x64, 0x6F, 0x75, 0x62, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x42, 0x6C, 0x20, 0x20, 0x64, 0x6F, 0x75, 0x62, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0C, 0x62, 0x77, 0x50, 0x72, 0x65,
+      0x73, 0x65, 0x74, 0x4B, 0x69, 0x6E, 0x64, 0x6C, 0x6F, 0x6E, 0x67, 0x00, 0x00, 0x00,
+      0x04, 0x00, 0x00, 0x00, 0x1B, 0x62, 0x6C, 0x61, 0x63, 0x6B, 0x41, 0x6E, 0x64, 0x57,
+      0x68, 0x69, 0x74, 0x65, 0x50, 0x72, 0x65, 0x73, 0x65, 0x74, 0x46, 0x69, 0x6C, 0x65,
+      0x4E, 0x61, 0x6D, 0x65, 0x54, 0x45, 0x58, 0x54, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
+      0x00, 0x00};
+  if (original != nullptr) {
+    if (const auto parsed = parse_photoshop_black_white_adjustment(original->payload);
+        parsed.has_value() && parsed->black_white == clamp_black_white(settings)) {
+      return original->payload;
+    }
+  }
+  // Every modeled value has a fixed width, so it is patched in place: Patchy's descriptor
+  // writer does not reproduce Photoshop's one-character null name, and the original's
+  // other keys stay exactly as they were.
+  std::vector<std::uint8_t> payload =
+      original != nullptr && read_black_white_descriptor(original->payload).has_value() ? original->payload
+                                                                                        : kFreshBlock;
+  if (!read_black_white_descriptor(payload).has_value() || payload.size() < 16U) {
+    payload = kFreshBlock;
+  }
+  // The value after a charID key ("\0\0\0\0" + key + type) or a stringID key (length + id + type).
+  const auto value_offset = [&payload](std::string_view key, std::string_view type, bool string_id,
+                                       std::size_t from) -> std::optional<std::size_t> {
+    std::vector<std::uint8_t> pattern;
+    const auto length = static_cast<std::uint32_t>(string_id ? key.size() : 0U);
+    for (int shift = 24; shift >= 0; shift -= 8) {
+      pattern.push_back(static_cast<std::uint8_t>((length >> shift) & 0xFFU));
+    }
+    pattern.insert(pattern.end(), key.begin(), key.end());
+    pattern.insert(pattern.end(), type.begin(), type.end());
+    const auto found = std::search(payload.begin() + static_cast<std::ptrdiff_t>(from), payload.end(),
+                                   pattern.begin(), pattern.end());
+    if (found == payload.end()) {
+      return std::nullopt;
+    }
+    return static_cast<std::size_t>(found - payload.begin()) + pattern.size();
+  };
+  const auto put_u32 = [&payload](std::size_t offset, std::uint32_t value) {
+    for (int index = 0; index < 4; ++index) {
+      payload[offset + static_cast<std::size_t>(index)] = static_cast<std::uint8_t>(value >> (24 - 8 * index));
+    }
+  };
+  const auto put_f64 = [&payload](std::size_t offset, double value) {
+    const auto bits = std::bit_cast<std::uint64_t>(value);
+    for (int index = 0; index < 8; ++index) {
+      payload[offset + static_cast<std::size_t>(index)] = static_cast<std::uint8_t>(bits >> (56 - 8 * index));
+    }
+  };
+  auto bw = clamp_black_white(settings);
+  const auto weights = black_white_weights(bw);
+  for (std::size_t index = 0; index < weights.size(); ++index) {
+    if (const auto offset = value_offset(kBlackWhiteWeightKeys[index], "long", false, 4); offset.has_value()) {
+      put_u32(*offset, static_cast<std::uint32_t>(*weights[index]));
+    }
+  }
+  if (const auto offset = value_offset("useTint", "bool", true, 4); offset.has_value()) {
+    payload[*offset] = bw.tint ? 1U : 0U;
+  }
+  if (const auto color = value_offset("tintColor", "Objc", true, 4); color.has_value()) {
+    const std::array<std::pair<const char*, std::uint8_t>, 3> channels{
+        {{"Rd  ", bw.tint_color.red}, {"Grn ", bw.tint_color.green}, {"Bl  ", bw.tint_color.blue}}};
+    for (const auto& [key, value] : channels) {
+      if (const auto offset = value_offset(key, "doub", false, *color); offset.has_value()) {
+        put_f64(*offset, static_cast<double>(value));
+      }
+    }
+  }
+  return payload;
+}
+
+// 'clrL' (docs/adjustment-kinds.md, "Color Lookup"): u16 version 1, u32 descriptor version
+// 16 and a descriptor whose lookupType is 3DLUT, abstractProfile or deviceLinkProfile, with
+// the look's name (Nm), Dthr, and the ICC 'profile' Photoshop renders through; a 3DLUT also
+// keeps the LUT file (LUTFormat, dataOrder, tableOrder, LUT3DFileData, LUT3DFileName).
+// Without a profile Photoshop renders identity, and so does Patchy.
+std::optional<AdjustmentSettings> parse_photoshop_color_lookup_adjustment(std::span<const std::uint8_t> payload) {
+  DescriptorObject descriptor;
+  try {
+    BigEndianReader reader(payload);
+    if (reader.read_u16() != 1U || reader.read_u32() != 16U) {
+      return std::nullopt;
+    }
+    descriptor = read_descriptor(reader);
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
+  AdjustmentSettings settings;
+  settings.kind = AdjustmentKind::ColorLookup;
+  if (const auto* name = descriptor_value(descriptor, "Nm  ");
+      name != nullptr && name->type == DescriptorValue::Type::String) {
+    // Photoshop stores the LUT's full path; the file name is the look's name.
+    const auto& text = name->string_value;
+    const auto slash = text.find_last_of("/\\");
+    settings.color_lookup.name = slash == std::string::npos ? text : text.substr(slash + 1U);
+  }
+  if (const auto* profile = descriptor_value(descriptor, "profile");
+      profile != nullptr && profile->type == DescriptorValue::Type::Raw && !profile->raw_value.empty()) {
+    const int stored_grid = color_lookup_profile_grid(profile->raw_value);
+    const int grid = stored_grid != 0 ? std::min(stored_grid, 65) : 33;
+    if (auto nodes = sample_color_lookup_profile(profile->raw_value, grid); nodes.has_value()) {
+      settings.color_lookup.table = make_color_lookup_table(grid, std::move(*nodes));
+      register_color_lookup_table(settings.color_lookup.table);
+    }
+  }
+  return settings;
+}
+
+namespace {
+
+void append_u16(std::vector<std::uint8_t>& out, std::uint32_t value) {
+  out.push_back(static_cast<std::uint8_t>((value >> 8U) & 0xFFU));
+  out.push_back(static_cast<std::uint8_t>(value & 0xFFU));
+}
+
+void append_u32(std::vector<std::uint8_t>& out, std::uint32_t value) {
+  for (int shift = 24; shift >= 0; shift -= 8) {
+    out.push_back(static_cast<std::uint8_t>((value >> static_cast<unsigned>(shift)) & 0xFFU));
+  }
+}
+
+void append_text(std::vector<std::uint8_t>& out, std::string_view text) {
+  out.insert(out.end(), text.begin(), text.end());
+}
+
+void pad_to_four(std::vector<std::uint8_t>& out) {
+  while (out.size() % 4U != 0U) {
+    out.push_back(0);
+  }
+}
+
+// An ICC 'mluc' with one en-US record (UTF-16 with a trailing null, as Photoshop writes).
+std::vector<std::uint8_t> icc_mluc(std::string_view text) {
+  auto units = utf8_to_utf16(text);
+  units.push_back(0);
+  std::vector<std::uint8_t> out;
+  append_text(out, "mluc");
+  append_u32(out, 0);
+  append_u32(out, 1);
+  append_u32(out, 12);
+  append_text(out, "enUS");
+  append_u32(out, static_cast<std::uint32_t>(units.size() * 2U));
+  append_u32(out, 28);
+  for (const auto unit : units) {
+    append_u16(out, unit);
+  }
+  return out;
+}
+
+}  // namespace
+
+std::vector<std::uint8_t> photoshop_color_lookup_profile(const ColorLookupTable& table, std::string_view name) {
+  // The shape Photoshop 2026 writes for a loaded LUT: an ICC v4 RGB device link whose A2B0
+  // lutAtoB has identity B and M curves and matrix, the LUT as a 16-bit CLUT (red slowest),
+  // and identity parametric A curves. The copyright text is Patchy's own.
+  std::vector<std::uint8_t> clut;
+  const auto size = static_cast<std::size_t>(table.size);
+  for (std::size_t r = 0; r < size; ++r) {
+    for (std::size_t g = 0; g < size; ++g) {
+      for (std::size_t b = 0; b < size; ++b) {
+        const auto index = (r + g * size + b * size * size) * 3U;
+        for (std::size_t c = 0; c < 3U; ++c) {
+          append_u16(clut, table.values[index + c]);
+        }
+      }
+    }
+  }
+  std::vector<std::uint8_t> curves;  // three empty 'curv' (identity)
+  for (int channel = 0; channel < 3; ++channel) {
+    append_text(curves, "curv");
+    append_u32(curves, 0);
+    append_u32(curves, 0);
+  }
+  std::vector<std::uint8_t> lut;
+  append_text(lut, "mAB ");
+  append_u32(lut, 0);
+  lut.push_back(3);
+  lut.push_back(3);
+  append_u16(lut, 0);
+  const std::uint32_t b_offset = 32;
+  const std::uint32_t matrix_offset = b_offset + static_cast<std::uint32_t>(curves.size());
+  const std::uint32_t m_offset = matrix_offset + 48U;
+  const std::uint32_t clut_offset = m_offset + static_cast<std::uint32_t>(curves.size());
+  const std::uint32_t clut_bytes = 20U + static_cast<std::uint32_t>(clut.size());
+  const std::uint32_t a_offset = clut_offset + ((clut_bytes + 3U) & ~3U);
+  for (const auto offset : {b_offset, matrix_offset, m_offset, clut_offset, a_offset}) {
+    append_u32(lut, offset);
+  }
+  lut.insert(lut.end(), curves.begin(), curves.end());
+  for (int row = 0; row < 3; ++row) {
+    for (int column = 0; column < 3; ++column) {
+      append_u32(lut, row == column ? 0x00010000U : 0U);
+    }
+  }
+  for (int row = 0; row < 3; ++row) {
+    append_u32(lut, 0);
+  }
+  lut.insert(lut.end(), curves.begin(), curves.end());
+  for (int dimension = 0; dimension < 16; ++dimension) {
+    lut.push_back(dimension < 3 ? static_cast<std::uint8_t>(table.size) : 0U);
+  }
+  lut.push_back(2);
+  lut.push_back(0);
+  lut.push_back(0);
+  lut.push_back(0);
+  lut.insert(lut.end(), clut.begin(), clut.end());
+  pad_to_four(lut);
+  for (int channel = 0; channel < 3; ++channel) {
+    append_text(lut, "para");
+    append_u32(lut, 0);
+    append_u16(lut, 3);
+    append_u16(lut, 0);
+    for (const std::uint32_t parameter : {0x00010000U, 0x00010000U, 0U, 0U, 0U}) {
+      append_u32(lut, parameter);
+    }
+  }
+  // An empty two-entry profile sequence, as Photoshop writes.
+  std::vector<std::uint8_t> sequence;
+  append_text(sequence, "pseq");
+  append_u32(sequence, 0);
+  append_u32(sequence, 2);
+  for (int entry = 0; entry < 2; ++entry) {
+    for (int zero = 0; zero < 5; ++zero) {
+      append_u32(sequence, 0);
+    }
+    for (int text = 0; text < 2; ++text) {
+      append_text(sequence, "mluc");
+      append_u32(sequence, 0);
+      append_u32(sequence, 0);
+      append_u32(sequence, 12);
+    }
+  }
+  const std::array<std::pair<const char*, std::vector<std::uint8_t>>, 4> tags{{
+      {"desc", icc_mluc(name)},
+      {"cprt", icc_mluc("No copyright, use freely")},
+      {"pseq", sequence},
+      {"A2B0", lut},
+  }};
+  std::vector<std::uint8_t> body;
+  std::vector<std::uint8_t> table_entries;
+  std::uint32_t offset = 128U + 4U + 12U * static_cast<std::uint32_t>(tags.size());
+  for (const auto& [signature, data] : tags) {
+    append_text(table_entries, signature);
+    append_u32(table_entries, offset + static_cast<std::uint32_t>(body.size()));
+    append_u32(table_entries, static_cast<std::uint32_t>(data.size()));
+    body.insert(body.end(), data.begin(), data.end());
+    pad_to_four(body);
+  }
+  std::vector<std::uint8_t> profile;
+  append_u32(profile, 0);  // size, patched below
+  append_text(profile, "ptch");
+  append_u32(profile, 0x04000000U);
+  append_text(profile, "linkRGB RGB ");
+  for (const std::uint32_t field : {2026U, 1U, 1U, 0U, 0U, 0U}) {
+    append_u16(profile, field);
+  }
+  append_text(profile, "acsp");
+  for (int zero = 0; zero < 6; ++zero) {
+    append_u32(profile, 0);  // platform, flags, manufacturer, model, attributes
+  }
+  append_u32(profile, 0);  // rendering intent
+  for (const std::uint32_t d50 : {0x0000F6D6U, 0x00010000U, 0x0000D32DU}) {
+    append_u32(profile, d50);
+  }
+  append_text(profile, "ptch");
+  profile.resize(128, 0);  // profile ID left zero (not computed), reserved
+  append_u32(profile, static_cast<std::uint32_t>(tags.size()));
+  profile.insert(profile.end(), table_entries.begin(), table_entries.end());
+  profile.insert(profile.end(), body.begin(), body.end());
+  const auto total = static_cast<std::uint32_t>(profile.size());
+  for (int index = 0; index < 4; ++index) {
+    profile[static_cast<std::size_t>(index)] = static_cast<std::uint8_t>(total >> (24 - 8 * index));
+  }
+  return profile;
+}
+
+std::vector<std::uint8_t> photoshop_color_lookup_payload(const ColorLookupAdjustment& settings,
+                                                         const UnknownPsdBlock* original) {
+  if (original != nullptr) {
+    if (const auto parsed = parse_photoshop_color_lookup_adjustment(original->payload);
+        parsed.has_value() && parsed->color_lookup == settings) {
+      return original->payload;
+    }
+  }
+  // A Patchy-made lookup: lookupType 3DLUT, the name, no dither, and the profile Photoshop
+  // renders through. A layer without a table writes an empty lookup.
+  const auto key = [](std::vector<std::uint8_t>& out, std::string_view id) {
+    append_u32(out, id.size() == 4U ? 0U : static_cast<std::uint32_t>(id.size()));
+    append_text(out, id);
+  };
+  const auto unicode = [](std::vector<std::uint8_t>& out, std::string_view text) {
+    auto units = utf8_to_utf16(text);
+    units.push_back(0);
+    append_u32(out, static_cast<std::uint32_t>(units.size()));
+    for (const auto unit : units) {
+      append_u16(out, unit);
+    }
+  };
+  std::vector<std::uint8_t> payload;
+  append_u16(payload, 1);
+  append_u32(payload, 16);
+  unicode(payload, "");
+  key(payload, "null");
+  const bool has_table = settings.table != nullptr && settings.table->valid();
+  append_u32(payload, has_table ? 4U : 3U);
+  key(payload, "lookupType");
+  append_text(payload, "enum");
+  key(payload, "colorLookupType");
+  key(payload, "3DLUT");
+  key(payload, "Nm  ");
+  append_text(payload, "TEXT");
+  unicode(payload, settings.name);
+  key(payload, "Dthr");
+  append_text(payload, "bool");
+  payload.push_back(0);
+  if (has_table) {
+    const auto profile = photoshop_color_lookup_profile(*settings.table, settings.name);
+    key(payload, "profile");
+    append_text(payload, "tdta");
+    append_u32(payload, static_cast<std::uint32_t>(profile.size()));
+    payload.insert(payload.end(), profile.begin(), profile.end());
+  }
+  pad_to_four(payload);
+  return payload;
+}
+
 std::optional<AdjustmentSettings> parse_photoshop_posterize_adjustment(std::span<const std::uint8_t> payload) {
   if (payload.size() < 2) {
     return std::nullopt;

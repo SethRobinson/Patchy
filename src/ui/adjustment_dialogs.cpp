@@ -1687,6 +1687,79 @@ std::optional<PhotoFilterSettings> request_photo_filter_settings(
       });
 }
 
+std::optional<BlackWhiteSettings> request_black_white_settings(
+    QWidget* parent, std::function<void(bool, const BlackWhiteSettings&)> preview_changed,
+    BlackWhiteSettings initial) {
+  // The six weights are slider rows; the tint lives in this shared state.
+  auto state = std::make_shared<BlackWhiteSettings>(clamp_black_white(initial));
+  const auto build_settings = [state](const std::vector<QSpinBox*>& spins) {
+    auto settings = *state;
+    std::array<int*, 6> weights{&settings.reds,  &settings.yellows, &settings.greens,
+                                &settings.cyans, &settings.blues,   &settings.magentas};
+    for (std::size_t index = 0; index < weights.size() && index < spins.size(); ++index) {
+      *weights[index] = spins[index]->value();
+    }
+    return clamp_black_white(settings);
+  };
+  const auto percent = QStringLiteral(" %");
+  const auto& start = *state;
+  return request_adjustment_settings_dialog<BlackWhiteSettings>(
+      parent, QStringLiteral("patchyBlackWhiteDialog"), QObject::tr("Black & White"),
+      QStringLiteral("blackWhitePreviewCheck"),
+      {{QObject::tr("Reds"), QStringLiteral("blackWhiteReds"), -200, 300, start.reds, percent},
+       {QObject::tr("Yellows"), QStringLiteral("blackWhiteYellows"), -200, 300, start.yellows, percent},
+       {QObject::tr("Greens"), QStringLiteral("blackWhiteGreens"), -200, 300, start.greens, percent},
+       {QObject::tr("Cyans"), QStringLiteral("blackWhiteCyans"), -200, 300, start.cyans, percent},
+       {QObject::tr("Blues"), QStringLiteral("blackWhiteBlues"), -200, 300, start.blues, percent},
+       {QObject::tr("Magentas"), QStringLiteral("blackWhiteMagentas"), -200, 300, start.magentas, percent}},
+      build_settings, std::move(preview_changed), {},
+      [state](QDialog& dialog, QFormLayout* form, const std::vector<QSpinBox*>&,
+              const std::function<void()>& flush_preview) {
+        auto* row = new QWidget(&dialog);
+        auto* row_layout = new QHBoxLayout(row);
+        row_layout->setContentsMargins(0, 0, 0, 0);
+        auto* tint = new QCheckBox(QObject::tr("Tint"), row);
+        tint->setObjectName(QStringLiteral("blackWhiteTintCheck"));
+        tint->setChecked(state->tint);
+        auto* swatch = new QPushButton(row);
+        swatch->setObjectName(QStringLiteral("blackWhiteTintColorButton"));
+        swatch->setAccessibleName(QObject::tr("Tint color"));
+        swatch->setEnabled(state->tint);
+        row_layout->addWidget(tint);
+        row_layout->addWidget(swatch);
+        row_layout->addStretch(1);
+        form->addRow(QString(), row);
+        const auto show = [swatch, state] {
+          const auto color = state->tint_color;
+          set_themed_style(*swatch, color_button_style(QColor(color.red, color.green, color.blue)));
+        };
+        show();
+        QObject::connect(tint, &QCheckBox::toggled, &dialog, [state, swatch, flush_preview](bool checked) {
+          state->tint = checked;
+          swatch->setEnabled(checked);
+          flush_preview();
+        });
+        QObject::connect(swatch, &QPushButton::clicked, &dialog, [&dialog, swatch, state, show, flush_preview] {
+          // Picks preview live; Cancel puts the original color back.
+          const QPointer<QPushButton> alive(swatch);
+          const auto original = state->tint_color;
+          const auto apply = [alive, state, show, flush_preview](QColor picked) {
+            if (alive == nullptr) {
+              return;
+            }
+            state->tint_color = RgbColor{static_cast<std::uint8_t>(picked.red()),
+                                         static_cast<std::uint8_t>(picked.green()),
+                                         static_cast<std::uint8_t>(picked.blue())};
+            show();
+            flush_preview();
+          };
+          const auto picked = request_patchy_color(&dialog, QColor(original.red, original.green, original.blue),
+                                                   QObject::tr("Tint Color"), apply);
+          apply(picked.value_or(QColor(original.red, original.green, original.blue)));
+        });
+      });
+}
+
 std::optional<GradientMapSettings> request_gradient_map_settings(
     QWidget* parent, std::function<void(bool, const GradientMapSettings&)> preview_changed,
     GradientMapSettings initial, GradientLibrary* library, RgbColor foreground, RgbColor background) {
