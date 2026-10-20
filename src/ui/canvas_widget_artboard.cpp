@@ -26,6 +26,7 @@
 #include <QPainterPath>
 #include <QPen>
 #include <QRectF>
+#include <QScrollBar>
 #include <Qt>
 
 #include <algorithm>
@@ -38,6 +39,8 @@ namespace patchy::ui {
 namespace {
 
 constexpr double kLabelGap = 4.0;          // widget px between the label baseline and the artboard
+constexpr double kLabelMinWidth = 24.0;    // a clipped label keeps a hit area and its ellipsis
+constexpr double kLabelCollisionGap = 6.0; // widget px kept before a neighbouring label on the same row
 constexpr double kAddButtonRadius = 9.0;   // the "+" buttons beside the selected artboard
 constexpr double kAddButtonOffset = 22.0;  // their centers, this far outside its edge
 constexpr double kHandleSize = 8.0;
@@ -286,9 +289,28 @@ QRectF CanvasWidget::artboard_label_widget_rect(const Layer& artboard) const {
   const auto& rect = artboard.artboard()->rect;
   const QFontMetricsF metrics(artboard_label_font(*this));
   const auto top_left = widget_position_f(QPointF(rect.x, rect.y));
-  const auto width = std::min(metrics.horizontalAdvance(QString::fromStdString(artboard.name())) + 2.0,
-                              std::max(24.0, widget_position_f(QPointF(rect.x + rect.width, rect.y)).x() - top_left.x()));
-  return QRectF(top_left.x(), top_left.y() - kLabelGap - metrics.height(), width, metrics.height());
+  const auto height = metrics.height();
+  const auto top = top_left.y() - kLabelGap - height;
+  // The whole name, past a narrow board if need be (the overlay reads the backing and
+  // halos a straddle). It gives way only to another label on its row that starts
+  // inside it, and to the visible canvas edge, and then only as far as needed.
+  auto right = top_left.x() + metrics.horizontalAdvance(QString::fromStdString(artboard.name())) + 2.0;
+  const double visible_right =
+      width() - (vertical_scroll_bar_ != nullptr && vertical_scroll_bar_->isVisible() ? vertical_scroll_bar_->width() : 0);
+  right = std::min(right, visible_right - 2.0);
+  if (document_ != nullptr) {
+    for (const auto* other : document_artboards(std::as_const(*document_))) {
+      if (other->id() == artboard.id() || !other->visible()) {
+        continue;
+      }
+      const auto other_top_left = widget_position_f(QPointF(other->artboard()->rect.x, other->artboard()->rect.y));
+      if (other_top_left.x() > top_left.x() && other_top_left.x() < right &&
+          std::abs(other_top_left.y() - top_left.y()) < height) {
+        right = other_top_left.x() - kLabelCollisionGap;
+      }
+    }
+  }
+  return QRectF(top_left.x(), top, std::max(kLabelMinWidth, right - top_left.x()), height);
 }
 
 std::optional<LayerId> CanvasWidget::artboard_label_at(QPoint widget_point) const {
