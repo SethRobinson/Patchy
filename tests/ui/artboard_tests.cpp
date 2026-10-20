@@ -620,6 +620,13 @@ void check_artboard_scrub_costs_a_handle_drag(patchy::ui::MainWindow& window, pa
   const double handle_release_ms = elapsed_ms(timer);
   CHECK(rect_now().width < start.width);
   MainWindowTestAccess::undo(window);
+  // The undo's re-render and deferred panel refreshes land before the scrub is timed.
+  canvas->force_refresh();
+  QElapsedTimer quiet;
+  quiet.start();
+  while (quiet.elapsed() < 400) {
+    QApplication::processEvents(QEventLoop::AllEvents, 20);
+  }
   settle();
   CHECK(rect_now() == start);
 
