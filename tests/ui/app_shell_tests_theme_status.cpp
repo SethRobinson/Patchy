@@ -13,12 +13,15 @@
 #include "ui/main_window.hpp"
 #include "ui/splash_dialog.hpp"
 #include "ui/main_window_shared.hpp"
+#include "ui/theme_manager.hpp"
 #include "ui/theme_palette.hpp"
 #include "ui/theme_qss.hpp"
 #include "ui/zoom_status_bar.hpp"
 #include "test_harness.hpp"
 #include <patchy_version.hpp>
 #include <QApplication>
+#include <QPalette>
+#include <QToolTip>
 #include <QDialog>
 #include <QLabel>
 #include <QListWidget>
@@ -378,6 +381,47 @@ void ui_light_scheme_panel_scroll_bar_handle_reads_against_track() {
 // in Dark and darker than them in Light, so the current mode read as the
 // inactive one. Reading the roles back would only restate whichever pairing the
 // sheet happens to name, so render the bar and compare the tabs as drawn.
+// Tooltips are ownerless QTipLabels, so the MainWindow stylesheet never reaches
+// them; Qt painted the platform's yellow or white tip in Dark (the Linux smoke test
+// caught it through the capture guard, October 2026). ThemeManager keeps QToolTip's
+// application palette on the active scheme in Dark and Light.
+void ui_tooltips_follow_the_active_theme() {
+  ColorSchemeRestorer restore_active;
+  for (const auto preference :
+       {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer::apply(preference);
+    const auto& palette = patchy::ui::theme();
+    CHECK(QToolTip::palette().color(QPalette::ToolTipBase).rgb() == palette.panel_bg.rgb());
+    CHECK(QToolTip::palette().color(QPalette::ToolTipText).rgb() == palette.text_primary.rgb());
+    // The tip's owner chain is the anchor's window: the app's windows carry the
+    // sheet, so the themed parent stands in for a MainWindow here.
+    auto themed_parent = make_themed_dialog_parent();
+    themed_parent->resize(120, 40);
+    themed_parent->show();
+    auto& anchor_widget = *themed_parent;
+    QApplication::processEvents();
+    QToolTip::showText(anchor_widget.mapToGlobal(QPoint(4, 40)), QStringLiteral("Themed tip"), &anchor_widget);
+    QApplication::processEvents();
+    QWidget* tip = nullptr;
+    for (auto* top : QApplication::topLevelWidgets()) {
+      if (top->inherits("QTipLabel") && top->isVisible()) {
+        tip = top;
+      }
+    }
+    CHECK(tip != nullptr);
+    if (tip != nullptr) {
+      CHECK(tip->palette().color(QPalette::ToolTipBase).rgb() == palette.panel_bg.rgb());
+      const auto mismatch = capture_theme_mismatch(*tip);
+      if (!mismatch.isEmpty()) {
+        std::cout << "  tooltip guard: " << mismatch.toStdString() << "\n";
+      }
+      CHECK(mismatch.isEmpty());
+    }
+    QToolTip::hideText();
+    QApplication::processEvents();
+  }
+}
+
 void ui_light_scheme_color_picker_selected_tab_reads_as_selected() {
   ColorSchemeRestorer restore_active;
 
@@ -726,6 +770,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part4() {
       {"ui_light_scheme_dialog_chrome_separates_from_canvas", ui_light_scheme_dialog_chrome_separates_from_canvas},
       {"ui_dialog_chrome_outline_reads_at_the_dialog_edge", ui_dialog_chrome_outline_reads_at_the_dialog_edge},
       {"ui_light_scheme_panel_scroll_bar_handle_reads_against_track", ui_light_scheme_panel_scroll_bar_handle_reads_against_track},
+      {"ui_tooltips_follow_the_active_theme", ui_tooltips_follow_the_active_theme},
       {"ui_light_scheme_color_picker_selected_tab_reads_as_selected", ui_light_scheme_color_picker_selected_tab_reads_as_selected},
       {"ui_light_scheme_about_dialog_reads_as_a_light_surface", ui_light_scheme_about_dialog_reads_as_a_light_surface},
       {"ui_theme_qss_resolves_every_token", ui_theme_qss_resolves_every_token},

@@ -330,14 +330,31 @@ private:
 // grabbed with Qt's default light widgets showing through its list, buttons and labels
 // (the #262 Layer Style shots, October 2026). ensure_capture_themed gives such a window
 // the active theme's sheet before the grab, in Dark and Light alike.
+// Themes a window with no themed ancestor for the lifetime of the scope and puts
+// its own sheet back afterwards, so a capture leaves the widget as it found it.
+class ThemedCaptureScope {
+ public:
+  explicit ThemedCaptureScope(QWidget& widget);
+  ~ThemedCaptureScope();
+  ThemedCaptureScope(const ThemedCaptureScope&) = delete;
+  ThemedCaptureScope& operator=(const ThemedCaptureScope&) = delete;
+  // Keeps the sheet applied after the scope ends.
+  void release() { window_ = nullptr; }
+
+ private:
+  QWidget* window_{nullptr};
+  QString previous_sheet_;
+};
 void ensure_capture_themed(QWidget& widget);
 // The capture guard: empty when every visible widget under `root` carries the active
 // theme, otherwise a description of the first offender (class, objectName, role and
 // color). A widget fails when it is unpolished, when no window in its owner chain
 // carries the app sheet, or when the background or text color the stylesheet engine
 // left in its palette is Qt's default or the other scheme's value and matches no role
-// of the active palette. Every capture helper runs it before saving and fails loudly
-// instead of writing a misleading picture.
+// of the active palette. Widgets that show document content or a user color
+// (objectName inlineTextEditor, *ColorButton, *ColorSwatch) and their children are
+// exempt. Every capture helper runs it before saving and records the failure through
+// patchy::test::report_failure instead of writing a misleading picture.
 QString capture_theme_mismatch(QWidget& root);
 QImage capture_widget_artifact(const std::string& name, QWidget& widget);
 void save_widget_artifact(const std::string& name, QWidget& widget);

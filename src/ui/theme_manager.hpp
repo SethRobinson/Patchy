@@ -85,6 +85,9 @@ class ThemeManager : public QObject {
   [[nodiscard]] ColorScheme system_scheme() const;
   void mirror_scheme_onto_qt();
   void apply_resolved_scheme();
+  // QToolTip's application palette follows the active palette (tooltips have no
+  // owner, so no stylesheet reaches them).
+  void apply_tooltip_palette();
 
   ColorSchemePreference preference_ = ColorSchemePreference::FollowSystem;
   std::optional<Qt::ColorScheme> system_scheme_override_;
