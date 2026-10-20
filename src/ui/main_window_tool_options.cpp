@@ -132,8 +132,10 @@
 #include <numeric>
 #include <functional>
 #include <exception>
+#include <condition_variable>
 #include <future>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <qlatin1stringview.h>
 #include <unordered_set>
@@ -648,6 +650,29 @@ std::optional<Load> take_preloaded(std::future<Load>& future) {
   }
 }
 
+// MainWindow::hold_pattern_preload_for_tests: the pattern worker waits on this before it
+// publishes its result; the window releases it when it asks for the library.
+struct PatternPreloadHold {
+  std::mutex mutex;
+  std::condition_variable released_cv;
+  bool released{false};
+
+  void release() {
+    {
+      const std::lock_guard<std::mutex> lock(mutex);
+      released = true;
+    }
+    released_cv.notify_all();
+  }
+
+  void wait() {
+    std::unique_lock<std::mutex> lock(mutex);
+    released_cv.wait(lock, [this] { return released; });
+  }
+};
+
+std::shared_ptr<PatternPreloadHold> pattern_preload_hold_for_tests;  // GUI thread only
+
 }  // namespace
 
 struct StartupLibraryPreloads {
@@ -661,11 +686,23 @@ struct StartupLibraryPreloads {
     if (brush_tips.valid()) {
       brush_tips.wait();
     }
+    if (pattern_hold != nullptr) {
+      pattern_hold->release();
+    }
     if (patterns.valid()) {
       patterns.wait();
     }
   }
+
+  std::shared_ptr<PatternPreloadHold> pattern_hold;  // the test hold this worker waits on, if any
 };
+
+void MainWindow::hold_pattern_preload_for_tests(bool hold) {
+  if (pattern_preload_hold_for_tests != nullptr) {
+    pattern_preload_hold_for_tests->release();
+  }
+  pattern_preload_hold_for_tests = hold ? std::make_shared<PatternPreloadHold>() : nullptr;
+}
 
 // Called first in the constructor: the tips are needed by the options bar a few milliseconds
 // later, the patterns only when the Pattern Stamp list, a pattern fill, or a document needs
@@ -683,11 +720,17 @@ void MainWindow::start_library_preloads() {
       stored_default_asset_version(app_settings(), QStringLiteral("patterns/defaultPatternsVersion"));
   auto* app = QCoreApplication::instance();
   QPointer<MainWindow> window(this);
+  library_preloads_->pattern_hold = pattern_preload_hold_for_tests;
   library_preloads_->patterns = start_preload<PatternLibraryLoad>(
-      [directory = PatternLibrary::resolved_storage_dir(), patterns_version] {
-        return PatternLibrary::load_off_gui_thread(directory, [patterns_version](PatternLibrary& library) {
+      [directory = PatternLibrary::resolved_storage_dir(), patterns_version,
+       hold = library_preloads_->pattern_hold] {
+        auto load = PatternLibrary::load_off_gui_thread(directory, [patterns_version](PatternLibrary& library) {
           return seed_default_patterns(library, patterns_version);
         });
+        if (hold != nullptr) {
+          hold->wait();
+        }
+        return load;
       },
       [app, window] {
         QMetaObject::invokeMethod(
@@ -739,6 +782,9 @@ PatternLibrary& MainWindow::pattern_library() {
         stored_default_asset_version(settings, QStringLiteral("patterns/defaultPatternsVersion"));
     std::optional<PatternLibraryLoad> preloaded;
     if (library_preloads_ != nullptr) {
+      if (library_preloads_->pattern_hold != nullptr) {
+        library_preloads_->pattern_hold->release();
+      }
       preloaded = take_preloaded(library_preloads_->patterns);
     }
     const int preseeded = preloaded.has_value() ? preloaded->prepared : 0;

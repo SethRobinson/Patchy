@@ -2515,6 +2515,11 @@ private:
   std::shared_ptr<StartupLibraryPreloads> library_preloads_;
   void start_library_preloads();
   void adopt_preloaded_pattern_library();
+  // Test seam: while held, the pattern preload worker of every window constructed afterwards
+  // keeps its result back until that window asks for the library (pattern_library()), the
+  // window is destroyed, or the hold is released, so a test can drive a window whose
+  // preload has not landed yet (docs/startup-performance.md).
+  static void hold_pattern_preload_for_tests(bool hold);
   GradientLibrary* gradient_library_{nullptr};
   CustomShapeLibrary* custom_shape_library_{nullptr};
   StyleLibrary* style_library_{nullptr};
