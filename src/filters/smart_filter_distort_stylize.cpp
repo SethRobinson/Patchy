@@ -486,6 +486,205 @@ FilterRenderResult render_shear(const FilterRenderResult& input, Rect canvas,
   });
 }
 
+// Twirl, Pinch, Spherize and Polar Coordinates share ZigZag's canvas geometry
+// (docs/smart-filters-distort-stylize.md): normalized ellipse coordinates
+// u = (x - W/2) / Rx, v = (y - H/2) / Ry about the canvas center.
+struct CanvasEllipse {
+  double center_x;
+  double center_y;
+  double radius_x;
+  double radius_y;
+};
+
+CanvasEllipse canvas_ellipse(Rect canvas, double inset) {
+  const auto half_width = static_cast<double>(canvas.width) * 0.5;
+  const auto half_height = static_cast<double>(canvas.height) * 0.5;
+  return {half_width, half_height, std::max(1.0, half_width - inset),
+          std::max(1.0, half_height - inset)};
+}
+
+// Twirl: inside the ellipse the source turns by -angle * (1 - r)^2 degrees.
+FilterRenderResult render_twirl(const FilterRenderResult& input, Rect canvas, std::int32_t angle,
+                                const FilterProgress* progress) {
+  const auto e = canvas_ellipse(canvas, 0.0);
+  const auto radians = static_cast<double>(angle) * kPi / 180.0;
+  return render_inverse_mapped(input, canvas, progress, [&](double x, double y) {
+    const auto u = (x - e.center_x) / e.radius_x;
+    const auto v = (y - e.center_y) / e.radius_y;
+    const auto r = std::sqrt(u * u + v * v);
+    if (r >= 1.0) {
+      return std::pair{x, y};
+    }
+    const auto turn = std::atan2(v, u) - radians * (1.0 - r) * (1.0 - r);
+    return std::pair{e.center_x + e.radius_x * r * std::cos(turn),
+                     e.center_y + e.radius_y * r * std::sin(turn)};
+  });
+}
+
+// Pinch: inside the ellipse the source radius is
+// r * (1 + 0.78125 * amount / 100 * (1 - r^2)^2); the angle is kept.
+FilterRenderResult render_pinch(const FilterRenderResult& input, Rect canvas, std::int32_t amount,
+                                const FilterProgress* progress) {
+  const auto e = canvas_ellipse(canvas, 0.0);
+  const auto strength = 0.78125 * static_cast<double>(amount) / 100.0;
+  return render_inverse_mapped(input, canvas, progress, [&](double x, double y) {
+    const auto u = (x - e.center_x) / e.radius_x;
+    const auto v = (y - e.center_y) / e.radius_y;
+    const auto r2 = u * u + v * v;
+    if (r2 >= 1.0) {
+      return std::pair{x, y};
+    }
+    const auto scale = 1.0 + strength * (1.0 - r2) * (1.0 - r2);
+    return std::pair{e.center_x + (x - e.center_x) * scale, e.center_y + (y - e.center_y) * scale};
+  });
+}
+
+// Spherize's radial profile for a = |amount| / 100: positive amounts move
+// toward (2 / pi) asin(r), negative ones toward sin(pi r / 2), linearly in a.
+double spherize_profile(double r, std::int32_t amount) noexcept {
+  if (r >= 1.0) {
+    return r;
+  }
+  const auto a = static_cast<double>(std::abs(amount)) / 100.0;
+  const auto target = amount >= 0 ? std::asin(r) * (2.0 / kPi) : std::sin(r * kPi * 0.5);
+  return r + a * (target - r);
+}
+
+// Spherize normalizes by the half extent minus one pixel (Photoshop keeps the
+// edge pixel in place). Normal works radially inside the ellipse; Horizontal
+// Only and Vertical Only apply the profile to one axis across the canvas.
+FilterRenderResult render_spherize(const FilterRenderResult& input, Rect canvas,
+                                   std::int32_t amount, std::int32_t mode,
+                                   const FilterProgress* progress) {
+  const auto e = canvas_ellipse(canvas, 1.0);
+  return render_inverse_mapped(input, canvas, progress, [&](double x, double y) {
+    const auto u = (x - e.center_x) / e.radius_x;
+    const auto v = (y - e.center_y) / e.radius_y;
+    if (mode == 1) {
+      return std::pair{e.center_x + e.radius_x * std::copysign(spherize_profile(std::abs(u), amount), u),
+                       y};
+    }
+    if (mode == 2) {
+      return std::pair{x,
+                       e.center_y + e.radius_y * std::copysign(spherize_profile(std::abs(v), amount), v)};
+    }
+    const auto r = std::sqrt(u * u + v * v);
+    if (r <= 0.0 || r >= 1.0) {
+      return std::pair{x, y};
+    }
+    const auto scale = spherize_profile(r, amount) / r;
+    return std::pair{e.center_x + e.radius_x * u * scale, e.center_y + e.radius_y * v * scale};
+  });
+}
+
+// Polar Coordinates. Rectangular to Polar: a pixel at normalized radius r and
+// clockwise angle phi from straight up reads the source at
+// x = W * (1 - phi / 2 pi) (wrapped), y = r * H. Polar to Rectangular reads
+// phi = 2 pi * (1 - (x + 1) / W) and r = y / H and samples that ellipse point.
+FilterRenderResult render_polar_coordinates(const FilterRenderResult& input, Rect canvas,
+                                            std::int32_t conversion,
+                                            const FilterProgress* progress) {
+  const auto e = canvas_ellipse(canvas, 0.0);
+  const auto width = static_cast<double>(canvas.width);
+  const auto height = static_cast<double>(canvas.height);
+  if (conversion == 0) {
+    return render_inverse_mapped(input, canvas, progress, [&](double x, double y) {
+      const auto u = (x - e.center_x) / e.radius_x;
+      const auto v = (y - e.center_y) / e.radius_y;
+      const auto phi = std::atan2(u, -v);
+      auto source_x = width * (1.0 - phi / (2.0 * kPi));
+      source_x -= width * std::floor(source_x / width);
+      return std::pair{source_x, std::sqrt(u * u + v * v) * height};
+    });
+  }
+  return render_inverse_mapped(input, canvas, progress, [&](double x, double y) {
+    const auto phi = 2.0 * kPi * (1.0 - (x + 1.0) / width);
+    const auto r = y / height;
+    return std::pair{e.center_x + r * e.radius_x * std::sin(phi),
+                     e.center_y - r * e.radius_y * std::cos(phi)};
+  });
+}
+
+// Photoshop's Trace Contour (docs/smart-filters-distort-stylize.md), per
+// straight RGB channel over the 4-neighborhood (the canvas edge repeats; canvas
+// pixels outside the content read as transparent black). Upper inks a value at
+// or below the level next to one above it, and a 255 next to any other value;
+// Lower inks a value at or above the level next to one below it. Ink is 0, the
+// rest 255. Alpha and bounds are unchanged.
+FilterRenderResult render_trace_contour(const FilterRenderResult& input, Rect canvas,
+                                        std::int32_t level, bool upper,
+                                        const FilterProgress* progress) {
+  const auto source = embed_in_canvas(input, canvas);
+  FilterRenderResult result = input;
+  const auto value = [&](std::int32_t x, std::int32_t y, int channel) -> std::int32_t {
+    x = std::clamp(x, 0, canvas.width - 1);
+    y = std::clamp(y, 0, canvas.height - 1);
+    return source.pixel(x, y)[channel];
+  };
+  constexpr std::array<std::array<std::int32_t, 2>, 4> kNeighbors{{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}};
+  for (std::int32_t y = 0; y < input.bounds.height; ++y) {
+    if ((y & 31) == 0) {
+      report(progress, y, input.bounds.height, FilterProgressStage::DetectingEdges);
+    }
+    const auto canvas_y = input.bounds.y - canvas.y + y;
+    for (std::int32_t x = 0; x < input.bounds.width; ++x) {
+      const auto canvas_x = input.bounds.x - canvas.x + x;
+      auto* px = result.pixels.pixel(x, y);
+      for (int channel = 0; channel < 3; ++channel) {
+        const auto center = value(canvas_x, canvas_y, channel);
+        bool ink = false;
+        for (const auto& [dx, dy] : kNeighbors) {
+          const auto neighbor = value(canvas_x + dx, canvas_y + dy, channel);
+          if (upper) {
+            ink = ink || (center <= level && neighbor > level) || (center == 255 && neighbor != 255);
+          } else {
+            ink = ink || (center >= level && neighbor < level);
+          }
+        }
+        px[channel] = ink ? 0 : 255;
+      }
+    }
+  }
+  report(progress, input.bounds.height, input.bounds.height, FilterProgressStage::DetectingEdges);
+  return result;
+}
+
+// Diffuse (docs/smart-filters-distort-stylize.md): every canvas pixel takes one
+// of its 8 neighbors (never itself; the canvas edge repeats). Normal copies the
+// neighbor's RGBA, Darken Only keeps the per-channel minimum of the pixel and
+// that neighbor (alpha included), Lighten Only the maximum. Photoshop picks the
+// neighbor at random on every render and stores no seed; Patchy picks it from a
+// splitmix64 hash of the document position, so a render is repeatable.
+FilterRenderResult render_diffuse(const FilterRenderResult& input, Rect canvas, std::int32_t mode,
+                                  const FilterProgress* progress) {
+  const auto source = embed_in_canvas(input, canvas);
+  PixelBuffer result(canvas.width, canvas.height, PixelFormat::rgba8());
+  constexpr std::array<std::array<std::int32_t, 2>, 8> kNeighbors{
+      {{-1, -1}, {0, -1}, {1, -1}, {-1, 0}, {1, 0}, {-1, 1}, {0, 1}, {1, 1}}};
+  for (std::int32_t y = 0; y < canvas.height; ++y) {
+    if ((y & 31) == 0) {
+      report(progress, y, canvas.height, FilterProgressStage::Distorting);
+    }
+    for (std::int32_t x = 0; x < canvas.width; ++x) {
+      SplitMix64 hash{static_cast<std::uint64_t>(static_cast<std::uint32_t>(canvas.x + x)) * 0x9e3779b97f4a7c15ULL ^
+                      static_cast<std::uint64_t>(static_cast<std::uint32_t>(canvas.y + y)) * 0xc2b2ae3d27d4eb4fULL ^
+                      0x44667320ULL};
+      const auto& offset = kNeighbors[static_cast<std::size_t>(hash.next() % 8U)];
+      const auto* self = source.pixel(x, y);
+      const auto* neighbor = source.pixel(std::clamp(x + offset[0], 0, canvas.width - 1),
+                                          std::clamp(y + offset[1], 0, canvas.height - 1));
+      auto* out = result.pixel(x, y);
+      for (int channel = 0; channel < 4; ++channel) {
+        out[channel] = mode == 1   ? std::min(self[channel], neighbor[channel])
+                       : mode == 2 ? std::max(self[channel], neighbor[channel])
+                                   : neighbor[channel];
+      }
+    }
+  }
+  report(progress, canvas.height, canvas.height, FilterProgressStage::Distorting);
+  return trim_to_visible(std::move(result), canvas);
+}
+
 }  // namespace
 
 FilterRenderResult render_schema_smart_filter(const FilterRenderResult& current,
@@ -514,6 +713,20 @@ FilterRenderResult render_schema_smart_filter(const FilterRenderResult& current,
                            progress);
     case SmartFilterKind::Shear:
       return render_shear(current, filter_canvas_bounds, settings, progress);
+    case SmartFilterKind::Twirl:
+      return render_twirl(current, filter_canvas_bounds, settings.values[0], progress);
+    case SmartFilterKind::Pinch:
+      return render_pinch(current, filter_canvas_bounds, settings.values[0], progress);
+    case SmartFilterKind::Spherize:
+      return render_spherize(current, filter_canvas_bounds, settings.values[0], settings.values[1],
+                             progress);
+    case SmartFilterKind::PolarCoordinates:
+      return render_polar_coordinates(current, filter_canvas_bounds, settings.values[0], progress);
+    case SmartFilterKind::Diffuse:
+      return render_diffuse(current, filter_canvas_bounds, settings.values[0], progress);
+    case SmartFilterKind::TraceContour:
+      return render_trace_contour(current, filter_canvas_bounds, settings.values[0],
+                                  settings.values[1] == 1, progress);
     default:
       break;
   }

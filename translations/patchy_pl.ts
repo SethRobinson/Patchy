@@ -11355,6 +11355,70 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Fragment</source>
         <translation>Fragment</translation>
     </message>
+    <message>
+        <source>Horizontal Only</source>
+        <translation>Tylko w poziomie</translation>
+    </message>
+    <message>
+        <source>Vertical Only</source>
+        <translation>Tylko w pionie</translation>
+    </message>
+    <message>
+        <source>Mode</source>
+        <translation>Tryb</translation>
+    </message>
+    <message>
+        <source>Rectangular to Polar</source>
+        <translation>Prostokątne na biegunowe</translation>
+    </message>
+    <message>
+        <source>Polar to Rectangular</source>
+        <translation>Biegunowe na prostokątne</translation>
+    </message>
+    <message>
+        <source>Conversion</source>
+        <translation>Konwersja</translation>
+    </message>
+    <message>
+        <source>Lower</source>
+        <translation>Dolna</translation>
+    </message>
+    <message>
+        <source>Upper</source>
+        <translation>Górna</translation>
+    </message>
+    <message>
+        <source>Level</source>
+        <translation>Poziom</translation>
+    </message>
+    <message>
+        <source>Darken Only</source>
+        <translation>Tylko przyciemnianie</translation>
+    </message>
+    <message>
+        <source>Lighten Only</source>
+        <translation>Tylko rozjaśnianie</translation>
+    </message>
+    <message>
+        <source>Pinch</source>
+        <translation>Ściśnięcie</translation>
+    </message>
+    <message>
+        <source>Spherize</source>
+        <translation>Sferyzacja</translation>
+    </message>
+    <message>
+        <source>Polar Coordinates</source>
+        <translation>Współrzędne biegunowe</translation>
+    </message>
+    <message>
+        <source>Trace Contour</source>
+        <translation>Śledzenie konturu</translation>
+    </message>
+    <message>
+        <source>Diffuse</source>
+        <translation>Rozproszenie</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -11287,6 +11287,70 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Fragment</source>
         <translation>분열</translation>
     </message>
+    <message>
+        <source>Horizontal Only</source>
+        <translation>가로만</translation>
+    </message>
+    <message>
+        <source>Vertical Only</source>
+        <translation>세로만</translation>
+    </message>
+    <message>
+        <source>Mode</source>
+        <translation>모드</translation>
+    </message>
+    <message>
+        <source>Rectangular to Polar</source>
+        <translation>직교 좌표를 극좌표로</translation>
+    </message>
+    <message>
+        <source>Polar to Rectangular</source>
+        <translation>극좌표를 직교 좌표로</translation>
+    </message>
+    <message>
+        <source>Conversion</source>
+        <translation>변환</translation>
+    </message>
+    <message>
+        <source>Lower</source>
+        <translation>아래</translation>
+    </message>
+    <message>
+        <source>Upper</source>
+        <translation>위</translation>
+    </message>
+    <message>
+        <source>Level</source>
+        <translation>레벨</translation>
+    </message>
+    <message>
+        <source>Darken Only</source>
+        <translation>어둡게만</translation>
+    </message>
+    <message>
+        <source>Lighten Only</source>
+        <translation>밝게만</translation>
+    </message>
+    <message>
+        <source>Pinch</source>
+        <translation>핀치</translation>
+    </message>
+    <message>
+        <source>Spherize</source>
+        <translation>구형화</translation>
+    </message>
+    <message>
+        <source>Polar Coordinates</source>
+        <translation>극좌표</translation>
+    </message>
+    <message>
+        <source>Trace Contour</source>
+        <translation>윤곽선 추적</translation>
+    </message>
+    <message>
+        <source>Diffuse</source>
+        <translation>확산</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
