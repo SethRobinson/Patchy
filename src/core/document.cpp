@@ -329,11 +329,51 @@ void Document::resize_canvas(std::int32_t width, std::int32_t height) {
   if (width < 0 || height < 0) {
     throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "Document dimensions cannot be negative"));
   }
+  if (width != width_ || height != height_) {
+    forget_psd_slices(*this);
+  }
   width_ = width;
   height_ = height;
   // Feathered raster masks edge-clamp their blur at the canvas.
   for (auto& layer : layers_) {
     sync_layer_mask_feather_canvas(layer, Rect::from_size(width_, height_));
+  }
+}
+
+void forget_psd_slices(Document& document) {
+  // Image resource blocks: a four-byte signature, a big-endian u16 id, a Pascal name padded
+  // to an even length, a big-endian u32 size and the data padded to an even length. A
+  // block that does not parse ends the walk and everything from it on stays as it was.
+  auto& resources = document.metadata().raw_psd_image_resources;
+  std::vector<std::uint8_t> kept;
+  std::size_t position = 0;
+  bool dropped = false;
+  while (resources.size() - position >= 12U) {
+    const auto start = position;
+    const auto id = static_cast<std::uint16_t>((resources[position + 4U] << 8U) | resources[position + 5U]);
+    const auto name_bytes = ((1U + static_cast<std::size_t>(resources[position + 6U]) + 1U) / 2U) * 2U;
+    if (name_bytes + 10U > resources.size() - position) {
+      break;
+    }
+    const auto size_at = position + 6U + name_bytes;
+    const auto size = (static_cast<std::size_t>(resources[size_at]) << 24U) |
+                      (static_cast<std::size_t>(resources[size_at + 1U]) << 16U) |
+                      (static_cast<std::size_t>(resources[size_at + 2U]) << 8U) | resources[size_at + 3U];
+    const auto padded = size + (size % 2U);
+    if (padded > resources.size() - size_at - 4U) {
+      break;
+    }
+    position = size_at + 4U + padded;
+    if (id == 1050U || id == 1054U) {
+      dropped = true;
+    } else {
+      kept.insert(kept.end(), resources.begin() + static_cast<std::ptrdiff_t>(start),
+                  resources.begin() + static_cast<std::ptrdiff_t>(position));
+    }
+  }
+  if (dropped) {
+    kept.insert(kept.end(), resources.begin() + static_cast<std::ptrdiff_t>(position), resources.end());
+    resources = std::move(kept);
   }
 }
 
