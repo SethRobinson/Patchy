@@ -1826,7 +1826,7 @@ private:
   // actionable state (never back to plain hovering), so confirmations that
   // other code shows are not overwritten by mouse motion.
   void update_path_hover_hint(PenHoverAction action);
-  enum class PathHoverTarget { None, Anchor, Handle, Segment };
+  enum class PathHoverTarget { None, Anchor, Handle, Segment, Fill };
   [[nodiscard]] PathHoverTarget path_hover_target_at(QPointF widget_point) const;
   void update_path_select_hover_hint(PathHoverTarget target);
   bool handle_pen_ctrl_press(QMouseEvent* event, QPointF document_point);
@@ -1843,6 +1843,9 @@ private:
   // Pen's Ctrl latch is held, the actual tool otherwise.
   [[nodiscard]] CanvasTool path_edit_tool() const noexcept;
   [[nodiscard]] patchy::Layer* path_edit_target_layer() const;
+  // The topmost visible, editable shape layer whose anchor, outline or fill is
+  // under the pointer: Path/Direct Select pick it as their target (GitHub issue 248).
+  [[nodiscard]] patchy::Layer* topmost_path_pick_layer_at(QPointF widget_point) const;
   mutable std::optional<patchy::VectorPath> text_area_path_cache_;
   mutable std::optional<patchy::LayerId> text_area_path_layer_;
   mutable std::uint64_t text_area_path_revision_{0};
@@ -2432,6 +2435,8 @@ private:
   // Path-edit session state (selection keys are (subpath, anchor) indices).
   enum class PathEditDrag { None, Anchors, HandleIn, HandleOut, Marquee };
   std::set<std::pair<int, int>> path_selected_anchors_;
+  // Set while a press that picked another shape layer replays on the new target.
+  bool path_press_repicked_ = false;
   // Selected anchors on OTHER panel-selected shape layers (never the primary
   // target); drags, nudges, deletes, and the count span both structures.
   std::map<LayerId, std::set<std::pair<int, int>>> extra_selected_anchors_;

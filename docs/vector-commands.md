@@ -18,7 +18,7 @@ tools (Line, Rectangle, Ellipse, Polygon, Custom Shape). Photoshop 2026 shows no
 and only the transform box under Move; Patchy's every-tool outline read as part of the artwork
 (GitHub issue 238; `ui_shape_layer_outline_shows_only_under_path_and_shape_tools`). Under a
 path tool the overlay also outlines every Layers-panel-selected shape layer with hollow anchors
-(`set_panel_selected_layer_ids`); only the target path gets filled anchors, handles, and edits.
+(outline only under Path Select; `set_panel_selected_layer_ids`); only the target path gets filled anchors, handles, and edits.
 
 Overlay glyphs (`draw_pen_overlay`, `draw_path_edit_overlay`, canvas_widget_vector_tools.cpp):
 visibility comes from contrast, not size (GitHub issue 105; a first, larger-only pass still
@@ -108,6 +108,36 @@ selection.
   `set_path_selection_changed_callback` (fired from every mutation of
   `path_selected_anchors_`: clicks, marquees, deletes, prunes, deselects)
   and from every options-bar refresh (tool switches).
+
+## Pressing and picking with the arrows
+
+GitHub issue 248. `handle_path_edit_press` tries, in order: a drawn handle knob
+of the target (both arrows), a target anchor, Direct Select's panel-selected
+extra layers' anchors, a target segment, the extras' segments, then the pick:
+`topmost_path_pick_layer_at` walks visible, editable shape layers top-down
+(pixel layers never count) and takes the first whose anchor, outline or fill
+(`shape_group_containing`, topmost group first) is under the pointer. A pick
+other than the target activates that layer, clears the point selection and
+replays the same press on it (guarded by `path_press_repicked_`), so one press
+picks and drags; activation adds no undo entry, so the drag is the one step.
+Then, Path Select only, a press inside the target's fill selects that group
+and drags it ("Move shape"); anything else starts the marquee, which first
+clears the selection (blank canvas and pasteboard alike). A Path Select
+marquee selects every target group it touches (`subpath_touches_rect`:
+fill overlap for closed subpaths, outline crossing for open ones), anchors
+inside or not; Direct Select's selects the anchors inside. Not done yet: a
+marquee does not pick shapes on other layers.
+
+Path Select draws anchor squares only for the selected shape: an unselected
+target (and an unselected panel-selected extra) shows just its outline, so a
+blank click visibly deselects. Direct Select keeps hollow anchors on the
+active path. Hover: a fill, or another layer's shape, is `PathHoverTarget::Fill`
+(Path Select's select-and-move hint; no Direct Select hint). Tests:
+`ui_path_select_blank_click_deselects_shape`,
+`ui_path_select_click_picks_shape_under_pointer`,
+`ui_path_select_marquee_touching_shape_selects_it`,
+`ui_path_select_drag_inside_fill_moves_shape`,
+`ui_direct_select_drags_points_of_unselected_shapes`.
 
 ## Moving a selection
 
