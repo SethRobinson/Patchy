@@ -22624,6 +22624,10 @@ Puedes hacerlo más tarde desde Ayuda &gt; Añadir Patchy al menú de aplicacion
         <source>Cancelled Channel Mixer</source>
         <translation>Mezclador de canales cancelado</translation>
     </message>
+    <message>
+        <source>New Fill or Adjustment Layer</source>
+        <translation>Nueva capa de relleno o de ajuste</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

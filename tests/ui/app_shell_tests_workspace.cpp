@@ -1523,6 +1523,63 @@ void ui_reset_panels_keeps_the_window_geometry() {
   patchy::ui::MainWindowTestAccess::set_available_window_height(window, 0);
 }
 
+// The Layers panel's new fill or adjustment layer button (GitHub issue 252) lists the fill
+// layers, a separator, then the adjustments, exactly as Layer > New Fill Layer and Layer >
+// New Adjustment Layer do, so a new kind lands in both.
+void ui_layer_panel_new_layer_menu_lists_fills_and_adjustments() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* button = window.findChild<QToolButton*>(QStringLiteral("layerNewAdjustmentButton"));
+  auto* fill_menu = window.findChild<QMenu*>(QStringLiteral("layerNewFillMenu"));
+  auto* adjustment_menu = window.findChild<QMenu*>(QStringLiteral("layerNewAdjustmentMenu"));
+  CHECK(button != nullptr && fill_menu != nullptr && adjustment_menu != nullptr);
+  if (button == nullptr || fill_menu == nullptr || adjustment_menu == nullptr || button->menu() == nullptr) {
+    CHECK(false);
+    return;
+  }
+  auto* panel_menu = button->menu();
+  CHECK(panel_menu->objectName() == QStringLiteral("layerNewAdjustmentButtonMenu"));
+
+  // Review capture: the panel menu as it opens.
+  panel_menu->popup(button->mapToGlobal(QPoint(0, button->height())));
+  QApplication::processEvents();
+  save_widget_artifact("issue_252_panel_menu", *panel_menu);
+  panel_menu->hide();
+  QApplication::processEvents();
+
+  const auto texts = [](const QMenu& menu) {
+    QStringList out;
+    for (const auto* action : menu.actions()) {
+      out << (action->isSeparator() ? QStringLiteral("---") : QString(action->text()).remove(QLatin1Char('&')));
+    }
+    return out;
+  };
+  const auto fills = texts(*fill_menu);
+  const auto adjustments = texts(*adjustment_menu);
+  CHECK((fills == QStringList{QStringLiteral("Solid Color..."), QStringLiteral("Gradient..."),
+                              QStringLiteral("Pattern...")}));
+  CHECK(adjustments.contains(QStringLiteral("Channel Mixer...")));
+  CHECK(texts(*panel_menu) == fills + QStringList{QStringLiteral("---")} + adjustments);
+  CHECK(button->toolTip().startsWith(QStringLiteral("New Fill or Adjustment Layer")));
+
+  // The panel's fill entry creates the fill layer like the Layer menu's (Solid Color asks for a color).
+  bool picked = false;
+  QTimer::singleShot(0, [&picked] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      if (auto* dialog = qobject_cast<QDialog*>(widget); dialog != nullptr && dialog->isVisible()) {
+        picked = true;
+        dialog->accept();
+        return;
+      }
+    }
+  });
+  const auto layers_before = patchy::ui::MainWindowTestAccess::document(window).layers().size();
+  panel_menu->actions().front()->trigger();
+  QApplication::processEvents();
+  CHECK(picked);
+  CHECK(patchy::ui::MainWindowTestAccess::document(window).layers().size() == layers_before + 1);
+}
+
 void ui_main_window_renders_color_controls() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -3194,6 +3251,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part1() {
       {"ui_start_panel_recent_filter_narrows_rows_and_opens_match", ui_start_panel_recent_filter_narrows_rows_and_opens_match},
       {"ui_start_panel_shows_about_info_and_update_status", ui_start_panel_shows_about_info_and_update_status},
       {"ui_main_window_renders_color_controls", ui_main_window_renders_color_controls},
+      {"ui_layer_panel_new_layer_menu_lists_fills_and_adjustments", ui_layer_panel_new_layer_menu_lists_fills_and_adjustments},
       {"ui_window_menu_lists_panels_and_toolbars", ui_window_menu_lists_panels_and_toolbars},
       {"ui_window_menu_hides_collapsed_panel", ui_window_menu_hides_collapsed_panel},
       {"ui_panel_close_and_reopen_keeps_full_width", ui_panel_close_and_reopen_keeps_full_width},

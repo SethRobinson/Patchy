@@ -119,9 +119,9 @@ The visibility eye (`layerVisibilityCheck`) does not toggle through its QToolBut
 
 The footer's `layerAddMaskButton` runs `MainWindow::add_layer_mask` (reveal-all, or from the active selection). `layerStylesButton` (GitHub issue 94; the row badge's `badge-fx` art) pops up `layerStylesButtonMenu`: the shared Edit Layer Styles... action (`layerBlendingOptionsAction`), a separator, then one entry per effect in the dialog's category order. An effect entry calls `edit_active_layer_style(LayerStyleEffect)`: the one Layer Style dialog opens on that effect's first row and ticks it the way its checkbox does, so OK keeps it, Cancel restores, and a turned-off instance is turned on instead of duplicated. Neither button is a registered document widget. `refresh_add_layer_mask_button_state` owns the mask button from `can_add_layer_mask` (exactly one selected layer that is the active one, kind pixel/adjustment/group, no raster mask yet, image pixels unlocked, no preview-dialog lock); `refresh_layer_styles_button_state` owns the styles button from `can_edit_layer_styles` (a selected or active layer that is not effectively locked, the filter `edit_active_layer_style` applies, and no preview-dialog lock). Both run from `refresh_layer_controls` and `update_document_action_state`. Pinned by `ui_layer_add_mask_button_tracks_selection_and_adds_mask`, `ui_layer_styles_button_tracks_selection_and_lists_effects` and `ui_layer_styles_menu_entry_opens_dialog_on_effect`. The footer's one-row width (eight buttons) sets the column's opening width (`ui_layer_fx_and_smart_badges_stay_visible_in_narrow_panel`).
 
-## Animation preview
+## Footer menus
 
-The footer's film button (`layerAnimationButton`) and its preview window: [animation.md](animation.md#animation-preview-window).
+`layerNewAdjustmentButton` lists the fill layers, a separator, then the adjustments, built by the Layer menu's `populate_new_fill_layer_menu` and `populate_new_adjustment_layer_menu` (issue 252). Film button (`layerAnimationButton`): [animation.md](animation.md#animation-preview-window).
 
 ## Drag to another document
 

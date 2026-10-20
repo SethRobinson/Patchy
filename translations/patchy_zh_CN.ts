@@ -22554,6 +22554,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <source>Cancelled Channel Mixer</source>
         <translation>已取消通道混合器</translation>
     </message>
+    <message>
+        <source>New Fill or Adjustment Layer</source>
+        <translation>新建填充或调整图层</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

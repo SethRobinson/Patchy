@@ -22694,6 +22694,10 @@ Patchy можно будет запускать из меню, а на пане�
         <source>Cancelled Channel Mixer</source>
         <translation>Микширование каналов отменено</translation>
     </message>
+    <message>
+        <source>New Fill or Adjustment Layer</source>
+        <translation>Новый слой заливки или корректирующий слой</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
