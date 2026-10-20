@@ -11104,7 +11104,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Pond Ripples</source>
-        <translation>波紋</translation>
+        <translation>池の波紋</translation>
     </message>
     <message>
         <source>Ridges</source>
@@ -11174,6 +11174,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>%1 %2</source>
         <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
         <translation>%1 %2</translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <translation>小</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>中</translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <translation>大</translation>
+    </message>
+    <message>
+        <source>Ripple</source>
+        <translation>波紋</translation>
+    </message>
+    <message>
+        <source>Curve</source>
+        <translation>カーブ</translation>
+    </message>
+    <message>
+        <source>Curve Start</source>
+        <translation>カーブの始点</translation>
+    </message>
+    <message>
+        <source>Curve End</source>
+        <translation>カーブの終点</translation>
+    </message>
+    <message>
+        <source>Shear</source>
+        <translation>シアー</translation>
     </message>
     <message>
         <source>Squareness</source>

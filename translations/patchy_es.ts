@@ -11210,6 +11210,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>%1 %2</translation>
     </message>
     <message>
+        <source>Small</source>
+        <translation>Pequeño</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>Mediano</translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <translation>Grande</translation>
+    </message>
+    <message>
+        <source>Ripple</source>
+        <translation>Rizo</translation>
+    </message>
+    <message>
+        <source>Curve</source>
+        <translation>Curva</translation>
+    </message>
+    <message>
+        <source>Curve Start</source>
+        <translation>Inicio de curva</translation>
+    </message>
+    <message>
+        <source>Curve End</source>
+        <translation>Fin de curva</translation>
+    </message>
+    <message>
+        <source>Shear</source>
+        <translation>Distorsionar</translation>
+    </message>
+    <message>
         <source>Squareness</source>
         <translation>Cuadratura</translation>
     </message>
