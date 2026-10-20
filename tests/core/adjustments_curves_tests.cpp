@@ -3138,11 +3138,10 @@ void color_balance_tones_round_trip_metadata_and_blnc() {
 // name their kind, raise one import notice, render nothing, and write their native block
 // back byte for byte (#250).
 void psd_unsupported_adjustments_import_as_placeholders_and_round_trip() {
-  const std::array<std::pair<std::array<char, 4>, const char*>, 7> kinds{{
+  const std::array<std::pair<std::array<char, 4>, const char*>, 6> kinds{{
       {{'v', 'i', 'b', 'A'}, "vibrance"},
       {{'b', 'l', 'w', 'h'}, "black_white"},
       {{'p', 'h', 'f', 'l'}, "photo_filter"},
-      {{'m', 'i', 'x', 'r'}, "channel_mixer"},
       {{'c', 'l', 'r', 'L'}, "color_lookup"},
       {{'g', 'r', 'd', 'm'}, "gradient_map"},
       {{'s', 'e', 'l', 'c'}, "selective_color"},
@@ -3178,6 +3177,151 @@ void psd_unsupported_adjustments_import_as_placeholders_and_round_trip() {
   CHECK(std::none_of(notices.begin(), notices.end(), [](const std::string& notice) {
     return notice.find("cannot apply yet") != std::string::npos;
   }));
+}
+
+// Channel Mixer output pinned to Photoshop 2026 (#250): weights and the constant sit on a
+// 1/1024 scale truncated toward zero, so plain percentage math is off by one on many of
+// these inputs, such as (0, 0, 153) through a 20% blue weight.
+void channel_mixer_matches_photoshop_2026_calibration() {
+  using Triple = std::array<int, 3>;
+  using Quad = std::array<int, 4>;
+  struct Row {
+    bool monochrome;
+    Quad red;
+    Quad green;
+    Quad blue;
+    Quad gray;
+    std::array<Triple, 6> expected;
+  };
+  const std::array<Triple, 6> inputs{{{17, 68, 204}, {136, 136, 136}, {51, 170, 238}, {204, 102, 34}, {0, 102, 34},
+                                      {0, 0, 153}}};
+  const std::array<Row, 6> rows{{
+      {false, {70, 20, 10, 0}, {-50, 150, 0, 0}, {30, -20, 90, 0}, {40, 40, 20, 0},
+       {{{46, 94, 175}, {136, 136, 136}, {93, 230, 195}, {166, 51, 71}, {24, 153, 10}, {15, 0, 138}}}},
+      {false, {100, 0, 0, 30}, {0, 100, 0, -45}, {0, 0, 100, 7}, {40, 40, 20, 0},
+       {{{93, 0, 222}, {212, 21, 154}, {127, 55, 255}, {255, 0, 52}, {76, 0, 52}, {76, 0, 171}}}},
+      {false, {200, -200, 50, -100}, {-200, 200, 33, 150}, {17, 29, -71, 200}, {40, 40, 20, 0},
+       {{{0, 255, 255}, {0, 255, 255}, {0, 255, 255}, {0, 190, 255}, {0, 255, 255}, {0, 255, 255}}}},
+      {true, {100, 0, 0, 0}, {0, 100, 0, 0}, {0, 0, 100, 0}, {40, 40, 20, 0},
+       {{{75, 75, 75}, {136, 136, 136}, {136, 136, 136}, {129, 129, 129}, {48, 48, 48}, {30, 30, 30}}}},
+      {true, {100, 0, 0, 0}, {0, 100, 0, 0}, {0, 0, 100, 0}, {33, 51, 17, -12},
+       {{{45, 45, 45}, {107, 107, 107}, {114, 114, 114}, {95, 95, 95}, {27, 27, 27}, {0, 0, 0}}}},
+      {false, {33, 33, 33, 0}, {33, 34, 33, 0}, {1, 1, 1, 1}, {40, 40, 20, 0},
+       {{{95, 96, 5}, {134, 136, 6}, {151, 153, 7}, {112, 113, 6}, {45, 46, 4}, {50, 50, 4}}}},
+  }};
+  const auto mix_row = [](const Quad& value) {
+    return patchy::ChannelMixerRow{value[0], value[1], value[2], value[3]};
+  };
+  for (const auto& row : rows) {
+    patchy::AdjustmentSettings settings;
+    settings.kind = patchy::AdjustmentKind::ChannelMixer;
+    settings.channel_mixer.monochrome = row.monochrome;
+    settings.channel_mixer.red = mix_row(row.red);
+    settings.channel_mixer.green = mix_row(row.green);
+    settings.channel_mixer.blue = mix_row(row.blue);
+    settings.channel_mixer.gray = mix_row(row.gray);
+    CHECK(!patchy::build_adjustment_lut(settings).has_value());  // channels mix, so no per-channel LUT
+    const patchy::DeepAdjuster deep(settings, patchy::DeepDomain::Encoded);
+    for (std::size_t index = 0; index < inputs.size(); ++index) {
+      const auto& in = inputs[index];
+      const patchy::RgbColor color{static_cast<std::uint8_t>(in[0]), static_cast<std::uint8_t>(in[1]),
+                                   static_cast<std::uint8_t>(in[2])};
+      const auto adjusted = patchy::apply_adjustment_to_color(color, settings);
+      const auto& expected = row.expected[index];
+      CHECK(adjusted.red == expected[0]);
+      CHECK(adjusted.green == expected[1]);
+      CHECK(adjusted.blue == expected[2]);
+      // The deep path is the same mix without the 8-bit rounding.
+      const auto deep_out = deep.apply({static_cast<float>(in[0]), static_cast<float>(in[1]),
+                                        static_cast<float>(in[2])});
+      for (std::size_t c = 0; c < 3U; ++c) {
+        CHECK(std::abs(static_cast<double>(deep_out[c]) - expected[c]) <= 0.5);
+      }
+    }
+  }
+  CHECK(patchy::channel_mixer_weight(20) == 204);
+  CHECK(patchy::channel_mixer_weight(-71) == -727);
+  CHECK(patchy::channel_mixer_weight(-200) == -2048);
+}
+
+// Channel Mixer reads and writes Photoshop's 'mixr' block: the rows land on the right
+// outputs, monochrome keeps its gray mix, an unedited block re-emits byte for byte, and
+// the preset-name 'CgEd' goes once the mix is edited (#250).
+void psd_channel_mixer_reads_and_writes_mixr() {
+  const auto row_bytes = [](int red, int green, int blue, int constant) {
+    std::vector<std::uint8_t> out;
+    for (const int value : {red, green, blue, 0, constant}) {
+      const auto encoded = static_cast<std::uint16_t>(static_cast<std::int16_t>(value));
+      out.push_back(static_cast<std::uint8_t>(encoded >> 8U));
+      out.push_back(static_cast<std::uint8_t>(encoded & 0xFFU));
+    }
+    return out;
+  };
+  std::vector<std::uint8_t> payload{0x00, 0x01, 0x00, 0x00};
+  for (const auto& row : {row_bytes(70, 20, 10, 0), row_bytes(-50, 150, 0, -45), row_bytes(30, -20, 90, 7),
+                          row_bytes(0, 0, 0, 0)}) {
+    payload.insert(payload.end(), row.begin(), row.end());
+  }
+  CHECK(payload.size() == 44U);
+  const std::vector<std::uint8_t> descriptor{0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x01};
+  auto document = patchy::psd::DocumentIo::read(
+      single_adjustment_layer_psd({{{'m', 'i', 'x', 'r'}, payload}, {{'C', 'g', 'E', 'd'}, descriptor}}));
+  CHECK(document.layers().size() == 1);
+  CHECK(document.layers().front().kind() == patchy::LayerKind::Adjustment);
+  const auto settings = patchy::adjustment_settings_from_layer(document.layers().front());
+  CHECK(settings.has_value());
+  CHECK(settings->kind == patchy::AdjustmentKind::ChannelMixer);
+  const auto& mixer = settings->channel_mixer;
+  CHECK(!mixer.monochrome);
+  CHECK((mixer.red == patchy::ChannelMixerRow{70, 20, 10, 0}));
+  CHECK((mixer.green == patchy::ChannelMixerRow{-50, 150, 0, -45}));
+  CHECK((mixer.blue == patchy::ChannelMixerRow{30, -20, 90, 7}));
+
+  // Unedited: both blocks come back unchanged.
+  const auto unedited = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  CHECK(psd_layer_block_payload(psd_layer_extra_data(unedited, 0), "mixr") == payload);
+  CHECK(psd_layer_block_payload(psd_layer_extra_data(unedited, 0), "CgEd") == descriptor);
+
+  // Edited: the rows are rewritten and the stale preset descriptor is dropped.
+  auto edited = *settings;
+  edited.channel_mixer.blue = patchy::ChannelMixerRow{0, 0, 100, 0};
+  patchy::configure_adjustment_layer(*document.find_layer(document.layers().front().id()), edited);
+  const auto rewritten = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto rewritten_mixr = psd_layer_block_payload(psd_layer_extra_data(rewritten, 0), "mixr");
+  CHECK(rewritten_mixr.has_value());
+  auto expected = payload;
+  const auto blue_row = row_bytes(0, 0, 100, 0);
+  std::copy(blue_row.begin(), blue_row.end(), expected.begin() + 24);
+  CHECK(*rewritten_mixr == expected);
+  CHECK(!psd_layer_block_payload(psd_layer_extra_data(rewritten, 0), "CgEd").has_value());
+  const auto reread = patchy::adjustment_settings_from_layer(patchy::psd::DocumentIo::read(rewritten).layers().front());
+  CHECK(reread.has_value());
+  CHECK(reread->channel_mixer == edited.channel_mixer);
+
+  // Monochrome keeps its mix in the first row, as the ag-psd sample's "Black & White with
+  // Green Filter" preset does.
+  std::vector<std::uint8_t> mono{0x00, 0x01, 0x00, 0x01};
+  for (const auto& row : {row_bytes(0, 100, 0, 0), row_bytes(0, 0, 0, 0), row_bytes(0, 0, 0, 0),
+                          row_bytes(0, 0, 0, 0)}) {
+    mono.insert(mono.end(), row.begin(), row.end());
+  }
+  const auto mono_settings = patchy::adjustment_settings_from_layer(
+      patchy::psd::DocumentIo::read(single_adjustment_layer_psd({{{'m', 'i', 'x', 'r'}, mono}})).layers().front());
+  CHECK(mono_settings.has_value());
+  CHECK(mono_settings->channel_mixer.monochrome);
+  CHECK((mono_settings->channel_mixer.gray == patchy::ChannelMixerRow{0, 100, 0, 0}));
+
+  // Layer metadata round trip, including the stashed rows of the other mode.
+  patchy::AdjustmentSettings metadata_settings;
+  metadata_settings.kind = patchy::AdjustmentKind::ChannelMixer;
+  metadata_settings.channel_mixer.monochrome = true;
+  metadata_settings.channel_mixer.gray = {33, 51, 17, -12};
+  metadata_settings.channel_mixer.red = {80, 10, 10, 5};
+  patchy::Layer layer(1, "Mixer", patchy::LayerKind::Adjustment);
+  patchy::configure_adjustment_layer(layer, metadata_settings);
+  const auto from_metadata = patchy::adjustment_settings_from_layer(layer);
+  CHECK(from_metadata.has_value());
+  CHECK(from_metadata->channel_mixer == metadata_settings.channel_mixer);
 }
 
 void psd_native_nvrt_adjustment_imports_and_renders() {
@@ -3300,5 +3444,7 @@ std::vector<patchy::test::TestCase> adjustments_curves_tests() {
       {"color_balance_tones_round_trip_metadata_and_blnc", color_balance_tones_round_trip_metadata_and_blnc},
       {"psd_unsupported_adjustments_import_as_placeholders_and_round_trip",
        psd_unsupported_adjustments_import_as_placeholders_and_round_trip},
+      {"psd_channel_mixer_reads_and_writes_mixr", psd_channel_mixer_reads_and_writes_mixr},
+      {"channel_mixer_matches_photoshop_2026_calibration", channel_mixer_matches_photoshop_2026_calibration},
   };
 }

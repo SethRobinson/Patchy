@@ -10973,6 +10973,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>%1 adjustment from Photoshop. Patchy cannot apply it yet: it has no effect here and is saved unchanged.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Constant</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Output Channel:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Monochrome</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Channel Mixer: monochrome %1 / %2 / %3, constant %4</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22517,6 +22533,18 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     </message>
     <message>
         <source>Pi&amp;xel Grid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Channel &amp;Mixer...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Channel Mixer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancelled Channel Mixer</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

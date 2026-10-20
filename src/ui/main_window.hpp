@@ -137,6 +137,7 @@ using ColorBalanceSettings = ColorBalanceAdjustment;
 using PosterizeSettings = PosterizeAdjustment;
 using ThresholdSettings = ThresholdAdjustment;
 using ExposureSettings = ExposureAdjustment;
+using ChannelMixerSettings = ChannelMixerAdjustment;
 using BrightnessContrastSettings = BrightnessContrastAdjustment;
 struct ScannerAcquireResult;
 struct UpdateInfo;
@@ -1282,6 +1283,7 @@ private:
   void new_posterize_adjustment_layer();
   void apply_posterize_adjustment(const PosterizeSettings& settings, bool allow_identity = false);
   void new_threshold_adjustment_layer();
+  void new_channel_mixer_adjustment_layer();
   void apply_threshold_adjustment(const ThresholdSettings& settings, bool allow_identity = false);
   void new_exposure_adjustment_layer();
   void apply_exposure_adjustment(const ExposureSettings& settings, bool allow_identity = false);

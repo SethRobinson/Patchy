@@ -154,6 +154,8 @@ bool is_smart_object_reference_block(std::string_view key) {
   return key == "PlLd" || key == "plLd" || key == "SoLd" || key == "SoLE";
 }
 
+const UnknownPsdBlock* find_layer_block(const Layer& layer, std::string_view key);
+
 bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock& block, bool generated_text_block,
                              bool generated_style_block, bool generated_vector_blocks) {
   // Runtime/legacy compound markers travel in plug-in resource 4211. Unknown
@@ -186,7 +188,7 @@ bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock&
   if (!encoded.preserve_native_color_blocks && encoded.kind == EncodedLayerKind::Adjustment &&
       (block.key == "levl" || block.key == "curv" || block.key == "hue2" || block.key == "nvrt" ||
        block.key == "post" || block.key == "thrs" || block.key == "brit" || block.key == "blnc" ||
-       block.key == "expA")) {
+       block.key == "expA" || block.key == "mixr")) {
     return true;
   }
   // The Brightness/Contrast emitter owns 'CgEd' (preserved, regenerated, or
@@ -196,6 +198,14 @@ bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock&
     if (const auto settings = adjustment_settings_from_layer(*encoded.layer);
         settings.has_value() && settings->kind == AdjustmentKind::BrightnessContrast) {
       return true;
+    }
+    // A Channel Mixer's 'CgEd' only names the preset it came from; once the mix is edited
+    // that name is stale, so it goes.
+    if (const auto settings = adjustment_settings_from_layer(*encoded.layer);
+        settings.has_value() && settings->kind == AdjustmentKind::ChannelMixer) {
+      const auto* original = find_layer_block(*encoded.layer, "mixr");
+      return original == nullptr ||
+             photoshop_channel_mixer_payload(settings->channel_mixer, original) != original->payload;
     }
   }
   if (generated_style_block && (block.key == "lfx2" || block.key == "lrFX" || block.key == "lmfx")) {
@@ -1095,6 +1105,12 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
       write_additional_layer_block(
           extra, kPhotoshopColorBalanceBlockKey,
           photoshop_color_balance_payload(settings->color_balance, find_layer_block(*encoded.layer, "blnc")),
+          large_document);
+    }
+    if (settings.has_value() && settings->kind == AdjustmentKind::ChannelMixer) {
+      write_additional_layer_block(
+          extra, kPhotoshopChannelMixerBlockKey,
+          photoshop_channel_mixer_payload(settings->channel_mixer, find_layer_block(*encoded.layer, "mixr")),
           large_document);
     }
     // Every adjustment kind is native-block only (2026-07). The private plAD

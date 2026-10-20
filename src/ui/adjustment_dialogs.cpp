@@ -1527,6 +1527,94 @@ std::optional<ExposureSettings> request_exposure_settings(
       });
 }
 
+std::optional<ChannelMixerSettings> request_channel_mixer_settings(
+    QWidget* parent, std::function<void(bool, const ChannelMixerSettings&)> preview_changed,
+    ChannelMixerSettings initial) {
+  initial.red = clamp_channel_mixer_row(initial.red);
+  initial.green = clamp_channel_mixer_row(initial.green);
+  initial.blue = clamp_channel_mixer_row(initial.blue);
+  initial.gray = clamp_channel_mixer_row(initial.gray);
+
+  // The four sliders edit one output row at a time: the Output Channel combo picks red,
+  // green or blue, and Monochrome switches them to the gray row. The other rows are
+  // stashed so switching round-trips all of them.
+  struct State {
+    ChannelMixerSettings settings;  // settings.monochrome is the mode the sliders show
+    int output{0};                  // 0 red, 1 green, 2 blue
+  };
+  auto state = std::make_shared<State>(State{initial});
+  const auto row_of = [](ChannelMixerSettings& value, int output, bool monochrome) -> ChannelMixerRow& {
+    if (monochrome) {
+      return value.gray;
+    }
+    return output == 1 ? value.green : output == 2 ? value.blue : value.red;
+  };
+  const auto capture = [row_of](State& value, const std::vector<QSpinBox*>& spins) {
+    row_of(value.settings, value.output, value.settings.monochrome) =
+        ChannelMixerRow{spins[0]->value(), spins[1]->value(), spins[2]->value(), spins[3]->value()};
+  };
+  const auto build_settings = [state, capture](const std::vector<QSpinBox*>& spins) {
+    auto copy = *state;
+    capture(copy, spins);
+    return copy.settings;
+  };
+  const auto show_row = [row_of](QDialog& dialog, State& value, const std::vector<QSpinBox*>& spins) {
+    const auto& row = row_of(value.settings, value.output, value.settings.monochrome);
+    const std::array<int, 4> values{row.red, row.green, row.blue, row.constant};
+    const std::array<QString, 4> prefixes{QStringLiteral("channelMixerRed"), QStringLiteral("channelMixerGreen"),
+                                          QStringLiteral("channelMixerBlue"), QStringLiteral("channelMixerConstant")};
+    for (std::size_t index = 0; index < spins.size() && index < values.size(); ++index) {
+      if (auto* slider = dialog.findChild<QSlider*>(prefixes[index] + QStringLiteral("Slider"))) {
+        const QSignalBlocker block_slider(slider);
+        slider->setValue(values[index]);
+      }
+      const QSignalBlocker block_spin(spins[index]);
+      spins[index]->setValue(values[index]);
+    }
+  };
+
+  const auto& first = initial.monochrome ? initial.gray : initial.red;
+  const auto percent = QStringLiteral(" %");
+  return request_adjustment_settings_dialog<ChannelMixerSettings>(
+      parent, QStringLiteral("patchyChannelMixerDialog"), QObject::tr("Channel Mixer"),
+      QStringLiteral("channelMixerPreviewCheck"),
+      {{QObject::tr("Red"), QStringLiteral("channelMixerRed"), -200, 200, first.red, percent},
+       {QObject::tr("Green"), QStringLiteral("channelMixerGreen"), -200, 200, first.green, percent},
+       {QObject::tr("Blue"), QStringLiteral("channelMixerBlue"), -200, 200, first.blue, percent},
+       {QObject::tr("Constant"), QStringLiteral("channelMixerConstant"), -200, 200, first.constant, percent}},
+      build_settings, std::move(preview_changed), {},
+      [state, capture, show_row](QDialog& dialog, QFormLayout* form, const std::vector<QSpinBox*>& spins,
+                                 const std::function<void()>& flush_preview) {
+        auto* combo = new QComboBox(&dialog);
+        combo->setObjectName(QStringLiteral("channelMixerOutputCombo"));
+        combo->addItems({QObject::tr("Red"), QObject::tr("Green"), QObject::tr("Blue")});
+        form->insertRow(0, QObject::tr("Output Channel:"), combo);
+
+        auto* monochrome = new QCheckBox(QObject::tr("Monochrome"), &dialog);
+        monochrome->setObjectName(QStringLiteral("channelMixerMonochromeCheck"));
+        monochrome->setChecked(state->settings.monochrome);
+        combo->setEnabled(!state->settings.monochrome);
+        form->addRow(QString(), monochrome);
+
+        QObject::connect(combo, &QComboBox::currentIndexChanged, &dialog,
+                         [&dialog, state, spins, capture, show_row, flush_preview](int index) {
+                           capture(*state, spins);
+                           state->output = std::clamp(index, 0, 2);
+                           show_row(dialog, *state, spins);
+                           flush_preview();
+                         });
+        QObject::connect(monochrome, &QCheckBox::toggled, &dialog,
+                         [&dialog, state, combo, spins, capture, show_row, flush_preview](bool checked) {
+                           // Stash the outgoing row under the old mode, then show the other.
+                           capture(*state, spins);
+                           state->settings.monochrome = checked;
+                           combo->setEnabled(!checked);
+                           show_row(dialog, *state, spins);
+                           flush_preview();
+                         });
+      });
+}
+
 std::optional<BrightnessContrastSettings> request_brightness_contrast_settings(
     QWidget* parent, std::function<void(bool, const BrightnessContrastSettings&)> preview_changed,
     BrightnessContrastSettings initial) {

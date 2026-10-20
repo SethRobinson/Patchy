@@ -500,6 +500,78 @@ std::vector<std::uint8_t> photoshop_color_balance_payload(const ColorBalanceAdju
   return payload;
 }
 
+// 'mixr' (RGB documents): u16 version (1), u16 monochrome, then four rows of five int16
+// (red, green, blue, an unused ink slot, constant). Rows 0..2 are the red, green and blue
+// outputs; with monochrome on, Photoshop keeps the gray mix in row 0 (layout pinned by the
+// #250 probe; docs/adjustments-calibration.md, "Channel Mixer").
+constexpr std::size_t kChannelMixerRowBytes = 10;
+constexpr std::size_t kChannelMixerPayloadBytes = 4 + 4 * kChannelMixerRowBytes;
+
+std::optional<AdjustmentSettings> parse_photoshop_channel_mixer_adjustment(std::span<const std::uint8_t> payload) {
+  if (payload.size() < 4 + 3 * kChannelMixerRowBytes) {
+    return std::nullopt;
+  }
+  BigEndianReader reader(payload);
+  if (reader.read_u16() != 1U) {
+    return std::nullopt;
+  }
+  AdjustmentSettings settings;
+  settings.kind = AdjustmentKind::ChannelMixer;
+  auto& mixer = settings.channel_mixer;
+  mixer.monochrome = reader.read_u16() != 0U;
+  const auto read_row = [&reader] {
+    ChannelMixerRow row;
+    row.red = static_cast<std::int16_t>(reader.read_u16());
+    row.green = static_cast<std::int16_t>(reader.read_u16());
+    row.blue = static_cast<std::int16_t>(reader.read_u16());
+    reader.skip(2);
+    row.constant = static_cast<std::int16_t>(reader.read_u16());
+    return clamp_channel_mixer_row(row);
+  };
+  const auto first = read_row();
+  if (mixer.monochrome) {
+    mixer.gray = first;
+  } else {
+    mixer.red = first;
+    mixer.green = read_row();
+    mixer.blue = read_row();
+  }
+  return settings;
+}
+
+std::vector<std::uint8_t> photoshop_channel_mixer_payload(const ChannelMixerAdjustment& settings,
+                                                          const UnknownPsdBlock* original) {
+  std::vector<std::uint8_t> payload;
+  if (original != nullptr && original->payload.size() >= kChannelMixerPayloadBytes) {
+    payload = original->payload;
+  } else {
+    payload.assign(kChannelMixerPayloadBytes, 0U);
+  }
+  const auto put = [&payload](std::size_t offset, int value) {
+    const auto encoded = static_cast<std::uint16_t>(static_cast<std::int16_t>(value));
+    payload[offset] = static_cast<std::uint8_t>(encoded >> 8U);
+    payload[offset + 1] = static_cast<std::uint8_t>(encoded & 0xFFU);
+  };
+  const auto put_row = [&put](std::size_t row_index, const ChannelMixerRow& row) {
+    const auto clamped = clamp_channel_mixer_row(row);
+    const auto offset = 4 + row_index * kChannelMixerRowBytes;
+    put(offset, clamped.red);
+    put(offset + 2, clamped.green);
+    put(offset + 4, clamped.blue);
+    put(offset + 8, clamped.constant);
+  };
+  put(0, 1);
+  put(2, settings.monochrome ? 1 : 0);
+  if (settings.monochrome) {
+    put_row(0, settings.gray);
+  } else {
+    put_row(0, settings.red);
+    put_row(1, settings.green);
+    put_row(2, settings.blue);
+  }
+  return payload;
+}
+
 std::optional<AdjustmentSettings> parse_photoshop_posterize_adjustment(std::span<const std::uint8_t> payload) {
   if (payload.size() < 2) {
     return std::nullopt;

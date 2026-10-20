@@ -79,6 +79,7 @@ using ColorBalanceSettings = ColorBalanceAdjustment;
 using PosterizeSettings = PosterizeAdjustment;
 using ThresholdSettings = ThresholdAdjustment;
 using ExposureSettings = ExposureAdjustment;
+using ChannelMixerSettings = ChannelMixerAdjustment;
 using BrightnessContrastSettings = BrightnessContrastAdjustment;
 
 struct FilterControlSpec {
@@ -178,6 +179,9 @@ void blend_by_selection_coverage(PixelBuffer& result, const PixelBuffer& origina
 [[nodiscard]] std::optional<ExposureSettings> request_exposure_settings(
     QWidget* parent, std::function<void(bool, const ExposureSettings&)> preview_changed = {},
     ExposureSettings initial = {});
+[[nodiscard]] std::optional<ChannelMixerSettings> request_channel_mixer_settings(
+    QWidget* parent, std::function<void(bool, const ChannelMixerSettings&)> preview_changed = {},
+    ChannelMixerSettings initial = {});
 [[nodiscard]] std::optional<BrightnessContrastSettings> request_brightness_contrast_settings(
     QWidget* parent, std::function<void(bool, const BrightnessContrastSettings&)> preview_changed = {},
     BrightnessContrastSettings initial = {});

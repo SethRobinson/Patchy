@@ -87,6 +87,17 @@ DeepChannels DeepAdjuster::apply_encoded(DeepChannels color) const {
       }
       return out;
     }
+    case AdjustmentKind::ChannelMixer: {
+      const auto& mixer = settings.channel_mixer;
+      const auto mix = [&color](const ChannelMixerRow& row) {
+        return clamp255(channel_mixer_transfer(row, color[0], color[1], color[2]));
+      };
+      if (mixer.monochrome) {
+        const auto gray = mix(mixer.gray);
+        return {gray, gray, gray};
+      }
+      return {mix(mixer.red), mix(mixer.green), mix(mixer.blue)};
+    }
     case AdjustmentKind::Invert:
       for (std::size_t c = 0; c < 3U; ++c) {
         out[c] = 255.0F - color[c];

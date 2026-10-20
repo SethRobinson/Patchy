@@ -11023,6 +11023,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>%1 adjustment from Photoshop. Patchy cannot apply it yet: it has no effect here and is saved unchanged.</source>
         <translation>Dopasowanie %1 z Photoshopa. Patchy nie potrafi go jeszcze zastosować: nie działa tutaj i jest zapisywane bez zmian.</translation>
     </message>
+    <message>
+        <source>Constant</source>
+        <translation>Stała</translation>
+    </message>
+    <message>
+        <source>Output Channel:</source>
+        <translation>Kanał wyjściowy:</translation>
+    </message>
+    <message>
+        <source>Monochrome</source>
+        <translation>Monochromatyczny</translation>
+    </message>
+    <message>
+        <source>Channel Mixer: monochrome %1 / %2 / %3, constant %4</source>
+        <translation>Mieszanie kanałów: monochromatyczne %1 / %2 / %3, stała %4</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22665,6 +22681,18 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     <message>
         <source>Pi&amp;xel Grid</source>
         <translation>Siatka pi&amp;kseli</translation>
+    </message>
+    <message>
+        <source>Channel &amp;Mixer...</source>
+        <translation>&amp;Mieszanie kanałów...</translation>
+    </message>
+    <message>
+        <source>Channel Mixer</source>
+        <translation>Mieszanie kanałów</translation>
+    </message>
+    <message>
+        <source>Cancelled Channel Mixer</source>
+        <translation>Anulowano mieszanie kanałów</translation>
     </message>
 </context>
 <context>

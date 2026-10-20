@@ -150,6 +150,8 @@ void MainWindow::populate_new_adjustment_layer_menu(QMenu* menu, const QString& 
                  [this] { new_threshold_adjustment_layer(); });
   add_adjustment(QT_TR_NOOP("&Exposure..."), QStringLiteral("ExposureAdjustment"), QStringLiteral("EXP"),
                  [this] { new_exposure_adjustment_layer(); });
+  add_adjustment(QT_TR_NOOP("Channel &Mixer..."), QStringLiteral("ChannelMixerAdjustment"), QStringLiteral("MIX"),
+                 [this] { new_channel_mixer_adjustment_layer(); });
 }
 
 void MainWindow::new_levels_adjustment_layer() {
@@ -397,6 +399,31 @@ void MainWindow::apply_exposure_adjustment(const ExposureSettings& exposure, boo
     return;
   }
   create_adjustment_layer(tr("Exposure"), settings);
+}
+
+void MainWindow::new_channel_mixer_adjustment_layer() {
+  std::optional<LayerId> preview_id;
+  const auto restore_active_layer = document().active_layer_id();
+  const auto preview_changed = [this, &preview_id, restore_active_layer](bool enabled,
+                                                                         const ChannelMixerSettings& mixer) {
+    AdjustmentSettings settings;
+    settings.kind = AdjustmentKind::ChannelMixer;
+    settings.channel_mixer = mixer;
+    update_adjustment_layer_preview(tr("Channel Mixer"), settings, enabled, preview_id, restore_active_layer);
+  };
+
+  auto preview_edit_lock = lock_preview_dialog_edits();
+  const auto settings = request_channel_mixer_settings(this, preview_changed);
+  remove_adjustment_layer_preview(preview_id, restore_active_layer);
+  preview_edit_lock.release();
+  if (!settings.has_value()) {
+    statusBar()->showMessage(tr("Cancelled Channel Mixer"));
+    return;
+  }
+  AdjustmentSettings adjustment;
+  adjustment.kind = AdjustmentKind::ChannelMixer;
+  adjustment.channel_mixer = *settings;
+  create_adjustment_layer(tr("Channel Mixer"), adjustment);
 }
 
 void MainWindow::new_brightness_contrast_adjustment_layer() {
@@ -721,6 +748,25 @@ void MainWindow::edit_active_adjustment_layer() {
       if (result.has_value()) {
         accepted_settings = *original_settings;
         accepted_settings->threshold.level = std::clamp(result->level, 1, 255);
+      }
+      break;
+    }
+    case AdjustmentKind::ChannelMixer: {
+      const auto preview_changed = [apply_settings, restore_original_layer, original_settings](
+                                       bool enabled, const ChannelMixerSettings& mixer) {
+        if (!enabled) {
+          restore_original_layer();
+          return;
+        }
+        auto settings = *original_settings;
+        settings.channel_mixer = mixer;
+        apply_settings(settings);
+      };
+      const auto result =
+          request_channel_mixer_settings(this, preview_changed, original_settings->channel_mixer);
+      if (result.has_value()) {
+        accepted_settings = *original_settings;
+        accepted_settings->channel_mixer = *result;
       }
       break;
     }

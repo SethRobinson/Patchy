@@ -107,6 +107,13 @@ inline constexpr const char* kLayerMetadataAdjustmentColorBalancePreserveLuminos
 // carrying its kind token here; the native block is kept and written back unchanged (#250).
 inline constexpr const char* kLayerMetadataAdjustmentPlaceholderKind = "patchy.adjustment.placeholder_kind";
 inline constexpr const char* kLayerMetadataAdjustmentPosterizeLevels = "patchy.adjustment.posterize.levels";
+// Channel Mixer rows as "red;green;blue;constant", plus the monochrome flag.
+inline constexpr const char* kLayerMetadataAdjustmentChannelMixerRed = "patchy.adjustment.channel_mixer.red";
+inline constexpr const char* kLayerMetadataAdjustmentChannelMixerGreen = "patchy.adjustment.channel_mixer.green";
+inline constexpr const char* kLayerMetadataAdjustmentChannelMixerBlue = "patchy.adjustment.channel_mixer.blue";
+inline constexpr const char* kLayerMetadataAdjustmentChannelMixerGray = "patchy.adjustment.channel_mixer.gray";
+inline constexpr const char* kLayerMetadataAdjustmentChannelMixerMonochrome =
+    "patchy.adjustment.channel_mixer.monochrome";
 inline constexpr const char* kLayerMetadataAdjustmentThresholdLevel = "patchy.adjustment.threshold.level";
 inline constexpr const char* kLayerMetadataAdjustmentExposureValue = "patchy.adjustment.exposure.value";
 inline constexpr const char* kLayerMetadataAdjustmentExposureOffset = "patchy.adjustment.exposure.offset";
@@ -129,7 +136,8 @@ enum class AdjustmentKind {
   Posterize,
   Threshold,
   BrightnessContrast,
-  Exposure
+  Exposure,
+  ChannelMixer
 };
 
 enum class LevelsChannel {
@@ -307,6 +315,32 @@ struct ExposureAdjustment {
 // render of psd-tools' exposure_rgb.psd on all four of its setting triples.
 [[nodiscard]] std::uint8_t exposure_channel_value(std::uint8_t value, ExposureAdjustment settings);
 
+// Photoshop's Channel Mixer ('mixr'): each output channel is a percentage mix of the
+// red, green and blue inputs (-200..200) plus a constant (-200..200, percent of full
+// scale). Monochrome sends the gray row to all three channels.
+struct ChannelMixerRow {
+  int red{0};
+  int green{0};
+  int blue{0};
+  int constant{0};
+  friend bool operator==(const ChannelMixerRow&, const ChannelMixerRow&) = default;
+};
+struct ChannelMixerAdjustment {
+  bool monochrome{false};
+  ChannelMixerRow red{100, 0, 0, 0};
+  ChannelMixerRow green{0, 100, 0, 0};
+  ChannelMixerRow blue{0, 0, 100, 0};
+  ChannelMixerRow gray{40, 40, 20, 0};
+  [[nodiscard]] bool has_effect() const noexcept;
+  friend bool operator==(const ChannelMixerAdjustment&, const ChannelMixerAdjustment&) = default;
+};
+[[nodiscard]] ChannelMixerRow clamp_channel_mixer_row(ChannelMixerRow row) noexcept;
+// A mix percentage on Photoshop's 1/1024 weight scale, truncated toward zero.
+[[nodiscard]] int channel_mixer_weight(int percent) noexcept;
+// One output channel of the mix on the 0..255 scale, unrounded and unclamped: the
+// quantized weights times the inputs plus 255 times the quantized constant, over 1024.
+[[nodiscard]] double channel_mixer_transfer(const ChannelMixerRow& row, double red, double green, double blue);
+
 // Both Photoshop algorithms are modeled. Modern mode (Photoshop's default,
 // use_legacy false) takes brightness -150..150 and contrast -50..100; legacy
 // mode takes -100..100 for both. Old Patchy documents and 'brit'-only PSDs
@@ -333,6 +367,7 @@ struct AdjustmentSettings {
   ThresholdAdjustment threshold{};
   BrightnessContrastAdjustment brightness_contrast{};
   ExposureAdjustment exposure{};
+  ChannelMixerAdjustment channel_mixer{};
   // Set for an adjustment layer that came from a CMYK document whose profile could be
   // read: the channel-wise kinds (Levels, Curves, Invert, Posterize, Brightness/Contrast,
   // Exposure) then run on the four inks instead of on RGB. See core/ink_space.hpp.
