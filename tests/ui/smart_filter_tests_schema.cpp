@@ -17,6 +17,8 @@
 #include "smart_filter_test_support.hpp"
 
 #include <QApplication>
+#include <QComboBox>
+#include <QSpinBox>
 #include <QDialog>
 #include <QDoubleSpinBox>
 #include <QFileInfo>
@@ -115,11 +117,72 @@ void ui_smart_filter_imported_find_edges_renders_edits_and_undoes() {
   CHECK(patchy::ui::pixel_buffers_equal(current_layer().pixels(), original_pixels));
 }
 
+// A table-described filter's dialog is generated from its schema: integer
+// fields become spin boxes, enum fields option combos, and an accepted change
+// lands in the native settings in schema order.
+void ui_smart_filter_imported_zigzag_dialog_edits_schema_settings() {
+  SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto path = QString::fromStdWString(
+      patchy::test::committed_psd_fixture_path("photoshop-smart-filter-zigzag.psd").wstring());
+  CHECK(QFileInfo::exists(path));
+  patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+  QApplication::processEvents();
+
+  const auto layer_id = select_named_layer(window, QStringLiteral("Layer 1"));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto settings = [&]() -> std::vector<std::int32_t> {
+    const auto* layer = std::as_const(document).find_layer(layer_id);
+    CHECK(layer != nullptr && layer->smart_filter_stack() != nullptr);
+    const auto& entry = layer->smart_filter_stack()->entries.front();
+    CHECK(entry.kind == patchy::SmartFilterKind::ZigZag);
+    const auto* values = std::get_if<patchy::SchemaSmartFilter>(&entry.parameters);
+    CHECK(values != nullptr);
+    return values->values;
+  };
+  CHECK((settings() == std::vector<std::int32_t>{10, 5, 2}));
+  save_layer_artifact(std::as_const(document).find_layer(layer_id)->pixels(),
+                      "smart_filter_zigzag_photoshop_baked");
+
+  auto* layers = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layers != nullptr);
+  auto* row = layers->itemWidget(require_layer_item(*layers, QStringLiteral("Layer 1")));
+  CHECK(row != nullptr);
+  bool dialog_opened = false;
+  QTimer::singleShot(20, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyFilterDialog")));
+    CHECK(dialog != nullptr);
+    auto* amount = dialog->findChild<QSpinBox*>(QStringLiteral("filterAmountSpin"));
+    auto* ridges = dialog->findChild<QSpinBox*>(QStringLiteral("filterRidgesSpin"));
+    auto* style = dialog->findChild<QComboBox*>(QStringLiteral("filterStyleCombo"));
+    CHECK(amount != nullptr && ridges != nullptr && style != nullptr);
+    CHECK(amount->value() == 10 && ridges->value() == 5);
+    CHECK(amount->minimum() == -100 && amount->maximum() == 100);
+    CHECK(style->count() == 3);
+    CHECK(style->currentData().toString() == QStringLiteral("pond_ripples"));
+    amount->setValue(-30);
+    style->setCurrentIndex(style->findData(QStringLiteral("around_center")));
+    dialog_opened = true;
+    dialog->accept();
+  });
+  auto* edit = row->findChild<QToolButton*>(QStringLiteral("layerSmartFilterEditButton"));
+  CHECK(edit != nullptr && edit->isEnabled());
+  edit->click();
+  CHECK(process_events_until([&] { return settings() == std::vector<std::int32_t>{-30, 5, 0}; }));
+  CHECK(dialog_opened);
+  save_layer_artifact(std::as_const(document).find_layer(layer_id)->pixels(),
+                      "smart_filter_zigzag_patchy_around_center");
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> smart_filter_tests_part4() {
   return {
       {"ui_smart_filter_imported_find_edges_renders_edits_and_undoes",
        ui_smart_filter_imported_find_edges_renders_edits_and_undoes},
+      {"ui_smart_filter_imported_zigzag_dialog_edits_schema_settings",
+       ui_smart_filter_imported_zigzag_dialog_edits_schema_settings},
   };
 }

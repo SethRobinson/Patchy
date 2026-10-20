@@ -2,6 +2,7 @@
 
 #include "core/rect_utils.hpp"
 #include "core/smart_filter_schema.hpp"
+#include "filters/filter_kernels.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
@@ -154,6 +155,111 @@ FilterRenderResult render_find_edges(const FilterRenderResult& input, Rect canva
   return result;
 }
 
+// The stack result so far, placed in the transparent document-space filter
+// canvas, so geometric filters can pull content from anywhere in it.
+PixelBuffer embed_in_canvas(const FilterRenderResult& input, Rect canvas) {
+  PixelBuffer result(canvas.width, canvas.height, PixelFormat::rgba8());
+  result.clear(0);
+  const auto copied = intersect_rect(input.bounds, canvas);
+  for (std::int32_t y = 0; y < copied.height; ++y) {
+    const auto* source = input.pixels.pixel(copied.x - input.bounds.x, copied.y - input.bounds.y + y);
+    auto* destination = result.pixel(copied.x - canvas.x, copied.y - canvas.y + y);
+    std::copy(source, source + static_cast<std::size_t>(copied.width) * 4U, destination);
+  }
+  return result;
+}
+
+// Crops a canvas-sized result to its visible pixels (an empty result keeps a
+// zero-sized rect at the canvas origin).
+FilterRenderResult trim_to_visible(PixelBuffer pixels, Rect canvas) {
+  std::int32_t left = pixels.width();
+  std::int32_t top = pixels.height();
+  std::int32_t right = -1;
+  std::int32_t bottom = -1;
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    const auto* row = pixels.pixel(0, y);
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      if (row[static_cast<std::size_t>(x) * 4U + 3U] != 0) {
+        left = std::min(left, x);
+        right = std::max(right, x);
+        top = std::min(top, y);
+        bottom = std::max(bottom, y);
+      }
+    }
+  }
+  if (right < left) {
+    return FilterRenderResult{PixelBuffer(0, 0, PixelFormat::rgba8()), Rect{canvas.x, canvas.y, 0, 0}};
+  }
+  const Rect local{left, top, right - left + 1, bottom - top + 1};
+  if (local.width == pixels.width() && local.height == pixels.height()) {
+    return FilterRenderResult{std::move(pixels), canvas};
+  }
+  PixelBuffer cropped(local.width, local.height, PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < local.height; ++y) {
+    const auto* source = pixels.pixel(local.x, local.y + y);
+    std::copy(source, source + static_cast<std::size_t>(local.width) * 4U, cropped.pixel(0, y));
+  }
+  return FilterRenderResult{std::move(cropped),
+                            Rect{canvas.x + local.x, canvas.y + local.y, local.width, local.height}};
+}
+
+// Inverse-mapped geometric filters: every canvas pixel samples the canvas at
+// the position `source_of(x, y)` returns (canvas pixel coordinates),
+// bilinearly on premultiplied RGBA with the canvas edge repeated.
+template <typename SourceOf>
+FilterRenderResult render_inverse_mapped(const FilterRenderResult& input, Rect canvas,
+                                         const FilterProgress* progress, SourceOf source_of) {
+  const auto original = embed_in_canvas(input, canvas);
+  PixelBuffer result(canvas.width, canvas.height, PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < canvas.height; ++y) {
+    if ((y & 15) == 0) {
+      report(progress, y, canvas.height, FilterProgressStage::Distorting);
+    }
+    for (std::int32_t x = 0; x < canvas.width; ++x) {
+      const auto [source_x, source_y] = source_of(static_cast<double>(x), static_cast<double>(y));
+      PremultipliedAccum accum;
+      accumulate_bilinear_sample(accum, original, source_x, source_y);
+      write_accumulated_pixel(result, x, y, accum);
+    }
+  }
+  report(progress, canvas.height, canvas.height, FilterProgressStage::Distorting);
+  return trim_to_visible(std::move(result), canvas);
+}
+
+constexpr double kPi = 3.14159265358979323846;
+
+// Photoshop's ZigZag over the whole filter canvas (calibration in
+// docs/smart-filters-distort-stylize.md): normalized ellipse coordinates
+// u = (x - W/2) / (W/2), v = (y - H/2) / (H/2), r = |(u, v)|, and inside the
+// ellipse the profile s = (1 - r)(1 - cos(2 pi ridges r)). Around Center turns
+// the source by -amount * s degrees; Pond Ripples and Out From Center (which
+// Photoshop renders identically) shift it by amount * s pixels along (+1, +1),
+// each axis scaled by its half extent over the larger half extent.
+FilterRenderResult render_zigzag(const FilterRenderResult& input, Rect canvas, std::int32_t amount,
+                                 std::int32_t ridges, std::int32_t style,
+                                 const FilterProgress* progress) {
+  const auto half_width = static_cast<double>(canvas.width) * 0.5;
+  const auto half_height = static_cast<double>(canvas.height) * 0.5;
+  const auto larger = std::max(half_width, half_height);
+  const auto around_center = style == 0;
+  return render_inverse_mapped(input, canvas, progress, [&](double x, double y) {
+    const auto u = (x - half_width) / half_width;
+    const auto v = (y - half_height) / half_height;
+    const auto r = std::sqrt(u * u + v * v);
+    if (r >= 1.0) {
+      return std::pair{x, y};
+    }
+    const auto profile = (1.0 - r) * (1.0 - std::cos(2.0 * kPi * ridges * r));
+    if (around_center) {
+      const auto angle = std::atan2(v, u) - static_cast<double>(amount) * profile * kPi / 180.0;
+      return std::pair{half_width + half_width * r * std::cos(angle),
+                       half_height + half_height * r * std::sin(angle)};
+    }
+    const auto shift = static_cast<double>(amount) * profile;
+    return std::pair{x + shift * half_width / larger, y + shift * half_height / larger};
+  });
+}
+
 }  // namespace
 
 FilterRenderResult render_schema_smart_filter(const FilterRenderResult& current,
@@ -172,6 +278,9 @@ FilterRenderResult render_schema_smart_filter(const FilterRenderResult& current,
       return render_solarize(current, progress);
     case SmartFilterKind::FindEdges:
       return render_find_edges(current, filter_canvas_bounds, progress);
+    case SmartFilterKind::ZigZag:
+      return render_zigzag(current, filter_canvas_bounds, settings.values[0], settings.values[1],
+                           settings.values[2], progress);
     default:
       break;
   }

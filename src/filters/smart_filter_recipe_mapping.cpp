@@ -68,6 +68,7 @@ bool native_smart_filter_kind_supported(SmartFilterKind kind) {
     case SmartFilterKind::AddNoise:
     case SmartFilterKind::Solarize:
     case SmartFilterKind::FindEdges:
+    case SmartFilterKind::ZigZag:
       return true;
     case SmartFilterKind::Unsupported:
       return false;

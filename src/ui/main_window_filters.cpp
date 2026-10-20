@@ -312,8 +312,12 @@ FilterDialogSpec schema_dialog_spec(const SmartFilterSchema& schema) {
     }
     FilterControlSpec control;
     control.label = translate_data_text(field.label);
-    control.object_name = QStringLiteral("filter") +
-                          QString::fromLatin1(field.parameter_key).replace(QLatin1Char('_'), QString());
+    // "filter" + the camel-cased parameter key, like the hand-written specs
+    // ("cell_size" -> "filterCellSize").
+    control.object_name = QStringLiteral("filter");
+    for (const auto& word : QString::fromLatin1(field.parameter_key).split(QLatin1Char('_'))) {
+      control.object_name += word.left(1).toUpper() + word.mid(1);
+    }
     control.parameter_key = field.parameter_key;
     switch (field.type) {
       case SmartFilterFieldType::Integer:

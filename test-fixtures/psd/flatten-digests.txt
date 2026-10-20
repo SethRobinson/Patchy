@@ -97,6 +97,8 @@ c0a39197fc4785c3 photoshop-smart-filter-radial-blur.psd
 f2bf42dce8c3d975 photoshop-smart-filter-surface-blur.psd
 9a1663806ac7eb76 photoshop-smart-filter-tilt-shift.psd
 774b771808c21f09 photoshop-smart-filter-unsharp-motion.psd
+83124c4815a60bfb photoshop-smart-filter-zigzag-around.psd
+b6058a877a8cd02e photoshop-smart-filter-zigzag.psd
 fae153247444d536 photoshop-stroke-aa-matte.psd
 1aef2000219e220d photoshop-stroke-masked.psd
 700fc0a254417579 photoshop-stroke-overprint.psd

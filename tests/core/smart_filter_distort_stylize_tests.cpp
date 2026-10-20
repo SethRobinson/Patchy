@@ -18,6 +18,7 @@
 #include "test_harness.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -220,8 +221,11 @@ struct SchemaFixture {
   const char* file;
   patchy::SmartFilterKind kind;
   std::vector<std::int32_t> values;
-  // Largest RGB difference allowed on visible pixels; 0 is byte-exact.
-  int rgb_tolerance{0};
+  // Zero means byte-exact. Otherwise the documented tolerance of a filter whose
+  // Photoshop samples cannot be reproduced exactly: mean absolute differences over
+  // the union of both rasters (RGB where both are visible).
+  double mean_rgb_tolerance{0.0};
+  double mean_alpha_tolerance{0.0};
 };
 
 void check_schema_fixture(const SchemaFixture& fixture) {
@@ -279,37 +283,71 @@ void check_schema_fixture(const SchemaFixture& fixture) {
   CHECK(require_sold_block(reread_layer).payload != original_sold);
   CHECK(global_blocks(reread) == original_globals);
 
-  // Patchy's render of the stack against Photoshop's baked layer.
+  // Patchy's render of the stack against Photoshop's baked layer, compared in
+  // document space over the union of both rasters.
   const auto canvas = patchy::Rect{0, 0, original.width(), original.height()};
   const auto rendered =
       patchy::render_smart_filter_stack(source.pixels(), source.bounds(), canvas, *stack);
   const auto expected_bounds = filtered.bounds();
-  CHECK(rendered.bounds.x == expected_bounds.x && rendered.bounds.y == expected_bounds.y);
-  CHECK(rendered.bounds.width == expected_bounds.width &&
-        rendered.bounds.height == expected_bounds.height);
+  const auto sample = [](const patchy::PixelBuffer& pixels, patchy::Rect bounds, std::int32_t x,
+                         std::int32_t y) -> std::array<int, 4> {
+    if (x < bounds.x || y < bounds.y || x >= bounds.x + bounds.width ||
+        y >= bounds.y + bounds.height) {
+      return {0, 0, 0, 0};
+    }
+    const auto* px = pixels.pixel(x - bounds.x, y - bounds.y);
+    return {px[0], px[1], px[2], px[3]};
+  };
   int worst_rgb = 0;
   int worst_alpha = 0;
-  for (std::int32_t y = 0; y < expected_bounds.height; ++y) {
-    for (std::int32_t x = 0; x < expected_bounds.width; ++x) {
-      const auto* expected = filtered.pixels().pixel(x, y);
-      const auto* actual = rendered.pixels.pixel(x, y);
-      worst_alpha = std::max(worst_alpha, std::abs(expected[3] - actual[3]));
-      if (expected[3] == 0) {
+  double rgb_sum = 0.0;
+  double alpha_sum = 0.0;
+  std::size_t rgb_count = 0;
+  std::size_t alpha_count = 0;
+  for (std::int32_t y = 0; y < canvas.height; ++y) {
+    for (std::int32_t x = 0; x < canvas.width; ++x) {
+      const auto expected = sample(filtered.pixels(), expected_bounds, x, y);
+      const auto actual = sample(rendered.pixels, rendered.bounds, x, y);
+      if (expected[3] == 0 && actual[3] == 0) {
+        continue;
+      }
+      const auto alpha_delta = std::abs(expected[3] - actual[3]);
+      worst_alpha = std::max(worst_alpha, alpha_delta);
+      alpha_sum += alpha_delta;
+      ++alpha_count;
+      if (expected[3] == 0 || actual[3] == 0) {
         continue;
       }
       for (int channel = 0; channel < 3; ++channel) {
-        worst_rgb = std::max(worst_rgb, std::abs(expected[channel] - actual[channel]));
+        const auto delta = std::abs(expected[static_cast<std::size_t>(channel)] -
+                                    actual[static_cast<std::size_t>(channel)]);
+        worst_rgb = std::max(worst_rgb, delta);
+        rgb_sum += delta;
+        ++rgb_count;
       }
     }
   }
-  CHECK(worst_alpha == 0);
-  CHECK(worst_rgb <= fixture.rgb_tolerance);
+  CHECK(rgb_count > 0U && alpha_count > 0U);
+  if (fixture.mean_rgb_tolerance == 0.0) {
+    CHECK(rendered.bounds.x == expected_bounds.x && rendered.bounds.y == expected_bounds.y);
+    CHECK(rendered.bounds.width == expected_bounds.width &&
+          rendered.bounds.height == expected_bounds.height);
+    CHECK(worst_alpha == 0);
+    CHECK(worst_rgb == 0);
+  } else {
+    CHECK(rgb_sum / static_cast<double>(rgb_count) <= fixture.mean_rgb_tolerance);
+    CHECK(alpha_sum / static_cast<double>(alpha_count) <= fixture.mean_alpha_tolerance);
+  }
 }
 
 void psd_photoshop_distort_stylize_smart_filter_fixtures_round_trip_and_render() {
   const std::vector<SchemaFixture> fixtures{
       {"photoshop-smart-filter-solarize.psd", patchy::SmartFilterKind::Solarize, {}},
       {"photoshop-smart-filter-find-edges.psd", patchy::SmartFilterKind::FindEdges, {}},
+      // Amount 10, Ridges 5, Pond Ripples; Amount -25, Ridges 3, Around Center.
+      {"photoshop-smart-filter-zigzag.psd", patchy::SmartFilterKind::ZigZag, {10, 5, 2}, 3.0, 2.0},
+      {"photoshop-smart-filter-zigzag-around.psd", patchy::SmartFilterKind::ZigZag, {-25, 3, 0},
+       3.0, 2.0},
   };
   for (const auto& fixture : fixtures) {
     check_schema_fixture(fixture);

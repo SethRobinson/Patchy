@@ -52,6 +52,27 @@ captures unless noted.
      `out = 255 - min(255, (k * 255 + a / 2) / a)`; alpha 0 writes white.
 - Alpha and bounds are unchanged.
 
+### ZigZag (`ZgZg`, filterID `ZgZg`)
+
+- Keys from PS's recorded action: `Amnt` integer (-100..100), `NmbR` integer ridges
+  (0..20 accepted, dialog 1..20), `ZZTy` enum `ZZTy`: `ArnC` Around Center, `OtFC` Out
+  From Center, `PndR` Pond Ripples. Entry `ZigZag...`.
+- Runs over the whole filter canvas (W x H), not the content bounds: an off-center
+  Smart Object distorts about the document center and can grow past its bounds.
+- Inverse map per canvas pixel (x, y), integer coordinates: `u = (x - W/2) / (W/2)`,
+  `v = (y - H/2) / (H/2)`, `r = |(u, v)|`; outside the ellipse (`r >= 1`) nothing moves.
+  Profile `s = (1 - r)(1 - cos(2 pi ridges r))`.
+  - Around Center: the source turns by `-Amnt * s` degrees in (u, v) space.
+  - Pond Ripples and Out From Center render identically in PS 27.8: the source shifts by
+    `Amnt * s` pixels along (+1, +1), each axis scaled by its half extent over the
+    larger half extent (portrait and landscape probes).
+- Source pixels are sampled bilinearly on premultiplied RGBA with the canvas edge
+  repeated. PS's own samples jitter about the analytic position (up to 0.3 px on smooth
+  fields, more where the field is steep; it likely supersamples), so this is a
+  documented tolerance, not byte identity: mean position error 0.01-0.07 px on 16-bit
+  coordinate ramps at moderate settings, and on the 64x48 fixtures a mean RGB difference
+  of 1.3-2.3 levels (alpha 0.4-1.3), with isolated large differences on noise.
+
 ## Fixtures
 
 `test-fixtures/psd/photoshop-smart-filter-<name>.psd`, self-authored through COM from a

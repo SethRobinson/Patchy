@@ -11074,6 +11074,26 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>%1 %2</source>
         <translation>%1 %2</translation>
     </message>
+    <message>
+        <source>Around Center</source>
+        <translation>Ao redor do centro</translation>
+    </message>
+    <message>
+        <source>Out From Center</source>
+        <translation>A partir do centro</translation>
+    </message>
+    <message>
+        <source>Pond Ripples</source>
+        <translation>Ondulações de lago</translation>
+    </message>
+    <message>
+        <source>Ridges</source>
+        <translation>Cristas</translation>
+    </message>
+    <message>
+        <source>ZigZag</source>
+        <translation>Ziguezague</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

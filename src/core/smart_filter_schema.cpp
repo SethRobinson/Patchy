@@ -11,6 +11,22 @@ namespace {
 // its filter dialogs (docs/smart-filters-distort-stylize.md). Never reorder
 // fields: SchemaSmartFilter::values follows this order.
 
+constexpr SmartFilterFieldOption kZigZagStyles[]{
+    {"ArnC", "around_center", PATCHY_TRANSLATE_NOOP("QObject", "Around Center")},
+    {"OtFC", "out_from_center", PATCHY_TRANSLATE_NOOP("QObject", "Out From Center")},
+    {"PndR", "pond_ripples", PATCHY_TRANSLATE_NOOP("QObject", "Pond Ripples")},
+};
+
+// Photoshop's recorded ZigZag action: Amnt, NmbR, ZZTy (shipped Text Effects set).
+constexpr SmartFilterField kZigZagFields[]{
+    {"Amnt", "amount", PATCHY_TRANSLATE_NOOP("QObject", "Amount"), SmartFilterFieldType::Integer,
+     nullptr, {}, -100, 100, 10, -100, 100, nullptr},
+    {"NmbR", "ridges", PATCHY_TRANSLATE_NOOP("QObject", "Ridges"), SmartFilterFieldType::Integer,
+     nullptr, {}, 0, 20, 5, 1, 20, nullptr},
+    {"ZZTy", "style", PATCHY_TRANSLATE_NOOP("QObject", "Style"), SmartFilterFieldType::Enum, "ZZTy",
+     kZigZagStyles, 0, 0, 2},
+};
+
 constexpr std::array kSchemas{
     // Neither stores a Fltr object; the entry name has no ellipsis.
     SmartFilterSchema{SmartFilterKind::Solarize, "Slrz", false, 0x536c727aU, "Solarize",
@@ -19,6 +35,9 @@ constexpr std::array kSchemas{
     SmartFilterSchema{SmartFilterKind::FindEdges, "FndE", false, 0x466e6445U, "Find Edges",
                       "Find Edges", PATCHY_TRANSLATE_NOOP("QObject", "Find Edges"),
                       "patchy.smart_filters.find_edges", {}, false},
+    SmartFilterSchema{SmartFilterKind::ZigZag, "ZgZg", false, 0x5a675a67U, "ZigZag", "ZigZag...",
+                      PATCHY_TRANSLATE_NOOP("QObject", "ZigZag"), "patchy.smart_filters.zigzag",
+                      kZigZagFields},
 };
 
 }  // namespace

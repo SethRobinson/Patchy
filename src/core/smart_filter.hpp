@@ -30,6 +30,7 @@ enum class SmartFilterKind {
   // Table-described filters (core/smart_filter_schema.hpp); append only.
   Solarize,
   FindEdges,
+  ZigZag,
 };
 
 struct GaussianBlurSmartFilter {
