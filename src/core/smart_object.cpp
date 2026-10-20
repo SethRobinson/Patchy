@@ -184,6 +184,10 @@ std::string smart_object_lock_reason(const Layer& layer) {
   return std::string(metadata_value(layer, kLayerMetadataSmartObjectLock).value_or(std::string_view{}));
 }
 
+bool smart_object_lock_allows_smart_filter_edits(std::string_view lock_reason) noexcept {
+  return lock_reason.empty() || lock_reason == "external" || lock_reason == "filters";
+}
+
 bool layer_smart_object_block_dirty(const Layer& layer) {
   return metadata_value(layer, kLayerMetadataSmartObjectBlockDirty).has_value();
 }

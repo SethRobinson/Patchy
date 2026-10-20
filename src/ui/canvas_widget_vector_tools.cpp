@@ -1218,7 +1218,9 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
   };
 
   const auto widget_point = QPointF(event->position());
-  if (edit_tool == CanvasTool::DirectSelect) {
+  // A drawn knob drags its handle under both arrows: Path Select selects (and
+  // so draws the knobs of) every anchor of the shape.
+  {
     std::pair<int, int> handle_anchor{-1, -1};
     if (const auto side = path_handle_at(widget_point, handle_anchor); side != 0) {
       path_drag_mode_ = side < 0 ? PathEditDrag::HandleIn : PathEditDrag::HandleOut;
@@ -1487,7 +1489,9 @@ bool CanvasWidget::update_path_edit_drag(QPointF document_point, Qt::KeyboardMod
   path_drag_last_document_ = document_point;
   prune_path_edit_selection(*path);
   prune_extra_path_selection();
-  const auto label = edit_tool == CanvasTool::PathSelect ? tr("Move shape") : tr("Edit path");
+  const auto label = edit_tool == CanvasTool::PathSelect && path_drag_mode_ == PathEditDrag::Anchors
+                         ? tr("Move shape")
+                         : tr("Edit path");
   // Cross-layer part of the drag: selected anchors on the other panel-selected
   // shape layers move by the same delta, inside the same armed undo entry (the
   // snapshot is document-wide, so N layers still coalesce into one entry).
@@ -1984,8 +1988,7 @@ CanvasWidget::PathHoverTarget CanvasWidget::path_hover_target_at(QPointF widget_
     return PathHoverTarget::None;
   }
   std::pair<int, int> handle_anchor{-1, -1};
-  if (path_edit_tool() == CanvasTool::DirectSelect &&
-      path_handle_at(widget_point, handle_anchor) != 0) {
+  if (path_handle_at(widget_point, handle_anchor) != 0) {
     return PathHoverTarget::Handle;
   }
   if (path_anchor_at(widget_point).first >= 0) {
@@ -2005,7 +2008,7 @@ void CanvasWidget::update_path_select_hover_hint(PathHoverTarget target) {
   if (target == previous || target == PathHoverTarget::None || !status_callback_) {
     return;
   }
-  if (path_edit_tool() == CanvasTool::PathSelect) {
+  if (path_edit_tool() == CanvasTool::PathSelect && target != PathHoverTarget::Handle) {
     status_callback_(
         resolve_modifier_names(tr("Click to select the shape, drag to move it. %CTRL%+T transforms it.")));
     return;

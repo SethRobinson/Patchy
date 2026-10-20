@@ -51,6 +51,27 @@
 
 namespace patchy::psd {
 
+LayerLockFlags layer_locks_from_psd_protection(std::uint32_t protection) noexcept {
+  if ((protection & kPsdProtectAll) != 0U) {
+    return kLayerLockAll;
+  }
+  return protection & (kPsdProtectTransparency | kPsdProtectComposite | kPsdProtectPosition);
+}
+
+std::uint32_t psd_protection_for_layer(const Layer& layer) {
+  const auto locks = layer_lock_flags(layer) & kLayerLockAll;
+  std::uint32_t stored = 0U;
+  if (const auto found = layer.metadata().find(kLayerMetadataPsdProtectionFlags); found != layer.metadata().end()) {
+    stored = static_cast<std::uint32_t>(std::strtoul(found->second.c_str(), nullptr, 10));
+  }
+  if (stored != 0U && layer_locks_from_psd_protection(stored) == locks) {
+    return stored;
+  }
+  const std::uint32_t singles = locks == kLayerLockAll ? kPsdProtectAll : locks;
+  return singles | (stored & kPsdProtectArtboardAutonest);
+}
+
+
 namespace {
 
 // Layer and mask rectangles come straight from the file as four signed edges. Subtracting
@@ -1165,8 +1186,7 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
     const auto fill_opacity_byte = static_cast<std::uint8_t>(
         std::clamp(std::lround(encoded.layer->fill_opacity() * 255.0F), 0L, 255L));
     bool wrote_fill_opacity = false;
-    const auto protection_flags = layer_lock_flags(*encoded.layer) &
-                                  (kPsdProtectTransparency | kPsdProtectComposite | kPsdProtectPosition);
+    const auto protection_flags = psd_protection_for_layer(*encoded.layer);
     if (protection_flags != 0U) {
       BigEndianWriter protection;
       protection.write_u32(protection_flags);

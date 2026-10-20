@@ -152,6 +152,17 @@ constexpr int kMaxTextSizePixels = 8192;
 constexpr std::uint32_t kPsdProtectTransparency = 1U << 0U;
 constexpr std::uint32_t kPsdProtectComposite = 1U << 1U;
 constexpr std::uint32_t kPsdProtectPosition = 1U << 2U;
+// "Prevent Auto Nesting" (artboards), which Patchy does not model; kept on round trips.
+constexpr std::uint32_t kPsdProtectArtboardAutonest = 1U << 3U;
+// Lock All is its own bit: Photoshop writes 0x80000000 with the three single locks clear
+// (PS 2026 capture, GitHub issue 245), and reads three set singles as three locks, not Lock All.
+constexpr std::uint32_t kPsdProtectAll = 1U << 31U;
+// The Patchy locks an lspf value means.
+[[nodiscard]] LayerLockFlags layer_locks_from_psd_protection(std::uint32_t protection) noexcept;
+// The lspf value to write: the value read from the file while the locks still match it,
+// otherwise Lock All for all three locks (Patchy's Lock All), else the single locks, and
+// any Prevent Auto Nesting bit the file had either way.
+[[nodiscard]] std::uint32_t psd_protection_for_layer(const Layer& layer);
 // Photoshop's PSD/PSB dimension caps; a document over the PSD cap must be saved as PSB.
 constexpr std::int32_t kMaxPsdDimension = 30000;
 constexpr std::int32_t kMaxPsbDimension = 300000;

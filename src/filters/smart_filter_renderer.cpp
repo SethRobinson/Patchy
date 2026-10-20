@@ -2440,6 +2440,10 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
     throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "Unsupported Smart Filter mask"));
   }
   for (const auto &entry : stack.entries) {
+    if (entry.kind == SmartFilterKind::Unsupported &&
+        !smart_filter_entry_runs(stack, entry)) {
+      continue;  // hidden, so never rendered (GitHub issue 243)
+    }
     bool parameters_valid = false;
     double radius = 0.0;
     double minimum_radius = kMinimumGaussianRadius;

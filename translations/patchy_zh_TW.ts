@@ -10871,6 +10871,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>&amp;Cancel</source>
         <translation>取消(&amp;C)</translation>
     </message>
+    <message>
+        <source>Smart Filters actions</source>
+        <translation>智慧型濾鏡整體動作</translation>
+    </message>
+    <message>
+        <source>Delete All Smart Filters</source>
+        <translation>刪除所有智慧型濾鏡</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t render every Smart Filter that would then run. Photoshop renders them when the file is opened there.</source>
+        <translation>Patchy 無法算繪隨後會執行的所有智慧型濾鏡。在 Photoshop 中開啟檔案時，Photoshop 會算繪它們。</translation>
+    </message>
+    <message>
+        <source>Hiding this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or hide all Smart Filters.</source>
+        <translation>隱藏這個濾鏡後，仍會有 Patchy 無法算繪的智慧型濾鏡在執行。請先隱藏或刪除那些濾鏡，或隱藏所有智慧型濾鏡。</translation>
+    </message>
+    <message>
+        <source>Deleting this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or delete all Smart Filters.</source>
+        <translation>刪除這個濾鏡後，仍會有 Patchy 無法算繪的智慧型濾鏡在執行。請先隱藏或刪除那些濾鏡，或刪除所有智慧型濾鏡。</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t edit this filter&apos;s settings. It is preserved unchanged.</source>
+        <translation>Patchy 無法編輯這個濾鏡的設定。它會原樣保留。</translation>
+    </message>
+    <message>
+        <source>This stack runs Smart Filters that Patchy can&apos;t render, so their settings can&apos;t change here. Hide or delete those filters first.</source>
+        <translation>這個堆疊執行了 Patchy 無法算繪的智慧型濾鏡，因此無法在此變更其設定。請先隱藏或刪除那些濾鏡。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22405,6 +22433,12 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Layer color</source>
         <translation>圖層顏色</translation>
+        <source>Delete All Smart Filters</source>
+        <translation>刪除所有智慧型濾鏡</translation>
+    </message>
+    <message>
+        <source>Deleted all Smart Filters</source>
+        <translation>已刪除所有智慧型濾鏡</translation>
     </message>
 </context>
 <context>

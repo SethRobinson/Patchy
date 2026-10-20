@@ -1245,6 +1245,7 @@ private:
   void move_smart_filter(LayerId layer_id, std::size_t execution_index,
                          int visual_direction);
   void delete_smart_filter(LayerId layer_id, std::size_t execution_index);
+  void delete_smart_filter_stack(LayerId layer_id);
   // With `repeat` (Filter > Last Filter) the Look is applied without opening the gallery.
   void visual_filter_gallery_dialog(const FilterRecipe* repeat = nullptr);
   // The G'MIC Filter Library (main_window_gmic.cpp, docs/gmic.md).

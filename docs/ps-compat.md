@@ -147,6 +147,10 @@ Override-aware bounds preserve moves and effect geometry. Local `backglass-inver
 dragons and opaque text against PS's saved composite: `Invert 1` clips to the
 dragon folder only; fractional text edges have a separate blending mismatch.
 
+## Slices
+
+Patchy has no slice tool. Image resources 1050 (Slices) and 1054 (slice URLs) round-trip byte for byte while the canvas geometry is unchanged; `forget_psd_slices` (core/document.hpp) drops both on any whole-document crop, resize, rotation, flip or canvas size change, and Photoshop then shows its default slice (GitHub issue 242).
+
 ## Liquify compatibility boundary
 
 Patchy's manual Liquify writes only the resulting ordinary layer pixels (no private Liquify block), so PS sees the rasterized appearance; it never authors or edits PS's native Liquify Smart Filter descriptor. Smart Objects must be rasterized before Liquify; imported unsupported Liquify stacks stay byte-preserved and preview-locked. Implementation and legal constraints: `docs/liquify.md`. Before adding native support: capture PS PSD pairs differing in one manual setting, determine the filterFX and FEid/FXid shapes, add fail-closed descriptor tests. Never approximate an uncalibrated descriptor or keep only a supported prefix.

@@ -10871,6 +10871,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>&amp;Cancel</source>
         <translation>취소(&amp;C)</translation>
     </message>
+    <message>
+        <source>Smart Filters actions</source>
+        <translation>스마트 필터 전체 작업</translation>
+    </message>
+    <message>
+        <source>Delete All Smart Filters</source>
+        <translation>모든 스마트 필터 삭제</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t render every Smart Filter that would then run. Photoshop renders them when the file is opened there.</source>
+        <translation>실행될 스마트 필터 중 Patchy가 렌더링할 수 없는 것이 있습니다. 파일을 Photoshop에서 열면 Photoshop이 렌더링합니다.</translation>
+    </message>
+    <message>
+        <source>Hiding this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or hide all Smart Filters.</source>
+        <translation>이 필터를 숨기면 Patchy가 렌더링할 수 없는 스마트 필터가 계속 실행됩니다. 먼저 해당 필터를 숨기거나 삭제하거나, 모든 스마트 필터를 숨기세요.</translation>
+    </message>
+    <message>
+        <source>Deleting this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or delete all Smart Filters.</source>
+        <translation>이 필터를 삭제하면 Patchy가 렌더링할 수 없는 스마트 필터가 계속 실행됩니다. 먼저 해당 필터를 숨기거나 삭제하거나, 모든 스마트 필터를 삭제하세요.</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t edit this filter&apos;s settings. It is preserved unchanged.</source>
+        <translation>Patchy는 이 필터의 설정을 편집할 수 없습니다. 변경 없이 보존됩니다.</translation>
+    </message>
+    <message>
+        <source>This stack runs Smart Filters that Patchy can&apos;t render, so their settings can&apos;t change here. Hide or delete those filters first.</source>
+        <translation>이 스택은 Patchy가 렌더링할 수 없는 스마트 필터를 실행하므로 여기서 설정을 변경할 수 없습니다. 먼저 해당 필터를 숨기거나 삭제하세요.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22405,6 +22433,12 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Layer color</source>
         <translation>레이어 색상</translation>
+        <source>Delete All Smart Filters</source>
+        <translation>모든 스마트 필터 삭제</translation>
+    </message>
+    <message>
+        <source>Deleted all Smart Filters</source>
+        <translation>모든 스마트 필터를 삭제했습니다</translation>
     </message>
 </context>
 <context>

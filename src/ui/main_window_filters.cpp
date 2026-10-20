@@ -958,29 +958,40 @@ bool MainWindow::commit_smart_filter_stack_edit(
     return false;
   }
   const auto lock = smart_object_lock_reason(*layer);
-  if (!lock.empty() && lock != "external") {
+  if (!smart_object_lock_allows_smart_filter_edits(lock)) {
     return false;
   }
   const auto* current = layer->smart_filter_stack();
-  if (current != nullptr &&
-      current->support != SmartFilterStackSupport::Supported) {
+  // A stack running a filter Patchy does not model can still be hidden or have that
+  // filter hidden or deleted, as long as Patchy renders what is left (GitHub issue 243).
+  if (current != nullptr && current->support != SmartFilterStackSupport::Supported &&
+      !current->native_shape_supported) {
     return false;
   }
-  if (candidate.has_value() &&
-      (candidate->support != SmartFilterStackSupport::Supported ||
-       candidate->entries.empty())) {
-    return false;
+  if (candidate.has_value()) {
+    candidate->support = smart_filter_stack_support(*candidate);
+    if (candidate->support != SmartFilterStackSupport::Supported) {
+      return false;
+    }
   }
 
   const auto parent_document_dir =
       target_session.path.isEmpty()
           ? QString()
           : QFileInfo(target_session.path).absolutePath();
+  // The "filters" lock only says Photoshop's preview stands in for filters Patchy can't
+  // run; the source itself renders, so the candidate renders from an unlocked copy.
+  std::optional<Layer> unlocked_copy;
+  if (lock == "filters") {
+    unlocked_copy = std::as_const(*layer);
+    unlocked_copy->metadata().erase(kLayerMetadataSmartObjectLock);
+  }
+  const auto& render_layer = unlocked_copy.has_value() ? *unlocked_copy : std::as_const(*layer);
   std::optional<SmartObjectLayerPreview> preview;
   std::optional<FilterRenderResult> unfiltered_only;
   if (candidate.has_value()) {
     preview = render_smart_object_layer_preview(
-        std::as_const(doc), std::as_const(*layer),
+        std::as_const(doc), render_layer,
         target_canvas->transform_interpolation(), &*candidate,
         parent_document_dir);
     if (!preview.has_value()) {
@@ -988,7 +999,7 @@ bool MainWindow::commit_smart_filter_stack_edit(
     }
   } else {
     unfiltered_only = render_smart_object_unfiltered_layer_preview(
-        std::as_const(doc), std::as_const(*layer),
+        std::as_const(doc), render_layer,
         target_canvas->transform_interpolation(), parent_document_dir);
     if (!unfiltered_only.has_value()) {
       return false;
@@ -1087,6 +1098,10 @@ bool MainWindow::commit_smart_filter_stack_edit(
   mark_layer_smart_object_block_dirty(*layer);
   layer->metadata()[kLayerMetadataSmartObjectRasterStatus] =
       kSmartObjectRasterStatusPatchy;
+  if (lock == "filters") {
+    // What is left renders in Patchy, so Photoshop's preview no longer has to stand in.
+    layer->metadata().erase(kLayerMetadataSmartObjectLock);
+  }
   const auto new_bounds = layer->bounds();
   if (target_canvas == canvas_) {
     refresh_layer_list();
@@ -1745,15 +1760,18 @@ void MainWindow::set_smart_filter_stack_enabled(LayerId layer_id,
   auto& doc = document();
   auto* layer = doc.find_layer(layer_id);
   const auto* current = layer != nullptr ? layer->smart_filter_stack() : nullptr;
-  if (layer == nullptr || current == nullptr ||
-      current->support != SmartFilterStackSupport::Supported ||
+  if (layer == nullptr || current == nullptr || !current->native_shape_supported ||
       current->enabled == enabled ||
-      (!smart_object_lock_reason(*layer).empty() &&
-       smart_object_lock_reason(*layer) != "external")) {
+      !smart_object_lock_allows_smart_filter_edits(smart_object_lock_reason(*layer))) {
     return;
   }
   auto candidate = *current;
   candidate.enabled = enabled;
+  if (smart_filter_stack_support(candidate) != SmartFilterStackSupport::Supported) {
+    show_status_error(smart_filter_unmodeled_show_message());
+    refresh_layer_list();
+    return;
+  }
   if (!commit_smart_filter_stack_edit(
           layer_id, std::move(candidate), {},
           enabled ? tr("Show Smart Filters") : tr("Hide Smart Filters"),
@@ -1778,16 +1796,20 @@ void MainWindow::set_smart_filter_enabled(LayerId layer_id,
   auto& doc = document();
   auto* layer = doc.find_layer(layer_id);
   const auto* current = layer != nullptr ? layer->smart_filter_stack() : nullptr;
-  if (layer == nullptr || current == nullptr ||
-      current->support != SmartFilterStackSupport::Supported ||
+  if (layer == nullptr || current == nullptr || !current->native_shape_supported ||
       execution_index >= current->entries.size() ||
       current->entries[execution_index].enabled == enabled ||
-      (!smart_object_lock_reason(*layer).empty() &&
-       smart_object_lock_reason(*layer) != "external")) {
+      !smart_object_lock_allows_smart_filter_edits(smart_object_lock_reason(*layer))) {
     return;
   }
   auto candidate = *current;
   candidate.entries[execution_index].enabled = enabled;
+  if (smart_filter_stack_support(candidate) != SmartFilterStackSupport::Supported) {
+    show_status_error(enabled ? smart_filter_unmodeled_show_message()
+                              : smart_filter_unmodeled_left_running_message());
+    refresh_layer_list();
+    return;
+  }
   if (!commit_smart_filter_stack_edit(
           layer_id, std::move(candidate), {},
           enabled ? tr("Show Smart Filter") : tr("Hide Smart Filter"),
@@ -1947,11 +1969,9 @@ void MainWindow::delete_smart_filter(LayerId layer_id,
   auto& doc = document();
   auto* layer = doc.find_layer(layer_id);
   const auto* current = layer != nullptr ? layer->smart_filter_stack() : nullptr;
-  if (layer == nullptr || current == nullptr ||
-      current->support != SmartFilterStackSupport::Supported ||
+  if (layer == nullptr || current == nullptr || !current->native_shape_supported ||
       execution_index >= current->entries.size() ||
-      (!smart_object_lock_reason(*layer).empty() &&
-       smart_object_lock_reason(*layer) != "external")) {
+      !smart_object_lock_allows_smart_filter_edits(smart_object_lock_reason(*layer))) {
     return;
   }
   if (current->entries.size() == 1U) {
@@ -1969,6 +1989,11 @@ void MainWindow::delete_smart_filter(LayerId layer_id,
   candidate.entries.erase(
       candidate.entries.begin() +
       static_cast<std::ptrdiff_t>(execution_index));
+  if (smart_filter_stack_support(candidate) != SmartFilterStackSupport::Supported) {
+    show_status_error(smart_filter_unmodeled_left_after_delete_message());
+    refresh_layer_list();
+    return;
+  }
   std::vector<std::optional<std::size_t>> sources;
   sources.reserve(candidate.entries.size());
   for (std::size_t index = 0; index < current->entries.size(); ++index) {
@@ -1979,6 +2004,31 @@ void MainWindow::delete_smart_filter(LayerId layer_id,
   if (!commit_smart_filter_stack_edit(
           layer_id, std::move(candidate), std::move(sources),
           tr("Delete Smart Filter"), tr("Deleted Smart Filter"))) {
+    show_status_error(
+        tr("This Smart Filter descriptor cannot be edited safely"));
+    refresh_layer_list();
+  }
+}
+
+void MainWindow::delete_smart_filter_stack(LayerId layer_id) {
+  if (!has_active_document() || canvas_ == nullptr) {
+    return;
+  }
+  if (layer_id_locks_image_pixels(layer_id)) {
+    show_status_error(tr("Layer pixels are locked."));
+    refresh_layer_list();
+    return;
+  }
+  const auto* layer = std::as_const(document()).find_layer(layer_id);
+  const auto* current = layer != nullptr ? layer->smart_filter_stack() : nullptr;
+  if (current == nullptr || !current->native_shape_supported ||
+      !smart_object_lock_allows_smart_filter_edits(smart_object_lock_reason(*layer))) {
+    return;
+  }
+  // The whole stack goes, Photoshop's FEid cache record with it, and the layer renders
+  // from its source again (GitHub issue 243).
+  if (!commit_smart_filter_stack_edit(layer_id, std::nullopt, {}, tr("Delete All Smart Filters"),
+                                      tr("Deleted all Smart Filters"))) {
     show_status_error(
         tr("This Smart Filter descriptor cannot be edited safely"));
     refresh_layer_list();

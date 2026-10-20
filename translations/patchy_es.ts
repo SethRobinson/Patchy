@@ -10905,6 +10905,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>&amp;Cancel</source>
         <translation>&amp;Cancelar</translation>
     </message>
+    <message>
+        <source>Smart Filters actions</source>
+        <translation>Acciones de filtros inteligentes</translation>
+    </message>
+    <message>
+        <source>Delete All Smart Filters</source>
+        <translation>Eliminar todos los filtros inteligentes</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t render every Smart Filter that would then run. Photoshop renders them when the file is opened there.</source>
+        <translation>Patchy no puede procesar todos los filtros inteligentes que se aplicarían. Photoshop los procesa cuando el archivo se abre allí.</translation>
+    </message>
+    <message>
+        <source>Hiding this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or hide all Smart Filters.</source>
+        <translation>Ocultar este filtro dejaría activos filtros inteligentes que Patchy no puede procesar. Oculta o elimina esos primero, u oculta todos los filtros inteligentes.</translation>
+    </message>
+    <message>
+        <source>Deleting this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or delete all Smart Filters.</source>
+        <translation>Eliminar este filtro dejaría activos filtros inteligentes que Patchy no puede procesar. Oculta o elimina esos primero, o elimina todos los filtros inteligentes.</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t edit this filter&apos;s settings. It is preserved unchanged.</source>
+        <translation>Patchy no puede editar los ajustes de este filtro. Se conserva sin cambios.</translation>
+    </message>
+    <message>
+        <source>This stack runs Smart Filters that Patchy can&apos;t render, so their settings can&apos;t change here. Hide or delete those filters first.</source>
+        <translation>Esta pila aplica filtros inteligentes que Patchy no puede procesar, así que sus ajustes no se pueden cambiar aquí. Oculta o elimina esos filtros primero.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22475,6 +22503,12 @@ Puedes hacerlo más tarde desde Ayuda &gt; Añadir Patchy al menú de aplicacion
     <message>
         <source>Layer color</source>
         <translation>Color de capa</translation>
+        <source>Delete All Smart Filters</source>
+        <translation>Eliminar todos los filtros inteligentes</translation>
+    </message>
+    <message>
+        <source>Deleted all Smart Filters</source>
+        <translation>Se eliminaron todos los filtros inteligentes</translation>
     </message>
 </context>
 <context>
