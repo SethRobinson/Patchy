@@ -300,6 +300,10 @@ public:
     window.show_missing_linked_files_dialog(false);
   }
 
+  static QString relink_dialog_initial_path(const MainWindow& window) {
+    return window.relink_dialog_initial_path();
+  }
+
   static void show_layer_context_menu(MainWindow& window, QPoint position) {
     window.show_layer_context_menu(position);
   }

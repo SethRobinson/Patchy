@@ -920,12 +920,17 @@ void MainWindow::relink_smart_object_contents() {
     return;
   }
   const auto path = get_open_file_name(
-      this, tr("Relink to File"), file_dialog_initial_path(QString(), QString()),
+      this, tr("Relink to File"), relink_dialog_initial_path(),
       tr("Embeddable Files (*.psd *.psb *.png *.jpg *.jpeg *.tif *.tiff *.bmp *.svg *.svgz);;All Files (*.*)"),
       nullptr, QStringLiteral("relinkSmartObjectFileDialog"));
   if (!path.isEmpty()) {
     relink_smart_object_contents_with_path(path);
   }
+}
+
+QString MainWindow::relink_dialog_initial_path() const {
+  return last_relink_directory_.isEmpty() ? file_dialog_initial_path(QString(), QString())
+                                          : last_relink_directory_;
 }
 
 namespace {
@@ -997,7 +1002,7 @@ void MainWindow::show_missing_linked_files_dialog(bool on_open) {
   const auto result = run_missing_links_dialog(
       this, entries, show_on_open, [this](const MissingLinkEntry& entry) -> std::optional<QString> {
         const auto path = get_open_file_name(
-            this, tr("Relink to File"), file_dialog_initial_path(QString(), QString()),
+            this, tr("Relink to File"), relink_dialog_initial_path(),
             tr("Embeddable Files (*.psd *.psb *.png *.jpg *.jpeg *.tif *.tiff *.bmp *.svg *.svgz);;All Files (*.*)"),
             nullptr, QStringLiteral("relinkSmartObjectFileDialog"));
         if (path.isEmpty()) {
@@ -1172,6 +1177,7 @@ void MainWindow::relink_smart_object_contents_with_path(const QString& path) {
   refresh_layer_controls();
   canvas_->document_changed();
   statusBar()->showMessage(tr("Relinked smart object to %1").arg(info.fileName()));
+  last_relink_directory_ = info.absolutePath();
 }
 
 void MainWindow::embed_linked_smart_object() {
