@@ -678,6 +678,144 @@ void ui_duplicate_layer_copies_text_and_folder_trees() {
 // GitHub issue 38: Duplicate Layer stacks the copies as one block directly above
 // the topmost selected layer, inside its parent and in source order, and the
 // copies become the selection. The old behavior appended them to the top.
+// After a delete the layer below becomes active, in the same group (GitHub issue 249): the
+// one above when the deleted layer was the bottom one, the group when nothing is left in it,
+// the layer below the lowest one for a multi-selection. Layer > Delete Layer, the panel's
+// delete button and the Delete key share the path; undo brings the deleted layer back active.
+void ui_delete_layer_activates_the_layer_below() {
+  const auto format = patchy::PixelFormat::rgba8();
+  patchy::Document document(64, 48, format);
+  document.add_pixel_layer("Bottom", solid_pixels(64, 48, format, QColor(Qt::white)));
+  document.add_pixel_layer("Middle", solid_pixels(64, 48, format, QColor(Qt::red)));
+  patchy::Layer folder(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  folder.add_child(patchy::Layer(document.allocate_layer_id(), "Inner Low", solid_pixels(8, 8, format, QColor(Qt::blue))));
+  // A text layer: the Delete key removes text, smart object and shape layers (it clears pixel layers).
+  patchy::Layer inner_mid(document.allocate_layer_id(), "Inner Mid", patchy::LayerKind::Text);
+  inner_mid.set_bounds(patchy::Rect{4, 4, 30, 16});
+  inner_mid.metadata()[patchy::kLayerMetadataText] = "Mid";
+  inner_mid.metadata()[patchy::kLayerMetadataTextSize] = "12";
+  inner_mid.metadata()[patchy::kLayerMetadataTextColor] = "#2040ff";
+  folder.add_child(std::move(inner_mid));
+  folder.add_child(
+      patchy::Layer(document.allocate_layer_id(), "Inner High", solid_pixels(8, 8, format, QColor(Qt::green))));
+  document.add_layer(std::move(folder));
+  patchy::Layer solo(document.allocate_layer_id(), "Solo", patchy::LayerKind::Group);
+  solo.add_child(patchy::Layer(document.allocate_layer_id(), "Only", solid_pixels(8, 8, format, QColor(Qt::magenta))));
+  document.add_layer(std::move(solo));
+  document.add_pixel_layer("Top", solid_pixels(64, 48, format, QColor(Qt::black)));
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Delete Selection"));
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* delete_button = window.findChild<QPushButton*>(QStringLiteral("layerDeleteButton"));
+  CHECK(layer_list != nullptr && delete_button != nullptr);
+  if (layer_list == nullptr || delete_button == nullptr) {
+    return;
+  }
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+
+  const auto rows = [layer_list] {
+    QStringList out;
+    for (int row = 0; row < layer_list->count(); ++row) {
+      out << layer_list->item(row)->text();
+    }
+    return out;
+  };
+  const auto selected_rows = [layer_list] {
+    QStringList out;
+    for (int row = 0; row < layer_list->count(); ++row) {
+      if (layer_list->item(row)->isSelected()) {
+        out << layer_list->item(row)->text();
+      }
+    }
+    return out;
+  };
+  const auto active_name = [&doc] {
+    const auto id = doc.active_layer_id();
+    const auto* layer = id.has_value() ? std::as_const(doc).find_layer(*id) : nullptr;
+    return layer != nullptr ? QString::fromStdString(layer->name()) : QString();
+  };
+  const auto select = [layer_list](std::initializer_list<const char*> names) {
+    layer_list->clearSelection();
+    for (const auto* name : names) {
+      auto* item = require_layer_item(*layer_list, QLatin1String(name));
+      layer_list->setCurrentItem(item);
+      item->setSelected(true);
+    }
+    QApplication::processEvents();
+  };
+  const auto undo = [&window] {
+    require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+    QApplication::processEvents();
+  };
+  const QStringList all = {QStringLiteral("Top"),        QStringLiteral("Solo"),       QStringLiteral("Only"),
+                           QStringLiteral("Folder"),     QStringLiteral("Inner High"), QStringLiteral("Inner Mid"),
+                           QStringLiteral("Inner Low"),  QStringLiteral("Middle"),     QStringLiteral("Bottom")};
+  CHECK(rows() == all);
+
+  // A middle layer, through Layer > Delete Layer: the one below takes over.
+  select({"Middle"});
+  save_widget_artifact("issue_249_before_delete", *layer_list);
+  require_action(window, "layerDeleteAction")->trigger();
+  QApplication::processEvents();
+  save_widget_artifact("issue_249_after_delete", *layer_list);
+  CHECK(!rows().contains(QStringLiteral("Middle")));
+  CHECK(active_name() == QStringLiteral("Bottom"));
+  CHECK((selected_rows() == QStringList{QStringLiteral("Bottom")}));
+  undo();
+  CHECK(rows() == all);
+  CHECK(active_name() == QStringLiteral("Middle"));
+  CHECK((selected_rows() == QStringList{QStringLiteral("Middle")}));
+
+  // The bottom layer, through the panel's delete button: the one above takes over.
+  select({"Bottom"});
+  delete_button->click();
+  QApplication::processEvents();
+  CHECK(active_name() == QStringLiteral("Middle"));
+  CHECK((selected_rows() == QStringList{QStringLiteral("Middle")}));
+  undo();
+  CHECK(rows() == all);
+
+  // Inside a group, through the Delete key (Clear with no pixel selection, which removes a
+  // text layer): the layer below in the same group.
+  select({"Inner Mid"});
+  require_action(window, "layerClearAction")->trigger();
+  QApplication::processEvents();
+  CHECK(active_name() == QStringLiteral("Inner Low"));
+  CHECK((selected_rows() == QStringList{QStringLiteral("Inner Low")}));
+  undo();
+  CHECK(rows() == all);
+
+  // The bottom layer of a group: the one above it in the group, not the layer below the group.
+  select({"Inner Low"});
+  require_action(window, "layerDeleteAction")->trigger();
+  QApplication::processEvents();
+  CHECK(active_name() == QStringLiteral("Inner Mid"));
+  undo();
+
+  // The only layer in a group: the group itself.
+  select({"Only"});
+  require_action(window, "layerDeleteAction")->trigger();
+  QApplication::processEvents();
+  CHECK(active_name() == QStringLiteral("Solo"));
+  CHECK((selected_rows() == QStringList{QStringLiteral("Solo")}));
+  undo();
+  CHECK(rows() == all);
+
+  // Several layers: the layer below the lowest one deleted.
+  select({"Top", "Inner High"});
+  require_action(window, "layerDeleteAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!rows().contains(QStringLiteral("Top")));
+  CHECK(!rows().contains(QStringLiteral("Inner High")));
+  CHECK(active_name() == QStringLiteral("Inner Mid"));
+  CHECK((selected_rows() == QStringList{QStringLiteral("Inner Mid")}));
+  undo();
+  CHECK(rows() == all);
+  CHECK(active_name() == QStringLiteral("Inner High"));
+}
+
 void ui_duplicate_layer_inserts_copies_above_source() {
   const auto format = patchy::PixelFormat::rgba8();
   patchy::Document document(64, 48, format);
@@ -4525,6 +4663,7 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
        ui_document_with_only_folders_opens_with_no_layer_selected},
       {"ui_duplicate_layer_copies_text_and_folder_trees", ui_duplicate_layer_copies_text_and_folder_trees},
       {"ui_duplicate_layer_inserts_copies_above_source", ui_duplicate_layer_inserts_copies_above_source},
+      {"ui_delete_layer_activates_the_layer_below", ui_delete_layer_activates_the_layer_below},
       {"ui_copy_paste_layer_panel_copies_layers_and_folder_trees",
        ui_copy_paste_layer_panel_copies_layers_and_folder_trees},
       {"ui_layer_rows_toggle_visibility_and_drag_reorder", ui_layer_rows_toggle_visibility_and_drag_reorder},

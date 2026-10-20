@@ -6,7 +6,7 @@ Read this before changing layer rows, thumbnails, click selection, the disclosur
 
 Layer rows use dynamic properties and application rules such as `QWidget#layerRowWidget[layerRowSelected="true"]`; repolish after property changes. The `layerTargetActive` pattern is the reference. `ui_layer_row_selected_highlight_paints` pins the rendered colors.
 
-A hidden layer (or one in a hidden folder) disables its name, details, mask link and clipping badge. Its fx, smart-object and vector badges stay enabled and clickable (GitHub issue 230): `LayerRowBadgeButton` paints a disabled-mode icon while `layerRowBadgeDimmed` is set (`ui_layer_hidden_smart_object_badge_opens_contents`).
+Hidden rows disable name, details, mask link and clip badge; fx, smart-object and vector badges stay clickable, drawn dimmed by `LayerRowBadgeButton` (`layerRowBadgeDimmed`, issue 230).
 
 ## Thumbnails
 
@@ -170,6 +170,8 @@ Duplicate Layer (`layerDuplicateAction`, the footer button and its drop target) 
 `MainWindow::duplicate_layers`: the copies land as one block directly above the topmost
 selected root, in its parent and in source order (Photoshop),
 and become the selection. `ui_duplicate_layer_inserts_copies_above_source` pins it.
+
+Delete Layer (menu, footer button, Delete key, trash drop) runs `MainWindow::delete_layers`: it activates the sibling below the lowest deleted root, else the one above, else its group (issue 249).
 
 Inside the panel, an Alt-drop duplicates instead of moving (Photoshop's Alt-drag):
 `LayerListWidget::dropEvent` records `LayerDropRequest::copy` from the event's
