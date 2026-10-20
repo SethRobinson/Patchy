@@ -10950,10 +10950,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Conservar luminosidad</translation>
     </message>
     <message>
-        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Vibrance, Black &amp; White or Gradient Map). They have no effect here and are saved unchanged.</source>
-        <translation>Algunas capas de ajuste usan tipos que Patchy aún no puede aplicar (como Intensidad, Blanco y negro o Mapa de degradado). Aquí no tienen efecto y se guardan sin cambios.</translation>
-    </message>
-    <message>
         <source>Vibrance</source>
         <translation>Intensidad</translation>
     </message>
@@ -11384,6 +11380,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Diffuse</source>
         <translation>Difusión</translation>
+    </message>
+    <message>
+        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Photoshop&apos;s Color and Vibrance). They have no effect here and are saved unchanged.</source>
+        <translation>Algunas capas de ajuste usan tipos que Patchy aún no puede aplicar (como Color e intensidad de Photoshop). Aquí no tienen efecto y se guardan sin cambios.</translation>
+    </message>
+    <message>
+        <source>Vibrance: vibrance %1, saturation %2</source>
+        <translation>Intensidad: intensidad %1, saturación %2</translation>
+    </message>
+    <message>
+        <source>Color and Vibrance</source>
+        <translation>Color e intensidad</translation>
     </message>
 </context>
 <context>
@@ -23115,6 +23123,14 @@ Puedes hacerlo más tarde desde Ayuda &gt; Añadir Patchy al menú de aplicacion
     <message>
         <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
         <translation>Selección de trazado: haga clic en una forma para seleccionarla, arrastre para moverla, %ALT%+arrastrar para duplicarla. %CTRL%+T transforma el trazado, Delete elimina la forma seleccionada.</translation>
+    </message>
+    <message>
+        <source>&amp;Vibrance...</source>
+        <translation>Intensid&amp;ad...</translation>
+    </message>
+    <message>
+        <source>Cancelled Vibrance</source>
+        <translation>Intensidad cancelada</translation>
     </message>
 </context>
 <context>

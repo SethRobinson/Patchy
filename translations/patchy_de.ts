@@ -10950,10 +10950,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Luminanz erhalten</translation>
     </message>
     <message>
-        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Vibrance, Black &amp; White or Gradient Map). They have no effect here and are saved unchanged.</source>
-        <translation>Einige Einstellungsebenen verwenden Arten, die Patchy noch nicht anwenden kann (etwa Dynamik, Schwarzweiß oder Verlaufsumsetzung). Sie haben hier keine Wirkung und werden unverändert gespeichert.</translation>
-    </message>
-    <message>
         <source>Vibrance</source>
         <translation>Dynamik</translation>
     </message>
@@ -11384,6 +11380,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Diffuse</source>
         <translation>Diffusion</translation>
+    </message>
+    <message>
+        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Photoshop&apos;s Color and Vibrance). They have no effect here and are saved unchanged.</source>
+        <translation>Einige Einstellungsebenen verwenden Arten, die Patchy noch nicht anwenden kann (etwa Farbe und Dynamik aus Photoshop). Sie haben hier keine Wirkung und werden unverändert gespeichert.</translation>
+    </message>
+    <message>
+        <source>Vibrance: vibrance %1, saturation %2</source>
+        <translation>Dynamik: Dynamik %1, Sättigung %2</translation>
+    </message>
+    <message>
+        <source>Color and Vibrance</source>
+        <translation>Farbe und Dynamik</translation>
     </message>
 </context>
 <context>
@@ -23115,6 +23123,14 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
     <message>
         <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
         <translation>Pfadauswahl: Klicken Sie auf eine Form, um sie auszuwählen, ziehen Sie, um sie zu verschieben, %ALT%+Ziehen dupliziert sie. %CTRL%+T transformiert den Pfad, Delete entfernt die ausgewählte Form.</translation>
+    </message>
+    <message>
+        <source>&amp;Vibrance...</source>
+        <translation>&amp;Dynamik...</translation>
+    </message>
+    <message>
+        <source>Cancelled Vibrance</source>
+        <translation>Dynamik abgebrochen</translation>
     </message>
 </context>
 <context>

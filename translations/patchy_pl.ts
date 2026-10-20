@@ -10984,10 +10984,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Zachowaj jasność</translation>
     </message>
     <message>
-        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Vibrance, Black &amp; White or Gradient Map). They have no effect here and are saved unchanged.</source>
-        <translation>Niektóre warstwy dopasowania używają rodzajów, których Patchy nie potrafi jeszcze zastosować (np. Jaskrawość, Czarno-białe lub Mapa gradientu). Nie działają tutaj i są zapisywane bez zmian.</translation>
-    </message>
-    <message>
         <source>Vibrance</source>
         <translation>Jaskrawość</translation>
     </message>
@@ -11418,6 +11414,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Diffuse</source>
         <translation>Rozproszenie</translation>
+    </message>
+    <message>
+        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Photoshop&apos;s Color and Vibrance). They have no effect here and are saved unchanged.</source>
+        <translation>Niektóre warstwy dopasowania używają rodzajów, których Patchy nie potrafi jeszcze zastosować (np. Kolor i jaskrawość z Photoshopa). Nie działają tutaj i są zapisywane bez zmian.</translation>
+    </message>
+    <message>
+        <source>Vibrance: vibrance %1, saturation %2</source>
+        <translation>Jaskrawość: jaskrawość %1, nasycenie %2</translation>
+    </message>
+    <message>
+        <source>Color and Vibrance</source>
+        <translation>Kolor i jaskrawość</translation>
     </message>
 </context>
 <context>
@@ -23185,6 +23193,14 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     <message>
         <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
         <translation>Zaznaczanie ścieżek: kliknij kształt, aby go zaznaczyć, przeciągnij, aby go przesunąć, lub %ALT%+przeciągnij, aby go powielić. %CTRL%+T przekształca ścieżkę, Delete usuwa zaznaczony kształt.</translation>
+    </message>
+    <message>
+        <source>&amp;Vibrance...</source>
+        <translation>&amp;Jaskrawość...</translation>
+    </message>
+    <message>
+        <source>Cancelled Vibrance</source>
+        <translation>Anulowano jaskrawość</translation>
     </message>
 </context>
 <context>

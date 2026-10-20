@@ -10950,10 +10950,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Mantieni luminosità</translation>
     </message>
     <message>
-        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Vibrance, Black &amp; White or Gradient Map). They have no effect here and are saved unchanged.</source>
-        <translation>Alcuni livelli di regolazione usano tipi che Patchy non sa ancora applicare (come Vividezza, Bianco e nero o Mappa sfumatura). Qui non hanno effetto e vengono salvati invariati.</translation>
-    </message>
-    <message>
         <source>Vibrance</source>
         <translation>Vividezza</translation>
     </message>
@@ -11384,6 +11380,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Diffuse</source>
         <translation>Diffusione</translation>
+    </message>
+    <message>
+        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Photoshop&apos;s Color and Vibrance). They have no effect here and are saved unchanged.</source>
+        <translation>Alcuni livelli di regolazione usano tipi che Patchy non sa ancora applicare (come Colore e vividezza di Photoshop). Qui non hanno effetto e vengono salvati invariati.</translation>
+    </message>
+    <message>
+        <source>Vibrance: vibrance %1, saturation %2</source>
+        <translation>Vividezza: vividezza %1, saturazione %2</translation>
+    </message>
+    <message>
+        <source>Color and Vibrance</source>
+        <translation>Colore e vividezza</translation>
     </message>
 </context>
 <context>
@@ -23115,6 +23123,14 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
     <message>
         <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
         <translation>Selezione tracciato: fai clic su una forma per selezionarla, trascina per spostarla, %ALT%+trascina per duplicarla. %CTRL%+T trasforma il tracciato, Delete rimuove la forma selezionata.</translation>
+    </message>
+    <message>
+        <source>&amp;Vibrance...</source>
+        <translation>&amp;Vividezza...</translation>
+    </message>
+    <message>
+        <source>Cancelled Vibrance</source>
+        <translation>Vividezza annullata</translation>
     </message>
 </context>
 <context>

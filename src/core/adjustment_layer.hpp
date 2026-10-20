@@ -134,6 +134,8 @@ inline constexpr const char* kLayerMetadataAdjustmentColorLookupTable = "patchy.
 inline constexpr const char* kLayerMetadataAdjustmentColorLookupName = "patchy.adjustment.color_lookup.name";
 // Selective Color: "relative|absolute" then nine "c,m,y,k" corrections separated by ';'.
 inline constexpr const char* kLayerMetadataAdjustmentSelectiveColor = "patchy.adjustment.selective_color";
+// Vibrance: "vibrance;saturation", each -100..100.
+inline constexpr const char* kLayerMetadataAdjustmentVibrance = "patchy.adjustment.vibrance";
 inline constexpr const char* kLayerMetadataAdjustmentThresholdLevel = "patchy.adjustment.threshold.level";
 inline constexpr const char* kLayerMetadataAdjustmentExposureValue = "patchy.adjustment.exposure.value";
 inline constexpr const char* kLayerMetadataAdjustmentExposureOffset = "patchy.adjustment.exposure.offset";
@@ -162,7 +164,8 @@ enum class AdjustmentKind {
   GradientMap,
   BlackWhite,
   ColorLookup,
-  SelectiveColor
+  SelectiveColor,
+  Vibrance
 };
 
 enum class LevelsChannel {
@@ -495,6 +498,21 @@ struct SelectiveColorAdjustment {
 [[nodiscard]] std::array<double, 3> selective_color_transfer(const SelectiveColorAdjustment& settings, double red,
                                                              double green, double blue);
 
+// Photoshop's Vibrance ('vibA', the legacy algorithm): Vibrance and Saturation, -100..100
+// each. Saturation is Photoshop's own linear-light scale; Vibrance is Patchy's fixed curve
+// of each pixel's saturation, brightness and hue, fitted to Photoshop within a measured
+// tolerance (docs/adjustment-kinds.md, "Vibrance").
+struct VibranceAdjustment {
+  int vibrance{0};
+  int saturation{0};
+  [[nodiscard]] bool has_effect() const noexcept { return vibrance != 0 || saturation != 0; }
+  friend bool operator==(const VibranceAdjustment&, const VibranceAdjustment&) = default;
+};
+[[nodiscard]] VibranceAdjustment clamp_vibrance(VibranceAdjustment settings) noexcept;
+// One color on the 0..255 scale, unrounded.
+[[nodiscard]] std::array<double, 3> vibrance_transfer(const VibranceAdjustment& settings, double red, double green,
+                                                      double blue);
+
 // Both Photoshop algorithms are modeled. Modern mode (Photoshop's default,
 // use_legacy false) takes brightness -150..150 and contrast -50..100; legacy
 // mode takes -100..100 for both. Old Patchy documents and 'brit'-only PSDs
@@ -527,6 +545,7 @@ struct AdjustmentSettings {
   BlackWhiteAdjustment black_white{};
   ColorLookupAdjustment color_lookup{};
   SelectiveColorAdjustment selective_color{};
+  VibranceAdjustment vibrance{};
   // Set for an adjustment layer that came from a CMYK document whose profile could be
   // read: the channel-wise kinds (Levels, Curves, Invert, Posterize, Brightness/Contrast,
   // Exposure) then run on the four inks instead of on RGB. See core/ink_space.hpp.
@@ -621,7 +640,9 @@ void set_curve_points_for_channel(CurvesAdjustment& curves, CurvesChannel channe
 [[nodiscard]] bool layer_is_adjustment(const Layer& layer);
 // The placeholder kind token ("vibrance", "black_white", "photo_filter", "channel_mixer",
 // "color_lookup", "gradient_map", "selective_color") for a Photoshop adjustment block key
-// Patchy keeps but cannot apply yet, or nullptr.
+// whose block Patchy keeps but could not read, or nullptr. The PSD reader also sets
+// "color_vibrance" for a readable 'vibA' block holding Photoshop's newer Color and
+// Vibrance settings, which Patchy does not apply.
 [[nodiscard]] const char* photoshop_placeholder_adjustment_kind(std::string_view block_key) noexcept;
 // The layer's placeholder kind token, or empty when it is not an adjustment placeholder.
 [[nodiscard]] std::string_view adjustment_placeholder_kind(const Layer& layer);

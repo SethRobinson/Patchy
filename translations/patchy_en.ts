@@ -10934,10 +10934,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Vibrance, Black &amp; White or Gradient Map). They have no effect here and are saved unchanged.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Vibrance</source>
         <translation type="unfinished"></translation>
     </message>
@@ -11367,6 +11363,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>Diffuse</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Photoshop&apos;s Color and Vibrance). They have no effect here and are saved unchanged.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Vibrance: vibrance %1, saturation %2</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color and Vibrance</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -23037,6 +23045,14 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     </message>
     <message>
         <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Vibrance...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancelled Vibrance</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -10950,10 +10950,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Preservar luminosidade</translation>
     </message>
     <message>
-        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Vibrance, Black &amp; White or Gradient Map). They have no effect here and are saved unchanged.</source>
-        <translation>Algumas camadas de ajuste usam tipos que o Patchy ainda não consegue aplicar (como Vibratilidade, Preto e branco ou Mapa de gradiente). Elas não têm efeito aqui e são salvas sem alterações.</translation>
-    </message>
-    <message>
         <source>Vibrance</source>
         <translation>Vibratilidade</translation>
     </message>
@@ -11384,6 +11380,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Diffuse</source>
         <translation>Difusão</translation>
+    </message>
+    <message>
+        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Photoshop&apos;s Color and Vibrance). They have no effect here and are saved unchanged.</source>
+        <translation>Algumas camadas de ajuste usam tipos que o Patchy ainda não consegue aplicar (como Cor e vibratilidade do Photoshop). Elas não têm efeito aqui e são salvas sem alterações.</translation>
+    </message>
+    <message>
+        <source>Vibrance: vibrance %1, saturation %2</source>
+        <translation>Vibratilidade: vibratilidade %1, saturação %2</translation>
+    </message>
+    <message>
+        <source>Color and Vibrance</source>
+        <translation>Cor e vibratilidade</translation>
     </message>
 </context>
 <context>
@@ -23115,6 +23123,14 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
     <message>
         <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
         <translation>Seleção de demarcador: clique em uma forma para selecioná-la, arraste para movê-la, %ALT%+arrastar para duplicá-la. %CTRL%+T transforma o demarcador, Delete remove a forma selecionada.</translation>
+    </message>
+    <message>
+        <source>&amp;Vibrance...</source>
+        <translation>&amp;Vibratilidade...</translation>
+    </message>
+    <message>
+        <source>Cancelled Vibrance</source>
+        <translation>Vibratilidade cancelada</translation>
     </message>
 </context>
 <context>
