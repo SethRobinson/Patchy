@@ -12549,6 +12549,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Added %1 to %2 to paint on</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Rasterize the layer to distort it</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -22443,6 +22451,22 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <source>Deleted all Smart Filters</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Transform</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Skew</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Distort</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Perspective</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -24186,6 +24210,26 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     </message>
     <message>
         <source>Unknown layer color label: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>layer.transform needs {matrix} or {quad}, not both.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>layer.transform: unknown option %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>layer.transform: matrix must be six finite numbers.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>layer.transform: quad must be four [x, y] points.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>layer.transform: unknown interpolation %1</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -12531,6 +12531,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Added %1 to %2 to paint on</source>
         <translation>그리기 위해 %2에 %1을(를) 추가했습니다</translation>
     </message>
+    <message>
+        <source>Rasterize the layer to distort it</source>
+        <translation>왜곡하려면 레이어를 래스터화하세요</translation>
+    </message>
+    <message>
+        <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
+        <translation>원근이 적용된 고급 개체는 뒤틀 수 없습니다. 먼저 레이어를 래스터화하세요.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -22450,6 +22458,22 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <source>Deleted all Smart Filters</source>
         <translation>모든 스마트 필터를 삭제했습니다</translation>
     </message>
+    <message>
+        <source>Transform</source>
+        <translation>변형</translation>
+    </message>
+    <message>
+        <source>Skew</source>
+        <translation>기울이기</translation>
+    </message>
+    <message>
+        <source>Distort</source>
+        <translation>왜곡</translation>
+    </message>
+    <message>
+        <source>Perspective</source>
+        <translation>원근</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -24193,6 +24217,26 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Unknown layer color label: %1</source>
         <translation>알 수 없는 레이어 색상: %1</translation>
+    </message>
+    <message>
+        <source>layer.transform needs {matrix} or {quad}, not both.</source>
+        <translation>layer.transform에는 {matrix} 또는 {quad} 중 하나만 지정하세요.</translation>
+    </message>
+    <message>
+        <source>layer.transform: unknown option %1</source>
+        <translation>layer.transform: 알 수 없는 옵션 %1</translation>
+    </message>
+    <message>
+        <source>layer.transform: matrix must be six finite numbers.</source>
+        <translation>layer.transform: matrix는 유한한 숫자 6개여야 합니다.</translation>
+    </message>
+    <message>
+        <source>layer.transform: quad must be four [x, y] points.</source>
+        <translation>layer.transform: quad는 [x, y] 점 4개여야 합니다.</translation>
+    </message>
+    <message>
+        <source>layer.transform: unknown interpolation %1</source>
+        <translation>layer.transform: 알 수 없는 보간 %1</translation>
     </message>
 </context>
 <context>

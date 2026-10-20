@@ -142,6 +142,8 @@ public:
   Q_INVOKABLE void rerenderText();
 
   Q_INVOKABLE void moveTo(double x, double y);
+  // Free Transform with a matrix or a corner quad (GitHub issue 225; patchy.d.ts).
+  Q_INVOKABLE void transform(const QJSValue& options);
   Q_INVOKABLE QJSValue duplicate(const QJSValue& target = QJSValue());
   Q_INVOKABLE void remove();
   // Ungroup this group layer; returns the released layers top to bottom.

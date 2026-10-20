@@ -12599,6 +12599,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Added %1 to %2 to paint on</source>
         <translation>Для рисования в %2 добавлен %1</translation>
     </message>
+    <message>
+        <source>Rasterize the layer to distort it</source>
+        <translation>Растрируйте слой, чтобы исказить его</translation>
+    </message>
+    <message>
+        <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
+        <translation>Смарт-объект в перспективе нельзя деформировать. Сначала растрируйте слой.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -22590,6 +22598,22 @@ Patchy можно будет запускать из меню, а на пане�
         <source>Deleted all Smart Filters</source>
         <translation>Все смарт-фильтры удалены</translation>
     </message>
+    <message>
+        <source>Transform</source>
+        <translation>Трансформирование</translation>
+    </message>
+    <message>
+        <source>Skew</source>
+        <translation>Наклон</translation>
+    </message>
+    <message>
+        <source>Distort</source>
+        <translation>Искажение</translation>
+    </message>
+    <message>
+        <source>Perspective</source>
+        <translation>Перспектива</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -24335,6 +24359,26 @@ Patchy можно будет запускать из меню, а на пане�
     <message>
         <source>Unknown layer color label: %1</source>
         <translation>Неизвестный цвет слоя: %1</translation>
+    </message>
+    <message>
+        <source>layer.transform needs {matrix} or {quad}, not both.</source>
+        <translation>layer.transform ожидает {matrix} или {quad}, но не оба сразу.</translation>
+    </message>
+    <message>
+        <source>layer.transform: unknown option %1</source>
+        <translation>layer.transform: неизвестный параметр %1</translation>
+    </message>
+    <message>
+        <source>layer.transform: matrix must be six finite numbers.</source>
+        <translation>layer.transform: matrix должен содержать шесть конечных чисел.</translation>
+    </message>
+    <message>
+        <source>layer.transform: quad must be four [x, y] points.</source>
+        <translation>layer.transform: quad должен содержать четыре точки [x, y].</translation>
+    </message>
+    <message>
+        <source>layer.transform: unknown interpolation %1</source>
+        <translation>layer.transform: неизвестная интерполяция %1</translation>
     </message>
 </context>
 <context>

@@ -410,6 +410,23 @@ interface PatchyLayer {
    */
   moveTo(x: number, y: number): void;
   /**
+   * Edit > Free Transform in one call (GitHub issue 225), with the interactive tool's
+   * rules for every layer type, as one undo step with the rest of the run. Give exactly
+   * one of: `matrix`, applied to the layer's transform box ([a, b, c, d, e, f] maps
+   * x' = a x + c y + e, y' = b x + d y + f, like transformShape); or `quad`, the box's
+   * new corners in document pixels, in the layer's own order (top left, top right,
+   * bottom right, bottom left), so any four points distort or apply perspective. Smart
+   * objects keep the result as a perspective placement; type layers take only a
+   * parallelogram (rasterize first for perspective) and throw otherwise. A group
+   * transforms its contents. `interpolation` defaults to the Free Transform setting.
+   * Throws while a transform is pending in that document.
+   */
+  transform(options: {
+    matrix?: PatchyVectorMatrix;
+    quad?: [[number, number], [number, number], [number, number], [number, number]];
+    interpolation?: PatchyResampleMethod;
+  }): void;
+  /**
    * Inserts the copy directly above this layer and returns it. With another
    * open document as `targetDocument`, the copy lands above that document's
    * active layer instead (same coordinates, or centered when the sizes differ),

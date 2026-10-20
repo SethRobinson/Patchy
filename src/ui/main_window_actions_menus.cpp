@@ -523,6 +523,35 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
                        warp_transform_action}) {
     register_document_action(action);
   }
+  // Edit > Transform (GitHub issue 225): each entry starts (or keeps) a Free
+  // Transform session in which plain corner and edge drags skew, distort, or
+  // apply perspective (docs/free-transform.md). The hotkey ids are permanent.
+  {
+    auto* transform_menu = new QMenu(tr("Transform"), edit_menu);
+    bind_widget_text(transform_menu, QT_TR_NOOP("Transform"));
+    transform_menu->setObjectName(QStringLiteral("editTransformMenu"));
+    edit_menu->insertMenu(warp_transform_action, transform_menu)->setMenuRole(QAction::NoRole);
+    struct ModeEntry {
+      const char* text;
+      const char* object_name;
+      const char* hotkey_id;
+      CanvasWidget::TransformDistortMode mode;
+    };
+    for (const auto& entry : {ModeEntry{QT_TR_NOOP("Skew"), "editTransformSkewAction", "edit.transform_skew",
+                                        CanvasWidget::TransformDistortMode::Skew},
+                              ModeEntry{QT_TR_NOOP("Distort"), "editTransformDistortAction", "edit.transform_distort",
+                                        CanvasWidget::TransformDistortMode::Distort},
+                              ModeEntry{QT_TR_NOOP("Perspective"), "editTransformPerspectiveAction",
+                                        "edit.transform_perspective", CanvasWidget::TransformDistortMode::Perspective}}) {
+      auto* action = transform_menu->addAction(tr(entry.text));
+      bind_action_text(action, entry.text);
+      action->setObjectName(QLatin1String(entry.object_name));
+      action->setMenuRole(QAction::NoRole);
+      register_hotkey(action, entry.hotkey_id, QKeySequence());
+      connect(action, &QAction::triggered, this, [this, mode = entry.mode] { transform_active_layer_mode(mode); });
+      register_document_action(action);
+    }
+  }
   edit_menu->addSeparator();
   auto* select_all_action = edit_menu->addAction(tr("Select &All"));
   auto* clear_selection_action = edit_menu->addAction(tr("&Clear Selection"));

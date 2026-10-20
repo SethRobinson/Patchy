@@ -1159,6 +1159,8 @@ private:
   void clear_internal_clipboard_on_external_change();
   void transform_active_layer_dialog();
   void warp_transform_active_layer();
+  // Edit > Transform > Skew/Distort/Perspective (GitHub issue 225).
+  void transform_active_layer_mode(TransformDistortMode mode);
   void add_text_at(QPoint document_point, QRect requested_text_box = {}, bool show_editor = true,
                    std::optional<patchy::VectorPath> requested_area = std::nullopt,
                    std::optional<LayerId> target_text_layer = std::nullopt);

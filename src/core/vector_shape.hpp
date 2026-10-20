@@ -332,6 +332,11 @@ void strip_layer_vector_data(Layer& layer);
 // Uniform affine transform of every anchor/control point (a*x + c*y + tx,
 // b*x + d*y + ty), used by move/transform/resize integration.
 void transform_vector_path(VectorPath& path, const std::array<double, 6>& matrix);
+// Projective (perspective) map of every anchor/control point, row-major for column
+// vectors: x' = (h0 x + h1 y + h2) / w, y' = (h3 x + h4 y + h5) / w, w = h6 x + h7 y + h8.
+// The curves between the mapped control points approximate the exact (rational)
+// image, as Photoshop's Distort/Perspective do for paths. A point at w = 0 stays put.
+void transform_vector_path_projective(VectorPath& path, const std::array<double, 9>& homography);
 void translate_vector_path(VectorPath& path, double dx, double dy);
 // Translates the path AND every absolute-coordinate origination field
 // (bbox, box corners, line endpoints, transform translation).

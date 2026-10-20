@@ -23,6 +23,10 @@ inline constexpr std::size_t kSelectionToolCount = 8;
 
 inline constexpr int kMaxBrushSize = 1024;
 
+// Edit > Transform modes for a Free Transform session (GitHub issue 225): plain corner
+// and edge drags skew, distort, or apply perspective. docs/free-transform.md.
+enum class TransformDistortMode { None, Skew, Distort, Perspective };
+
 enum class CanvasTool {
   Move,
   Marquee,

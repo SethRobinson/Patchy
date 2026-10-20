@@ -357,5 +357,11 @@ void transform_layer_vector_data(Document& document, Layer& layer,
                                  double stroke_scale = 1.0);
 void transform_document_vector_data(Document& document, const std::array<double, 6>& matrix,
                                     Rect canvas_after, double stroke_scale = 1.0);
+// Free Transform's Distort/Perspective for one layer (GitHub issue 225): the shape
+// path and the vector mask path go through the homography (transform_vector_path_
+// projective), pattern anchors follow, live-shape annotations drop (a perspective
+// rectangle is no longer a rectangle), and both re-rasterize at canvas_after.
+void transform_layer_vector_data_projective(Document& document, Layer& layer,
+                                            const std::array<double, 9>& homography, Rect canvas_after);
 
 }  // namespace patchy

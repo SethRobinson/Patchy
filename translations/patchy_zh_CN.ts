@@ -12531,6 +12531,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Added %1 to %2 to paint on</source>
         <translation>已向 %2 添加 %1 用于绘画</translation>
     </message>
+    <message>
+        <source>Rasterize the layer to distort it</source>
+        <translation>请先栅格化图层再进行扭曲</translation>
+    </message>
+    <message>
+        <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
+        <translation>透视状态的智能对象无法变形。请先栅格化图层。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -22450,6 +22458,22 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <source>Deleted all Smart Filters</source>
         <translation>已删除所有智能滤镜</translation>
     </message>
+    <message>
+        <source>Transform</source>
+        <translation>变换</translation>
+    </message>
+    <message>
+        <source>Skew</source>
+        <translation>斜切</translation>
+    </message>
+    <message>
+        <source>Distort</source>
+        <translation>扭曲</translation>
+    </message>
+    <message>
+        <source>Perspective</source>
+        <translation>透视</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -24193,6 +24217,26 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Unknown layer color label: %1</source>
         <translation>未知的图层颜色：%1</translation>
+    </message>
+    <message>
+        <source>layer.transform needs {matrix} or {quad}, not both.</source>
+        <translation>layer.transform 需要 {matrix} 或 {quad} 之一，不能同时提供。</translation>
+    </message>
+    <message>
+        <source>layer.transform: unknown option %1</source>
+        <translation>layer.transform：未知选项 %1</translation>
+    </message>
+    <message>
+        <source>layer.transform: matrix must be six finite numbers.</source>
+        <translation>layer.transform：matrix 必须是六个有限数字。</translation>
+    </message>
+    <message>
+        <source>layer.transform: quad must be four [x, y] points.</source>
+        <translation>layer.transform：quad 必须是四个 [x, y] 点。</translation>
+    </message>
+    <message>
+        <source>layer.transform: unknown interpolation %1</source>
+        <translation>layer.transform：未知插值方式 %1</translation>
     </message>
 </context>
 <context>

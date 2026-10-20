@@ -12565,6 +12565,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Added %1 to %2 to paint on</source>
         <translation>%1 adicionado a %2 para pintar</translation>
     </message>
+    <message>
+        <source>Rasterize the layer to distort it</source>
+        <translation>Rasterize a camada para distorcê-la</translation>
+    </message>
+    <message>
+        <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
+        <translation>Um objeto inteligente em perspectiva não pode ser distorcido. Rasterize a camada primeiro.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -22520,6 +22528,22 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
         <source>Deleted all Smart Filters</source>
         <translation>Todos os filtros inteligentes foram excluídos</translation>
     </message>
+    <message>
+        <source>Transform</source>
+        <translation>Transformar</translation>
+    </message>
+    <message>
+        <source>Skew</source>
+        <translation>Inclinar</translation>
+    </message>
+    <message>
+        <source>Distort</source>
+        <translation>Distorcer</translation>
+    </message>
+    <message>
+        <source>Perspective</source>
+        <translation>Perspectiva</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -24264,6 +24288,26 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
     <message>
         <source>Unknown layer color label: %1</source>
         <translation>Cor de camada desconhecida: %1</translation>
+    </message>
+    <message>
+        <source>layer.transform needs {matrix} or {quad}, not both.</source>
+        <translation>layer.transform precisa de {matrix} ou {quad}, não de ambos.</translation>
+    </message>
+    <message>
+        <source>layer.transform: unknown option %1</source>
+        <translation>layer.transform: opção desconhecida %1</translation>
+    </message>
+    <message>
+        <source>layer.transform: matrix must be six finite numbers.</source>
+        <translation>layer.transform: matrix deve ter seis números finitos.</translation>
+    </message>
+    <message>
+        <source>layer.transform: quad must be four [x, y] points.</source>
+        <translation>layer.transform: quad deve ter quatro pontos [x, y].</translation>
+    </message>
+    <message>
+        <source>layer.transform: unknown interpolation %1</source>
+        <translation>layer.transform: interpolação desconhecida %1</translation>
     </message>
 </context>
 <context>

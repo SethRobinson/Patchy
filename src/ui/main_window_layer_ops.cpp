@@ -1371,6 +1371,27 @@ void MainWindow::transform_active_layer_dialog() {
   }
 }
 
+void MainWindow::transform_active_layer_mode(TransformDistortMode mode) {
+  if (canvas_ == nullptr) {
+    show_status_error(tr("Select a pixel layer to transform"));
+    return;
+  }
+  if (canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr) {
+    finish_active_text_editor();
+  }
+  select_only_layer_if_none_active();
+  if (!canvas_->free_transform_active()) {
+    if (const auto active = document().active_layer_id(); active.has_value() && layer_id_locks_position(*active)) {
+      show_status_error(tr("Layer position is locked."));
+      return;
+    }
+  }
+  if (!canvas_->begin_free_transform_mode(mode)) {
+    show_status_error(tr("Select a pixel layer to transform"));
+  }
+  refresh_options_bar();
+}
+
 void MainWindow::warp_transform_active_layer() {
   if (canvas_ == nullptr) {
     show_status_error(tr("Select a pixel layer to warp"));

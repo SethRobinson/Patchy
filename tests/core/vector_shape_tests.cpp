@@ -684,9 +684,90 @@ void path_fit_long_staircase_does_not_depend_on_call_stack_depth() {
   CHECK(fitted.anchors.back().anchor_y == edge.back().y);
 }
 
+// Distort/Perspective (GitHub issue 225): every anchor and handle goes through
+// the homography with the perspective divide; an affine homography matches the
+// affine overload exactly.
+void vector_path_projective_transform_maps_control_points() {
+  auto path = make_sample_path();
+  auto affine_path = path;
+  patchy::transform_vector_path(affine_path, {2.0, 0.5, -0.25, 1.5, 10.0, -4.0});
+  auto homography_path = path;
+  patchy::transform_vector_path_projective(homography_path, {2.0, -0.25, 10.0, 0.5, 1.5, -4.0, 0.0, 0.0, 1.0});
+  CHECK(homography_path.subpaths.size() == affine_path.subpaths.size());
+  for (std::size_t s = 0; s < affine_path.subpaths.size(); ++s) {
+    const auto& expected = affine_path.subpaths[s].anchors;
+    const auto& actual = homography_path.subpaths[s].anchors;
+    CHECK(actual.size() == expected.size());
+    for (std::size_t a = 0; a < expected.size(); ++a) {
+      CHECK(nearly(actual[a].anchor_x, expected[a].anchor_x, 1e-9));
+      CHECK(nearly(actual[a].anchor_y, expected[a].anchor_y, 1e-9));
+      CHECK(nearly(actual[a].in_x, expected[a].in_x, 1e-9));
+      CHECK(nearly(actual[a].out_y, expected[a].out_y, 1e-9));
+    }
+  }
+  // x' = x / (1 + x/100): (50, 20) -> (33.33.., 13.33..).
+  VectorPath single;
+  PathSubpath subpath;
+  PathAnchor anchor;
+  anchor.anchor_x = 50.0;
+  anchor.anchor_y = 20.0;
+  anchor.in_x = 50.0;
+  anchor.in_y = 20.0;
+  anchor.out_x = 0.0;
+  anchor.out_y = 0.0;
+  subpath.anchors = {anchor};
+  single.subpaths = {subpath};
+  patchy::transform_vector_path_projective(single, {1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.01, 0.0, 1.0});
+  const auto& mapped = single.subpaths[0].anchors[0];
+  CHECK(nearly(mapped.anchor_x, 50.0 / 1.5, 1e-9));
+  CHECK(nearly(mapped.anchor_y, 20.0 / 1.5, 1e-9));
+  CHECK(nearly(mapped.out_x, 0.0, 1e-12));
+}
+
+// A perspective rectangle is no longer a live rectangle: the annotation drops,
+// the path corners land on the quad, and the raster follows.
+void vector_layer_projective_transform_drops_live_shape() {
+  patchy::Document document(200, 160, patchy::PixelFormat::rgba8());
+  Layer layer(document.allocate_layer_id(), "Rectangle", patchy::PixelBuffer());
+  LiveShapeParams params;
+  params.kind = LiveShapeKind::Rectangle;
+  params.left = 20;
+  params.top = 30;
+  params.right = 120;
+  params.bottom = 90;
+  patchy::populate_live_shape_box_corners(params);
+  patchy::VectorShapeContent content;
+  content.path.subpaths = patchy::generate_live_shape_subpaths(params);
+  content.origination.push_back(params);
+  content.fill.kind = patchy::VectorFillKind::Solid;
+  content.fill.color = patchy::RgbColor{40, 90, 200};
+  layer.set_vector_shape(std::move(content));
+  patchy::update_vector_shape_raster(layer, patchy::Rect::from_size(200, 160), nullptr);
+  // A homography that keeps (20,30) and (20,90) and pulls the right side in:
+  // x' = 20 + (x - 20) / (1 + (x - 20) / 200), y' unchanged for these corners.
+  const std::array<double, 9> homography{1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.005, 0.0, 0.9};
+  patchy::transform_layer_vector_data_projective(document, layer, homography, patchy::Rect::from_size(200, 160));
+  const auto* shape = layer.vector_shape();
+  CHECK(shape != nullptr);
+  CHECK(shape->origination.empty());
+  bool found_mapped_corner = false;
+  for (const auto& subpath : shape->path.subpaths) {
+    for (const auto& point : subpath.anchors) {
+      const double w = 0.005 * 120.0 + 0.9;
+      if (nearly(point.anchor_x, 120.0 / w, 1e-9) && nearly(point.anchor_y, 30.0 / w, 1e-9)) {
+        found_mapped_corner = true;
+      }
+    }
+  }
+  CHECK(found_mapped_corner);
+  CHECK(!layer.bounds().empty());
+}
+
 std::vector<patchy::test::TestCase> vector_shape_tests() {
   return {
       {"vector_path_text_codec_round_trips", vector_path_text_codec_round_trips},
+      {"vector_path_projective_transform_maps_control_points", vector_path_projective_transform_maps_control_points},
+      {"vector_layer_projective_transform_drops_live_shape", vector_layer_projective_transform_drops_live_shape},
       {"path_fixed_point_conversion_round_trips", path_fixed_point_conversion_round_trips},
       {"live_rounded_rect_matches_photoshop_construction", live_rounded_rect_matches_photoshop_construction},
       {"live_ellipse_and_line_match_photoshop_construction",

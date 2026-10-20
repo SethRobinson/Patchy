@@ -56,12 +56,6 @@ bool transforms_differ(const std::array<double, 8>& a, const std::array<double, 
   return false;
 }
 
-bool quad_is_affine(const std::array<double, 8>& quad) {
-  // A parallelogram satisfies corner0 + corner2 == corner1 + corner3.
-  return std::abs((quad[0] + quad[4]) - (quad[2] + quad[6])) <= kAffineEpsilon &&
-         std::abs((quad[1] + quad[5]) - (quad[3] + quad[7])) <= kAffineEpsilon;
-}
-
 bool known_smart_filter_blend_mode(std::string_view value, BlendMode& mode) {
   // Photoshop 2026 writes full stringIDs here, just like lfx2. Do not let the
   // shared converter's unknown-to-Normal fallback make an imported stack look
@@ -1469,12 +1463,11 @@ std::optional<PlacedLayerInfo> parse_sold_block(std::span<const std::uint8_t> pa
       if (!supported) {
         info.lock_reason = warp_reason;
       }
-    } else if (const auto non_affine = transform_from_list(descriptor_value(descriptor, "nonAffineTransform"));
-               non_affine.has_value() && transforms_differ(*transform, *non_affine)) {
-      info.lock_reason = "non_affine";
-    } else if (!quad_is_affine(*transform)) {
-      info.lock_reason = "non_affine";
     }
+    // A perspective placement (nonAffineTransform differing from Trnf, or a non-affine
+    // Trnf) renders through its quad's homography (smart_object_render_quad), so it no
+    // longer takes a "non_affine" preview lock (GitHub issue 225). The file's raster
+    // stays until the layer is edited.
     if (info.smart_filters.has_value() && info.lock_reason.empty()) {
       // The global FEid association is finalized only after every document
       // block has been parsed. Until then a filter-bearing layer stays locked;
