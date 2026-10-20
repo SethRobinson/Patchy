@@ -1885,6 +1885,18 @@ private:
   // Pen's Ctrl latch is held, the actual tool otherwise.
   [[nodiscard]] CanvasTool path_edit_tool() const noexcept;
   [[nodiscard]] patchy::Layer* path_edit_target_layer() const;
+  // What owns the target path (vector mask, document path, text area, shape layer, or the
+  // work path) with its id. The point selection is (subpath, anchor) indices into that one
+  // path, so it is dropped the moment the owner changes (GitHub issue 248).
+  [[nodiscard]] std::pair<int, std::uint64_t> path_edit_target_owner_key() const;
+  void drop_point_selection_if_target_changed();
+  // Path Select works on whole groups: every group with a selected anchor becomes fully
+  // selected (a switch from Direct Select or the Pen's Ctrl latch).
+  void expand_path_selection_to_groups();
+  // A Path Select press on `group`: a plain press keeps a selection that already holds the
+  // group (a drag moves every selected shape) and otherwise selects just it; Shift adds it,
+  // or deselects it when it is already selected. False when the press deselected it.
+  bool path_select_press_group(const patchy::VectorPath& path, int group, bool additive);
   // The topmost visible, editable shape layer whose anchor, outline or fill is
   // under the pointer: Path/Direct Select pick it as their target (GitHub issue 248).
   [[nodiscard]] patchy::Layer* topmost_path_pick_layer_at(QPointF widget_point) const;
@@ -2551,6 +2563,8 @@ private:
   std::set<std::pair<int, int>> path_selected_anchors_;
   // Set while a press that picked another shape layer replays on the new target.
   bool path_press_repicked_ = false;
+  // The target owner the point selection was made on (path_edit_target_owner_key).
+  std::optional<std::pair<int, std::uint64_t>> path_selection_owner_;
   // Selected anchors on OTHER panel-selected shape layers (never the primary
   // target); drags, nudges, deletes, and the count span both structures.
   std::map<LayerId, std::set<std::pair<int, int>>> extra_selected_anchors_;

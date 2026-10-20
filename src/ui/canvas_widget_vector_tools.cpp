@@ -702,6 +702,107 @@ Layer* CanvasWidget::path_edit_target_layer() const {
   return nullptr;
 }
 
+std::pair<int, std::uint64_t> CanvasWidget::path_edit_target_owner_key() const {
+  if (document_ == nullptr) {
+    return {0, 0};
+  }
+  const auto active = std::as_const(*document_).active_layer_id();
+  if (layer_edit_target_ == LayerEditTarget::VectorMask) {
+    return {1, active.value_or(0)};
+  }
+  if (active_document_path_.has_value()) {
+    return {2, *active_document_path_};
+  }
+  if (text_area_edit_target_path() != nullptr) {
+    return {3, active.value_or(0)};
+  }
+  if (const auto* layer = path_edit_target_layer(); layer != nullptr) {
+    return {4, layer->id()};
+  }
+  return {5, 0};  // the work path
+}
+
+void CanvasWidget::drop_point_selection_if_target_changed() {
+  if (path_selected_anchors_.empty()) {
+    path_selection_owner_.reset();
+    return;
+  }
+  const auto owner = path_edit_target_owner_key();
+  if (!path_selection_owner_.has_value()) {
+    path_selection_owner_ = owner;  // made without a notify: it belongs to this target
+    return;
+  }
+  if (*path_selection_owner_ == owner) {
+    return;
+  }
+  // The indices point into another path now: editing them would change the
+  // wrong layer's points.
+  path_selected_anchors_.clear();
+  path_selection_owner_.reset();
+  notify_path_selection_changed();
+  update();
+}
+
+void CanvasWidget::expand_path_selection_to_groups() {
+  bool changed = false;
+  const auto expand = [&changed](const VectorPath& path, std::set<std::pair<int, int>>& keys) {
+    std::set<int> groups;
+    for (const auto& key : keys) {
+      if (key.first >= 0 && key.first < static_cast<int>(path.subpaths.size())) {
+        groups.insert(path.subpaths[static_cast<std::size_t>(key.first)].shape_group);
+      }
+    }
+    for (int s = 0; s < static_cast<int>(path.subpaths.size()); ++s) {
+      const auto& subpath = path.subpaths[static_cast<std::size_t>(s)];
+      if (!groups.contains(subpath.shape_group)) {
+        continue;
+      }
+      for (int a = 0; a < static_cast<int>(subpath.anchors.size()); ++a) {
+        changed = keys.insert({s, a}).second || changed;
+      }
+    }
+  };
+  if (const auto* path = path_edit_target_path(); path != nullptr && !path_selected_anchors_.empty()) {
+    expand(*path, path_selected_anchors_);
+  }
+  for (auto& [id, keys] : extra_selected_anchors_) {
+    if (const auto* layer = extra_edit_shape_layer(id); layer != nullptr) {
+      expand(layer->vector_shape()->path, keys);
+    }
+  }
+  if (changed) {
+    notify_path_selection_changed();
+    update();
+  }
+}
+
+bool CanvasWidget::path_select_press_group(const VectorPath& path, int group, bool additive) {
+  std::vector<std::pair<int, int>> keys;
+  for (int s = 0; s < static_cast<int>(path.subpaths.size()); ++s) {
+    if (path.subpaths[static_cast<std::size_t>(s)].shape_group != group) {
+      continue;
+    }
+    for (int a = 0; a < static_cast<int>(path.subpaths[static_cast<std::size_t>(s)].anchors.size()); ++a) {
+      keys.push_back({s, a});
+    }
+  }
+  const bool selected = !keys.empty() && std::all_of(keys.begin(), keys.end(), [this](const auto& key) {
+    return path_selected_anchors_.contains(key);
+  });
+  if (additive && selected) {
+    for (const auto& key : keys) {
+      path_selected_anchors_.erase(key);
+    }
+    return false;
+  }
+  if (!additive && !selected) {
+    path_selected_anchors_.clear();
+    extra_selected_anchors_.clear();
+  }
+  path_selected_anchors_.insert(keys.begin(), keys.end());
+  return true;
+}
+
 Layer* CanvasWidget::topmost_path_pick_layer_at(QPointF widget_point) const {
   if (document_ == nullptr) {
     return nullptr;
@@ -767,6 +868,7 @@ void CanvasWidget::set_panel_selected_layer_ids(std::vector<LayerId> ids) {
     return;
   }
   panel_selected_layer_ids_ = std::move(ids);
+  drop_point_selection_if_target_changed();
   // A layer dropped from the panel selection loses its point selection.
   const auto erased = std::erase_if(extra_selected_anchors_, [this](const auto& entry) {
     return std::find(panel_selected_layer_ids_.begin(), panel_selected_layer_ids_.end(),
@@ -809,6 +911,11 @@ void CanvasWidget::set_path_selection_changed_callback(std::function<void()> cal
 }
 
 void CanvasWidget::notify_path_selection_changed() {
+  if (path_selected_anchors_.empty()) {
+    path_selection_owner_.reset();
+  } else {
+    path_selection_owner_ = path_edit_target_owner_key();
+  }
   if (path_selection_changed_callback_) {
     path_selection_changed_callback_();
   }
@@ -1293,6 +1400,7 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
   if (path_transform_active_) {
     return handle_path_transform_press(document_point, QPointF(event->position()), event->modifiers());
   }
+  drop_point_selection_if_target_changed();
   const auto* path = path_edit_target_path();
   if (path == nullptr) {
     report_status_error(tr("Select a shape layer or draw a path first"));
@@ -1328,20 +1436,12 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
     const bool additive = (event->modifiers() & Qt::ShiftModifier) != 0;
     if (edit_tool == CanvasTool::PathSelect) {
       // Whole shape-group selection.
-      const auto group =
-          path->subpaths[static_cast<std::size_t>(anchor.first)].shape_group;
-      if (!additive) {
-        path_selected_anchors_.clear();
-        extra_selected_anchors_.clear();
-      }
-      for (int s = 0; s < static_cast<int>(path->subpaths.size()); ++s) {
-        if (path->subpaths[static_cast<std::size_t>(s)].shape_group != group) {
-          continue;
-        }
-        for (int a = 0; a < static_cast<int>(path->subpaths[static_cast<std::size_t>(s)].anchors.size());
-             ++a) {
-          path_selected_anchors_.insert({s, a});
-        }
+      if (!path_select_press_group(*path, path->subpaths[static_cast<std::size_t>(anchor.first)].shape_group,
+                                   additive)) {
+        path_drag_mode_ = PathEditDrag::None;  // Shift deselected it
+        notify_if_changed();
+        update();
+        return true;
       }
     } else {
       if (additive) {
@@ -1401,17 +1501,11 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
     const auto& subpath = path->subpaths[static_cast<std::size_t>(segment.first)];
     const auto anchor_count = static_cast<int>(subpath.anchors.size());
     if (edit_tool == CanvasTool::PathSelect) {
-      const auto group = subpath.shape_group;
-      path_selected_anchors_.clear();
-      extra_selected_anchors_.clear();
-      for (int s = 0; s < static_cast<int>(path->subpaths.size()); ++s) {
-        if (path->subpaths[static_cast<std::size_t>(s)].shape_group != group) {
-          continue;
-        }
-        for (int a = 0; a < static_cast<int>(path->subpaths[static_cast<std::size_t>(s)].anchors.size());
-             ++a) {
-          path_selected_anchors_.insert({s, a});
-        }
+      if (!path_select_press_group(*path, subpath.shape_group, (event->modifiers() & Qt::ShiftModifier) != 0)) {
+        path_drag_mode_ = PathEditDrag::None;  // Shift deselected it
+        notify_if_changed();
+        update();
+        return true;
       }
     } else {
       // A segment whose ends are already selected drags the whole selection
@@ -1485,18 +1579,11 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
   // Path Select: a press inside a shape's fill selects that shape and drags it.
   if (edit_tool == CanvasTool::PathSelect) {
     if (const auto group = shape_group_containing(*path, document_point); group.has_value()) {
-      if ((event->modifiers() & Qt::ShiftModifier) == 0) {
-        path_selected_anchors_.clear();
-        extra_selected_anchors_.clear();
-      }
-      for (int s = 0; s < static_cast<int>(path->subpaths.size()); ++s) {
-        if (path->subpaths[static_cast<std::size_t>(s)].shape_group != *group) {
-          continue;
-        }
-        for (int a = 0; a < static_cast<int>(path->subpaths[static_cast<std::size_t>(s)].anchors.size());
-             ++a) {
-          path_selected_anchors_.insert({s, a});
-        }
+      if (!path_select_press_group(*path, *group, (event->modifiers() & Qt::ShiftModifier) != 0)) {
+        path_drag_mode_ = PathEditDrag::None;  // Shift deselected it
+        notify_if_changed();
+        update();
+        return true;
       }
       path_drag_mode_ = PathEditDrag::Anchors;
       path_drag_anchor_ = {-1, -1};
@@ -1874,6 +1961,7 @@ bool CanvasWidget::handle_path_edit_key(QKeyEvent* event) {
   if (!path_edit_tool_active()) {
     return false;
   }
+  drop_point_selection_if_target_changed();
   if (path_transform_active_) {
     return handle_path_transform_key(event);
   }
@@ -2462,7 +2550,11 @@ bool CanvasWidget::begin_path_transform() {
   // Direct Select with anchors selected transforms just those anchors
   // (Photoshop's Free Transform Points); otherwise the whole path.
   std::set<std::pair<int, int>> subset;
-  if (path_edit_tool() == CanvasTool::DirectSelect && !path_selected_anchors_.empty()) {
+  drop_point_selection_if_target_changed();
+  if (tool_ == CanvasTool::PathSelect) {
+    expand_path_selection_to_groups();  // Path Select transforms its selected shapes
+  }
+  if (!path_selected_anchors_.empty()) {
     subset = path_selected_anchors_;
   }
   // The box wraps the anchor points and their handles (the bezier hull).

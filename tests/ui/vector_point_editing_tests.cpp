@@ -1612,6 +1612,165 @@ void ui_path_transform_modifiers_show_gesture_cursors() {
   save_widget_artifact("ui_path_transform_distorted_box", canvas);
 }
 
+// A rect shape layer whose path holds two shape groups: (100,100)-(300,220) and
+// the same rectangle 250 px to the right, (350,100)-(550,220), in its own group.
+patchy::LayerId make_two_group_shape_layer(patchy::ui::MainWindow& window, patchy::ui::CanvasWidget& canvas) {
+  const auto layer_id = make_rect_shape_layer(window, canvas);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* layer = document.find_layer(layer_id);
+  CHECK(layer != nullptr && layer->vector_shape() != nullptr);
+  if (layer == nullptr || layer->vector_shape() == nullptr) {
+    return layer_id;
+  }
+  auto content = *layer->vector_shape();
+  auto copy = content.path.subpaths[0];
+  copy.shape_group = content.path.next_shape_group();
+  for (auto& anchor : copy.anchors) {
+    anchor.anchor_x += 250.0;
+    anchor.in_x += 250.0;
+    anchor.out_x += 250.0;
+  }
+  content.path.subpaths.push_back(copy);
+  layer->set_vector_shape(std::move(content));
+  canvas.document_changed();
+  QApplication::processEvents();
+  return layer_id;
+}
+
+const patchy::PathAnchor& group_anchor_at(patchy::Document& document, patchy::LayerId id, std::size_t subpath,
+                                          std::size_t index) {
+  const auto* layer = std::as_const(document).find_layer(id);
+  CHECK(layer != nullptr);
+  return layer->vector_shape()->path.subpaths[subpath].anchors[index];
+}
+
+// Tool roles (GitHub issue 248): switching to Path Select turns carried-over
+// points into their whole shapes, and the Pen shows no handle knobs it cannot
+// grab (only its Ctrl latch, which is Direct Select, edits them).
+void ui_path_select_switch_expands_points_and_pen_shows_no_knobs() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_two_group_shape_layer(window, *canvas);
+  {
+    auto* layer = document.find_layer(layer_id);
+    auto content = *layer->vector_shape();
+    auto& anchor = content.path.subpaths[0].anchors[0];
+    anchor.smooth = true;
+    anchor.out_x = anchor.anchor_x + 60.0;
+    anchor.out_y = anchor.anchor_y - 70.0;
+    anchor.in_x = anchor.anchor_x - 60.0;
+    anchor.in_y = anchor.anchor_y + 70.0;
+    layer->set_vector_shape(std::move(content));
+  }
+  canvas->set_view_zoom_centered(1.0);
+  require_action(window, "toolDirectSelectAction")->trigger();
+  QApplication::processEvents();
+  pen_click(*canvas, QPoint(100, 100));
+  CHECK(canvas->path_edit_selected_anchor_count() == 1);
+  CHECK(accent_overlay_near(*canvas, QPoint(160, 30)));  // Direct Select draws the knob
+  require_action(window, "toolPenAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!accent_overlay_near(*canvas, QPoint(160, 30)));  // the Pen does not
+  require_action(window, "toolDirectSelectAction")->trigger();
+  QApplication::processEvents();
+  pen_click(*canvas, QPoint(100, 100));
+  require_action(window, "toolPathSelectAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->path_edit_selected_anchor_count() == 4);  // its whole group, not the other one
+  shape_drag(*canvas, QPoint(200, 220), QPoint(210, 220));
+  CHECK(std::abs(group_anchor_at(document, layer_id, 0, 0).anchor_x - 110.0) < 1.0);
+  CHECK(std::abs(group_anchor_at(document, layer_id, 1, 0).anchor_x - 350.0) < 0.5);
+}
+
+// The point selection is (subpath, anchor) indices into one path: when the
+// active layer changes (a Layers-panel click), it is dropped, so Delete or a
+// nudge never edits another layer's points (GitHub issue 248).
+void ui_point_selection_drops_when_the_active_layer_changes() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto first_id = make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  shape_drag(*canvas, QPoint(400, 100), QPoint(600, 220));  // "Rectangle 2", active
+  const auto second_id = *document.active_layer_id();
+  canvas->set_view_zoom_centered(1.0);
+  require_action(window, "toolDirectSelectAction")->trigger();
+  QApplication::processEvents();
+  shape_drag(*canvas, QPoint(380, 80), QPoint(620, 240));  // marquee around Rectangle 2
+  CHECK(canvas->path_edit_selected_anchor_count() == 4);
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* item = require_layer_item(*layer_list, QStringLiteral("Rectangle 1"));
+  const auto center = layer_list->visualItemRect(item).center();
+  send_mouse(*layer_list->viewport(), QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*layer_list->viewport(), QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(document.active_layer_id() == first_id);
+  CHECK(!canvas->path_edit_has_selection());
+  CHECK(canvas->path_edit_selected_anchor_count() == 0);
+  // Before the fix the four stale keys stayed and indexed Rectangle 1's corners, so
+  // Delete or a nudge edited a layer the user never selected points on.
+  CHECK(anchor_count(document, first_id) == 4);
+  CHECK(anchor_count(document, second_id) == 4);
+}
+
+// Path Select: Shift+click on a shape's outline or fill adds it to the selection;
+// Shift+click on a selected shape deselects it (GitHub issue 248).
+void ui_path_select_shift_click_adds_and_removes_shapes() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  make_two_group_shape_layer(window, *canvas);
+  canvas->set_view_zoom_centered(1.0);
+  require_action(window, "toolPathSelectAction")->trigger();
+  QApplication::processEvents();
+  const auto shift_click = [&](QPoint point) {
+    const auto widget_point = canvas->widget_position_for_document_point(point);
+    send_mouse(*canvas, QEvent::MouseButtonPress, widget_point, Qt::LeftButton, Qt::LeftButton, Qt::ShiftModifier);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, widget_point, Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
+    QApplication::processEvents();
+  };
+  pen_click(*canvas, QPoint(200, 220));  // the first group's outline
+  CHECK(canvas->path_edit_selected_anchor_count() == 4);
+  shift_click(QPoint(450, 220));  // the second group's outline adds it
+  CHECK(canvas->path_edit_selected_anchor_count() == 8);
+  shift_click(QPoint(200, 160));  // Shift on the selected first group's fill deselects it
+  CHECK(canvas->path_edit_selected_anchor_count() == 4);
+  shift_click(QPoint(200, 160));  // and adds it back
+  CHECK(canvas->path_edit_selected_anchor_count() == 8);
+  shift_click(QPoint(450, 100));  // Shift on a selected outline deselects that one
+  CHECK(canvas->path_edit_selected_anchor_count() == 4);
+}
+
+// Path Select Ctrl+T transforms only the selected shapes of the path.
+void ui_path_select_transform_moves_only_selected_shapes() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_two_group_shape_layer(window, *canvas);
+  canvas->set_view_zoom_centered(1.0);
+  require_action(window, "toolPathSelectAction")->trigger();
+  QApplication::processEvents();
+  pen_click(*canvas, QPoint(450, 220));  // select the second group
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->path_transform_active());
+  shape_drag(*canvas, QPoint(450, 160), QPoint(450, 200));  // move inside its box
+  canvas->commit_path_transform();
+  QApplication::processEvents();
+  CHECK(std::abs(group_anchor_at(document, layer_id, 1, 0).anchor_y - 140.0) < 1.0);
+  CHECK(std::abs(group_anchor_at(document, layer_id, 0, 0).anchor_y - 100.0) < 0.5);  // untouched
+}
+
 // Shift during an anchor drag constrains movement to the nearest horizontal,
 // vertical, or 45-degree axis, re-evaluated per move against the total delta
 // from the press point (Photoshop's vertex constraint, never latched).
@@ -1965,6 +2124,11 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
       {"ui_path_transform_distort_never_folds_the_quad", ui_path_transform_distort_never_folds_the_quad},
       {"ui_path_transform_modifiers_show_gesture_cursors", ui_path_transform_modifiers_show_gesture_cursors},
       {"ui_path_transform_fill_follows_the_box_live", ui_path_transform_fill_follows_the_box_live},
+      {"ui_path_select_switch_expands_points_and_pen_shows_no_knobs",
+       ui_path_select_switch_expands_points_and_pen_shows_no_knobs},
+      {"ui_point_selection_drops_when_the_active_layer_changes", ui_point_selection_drops_when_the_active_layer_changes},
+      {"ui_path_select_shift_click_adds_and_removes_shapes", ui_path_select_shift_click_adds_and_removes_shapes},
+      {"ui_path_select_transform_moves_only_selected_shapes", ui_path_select_transform_moves_only_selected_shapes},
       {"ui_ctrl_h_hides_path_points_with_selection_edges",
        ui_ctrl_h_hides_path_points_with_selection_edges},
       {"ui_direct_select_drags_marquee_selection_by_segment",

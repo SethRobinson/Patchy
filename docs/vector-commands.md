@@ -148,7 +148,22 @@ target (and an unselected panel-selected extra) shows just its outline, so a
 blank click visibly deselects. Direct Select keeps hollow anchors on the
 active path. Switching from Path Select to Direct Select clears the point
 selection (`set_tool`): Path Select selects whole shapes, so its selection would
-make Direct Select's first press drag every point. Hover: a fill, or another
+make Direct Select's first press drag every point; switching to Path Select from
+Direct Select or the Pen expands carried-over points to their whole groups
+(`expand_path_selection_to_groups`), so Path Select never holds part of a shape.
+A Path Select press on a group (anchor, outline or fill) goes through
+`path_select_press_group`: a plain press keeps a selection that already holds the
+group (dragging then moves every selected shape) and otherwise selects just it;
+Shift adds the group, or deselects it when it is already selected (no drag).
+
+The point selection is (subpath, anchor) indices into the target path, so it is
+tied to the target's owner (`path_edit_target_owner_key`: vector mask, document
+path, text area, shape layer or work path, with its id, recorded on every
+`notify_path_selection_changed`). `drop_point_selection_if_target_changed` clears
+it when the owner changes: on `activate_layer`, `set_layer_edit_target`,
+`set_panel_selected_layer_ids` (every Layers-panel activation ends there through
+`refresh_layer_controls`), and before every press, path key and Ctrl+T, so Delete
+never removes another layer's points. Hover: a fill, or another
 layer's shape, is `PathHoverTarget::Fill` (Path Select's select-and-move hint;
 no Direct Select hint); under Path Select every target is the shape and the hint says so.
 Tests:
@@ -159,7 +174,10 @@ Tests:
 `ui_direct_select_drags_points_of_unselected_shapes`,
 `ui_path_select_anchor_drag_moves_the_whole_shape`,
 `ui_direct_select_after_path_select_drags_one_point`,
-`ui_path_select_tools_drag_open_path_anchor`.
+`ui_path_select_tools_drag_open_path_anchor`,
+`ui_path_select_switch_expands_points_and_pen_shows_no_knobs`,
+`ui_point_selection_drops_when_the_active_layer_changes`,
+`ui_path_select_shift_click_adds_and_removes_shapes`.
 
 ## Moving a selection
 
@@ -310,8 +328,9 @@ place.
 
 Ctrl+T with Path Select or Direct Select active (and a targetable path)
 starts a PATH transform session instead of the layer one: a rotated-box
-overlay over the path (the bezier hull, handles included), or over the
-Direct Select anchor subset (Photoshop's Free Transform Points), with the
+overlay over the path (the bezier hull, handles included), over the
+Direct Select anchor subset (Photoshop's Free Transform Points), or over the
+shapes Path Select has selected (whole groups; `ui_path_select_transform_moves_only_selected_shapes`), with the
 usual move/scale/rotate, arrow nudges, Enter/Esc, tool-switch commit,
 document-switch cancel. Ctrl+T during a session is a no-op. The commit is
 ONE `apply_path_edit` undo entry ("Transform path") routed to the active
