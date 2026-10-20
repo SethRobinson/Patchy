@@ -307,4 +307,14 @@ struct InstalledCmykProfile {
 // present, ahead of the profile Patchy bundles (docs/cmyk.md). Empty path when absent.
 [[nodiscard]] std::filesystem::path automatic_cmyk_profile_path();
 
+// The CLUT grid of a profile's A2B0 lutAtoB ('mAB ') tag when its three inputs share one
+// size, else 0. A Photoshop Color Lookup profile carries its LUT's grid there.
+[[nodiscard]] int color_lookup_profile_grid(std::span<const std::uint8_t> profile_bytes);
+// Samples a Color Lookup profile at `grid` points per axis into 16-bit RGB nodes, red
+// fastest: an RGB device link on its own, or an abstract profile run between sRGB ends.
+// No optimization and no white or gray fix-up, so a stored table is applied as it is
+// (docs/legal-constraints.md, "Adjustment layers"). Nullopt when the profile is unusable.
+[[nodiscard]] std::optional<std::vector<std::uint16_t>> sample_color_lookup_profile(
+    std::span<const std::uint8_t> profile_bytes, int grid);
+
 }  // namespace patchy

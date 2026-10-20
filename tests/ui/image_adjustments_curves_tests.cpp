@@ -3425,8 +3425,8 @@ void ui_adjustment_placeholders_name_their_kind_in_layers_panel() {
         static_cast<qint64>(resaved.size()));
   resave_file.close();
   const auto tooltips = placeholder_tooltips(window);
-  CHECK(tooltips.size() == 4);
-  for (const auto* kind : {"Vibrance", "Black & White", "Color Lookup", "Selective Color"}) {
+  CHECK(tooltips.size() == 2);
+  for (const auto* kind : {"Vibrance", "Selective Color"}) {
     CHECK(std::any_of(tooltips.begin(), tooltips.end(), [kind](const QString& tooltip) {
       return tooltip.startsWith(QString::fromUtf8(kind) + QStringLiteral(" adjustment"));
     }));
@@ -3508,6 +3508,74 @@ void ui_gradient_map_dialog_edits_gradient() {
   CHECK(gradient.color_stops.size() == 2U);
   CHECK((gradient.color_stops.front().color == patchy::RgbColor{0, 0, 0}));
   CHECK((gradient.color_stops.back().color == patchy::RgbColor{255, 255, 255}));
+}
+
+// The Black & White dialog starts on Photoshop's weights without a tint; the weights and the
+// tint picked through Patchy's own color picker land on the new adjustment layer (#250).
+void ui_black_white_dialog_edits_weights_and_tint() {
+  patchy::Document source(32, 24, patchy::PixelFormat::rgba8());
+  source.add_pixel_layer("Paint", solid_pixels(32, 24, patchy::PixelFormat::rgba8(), QColor(200, 120, 40)));
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(source), QStringLiteral("Gray"));
+  show_window(window);
+  check_adjustment_kind_in_both_menus(window, "BlackWhiteAdjustment", QObject::tr("Blac&k && White..."));
+
+  bool dialog_checked = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyBlackWhiteDialog")));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* reds = dialog->findChild<QSpinBox*>(QStringLiteral("blackWhiteRedsSpin"));
+    auto* magentas = dialog->findChild<QSpinBox*>(QStringLiteral("blackWhiteMagentasSpin"));
+    auto* tint = dialog->findChild<QCheckBox*>(QStringLiteral("blackWhiteTintCheck"));
+    auto* swatch = dialog->findChild<QPushButton*>(QStringLiteral("blackWhiteTintColorButton"));
+    CHECK(reds != nullptr && magentas != nullptr && tint != nullptr && swatch != nullptr);
+    if (reds == nullptr || magentas == nullptr || tint == nullptr || swatch == nullptr) {
+      dialog->reject();
+      return;
+    }
+    CHECK(reds->value() == 40 && magentas->value() == 80);
+    CHECK(reds->minimum() == -200 && reds->maximum() == 300);
+    CHECK(!tint->isChecked());
+    CHECK(!swatch->isEnabled());
+    reds->setValue(-120);
+    magentas->setValue(255);
+    tint->setChecked(true);
+    CHECK(swatch->isEnabled());
+    QTimer::singleShot(0, [] {
+      auto* picker_dialog = find_top_level_dialog(QStringLiteral("patchyColorDialog"));
+      CHECK(picker_dialog != nullptr);
+      if (picker_dialog == nullptr) {
+        return;
+      }
+      CHECK(patchy::ui::apply_color_to_open_color_picker(QColor(40, 90, 220)));
+      picker_dialog->accept();
+    });
+    swatch->click();
+    save_widget_artifact("ui_black_white_dialog", *dialog);
+    dialog_checked = true;
+    dialog->accept();
+  });
+  require_action(window, "layerNewBlackWhiteAdjustmentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(dialog_checked);
+
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  CHECK(document.active_layer_id().has_value());
+  const auto* layer = document.find_layer(*document.active_layer_id());
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return;
+  }
+  const auto settings = patchy::adjustment_settings_from_layer(*layer);
+  CHECK(settings.has_value());
+  CHECK(settings->kind == patchy::AdjustmentKind::BlackWhite);
+  CHECK(settings->black_white.reds == -120 && settings->black_white.magentas == 255);
+  CHECK(settings->black_white.greens == 40);
+  CHECK(settings->black_white.tint);
+  CHECK((settings->black_white.tint_color == patchy::RgbColor{40, 90, 220}));
 }
 
 // The Photo Filter dialog starts on Photoshop's warming color at 25 % with Preserve
@@ -3869,6 +3937,7 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
       {"ui_channel_mixer_dialog_edits_each_output_row", ui_channel_mixer_dialog_edits_each_output_row},
       {"ui_photo_filter_dialog_picks_color_and_density", ui_photo_filter_dialog_picks_color_and_density},
       {"ui_gradient_map_dialog_edits_gradient", ui_gradient_map_dialog_edits_gradient},
+      {"ui_black_white_dialog_edits_weights_and_tint", ui_black_white_dialog_edits_weights_and_tint},
       {"ui_adjustment_placeholders_name_their_kind_in_layers_panel",
        ui_adjustment_placeholders_name_their_kind_in_layers_panel},
       {"ui_af_colour_balance_matches_affinity_render_if_available",

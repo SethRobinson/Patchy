@@ -11005,6 +11005,26 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>최근 문서의 설정: %3ppi에서 %1 x %2픽셀</translation>
     </message>
     <message>
+        <source>Tint</source>
+        <translation>색조</translation>
+    </message>
+    <message>
+        <source>Tint color</source>
+        <translation>색조 색상</translation>
+    </message>
+    <message>
+        <source>Tint Color</source>
+        <translation>색조 색상</translation>
+    </message>
+    <message>
+        <source>Color Lookup: %1</source>
+        <translation>색상 검색: %1</translation>
+    </message>
+    <message>
+        <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
+        <translation>흑백: %1 / %2 / %3 / %4 / %5 / %6</translation>
+    </message>
+    <message>
         <source>Solarize</source>
         <translation>솔라리제이션</translation>
     </message>
@@ -22638,6 +22658,22 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Gradient Map</source>
         <translation>그레이디언트 맵을 취소했습니다</translation>
+    </message>
+    <message>
+        <source>Blac&amp;k &amp;&amp; White...</source>
+        <translation>흑백(&amp;K)...</translation>
+    </message>
+    <message>
+        <source>Black &amp; White</source>
+        <translation>흑백</translation>
+    </message>
+    <message>
+        <source>Cancelled Black &amp; White</source>
+        <translation>흑백을 취소했습니다</translation>
+    </message>
+    <message>
+        <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
+        <translation>색상 검색 &quot;%1&quot;은(는) 파일에 저장된 그대로 적용됩니다.</translation>
     </message>
     <message>
         <source>Add %1 Smart Filter</source>

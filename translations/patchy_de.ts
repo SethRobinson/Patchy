@@ -11039,6 +11039,26 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Die Einstellungen eines kürzlich erstellten Dokuments: %1 x %2 px bei %3 ppi</translation>
     </message>
     <message>
+        <source>Tint</source>
+        <translation>Farbton</translation>
+    </message>
+    <message>
+        <source>Tint color</source>
+        <translation>Tönungsfarbe</translation>
+    </message>
+    <message>
+        <source>Tint Color</source>
+        <translation>Tönungsfarbe</translation>
+    </message>
+    <message>
+        <source>Color Lookup: %1</source>
+        <translation>Farbtabelle: %1</translation>
+    </message>
+    <message>
+        <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
+        <translation>Schwarzweiß: %1 / %2 / %3 / %4 / %5 / %6</translation>
+    </message>
+    <message>
         <source>Solarize</source>
         <translation>Solarisation</translation>
     </message>
@@ -22708,6 +22728,22 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
     <message>
         <source>Cancelled Gradient Map</source>
         <translation>Verlaufsumsetzung abgebrochen</translation>
+    </message>
+    <message>
+        <source>Blac&amp;k &amp;&amp; White...</source>
+        <translation>Sch&amp;warzweiß...</translation>
+    </message>
+    <message>
+        <source>Black &amp; White</source>
+        <translation>Schwarzweiß</translation>
+    </message>
+    <message>
+        <source>Cancelled Black &amp; White</source>
+        <translation>Schwarzweiß abgebrochen</translation>
+    </message>
+    <message>
+        <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
+        <translation>Die Farbtabelle „%1“ wird so angewendet, wie sie in der Datei gespeichert ist.</translation>
     </message>
     <message>
         <source>Add %1 Smart Filter</source>

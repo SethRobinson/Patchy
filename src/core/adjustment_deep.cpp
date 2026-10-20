@@ -102,6 +102,17 @@ DeepChannels DeepAdjuster::apply_encoded(DeepChannels color) const {
       const auto filtered = photo_filter_transfer(settings.photo_filter, color[0], color[1], color[2], false);
       return {clamp255(filtered[0]), clamp255(filtered[1]), clamp255(filtered[2])};
     }
+    case AdjustmentKind::ColorLookup: {
+      if (settings.color_lookup.table == nullptr) {
+        return color;
+      }
+      const auto mapped = settings.color_lookup.table->apply(color[0], color[1], color[2]);
+      return {clamp255(mapped[0]), clamp255(mapped[1]), clamp255(mapped[2])};
+    }
+    case AdjustmentKind::BlackWhite: {
+      const auto gray = black_white_transfer(settings.black_white, color[0], color[1], color[2], false);
+      return {clamp255(gray[0]), clamp255(gray[1]), clamp255(gray[2])};
+    }
     case AdjustmentKind::GradientMap: {
       const auto mapped = gradient_map_transfer(settings.gradient_map, color[0], color[1], color[2]);
       return {clamp255(mapped[0]), clamp255(mapped[1]), clamp255(mapped[2])};

@@ -145,6 +145,8 @@ constexpr std::array<char, 4> kPhotoshopColorBalanceBlockKey{'b', 'l', 'n', 'c'}
 constexpr std::array<char, 4> kPhotoshopChannelMixerBlockKey{'m', 'i', 'x', 'r'};
 constexpr std::array<char, 4> kPhotoshopPhotoFilterBlockKey{'p', 'h', 'f', 'l'};
 constexpr std::array<char, 4> kPhotoshopGradientMapBlockKey{'g', 'r', 'd', 'm'};
+constexpr std::array<char, 4> kPhotoshopBlackWhiteBlockKey{'b', 'l', 'w', 'h'};
+constexpr std::array<char, 4> kPhotoshopColorLookupBlockKey{'c', 'l', 'r', 'L'};
 // version u16, colorize u8, pad u8, colorize h/s/l i16 x3, master h/s/l i16 x3,
 // then six band records of four i16 range stops plus an i16 h/s/l triple, then
 // an undocumented 36-byte trailer Photoshop always writes.
@@ -682,6 +684,18 @@ std::optional<AdjustmentSettings> parse_photoshop_gradient_map_adjustment(std::s
 // The original payload when the settings are unchanged; otherwise a version 3 block that
 // keeps the original's noise fields.
 std::vector<std::uint8_t> photoshop_gradient_map_payload(const GradientMapAdjustment& settings,
+                                                         const UnknownPsdBlock* original);
+std::optional<AdjustmentSettings> parse_photoshop_black_white_adjustment(std::span<const std::uint8_t> payload);
+// The original payload when the settings are unchanged; otherwise its descriptor with the
+// modeled values replaced (a fresh layer gets Photoshop 2026's shape).
+std::vector<std::uint8_t> photoshop_black_white_payload(const BlackWhiteAdjustment& settings,
+                                                        const UnknownPsdBlock* original);
+std::optional<AdjustmentSettings> parse_photoshop_color_lookup_adjustment(std::span<const std::uint8_t> payload);
+// The ICC v4 RGB device link Photoshop renders a Color Lookup through, for a table.
+std::vector<std::uint8_t> photoshop_color_lookup_profile(const ColorLookupTable& table, std::string_view name);
+// The original payload when the lookup is unchanged; otherwise a 'clrL' carrying the
+// table's profile.
+std::vector<std::uint8_t> photoshop_color_lookup_payload(const ColorLookupAdjustment& settings,
                                                          const UnknownPsdBlock* original);
 std::optional<AdjustmentSettings> parse_photoshop_exposure_adjustment(std::span<const std::uint8_t> payload);
 std::vector<std::uint8_t> photoshop_exposure_payload(const ExposureAdjustment& settings,

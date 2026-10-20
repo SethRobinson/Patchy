@@ -189,7 +189,7 @@ bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock&
       (block.key == "levl" || block.key == "curv" || block.key == "hue2" || block.key == "nvrt" ||
        block.key == "post" || block.key == "thrs" || block.key == "brit" || block.key == "blnc" ||
        block.key == "expA" || block.key == "mixr" || block.key == "phfl" ||
-       block.key == "grdm")) {
+       block.key == "grdm" || block.key == "blwh" || block.key == "clrL")) {
     return true;
   }
   // The Brightness/Contrast emitter owns 'CgEd' (preserved, regenerated, or
@@ -1118,6 +1118,18 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
       write_additional_layer_block(
           extra, kPhotoshopPhotoFilterBlockKey,
           photoshop_photo_filter_payload(settings->photo_filter, find_layer_block(*encoded.layer, "phfl")),
+          large_document);
+    }
+    if (settings.has_value() && settings->kind == AdjustmentKind::ColorLookup) {
+      write_additional_layer_block(
+          extra, kPhotoshopColorLookupBlockKey,
+          photoshop_color_lookup_payload(settings->color_lookup, find_layer_block(*encoded.layer, "clrL")),
+          large_document);
+    }
+    if (settings.has_value() && settings->kind == AdjustmentKind::BlackWhite) {
+      write_additional_layer_block(
+          extra, kPhotoshopBlackWhiteBlockKey,
+          photoshop_black_white_payload(settings->black_white, find_layer_block(*encoded.layer, "blwh")),
           large_document);
     }
     if (settings.has_value() && settings->kind == AdjustmentKind::GradientMap) {

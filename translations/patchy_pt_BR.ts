@@ -11039,6 +11039,26 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>As configurações de um documento recente: %1 x %2 px a %3 ppi</translation>
     </message>
     <message>
+        <source>Tint</source>
+        <translation>Matiz</translation>
+    </message>
+    <message>
+        <source>Tint color</source>
+        <translation>Cor do matiz</translation>
+    </message>
+    <message>
+        <source>Tint Color</source>
+        <translation>Cor do matiz</translation>
+    </message>
+    <message>
+        <source>Color Lookup: %1</source>
+        <translation>Pesquisa de cores: %1</translation>
+    </message>
+    <message>
+        <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
+        <translation>Preto e branco: %1 / %2 / %3 / %4 / %5 / %6</translation>
+    </message>
+    <message>
         <source>Solarize</source>
         <translation>Solarizar</translation>
     </message>
@@ -22708,6 +22728,22 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
     <message>
         <source>Cancelled Gradient Map</source>
         <translation>Mapa de gradiente cancelado</translation>
+    </message>
+    <message>
+        <source>Blac&amp;k &amp;&amp; White...</source>
+        <translation>Preto e &amp;branco...</translation>
+    </message>
+    <message>
+        <source>Black &amp; White</source>
+        <translation>Preto e branco</translation>
+    </message>
+    <message>
+        <source>Cancelled Black &amp; White</source>
+        <translation>Preto e branco cancelado</translation>
+    </message>
+    <message>
+        <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
+        <translation>A pesquisa de cores &quot;%1&quot; é aplicada como está salva no arquivo.</translation>
     </message>
     <message>
         <source>Add %1 Smart Filter</source>

@@ -21,6 +21,7 @@
 #include "ui/main_window_shared.hpp"
 #include "ui/modifier_names.hpp"
 #include "ui/qt_geometry.hpp"
+#include "ui/tool_cursors.hpp"
 
 #include <QAction>
 #include <QBrush>
@@ -1290,7 +1291,7 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
     return true;
   }
   if (path_transform_active_) {
-    return handle_path_transform_press(document_point, QPointF(event->position()));
+    return handle_path_transform_press(document_point, QPointF(event->position()), event->modifiers());
   }
   const auto* path = path_edit_target_path();
   if (path == nullptr) {
@@ -2515,6 +2516,21 @@ bool CanvasWidget::begin_path_transform() {
   path_transform_current_rect_ = path_transform_original_rect_;
   path_transform_angle_ = 0.0;
   path_transform_drag_handle_ = TransformHandle::None;
+  path_transform_corner_offsets_ = {};
+  path_transform_drag_kind_ = TransformDragKind::Scale;
+  path_transform_owner_snapshot_.reset();
+  path_transform_live_path_.reset();
+  path_transform_owner_document_ = document_;
+  path_transform_owner_is_mask_ = layer_edit_target_ == LayerEditTarget::VectorMask;
+  if (path_transform_owner_is_mask_) {
+    if (const auto* layer = vector_mask_target_layer(); layer != nullptr) {
+      path_transform_owner_snapshot_ = std::as_const(*layer);
+    }
+  } else if (!active_document_path_.has_value() && text_area_edit_target_path() == nullptr) {
+    if (const auto* layer = path_edit_target_layer(); layer != nullptr) {
+      path_transform_owner_snapshot_ = std::as_const(*layer);
+    }
+  }
   if (status_callback_) {
     status_callback_(tr("Transform path: drag inside to move, handles to scale, outside to "
                         "rotate. Enter commits, Esc cancels."));
@@ -2544,7 +2560,74 @@ QPointF CanvasWidget::path_transform_map_point(QPointF document_point) const {
   return mapped;
 }
 
+QTransform CanvasWidget::path_transform_affine() const {
+  const auto& original = path_transform_original_rect_;
+  const auto& current = path_transform_current_rect_;
+  const double sx = std::abs(original.width()) > 1e-9 ? current.width() / original.width() : 1.0;
+  const double sy = std::abs(original.height()) > 1e-9 ? current.height() / original.height() : 1.0;
+  auto affine = QTransform::fromTranslate(-original.left(), -original.top()) * QTransform::fromScale(sx, sy) *
+                QTransform::fromTranslate(current.left(), current.top());
+  if (path_transform_angle_ != 0.0) {
+    const auto center = current.center();
+    QTransform rotation;
+    rotation.rotateRadians(path_transform_angle_);
+    affine = affine * QTransform::fromTranslate(-center.x(), -center.y()) * rotation *
+             QTransform::fromTranslate(center.x(), center.y());
+  }
+  return affine;
+}
+
+std::array<QPointF, 4> CanvasWidget::path_transform_original_corners() const {
+  const auto& rect = path_transform_original_rect_;
+  return {rect.topLeft(), rect.topRight(), rect.bottomRight(), rect.bottomLeft()};
+}
+
+std::array<QPointF, 4> CanvasWidget::path_transform_quad(const std::array<QPointF, 4>& offsets) const {
+  const auto affine = path_transform_affine();
+  const auto corners = path_transform_original_corners();
+  std::array<QPointF, 4> quad{};
+  for (std::size_t i = 0; i < quad.size(); ++i) {
+    quad[i] = affine.map(corners[i] + offsets[i]);
+  }
+  return quad;
+}
+
+bool CanvasWidget::path_transform_distorted() const noexcept {
+  return std::any_of(path_transform_corner_offsets_.begin(), path_transform_corner_offsets_.end(),
+                     [](QPointF offset) { return !offset.isNull(); });
+}
+
 VectorPath CanvasWidget::path_transform_preview_path() const {
+  if (path_transform_distorted()) {
+    // Every anchor and handle through the homography onto the corner quad, the
+    // map a distorted Free Transform applies to a shape layer's path.
+    const auto corners = path_transform_original_corners();
+    const auto quad = path_transform_quad(path_transform_corner_offsets_);
+    QTransform homography;
+    if (QTransform::quadToQuad(QPolygonF({corners[0], corners[1], corners[2], corners[3]}),
+                               QPolygonF({quad[0], quad[1], quad[2], quad[3]}), homography)) {
+      auto preview = path_transform_original_;
+      for (int s = 0; s < static_cast<int>(preview.subpaths.size()); ++s) {
+        auto& anchors = preview.subpaths[static_cast<std::size_t>(s)].anchors;
+        for (int a = 0; a < static_cast<int>(anchors.size()); ++a) {
+          if (!path_transform_subset_.empty() && !path_transform_subset_.contains({s, a})) {
+            continue;
+          }
+          auto& anchor = anchors[static_cast<std::size_t>(a)];
+          const auto mapped = homography.map(QPointF(anchor.anchor_x, anchor.anchor_y));
+          const auto mapped_in = homography.map(QPointF(anchor.in_x, anchor.in_y));
+          const auto mapped_out = homography.map(QPointF(anchor.out_x, anchor.out_y));
+          anchor.anchor_x = mapped.x();
+          anchor.anchor_y = mapped.y();
+          anchor.in_x = mapped_in.x();
+          anchor.in_y = mapped_in.y();
+          anchor.out_x = mapped_out.x();
+          anchor.out_y = mapped_out.y();
+        }
+      }
+      return preview;
+    }
+  }
   auto preview = path_transform_original_;
   for (int s = 0; s < static_cast<int>(preview.subpaths.size()); ++s) {
     auto& anchors = preview.subpaths[static_cast<std::size_t>(s)].anchors;
@@ -2585,10 +2668,60 @@ std::array<QPointF, 4> rotated_rect_corners(const QRectF& rect, double angle) {
 
 }  // namespace
 
+int CanvasWidget::path_transform_corner_index(TransformHandle corner) const {
+  // The box corner the affine puts nearest this handle of the normalized,
+  // rotated box (a flip swaps them).
+  int handle_slot = 0;
+  switch (corner) {
+    case TransformHandle::TopLeft:
+      handle_slot = 0;
+      break;
+    case TransformHandle::TopRight:
+      handle_slot = 1;
+      break;
+    case TransformHandle::BottomRight:
+      handle_slot = 2;
+      break;
+    case TransformHandle::BottomLeft:
+      handle_slot = 3;
+      break;
+    default:
+      return -1;
+  }
+  const auto target = rotated_rect_corners(path_transform_current_rect_.normalized(),
+                                           path_transform_angle_)[static_cast<std::size_t>(handle_slot)];
+  const auto mapped = path_transform_quad({});
+  int best = 0;
+  double best_distance = std::numeric_limits<double>::max();
+  for (int i = 0; i < 4; ++i) {
+    const auto offset = mapped[static_cast<std::size_t>(i)] - target;
+    const auto distance = offset.x() * offset.x() + offset.y() * offset.y();
+    if (distance < best_distance) {
+      best = i;
+      best_distance = distance;
+    }
+  }
+  return best;
+}
+
+std::array<QPointF, 4> CanvasWidget::path_transform_handle_corners() const {
+  if (!path_transform_distorted()) {
+    return rotated_rect_corners(path_transform_current_rect_.normalized(), path_transform_angle_);
+  }
+  const auto quad = path_transform_quad(path_transform_corner_offsets_);
+  std::array<QPointF, 4> corners{};
+  const std::array<TransformHandle, 4> handles = {TransformHandle::TopLeft, TransformHandle::TopRight,
+                                                  TransformHandle::BottomRight, TransformHandle::BottomLeft};
+  for (std::size_t i = 0; i < corners.size(); ++i) {
+    corners[i] = quad[static_cast<std::size_t>(path_transform_corner_index(handles[i]))];
+  }
+  return corners;
+}
+
 CanvasWidget::TransformHandle CanvasWidget::path_transform_handle_at(QPointF widget_point) const {
   constexpr double kHandleRadiusPx = 7.0;
   const auto rect = path_transform_current_rect_.normalized();
-  const auto corners = rotated_rect_corners(rect, path_transform_angle_);
+  const auto corners = path_transform_handle_corners();
   const auto to_screen = [this](QPointF point) {
     return path_point_to_screen(point.x(), point.y());
   };
@@ -2629,7 +2762,10 @@ CanvasWidget::TransformHandle CanvasWidget::path_transform_handle_at(QPointF wid
   const QPointF delta = document_point - center;
   const QPointF local = center + QPointF(delta.x() * cos_a - delta.y() * sin_a,
                                          delta.x() * sin_a + delta.y() * cos_a);
-  const bool inside = rect.adjusted(-1.0, -1.0, 1.0, 1.0).contains(local);
+  const bool inside = path_transform_distorted()
+                          ? QPolygonF({corners[0], corners[1], corners[2], corners[3]})
+                                .containsPoint(document_point, Qt::OddEvenFill)
+                          : rect.adjusted(-1.0, -1.0, 1.0, 1.0).contains(local);
   // A band along each edge resizes that side (GitHub issue 176, the pixel
   // session's rule): kEdgeBandPx outside the line, and inside at most a sixth of
   // the shorter on-screen side, so a small box keeps its Move interior.
@@ -2665,25 +2801,84 @@ CanvasWidget::TransformHandle CanvasWidget::path_transform_handle_at(QPointF wid
   return inside ? TransformHandle::Move : TransformHandle::Rotate;
 }
 
-void CanvasWidget::apply_path_transform_cursor(QPoint widget_point) {
+void CanvasWidget::apply_path_transform_cursor(QPoint widget_point, Qt::KeyboardModifiers modifiers) {
+  path_transform_cursor_modifiers_ = modifiers;
   const auto rect = path_transform_current_rect_.normalized();
   const auto degrees = path_transform_angle_ * 180.0 / std::numbers::pi;
   // Mid-drag the grabbed zone keeps its cursor wherever the pointer goes.
-  const auto handle = path_transform_drag_handle_ != TransformHandle::None
-                          ? path_transform_drag_handle_
-                          : path_transform_handle_at(QPointF(widget_point));
-  if (handle == TransformHandle::Rotate) {
-    setCursor(transform_rotate_cursor_at(widget_point, rect, degrees, false));  // no stem handle here
-  } else {
-    set_transform_cursor_for_handle(handle, degrees);
+  const bool dragging = path_transform_drag_handle_ != TransformHandle::None;
+  const auto handle = dragging ? path_transform_drag_handle_ : path_transform_handle_at(QPointF(widget_point));
+  // Free Transform's gesture cursors (GitHub issue 225) where the held modifiers
+  // make a corner or side drag a distort, skew or perspective.
+  if ((transform_handle_is_corner(handle) || transform_handle_is_edge(handle)) &&
+      apply_transform_gesture_cursor(dragging ? path_transform_drag_kind_
+                                              : transform_drag_kind_for_mode(handle, modifiers,
+                                                                             TransformDistortMode::None))) {
+    return;
   }
+  if (!path_transform_distorted()) {
+    if (handle == TransformHandle::Rotate) {
+      setCursor(transform_rotate_cursor_at(widget_point, rect, degrees, false));  // no stem handle here
+    } else {
+      set_transform_cursor_for_handle(handle, degrees);
+    }
+    return;
+  }
+  // A distorted box: directions come from the true quad, as in the pixel session.
+  const auto document_corners = path_transform_handle_corners();
+  std::array<QPointF, 4> screen{};
+  for (std::size_t i = 0; i < screen.size(); ++i) {
+    screen[i] = path_point_to_screen(document_corners[i].x(), document_corners[i].y());
+  }
+  if (handle == TransformHandle::Rotate) {
+    auto best = TransformHandle::TopLeft;
+    auto best_distance = std::numeric_limits<double>::max();
+    const std::array<TransformHandle, 4> corners = {TransformHandle::TopLeft, TransformHandle::TopRight,
+                                                    TransformHandle::BottomRight, TransformHandle::BottomLeft};
+    for (std::size_t i = 0; i < corners.size(); ++i) {
+      const auto distance = std::hypot(widget_point.x() - screen[i].x(), widget_point.y() - screen[i].y());
+      if (distance < best_distance) {
+        best = corners[i];
+        best_distance = distance;
+      }
+    }
+    setCursor(corner_rotate_cursor(transform_quad_handle_direction(screen, best)));
+    return;
+  }
+  if (transform_handle_is_corner(handle) || transform_handle_is_edge(handle)) {
+    // Right's base direction is 0 degrees, so the handle's own direction picks the shape.
+    set_transform_cursor_for_handle(TransformHandle::Right, transform_quad_handle_direction(screen, handle));
+    return;
+  }
+  set_transform_cursor_for_handle(handle);
 }
 
-bool CanvasWidget::handle_path_transform_press(QPointF document_point, QPointF widget_point) {
+bool CanvasWidget::handle_path_transform_press(QPointF document_point, QPointF widget_point,
+                                               Qt::KeyboardModifiers modifiers) {
   path_transform_drag_handle_ = path_transform_handle_at(widget_point);
   path_transform_drag_start_rect_ = path_transform_current_rect_;
   path_transform_drag_start_document_ = document_point;
   path_transform_drag_start_angle_ = path_transform_angle_;
+  // Ctrl distorts a corner or moves a side, Ctrl+Shift slides a side (skew),
+  // Ctrl+Alt+Shift drags a corner in perspective: Free Transform's gestures
+  // (GitHub issue 225), here on every anchor and handle (GitHub issue 248).
+  path_transform_drag_kind_ =
+      transform_drag_kind_for_mode(path_transform_drag_handle_, modifiers, TransformDistortMode::None);
+  if (path_transform_drag_kind_ != TransformDragKind::Scale) {
+    path_transform_drag_start_offsets_ = path_transform_corner_offsets_;
+    const auto quad = path_transform_quad(path_transform_corner_offsets_);
+    QPointF grabbed;
+    if (transform_handle_is_corner(path_transform_drag_handle_)) {
+      grabbed = quad[static_cast<std::size_t>(path_transform_corner_index(path_transform_drag_handle_))];
+    } else {
+      const auto [first, second] = transform_edge_corner_handles(path_transform_drag_handle_);
+      grabbed = (quad[static_cast<std::size_t>(path_transform_corner_index(first))] +
+                 quad[static_cast<std::size_t>(path_transform_corner_index(second))]) /
+                2.0;
+    }
+    path_transform_drag_grab_offset_ = grabbed - document_point;
+  }
+  apply_path_transform_cursor(widget_point.toPoint(), modifiers);
   return true;
 }
 
@@ -2691,6 +2886,34 @@ bool CanvasWidget::handle_path_transform_move(QMouseEvent* event, QPointF docume
   if (path_transform_drag_handle_ == TransformHandle::None ||
       (event->buttons() & Qt::LeftButton) == 0) {
     return true;  // hover only
+  }
+  if (path_transform_drag_kind_ != TransformDragKind::Scale) {
+    // The box's affine stays fixed; the travel lands in the corner offsets in the
+    // original box's frame, and Alt (read live) mirrors it about the center.
+    bool invertible = false;
+    const auto inverse = path_transform_affine().inverted(&invertible);
+    if (!invertible) {
+      return true;
+    }
+    const auto start = path_transform_drag_start_document_ + path_transform_drag_grab_offset_;
+    const auto now = document_point + path_transform_drag_grab_offset_;
+    const auto [first, second] = transform_edge_corner_handles(path_transform_drag_handle_);
+    const auto offsets = transform_distorted_offsets(
+        path_transform_drag_kind_, path_transform_corner_index(path_transform_drag_handle_),
+        {path_transform_corner_index(first), path_transform_corner_index(second)},
+        inverse.map(now) - inverse.map(start), (event->modifiers() & Qt::AltModifier) != 0,
+        path_transform_drag_start_offsets_, path_transform_original_corners());
+    // Never fold the quad (the #225 guard): a concave, self-crossing, collapsed or
+    // inside-out frame keeps the last good shape.
+    const auto start_winding = transform_quad_winding(path_transform_quad(path_transform_drag_start_offsets_));
+    if (const auto winding = transform_quad_winding(path_transform_quad(offsets));
+        winding == 0 || (start_winding != 0 && winding != start_winding)) {
+      return true;
+    }
+    path_transform_corner_offsets_ = offsets;
+    refresh_path_transform_live_fill();
+    update();
+    return true;
   }
   const auto delta = document_point - path_transform_drag_start_document_;
   auto rect = path_transform_drag_start_rect_;
@@ -2711,6 +2934,7 @@ bool CanvasWidget::handle_path_transform_move(QMouseEvent* event, QPointF docume
         }
         path_transform_angle_ = angle;
       }
+      refresh_path_transform_live_fill();
       update();
       return true;
     }
@@ -2768,6 +2992,7 @@ bool CanvasWidget::handle_path_transform_move(QMouseEvent* event, QPointF docume
     }
   }
   path_transform_current_rect_ = rect;
+  refresh_path_transform_live_fill();
   update();
   return true;
 }
@@ -2793,6 +3018,7 @@ bool CanvasWidget::handle_path_transform_key(QKeyEvent* event) {
           event->key() == Qt::Key_Up     ? -step
           : event->key() == Qt::Key_Down ? step
                                          : 0.0);
+      refresh_path_transform_live_fill();
       update();
       return true;
     }
@@ -2806,8 +3032,29 @@ void CanvasWidget::commit_path_transform() {
     return;
   }
   const bool changed = path_transform_current_rect_ != path_transform_original_rect_ ||
-                       path_transform_angle_ != 0.0;
+                       path_transform_angle_ != 0.0 || path_transform_distorted();
   auto transformed = path_transform_preview_path();
+  const auto touched_groups = path_transform_touched_groups(transformed);
+  // The live fill's writes were un-armed: put the original back so the undo
+  // snapshot the commit arms holds it, then apply the result as one edit.
+  restore_path_transform_owner();
+  path_transform_active_ = false;
+  path_transform_drag_handle_ = TransformHandle::None;
+  if (changed) {
+    path_edit_undo_armed_ = false;
+    apply_path_edit(std::move(transformed), tr("Transform path"), touched_groups);
+    path_edit_undo_armed_ = false;
+    if (status_callback_) {
+      status_callback_(tr("Transformed the path"));
+    }
+  }
+  path_transform_original_ = VectorPath{};
+  path_transform_subset_.clear();
+  update_tool_cursor();
+  update();
+}
+
+std::vector<int> CanvasWidget::path_transform_touched_groups(const VectorPath& transformed) const {
   // Direct edits drop the touched groups' live-shape annotations
   // (keyShapeInvalidated); collect the groups the transform touched.
   std::vector<int> touched_groups;
@@ -2827,26 +3074,61 @@ void CanvasWidget::commit_path_transform() {
       touched_groups.push_back(subpath.shape_group);
     }
   }
-  path_transform_active_ = false;
-  path_transform_drag_handle_ = TransformHandle::None;
-  if (changed) {
-    path_edit_undo_armed_ = false;
-    apply_path_edit(std::move(transformed), tr("Transform path"), touched_groups);
-    path_edit_undo_armed_ = false;
-    if (status_callback_) {
-      status_callback_(tr("Transformed the path"));
-    }
+  return touched_groups;
+}
+
+void CanvasWidget::refresh_path_transform_live_fill() {
+  if (!path_transform_active_ || !path_transform_owner_snapshot_.has_value() || document_ == nullptr ||
+      document_ != path_transform_owner_document_) {
+    return;  // work paths and saved paths have no fill: the outline preview is all
   }
-  path_transform_original_ = VectorPath{};
-  path_transform_subset_.clear();
-  update_tool_cursor();
-  update();
+  auto preview = path_transform_preview_path();
+  if (path_transform_live_path_.has_value() && *path_transform_live_path_ == preview) {
+    return;
+  }
+  // One layer's re-raster per change, un-armed (the Direct Select drag cost);
+  // the commit restores and re-applies it as the session's one undo entry.
+  const auto touched_groups = path_transform_touched_groups(preview);
+  path_transform_live_path_ = preview;
+  replace_path_edit_target(std::move(preview), touched_groups);
+}
+
+void CanvasWidget::restore_path_transform_owner() {
+  const auto snapshot = std::move(path_transform_owner_snapshot_);
+  const auto written = std::move(path_transform_live_path_);
+  path_transform_owner_snapshot_.reset();
+  path_transform_live_path_.reset();
+  if (!snapshot.has_value() || !written.has_value() || document_ == nullptr ||
+      document_ != path_transform_owner_document_) {
+    return;
+  }
+  auto* layer = document_->find_layer(snapshot->id());
+  if (layer == nullptr) {
+    return;
+  }
+  // Only while the layer still holds the session's last write: anything that
+  // replaced it meanwhile (a history restore) wins.
+  const auto& current = std::as_const(*layer);
+  const auto* current_path = path_transform_owner_is_mask_
+                                 ? (current.vector_mask() != nullptr ? &current.vector_mask()->path : nullptr)
+                                 : (current.vector_shape() != nullptr ? &current.vector_shape()->path : nullptr);
+  if (current_path == nullptr || *current_path != *written) {
+    return;
+  }
+  const auto old_effect_rect = to_qrect(layer_bounds_with_effects(current, current.bounds()));
+  *layer = *snapshot;
+  document_changed_effect_bounds(old_effect_rect.united(
+      to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()))));
+  if (path_edited_callback_) {
+    path_edited_callback_();
+  }
 }
 
 void CanvasWidget::cancel_path_transform() {
   if (!path_transform_active_) {
     return;
   }
+  restore_path_transform_owner();
   path_transform_active_ = false;
   path_transform_drag_handle_ = TransformHandle::None;
   path_transform_original_ = VectorPath{};
@@ -2884,9 +3166,8 @@ void CanvasWidget::draw_path_transform_overlay(QPainter& painter) {
   painter.setBrush(Qt::NoBrush);
   painter.drawPath(outline);
 
-  // The box (rotated) and its eight handles.
-  const auto corners = rotated_rect_corners(path_transform_current_rect_.normalized(),
-                                            path_transform_angle_);
+  // The box (rotated, or the distorted quad) and its eight handles.
+  const auto corners = path_transform_handle_corners();
   QPolygonF box;
   for (const auto& corner : corners) {
     box << path_point_to_screen(corner.x(), corner.y());
