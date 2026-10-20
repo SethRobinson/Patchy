@@ -313,6 +313,13 @@ double catmull_rom(double p0, double p1, double p2, double p3, double t) {
                 (-p0 + 3.0 * p1 - 3.0 * p2 + p3) * t3);
 }
 
+// The Classic ease on a segment position: the catmull-rom curve through duplicated ends,
+// blended with the straight ramp by the smoothness (0..4096).
+double gradient_segment_ease(double t, std::uint16_t smoothness) {
+  const double eased = catmull_rom(0.0, 0.0, 1.0, 1.0, t);
+  return t + (eased - t) * (static_cast<double>(smoothness) / 4096.0);
+}
+
 std::uint64_t splitmix64(std::uint64_t value) {
   value += 0x9e3779b97f4a7c15ULL;
   value = (value ^ (value >> 30U)) * 0xbf58476d1ce4e5b9ULL;
@@ -870,7 +877,7 @@ float gradient_stop_opacity(const LayerStyleGradient& gradient, float position,
 }
 
 RgbColor gradient_color(const LayerStyleGradient& gradient, float position,
-                        bool endpoint_smoothing) {
+                        bool endpoint_smoothing, bool ease_every_method) {
   if (gradient.form == GradientDefinitionForm::Noise) {
     auto noise_channel = [&](int channel) {
       return gradient_noise_channel(gradient.noise, channel, position);
@@ -940,6 +947,10 @@ RgbColor gradient_color(const LayerStyleGradient& gradient, float position,
       if (right.midpoint != 0.5F) {
         t = midpoint_remap(t, right. midpoint);
       }
+      if (ease_every_method && gradient.interpolation != GradientInterpolationMethod::Classic &&
+          (stops.size() > 2U || endpoint_smoothing)) {
+        t = static_cast<float>(gradient_segment_ease(t, gradient.smoothness));
+      }
       if (gradient.interpolation == GradientInterpolationMethod::Perceptual) {
         const auto a = rgb_to_oklab(left.color);
         const auto b = rgb_to_oklab(right.color);
@@ -986,7 +997,7 @@ RgbColor gradient_color(const LayerStyleGradient& gradient, float position,
 }
 
 std::array<double, 3> gradient_color_precise(const LayerStyleGradient& gradient, float position,
-                                             bool endpoint_smoothing, bool linear_light) {
+                                             bool endpoint_smoothing, bool linear_light, bool ease_every_method) {
   const auto as_output = [linear_light](RgbColor color) {
     const auto channel = [linear_light](std::uint8_t value) {
       return linear_light ? srgb_to_linear(value / 255.0) * 255.0 : static_cast<double>(value);
@@ -995,7 +1006,7 @@ std::array<double, 3> gradient_color_precise(const LayerStyleGradient& gradient,
   };
   if (gradient.form == GradientDefinitionForm::Noise || gradient.color_stops.empty() ||
       gradient.interpolation == GradientInterpolationMethod::Perceptual) {
-    return as_output(gradient_color(gradient, position, endpoint_smoothing));
+    return as_output(gradient_color(gradient, position, endpoint_smoothing, ease_every_method));
   }
   const auto& stops = gradient.color_stops;
   if (position <= stops.front().location) {
@@ -1014,6 +1025,10 @@ std::array<double, 3> gradient_color_precise(const LayerStyleGradient& gradient,
     auto t = (position - left.location) / span;
     if (right.midpoint != 0.5F) {
       t = midpoint_remap(t, right.midpoint);
+    }
+    if (ease_every_method && gradient.interpolation == GradientInterpolationMethod::Linear &&
+        (stops.size() > 2U || endpoint_smoothing)) {
+      t = static_cast<float>(gradient_segment_ease(t, gradient.smoothness));
     }
     // The stop values in the interpolation space: linear light for the Linear method or
     // a linear-light document, display-encoded otherwise.

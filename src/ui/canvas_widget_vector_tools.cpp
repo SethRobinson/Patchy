@@ -1325,6 +1325,14 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
   }
   if (const auto anchor = path_anchor_at(widget_point); anchor.first >= 0) {
     const bool additive = (event->modifiers() & Qt::ShiftModifier) != 0;
+    // Path Select draws the selected shape's anchors: a drawn one drags alone,
+    // like its knobs; an undrawn one is part of the outline (GitHub issue 248).
+    if (edit_tool == CanvasTool::PathSelect && !additive && path_selected_anchors_.contains(anchor)) {
+      path_drag_mode_ = PathEditDrag::SingleAnchor;
+      path_drag_anchor_ = anchor;
+      update();
+      return true;
+    }
     if (edit_tool == CanvasTool::PathSelect) {
       // Whole shape-group selection.
       const auto group =
@@ -1598,7 +1606,7 @@ bool CanvasWidget::update_path_edit_drag(QPointF document_point, Qt::KeyboardMod
   }
   double dx = 0.0;
   double dy = 0.0;
-  if (path_drag_mode_ == PathEditDrag::Anchors) {
+  if (path_drag_mode_ == PathEditDrag::Anchors || path_drag_mode_ == PathEditDrag::SingleAnchor) {
     // Anchor drags track the total delta from the press so Shift can constrain
     // (and un-constrain) against it; each frame still applies an increment.
     const auto raw_total = document_point - path_drag_origin_document_;
@@ -1692,7 +1700,14 @@ bool CanvasWidget::update_path_edit_drag(QPointF document_point, Qt::KeyboardMod
   } else {
     auto& anchor = working.subpaths[static_cast<std::size_t>(path_drag_anchor_.first)]
                        .anchors[static_cast<std::size_t>(path_drag_anchor_.second)];
-    if (path_drag_mode_ == PathEditDrag::HandleIn) {
+    if (path_drag_mode_ == PathEditDrag::SingleAnchor) {
+      anchor.anchor_x += dx;
+      anchor.anchor_y += dy;
+      anchor.in_x += dx;
+      anchor.in_y += dy;
+      anchor.out_x += dx;
+      anchor.out_y += dy;
+    } else if (path_drag_mode_ == PathEditDrag::HandleIn) {
       anchor.in_x += dx;
       anchor.in_y += dy;
       if (anchor.smooth) {
@@ -2129,7 +2144,9 @@ CanvasWidget::PathHoverTarget CanvasWidget::path_hover_target_at(QPointF widget_
   if (path_handle_at(widget_point, handle_anchor) != 0) {
     return PathHoverTarget::Handle;
   }
-  if (path_anchor_at(widget_point).first >= 0) {
+  if (const auto anchor = path_anchor_at(widget_point);
+      anchor.first >= 0 &&
+      (path_edit_tool() != CanvasTool::PathSelect || path_selected_anchors_.contains(anchor))) {
     return PathHoverTarget::Anchor;
   }
   std::pair<int, int> segment{-1, -1};
@@ -2151,6 +2168,10 @@ void CanvasWidget::update_path_select_hover_hint(PathHoverTarget target) {
   const auto previous = path_hover_hint_target_;
   path_hover_hint_target_ = target;
   if (target == previous || target == PathHoverTarget::None || !status_callback_) {
+    return;
+  }
+  if (path_edit_tool() == CanvasTool::PathSelect && target == PathHoverTarget::Anchor) {
+    status_callback_(tr("Drag to move the point. Drag the outline or fill to move the shape."));
     return;
   }
   if (path_edit_tool() == CanvasTool::PathSelect && target != PathHoverTarget::Handle) {
@@ -2498,6 +2519,7 @@ bool CanvasWidget::begin_path_transform() {
     status_callback_(tr("Transform path: drag inside to move, handles to scale, outside to "
                         "rotate. Enter commits, Esc cancels."));
   }
+  update_tool_cursor();
   update();
   return true;
 }
@@ -2641,6 +2663,20 @@ CanvasWidget::TransformHandle CanvasWidget::path_transform_handle_at(QPointF wid
     }
   }
   return inside ? TransformHandle::Move : TransformHandle::Rotate;
+}
+
+void CanvasWidget::apply_path_transform_cursor(QPoint widget_point) {
+  const auto rect = path_transform_current_rect_.normalized();
+  const auto degrees = path_transform_angle_ * 180.0 / std::numbers::pi;
+  // Mid-drag the grabbed zone keeps its cursor wherever the pointer goes.
+  const auto handle = path_transform_drag_handle_ != TransformHandle::None
+                          ? path_transform_drag_handle_
+                          : path_transform_handle_at(QPointF(widget_point));
+  if (handle == TransformHandle::Rotate) {
+    setCursor(transform_rotate_cursor_at(widget_point, rect, degrees, false));  // no stem handle here
+  } else {
+    set_transform_cursor_for_handle(handle, degrees);
+  }
 }
 
 bool CanvasWidget::handle_path_transform_press(QPointF document_point, QPointF widget_point) {
@@ -2803,6 +2839,7 @@ void CanvasWidget::commit_path_transform() {
   }
   path_transform_original_ = VectorPath{};
   path_transform_subset_.clear();
+  update_tool_cursor();
   update();
 }
 
@@ -2817,6 +2854,7 @@ void CanvasWidget::cancel_path_transform() {
   if (status_callback_) {
     status_callback_(tr("Cancelled the path transform"));
   }
+  update_tool_cursor();
   update();
 }
 

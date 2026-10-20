@@ -152,6 +152,10 @@ void MainWindow::populate_new_adjustment_layer_menu(QMenu* menu, const QString& 
                  [this] { new_exposure_adjustment_layer(); });
   add_adjustment(QT_TR_NOOP("Channel &Mixer..."), QStringLiteral("ChannelMixerAdjustment"), QStringLiteral("MIX"),
                  [this] { new_channel_mixer_adjustment_layer(); });
+  add_adjustment(QT_TR_NOOP("Photo &Filter..."), QStringLiteral("PhotoFilterAdjustment"), QStringLiteral("PHF"),
+                 [this] { new_photo_filter_adjustment_layer(); });
+  add_adjustment(QT_TR_NOOP("&Gradient Map..."), QStringLiteral("GradientMapAdjustment"), QStringLiteral("GRM"),
+                 [this] { new_gradient_map_adjustment_layer(); });
 }
 
 void MainWindow::new_levels_adjustment_layer() {
@@ -424,6 +428,67 @@ void MainWindow::new_channel_mixer_adjustment_layer() {
   adjustment.kind = AdjustmentKind::ChannelMixer;
   adjustment.channel_mixer = *settings;
   create_adjustment_layer(tr("Channel Mixer"), adjustment);
+}
+
+void MainWindow::new_photo_filter_adjustment_layer() {
+  std::optional<LayerId> preview_id;
+  const auto restore_active_layer = document().active_layer_id();
+  const auto preview_changed = [this, &preview_id, restore_active_layer](bool enabled,
+                                                                         const PhotoFilterSettings& filter) {
+    AdjustmentSettings settings;
+    settings.kind = AdjustmentKind::PhotoFilter;
+    settings.photo_filter = filter;
+    update_adjustment_layer_preview(tr("Photo Filter"), settings, enabled, preview_id, restore_active_layer);
+  };
+
+  auto preview_edit_lock = lock_preview_dialog_edits();
+  const auto settings = request_photo_filter_settings(this, preview_changed);
+  remove_adjustment_layer_preview(preview_id, restore_active_layer);
+  preview_edit_lock.release();
+  if (!settings.has_value()) {
+    statusBar()->showMessage(tr("Cancelled Photo Filter"));
+    return;
+  }
+  AdjustmentSettings adjustment;
+  adjustment.kind = AdjustmentKind::PhotoFilter;
+  adjustment.photo_filter = *settings;
+  create_adjustment_layer(tr("Photo Filter"), adjustment);
+}
+
+namespace {
+
+RgbColor rgb_of(const QColor& color) {
+  return RgbColor{static_cast<std::uint8_t>(color.red()), static_cast<std::uint8_t>(color.green()),
+                  static_cast<std::uint8_t>(color.blue())};
+}
+
+}  // namespace
+
+void MainWindow::new_gradient_map_adjustment_layer() {
+  std::optional<LayerId> preview_id;
+  const auto restore_active_layer = document().active_layer_id();
+  const auto preview_changed = [this, &preview_id, restore_active_layer](bool enabled,
+                                                                         const GradientMapSettings& map) {
+    AdjustmentSettings settings;
+    settings.kind = AdjustmentKind::GradientMap;
+    settings.gradient_map = map;
+    update_adjustment_layer_preview(tr("Gradient Map"), settings, enabled, preview_id, restore_active_layer);
+  };
+
+  auto preview_edit_lock = lock_preview_dialog_edits();
+  const auto settings =
+      request_gradient_map_settings(this, preview_changed, {}, &gradient_library(), rgb_of(canvas_->primary_color()),
+                                    rgb_of(canvas_->secondary_color()));
+  remove_adjustment_layer_preview(preview_id, restore_active_layer);
+  preview_edit_lock.release();
+  if (!settings.has_value()) {
+    statusBar()->showMessage(tr("Cancelled Gradient Map"));
+    return;
+  }
+  AdjustmentSettings adjustment;
+  adjustment.kind = AdjustmentKind::GradientMap;
+  adjustment.gradient_map = *settings;
+  create_adjustment_layer(tr("Gradient Map"), adjustment);
 }
 
 void MainWindow::new_brightness_contrast_adjustment_layer() {
@@ -767,6 +832,45 @@ void MainWindow::edit_active_adjustment_layer() {
       if (result.has_value()) {
         accepted_settings = *original_settings;
         accepted_settings->channel_mixer = *result;
+      }
+      break;
+    }
+    case AdjustmentKind::PhotoFilter: {
+      const auto preview_changed = [apply_settings, restore_original_layer, original_settings](
+                                       bool enabled, const PhotoFilterSettings& filter) {
+        if (!enabled) {
+          restore_original_layer();
+          return;
+        }
+        auto settings = *original_settings;
+        settings.photo_filter = filter;
+        apply_settings(settings);
+      };
+      const auto result = request_photo_filter_settings(this, preview_changed, original_settings->photo_filter);
+      if (result.has_value()) {
+        accepted_settings = *original_settings;
+        accepted_settings->photo_filter = *result;
+      }
+      break;
+    }
+    case AdjustmentKind::GradientMap: {
+      const auto preview_changed = [apply_settings, restore_original_layer, original_settings](
+                                       bool enabled, const GradientMapSettings& map) {
+        if (!enabled) {
+          restore_original_layer();
+          return;
+        }
+        auto settings = *original_settings;
+        settings.gradient_map = map;
+        apply_settings(settings);
+      };
+      const auto result =
+          request_gradient_map_settings(this, preview_changed, original_settings->gradient_map, &gradient_library(),
+                                        rgb_of(canvas_->primary_color()),
+                                        rgb_of(canvas_->secondary_color()));
+      if (result.has_value()) {
+        accepted_settings = *original_settings;
+        accepted_settings->gradient_map = *result;
       }
       break;
     }

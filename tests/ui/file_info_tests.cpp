@@ -53,6 +53,9 @@
 #include <QListWidget>
 #include <QMessageBox>
 #include <QTimer>
+#include "local_psd_fixtures.hpp"
+#include <QFileInfo>
+#include <QScrollArea>
 #include <QTreeWidget>
 #include "test_harness.hpp"
 #include "ui_test_access.hpp"
@@ -328,6 +331,86 @@ void ui_psd_save_stamps_dates_and_creator() {
   CHECK(history != nullptr && history->value.items.size() == 2U);
 }
 
+
+// Issue 219 captures: File Info after a PSD save shows the created and modified dates and
+// the creating application; a Photoshop file resaved by Patchy keeps its application and
+// created date and lists Patchy in its history. Saves after-new-document.png,
+// after-photoshop-file.png and after-photoshop-file-history.png into test-artifacts/file-info.
+QString show_file_info_and_capture(patchy::ui::MainWindow& window, const QString& name, bool history_too) {
+  QString application;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyFileInfoDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    dialog->resize(dialog->width(), std::max(dialog->height(), 760));
+    QApplication::processEvents();
+    auto* created = dialog->findChild<QLabel*>(QStringLiteral("fileInfoCreatedLabel"));
+    auto* app = dialog->findChild<QLabel*>(QStringLiteral("fileInfoApplicationLabel"));
+    CHECK(created != nullptr && app != nullptr);
+    if (created != nullptr && app != nullptr) {
+      CHECK(!created->text().isEmpty());
+      application = app->text();
+      for (auto* parent = app->parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
+        if (auto* scroll = qobject_cast<QScrollArea*>(parent)) {
+          scroll->ensureWidgetVisible(app, 0, 24);
+          break;
+        }
+      }
+    }
+    QApplication::processEvents();
+    dialog->grab().save(artifact_dir() + QStringLiteral("/%1.png").arg(name));
+    if (history_too) {
+      auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("fileInfoCategoryList"));
+      for (int row = 0; categories != nullptr && row < categories->count(); ++row) {
+        if (categories->item(row)->data(Qt::UserRole).toString() == QStringLiteral("fileInfoAllMetadataPage")) {
+          categories->setCurrentRow(row);
+        }
+      }
+      QApplication::processEvents();
+      auto* tree = dialog->findChild<QTreeWidget*>(QStringLiteral("fileInfoAllMetadataTree"));
+      CHECK(tree != nullptr);
+      if (tree != nullptr) {
+        const auto matches = tree->findItems(QStringLiteral("xmpMM:History"), Qt::MatchContains | Qt::MatchRecursive);
+        CHECK(!matches.isEmpty());
+        if (!matches.isEmpty()) {
+          tree->scrollToItem(matches.back(), QAbstractItemView::PositionAtBottom);
+          tree->setCurrentItem(matches.back());
+        }
+      }
+      QApplication::processEvents();
+      dialog->grab().save(artifact_dir() + QStringLiteral("/%1-history.png").arg(name));
+    }
+    dialog->reject();
+  });
+  require_action(window, "fileInfoAction")->trigger();
+  QApplication::processEvents();
+  return application;
+}
+
+void ui_file_info_shows_the_psd_save_stamp() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  MainWindowTestAccess::create_document(window, 640, 480);
+  QApplication::processEvents();
+  const auto saved = artifact_dir() + QStringLiteral("/new-document.psd");
+  QFile::remove(saved);
+  CHECK(MainWindowTestAccess::save_document_to_path(window, saved));
+  CHECK(show_file_info_and_capture(window, QStringLiteral("after-new-document"), false).startsWith(QStringLiteral("Patchy ")));
+
+  const auto source = QString::fromStdWString(patchy::test::local_psd_fixture_path("checkbox.psd").wstring());
+  if (!QFileInfo::exists(source)) {
+    patchy::test::skip("optional fixture missing: local-test-fixtures/psd/checkbox.psd");
+  }
+  MainWindowTestAccess::open_document_path(window, source);
+  QApplication::processEvents();
+  const auto resaved = artifact_dir() + QStringLiteral("/photoshop-resave.psd");
+  QFile::remove(resaved);
+  CHECK(MainWindowTestAccess::save_document_to_path(window, resaved));
+  CHECK(show_file_info_and_capture(window, QStringLiteral("after-photoshop-file"), true).startsWith(QStringLiteral("Adobe Photoshop")));
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> file_info_tests() {
@@ -336,5 +419,6 @@ std::vector<patchy::test::TestCase> file_info_tests() {
       {"ui_file_info_saves_metadata_in_every_carrier", ui_file_info_saves_metadata_in_every_carrier},
       {"ui_file_info_strip_and_export_policies", ui_file_info_strip_and_export_policies},
       {"ui_psd_save_stamps_dates_and_creator", ui_psd_save_stamps_dates_and_creator},
+      {"ui_file_info_shows_the_psd_save_stamp", ui_file_info_shows_the_psd_save_stamp},
   };
 }

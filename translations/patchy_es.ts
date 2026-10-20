@@ -11002,6 +11002,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Mezclador de canales: monocromo %1 / %2 / %3, constante %4</translation>
     </message>
     <message>
+        <source>Density</source>
+        <translation>Densidad</translation>
+    </message>
+    <message>
+        <source>Filter color</source>
+        <translation>Color del filtro</translation>
+    </message>
+    <message>
+        <source>Filter Color:</source>
+        <translation>Color del filtro:</translation>
+    </message>
+    <message>
+        <source>Filter Color</source>
+        <translation>Color del filtro</translation>
+    </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation>Color de la parada de degradado</translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation>Filtro de fotografía: densidad %1 %</translation>
+    </message>
+    <message>
+        <source>Gradient Map: %1</source>
+        <translation>Mapa de degradado: %1</translation>
+    </message>
+    <message>
         <source>Recent</source>
         <comment>new document recent sizes</comment>
         <translation>Recientes</translation>
@@ -12645,6 +12673,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Transform corners must form a convex shape</source>
         <translation>Las esquinas de la transformación deben formar una figura convexa</translation>
+    </message>
+    <message>
+        <source>Drag to move the point. Drag the outline or fill to move the shape.</source>
+        <translation>Arrastre para mover el punto. Arrastre el contorno o el relleno para mover la forma.</translation>
     </message>
 </context>
 <context>
@@ -22636,6 +22668,30 @@ Puedes hacerlo más tarde desde Ayuda &gt; Añadir Patchy al menú de aplicacion
     <message>
         <source>New Fill or Adjustment Layer</source>
         <translation>Nueva capa de relleno o de ajuste</translation>
+    </message>
+    <message>
+        <source>Photo &amp;Filter...</source>
+        <translation>&amp;Filtro de fotografía...</translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation>Mapa de &amp;degradado...</translation>
+    </message>
+    <message>
+        <source>Photo Filter</source>
+        <translation>Filtro de fotografía</translation>
+    </message>
+    <message>
+        <source>Cancelled Photo Filter</source>
+        <translation>Filtro de fotografía cancelado</translation>
+    </message>
+    <message>
+        <source>Gradient Map</source>
+        <translation>Mapa de degradado</translation>
+    </message>
+    <message>
+        <source>Cancelled Gradient Map</source>
+        <translation>Mapa de degradado cancelado</translation>
     </message>
 </context>
 <context>

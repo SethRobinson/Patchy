@@ -491,6 +491,11 @@ void CanvasWidget::set_tool(CanvasTool tool) {
       // callback routes it to a shape layer or the work path.
       commit_pen_path(false);
     }
+    if (tool_ == CanvasTool::PathSelect && tool == CanvasTool::DirectSelect) {
+      // Path Select selects whole shapes; Direct Select starts with no points
+      // selected, so its first press drags one point (GitHub issue 248).
+      clear_path_edit_selection();
+    }
     pen_temp_direct_select_ = false;
     pen_session_drag_anchor_ = -1;
     path_hover_hint_action_ = PenHoverAction::Draw;

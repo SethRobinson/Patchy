@@ -11036,6 +11036,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Mieszanie kanałów: monochromatyczne %1 / %2 / %3, stała %4</translation>
     </message>
     <message>
+        <source>Density</source>
+        <translation>Gęstość</translation>
+    </message>
+    <message>
+        <source>Filter color</source>
+        <translation>Kolor filtra</translation>
+    </message>
+    <message>
+        <source>Filter Color:</source>
+        <translation>Kolor filtra:</translation>
+    </message>
+    <message>
+        <source>Filter Color</source>
+        <translation>Kolor filtra</translation>
+    </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation>Kolor punktu gradientu</translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation>Filtr fotograficzny: gęstość %1%</translation>
+    </message>
+    <message>
+        <source>Gradient Map: %1</source>
+        <translation>Mapa gradientu: %1</translation>
+    </message>
+    <message>
         <source>Recent</source>
         <comment>new document recent sizes</comment>
         <translation>Ostatnie</translation>
@@ -12679,6 +12707,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Transform corners must form a convex shape</source>
         <translation>Narożniki przekształcenia muszą tworzyć kształt wypukły</translation>
+    </message>
+    <message>
+        <source>Drag to move the point. Drag the outline or fill to move the shape.</source>
+        <translation>Przeciągnij, aby przesunąć punkt. Przeciągnij obrys lub wypełnienie, aby przesunąć kształt.</translation>
     </message>
 </context>
 <context>
@@ -22706,6 +22738,30 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     <message>
         <source>New Fill or Adjustment Layer</source>
         <translation>Nowa warstwa wypełnienia lub dopasowania</translation>
+    </message>
+    <message>
+        <source>Photo &amp;Filter...</source>
+        <translation>&amp;Filtr fotograficzny...</translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation>Mapa &amp;gradientu...</translation>
+    </message>
+    <message>
+        <source>Photo Filter</source>
+        <translation>Filtr fotograficzny</translation>
+    </message>
+    <message>
+        <source>Cancelled Photo Filter</source>
+        <translation>Anulowano filtr fotograficzny</translation>
+    </message>
+    <message>
+        <source>Gradient Map</source>
+        <translation>Mapa gradientu</translation>
+    </message>
+    <message>
+        <source>Cancelled Gradient Map</source>
+        <translation>Anulowano mapę gradientu</translation>
     </message>
 </context>
 <context>

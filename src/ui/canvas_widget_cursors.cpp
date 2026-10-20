@@ -356,7 +356,11 @@ void CanvasWidget::update_tool_cursor() {
     return;
   }
   if (tool_ == CanvasTool::PathSelect || tool_ == CanvasTool::DirectSelect) {
-    setCursor(Qt::ArrowCursor);
+    if (path_transform_active_) {
+      apply_path_transform_cursor(last_mouse_position_);
+    } else {
+      setCursor(Qt::ArrowCursor);
+    }
     return;
   }
   // Alt turns a paint/shape/fill tool into a temporary colour picker; show the

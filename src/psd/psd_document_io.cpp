@@ -1012,6 +1012,14 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
         if (auto parsed = parse_photoshop_channel_mixer_adjustment(block.payload); parsed.has_value()) {
           native_adjustment_settings = parsed;
         }
+      } else if (block.key == "phfl") {
+        if (auto parsed = parse_photoshop_photo_filter_adjustment(block.payload); parsed.has_value()) {
+          native_adjustment_settings = parsed;
+        }
+      } else if (block.key == "grdm") {
+        if (auto parsed = parse_photoshop_gradient_map_adjustment(block.payload); parsed.has_value()) {
+          native_adjustment_settings = parsed;
+        }
       } else if (block.key == "brit") {
         brit_adjustment_settings = parse_photoshop_brightness_contrast_adjustment(block.payload);
       } else if (block.key == "CgEd") {

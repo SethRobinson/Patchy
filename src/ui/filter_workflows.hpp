@@ -80,6 +80,9 @@ using PosterizeSettings = PosterizeAdjustment;
 using ThresholdSettings = ThresholdAdjustment;
 using ExposureSettings = ExposureAdjustment;
 using ChannelMixerSettings = ChannelMixerAdjustment;
+using PhotoFilterSettings = PhotoFilterAdjustment;
+using GradientMapSettings = GradientMapAdjustment;
+class GradientLibrary;
 using BrightnessContrastSettings = BrightnessContrastAdjustment;
 
 struct FilterControlSpec {
@@ -182,6 +185,15 @@ void blend_by_selection_coverage(PixelBuffer& result, const PixelBuffer& origina
 [[nodiscard]] std::optional<ChannelMixerSettings> request_channel_mixer_settings(
     QWidget* parent, std::function<void(bool, const ChannelMixerSettings&)> preview_changed = {},
     ChannelMixerSettings initial = {});
+[[nodiscard]] std::optional<PhotoFilterSettings> request_photo_filter_settings(
+    QWidget* parent, std::function<void(bool, const PhotoFilterSettings&)> preview_changed = {},
+    PhotoFilterSettings initial = {});
+// The gradient editor of the layer style dialog without its placement controls. The library
+// feeds the Preset button (null disables it); foreground and background resolve preset stops.
+[[nodiscard]] std::optional<GradientMapSettings> request_gradient_map_settings(
+    QWidget* parent, std::function<void(bool, const GradientMapSettings&)> preview_changed = {},
+    GradientMapSettings initial = {}, GradientLibrary* library = nullptr, RgbColor foreground = {0, 0, 0},
+    RgbColor background = {255, 255, 255});
 [[nodiscard]] std::optional<BrightnessContrastSettings> request_brightness_contrast_settings(
     QWidget* parent, std::function<void(bool, const BrightnessContrastSettings&)> preview_changed = {},
     BrightnessContrastSettings initial = {});

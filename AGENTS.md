@@ -92,7 +92,7 @@ Read these before acting in the named area:
 | PSD descriptors, layer styles, write/corruption rules | [docs/ps-compat.md](docs/ps-compat.md) |
 | Photoshop COM captures and acceptance runs, the unknown-data prompt check | [docs/photoshop-com.md](docs/photoshop-com.md) |
 | Font resolution (display names, DirectWrite lookup, GDI names, exact sizes, missing fonts) | [docs/font-resolution.md](docs/font-resolution.md) |
-| Adjustment/auto-adjustment calibration (Brightness/Contrast, Curves, Hue/Saturation) | [docs/adjustments-calibration.md](docs/adjustments-calibration.md) |
+| Adjustment/auto-adjustment calibration (Brightness/Contrast, Curves, Hue/Saturation); Photoshop kinds added for #250 and placeholders | [docs/adjustments-calibration.md](docs/adjustments-calibration.md), [docs/adjustment-kinds.md](docs/adjustment-kinds.md) |
 | Layer-effect render calibration (Blend If, Satin, Stroke, shadows/glows, interior effects, Bevel/Emboss, Pattern Overlay, Shape Burst) | [docs/layer-effects-render.md](docs/layer-effects-render.md) |
 | Native Smart Filter descriptors, FEid cache, per-filter render semantics | [docs/smart-filters-native.md](docs/smart-filters-native.md) |
 | Contributor pull-request review | [docs/pr-review.md](docs/pr-review.md) |

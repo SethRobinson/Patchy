@@ -11036,6 +11036,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Микширование каналов: монохромно %1 / %2 / %3, константа %4</translation>
     </message>
     <message>
+        <source>Density</source>
+        <translation>Плотность</translation>
+    </message>
+    <message>
+        <source>Filter color</source>
+        <translation>Цвет фильтра</translation>
+    </message>
+    <message>
+        <source>Filter Color:</source>
+        <translation>Цвет фильтра:</translation>
+    </message>
+    <message>
+        <source>Filter Color</source>
+        <translation>Цвет фильтра</translation>
+    </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation>Цвет контрольной точки градиента</translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation>Фотофильтр: плотность %1%</translation>
+    </message>
+    <message>
+        <source>Gradient Map: %1</source>
+        <translation>Карта градиента: %1</translation>
+    </message>
+    <message>
         <source>Recent</source>
         <comment>new document recent sizes</comment>
         <translation>Недавние</translation>
@@ -12679,6 +12707,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Transform corners must form a convex shape</source>
         <translation>Углы трансформации должны образовывать выпуклую фигуру</translation>
+    </message>
+    <message>
+        <source>Drag to move the point. Drag the outline or fill to move the shape.</source>
+        <translation>Перетаскивайте точку для перемещения. Перетащите контур или заливку, чтобы переместить фигуру.</translation>
     </message>
 </context>
 <context>
@@ -22706,6 +22738,30 @@ Patchy можно будет запускать из меню, а на пане�
     <message>
         <source>New Fill or Adjustment Layer</source>
         <translation>Новый слой заливки или корректирующий слой</translation>
+    </message>
+    <message>
+        <source>Photo &amp;Filter...</source>
+        <translation>&amp;Фотофильтр...</translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation>&amp;Карта градиента...</translation>
+    </message>
+    <message>
+        <source>Photo Filter</source>
+        <translation>Фотофильтр</translation>
+    </message>
+    <message>
+        <source>Cancelled Photo Filter</source>
+        <translation>Фотофильтр отменён</translation>
+    </message>
+    <message>
+        <source>Gradient Map</source>
+        <translation>Карта градиента</translation>
+    </message>
+    <message>
+        <source>Cancelled Gradient Map</source>
+        <translation>Карта градиента отменена</translation>
     </message>
 </context>
 <context>

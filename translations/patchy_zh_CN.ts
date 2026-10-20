@@ -10968,6 +10968,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>通道混合器: 单色 %1 / %2 / %3，常数 %4</translation>
     </message>
     <message>
+        <source>Density</source>
+        <translation>浓度</translation>
+    </message>
+    <message>
+        <source>Filter color</source>
+        <translation>滤镜颜色</translation>
+    </message>
+    <message>
+        <source>Filter Color:</source>
+        <translation>滤镜颜色:</translation>
+    </message>
+    <message>
+        <source>Filter Color</source>
+        <translation>滤镜颜色</translation>
+    </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation>渐变色标颜色</translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation>照片滤镜: 浓度 %1%</translation>
+    </message>
+    <message>
+        <source>Gradient Map: %1</source>
+        <translation>渐变映射: %1</translation>
+    </message>
+    <message>
         <source>Recent</source>
         <comment>new document recent sizes</comment>
         <translation>最近</translation>
@@ -12611,6 +12639,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Transform corners must form a convex shape</source>
         <translation>变换的四个角必须构成凸形</translation>
+    </message>
+    <message>
+        <source>Drag to move the point. Drag the outline or fill to move the shape.</source>
+        <translation>拖动可移动锚点。拖动轮廓或填充可移动形状。</translation>
     </message>
 </context>
 <context>
@@ -22566,6 +22598,30 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>New Fill or Adjustment Layer</source>
         <translation>新建填充或调整图层</translation>
+    </message>
+    <message>
+        <source>Photo &amp;Filter...</source>
+        <translation>照片滤镜(&amp;F)...</translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation>渐变映射(&amp;G)...</translation>
+    </message>
+    <message>
+        <source>Photo Filter</source>
+        <translation>照片滤镜</translation>
+    </message>
+    <message>
+        <source>Cancelled Photo Filter</source>
+        <translation>已取消照片滤镜</translation>
+    </message>
+    <message>
+        <source>Gradient Map</source>
+        <translation>渐变映射</translation>
+    </message>
+    <message>
+        <source>Cancelled Gradient Map</source>
+        <translation>已取消渐变映射</translation>
     </message>
 </context>
 <context>

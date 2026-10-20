@@ -11002,6 +11002,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Miscelatore canale: monocromatico %1 / %2 / %3, costante %4</translation>
     </message>
     <message>
+        <source>Density</source>
+        <translation>Densità</translation>
+    </message>
+    <message>
+        <source>Filter color</source>
+        <translation>Colore del filtro</translation>
+    </message>
+    <message>
+        <source>Filter Color:</source>
+        <translation>Colore del filtro:</translation>
+    </message>
+    <message>
+        <source>Filter Color</source>
+        <translation>Colore del filtro</translation>
+    </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation>Colore del punto della sfumatura</translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation>Filtro fotografico: densità %1%</translation>
+    </message>
+    <message>
+        <source>Gradient Map: %1</source>
+        <translation>Mappa sfumatura: %1</translation>
+    </message>
+    <message>
         <source>Recent</source>
         <comment>new document recent sizes</comment>
         <translation>Recenti</translation>
@@ -12645,6 +12673,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Transform corners must form a convex shape</source>
         <translation>Gli angoli della trasformazione devono formare una forma convessa</translation>
+    </message>
+    <message>
+        <source>Drag to move the point. Drag the outline or fill to move the shape.</source>
+        <translation>Trascina per spostare il punto. Trascina il contorno o il riempimento per spostare la forma.</translation>
     </message>
 </context>
 <context>
@@ -22636,6 +22668,30 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
     <message>
         <source>New Fill or Adjustment Layer</source>
         <translation>Nuovo livello di riempimento o di regolazione</translation>
+    </message>
+    <message>
+        <source>Photo &amp;Filter...</source>
+        <translation>&amp;Filtro fotografico...</translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation>Mappa &amp;sfumatura...</translation>
+    </message>
+    <message>
+        <source>Photo Filter</source>
+        <translation>Filtro fotografico</translation>
+    </message>
+    <message>
+        <source>Cancelled Photo Filter</source>
+        <translation>Filtro fotografico annullato</translation>
+    </message>
+    <message>
+        <source>Gradient Map</source>
+        <translation>Mappa sfumatura</translation>
+    </message>
+    <message>
+        <source>Cancelled Gradient Map</source>
+        <translation>Mappa sfumatura annullata</translation>
     </message>
 </context>
 <context>

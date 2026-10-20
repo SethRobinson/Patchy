@@ -11002,6 +11002,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Mélangeur de couches : monochrome %1 / %2 / %3, constante %4</translation>
     </message>
     <message>
+        <source>Density</source>
+        <translation>Densité</translation>
+    </message>
+    <message>
+        <source>Filter color</source>
+        <translation>Couleur du filtre</translation>
+    </message>
+    <message>
+        <source>Filter Color:</source>
+        <translation>Couleur du filtre :</translation>
+    </message>
+    <message>
+        <source>Filter Color</source>
+        <translation>Couleur du filtre</translation>
+    </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation>Couleur du point de dégradé</translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation>Filtre photo : densité %1 %</translation>
+    </message>
+    <message>
+        <source>Gradient Map: %1</source>
+        <translation>Courbe de transfert de dégradé : %1</translation>
+    </message>
+    <message>
         <source>Recent</source>
         <comment>new document recent sizes</comment>
         <translation>Récents</translation>
@@ -12645,6 +12673,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Transform corners must form a convex shape</source>
         <translation>Les coins de la transformation doivent former une forme convexe</translation>
+    </message>
+    <message>
+        <source>Drag to move the point. Drag the outline or fill to move the shape.</source>
+        <translation>Faites glisser pour déplacer le point. Faites glisser le contour ou le remplissage pour déplacer la forme.</translation>
     </message>
 </context>
 <context>
@@ -22636,6 +22668,30 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
     <message>
         <source>New Fill or Adjustment Layer</source>
         <translation>Nouveau calque de remplissage ou de réglage</translation>
+    </message>
+    <message>
+        <source>Photo &amp;Filter...</source>
+        <translation>&amp;Filtre photo...</translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation>&amp;Courbe de transfert de dégradé...</translation>
+    </message>
+    <message>
+        <source>Photo Filter</source>
+        <translation>Filtre photo</translation>
+    </message>
+    <message>
+        <source>Cancelled Photo Filter</source>
+        <translation>Filtre photo annulé</translation>
+    </message>
+    <message>
+        <source>Gradient Map</source>
+        <translation>Courbe de transfert de dégradé</translation>
+    </message>
+    <message>
+        <source>Cancelled Gradient Map</source>
+        <translation>Courbe de transfert de dégradé annulée</translation>
     </message>
 </context>
 <context>

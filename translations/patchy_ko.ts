@@ -10968,6 +10968,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>채널 혼합: 단색 %1 / %2 / %3, 상수 %4</translation>
     </message>
     <message>
+        <source>Density</source>
+        <translation>농도</translation>
+    </message>
+    <message>
+        <source>Filter color</source>
+        <translation>필터 색상</translation>
+    </message>
+    <message>
+        <source>Filter Color:</source>
+        <translation>필터 색상:</translation>
+    </message>
+    <message>
+        <source>Filter Color</source>
+        <translation>필터 색상</translation>
+    </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation>그레이디언트 정지점 색상</translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation>포토 필터: 농도 %1%</translation>
+    </message>
+    <message>
+        <source>Gradient Map: %1</source>
+        <translation>그레이디언트 맵: %1</translation>
+    </message>
+    <message>
         <source>Recent</source>
         <comment>new document recent sizes</comment>
         <translation>최근</translation>
@@ -12611,6 +12639,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Transform corners must form a convex shape</source>
         <translation>변형 모서리는 볼록한 모양을 이루어야 합니다</translation>
+    </message>
+    <message>
+        <source>Drag to move the point. Drag the outline or fill to move the shape.</source>
+        <translation>드래그하여 점을 이동합니다. 윤곽선이나 채우기를 드래그하면 도형을 이동합니다.</translation>
     </message>
 </context>
 <context>
@@ -22566,6 +22598,30 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>New Fill or Adjustment Layer</source>
         <translation>새 채우기 또는 조정 레이어</translation>
+    </message>
+    <message>
+        <source>Photo &amp;Filter...</source>
+        <translation>포토 필터(&amp;F)...</translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation>그레이디언트 맵(&amp;G)...</translation>
+    </message>
+    <message>
+        <source>Photo Filter</source>
+        <translation>포토 필터</translation>
+    </message>
+    <message>
+        <source>Cancelled Photo Filter</source>
+        <translation>포토 필터를 취소했습니다</translation>
+    </message>
+    <message>
+        <source>Gradient Map</source>
+        <translation>그레이디언트 맵</translation>
+    </message>
+    <message>
+        <source>Cancelled Gradient Map</source>
+        <translation>그레이디언트 맵을 취소했습니다</translation>
     </message>
 </context>
 <context>

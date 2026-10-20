@@ -10986,6 +10986,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Density</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Filter color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Filter Color:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Filter Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gradient Map: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Recent</source>
         <comment>new document recent sizes</comment>
         <translation type="unfinished"></translation>
@@ -12628,6 +12656,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>Transform corners must form a convex shape</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Drag to move the point. Drag the outline or fill to move the shape.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -22558,6 +22590,30 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     </message>
     <message>
         <source>New Fill or Adjustment Layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Photo &amp;Filter...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Photo Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancelled Photo Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gradient Map</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancelled Gradient Map</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
