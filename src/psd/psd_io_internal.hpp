@@ -688,14 +688,10 @@ std::optional<std::vector<std::uint8_t>> photoshop_brightness_contrast_descripto
     const BrightnessContrastAdjustment& settings, const Layer& layer);
 std::optional<AdjustmentSettings> parse_photoshop_color_balance_adjustment(
     std::span<const std::uint8_t> payload);
-// Patch-in-place: only the midtones bytes are rewritten from the model; the
-// imported shadows/highlights values and the preserve-luminosity byte keep
-// their original bytes (Patchy preserves but does not render them).
+// Writes all three tone triples and Preserve Luminosity over the original
+// payload (bytes past them are kept); fresh layers get the 20-byte shape.
 std::vector<std::uint8_t> photoshop_color_balance_payload(const ColorBalanceAdjustment& settings,
                                                           const UnknownPsdBlock* original);
-// True when the payload carries settings Patchy preserves but does not render
-// (nonzero shadows/highlights or preserve luminosity) - drives the import notice.
-[[nodiscard]] bool photoshop_color_balance_payload_has_unrendered_data(std::span<const std::uint8_t> payload);
 // Reads the legacy private 'plAD' block. Read-only since 2026-07: Photoshop
 // reports the unknown key as "unknown data" on open, so no kind writes it
 // anymore; native levl/curv/hue2/blnc blocks carry the modeled state instead.

@@ -272,29 +272,25 @@ void MainWindow::new_color_balance_adjustment_layer() {
                                                                          const ColorBalanceSettings& color_balance) {
     AdjustmentSettings settings;
     settings.kind = AdjustmentKind::ColorBalance;
-    settings.color_balance = ColorBalanceAdjustment{std::clamp(color_balance.cyan_red, -100, 100),
-                                                    std::clamp(color_balance.magenta_green, -100, 100),
-                                                    std::clamp(color_balance.yellow_blue, -100, 100)};
+    settings.color_balance = color_balance;
     update_adjustment_layer_preview(tr("Color Balance"), settings, enabled, preview_id, restore_active_layer);
   };
 
   auto preview_edit_lock = lock_preview_dialog_edits();
-  const auto settings = request_color_balance_settings(this, preview_changed);
+  const auto settings = request_color_balance_settings(this, preview_changed, new_color_balance_settings());
   remove_adjustment_layer_preview(preview_id, restore_active_layer);
   preview_edit_lock.release();
   if (!settings.has_value()) {
     statusBar()->showMessage(tr("Cancelled Color Balance"));
     return;
   }
-  apply_color_balance_adjustment(settings->cyan_red, settings->magenta_green, settings->yellow_blue, true);
+  apply_color_balance_adjustment(*settings, true);
 }
 
-void MainWindow::apply_color_balance_adjustment(int cyan_red, int magenta_green, int yellow_blue, bool allow_identity) {
+void MainWindow::apply_color_balance_adjustment(const ColorBalanceSettings& color_balance, bool allow_identity) {
   AdjustmentSettings settings;
   settings.kind = AdjustmentKind::ColorBalance;
-  settings.color_balance = ColorBalanceAdjustment{std::clamp(cyan_red, -100, 100),
-                                                  std::clamp(magenta_green, -100, 100),
-                                                  std::clamp(yellow_blue, -100, 100)};
+  settings.color_balance = color_balance;
   if (!allow_identity && !adjustment_has_effect(settings)) {
     return;
   }
@@ -677,23 +673,14 @@ void MainWindow::edit_active_adjustment_layer() {
           return;
         }
         auto settings = *original_settings;
-        settings.color_balance =
-            ColorBalanceAdjustment{std::clamp(color_balance.cyan_red, -100, 100),
-                                   std::clamp(color_balance.magenta_green, -100, 100),
-                                   std::clamp(color_balance.yellow_blue, -100, 100)};
+        settings.color_balance = color_balance;
         apply_settings(settings);
       };
-      const auto result = request_color_balance_settings(
-          this, preview_changed,
-          ColorBalanceSettings{original_settings->color_balance.cyan_red,
-                               original_settings->color_balance.magenta_green,
-                               original_settings->color_balance.yellow_blue});
+      const auto result =
+          request_color_balance_settings(this, preview_changed, original_settings->color_balance);
       if (result.has_value()) {
         accepted_settings = *original_settings;
-        accepted_settings->color_balance =
-            ColorBalanceAdjustment{std::clamp(result->cyan_red, -100, 100),
-                                   std::clamp(result->magenta_green, -100, 100),
-                                   std::clamp(result->yellow_blue, -100, 100)};
+        accepted_settings->color_balance = *result;
       }
       break;
     }

@@ -1372,20 +1372,85 @@ std::optional<HueSaturationSettings> request_hue_saturation_settings(
 std::optional<ColorBalanceSettings> request_color_balance_settings(
     QWidget* parent, std::function<void(bool, const ColorBalanceSettings&)> preview_changed,
     ColorBalanceSettings initial) {
-  initial.cyan_red = std::clamp(initial.cyan_red, -100, 100);
-  initial.magenta_green = std::clamp(initial.magenta_green, -100, 100);
-  initial.yellow_blue = std::clamp(initial.yellow_blue, -100, 100);
+  const auto clamp_tone = [](ColorBalanceTone tone) {
+    return ColorBalanceTone{std::clamp(tone.cyan_red, -100, 100), std::clamp(tone.magenta_green, -100, 100),
+                            std::clamp(tone.yellow_blue, -100, 100)};
+  };
+  for (const auto range :
+       {ColorBalanceToneRange::Shadows, ColorBalanceToneRange::Midtones, ColorBalanceToneRange::Highlights}) {
+    initial.set_tone(range, clamp_tone(initial.tone(range)));
+  }
+
+  // The three sliders edit the tone range the Tone combo selects (Midtones
+  // first, as in Photoshop); the other two triples are stashed so switching
+  // tones round-trips all of them.
+  struct State {
+    ColorBalanceSettings settings;
+    ColorBalanceToneRange range{ColorBalanceToneRange::Midtones};
+    QCheckBox* preserve{nullptr};
+  };
+  auto state = std::make_shared<State>(State{initial});
+
+  const auto capture = [](State& value, const std::vector<QSpinBox*>& spins) {
+    value.settings.set_tone(value.range,
+                            ColorBalanceTone{spins[0]->value(), spins[1]->value(), spins[2]->value()});
+    if (value.preserve != nullptr) {
+      value.settings.preserve_luminosity = value.preserve->isChecked();
+    }
+  };
+  const auto build_settings = [state, capture](const std::vector<QSpinBox*>& spins) {
+    auto copy = *state;
+    capture(copy, spins);
+    return copy.settings;
+  };
+
+  const auto midtones = initial.tone(ColorBalanceToneRange::Midtones);
   return request_adjustment_settings_dialog<ColorBalanceSettings>(
       parent, QStringLiteral("patchyColorBalanceDialog"), QObject::tr("Color Balance"),
       QStringLiteral("colorBalancePreviewCheck"),
-      {{QObject::tr("Cyan / Red"), QStringLiteral("colorBalanceCyanRed"), -100, 100, initial.cyan_red, {}},
+      {{QObject::tr("Cyan / Red"), QStringLiteral("colorBalanceCyanRed"), -100, 100, midtones.cyan_red, {}},
        {QObject::tr("Magenta / Green"), QStringLiteral("colorBalanceMagentaGreen"), -100, 100,
-        initial.magenta_green, {}},
-       {QObject::tr("Yellow / Blue"), QStringLiteral("colorBalanceYellowBlue"), -100, 100, initial.yellow_blue, {}}},
-      [](const std::vector<QSpinBox*>& spins) {
-        return ColorBalanceSettings{spins[0]->value(), spins[1]->value(), spins[2]->value()};
-      },
-      std::move(preview_changed));
+        midtones.magenta_green, {}},
+       {QObject::tr("Yellow / Blue"), QStringLiteral("colorBalanceYellowBlue"), -100, 100, midtones.yellow_blue, {}}},
+      build_settings, std::move(preview_changed), {},
+      [state, capture](QDialog& dialog, QFormLayout* form, const std::vector<QSpinBox*>& spins,
+                       const std::function<void()>& flush_preview) {
+        auto* combo = new QComboBox(&dialog);
+        combo->setObjectName(QStringLiteral("colorBalanceToneCombo"));
+        combo->addItem(QObject::tr("Shadows"), static_cast<int>(ColorBalanceToneRange::Shadows));
+        combo->addItem(QObject::tr("Midtones"), static_cast<int>(ColorBalanceToneRange::Midtones));
+        combo->addItem(QObject::tr("Highlights"), static_cast<int>(ColorBalanceToneRange::Highlights));
+        combo->setCurrentIndex(combo->findData(static_cast<int>(state->range)));
+        form->insertRow(0, QObject::tr("Tone:"), combo);
+
+        auto* preserve = new QCheckBox(QObject::tr("Preserve Luminosity"), &dialog);
+        preserve->setObjectName(QStringLiteral("colorBalancePreserveLuminosityCheck"));
+        preserve->setChecked(state->settings.preserve_luminosity);
+        state->preserve = preserve;
+        form->addRow(QString(), preserve);
+
+        QObject::connect(combo, &QComboBox::currentIndexChanged, &dialog,
+                         [&dialog, state, combo, spins, capture, flush_preview](int index) {
+                           capture(*state, spins);
+                           state->range = static_cast<ColorBalanceToneRange>(combo->itemData(index).toInt());
+                           const auto tone = state->settings.tone(state->range);
+                           const std::array<int, 3> values{tone.cyan_red, tone.magenta_green, tone.yellow_blue};
+                           const std::array<QString, 3> prefixes{QStringLiteral("colorBalanceCyanRed"),
+                                                                 QStringLiteral("colorBalanceMagentaGreen"),
+                                                                 QStringLiteral("colorBalanceYellowBlue")};
+                           for (std::size_t row = 0; row < spins.size() && row < values.size(); ++row) {
+                             if (auto* slider = dialog.findChild<QSlider*>(prefixes[row] + QStringLiteral("Slider"))) {
+                               const QSignalBlocker block_slider(slider);
+                               slider->setValue(values[row]);
+                             }
+                             const QSignalBlocker block_spin(spins[row]);
+                             spins[row]->setValue(values[row]);
+                           }
+                           flush_preview();
+                         });
+        QObject::connect(preserve, &QCheckBox::toggled, &dialog,
+                         [flush_preview](bool) { flush_preview(); });
+      });
 }
 
 std::optional<PosterizeSettings> request_posterize_settings(

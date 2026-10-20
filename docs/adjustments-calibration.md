@@ -40,6 +40,17 @@ Fitted against Photoshop's renders of psd-tools' `adjustments/levels_rgb.psd` an
 - **Levels:** the component channel record runs FIRST, then Composite RGB (the Curves order), and the channel result reaches the composite stage unrounded. Within 2/255 everywhere on the render; composite-first is off by up to 52, and a byte-rounded intermediate has ten times the 2/255 misses. `apply_levels` (core) and `build_levels_luts` (ui/filter_workflows.cpp, the destructive command) both follow it. A master-only adjustment is unchanged.
 - **Posterize:** `floor(floor(value * levels / 256) * 255 / (levels - 1))`, byte-exact at 3, 7, 13 and 21 levels (3 levels give 0, 127, 255). Refuted: nearest-step rounding, and rounding the output step instead of truncating it. `posterize_channel_value` serves the adjustment layer and `patchy.filters.posterize` alike.
 
+## Color Balance
+
+Fitted on a Photoshop 2026 COM probe (#250): a 256-step gray ramp plus a 16-level RGB cube through 60 settings (each slider at +-100 and +50 per tone, both Preserve Luminosity states, extra magnitudes, two mixed sets; adjustment layer and destructive command agree). The model matches 783,311 of 783,360 probe values (49 off by one) and both committed fixtures, `photoshop-color-balance{,-full}.psd`, exactly. S, M, H are the shadows, midtones and highlights triples (cyan/red, magenta/green, yellow/blue).
+
+- Each channel gets one Levels record: input black, input white, and an exponent e with gamma = 2^(e/100) rounded to two decimals, through `photoshop_levels_gamma` (its near-black toe matters at large gammas). No output points. A channel's output depends only on its own input in both modes, so a LUT always exists.
+- Preserve Luminosity off, channel c: input black max(0, -S[c]), input white 255 - max(0, H[c]), e = M[c] + S[c]/2 + H[c]/2, halves truncated toward zero (shadows +75 is gamma 1.29, not 1.30).
+- Preserve Luminosity on: input black max(S) - S[c], input white 255 - (H[c] - min(H)), e = M[c] - (max(M) + min(M))/2 (truncated); shadows and highlights add no gamma.
+- 8-bit rounding: the black/white-point stage rounds to a whole level before the gamma, and the output rounds half up. Unrounded points, or half-to-even rounding, give hundreds of misses. 16/32-bit documents run the same record without the point rounding.
+- Refuted: tones applied one after another in any order (199 and more misses per mixed set), per-tone gammas multiplied instead of exponents summed, and Preserve Luminosity as a luminance restore after the shift (HSL lightness, Rec.601/709, PDF SetLum: hundreds of thousands of misses).
+- `color_balance_channel_levels` / `color_balance_transfer` (core) serve the adjustment layer, the destructive command and the deep path. A new Color Balance starts with Preserve Luminosity checked, as in Photoshop.
+
 ## Exposure
 
 `AdjustmentKind::Exposure`, Photoshop's `expA` block (16 bytes: u16 version 1, float32 exposure, offset, gamma, 2 pad bytes). Settings are integers at Photoshop's field precision: hundredths of a stop (-20.00..20.00), ten-thousandths of offset (-0.5000..0.5000), hundredths of gamma (0.01..9.99). An unedited imported block is written back byte for byte, which keeps Photoshop's exact floats.

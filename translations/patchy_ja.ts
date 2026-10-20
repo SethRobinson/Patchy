@@ -10899,6 +10899,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>This stack runs Smart Filters that Patchy can&apos;t render, so their settings can&apos;t change here. Hide or delete those filters first.</source>
         <translation>このスタックは Patchy で描画できないスマートフィルターを実行するため、ここでは設定を変更できません。先にそれらのフィルターを非表示にするか削除してください。</translation>
     </message>
+    <message>
+        <source>Midtones</source>
+        <translation>中間調</translation>
+    </message>
+    <message>
+        <source>Tone:</source>
+        <translation>階調:</translation>
+    </message>
+    <message>
+        <source>Preserve Luminosity</source>
+        <translation>輝度を保持</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -10933,6 +10933,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>This stack runs Smart Filters that Patchy can&apos;t render, so their settings can&apos;t change here. Hide or delete those filters first.</source>
         <translation>Cette pile applique des filtres dynamiques que Patchy ne peut pas rendre, donc leurs réglages ne peuvent pas changer ici. Masquez ou supprimez d&apos;abord ces filtres.</translation>
     </message>
+    <message>
+        <source>Midtones</source>
+        <translation>Tons moyens</translation>
+    </message>
+    <message>
+        <source>Tone:</source>
+        <translation>Ton :</translation>
+    </message>
+    <message>
+        <source>Preserve Luminosity</source>
+        <translation>Conserver la luminosité</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

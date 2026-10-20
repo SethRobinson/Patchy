@@ -512,9 +512,7 @@ void MainWindow::color_balance_dialog() {
   auto original_pixels =
       std::make_shared<const PixelBuffer>(std::as_const(*layer).pixels());
   const auto selection = filter_selection(*canvas_);
-  const auto color_balance_has_effect = [](const ColorBalanceSettings& settings) {
-    return !(settings.cyan_red == 0 && settings.magenta_green == 0 && settings.yellow_blue == 0);
-  };
+  const auto color_balance_has_effect = [](const ColorBalanceSettings& settings) { return settings.has_effect(); };
   DestructiveAdjustmentPreviewHooks preview_hooks;
   preview_hooks.original_pixels = original_pixels;
   preview_hooks.restore_identity = [this, active_id, bounds, original_pixels] {
@@ -568,7 +566,7 @@ void MainWindow::color_balance_dialog() {
       canvas_->document_changed();
     }
   });
-  const auto settings = request_color_balance_settings(this, preview_changed);
+  const auto settings = request_color_balance_settings(this, preview_changed, new_color_balance_settings());
   close_async_pixel_preview(preview_state);
   layer = doc.find_layer(active_id);
   if (layer == nullptr) {
@@ -582,7 +580,7 @@ void MainWindow::color_balance_dialog() {
     statusBar()->showMessage(tr("Cancelled Color Balance"));
     return;
   }
-  apply_color_balance_adjustment(settings->cyan_red, settings->magenta_green, settings->yellow_blue);
+  apply_color_balance_adjustment(*settings);
 }
 
 }  // namespace patchy::ui

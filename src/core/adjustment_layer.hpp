@@ -95,6 +95,14 @@ inline constexpr const char* kLayerMetadataAdjustmentColorBalanceMagentaGreen =
     "patchy.adjustment.color_balance.magenta_green";
 inline constexpr const char* kLayerMetadataAdjustmentColorBalanceYellowBlue =
     "patchy.adjustment.color_balance.yellow_blue";
+// The three keys above hold the midtones triple (they predate tone ranges). The shadows and
+// highlights triples are "cyan_red;magenta_green;yellow_blue"; absent keys read as zero.
+inline constexpr const char* kLayerMetadataAdjustmentColorBalanceShadows =
+    "patchy.adjustment.color_balance.shadows";
+inline constexpr const char* kLayerMetadataAdjustmentColorBalanceHighlights =
+    "patchy.adjustment.color_balance.highlights";
+inline constexpr const char* kLayerMetadataAdjustmentColorBalancePreserveLuminosity =
+    "patchy.adjustment.color_balance.preserve_luminosity";
 inline constexpr const char* kLayerMetadataAdjustmentPosterizeLevels = "patchy.adjustment.posterize.levels";
 inline constexpr const char* kLayerMetadataAdjustmentThresholdLevel = "patchy.adjustment.threshold.level";
 inline constexpr const char* kLayerMetadataAdjustmentExposureValue = "patchy.adjustment.exposure.value";
@@ -237,10 +245,33 @@ struct HueSaturationAdjustment {
   }
 };
 
+struct ColorBalanceTone {
+  int cyan_red{0};
+  int magenta_green{0};
+  int yellow_blue{0};
+
+  [[nodiscard]] bool has_effect() const noexcept {
+    return cyan_red != 0 || magenta_green != 0 || yellow_blue != 0;
+  }
+  friend bool operator==(const ColorBalanceTone&, const ColorBalanceTone&) = default;
+};
+
+enum class ColorBalanceToneRange : std::uint8_t { Shadows = 0, Midtones = 1, Highlights = 2 };
+
+// Photoshop's Color Balance: one -100..100 triple per tone range plus Preserve Luminosity.
+// The top-level triple is the midtones (its names and metadata keys predate tone ranges).
 struct ColorBalanceAdjustment {
   int cyan_red{0};
   int magenta_green{0};
   int yellow_blue{0};
+  ColorBalanceTone shadows{};
+  ColorBalanceTone highlights{};
+  bool preserve_luminosity{false};
+
+  [[nodiscard]] ColorBalanceTone tone(ColorBalanceToneRange range) const noexcept;
+  void set_tone(ColorBalanceToneRange range, ColorBalanceTone value) noexcept;
+  [[nodiscard]] bool has_effect() const noexcept;
+  friend bool operator==(const ColorBalanceAdjustment&, const ColorBalanceAdjustment&) = default;
 };
 
 // Levels 2..255: wider than the destructive dialog's 2..16 so Photoshop
@@ -318,6 +349,19 @@ struct AdjustmentSettings {
 // The gamma stage every Levels transfer shares: normalized 0..1 in and out, gamma > 0
 // (Photoshop's power curve with its near-black toe; see the definition).
 [[nodiscard]] double levels_gamma_curve(double normalized, double gamma);
+// Photoshop's Color Balance is one Levels record per channel, built from all three tone
+// triples (calibrated against Photoshop 2026; docs/adjustments-calibration.md, "Color
+// Balance"). It stays per channel with Preserve Luminosity on, so it always has a LUT.
+struct ColorBalanceChannelLevels {
+  int black_input{0};
+  int white_input{255};
+  int gamma_exponent{0};  // gamma = 2^(exponent/100), stored to two decimals as Levels does
+};
+[[nodiscard]] std::array<ColorBalanceChannelLevels, 3> color_balance_channel_levels(
+    const ColorBalanceAdjustment& settings);
+// byte_points rounds the black/white-point stage to whole levels before the gamma, as
+// Photoshop's 8-bit pipeline does; the continuous deep path passes false.
+[[nodiscard]] double color_balance_transfer(double value, ColorBalanceChannelLevels levels, bool byte_points);
 [[nodiscard]] LevelsRecord clamp_levels_record(LevelsRecord record);
 [[nodiscard]] LevelsRecord levels_master_record(LevelsAdjustment settings);
 void set_levels_master_record(LevelsAdjustment& settings, LevelsRecord record);

@@ -1,4 +1,5 @@
 #include <string_view>
+#include "core/adjustment_deep.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/blend_math.hpp"
 #include "core/document.hpp"
@@ -2916,10 +2917,9 @@ void psd_photoshop_color_balance_fixtures_import_patch_and_preserve() {
   CHECK(settings->color_balance.cyan_red == 45);
   CHECK(settings->color_balance.magenta_green == -25);
   CHECK(settings->color_balance.yellow_blue == 35);
-  // Midtones-only with preserve luminosity off: nothing unrendered.
-  CHECK(std::none_of(notices.begin(), notices.end(), [](const std::string& notice) {
-    return notice.find("does not render") != std::string::npos;
-  }));
+  CHECK(!settings->color_balance.shadows.has_effect());
+  CHECK(!settings->color_balance.highlights.has_effect());
+  CHECK(!settings->color_balance.preserve_luminosity);
   // Unedited resave is byte-identical (patching identical midtones is a no-op).
   const auto resaved = psd_layer_block_payload(
       psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(document), 1), "blnc");
@@ -2929,8 +2929,8 @@ void psd_photoshop_color_balance_fixtures_import_patch_and_preserve() {
   CHECK(resaved->size() == 20);
   CHECK(std::equal(resaved->begin(), resaved->end(), expected.begin()));
 
-  // The full fixture carries shadows/highlights and preserve luminosity:
-  // modeled midtones import, the rest is preserved and reported.
+  // The full fixture carries shadows, highlights and Preserve Luminosity; all of it
+  // imports and renders (#250).
   const auto full_path = patchy::test::committed_psd_fixture_path("photoshop-color-balance-full.psd");
   CHECK(std::filesystem::exists(full_path));
   std::vector<std::string> full_notices;
@@ -2942,8 +2942,11 @@ void psd_photoshop_color_balance_fixtures_import_patch_and_preserve() {
   const auto full_settings = patchy::adjustment_settings_from_layer(*full_layer);
   CHECK(full_settings.has_value());
   CHECK(full_settings->color_balance.cyan_red == 45);
-  CHECK(std::any_of(full_notices.begin(), full_notices.end(), [](const std::string& notice) {
-    return notice.find("does not render") != std::string::npos;
+  CHECK((full_settings->color_balance.shadows == patchy::ColorBalanceTone{-10, 5, 15}));
+  CHECK((full_settings->color_balance.highlights == patchy::ColorBalanceTone{-30, 20, -5}));
+  CHECK(full_settings->color_balance.preserve_luminosity);
+  CHECK(std::none_of(full_notices.begin(), full_notices.end(), [](const std::string& notice) {
+    return notice.find("Color Balance") != std::string::npos;
   }));
   const auto full_original{psd_layer_block_payload(
       psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(full_document), 1), "blnc")};
@@ -2953,12 +2956,13 @@ void psd_photoshop_color_balance_fixtures_import_patch_and_preserve() {
   CHECK(full_original->size() == 20);
   CHECK(std::equal(full_original->begin(), full_original->end(), full_expected.begin()));
 
-  // A midtones edit patches in place: shadows, highlights, and the preserve
-  // luminosity byte keep their imported values.
+  // A midtones edit rewrites the midtones bytes; shadows, highlights and the
+  // Preserve Luminosity byte carry the model's (unchanged) values.
   auto* editable = full_document.find_layer(full_layer->id());
   CHECK(editable != nullptr);
   auto edited_settings = *full_settings;
-  edited_settings.color_balance = patchy::ColorBalanceAdjustment{-60, 15, 0};
+  edited_settings.color_balance.set_tone(patchy::ColorBalanceToneRange::Midtones,
+                                         patchy::ColorBalanceTone{-60, 15, 0});
   patchy::configure_adjustment_layer(*editable, edited_settings);
   const auto edited = psd_layer_block_payload(
       psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(full_document), 1), "blnc");
@@ -2967,6 +2971,167 @@ void psd_photoshop_color_balance_fixtures_import_patch_and_preserve() {
                                                      0x00, 0x00, 0xFF, 0xE2, 0x00, 0x14, 0xFF, 0xFB, 0x01, 0x00};
   CHECK(edited->size() == 20);
   CHECK(std::equal(edited->begin(), edited->end(), edited_expected.begin()));
+}
+
+// Photoshop 2026's Color Balance, read back from a COM probe (#250; method and model in
+// docs/adjustments-calibration.md, "Color Balance"). Each row applies its shadows, midtones
+// and highlights triples, with or without Preserve Luminosity, to the same four colors.
+void color_balance_matches_photoshop_2026_calibration() {
+  using Triple = std::array<int, 3>;
+  struct Row {
+    Triple shadows;
+    Triple midtones;
+    Triple highlights;
+    bool preserve;
+    std::array<Triple, 4> expected;
+  };
+  const std::array<Triple, 4> inputs{{{17, 68, 204}, {136, 136, 136}, {51, 170, 238}, {204, 102, 34}}};
+  const std::array<Row, 16> rows{{
+      {{100, 0, 0}, {0, 0, 0}, {0, 0, 0}, false, {{{37, 68, 204}, {163, 136, 136}, {81, 170, 238}, {218, 102, 34}}}},
+      {{100, 0, 0}, {0, 0, 0}, {0, 0, 0}, true, {{{17, 0, 171}, {136, 59, 59}, {51, 115, 227}, {204, 3, 0}}}},
+      {{-100, 0, 0}, {0, 0, 0}, {0, 0, 0}, false, {{{0, 68, 204}, {32, 136, 136}, {0, 170, 238}, {145, 102, 34}}}},
+      {{-100, 0, 0}, {0, 0, 0}, {0, 0, 0}, true, {{{0, 68, 204}, {59, 136, 136}, {0, 170, 238}, {171, 102, 34}}}},
+      {{0, 0, 0}, {100, 0, 0}, {0, 0, 0}, false, {{{58, 68, 204}, {186, 136, 136}, {114, 170, 238}, {228, 102, 34}}}},
+      {{0, 0, 0}, {100, 0, 0}, {0, 0, 0}, true, {{{37, 40, 186}, {163, 105, 105}, {81, 144, 231}, {218, 70, 15}}}},
+      {{0, 0, 0}, {-100, 0, 0}, {0, 0, 0}, false, {{{1, 68, 204}, {73, 136, 136}, {10, 170, 238}, {163, 102, 34}}}},
+      {{0, 0, 0}, {-100, 0, 0}, {0, 0, 0}, true, {{{6, 100, 218}, {105, 163, 163}, {26, 191, 243}, {186, 133, 61}}}},
+      {{0, 0, 0}, {0, 0, 0}, {100, 0, 0}, false, {{{53, 68, 204}, {233, 136, 136}, {116, 170, 238}, {255, 102, 34}}}},
+      {{0, 0, 0}, {0, 0, 0}, {100, 0, 0}, true, {{{28, 68, 204}, {224, 136, 136}, {84, 170, 238}, {255, 102, 34}}}},
+      {{0, 0, 0}, {0, 0, 0}, {-100, 0, 0}, false, {{{6, 68, 204}, {105, 136, 136}, {26, 170, 238}, {186, 102, 34}}}},
+      {{0, 0, 0}, {0, 0, 0}, {-100, 0, 0}, true, {{{17, 112, 255}, {136, 224, 224}, {51, 255, 255}, {204, 168, 56}}}},
+      {{0, 0, 0}, {16, -21, 33}, {38, 35, 38}, false,
+       {{{34, 76, 244}, {177, 156, 184}, {82, 195, 255}, {243, 115, 70}}}},
+      {{0, 0, 0}, {16, -21, 33}, {38, 35, 38}, true,
+       {{{20, 52, 214}, {144, 120, 154}, {58, 156, 243}, {209, 85, 48}}}},
+      {{-40, 25, 60}, {30, -50, 10}, {-20, 45, -70}, false,
+       {{{0, 73, 206}, {114, 157, 139}, {13, 201, 239}, {195, 114, 37}}}},
+      {{-40, 25, 60}, {30, -50, 10}, {-20, 45, -70}, true,
+       {{{0, 55, 210}, {113, 242, 148}, {0, 255, 240}, {253, 142, 44}}}},
+  }};
+  const auto tone = [](const Triple& value) { return patchy::ColorBalanceTone{value[0], value[1], value[2]}; };
+  for (const auto& row : rows) {
+    patchy::AdjustmentSettings settings;
+    settings.kind = patchy::AdjustmentKind::ColorBalance;
+    settings.color_balance.shadows = tone(row.shadows);
+    settings.color_balance.set_tone(patchy::ColorBalanceToneRange::Midtones, tone(row.midtones));
+    settings.color_balance.highlights = tone(row.highlights);
+    settings.color_balance.preserve_luminosity = row.preserve;
+    // Both modes stay per channel, so the LUT path exists and must agree.
+    const auto lut = patchy::build_adjustment_lut(settings);
+    CHECK(lut.has_value());
+    const patchy::DeepAdjuster deep(settings, patchy::DeepDomain::Encoded);
+    for (std::size_t index = 0; index < inputs.size(); ++index) {
+      const auto& in = inputs[index];
+      const patchy::RgbColor color{static_cast<std::uint8_t>(in[0]), static_cast<std::uint8_t>(in[1]),
+                                   static_cast<std::uint8_t>(in[2])};
+      const auto adjusted = patchy::apply_adjustment_to_color(color, settings);
+      const auto& expected = row.expected[index];
+      CHECK(adjusted.red == expected[0]);
+      CHECK(adjusted.green == expected[1]);
+      CHECK(adjusted.blue == expected[2]);
+      CHECK(lut->red[color.red] == adjusted.red);
+      CHECK(lut->green[color.green] == adjusted.green);
+      CHECK(lut->blue[color.blue] == adjusted.blue);
+      // The deep path is the same transfer without the 8-bit point rounding.
+      const auto deep_out = deep.apply({static_cast<float>(in[0]), static_cast<float>(in[1]),
+                                        static_cast<float>(in[2])});
+      for (std::size_t c = 0; c < 3U; ++c) {
+        CHECK(std::abs(static_cast<double>(deep_out[c]) - expected[c]) <= 1.5);
+      }
+    }
+  }
+}
+
+// The committed Photoshop fixtures render to Photoshop's own composite: one with midtones
+// only, one with all three tone ranges and Preserve Luminosity (#250). The artifact shows
+// each swatch as Photoshop's composite (upper half) over Patchy's render (lower half).
+void color_balance_fixtures_render_like_photoshop() {
+  using Triple = std::array<int, 3>;
+  const std::array<std::pair<const char*, std::array<Triple, 8>>, 2> fixtures{{
+      {"photoshop-color-balance.psd",
+       {{{32, 237, 34}, {72, 208, 50}, {104, 180, 64}, {133, 152, 77}, {160, 125, 90}, {186, 99, 102},
+         {210, 74, 114}, {233, 50, 126}}}},
+      {"photoshop-color-balance-full.psd",
+       {{{0, 255, 33}, {37, 255, 48}, {76, 230, 64}, {111, 190, 78}, {143, 152, 91}, {172, 115, 105},
+         {201, 82, 118}, {229, 50, 131}}}},
+  }};
+  constexpr std::int32_t kCell = 24;
+  patchy::Document artifact(8 * kCell, 4 * kCell, patchy::PixelFormat::rgb8());
+  patchy::PixelBuffer strip(8 * kCell, 4 * kCell, patchy::PixelFormat::rgb8());
+  std::vector<patchy::PixelBuffer> renders;
+  for (std::size_t row = 0; row < fixtures.size(); ++row) {
+    const auto document =
+        patchy::psd::DocumentIo::read_file(patchy::test::committed_psd_fixture_path(fixtures[row].first));
+    renders.push_back(patchy::Compositor{}.flatten_rgb8(document));
+    for (std::int32_t x = 0; x < 8 * kCell; ++x) {
+      for (std::int32_t y = 0; y < 2 * kCell; ++y) {
+        const auto swatch = static_cast<std::size_t>(x / kCell);
+        auto* out = strip.pixel(x, static_cast<std::int32_t>(row) * 2 * kCell + y);
+        const auto* rendered = renders.back().pixel(static_cast<std::int32_t>(swatch), 3);
+        for (std::size_t c = 0; c < 3U; ++c) {
+          out[c] = y < kCell ? static_cast<std::uint8_t>(fixtures[row].second[swatch][c]) : rendered[c];
+        }
+      }
+    }
+  }
+  artifact.add_pixel_layer("Photoshop over Patchy", std::move(strip));
+  patchy::test::write_bmp_artifact("color_balance_vs_photoshop", artifact);
+  for (std::size_t row = 0; row < fixtures.size(); ++row) {
+    for (std::int32_t x = 0; x < 8; ++x) {
+      for (std::size_t c = 0; c < 3U; ++c) {
+        CHECK(static_cast<int>(renders[row].pixel(x, 3)[c]) == fixtures[row].second[static_cast<std::size_t>(x)][c]);
+      }
+    }
+  }
+}
+
+// All three tone ranges and Preserve Luminosity survive layer metadata and the native
+// 'blnc' block; a 12-byte payload of the older midtones-only shape still reads (#250).
+void color_balance_tones_round_trip_metadata_and_blnc() {
+  patchy::AdjustmentSettings settings;
+  settings.kind = patchy::AdjustmentKind::ColorBalance;
+  settings.color_balance.shadows = {-40, 25, 60};
+  settings.color_balance.set_tone(patchy::ColorBalanceToneRange::Midtones, {30, -50, 10});
+  settings.color_balance.highlights = {-20, 45, -70};
+  settings.color_balance.preserve_luminosity = true;
+
+  patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Base", solid_rgb(2, 2, 136, 136, 136));
+  patchy::Layer adjustment(document.allocate_layer_id(), "Color Balance", patchy::LayerKind::Adjustment);
+  adjustment.set_bounds(patchy::Rect::from_size(2, 2));
+  patchy::configure_adjustment_layer(adjustment, settings);
+  const auto from_metadata = patchy::adjustment_settings_from_layer(adjustment);
+  CHECK(from_metadata.has_value());
+  CHECK(from_metadata->color_balance == settings.color_balance);
+  document.add_layer(std::move(adjustment));
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto blnc = psd_layer_block_payload(psd_layer_extra_data(bytes, 1), "blnc");
+  CHECK(blnc.has_value());
+  const std::array<std::uint8_t, 20> expected{0xFF, 0xD8, 0x00, 0x19, 0x00, 0x3C, 0x00, 0x1E, 0xFF, 0xCE,
+                                              0x00, 0x0A, 0xFF, 0xEC, 0x00, 0x2D, 0xFF, 0xBA, 0x01, 0x00};
+  CHECK(blnc->size() == expected.size());
+  CHECK(std::equal(blnc->begin(), blnc->end(), expected.begin()));
+  const auto reread = patchy::psd::DocumentIo::read(bytes);
+  const auto restored = patchy::adjustment_settings_from_layer(reread.layers()[1]);
+  CHECK(restored.has_value());
+  CHECK(restored->color_balance == settings.color_balance);
+  const auto flattened = patchy::Compositor{}.flatten_rgb8(reread);
+  CHECK(flattened.pixel(0, 0)[0] == 113);  // Photoshop's value for gray 136 (calibration table)
+  CHECK(flattened.pixel(0, 0)[1] == 242);
+  CHECK(flattened.pixel(0, 0)[2] == 148);
+
+  const std::vector<std::uint8_t> short_payload{0x00, 0x05, 0x00, 0x00, 0x00, 0x00,
+                                                0x00, 0x2D, 0xFF, 0xE7, 0x00, 0x23};
+  const auto short_document =
+      patchy::psd::DocumentIo::read(single_adjustment_layer_psd({{{'b', 'l', 'n', 'c'}, short_payload}}));
+  const auto short_settings = patchy::adjustment_settings_from_layer(short_document.layers().front());
+  CHECK(short_settings.has_value());
+  CHECK((short_settings->color_balance.shadows == patchy::ColorBalanceTone{5, 0, 0}));
+  CHECK((short_settings->color_balance.tone(patchy::ColorBalanceToneRange::Midtones) ==
+         patchy::ColorBalanceTone{45, -25, 35}));
+  CHECK(!short_settings->color_balance.highlights.has_effect());
+  CHECK(!short_settings->color_balance.preserve_luminosity);
 }
 
 void psd_native_nvrt_adjustment_imports_and_renders() {
@@ -3084,5 +3249,8 @@ std::vector<patchy::test::TestCase> adjustments_curves_tests() {
        psd_legacy_plad_color_balance_migrates_to_native_blnc},
       {"psd_photoshop_color_balance_fixtures_import_patch_and_preserve",
        psd_photoshop_color_balance_fixtures_import_patch_and_preserve},
+      {"color_balance_matches_photoshop_2026_calibration", color_balance_matches_photoshop_2026_calibration},
+      {"color_balance_fixtures_render_like_photoshop", color_balance_fixtures_render_like_photoshop},
+      {"color_balance_tones_round_trip_metadata_and_blnc", color_balance_tones_round_trip_metadata_and_blnc},
   };
 }
