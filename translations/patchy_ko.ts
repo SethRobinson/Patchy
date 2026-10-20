@@ -11172,7 +11172,120 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>%1 %2</source>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
         <translation>%1 %2</translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <translation>작게</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>중간</translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <translation>크게</translation>
+    </message>
+    <message>
+        <source>Ripple</source>
+        <translation>잔물결</translation>
+    </message>
+    <message>
+        <source>Curve</source>
+        <translation>곡선</translation>
+    </message>
+    <message>
+        <source>Curve Start</source>
+        <translation>곡선 시작</translation>
+    </message>
+    <message>
+        <source>Curve End</source>
+        <translation>곡선 끝</translation>
+    </message>
+    <message>
+        <source>Shear</source>
+        <translation>기울임</translation>
+    </message>
+    <message>
+        <source>Squareness</source>
+        <translation>정사각형</translation>
+    </message>
+    <message>
+        <source>Set to Transparent</source>
+        <translation>투명하게 설정</translation>
+    </message>
+    <message>
+        <source>Minimum</source>
+        <translation>최소</translation>
+    </message>
+    <message>
+        <source>Matrix</source>
+        <translation>행렬</translation>
+    </message>
+    <message>
+        <source>Crystallize</source>
+        <translation>결정화</translation>
+    </message>
+    <message>
+        <source>Pointillize</source>
+        <translation>점묘화</translation>
+    </message>
+    <message>
+        <source>Mezzotint</source>
+        <translation>메조틴트</translation>
+    </message>
+    <message>
+        <source>Fine Dots</source>
+        <translation>미세한 점</translation>
+    </message>
+    <message>
+        <source>Medium Dots</source>
+        <translation>중간 점</translation>
+    </message>
+    <message>
+        <source>Grainy Dots</source>
+        <translation>거친 입자 점</translation>
+    </message>
+    <message>
+        <source>Coarse Dots</source>
+        <translation>굵은 점</translation>
+    </message>
+    <message>
+        <source>Short Lines</source>
+        <translation>짧은 선</translation>
+    </message>
+    <message>
+        <source>Medium Lines</source>
+        <translation>중간 선</translation>
+    </message>
+    <message>
+        <source>Long Lines</source>
+        <translation>긴 선</translation>
+    </message>
+    <message>
+        <source>Short Strokes</source>
+        <translation>짧은 획</translation>
+    </message>
+    <message>
+        <source>Medium Strokes</source>
+        <translation>중간 획</translation>
+    </message>
+    <message>
+        <source>Long Strokes</source>
+        <translation>긴 획</translation>
+    </message>
+    <message>
+        <source>Fibers</source>
+        <translation>섬유</translation>
+    </message>
+    <message>
+        <source>Variance</source>
+        <translation>편차</translation>
+    </message>
+    <message>
+        <source>Fragment</source>
+        <translation>분열</translation>
     </message>
 </context>
 <context>
@@ -22840,6 +22953,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Updated %1 Smart Filter</source>
         <translation>%1 스마트 필터를 업데이트했습니다</translation>
+    </message>
+    <message>
+        <source>Patchy edits Filter Gallery entries that hold one effect</source>
+        <translation>Patchy는 효과가 하나인 필터 갤러리 항목만 편집할 수 있습니다</translation>
     </message>
     <message>
         <source>Click to place points, drag for curves, Shift keeps 45 degrees. On a path: click a segment to add a point, click a point to delete it or an open end to continue it, %ALT%+click converts it, %CTRL% moves points, %CTRL%+click away ends the path.</source>

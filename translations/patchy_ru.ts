@@ -11240,7 +11240,120 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>%1 %2</source>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
         <translation>%1 %2</translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <translation>Мелкий</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>Средний</translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <translation>Крупный</translation>
+    </message>
+    <message>
+        <source>Ripple</source>
+        <translation>Рябь</translation>
+    </message>
+    <message>
+        <source>Curve</source>
+        <translation>Кривая</translation>
+    </message>
+    <message>
+        <source>Curve Start</source>
+        <translation>Начало кривой</translation>
+    </message>
+    <message>
+        <source>Curve End</source>
+        <translation>Конец кривой</translation>
+    </message>
+    <message>
+        <source>Shear</source>
+        <translation>Искривление</translation>
+    </message>
+    <message>
+        <source>Squareness</source>
+        <translation>Прямоугольность</translation>
+    </message>
+    <message>
+        <source>Set to Transparent</source>
+        <translation>Сделать прозрачными</translation>
+    </message>
+    <message>
+        <source>Minimum</source>
+        <translation>Минимум</translation>
+    </message>
+    <message>
+        <source>Matrix</source>
+        <translation>Матрица</translation>
+    </message>
+    <message>
+        <source>Crystallize</source>
+        <translation>Кристаллизация</translation>
+    </message>
+    <message>
+        <source>Pointillize</source>
+        <translation>Пуантилизм</translation>
+    </message>
+    <message>
+        <source>Mezzotint</source>
+        <translation>Меццо-тинто</translation>
+    </message>
+    <message>
+        <source>Fine Dots</source>
+        <translation>Мелкие точки</translation>
+    </message>
+    <message>
+        <source>Medium Dots</source>
+        <translation>Средние точки</translation>
+    </message>
+    <message>
+        <source>Grainy Dots</source>
+        <translation>Зернистые точки</translation>
+    </message>
+    <message>
+        <source>Coarse Dots</source>
+        <translation>Крупные точки</translation>
+    </message>
+    <message>
+        <source>Short Lines</source>
+        <translation>Короткие линии</translation>
+    </message>
+    <message>
+        <source>Medium Lines</source>
+        <translation>Средние линии</translation>
+    </message>
+    <message>
+        <source>Long Lines</source>
+        <translation>Длинные линии</translation>
+    </message>
+    <message>
+        <source>Short Strokes</source>
+        <translation>Короткие штрихи</translation>
+    </message>
+    <message>
+        <source>Medium Strokes</source>
+        <translation>Средние штрихи</translation>
+    </message>
+    <message>
+        <source>Long Strokes</source>
+        <translation>Длинные штрихи</translation>
+    </message>
+    <message>
+        <source>Fibers</source>
+        <translation>Волокна</translation>
+    </message>
+    <message>
+        <source>Variance</source>
+        <translation>Дисперсия</translation>
+    </message>
+    <message>
+        <source>Fragment</source>
+        <translation>Фрагмент</translation>
     </message>
 </context>
 <context>
@@ -22980,6 +23093,10 @@ Patchy можно будет запускать из меню, а на пане�
     <message>
         <source>Updated %1 Smart Filter</source>
         <translation>Обновлён смарт-фильтр «%1»</translation>
+    </message>
+    <message>
+        <source>Patchy edits Filter Gallery entries that hold one effect</source>
+        <translation>Patchy редактирует только записи галереи фильтров с одним эффектом</translation>
     </message>
     <message>
         <source>Click to place points, drag for curves, Shift keeps 45 degrees. On a path: click a segment to add a point, click a point to delete it or an open end to continue it, %ALT%+click converts it, %CTRL% moves points, %CTRL%+click away ends the path.</source>

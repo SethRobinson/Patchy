@@ -11104,7 +11104,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Pond Ripples</source>
-        <translation>波紋</translation>
+        <translation>池の波紋</translation>
     </message>
     <message>
         <source>Ridges</source>
@@ -11172,7 +11172,120 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>%1 %2</source>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
         <translation>%1 %2</translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <translation>小</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>中</translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <translation>大</translation>
+    </message>
+    <message>
+        <source>Ripple</source>
+        <translation>波紋</translation>
+    </message>
+    <message>
+        <source>Curve</source>
+        <translation>カーブ</translation>
+    </message>
+    <message>
+        <source>Curve Start</source>
+        <translation>カーブの始点</translation>
+    </message>
+    <message>
+        <source>Curve End</source>
+        <translation>カーブの終点</translation>
+    </message>
+    <message>
+        <source>Shear</source>
+        <translation>シアー</translation>
+    </message>
+    <message>
+        <source>Squareness</source>
+        <translation>正方形</translation>
+    </message>
+    <message>
+        <source>Set to Transparent</source>
+        <translation>透明にする</translation>
+    </message>
+    <message>
+        <source>Minimum</source>
+        <translation>最小</translation>
+    </message>
+    <message>
+        <source>Matrix</source>
+        <translation>マトリクス</translation>
+    </message>
+    <message>
+        <source>Crystallize</source>
+        <translation>水晶</translation>
+    </message>
+    <message>
+        <source>Pointillize</source>
+        <translation>点描</translation>
+    </message>
+    <message>
+        <source>Mezzotint</source>
+        <translation>メゾティント</translation>
+    </message>
+    <message>
+        <source>Fine Dots</source>
+        <translation>微細ドット</translation>
+    </message>
+    <message>
+        <source>Medium Dots</source>
+        <translation>中ドット</translation>
+    </message>
+    <message>
+        <source>Grainy Dots</source>
+        <translation>粒状ドット</translation>
+    </message>
+    <message>
+        <source>Coarse Dots</source>
+        <translation>粗いドット</translation>
+    </message>
+    <message>
+        <source>Short Lines</source>
+        <translation>短い線</translation>
+    </message>
+    <message>
+        <source>Medium Lines</source>
+        <translation>中くらいの線</translation>
+    </message>
+    <message>
+        <source>Long Lines</source>
+        <translation>長い線</translation>
+    </message>
+    <message>
+        <source>Short Strokes</source>
+        <translation>短いストローク</translation>
+    </message>
+    <message>
+        <source>Medium Strokes</source>
+        <translation>中くらいのストローク</translation>
+    </message>
+    <message>
+        <source>Long Strokes</source>
+        <translation>長いストローク</translation>
+    </message>
+    <message>
+        <source>Fibers</source>
+        <translation>繊維</translation>
+    </message>
+    <message>
+        <source>Variance</source>
+        <translation>変化</translation>
+    </message>
+    <message>
+        <source>Fragment</source>
+        <translation>分割</translation>
     </message>
 </context>
 <context>
@@ -22840,6 +22953,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Updated %1 Smart Filter</source>
         <translation>%1スマートフィルターを更新しました</translation>
+    </message>
+    <message>
+        <source>Patchy edits Filter Gallery entries that hold one effect</source>
+        <translation>Patchy で編集できるのは、効果が 1 つだけのフィルターギャラリー項目です</translation>
     </message>
     <message>
         <source>Click to place points, drag for curves, Shift keeps 45 degrees. On a path: click a segment to add a point, click a point to delete it or an open end to continue it, %ALT%+click converts it, %CTRL% moves points, %CTRL%+click away ends the path.</source>

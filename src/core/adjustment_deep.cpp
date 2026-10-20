@@ -139,8 +139,9 @@ DeepChannels DeepAdjuster::apply_encoded(DeepChannels color) const {
       return out;
     }
     case AdjustmentKind::Threshold: {
-      const auto luminance = (color[0] * 30.0F + color[1] * 59.0F + color[2] * 11.0F) / 100.0F;
-      const auto value = luminance >= static_cast<float>(settings.threshold.level) ? 255.0F : 0.0F;
+      // The 8-bit path's rounded luminance (threshold_luminance), so 8-bit-exact
+      // values threshold identically at every depth.
+      const auto value = threshold_reached(color[0], color[1], color[2], settings.threshold.level) ? 255.0F : 0.0F;
       return {value, value, value};
     }
     case AdjustmentKind::BrightnessContrast: {

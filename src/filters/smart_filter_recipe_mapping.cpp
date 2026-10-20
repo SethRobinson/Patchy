@@ -70,7 +70,24 @@ bool native_smart_filter_kind_supported(SmartFilterKind kind) {
     case SmartFilterKind::FindEdges:
     case SmartFilterKind::ZigZag:
     case SmartFilterKind::Wave:
+    case SmartFilterKind::Ripple:
+    case SmartFilterKind::Shear:
+    // Imported only: no Filter-menu action appends one, but its settings open the
+    // adjustment's own dialog (docs/smart-filters-adjustments.md).
+    case SmartFilterKind::Adjustment:
+    // Imported only; a single-effect gallery edits through its effect's dialog.
+    case SmartFilterKind::FilterGallery:
       return true;
+    case SmartFilterKind::Offset:
+    case SmartFilterKind::Maximum:
+    case SmartFilterKind::Minimum:
+    case SmartFilterKind::Custom:
+    case SmartFilterKind::Fragment:
+    case SmartFilterKind::Crystallize:
+    case SmartFilterKind::Pointillize:
+    case SmartFilterKind::Mezzotint:
+    case SmartFilterKind::Fibers:
+      return smart_filter_table_spec(kind) != nullptr;
     case SmartFilterKind::Unsupported:
       return false;
   }

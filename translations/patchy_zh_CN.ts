@@ -11172,7 +11172,120 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>%1 %2</source>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
         <translation>%1 %2</translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <translation>小</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>中</translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <translation>大</translation>
+    </message>
+    <message>
+        <source>Ripple</source>
+        <translation>波纹</translation>
+    </message>
+    <message>
+        <source>Curve</source>
+        <translation>曲线</translation>
+    </message>
+    <message>
+        <source>Curve Start</source>
+        <translation>曲线起点</translation>
+    </message>
+    <message>
+        <source>Curve End</source>
+        <translation>曲线终点</translation>
+    </message>
+    <message>
+        <source>Shear</source>
+        <translation>切变</translation>
+    </message>
+    <message>
+        <source>Squareness</source>
+        <translation>方形</translation>
+    </message>
+    <message>
+        <source>Set to Transparent</source>
+        <translation>设置为透明</translation>
+    </message>
+    <message>
+        <source>Minimum</source>
+        <translation>最小值</translation>
+    </message>
+    <message>
+        <source>Matrix</source>
+        <translation>矩阵</translation>
+    </message>
+    <message>
+        <source>Crystallize</source>
+        <translation>晶格化</translation>
+    </message>
+    <message>
+        <source>Pointillize</source>
+        <translation>点彩化</translation>
+    </message>
+    <message>
+        <source>Mezzotint</source>
+        <translation>铜版雕刻</translation>
+    </message>
+    <message>
+        <source>Fine Dots</source>
+        <translation>精细点</translation>
+    </message>
+    <message>
+        <source>Medium Dots</source>
+        <translation>中等点</translation>
+    </message>
+    <message>
+        <source>Grainy Dots</source>
+        <translation>粒状点</translation>
+    </message>
+    <message>
+        <source>Coarse Dots</source>
+        <translation>粗网点</translation>
+    </message>
+    <message>
+        <source>Short Lines</source>
+        <translation>短直线</translation>
+    </message>
+    <message>
+        <source>Medium Lines</source>
+        <translation>中长直线</translation>
+    </message>
+    <message>
+        <source>Long Lines</source>
+        <translation>长直线</translation>
+    </message>
+    <message>
+        <source>Short Strokes</source>
+        <translation>短描边</translation>
+    </message>
+    <message>
+        <source>Medium Strokes</source>
+        <translation>中长描边</translation>
+    </message>
+    <message>
+        <source>Long Strokes</source>
+        <translation>长描边</translation>
+    </message>
+    <message>
+        <source>Fibers</source>
+        <translation>纤维</translation>
+    </message>
+    <message>
+        <source>Variance</source>
+        <translation>差异</translation>
+    </message>
+    <message>
+        <source>Fragment</source>
+        <translation>碎片</translation>
     </message>
 </context>
 <context>
@@ -22840,6 +22953,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Updated %1 Smart Filter</source>
         <translation>已更新%1智能滤镜</translation>
+    </message>
+    <message>
+        <source>Patchy edits Filter Gallery entries that hold one effect</source>
+        <translation>Patchy 只能编辑仅含一个效果的滤镜库条目</translation>
     </message>
     <message>
         <source>Click to place points, drag for curves, Shift keeps 45 degrees. On a path: click a segment to add a point, click a point to delete it or an open end to continue it, %ALT%+click converts it, %CTRL% moves points, %CTRL%+click away ends the path.</source>

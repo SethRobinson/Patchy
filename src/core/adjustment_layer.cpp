@@ -1974,7 +1974,14 @@ std::uint8_t exposure_channel_value(std::uint8_t value, ExposureAdjustment setti
 }
 
 int threshold_luminance(std::uint8_t red, std::uint8_t green, std::uint8_t blue) {
-  return (static_cast<int>(red) * 30 + static_cast<int>(green) * 59 + static_cast<int>(blue) * 11) / 100;
+  // Rounded half up: Photoshop 2026's Threshold adjustment layer and Smart Filter both
+  // match it on every color of a 16-level cube at level 140, where the floored quotient
+  // misses 13 (October 2026 probes, docs/smart-filters-adjustments.md).
+  return (static_cast<int>(red) * 30 + static_cast<int>(green) * 59 + static_cast<int>(blue) * 11 + 50) / 100;
+}
+
+bool threshold_reached(double red, double green, double blue, int level) noexcept {
+  return red * 30.0 + green * 59.0 + blue * 11.0 >= static_cast<double>(level) * 100.0 - 50.0;
 }
 
 namespace {

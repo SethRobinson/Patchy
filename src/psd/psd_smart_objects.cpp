@@ -6,6 +6,9 @@
 #include "psd/psd_descriptor.hpp"
 #include "psd/psd_io_internal.hpp"
 #include "psd/psd_layer_effects.hpp"
+#include "psd/psd_smart_filter_table.hpp"
+#include "psd/psd_smart_filter_adjustments.hpp"
+#include "psd/psd_smart_filter_gallery.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
@@ -157,8 +160,48 @@ DescriptorValue smart_filter_color(RgbColor color) {
 // and stringIDs otherwise (docs/smart-filters-distort-stylize.md).
 bool schema_id_long_form(std::string_view id) { return id.size() != 4U; }
 
-DescriptorValue schema_field_descriptor(const SmartFilterField& field, std::int32_t value) {
+// Shear's curve: a list of `Pnt ` objects holding double `Hrzn` and `Vrtc`.
+std::optional<std::vector<double>> read_point_list(const DescriptorValue& value) {
+  if (value.type != DescriptorValue::Type::List) {
+    return std::nullopt;
+  }
+  std::vector<double> points;
+  points.reserve(value.list_value.size() * 2U);
+  for (const auto& item : value.list_value) {
+    if (item.type != DescriptorValue::Type::Object || item.object_value == nullptr ||
+        item.object_value->class_id != "Pnt ") {
+      return std::nullopt;
+    }
+    for (const auto* key : {"Hrzn", "Vrtc"}) {
+      const auto* coordinate = descriptor_value(*item.object_value, key);
+      if (coordinate == nullptr || coordinate->type != DescriptorValue::Type::Double ||
+          !std::isfinite(coordinate->double_value)) {
+        return std::nullopt;
+      }
+      points.push_back(coordinate->double_value);
+    }
+  }
+  return points;
+}
+
+DescriptorValue point_list_descriptor(const std::vector<double>& points) {
+  DescriptorValue list;
+  list.type = DescriptorValue::Type::List;
+  for (std::size_t index = 0; index + 1U < points.size(); index += 2U) {
+    auto point = smart_filter_object("Pnt ", false);
+    add_smart_filter_value(*point.object_value, "Hrzn", false, smart_filter_double(points[index]));
+    add_smart_filter_value(*point.object_value, "Vrtc", false,
+                           smart_filter_double(points[index + 1U]));
+    list.list_value.push_back(std::move(point));
+  }
+  return list;
+}
+
+DescriptorValue schema_field_descriptor(const SmartFilterField& field, std::int32_t value,
+                                        const std::vector<double>& points) {
   switch (field.type) {
+    case SmartFilterFieldType::PointList:
+      return point_list_descriptor(points);
     case SmartFilterFieldType::Enum: {
       const auto* native = field.options[static_cast<std::size_t>(value)].native_value;
       return smart_filter_enum(field.enum_type, schema_id_long_form(field.enum_type), native,
@@ -173,14 +216,30 @@ DescriptorValue schema_field_descriptor(const SmartFilterField& field, std::int3
 }
 
 // Reads one field's integer form; nullopt when the key is missing, has another
-// type, or holds a value outside the field's range or options.
+// type, or holds a value outside the field's range or options. A point list
+// returns its count and appends its coordinates to `points`.
 std::optional<std::int32_t> read_schema_field(const DescriptorObject& filter,
-                                              const SmartFilterField& field) {
+                                              const SmartFilterField& field,
+                                              std::vector<double>* points = nullptr) {
   const auto* value = descriptor_value(filter, field.key);
   if (value == nullptr) {
     return std::nullopt;
   }
   switch (field.type) {
+    case SmartFilterFieldType::PointList: {
+      auto list = read_point_list(*value);
+      if (!list.has_value()) {
+        return std::nullopt;
+      }
+      const auto count = static_cast<std::int64_t>(list->size() / 2U);
+      if (count < field.minimum || count > field.maximum) {
+        return std::nullopt;
+      }
+      if (points != nullptr) {
+        points->insert(points->end(), list->begin(), list->end());
+      }
+      return static_cast<std::int32_t>(count);
+    }
     case SmartFilterFieldType::Integer:
       if (value->type == DescriptorValue::Type::Integer && value->integer_value >= field.minimum &&
           value->integer_value <= field.maximum) {
@@ -223,7 +282,7 @@ std::optional<SchemaSmartFilter> read_schema_settings(const DescriptorObject& fi
   SchemaSmartFilter settings;
   settings.values.reserve(schema.fields.size());
   for (const auto& field : schema.fields) {
-    const auto value = read_schema_field(filter, field);
+    const auto value = read_schema_field(filter, field, &settings.points);
     if (!value.has_value()) {
       return std::nullopt;
     }
@@ -247,6 +306,13 @@ bool patch_schema_settings(DescriptorObject& filter, const SmartFilterSchema& sc
     }
     const auto setting = settings.values[index];
     switch (field.type) {
+      case SmartFilterFieldType::PointList:
+        // Rewritten only when the curve changed, so an untouched list keeps
+        // its exact native form.
+        if (read_point_list(*value) != settings.points) {
+          *value = point_list_descriptor(settings.points);
+        }
+        break;
       case SmartFilterFieldType::Integer:
         value->integer_value = setting;
         break;
@@ -283,9 +349,17 @@ struct SmartFilterDescriptorSpec {
   std::optional<RadialBlurSmartFilter> radial_blur;
   // Add Noise emits Dstr, Nose, Mnch, FlRs in that order.
   std::optional<AddNoiseSmartFilter> add_noise;
+  // Adjustment commands (psd_smart_filter_adjustments.hpp) write their own Fltr keys.
+  const AdjustmentSettings* adjustment{nullptr};
+  // Filter Gallery entries (psd_smart_filter_gallery.hpp) patch their effects in place.
+  const FilterGallerySmartFilter* gallery{nullptr};
   // Table-described filters author every schema field in schema order.
   const SmartFilterSchema* schema{nullptr};
   const SchemaSmartFilter* schema_settings{nullptr};
+  // Table-described filters (core/smart_filter_table.hpp) emit their fields
+  // from the table, in its order.
+  const SmartFilterTableSpec* table{nullptr};
+  const TableSmartFilter* table_values{nullptr};
   const char* default_entry_name{nullptr};
   const char* filter_name{nullptr};
   const char* filter_class_id{nullptr};
@@ -484,6 +558,49 @@ smart_filter_descriptor_spec(const SmartFilterEntry &entry) {
     spec.filter_class_id = schema->class_id;
     spec.filter_class_id_long_form = schema->class_id_long_form;
     spec.filter_id = schema->filter_id;
+  } else if (const auto *table = smart_filter_table_spec(entry.kind);
+             table != nullptr) {
+    const auto *values = std::get_if<TableSmartFilter>(&entry.parameters);
+    if (values == nullptr || !table_smart_filter_valid(*table, *values)) {
+      return std::nullopt;
+    }
+    spec.table = table;
+    spec.table_values = values;
+    spec.default_entry_name = table->entry_name;
+    spec.filter_name = table->filter_name;
+    spec.filter_class_id = table->class_id;
+    spec.filter_class_id_long_form = table->class_id_long_form;
+    spec.filter_id = table->filter_id;
+  } else if (entry.kind == SmartFilterKind::Adjustment) {
+    const auto *adjustment =
+        std::get_if<AdjustmentSmartFilter>(&entry.parameters);
+    const auto ids = adjustment != nullptr
+                         ? adjustment_smart_filter_ids(adjustment->settings.kind)
+                         : std::nullopt;
+    // A stringID class's filterID is Photoshop's run-time number: keep the stored one.
+    const auto filter_id =
+        ids.has_value() && ids->filter_id != 0U ? ids->filter_id
+                                                : entry.native_filter_id;
+    if (!ids.has_value() || filter_id == 0U) {
+      return std::nullopt;
+    }
+    spec.adjustment = &adjustment->settings;
+    spec.default_entry_name = ids->entry_name;
+    spec.filter_name = ids->filter_name;
+    spec.filter_class_id = ids->class_id;
+    spec.filter_class_id_long_form = ids->class_id_long_form;
+    spec.filter_id = filter_id;
+  } else if (entry.kind == SmartFilterKind::FilterGallery) {
+    const auto *gallery =
+        std::get_if<FilterGallerySmartFilter>(&entry.parameters);
+    if (gallery == nullptr || gallery->effects.empty()) {
+      return std::nullopt;
+    }
+    spec.gallery = gallery;
+    spec.default_entry_name = "Filter Gallery...";
+    spec.filter_name = "Filter Gallery";
+    spec.filter_class_id = "GEfc";
+    spec.filter_id = kFilterGalleryFilterId;
   } else {
     return std::nullopt;
   }
@@ -498,7 +615,8 @@ smart_filter_descriptor_spec(const SmartFilterEntry &entry) {
 std::optional<DescriptorValue>
 make_smart_filter_entry_descriptor(const SmartFilterEntry &entry) {
   const auto spec = smart_filter_descriptor_spec(entry);
-  if (!spec.has_value()) {
+  // Patchy never creates a Filter Gallery entry; it only edits imported ones in place.
+  if (!spec.has_value() || spec->gallery != nullptr) {
     return std::nullopt;
   }
   auto item = smart_filter_object("filterFX", true);
@@ -525,9 +643,10 @@ make_smart_filter_entry_descriptor(const SmartFilterEntry &entry) {
                          smart_filter_color(entry.foreground));
   add_smart_filter_value(*item.object_value, "BckC", false,
                          smart_filter_color(entry.background));
-  auto filter =
-      smart_filter_object(spec->filter_class_id,
-                          spec->filter_class_id_long_form, spec->filter_name);
+  auto filter = smart_filter_object(
+      spec->filter_class_id != nullptr ? spec->filter_class_id : "",
+      spec->filter_class_id_long_form,
+      spec->filter_name != nullptr ? spec->filter_name : "");
   if (spec->highlight_strength.has_value()) {
     add_smart_filter_value(
         *filter.object_value, "Hghl", false,
@@ -616,11 +735,23 @@ make_smart_filter_entry_descriptor(const SmartFilterEntry &entry) {
     for (std::size_t index = 0; index < spec->schema->fields.size(); ++index) {
       const auto& field = spec->schema->fields[index];
       add_smart_filter_value(*filter.object_value, field.key, schema_id_long_form(field.key),
-                             schema_field_descriptor(field, spec->schema_settings->values[index]));
+                             schema_field_descriptor(field, spec->schema_settings->values[index],
+                                                     spec->schema_settings->points));
     }
   }
-  if (spec->schema == nullptr || spec->schema->has_filter_object) {
-    add_smart_filter_value(*item.object_value, "Fltr", false, std::move(filter));
+  if (spec->table != nullptr) {
+    append_table_smart_filter_fields(*filter.object_value, *spec->table,
+                                     *spec->table_values);
+  }
+  if (spec->adjustment != nullptr &&
+      !write_adjustment_smart_filter(*filter.object_value, *spec->adjustment)) {
+    return std::nullopt;
+  }
+  // A filter without settings (Clouds, Fragment, ...) has no Fltr object.
+  if ((spec->schema == nullptr || spec->schema->has_filter_object) &&
+      spec->filter_class_id != nullptr) {
+    add_smart_filter_value(*item.object_value, "Fltr", false,
+                           std::move(filter));
   }
   add_smart_filter_value(
       *item.object_value, "filterID", true,
@@ -699,11 +830,27 @@ bool set_smart_filter_bool(DescriptorObject& object, std::string_view key,
   return true;
 }
 
+// Photoshop stores an entry's foreground and background colors in the color
+// model they were picked in: RGB usually, HSB or Lab when the picker was in that
+// model. Patchy models them as RGB.
+bool smart_filter_color_class_readable(std::string_view class_id) {
+  return class_id == "RGBC" || class_id == "HSBC" || class_id == "LbCl";
+}
+
 bool set_smart_filter_color(DescriptorObject& object, std::string_view key,
                             RgbColor color) {
   auto* value = const_cast<DescriptorObject*>(descriptor_object(object, key));
-  if (value == nullptr || value->class_id != "RGBC") {
+  if (value == nullptr) {
     return false;
+  }
+  if (value->class_id != "RGBC") {
+    // An HSB or Lab color stays verbatim while the model still holds its RGB
+    // reading; Patchy never authors a change to it.
+    if (!smart_filter_color_class_readable(value->class_id)) {
+      return false;
+    }
+    const auto stored = descriptor_rgb_color(object, key, CmykColorConverter{});
+    return stored.red == color.red && stored.green == color.green && stored.blue == color.blue;
   }
   const std::array<std::pair<const char*, std::uint8_t>, 3> channels{{
       {"Rd  ", color.red}, {"Grn ", color.green}, {"Bl  ", color.blue}}};
@@ -820,7 +967,8 @@ bool patch_smart_filter_descriptor(
         const_cast<DescriptorObject*>(descriptor_object(item, "blendOptions"));
     auto* filter = const_cast<DescriptorObject*>(descriptor_object(item, "Fltr"));
     const bool expects_filter_object =
-        spec->schema == nullptr || spec->schema->has_filter_object;
+        (spec->schema == nullptr || spec->schema->has_filter_object) &&
+        spec->filter_class_id != nullptr;
     if (name == nullptr || name->type != DescriptorValue::Type::String ||
         filter_id == nullptr || filter_id->type != DescriptorValue::Type::Integer ||
         blend == nullptr || blend->class_id != "blendOptions" ||
@@ -991,6 +1139,19 @@ bool patch_smart_filter_descriptor(
       monochromatic->bool_value = spec->add_noise->monochromatic;
       seed->integer_value = spec->add_noise->seed;
     }
+    if (spec->table != nullptr && filter != nullptr &&
+        !patch_table_smart_filter_fields(*filter, *spec->table,
+                                         *spec->table_values)) {
+      return false;
+    }
+    if (spec->adjustment != nullptr &&
+        !write_adjustment_smart_filter(*filter, *spec->adjustment)) {
+      return false;
+    }
+    if (spec->gallery != nullptr &&
+        !write_filter_gallery_smart_filter(*filter, *spec->gallery)) {
+      return false;
+    }
   }
   return true;
 }
@@ -1063,8 +1224,11 @@ bool read_smart_filter_bool(const DescriptorObject& object, std::string_view key
 std::optional<RgbColor> smart_filter_rgb_color(const DescriptorObject& parent,
                                                std::string_view key) {
   const auto* color = descriptor_object(parent, key);
-  if (color == nullptr || color->class_id != "RGBC") {
+  if (color == nullptr || !smart_filter_color_class_readable(color->class_id)) {
     return std::nullopt;
+  }
+  if (color->class_id != "RGBC") {
+    return descriptor_rgb_color(parent, key, CmykColorConverter{});
   }
   const auto read_channel = [color](std::string_view key_text) -> std::optional<std::uint8_t> {
     const auto* value = descriptor_value(*color, key_text);
@@ -1456,6 +1620,13 @@ std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
         } else {
           entry_supported = false;
         }
+      } else if (parse_table_smart_filter(filter, entry.native_filter_id,
+                                          entry, entry_supported)) {
+        // Table-described filter (core/smart_filter_table.hpp).
+      } else if (parse_adjustment_smart_filter(filter, entry, entry_supported)) {
+        // An Image > Adjustments command (psd_smart_filter_adjustments.hpp).
+      } else if (parse_filter_gallery_smart_filter(filter, entry, entry_supported)) {
+        // A Filter Gallery entry (psd_smart_filter_gallery.hpp).
       } else {
         entry_supported = false;
       }

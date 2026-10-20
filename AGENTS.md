@@ -114,7 +114,7 @@ Read these before acting in the named area:
 
 Read the linked document before working on a feature; it owns the constraints.
 
-- **Smart Objects and Smart Filters:** [docs/smart-objects.md](docs/smart-objects.md), the native-filter calibration in [docs/smart-filters-native.md](docs/smart-filters-native.md), plus the binding boundaries in [docs/legal-constraints.md](docs/legal-constraints.md).
+- **Smart Objects and Smart Filters:** [docs/smart-objects.md](docs/smart-objects.md), the native-filter calibration in [docs/smart-filters-native.md](docs/smart-filters-native.md) (table-described filters: [docs/smart-filters-pixelate-render.md](docs/smart-filters-pixelate-render.md); Image > Adjustments entries: [docs/smart-filters-adjustments.md](docs/smart-filters-adjustments.md)), plus the binding boundaries in [docs/legal-constraints.md](docs/legal-constraints.md).
 - **Liquify:** [docs/liquify.md](docs/liquify.md) and [docs/legal-constraints.md](docs/legal-constraints.md).
 - **Warp:** [docs/warp.md](docs/warp.md).
 - **Brush tips, dynamics, Flow/Airbrush, Pattern Stamp, and ABR:** [docs/brushes.md](docs/brushes.md) and [docs/legal-constraints.md](docs/legal-constraints.md).

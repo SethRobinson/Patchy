@@ -11206,7 +11206,120 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>%1 %2</source>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
         <translation>%1 %2</translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <translation>Pequeño</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>Mediano</translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <translation>Grande</translation>
+    </message>
+    <message>
+        <source>Ripple</source>
+        <translation>Rizo</translation>
+    </message>
+    <message>
+        <source>Curve</source>
+        <translation>Curva</translation>
+    </message>
+    <message>
+        <source>Curve Start</source>
+        <translation>Inicio de curva</translation>
+    </message>
+    <message>
+        <source>Curve End</source>
+        <translation>Fin de curva</translation>
+    </message>
+    <message>
+        <source>Shear</source>
+        <translation>Distorsionar</translation>
+    </message>
+    <message>
+        <source>Squareness</source>
+        <translation>Cuadratura</translation>
+    </message>
+    <message>
+        <source>Set to Transparent</source>
+        <translation>Establecer como transparente</translation>
+    </message>
+    <message>
+        <source>Minimum</source>
+        <translation>Mínima</translation>
+    </message>
+    <message>
+        <source>Matrix</source>
+        <translation>Matriz</translation>
+    </message>
+    <message>
+        <source>Crystallize</source>
+        <translation>Cristalizar</translation>
+    </message>
+    <message>
+        <source>Pointillize</source>
+        <translation>Puntillista</translation>
+    </message>
+    <message>
+        <source>Mezzotint</source>
+        <translation>Mezzotinta</translation>
+    </message>
+    <message>
+        <source>Fine Dots</source>
+        <translation>Puntos finos</translation>
+    </message>
+    <message>
+        <source>Medium Dots</source>
+        <translation>Puntos medianos</translation>
+    </message>
+    <message>
+        <source>Grainy Dots</source>
+        <translation>Puntos granulosos</translation>
+    </message>
+    <message>
+        <source>Coarse Dots</source>
+        <translation>Puntos gruesos</translation>
+    </message>
+    <message>
+        <source>Short Lines</source>
+        <translation>Líneas cortas</translation>
+    </message>
+    <message>
+        <source>Medium Lines</source>
+        <translation>Líneas medianas</translation>
+    </message>
+    <message>
+        <source>Long Lines</source>
+        <translation>Líneas largas</translation>
+    </message>
+    <message>
+        <source>Short Strokes</source>
+        <translation>Trazos cortos</translation>
+    </message>
+    <message>
+        <source>Medium Strokes</source>
+        <translation>Trazos medianos</translation>
+    </message>
+    <message>
+        <source>Long Strokes</source>
+        <translation>Trazos largos</translation>
+    </message>
+    <message>
+        <source>Fibers</source>
+        <translation>Fibras</translation>
+    </message>
+    <message>
+        <source>Variance</source>
+        <translation>Varianza</translation>
+    </message>
+    <message>
+        <source>Fragment</source>
+        <translation>Fragmento</translation>
     </message>
 </context>
 <context>
@@ -22910,6 +23023,10 @@ Puedes hacerlo más tarde desde Ayuda &gt; Añadir Patchy al menú de aplicacion
     <message>
         <source>Updated %1 Smart Filter</source>
         <translation>Filtro inteligente %1 actualizado</translation>
+    </message>
+    <message>
+        <source>Patchy edits Filter Gallery entries that hold one effect</source>
+        <translation>Patchy solo edita entradas de la Galería de filtros con un único efecto</translation>
     </message>
     <message>
         <source>Click to place points, drag for curves, Shift keeps 45 degrees. On a path: click a segment to add a point, click a point to delete it or an open end to continue it, %ALT%+click converts it, %CTRL% moves points, %CTRL%+click away ends the path.</source>

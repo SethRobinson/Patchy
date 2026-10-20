@@ -45,6 +45,7 @@
 #include "ui/layer_list_widget.hpp"
 #include "ui/measurement_units.hpp"
 #include "ui/scanner_import.hpp"
+#include "ui/smart_filter_table_ui.hpp"
 #include "ui/text_font_service.hpp"
 #include "ui/tile_preview_window.hpp"
 #include "ui/ui_profile.hpp"
@@ -153,6 +154,8 @@ QString smart_filter_schema_summary(const SmartFilterSchema& schema,
       case SmartFilterFieldType::Integer:
         text = QString::number(value) +
                (field.suffix != nullptr ? translate_data_text(field.suffix) : QString());
+        break;
+      case SmartFilterFieldType::PointList:
         break;
       case SmartFilterFieldType::Boolean:
         text = value != 0 ? QObject::tr("On") : QObject::tr("Off");
@@ -2353,6 +2356,15 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                         ? QObject::tr(", Monochromatic")
                                         : QString());
         }
+      } else if (const auto *table = smart_filter_table_spec(entry.kind);
+                 table != nullptr) {
+        entry_name = table_smart_filter_display_name(*table);
+        entry_tooltip = entry_name;
+        if (const auto *values =
+                std::get_if<TableSmartFilter>(&entry.parameters);
+            values != nullptr) {
+          entry_tooltip += table_smart_filter_tooltip_details(*table, *values);
+        }
       } else if (const auto* schema = find_smart_filter_schema(entry.kind);
                  schema != nullptr) {
         entry_name = translate_data_text(schema->display_name);
@@ -2360,6 +2372,29 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
         if (const auto* settings = std::get_if<SchemaSmartFilter>(&entry.parameters);
             settings != nullptr) {
           entry_tooltip += smart_filter_schema_summary(*schema, *settings);
+        }
+      } else if (const auto *adjustment =
+                     std::get_if<AdjustmentSmartFilter>(&entry.parameters);
+                 entry.kind == SmartFilterKind::Adjustment &&
+                 adjustment != nullptr) {
+        entry_name = localized_adjustment_display_name(adjustment->settings.kind);
+        entry_tooltip = entry_name;
+      } else if (const auto *gallery =
+                     std::get_if<FilterGallerySmartFilter>(&entry.parameters);
+                 entry.kind == SmartFilterKind::FilterGallery &&
+                 gallery != nullptr) {
+        entry_name = QObject::tr("Filter Gallery");
+        entry_tooltip = entry_name;
+        for (const auto &effect : gallery->effects) {
+          if (const auto *plastic =
+                  std::get_if<PlasticWrapSmartFilter>(&effect.settings);
+              plastic != nullptr) {
+            entry_tooltip += QStringLiteral("\n") + QObject::tr("Plastic Wrap") +
+                             QObject::tr(" (Highlight %1, Detail %2, Smoothness %3)")
+                                 .arg(plastic->highlight_strength)
+                                 .arg(plastic->detail)
+                                 .arg(plastic->smoothness);
+          }
         }
       } else if (!entry.native_name.empty()) {
         entry_name = QString::fromStdString(entry.native_name);
