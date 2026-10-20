@@ -694,6 +694,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     if (handle >= 0) {
       dragging_warp_handle_ = true;
       warp_drag_index_ = handle;
+      transform_session_step_at_press_ = current_transform_session_step();
       update();
     }
     event->accept();
@@ -716,6 +717,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       transform_start_angle_ = transform_angle_;
       transform_drag_grab_offset_ = transform_handle_grab_offset(handle, transform_current_rect_, transform_angle_,
                                                                  transform_drag_start_point_);
+      transform_session_step_at_press_ = current_transform_session_step();
       transform_drag_start_scale_x_sign_ = transform_scale_x_sign_;
       transform_drag_start_scale_y_sign_ = transform_scale_y_sign_;
       event->accept();
@@ -1084,6 +1086,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
           transform_start_angle_ = transform_angle_;
           transform_drag_grab_offset_ = transform_handle_grab_offset(
               passive_handle, transform_current_rect_, transform_angle_, transform_drag_start_point_);
+          transform_session_step_at_press_ = current_transform_session_step();
           transform_drag_start_scale_x_sign_ = transform_scale_x_sign_;
           transform_drag_start_scale_y_sign_ = transform_scale_y_sign_;
         } else {
@@ -2427,6 +2430,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     dragging_warp_handle_ = false;
     set_warp_handle_document_position(warp_drag_index_, document_position_f(event->position()));
     warp_drag_index_ = -1;
+    record_transform_session_step(transform_session_step_at_press_);
     update();
     return;
   }
@@ -2436,6 +2440,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     update_free_transform_preview(document_position_f(event->position()), event->modifiers());
     dragging_transform_ = false;
     transform_drag_handle_ = TransformHandle::None;
+    record_transform_session_step(transform_session_step_at_press_);
     clear_drag_readout();
     if (transform_drag_uses_proxy_preview_) {
       // The latched drag skipped the composited patches; render them once at
@@ -3621,7 +3626,9 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
       }
       if (!delta.isNull()) {
         if (prepare_free_transform_source()) {
+          const auto step_before = current_transform_session_step();
           transform_current_rect_.translate(delta.x(), delta.y());
+          record_transform_session_step(step_before, /*nudge=*/true);
           refresh_transform_composited_preview_cache();
           update();
           notify_transform_controls_changed();

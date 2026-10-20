@@ -39,6 +39,8 @@ The Fill tool click (Shift+G from the Gradient tool, `CanvasWidget::flood_fill` 
 
 ## Free Transform modifiers
 
+Session steps and undo inside a pending transform: [free-transform.md](free-transform.md).
+
 Corner handles scale proportionally on their own and Shift releases the lock, matching Photoshop CC 2019 and later. The preference `input/shiftKeepsTransformAspect` (default `false`, Preferences > Tools, `preferencesTransformShiftAspectCheck`) restores the older pairing, where a plain corner drag distorts and Shift holds the ratio. It is a persisted identifier and rides the pen-input load/save/apply trio in main_window_preferences.cpp, so `configure_canvas` and the Preferences accept loop both push it onto every canvas. The session start status line reports the active pairing (both sentences are translated).
 
 - Both sessions decide through one predicate, `CanvasWidget::transform_drag_keeps_aspect(modifiers)` (canvas_widget_transform.cpp): `shift == shift_keeps_transform_aspect_`. The pixel session calls it from `update_free_transform_preview`, the path session from `handle_path_transform_move` (canvas_widget_vector_tools.cpp). The shared predicate keeps their modifier semantics from drifting apart: never reintroduce an inline `Qt::ShiftModifier` test for a resize. Only corners consult it; edge handles scale one axis in every mode. Shift on the rotate handle snaps to 15 degrees in both sessions (a separate modifier test in the same functions). Shift on the shape and marquee tools is an unrelated 1:1 shape constraint.

@@ -195,6 +195,22 @@ void MainWindow::undo() {
   if (canvas_ == nullptr || canvas_->pointer_gesture_active()) {
     return;
   }
+  // A pending Free Transform or Warp owns Undo (GitHub issue 225): it steps back
+  // through the session's drags. With no step left, an unchanged session cancels;
+  // one still holding a stage from before a mode switch stays, so Undo never
+  // reaches the document history behind an open transform.
+  if (canvas_->free_transform_active() || canvas_->warp_transform_active()) {
+    if (!canvas_->undo_transform_session_step() && !canvas_->transform_session_has_changes()) {
+      if (canvas_->warp_transform_active()) {
+        canvas_->cancel_warp_transform();
+      } else {
+        canvas_->cancel_free_transform();
+      }
+    }
+    refresh_options_bar();
+    update_undo_redo_actions();
+    return;
+  }
   finish_pending_shape_appearance_edit();
   finish_pending_layer_opacity_edit();
   finish_pending_layer_fill_opacity_edit();
@@ -211,6 +227,12 @@ void MainWindow::undo() {
 
 void MainWindow::redo() {
   if (canvas_ == nullptr || canvas_->pointer_gesture_active()) {
+    return;
+  }
+  if (canvas_->free_transform_active() || canvas_->warp_transform_active()) {
+    canvas_->redo_transform_session_step();
+    refresh_options_bar();
+    update_undo_redo_actions();
     return;
   }
   finish_pending_shape_appearance_edit();
@@ -579,11 +601,16 @@ void MainWindow::update_undo_redo_actions() {
     }
     return;
   }
+  // During a pending transform Undo always has something to do (a step back, or
+  // cancelling an unchanged session) and Redo follows the session's own steps.
+  const bool transform_session =
+      canvas_ != nullptr && (canvas_->free_transform_active() || canvas_->warp_transform_active());
   if (undo_action_ != nullptr) {
-    undo_action_->setEnabled(!current_session->history.undo_stack().empty());
+    undo_action_->setEnabled(transform_session || !current_session->history.undo_stack().empty());
   }
   if (redo_action_ != nullptr) {
-    redo_action_->setEnabled(!current_session->history.redo_stack().empty());
+    redo_action_->setEnabled(transform_session ? canvas_->transform_session_redo_step_count() > 0
+                                               : !current_session->history.redo_stack().empty());
   }
 }
 

@@ -5977,6 +5977,8 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
   canvas->set_transform_controls_changed_callback([this, canvas] {
     if (canvas == canvas_) {
       refresh_options_bar();
+      // Session steps (GitHub issue 225) change what Undo and Redo do.
+      update_undo_redo_actions();
     }
   });
   canvas->set_smart_object_transform_render_callback([this, canvas](LayerId id) -> bool {
