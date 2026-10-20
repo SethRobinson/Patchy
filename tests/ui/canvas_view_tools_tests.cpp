@@ -4869,9 +4869,10 @@ void ui_layer_folder_blend_mode_offers_pass_through() {
   // The folder's Blending Options list it first and show it.
   blend_rows::with_layer_style_blend_combo(
       window,
-      [pass_through](QComboBox& blend) {
-        CHECK(blend.itemData(0).toInt() == pass_through);
-        CHECK(blend.currentData().toInt() == pass_through);
+      [](QComboBox& blend) {
+        const auto folder_mode = static_cast<int>(patchy::BlendMode::PassThrough);
+        CHECK(blend.itemData(0).toInt() == folder_mode);
+        CHECK(blend.currentData().toInt() == folder_mode);
       },
       false);
 
@@ -4881,7 +4882,8 @@ void ui_layer_folder_blend_mode_offers_pass_through() {
   CHECK(blend_combo->currentText() == QStringLiteral("Normal"));
   CHECK(blend_combo->itemData(0).toInt() == normal);
   blend_rows::with_layer_style_blend_combo(
-      window, [pass_through](QComboBox& blend) { CHECK(blend.findData(pass_through) < 0); }, false);
+      window,
+      [](QComboBox& blend) { CHECK(blend.findData(static_cast<int>(patchy::BlendMode::PassThrough)) < 0); }, false);
   // Back on the folder, the panel offers it again.
   blend_rows::activate(window, ids.folder_id);
   CHECK(blend_combo->itemData(0).toInt() == pass_through);
