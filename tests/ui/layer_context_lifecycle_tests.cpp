@@ -50,6 +50,8 @@
 #include <QTest>
 #include <QTextEdit>
 #include <QTimer>
+#include <QPainter>
+#include <QScreen>
 #include <QScrollBar>
 #include <QSet>
 #include <QToolButton>
@@ -2996,6 +2998,82 @@ void ui_new_document_review_captures() {
   CHECK(reopened);
 }
 
+// New Document opens centered on the main window every time (Seth, October 2026): a spot
+// it was dragged to is neither saved nor restored, so it never reopens in a far corner.
+void ui_new_document_dialog_always_opens_centered() {
+  new_document_templates::clear_remembered_settings();
+  const auto group = QStringLiteral("dialogPositions/patchyNewDocumentDialog");
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.remove(group);
+  }
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto* screen = window.screen();
+  CHECK(screen != nullptr);
+  const auto available = screen != nullptr ? screen->availableGeometry() : QRect(0, 0, 1280, 800);
+  const auto corner = available.topLeft() + QPoint(3, 4);
+
+  // Where a centered dialog of this frame size lands: over the window's center, kept inside
+  // the screen's available area.
+  const auto centered_position = [&window, available](const QDialog& dialog) {
+    const auto frame = dialog.frameGeometry().size();
+    auto x = window.frameGeometry().center().x() - frame.width() / 2;
+    auto y = window.frameGeometry().center().y() - frame.height() / 2;
+    x = std::clamp(x, available.left(), std::max(available.left(), available.right() + 1 - frame.width()));
+    y = std::clamp(y, available.top(), std::max(available.top(), available.bottom() + 1 - frame.height()));
+    return QPoint(x, y);
+  };
+
+  // First open: centered; drag it to the corner and close it.
+  bool moved = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyNewDocumentDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    QApplication::processEvents();
+    CHECK((dialog->frameGeometry().topLeft() - centered_position(*dialog)).manhattanLength() <= 12);
+    dialog->move(corner);
+    QApplication::processEvents();
+    CHECK((dialog->pos() - corner).manhattanLength() <= 12);
+    moved = true;
+    dialog->reject();
+  });
+  require_action_by_text(window, QStringLiteral("New"))->trigger();
+  QApplication::processEvents();
+  CHECK(moved);
+  {
+    auto settings = patchy::ui::app_settings();
+    CHECK(!settings.value(group + QStringLiteral("/moved"), false).toBool());
+  }
+
+  // Reopened: centered on the window again, not in the corner.
+  bool reopened = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyNewDocumentDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    QApplication::processEvents();
+    CHECK((dialog->pos() - corner).manhattanLength() > 40);
+    CHECK((dialog->frameGeometry().topLeft() - centered_position(*dialog)).manhattanLength() <= 12);
+    // Review capture: the window with the dialog drawn where it opened.
+    auto shot = window.grab().toImage();
+    QPainter painter(&shot);
+    painter.drawImage(dialog->pos() - window.pos(), dialog->grab().toImage());
+    painter.end();
+    save_image_artifact("newdoc_centered_after_reopen", shot);
+    reopened = true;
+    dialog->reject();
+  });
+  require_action_by_text(window, QStringLiteral("New"))->trigger();
+  QApplication::processEvents();
+  CHECK(reopened);
+}
+
 void ui_new_document_dialog_remembers_unit() {
   QApplication::clipboard()->clear();
   SettingsValueRestorer restore_units(QStringLiteral("view/rulerUnits"));
@@ -3447,6 +3525,7 @@ std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
       {"ui_new_document_search_filters_every_group", ui_new_document_search_filters_every_group},
       {"ui_new_document_reopens_on_the_last_picked_group", ui_new_document_reopens_on_the_last_picked_group},
       {"ui_new_document_review_captures", ui_new_document_review_captures},
+      {"ui_new_document_dialog_always_opens_centered", ui_new_document_dialog_always_opens_centered},
       {"ui_new_document_dialog_remembers_unit", ui_new_document_dialog_remembers_unit},
       {"ui_new_document_opens_fit_to_view", ui_new_document_opens_fit_to_view},
       {"ui_new_document_background_starts_locked", ui_new_document_background_starts_locked},
