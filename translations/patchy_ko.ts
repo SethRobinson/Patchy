@@ -11488,6 +11488,19 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Double-click to edit this effect in the Layer Style dialog; right-click for its menu.</source>
         <translation>두 번 클릭하면 레이어 스타일 대화 상자에서 이 효과를 편집하고, 마우스 오른쪽 버튼을 클릭하면 메뉴가 열립니다.</translation>
     </message>
+    <message>
+        <source>Sharpen Edges</source>
+        <comment>Smart Filter</comment>
+        <translation>가장자리 선명하게</translation>
+    </message>
+    <message>
+        <source>Smart Sharpen</source>
+        <translation>고급 선명 효과</translation>
+    </message>
+    <message>
+        <source> (Amount %1%, Radius %2 px, Legacy)</source>
+        <translation> (양 %1%, 반경 %2 px, 레거시)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23272,6 +23285,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Edit %1...</source>
         <translation>%1 편집...</translation>
+    </message>
+    <message>
+        <source>Smart Sharpen</source>
+        <translation>고급 선명 효과</translation>
     </message>
 </context>
 <context>

@@ -349,6 +349,8 @@ struct SmartFilterDescriptorSpec {
   std::optional<RadialBlurSmartFilter> radial_blur;
   // Add Noise emits Dstr, Nose, Mnch, FlRs in that order.
   std::optional<AddNoiseSmartFilter> add_noise;
+  // Smart Sharpen (legacy Gaussian) writes amount and radius by stringID.
+  std::optional<SmartSharpenSmartFilter> smart_sharpen;
   // Adjustment commands (psd_smart_filter_adjustments.hpp) write their own Fltr keys.
   const AdjustmentSettings* adjustment{nullptr};
   // Filter Gallery entries (psd_smart_filter_gallery.hpp) patch their effects in place.
@@ -601,6 +603,21 @@ smart_filter_descriptor_spec(const SmartFilterEntry &entry) {
     spec.filter_name = "Filter Gallery";
     spec.filter_class_id = "GEfc";
     spec.filter_id = kFilterGalleryFilterId;
+  } else if (entry.kind == SmartFilterKind::SmartSharpen) {
+    const auto *sharpen =
+        std::get_if<SmartSharpenSmartFilter>(&entry.parameters);
+    if (sharpen == nullptr || !std::isfinite(sharpen->amount_percent) ||
+        sharpen->amount_percent < 1.0 || sharpen->amount_percent > 500.0 ||
+        !std::isfinite(sharpen->radius_pixels) ||
+        sharpen->radius_pixels < 0.1 || sharpen->radius_pixels > 1000.0) {
+      return std::nullopt;
+    }
+    spec.smart_sharpen = *sharpen;
+    spec.default_entry_name = "Smart Sharpen...";
+    spec.filter_name = "Smart Sharpen";
+    spec.filter_class_id = "smartSharpen";
+    spec.filter_class_id_long_form = true;
+    spec.filter_id = 887U;
   } else if (const auto *classic = parameterless_smart_filter_native(entry.kind);
              classic != nullptr) {
     // No Fltr object: filter_name and filter_class_id stay null.
@@ -734,6 +751,25 @@ make_smart_filter_entry_descriptor(const SmartFilterEntry &entry) {
                                                                      : "Bst ");
     add_smart_filter_value(*filter.object_value, "BlrQ", false,
                            smart_filter_enum("BlrQ", false, quality, false));
+  }
+  if (spec->smart_sharpen.has_value()) {
+    // Photoshop's legacy Smart Sharpen key order (October 2026 capture).
+    add_smart_filter_value(
+        *filter.object_value, "presetKind", true,
+        smart_filter_enum("presetKindType", true, "presetKindCustom", true));
+    add_smart_filter_value(*filter.object_value, "useLegacy", true,
+                           smart_filter_bool(true));
+    add_smart_filter_value(
+        *filter.object_value, "Amnt", false,
+        smart_filter_unit("#Prc", spec->smart_sharpen->amount_percent));
+    add_smart_filter_value(
+        *filter.object_value, "Rds ", false,
+        smart_filter_unit("#Pxl", spec->smart_sharpen->radius_pixels));
+    add_smart_filter_value(*filter.object_value, "noiseReduction", true,
+                           smart_filter_unit("#Prc", 0.0));
+    add_smart_filter_value(
+        *filter.object_value, "blur", true,
+        smart_filter_enum("blurType", true, "GsnB", false));
   }
   if (spec->add_noise.has_value()) {
     // Photoshop's Add Noise key order is Dstr, Nose (#Prc), Mnch, FlRs
@@ -1139,6 +1175,19 @@ bool patch_smart_filter_descriptor(
               : (spec->radial_blur->quality == RadialBlurQuality::Good
                      ? "Gd  "
                      : "Bst ");
+    }
+    if (spec->smart_sharpen.has_value()) {
+      auto *amount = mutable_value_either(*filter, "Amnt", "amount");
+      auto *radius = mutable_value_either(*filter, "Rds ", "radius");
+      if (amount == nullptr ||
+          amount->type != DescriptorValue::Type::UnitFloat ||
+          amount->unit != "#Prc" || radius == nullptr ||
+          radius->type != DescriptorValue::Type::UnitFloat ||
+          radius->unit != "#Pxl") {
+        return false;
+      }
+      amount->double_value = spec->smart_sharpen->amount_percent;
+      radius->double_value = spec->smart_sharpen->radius_pixels;
     }
     if (spec->add_noise.has_value()) {
       auto *distribution = mutable_value_either(*filter, "Dstr", "distribution");
@@ -1628,6 +1677,42 @@ std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
             entry.kind = SmartFilterKind::Median;
             entry.parameters = MedianSmartFilter{radius->double_value};
           }
+        } else {
+          entry_supported = false;
+        }
+      } else if (filter != nullptr && filter->class_id == "smartSharpen" &&
+                 entry.native_filter_id == 887U) {
+        // Only the legacy Gaussian case renders: Photoshop draws it as
+        // Unsharp Mask with threshold 0. Any other key, mode or value keeps
+        // the entry unmodeled (docs/patent-research-smart-sharpen.md).
+        const auto *legacy = descriptor_value(*filter, "useLegacy");
+        const auto *amount = descriptor_value(*filter, "Amnt");
+        const auto *radius = descriptor_value(*filter, "Rds ");
+        const auto *noise = descriptor_value(*filter, "noiseReduction");
+        const auto *blur = descriptor_value(*filter, "blur");
+        const auto known_keys_only = std::all_of(
+            filter->values.begin(), filter->values.end(), [](const auto &item) {
+              return item.first == "presetKind" || item.first == "useLegacy" ||
+                     item.first == "Amnt" || item.first == "Rds " ||
+                     item.first == "noiseReduction" || item.first == "blur";
+            });
+        if (known_keys_only && legacy != nullptr &&
+            legacy->type == DescriptorValue::Type::Bool && legacy->bool_value &&
+            blur != nullptr && blur->type == DescriptorValue::Type::Enum &&
+            blur->enum_value == "GsnB" && noise != nullptr &&
+            noise->type == DescriptorValue::Type::UnitFloat &&
+            noise->unit == "#Prc" && noise->double_value == 0.0 &&
+            amount != nullptr &&
+            amount->type == DescriptorValue::Type::UnitFloat &&
+            amount->unit == "#Prc" && std::isfinite(amount->double_value) &&
+            amount->double_value >= 1.0 && amount->double_value <= 500.0 &&
+            radius != nullptr &&
+            radius->type == DescriptorValue::Type::UnitFloat &&
+            radius->unit == "#Pxl" && std::isfinite(radius->double_value) &&
+            radius->double_value >= 0.1 && radius->double_value <= 1000.0) {
+          entry.kind = SmartFilterKind::SmartSharpen;
+          entry.parameters = SmartSharpenSmartFilter{amount->double_value,
+                                                     radius->double_value};
         } else {
           entry_supported = false;
         }

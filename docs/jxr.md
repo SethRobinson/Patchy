@@ -3,7 +3,9 @@
 Full record for the JPEG XR reader and writer. Read this before touching `jxr_document_io.*`
 or the tone-map constants. Registry and filter-table wiring rules live in
 [file-formats.md](file-formats.md); the no-vendored-codec boundary lives in
-[legal-constraints.md](legal-constraints.md).
+[legal-constraints.md](legal-constraints.md). Its basis: Patchy ships no JPEG XR codec, so no JPEG XR patent
+claim applies to the binary; the format is friendlier than HEVC (Open Specification Promise,
+2006-2009 priorities) but was never claim-reviewed, so there is no licence to vendor a codec.
 
 ## What the format is and why it is here
 
