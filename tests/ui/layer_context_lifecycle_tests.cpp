@@ -2573,6 +2573,7 @@ void clear_remembered_settings() {
 void ui_new_document_template_groups_hold_every_template() {
   using new_document_templates::card;
   using new_document_templates::card_ids;
+  SettingsValueRestorer last_category(QStringLiteral("newDocument/lastCategory"));
   QApplication::clipboard()->clear();
   new_document_templates::clear_remembered_settings();
   patchy::ui::MainWindow window;
@@ -2694,6 +2695,7 @@ void ui_new_document_template_groups_hold_every_template() {
 // one so Return creates it, and Escape or a chip brings back the groups.
 void ui_new_document_search_filters_every_group() {
   using new_document_templates::card_ids;
+  SettingsValueRestorer last_category(QStringLiteral("newDocument/lastCategory"));
   new_document_templates::clear_remembered_settings();
   {
     auto settings = patchy::ui::app_settings();
@@ -2848,6 +2850,75 @@ void ui_new_document_search_filters_every_group() {
   const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
   CHECK(document.width() == 32 && document.height() == 32);
   QApplication::clipboard()->clear();
+}
+
+// The dialog opens on the group the user picked last (newDocument/lastCategory), after a
+// cancel or a create alike; an unknown saved group falls back to the selected card's group.
+void ui_new_document_reopens_on_the_last_picked_group() {
+  SettingsValueRestorer last_category(QStringLiteral("newDocument/lastCategory"));
+  QApplication::clipboard()->clear();
+  new_document_templates::clear_remembered_settings();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  CHECK(tabs != nullptr);
+
+  // Opens the dialog, hands it to `drive`, and returns the chip that was checked on open.
+  const auto run_dialog = [&window](const std::function<void(QDialog&)>& drive) {
+    QString opened_on;
+    QTimer::singleShot(0, [&] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("patchyNewDocumentDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      for (auto* chip : dialog->findChildren<QToolButton*>()) {
+        if (chip->property("newDocumentChip").toBool() && chip->isChecked()) {
+          opened_on = chip->objectName();
+        }
+      }
+      drive(*dialog);
+    });
+    require_action_by_text(window, QStringLiteral("New"))->trigger();
+    QApplication::processEvents();
+    return opened_on;
+  };
+  const auto pick = [](QDialog& dialog, const char* chip_name) {
+    auto* chip = dialog.findChild<QToolButton*>(QLatin1String(chip_name));
+    CHECK(chip != nullptr);
+    if (chip != nullptr) {
+      chip->click();
+      QApplication::processEvents();
+    }
+  };
+
+  // Fresh settings open on Screen. Pick Print and cancel: Print opens next.
+  CHECK(run_dialog([&](QDialog& dialog) {
+          pick(dialog, "newDocumentPrintChip");
+          dialog.reject();
+        }) == QStringLiteral("newDocumentScreenChip"));
+  CHECK(patchy::ui::app_settings().value(QStringLiteral("newDocument/lastCategory")).toString() ==
+        QStringLiteral("print"));
+  const auto tabs_before = tabs != nullptr ? tabs->count() : 0;
+  CHECK(run_dialog([&](QDialog& dialog) {
+          auto* presets = dialog.findChild<QListWidget*>(QStringLiteral("newDocumentPresetList"));
+          CHECK(presets != nullptr && new_document_templates::card(*presets, QStringLiteral("print-a4")) != nullptr);
+          // Pick Web and create: Web opens next, on the Last Used card the create made.
+          pick(dialog, "newDocumentWebChip");
+          dialog.accept();
+        }) == QStringLiteral("newDocumentPrintChip"));
+  CHECK(tabs != nullptr && tabs->count() == tabs_before + 1);
+  CHECK(run_dialog([&](QDialog& dialog) {
+          auto* presets = dialog.findChild<QListWidget*>(QStringLiteral("newDocumentPresetList"));
+          CHECK(presets != nullptr && presets->currentItem() != nullptr &&
+                presets->currentItem()->data(patchy::ui::kNewDocumentPresetIdRole).toString() ==
+                    QStringLiteral("last-used"));
+          dialog.reject();
+        }) == QStringLiteral("newDocumentWebChip"));
+
+  // A saved group this build does not know falls back to the Last Used card's group.
+  patchy::ui::app_settings().setValue(QStringLiteral("newDocument/lastCategory"), QStringLiteral("no-such-group"));
+  CHECK(run_dialog([](QDialog& dialog) { dialog.reject(); }) == QStringLiteral("newDocumentScreenChip"));
 }
 
 void ui_new_document_dialog_remembers_unit() {
@@ -3299,6 +3370,7 @@ std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
       {"ui_new_document_dialog_remembers_last_settings", ui_new_document_dialog_remembers_last_settings},
       {"ui_new_document_template_groups_hold_every_template", ui_new_document_template_groups_hold_every_template},
       {"ui_new_document_search_filters_every_group", ui_new_document_search_filters_every_group},
+      {"ui_new_document_reopens_on_the_last_picked_group", ui_new_document_reopens_on_the_last_picked_group},
       {"ui_new_document_dialog_remembers_unit", ui_new_document_dialog_remembers_unit},
       {"ui_new_document_opens_fit_to_view", ui_new_document_opens_fit_to_view},
       {"ui_new_document_background_starts_locked", ui_new_document_background_starts_locked},

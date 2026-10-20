@@ -123,6 +123,36 @@ QString preset_category_chip_name(PresetCategory category) {
   return {};
 }
 
+// The template group tokens stored in newDocument/lastCategory - never rename.
+QString preset_category_token(PresetCategory category) {
+  switch (category) {
+    case PresetCategory::Screen:
+      return QStringLiteral("screen");
+    case PresetCategory::Mobile:
+      return QStringLiteral("mobile");
+    case PresetCategory::Social:
+      return QStringLiteral("social");
+    case PresetCategory::Web:
+      return QStringLiteral("web");
+    case PresetCategory::Print:
+      return QStringLiteral("print");
+    case PresetCategory::Photo:
+      return QStringLiteral("photo");
+    case PresetCategory::Icons:
+      return QStringLiteral("icons");
+  }
+  return {};
+}
+
+std::optional<PresetCategory> preset_category_from_token(const QString& token) {
+  for (const auto category : kPresetCategories) {
+    if (preset_category_token(category) == token) {
+      return category;
+    }
+  }
+  return std::nullopt;
+}
+
 struct NewDocumentPreset {
   QString id;  // persisted as newDocument/lastPresetId in user settings - never rename
   QString name;
@@ -968,6 +998,9 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
       return;
     }
     browsing_category = id;
+    // The group the user last picked opens next time, whether this dialog creates or cancels.
+    app_settings().setValue(QStringLiteral("newDocument/lastCategory"),
+                            preset_category_token(static_cast<PresetCategory>(id)));
     if (searching()) {
       // A chip picked during a search leaves the search for that group.
       const QSignalBlocker blocker(search);
@@ -1161,7 +1194,12 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   select_background_index_for(background_color);
   update_swatch();
 
-  if (auto* chip = chip_group->button(static_cast<int>(category_of_preset_id(current_preset_id))); chip != nullptr) {
+  // The group picked last opens again; before any pick (or with an unknown token), the
+  // group of the card the dialog selects.
+  const auto remembered_category =
+      preset_category_from_token(app_settings().value(QStringLiteral("newDocument/lastCategory")).toString());
+  const auto opening_category = remembered_category.value_or(category_of_preset_id(current_preset_id));
+  if (auto* chip = chip_group->button(static_cast<int>(opening_category)); chip != nullptr) {
     chip->setChecked(true);
   }
   if (auto* item = preset_list->currentItem(); item != nullptr) {
