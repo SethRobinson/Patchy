@@ -15,6 +15,7 @@
 #include "psd/psd_patterns.hpp"
 #include "psd/psd_document_io.hpp"
 #include "psd/psd_io_internal.hpp"
+#include "psd/psd_layer_effects.hpp"
 #include "core/contour_presets.hpp"
 #include "core/pattern_presets.hpp"
 #include "core/style_contour.hpp"
@@ -773,6 +774,132 @@ const patchy::LayerOuterGlow* first_enabled_outer_glow(const patchy::Layer& laye
 // size-40 dot (whose radius-20 expansion exercises the chamfer fallback) and a hard
 // spread-100 band whose corner arcs differ from the area-sampled disc by design, so its
 // bounds are looser.
+// Photoshop stores a color it holds at float precision as 'redFloat'/'greenFloat'/
+// 'blueFloat' doubles in 0..1 instead of the 0..255 'Rd  '/'Grn '/'Bl  ' keys (ag-psd's
+// float-color fixture; GitHub issue 264). Read through the byte keys such a color came
+// out black.
+void psd_lfx2_float_color_descriptor_reads_as_rgb() {
+  using patchy::psd::DescriptorObject;
+  using patchy::psd::DescriptorValue;
+  const auto number = [](double value) {
+    DescriptorValue item;
+    item.type = DescriptorValue::Type::Double;
+    item.double_value = value;
+    return item;
+  };
+  const auto boolean = [](bool value) {
+    DescriptorValue item;
+    item.type = DescriptorValue::Type::Bool;
+    item.bool_value = value;
+    return item;
+  };
+  const auto object = [](std::shared_ptr<DescriptorObject> value) {
+    DescriptorValue item;
+    item.type = DescriptorValue::Type::Object;
+    item.object_value = std::move(value);
+    return item;
+  };
+  auto color = std::make_shared<DescriptorObject>();
+  color->class_id = "RGBC";
+  color->values["redFloat"] = number(1.0000028610229492);
+  color->values["greenFloat"] = number(0.25);
+  color->values["blueFloat"] = number(-0.5);
+  auto glow = std::make_shared<DescriptorObject>();
+  glow->class_id = "OrGl";
+  glow->values["enab"] = boolean(true);
+  glow->values["Clr "] = object(color);
+  DescriptorObject root;
+  root.values["OrGl"] = object(glow);
+  const auto style = patchy::psd::layer_style_from_lefx_descriptor(root, nullptr);
+  CHECK(style.outer_glows.size() == 1);
+  CHECK(style.outer_glows.front().color.red == 255);
+  CHECK(style.outer_glows.front().color.green == 64);
+  CHECK(style.outer_glows.front().color.blue == 0);
+
+  // A disabled Satin never raises the "custom contour preserved until you edit"
+  // notice: it draws nothing, so nothing visible can be lost (the same fixture
+  // carries one with AntA on). An enabled one with the same keys still does.
+  const auto satin_root = [&](bool enabled) {
+    auto satin = std::make_shared<DescriptorObject>();
+    satin->class_id = "ChFX";
+    satin->values["enab"] = boolean(enabled);
+    satin->values["AntA"] = boolean(true);
+    DescriptorObject root_object;
+    root_object.values["ChFX"] = object(satin);
+    return patchy::psd::layer_style_from_lefx_descriptor(root_object, nullptr);
+  };
+  const auto disabled = satin_root(false);
+  CHECK(disabled.satins.size() == 1);
+  CHECK(!disabled.satins.front().enabled);
+  CHECK(!disabled.satins.front().unsupported_contour_options);
+  const auto enabled = satin_root(true);
+  CHECK(enabled.satins.size() == 1);
+  CHECK(enabled.satins.front().unsupported_contour_options);
+}
+
+// ag-psd's float-color/src.psd (GitHub issue 264): a 300 ppi document whose only enabled
+// effect is a white Lighten outer glow (size 59, spread 18, Range 50) on a type layer,
+// the color stored as redFloat/greenFloat/blueFloat. Photoshop's flatten of the file
+// (ps-flat.bmp, COM capture) pins the render away from the glyphs; the lone Satin record
+// is disabled with AntA on and must raise no dialog notice.
+void ag_psd_float_color_outer_glow_matches_photoshop_if_available() {
+  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "ag-psd" / "float-color";
+  patchy::test::skip_unless_exists(dir / "src.psd");
+  patchy::test::skip_unless_exists(dir / "ps-flat.bmp");
+  const auto document = patchy::psd::DocumentIo::read_file(dir / "src.psd");
+  const auto* layer = find_layer_named(document.layers(), "outer glow");
+  CHECK(layer != nullptr);
+  const auto& style = layer->layer_style();
+  const auto* glow = first_enabled_outer_glow(*layer);
+  CHECK(glow != nullptr);
+  CHECK(glow->color.red == 255 && glow->color.green == 255 && glow->color.blue == 255);
+  CHECK(glow->blend_mode == patchy::BlendMode::Lighten);
+  CHECK(close_float(glow->size, 59.0F));
+  CHECK(close_float(glow->spread, 18.0F));
+  CHECK(close_float(glow->opacity, 0.35F));
+  CHECK(close_float(glow->range, 50.0F));
+  CHECK(style.satins.size() == 1);
+  CHECK(!style.satins.front().enabled);
+  CHECK(!style.satins.front().unsupported_contour_options);
+  CHECK(std::none_of(style.satins.begin(), style.satins.end(),
+                     [](const patchy::LayerSatin& satin) { return satin.unsupported_contour_options; }));
+
+  const auto reference = patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(dir / "ps-flat.bmp"));
+  const auto actual = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(reference.width() == actual.width() && reference.height() == actual.height());
+  // The glyphs themselves come from Patchy's own text engine; compare the glow
+  // outside the type layer's pixel box (161,350)-(247,366) plus a 2 px margin.
+  const patchy::Rect glyph_box{159, 348, 90, 20};
+  std::uint64_t compared = 0;
+  std::uint64_t total_delta = 0;
+  std::uint64_t off_by_more_than_12 = 0;
+  int worst = 0;
+  for (std::int32_t y = 0; y < actual.height(); ++y) {
+    for (std::int32_t x = 0; x < actual.width(); ++x) {
+      if (x >= glyph_box.x && x < glyph_box.x + glyph_box.width && y >= glyph_box.y &&
+          y < glyph_box.y + glyph_box.height) {
+        continue;
+      }
+      const auto* a = reference.pixel(x, y);
+      const auto* b = actual.pixel(x, y);
+      const int delta = std::max({std::abs(a[0] - b[0]), std::abs(a[1] - b[1]), std::abs(a[2] - b[2])});
+      total_delta += static_cast<std::uint64_t>(delta);
+      worst = std::max(worst, delta);
+      if (delta > 12) {
+        ++off_by_more_than_12;
+      }
+      ++compared;
+    }
+  }
+  const double mean = static_cast<double>(total_delta) / static_cast<double>(compared);
+  const double share = static_cast<double>(off_by_more_than_12) / static_cast<double>(compared);
+  std::cout << "  float-color outer glow vs Photoshop: mean " << mean << ", worst " << worst << ", "
+            << off_by_more_than_12 << " pixels off by more than 12 (" << share * 100.0 << "%)\n";
+  // Before the float-color fix the glow was absent: mean 2.3, worst 89.
+  CHECK(mean <= 0.6);
+  CHECK(share <= 0.01);
+}
+
 void psd_photoshop_outer_glow_fixtures_match_render() {
   const auto range_path = patchy::test::committed_psd_fixture_path("photoshop-outer-glow-range.psd");
   const auto range_bmp = range_path.parent_path() / "photoshop-outer-glow-range.bmp";
@@ -2471,6 +2598,9 @@ std::vector<patchy::test::TestCase> pattern_styles_fixtures_tests() {
        psd_photoshop_pillow_emboss_fixtures_match_render},
       {"psd_photoshop_stroke_shapeburst_fixture_matches_render",
        psd_photoshop_stroke_shapeburst_fixture_matches_render},
+      {"psd_lfx2_float_color_descriptor_reads_as_rgb", psd_lfx2_float_color_descriptor_reads_as_rgb},
+      {"ag_psd_float_color_outer_glow_matches_photoshop_if_available",
+       ag_psd_float_color_outer_glow_matches_photoshop_if_available},
       {"psd_lrfx_legacy_drop_shadow_parses_fixed_point",
        psd_lrfx_legacy_drop_shadow_parses_fixed_point},
       {"psd_lfx2_charid_blend_mode_enum_parses", psd_lfx2_charid_blend_mode_enum_parses},
