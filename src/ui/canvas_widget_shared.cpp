@@ -431,8 +431,10 @@ QImage active_layer_sample_region(const Layer& layer, QRect region) {
 
 void apply_fill_settings(EditOptions& options, const CanvasWidget& canvas) {
   constexpr double kFillMaxFeatherPixels = 50.0;
+  // Opacity 0 is a valid setting (issue 253); callers return before painting at 0, so the alpha
+  // written here is never the core's 1/255 floor in disguise.
   options.primary.a = static_cast<std::uint8_t>(std::clamp(
-      std::lround(static_cast<double>(options.primary.a) * std::clamp(canvas.fill_opacity(), 1, 100) / 100.0), 1L,
+      std::lround(static_cast<double>(options.primary.a) * std::clamp(canvas.fill_opacity(), 0, 100) / 100.0), 0L,
       255L));
   options.fill_softness_feather = std::clamp(canvas.fill_softness(), 0, 100) / 100.0 * kFillMaxFeatherPixels;
   options.flood_tolerance = std::clamp(canvas.fill_tolerance(), 0, 255);

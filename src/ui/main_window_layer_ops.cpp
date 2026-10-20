@@ -3805,6 +3805,9 @@ void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
     return;
   }
 
+  if (canvas_->fill_opacity() <= 0) {
+    return;  // Fill Opacity 0% paints nothing (issue 253): no undo entry, no document change
+  }
   select_only_layer_if_none_active();
   const auto ids = selected_or_active_layer_ids();
   if (ids.empty()) {

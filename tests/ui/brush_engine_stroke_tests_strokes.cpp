@@ -3688,26 +3688,6 @@ void ui_zoomed_out_brush_stroke_patches_display_mips_in_place() {
 // arrow keys, the typed field and a label scrub all reach 0, in Dark and Light, and a stroke at
 // 0% Opacity or 0% Flow (Airbrush on or off; the Line tool and the Eraser too) leaves the layer
 // byte for byte untouched: no paint, no NaN, no assert. The last case proves the strokes paint.
-void save_options_bar_popup_artifact(const std::string& name, QWidget& window, QWidget& field,
-                                     QWidget& popup) {
-  ensure_artifact_dir();
-  // The popup is its own top-level window, so a window grab alone would not show it.
-  auto shot = window.grab().toImage();
-  const auto window_origin = window.mapToGlobal(QPoint(0, 0));
-  const auto popup_position = popup.mapToGlobal(QPoint(0, 0)) - window_origin;
-  {
-    QPainter painter(&shot);
-    painter.drawPixmap(popup_position, popup.grab());
-  }
-  const auto field_position = field.mapToGlobal(QPoint(0, 0)) - window_origin;
-  const auto crop = QRect(field_position, field.size())
-                        .united(QRect(popup_position, popup.size()))
-                        .adjusted(-170, -14, 48, 14)
-                        .intersected(shot.rect());
-  const auto path = QString::fromStdString((std::filesystem::path("test-artifacts") / (name + ".png")).string());
-  CHECK(shot.copy(crop).save(path));
-}
-
 void ui_brush_opacity_and_flow_accept_zero_and_paint_nothing() {
   ColorSchemeRestorer restore_scheme;
   for (const auto scheme :
@@ -3753,8 +3733,7 @@ void ui_brush_opacity_and_flow_accept_zero_and_paint_nothing() {
         patchy::ui::set_slider_to_value(*slider, slider->minimum());
         QApplication::processEvents();
         if (base_name == QStringLiteral("brushOpacity")) {
-          save_options_bar_popup_artifact("issue_253_opacity_popup_minimum_" + scheme_name, window, *spin,
-                                          *popup);
+          save_window_popup_artifact("issue_253_opacity_popup_minimum_" + scheme_name, window, *spin, *popup);
         }
         CHECK(slider->minimum() == 0);
         CHECK(spin->value() == 0);

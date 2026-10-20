@@ -3150,7 +3150,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   add_option_label(QT_TR_NOOP("Opacity:"), {CanvasTool::Fill});
   auto* fill_opacity = new QSpinBox(toolbar);
   fill_opacity->setObjectName(QStringLiteral("fillOpacitySpin"));
-  fill_opacity->setRange(1, 100);
+  fill_opacity->setRange(0, 100);  // 0..100 like the Brush bar's Opacity (issue 253); 0% fills nothing
   fill_opacity->setValue(canvas_defaults->fill_opacity());
   fill_opacity->setSuffix(percent_suffix());
   configure_toolbar_spinbox(fill_opacity, 52);
@@ -3158,7 +3158,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   auto* fill_opacity_slider = new QSlider(Qt::Horizontal, toolbar);
   fill_opacity_slider->setObjectName(QStringLiteral("fillOpacitySlider"));
   fill_opacity_slider->setProperty(kOptionsBarCollapsibleProperty, true);
-  fill_opacity_slider->setRange(1, 100);
+  fill_opacity_slider->setRange(0, 100);
   fill_opacity_slider->setValue(canvas_defaults->fill_opacity());
   fill_opacity_slider->setFixedWidth(120);
   bind_tooltip(fill_opacity_slider, QT_TR_NOOP("Fill opacity for the Fill tool and Fill shortcut"));
