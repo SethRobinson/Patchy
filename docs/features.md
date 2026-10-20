@@ -98,7 +98,7 @@ Patchy is not Photoshop-compatible across the full PSD surface yet, but a round-
 Important Photoshop features that are not supported yet, or are only partially supported:
 
 - Editable Smart Filters cover 13 filter types with paintable shared masks and per-filter opacity and blend modes; unsupported imported filter types (including the Blur Gallery and Liquify smart filters) remain preview-locked and byte-preserved
-- Full Photoshop adjustment-layer compatibility beyond Patchy's current adjustment support
+- Full Photoshop adjustment-layer compatibility beyond Patchy's current adjustment support: Vibrance, Black & White, Photo Filter, Channel Mixer, Color Lookup, Gradient Map, and Selective Color layers open as placeholders that show their kind and are saved unchanged, but have no effect yet
 - True CMYK and Lab editing, CMYK saves of edited PSD files, editable spot separations and RGB component channels, multi-channel overlays, OpenEXR/Radiance HDR files, and full color-management parity (Patchy edits in RGB and converts CMYK, Lab, Grayscale, and the other non-RGB modes to RGB on open; CMYK Proof mode, Proof Colors, and CMYK export of JPEG, TIFF, and flattened PDF cover print output, see [Color and print](#color-and-print))
 - 16 and 32-bit gaps: filters without a deep version run on an 8-bit copy at 16 bits (unchanged pixels keep full precision) and are disabled at 32 bits, as are Liquify and the Filter Gallery; Smart Object contents and their Smart Filters render at 8 bits; Spot Healing, Remove Object, and Patch heal at 8-bit precision
 - Layer comps, timeline/video editing, generative tools (animated GIF and WebP import, preview, and export are supported)

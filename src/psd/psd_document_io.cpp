@@ -649,9 +649,11 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
                                            float global_light_altitude, bool large_document,
                                            const CmykColorConverter& source_colors,
                                            bool& has_merged_transparency,
+                                           std::vector<std::string>* notices,
                                            std::size_t* damaged_rows, bool keep_depth,
                                            const ImportedTextFrames& text_frames) {
   has_merged_transparency = false;
+  bool has_adjustment_placeholders = false;
   // A deep file kept at its depth: color, transparency and mask planes are stored at
   // the file's depth here. 16-bit CMYK, Lab and profiled gray convert at depth too.
   const bool native_depth = keep_depth && (depth == 16 || depth == 32);
@@ -1055,6 +1057,16 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
                                                   : Layer(0, record.name, std::move(pixels));
     if (adjustment_settings.has_value()) {
       configure_adjustment_layer(layer, *adjustment_settings);
+    } else {
+      // A Photoshop adjustment kind Patchy cannot apply yet: an empty placeholder that keeps
+      // its native block (written back unchanged) and says what it is in the Layers panel.
+      for (const auto& block : record.additional_blocks) {
+        if (const auto* kind = photoshop_placeholder_adjustment_kind(block.key); kind != nullptr) {
+          layer.metadata()[kLayerMetadataAdjustmentPlaceholderKind] = kind;
+          has_adjustment_placeholders = true;
+          break;
+        }
+      }
     }
     if (adjustment_settings.has_value()) {
       // Photoshop writes adjustment layer records with an empty rect; Patchy's
@@ -1357,6 +1369,12 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
     decoded_layers.push_back(DecodedLayer{std::move(layer), record.section_divider_type});
   }
 
+  if (has_adjustment_placeholders && notices != nullptr) {
+    notices->push_back(PATCHY_TRANSLATE_NOOP(
+        "QObject",
+        "Some adjustment layers use kinds Patchy cannot apply yet (such as Vibrance, Black & White or "
+        "Gradient Map). They have no effect here and are saved unchanged."));
+  }
   return build_group_hierarchy(std::move(decoded_layers));
 }
 
@@ -1365,6 +1383,7 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
                                float global_light_altitude, bool large_document,
                                const CmykColorConverter& source_colors,
                                bool& has_merged_transparency,
+                               std::vector<std::string>* notices,
                                std::size_t* damaged_rows, bool keep_depth,
                                const ImportedTextFrames& text_frames) {
   has_merged_transparency = false;
@@ -1378,7 +1397,7 @@ std::vector<Layer> read_layers(BigEndianReader& layer_reader, std::int32_t canva
   const auto layer_info_end = layer_reader.position() + static_cast<std::size_t>(layer_info_length);
   auto layers = read_layer_info_records(layer_reader, canvas_width, canvas_height, source_color_mode, depth,
                                         global_light_angle, global_light_altitude, large_document, source_colors,
-                                        has_merged_transparency, damaged_rows, keep_depth, text_frames);
+                                        has_merged_transparency, notices, damaged_rows, keep_depth, text_frames);
   if (layer_reader.position() < layer_info_end) {
     layer_reader.skip(layer_info_end - layer_reader.position());
   }
@@ -1705,7 +1724,8 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     BigEndianReader layer_reader(layer_mask_payload);
     auto layers = read_layers(layer_reader, document.width(), document.height(), header.color_mode,
                               header.depth, global_light_angle, global_light_altitude, header.large_document,
-                              source_colors, has_merged_transparency, &damaged_rows, keep_depth, text_frames);
+                              source_colors, has_merged_transparency, options.notices, &damaged_rows, keep_depth,
+                              text_frames);
     const auto add_layer = [&document](const Layer& source) {
       document.add_layer(clone_layer_with_document_ids(document, source));
     };
@@ -1768,7 +1788,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
         auto deep_layers = read_layer_info_records(
             block_reader, document.width(), document.height(), header.color_mode, header.depth,
             global_light_angle, global_light_altitude, header.large_document, source_colors,
-            has_merged_transparency, &damaged_rows, keep_depth, text_frames);
+            has_merged_transparency, options.notices, &damaged_rows, keep_depth, text_frames);
         // Always Photoshop's bottom-to-top order: legacy Patchy never wrote these
         // blocks, so the legacy-order heuristic used for the standard section
         // could only misfire here.

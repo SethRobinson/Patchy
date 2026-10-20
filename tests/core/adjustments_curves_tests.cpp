@@ -3134,6 +3134,52 @@ void color_balance_tones_round_trip_metadata_and_blnc() {
   CHECK(!short_settings->color_balance.preserve_luminosity);
 }
 
+// Photoshop adjustment kinds Patchy cannot apply yet import as empty placeholder layers that
+// name their kind, raise one import notice, render nothing, and write their native block
+// back byte for byte (#250).
+void psd_unsupported_adjustments_import_as_placeholders_and_round_trip() {
+  const std::array<std::pair<std::array<char, 4>, const char*>, 7> kinds{{
+      {{'v', 'i', 'b', 'A'}, "vibrance"},
+      {{'b', 'l', 'w', 'h'}, "black_white"},
+      {{'p', 'h', 'f', 'l'}, "photo_filter"},
+      {{'m', 'i', 'x', 'r'}, "channel_mixer"},
+      {{'c', 'l', 'r', 'L'}, "color_lookup"},
+      {{'g', 'r', 'd', 'm'}, "gradient_map"},
+      {{'s', 'e', 'l', 'c'}, "selective_color"},
+  }};
+  const std::vector<std::uint8_t> payload{0x00, 0x01, 0x10, 0x20, 0x30, 0x40, 0x50, 0x60};
+  for (const auto& [key, kind] : kinds) {
+    const auto bytes = single_adjustment_layer_psd({{key, payload}});
+    std::vector<std::string> notices;
+    patchy::psd::ReadOptions options;
+    options.notices = &notices;
+    const auto document = patchy::psd::DocumentIo::read(bytes, options);
+    CHECK(document.layers().size() == 1);
+    const auto& layer = document.layers().front();
+    CHECK(layer.kind() == patchy::LayerKind::Pixel);
+    CHECK(patchy::adjustment_placeholder_kind(layer) == kind);
+    CHECK(std::count_if(notices.begin(), notices.end(), [](const std::string& notice) {
+            return notice.find("cannot apply yet") != std::string::npos;
+          }) == 1);
+
+    const auto resaved = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    const char key_text[5]{key[0], key[1], key[2], key[3], '\0'};
+    const auto block = psd_layer_block_payload(psd_layer_extra_data(resaved, 0), key_text);
+    CHECK(block.has_value());
+    CHECK(*block == payload);
+  }
+
+  // A plain empty layer is not a placeholder and raises no notice.
+  std::vector<std::string> notices;
+  patchy::psd::ReadOptions options;
+  options.notices = &notices;
+  const auto plain = patchy::psd::DocumentIo::read(single_adjustment_layer_psd({}), options);
+  CHECK(patchy::adjustment_placeholder_kind(plain.layers().front()).empty());
+  CHECK(std::none_of(notices.begin(), notices.end(), [](const std::string& notice) {
+    return notice.find("cannot apply yet") != std::string::npos;
+  }));
+}
+
 void psd_native_nvrt_adjustment_imports_and_renders() {
   const auto bytes = single_adjustment_layer_psd({{{'n', 'v', 'r', 't'}, {}}});
   const auto document = patchy::psd::DocumentIo::read(bytes);
@@ -3252,5 +3298,7 @@ std::vector<patchy::test::TestCase> adjustments_curves_tests() {
       {"color_balance_matches_photoshop_2026_calibration", color_balance_matches_photoshop_2026_calibration},
       {"color_balance_fixtures_render_like_photoshop", color_balance_fixtures_render_like_photoshop},
       {"color_balance_tones_round_trip_metadata_and_blnc", color_balance_tones_round_trip_metadata_and_blnc},
+      {"psd_unsupported_adjustments_import_as_placeholders_and_round_trip",
+       psd_unsupported_adjustments_import_as_placeholders_and_round_trip},
   };
 }

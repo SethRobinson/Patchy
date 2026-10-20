@@ -3373,6 +3373,64 @@ void ui_af_colour_balance_matches_affinity_render_if_available() {
   CHECK(worst <= 5);
 }
 
+// #250: an adjustment kind Patchy cannot apply yet shows a placeholder thumbnail whose
+// tooltip names the kind and says it is kept but not applied. With the local ag-psd sample
+// (skipped where absent) all seven of its unsupported kinds get one.
+void ui_adjustment_placeholders_name_their_kind_in_layers_panel() {
+  const auto placeholder_tooltips = [](patchy::ui::MainWindow& window) {
+    QStringList tooltips;
+    auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+    CHECK(layer_list != nullptr);
+    for (auto* label : layer_list->findChildren<QLabel*>()) {
+      if (label->toolTip().contains(QStringLiteral("cannot apply it yet"))) {
+        tooltips << label->toolTip();
+      }
+    }
+    return tooltips;
+  };
+  {
+    patchy::Document source(32, 24, patchy::PixelFormat::rgba8());
+    source.add_pixel_layer("Background", solid_pixels(32, 24, patchy::PixelFormat::rgba8(), QColor(90, 120, 150)));
+    patchy::Layer placeholder(source.allocate_layer_id(), "Vibrance 1", patchy::LayerKind::Pixel);
+    placeholder.metadata()[patchy::kLayerMetadataAdjustmentPlaceholderKind] = "vibrance";
+    source.add_layer(std::move(placeholder));
+    patchy::ui::MainWindow window;
+    window.add_document_session(std::move(source), QStringLiteral("Placeholder"));
+    show_window(window);
+    const auto tooltips = placeholder_tooltips(window);
+    CHECK(tooltips.size() == 1);
+    CHECK(tooltips.front().startsWith(QStringLiteral("Vibrance adjustment from Photoshop.")));
+  }
+
+  const auto sample = patchy::test::local_format_fixture_path("ag-psd-adjustments", "ag-psd-adjustments.psd");
+  patchy::test::skip_unless_exists(sample);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.resize(window.width(), std::max(window.height(), 1000));
+  patchy::ui::MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(sample));
+  QApplication::processEvents();
+  if (auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList")); layer_list != nullptr) {
+    save_widget_artifact("ui_adjustment_placeholders_layers_panel", *layer_list);
+  }
+  // Patchy's resave, for the Photoshop open check (docs/photoshop-com.md).
+  const auto resaved =
+      patchy::psd::DocumentIo::write_layered_rgb8(patchy::ui::MainWindowTestAccess::document(window));
+  ensure_artifact_dir();
+  QFile resave_file(QStringLiteral("test-artifacts/ag-psd-adjustments-patchy-resave.psd"));
+  CHECK(resave_file.open(QIODevice::WriteOnly));
+  CHECK(resave_file.write(reinterpret_cast<const char*>(resaved.data()), static_cast<qint64>(resaved.size())) ==
+        static_cast<qint64>(resaved.size()));
+  resave_file.close();
+  const auto tooltips = placeholder_tooltips(window);
+  CHECK(tooltips.size() == 7);
+  for (const auto* kind : {"Vibrance", "Black & White", "Photo Filter", "Channel Mixer", "Color Lookup",
+                           "Gradient Map", "Selective Color"}) {
+    CHECK(std::any_of(tooltips.begin(), tooltips.end(), [kind](const QString& tooltip) {
+      return tooltip.startsWith(QString::fromUtf8(kind) + QStringLiteral(" adjustment"));
+    }));
+  }
+}
+
 // The Tone combo retargets the three sliders to Shadows, Midtones or
 // Highlights and keeps every range's values; Preserve Luminosity starts checked
 // for a new layer, as in Photoshop. All of it lands on the adjustment layer (#250).
@@ -3594,6 +3652,8 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
        ui_curves_clipped_adjustment_reedit_disables_auto},
       {"ui_color_balance_dialog_adjusts_selected_pixels", ui_color_balance_dialog_adjusts_selected_pixels},
       {"ui_color_balance_dialog_tone_selector_edits_each_range", ui_color_balance_dialog_tone_selector_edits_each_range},
+      {"ui_adjustment_placeholders_name_their_kind_in_layers_panel",
+       ui_adjustment_placeholders_name_their_kind_in_layers_panel},
       {"ui_af_colour_balance_matches_affinity_render_if_available",
        ui_af_colour_balance_matches_affinity_render_if_available},
       {"ui_levels_exception_restores_preview_pixels_and_unlocks_edits", ui_levels_exception_restores_preview_pixels_and_unlocks_edits},

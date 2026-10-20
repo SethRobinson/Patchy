@@ -10987,6 +10987,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Preserve Luminosity</source>
         <translation>Zachowaj jasność</translation>
     </message>
+    <message>
+        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Vibrance, Black &amp; White or Gradient Map). They have no effect here and are saved unchanged.</source>
+        <translation>Niektóre warstwy dopasowania używają rodzajów, których Patchy nie potrafi jeszcze zastosować (np. Jaskrawość, Czarno-białe lub Mapa gradientu). Nie działają tutaj i są zapisywane bez zmian.</translation>
+    </message>
+    <message>
+        <source>Vibrance</source>
+        <translation>Jaskrawość</translation>
+    </message>
+    <message>
+        <source>Black &amp; White</source>
+        <translation>Czarno-białe</translation>
+    </message>
+    <message>
+        <source>Photo Filter</source>
+        <translation>Filtr fotograficzny</translation>
+    </message>
+    <message>
+        <source>Channel Mixer</source>
+        <translation>Mieszanie kanałów</translation>
+    </message>
+    <message>
+        <source>Color Lookup</source>
+        <translation>Wyszukiwanie koloru</translation>
+    </message>
+    <message>
+        <source>Gradient Map</source>
+        <translation>Mapa gradientu</translation>
+    </message>
+    <message>
+        <source>Selective Color</source>
+        <translation>Kolor selektywny</translation>
+    </message>
+    <message>
+        <source>%1 adjustment from Photoshop. Patchy cannot apply it yet: it has no effect here and is saved unchanged.</source>
+        <translation>Dopasowanie %1 z Photoshopa. Patchy nie potrafi go jeszcze zastosować: nie działa tutaj i jest zapisywane bez zmian.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

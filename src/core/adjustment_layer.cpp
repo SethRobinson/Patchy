@@ -685,6 +685,28 @@ RgbColor apply_color_balance(RgbColor color, const ColorBalanceAdjustment& setti
 
 }  // namespace
 
+const char* photoshop_placeholder_adjustment_kind(std::string_view block_key) noexcept {
+  static constexpr std::array<std::pair<std::string_view, const char*>, 7> kKinds{{
+      {"vibA", "vibrance"},
+      {"blwh", "black_white"},
+      {"phfl", "photo_filter"},
+      {"mixr", "channel_mixer"},
+      {"clrL", "color_lookup"},
+      {"grdm", "gradient_map"},
+      {"selc", "selective_color"},
+  }};
+  for (const auto& [key, kind] : kKinds) {
+    if (key == block_key) {
+      return kind;
+    }
+  }
+  return nullptr;
+}
+
+std::string_view adjustment_placeholder_kind(const Layer& layer) {
+  return metadata_string_or(layer, kLayerMetadataAdjustmentPlaceholderKind, {});
+}
+
 ColorBalanceTone ColorBalanceAdjustment::tone(ColorBalanceToneRange range) const noexcept {
   switch (range) {
     case ColorBalanceToneRange::Shadows:

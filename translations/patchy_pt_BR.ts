@@ -10953,6 +10953,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Preserve Luminosity</source>
         <translation>Preservar luminosidade</translation>
     </message>
+    <message>
+        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Vibrance, Black &amp; White or Gradient Map). They have no effect here and are saved unchanged.</source>
+        <translation>Algumas camadas de ajuste usam tipos que o Patchy ainda não consegue aplicar (como Vibratilidade, Preto e branco ou Mapa de gradiente). Elas não têm efeito aqui e são salvas sem alterações.</translation>
+    </message>
+    <message>
+        <source>Vibrance</source>
+        <translation>Vibratilidade</translation>
+    </message>
+    <message>
+        <source>Black &amp; White</source>
+        <translation>Preto e branco</translation>
+    </message>
+    <message>
+        <source>Photo Filter</source>
+        <translation>Filtro de fotos</translation>
+    </message>
+    <message>
+        <source>Channel Mixer</source>
+        <translation>Misturador de canais</translation>
+    </message>
+    <message>
+        <source>Color Lookup</source>
+        <translation>Pesquisa de cores</translation>
+    </message>
+    <message>
+        <source>Gradient Map</source>
+        <translation>Mapa de gradiente</translation>
+    </message>
+    <message>
+        <source>Selective Color</source>
+        <translation>Cor seletiva</translation>
+    </message>
+    <message>
+        <source>%1 adjustment from Photoshop. Patchy cannot apply it yet: it has no effect here and is saved unchanged.</source>
+        <translation>Ajuste %1 do Photoshop. O Patchy ainda não consegue aplicá-lo: ele não tem efeito aqui e é salvo sem alterações.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
