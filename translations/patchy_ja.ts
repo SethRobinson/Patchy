@@ -11024,6 +11024,26 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
         <translation>白黒: %1 / %2 / %3 / %4 / %5 / %6</translation>
     </message>
+    <message>
+        <source>Load LUT...</source>
+        <translation>LUT を読み込み...</translation>
+    </message>
+    <message>
+        <source>3D LUT:</source>
+        <translation>3D LUT:</translation>
+    </message>
+    <message>
+        <source>Load 3D LUT</source>
+        <translation>3D LUT を読み込み</translation>
+    </message>
+    <message>
+        <source>3D LUT files (*.cube *.3dl)</source>
+        <translation>3D LUT ファイル (*.cube *.3dl)</translation>
+    </message>
+    <message>
+        <source>%1 is not a 3D LUT Patchy can read.</source>
+        <translation>%1 は Patchy が読み込める 3D LUT ではありません。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22656,8 +22676,16 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>白黒をキャンセルしました</translation>
     </message>
     <message>
-        <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
-        <translation>カラールックアップ「%1」はファイルに保存されたとおりに適用されます。</translation>
+        <source>Color L&amp;ookup...</source>
+        <translation>カラールックアップ(&amp;O)...</translation>
+    </message>
+    <message>
+        <source>Color Lookup</source>
+        <translation>カラールックアップ</translation>
+    </message>
+    <message>
+        <source>Cancelled Color Lookup</source>
+        <translation>カラールックアップをキャンセルしました</translation>
     </message>
 </context>
 <context>

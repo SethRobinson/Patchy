@@ -83,6 +83,7 @@ using ChannelMixerSettings = ChannelMixerAdjustment;
 using PhotoFilterSettings = PhotoFilterAdjustment;
 using GradientMapSettings = GradientMapAdjustment;
 using BlackWhiteSettings = BlackWhiteAdjustment;
+using ColorLookupSettings = ColorLookupAdjustment;
 class GradientLibrary;
 using BrightnessContrastSettings = BrightnessContrastAdjustment;
 
@@ -191,6 +192,11 @@ void blend_by_selection_coverage(PixelBuffer& result, const PixelBuffer& origina
     PhotoFilterSettings initial = {});
 // The gradient editor of the layer style dialog without its placement controls. The library
 // feeds the Preset button (null disables it); foreground and background resolve preset stops.
+// Load LUT picks a .cube or .3dl file the user owns (docs/legal-constraints.md); without
+// one the lookup is identity.
+[[nodiscard]] std::optional<ColorLookupSettings> request_color_lookup_settings(
+    QWidget* parent, std::function<void(bool, const ColorLookupSettings&)> preview_changed = {},
+    ColorLookupSettings initial = {});
 [[nodiscard]] std::optional<BlackWhiteSettings> request_black_white_settings(
     QWidget* parent, std::function<void(bool, const BlackWhiteSettings&)> preview_changed = {},
     BlackWhiteSettings initial = {});

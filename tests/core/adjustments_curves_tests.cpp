@@ -3881,6 +3881,86 @@ void psd_color_lookup_renders_and_round_trips_clrL() {
   artifact.write(reinterpret_cast<const char*>(resaved.data()), static_cast<std::streamsize>(resaved.size()));
 }
 
+// LUT files a user picks (#250): a .cube (red fastest, comments and TITLE allowed, the
+// default domain only) and a .3dl (input row, then integer rows with blue fastest, scaled by
+// the implied output depth) both land in Patchy's red-fastest table, keep their bytes, and
+// embed them in a Patchy-made 'clrL' the way Photoshop does. Anything else is refused.
+void color_lookup_files_parse_and_embed() {
+  const std::string cube =
+      "# Patchy two-point probe\nTITLE \"two\"\nLUT_3D_SIZE 2\nDOMAIN_MIN 0 0 0\nDOMAIN_MAX 1.0 1.0 1.0\n"
+      "0 0 0\n1 0 0\n0 1 0\n1 1 0\n0 0 1\n1 0 1\n0 1 1\n.5 0.25 1e-1\n";
+  const auto bytes = [](const std::string& text) {
+    return std::vector<std::uint8_t>(text.begin(), text.end());
+  };
+  const auto cube_bytes = bytes(cube);
+  const auto parsed = patchy::parse_color_lookup_file(cube_bytes, ".CUBE");
+  CHECK(parsed.table != nullptr);
+  if (parsed.table == nullptr) {
+    return;
+  }
+  CHECK(parsed.table->size == 2);
+  CHECK(parsed.table->source_format == "cube");
+  CHECK(parsed.table->source == cube_bytes);
+  // The last row (red, green and blue all 1) holds 0.5, 0.25, 0.1.
+  CHECK(parsed.table->values[21] == 32768 && parsed.table->values[22] == 16384 && parsed.table->values[23] == 6554);
+  CHECK(parsed.table->values[3] == 65535 && parsed.table->values[4] == 0);  // red 1 maps to red
+  // Photoshop 2026 interpolates a two-point grid trilinearly: gray 128 through this look.
+  patchy::AdjustmentSettings two;
+  two.kind = patchy::AdjustmentKind::ColorLookup;
+  two.color_lookup.table = parsed.table;
+  CHECK((patchy::apply_adjustment_to_color(patchy::RgbColor{128, 128, 128}, two) == patchy::RgbColor{112, 104, 99}));
+
+  // A .3dl of the same look: 12-bit outputs, blue fastest.
+  const std::string three_dl = "0 1023\n0 0 0\n0 0 4095\n0 4095 0\n0 4095 4095\n"
+                               "4095 0 0\n4095 0 4095\n4095 4095 0\n2048 1024 410\n";
+  const auto from_3dl = patchy::parse_color_lookup_file(bytes(three_dl), "3dl");
+  CHECK(from_3dl.table != nullptr);
+  if (from_3dl.table != nullptr) {
+    CHECK(from_3dl.table->size == 2);
+    CHECK(from_3dl.table->source_format == "3dl");
+    // Red-fastest index 1 is red 1, green 0, blue 0: the .3dl row for (1, 0, 0) is 4095 0 0.
+    CHECK(from_3dl.table->values[3] == 65535 && from_3dl.table->values[4] == 0 && from_3dl.table->values[5] == 0);
+    CHECK(std::abs(static_cast<int>(from_3dl.table->values[21]) - 32776) <= 1);
+  }
+
+  for (const auto& [text, extension] : std::vector<std::pair<std::string, std::string>>{
+           {"LUT_1D_SIZE 2\n0 0 0\n1 1 1\n", "cube"},
+           {"LUT_3D_SIZE 2\n0 0 0\n", "cube"},
+           {"LUT_3D_SIZE 2\nDOMAIN_MAX 2 2 2\n", "cube"},
+           {"LUT_3D_SIZE 2\n0 0 zero\n", "cube"},
+           {cube, "look"},
+       }) {
+    const auto refused = patchy::parse_color_lookup_file(bytes(text), extension);
+    CHECK(refused.table == nullptr);
+    CHECK(!refused.error.empty());
+  }
+
+  // A Patchy-made lookup embeds the file: format, orders, data and name follow the profile.
+  patchy::ColorLookupAdjustment look;
+  look.table = parsed.table;
+  look.name = "two.cube";
+  const auto payload = patchy::psd::photoshop_color_lookup_payload(look, nullptr);
+  patchy::psd::BigEndianReader reader(payload);
+  CHECK(reader.read_u16() == 1U);
+  CHECK(reader.read_u32() == 16U);
+  const auto descriptor = patchy::psd::read_descriptor(reader);
+  const auto* format = patchy::psd::descriptor_value(descriptor, "LUTFormat");
+  CHECK(format != nullptr && format->enum_value == "LUTFormatCUBE");
+  const auto* data = patchy::psd::descriptor_value(descriptor, "LUT3DFileData");
+  CHECK(data != nullptr && data->raw_value == cube_bytes);
+  const auto* name = patchy::psd::descriptor_value(descriptor, "LUT3DFileName");
+  CHECK(name != nullptr && name->string_value == "two.cube");
+  CHECK(patchy::psd::descriptor_value(descriptor, "profile") != nullptr);
+  const auto reread = patchy::adjustment_settings_from_layer(
+      patchy::psd::DocumentIo::read(single_adjustment_layer_psd({{{'c', 'l', 'r', 'L'}, payload}})).layers().front());
+  CHECK(reread.has_value() && reread->color_lookup.table != nullptr && reread->color_lookup.name == "two.cube");
+
+  // The block, for the Photoshop open and render check (docs/photoshop-com.md).
+  std::filesystem::create_directories("test-artifacts");
+  std::ofstream artifact("test-artifacts/color-lookup-cube-patchy.clrL", std::ios::binary);
+  artifact.write(reinterpret_cast<const char*>(payload.data()), static_cast<std::streamsize>(payload.size()));
+}
+
 // Channel Mixer reads and writes Photoshop's 'mixr' block: the rows land on the right
 // outputs, monochrome keeps its gray mix, an unedited block re-emits byte for byte, and
 // the preset-name 'CgEd' goes once the mix is edited (#250).
@@ -4090,5 +4170,6 @@ std::vector<patchy::test::TestCase> adjustments_curves_tests() {
       {"psd_black_white_reads_and_writes_blwh", psd_black_white_reads_and_writes_blwh},
       {"black_white_matches_photoshop_2026_calibration", black_white_matches_photoshop_2026_calibration},
       {"psd_color_lookup_renders_and_round_trips_clrL", psd_color_lookup_renders_and_round_trips_clrL},
+      {"color_lookup_files_parse_and_embed", color_lookup_files_parse_and_embed},
   };
 }

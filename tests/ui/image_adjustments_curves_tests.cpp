@@ -19,6 +19,7 @@
 #include "render/compositor.hpp"
 #include "synthetic_dng.hpp"
 #include "test_harness.hpp"
+#include "unicode_path_names.hpp"
 #include "local_psd_fixtures.hpp"
 #include "formats/af_document_io.hpp"
 #include <QAction>
@@ -33,6 +34,7 @@
 #include <QImage>
 #include <QItemSelectionModel>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
 #include <QMouseEvent>
@@ -3578,6 +3580,80 @@ void ui_black_white_dialog_edits_weights_and_tint() {
   CHECK((settings->black_white.tint_color == patchy::RgbColor{40, 90, 220}));
 }
 
+// Layer > New Adjustment Layer > Color Lookup loads a .cube the user picks, here from a
+// Unicode path (the path rule for new file-reading entry points), and the table and the
+// file's name land on the new layer (#250).
+void ui_color_lookup_dialog_loads_a_lut_from_a_unicode_path() {
+  const auto dir = patchy::test::unicode_artifact_dir(u8"color-lookup");
+  const auto file = dir / std::filesystem::path(std::u8string(patchy::test::kUnicodeCombinedStem) + u8".cube");
+  {
+    std::ofstream out(file, std::ios::binary);
+    out << "LUT_3D_SIZE 2\n0 0 0\n1 0 0\n0 1 0\n1 1 0\n0 0 1\n1 0 1\n0 1 1\n0.5 0.25 0.1\n";
+  }
+  const auto file_name = patchy::ui::to_qstring(file.filename());
+
+  patchy::Document source(32, 24, patchy::PixelFormat::rgba8());
+  source.add_pixel_layer("Paint", solid_pixels(32, 24, patchy::PixelFormat::rgba8(), QColor(255, 255, 255)));
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(source), QStringLiteral("Look"));
+  show_window(window);
+  check_adjustment_kind_in_both_menus(window, "ColorLookupAdjustment", QObject::tr("Color L&ookup..."));
+
+  bool dialog_checked = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyColorLookupDialog")));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* load = dialog->findChild<QPushButton*>(QStringLiteral("colorLookupLoadButton"));
+    auto* name = dialog->findChild<QLabel*>(QStringLiteral("colorLookupNameLabel"));
+    CHECK(load != nullptr && name != nullptr);
+    if (load == nullptr || name == nullptr) {
+      dialog->reject();
+      return;
+    }
+    QTimer::singleShot(0, [&] {
+      auto* picker = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("colorLookupFileDialog")));
+      CHECK(picker != nullptr);
+      if (picker == nullptr) {
+        return;
+      }
+      picker->setDirectory(patchy::ui::to_qstring(dir));
+      if (auto* edit = picker->findChild<QLineEdit*>(QStringLiteral("fileNameEdit")); edit != nullptr) {
+        edit->setText(file_name);
+      }
+      QApplication::processEvents();
+      static_cast<QDialog*>(picker)->accept();
+    });
+    load->click();
+    CHECK(name->toolTip() == file_name);
+    save_widget_artifact("ui_color_lookup_dialog", *dialog);
+    dialog_checked = true;
+    dialog->accept();
+  });
+  require_action(window, "layerNewColorLookupAdjustmentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(dialog_checked);
+
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  CHECK(document.active_layer_id().has_value());
+  const auto* layer = document.find_layer(*document.active_layer_id());
+  CHECK(layer != nullptr);
+  if (layer != nullptr) {
+    const auto settings = patchy::adjustment_settings_from_layer(*layer);
+    CHECK(settings.has_value() && settings->kind == patchy::AdjustmentKind::ColorLookup);
+    CHECK(settings.has_value() && settings->color_lookup.table != nullptr);
+    CHECK(settings.has_value() && QString::fromStdString(settings->color_lookup.name) == file_name);
+    if (settings.has_value()) {
+      // White through the probe look is (0.5, 0.25, 0.1).
+      const auto white = patchy::apply_adjustment_to_color(patchy::RgbColor{255, 255, 255}, *settings);
+      CHECK((white == patchy::RgbColor{128, 64, 26}));
+    }
+  }
+  patchy::test::remove_test_scratch_tree(dir);
+}
+
 // The Photo Filter dialog starts on Photoshop's warming color at 25 % with Preserve
 // Luminosity on; its swatch opens Patchy's own picker, and the picked color, density and
 // checkbox all land on the new adjustment layer as Photoshop's Lab (#250).
@@ -3938,6 +4014,7 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
       {"ui_photo_filter_dialog_picks_color_and_density", ui_photo_filter_dialog_picks_color_and_density},
       {"ui_gradient_map_dialog_edits_gradient", ui_gradient_map_dialog_edits_gradient},
       {"ui_black_white_dialog_edits_weights_and_tint", ui_black_white_dialog_edits_weights_and_tint},
+      {"ui_color_lookup_dialog_loads_a_lut_from_a_unicode_path", ui_color_lookup_dialog_loads_a_lut_from_a_unicode_path},
       {"ui_adjustment_placeholders_name_their_kind_in_layers_panel",
        ui_adjustment_placeholders_name_their_kind_in_layers_panel},
       {"ui_af_colour_balance_matches_affinity_render_if_available",
