@@ -1,6 +1,6 @@
 # Adjustment calibration vs Photoshop
 
-Calibration record for adjustment-layer and auto-adjustment math: Brightness/Contrast (legacy and modern), Curves, Levels, Posterize, Exposure, adjustment layers of CMYK and Grayscale documents, the auto adjustments, and Hue/Saturation. Read this before touching src/core/adjustment_layer.*, src/core/adjustment_deep.* or src/filters/auto_levels_math.*.
+Calibration record for adjustment-layer and auto-adjustment math: Brightness/Contrast (legacy and modern), Curves, Levels, Posterize, Exposure, adjustment layers of CMYK and Grayscale documents, the auto adjustments, and Hue/Saturation. Read this before touching src/core/adjustment_layer.*, src/core/adjustment_deep.* or src/filters/auto_levels_math.*. The Photoshop kinds added for #250 (placeholders, Channel Mixer, Photo Filter and later ones) are in [adjustment-kinds.md](adjustment-kinds.md).
 Conventions: "PS" = Adobe Photoshop 2026 (version 27), the installed ground truth; every rule is pinned by PS COM captures unless noted. Fixtures named `photoshop-*` live in `test-fixtures/psd/`; `local-test-fixtures/` is machine-local. The COM workflow lives in [photoshop-com.md](photoshop-com.md).
 
 ## Brightness/Contrast legacy calibration
@@ -40,10 +40,6 @@ Fitted against Photoshop's renders of psd-tools' `adjustments/levels_rgb.psd` an
 - **Levels:** the component channel record runs FIRST, then Composite RGB (the Curves order), and the channel result reaches the composite stage unrounded. Within 2/255 everywhere on the render; composite-first is off by up to 52, and a byte-rounded intermediate has ten times the 2/255 misses. `apply_levels` (core) and `build_levels_luts` (ui/filter_workflows.cpp, the destructive command) both follow it. A master-only adjustment is unchanged.
 - **Posterize:** `floor(floor(value * levels / 256) * 255 / (levels - 1))`, byte-exact at 3, 7, 13 and 21 levels (3 levels give 0, 127, 255). Refuted: nearest-step rounding, and rounding the output step instead of truncating it. `posterize_channel_value` serves the adjustment layer and `patchy.filters.posterize` alike.
 
-## Placeholders
-
-Photoshop adjustment kinds Patchy cannot apply yet (`vibA`, `blwh`, `phfl`, `clrL`, `grdm`, `selc`) import as empty pixel layers marked `patchy.adjustment.placeholder_kind` (`photoshop_placeholder_adjustment_kind`): the Layers panel draws the kind's symbol on a muted frame and a tooltip says it is kept but not applied, one import notice covers the file, and the native block is written back byte for byte. A kind leaves this list when it gets a real `AdjustmentKind`.
-
 ## Color Balance
 
 Fitted on a Photoshop 2026 COM probe (#250): a 256-step gray ramp plus a 16-level RGB cube through 60 settings (each slider at +-100 and +50 per tone, both Preserve Luminosity states, extra magnitudes, two mixed sets; adjustment layer and destructive command agree). The model matches 783,311 of 783,360 probe values (49 off by one) and both committed fixtures, `photoshop-color-balance{,-full}.psd`, exactly. S, M, H are the shadows, midtones and highlights triples (cyan/red, magenta/green, yellow/blue).
@@ -54,14 +50,6 @@ Fitted on a Photoshop 2026 COM probe (#250): a 256-step gray ramp plus a 16-leve
 - 8-bit rounding: the black/white-point stage rounds to a whole level before the gamma, and the output rounds half up. Unrounded points, or half-to-even rounding, give hundreds of misses. 16/32-bit documents run the same record without the point rounding.
 - Refuted: tones applied one after another in any order (199 and more misses per mixed set), per-tone gammas multiplied instead of exponents summed, and Preserve Luminosity as a luminance restore after the shift (HSL lightness, Rec.601/709, PDF SetLum: hundreds of thousands of misses).
 - `color_balance_channel_levels` / `color_balance_transfer` (core) serve the adjustment layer, the destructive command and the deep path. A new Color Balance starts with Preserve Luminosity checked, as in Photoshop.
-
-## Channel Mixer
-
-`AdjustmentKind::ChannelMixer`, Photoshop's `mixr` block (44 bytes: u16 version 1, u16 monochrome, then four rows of int16 red, green, blue, unused, constant for the red, green and blue outputs and a fourth row Photoshop leaves zero; in monochrome the gray mix sits in the first row). An unedited block is written back byte for byte; an edited one drops the preset-name `CgEd` block. Fitted on a Photoshop 2026 COM probe (#250): the gray ramp plus RGB cube through 9 settings (layout markers, a channel swap, mixed and negative weights, constants, +-200 extremes, two monochrome mixes, 33/34% thirds). The model matches every probe value.
-
-- Each percentage, weights and constant alike, becomes `percent * 1024 / 100` truncated toward zero (`channel_mixer_weight`: 20% is 204, -71% is -727). An output channel is `(R*Wr + G*Wg + B*Wb + 255*Wc) / 1024`, rounded half up and clamped. Monochrome sends the gray row to all three channels.
-- Refuted: exact percentages with any rounding (hundreds to thousands of off-by-one values per setting: a 20% weight takes 153 to 30, not 31), weights floored instead of truncated (negative weights miss), and the constant as `round(c * 2.55)` or on a 1/256 scale.
-- Outputs mix channels, so there is no per-channel LUT; 16/32-bit documents use the same quantized weights without the rounding. Grayscale and CMYK documents keep this RGB math, as Hue/Saturation and Color Balance do: Photoshop's CMYK form (four ink rows) is not modeled.
 
 ## Exposure
 

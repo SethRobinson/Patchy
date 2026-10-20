@@ -16,6 +16,7 @@ previews still interpolate the converted RGB stops.
 - Classic applies the stored smoothness as cubic interpolation after destination-stop midpoint remapping.
 - Perceptual interpolates in OKLab.
 - Linear interpolates in linear-light RGB.
+- Gradient Map adjustments pass `ease_every_method`, which applies the Classic smoothness ease to the segment position for Perceptual and Linear too (Photoshop's map behavior; [adjustment-kinds.md](adjustment-kinds.md#gradient-map)). Fills and effects leave it off.
 - Dither uses fixed integer hashing and noise uses a clean-room model of Photoshop's noise output (below). Never substitute a standard-library random distribution: output must stay identical across toolchains.
 - Noise gradients render Photoshop's colors for a given `RndS`/`Smth`; see "Noise gradients".
 - Deep layers: the Gradient tool paints float colors through `EditOptions::deep_primary` (no banding), and gradient fill layers render a deep raster (`deep_gradient_fill_raster`, linear-light interpolation at 32 bits); see [high-bit-depth.md](high-bit-depth.md).

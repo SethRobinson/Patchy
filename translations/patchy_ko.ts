@@ -7000,10 +7000,6 @@ Flow: %6
         <translation>%3ppi에서 %1 x %2인치</translation>
     </message>
     <message>
-        <source>Clipboard does not contain an image</source>
-        <translation>클립보드에 이미지가 포함되어 있지 않습니다.</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>클립보드 이미지에서 문서 만들기</translation>
     </message>
@@ -10970,6 +10966,43 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Channel Mixer: monochrome %1 / %2 / %3, constant %4</source>
         <translation>채널 혼합: 단색 %1 / %2 / %3, 상수 %4</translation>
+    </message>
+    <message>
+        <source>Density</source>
+        <translation>농도</translation>
+    </message>
+    <message>
+        <source>Filter color</source>
+        <translation>필터 색상</translation>
+    </message>
+    <message>
+        <source>Filter Color:</source>
+        <translation>필터 색상:</translation>
+    </message>
+    <message>
+        <source>Filter Color</source>
+        <translation>필터 색상</translation>
+    </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation>그레이디언트 정지점 색상</translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation>포토 필터: 농도 %1%</translation>
+    </message>
+    <message>
+        <source>Gradient Map: %1</source>
+        <translation>그레이디언트 맵: %1</translation>
+    </message>
+    <message>
+        <source>Recent</source>
+        <comment>new document recent sizes</comment>
+        <translation>최근</translation>
+    </message>
+    <message>
+        <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
+        <translation>최근 문서의 설정: %3ppi에서 %1 x %2픽셀</translation>
     </message>
 </context>
 <context>
@@ -22565,6 +22598,30 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>New Fill or Adjustment Layer</source>
         <translation>새 채우기 또는 조정 레이어</translation>
+    </message>
+    <message>
+        <source>Photo &amp;Filter...</source>
+        <translation>포토 필터(&amp;F)...</translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation>그레이디언트 맵(&amp;G)...</translation>
+    </message>
+    <message>
+        <source>Photo Filter</source>
+        <translation>포토 필터</translation>
+    </message>
+    <message>
+        <source>Cancelled Photo Filter</source>
+        <translation>포토 필터를 취소했습니다</translation>
+    </message>
+    <message>
+        <source>Gradient Map</source>
+        <translation>그레이디언트 맵</translation>
+    </message>
+    <message>
+        <source>Cancelled Gradient Map</source>
+        <translation>그레이디언트 맵을 취소했습니다</translation>
     </message>
 </context>
 <context>

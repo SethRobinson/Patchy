@@ -6720,10 +6720,6 @@ Flusso: %6
         <translation>%1 x %2 in a %3 ppi</translation>
     </message>
     <message>
-        <source>Clipboard does not contain an image</source>
-        <translation>Gli appunti non contengono un&apos;immagine</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>Crea il documento dall&apos;immagine negli appunti</translation>
     </message>
@@ -11004,6 +11000,43 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Channel Mixer: monochrome %1 / %2 / %3, constant %4</source>
         <translation>Miscelatore canale: monocromatico %1 / %2 / %3, costante %4</translation>
+    </message>
+    <message>
+        <source>Density</source>
+        <translation>Densità</translation>
+    </message>
+    <message>
+        <source>Filter color</source>
+        <translation>Colore del filtro</translation>
+    </message>
+    <message>
+        <source>Filter Color:</source>
+        <translation>Colore del filtro:</translation>
+    </message>
+    <message>
+        <source>Filter Color</source>
+        <translation>Colore del filtro</translation>
+    </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation>Colore del punto della sfumatura</translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation>Filtro fotografico: densità %1%</translation>
+    </message>
+    <message>
+        <source>Gradient Map: %1</source>
+        <translation>Mappa sfumatura: %1</translation>
+    </message>
+    <message>
+        <source>Recent</source>
+        <comment>new document recent sizes</comment>
+        <translation>Recenti</translation>
+    </message>
+    <message>
+        <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
+        <translation>Le impostazioni di un documento recente: %1 x %2 px a %3 ppi</translation>
     </message>
 </context>
 <context>
@@ -22635,6 +22668,30 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
     <message>
         <source>New Fill or Adjustment Layer</source>
         <translation>Nuovo livello di riempimento o di regolazione</translation>
+    </message>
+    <message>
+        <source>Photo &amp;Filter...</source>
+        <translation>&amp;Filtro fotografico...</translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation>Mappa &amp;sfumatura...</translation>
+    </message>
+    <message>
+        <source>Photo Filter</source>
+        <translation>Filtro fotografico</translation>
+    </message>
+    <message>
+        <source>Cancelled Photo Filter</source>
+        <translation>Filtro fotografico annullato</translation>
+    </message>
+    <message>
+        <source>Gradient Map</source>
+        <translation>Mappa sfumatura</translation>
+    </message>
+    <message>
+        <source>Cancelled Gradient Map</source>
+        <translation>Mappa sfumatura annullata</translation>
     </message>
 </context>
 <context>

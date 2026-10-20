@@ -6710,10 +6710,6 @@ Flow: %6
         <translation>%1 x %2 英寸，%3 ppi</translation>
     </message>
     <message>
-        <source>Clipboard does not contain an image</source>
-        <translation>剪贴板中没有图像</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>使用剪贴板中的图像创建文档</translation>
     </message>
@@ -10970,6 +10966,43 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Channel Mixer: monochrome %1 / %2 / %3, constant %4</source>
         <translation>通道混合器: 单色 %1 / %2 / %3，常数 %4</translation>
+    </message>
+    <message>
+        <source>Density</source>
+        <translation>浓度</translation>
+    </message>
+    <message>
+        <source>Filter color</source>
+        <translation>滤镜颜色</translation>
+    </message>
+    <message>
+        <source>Filter Color:</source>
+        <translation>滤镜颜色:</translation>
+    </message>
+    <message>
+        <source>Filter Color</source>
+        <translation>滤镜颜色</translation>
+    </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation>渐变色标颜色</translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation>照片滤镜: 浓度 %1%</translation>
+    </message>
+    <message>
+        <source>Gradient Map: %1</source>
+        <translation>渐变映射: %1</translation>
+    </message>
+    <message>
+        <source>Recent</source>
+        <comment>new document recent sizes</comment>
+        <translation>最近</translation>
+    </message>
+    <message>
+        <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
+        <translation>最近文档的设置：%1 x %2 px，%3 ppi</translation>
     </message>
 </context>
 <context>
@@ -22565,6 +22598,30 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>New Fill or Adjustment Layer</source>
         <translation>新建填充或调整图层</translation>
+    </message>
+    <message>
+        <source>Photo &amp;Filter...</source>
+        <translation>照片滤镜(&amp;F)...</translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation>渐变映射(&amp;G)...</translation>
+    </message>
+    <message>
+        <source>Photo Filter</source>
+        <translation>照片滤镜</translation>
+    </message>
+    <message>
+        <source>Cancelled Photo Filter</source>
+        <translation>已取消照片滤镜</translation>
+    </message>
+    <message>
+        <source>Gradient Map</source>
+        <translation>渐变映射</translation>
+    </message>
+    <message>
+        <source>Cancelled Gradient Map</source>
+        <translation>已取消渐变映射</translation>
     </message>
 </context>
 <context>

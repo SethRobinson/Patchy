@@ -8,11 +8,15 @@
 #include "formats/acv_curves_io.hpp"
 #include "ui/blend_mode_ui.hpp"
 #include "ui/coalesced_preview_emitter.hpp"
+#include "ui/color_panel.hpp"
 #include "ui/curves_editor.hpp"
 #include "ui/curves_presets.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/qt_paths.hpp"
+#include "ui/theme_qss.hpp"
 #include "ui/filter_workflows_internal.hpp"
+#include "ui/gradient_stops_editor.hpp"
+#include "ui/layer_style_gradient_controls.hpp"
 
 #include <QAbstractItemView>
 #include <QButtonGroup>
@@ -34,6 +38,7 @@
 #include <QPainter>
 #include <QPaintEvent>
 #include <QPixmap>
+#include <QPointer>
 #include <QPolygonF>
 #include <QPushButton>
 #include <QRect>
@@ -1612,6 +1617,147 @@ std::optional<ChannelMixerSettings> request_channel_mixer_settings(
                            show_row(dialog, *state, spins);
                            flush_preview();
                          });
+      });
+}
+
+std::optional<PhotoFilterSettings> request_photo_filter_settings(
+    QWidget* parent, std::function<void(bool, const PhotoFilterSettings&)> preview_changed,
+    PhotoFilterSettings initial) {
+  // Color and Preserve Luminosity live outside the slider rows; the density spin is the
+  // only row, so build_settings reads the rest from this shared state.
+  auto state = std::make_shared<PhotoFilterSettings>(clamp_photo_filter(initial));
+  const auto build_settings = [state](const std::vector<QSpinBox*>& spins) {
+    auto settings = *state;
+    settings.density = spins.front()->value();
+    return clamp_photo_filter(settings);
+  };
+  return request_adjustment_settings_dialog<PhotoFilterSettings>(
+      parent, QStringLiteral("patchyPhotoFilterDialog"), QObject::tr("Photo Filter"),
+      QStringLiteral("photoFilterPreviewCheck"),
+      {{QObject::tr("Density"), QStringLiteral("photoFilterDensity"), 1, 100, state->density, QStringLiteral(" %")}},
+      build_settings, std::move(preview_changed), {},
+      [state](QDialog& dialog, QFormLayout* form, const std::vector<QSpinBox*>&,
+              const std::function<void()>& flush_preview) {
+        auto* swatch = new QPushButton(&dialog);
+        swatch->setObjectName(QStringLiteral("photoFilterColorButton"));
+        swatch->setAccessibleName(QObject::tr("Filter color"));
+        const auto show = [swatch, state] {
+          const auto color = photo_filter_color(*state);
+          set_themed_style(*swatch, color_button_style(QColor(color.red, color.green, color.blue)));
+        };
+        show();
+        form->insertRow(0, QObject::tr("Filter Color:"), swatch);
+
+        auto* preserve = new QCheckBox(QObject::tr("Preserve Luminosity"), &dialog);
+        preserve->setObjectName(QStringLiteral("photoFilterPreserveCheck"));
+        preserve->setChecked(state->preserve_luminosity);
+        form->addRow(QString(), preserve);
+
+        QObject::connect(preserve, &QCheckBox::toggled, &dialog, [state, flush_preview](bool checked) {
+          state->preserve_luminosity = checked;
+          flush_preview();
+        });
+        QObject::connect(swatch, &QPushButton::clicked, &dialog, [&dialog, swatch, state, show, flush_preview] {
+          // Picks preview live; Cancel puts the original color back.
+          const QPointer<QPushButton> alive(swatch);
+          const auto original = *state;
+          const auto apply = [alive, state, show, flush_preview](QColor picked) {
+            if (alive == nullptr) {
+              return;
+            }
+            *state = photo_filter_with_color(*state, RgbColor{static_cast<std::uint8_t>(picked.red()),
+                                                              static_cast<std::uint8_t>(picked.green()),
+                                                              static_cast<std::uint8_t>(picked.blue())});
+            show();
+            flush_preview();
+          };
+          const auto current = photo_filter_color(original);
+          const auto picked = request_patchy_color(&dialog, QColor(current.red, current.green, current.blue),
+                                                   QObject::tr("Filter Color"), apply);
+          if (picked.has_value()) {
+            apply(*picked);
+          } else if (alive != nullptr) {
+            state->lab_l = original.lab_l;
+            state->lab_a = original.lab_a;
+            state->lab_b = original.lab_b;
+            show();
+            flush_preview();
+          }
+        });
+      });
+}
+
+std::optional<GradientMapSettings> request_gradient_map_settings(
+    QWidget* parent, std::function<void(bool, const GradientMapSettings&)> preview_changed,
+    GradientMapSettings initial, GradientLibrary* library, RgbColor foreground, RgbColor background) {
+  // The editor's callbacks hold references into its context, so everything it points at
+  // lives here for the whole dialog. A gradient map has no batch edits.
+  struct Host {
+    std::vector<std::string> explicit_fields;
+    std::function<void()> reset_batch_capture;
+    std::shared_ptr<AppearanceEdits<LayerStyleSettings>> batch_edits =
+        std::make_shared<AppearanceEdits<LayerStyleSettings>>();
+    std::unique_ptr<layer_style_detail::LayerStyleGradientContext> context;
+    std::unique_ptr<layer_style_detail::LayerStyleGradientControls> controls;
+  };
+  auto host = std::make_shared<Host>();
+  const auto build_settings = [host, initial](const std::vector<QSpinBox*>&) {
+    GradientMapSettings settings = initial;
+    if (host->controls != nullptr) {
+      const auto value = host->controls->value();
+      auto& gradient = settings.gradient;
+      static_cast<GradientDefinition&>(gradient) = static_cast<const GradientDefinition&>(value);
+      gradient.form = GradientDefinitionForm::Solid;
+      gradient.reverse = value.reverse;
+      gradient.dither = value.dither;
+      gradient.interpolation = value.interpolation;
+    }
+    return settings;
+  };
+  return request_adjustment_settings_dialog<GradientMapSettings>(
+      parent, QStringLiteral("patchyGradientMapDialog"), QObject::tr("Gradient Map"),
+      QStringLiteral("gradientMapPreviewCheck"), {}, build_settings, std::move(preview_changed), {},
+      [host, initial, library, foreground, background](QDialog& dialog, QFormLayout* form,
+                                                       const std::vector<QSpinBox*>&,
+                                                       const std::function<void()>& flush_preview) {
+        host->context = std::make_unique<layer_style_detail::LayerStyleGradientContext>(
+            layer_style_detail::LayerStyleGradientContext{dialog, library, foreground, background, false,
+                                                          host->batch_edits, host->explicit_fields,
+                                                          host->reset_batch_capture,
+                                                          [](bool) { return std::string(); }});
+        host->controls = layer_style_detail::make_gradient_controls(
+            *host->context, form, &dialog, QStringLiteral("gradientMap"), initial.gradient,
+            QObject::tr("Gradient Stop Color"));
+        auto& controls = *host->controls;
+        // A gradient map uses the colors alone: no placement, no opacity, solid only.
+        const auto hide_row = [form](QWidget* widget) {
+          for (auto* current = widget; current != nullptr; current = current->parentWidget()) {
+            int row = -1;
+            QFormLayout::ItemRole role{};
+            form->getWidgetPosition(current, &row, &role);
+            if (row >= 0) {
+              form->setRowVisible(row, false);
+              return;
+            }
+          }
+        };
+        for (QWidget* widget : std::initializer_list<QWidget*>{
+                 controls.form_combo, controls.style_combo, controls.angle, controls.scale, controls.offset_x,
+                 controls.offset_y, controls.reset_alignment, controls.noise_controls}) {
+          if (widget != nullptr) {
+            hide_row(widget);
+          }
+        }
+        for (QWidget* widget : std::initializer_list<QWidget*>{controls.align, controls.stop_opacity_label,
+                                                               controls.stop_opacity}) {
+          if (widget != nullptr) {
+            widget->hide();
+          }
+        }
+        if (controls.editor != nullptr) {
+          controls.editor->set_opacity_track_enabled(false);
+        }
+        controls.changed = [flush_preview](bool) { flush_preview(); };
       });
 }
 

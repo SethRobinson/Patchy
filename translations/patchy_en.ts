@@ -6715,10 +6715,6 @@ Flow: %6
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Clipboard does not contain an image</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation type="unfinished"></translation>
     </message>
@@ -10987,6 +10983,43 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>Channel Mixer: monochrome %1 / %2 / %3, constant %4</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Density</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Filter color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Filter Color:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Filter Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gradient Map: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recent</source>
+        <comment>new document recent sizes</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -22557,6 +22590,30 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     </message>
     <message>
         <source>New Fill or Adjustment Layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Photo &amp;Filter...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Photo Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancelled Photo Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gradient Map</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancelled Gradient Map</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

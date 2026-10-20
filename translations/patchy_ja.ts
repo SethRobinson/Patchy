@@ -3447,10 +3447,6 @@ Flow: %6
         <translation>クリップボードの画像からドキュメントを作成</translation>
     </message>
     <message>
-        <source>Clipboard does not contain an image</source>
-        <translation>クリップボードに画像がありません</translation>
-    </message>
-    <message>
         <source>Choose background color</source>
         <translation>背景色を選択</translation>
     </message>
@@ -10970,6 +10966,43 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Channel Mixer: monochrome %1 / %2 / %3, constant %4</source>
         <translation>チャンネルミキサー: モノクロ %1 / %2 / %3、定数 %4</translation>
+    </message>
+    <message>
+        <source>Density</source>
+        <translation>適用量</translation>
+    </message>
+    <message>
+        <source>Filter color</source>
+        <translation>フィルターの色</translation>
+    </message>
+    <message>
+        <source>Filter Color:</source>
+        <translation>フィルターの色:</translation>
+    </message>
+    <message>
+        <source>Filter Color</source>
+        <translation>フィルターの色</translation>
+    </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation>グラデーションの分岐点の色</translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation>レンズフィルター: 適用量 %1%</translation>
+    </message>
+    <message>
+        <source>Gradient Map: %1</source>
+        <translation>グラデーションマップ: %1</translation>
+    </message>
+    <message>
+        <source>Recent</source>
+        <comment>new document recent sizes</comment>
+        <translation>最近使用</translation>
+    </message>
+    <message>
+        <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
+        <translation>最近のドキュメントの設定: %1 x %2 px、%3 ppi</translation>
     </message>
 </context>
 <context>
@@ -22565,6 +22598,30 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>New Fill or Adjustment Layer</source>
         <translation>新規塗りつぶしまたは調整レイヤー</translation>
+    </message>
+    <message>
+        <source>Photo &amp;Filter...</source>
+        <translation>レンズフィルター(&amp;F)...</translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation>グラデーションマップ(&amp;G)...</translation>
+    </message>
+    <message>
+        <source>Photo Filter</source>
+        <translation>レンズフィルター</translation>
+    </message>
+    <message>
+        <source>Cancelled Photo Filter</source>
+        <translation>レンズフィルターをキャンセルしました</translation>
+    </message>
+    <message>
+        <source>Gradient Map</source>
+        <translation>グラデーションマップ</translation>
+    </message>
+    <message>
+        <source>Cancelled Gradient Map</source>
+        <translation>グラデーションマップをキャンセルしました</translation>
     </message>
 </context>
 <context>

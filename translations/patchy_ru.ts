@@ -7026,10 +7026,6 @@ Flow: %6
         <translation>%1 x %2 дюйм при %3 пикс./дюйм</translation>
     </message>
     <message>
-        <source>Clipboard does not contain an image</source>
-        <translation>Буфер обмена не содержит изображения</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>Создайте документ из изображения буфера обмена.</translation>
     </message>
@@ -11038,6 +11034,43 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Channel Mixer: monochrome %1 / %2 / %3, constant %4</source>
         <translation>Микширование каналов: монохромно %1 / %2 / %3, константа %4</translation>
+    </message>
+    <message>
+        <source>Density</source>
+        <translation>Плотность</translation>
+    </message>
+    <message>
+        <source>Filter color</source>
+        <translation>Цвет фильтра</translation>
+    </message>
+    <message>
+        <source>Filter Color:</source>
+        <translation>Цвет фильтра:</translation>
+    </message>
+    <message>
+        <source>Filter Color</source>
+        <translation>Цвет фильтра</translation>
+    </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation>Цвет контрольной точки градиента</translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation>Фотофильтр: плотность %1%</translation>
+    </message>
+    <message>
+        <source>Gradient Map: %1</source>
+        <translation>Карта градиента: %1</translation>
+    </message>
+    <message>
+        <source>Recent</source>
+        <comment>new document recent sizes</comment>
+        <translation>Недавние</translation>
+    </message>
+    <message>
+        <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
+        <translation>Параметры недавнего документа: %1 x %2 пикселей при %3 пикселей на дюйм</translation>
     </message>
 </context>
 <context>
@@ -22705,6 +22738,30 @@ Patchy можно будет запускать из меню, а на пане�
     <message>
         <source>New Fill or Adjustment Layer</source>
         <translation>Новый слой заливки или корректирующий слой</translation>
+    </message>
+    <message>
+        <source>Photo &amp;Filter...</source>
+        <translation>&amp;Фотофильтр...</translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation>&amp;Карта градиента...</translation>
+    </message>
+    <message>
+        <source>Photo Filter</source>
+        <translation>Фотофильтр</translation>
+    </message>
+    <message>
+        <source>Cancelled Photo Filter</source>
+        <translation>Фотофильтр отменён</translation>
+    </message>
+    <message>
+        <source>Gradient Map</source>
+        <translation>Карта градиента</translation>
+    </message>
+    <message>
+        <source>Cancelled Gradient Map</source>
+        <translation>Карта градиента отменена</translation>
     </message>
 </context>
 <context>

@@ -7013,10 +7013,6 @@ Fluxo: %6
         <translation>%1 x %2 pol a %3 ppi</translation>
     </message>
     <message>
-        <source>Clipboard does not contain an image</source>
-        <translation>A área de transferência não contém uma imagem</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>Crie o documento a partir da imagem da área de transferência</translation>
     </message>
@@ -11004,6 +11000,43 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Channel Mixer: monochrome %1 / %2 / %3, constant %4</source>
         <translation>Misturador de canais: monocromático %1 / %2 / %3, constante %4</translation>
+    </message>
+    <message>
+        <source>Density</source>
+        <translation>Densidade</translation>
+    </message>
+    <message>
+        <source>Filter color</source>
+        <translation>Cor do filtro</translation>
+    </message>
+    <message>
+        <source>Filter Color:</source>
+        <translation>Cor do filtro:</translation>
+    </message>
+    <message>
+        <source>Filter Color</source>
+        <translation>Cor do filtro</translation>
+    </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation>Cor da parada do gradiente</translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation>Filtro de fotos: densidade %1%</translation>
+    </message>
+    <message>
+        <source>Gradient Map: %1</source>
+        <translation>Mapa de gradiente: %1</translation>
+    </message>
+    <message>
+        <source>Recent</source>
+        <comment>new document recent sizes</comment>
+        <translation>Recentes</translation>
+    </message>
+    <message>
+        <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
+        <translation>As configurações de um documento recente: %1 x %2 px a %3 ppi</translation>
     </message>
 </context>
 <context>
@@ -22635,6 +22668,30 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
     <message>
         <source>New Fill or Adjustment Layer</source>
         <translation>Nova camada de preenchimento ou de ajuste</translation>
+    </message>
+    <message>
+        <source>Photo &amp;Filter...</source>
+        <translation>&amp;Filtro de fotos...</translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation>Mapa de &amp;gradiente...</translation>
+    </message>
+    <message>
+        <source>Photo Filter</source>
+        <translation>Filtro de fotos</translation>
+    </message>
+    <message>
+        <source>Cancelled Photo Filter</source>
+        <translation>Filtro de fotos cancelado</translation>
+    </message>
+    <message>
+        <source>Gradient Map</source>
+        <translation>Mapa de gradiente</translation>
+    </message>
+    <message>
+        <source>Cancelled Gradient Map</source>
+        <translation>Mapa de gradiente cancelado</translation>
     </message>
 </context>
 <context>

@@ -6720,10 +6720,6 @@ Textfluss: %6
         <translation>%1 x %2 Zoll bei %3 ppi</translation>
     </message>
     <message>
-        <source>Clipboard does not contain an image</source>
-        <translation>Die Zwischenablage enthält kein Bild</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>Das Dokument aus dem Bild in der Zwischenablage erstellen</translation>
     </message>
@@ -11004,6 +11000,43 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Channel Mixer: monochrome %1 / %2 / %3, constant %4</source>
         <translation>Kanalmixer: monochrom %1 / %2 / %3, Konstante %4</translation>
+    </message>
+    <message>
+        <source>Density</source>
+        <translation>Dichte</translation>
+    </message>
+    <message>
+        <source>Filter color</source>
+        <translation>Filterfarbe</translation>
+    </message>
+    <message>
+        <source>Filter Color:</source>
+        <translation>Filterfarbe:</translation>
+    </message>
+    <message>
+        <source>Filter Color</source>
+        <translation>Filterfarbe</translation>
+    </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation>Farbe des Verlaufspunkts</translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation>Fotofilter: Dichte %1 %</translation>
+    </message>
+    <message>
+        <source>Gradient Map: %1</source>
+        <translation>Verlaufsumsetzung: %1</translation>
+    </message>
+    <message>
+        <source>Recent</source>
+        <comment>new document recent sizes</comment>
+        <translation>Kürzlich</translation>
+    </message>
+    <message>
+        <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
+        <translation>Die Einstellungen eines kürzlich erstellten Dokuments: %1 x %2 px bei %3 ppi</translation>
     </message>
 </context>
 <context>
@@ -22635,6 +22668,30 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
     <message>
         <source>New Fill or Adjustment Layer</source>
         <translation>Neue Füll- oder Einstellungsebene</translation>
+    </message>
+    <message>
+        <source>Photo &amp;Filter...</source>
+        <translation>&amp;Fotofilter...</translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation>&amp;Verlaufsumsetzung...</translation>
+    </message>
+    <message>
+        <source>Photo Filter</source>
+        <translation>Fotofilter</translation>
+    </message>
+    <message>
+        <source>Cancelled Photo Filter</source>
+        <translation>Fotofilter abgebrochen</translation>
+    </message>
+    <message>
+        <source>Gradient Map</source>
+        <translation>Verlaufsumsetzung</translation>
+    </message>
+    <message>
+        <source>Cancelled Gradient Map</source>
+        <translation>Verlaufsumsetzung abgebrochen</translation>
     </message>
 </context>
 <context>

@@ -7026,10 +7026,6 @@ Przepływ:%6
         <translation>%1 x %2 cale przy %3 ppi</translation>
     </message>
     <message>
-        <source>Clipboard does not contain an image</source>
-        <translation>Schowek nie zawiera obrazu</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>Utwórz dokument z obrazu schowka</translation>
     </message>
@@ -11038,6 +11034,43 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Channel Mixer: monochrome %1 / %2 / %3, constant %4</source>
         <translation>Mieszanie kanałów: monochromatyczne %1 / %2 / %3, stała %4</translation>
+    </message>
+    <message>
+        <source>Density</source>
+        <translation>Gęstość</translation>
+    </message>
+    <message>
+        <source>Filter color</source>
+        <translation>Kolor filtra</translation>
+    </message>
+    <message>
+        <source>Filter Color:</source>
+        <translation>Kolor filtra:</translation>
+    </message>
+    <message>
+        <source>Filter Color</source>
+        <translation>Kolor filtra</translation>
+    </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation>Kolor punktu gradientu</translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation>Filtr fotograficzny: gęstość %1%</translation>
+    </message>
+    <message>
+        <source>Gradient Map: %1</source>
+        <translation>Mapa gradientu: %1</translation>
+    </message>
+    <message>
+        <source>Recent</source>
+        <comment>new document recent sizes</comment>
+        <translation>Ostatnie</translation>
+    </message>
+    <message>
+        <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
+        <translation>Ustawienia niedawnego dokumentu: %1 x %2 px przy %3 ppi</translation>
     </message>
 </context>
 <context>
@@ -22705,6 +22738,30 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     <message>
         <source>New Fill or Adjustment Layer</source>
         <translation>Nowa warstwa wypełnienia lub dopasowania</translation>
+    </message>
+    <message>
+        <source>Photo &amp;Filter...</source>
+        <translation>&amp;Filtr fotograficzny...</translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation>Mapa &amp;gradientu...</translation>
+    </message>
+    <message>
+        <source>Photo Filter</source>
+        <translation>Filtr fotograficzny</translation>
+    </message>
+    <message>
+        <source>Cancelled Photo Filter</source>
+        <translation>Anulowano filtr fotograficzny</translation>
+    </message>
+    <message>
+        <source>Gradient Map</source>
+        <translation>Mapa gradientu</translation>
+    </message>
+    <message>
+        <source>Cancelled Gradient Map</source>
+        <translation>Anulowano mapę gradientu</translation>
     </message>
 </context>
 <context>
