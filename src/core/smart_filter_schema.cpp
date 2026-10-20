@@ -129,6 +129,20 @@ constexpr SmartFilterField kPolarFields[]{
      SmartFilterFieldType::Enum, "Cnvr", kPolarConversions, 0, 0, 0},
 };
 
+constexpr SmartFilterFieldOption kTraceContourEdges[]{
+    {"Lwr ", "lower", PATCHY_TRANSLATE_NOOP("QObject", "Lower")},
+    {"Upr ", "upper", PATCHY_TRANSLATE_NOOP("QObject", "Upper")},
+};
+
+// Trace Contour has no DOM method; Photoshop ran a descriptor carrying Lvl and
+// Edg without a prompt and stored exactly these two keys.
+constexpr SmartFilterField kTraceContourFields[]{
+    {"Lvl ", "level", PATCHY_TRANSLATE_NOOP("QObject", "Level"), SmartFilterFieldType::Integer,
+     nullptr, {}, 0, 255, 128, 0, 255, nullptr},
+    {"Edg ", "edge", PATCHY_TRANSLATE_NOOP("QObject", "Edge"), SmartFilterFieldType::Enum, "CntE",
+     kTraceContourEdges, 0, 0, 0},
+};
+
 constexpr std::array kSchemas{
     // Neither stores a Fltr object; the entry name has no ellipsis.
     SmartFilterSchema{SmartFilterKind::Solarize, "Slrz", false, 0x536c727aU, "Solarize",
@@ -162,6 +176,9 @@ constexpr std::array kSchemas{
                       "Polar Coordinates", "Polar Coordinates...",
                       PATCHY_TRANSLATE_NOOP("QObject", "Polar Coordinates"),
                       "patchy.smart_filters.polar_coordinates", kPolarFields},
+    SmartFilterSchema{SmartFilterKind::TraceContour, "TrcC", false, 0x54726343U, "Trace Contour",
+                      "Trace Contour...", PATCHY_TRANSLATE_NOOP("QObject", "Trace Contour"),
+                      "patchy.smart_filters.trace_contour", kTraceContourFields},
 };
 
 }  // namespace

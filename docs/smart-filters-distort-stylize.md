@@ -162,6 +162,19 @@ captures unless noted.
 - Fixtures (64x48, captured through the DOM): mean RGB 0.9-2.0 levels, alpha 0.4-2.6
   levels against PS; tests pin 3 and 3.
 
+### Trace Contour (`TrcC`, filterID `TrcC`)
+
+- No DOM method; a descriptor carrying `Lvl ` (integer 0..255) and `Edg ` (enum `CntE`:
+  `Lwr `, `Upr `) ran without a prompt and PS stored exactly those keys. Entry
+  `Trace Contour...`.
+- Byte-exact on value ramps at levels 0, 50, 128, 200, 255 and on noise, both edges. Per
+  straight RGB channel over the 4-neighborhood, edges clamped; ink 0, else 255:
+  - Upper: ink where `v <= Lvl` and a neighbor is `> Lvl`, and where `v == 255` and a
+    neighbor is not 255 (a second boundary PS draws at the top of the range).
+  - Lower: ink where `v >= Lvl` and a neighbor is `< Lvl`.
+- Alpha and bounds unchanged; straight (not matted) RGB, exact on soft alpha. Canvas
+  pixels outside the content read as transparent black.
+
 ## Fixtures
 
 `test-fixtures/psd/photoshop-smart-filter-<name>.psd`, self-authored through COM from a

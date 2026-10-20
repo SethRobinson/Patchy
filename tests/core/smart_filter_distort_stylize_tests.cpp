@@ -474,6 +474,10 @@ void psd_photoshop_distort_stylize_smart_filter_fixtures_round_trip_and_render()
       {"photoshop-smart-filter-spherize.psd", patchy::SmartFilterKind::Spherize, {80, 0}, 3.0, 3.0},
       {"photoshop-smart-filter-polar-coordinates.psd", patchy::SmartFilterKind::PolarCoordinates, {0},
        3.0, 3.0},
+      // Level 140, Upper. Byte-exact on opaque probes; two pixels beside fully transparent
+      // ones differ because PS's raster keeps different hidden RGB there.
+      {"photoshop-smart-filter-trace-contour.psd", patchy::SmartFilterKind::TraceContour, {140, 1},
+       0.5, 0.01},
   };
   for (const auto& fixture : fixtures) {
     check_schema_fixture(fixture);

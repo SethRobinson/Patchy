@@ -102,6 +102,7 @@ a554519ff1d35bae cb84563c9c4ef8cc photoshop-smart-filter-ripple.psd
 489cd8901c21cee4 430f739dc147208c photoshop-smart-filter-spherize.psd
 a249d71db1be5e65 f2bf42dce8c3d975 photoshop-smart-filter-surface-blur.psd
 9902247d97007efc 9a1663806ac7eb76 photoshop-smart-filter-tilt-shift.psd
+ae6e870fc913a65d fbfcfae69773fc26 photoshop-smart-filter-trace-contour.psd
 6cf653845ba7fe67 af91a1759dbfcb75 photoshop-smart-filter-twirl.psd
 397e22fa60481e89 dbfae9e1a8960a76 photoshop-smart-filter-unsharp-motion.psd
 e3330c6d08986f3e 554002ee9ac1fc0a photoshop-smart-filter-wave.psd

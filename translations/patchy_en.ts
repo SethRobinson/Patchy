@@ -11260,6 +11260,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Polar Coordinates</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Lower</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Upper</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Level</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Trace Contour</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

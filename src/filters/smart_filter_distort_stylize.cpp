@@ -605,6 +605,50 @@ FilterRenderResult render_polar_coordinates(const FilterRenderResult& input, Rec
   });
 }
 
+// Photoshop's Trace Contour (docs/smart-filters-distort-stylize.md), per
+// straight RGB channel over the 4-neighborhood (the canvas edge repeats; canvas
+// pixels outside the content read as transparent black). Upper inks a value at
+// or below the level next to one above it, and a 255 next to any other value;
+// Lower inks a value at or above the level next to one below it. Ink is 0, the
+// rest 255. Alpha and bounds are unchanged.
+FilterRenderResult render_trace_contour(const FilterRenderResult& input, Rect canvas,
+                                        std::int32_t level, bool upper,
+                                        const FilterProgress* progress) {
+  const auto source = embed_in_canvas(input, canvas);
+  FilterRenderResult result = input;
+  const auto value = [&](std::int32_t x, std::int32_t y, int channel) -> std::int32_t {
+    x = std::clamp(x, 0, canvas.width - 1);
+    y = std::clamp(y, 0, canvas.height - 1);
+    return source.pixel(x, y)[channel];
+  };
+  constexpr std::array<std::array<std::int32_t, 2>, 4> kNeighbors{{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}};
+  for (std::int32_t y = 0; y < input.bounds.height; ++y) {
+    if ((y & 31) == 0) {
+      report(progress, y, input.bounds.height, FilterProgressStage::DetectingEdges);
+    }
+    const auto canvas_y = input.bounds.y - canvas.y + y;
+    for (std::int32_t x = 0; x < input.bounds.width; ++x) {
+      const auto canvas_x = input.bounds.x - canvas.x + x;
+      auto* px = result.pixels.pixel(x, y);
+      for (int channel = 0; channel < 3; ++channel) {
+        const auto center = value(canvas_x, canvas_y, channel);
+        bool ink = false;
+        for (const auto& [dx, dy] : kNeighbors) {
+          const auto neighbor = value(canvas_x + dx, canvas_y + dy, channel);
+          if (upper) {
+            ink = ink || (center <= level && neighbor > level) || (center == 255 && neighbor != 255);
+          } else {
+            ink = ink || (center >= level && neighbor < level);
+          }
+        }
+        px[channel] = ink ? 0 : 255;
+      }
+    }
+  }
+  report(progress, input.bounds.height, input.bounds.height, FilterProgressStage::DetectingEdges);
+  return result;
+}
+
 }  // namespace
 
 FilterRenderResult render_schema_smart_filter(const FilterRenderResult& current,
@@ -642,6 +686,9 @@ FilterRenderResult render_schema_smart_filter(const FilterRenderResult& current,
                              progress);
     case SmartFilterKind::PolarCoordinates:
       return render_polar_coordinates(current, filter_canvas_bounds, settings.values[0], progress);
+    case SmartFilterKind::TraceContour:
+      return render_trace_contour(current, filter_canvas_bounds, settings.values[0],
+                                  settings.values[1] == 1, progress);
     default:
       break;
   }

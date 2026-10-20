@@ -102,6 +102,7 @@ c0a39197fc4785c3 photoshop-smart-filter-radial-blur.psd
 9c6e64d0c816e15a photoshop-smart-filter-spherize.psd
 f2bf42dce8c3d975 photoshop-smart-filter-surface-blur.psd
 9a1663806ac7eb76 photoshop-smart-filter-tilt-shift.psd
+e9da7fae842c6b4d photoshop-smart-filter-trace-contour.psd
 81faae2fb77fb291 photoshop-smart-filter-twirl.psd
 774b771808c21f09 photoshop-smart-filter-unsharp-motion.psd
 7cd920bf4b64a737 photoshop-smart-filter-wave.psd
