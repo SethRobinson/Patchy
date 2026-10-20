@@ -182,6 +182,8 @@ QString localized_adjustment_display_name(AdjustmentKind kind) {
       return QObject::tr("Black & White");
     case AdjustmentKind::ColorLookup:
       return QObject::tr("Color Lookup");
+    case AdjustmentKind::SelectiveColor:
+      return QObject::tr("Selective Color");
   }
   return QObject::tr("Adjustment");
 }

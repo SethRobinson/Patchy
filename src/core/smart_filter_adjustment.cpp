@@ -47,6 +47,8 @@ bool operator==(const AdjustmentSmartFilter& a, const AdjustmentSmartFilter& b) 
       return left.black_white == right.black_white;
     case AdjustmentKind::ColorLookup:
       return left.color_lookup == right.color_lookup;
+    case AdjustmentKind::SelectiveColor:
+      return left.selective_color == right.selective_color;
   }
   return false;
 }

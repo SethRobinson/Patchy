@@ -28,6 +28,11 @@ enum class SmartFilterKind {
   BoxBlur,
   RadialBlur,
   AddNoise,
+  // Table-described filters (core/smart_filter_schema.hpp); append only.
+  Solarize,
+  FindEdges,
+  ZigZag,
+  Wave,
   // Image > Adjustments applied to a Smart Object (Levels, Curves, ...); the
   // settings are an AdjustmentSmartFilter (docs/smart-filters-adjustments.md).
   Adjustment,
@@ -132,6 +137,12 @@ struct AddNoiseSmartFilter {
   bool operator==(const AddNoiseSmartFilter&) const = default;
 };
 
+// Settings of a table-described filter: one integer per schema field, in
+// Photoshop's descriptor key order (core/smart_filter_schema.hpp).
+struct SchemaSmartFilter {
+  std::vector<std::int32_t> values;
+  bool operator==(const SchemaSmartFilter&) const = default;
+};
 // An Image > Adjustments command stored as a Smart Filter. Photoshop keeps the
 // command's action descriptor (Lvls, Crvs, HStr, BrgC, ...) as the entry's Fltr
 // object; Patchy reads it into the adjustment-layer model and renders it with
@@ -151,7 +162,7 @@ using SmartFilterParameters =
                  MotionBlurSmartFilter, PlasticWrapSmartFilter,
                  MosaicSmartFilter, EmbossSmartFilter, BoxBlurSmartFilter,
                  RadialBlurSmartFilter, AddNoiseSmartFilter,
-                 AdjustmentSmartFilter>;
+                 SchemaSmartFilter, AdjustmentSmartFilter>;
 
 struct SmartFilterEntry {
   SmartFilterKind kind{SmartFilterKind::Unsupported};

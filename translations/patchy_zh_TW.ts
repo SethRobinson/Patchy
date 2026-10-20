@@ -11024,6 +11024,156 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
         <translation>黑白: %1 / %2 / %3 / %4 / %5 / %6</translation>
     </message>
+    <message>
+        <source>Load LUT...</source>
+        <translation>載入 LUT...</translation>
+    </message>
+    <message>
+        <source>3D LUT:</source>
+        <translation>3D LUT:</translation>
+    </message>
+    <message>
+        <source>Load 3D LUT</source>
+        <translation>載入 3D LUT</translation>
+    </message>
+    <message>
+        <source>3D LUT files (*.cube *.3dl)</source>
+        <translation>3D LUT 檔案 (*.cube *.3dl)</translation>
+    </message>
+    <message>
+        <source>%1 is not a 3D LUT Patchy can read.</source>
+        <translation>%1 不是 Patchy 可讀取的 3D LUT。</translation>
+    </message>
+    <message>
+        <source>Cyan</source>
+        <translation>青色</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>洋紅</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>黃色</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <comment>ink</comment>
+        <translation>黑色</translation>
+    </message>
+    <message>
+        <source>Whites</source>
+        <translation>白色</translation>
+    </message>
+    <message>
+        <source>Neutrals</source>
+        <translation>中性色</translation>
+    </message>
+    <message>
+        <source>Blacks</source>
+        <translation>黑色</translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <comment>selective color range</comment>
+        <translation>顏色:</translation>
+    </message>
+    <message>
+        <source>Relative</source>
+        <translation>相對</translation>
+    </message>
+    <message>
+        <source>Absolute</source>
+        <translation>絕對</translation>
+    </message>
+    <message>
+        <source>Selective Color: absolute</source>
+        <translation>選取顏色: 絕對</translation>
+    </message>
+    <message>
+        <source>Selective Color: relative</source>
+        <translation>選取顏色: 相對</translation>
+    </message>
+    <message>
+        <source>Around Center</source>
+        <translation>圍繞中心</translation>
+    </message>
+    <message>
+        <source>Out From Center</source>
+        <translation>從中心向外</translation>
+    </message>
+    <message>
+        <source>Pond Ripples</source>
+        <translation>水池波紋</translation>
+    </message>
+    <message>
+        <source>Ridges</source>
+        <translation>起伏</translation>
+    </message>
+    <message>
+        <source>Sine</source>
+        <translation>正弦</translation>
+    </message>
+    <message>
+        <source>Wrap Around</source>
+        <translation>折回</translation>
+    </message>
+    <message>
+        <source>Repeat Edge Pixels</source>
+        <translation>重複邊緣像素</translation>
+    </message>
+    <message>
+        <source>Generators</source>
+        <translation>產生器數目</translation>
+    </message>
+    <message>
+        <source>Wavelength Min</source>
+        <translation>最小波長</translation>
+    </message>
+    <message>
+        <source>Wavelength Max</source>
+        <translation>最大波長</translation>
+    </message>
+    <message>
+        <source>Amplitude Min</source>
+        <translation>最小波幅</translation>
+    </message>
+    <message>
+        <source>Amplitude Max</source>
+        <translation>最大波幅</translation>
+    </message>
+    <message>
+        <source>Horizontal Scale</source>
+        <translation>水平比例</translation>
+    </message>
+    <message>
+        <source>Vertical Scale</source>
+        <translation>垂直比例</translation>
+    </message>
+    <message>
+        <source>Undefined Areas</source>
+        <translation>未定義區域</translation>
+    </message>
+    <message>
+        <source>Solarize</source>
+        <translation>曝光過度</translation>
+    </message>
+    <message>
+        <source>Find Edges</source>
+        <translation>尋找邊緣</translation>
+    </message>
+    <message>
+        <source>ZigZag</source>
+        <translation>水波</translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation>開啟</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <translation>%1 %2</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22656,16 +22806,48 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>已取消黑白</translation>
     </message>
     <message>
-        <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
-        <translation>顏色查詢「%1」依檔案中儲存的方式套用。</translation>
+        <source>Color L&amp;ookup...</source>
+        <translation>顏色查詢(&amp;O)...</translation>
     </message>
     <message>
-        <source>Updated %1 Smart Filter</source>
-        <translation>已更新%1智慧型濾鏡</translation>
+        <source>Color Lookup</source>
+        <translation>顏色查詢</translation>
+    </message>
+    <message>
+        <source>Cancelled Color Lookup</source>
+        <translation>已取消顏色查詢</translation>
+    </message>
+    <message>
+        <source>&amp;Selective Color...</source>
+        <translation>選取顏色(&amp;S)...</translation>
+    </message>
+    <message>
+        <source>Selective Color</source>
+        <translation>選取顏色</translation>
+    </message>
+    <message>
+        <source>Cancelled Selective Color</source>
+        <translation>已取消選取顏色</translation>
+    </message>
+    <message>
+        <source>Add %1 Smart Filter</source>
+        <translation>新增%1智慧型濾鏡</translation>
     </message>
     <message>
         <source>Edit %1 Smart Filter</source>
         <translation>編輯%1智慧型濾鏡</translation>
+    </message>
+    <message>
+        <source>Added %1 as a Smart Filter</source>
+        <translation>已將%1新增為智慧型濾鏡</translation>
+    </message>
+    <message>
+        <source>Added another %1 Smart Filter</source>
+        <translation>已再新增一個%1智慧型濾鏡</translation>
+    </message>
+    <message>
+        <source>Updated %1 Smart Filter</source>
+        <translation>已更新%1智慧型濾鏡</translation>
     </message>
 </context>
 <context>

@@ -11024,6 +11024,156 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
         <translation>흑백: %1 / %2 / %3 / %4 / %5 / %6</translation>
     </message>
+    <message>
+        <source>Load LUT...</source>
+        <translation>LUT 불러오기...</translation>
+    </message>
+    <message>
+        <source>3D LUT:</source>
+        <translation>3D LUT:</translation>
+    </message>
+    <message>
+        <source>Load 3D LUT</source>
+        <translation>3D LUT 불러오기</translation>
+    </message>
+    <message>
+        <source>3D LUT files (*.cube *.3dl)</source>
+        <translation>3D LUT 파일 (*.cube *.3dl)</translation>
+    </message>
+    <message>
+        <source>%1 is not a 3D LUT Patchy can read.</source>
+        <translation>%1은(는) Patchy가 읽을 수 있는 3D LUT가 아닙니다.</translation>
+    </message>
+    <message>
+        <source>Cyan</source>
+        <translation>녹청</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>마젠타</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>노랑</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <comment>ink</comment>
+        <translation>검정</translation>
+    </message>
+    <message>
+        <source>Whites</source>
+        <translation>흰색 계열</translation>
+    </message>
+    <message>
+        <source>Neutrals</source>
+        <translation>중간 계열</translation>
+    </message>
+    <message>
+        <source>Blacks</source>
+        <translation>검정 계열</translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <comment>selective color range</comment>
+        <translation>색상:</translation>
+    </message>
+    <message>
+        <source>Relative</source>
+        <translation>상대치</translation>
+    </message>
+    <message>
+        <source>Absolute</source>
+        <translation>절대치</translation>
+    </message>
+    <message>
+        <source>Selective Color: absolute</source>
+        <translation>선택 색상: 절대치</translation>
+    </message>
+    <message>
+        <source>Selective Color: relative</source>
+        <translation>선택 색상: 상대치</translation>
+    </message>
+    <message>
+        <source>Around Center</source>
+        <translation>중심 둘레</translation>
+    </message>
+    <message>
+        <source>Out From Center</source>
+        <translation>중심에서 바깥쪽</translation>
+    </message>
+    <message>
+        <source>Pond Ripples</source>
+        <translation>연못 물결</translation>
+    </message>
+    <message>
+        <source>Ridges</source>
+        <translation>물결</translation>
+    </message>
+    <message>
+        <source>Sine</source>
+        <translation>사인파</translation>
+    </message>
+    <message>
+        <source>Wrap Around</source>
+        <translation>둘러싸기</translation>
+    </message>
+    <message>
+        <source>Repeat Edge Pixels</source>
+        <translation>가장자리 픽셀 반복</translation>
+    </message>
+    <message>
+        <source>Generators</source>
+        <translation>생성기 수</translation>
+    </message>
+    <message>
+        <source>Wavelength Min</source>
+        <translation>최소 파장</translation>
+    </message>
+    <message>
+        <source>Wavelength Max</source>
+        <translation>최대 파장</translation>
+    </message>
+    <message>
+        <source>Amplitude Min</source>
+        <translation>최소 진폭</translation>
+    </message>
+    <message>
+        <source>Amplitude Max</source>
+        <translation>최대 진폭</translation>
+    </message>
+    <message>
+        <source>Horizontal Scale</source>
+        <translation>가로 비율</translation>
+    </message>
+    <message>
+        <source>Vertical Scale</source>
+        <translation>세로 비율</translation>
+    </message>
+    <message>
+        <source>Undefined Areas</source>
+        <translation>정의되지 않은 영역</translation>
+    </message>
+    <message>
+        <source>Solarize</source>
+        <translation>솔라리제이션</translation>
+    </message>
+    <message>
+        <source>Find Edges</source>
+        <translation>가장자리 찾기</translation>
+    </message>
+    <message>
+        <source>ZigZag</source>
+        <translation>지그재그</translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation>켜기</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <translation>%1 %2</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22656,16 +22806,48 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>흑백을 취소했습니다</translation>
     </message>
     <message>
-        <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
-        <translation>색상 검색 &quot;%1&quot;은(는) 파일에 저장된 그대로 적용됩니다.</translation>
+        <source>Color L&amp;ookup...</source>
+        <translation>색상 검색(&amp;O)...</translation>
     </message>
     <message>
-        <source>Updated %1 Smart Filter</source>
-        <translation>%1 스마트 필터를 업데이트했습니다</translation>
+        <source>Color Lookup</source>
+        <translation>색상 검색</translation>
+    </message>
+    <message>
+        <source>Cancelled Color Lookup</source>
+        <translation>색상 검색을 취소했습니다</translation>
+    </message>
+    <message>
+        <source>&amp;Selective Color...</source>
+        <translation>선택 색상(&amp;S)...</translation>
+    </message>
+    <message>
+        <source>Selective Color</source>
+        <translation>선택 색상</translation>
+    </message>
+    <message>
+        <source>Cancelled Selective Color</source>
+        <translation>선택 색상을 취소했습니다</translation>
+    </message>
+    <message>
+        <source>Add %1 Smart Filter</source>
+        <translation>%1 스마트 필터 추가</translation>
     </message>
     <message>
         <source>Edit %1 Smart Filter</source>
         <translation>%1 스마트 필터 편집</translation>
+    </message>
+    <message>
+        <source>Added %1 as a Smart Filter</source>
+        <translation>%1을(를) 스마트 필터로 추가했습니다</translation>
+    </message>
+    <message>
+        <source>Added another %1 Smart Filter</source>
+        <translation>%1 스마트 필터를 하나 더 추가했습니다</translation>
+    </message>
+    <message>
+        <source>Updated %1 Smart Filter</source>
+        <translation>%1 스마트 필터를 업데이트했습니다</translation>
     </message>
 </context>
 <context>

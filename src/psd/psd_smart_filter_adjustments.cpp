@@ -558,6 +558,7 @@ std::optional<AdjustmentSettings> read_adjustment(const DescriptorObject& filter
     case AdjustmentKind::Invert:
     case AdjustmentKind::GradientMap:
     case AdjustmentKind::ColorLookup:
+    case AdjustmentKind::SelectiveColor:
       ok = false;
       break;
   }
@@ -802,6 +803,7 @@ bool append_adjustment_fields(DescriptorObject& object, const AdjustmentSettings
     case AdjustmentKind::Invert:
     case AdjustmentKind::GradientMap:
     case AdjustmentKind::ColorLookup:
+    case AdjustmentKind::SelectiveColor:
       return false;
   }
   return false;

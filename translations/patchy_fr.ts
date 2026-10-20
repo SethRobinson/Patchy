@@ -11058,6 +11058,156 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
         <translation>Noir et blanc : %1 / %2 / %3 / %4 / %5 / %6</translation>
     </message>
+    <message>
+        <source>Load LUT...</source>
+        <translation>Charger une LUT...</translation>
+    </message>
+    <message>
+        <source>3D LUT:</source>
+        <translation>LUT 3D :</translation>
+    </message>
+    <message>
+        <source>Load 3D LUT</source>
+        <translation>Charger une LUT 3D</translation>
+    </message>
+    <message>
+        <source>3D LUT files (*.cube *.3dl)</source>
+        <translation>Fichiers LUT 3D (*.cube *.3dl)</translation>
+    </message>
+    <message>
+        <source>%1 is not a 3D LUT Patchy can read.</source>
+        <translation>%1 n&apos;est pas une LUT 3D que Patchy sait lire.</translation>
+    </message>
+    <message>
+        <source>Cyan</source>
+        <translation>Cyan</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>Magenta</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>Jaune</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <comment>ink</comment>
+        <translation>Noir</translation>
+    </message>
+    <message>
+        <source>Whites</source>
+        <translation>Blancs</translation>
+    </message>
+    <message>
+        <source>Neutrals</source>
+        <translation>Neutres</translation>
+    </message>
+    <message>
+        <source>Blacks</source>
+        <translation>Noirs</translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <comment>selective color range</comment>
+        <translation>Couleurs :</translation>
+    </message>
+    <message>
+        <source>Relative</source>
+        <translation>Relative</translation>
+    </message>
+    <message>
+        <source>Absolute</source>
+        <translation>Absolue</translation>
+    </message>
+    <message>
+        <source>Selective Color: absolute</source>
+        <translation>Correction sélective : absolue</translation>
+    </message>
+    <message>
+        <source>Selective Color: relative</source>
+        <translation>Correction sélective : relative</translation>
+    </message>
+    <message>
+        <source>Around Center</source>
+        <translation>Autour du centre</translation>
+    </message>
+    <message>
+        <source>Out From Center</source>
+        <translation>À partir du centre</translation>
+    </message>
+    <message>
+        <source>Pond Ripples</source>
+        <translation>Ondulations de bassin</translation>
+    </message>
+    <message>
+        <source>Ridges</source>
+        <translation>Crêtes</translation>
+    </message>
+    <message>
+        <source>Sine</source>
+        <translation>Sinusoïde</translation>
+    </message>
+    <message>
+        <source>Wrap Around</source>
+        <translation>Bouclage</translation>
+    </message>
+    <message>
+        <source>Repeat Edge Pixels</source>
+        <translation>Répétition des pixels du contour</translation>
+    </message>
+    <message>
+        <source>Generators</source>
+        <translation>Générateurs</translation>
+    </message>
+    <message>
+        <source>Wavelength Min</source>
+        <translation>Longueur d&apos;onde min.</translation>
+    </message>
+    <message>
+        <source>Wavelength Max</source>
+        <translation>Longueur d&apos;onde max.</translation>
+    </message>
+    <message>
+        <source>Amplitude Min</source>
+        <translation>Amplitude min.</translation>
+    </message>
+    <message>
+        <source>Amplitude Max</source>
+        <translation>Amplitude max.</translation>
+    </message>
+    <message>
+        <source>Horizontal Scale</source>
+        <translation>Échelle horizontale</translation>
+    </message>
+    <message>
+        <source>Vertical Scale</source>
+        <translation>Échelle verticale</translation>
+    </message>
+    <message>
+        <source>Undefined Areas</source>
+        <translation>Zones non définies</translation>
+    </message>
+    <message>
+        <source>Solarize</source>
+        <translation>Solarisation</translation>
+    </message>
+    <message>
+        <source>Find Edges</source>
+        <translation>Tracé des contours</translation>
+    </message>
+    <message>
+        <source>ZigZag</source>
+        <translation>Zigzag</translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation>Activé</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <translation>%1 %2</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22695,7 +22845,7 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
     </message>
     <message>
         <source>&amp;Gradient Map...</source>
-        <translation>&amp;Courbe de transfert de dégradé...</translation>
+        <translation>C&amp;ourbe de transfert de dégradé...</translation>
     </message>
     <message>
         <source>Photo Filter</source>
@@ -22715,7 +22865,7 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
     </message>
     <message>
         <source>Blac&amp;k &amp;&amp; White...</source>
-        <translation>&amp;Noir et blanc...</translation>
+        <translation>Noi&amp;r et blanc...</translation>
     </message>
     <message>
         <source>Black &amp; White</source>
@@ -22726,16 +22876,48 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
         <translation>Noir et blanc annulé</translation>
     </message>
     <message>
-        <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
-        <translation>La correspondance de la couleur « %1 » est appliquée telle qu&apos;elle est enregistrée dans le fichier.</translation>
+        <source>Color L&amp;ookup...</source>
+        <translation>Corres&amp;pondance de la couleur...</translation>
     </message>
     <message>
-        <source>Updated %1 Smart Filter</source>
-        <translation>Filtre dynamique %1 mis à jour</translation>
+        <source>Color Lookup</source>
+        <translation>Correspondance de la couleur</translation>
+    </message>
+    <message>
+        <source>Cancelled Color Lookup</source>
+        <translation>Correspondance de la couleur annulée</translation>
+    </message>
+    <message>
+        <source>&amp;Selective Color...</source>
+        <translation>Correction s&amp;élective...</translation>
+    </message>
+    <message>
+        <source>Selective Color</source>
+        <translation>Correction sélective</translation>
+    </message>
+    <message>
+        <source>Cancelled Selective Color</source>
+        <translation>Correction sélective annulée</translation>
+    </message>
+    <message>
+        <source>Add %1 Smart Filter</source>
+        <translation>Ajouter le filtre dynamique %1</translation>
     </message>
     <message>
         <source>Edit %1 Smart Filter</source>
         <translation>Modifier le filtre dynamique %1</translation>
+    </message>
+    <message>
+        <source>Added %1 as a Smart Filter</source>
+        <translation>%1 ajouté comme filtre dynamique</translation>
+    </message>
+    <message>
+        <source>Added another %1 Smart Filter</source>
+        <translation>Un autre filtre dynamique %1 a été ajouté</translation>
+    </message>
+    <message>
+        <source>Updated %1 Smart Filter</source>
+        <translation>Filtre dynamique %1 mis à jour</translation>
     </message>
 </context>
 <context>

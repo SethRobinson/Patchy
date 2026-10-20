@@ -11042,6 +11042,156 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Load LUT...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>3D LUT:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Load 3D LUT</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>3D LUT files (*.cube *.3dl)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 is not a 3D LUT Patchy can read.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cyan</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <comment>ink</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Whites</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Neutrals</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blacks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <comment>selective color range</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Relative</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Absolute</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Selective Color: absolute</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Selective Color: relative</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Around Center</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Out From Center</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pond Ripples</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ridges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sine</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wrap Around</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Repeat Edge Pixels</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Generators</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wavelength Min</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wavelength Max</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Amplitude Min</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Amplitude Max</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Horizontal Scale</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Vertical Scale</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Undefined Areas</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Solarize</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Find Edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>ZigZag</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22649,15 +22799,47 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
+        <source>Color L&amp;ookup...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Updated %1 Smart Filter</source>
+        <source>Color Lookup</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancelled Color Lookup</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Selective Color...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Selective Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancelled Selective Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add %1 Smart Filter</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Edit %1 Smart Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Added %1 as a Smart Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Added another %1 Smart Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Updated %1 Smart Filter</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -8,6 +8,7 @@
 #include "core/layer.hpp"
 #include "filters/filter_registry.hpp"
 #include "core/smart_filter.hpp"
+#include "core/smart_filter_schema.hpp"
 #include "core/smart_object.hpp"
 #include "ui/hotkey_registry.hpp"
 #include "ui/main_window.hpp"
@@ -236,9 +237,131 @@ std::int32_t smart_filter_integer_from_invocation(
                    static_cast<std::int64_t>(maximum)));
 }
 
+// Table-described filters (core/smart_filter_schema.hpp): each field is one
+// invocation parameter, an integer, an option key, or a boolean. Hidden fields
+// (stored seeds) never reach the dialog and keep their stored value.
+void put_schema_invocation_parameters(FilterInvocation& invocation,
+                                      const SmartFilterSchema& schema,
+                                      const SchemaSmartFilter& settings) {
+  for (std::size_t index = 0; index < schema.fields.size(); ++index) {
+    const auto& field = schema.fields[index];
+    if (field.hidden || index >= settings.values.size()) {
+      continue;
+    }
+    const auto value = settings.values[index];
+    switch (field.type) {
+      case SmartFilterFieldType::Integer:
+        invocation.parameters[field.parameter_key] = static_cast<std::int64_t>(value);
+        break;
+      case SmartFilterFieldType::Boolean:
+        invocation.parameters[field.parameter_key] = value != 0;
+        break;
+      case SmartFilterFieldType::Enum:
+        if (value >= 0 && static_cast<std::size_t>(value) < field.options.size()) {
+          invocation.parameters[field.parameter_key] =
+              std::string(field.options[static_cast<std::size_t>(value)].parameter_value);
+        }
+        break;
+    }
+  }
+}
+
+SchemaSmartFilter schema_settings_from_invocation(const FilterInvocation& invocation,
+                                                  const SmartFilterSchema& schema,
+                                                  SchemaSmartFilter settings) {
+  if (settings.values.size() != schema.fields.size()) {
+    settings = default_schema_settings(schema);
+  }
+  for (std::size_t index = 0; index < schema.fields.size(); ++index) {
+    const auto& field = schema.fields[index];
+    if (field.hidden) {
+      continue;
+    }
+    auto& value = settings.values[index];
+    switch (field.type) {
+      case SmartFilterFieldType::Integer:
+        value = smart_filter_integer_from_invocation(invocation, field.parameter_key, value,
+                                                     field.minimum, field.maximum);
+        break;
+      case SmartFilterFieldType::Boolean:
+        value = smart_filter_boolean_from_invocation(invocation, field.parameter_key, value != 0)
+                    ? 1
+                    : 0;
+        break;
+      case SmartFilterFieldType::Enum: {
+        const auto option = smart_filter_option_from_invocation(invocation, field.parameter_key, {});
+        for (std::size_t option_index = 0; option_index < field.options.size(); ++option_index) {
+          if (option == field.options[option_index].parameter_value) {
+            value = static_cast<std::int32_t>(option_index);
+          }
+        }
+        break;
+      }
+    }
+  }
+  return settings;
+}
+
+FilterDialogSpec schema_dialog_spec(const SmartFilterSchema& schema) {
+  FilterDialogSpec spec;
+  spec.identifier = QString::fromLatin1(schema.invocation_id);
+  spec.display_name = translate_data_text(schema.display_name);
+  for (const auto& field : schema.fields) {
+    if (field.hidden) {
+      continue;
+    }
+    FilterControlSpec control;
+    control.label = translate_data_text(field.label);
+    // "filter" + the camel-cased parameter key, like the hand-written specs
+    // ("cell_size" -> "filterCellSize").
+    control.object_name = QStringLiteral("filter");
+    for (const auto& word : QString::fromLatin1(field.parameter_key).split(QLatin1Char('_'))) {
+      control.object_name += word.left(1).toUpper() + word.mid(1);
+    }
+    control.parameter_key = field.parameter_key;
+    switch (field.type) {
+      case SmartFilterFieldType::Integer:
+        control.kind = FilterParameterKind::Integer;
+        control.minimum = field.slider_minimum;
+        control.maximum = field.slider_maximum;
+        control.value = field.default_value;
+        control.default_value = static_cast<std::int64_t>(field.default_value);
+        control.typed_minimum = static_cast<double>(field.minimum);
+        control.typed_maximum = static_cast<double>(field.maximum);
+        control.step = 1.0;
+        if (field.suffix != nullptr) {
+          control.suffix = translate_data_text(field.suffix);
+        }
+        if (field.angle) {
+          control.presentation = FilterParameterPresentation::Angle;
+        }
+        break;
+      case SmartFilterFieldType::Boolean:
+        control.kind = FilterParameterKind::Boolean;
+        control.default_value = field.default_value != 0;
+        break;
+      case SmartFilterFieldType::Enum:
+        control.kind = FilterParameterKind::Option;
+        control.default_value =
+            std::string(field.options[static_cast<std::size_t>(field.default_value)].parameter_value);
+        for (const auto& option : field.options) {
+          control.options.push_back({option.parameter_value, option.label});
+        }
+        break;
+    }
+    spec.controls.push_back(std::move(control));
+  }
+  return spec;
+}
+
 FilterInvocation editable_smart_filter_invocation(SmartFilterKind kind) {
   FilterInvocation invocation;
   invocation.schema_version = 1U;
+  if (const auto* schema = find_smart_filter_schema(kind); schema != nullptr) {
+    invocation.filter_id = schema->invocation_id;
+    put_schema_invocation_parameters(invocation, *schema, default_schema_settings(*schema));
+    return invocation;
+  }
   if (kind == SmartFilterKind::SurfaceBlur) {
     invocation.filter_id = "patchy.smart_filters.surface_blur";
     invocation.parameters["radius"] = 5.0;
@@ -296,6 +419,9 @@ FilterInvocation editable_smart_filter_invocation(SmartFilterKind kind) {
 }
 
 FilterDialogSpec editable_smart_filter_dialog_spec(SmartFilterKind kind) {
+  if (const auto* schema = find_smart_filter_schema(kind); schema != nullptr) {
+    return schema_dialog_spec(*schema);
+  }
   const auto high_pass = kind == SmartFilterKind::HighPass;
   const auto median = kind == SmartFilterKind::Median;
   const auto dust = kind == SmartFilterKind::DustAndScratches;
@@ -611,6 +737,14 @@ SmartFilterStack smart_filter_stack_with_invocation(
     SmartFilterStack stack, std::size_t index,
     const FilterInvocation& invocation) {
   auto& entry = stack.entries.at(index);
+  if (const auto* schema = find_smart_filter_schema(entry.kind); schema != nullptr) {
+    const auto* current = std::get_if<SchemaSmartFilter>(&entry.parameters);
+    if (current == nullptr) {
+      throw std::invalid_argument("Smart Filter settings are unavailable");
+    }
+    entry.parameters = schema_settings_from_invocation(invocation, *schema, *current);
+    return stack;
+  }
   const auto radius = smart_filter_radius_from_invocation(invocation, 1.0);
   if (entry.kind == SmartFilterKind::GaussianBlur) {
     auto* gaussian =
@@ -766,6 +900,17 @@ SmartFilterEntry make_editable_smart_filter_entry(
   const auto radius = smart_filter_radius_from_invocation(invocation, 1.0);
   SmartFilterEntry entry;
   entry.kind = kind;
+  if (const auto* schema = find_smart_filter_schema(kind); schema != nullptr) {
+    entry.native_name = schema->entry_name;
+    entry.native_class_id = schema->class_id;
+    entry.native_filter_id = schema->filter_id;
+    entry.has_options = schema->has_filter_object;
+    entry.foreground = foreground;
+    entry.background = background;
+    entry.parameters =
+        schema_settings_from_invocation(invocation, *schema, default_schema_settings(*schema));
+    return entry;
+  }
   entry.native_name =
       radial   ? "Radial Blur..."
       : add_noise ? "Add Noise..."
@@ -1293,7 +1438,16 @@ void MainWindow::editable_smart_filter_dialog(
           tr("This Smart Filter can only be preserved, not edited"));
       return;
     }
-    if (kind == SmartFilterKind::GaussianBlur) {
+    if (const auto* schema = find_smart_filter_schema(kind); schema != nullptr) {
+      const auto* settings = std::get_if<SchemaSmartFilter>(
+          &stack.entries[filter_index].parameters);
+      if (settings == nullptr) {
+        show_status_error(
+            tr("This Smart Filter can only be preserved, not edited"));
+        return;
+      }
+      put_schema_invocation_parameters(initial_invocation, *schema, *settings);
+    } else if (kind == SmartFilterKind::GaussianBlur) {
       const auto* gaussian = std::get_if<GaussianBlurSmartFilter>(
           &stack.entries[filter_index].parameters);
       if (gaussian == nullptr) {
@@ -1613,9 +1767,13 @@ void MainWindow::editable_smart_filter_dialog(
                                 .united(to_qrect(original_bounds)));
   preview_cleanup.dismiss();
   preview_edit_lock.release();
+  const auto* table_schema = find_smart_filter_schema(kind);
+  const auto table_name =
+      table_schema != nullptr ? translate_data_text(table_schema->display_name) : QString();
   if (!settings.has_value()) {
     statusBar()->showMessage(
-        radial   ? tr("Cancelled Radial Blur")
+        table_schema != nullptr ? tr("Cancelled %1").arg(table_name)
+        : radial   ? tr("Cancelled Radial Blur")
         : add_noise ? tr("Cancelled Add Noise")
         : box      ? tr("Cancelled Box Blur")
         : emboss   ? tr("Cancelled Emboss")
@@ -1638,7 +1796,10 @@ void MainWindow::editable_smart_filter_dialog(
   candidate.entries[filter_index].opacity =
       std::clamp(blending_settings.opacity, 0.0, 1.0);
   const auto undo_text =
-      radial      ? (adding ? tr("Add Radial Blur Smart Filter")
+      table_schema != nullptr
+          ? (adding ? tr("Add %1 Smart Filter").arg(table_name)
+                    : tr("Edit %1 Smart Filter").arg(table_name))
+      : radial      ? (adding ? tr("Add Radial Blur Smart Filter")
                             : tr("Edit Radial Blur Smart Filter"))
       : add_noise   ? (adding ? tr("Add Add Noise Smart Filter")
                             : tr("Edit Add Noise Smart Filter"))
@@ -1665,7 +1826,12 @@ void MainWindow::editable_smart_filter_dialog(
                   : (adding ? tr("Add Gaussian Blur Smart Filter")
                             : tr("Edit Gaussian Blur Smart Filter"));
   const auto status_text =
-      radial   ? (adding ? (creating_stack
+      table_schema != nullptr
+          ? (adding ? (creating_stack
+                           ? tr("Added %1 as a Smart Filter").arg(table_name)
+                           : tr("Added another %1 Smart Filter").arg(table_name))
+                    : tr("Updated %1 Smart Filter").arg(table_name))
+      : radial   ? (adding ? (creating_stack
                                 ? tr("Added Radial Blur as a Smart Filter")
                                 : tr("Added another Radial Blur Smart Filter"))
                          : tr("Updated Radial Blur Smart Filter"))

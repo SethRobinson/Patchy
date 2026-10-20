@@ -147,6 +147,7 @@ int main(int argc, char** argv) {
            smart_objects_warp_tests,
            smart_filter_pixels_tests,
            smart_filter_descriptors_tests,
+           smart_filter_distort_stylize_tests,
            smart_filter_adjustment_tests,
            psd_writer_stability_tests,
            pattern_styles_fixtures_tests,

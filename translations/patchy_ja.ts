@@ -11024,6 +11024,156 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
         <translation>白黒: %1 / %2 / %3 / %4 / %5 / %6</translation>
     </message>
+    <message>
+        <source>Load LUT...</source>
+        <translation>LUT を読み込み...</translation>
+    </message>
+    <message>
+        <source>3D LUT:</source>
+        <translation>3D LUT:</translation>
+    </message>
+    <message>
+        <source>Load 3D LUT</source>
+        <translation>3D LUT を読み込み</translation>
+    </message>
+    <message>
+        <source>3D LUT files (*.cube *.3dl)</source>
+        <translation>3D LUT ファイル (*.cube *.3dl)</translation>
+    </message>
+    <message>
+        <source>%1 is not a 3D LUT Patchy can read.</source>
+        <translation>%1 は Patchy が読み込める 3D LUT ではありません。</translation>
+    </message>
+    <message>
+        <source>Cyan</source>
+        <translation>シアン</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>マゼンタ</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>イエロー</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <comment>ink</comment>
+        <translation>ブラック</translation>
+    </message>
+    <message>
+        <source>Whites</source>
+        <translation>ホワイト系</translation>
+    </message>
+    <message>
+        <source>Neutrals</source>
+        <translation>ニュートラル系</translation>
+    </message>
+    <message>
+        <source>Blacks</source>
+        <translation>ブラック系</translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <comment>selective color range</comment>
+        <translation>カラー:</translation>
+    </message>
+    <message>
+        <source>Relative</source>
+        <translation>相対値</translation>
+    </message>
+    <message>
+        <source>Absolute</source>
+        <translation>絶対値</translation>
+    </message>
+    <message>
+        <source>Selective Color: absolute</source>
+        <translation>特定色域の選択: 絶対値</translation>
+    </message>
+    <message>
+        <source>Selective Color: relative</source>
+        <translation>特定色域の選択: 相対値</translation>
+    </message>
+    <message>
+        <source>Around Center</source>
+        <translation>中心から渦状</translation>
+    </message>
+    <message>
+        <source>Out From Center</source>
+        <translation>中心から放射状</translation>
+    </message>
+    <message>
+        <source>Pond Ripples</source>
+        <translation>波紋</translation>
+    </message>
+    <message>
+        <source>Ridges</source>
+        <translation>折り返し</translation>
+    </message>
+    <message>
+        <source>Sine</source>
+        <translation>正弦波</translation>
+    </message>
+    <message>
+        <source>Wrap Around</source>
+        <translation>折り返す</translation>
+    </message>
+    <message>
+        <source>Repeat Edge Pixels</source>
+        <translation>端のピクセルを繰り返す</translation>
+    </message>
+    <message>
+        <source>Generators</source>
+        <translation>波の数</translation>
+    </message>
+    <message>
+        <source>Wavelength Min</source>
+        <translation>波長（最小）</translation>
+    </message>
+    <message>
+        <source>Wavelength Max</source>
+        <translation>波長（最大）</translation>
+    </message>
+    <message>
+        <source>Amplitude Min</source>
+        <translation>振幅（最小）</translation>
+    </message>
+    <message>
+        <source>Amplitude Max</source>
+        <translation>振幅（最大）</translation>
+    </message>
+    <message>
+        <source>Horizontal Scale</source>
+        <translation>水平比率</translation>
+    </message>
+    <message>
+        <source>Vertical Scale</source>
+        <translation>垂直比率</translation>
+    </message>
+    <message>
+        <source>Undefined Areas</source>
+        <translation>未定義領域</translation>
+    </message>
+    <message>
+        <source>Solarize</source>
+        <translation>ソラリゼーション</translation>
+    </message>
+    <message>
+        <source>Find Edges</source>
+        <translation>輪郭検出</translation>
+    </message>
+    <message>
+        <source>ZigZag</source>
+        <translation>ジグザグ</translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation>オン</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <translation>%1 %2</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22656,16 +22806,48 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>白黒をキャンセルしました</translation>
     </message>
     <message>
-        <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
-        <translation>カラールックアップ「%1」はファイルに保存されたとおりに適用されます。</translation>
+        <source>Color L&amp;ookup...</source>
+        <translation>カラールックアップ(&amp;O)...</translation>
     </message>
     <message>
-        <source>Updated %1 Smart Filter</source>
-        <translation>%1スマートフィルターを更新しました</translation>
+        <source>Color Lookup</source>
+        <translation>カラールックアップ</translation>
+    </message>
+    <message>
+        <source>Cancelled Color Lookup</source>
+        <translation>カラールックアップをキャンセルしました</translation>
+    </message>
+    <message>
+        <source>&amp;Selective Color...</source>
+        <translation>特定色域の選択(&amp;S)...</translation>
+    </message>
+    <message>
+        <source>Selective Color</source>
+        <translation>特定色域の選択</translation>
+    </message>
+    <message>
+        <source>Cancelled Selective Color</source>
+        <translation>特定色域の選択をキャンセルしました</translation>
+    </message>
+    <message>
+        <source>Add %1 Smart Filter</source>
+        <translation>%1スマートフィルターを追加</translation>
     </message>
     <message>
         <source>Edit %1 Smart Filter</source>
         <translation>%1スマートフィルターを編集</translation>
+    </message>
+    <message>
+        <source>Added %1 as a Smart Filter</source>
+        <translation>%1をスマートフィルターとして追加しました</translation>
+    </message>
+    <message>
+        <source>Added another %1 Smart Filter</source>
+        <translation>%1スマートフィルターをもう1つ追加しました</translation>
+    </message>
+    <message>
+        <source>Updated %1 Smart Filter</source>
+        <translation>%1スマートフィルターを更新しました</translation>
     </message>
 </context>
 <context>
