@@ -1028,6 +1028,9 @@ QRect CanvasWidget::draw_line(QPoint from, QPoint to, bool erase) {
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
     return {};
   }
+  if (brush_opacity_ <= 0) {
+    return {};  // Opacity 0 draws nothing (issue 253); edit_options floors the core alpha at 1/255
+  }
 
   auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_,
                               fill_shapes_,
@@ -1072,6 +1075,9 @@ QRect CanvasWidget::draw_rectangle(QPoint from, QPoint to, bool erase) {
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
     return {};
   }
+  if (brush_opacity_ <= 0) {
+    return {};  // Opacity 0 draws nothing (issue 253)
+  }
 
   const auto rect = normalized_rect(from, to);
   auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_,
@@ -1095,6 +1101,9 @@ QRect CanvasWidget::draw_ellipse(QPoint from, QPoint to, bool erase) {
   }
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
     return {};
+  }
+  if (brush_opacity_ <= 0) {
+    return {};  // Opacity 0 draws nothing (issue 253)
   }
 
   const auto rect = normalized_rect(from, to);

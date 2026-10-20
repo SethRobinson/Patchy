@@ -173,7 +173,8 @@ int CanvasWidget::brush_size() const noexcept {
 }
 
 void CanvasWidget::set_brush_opacity(int opacity) {
-  brush_opacity_ = std::clamp(opacity, 1, 100);
+  // 0 is a valid options-bar value (issue 253): the stroke paints nothing.
+  brush_opacity_ = std::clamp(opacity, 0, 100);
 }
 
 int CanvasWidget::brush_opacity() const noexcept {
@@ -181,7 +182,7 @@ int CanvasWidget::brush_opacity() const noexcept {
 }
 
 void CanvasWidget::set_brush_flow(int flow) {
-  brush_flow_ = std::clamp(flow, 1, 100);
+  brush_flow_ = std::clamp(flow, 0, 100);  // 0 meters nothing per dab (issue 253)
 }
 
 int CanvasWidget::brush_flow() const noexcept {
@@ -1253,6 +1254,9 @@ QRect CanvasWidget::draw_brush_segment_with_dabs(QPointF from, QPointF to, bool 
 }
 
 float CanvasWidget::capped_stroke_coverage(std::int32_t x, std::int32_t y, float coverage, float source_alpha) {
+  if (source_alpha <= 0.0F) {
+    return 0.0F;  // Opacity 0: nothing to cap toward, and no division below
+  }
   source_alpha = std::clamp(source_alpha, 1.0F / 255.0F, 1.0F);
   const auto target_alpha = std::clamp(source_alpha * std::clamp(coverage, 0.0F, 1.0F), 0.0F, 1.0F);
   if (target_alpha <= 0.0F) {
@@ -1272,6 +1276,9 @@ float CanvasWidget::capped_stroke_coverage(std::int32_t x, std::int32_t y, float
 float CanvasWidget::accumulating_stroke_coverage(std::int32_t x, std::int32_t y,
                                                  float coverage, float opacity,
                                                  float flow) {
+  if (opacity <= 0.0F || flow <= 0.0F) {
+    return 0.0F;  // Opacity 0 or Flow 0 paints nothing (issue 253); the clamps below floor the math
+  }
   opacity = std::clamp(opacity, 1.0F / 255.0F, 1.0F);
   flow = std::clamp(flow, 1.0F / 100.0F, 1.0F);
   const auto dab_alpha = std::clamp(opacity * flow * std::clamp(coverage, 0.0F, 1.0F),
@@ -1518,6 +1525,9 @@ bool CanvasWidget::write_brush_stroke_pixel_from_snapshot_blend(std::int32_t x, 
     return false;
   }
 
+  if (flow <= 0.0F) {
+    return false;  // Flow 0 meters no paint (issue 253)
+  }
   flow = std::clamp(flow, 0.01F, 1.0F);
   const auto dab_alpha = std::clamp(source_alpha * flow * coverage, 0.0F, source_alpha);
   auto& accumulated_alpha = brush_stroke_accumulated_alpha_(x, y);
@@ -1818,6 +1828,17 @@ void CanvasWidget::install_brush_stroke_compositor(EditOptions& options, bool er
   const auto source_alpha =
       std::clamp(static_cast<float>(std::clamp<int>(primary.a, 1, 255)) / 255.0F, 1.0F / 255.0F, 1.0F);
 
+  // Opacity 0 (issue 253): the options-bar value, not primary.a, which edit_options floors at
+  // 1/255 for the core writers. The stroke still runs (snapshot, accumulators, undo entry) but
+  // no pixel is gated in or written, so pressure, Flow, Airbrush and dynamics cannot leak paint.
+  // The Mixer Brush has no Opacity field (current_brush_edit_options forces 100).
+  if (brush_opacity_ <= 0 && tool_ != CanvasTool::MixerBrush) {
+    options.stroke_pixel_gate = [](std::int32_t, std::int32_t) { return false; };
+    options.stroke_pixel_writer = [](std::int32_t, std::int32_t, std::uint8_t*, std::uint16_t, float,
+                                     const EditColor&) { return false; };
+    return;
+  }
+
   if (!erase && tool_ == CanvasTool::MixerBrush) {
     const auto brush_size = options.brush_size;
     options.dab_primary_provider =
@@ -1928,7 +1949,9 @@ CanvasWidget::EffectiveBrushInput CanvasWidget::effective_brush_input() const no
     const auto minimum =
         static_cast<double>(std::clamp(pen_input_settings_.pressure_opacity_min_percent, 1, 100)) / 100.0;
     const auto scale = minimum + static_cast<double>(pressure) * (1.0 - minimum);
-    brush.opacity = std::clamp(static_cast<int>(std::lround(static_cast<double>(brush_opacity_) * scale)), 1, 100);
+    // A non-zero Opacity keeps its 1% floor under light pressure; 0% stays 0 (issue 253).
+    brush.opacity = std::clamp(static_cast<int>(std::lround(static_cast<double>(brush_opacity_) * scale)),
+                               brush_opacity_ > 0 ? 1 : 0, 100);
   }
   if (pen_input_settings_.tilt_shape && sample.tilt_available) {
     const auto tilt = std::clamp(std::hypot(static_cast<double>(sample.x_tilt), static_cast<double>(sample.y_tilt)) /
@@ -2250,6 +2273,9 @@ QRect CanvasWidget::draw_mask_brush_at(QPoint point, bool erase) {
 QRect CanvasWidget::smudge_brush_segment(QPoint from, QPoint to) {
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
     return {};
+  }
+  if (brush_opacity_ <= 0) {
+    return {};  // Strength 0 smudges nothing (issue 253); the core floors primary.a at 1/255
   }
 
   const auto brush = effective_brush_input();

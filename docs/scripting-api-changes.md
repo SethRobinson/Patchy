@@ -8,6 +8,10 @@ Remove Object, Align/Distribute and smart objects) are in
 [scripting-api-changes-through-2026-09-30.md](scripting-api-changes-through-2026-09-30.md).
 Every entry below is API 1.
 
+2026-10-20 (behavioral): `drawStrokes` strokes and `patchy.brushes` settings accept `opacity`
+and `flow` of 0 (was 1..100): a 0% stroke paints nothing, the options bar's new minimum for
+Opacity and Flow (GitHub issue 253; Photoshop stops both at 1%). Pinned by
+`ui_brush_opacity_and_flow_accept_zero_and_paint_nothing`.
 2026-10-20 (additive): `patchy.ui.pixelGrid` reads and sets View > Pixel Grid, the saved
 application-wide view preference for lines between pixels at 600% zoom and up (GitHub issue
 239). Permanent identifiers: the property, command id `view.pixel_grid` and settings key

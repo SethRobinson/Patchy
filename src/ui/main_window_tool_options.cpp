@@ -856,7 +856,7 @@ void MainWindow::set_active_brush_tip(const QString& tip_id, bool announce,
   if (apply_tool_settings && entry != nullptr &&
       (entry->tool_flow_percent.has_value() || entry->tool_airbrush.has_value())) {
     if (entry->tool_flow_percent.has_value()) {
-      stored_paint_brush_settings_.flow = std::clamp(*entry->tool_flow_percent, 1, 100);
+      stored_paint_brush_settings_.flow = std::clamp(*entry->tool_flow_percent, 0, 100);
     }
     if (entry->tool_airbrush.has_value()) {
       stored_paint_brush_settings_.airbrush = *entry->tool_airbrush;

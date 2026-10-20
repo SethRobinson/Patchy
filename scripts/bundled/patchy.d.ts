@@ -131,7 +131,7 @@ interface PatchyBrushSettings {
   color?: string;
   /** Integer 1..1024, default 1. Size-one paths use exact pixel segments. */
   size?: number;
-  /** Integer 1..100, default 100: opacity caps a stroke, Flow meters each dab. */
+  /** Integer 0..100, default 100: opacity caps a stroke, Flow meters each dab; 0 paints nothing. */
   opacity?: number;
   flow?: number;
   /** Integer 0..100, default 0. */

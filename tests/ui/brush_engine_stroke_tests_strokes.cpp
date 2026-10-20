@@ -3683,6 +3683,181 @@ void ui_zoomed_out_brush_stroke_patches_display_mips_in_place() {
   CHECK(patched == rebuilt);
 }
 
+// Issue 253: Opacity and Flow share the 0..100 range of Soft and Smooth, so every options-bar
+// percentage has one minimum (Photoshop stops Opacity and Flow at 1%). The popup slider, the
+// arrow keys, the typed field and a label scrub all reach 0, in Dark and Light, and a stroke at
+// 0% Opacity or 0% Flow (Airbrush on or off; the Line tool and the Eraser too) leaves the layer
+// byte for byte untouched: no paint, no NaN, no assert. The last case proves the strokes paint.
+void save_options_bar_popup_artifact(const std::string& name, QWidget& window, QWidget& field,
+                                     QWidget& popup) {
+  ensure_artifact_dir();
+  // The popup is its own top-level window, so a window grab alone would not show it.
+  auto shot = window.grab().toImage();
+  const auto window_origin = window.mapToGlobal(QPoint(0, 0));
+  const auto popup_position = popup.mapToGlobal(QPoint(0, 0)) - window_origin;
+  {
+    QPainter painter(&shot);
+    painter.drawPixmap(popup_position, popup.grab());
+  }
+  const auto field_position = field.mapToGlobal(QPoint(0, 0)) - window_origin;
+  const auto crop = QRect(field_position, field.size())
+                        .united(QRect(popup_position, popup.size()))
+                        .adjusted(-170, -14, 48, 14)
+                        .intersected(shot.rect());
+  const auto path = QString::fromStdString((std::filesystem::path("test-artifacts") / (name + ".png")).string());
+  CHECK(shot.copy(crop).save(path));
+}
+
+void ui_brush_opacity_and_flow_accept_zero_and_paint_nothing() {
+  ColorSchemeRestorer restore_scheme;
+  for (const auto scheme :
+       {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer::apply(scheme);
+    const std::string scheme_name = scheme == patchy::ui::ColorSchemePreference::Dark ? "dark" : "light";
+    {
+      patchy::ui::MainWindow window;
+      show_window(window);
+      require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+      QApplication::processEvents();
+      auto* canvas = require_canvas(window);
+      auto* softness = window.findChild<QSpinBox*>(QStringLiteral("brushSoftnessSpin"));
+      CHECK(softness != nullptr);
+      CHECK(softness->minimum() == 0);
+
+      const auto find_label = [&window](const QString& text) {
+        QLabel* found = nullptr;
+        for (auto* label : window.findChildren<QLabel*>()) {
+          if (label->isVisible() && label->text() == text && label->property("optionLabel").toBool()) {
+            found = label;
+          }
+        }
+        CHECK(found != nullptr);
+        return found;
+      };
+      const auto exercise = [&](const QString& base_name, const QString& label_text,
+                                const std::function<int()>& canvas_value) {
+        auto* spin = window.findChild<QSpinBox*>(base_name + QStringLiteral("Spin"));
+        CHECK(spin != nullptr);
+        spin->setValue(50);
+        CHECK(canvas_value() == 50);
+
+        // The popup slider reaches 0.
+        auto* action = window.findChild<QAction*>(base_name + QStringLiteral("PopupAction"));
+        CHECK(action != nullptr);
+        action->trigger();
+        QApplication::processEvents();
+        auto* popup = window.findChild<QFrame*>(base_name + QStringLiteral("Popup"));
+        auto* slider = window.findChild<QSlider*>(base_name + QStringLiteral("PopupSlider"));
+        CHECK(popup != nullptr && popup->isVisible());
+        CHECK(slider != nullptr);
+        patchy::ui::set_slider_to_value(*slider, slider->minimum());
+        QApplication::processEvents();
+        if (base_name == QStringLiteral("brushOpacity")) {
+          save_options_bar_popup_artifact("issue_253_opacity_popup_minimum_" + scheme_name, window, *spin,
+                                          *popup);
+        }
+        CHECK(slider->minimum() == 0);
+        CHECK(spin->value() == 0);
+        CHECK(canvas_value() == 0);
+        popup->close();
+        QApplication::processEvents();
+
+        // Range, step and arrow keys match Soft.
+        CHECK(spin->minimum() == softness->minimum());
+        CHECK(spin->maximum() == softness->maximum());
+        CHECK(spin->singleStep() == softness->singleStep());
+        spin->setValue(1);
+        send_key(*spin, Qt::Key_Down);
+        CHECK(spin->value() == 0);
+        send_key(*spin, Qt::Key_Down);
+        CHECK(spin->value() == 0);
+        CHECK(canvas_value() == 0);
+
+        // Typing 0 is accepted.
+        spin->setValue(50);
+        spin->setFocus(Qt::TabFocusReason);
+        QApplication::processEvents();
+        spin->selectAll();
+        QKeyEvent zero(QEvent::KeyPress, Qt::Key_0, Qt::NoModifier, QStringLiteral("0"));
+        QApplication::sendEvent(spin, &zero);
+        send_key(*spin, Qt::Key_Return);
+        CHECK(spin->value() == 0);
+        CHECK(canvas_value() == 0);
+
+        // A label scrub stops at 0, like Soft's.
+        spin->setValue(30);
+        auto* label = find_label(label_text);
+        const auto origin = label->rect().center();
+        const auto far_left = origin - QPoint(5000, 0);
+        send_mouse(*label, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton);
+        send_mouse(*label, QEvent::MouseMove, far_left, Qt::NoButton, Qt::LeftButton);
+        send_mouse(*label, QEvent::MouseButtonRelease, far_left, Qt::LeftButton, Qt::NoButton);
+        QApplication::processEvents();
+        CHECK(spin->value() == 0);
+        CHECK(canvas_value() == 0);
+        spin->setValue(100);
+      };
+      exercise(QStringLiteral("brushOpacity"), QStringLiteral("Opacity"),
+               [canvas] { return canvas->brush_opacity(); });
+      exercise(QStringLiteral("brushFlow"), QStringLiteral("Flow"), [canvas] { return canvas->brush_flow(); });
+    }
+
+    patchy::Document document(96, 96, patchy::PixelFormat::rgba8());
+    const auto layer_id = document.add_pixel_layer(
+        "Paint", solid_pixels(96, 96, patchy::PixelFormat::rgba8(), Qt::white)).id();
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(192, 192);
+    canvas.set_document(&document);
+    canvas.set_zoom(1.0);
+    canvas.set_primary_color(Qt::black);
+    canvas.set_brush_size(24);
+    canvas.set_brush_softness(50);  // a soft edge reaches the accumulating coverage paths
+    canvas.show();
+    QApplication::processEvents();
+
+    struct StrokeCase {
+      patchy::ui::CanvasTool tool;
+      int opacity;
+      int flow;
+      bool airbrush;
+      bool paints;
+    };
+    const StrokeCase cases[] = {
+        {patchy::ui::CanvasTool::Brush, 0, 100, false, false},
+        {patchy::ui::CanvasTool::Brush, 0, 100, true, false},
+        {patchy::ui::CanvasTool::Brush, 100, 0, false, false},
+        {patchy::ui::CanvasTool::Brush, 100, 0, true, false},
+        {patchy::ui::CanvasTool::Brush, 0, 0, true, false},
+        {patchy::ui::CanvasTool::Eraser, 0, 100, false, false},
+        {patchy::ui::CanvasTool::Line, 0, 100, false, false},
+        {patchy::ui::CanvasTool::Brush, 100, 100, false, true},
+    };
+    for (const auto& stroke : cases) {
+      canvas.set_tool(stroke.tool);
+      canvas.set_brush_opacity(stroke.opacity);
+      canvas.set_brush_flow(stroke.flow);
+      canvas.set_brush_build_up(stroke.airbrush);
+      CHECK(canvas.brush_opacity() == stroke.opacity);
+      CHECK(canvas.brush_flow() == stroke.flow);
+      const auto before_bytes = std::as_const(document).find_layer(layer_id)->pixels().data();
+      const std::vector<std::uint8_t> before(before_bytes.begin(), before_bytes.end());
+      const auto from = canvas.widget_position_for_document_point(QPoint(24, 48));
+      const auto to = canvas.widget_position_for_document_point(QPoint(72, 48));
+      send_mouse(canvas, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton);
+      for (int step = 1; step <= 6; ++step) {
+        const QPoint at(from.x() + (to.x() - from.x()) * step / 6, from.y());
+        send_mouse(canvas, QEvent::MouseMove, at, Qt::NoButton, Qt::LeftButton);
+      }
+      QTest::qWait(stroke.airbrush ? 180 : 10);  // a held Airbrush adds timer dabs
+      send_mouse(canvas, QEvent::MouseButtonRelease, to, Qt::LeftButton, Qt::NoButton);
+      QApplication::processEvents();
+      const auto after = std::as_const(document).find_layer(layer_id)->pixels().data();
+      const bool untouched = after.size() == before.size() && std::equal(after.begin(), after.end(), before.begin());
+      CHECK(untouched == !stroke.paints);
+    }
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part1() {
@@ -3739,6 +3914,8 @@ std::vector<patchy::test::TestCase> brush_engine_stroke_tests_part1() {
       {"ui_brush_mode_stroke_samples_artifact", ui_brush_mode_stroke_samples_artifact},
       {"ui_brush_flow_builds_only_to_opacity_cap_and_round_trips_psd",
        ui_brush_flow_builds_only_to_opacity_cap_and_round_trips_psd},
+      {"ui_brush_opacity_and_flow_accept_zero_and_paint_nothing",
+       ui_brush_opacity_and_flow_accept_zero_and_paint_nothing},
       {"ui_pattern_stamp_alignment_palette_and_psd_round_trip",
        ui_pattern_stamp_alignment_palette_and_psd_round_trip},
       {"ui_airbrush_fast_strokes_ignore_mouse_event_density",

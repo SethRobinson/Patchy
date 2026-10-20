@@ -1578,7 +1578,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
        CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse}));
   auto* brush_opacity = new QSpinBox(toolbar);
   brush_opacity->setObjectName(QStringLiteral("brushOpacitySpin"));
-  brush_opacity->setRange(1, 100);
+  // 0..100 like Soft and Smooth (issue 253): a 0% stroke paints nothing. Photoshop stops
+  // both Opacity and Flow at 1%; Patchy keeps one range for every options-bar percentage.
+  brush_opacity->setRange(0, 100);
   brush_opacity->setValue(canvas_defaults->brush_opacity());
   brush_opacity->setSuffix(percent_suffix());
   configure_toolbar_spinbox(brush_opacity, 52);
@@ -1631,7 +1633,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   bind_widget_text(brush_flow_label, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Flow:"));
   auto* brush_flow = new QSpinBox(toolbar);
   brush_flow->setObjectName(QStringLiteral("brushFlowSpin"));
-  brush_flow->setRange(1, 100);
+  brush_flow->setRange(0, 100);  // 0..100 like Opacity (issue 253)
   brush_flow->setValue(canvas_defaults->brush_flow());
   brush_flow->setSuffix(percent_suffix());
   bind_tooltip(brush_flow, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Brush flow: Shift+number keys (number keys with Airbrush)"));
