@@ -1,4 +1,4 @@
-4fb87fbb0fb9f33e baf856074f265c85 arrows.psd
+985b37491743c87e 97a4397a12afdcac arrows.psd
 f0e4b6fa1a4a423f 7b0b17b25ffc630d patchy-compound-group.psd
 284d06ae2c65ce6d 82b3b2f76a478139 patchy-gradient-empty-transparency.psd
 d9abf014b16ca2f3 d416c48ba5c4bc3d patchy-open-path-strokes.psd
@@ -119,10 +119,10 @@ e3330c6d08986f3e 554002ee9ac1fc0a photoshop-smart-filter-wave.psd
 eaae181ed02ec0fd 868ada3cb130324e photoshop-smart-filter-zigzag-around.psd
 53590f33a3b5a85e bc7a40ae546c955f photoshop-smart-filter-zigzag.psd
 d56d904272273a57 2ce6ac5740d2f862 photoshop-smart-filter-zoom.psd
-0584e4cdd7f5013c fae153247444d536 photoshop-stroke-aa-matte.psd
+38146e6992291bd2 c39fa2aaba025338 photoshop-stroke-aa-matte.psd
 389082952c00905d 1aef2000219e220d photoshop-stroke-masked.psd
-3088ab19ceb8e24d 4c0bca53d2ee9e75 photoshop-stroke-overprint.psd
-f0fa2f6b93c20755 342ed7cddef82515 photoshop-stroke-partial-alpha.psd
+312a96645d79f6fd cbf187aeb63bf625 photoshop-stroke-overprint.psd
+0bc2d51185b998d9 3f93f7c6bb41c9d9 photoshop-stroke-partial-alpha.psd
 bd09d2e4364e4f7d 86ca8a884788408d photoshop-stroke-positions.psd
 617a8e6ef090d264 17f41a2d949ef82e photoshop-stroke-shapeburst.psd
 0aca6eb068b2c319 9d6ce1e6cb3c5e8b photoshop-text-anchor-center-third.psd
