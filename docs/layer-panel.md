@@ -35,7 +35,9 @@ pins spinner frames during row construction; the recent-file open test pins one 
 The Layer Style dialog's CANCEL path deliberately skips `refresh_layer_list`: it
 restores the exact pre-dialog state, so only the previewed layer's thumbnail revision
 moved (`refresh_layer_thumbnails` + `refresh_layer_controls` cover it). Committing
-keeps the full rebuild.
+keeps the full rebuild. Artboard edits that keep every layer in place (resize, plain move,
+background) restamp thumbnails the same way (`finish_artboard_edit`'s `rows_unchanged`):
+row construction and QSS polish were most of each commit on Windows.
 
 During guarded automation, script-originated rebuilds call `refresh_layer_list(true)` to capture old row widgets before clearing the list and deliver their deferred deletion after detachment. Manual callbacks and editable pauses use ordinary deferred deletion so the current input receiver outlives the event. `ui_mcp_layer_rows_stay_bounded_during_long_script` pins the live-widget bound during execution.
 
