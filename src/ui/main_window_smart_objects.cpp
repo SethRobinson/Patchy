@@ -386,6 +386,7 @@ void MainWindow::open_smart_object_contents() {
                        QString(), tr("Open"));
   auto& child_session = session();
   child_session.smart_object_link = DocumentSession::SmartObjectLink{parent_session_id, uuid};
+  apply_opening_view(child_session);
   statusBar()->showMessage(
       resolve_modifier_names(tr("Editing smart object contents. Save (%CTRL%+S) applies them back to %1"))
           .arg(parent_title));

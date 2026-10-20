@@ -77,6 +77,20 @@ int qInitResources_icons();
 
 namespace patchy::ui {
 
+void MainWindow::apply_opening_view(DocumentSession& target_session) {
+  if (target_session.canvas == nullptr || target_session.canvas != canvas_) {
+    target_session.fit_view_on_first_activation = true;
+    return;
+  }
+  canvas_->fit_to_view_without_enlarging();
+  const auto session_id = target_session.session_id;
+  QTimer::singleShot(0, this, [this, session_id] {
+    if (auto* settled = session_with_id(session_id); settled != nullptr && settled->canvas == canvas_) {
+      canvas_->fit_to_view_without_enlarging();
+    }
+  });
+}
+
 void MainWindow::add_document_session(Document document, QString title, QString path,
                                       QString initial_history_label, SessionActivation activation) {
   // A background session needs an active document to stay behind; with none, it is
@@ -478,11 +492,11 @@ void MainWindow::activate_document_canvas(CanvasWidget* canvas, const std::funct
     // stacked layout sizes a page when it becomes current, which can be a posted
     // layout request rather than this call stack).
     activated->fit_view_on_first_activation = false;
-    canvas_->fit_to_view();
+    canvas_->fit_to_view_without_enlarging();
     const auto session_id = activated->session_id;
     QTimer::singleShot(0, this, [this, session_id] {
       if (auto* settled = session_with_id(session_id); settled != nullptr && settled->canvas == canvas_) {
-        canvas_->fit_to_view();
+        canvas_->fit_to_view_without_enlarging();
       }
     });
   }

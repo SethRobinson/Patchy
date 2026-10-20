@@ -260,7 +260,12 @@ public:
   // fit_to_view uses the smaller) and centers it.
   void fill_to_view();
   void refresh_tool_cursor();
+  // View > Fit on Screen: the whole document in the viewport, zooming in when it is small.
   void fit_to_view();
+  // The view a document opens with (File > Open and every other opening or new-document
+  // path): a document larger than the viewport is fitted, a smaller one shows at 100% view
+  // zoom, centered, as in other editors (GitHub issue 247).
+  void fit_to_view_without_enlarging();
   // Recenters the document in the viewport at the current zoom. Used after
   // operations that change document geometry (crop, image/canvas resize,
   // canvas rotate), where the stale pan could otherwise leave the remaining

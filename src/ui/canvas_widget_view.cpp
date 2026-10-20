@@ -178,6 +178,14 @@ void CanvasWidget::fit_to_view() {
   notify_view_changed();
 }
 
+void CanvasWidget::fit_to_view_without_enlarging() {
+  fit_to_view();
+  if (document_ != nullptr && view_zoom() > 1.0) {
+    set_view_zoom(1.0);
+    center_document_in_view();
+  }
+}
+
 void CanvasWidget::fill_to_view() {
   if (document_ == nullptr || document_->width() <= 0 || document_->height() <= 0 || width() <= 0 || height() <= 0) {
     return;

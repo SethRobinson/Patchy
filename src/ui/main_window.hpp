@@ -218,6 +218,10 @@ public:
   void add_document_session(Document document, QString title, QString path = {},
                             QString initial_history_label = {},
                             SessionActivation activation = SessionActivation::Activate);
+  // The opening view for a session just added outside the open paths (recovery, Edit
+  // Contents, documents made from history, layers or patterns): fitted when larger than the
+  // view, 100% otherwise (GitHub issue 247), again once the event loop has laid the page out.
+  void apply_opening_view(DocumentSession& target_session);
   void open_command_line_files(const QStringList& paths);
   // Bring this already-running window to the foreground and open the files a second launch handed off
   // via the single-instance channel (see src/app/main.cpp).
