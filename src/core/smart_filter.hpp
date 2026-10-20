@@ -2,6 +2,7 @@
 
 #include "core/adjustment_layer.hpp"
 #include "core/layer.hpp"
+#include "core/rect_utils.hpp"
 #include "core/smart_filter_table.hpp"
 
 #include <cstdint>
@@ -311,6 +312,17 @@ struct SmartFilterStack {
   // smart_filter_stack_support after changing entries or enable flags.
   SmartFilterStackSupport support{SmartFilterStackSupport::Unsupported};
 };
+
+// Photoshop filters a Smart Object inside the document united with the placed
+// content's bounds, and its FEid cache covers that rectangle: a layer moved
+// past the canvas edge keeps its off-canvas pixels as filter input (October
+// 2026 capture, photoshop-smart-filter-classic.psd).
+[[nodiscard]] inline Rect smart_filter_canvas_bounds(std::int32_t document_width,
+                                                     std::int32_t document_height,
+                                                     Rect placed_bounds) noexcept {
+  const auto document = Rect::from_size(document_width, document_height);
+  return placed_bounds.empty() ? document : unite_rect(document, placed_bounds);
+}
 
 // Whether Patchy can render the stack itself: its native shape is supported and every
 // filter Photoshop would run is one Patchy models. A hidden entry, or every entry of a

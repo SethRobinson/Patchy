@@ -1274,8 +1274,8 @@ bool MainWindow::commit_smart_filter_stack_edit(
     const auto& unfiltered = preview->unfiltered;
     auto record = psd::author_filter_effects_record(
         smart_object_placed_uuid(*layer),
-        Rect::from_size(doc.width(), doc.height()), unfiltered.pixels,
-        unfiltered.bounds, candidate->mask);
+        smart_filter_canvas_bounds(doc.width(), doc.height(), unfiltered.bounds),
+        unfiltered.pixels, unfiltered.bounds, candidate->mask);
     if (!record.has_value() ||
         !filter_effects.upsert_authored(std::move(*record))) {
       return false;
@@ -1721,7 +1721,7 @@ void MainWindow::editable_smart_filter_dialog(
       std::make_shared<const PixelBuffer>(unfiltered_preview->pixels);
   const auto unfiltered_bounds = unfiltered_preview->bounds;
   const auto filter_canvas_bounds =
-      Rect::from_size(doc.width(), doc.height());
+      smart_filter_canvas_bounds(doc.width(), doc.height(), unfiltered_bounds);
   auto original_pixels =
       std::make_shared<const PixelBuffer>(std::as_const(*layer).pixels());
   const auto original_bounds = layer->bounds();
@@ -3365,7 +3365,10 @@ void MainWindow::visual_filter_gallery_dialog(const FilterRecipe* repeat) {
         }
         return render_smart_filter_stack(
             *native_unfiltered_pixels, native_unfiltered_bounds,
-            native_filter_canvas_bounds, *candidate, progress);
+            smart_filter_canvas_bounds(native_filter_canvas_bounds.width,
+                                       native_filter_canvas_bounds.height,
+                                       native_unfiltered_bounds),
+            *candidate, progress);
       };
     } else {
       // Plain layers use the exact path only for canvas-filling recipes

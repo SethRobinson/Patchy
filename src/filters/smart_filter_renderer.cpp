@@ -3267,8 +3267,10 @@ FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
           render_high_pass(current, high_pass.radius_pixels, &filter_progress);
     } else if (entry.kind == SmartFilterKind::Median) {
       const auto &median = std::get<MedianSmartFilter>(entry.parameters);
-      filtered =
-          render_median(current, median.radius_pixels, &filter_progress);
+      auto median_input = embed_in_filter_canvas(
+          current.pixels, current.bounds, filter_canvas_bounds);
+      filtered = trim_transparent_result(
+          render_median(median_input, median.radius_pixels, &filter_progress));
     } else if (entry.kind == SmartFilterKind::DustAndScratches) {
       const auto &dust =
           std::get<DustAndScratchesSmartFilter>(entry.parameters);
