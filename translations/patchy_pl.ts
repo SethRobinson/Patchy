@@ -7026,10 +7026,6 @@ Przepływ:%6
         <translation>%1 x %2 cale przy %3 ppi</translation>
     </message>
     <message>
-        <source>Clipboard does not contain an image</source>
-        <translation>Schowek nie zawiera obrazu</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>Utwórz dokument z obrazu schowka</translation>
     </message>
@@ -11038,6 +11034,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Channel Mixer: monochrome %1 / %2 / %3, constant %4</source>
         <translation>Mieszanie kanałów: monochromatyczne %1 / %2 / %3, stała %4</translation>
+    </message>
+    <message>
+        <source>Recent</source>
+        <comment>new document recent sizes</comment>
+        <translation>Ostatnie</translation>
+    </message>
+    <message>
+        <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
+        <translation>Ustawienia niedawnego dokumentu: %1 x %2 px przy %3 ppi</translation>
     </message>
 </context>
 <context>

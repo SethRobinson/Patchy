@@ -21,6 +21,7 @@
 #include <QBoxLayout>
 #include <QButtonGroup>
 #include <QClipboard>
+#include <QEvent>
 #include <QMimeData>
 #include <QCheckBox>
 #include <QComboBox>
@@ -29,6 +30,9 @@
 #include <QFontMetrics>
 #include <QGridLayout>
 #include <QIcon>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QKeyEvent>
 #include <QKeySequence>
 #include <QLabel>
@@ -49,9 +53,11 @@
 #include <QVariant>
 
 #include <algorithm>
+#include <functional>
 #include <array>
 #include <cmath>
 #include <numeric>
+#include <utility>
 #include <vector>
 
 namespace patchy::ui {
@@ -68,11 +74,16 @@ constexpr int kPresetSizeRole = kNewDocumentPresetSizeRole;
 constexpr int kPresetPpiRole = kNewDocumentPresetPpiRole;
 constexpr int kPresetClipboardRole = Qt::UserRole + 4;
 constexpr int kPresetThumbnailRole = Qt::UserRole + 5;
+// A Recent card's index into the recent documents (newest first).
+constexpr int kPresetRecentIndexRole = Qt::UserRole + 6;
 
 constexpr QSize kPresetCardCell(116, 100);
 
 // The Last Used card's id (item data only, never written to settings) - never rename.
+// The Recent row's newest card carries it; the older ones are "recent-1" and up.
 constexpr QLatin1StringView kLastUsedPresetId("last-used");
+constexpr QLatin1StringView kClipboardPresetId("clipboard");
+constexpr int kMaxRecentDocuments = 8;
 
 // The template groups, in chip order (GitHub issue 222). Organized by what people make
 // rather than after another editor's list; every group holds at most 11 templates, so
@@ -165,11 +176,10 @@ struct NewDocumentPreset {
 // native screen resolutions, each platform's own upload guidance, the IAB ad units, ISO
 // 216 and ANSI paper, and photo-print sizes, printed sizes at 300 PPI. Ids are permanent;
 // a template that moves to another group keeps its id (the first ones predate the groups).
-std::vector<NewDocumentPreset> presets_for_category(PresetCategory category, QSize clipboard_size) {
+std::vector<NewDocumentPreset> presets_for_category(PresetCategory category) {
   switch (category) {
     case PresetCategory::Screen:
       return {
-          {QStringLiteral("clipboard"), QObject::tr("Clipboard"), clipboard_size, kScreenPpi, true},
           {QStringLiteral("screen-1024x768"), QObject::tr("Default"), QSize(1024, 768), kScreenPpi},
           {QStringLiteral("screen-720p"), QObject::tr("720p"), QSize(1280, 720), kScreenPpi},
           {QStringLiteral("screen-1080p"), QObject::tr("1080p"), QSize(1920, 1080), kScreenPpi},
@@ -277,7 +287,7 @@ std::vector<NewDocumentPreset> presets_for_category(PresetCategory category, QSi
 std::vector<ArtboardSizePreset> artboard_size_presets() {
   std::vector<ArtboardSizePreset> presets;
   for (const auto category : kPresetCategories) {
-    for (const auto& preset : presets_for_category(category, QSize())) {
+    for (const auto& preset : presets_for_category(category)) {
       if (!preset.clipboard) {
         presets.push_back({preset.name, preset.size, preset_category_name(category)});
       }
@@ -290,7 +300,7 @@ namespace {
 
 PresetCategory category_of_preset_id(const QString& id) {
   for (const auto category : kPresetCategories) {
-    for (const auto& preset : presets_for_category(category, QSize())) {
+    for (const auto& preset : presets_for_category(category)) {
       if (preset.id == id) {
         return category;
       }
@@ -298,6 +308,140 @@ PresetCategory category_of_preset_id(const QString& id) {
   }
   return PresetCategory::Screen;
 }
+
+// One created document's settings, which a Recent card restores: what the Last Used card
+// restored before the row existed.
+struct RecentDocumentSettings {
+  QSize size;
+  double ppi{kScreenPpi};
+  MeasurementUnit unit{MeasurementUnit::Pixels};
+  int resolution_unit_index{0};
+  QColor background{Qt::white};
+  int bits{8};
+  bool artboards{false};
+
+  bool operator==(const RecentDocumentSettings& other) const {
+    return size == other.size && std::abs(ppi - other.ppi) < 1e-6 && unit == other.unit &&
+           resolution_unit_index == other.resolution_unit_index &&
+           background.rgba() == other.background.rgba() && bits == other.bits && artboards == other.artboards;
+  }
+};
+
+// newDocument/recent (permanent): a JSON array, newest first, of {w, h, ppi, unit (a
+// measurement_unit_settings_token), resolutionUnit, background (#AARRGGBB), bits,
+// artboards}. Before the key exists, the old Last Used keys seed one entry.
+std::vector<RecentDocumentSettings> load_recent_documents(MeasurementUnit seed_unit, int seed_resolution_unit,
+                                                          bool seed_artboards) {
+  std::vector<RecentDocumentSettings> recents;
+  auto settings = app_settings();
+  if (settings.contains(QStringLiteral("newDocument/recent"))) {
+    const auto array = QJsonDocument::fromJson(settings.value(QStringLiteral("newDocument/recent")).toString().toUtf8())
+                           .array();
+    for (const auto& value : array) {
+      const auto entry = value.toObject();
+      const auto width = entry.value(QStringLiteral("w")).toInt();
+      const auto height = entry.value(QStringLiteral("h")).toInt();
+      if (width < 1 || height < 1) {
+        continue;
+      }
+      RecentDocumentSettings recent;
+      recent.size = QSize(std::clamp(width, 1, 30000), std::clamp(height, 1, 30000));
+      recent.ppi = std::clamp(entry.value(QStringLiteral("ppi")).toDouble(kScreenPpi), 0.01, 9999.0);
+      recent.unit = measurement_unit_from_settings_token(entry.value(QStringLiteral("unit")).toString(),
+                                                         MeasurementUnit::Pixels);
+      if (recent.unit != MeasurementUnit::Pixels && recent.unit != MeasurementUnit::Inches &&
+          recent.unit != MeasurementUnit::Centimeters && recent.unit != MeasurementUnit::Millimeters) {
+        recent.unit = MeasurementUnit::Pixels;
+      }
+      recent.resolution_unit_index = std::clamp(entry.value(QStringLiteral("resolutionUnit")).toInt(), 0, 1);
+      if (const QColor background(entry.value(QStringLiteral("background")).toString()); background.isValid()) {
+        recent.background = background;
+      }
+      recent.bits = entry.value(QStringLiteral("bits")).toInt(8);
+      recent.artboards = entry.value(QStringLiteral("artboards")).toBool();
+      if (std::find(recents.begin(), recents.end(), recent) == recents.end()) {
+        recents.push_back(recent);
+      }
+      if (static_cast<int>(recents.size()) == kMaxRecentDocuments) {
+        break;
+      }
+    }
+    return recents;
+  }
+  settings.beginGroup(QStringLiteral("newDocument"));
+  const auto last_width = settings.value(QStringLiteral("lastWidth")).toInt();
+  const auto last_height = settings.value(QStringLiteral("lastHeight")).toInt();
+  if (last_width >= 1 && last_height >= 1) {
+    RecentDocumentSettings recent;
+    recent.size = QSize(std::clamp(last_width, 1, 30000), std::clamp(last_height, 1, 30000));
+    const auto last_ppi = settings.value(QStringLiteral("lastPpi")).toDouble();
+    recent.ppi = std::clamp(last_ppi > 0.0 ? last_ppi : kScreenPpi, 0.01, 9999.0);
+    recent.unit = seed_unit;
+    recent.resolution_unit_index = seed_resolution_unit;
+    if (const auto background = settings.value(QStringLiteral("lastBackground")).value<QColor>(); background.isValid()) {
+      recent.background = background;
+    }
+    recent.bits = settings.value(QStringLiteral("lastBitsPerChannel"), 8).toInt();
+    recent.artboards = seed_artboards;
+    recents.push_back(recent);
+  }
+  settings.endGroup();
+  return recents;
+}
+
+void store_recent_documents(const std::vector<RecentDocumentSettings>& recents) {
+  QJsonArray array;
+  for (const auto& recent : recents) {
+    if (array.size() == kMaxRecentDocuments) {
+      break;
+    }
+    QJsonObject entry;
+    entry.insert(QStringLiteral("w"), recent.size.width());
+    entry.insert(QStringLiteral("h"), recent.size.height());
+    entry.insert(QStringLiteral("ppi"), recent.ppi);
+    entry.insert(QStringLiteral("unit"), measurement_unit_settings_token(recent.unit));
+    entry.insert(QStringLiteral("resolutionUnit"), recent.resolution_unit_index);
+    entry.insert(QStringLiteral("background"), recent.background.name(QColor::HexArgb));
+    entry.insert(QStringLiteral("bits"), recent.bits);
+    entry.insert(QStringLiteral("artboards"), recent.artboards);
+    array.append(entry);
+  }
+  app_settings().setValue(QStringLiteral("newDocument/recent"),
+                          QString::fromUtf8(QJsonDocument(array).toJson(QJsonDocument::Compact)));
+}
+
+// A Recent card's title: the template its size and resolution match, else "Custom".
+QString recent_document_name(const RecentDocumentSettings& recent) {
+  for (const auto category : kPresetCategories) {
+    for (const auto& preset : presets_for_category(category)) {
+      if (preset.size == recent.size && std::abs(preset.ppi - recent.ppi) < 1e-6) {
+        return preset.name;
+      }
+    }
+  }
+  return QObject::tr("Custom");
+}
+
+bool is_recent_card_id(const QString& id) {
+  return id == kLastUsedPresetId || id.startsWith(QStringLiteral("recent-"));
+}
+
+// Calls `on_resize` whenever the watched widget resizes (the Recent row refits its cards).
+class ResizeWatcher final : public QObject {
+ public:
+  ResizeWatcher(QObject* parent, std::function<void()> on_resize) : QObject(parent), on_resize_(std::move(on_resize)) {}
+
+ protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() == QEvent::Resize && on_resize_) {
+      on_resize_();
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+ private:
+  std::function<void()> on_resize_;
+};
 
 // The search field's rule (GitHub issue 223): every whitespace-separated word must
 // appear, ignoring case, in the template's name or its group's name. A word holding a
@@ -414,7 +558,8 @@ ThemedQss new_document_dialog_style() {
       color: @text_primary;
     }
     QDialog#patchyNewDocumentDialog QLabel#newDocumentSummaryLabel,
-    QDialog#patchyNewDocumentDialog QLabel#newDocumentNoMatchesLabel {
+    QDialog#patchyNewDocumentDialog QLabel#newDocumentNoMatchesLabel,
+    QDialog#patchyNewDocumentDialog QLabel#newDocumentRecentLabel {
       color: @nd_section_text;
     }
     QDialog#patchyNewDocumentDialog QLineEdit#newDocumentSearchEdit {
@@ -431,7 +576,8 @@ ThemedQss new_document_dialog_style() {
     QDialog#patchyNewDocumentDialog QWidget#newDocumentChipRow {
       background: transparent;
     }
-    QDialog#patchyNewDocumentDialog QListWidget#newDocumentPresetList {
+    QDialog#patchyNewDocumentDialog QListWidget#newDocumentPresetList,
+    QDialog#patchyNewDocumentDialog QListWidget#newDocumentRecentList {
       background: @list_surface_bg;
       border: 1px solid @list_surface_border;
       border-radius: 5px;
@@ -537,8 +683,7 @@ bool clipboard_offers_image() {
 }
 
 std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent) {
-  const auto clipboard_image = clipboard_offers_image() ? QApplication::clipboard()->image() : QImage();
-  const auto clipboard_size = clipboard_image.isNull() ? QSize() : clipboard_image.size();
+  auto clipboard_image = clipboard_offers_image() ? QApplication::clipboard()->image() : QImage();
 
   QDialog dialog(parent);
   dialog.setObjectName(QStringLiteral("patchyNewDocumentDialog"));
@@ -584,6 +729,28 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   }
   left->addWidget(chips);
 
+  // The Recent row: Clipboard (with an image on the clipboard) and the last documents
+  // created here, newest first, on every group and through a search; as many cards as fit
+  // one row, never wrapping or scrolling.
+  auto* recent_label = new QLabel(QObject::tr("Recent", "new document recent sizes"), &dialog);
+  recent_label->setObjectName(QStringLiteral("newDocumentRecentLabel"));
+  left->addWidget(recent_label);
+  auto* recent_list = new QListWidget(&dialog);
+  recent_list->setObjectName(QStringLiteral("newDocumentRecentList"));
+  recent_list->setViewMode(QListView::IconMode);
+  recent_list->setFlow(QListView::LeftToRight);
+  recent_list->setWrapping(false);
+  recent_list->setMovement(QListView::Static);
+  recent_list->setSelectionMode(QAbstractItemView::SingleSelection);
+  recent_list->setUniformItemSizes(true);
+  recent_list->setGridSize(kPresetCardCell);
+  recent_list->setMouseTracking(true);
+  recent_list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  recent_list->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+  recent_list->setItemDelegate(new PresetCardDelegate(recent_list));
+  recent_list->setFixedHeight(kPresetCardCell.height() + 8);
+  left->addWidget(recent_list);
+
   auto* no_matches = new QLabel(QObject::tr("No templates match the search."), &dialog);
   no_matches->setObjectName(QStringLiteral("newDocumentNoMatchesLabel"));
   no_matches->hide();
@@ -599,9 +766,10 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   preset_list->setMouseTracking(true);
   preset_list->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
   preset_list->setItemDelegate(new PresetCardDelegate(preset_list));
-  // Room for every group without a scroll bar: Last Used (and Clipboard on Screen) and
-  // the group's templates fill at most four rows of three. Search results scroll.
-  preset_list->setMinimumSize(3 * kPresetCardCell.width() + 26, 4 * kPresetCardCell.height() + 12);
+  // Room for every group without a scroll bar: a group's templates fill at most four
+  // rows of three. Search results scroll.
+  // The extra 12 px cover the list's frame and padding (the theme's 1 px border, 3 px padding).
+  preset_list->setMinimumSize(3 * kPresetCardCell.width() + 26, 4 * kPresetCardCell.height() + 24);
   left->addWidget(no_matches);
   left->addWidget(preset_list, 1);
 
@@ -742,18 +910,9 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   QString current_preset_id = QStringLiteral("custom");
   QString current_preset_name = QObject::tr("Custom");
   QColor background_color(Qt::white);
-  // The last accepted settings, which the Last Used card restores; empty until a
-  // document has been created from the dialog.
-  struct LastUsedSettings {
-    QSize size;
-    double ppi{kScreenPpi};
-    MeasurementUnit unit{MeasurementUnit::Pixels};
-    int resolution_unit_index{0};
-    QColor background{Qt::white};
-    int bits{8};
-    bool artboards{false};
-  };
-  std::optional<LastUsedSettings> last_used;
+  // The documents created here, newest first, which the Recent cards restore; empty
+  // until a document has been created from the dialog.
+  std::vector<RecentDocumentSettings> recents;
 
   const auto current_unit = [unit] { return static_cast<MeasurementUnit>(unit->currentData().toInt()); };
   const auto refresh_dimension_spins = [&state, current_unit, width, height] {
@@ -852,16 +1011,18 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     background->setCurrentIndex(0);
   };
 
-  const auto mark_custom = [&current_preset_id, &current_preset_name, preset_list, update_summary,
-                            set_fields_enabled] {
+  const auto clear_list_selection = [](QListWidget* list) {
+    const QSignalBlocker blocker(list);
+    list->setCurrentItem(nullptr);
+    list->clearSelection();
+  };
+  const auto mark_custom = [&current_preset_id, &current_preset_name, preset_list, recent_list, update_summary,
+                            set_fields_enabled, clear_list_selection] {
     if (current_preset_id != QStringLiteral("custom")) {
       current_preset_id = QStringLiteral("custom");
       current_preset_name = QObject::tr("Custom");
-      {
-        const QSignalBlocker blocker(preset_list);
-        preset_list->setCurrentItem(nullptr);
-        preset_list->clearSelection();
-      }
+      clear_list_selection(preset_list);
+      clear_list_selection(recent_list);
       set_fields_enabled(true);
     }
     update_summary();
@@ -870,35 +1031,13 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   const auto populate_list = [&](PresetCategory category) {
     const QSignalBlocker blocker(preset_list);
     preset_list->clear();
-    auto presets = presets_for_category(category, clipboard_size);
-    if (last_used.has_value()) {
-      // After Clipboard on Screen, first in the other groups.
-      presets.insert(presets.begin() + (category == PresetCategory::Screen ? 1 : 0),
-                     NewDocumentPreset{QString(kLastUsedPresetId), QObject::tr("Last Used"), last_used->size,
-                                       last_used->ppi});
-    }
-    for (const auto& preset : presets) {
+    for (const auto& preset : presets_for_category(category)) {
       auto* item = new QListWidgetItem(preset.name, preset_list);
       item->setData(kPresetIdRole, preset.id);
       item->setData(kPresetSizeRole, preset.size);
       item->setData(kPresetPpiRole, preset.ppi);
-      item->setData(kPresetClipboardRole, preset.clipboard);
-      if (preset.clipboard) {
-        if (clipboard_image.isNull()) {
-          item->setFlags(item->flags() & ~Qt::ItemIsEnabled);
-          item->setToolTip(QObject::tr("Clipboard does not contain an image"));
-        } else {
-          item->setData(kPresetThumbnailRole,
-                        QVariant::fromValue(QPixmap::fromImage(clipboard_image.scaled(
-                            112, 64, Qt::KeepAspectRatio, Qt::SmoothTransformation))));
-          item->setToolTip(QObject::tr("Create the document from the clipboard image"));
-        }
-      } else if (preset.id == kLastUsedPresetId) {
-        item->setToolTip(QObject::tr("The settings of the last document created here: %1 x %2 px at %3 ppi")
-                             .arg(preset.size.width())
-                             .arg(preset.size.height())
-                             .arg(QString::number(preset.ppi)));
-      } else if (preset.size.isValid() && preset.size.width() > 0) {
+      item->setData(kPresetClipboardRole, false);
+      if (preset.size.isValid() && preset.size.width() > 0) {
         item->setToolTip(QObject::tr("%1: %2 x %3 px at %4 ppi")
                              .arg(preset.name)
                              .arg(preset.size.width())
@@ -912,6 +1051,47 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     }
   };
 
+  const auto populate_recent_row = [&] {
+    const QSignalBlocker blocker(recent_list);
+    recent_list->clear();
+    // Until the row is laid out its width means nothing: build every card (so the opening
+    // selection exists and applies), and the first resize trims the row to what fits.
+    const auto fit = recent_list->isVisible() ? std::max(1, recent_list->viewport()->width() / kPresetCardCell.width())
+                                              : kMaxRecentDocuments + 1;
+    if (!clipboard_image.isNull()) {
+      auto* item = new QListWidgetItem(QObject::tr("Clipboard"), recent_list);
+      item->setData(kPresetIdRole, QString(kClipboardPresetId));
+      item->setData(kPresetSizeRole, clipboard_image.size());
+      item->setData(kPresetPpiRole, kScreenPpi);
+      item->setData(kPresetClipboardRole, true);
+      item->setData(kPresetThumbnailRole, QVariant::fromValue(QPixmap::fromImage(clipboard_image.scaled(
+                                              112, 64, Qt::KeepAspectRatio, Qt::SmoothTransformation))));
+      item->setToolTip(QObject::tr("Create the document from the clipboard image"));
+    }
+    for (std::size_t index = 0; index < recents.size() && recent_list->count() < fit; ++index) {
+      const auto& recent = recents[index];
+      const auto id = index == 0 ? QString(kLastUsedPresetId) : QStringLiteral("recent-%1").arg(index);
+      auto* item = new QListWidgetItem(index == 0 ? QObject::tr("Last Used") : recent_document_name(recent),
+                                       recent_list);
+      item->setData(kPresetIdRole, id);
+      item->setData(kPresetSizeRole, recent.size);
+      item->setData(kPresetPpiRole, recent.ppi);
+      item->setData(kPresetClipboardRole, false);
+      item->setData(kPresetRecentIndexRole, static_cast<int>(index));
+      item->setToolTip((index == 0 ? QObject::tr("The settings of the last document created here: %1 x %2 px at %3 ppi")
+                                   : QObject::tr("The settings of a recent document: %1 x %2 px at %3 ppi"))
+                           .arg(recent.size.width())
+                           .arg(recent.size.height())
+                           .arg(QString::number(recent.ppi)));
+    }
+    for (int row = 0; row < recent_list->count(); ++row) {
+      if (recent_list->item(row)->data(kPresetIdRole).toString() == current_preset_id) {
+        recent_list->setCurrentItem(recent_list->item(row));
+        recent_list->item(row)->setSelected(true);
+      }
+    }
+  };
+
   // The chip shown while not searching; restored when the search clears.
   int browsing_category = static_cast<int>(PresetCategory::Screen);
   const auto populate_search = [&](const QString& text) {
@@ -919,8 +1099,8 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     preset_list->clear();
     QListWidgetItem* current = nullptr;
     for (const auto category : kPresetCategories) {
-      for (const auto& preset : presets_for_category(category, clipboard_size)) {
-        if (preset.clipboard || !preset_matches_search(preset, category, text)) {
+      for (const auto& preset : presets_for_category(category)) {
+        if (!preset_matches_search(preset, category, text)) {
           continue;
         }
         auto* item = new QListWidgetItem(preset.name, preset_list);
@@ -966,23 +1146,25 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     if (const auto preset_ppi = item->data(kPresetPpiRole).toDouble(); preset_ppi > 0.0) {
       state.ppi = preset_ppi;
     }
-    if (current_preset_id == kLastUsedPresetId && last_used.has_value()) {
-      // Last Used restores everything the last create accepted, not just the size.
+    if (const auto recent_index = item->data(kPresetRecentIndexRole);
+        recent_index.isValid() && recent_index.toInt() >= 0 && recent_index.toInt() < static_cast<int>(recents.size())) {
+      // A Recent card restores everything that create accepted, not just the size.
+      const auto& recent = recents[static_cast<std::size_t>(recent_index.toInt())];
       {
         const QSignalBlocker blocker(unit);
-        unit->setCurrentIndex(std::max(0, unit->findData(static_cast<int>(last_used->unit))));
+        unit->setCurrentIndex(std::max(0, unit->findData(static_cast<int>(recent.unit))));
       }
       {
         const QSignalBlocker blocker(resolution_unit);
-        resolution_unit->setCurrentIndex(last_used->resolution_unit_index);
+        resolution_unit->setCurrentIndex(recent.resolution_unit_index);
       }
-      background_color = last_used->background;
+      background_color = recent.background;
       select_background_index_for(background_color);
       update_swatch();
-      if (const auto index = bit_depth->findData(last_used->bits); index >= 0 && deep_editing_enabled()) {
+      if (const auto index = bit_depth->findData(recent.bits); index >= 0 && deep_editing_enabled()) {
         bit_depth->setCurrentIndex(index);
       }
-      artboards->setChecked(last_used->artboards);
+      artboards->setChecked(recent.artboards);
     }
     refresh_dimension_spins();
     refresh_resolution_spin();
@@ -990,8 +1172,28 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     update_summary();
   };
 
-  QObject::connect(preset_list, &QListWidget::currentItemChanged, &dialog,
-                   [&](QListWidgetItem* item, QListWidgetItem*) { apply_preset_item(item); });
+  // One card is current across both lists: picking in one clears the other.
+  QObject::connect(preset_list, &QListWidget::currentItemChanged, &dialog, [&](QListWidgetItem* item, QListWidgetItem*) {
+    if (item != nullptr) {
+      clear_list_selection(recent_list);
+    }
+    apply_preset_item(item);
+  });
+  QObject::connect(recent_list, &QListWidget::currentItemChanged, &dialog, [&](QListWidgetItem* item, QListWidgetItem*) {
+    if (item != nullptr) {
+      clear_list_selection(preset_list);
+    }
+    apply_preset_item(item);
+  });
+  recent_list->viewport()->installEventFilter(new ResizeWatcher(recent_list, [&] { populate_recent_row(); }));
+  // An image copied or cleared while the dialog is open adds or removes the Clipboard card.
+  QObject::connect(QApplication::clipboard(), &QClipboard::dataChanged, &dialog, [&] {
+    clipboard_image = clipboard_offers_image() ? QApplication::clipboard()->image() : QImage();
+    if (current_preset_id == kClipboardPresetId && clipboard_image.isNull()) {
+      mark_custom();
+    }
+    populate_recent_row();
+  });
   const auto searching = [search] { return !search->text().trimmed().isEmpty(); };
   QObject::connect(chip_group, &QButtonGroup::idToggled, &dialog, [&](int id, bool checked) {
     if (!checked) {
@@ -1020,11 +1222,12 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
       }
       const auto previous = current_preset_id;
       if (auto* item = populate_search(text); item != nullptr && item->data(kPresetIdRole).toString() != previous) {
+        clear_list_selection(recent_list);
         apply_preset_item(item);
       }
       return;
     }
-    // Cleared: back to the group that was showing, Clipboard and Last Used included.
+    // Cleared: back to the group that was showing.
     no_matches->hide();
     chip_group->setExclusive(true);
     if (auto* chip = chip_group->button(browsing_category); chip != nullptr) {
@@ -1144,21 +1347,17 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   // Double-clicking a preset card creates the document straight away: the first
   // click already made it current (and applied its values), so the second is
   // the same as pressing Create.
-  QObject::connect(preset_list, &QListWidget::itemDoubleClicked, &dialog,
-                   [create](QListWidgetItem*) { create->click(); });
+  for (auto* list : {preset_list, recent_list}) {
+    QObject::connect(list, &QListWidget::itemDoubleClicked, &dialog, [create](QListWidgetItem*) { create->click(); });
+  }
 
-  // Open on the Last Used card, which holds the last accepted settings, or on Default
-  // before anything has been created here. A clipboard image never preselects its card:
-  // it would hide the remembered size, and File > Open from Clipboard is the one-step
-  // clipboard path.
+  // Open on the newest Recent card (the Last Used card), or on Default before anything
+  // has been created here. A clipboard image never preselects its card: it would hide the
+  // remembered size, and File > Open from Clipboard is the one-step clipboard path.
   {
     auto settings = app_settings();
     settings.beginGroup(QStringLiteral("newDocument"));
-    const auto last_width = settings.value(QStringLiteral("lastWidth")).toInt();
-    const auto last_height = settings.value(QStringLiteral("lastHeight")).toInt();
-    const auto last_ppi = settings.value(QStringLiteral("lastPpi")).toDouble();
     const auto last_background = settings.value(QStringLiteral("lastBackground")).value<QColor>();
-    const auto last_bits = settings.value(QStringLiteral("lastBitsPerChannel"), 8).toInt();
     settings.endGroup();
     // The W/H unit and the resolution unit (issue 53): the last accepted ones, else
     // the ruler unit on a first run; the combo has no Points or Percent, so those
@@ -1178,14 +1377,8 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     if (last_background.isValid()) {
       background_color = last_background;
     }
-    if (last_width >= 1 && last_height >= 1) {
-      last_used = LastUsedSettings{QSize(std::clamp(last_width, 1, 30000), std::clamp(last_height, 1, 30000)),
-                                   std::clamp(last_ppi > 0.0 ? last_ppi : kScreenPpi, 0.01, 9999.0),
-                                   seed_unit,
-                                   seed_resolution_unit,
-                                   background_color,
-                                   last_bits,
-                                   artboards->isChecked()};
+    recents = load_recent_documents(seed_unit, seed_resolution_unit, artboards->isChecked());
+    if (!recents.empty()) {
       current_preset_id = QString(kLastUsedPresetId);
     } else {
       current_preset_id = QStringLiteral("screen-1024x768");
@@ -1202,8 +1395,11 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   if (auto* chip = chip_group->button(static_cast<int>(opening_category)); chip != nullptr) {
     chip->setChecked(true);
   }
-  if (auto* item = preset_list->currentItem(); item != nullptr) {
+  populate_recent_row();
+  if (auto* item = recent_list->currentItem(); item != nullptr) {
     apply_preset_item(item);
+  } else if (auto* grid_item = preset_list->currentItem(); grid_item != nullptr) {
+    apply_preset_item(grid_item);
   } else {
     refresh_dimension_spins();
     refresh_resolution_spin();
@@ -1213,7 +1409,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   QObject::connect(bit_depth, &QComboBox::currentIndexChanged, &dialog, [update_summary](int) { update_summary(); });
 
   append_themed_style(dialog, new_document_dialog_style());
-  dialog.resize(724, 540);
+  dialog.resize(724, 680);
   // Always over the main window: a remembered spot (a far corner, another monitor) only made
   // the dialog hard to find (Seth, October 2026).
   mark_dialog_always_centered(dialog);
@@ -1223,7 +1419,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
   if (run_non_modal_dialog(dialog) != QDialog::Accepted) {
     return std::nullopt;
   }
-  const bool clipboard_selected = current_preset_id == QStringLiteral("clipboard");
+  const bool clipboard_selected = current_preset_id == kClipboardPresetId;
   const auto chosen_bits = deep_editing_enabled() ? bit_depth->currentData().toInt() : 8;
   {
     // Every create becomes the next Last Used. A clipboard create contributes only its
@@ -1234,7 +1430,7 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
     settings.beginGroup(QStringLiteral("newDocument"));
     if (clipboard_selected) {
       settings.setValue(QStringLiteral("lastPresetId"), QStringLiteral("custom"));
-    } else if (current_preset_id != kLastUsedPresetId) {
+    } else if (!is_recent_card_id(current_preset_id)) {
       settings.setValue(QStringLiteral("lastPresetId"), current_preset_id);
     }
     settings.setValue(QStringLiteral("lastWidth"), state.pixel_width);
@@ -1250,6 +1446,23 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
       remember_resolution_unit(QStringLiteral("newDocument/lastResolutionUnit"), resolution_unit->currentIndex());
       app_settings().setValue(QStringLiteral("newDocument/artboards"), artboards->isChecked());
     }
+    // The create leads the Recent row next time; an identical earlier one moves up. A
+    // clipboard create keeps the newest entry's other settings, as Last Used did.
+    RecentDocumentSettings created;
+    if (clipboard_selected && !recents.empty()) {
+      created = recents.front();
+    } else if (!clipboard_selected) {
+      created.unit = current_unit();
+      created.resolution_unit_index = resolution_unit->currentIndex();
+      created.background = background_color;
+      created.bits = chosen_bits;
+      created.artboards = artboards->isChecked();
+    }
+    created.size = QSize(state.pixel_width, state.pixel_height);
+    created.ppi = state.ppi;
+    std::erase(recents, created);
+    recents.insert(recents.begin(), created);
+    store_recent_documents(recents);
   }
   return NewDocumentSettings{state.pixel_width,
                              state.pixel_height,

@@ -3447,10 +3447,6 @@ Flow: %6
         <translation>クリップボードの画像からドキュメントを作成</translation>
     </message>
     <message>
-        <source>Clipboard does not contain an image</source>
-        <translation>クリップボードに画像がありません</translation>
-    </message>
-    <message>
         <source>Choose background color</source>
         <translation>背景色を選択</translation>
     </message>
@@ -10970,6 +10966,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Channel Mixer: monochrome %1 / %2 / %3, constant %4</source>
         <translation>チャンネルミキサー: モノクロ %1 / %2 / %3、定数 %4</translation>
+    </message>
+    <message>
+        <source>Recent</source>
+        <comment>new document recent sizes</comment>
+        <translation>最近使用</translation>
+    </message>
+    <message>
+        <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
+        <translation>最近のドキュメントの設定: %1 x %2 px、%3 ppi</translation>
     </message>
 </context>
 <context>

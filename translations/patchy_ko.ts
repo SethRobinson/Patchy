@@ -7000,10 +7000,6 @@ Flow: %6
         <translation>%3ppi에서 %1 x %2인치</translation>
     </message>
     <message>
-        <source>Clipboard does not contain an image</source>
-        <translation>클립보드에 이미지가 포함되어 있지 않습니다.</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>클립보드 이미지에서 문서 만들기</translation>
     </message>
@@ -10970,6 +10966,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Channel Mixer: monochrome %1 / %2 / %3, constant %4</source>
         <translation>채널 혼합: 단색 %1 / %2 / %3, 상수 %4</translation>
+    </message>
+    <message>
+        <source>Recent</source>
+        <comment>new document recent sizes</comment>
+        <translation>최근</translation>
+    </message>
+    <message>
+        <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
+        <translation>최근 문서의 설정: %3ppi에서 %1 x %2픽셀</translation>
     </message>
 </context>
 <context>

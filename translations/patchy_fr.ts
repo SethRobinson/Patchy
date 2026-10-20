@@ -6720,10 +6720,6 @@ Flux : %6
         <translation>%1 x %2 po à %3 ppp</translation>
     </message>
     <message>
-        <source>Clipboard does not contain an image</source>
-        <translation>Le Presse-papiers ne contient pas d&apos;image</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>Créer le document à partir de l&apos;image du Presse-papiers</translation>
     </message>
@@ -11004,6 +11000,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Channel Mixer: monochrome %1 / %2 / %3, constant %4</source>
         <translation>Mélangeur de couches : monochrome %1 / %2 / %3, constante %4</translation>
+    </message>
+    <message>
+        <source>Recent</source>
+        <comment>new document recent sizes</comment>
+        <translation>Récents</translation>
+    </message>
+    <message>
+        <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
+        <translation>Les paramètres d’un document récent : %1 x %2 px à %3 ppp</translation>
     </message>
 </context>
 <context>

@@ -6710,10 +6710,6 @@ Flow: %6
         <translation>%1 x %2 英吋，%3 ppi</translation>
     </message>
     <message>
-        <source>Clipboard does not contain an image</source>
-        <translation>剪貼簿中沒有影像</translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation>從剪貼簿的影像建立文件</translation>
     </message>
@@ -10970,6 +10966,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Channel Mixer: monochrome %1 / %2 / %3, constant %4</source>
         <translation>色版混合器: 單色 %1 / %2 / %3，常數 %4</translation>
+    </message>
+    <message>
+        <source>Recent</source>
+        <comment>new document recent sizes</comment>
+        <translation>最近</translation>
+    </message>
+    <message>
+        <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
+        <translation>最近文件的設定：%1 x %2 px，%3 ppi</translation>
     </message>
 </context>
 <context>

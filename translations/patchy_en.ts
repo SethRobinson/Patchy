@@ -6715,10 +6715,6 @@ Flow: %6
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Clipboard does not contain an image</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Create the document from the clipboard image</source>
         <translation type="unfinished"></translation>
     </message>
@@ -10987,6 +10983,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>Channel Mixer: monochrome %1 / %2 / %3, constant %4</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Recent</source>
+        <comment>new document recent sizes</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
