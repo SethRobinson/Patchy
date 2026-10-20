@@ -1658,6 +1658,7 @@ void MainWindow::convert_smart_object_to_layers() {
   folder.set_blend_mode(smart_object.blend_mode() == BlendMode::PassThrough ? BlendMode::Normal
                                                                             : smart_object.blend_mode());
   folder.set_lock_flags(smart_object.lock_flags());
+  folder.set_color_label(smart_object.color_label());
   if (smart_object.mask().has_value()) {
     folder.set_mask(*smart_object.mask());
     if (const auto linked = smart_object.metadata().find(kLayerMetadataMaskLinked);

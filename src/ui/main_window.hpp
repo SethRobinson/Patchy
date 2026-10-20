@@ -1416,6 +1416,13 @@ private:
   void paste_layer_style_to_selected_layers();
   void delete_selected_layer_styles();
   void refresh_layer_style_action_states();
+  // Layer color labels (GitHub issue 244): one undo step that labels every
+  // selected (else the active) layer, groups included.
+  void set_selected_layers_color(LayerColorLabel label);
+  // Fills `menu` with the shared None..Gray actions, creating them on first use.
+  void populate_layer_color_actions(QMenu* menu);
+  // Checks the action matching the selection's common label (none when mixed).
+  void refresh_layer_color_action_states();
   void rasterize_active_layers();
   void rasterize_layer_ids(const std::vector<LayerId>& ids);
   void rasterize_active_layer_styles();
@@ -2349,6 +2356,8 @@ private:
   QToolButton* lock_all_button_{nullptr};
   QPushButton* add_layer_mask_button_{nullptr};
   QToolButton* layer_styles_button_{nullptr};
+  QMenu* layer_color_menu_{nullptr};
+  std::array<QAction*, kLayerColorLast + 1U> layer_color_actions_{};
   QAction* selection_new_mode_action_{nullptr};
   QAction* selection_add_mode_action_{nullptr};
   QAction* selection_subtract_mode_action_{nullptr};

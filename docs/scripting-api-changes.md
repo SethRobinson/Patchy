@@ -8,6 +8,11 @@ Remove Object, Align/Distribute and smart objects) are in
 [scripting-api-changes-through-2026-09-30.md](scripting-api-changes-through-2026-09-30.md).
 Every entry below is API 1.
 
+2026-10-20 (additive): `layer.colorLabel`, the Layers panel color label (GitHub issue 244):
+`"none"`, `"red"`, `"orange"`, `"yellow"`, `"green"`, `"blue"`, `"violet"`, `"gray"` (d.ts
+`PatchyLayerColorLabel`). Setting another value throws; an index Patchy does not know reads as
+`"none"`. PSD saves write it as Photoshop's `lclr` block. Permanent identifiers: the property
+and its eight values. Pinned by `ui_script_layer_color_label`.
 2026-10-19 (additive plus behavioral): `.tif`/`.tiff` saves take `layers` (layered TIFF,
 docs/tiff.md). `doc.saveAs` of a document with layers a flat file would lose now writes a
 layered TIFF by default (the same composite plus Photoshop's layer data in tag 37724) instead

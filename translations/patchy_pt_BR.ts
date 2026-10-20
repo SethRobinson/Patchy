@@ -22485,6 +22485,24 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
         <translation>Não perguntar novamente</translation>
     </message>
     <message>
+        <source>Color</source>
+        <translation>Cor</translation>
+    </message>
+    <message>
+        <source>Orange</source>
+        <translation>Laranja</translation>
+    </message>
+    <message>
+        <source>Violet</source>
+        <translation>Violeta</translation>
+    </message>
+    <message>
+        <source>Gray</source>
+        <translation>Cinza</translation>
+    </message>
+    <message>
+        <source>Layer color</source>
+        <translation>Cor da camada</translation>
         <source>Delete All Smart Filters</source>
         <translation>Excluir todos os filtros inteligentes</translation>
     </message>
@@ -24232,6 +24250,10 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
     <message>
         <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
         <translation>Painel desconhecido &quot;%1&quot;. Painéis: %2.</translation>
+    </message>
+    <message>
+        <source>Unknown layer color label: %1</source>
+        <translation>Cor de camada desconhecida: %1</translation>
     </message>
 </context>
 <context>

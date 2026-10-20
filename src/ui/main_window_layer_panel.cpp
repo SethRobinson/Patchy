@@ -141,6 +141,9 @@ constexpr const char* kLayerContentThumbnailFontBadgeHiddenProperty = "patchyFon
 constexpr const char* kLayerMaskThumbnailRevisionProperty = "patchyMaskRevision";
 
 constexpr int kLayerRowBaseIndent = 6;
+// The color label strip sits inside the base indent (GitHub issue 244).
+constexpr int kLayerColorStripWidth = 4;
+static_assert(kLayerColorStripWidth < kLayerRowBaseIndent);
 constexpr int kLayerFolderDisclosureWidth = 18;
 constexpr int kLayerFolderDisclosureHeight = 20;
 constexpr int kLayerRowHorizontalSpacing = 6;
@@ -1396,6 +1399,20 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     main_row->installEventFilter(list_parent);
   }
   row_layout->addWidget(main_row);
+
+  // The layer's color label (GitHub issue 244): a strip down the row's left
+  // edge, inside the base indent, so it takes no layout width and leaves the eye
+  // column alone. Mouse presses pass through to the row.
+  if (const auto color = layer.color_label();
+      color != kLayerColorNone && color <= kLayerColorLast) {
+    auto* strip = new QWidget(main_row);
+    strip->setObjectName(QStringLiteral("layerRowColorStrip"));
+    const auto id = layer_color_label_id(color);
+    strip->setProperty("layerColor", QString::fromLatin1(id.data(), static_cast<qsizetype>(id.size())));
+    strip->setAttribute(Qt::WA_StyledBackground, true);
+    strip->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+    strip->setGeometry(0, 0, kLayerColorStripWidth, main_row->maximumHeight());
+  }
 
   auto* layout = new QHBoxLayout(main_row);
   layout->setContentsMargins(kLayerRowBaseIndent, 4, 8, 4);

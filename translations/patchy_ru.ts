@@ -22555,6 +22555,24 @@ Patchy можно будет запускать из меню, а на пане�
         <translation>Больше не спрашивать</translation>
     </message>
     <message>
+        <source>Color</source>
+        <translation>Цвет</translation>
+    </message>
+    <message>
+        <source>Orange</source>
+        <translation>Оранжевый</translation>
+    </message>
+    <message>
+        <source>Violet</source>
+        <translation>Фиолетовый</translation>
+    </message>
+    <message>
+        <source>Gray</source>
+        <translation>Серый</translation>
+    </message>
+    <message>
+        <source>Layer color</source>
+        <translation>Цвет слоя</translation>
         <source>Delete All Smart Filters</source>
         <translation>Удалить все смарт-фильтры</translation>
     </message>
@@ -24303,6 +24321,10 @@ Patchy можно будет запускать из меню, а на пане�
     <message>
         <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
         <translation>Неизвестная панель &quot;%1&quot;. Панели: %2.</translation>
+    </message>
+    <message>
+        <source>Unknown layer color label: %1</source>
+        <translation>Неизвестный цвет слоя: %1</translation>
     </message>
 </context>
 <context>

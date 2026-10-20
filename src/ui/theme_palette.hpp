@@ -185,6 +185,14 @@ struct ThemePalette {
   QColor layer_thumbnail_border;
   QColor layer_mask_disabled_cross;
   QColor layer_clip_badge;
+  // Layer color labels (GitHub issue 244), Photoshop's lclr indices 1..7.
+  QColor layer_color_red;
+  QColor layer_color_orange;
+  QColor layer_color_yellow;
+  QColor layer_color_green;
+  QColor layer_color_blue;
+  QColor layer_color_violet;
+  QColor layer_color_gray;
 
   // The bright accent used for active targets and the mask-edit chip.
   QColor accent_bright;

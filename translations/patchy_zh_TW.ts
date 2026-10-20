@@ -22415,6 +22415,24 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>不再詢問</translation>
     </message>
     <message>
+        <source>Color</source>
+        <translation>顏色</translation>
+    </message>
+    <message>
+        <source>Orange</source>
+        <translation>橙色</translation>
+    </message>
+    <message>
+        <source>Violet</source>
+        <translation>紫色</translation>
+    </message>
+    <message>
+        <source>Gray</source>
+        <translation>灰色</translation>
+    </message>
+    <message>
+        <source>Layer color</source>
+        <translation>圖層顏色</translation>
         <source>Delete All Smart Filters</source>
         <translation>刪除所有智慧型濾鏡</translation>
     </message>
@@ -24161,6 +24179,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
         <translation>未知的面板 &quot;%1&quot;。面板：%2。</translation>
+    </message>
+    <message>
+        <source>Unknown layer color label: %1</source>
+        <translation>未知的圖層顏色：%1</translation>
     </message>
 </context>
 <context>

@@ -22485,6 +22485,24 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
         <translation>Nicht mehr fragen</translation>
     </message>
     <message>
+        <source>Color</source>
+        <translation>Farbe</translation>
+    </message>
+    <message>
+        <source>Orange</source>
+        <translation>Orange</translation>
+    </message>
+    <message>
+        <source>Violet</source>
+        <translation>Violett</translation>
+    </message>
+    <message>
+        <source>Gray</source>
+        <translation>Grau</translation>
+    </message>
+    <message>
+        <source>Layer color</source>
+        <translation>Ebenenfarbe</translation>
         <source>Delete All Smart Filters</source>
         <translation>Alle Smartfilter löschen</translation>
     </message>
@@ -24232,6 +24250,10 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
     <message>
         <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
         <translation>Unbekanntes Bedienfeld &quot;%1&quot;. Bedienfelder: %2.</translation>
+    </message>
+    <message>
+        <source>Unknown layer color label: %1</source>
+        <translation>Unbekannte Ebenenfarbe: %1</translation>
     </message>
 </context>
 <context>

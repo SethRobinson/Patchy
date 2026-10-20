@@ -268,6 +268,9 @@ interface PatchyArtboard {
   color: string;
 }
 
+/** Layers panel color labels, saved to PSD as Photoshop's own layer colors. */
+type PatchyLayerColorLabel = "none" | "red" | "orange" | "yellow" | "green" | "blue" | "violet" | "gray";
+
 interface PatchyLayer {
   /** Decimal string identity, scoped to this open document. Re-query after undo/reopen. */
   readonly id: string;
@@ -280,6 +283,9 @@ interface PatchyLayer {
   /** Blend mode id string (see the list above). */
   blendMode: string;
   locked: boolean;
+  /** The Layers panel color label. Setting an unknown value throws; a label from a newer
+   *  Photoshop that Patchy does not know reads as "none" and is kept on save. */
+  colorLabel: PatchyLayerColorLabel;
   /** Content offset in document pixels; setting either moves the layer like `moveTo`.
    *  For an artboard, the artboard's top-left corner. */
   x: number;

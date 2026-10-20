@@ -22415,6 +22415,24 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>今後確認しない</translation>
     </message>
     <message>
+        <source>Color</source>
+        <translation>カラー</translation>
+    </message>
+    <message>
+        <source>Orange</source>
+        <translation>オレンジ</translation>
+    </message>
+    <message>
+        <source>Violet</source>
+        <translation>バイオレット</translation>
+    </message>
+    <message>
+        <source>Gray</source>
+        <translation>グレー</translation>
+    </message>
+    <message>
+        <source>Layer color</source>
+        <translation>レイヤーカラー</translation>
         <source>Delete All Smart Filters</source>
         <translation>すべてのスマートフィルターを削除</translation>
     </message>
@@ -24161,6 +24179,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
         <translation>不明なパネル &quot;%1&quot; です。パネル: %2。</translation>
+    </message>
+    <message>
+        <source>Unknown layer color label: %1</source>
+        <translation>不明なレイヤーカラー: %1</translation>
     </message>
 </context>
 <context>
