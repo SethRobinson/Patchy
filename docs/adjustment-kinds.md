@@ -4,7 +4,7 @@ Codec and calibration record for the Photoshop adjustment kinds added under #250
 
 ## Placeholders
 
-Photoshop adjustment kinds Patchy cannot apply yet (`vibA`, `blwh`, `clrL`, `grdm`, `selc`) import as empty pixel layers marked `patchy.adjustment.placeholder_kind` (`photoshop_placeholder_adjustment_kind`): the Layers panel draws the kind's symbol on a muted frame and a tooltip says it is kept but not applied, one import notice covers the file, and the native block is written back byte for byte. A kind leaves this list when it gets a real `AdjustmentKind`; `mixr` and `phfl` blocks in a version their parsers do not read still import as placeholders.
+Photoshop adjustment kinds Patchy cannot apply yet (`vibA`, `blwh`, `clrL`, `selc`) import as empty pixel layers marked `patchy.adjustment.placeholder_kind` (`photoshop_placeholder_adjustment_kind`): the Layers panel draws the kind's symbol on a muted frame and a tooltip says it is kept but not applied, one import notice covers the file, and the native block is written back byte for byte. A kind leaves this list when it gets a real `AdjustmentKind`; `mixr`, `phfl` and `grdm` blocks their parsers do not read still import as placeholders.
 
 ## Channel Mixer
 
@@ -22,3 +22,12 @@ Photoshop adjustment kinds Patchy cannot apply yet (`vibA`, `blwh`, `clrL`, `grd
 - Preserve Luminosity: PDF SetLum on that rounded result, with luma `(30R + 59G + 11B)/100` rounded to a whole level for both the source and the filtered color, then ClipColor. Exact on grays and most colors, but Photoshop clips bright colors differently: on the probe 89 % of values match, the rest are within 7 levels, almost all where a channel exceeds 255 after the shift. That clip is unresolved (a single clip center does not explain it).
 - Refuted: a multiply or normal blend in encoded or linear RGB (dozens to hundreds of levels off on saturated colors: pure red through a red filter at 100 % gives (194, 0, 10)), Preserve Luminosity as an XYZ Y restore or a Lab L restore, unclamped values carried into SetLum, and Rec. 709 luma weights.
 - Outputs mix channels, so there is no LUT; 16/32-bit documents run the same math without the byte stages. Grayscale and CMYK documents keep the RGB math.
+
+## Gradient Map
+
+`AdjustmentKind::GradientMap`, Photoshop's `grdm` block: u16 version (1, or 3 with a 4-byte method key `Gcls`/`Lnr `/`Perc` after the reverse and dither bytes), Unicode name with its trailing null, color stops (u32 location 0..4096, u32 midpoint 0..100, u16 color space, four u16 components, u16 pad), opacity stops (u32, u32, u16 0..255), then u16 2, u16 smoothness 0..4096 and 36 bytes of noise fields, padded to four bytes. Only RGB solid stops are read; other color spaces stay placeholders. The settings are a `LayerStyleGradient` (metadata `patchy.adjustment.gradient_map.*` in Photoshop's integer units); an unedited block is written back byte for byte, and an edit regenerates version 3 with the original's noise fields, which reproduces Photoshop's bytes exactly (pinned). Fitted on a Photoshop 2026 COM probe (#250): 12 maps (black to white and red to blue in all three methods, smoothness 0 and 100 %, reverse, three stops with midpoints, dither, the default method).
+
+- Each pixel's luma, `round((30R + 59G + 11B) / 100)`, indexes the gradient (a 256-entry table per gradient, cached per thread for the compositor). Photoshop's own luma differs by one level on 65 of the 4,352 probe colors, such as (0, 255, 255); no fixed-point form explains it.
+- Classic maps follow `gradient_color` with the two-stop endpoint ease of gradient fills. Perceptual and Linear apply the same smoothness ease to the segment position first (`ease_every_method`; fills and layer effects do not), then interpolate in OKLab or linear light. Every probe value is within one level. The ease is verified on two-stop gradients only.
+- Opacity stops are kept for the file and ignored, as in Photoshop; Dither is kept but not rendered. 16/32-bit documents use `gradient_color_precise` on the continuous luma. Photoshop's localization-key names (`$$$/DefaultGradient/...=Name`) show only the display part in the Layers panel.
+- Refuted: Linear and Perceptual without the ease (15 to 17 levels off at mid grays).

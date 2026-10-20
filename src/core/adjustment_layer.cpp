@@ -236,6 +236,110 @@ double photo_filter_luma(const std::array<double, 3>& color, bool byte_stages) {
   return byte_stages ? round_half_up(luma) : luma;
 }
 
+// The Gradient Map gradient as "method;reverse;dither;smoothness|stops|opacity stops" in
+// Photoshop's integer units, so a 'grdm' round trip through metadata is exact.
+std::string serialize_gradient_map(const LayerStyleGradient& gradient) {
+  const auto unit = [](float value, float scale) { return std::to_string(std::lround(value * scale)); };
+  std::string encoded = std::to_string(static_cast<int>(gradient.interpolation)) + ';' +
+                        (gradient.reverse ? "1" : "0") + ';' + (gradient.dither ? "1" : "0") + ';' +
+                        std::to_string(gradient.smoothness) + '|';
+  for (std::size_t index = 0; index < gradient.color_stops.size(); ++index) {
+    const auto& stop = gradient.color_stops[index];
+    encoded += (index == 0 ? "" : ";") + unit(stop.location, 4096.0F) + ',' + unit(stop.midpoint, 100.0F) + ',' +
+               std::to_string(stop.color.red) + ',' + std::to_string(stop.color.green) + ',' +
+               std::to_string(stop.color.blue);
+  }
+  encoded += '|';
+  for (std::size_t index = 0; index < gradient.alpha_stops.size(); ++index) {
+    const auto& stop = gradient.alpha_stops[index];
+    encoded += (index == 0 ? "" : ";") + unit(stop.location, 4096.0F) + ',' + unit(stop.midpoint, 100.0F) + ',' +
+               unit(stop.opacity, 255.0F);
+  }
+  return encoded;
+}
+
+std::vector<std::vector<int>> parse_int_records(std::string_view encoded, std::size_t fields) {
+  std::vector<std::vector<int>> records;
+  while (!encoded.empty()) {
+    const auto end = encoded.find(';');
+    auto record = encoded.substr(0, end);
+    std::vector<int> values;
+    while (!record.empty()) {
+      const auto comma = record.find(',');
+      const auto value = parse_int(record.substr(0, comma));
+      if (!value.has_value()) {
+        return {};
+      }
+      values.push_back(*value);
+      record = comma == std::string_view::npos ? std::string_view{} : record.substr(comma + 1U);
+    }
+    if (values.size() != fields) {
+      return {};
+    }
+    records.push_back(std::move(values));
+    encoded = end == std::string_view::npos ? std::string_view{} : encoded.substr(end + 1U);
+  }
+  return records;
+}
+
+std::optional<LayerStyleGradient> parse_gradient_map(std::string_view encoded) {
+  const auto first = encoded.find('|');
+  const auto second = first == std::string_view::npos ? first : encoded.find('|', first + 1U);
+  if (second == std::string_view::npos) {
+    return std::nullopt;
+  }
+  std::vector<int> head;
+  {
+    auto text = encoded.substr(0, first);
+    while (!text.empty()) {
+      const auto end = text.find(';');
+      const auto value = parse_int(text.substr(0, end));
+      if (!value.has_value()) {
+        return std::nullopt;
+      }
+      head.push_back(*value);
+      text = end == std::string_view::npos ? std::string_view{} : text.substr(end + 1U);
+    }
+  }
+  if (head.size() != 4U) {
+    return std::nullopt;
+  }
+  const auto colors = parse_int_records(encoded.substr(first + 1U, second - first - 1U), 5);
+  const auto alphas = parse_int_records(encoded.substr(second + 1U), 3);
+  if (colors.empty()) {
+    return std::nullopt;
+  }
+  LayerStyleGradient gradient = GradientMapAdjustment::default_gradient_map_gradient();
+  gradient.interpolation = static_cast<GradientInterpolationMethod>(std::clamp(head[0], 0, 2));
+  gradient.reverse = head[1] != 0;
+  gradient.dither = head[2] != 0;
+  gradient.smoothness = static_cast<std::uint16_t>(std::clamp(head[3], 0, 4096));
+  gradient.color_stops.clear();
+  for (const auto& record : colors) {
+    GradientColorStop stop;
+    stop.location = static_cast<float>(std::clamp(record[0], 0, 4096)) / 4096.0F;
+    stop.midpoint = static_cast<float>(std::clamp(record[1], 0, 100)) / 100.0F;
+    stop.color = RgbColor{static_cast<std::uint8_t>(std::clamp(record[2], 0, 255)),
+                          static_cast<std::uint8_t>(std::clamp(record[3], 0, 255)),
+                          static_cast<std::uint8_t>(std::clamp(record[4], 0, 255))};
+    gradient.color_stops.push_back(stop);
+  }
+  gradient.alpha_stops.clear();
+  for (const auto& record : alphas) {
+    GradientAlphaStop stop;
+    stop.location = static_cast<float>(std::clamp(record[0], 0, 4096)) / 4096.0F;
+    stop.midpoint = static_cast<float>(std::clamp(record[1], 0, 100)) / 100.0F;
+    stop.opacity = static_cast<float>(std::clamp(record[2], 0, 255)) / 255.0F;
+    gradient.alpha_stops.push_back(stop);
+  }
+  return gradient;
+}
+
+// The luma Photoshop's Gradient Map indexes the gradient with (calibrated, #250).
+double gradient_map_luma(double red, double green, double blue) {
+  return (30.0 * red + 59.0 * green + 11.0 * blue) / 100.0;
+}
+
 // "cyan_red;magenta_green;yellow_blue" for the shadows and highlights triples.
 std::string serialize_color_balance_tone(const ColorBalanceTone& tone) {
   return std::to_string(std::clamp(tone.cyan_red, -100, 100)) + ';' +
@@ -792,8 +896,8 @@ const char* photoshop_placeholder_adjustment_kind(std::string_view block_key) no
       {"blwh", "black_white"},
       {"phfl", "photo_filter"},
       {"mixr", "channel_mixer"},
-      {"clrL", "color_lookup"},
       {"grdm", "gradient_map"},
+      {"clrL", "color_lookup"},
       {"selc", "selective_color"},
   }};
   for (const auto& [key, kind] : kKinds) {
@@ -919,6 +1023,56 @@ std::array<double, 3> photo_filter_transfer(const PhotoFilterAdjustment& setting
     }
   }
   return out;
+}
+
+LayerStyleGradient GradientMapAdjustment::default_gradient_map_gradient() {
+  LayerStyleGradient gradient;
+  gradient.name = "Black, White";
+  gradient.smoothness = 4096;
+  gradient.interpolation = GradientInterpolationMethod::Classic;
+  gradient.color_stops = {GradientColorStop{0.0F, RgbColor{0, 0, 0}, 0.5F},
+                          GradientColorStop{1.0F, RgbColor{255, 255, 255}, 0.5F}};
+  gradient.alpha_stops = {GradientAlphaStop{0.0F, 1.0F, 0.5F}, GradientAlphaStop{1.0F, 1.0F, 0.5F}};
+  return gradient;
+}
+
+namespace {
+
+// A gradient map reads 256 luma levels, so the 8-bit path keeps one table per thread for
+// the last gradient it saw; the compositor calls this per pixel.
+const std::array<RgbColor, 256>& gradient_map_table(const GradientMapAdjustment& settings) {
+  thread_local GradientMapAdjustment cached_settings;
+  thread_local std::array<RgbColor, 256> cached_table{};
+  thread_local bool cached = false;
+  if (!cached || !(cached_settings == settings)) {
+    for (int level = 0; level < 256; ++level) {
+      auto position = static_cast<float>(level) / 255.0F;
+      if (settings.gradient.reverse) {
+        position = 1.0F - position;
+      }
+      // Photoshop eases a two-stop Classic map like a gradient fill (probe: 64 maps to 52).
+      cached_table[static_cast<std::size_t>(level)] = gradient_color(settings.gradient, position, true, true);
+    }
+    cached_settings = settings;
+    cached = true;
+  }
+  return cached_table;
+}
+
+}  // namespace
+
+RgbColor gradient_map_color(const GradientMapAdjustment& settings, RgbColor color) {
+  const auto luma = std::clamp(std::floor(gradient_map_luma(color.red, color.green, color.blue) + 0.5), 0.0, 255.0);
+  return gradient_map_table(settings)[static_cast<std::size_t>(luma)];
+}
+
+std::array<double, 3> gradient_map_transfer(const GradientMapAdjustment& settings, double red, double green,
+                                            double blue) {
+  auto position = static_cast<float>(std::clamp(gradient_map_luma(red, green, blue) / 255.0, 0.0, 1.0));
+  if (settings.gradient.reverse) {
+    position = 1.0F - position;
+  }
+  return gradient_color_precise(settings.gradient, position, true, false, true);
 }
 
 ColorBalanceTone ColorBalanceAdjustment::tone(ColorBalanceToneRange range) const noexcept {
@@ -1699,6 +1853,8 @@ std::string adjustment_kind_key(AdjustmentKind kind) {
       return "channel_mixer";
     case AdjustmentKind::PhotoFilter:
       return "photo_filter";
+    case AdjustmentKind::GradientMap:
+      return "gradient_map";
   }
   return "levels";
 }
@@ -1727,6 +1883,8 @@ std::string adjustment_display_name(AdjustmentKind kind) {
       return "Channel Mixer";
     case AdjustmentKind::PhotoFilter:
       return "Photo Filter";
+    case AdjustmentKind::GradientMap:
+      return "Gradient Map";
   }
   return "Adjustment";
 }
@@ -1764,6 +1922,9 @@ std::optional<AdjustmentKind> adjustment_kind_from_key(std::string_view key) {
   }
   if (key == "photo_filter") {
     return AdjustmentKind::PhotoFilter;
+  }
+  if (key == "gradient_map") {
+    return AdjustmentKind::GradientMap;
   }
   return std::nullopt;
 }
@@ -1870,6 +2031,11 @@ std::optional<AdjustmentSettings> adjustment_settings_from_layer(const Layer& la
                                 1, 100);
     filter.preserve_luminosity =
         metadata_int_or(layer, kLayerMetadataAdjustmentPhotoFilterPreserveLuminosity, 1) != 0;
+  }
+  if (auto gradient = parse_gradient_map(metadata_string_or(layer, kLayerMetadataAdjustmentGradientMapGradient, {}));
+      gradient.has_value()) {
+    gradient->name = std::string(metadata_string_or(layer, kLayerMetadataAdjustmentGradientMapName, gradient->name));
+    settings.gradient_map.gradient = std::move(*gradient);
   }
   settings.posterize.levels =
       std::clamp(metadata_int_or(layer, kLayerMetadataAdjustmentPosterizeLevels, 4), 2, 255);
@@ -2001,6 +2167,9 @@ void configure_adjustment_layer(Layer& layer, const AdjustmentSettings& settings
                    clamp_photo_filter(settings.photo_filter).density);
   set_metadata_int(layer, kLayerMetadataAdjustmentPhotoFilterPreserveLuminosity,
                    settings.photo_filter.preserve_luminosity ? 1 : 0);
+  set_metadata_string(layer, kLayerMetadataAdjustmentGradientMapGradient,
+                      serialize_gradient_map(settings.gradient_map.gradient));
+  set_metadata_string(layer, kLayerMetadataAdjustmentGradientMapName, settings.gradient_map.gradient.name);
   set_metadata_int(layer, kLayerMetadataAdjustmentPosterizeLevels,
                    std::clamp(settings.posterize.levels, 2, 255));
   set_metadata_int(layer, kLayerMetadataAdjustmentThresholdLevel,
@@ -2109,6 +2278,7 @@ bool adjustment_runs_in_ink_space(const AdjustmentSettings& settings) noexcept {
     case AdjustmentKind::ColorBalance:
     case AdjustmentKind::ChannelMixer:
     case AdjustmentKind::PhotoFilter:
+    case AdjustmentKind::GradientMap:
       return false;
   }
   return false;
@@ -2179,6 +2349,8 @@ RgbColor apply_adjustment_on_rgb(RgbColor color, const AdjustmentSettings& setti
       };
       return RgbColor{byte(out[0]), byte(out[1]), byte(out[2])};
     }
+    case AdjustmentKind::GradientMap:
+      return gradient_map_color(settings.gradient_map, color);
   }
   return color;
 }
@@ -2217,7 +2389,8 @@ std::optional<AdjustmentLut> build_adjustment_lut(const AdjustmentSettings& sett
   // RGB luminance, so a per-channel gray-probe LUT would be wrong for any
   // colored pixel. Both take the per-pixel path.
   if (settings.kind == AdjustmentKind::HueSaturation || settings.kind == AdjustmentKind::Threshold ||
-      settings.kind == AdjustmentKind::ChannelMixer || settings.kind == AdjustmentKind::PhotoFilter) {
+      settings.kind == AdjustmentKind::ChannelMixer || settings.kind == AdjustmentKind::PhotoFilter ||
+      settings.kind == AdjustmentKind::GradientMap) {
     return std::nullopt;
   }
   if (settings.kind == AdjustmentKind::Curves) {
@@ -2277,6 +2450,8 @@ bool adjustment_has_effect(const AdjustmentSettings& settings) {
       return settings.channel_mixer.has_effect();
     case AdjustmentKind::PhotoFilter:
       return true;  // the minimum density is 1 %, which still tints
+    case AdjustmentKind::GradientMap:
+      return true;  // even black to white turns color into gray
   }
   return false;
 }

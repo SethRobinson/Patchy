@@ -119,6 +119,10 @@ inline constexpr const char* kLayerMetadataAdjustmentPhotoFilterLab = "patchy.ad
 inline constexpr const char* kLayerMetadataAdjustmentPhotoFilterDensity = "patchy.adjustment.photo_filter.density";
 inline constexpr const char* kLayerMetadataAdjustmentPhotoFilterPreserveLuminosity =
     "patchy.adjustment.photo_filter.preserve_luminosity";
+// Gradient Map gradient: "method;reverse;dither;smoothness|loc,mid,r,g,b;...|loc,mid,opacity;..."
+// with locations, midpoints and opacities in Photoshop's integer units (0..4096, 0..100, 0..255).
+inline constexpr const char* kLayerMetadataAdjustmentGradientMapGradient = "patchy.adjustment.gradient_map.gradient";
+inline constexpr const char* kLayerMetadataAdjustmentGradientMapName = "patchy.adjustment.gradient_map.name";
 inline constexpr const char* kLayerMetadataAdjustmentThresholdLevel = "patchy.adjustment.threshold.level";
 inline constexpr const char* kLayerMetadataAdjustmentExposureValue = "patchy.adjustment.exposure.value";
 inline constexpr const char* kLayerMetadataAdjustmentExposureOffset = "patchy.adjustment.exposure.offset";
@@ -143,7 +147,8 @@ enum class AdjustmentKind {
   BrightnessContrast,
   Exposure,
   ChannelMixer,
-  PhotoFilter
+  PhotoFilter,
+  GradientMap
 };
 
 enum class LevelsChannel {
@@ -369,6 +374,20 @@ struct PhotoFilterAdjustment {
 [[nodiscard]] std::array<double, 3> photo_filter_transfer(const PhotoFilterAdjustment& settings, double red,
                                                           double green, double blue, bool byte_stages);
 
+// Photoshop's Gradient Map ('grdm'): each pixel's luma, round((30R + 59G + 11B) / 100),
+// picks a color off a solid gradient (opacity stops are kept but unused, as in Photoshop).
+// Reverse and the Classic/Perceptual/Linear method apply; Dither is kept for the file only.
+struct GradientMapAdjustment {
+  LayerStyleGradient gradient{default_gradient_map_gradient()};
+  friend bool operator==(const GradientMapAdjustment&, const GradientMapAdjustment&) = default;
+  // Photoshop's new Gradient Map: black to white, Classic, 100 % smoothness.
+  [[nodiscard]] static LayerStyleGradient default_gradient_map_gradient();
+};
+// The mapped color for an 8-bit pixel, and the unrounded mapping (0..255 scale) for the deep path.
+[[nodiscard]] RgbColor gradient_map_color(const GradientMapAdjustment& settings, RgbColor color);
+[[nodiscard]] std::array<double, 3> gradient_map_transfer(const GradientMapAdjustment& settings, double red,
+                                                          double green, double blue);
+
 // Both Photoshop algorithms are modeled. Modern mode (Photoshop's default,
 // use_legacy false) takes brightness -150..150 and contrast -50..100; legacy
 // mode takes -100..100 for both. Old Patchy documents and 'brit'-only PSDs
@@ -397,6 +416,7 @@ struct AdjustmentSettings {
   ExposureAdjustment exposure{};
   ChannelMixerAdjustment channel_mixer{};
   PhotoFilterAdjustment photo_filter{};
+  GradientMapAdjustment gradient_map{};
   // Set for an adjustment layer that came from a CMYK document whose profile could be
   // read: the channel-wise kinds (Levels, Curves, Invert, Posterize, Brightness/Contrast,
   // Exposure) then run on the four inks instead of on RGB. See core/ink_space.hpp.

@@ -627,6 +627,182 @@ std::vector<std::uint8_t> photoshop_photo_filter_payload(const PhotoFilterAdjust
   return payload;
 }
 
+// 'grdm' (docs/adjustment-kinds.md, "Gradient Map"): u16 version (1, or 3 with a 4-byte
+// method key after the flags), u8 reverse, u8 dither, Unicode name (u32 count with the
+// trailing null), u16 color stop count and per stop u32 location (0..4096), u32 midpoint
+// (0..100), u16 color space (0 = RGB), four u16 components, u16 pad; u16 opacity stop count
+// and per stop u32 location, u32 midpoint, u16 opacity (0..255); then u16 2, u16 smoothness
+// (0..4096) and the noise fields, padded to four bytes. Only RGB solid stops are read.
+constexpr std::array<std::pair<GradientInterpolationMethod, std::array<char, 4>>, 3> kGradientMapMethodKeys{{
+    {GradientInterpolationMethod::Classic, {'G', 'c', 'l', 's'}},
+    {GradientInterpolationMethod::Linear, {'L', 'n', 'r', ' '}},
+    {GradientInterpolationMethod::Perceptual, {'P', 'e', 'r', 'c'}},
+}};
+
+struct ParsedGradientMap {
+  AdjustmentSettings settings;
+  std::size_t tail_offset{0};  // where the u16 2 before the smoothness starts
+};
+
+std::optional<ParsedGradientMap> parse_gradient_map_block(std::span<const std::uint8_t> payload) {
+  try {
+    BigEndianReader reader(payload);
+    const auto version = reader.read_u16();
+    if (version != 1U && version != 3U) {
+      return std::nullopt;
+    }
+    ParsedGradientMap parsed;
+    parsed.settings.kind = AdjustmentKind::GradientMap;
+    auto& gradient = parsed.settings.gradient_map.gradient;
+    gradient.reverse = reader.read_u8() != 0U;
+    gradient.dither = reader.read_u8() != 0U;
+    gradient.interpolation = GradientInterpolationMethod::Classic;
+    if (version == 3U) {
+      const auto key = reader.read_span(4);
+      bool known = false;
+      for (const auto& [method, text] : kGradientMapMethodKeys) {
+        if (std::equal(text.begin(), text.end(), key.begin(), key.end(),
+                       [](char a, std::uint8_t b) { return static_cast<std::uint8_t>(a) == b; })) {
+          gradient.interpolation = method;
+          known = true;
+        }
+      }
+      if (!known) {
+        return std::nullopt;
+      }
+    }
+    const auto name_units = reader.read_u32();
+    if (name_units > reader.remaining() / 2U) {
+      return std::nullopt;
+    }
+    std::vector<std::uint16_t> name;
+    name.reserve(name_units);
+    for (std::uint32_t index = 0; index < name_units; ++index) {
+      name.push_back(reader.read_u16());
+    }
+    while (!name.empty() && name.back() == 0U) {
+      name.pop_back();
+    }
+    gradient.name = utf16_units_to_utf8(name);
+    const auto color_count = reader.read_u16();
+    if (color_count < 2U) {
+      return std::nullopt;
+    }
+    gradient.color_stops.clear();
+    for (std::uint16_t index = 0; index < color_count; ++index) {
+      GradientColorStop stop;
+      stop.location = static_cast<float>(std::min<std::uint32_t>(reader.read_u32(), 4096U)) / 4096.0F;
+      stop.midpoint = static_cast<float>(std::min<std::uint32_t>(reader.read_u32(), 100U)) / 100.0F;
+      if (reader.read_u16() != 0U) {
+        return std::nullopt;  // HSB, CMYK, Lab or gray stops are not read
+      }
+      const auto component = [&reader] {
+        return static_cast<std::uint8_t>((static_cast<std::uint32_t>(reader.read_u16()) + 128U) / 257U);
+      };
+      stop.color.red = component();
+      stop.color.green = component();
+      stop.color.blue = component();
+      reader.skip(4);
+      gradient.color_stops.push_back(stop);
+    }
+    const auto alpha_count = reader.read_u16();
+    gradient.alpha_stops.clear();
+    for (std::uint16_t index = 0; index < alpha_count; ++index) {
+      GradientAlphaStop stop;
+      stop.location = static_cast<float>(std::min<std::uint32_t>(reader.read_u32(), 4096U)) / 4096.0F;
+      stop.midpoint = static_cast<float>(std::min<std::uint32_t>(reader.read_u32(), 100U)) / 100.0F;
+      stop.opacity = static_cast<float>(std::min<std::uint16_t>(reader.read_u16(), 255U)) / 255.0F;
+      gradient.alpha_stops.push_back(stop);
+    }
+    parsed.tail_offset = reader.position();
+    reader.skip(2);
+    gradient.smoothness = static_cast<std::uint16_t>(std::min<std::uint16_t>(reader.read_u16(), 4096U));
+    return parsed;
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
+}
+
+std::optional<AdjustmentSettings> parse_photoshop_gradient_map_adjustment(std::span<const std::uint8_t> payload) {
+  auto parsed = parse_gradient_map_block(payload);
+  if (!parsed.has_value()) {
+    return std::nullopt;
+  }
+  return std::move(parsed->settings);
+}
+
+std::vector<std::uint8_t> photoshop_gradient_map_payload(const GradientMapAdjustment& settings,
+                                                         const UnknownPsdBlock* original) {
+  std::optional<ParsedGradientMap> parsed_original;
+  if (original != nullptr) {
+    parsed_original = parse_gradient_map_block(original->payload);
+    if (parsed_original.has_value() && parsed_original->settings.gradient_map == settings) {
+      return original->payload;
+    }
+  }
+  const auto& gradient = settings.gradient;
+  BigEndianWriter writer;
+  writer.write_u16(3);
+  writer.write_u8(gradient.reverse ? 1U : 0U);
+  writer.write_u8(gradient.dither ? 1U : 0U);
+  for (const auto& [method, text] : kGradientMapMethodKeys) {
+    if (method == gradient.interpolation) {
+      for (const char c : text) {
+        writer.write_u8(static_cast<std::uint8_t>(c));
+      }
+    }
+  }
+  auto name = utf8_to_utf16(gradient.name);
+  name.push_back(0U);
+  writer.write_u32(static_cast<std::uint32_t>(name.size()));
+  for (const auto unit : name) {
+    writer.write_u16(unit);
+  }
+  const auto location = [](float value) {
+    return static_cast<std::uint32_t>(std::lround(std::clamp(value, 0.0F, 1.0F) * 4096.0F));
+  };
+  const auto midpoint = [](float value) {
+    return static_cast<std::uint32_t>(std::lround(std::clamp(value, 0.0F, 1.0F) * 100.0F));
+  };
+  writer.write_u16(static_cast<std::uint16_t>(gradient.color_stops.size()));
+  for (const auto& stop : gradient.color_stops) {
+    writer.write_u32(location(stop.location));
+    writer.write_u32(midpoint(stop.midpoint));
+    writer.write_u16(0);
+    writer.write_u16(static_cast<std::uint16_t>(stop.color.red * 257U));
+    writer.write_u16(static_cast<std::uint16_t>(stop.color.green * 257U));
+    writer.write_u16(static_cast<std::uint16_t>(stop.color.blue * 257U));
+    writer.write_u16(0);
+    writer.write_u16(0);
+  }
+  writer.write_u16(static_cast<std::uint16_t>(gradient.alpha_stops.size()));
+  for (const auto& stop : gradient.alpha_stops) {
+    writer.write_u32(location(stop.location));
+    writer.write_u32(midpoint(stop.midpoint));
+    writer.write_u16(static_cast<std::uint16_t>(std::lround(std::clamp(stop.opacity, 0.0F, 1.0F) * 255.0F)));
+  }
+  // The noise fields after the smoothness: the original's when there is one, else the
+  // values Photoshop 2026 writes for a solid gradient.
+  std::vector<std::uint8_t> tail;
+  constexpr std::size_t kNoiseFieldBytes = 36;
+  if (parsed_original.has_value() &&
+      parsed_original->tail_offset + 4U + kNoiseFieldBytes <= original->payload.size()) {
+    const auto start = original->payload.begin() + static_cast<std::ptrdiff_t>(parsed_original->tail_offset + 4U);
+    tail.assign(start, start + static_cast<std::ptrdiff_t>(kNoiseFieldBytes));
+  } else {
+    tail = {0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08,
+            0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x80, 0x00,
+            0x80, 0x00, 0x80, 0x00, 0x00, 0x00};
+  }
+  writer.write_u16(2);
+  writer.write_u16(gradient.smoothness);
+  writer.write_bytes(tail);
+  while (writer.bytes().size() % 4U != 0U) {
+    writer.write_u8(0);
+  }
+  return std::move(writer.bytes());
+}
+
 std::optional<AdjustmentSettings> parse_photoshop_posterize_adjustment(std::span<const std::uint8_t> payload) {
   if (payload.size() < 2) {
     return std::nullopt;

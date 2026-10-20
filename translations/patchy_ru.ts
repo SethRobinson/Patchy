@@ -11059,6 +11059,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Photo Filter: density %1%</source>
         <translation>Фотофильтр: плотность %1%</translation>
     </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation>Цвет контрольной точки градиента</translation>
+    </message>
+    <message>
+        <source>Gradient Map: %1</source>
+        <translation>Карта градиента: %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22725,6 +22733,18 @@ Patchy можно будет запускать из меню, а на пане�
     <message>
         <source>Cancelled Photo Filter</source>
         <translation>Фотофильтр отменён</translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation>&amp;Карта градиента...</translation>
+    </message>
+    <message>
+        <source>Gradient Map</source>
+        <translation>Карта градиента</translation>
+    </message>
+    <message>
+        <source>Cancelled Gradient Map</source>
+        <translation>Карта градиента отменена</translation>
     </message>
 </context>
 <context>

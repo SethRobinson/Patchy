@@ -3425,8 +3425,8 @@ void ui_adjustment_placeholders_name_their_kind_in_layers_panel() {
         static_cast<qint64>(resaved.size()));
   resave_file.close();
   const auto tooltips = placeholder_tooltips(window);
-  CHECK(tooltips.size() == 5);
-  for (const auto* kind : {"Vibrance", "Black & White", "Color Lookup", "Gradient Map", "Selective Color"}) {
+  CHECK(tooltips.size() == 4);
+  for (const auto* kind : {"Vibrance", "Black & White", "Color Lookup", "Selective Color"}) {
     CHECK(std::any_of(tooltips.begin(), tooltips.end(), [kind](const QString& tooltip) {
       return tooltip.startsWith(QString::fromUtf8(kind) + QStringLiteral(" adjustment"));
     }));
@@ -3447,6 +3447,67 @@ void check_adjustment_kind_in_both_menus(patchy::ui::MainWindow& window, const c
   const auto actions = footer->actions();
   CHECK(std::any_of(actions.begin(), actions.end(),
                     [&menu_text](const QAction* action) { return action->text() == menu_text; }));
+}
+
+// The Gradient Map dialog reuses the layer style gradient editor without its placement
+// controls (#250): it starts black to white, and the method and reverse it sets land on the
+// new adjustment layer.
+void ui_gradient_map_dialog_edits_gradient() {
+  patchy::Document source(32, 24, patchy::PixelFormat::rgba8());
+  source.add_pixel_layer("Paint", solid_pixels(32, 24, patchy::PixelFormat::rgba8(), QColor(200, 120, 40)));
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(source), QStringLiteral("Map"));
+  show_window(window);
+  check_adjustment_kind_in_both_menus(window, "GradientMapAdjustment", QObject::tr("&Gradient Map..."));
+
+  bool dialog_checked = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyGradientMapDialog")));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* method = dialog->findChild<QComboBox*>(QStringLiteral("gradientMapInterpolationCombo"));
+    auto* reverse = dialog->findChild<QCheckBox*>(QStringLiteral("gradientMapReverseCheck"));
+    auto* style = dialog->findChild<QComboBox*>(QStringLiteral("gradientMapStyleCombo"));
+    auto* align = dialog->findChild<QCheckBox*>(QStringLiteral("gradientMapAlignCheck"));
+    auto* editor = dialog->findChild<QWidget*>(QStringLiteral("gradientMapStopsEditor"));
+    CHECK(method != nullptr && reverse != nullptr && editor != nullptr);
+    if (method == nullptr || reverse == nullptr || editor == nullptr) {
+      dialog->reject();
+      return;
+    }
+    CHECK(editor->isVisible());
+    // Placement has no meaning for a map, so those rows are gone.
+    CHECK(style == nullptr || !style->isVisible());
+    CHECK(align == nullptr || !align->isVisible());
+    method->setCurrentIndex(std::max(0, method->findData(static_cast<int>(patchy::GradientInterpolationMethod::Linear))));
+    reverse->setChecked(true);
+    QApplication::processEvents();
+    save_widget_artifact("ui_gradient_map_dialog", *dialog);
+    dialog_checked = true;
+    dialog->accept();
+  });
+  require_action(window, "layerNewGradientMapAdjustmentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(dialog_checked);
+
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  CHECK(document.active_layer_id().has_value());
+  const auto* layer = document.find_layer(*document.active_layer_id());
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return;
+  }
+  const auto settings = patchy::adjustment_settings_from_layer(*layer);
+  CHECK(settings.has_value());
+  CHECK(settings->kind == patchy::AdjustmentKind::GradientMap);
+  const auto& gradient = settings->gradient_map.gradient;
+  CHECK(gradient.interpolation == patchy::GradientInterpolationMethod::Linear);
+  CHECK(gradient.reverse);
+  CHECK(gradient.color_stops.size() == 2U);
+  CHECK((gradient.color_stops.front().color == patchy::RgbColor{0, 0, 0}));
+  CHECK((gradient.color_stops.back().color == patchy::RgbColor{255, 255, 255}));
 }
 
 // The Photo Filter dialog starts on Photoshop's warming color at 25 % with Preserve
@@ -3807,6 +3868,7 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
       {"ui_color_balance_dialog_tone_selector_edits_each_range", ui_color_balance_dialog_tone_selector_edits_each_range},
       {"ui_channel_mixer_dialog_edits_each_output_row", ui_channel_mixer_dialog_edits_each_output_row},
       {"ui_photo_filter_dialog_picks_color_and_density", ui_photo_filter_dialog_picks_color_and_density},
+      {"ui_gradient_map_dialog_edits_gradient", ui_gradient_map_dialog_edits_gradient},
       {"ui_adjustment_placeholders_name_their_kind_in_layers_panel",
        ui_adjustment_placeholders_name_their_kind_in_layers_panel},
       {"ui_af_colour_balance_matches_affinity_render_if_available",

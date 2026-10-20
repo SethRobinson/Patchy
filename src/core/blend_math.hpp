@@ -71,15 +71,19 @@ enum class DissolveField : std::uint32_t {
 // GdFl fill-layer renderer measured on Photoshop 27.8 (probe5c). Layer-style
 // overlays keep the historical linear 2-stop ramp (their pinned calibration);
 // Shape Burst strokes DO ease (photoshop-stroke-shapeburst probes).
+// ease_every_method applies that smoothness ease to the segment position for the
+// Perceptual and Linear methods too, as Photoshop's Gradient Map does (#250; probe: a
+// black-to-white Linear map takes 64 to 125). Fills and layer effects leave it off.
 [[nodiscard]] RgbColor gradient_color(const LayerStyleGradient& gradient, float position,
-                                      bool endpoint_smoothing = false);
+                                      bool endpoint_smoothing = false, bool ease_every_method = false);
 // gradient_color without the final rounding, for 16 and 32-bit documents
 // (docs/high-bit-depth.md): channels on the 0..255 scale. With linear_light the stops
 // interpolate in linear light and the result is linear (Photoshop's 32-bit gradients);
 // otherwise the result is display-encoded like gradient_color's. Noise gradients and
 // the Perceptual method fall back to gradient_color's bytes (as linear when asked).
 [[nodiscard]] std::array<double, 3> gradient_color_precise(const LayerStyleGradient& gradient, float position,
-                                                           bool endpoint_smoothing, bool linear_light);
+                                                           bool endpoint_smoothing, bool linear_light,
+                                                           bool ease_every_method = false);
 [[nodiscard]] RgbColor
 gradient_color_dithered(const LayerStyleGradient &gradient, float position,
                         std::int32_t x, std::int32_t y, bool endpoint_smoothing = false);

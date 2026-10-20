@@ -139,6 +139,7 @@ using ThresholdSettings = ThresholdAdjustment;
 using ExposureSettings = ExposureAdjustment;
 using ChannelMixerSettings = ChannelMixerAdjustment;
 using PhotoFilterSettings = PhotoFilterAdjustment;
+using GradientMapSettings = GradientMapAdjustment;
 using BrightnessContrastSettings = BrightnessContrastAdjustment;
 struct ScannerAcquireResult;
 struct UpdateInfo;
@@ -1286,6 +1287,7 @@ private:
   void new_threshold_adjustment_layer();
   void new_channel_mixer_adjustment_layer();
   void new_photo_filter_adjustment_layer();
+  void new_gradient_map_adjustment_layer();
   void apply_threshold_adjustment(const ThresholdSettings& settings, bool allow_identity = false);
   void new_exposure_adjustment_layer();
   void apply_exposure_adjustment(const ExposureSettings& settings, bool allow_identity = false);

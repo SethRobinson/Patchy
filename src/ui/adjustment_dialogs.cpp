@@ -15,6 +15,8 @@
 #include "ui/qt_paths.hpp"
 #include "ui/theme_qss.hpp"
 #include "ui/filter_workflows_internal.hpp"
+#include "ui/gradient_stops_editor.hpp"
+#include "ui/layer_style_gradient_controls.hpp"
 
 #include <QAbstractItemView>
 #include <QButtonGroup>
@@ -1682,6 +1684,80 @@ std::optional<PhotoFilterSettings> request_photo_filter_settings(
             flush_preview();
           }
         });
+      });
+}
+
+std::optional<GradientMapSettings> request_gradient_map_settings(
+    QWidget* parent, std::function<void(bool, const GradientMapSettings&)> preview_changed,
+    GradientMapSettings initial, GradientLibrary* library, RgbColor foreground, RgbColor background) {
+  // The editor's callbacks hold references into its context, so everything it points at
+  // lives here for the whole dialog. A gradient map has no batch edits.
+  struct Host {
+    std::vector<std::string> explicit_fields;
+    std::function<void()> reset_batch_capture;
+    std::shared_ptr<AppearanceEdits<LayerStyleSettings>> batch_edits =
+        std::make_shared<AppearanceEdits<LayerStyleSettings>>();
+    std::unique_ptr<layer_style_detail::LayerStyleGradientContext> context;
+    std::unique_ptr<layer_style_detail::LayerStyleGradientControls> controls;
+  };
+  auto host = std::make_shared<Host>();
+  const auto build_settings = [host, initial](const std::vector<QSpinBox*>&) {
+    GradientMapSettings settings = initial;
+    if (host->controls != nullptr) {
+      const auto value = host->controls->value();
+      auto& gradient = settings.gradient;
+      static_cast<GradientDefinition&>(gradient) = static_cast<const GradientDefinition&>(value);
+      gradient.form = GradientDefinitionForm::Solid;
+      gradient.reverse = value.reverse;
+      gradient.dither = value.dither;
+      gradient.interpolation = value.interpolation;
+    }
+    return settings;
+  };
+  return request_adjustment_settings_dialog<GradientMapSettings>(
+      parent, QStringLiteral("patchyGradientMapDialog"), QObject::tr("Gradient Map"),
+      QStringLiteral("gradientMapPreviewCheck"), {}, build_settings, std::move(preview_changed), {},
+      [host, initial, library, foreground, background](QDialog& dialog, QFormLayout* form,
+                                                       const std::vector<QSpinBox*>&,
+                                                       const std::function<void()>& flush_preview) {
+        host->context = std::make_unique<layer_style_detail::LayerStyleGradientContext>(
+            layer_style_detail::LayerStyleGradientContext{dialog, library, foreground, background, false,
+                                                          host->batch_edits, host->explicit_fields,
+                                                          host->reset_batch_capture,
+                                                          [](bool) { return std::string(); }});
+        host->controls = layer_style_detail::make_gradient_controls(
+            *host->context, form, &dialog, QStringLiteral("gradientMap"), initial.gradient,
+            QObject::tr("Gradient Stop Color"));
+        auto& controls = *host->controls;
+        // A gradient map uses the colors alone: no placement, no opacity, solid only.
+        const auto hide_row = [form](QWidget* widget) {
+          for (auto* current = widget; current != nullptr; current = current->parentWidget()) {
+            int row = -1;
+            QFormLayout::ItemRole role{};
+            form->getWidgetPosition(current, &row, &role);
+            if (row >= 0) {
+              form->setRowVisible(row, false);
+              return;
+            }
+          }
+        };
+        for (QWidget* widget : std::initializer_list<QWidget*>{
+                 controls.form_combo, controls.style_combo, controls.angle, controls.scale, controls.offset_x,
+                 controls.offset_y, controls.reset_alignment, controls.noise_controls}) {
+          if (widget != nullptr) {
+            hide_row(widget);
+          }
+        }
+        for (QWidget* widget : std::initializer_list<QWidget*>{controls.align, controls.stop_opacity_label,
+                                                               controls.stop_opacity}) {
+          if (widget != nullptr) {
+            widget->hide();
+          }
+        }
+        if (controls.editor != nullptr) {
+          controls.editor->set_opacity_track_enabled(false);
+        }
+        controls.changed = [flush_preview](bool) { flush_preview(); };
       });
 }
 

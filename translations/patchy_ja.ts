@@ -10991,6 +10991,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Photo Filter: density %1%</source>
         <translation>レンズフィルター: 適用量 %1%</translation>
     </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation>グラデーションの分岐点の色</translation>
+    </message>
+    <message>
+        <source>Gradient Map: %1</source>
+        <translation>グラデーションマップ: %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22585,6 +22593,18 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Photo Filter</source>
         <translation>レンズフィルターをキャンセルしました</translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation>グラデーションマップ(&amp;G)...</translation>
+    </message>
+    <message>
+        <source>Gradient Map</source>
+        <translation>グラデーションマップ</translation>
+    </message>
+    <message>
+        <source>Cancelled Gradient Map</source>
+        <translation>グラデーションマップをキャンセルしました</translation>
     </message>
 </context>
 <context>

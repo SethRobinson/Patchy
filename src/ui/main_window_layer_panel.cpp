@@ -560,6 +560,8 @@ QColor adjustment_thumbnail_accent(const Layer& layer) {
       return QColor(150, 200, 120);
     case AdjustmentKind::PhotoFilter:
       return QColor(240, 160, 90);
+    case AdjustmentKind::GradientMap:
+      return QColor(200, 120, 200);
   }
   return QColor(145, 175, 215);
 }
@@ -718,6 +720,14 @@ QString adjustment_settings_summary(const Layer& layer) {
       return QObject::tr("Channel Mixer");
     case AdjustmentKind::PhotoFilter:
       return QObject::tr("Photo Filter: density %1%").arg(clamp_photo_filter(settings->photo_filter).density);
+    case AdjustmentKind::GradientMap: {
+      // Photoshop's built-in gradients carry a "$$$/key=Display Name" localization key.
+      auto name = QString::fromStdString(settings->gradient_map.gradient.name);
+      if (name.startsWith(QStringLiteral("$$$/")) && name.contains(QLatin1Char('='))) {
+        name = name.section(QLatin1Char('='), 1);
+      }
+      return QObject::tr("Gradient Map: %1").arg(name);
+    }
   }
   return QObject::tr("Adjustment");
 }
@@ -1352,6 +1362,9 @@ QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int docu
           break;
         case AdjustmentKind::PhotoFilter:
           draw_placeholder_adjustment_thumbnail_symbol(painter, "photo_filter");
+          break;
+        case AdjustmentKind::GradientMap:
+          draw_placeholder_adjustment_thumbnail_symbol(painter, "gradient_map");
           break;
       }
     }

@@ -10991,6 +10991,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Photo Filter: density %1%</source>
         <translation>照片滤镜: 浓度 %1%</translation>
     </message>
+    <message>
+        <source>Gradient Stop Color</source>
+        <translation>渐变色标颜色</translation>
+    </message>
+    <message>
+        <source>Gradient Map: %1</source>
+        <translation>渐变映射: %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22585,6 +22593,18 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Photo Filter</source>
         <translation>已取消照片滤镜</translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation>渐变映射(&amp;G)...</translation>
+    </message>
+    <message>
+        <source>Gradient Map</source>
+        <translation>渐变映射</translation>
+    </message>
+    <message>
+        <source>Cancelled Gradient Map</source>
+        <translation>已取消渐变映射</translation>
     </message>
 </context>
 <context>

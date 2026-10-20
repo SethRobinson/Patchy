@@ -3377,6 +3377,206 @@ void photo_filter_matches_photoshop_2026_calibration() {
   CHECK(exact >= total - 5);
 }
 
+// Gradient Map reads and writes Photoshop's 'grdm' block (#250): version 3 with its method
+// key, or version 1 without one, RGB stops, midpoints and smoothness. An unedited block
+// re-emits byte for byte, an edit regenerates Photoshop's layout keeping the noise fields,
+// and a block the parser does not read stays a placeholder.
+void psd_gradient_map_reads_and_writes_grdm() {
+  // Photoshop 2026's blocks: black to white, Classic, 100 %; and three stops with midpoints
+  // 30 (unused on the first stop), 50 and 70.
+  const std::vector<std::uint8_t> bw_classic {0x00, 0x03, 0x00, 0x00, 0x47, 0x63, 0x6C, 0x73, 0x00, 0x00, 0x00, 0x11, 0x00, 0x50, 0x00, 0x72,
+       0x00, 0x6F, 0x00, 0x62, 0x00, 0x65, 0x00, 0x20, 0x00, 0x62, 0x00, 0x77, 0x00, 0x5F, 0x00, 0x63,
+       0x00, 0x6C, 0x00, 0x61, 0x00, 0x73, 0x00, 0x73, 0x00, 0x69, 0x00, 0x63, 0x00, 0x00, 0x00, 0x02,
+       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x32, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x32, 0x00, 0x00, 0xFF, 0xFF,
+       0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+       0x00, 0x32, 0x00, 0xFF, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x32, 0x00, 0xFF, 0x00, 0x02,
+       0x10, 0x00, 0x00, 0x20, 0x00, 0x00, 0x78, 0x77, 0xCD, 0x49, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+       0x08, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00, 0x80, 0x00,
+       0x80, 0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00};
+  const std::vector<std::uint8_t> three_mid {0x00, 0x03, 0x00, 0x00, 0x47, 0x63, 0x6C, 0x73, 0x00, 0x00, 0x00, 0x10, 0x00, 0x50, 0x00, 0x72,
+       0x00, 0x6F, 0x00, 0x62, 0x00, 0x65, 0x00, 0x20, 0x00, 0x74, 0x00, 0x68, 0x00, 0x72, 0x00, 0x65,
+       0x00, 0x65, 0x00, 0x5F, 0x00, 0x6D, 0x00, 0x69, 0x00, 0x64, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00,
+       0x01, 0x9A, 0x00, 0x00, 0x00, 0x1E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+       0x00, 0x00, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x32, 0x00, 0x00, 0xFF, 0xFF, 0x00, 0x00,
+       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0E, 0x66, 0x00, 0x00, 0x00, 0x46, 0x00, 0x00,
+       0xFF, 0xFF, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00,
+       0x00, 0x00, 0x00, 0x32, 0x00, 0xFF, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00, 0x32, 0x00, 0xFF,
+       0x00, 0x02, 0x10, 0x00, 0x00, 0x20, 0x00, 0x00, 0x29, 0xF9, 0xDC, 0xD5, 0x00, 0x00, 0x00, 0x00,
+       0x00, 0x00, 0x08, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x00,
+       0x80, 0x00, 0x80, 0x00, 0x80, 0x00, 0x00, 0x00};
+  const auto read_settings = [](const std::vector<std::uint8_t>& payload) {
+    return patchy::adjustment_settings_from_layer(
+        patchy::psd::DocumentIo::read(single_adjustment_layer_psd({{{'g', 'r', 'd', 'm'}, payload}})).layers().front());
+  };
+  const auto bw = read_settings(bw_classic);
+  CHECK(bw.has_value());
+  CHECK(bw->kind == patchy::AdjustmentKind::GradientMap);
+  const auto& bw_gradient = bw->gradient_map.gradient;
+  CHECK(bw_gradient.name == "Probe bw_classic");
+  CHECK(bw_gradient.interpolation == patchy::GradientInterpolationMethod::Classic);
+  CHECK(bw_gradient.smoothness == 4096);
+  CHECK(!bw_gradient.reverse && !bw_gradient.dither);
+  CHECK(bw_gradient.color_stops.size() == 2U);
+  CHECK((bw_gradient.color_stops[1].color == patchy::RgbColor{255, 255, 255}));
+
+  const auto three = read_settings(three_mid);
+  CHECK(three.has_value());
+  const auto& stops = three->gradient_map.gradient.color_stops;
+  CHECK(stops.size() == 3U);
+  CHECK(std::lround(stops[0].location * 4096.0F) == 410);
+  CHECK(std::lround(stops[2].location * 4096.0F) == 3686);
+  CHECK(std::lround(stops[2].midpoint * 100.0F) == 70);
+  CHECK((stops[1].color == patchy::RgbColor{255, 0, 0}));
+
+  // Unedited: the block comes back unchanged.
+  for (const auto* payload : {&bw_classic, &three_mid}) {
+    const auto document =
+        patchy::psd::DocumentIo::read(single_adjustment_layer_psd({{{'g', 'r', 'd', 'm'}, *payload}}));
+    CHECK(psd_layer_block_payload(psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(document), 0),
+                                  "grdm") == *payload);
+  }
+
+  // The generator rebuilds Photoshop's exact bytes: against an original that differs only in
+  // its smoothness, it writes the probe block again.
+  for (const auto* payload : {&bw_classic, &three_mid}) {
+    auto altered = *payload;
+    const auto settings = read_settings(*payload);
+    CHECK(settings.has_value());
+    const std::size_t smoothness_offset = settings->gradient_map.gradient.color_stops.size() == 2U ? 112U : 130U;
+    CHECK(altered[smoothness_offset] == 0x10 && altered[smoothness_offset + 1] == 0x00);
+    altered[smoothness_offset] = 0x00;
+    auto document = patchy::psd::DocumentIo::read(single_adjustment_layer_psd({{{'g', 'r', 'd', 'm'}, altered}}));
+    patchy::configure_adjustment_layer(document.layers().front(), *settings);
+    CHECK(psd_layer_block_payload(psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(document), 0),
+                                  "grdm") == *payload);
+  }
+
+  // Edited: a new method and reverse land in a version 3 block that reads back the same.
+  auto document = patchy::psd::DocumentIo::read(single_adjustment_layer_psd({{{'g', 'r', 'd', 'm'}, bw_classic}}));
+  auto edited = *bw;
+  edited.gradient_map.gradient.interpolation = patchy::GradientInterpolationMethod::Linear;
+  edited.gradient_map.gradient.reverse = true;
+  edited.gradient_map.gradient.color_stops[0].color = patchy::RgbColor{20, 40, 200};
+  patchy::configure_adjustment_layer(document.layers().front(), edited);
+  const auto rewritten = psd_layer_block_payload(
+      psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(document), 0), "grdm");
+  CHECK(rewritten.has_value());
+  CHECK(rewritten->size() % 4U == 0U);
+  CHECK((*rewritten)[2] == 1U);  // reverse
+  CHECK(std::string(rewritten->begin() + 4, rewritten->begin() + 8) == "Lnr ");
+  const auto reread = read_settings(*rewritten);
+  CHECK(reread.has_value());
+  CHECK(reread->gradient_map == edited.gradient_map);
+
+  // Version 1 has no method key and means Classic.
+  std::vector<std::uint8_t> version1(bw_classic.begin(), bw_classic.begin() + 4);
+  version1[1] = 0x01;
+  version1.insert(version1.end(), bw_classic.begin() + 8, bw_classic.end() - 4);
+  const auto v1 = read_settings(version1);
+  CHECK(v1.has_value());
+  CHECK(v1->kind == patchy::AdjustmentKind::GradientMap);
+  CHECK(v1->gradient_map.gradient.interpolation == patchy::GradientInterpolationMethod::Classic);
+  CHECK(v1->gradient_map.gradient.color_stops == bw_gradient.color_stops);
+
+  // An HSB stop is not read: the layer stays a Gradient Map placeholder with its block kept.
+  auto hsb = bw_classic;
+  hsb[57] = 0x01;
+  const auto placeholder =
+      patchy::psd::DocumentIo::read(single_adjustment_layer_psd({{{'g', 'r', 'd', 'm'}, hsb}}));
+  CHECK(patchy::adjustment_placeholder_kind(placeholder.layers().front()) == "gradient_map");
+  CHECK(psd_layer_block_payload(psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(placeholder), 0),
+                                "grdm") == hsb);
+
+  // Metadata round trip of a fresh map.
+  patchy::AdjustmentSettings fresh;
+  fresh.kind = patchy::AdjustmentKind::GradientMap;
+  CHECK(fresh.gradient_map.gradient.color_stops.size() == 2U);
+  patchy::Layer layer(1, "Gradient Map", patchy::LayerKind::Adjustment);
+  fresh.gradient_map.gradient.name = "Mine";
+  fresh.gradient_map.gradient.interpolation = patchy::GradientInterpolationMethod::Perceptual;
+  patchy::configure_adjustment_layer(layer, fresh);
+  const auto from_metadata = patchy::adjustment_settings_from_layer(layer);
+  CHECK(from_metadata.has_value());
+  CHECK(from_metadata->gradient_map == fresh.gradient_map);
+}
+
+// Gradient Map output pinned to Photoshop 2026 (#250): luma round((30R + 59G + 11B) / 100)
+// through the gradient, with the two-stop Classic ease, the midpoint and smoothness rules of
+// gradient fills, and the Perceptual and Linear methods. Photoshop's luma differs by one
+// level from this formula on about 1.5 % of colors, such as (0, 255, 255).
+void gradient_map_matches_photoshop_2026_calibration() {
+  using Triple = std::array<int, 3>;
+  const std::array<Triple, 11> inputs{{{0, 0, 0}, {32, 32, 32}, {64, 64, 64}, {128, 128, 128}, {192, 192, 192},
+                                       {240, 240, 240}, {255, 255, 255}, {17, 68, 204}, {204, 102, 34},
+                                       {0, 255, 255}, {238, 34, 255}}};
+  struct Case {
+    const char* name;
+    std::array<Triple, 11> expected;
+  };
+  const std::array<Case, 10> cases{{
+      {"bw_classic", {{{0, 0, 0}, {22, 22, 22}, {52, 52, 52}, {128, 128, 128}, {204, 204, 204}, {246, 246, 246}, {255, 255, 255}, {56, 56, 56}, {125, 125, 125}, {189, 189, 189}, {117, 117, 117}}}},
+      {"bw_linear", {{{0, 0, 0}, {82, 82, 82}, {125, 125, 125}, {188, 188, 188}, {231, 231, 231}, {251, 251, 251}, {255, 255, 255}, {129, 129, 129}, {186, 186, 186}, {224, 224, 224}, {181, 181, 181}}}},
+      {"bw_perceptual", {{{0, 0, 0}, {2, 2, 2}, {23, 23, 23}, {100, 100, 100}, {190, 190, 190}, {243, 243, 243}, {255, 255, 255}, {26, 26, 26}, {96, 96, 96}, {171, 171, 171}, {88, 88, 88}}}},
+      {"bw_smooth0", {{{0, 0, 0}, {32, 32, 32}, {64, 64, 64}, {128, 128, 128}, {192, 192, 192}, {240, 240, 240}, {255, 255, 255}, {68, 68, 68}, {125, 125, 125}, {178, 178, 178}, {119, 119, 119}}}},
+      {"rb_classic", {{{255, 0, 0}, {233, 0, 22}, {203, 0, 52}, {127, 0, 128}, {51, 0, 204}, {9, 0, 246}, {0, 0, 255}, {199, 0, 56}, {130, 0, 125}, {66, 0, 189}, {138, 0, 117}}}},
+      {"rb_perceptual", {{{255, 0, 0}, {236, 47, 60}, {208, 68, 98}, {140, 83, 163}, {68, 66, 219}, {18, 27, 249}, {0, 0, 255}, {205, 70, 102}, {143, 83, 160}, {83, 72, 208}, {149, 83, 155}}}},
+      {"rb_linear", {{{255, 0, 0}, {245, 0, 82}, {231, 0, 125}, {187, 0, 188}, {124, 0, 231}, {52, 0, 251}, {0, 0, 255}, {229, 0, 129}, {189, 0, 186}, {139, 0, 224}, {194, 0, 181}}}},
+      {"rb_reverse", {{{0, 0, 255}, {22, 0, 233}, {52, 0, 203}, {128, 0, 127}, {204, 0, 51}, {246, 0, 9}, {255, 0, 0}, {56, 0, 199}, {125, 0, 130}, {189, 0, 66}, {117, 0, 138}}}},
+      {"three_mid", {{{0, 0, 0}, {10, 0, 0}, {89, 0, 0}, {255, 0, 0}, {255, 112, 0}, {255, 255, 0}, {255, 255, 0}, {100, 0, 0}, {252, 0, 0}, {255, 83, 0}, {243, 0, 0}}}},
+      {"three_mid_smooth0", {{{0, 0, 0}, {16, 0, 0}, {96, 0, 0}, {255, 1, 0}, {255, 115, 0}, {255, 255, 0}, {255, 255, 0}, {105, 0, 0}, {249, 0, 0}, {255, 91, 0}, {235, 0, 0}}}},
+  }};
+  const auto stop = [](int location, int midpoint, patchy::RgbColor color) {
+    return patchy::GradientColorStop{static_cast<float>(location) / 4096.0F, color,
+                                     static_cast<float>(midpoint) / 100.0F};
+  };
+  const patchy::RgbColor black{0, 0, 0};
+  const patchy::RgbColor white{255, 255, 255};
+  const patchy::RgbColor red{255, 0, 0};
+  const patchy::RgbColor blue{0, 0, 255};
+  const patchy::RgbColor yellow{255, 255, 0};
+  int worst_overall = 0;
+  for (const auto& test_case : cases) {
+    const std::string name = test_case.name;
+    patchy::AdjustmentSettings settings;
+    settings.kind = patchy::AdjustmentKind::GradientMap;
+    auto& gradient = settings.gradient_map.gradient;
+    gradient.smoothness = name.find("smooth0") != std::string::npos ? 0 : 4096;
+    gradient.interpolation = name.find("linear") != std::string::npos ? patchy::GradientInterpolationMethod::Linear
+                             : name.find("perceptual") != std::string::npos
+                                 ? patchy::GradientInterpolationMethod::Perceptual
+                                 : patchy::GradientInterpolationMethod::Classic;
+    gradient.reverse = name.find("reverse") != std::string::npos;
+    if (name.rfind("bw_", 0) == 0) {
+      gradient.color_stops = {stop(0, 50, black), stop(4096, 50, white)};
+    } else if (name.rfind("rb_", 0) == 0) {
+      gradient.color_stops = {stop(0, 50, red), stop(4096, 50, blue)};
+    } else {
+      gradient.color_stops = {stop(410, 30, black), stop(2048, 50, red), stop(3686, 70, yellow)};
+    }
+    CHECK(!patchy::build_adjustment_lut(settings).has_value());  // luma mixes channels
+    const patchy::DeepAdjuster deep(settings, patchy::DeepDomain::Encoded);
+    int worst = 0;
+    for (std::size_t index = 0; index < inputs.size(); ++index) {
+      const auto& in = inputs[index];
+      const patchy::RgbColor color{static_cast<std::uint8_t>(in[0]), static_cast<std::uint8_t>(in[1]),
+                                   static_cast<std::uint8_t>(in[2])};
+      const auto adjusted = patchy::apply_adjustment_to_color(color, settings);
+      const std::array<int, 3> got{adjusted.red, adjusted.green, adjusted.blue};
+      const auto deep_out = deep.apply({static_cast<float>(in[0]), static_cast<float>(in[1]),
+                                        static_cast<float>(in[2])});
+      for (std::size_t c = 0; c < 3U; ++c) {
+        const int error = std::abs(got[c] - test_case.expected[index][c]);
+        worst = std::max(worst, error);
+        CHECK(std::abs(static_cast<double>(deep_out[c]) - got[c]) <= 3.0);
+      }
+    }
+    std::cout << "[INFO] Gradient Map " << name << ": worst " << worst << '\n';
+    worst_overall = std::max(worst_overall, worst);
+  }
+  CHECK(worst_overall <= 1);
+}
+
 // Channel Mixer reads and writes Photoshop's 'mixr' block: the rows land on the right
 // outputs, monochrome keeps its gray mix, an unedited block re-emits byte for byte, and
 // the preset-name 'CgEd' goes once the mix is edited (#250).
@@ -3581,5 +3781,7 @@ std::vector<patchy::test::TestCase> adjustments_curves_tests() {
       {"channel_mixer_matches_photoshop_2026_calibration", channel_mixer_matches_photoshop_2026_calibration},
       {"psd_photo_filter_reads_and_writes_phfl", psd_photo_filter_reads_and_writes_phfl},
       {"photo_filter_matches_photoshop_2026_calibration", photo_filter_matches_photoshop_2026_calibration},
+      {"psd_gradient_map_reads_and_writes_grdm", psd_gradient_map_reads_and_writes_grdm},
+      {"gradient_map_matches_photoshop_2026_calibration", gradient_map_matches_photoshop_2026_calibration},
   };
 }
