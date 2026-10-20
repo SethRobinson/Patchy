@@ -478,6 +478,8 @@ void psd_photoshop_distort_stylize_smart_filter_fixtures_round_trip_and_render()
       // ones differ because PS's raster keeps different hidden RGB there.
       {"photoshop-smart-filter-trace-contour.psd", patchy::SmartFilterKind::TraceContour, {140, 1},
        0.5, 0.01},
+      // Normal. Photoshop's neighbor choice is random per render.
+      {"photoshop-smart-filter-diffuse.psd", patchy::SmartFilterKind::Diffuse, {0}, 0.0, 0.0, true},
   };
   for (const auto& fixture : fixtures) {
     check_schema_fixture(fixture);

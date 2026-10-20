@@ -175,6 +175,19 @@ captures unless noted.
 - Alpha and bounds unchanged; straight (not matted) RGB, exact on soft alpha. Canvas
   pixels outside the content read as transparent black.
 
+### Diffuse (`Dfs `, filterID `Dfs `)
+
+- No DOM method; a descriptor carrying `Md  ` (enum `DfsM`: `Nrml`, `DrkO`, `LghO`) ran
+  without a prompt and PS stores only that key: no seed. Anisotropic is not modeled (its
+  enum value is unverified), so such an entry stays preview-locked. Entry `Diffuse...`.
+- PS is not deterministic: two renders of the same document differ (mean 73 levels).
+  Measured on noise, dots and soft alpha: every output pixel is one of its 8 neighbors,
+  never itself (Normal copies the neighbor's RGBA, 99.7 % of pixels explained); Darken
+  Only is the per-channel minimum of the pixel and one neighbor with alpha included
+  (99.6 %), Lighten Only the maximum.
+- Patchy picks the neighbor from a splitmix64 hash of the document position: repeatable,
+  same statistics, not PS's (unrepeatable) pattern. Opening a file keeps PS's pixels.
+
 ## Fixtures
 
 `test-fixtures/psd/photoshop-smart-filter-<name>.psd`, self-authored through COM from a

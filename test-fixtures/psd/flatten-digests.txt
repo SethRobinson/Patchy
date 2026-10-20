@@ -80,6 +80,7 @@ ac08986158b2bf56 photoshop-shape-pattern.psd
 b24cbcd2a9f6f68a photoshop-smart-filter-add-noise.psd
 c091b67f8bf51a0c photoshop-smart-filter-adjustments.psd
 ec07eaf898b0a29d photoshop-smart-filter-box-blur.psd
+1f2c60665bb3e012 photoshop-smart-filter-diffuse.psd
 f2bf42dce8c3d975 photoshop-smart-filter-dust-and-scratches.psd
 87fd37f8d0bdb1c9 photoshop-smart-filter-emboss.psd
 5d86cd81909a7667 photoshop-smart-filter-find-edges.psd

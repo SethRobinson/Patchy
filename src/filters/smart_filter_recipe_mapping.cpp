@@ -80,6 +80,7 @@ bool native_smart_filter_kind_supported(SmartFilterKind kind) {
     case SmartFilterKind::Spherize:
     case SmartFilterKind::PolarCoordinates:
     case SmartFilterKind::TraceContour:
+    case SmartFilterKind::Diffuse:
       return true;
     case SmartFilterKind::Unsupported:
       return false;

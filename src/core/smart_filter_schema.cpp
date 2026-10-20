@@ -143,6 +143,20 @@ constexpr SmartFilterField kTraceContourFields[]{
      kTraceContourEdges, 0, 0, 0},
 };
 
+constexpr SmartFilterFieldOption kDiffuseModes[]{
+    {"Nrml", "normal", PATCHY_TRANSLATE_NOOP("QObject", "Normal")},
+    {"DrkO", "darken_only", PATCHY_TRANSLATE_NOOP("QObject", "Darken Only")},
+    {"LghO", "lighten_only", PATCHY_TRANSLATE_NOOP("QObject", "Lighten Only")},
+};
+
+// Diffuse has no DOM method; Photoshop ran a descriptor carrying Md (enum DfsM)
+// and stores only that key (no seed). Anisotropic is not modeled: its entry
+// stays preview-locked.
+constexpr SmartFilterField kDiffuseFields[]{
+    {"Md  ", "mode", PATCHY_TRANSLATE_NOOP("QObject", "Mode"), SmartFilterFieldType::Enum, "DfsM",
+     kDiffuseModes, 0, 0, 0},
+};
+
 constexpr std::array kSchemas{
     // Neither stores a Fltr object; the entry name has no ellipsis.
     SmartFilterSchema{SmartFilterKind::Solarize, "Slrz", false, 0x536c727aU, "Solarize",
@@ -179,6 +193,9 @@ constexpr std::array kSchemas{
     SmartFilterSchema{SmartFilterKind::TraceContour, "TrcC", false, 0x54726343U, "Trace Contour",
                       "Trace Contour...", PATCHY_TRANSLATE_NOOP("QObject", "Trace Contour"),
                       "patchy.smart_filters.trace_contour", kTraceContourFields},
+    SmartFilterSchema{SmartFilterKind::Diffuse, "Dfs ", false, 0x44667320U, "Diffuse", "Diffuse...",
+                      PATCHY_TRANSLATE_NOOP("QObject", "Diffuse"), "patchy.smart_filters.diffuse",
+                      kDiffuseFields},
 };
 
 }  // namespace

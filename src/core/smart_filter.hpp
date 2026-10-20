@@ -43,6 +43,7 @@ enum class SmartFilterKind {
   Spherize,
   PolarCoordinates,
   TraceContour,
+  Diffuse,
 };
 
 struct GaussianBlurSmartFilter {

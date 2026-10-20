@@ -80,6 +80,7 @@ d1ed7990ee556233 89f51fd5a4313af5 photoshop-smart-filter-add-noise-gaussian.psd
 77d30efc9669a292 b24cbcd2a9f6f68a photoshop-smart-filter-add-noise.psd
 5a777e8980d0c037 ffb23d8d6df6338d photoshop-smart-filter-adjustments.psd
 c34cf6d3a2b44849 ec07eaf898b0a29d photoshop-smart-filter-box-blur.psd
+4818f5815be8c17b 0dc5354258b118ee photoshop-smart-filter-diffuse.psd
 a249d71db1be5e65 f2bf42dce8c3d975 photoshop-smart-filter-dust-and-scratches.psd
 31970fc31d4e215b 87fd37f8d0bdb1c9 photoshop-smart-filter-emboss.psd
 b72610f668ff9e27 af2a0f05d1380364 photoshop-smart-filter-find-edges.psd

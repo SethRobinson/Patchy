@@ -185,7 +185,8 @@ void ui_smart_filter_approximate_schema_stacks_keep_photoshop_pixels_on_open() {
   SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
   patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
   for (const char* file : {"photoshop-smart-filter-wave.psd", "photoshop-smart-filter-ripple.psd",
-                           "photoshop-smart-filter-zigzag.psd", "photoshop-smart-filter-shear.psd"}) {
+                           "photoshop-smart-filter-zigzag.psd", "photoshop-smart-filter-shear.psd",
+                           "photoshop-smart-filter-diffuse.psd"}) {
     const auto fixture = patchy::test::committed_psd_fixture_path(file);
     const auto baked = patchy::psd::DocumentIo::read_file(fixture);
     const patchy::Layer* baked_layer = nullptr;

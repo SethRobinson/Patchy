@@ -649,6 +649,42 @@ FilterRenderResult render_trace_contour(const FilterRenderResult& input, Rect ca
   return result;
 }
 
+// Diffuse (docs/smart-filters-distort-stylize.md): every canvas pixel takes one
+// of its 8 neighbors (never itself; the canvas edge repeats). Normal copies the
+// neighbor's RGBA, Darken Only keeps the per-channel minimum of the pixel and
+// that neighbor (alpha included), Lighten Only the maximum. Photoshop picks the
+// neighbor at random on every render and stores no seed; Patchy picks it from a
+// splitmix64 hash of the document position, so a render is repeatable.
+FilterRenderResult render_diffuse(const FilterRenderResult& input, Rect canvas, std::int32_t mode,
+                                  const FilterProgress* progress) {
+  const auto source = embed_in_canvas(input, canvas);
+  PixelBuffer result(canvas.width, canvas.height, PixelFormat::rgba8());
+  constexpr std::array<std::array<std::int32_t, 2>, 8> kNeighbors{
+      {{-1, -1}, {0, -1}, {1, -1}, {-1, 0}, {1, 0}, {-1, 1}, {0, 1}, {1, 1}}};
+  for (std::int32_t y = 0; y < canvas.height; ++y) {
+    if ((y & 31) == 0) {
+      report(progress, y, canvas.height, FilterProgressStage::Distorting);
+    }
+    for (std::int32_t x = 0; x < canvas.width; ++x) {
+      SplitMix64 hash{static_cast<std::uint64_t>(static_cast<std::uint32_t>(canvas.x + x)) * 0x9e3779b97f4a7c15ULL ^
+                      static_cast<std::uint64_t>(static_cast<std::uint32_t>(canvas.y + y)) * 0xc2b2ae3d27d4eb4fULL ^
+                      0x44667320ULL};
+      const auto& offset = kNeighbors[static_cast<std::size_t>(hash.next() % 8U)];
+      const auto* self = source.pixel(x, y);
+      const auto* neighbor = source.pixel(std::clamp(x + offset[0], 0, canvas.width - 1),
+                                          std::clamp(y + offset[1], 0, canvas.height - 1));
+      auto* out = result.pixel(x, y);
+      for (int channel = 0; channel < 4; ++channel) {
+        out[channel] = mode == 1   ? std::min(self[channel], neighbor[channel])
+                       : mode == 2 ? std::max(self[channel], neighbor[channel])
+                                   : neighbor[channel];
+      }
+    }
+  }
+  report(progress, canvas.height, canvas.height, FilterProgressStage::Distorting);
+  return trim_to_visible(std::move(result), canvas);
+}
+
 }  // namespace
 
 FilterRenderResult render_schema_smart_filter(const FilterRenderResult& current,
@@ -686,6 +722,8 @@ FilterRenderResult render_schema_smart_filter(const FilterRenderResult& current,
                              progress);
     case SmartFilterKind::PolarCoordinates:
       return render_polar_coordinates(current, filter_canvas_bounds, settings.values[0], progress);
+    case SmartFilterKind::Diffuse:
+      return render_diffuse(current, filter_canvas_bounds, settings.values[0], progress);
     case SmartFilterKind::TraceContour:
       return render_trace_contour(current, filter_canvas_bounds, settings.values[0],
                                   settings.values[1] == 1, progress);

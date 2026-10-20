@@ -11258,6 +11258,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Trace Contour</source>
         <translation>等高线</translation>
     </message>
+    <message>
+        <source>Darken Only</source>
+        <translation>仅变暗</translation>
+    </message>
+    <message>
+        <source>Lighten Only</source>
+        <translation>仅变亮</translation>
+    </message>
+    <message>
+        <source>Diffuse</source>
+        <translation>扩散</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
