@@ -11402,32 +11402,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation> (양 %1, 줌, %2 품질)</translation>
     </message>
     <message>
-        <source>The layer is locked, so its effects cannot be changed here.</source>
-        <translation>레이어가 잠겨 있어 여기에서 효과를 변경할 수 없습니다.</translation>
-    </message>
-    <message>
-        <source>Effects visible. Click to hide them all.</source>
-        <translation>효과가 표시됩니다. 모두 숨기려면 클릭하세요.</translation>
-    </message>
-    <message>
-        <source>Effects hidden. Click to show them.</source>
-        <translation>효과가 숨겨졌습니다. 표시하려면 클릭하세요.</translation>
-    </message>
-    <message>
-        <source>Effects</source>
-        <translation>효과</translation>
-    </message>
-    <message>
         <source>Effect visible. Click to hide.</source>
         <translation>효과가 표시됩니다. 숨기려면 클릭하세요.</translation>
     </message>
     <message>
         <source>Effect hidden. Click to show.</source>
         <translation>효과가 숨겨졌습니다. 표시하려면 클릭하세요.</translation>
-    </message>
-    <message>
-        <source>Double-click to edit this effect in the Layer Style dialog.</source>
-        <translation>두 번 클릭하면 레이어 스타일 대화 상자에서 이 효과를 편집합니다.</translation>
     </message>
     <message>
         <source>Edit this effect in the Layer Style dialog</source>
@@ -11462,6 +11442,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
         <translation>누락된 파일은 상태 표시줄에 계속 표시됩니다. 환경 설정에서 열린 문서에 대해 이 대화 상자를 다시 켤 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>The layer is locked, so its layer styles cannot be changed here.</source>
+        <translation>레이어가 잠겨 있어 여기에서 레이어 스타일을 변경할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Collapse the layer style rows</source>
+        <translation>레이어 스타일 행 접기</translation>
+    </message>
+    <message>
+        <source>Expand the layer style rows</source>
+        <translation>레이어 스타일 행 펼치기</translation>
+    </message>
+    <message>
+        <source>Layer styles visible. Click to hide them all.</source>
+        <translation>레이어 스타일이 표시됩니다. 모두 숨기려면 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden. Click to show them.</source>
+        <translation>레이어 스타일이 숨겨졌습니다. 표시하려면 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Layer Styles</source>
+        <translation>레이어 스타일</translation>
+    </message>
+    <message>
+        <source>Effect on, but the layer styles are hidden. Click to turn it off.</source>
+        <translation>효과는 켜져 있지만 레이어 스타일이 숨겨져 있습니다. 끄려면 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Effect off, and the layer styles are hidden. Click to turn it on.</source>
+        <translation>효과가 꺼져 있고 레이어 스타일도 숨겨져 있습니다. 켜려면 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog; right-click for its menu.</source>
+        <translation>두 번 클릭하면 레이어 스타일 대화 상자에서 이 효과를 편집하고, 마우스 오른쪽 버튼을 클릭하면 메뉴가 열립니다.</translation>
     </message>
 </context>
 <context>
@@ -23187,22 +23203,6 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>대지를 추가, 크기 조정 또는 복제하려면 대지 도구(%1)로 전환하세요</translation>
     </message>
     <message>
-        <source>Show Effects</source>
-        <translation>효과 표시</translation>
-    </message>
-    <message>
-        <source>Hide Effects</source>
-        <translation>효과 숨기기</translation>
-    </message>
-    <message>
-        <source>Effects shown</source>
-        <translation>효과가 표시됨</translation>
-    </message>
-    <message>
-        <source>Effects hidden</source>
-        <translation>효과가 숨겨짐</translation>
-    </message>
-    <message>
         <source>Show %1</source>
         <translation>%1 표시</translation>
     </message>
@@ -23235,6 +23235,34 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>
             <numerusform>스마트 개체 파일 %n개를 다시 연결했습니다</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Show Layer Styles</source>
+        <translation>레이어 스타일 표시</translation>
+    </message>
+    <message>
+        <source>Hide Layer Styles</source>
+        <translation>레이어 스타일 숨기기</translation>
+    </message>
+    <message>
+        <source>Layer styles shown</source>
+        <translation>레이어 스타일이 표시됨</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden</source>
+        <translation>레이어 스타일이 숨겨짐</translation>
+    </message>
+    <message>
+        <source>Delete %1</source>
+        <translation>%1 삭제</translation>
+    </message>
+    <message>
+        <source>%1 deleted</source>
+        <translation>%1 삭제됨</translation>
+    </message>
+    <message>
+        <source>Edit %1...</source>
+        <translation>%1 편집...</translation>
     </message>
 </context>
 <context>

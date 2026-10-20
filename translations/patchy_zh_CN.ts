@@ -11402,32 +11402,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation> (数量 %1，缩放，品质：%2)</translation>
     </message>
     <message>
-        <source>The layer is locked, so its effects cannot be changed here.</source>
-        <translation>图层已锁定，无法在此处更改其效果。</translation>
-    </message>
-    <message>
-        <source>Effects visible. Click to hide them all.</source>
-        <translation>效果可见。单击可全部隐藏。</translation>
-    </message>
-    <message>
-        <source>Effects hidden. Click to show them.</source>
-        <translation>效果已隐藏。单击可显示。</translation>
-    </message>
-    <message>
-        <source>Effects</source>
-        <translation>效果</translation>
-    </message>
-    <message>
         <source>Effect visible. Click to hide.</source>
         <translation>效果可见。单击可隐藏。</translation>
     </message>
     <message>
         <source>Effect hidden. Click to show.</source>
         <translation>效果已隐藏。单击可显示。</translation>
-    </message>
-    <message>
-        <source>Double-click to edit this effect in the Layer Style dialog.</source>
-        <translation>双击可在“图层样式”对话框中编辑此效果。</translation>
     </message>
     <message>
         <source>Edit this effect in the Layer Style dialog</source>
@@ -11462,6 +11442,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
         <translation>缺少的文件仍会显示在状态栏中。可以在首选项中为打开的文档重新启用此对话框。</translation>
+    </message>
+    <message>
+        <source>The layer is locked, so its layer styles cannot be changed here.</source>
+        <translation>图层已锁定，无法在此处更改其图层样式。</translation>
+    </message>
+    <message>
+        <source>Collapse the layer style rows</source>
+        <translation>折叠图层样式行</translation>
+    </message>
+    <message>
+        <source>Expand the layer style rows</source>
+        <translation>展开图层样式行</translation>
+    </message>
+    <message>
+        <source>Layer styles visible. Click to hide them all.</source>
+        <translation>图层样式可见。单击可全部隐藏。</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden. Click to show them.</source>
+        <translation>图层样式已隐藏。单击可显示。</translation>
+    </message>
+    <message>
+        <source>Layer Styles</source>
+        <translation>图层样式</translation>
+    </message>
+    <message>
+        <source>Effect on, but the layer styles are hidden. Click to turn it off.</source>
+        <translation>效果已开启，但图层样式已隐藏。单击可关闭。</translation>
+    </message>
+    <message>
+        <source>Effect off, and the layer styles are hidden. Click to turn it on.</source>
+        <translation>效果已关闭，且图层样式已隐藏。单击可开启。</translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog; right-click for its menu.</source>
+        <translation>双击可在“图层样式”对话框中编辑此效果；右键单击可打开其菜单。</translation>
     </message>
 </context>
 <context>
@@ -23187,22 +23203,6 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>切换到画板工具 (%1) 以添加、调整大小或复制画板</translation>
     </message>
     <message>
-        <source>Show Effects</source>
-        <translation>显示效果</translation>
-    </message>
-    <message>
-        <source>Hide Effects</source>
-        <translation>隐藏效果</translation>
-    </message>
-    <message>
-        <source>Effects shown</source>
-        <translation>已显示效果</translation>
-    </message>
-    <message>
-        <source>Effects hidden</source>
-        <translation>已隐藏效果</translation>
-    </message>
-    <message>
         <source>Show %1</source>
         <translation>显示%1</translation>
     </message>
@@ -23235,6 +23235,34 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>
             <numerusform>已重新链接 %n 个智能对象文件</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Show Layer Styles</source>
+        <translation>显示图层样式</translation>
+    </message>
+    <message>
+        <source>Hide Layer Styles</source>
+        <translation>隐藏图层样式</translation>
+    </message>
+    <message>
+        <source>Layer styles shown</source>
+        <translation>已显示图层样式</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden</source>
+        <translation>已隐藏图层样式</translation>
+    </message>
+    <message>
+        <source>Delete %1</source>
+        <translation>删除%1</translation>
+    </message>
+    <message>
+        <source>%1 deleted</source>
+        <translation>已删除%1</translation>
+    </message>
+    <message>
+        <source>Edit %1...</source>
+        <translation>编辑%1...</translation>
     </message>
 </context>
 <context>

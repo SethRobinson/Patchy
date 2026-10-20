@@ -11470,32 +11470,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation> (Количество %1, Линейный, Качество %2)</translation>
     </message>
     <message>
-        <source>The layer is locked, so its effects cannot be changed here.</source>
-        <translation>Слой заблокирован, поэтому его эффекты здесь изменить нельзя.</translation>
-    </message>
-    <message>
-        <source>Effects visible. Click to hide them all.</source>
-        <translation>Эффекты видны. Нажмите, чтобы скрыть все.</translation>
-    </message>
-    <message>
-        <source>Effects hidden. Click to show them.</source>
-        <translation>Эффекты скрыты. Нажмите, чтобы показать.</translation>
-    </message>
-    <message>
-        <source>Effects</source>
-        <translation>Эффекты</translation>
-    </message>
-    <message>
         <source>Effect visible. Click to hide.</source>
         <translation>Эффект виден. Нажмите, чтобы скрыть.</translation>
     </message>
     <message>
         <source>Effect hidden. Click to show.</source>
         <translation>Эффект скрыт. Нажмите, чтобы показать.</translation>
-    </message>
-    <message>
-        <source>Double-click to edit this effect in the Layer Style dialog.</source>
-        <translation>Дважды нажмите, чтобы изменить этот эффект в диалоге «Стиль слоя».</translation>
     </message>
     <message>
         <source>Edit this effect in the Layer Style dialog</source>
@@ -11532,6 +11512,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
         <translation>Отсутствующие файлы по-прежнему показываются в строке состояния. В настройках этот диалог можно снова включить для открываемых документов.</translation>
+    </message>
+    <message>
+        <source>The layer is locked, so its layer styles cannot be changed here.</source>
+        <translation>Слой заблокирован, поэтому его стили слоя здесь изменить нельзя.</translation>
+    </message>
+    <message>
+        <source>Collapse the layer style rows</source>
+        <translation>Свернуть строки стилей слоя</translation>
+    </message>
+    <message>
+        <source>Expand the layer style rows</source>
+        <translation>Развернуть строки стилей слоя</translation>
+    </message>
+    <message>
+        <source>Layer styles visible. Click to hide them all.</source>
+        <translation>Стили слоя видны. Нажмите, чтобы скрыть все.</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden. Click to show them.</source>
+        <translation>Стили слоя скрыты. Нажмите, чтобы показать.</translation>
+    </message>
+    <message>
+        <source>Layer Styles</source>
+        <translation>Стили слоя</translation>
+    </message>
+    <message>
+        <source>Effect on, but the layer styles are hidden. Click to turn it off.</source>
+        <translation>Эффект включён, но стили слоя скрыты. Нажмите, чтобы выключить его.</translation>
+    </message>
+    <message>
+        <source>Effect off, and the layer styles are hidden. Click to turn it on.</source>
+        <translation>Эффект выключен, и стили слоя скрыты. Нажмите, чтобы включить его.</translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog; right-click for its menu.</source>
+        <translation>Дважды нажмите, чтобы изменить этот эффект в диалоге «Стиль слоя»; правая кнопка открывает его меню.</translation>
     </message>
 </context>
 <context>
@@ -23329,22 +23345,6 @@ Patchy можно будет запускать из меню, а на пане�
         <translation>Переключитесь на инструмент «Монтажная область» (%1), чтобы добавлять, изменять размер или дублировать монтажные области</translation>
     </message>
     <message>
-        <source>Show Effects</source>
-        <translation>Показать эффекты</translation>
-    </message>
-    <message>
-        <source>Hide Effects</source>
-        <translation>Скрыть эффекты</translation>
-    </message>
-    <message>
-        <source>Effects shown</source>
-        <translation>Эффекты показаны</translation>
-    </message>
-    <message>
-        <source>Effects hidden</source>
-        <translation>Эффекты скрыты</translation>
-    </message>
-    <message>
         <source>Show %1</source>
         <translation>Показать %1</translation>
     </message>
@@ -23379,6 +23379,34 @@ Patchy можно будет запускать из меню, а на пане�
             <numerusform>Связаны заново %n файла смарт-объектов</numerusform>
             <numerusform>Связано заново %n файлов смарт-объектов</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Show Layer Styles</source>
+        <translation>Показать стили слоя</translation>
+    </message>
+    <message>
+        <source>Hide Layer Styles</source>
+        <translation>Скрыть стили слоя</translation>
+    </message>
+    <message>
+        <source>Layer styles shown</source>
+        <translation>Стили слоя показаны</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden</source>
+        <translation>Стили слоя скрыты</translation>
+    </message>
+    <message>
+        <source>Delete %1</source>
+        <translation>Удалить %1</translation>
+    </message>
+    <message>
+        <source>%1 deleted</source>
+        <translation>%1: удалено</translation>
+    </message>
+    <message>
+        <source>Edit %1...</source>
+        <translation>Изменить %1...</translation>
     </message>
 </context>
 <context>

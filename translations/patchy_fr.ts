@@ -11436,32 +11436,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation> (Valeur %1, Zoom, qualité %2)</translation>
     </message>
     <message>
-        <source>The layer is locked, so its effects cannot be changed here.</source>
-        <translation>Le calque est verrouillé, ses effets ne peuvent donc pas être modifiés ici.</translation>
-    </message>
-    <message>
-        <source>Effects visible. Click to hide them all.</source>
-        <translation>Effets visibles. Cliquez pour tous les masquer.</translation>
-    </message>
-    <message>
-        <source>Effects hidden. Click to show them.</source>
-        <translation>Effets masqués. Cliquez pour les afficher.</translation>
-    </message>
-    <message>
-        <source>Effects</source>
-        <translation>Effets</translation>
-    </message>
-    <message>
         <source>Effect visible. Click to hide.</source>
         <translation>Effet visible. Cliquez pour le masquer.</translation>
     </message>
     <message>
         <source>Effect hidden. Click to show.</source>
         <translation>Effet masqué. Cliquez pour l&apos;afficher.</translation>
-    </message>
-    <message>
-        <source>Double-click to edit this effect in the Layer Style dialog.</source>
-        <translation>Double-cliquez pour modifier cet effet dans la boîte de dialogue Style de calque.</translation>
     </message>
     <message>
         <source>Edit this effect in the Layer Style dialog</source>
@@ -11497,6 +11477,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
         <translation>Les fichiers manquants restent signalés dans la barre d&apos;état. Les préférences permettent de réactiver cette boîte de dialogue pour les documents ouverts.</translation>
+    </message>
+    <message>
+        <source>The layer is locked, so its layer styles cannot be changed here.</source>
+        <translation>Le calque est verrouillé, ses styles de calque ne peuvent donc pas être modifiés ici.</translation>
+    </message>
+    <message>
+        <source>Collapse the layer style rows</source>
+        <translation>Replier les lignes de styles de calque</translation>
+    </message>
+    <message>
+        <source>Expand the layer style rows</source>
+        <translation>Déplier les lignes de styles de calque</translation>
+    </message>
+    <message>
+        <source>Layer styles visible. Click to hide them all.</source>
+        <translation>Styles de calque visibles. Cliquez pour tous les masquer.</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden. Click to show them.</source>
+        <translation>Styles de calque masqués. Cliquez pour les afficher.</translation>
+    </message>
+    <message>
+        <source>Layer Styles</source>
+        <translation>Styles de calque</translation>
+    </message>
+    <message>
+        <source>Effect on, but the layer styles are hidden. Click to turn it off.</source>
+        <translation>Effet actif, mais les styles de calque sont masqués. Cliquez pour le désactiver.</translation>
+    </message>
+    <message>
+        <source>Effect off, and the layer styles are hidden. Click to turn it on.</source>
+        <translation>Effet inactif, et les styles de calque sont masqués. Cliquez pour l&apos;activer.</translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog; right-click for its menu.</source>
+        <translation>Double-cliquez pour modifier cet effet dans la boîte de dialogue Style de calque ; clic droit pour son menu.</translation>
     </message>
 </context>
 <context>
@@ -23258,22 +23274,6 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
         <translation>Passez à l&apos;outil Plan de travail (%1) pour ajouter, redimensionner ou dupliquer des plans de travail</translation>
     </message>
     <message>
-        <source>Show Effects</source>
-        <translation>Afficher les effets</translation>
-    </message>
-    <message>
-        <source>Hide Effects</source>
-        <translation>Masquer les effets</translation>
-    </message>
-    <message>
-        <source>Effects shown</source>
-        <translation>Effets affichés</translation>
-    </message>
-    <message>
-        <source>Effects hidden</source>
-        <translation>Effets masqués</translation>
-    </message>
-    <message>
         <source>Show %1</source>
         <translation>Afficher %1</translation>
     </message>
@@ -23307,6 +23307,34 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
             <numerusform>Lien rétabli pour %n fichier d&apos;objet dynamique</numerusform>
             <numerusform>Lien rétabli pour %n fichiers d&apos;objets dynamiques</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Show Layer Styles</source>
+        <translation>Afficher les styles de calque</translation>
+    </message>
+    <message>
+        <source>Hide Layer Styles</source>
+        <translation>Masquer les styles de calque</translation>
+    </message>
+    <message>
+        <source>Layer styles shown</source>
+        <translation>Styles de calque affichés</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden</source>
+        <translation>Styles de calque masqués</translation>
+    </message>
+    <message>
+        <source>Delete %1</source>
+        <translation>Supprimer %1</translation>
+    </message>
+    <message>
+        <source>%1 deleted</source>
+        <translation>%1 supprimé</translation>
+    </message>
+    <message>
+        <source>Edit %1...</source>
+        <translation>Modifier %1...</translation>
     </message>
 </context>
 <context>

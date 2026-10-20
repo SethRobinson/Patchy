@@ -11436,32 +11436,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation> (Cantidad %1, Zoom, calidad %2)</translation>
     </message>
     <message>
-        <source>The layer is locked, so its effects cannot be changed here.</source>
-        <translation>La capa está bloqueada, por lo que sus efectos no se pueden cambiar aquí.</translation>
-    </message>
-    <message>
-        <source>Effects visible. Click to hide them all.</source>
-        <translation>Efectos visibles. Haga clic para ocultarlos todos.</translation>
-    </message>
-    <message>
-        <source>Effects hidden. Click to show them.</source>
-        <translation>Efectos ocultos. Haga clic para mostrarlos.</translation>
-    </message>
-    <message>
-        <source>Effects</source>
-        <translation>Efectos</translation>
-    </message>
-    <message>
         <source>Effect visible. Click to hide.</source>
         <translation>Efecto visible. Haga clic para ocultarlo.</translation>
     </message>
     <message>
         <source>Effect hidden. Click to show.</source>
         <translation>Efecto oculto. Haga clic para mostrarlo.</translation>
-    </message>
-    <message>
-        <source>Double-click to edit this effect in the Layer Style dialog.</source>
-        <translation>Haga doble clic para editar este efecto en el diálogo Estilo de capa.</translation>
     </message>
     <message>
         <source>Edit this effect in the Layer Style dialog</source>
@@ -11497,6 +11477,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
         <translation>Los archivos que faltan se siguen mostrando en la barra de estado. En Preferencias puede volver a activar este diálogo para los documentos abiertos.</translation>
+    </message>
+    <message>
+        <source>The layer is locked, so its layer styles cannot be changed here.</source>
+        <translation>La capa está bloqueada, por lo que sus estilos de capa no se pueden cambiar aquí.</translation>
+    </message>
+    <message>
+        <source>Collapse the layer style rows</source>
+        <translation>Contraer las filas de estilos de capa</translation>
+    </message>
+    <message>
+        <source>Expand the layer style rows</source>
+        <translation>Expandir las filas de estilos de capa</translation>
+    </message>
+    <message>
+        <source>Layer styles visible. Click to hide them all.</source>
+        <translation>Estilos de capa visibles. Haga clic para ocultarlos todos.</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden. Click to show them.</source>
+        <translation>Estilos de capa ocultos. Haga clic para mostrarlos.</translation>
+    </message>
+    <message>
+        <source>Layer Styles</source>
+        <translation>Estilos de capa</translation>
+    </message>
+    <message>
+        <source>Effect on, but the layer styles are hidden. Click to turn it off.</source>
+        <translation>Efecto activado, pero los estilos de capa están ocultos. Haga clic para desactivarlo.</translation>
+    </message>
+    <message>
+        <source>Effect off, and the layer styles are hidden. Click to turn it on.</source>
+        <translation>Efecto desactivado, y los estilos de capa están ocultos. Haga clic para activarlo.</translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog; right-click for its menu.</source>
+        <translation>Haga doble clic para editar este efecto en el diálogo Estilo de capa; clic derecho para su menú.</translation>
     </message>
 </context>
 <context>
@@ -23258,22 +23274,6 @@ Puedes hacerlo más tarde desde Ayuda &gt; Añadir Patchy al menú de aplicacion
         <translation>Cambia a la herramienta Mesa de trabajo (%1) para añadir, redimensionar o duplicar mesas de trabajo</translation>
     </message>
     <message>
-        <source>Show Effects</source>
-        <translation>Mostrar efectos</translation>
-    </message>
-    <message>
-        <source>Hide Effects</source>
-        <translation>Ocultar efectos</translation>
-    </message>
-    <message>
-        <source>Effects shown</source>
-        <translation>Efectos mostrados</translation>
-    </message>
-    <message>
-        <source>Effects hidden</source>
-        <translation>Efectos ocultos</translation>
-    </message>
-    <message>
         <source>Show %1</source>
         <translation>Mostrar %1</translation>
     </message>
@@ -23307,6 +23307,34 @@ Puedes hacerlo más tarde desde Ayuda &gt; Añadir Patchy al menú de aplicacion
             <numerusform>Se volvió a vincular %n archivo de objeto inteligente</numerusform>
             <numerusform>Se volvieron a vincular %n archivos de objetos inteligentes</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Show Layer Styles</source>
+        <translation>Mostrar estilos de capa</translation>
+    </message>
+    <message>
+        <source>Hide Layer Styles</source>
+        <translation>Ocultar estilos de capa</translation>
+    </message>
+    <message>
+        <source>Layer styles shown</source>
+        <translation>Estilos de capa mostrados</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden</source>
+        <translation>Estilos de capa ocultos</translation>
+    </message>
+    <message>
+        <source>Delete %1</source>
+        <translation>Eliminar %1</translation>
+    </message>
+    <message>
+        <source>%1 deleted</source>
+        <translation>%1 eliminado</translation>
+    </message>
+    <message>
+        <source>Edit %1...</source>
+        <translation>Editar %1...</translation>
     </message>
 </context>
 <context>
