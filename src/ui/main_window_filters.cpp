@@ -387,6 +387,7 @@ FilterInvocation editable_smart_filter_invocation(SmartFilterKind kind) {
         : kind == SmartFilterKind::Sharpen  ? "patchy.smart_filters.sharpen"
         : kind == SmartFilterKind::Invert   ? "patchy.smart_filters.invert"
         : kind == SmartFilterKind::Average  ? "patchy.smart_filters.average"
+        : kind == SmartFilterKind::SharpenEdges ? "patchy.smart_filters.sharpen_edges"
                                             : "patchy.smart_filters.sharpen_more";
     return invocation;
   }
@@ -1191,6 +1192,7 @@ bool filter_applies_without_settings_dialog(const std::string& identifier) {
          identifier == "patchy.filters.blur_more" ||
          identifier == "patchy.filters.sharpen_more" ||
          identifier == "patchy.filters.average" ||
+         identifier == "patchy.filters.sharpen_edges" ||
          identifier == "patchy.filters.auto_tone" ||
          identifier == "patchy.filters.auto_contrast" ||
          identifier == "patchy.filters.auto_color";

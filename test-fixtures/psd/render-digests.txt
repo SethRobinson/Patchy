@@ -105,6 +105,7 @@ a830b287b2ff7613 e3303a22a1955e77 photoshop-smart-filter-model.psd
 ded4f5c909bc30a9 c0a39197fc4785c3 photoshop-smart-filter-radial-blur.psd
 7b6459f94a101391 691d6499a785819a photoshop-smart-filter-random.psd
 a554519ff1d35bae cb84563c9c4ef8cc photoshop-smart-filter-ripple.psd
+ec65b0df4bd7a3a1 d784b589b0401b1d photoshop-smart-filter-sharpen-edges.psd
 17ad9547f8393ecd 5fc2baff810bb043 photoshop-smart-filter-shear.psd
 031490004063b7db c873467356c61c7e photoshop-smart-filter-smart-sharpen.psd
 3d3bf9d1dc2a8736 4b572cb4dee7f499 photoshop-smart-filter-solarize.psd

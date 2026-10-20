@@ -271,6 +271,7 @@ const std::vector<ExpectedFilterCatalogEntry>& expected_filter_catalog() {
       {"patchy.filters.blur_more", Category::Blur, false, {}},
       {"patchy.filters.average", Category::Blur, false, {}},
       {"patchy.filters.sharpen_more", Category::Sharpen, false, {}},
+      {"patchy.filters.sharpen_edges", Category::Sharpen, false, {}},
   };
   return expected;
 }
@@ -501,7 +502,8 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
        {QStringLiteral("filterAction_patchy_filters_sharpen"),
         QStringLiteral("filterAction_patchy_filters_unsharp_mask"),
         QStringLiteral("filterAction_patchy_filters_high_pass"),
-        QStringLiteral("filterAction_patchy_filters_sharpen_more")}},
+        QStringLiteral("filterAction_patchy_filters_sharpen_more"),
+        QStringLiteral("filterAction_patchy_filters_sharpen_edges")}},
       {"filterDistortMenu",
        {QStringLiteral("filterAction_patchy_filters_twirl"), QStringLiteral("filterAction_patchy_filters_wave"),
         QStringLiteral("filterAction_patchy_filters_pinch_bloat")}},

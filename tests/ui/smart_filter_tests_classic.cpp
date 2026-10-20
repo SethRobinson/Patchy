@@ -21,6 +21,7 @@
 #include <QDoubleSpinBox>
 #include <QLabel>
 #include <QListWidget>
+#include <QMenu>
 #include <QPixmap>
 #include <QSpinBox>
 #include <QTimer>
@@ -308,6 +309,70 @@ void ui_smart_filter_authored_cache_covers_the_canvas_beyond_the_document() {
   }
 }
 
+void ui_smart_filter_sharpen_edges_menu_command_authors_native_entry() {
+  // Filter > Sharpen > Sharpen Edges on a Smart Object appends Photoshop's
+  // parameterless 'ShrE' entry without a dialog. The saved file is the
+  // Photoshop open-check artifact for a Patchy-authored Sharpen Edges.
+  SettingsValueRestorer notes_setting(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(
+      window, QString::fromStdWString(patchy::test::committed_psd_fixture_path(
+                                          "photoshop-smart-filter-classic.psd")
+                                          .wstring()));
+  QApplication::processEvents();
+  const auto layer_id = select_named_layer(window, QStringLiteral("_Source"));
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(std::as_const(document).find_layer(layer_id)->smart_filter_stack() ==
+        nullptr);
+  auto* action = window.findChild<QAction*>(
+      QStringLiteral("filterAction_patchy_filters_sharpen_edges"));
+  CHECK(action != nullptr && action->isEnabled());
+  // It sits in the Filter > Sharpen submenu, whose owner opts out of macOS
+  // menu roles (docs/platform.md).
+  bool in_submenu = false;
+  for (auto* widget : action->associatedObjects()) {
+    if (auto* menu = qobject_cast<QMenu*>(widget); menu != nullptr) {
+      in_submenu = in_submenu || (menu->menuAction() != nullptr &&
+                                  menu->menuAction()->menuRole() == QAction::NoRole);
+    }
+  }
+  CHECK(in_submenu);
+  action->trigger();
+  CHECK(process_events_until([&] {
+    const auto* layer = std::as_const(document).find_layer(layer_id);
+    return layer != nullptr && layer->smart_filter_stack() != nullptr;
+  }));
+  const auto& stack =
+      *std::as_const(document).find_layer(layer_id)->smart_filter_stack();
+  CHECK(stack.entries.size() == 1U);
+  CHECK(stack.entries.front().kind == patchy::SmartFilterKind::SharpenEdges);
+  CHECK(stack.entries.front().native_filter_id == 0x53687245U);
+  CHECK(!stack.entries.front().has_options);
+
+  ensure_artifact_dir();
+  const auto artifact = std::filesystem::absolute(
+      std::filesystem::path("test-artifacts") / "sharpen-edges-authored.psd");
+  patchy::psd::DocumentIo::write_layered_rgb8_file(document, artifact);
+  const auto reopened = patchy::psd::DocumentIo::read_file(artifact);
+  bool found = false;
+  for (const auto& candidate : reopened.layers()) {
+    if (candidate.name() == "_Source") {
+      found = true;
+      CHECK(candidate.smart_filter_stack() != nullptr);
+      CHECK(candidate.smart_filter_stack()->support ==
+            patchy::SmartFilterStackSupport::Supported);
+      CHECK(candidate.smart_filter_stack()->entries.size() == 1U);
+      CHECK(candidate.smart_filter_stack()->entries.front().kind ==
+            patchy::SmartFilterKind::SharpenEdges);
+    }
+  }
+  CHECK(found);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> smart_filter_tests_classic() {
@@ -320,5 +385,7 @@ std::vector<patchy::test::TestCase> smart_filter_tests_classic() {
        ui_smart_filter_canvas_unites_document_and_placed_bounds},
       {"ui_smart_filter_authored_cache_covers_the_canvas_beyond_the_document",
        ui_smart_filter_authored_cache_covers_the_canvas_beyond_the_document},
+      {"ui_smart_filter_sharpen_edges_menu_command_authors_native_entry",
+       ui_smart_filter_sharpen_edges_menu_command_authors_native_entry},
   };
 }

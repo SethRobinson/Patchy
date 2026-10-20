@@ -11409,6 +11409,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source> (Amount %1%, Radius %2 px, Legacy)</source>
         <translation> (양 %1%, 반경 %2 px, 레거시)</translation>
     </message>
+    <message>
+        <source>Sharpen Edges</source>
+        <comment>Smart Filter</comment>
+        <translation>가장자리 선명하게</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

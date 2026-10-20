@@ -11443,6 +11443,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source> (Amount %1%, Radius %2 px, Legacy)</source>
         <translation> (Cantidad %1%, Radio %2 px, Heredado)</translation>
     </message>
+    <message>
+        <source>Sharpen Edges</source>
+        <comment>Smart Filter</comment>
+        <translation>Enfocar bordes</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

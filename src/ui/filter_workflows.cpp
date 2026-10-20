@@ -290,6 +290,8 @@ QString parameterless_smart_filter_display_name(SmartFilterKind kind) {
       return QObject::tr("Invert", "Smart Filter");
     case SmartFilterKind::Average:
       return QObject::tr("Average", "Smart Filter");
+    case SmartFilterKind::SharpenEdges:
+      return QObject::tr("Sharpen Edges", "Smart Filter");
     default:
       return {};
   }

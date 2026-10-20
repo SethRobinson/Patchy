@@ -69,6 +69,7 @@ enum class SmartFilterKind {
   Average,
   // Smart Sharpen's legacy Gaussian case only (SmartSharpenSmartFilter).
   SmartSharpen,
+  SharpenEdges,
 };
 
 struct GaussianBlurSmartFilter {
@@ -208,6 +209,7 @@ inline constexpr ParameterlessSmartFilterNative kParameterlessSmartFilters[] = {
     {SmartFilterKind::SharpenMore, "Sharpen More", 0x5368724dU},  // 'ShrM'
     {SmartFilterKind::Invert, "Invert", 0x496e7672U},          // 'Invr'
     {SmartFilterKind::Average, "Average", 0x41767267U},        // 'Avrg'
+    {SmartFilterKind::SharpenEdges, "Sharpen Edges", 0x53687245U},  // 'ShrE'
 };
 
 [[nodiscard]] inline const ParameterlessSmartFilterNative*
