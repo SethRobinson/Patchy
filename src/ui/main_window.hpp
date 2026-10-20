@@ -133,6 +133,7 @@ struct HueSaturationSettings;
 // Same aliases as filter_workflows.hpp (an alias cannot be forward-declared);
 // identical redeclaration is legal and compiler-checked.
 using LevelsSettings = LevelsAdjustment;
+using ColorBalanceSettings = ColorBalanceAdjustment;
 using PosterizeSettings = PosterizeAdjustment;
 using ThresholdSettings = ThresholdAdjustment;
 using ExposureSettings = ExposureAdjustment;
@@ -1276,8 +1277,7 @@ private:
   void apply_hue_saturation_adjustment(const HueSaturationSettings& hue_saturation, bool allow_identity = false);
   void new_color_balance_adjustment_layer();
   void color_balance_dialog();
-  void apply_color_balance_adjustment(int cyan_red, int magenta_green, int yellow_blue,
-                                      bool allow_identity = false);
+  void apply_color_balance_adjustment(const ColorBalanceSettings& color_balance, bool allow_identity = false);
   void new_invert_adjustment_layer();
   void new_posterize_adjustment_layer();
   void apply_posterize_adjustment(const PosterizeSettings& settings, bool allow_identity = false);

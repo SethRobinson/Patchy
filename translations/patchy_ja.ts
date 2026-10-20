@@ -10907,6 +10907,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Show All Smart Filters</source>
         <translation>すべてのスマートフィルターを表示</translation>
     </message>
+    <message>
+        <source>Midtones</source>
+        <translation>中間調</translation>
+    </message>
+    <message>
+        <source>Tone:</source>
+        <translation>階調:</translation>
+    </message>
+    <message>
+        <source>Preserve Luminosity</source>
+        <translation>輝度を保持</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

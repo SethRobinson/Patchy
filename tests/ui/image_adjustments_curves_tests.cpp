@@ -19,6 +19,7 @@
 #include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
+#include "formats/af_document_io.hpp"
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
@@ -3338,6 +3339,107 @@ void ui_curves_clipped_adjustment_reedit_disables_auto() {
   CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before);
 }
 
+// Affinity's Colour Balance imports onto Patchy's Photoshop-calibrated math at
+// 40% scale; the local corpus file then renders within about a level of
+// Affinity's own export (#250; skips where the corpus is absent).
+void ui_af_colour_balance_matches_affinity_render_if_available() {
+  const auto af_path = patchy::test::local_format_fixture_path("af-spike/corpus", "adjust-colourbalance.af");
+  const auto png_path = patchy::test::local_format_fixture_path("af-spike/corpus", "adjust-colourbalance.png");
+  patchy::test::skip_unless_exists(af_path);
+  patchy::test::skip_unless_exists(png_path);
+  const auto reference =
+      QImage(patchy::ui::to_qstring(png_path)).convertToFormat(QImage::Format_RGBA8888);
+  CHECK(!reference.isNull());
+  const auto flat = patchy::Compositor{}.flatten_rgb8(patchy::af::DocumentIo::read_file(af_path));
+  CHECK(flat.width() == reference.width());
+  CHECK(flat.height() == reference.height());
+  double sum = 0.0;
+  int worst = 0;
+  for (int y = 0; y < reference.height(); ++y) {
+    for (int x = 0; x < reference.width(); ++x) {
+      const auto* rendered = flat.pixel(x, y);
+      const auto expected = reference.pixelColor(x, y);
+      for (const auto [channel, value] : {std::pair{0, expected.red()}, std::pair{1, expected.green()},
+                                          std::pair{2, expected.blue()}}) {
+        const auto difference = std::abs(static_cast<int>(rendered[channel]) - value);
+        sum += difference;
+        worst = std::max(worst, difference);
+      }
+    }
+  }
+  const auto mean = sum / (3.0 * reference.width() * reference.height());
+  std::cout << "[INFO] Affinity Colour Balance render: mean " << mean << ", worst " << worst << '\n';
+  CHECK(mean < 1.0);
+  CHECK(worst <= 5);
+}
+
+// The Tone combo retargets the three sliders to Shadows, Midtones or
+// Highlights and keeps every range's values; Preserve Luminosity starts checked
+// for a new layer, as in Photoshop. All of it lands on the adjustment layer (#250).
+void ui_color_balance_dialog_tone_selector_edits_each_range() {
+  patchy::Document source(32, 24, patchy::PixelFormat::rgba8());
+  source.add_pixel_layer("Paint", solid_pixels(32, 24, patchy::PixelFormat::rgba8(), QColor(90, 120, 150)));
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(source), QStringLiteral("Tones"));
+  show_window(window);
+
+  bool dialog_checked = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyColorBalanceDialog")));
+    CHECK(dialog != nullptr);
+    auto* tone = dialog->findChild<QComboBox*>(QStringLiteral("colorBalanceToneCombo"));
+    auto* preserve = dialog->findChild<QCheckBox*>(QStringLiteral("colorBalancePreserveLuminosityCheck"));
+    auto* cyan_red = dialog->findChild<QSpinBox*>(QStringLiteral("colorBalanceCyanRedSpin"));
+    auto* magenta_green = dialog->findChild<QSpinBox*>(QStringLiteral("colorBalanceMagentaGreenSpin"));
+    auto* yellow_blue = dialog->findChild<QSpinBox*>(QStringLiteral("colorBalanceYellowBlueSpin"));
+    CHECK(tone != nullptr);
+    CHECK(preserve != nullptr);
+    CHECK(cyan_red != nullptr && magenta_green != nullptr && yellow_blue != nullptr);
+    CHECK(tone->count() == 3);
+    CHECK(tone->currentIndex() == 1);  // Midtones
+    CHECK(preserve->isChecked());
+    const auto set_triple = [&](int a, int b, int c) {
+      cyan_red->setValue(a);
+      magenta_green->setValue(b);
+      yellow_blue->setValue(c);
+    };
+    const auto triple_is = [&](int a, int b, int c) {
+      return cyan_red->value() == a && magenta_green->value() == b && yellow_blue->value() == c;
+    };
+    set_triple(16, -21, 33);
+    tone->setCurrentIndex(0);
+    CHECK(triple_is(0, 0, 0));
+    set_triple(-40, 25, 60);
+    tone->setCurrentIndex(2);
+    CHECK(triple_is(0, 0, 0));
+    set_triple(38, 35, 38);
+    tone->setCurrentIndex(1);
+    CHECK(triple_is(16, -21, 33));
+    tone->setCurrentIndex(0);
+    CHECK(triple_is(-40, 25, 60));
+    preserve->setChecked(false);
+    save_widget_artifact("ui_color_balance_tone_dialog", *dialog);
+    dialog_checked = true;
+    dialog->accept();
+  });
+  require_action(window, "layerNewColorBalanceAdjustmentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(dialog_checked);
+
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  CHECK(document.active_layer_id().has_value());
+  const auto* layer = document.find_layer(*document.active_layer_id());
+  CHECK(layer != nullptr);
+  const auto settings = patchy::adjustment_settings_from_layer(*layer);
+  CHECK(settings.has_value());
+  CHECK(settings->kind == patchy::AdjustmentKind::ColorBalance);
+  CHECK((settings->color_balance.shadows == patchy::ColorBalanceTone{-40, 25, 60}));
+  CHECK((settings->color_balance.tone(patchy::ColorBalanceToneRange::Midtones) ==
+         patchy::ColorBalanceTone{16, -21, 33}));
+  CHECK((settings->color_balance.highlights == patchy::ColorBalanceTone{38, 35, 38}));
+  CHECK(!settings->color_balance.preserve_luminosity);
+}
+
 void ui_color_balance_dialog_adjusts_selected_pixels() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -3359,10 +3461,10 @@ void ui_color_balance_dialog_adjusts_selected_pixels() {
   require_action(window, "editDeselectAction")->trigger();
   QApplication::processEvents();
 
+  // Midtones (50, -40, 30) with Preserve Luminosity (on for a new Color Balance) on gray
+  // 128: per-channel gammas of 1.37, 0.73 and 1.19 (Photoshop's Color Balance).
   const auto adjusted = canvas_pixel(*canvas, QPoint(70, 70));
-  CHECK(adjusted.red() > 245);
-  CHECK(adjusted.green() < 40);
-  CHECK(adjusted.blue() > 195);
+  CHECK(color_close(adjusted, QColor(154, 99, 143), 1));
   CHECK(color_close(canvas_pixel(*canvas, QPoint(180, 70)), QColor(128, 128, 128), 8));
   save_widget_artifact("ui_color_balance_selection", *canvas);
 }
@@ -3491,6 +3593,9 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
       {"ui_curves_clipped_adjustment_reedit_disables_auto",
        ui_curves_clipped_adjustment_reedit_disables_auto},
       {"ui_color_balance_dialog_adjusts_selected_pixels", ui_color_balance_dialog_adjusts_selected_pixels},
+      {"ui_color_balance_dialog_tone_selector_edits_each_range", ui_color_balance_dialog_tone_selector_edits_each_range},
+      {"ui_af_colour_balance_matches_affinity_render_if_available",
+       ui_af_colour_balance_matches_affinity_render_if_available},
       {"ui_levels_exception_restores_preview_pixels_and_unlocks_edits", ui_levels_exception_restores_preview_pixels_and_unlocks_edits},
   };
 }

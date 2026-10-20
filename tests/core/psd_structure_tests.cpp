@@ -1044,7 +1044,7 @@ void compositor_clipped_adjustment_affects_base_only() {
   const auto build_document = [&warm](bool clipped) {
     patchy::Document document(8, 8, patchy::PixelFormat::rgb8());
     document.add_pixel_layer("Background", solid_rgb(8, 8, 100, 100, 100));
-    patchy::Layer base(document.allocate_layer_id(), "Base", solid_rgba(4, 4, 0, 200, 0, 255));
+    patchy::Layer base(document.allocate_layer_id(), "Base", solid_rgba(4, 4, 60, 200, 0, 255));
     base.set_bounds(patchy::Rect{2, 2, 4, 4});
     document.add_layer(std::move(base));
     patchy::Layer adjustment(document.allocate_layer_id(), "Warmth", patchy::LayerKind::Adjustment);
@@ -1056,14 +1056,15 @@ void compositor_clipped_adjustment_affects_base_only() {
   };
 
   const auto clipped_flat = patchy::Compositor{}.flatten_rgb8(build_document(true));
-  CHECK(clipped_flat.pixel(4, 4)[0] == 128);   // base square adjusted (0 + 128)
+  // Midtones red +50 is a red gamma of 1.41 (Photoshop's Color Balance): 60 -> 91, 100 -> 131.
+  CHECK(clipped_flat.pixel(4, 4)[0] == 91);   // base square adjusted
   CHECK(clipped_flat.pixel(4, 4)[1] == 200);
   CHECK(clipped_flat.pixel(0, 0)[0] == 100);   // backdrop untouched
   CHECK(clipped_flat.pixel(7, 7)[0] == 100);
 
   const auto unclipped_flat = patchy::Compositor{}.flatten_rgb8(build_document(false));
-  CHECK(unclipped_flat.pixel(4, 4)[0] == 128);
-  CHECK(unclipped_flat.pixel(0, 0)[0] == 228);  // backdrop adjusted too (100 + 128)
+  CHECK(unclipped_flat.pixel(4, 4)[0] == 91);
+  CHECK(unclipped_flat.pixel(0, 0)[0] == 131);  // backdrop adjusted too
 }
 
 void compositor_group_mask_attenuates_pass_through_children() {

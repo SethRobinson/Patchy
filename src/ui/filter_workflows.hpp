@@ -66,11 +66,15 @@ struct CurvesDialogHooks {
   std::function<void(std::optional<CurvesClippingMode> mode, CurvesChannel channel)> clipping_changed;
 };
 
-struct ColorBalanceSettings {
-  int cyan_red{0};
-  int magenta_green{0};
-  int yellow_blue{0};
-};
+using ColorBalanceSettings = ColorBalanceAdjustment;
+
+// A new Color Balance (dialog or adjustment layer) starts like Photoshop's: all
+// sliders at zero with Preserve Luminosity checked.
+[[nodiscard]] inline ColorBalanceSettings new_color_balance_settings() {
+  ColorBalanceSettings settings;
+  settings.preserve_luminosity = true;
+  return settings;
+}
 
 using PosterizeSettings = PosterizeAdjustment;
 using ThresholdSettings = ThresholdAdjustment;

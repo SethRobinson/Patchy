@@ -80,12 +80,11 @@ DeepChannels DeepAdjuster::apply_encoded(DeepChannels color) const {
       }
       return lift_byte_function(color, settings);
     case AdjustmentKind::ColorBalance: {
-      const auto delta = [](int slider) {
-        return std::round(static_cast<double>(std::clamp(slider, -100, 100)) * 255.0 / 100.0);
-      };
-      out[0] = clamp255(color[0] + delta(settings.color_balance.cyan_red));
-      out[1] = clamp255(color[1] + delta(settings.color_balance.magenta_green));
-      out[2] = clamp255(color[2] + delta(settings.color_balance.yellow_blue));
+      // The continuous Levels-record transfer, without the 8-bit byte rounding of the points.
+      const auto levels = color_balance_channel_levels(settings.color_balance);
+      for (std::size_t c = 0; c < 3U; ++c) {
+        out[c] = clamp255(color_balance_transfer(static_cast<double>(color[c]), levels[c], false));
+      }
       return out;
     }
     case AdjustmentKind::Invert:
