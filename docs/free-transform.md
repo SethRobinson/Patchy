@@ -1,4 +1,4 @@
-# Free Transform sessions: steps and undo
+# Free Transform sessions: Skew, Distort, Perspective, and steps
 
 Session-level behavior of Free Transform and Warp beyond the modifier rules in [tools.md](tools.md) ("Free Transform modifiers"), the hit zones in [move-tool.md](move-tool.md), the warp cage in [warp.md](warp.md), and the preview machinery in [interactive-previews.md](interactive-previews.md).
 
@@ -13,3 +13,17 @@ Undo and Redo step through a pending Free Transform or Warp session before it is
 - Commit is unchanged: the whole session is one document history entry. Session steps never reach the History panel.
 
 Coverage: `ui_transform_session_undo_steps_back_through_drags` (move, numeric rotate and a nudge run, redo, redo cleared by a new edit, cancel at the start, one history entry on commit, warp cage drag undo and redo).
+
+## Skew, Distort and Perspective (GitHub issue 225)
+
+A Free Transform session is a box (rect, angle, flip signs, as before) plus four corner offsets, `transform_corner_offsets_`, in the ORIGINAL box's frame and units, ordered as the layer's own top left, top right, bottom right, bottom left. Displayed corner k = the box's affine (`transform_affine_delta`, i.e. `free_transform_delta`) applied to original corner k plus offset k, so scaling, rotating or flipping the box carries a distortion with it.
+
+- `transform_session_delta` is the single original-box -> document map every preview, commit and warp hand-off uses: the plain affine while all offsets are zero (so pinned commit bytes and digests cannot move), else `QTransform::quadToQuad` onto the corner quad. `transform_session_source_to_document` maps the source image (which spans the original box) through it; `transform_delta_is_identity` checks the perspective terms too. Never call `free_transform_delta` on the session fields directly.
+- Gestures (`transform_drag_kind_for`, decided at press, session only; the passive Move box never distorts): Ctrl+drag a corner distorts it; Ctrl+Alt+Shift+drag a corner applies perspective; Ctrl+drag an edge moves it (both its corners; still a parallelogram), Ctrl+Shift+drag slides it along itself (skew). Edit > Transform > Skew / Distort / Perspective (`editTransformMenu`, hotkey ids `edit.transform_skew`, `edit.transform_distort`, `edit.transform_perspective`, no default keys, `QAction::NoRole`) starts or keeps a session in that mode (`begin_free_transform_mode`), where plain corner and edge drags do it: Skew slides edges and moves a corner along one side, Distort moves corners and edges freely, Perspective mirrors the corner across the dragged side (a symmetric trapezoid) and slides edges. Scale, rotate and move drags keep working on the box.
+- Drags run in the box's frame: the pointer (plus the grab offset to the grabbed corner or edge middle, then snapped) goes through the inverse affine, and the travel lands in the offsets (`update_free_transform_distort`). Handles, hit zones (move-tool.md's EdgesAndCorners rules on the quad: Move core, nearest handle square, segment-distance edge bands, rotate reach), resize cursors (by the handle's on-screen direction) and the rotate stem follow the true quad once it is distorted (`distorted_transform_handle_at`, `draw_distorted_transform_controls`).
+- Preview: the blit, proxy and multi-snapshot paths draw through `painter.setTransform` with the homography; the composited patches and the commit resample through `resample_transformed_rgba8`, which inverts a projective map per pixel. Masks take the same delta.
+- Types: a parallelogram (a skew) is affine, so every layer type takes it. A non-parallelogram quad is refused at the gesture (`begin_transform_distort_drag`, `set_free_transform_quad`; status "Rasterize the layer to distort it") unless `free_transform_accepts_non_affine`: pixel layers and their raster masks take it; type layers never do (Photoshop grays these commands out for type); shape layers, vector masks and smart objects are refused as well (no perspective path for their data yet).
+- `free_transform_quad` / `set_free_transform_quad` read and place the corners (document space, the layer's corner order).
+- Session steps carry the offsets; `transform_session_has_changes` counts a distortion.
+
+Coverage: `ui_free_transform_ctrl_drag_corner_distorts`, `ui_free_transform_perspective_mode_mirrors_the_partner_corner`, `ui_free_transform_skew_mode_slides_an_edge`, `ui_free_transform_distort_refuses_type_layer`, `ui_free_transform_distort_is_a_session_step`, `ui_free_transform_mode_menu_entries` (tests/ui/free_transform_distort_tests.cpp).

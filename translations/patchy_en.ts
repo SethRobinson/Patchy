@@ -12513,6 +12513,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Added %1 to %2 to paint on</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Rasterize the layer to distort it</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -22377,6 +22381,22 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     </message>
     <message>
         <source>Don&apos;t Ask Again</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Transform</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Skew</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Distort</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Perspective</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

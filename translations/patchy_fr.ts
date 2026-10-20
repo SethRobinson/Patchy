@@ -12529,6 +12529,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Added %1 to %2 to paint on</source>
         <translation>%1 ajouté à %2 pour y peindre</translation>
     </message>
+    <message>
+        <source>Rasterize the layer to distort it</source>
+        <translation>Pixellisez le calque pour le déformer</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -22455,6 +22459,22 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
     <message>
         <source>Don&apos;t Ask Again</source>
         <translation>Ne plus demander</translation>
+    </message>
+    <message>
+        <source>Transform</source>
+        <translation>Transformation</translation>
+    </message>
+    <message>
+        <source>Skew</source>
+        <translation>Inclinaison</translation>
+    </message>
+    <message>
+        <source>Distort</source>
+        <translation>Torsion</translation>
+    </message>
+    <message>
+        <source>Perspective</source>
+        <translation>Perspective</translation>
     </message>
 </context>
 <context>

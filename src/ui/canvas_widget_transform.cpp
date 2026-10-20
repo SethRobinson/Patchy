@@ -459,7 +459,8 @@ QTransform shape_free_transform_delta(QRectF original_rect, QRectF current_rect,
 bool transform_delta_is_identity(const QTransform& transform) {
   return std::abs(transform.m11() - 1.0) < 1e-9 && std::abs(transform.m22() - 1.0) < 1e-9 &&
          std::abs(transform.m12()) < 1e-9 && std::abs(transform.m21()) < 1e-9 &&
-         std::abs(transform.m31()) < 1e-9 && std::abs(transform.m32()) < 1e-9;
+         std::abs(transform.m31()) < 1e-9 && std::abs(transform.m32()) < 1e-9 &&
+         std::abs(transform.m13()) < 1e-12 && std::abs(transform.m23()) < 1e-12;
 }
 
 // Composes a document-space affine ONTO a content->document homography (apply the
@@ -1150,6 +1151,8 @@ bool CanvasWidget::begin_free_transform() {
 
   transforming_layer_ = true;
   clear_transform_session_steps();
+  transform_corner_offsets_ = {};
+  transform_distort_mode_ = TransformDistortMode::None;
   dragging_transform_ = false;
   transform_layer_id_ = layer->id();
   set_move_transform_controls_layer(std::nullopt);
@@ -1361,6 +1364,8 @@ bool CanvasWidget::begin_free_transform_multi(TransformTargetCollection collecti
 
   transforming_layer_ = true;
   clear_transform_session_steps();
+  transform_corner_offsets_ = {};
+  transform_distort_mode_ = TransformDistortMode::None;
   dragging_transform_ = false;
   transform_layer_id_.reset();
   transform_targets_ = std::move(collection.targets);
@@ -1457,8 +1462,7 @@ QImage CanvasWidget::compose_transform_commit_hold_image() const {
       painter.setClipRect(QRectF(*transform_multi_snapshot_clip_), Qt::IntersectClip);
     }
     painter.setRenderHint(QPainter::SmoothPixmapTransform, smooth);
-    const auto delta = free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
-                                            transform_scale_x_sign_, transform_scale_y_sign_);
+    const auto delta = transform_session_delta();
     painter.setTransform(delta, true);
     painter.drawImage(QRectF(transform_multi_snapshot_rect_), transform_multi_snapshot_,
                       QRectF(transform_multi_snapshot_.rect()));
@@ -1468,6 +1472,11 @@ QImage CanvasWidget::compose_transform_commit_hold_image() const {
     const auto& source = proxy ? transform_proxy_image_ : transform_source_image_;
     if (proxy) {
       painter.setOpacity(transform_proxy_layer_opacity_);
+    }
+    if (transform_is_distorted()) {
+      painter.setTransform(transform_session_image_to_document(source), true);
+      painter.drawImage(QRectF(source.rect()), source, QRectF(source.rect()));
+      return hold;
     }
     const auto rect = transform_current_rect_;
     painter.translate(rect.center());
@@ -1504,6 +1513,9 @@ void CanvasWidget::clear_transform_commit_hold() {
 void CanvasWidget::reset_free_transform_session_state() {
   transforming_layer_ = false;
   clear_transform_session_steps();
+  transform_corner_offsets_ = {};
+  transform_distort_mode_ = TransformDistortMode::None;
+  transform_drag_kind_ = TransformDragKind::Scale;
   dragging_transform_ = false;
   transform_layer_id_.reset();
   transform_drag_handle_ = TransformHandle::None;
@@ -1956,8 +1968,7 @@ void CanvasWidget::refresh_transform_multi_preview_cache(bool processing_wait) {
     return;
   }
 
-  const auto delta = free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
-                                          transform_scale_x_sign_, transform_scale_y_sign_);
+  const auto delta = transform_session_delta();
   struct TargetJob {
     const Layer* layer{nullptr};
     LayerId id{};
@@ -2115,12 +2126,8 @@ void CanvasWidget::refresh_transform_composited_preview_cache(bool processing_wa
   const auto compute = [document = document_, layer, layer_id = *transform_layer_id_,
                         source = transform_source_image_, mask_source,
                         source_to_document =
-                            transform_source_to_document(transform_source_image_.size(), transform_current_rect_,
-                                                         transform_angle_, transform_scale_x_sign_,
-                                                         transform_scale_y_sign_),
-                        delta = free_transform_delta(transform_original_rect_, transform_current_rect_,
-                                                     transform_angle_, transform_scale_x_sign_,
-                                                     transform_scale_y_sign_),
+                            transform_session_source_to_document(transform_source_image_.size()),
+                        delta = transform_session_delta(),
                         live_drag,
                         interpolation =
                             transform_interpolation_]() -> std::pair<std::vector<RenderedDocumentPatch>, QRect> {
@@ -2242,8 +2249,7 @@ bool CanvasWidget::transform_drag_should_use_proxy_preview() const {
   }
 
   const auto transformed_rect =
-      transform_source_to_document(transform_source_image_.size(), transform_current_rect_, transform_angle_,
-                                   transform_scale_x_sign_, transform_scale_y_sign_)
+      transform_session_source_to_document(transform_source_image_.size())
           .mapRect(QRectF(0.0, 0.0, transform_source_image_.width(), transform_source_image_.height()))
           .toAlignedRect();
   const auto resample_area =
@@ -2342,14 +2348,17 @@ QRect CanvasWidget::transform_preview_document_rect() const {
   rotation.rotate(transform_angle_);
   rotation.translate(-center.x(), -center.y());
   auto rect = rotation.mapRect(transform_current_rect_).toAlignedRect().adjusted(-1, -1, 1, 1);
+  if (transforming_layer_ && transform_is_distorted()) {
+    const auto quad = transform_quad_for_offsets(transform_corner_offsets_);
+    rect = QPolygonF({quad[0], quad[1], quad[2], quad[3]}).boundingRect().toAlignedRect().adjusted(-1, -1, 1, 1);
+  }
   if (!transform_preview_patches_rect_.isEmpty()) {
     rect = rect.united(transform_preview_patches_rect_);
   }
   if (!transform_targets_.empty() && !transform_multi_snapshot_rect_.isEmpty()) {
     // The multi drag blit covers the delta-mapped snapshot rect (effects spill
     // included), which the rotated box alone does not.
-    const auto delta = free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
-                                            transform_scale_x_sign_, transform_scale_y_sign_);
+    const auto delta = transform_session_delta();
     rect = rect.united(delta.mapRect(QRectF(transform_multi_snapshot_rect_)).toAlignedRect().adjusted(-1, -1, 1, 1));
   }
   // The path overlay of a transformed shape layer rides the same delta.
@@ -2429,8 +2438,7 @@ QTransform CanvasWidget::free_transform_preview_delta() const {
   if (!transforming_layer_) {
     return {};
   }
-  return free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
-                              transform_scale_x_sign_, transform_scale_y_sign_);
+  return transform_session_delta();
 }
 
 void CanvasWidget::set_transform_interpolation(TransformInterpolation interpolation) noexcept {
@@ -2671,13 +2679,14 @@ CanvasWidget::TransformSessionStep CanvasWidget::current_transform_session_step(
     step.angle = transform_angle_;
     step.scale_x_sign = transform_scale_x_sign_;
     step.scale_y_sign = transform_scale_y_sign_;
+    step.corner_offsets = transform_corner_offsets_;
   }
   return step;
 }
 
 bool CanvasWidget::transform_session_steps_equal(const TransformSessionStep& a, const TransformSessionStep& b) {
   return a.rect == b.rect && a.angle == b.angle && a.scale_x_sign == b.scale_x_sign &&
-         a.scale_y_sign == b.scale_y_sign && a.mesh.u_order == b.mesh.u_order && a.mesh.v_order == b.mesh.v_order &&
+         a.scale_y_sign == b.scale_y_sign && a.corner_offsets == b.corner_offsets && a.mesh.u_order == b.mesh.u_order && a.mesh.v_order == b.mesh.v_order &&
          a.mesh.xs == b.mesh.xs && a.mesh.ys == b.mesh.ys && a.warp_style == b.warp_style &&
          a.warp_style_value == b.warp_style_value;
 }
@@ -2716,6 +2725,7 @@ void CanvasWidget::restore_transform_session_step(const TransformSessionStep& st
   transform_angle_ = step.angle;
   transform_scale_x_sign_ = step.scale_x_sign;
   transform_scale_y_sign_ = step.scale_y_sign;
+  transform_corner_offsets_ = step.corner_offsets;
   refresh_transform_composited_preview_cache();
   update_transform_preview_region(previous_preview_rect);
   update();
@@ -2766,9 +2776,560 @@ bool CanvasWidget::transform_session_has_changes() const {
   }
   if (transforming_layer_) {
     return transform_has_pending_warp_ || transform_current_rect_ != transform_original_rect_ ||
-           transform_angle_ != 0.0 || transform_scale_x_sign_ != 1.0 || transform_scale_y_sign_ != 1.0;
+           transform_angle_ != 0.0 || transform_scale_x_sign_ != 1.0 || transform_scale_y_sign_ != 1.0 ||
+           transform_is_distorted();
   }
   return false;
+}
+
+bool CanvasWidget::transform_is_distorted() const noexcept {
+  return std::any_of(transform_corner_offsets_.begin(), transform_corner_offsets_.end(),
+                     [](const QPointF& offset) { return offset.x() != 0.0 || offset.y() != 0.0; });
+}
+
+QTransform CanvasWidget::transform_affine_delta() const {
+  return free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
+                              transform_scale_x_sign_, transform_scale_y_sign_);
+}
+
+std::array<QPointF, 4> CanvasWidget::transform_original_corners() const {
+  const auto& rect = transform_original_rect_;
+  return {QPointF(rect.x(), rect.y()), QPointF(rect.x() + rect.width(), rect.y()),
+          QPointF(rect.x() + rect.width(), rect.y() + rect.height()), QPointF(rect.x(), rect.y() + rect.height())};
+}
+
+std::array<QPointF, 4> CanvasWidget::transform_quad_for_offsets(const std::array<QPointF, 4>& offsets) const {
+  const auto affine = transform_affine_delta();
+  const auto corners = transform_original_corners();
+  std::array<QPointF, 4> quad{};
+  for (std::size_t i = 0; i < quad.size(); ++i) {
+    quad[i] = affine.map(corners[i] + offsets[i]);
+  }
+  return quad;
+}
+
+QTransform CanvasWidget::transform_session_delta() const {
+  const auto affine = transform_affine_delta();
+  if (!transform_is_distorted()) {
+    return affine;
+  }
+  const auto corners = transform_original_corners();
+  const auto quad = transform_quad_for_offsets(transform_corner_offsets_);
+  QTransform homography;
+  if (!QTransform::quadToQuad(QPolygonF({corners[0], corners[1], corners[2], corners[3]}),
+                              QPolygonF({quad[0], quad[1], quad[2], quad[3]}), homography)) {
+    return affine;
+  }
+  return homography;
+}
+
+QTransform CanvasWidget::transform_session_source_to_document(QSize source_size) const {
+  if (!transform_is_distorted()) {
+    return transform_source_to_document(source_size, transform_current_rect_, transform_angle_,
+                                        transform_scale_x_sign_, transform_scale_y_sign_);
+  }
+  // The source image spans the original box exactly (the undistorted map at the
+  // session start), so source -> original box, then the session homography.
+  QTransform source_to_original;
+  source_to_original.translate(transform_original_rect_.x(), transform_original_rect_.y());
+  source_to_original.scale(std::max(1.0, transform_original_rect_.width()) / std::max(1, source_size.width()),
+                           std::max(1.0, transform_original_rect_.height()) / std::max(1, source_size.height()));
+  return source_to_original * transform_session_delta();
+}
+
+QTransform CanvasWidget::transform_session_image_to_document(const QImage& image) const {
+  const auto source_size = transform_source_image_.size();
+  return QTransform::fromScale(static_cast<double>(source_size.width()) / std::max(1, image.width()),
+                               static_cast<double>(source_size.height()) / std::max(1, image.height())) *
+         transform_session_source_to_document(source_size);
+}
+
+int CanvasWidget::transform_corner_index_for_handle(TransformHandle handle) const noexcept {
+  // Handles sit on the box's on-screen corners; a flip puts the layer's own
+  // opposite corner there.
+  bool local_left = false;
+  bool local_top = false;
+  switch (handle) {
+    case TransformHandle::TopLeft:
+      local_left = true;
+      local_top = true;
+      break;
+    case TransformHandle::TopRight:
+      local_top = true;
+      break;
+    case TransformHandle::BottomRight:
+      break;
+    case TransformHandle::BottomLeft:
+      local_left = true;
+      break;
+    default:
+      return -1;
+  }
+  const bool left = (transform_scale_x_sign_ > 0.0) == local_left;
+  const bool top = (transform_scale_y_sign_ > 0.0) == local_top;
+  return top ? (left ? 0 : 1) : (left ? 3 : 2);
+}
+
+std::pair<CanvasWidget::TransformHandle, CanvasWidget::TransformHandle> CanvasWidget::transform_edge_corner_handles(
+    TransformHandle edge) {
+  using Handle = TransformHandle;
+  switch (edge) {
+    case Handle::Top:
+      return {Handle::TopLeft, Handle::TopRight};
+    case Handle::Right:
+      return {Handle::TopRight, Handle::BottomRight};
+    case Handle::Bottom:
+      return {Handle::BottomRight, Handle::BottomLeft};
+    case Handle::Left:
+      return {Handle::BottomLeft, Handle::TopLeft};
+    default:
+      return {Handle::None, Handle::None};
+  }
+}
+
+bool CanvasWidget::transform_handle_is_corner(TransformHandle handle) noexcept {
+  using Handle = TransformHandle;
+  return handle == Handle::TopLeft || handle == Handle::TopRight || handle == Handle::BottomRight ||
+         handle == Handle::BottomLeft;
+}
+
+bool CanvasWidget::transform_handle_is_edge(TransformHandle handle) noexcept {
+  using Handle = TransformHandle;
+  return handle == Handle::Top || handle == Handle::Right || handle == Handle::Bottom || handle == Handle::Left;
+}
+
+namespace {
+
+// A parallelogram is an affine image of the box (a skew); anything else needs
+// a perspective map.
+bool quad_is_parallelogram(const std::array<QPointF, 4>& quad) {
+  const auto a = quad[0] + quad[2];
+  const auto b = quad[1] + quad[3];
+  const auto scale = std::max({1.0, std::abs(quad[0].x()), std::abs(quad[0].y()), std::abs(quad[2].x()),
+                               std::abs(quad[2].y())});
+  return std::abs(a.x() - b.x()) <= 1e-6 * scale && std::abs(a.y() - b.y()) <= 1e-6 * scale;
+}
+
+double segment_distance(QPointF point, QPointF a, QPointF b, double* parameter) {
+  const auto ab = b - a;
+  const auto length_squared = ab.x() * ab.x() + ab.y() * ab.y();
+  if (length_squared < 1e-12) {
+    *parameter = 0.0;
+    return std::hypot(point.x() - a.x(), point.y() - a.y());
+  }
+  const auto ap = point - a;
+  *parameter = (ap.x() * ab.x() + ap.y() * ab.y()) / length_squared;
+  return std::abs(ap.x() * ab.y() - ap.y() * ab.x()) / std::sqrt(length_squared);
+}
+
+}  // namespace
+
+QPointF CanvasWidget::distorted_transform_handle_position(TransformHandle handle) const {
+  const auto quad = transform_quad_for_offsets(transform_corner_offsets_);
+  const auto corner_at = [&](TransformHandle corner) {
+    return widget_position_f(quad[static_cast<std::size_t>(transform_corner_index_for_handle(corner))]);
+  };
+  if (transform_handle_is_corner(handle)) {
+    return corner_at(handle);
+  }
+  if (transform_handle_is_edge(handle)) {
+    const auto [first, second] = transform_edge_corner_handles(handle);
+    return (corner_at(first) + corner_at(second)) / 2.0;
+  }
+  if (handle == TransformHandle::Rotate) {
+    // The stem leaves the top edge's middle along the box's own "up".
+    const auto up = rotate_offset(QPointF(0.0, -1.0), transform_angle_);
+    return distorted_transform_handle_position(TransformHandle::Top) + up * 32.0;
+  }
+  QPointF centroid;
+  for (const auto& corner : quad) {
+    centroid += widget_position_f(corner);
+  }
+  return centroid / 4.0;
+}
+
+double CanvasWidget::distorted_transform_handle_direction(TransformHandle handle) const {
+  const auto centroid = distorted_transform_handle_position(TransformHandle::Move);
+  QPointF direction;
+  if (transform_handle_is_edge(handle)) {
+    const auto [first, second] = transform_edge_corner_handles(handle);
+    const auto along = distorted_transform_handle_position(second) - distorted_transform_handle_position(first);
+    direction = QPointF(along.y(), -along.x());
+    const auto outward = distorted_transform_handle_position(handle) - centroid;
+    if (direction.x() * outward.x() + direction.y() * outward.y() < 0.0) {
+      direction = -direction;
+    }
+  } else {
+    direction = distorted_transform_handle_position(handle) - centroid;
+  }
+  return std::atan2(direction.y(), direction.x()) * 180.0 / kPi;
+}
+
+CanvasWidget::TransformHandle CanvasWidget::distorted_transform_handle_at(QPoint widget_point) const {
+  // The EdgesAndCorners zones (transform_handle_at) on the true quad: a Move core
+  // first, then the nearest handle square, the edge bands, the inside, and the
+  // rotate band just outside each corner.
+  constexpr double kHandleHit = 14.0;
+  constexpr double kEdgeGrabOutside = 6.0;
+  constexpr double kCornerRotateReach = 28.8;
+  const QPointF point(widget_point);
+  const std::array<TransformHandle, 4> corners = {TransformHandle::TopLeft, TransformHandle::TopRight,
+                                                  TransformHandle::BottomRight, TransformHandle::BottomLeft};
+  const std::array<TransformHandle, 4> edges = {TransformHandle::Top, TransformHandle::Right,
+                                                TransformHandle::Bottom, TransformHandle::Left};
+  QPolygonF polygon;
+  double shortest_edge = std::numeric_limits<double>::max();
+  for (const auto corner : corners) {
+    polygon << distorted_transform_handle_position(corner);
+  }
+  for (const auto edge : edges) {
+    const auto [first, second] = transform_edge_corner_handles(edge);
+    const auto along = distorted_transform_handle_position(second) - distorted_transform_handle_position(first);
+    shortest_edge = std::min(shortest_edge, std::hypot(along.x(), along.y()));
+  }
+  const bool inside = polygon.containsPoint(point, Qt::OddEvenFill);
+  const auto inner = std::min(kHandleHit / 2.0, shortest_edge / 6.0);
+  const auto edge_distance = [&](TransformHandle edge, double* parameter) {
+    const auto [first, second] = transform_edge_corner_handles(edge);
+    return segment_distance(point, distorted_transform_handle_position(first),
+                            distorted_transform_handle_position(second), parameter);
+  };
+  if (inside) {
+    bool core = true;
+    for (const auto edge : edges) {
+      double parameter = 0.0;
+      if (edge_distance(edge, &parameter) <= inner) {
+        core = false;
+      }
+    }
+    if (core) {
+      return TransformHandle::Move;
+    }
+  }
+  auto nearest = TransformHandle::None;
+  auto nearest_distance = 0.0;
+  for (const auto handle : {TransformHandle::Rotate, TransformHandle::TopLeft, TransformHandle::Top,
+                            TransformHandle::TopRight, TransformHandle::Right, TransformHandle::BottomRight,
+                            TransformHandle::Bottom, TransformHandle::BottomLeft, TransformHandle::Left}) {
+    const auto position = distorted_transform_handle_position(handle);
+    if (std::abs(point.x() - position.x()) > kHandleHit / 2.0 || std::abs(point.y() - position.y()) > kHandleHit / 2.0) {
+      continue;
+    }
+    if (handle == TransformHandle::Rotate) {
+      return handle;
+    }
+    const auto distance = std::hypot(point.x() - position.x(), point.y() - position.y());
+    if (nearest == TransformHandle::None || distance < nearest_distance) {
+      nearest = handle;
+      nearest_distance = distance;
+    }
+  }
+  if (nearest != TransformHandle::None) {
+    return nearest;
+  }
+  for (const auto edge : edges) {
+    double parameter = 0.0;
+    const auto distance = edge_distance(edge, &parameter);
+    if (parameter >= 0.0 && parameter <= 1.0 && distance <= (inside ? inner : kEdgeGrabOutside)) {
+      return edge;
+    }
+  }
+  if (inside) {
+    return TransformHandle::Move;
+  }
+  for (const auto corner : corners) {
+    const auto position = distorted_transform_handle_position(corner);
+    if (std::hypot(point.x() - position.x(), point.y() - position.y()) <= kCornerRotateReach) {
+      return TransformHandle::Rotate;
+    }
+  }
+  return TransformHandle::None;
+}
+
+void CanvasWidget::draw_distorted_transform_controls(QPainter& painter) const {
+  QPolygonF polygon;
+  for (const auto corner : {TransformHandle::TopLeft, TransformHandle::TopRight, TransformHandle::BottomRight,
+                            TransformHandle::BottomLeft}) {
+    polygon << distorted_transform_handle_position(corner);
+  }
+  painter.save();
+  painter.setBrush(Qt::NoBrush);
+  painter.setPen(QPen(QColor(95, 170, 255), 1.0, Qt::DashLine));
+  painter.drawPolygon(polygon);
+  painter.setPen(QPen(QColor(95, 170, 255), 1.0));
+  painter.drawLine(distorted_transform_handle_position(TransformHandle::Top),
+                   distorted_transform_handle_position(TransformHandle::Rotate));
+  constexpr double kHandleSize = 8.0;
+  painter.setPen(QPen(QColor(10, 14, 20), 1.0));
+  for (const auto handle : {TransformHandle::TopLeft, TransformHandle::Top, TransformHandle::TopRight,
+                            TransformHandle::Right, TransformHandle::BottomRight, TransformHandle::Bottom,
+                            TransformHandle::BottomLeft, TransformHandle::Left, TransformHandle::Rotate}) {
+    const auto point = distorted_transform_handle_position(handle);
+    painter.setBrush(handle == TransformHandle::Rotate ? QColor(95, 170, 255) : QColor(245, 248, 252));
+    painter.drawRect(QRectF(point.x() - kHandleSize / 2.0, point.y() - kHandleSize / 2.0, kHandleSize, kHandleSize));
+  }
+  painter.restore();
+}
+
+void CanvasWidget::apply_session_transform_cursor(QPoint widget_point) {
+  if (!transforming_layer_) {
+    return;
+  }
+  if (!transform_is_distorted()) {
+    set_transform_cursor_at(widget_point, transform_handle_at(widget_point), transform_current_rect_,
+                            transform_angle_);
+    return;
+  }
+  const auto handle = distorted_transform_handle_at(widget_point);
+  if (handle == TransformHandle::Rotate) {
+    const auto stem = distorted_transform_handle_position(TransformHandle::Rotate);
+    if (std::abs(widget_point.x() - stem.x()) <= 7.0 && std::abs(widget_point.y() - stem.y()) <= 7.0) {
+      setCursor(rotate_cursor());
+      return;
+    }
+    // The corner the pointer is nearest picks the rotate cursor's orientation.
+    auto best = TransformHandle::TopLeft;
+    auto best_distance = std::numeric_limits<double>::max();
+    for (const auto corner : {TransformHandle::TopLeft, TransformHandle::TopRight, TransformHandle::BottomRight,
+                              TransformHandle::BottomLeft}) {
+      const auto position = distorted_transform_handle_position(corner);
+      const auto distance = std::hypot(widget_point.x() - position.x(), widget_point.y() - position.y());
+      if (distance < best_distance) {
+        best = corner;
+        best_distance = distance;
+      }
+    }
+    setCursor(corner_rotate_cursor(distorted_transform_handle_direction(best)));
+    return;
+  }
+  if (transform_handle_is_corner(handle) || transform_handle_is_edge(handle)) {
+    // Right's base direction is 0 degrees, so the handle's own direction picks the shape.
+    set_transform_cursor_for_handle(TransformHandle::Right, distorted_transform_handle_direction(handle));
+    return;
+  }
+  set_transform_cursor_for_handle(handle);
+}
+
+CanvasWidget::TransformDragKind CanvasWidget::transform_drag_kind_for(TransformHandle handle,
+                                                                      Qt::KeyboardModifiers modifiers) const noexcept {
+  const bool control = (modifiers & Qt::ControlModifier) != 0;
+  const bool alt = (modifiers & Qt::AltModifier) != 0;
+  const bool shift = (modifiers & Qt::ShiftModifier) != 0;
+  if (transform_handle_is_corner(handle)) {
+    if (control && alt && shift) {
+      return TransformDragKind::PerspectiveCorner;
+    }
+    if (control) {
+      return TransformDragKind::DistortCorner;
+    }
+    switch (transform_distort_mode_) {
+      case TransformDistortMode::Distort:
+        return TransformDragKind::DistortCorner;
+      case TransformDistortMode::Perspective:
+        return TransformDragKind::PerspectiveCorner;
+      case TransformDistortMode::Skew:
+        return TransformDragKind::SkewCorner;
+      case TransformDistortMode::None:
+        break;
+    }
+    return TransformDragKind::Scale;
+  }
+  if (transform_handle_is_edge(handle)) {
+    if (control) {
+      return shift ? TransformDragKind::SlideEdge : TransformDragKind::MoveEdge;
+    }
+    switch (transform_distort_mode_) {
+      case TransformDistortMode::Distort:
+        return TransformDragKind::MoveEdge;
+      case TransformDistortMode::Skew:
+      case TransformDistortMode::Perspective:
+        return TransformDragKind::SlideEdge;
+      case TransformDistortMode::None:
+        break;
+    }
+  }
+  return TransformDragKind::Scale;
+}
+
+bool CanvasWidget::begin_transform_distort_drag(TransformHandle handle, Qt::KeyboardModifiers modifiers,
+                                                QPointF document_press) {
+  transform_drag_kind_ = transform_drag_kind_for(handle, modifiers);
+  if (transform_drag_kind_ == TransformDragKind::Scale) {
+    return true;
+  }
+  // Moving one edge keeps a parallelogram (a skew, affine); moving one corner
+  // makes a general quad, which a type layer cannot take.
+  if (transform_handle_is_corner(handle) && !free_transform_accepts_non_affine()) {
+    transform_drag_kind_ = TransformDragKind::Scale;
+    report_status_error(tr("Rasterize the layer to distort it"));
+    return false;
+  }
+  transform_drag_start_corner_offsets_ = transform_corner_offsets_;
+  const auto quad = transform_quad_for_offsets(transform_corner_offsets_);
+  QPointF grabbed;
+  if (transform_handle_is_corner(handle)) {
+    grabbed = quad[static_cast<std::size_t>(transform_corner_index_for_handle(handle))];
+  } else {
+    const auto [first, second] = transform_edge_corner_handles(handle);
+    grabbed = (quad[static_cast<std::size_t>(transform_corner_index_for_handle(first))] +
+               quad[static_cast<std::size_t>(transform_corner_index_for_handle(second))]) /
+              2.0;
+  }
+  transform_drag_grab_offset_ = grabbed - document_press;
+  return true;
+}
+
+void CanvasWidget::update_free_transform_distort(QPointF document_point, Qt::KeyboardModifiers modifiers) {
+  Q_UNUSED(modifiers);
+  const auto previous_preview_rect = transform_preview_document_rect();
+  // The box's affine stays fixed during these drags; the pointer travel moves
+  // corners in the layer's own frame (offsets), so a later scale or rotate of
+  // the box carries the distortion with it.
+  bool invertible = false;
+  const auto inverse = transform_affine_delta().inverted(&invertible);
+  if (!invertible) {
+    return;
+  }
+  const auto start = transform_drag_start_point_ + transform_drag_grab_offset_;
+  const auto now = snapped_document_point_f(document_point + transform_drag_grab_offset_);
+  const auto delta = inverse.map(now) - inverse.map(start);
+  auto offsets = transform_drag_start_corner_offsets_;
+  const auto corner = transform_corner_index_for_handle(transform_drag_handle_);
+  const auto at = [&offsets](int index) -> QPointF& { return offsets[static_cast<std::size_t>(index)]; };
+  switch (transform_drag_kind_) {
+    case TransformDragKind::DistortCorner:
+      at(corner) += delta;
+      break;
+    case TransformDragKind::SkewCorner:
+      // The corner slides along one of its two sides (the one the pointer follows).
+      if (std::abs(delta.x()) >= std::abs(delta.y())) {
+        at(corner).rx() += delta.x();
+      } else {
+        at(corner).ry() += delta.y();
+      }
+      break;
+    case TransformDragKind::PerspectiveCorner: {
+      // The corner sharing the side moves the opposite way: a symmetric trapezoid.
+      static constexpr std::array<int, 4> kHorizontalPartner = {1, 0, 3, 2};
+      static constexpr std::array<int, 4> kVerticalPartner = {3, 2, 1, 0};
+      if (std::abs(delta.x()) >= std::abs(delta.y())) {
+        at(corner).rx() += delta.x();
+        at(kHorizontalPartner[static_cast<std::size_t>(corner)]).rx() -= delta.x();
+      } else {
+        at(corner).ry() += delta.y();
+        at(kVerticalPartner[static_cast<std::size_t>(corner)]).ry() -= delta.y();
+      }
+      break;
+    }
+    case TransformDragKind::MoveEdge:
+    case TransformDragKind::SlideEdge: {
+      const auto [first_handle, second_handle] = transform_edge_corner_handles(transform_drag_handle_);
+      const auto first = transform_corner_index_for_handle(first_handle);
+      const auto second = transform_corner_index_for_handle(second_handle);
+      auto travel = delta;
+      if (transform_drag_kind_ == TransformDragKind::SlideEdge) {
+        const auto corners = transform_original_corners();
+        const auto along = (corners[static_cast<std::size_t>(second)] + transform_drag_start_corner_offsets_
+                                                                            [static_cast<std::size_t>(second)]) -
+                           (corners[static_cast<std::size_t>(first)] +
+                            transform_drag_start_corner_offsets_[static_cast<std::size_t>(first)]);
+        const auto length_squared = along.x() * along.x() + along.y() * along.y();
+        travel = length_squared > 1e-12
+                     ? along * ((delta.x() * along.x() + delta.y() * along.y()) / length_squared)
+                     : QPointF();
+      }
+      at(first) += travel;
+      at(second) += travel;
+      break;
+    }
+    case TransformDragKind::Scale:
+      return;
+  }
+  transform_corner_offsets_ = offsets;
+  refresh_transform_preview_for_drag();
+  update_transform_preview_region(previous_preview_rect);
+  update_drag_readout_region();
+  notify_transform_controls_changed();
+}
+
+bool CanvasWidget::free_transform_accepts_non_affine() const {
+  if (!transforming_layer_ || document_ == nullptr) {
+    return false;
+  }
+  const auto& document = std::as_const(*document_);
+  // Type stays editable only under affine maps; vector paths and smart object
+  // placements take a perspective quad. Pixels and masks resample through it.
+  const auto accepts = [](const Layer& layer) {
+    return !layer_is_text(layer) && !layer_is_vector_shape(layer) && layer.vector_mask() == nullptr &&
+           !layer_is_smart_object(layer);
+  };
+  if (!transform_targets_.empty()) {
+    for (const auto& target : transform_targets_) {
+      if (const auto* layer = document.find_layer(target.id); layer != nullptr && !accepts(*layer)) {
+        return false;
+      }
+    }
+    for (const auto id : transform_mask_only_ids_) {
+      if (const auto* layer = document.find_layer(id); layer != nullptr && layer->vector_mask() != nullptr) {
+        return false;
+      }
+    }
+    return true;
+  }
+  const auto* layer = transform_layer_id_.has_value() ? document.find_layer(*transform_layer_id_) : nullptr;
+  return layer != nullptr && accepts(*layer);
+}
+
+bool CanvasWidget::begin_free_transform_mode(TransformDistortMode mode) {
+  if (!transforming_layer_ && !begin_free_transform()) {
+    return false;
+  }
+  transform_distort_mode_ = mode;
+  notify_transform_controls_changed();
+  return true;
+}
+
+CanvasWidget::TransformDistortMode CanvasWidget::free_transform_distort_mode() const noexcept {
+  return transforming_layer_ ? transform_distort_mode_ : TransformDistortMode::None;
+}
+
+std::array<QPointF, 4> CanvasWidget::free_transform_quad() const {
+  if (!transforming_layer_) {
+    return {};
+  }
+  return transform_quad_for_offsets(transform_corner_offsets_);
+}
+
+bool CanvasWidget::set_free_transform_quad(const std::array<QPointF, 4>& corners) {
+  if (!transforming_layer_) {
+    return false;
+  }
+  for (const auto& corner : corners) {
+    if (!std::isfinite(corner.x()) || !std::isfinite(corner.y())) {
+      return false;
+    }
+  }
+  if (!quad_is_parallelogram(corners) && !free_transform_accepts_non_affine()) {
+    report_status_error(tr("Rasterize the layer to distort it"));
+    return false;
+  }
+  bool invertible = false;
+  const auto inverse = transform_affine_delta().inverted(&invertible);
+  if (!invertible || !prepare_free_transform_source()) {
+    return false;
+  }
+  const auto step_before = current_transform_session_step();
+  const auto previous_preview_rect = transform_preview_document_rect();
+  const auto original = transform_original_corners();
+  for (std::size_t i = 0; i < corners.size(); ++i) {
+    transform_corner_offsets_[i] = inverse.map(corners[i]) - original[i];
+  }
+  record_transform_session_step(step_before);
+  refresh_transform_composited_preview_cache();
+  update_transform_preview_region(previous_preview_rect);
+  update();
+  notify_transform_controls_changed();
+  return true;
 }
 
 void CanvasWidget::set_transform_cursor_for_handle(TransformHandle handle, double angle_degrees) {
@@ -2917,8 +3478,7 @@ void CanvasWidget::draw_free_transform(QPainter& painter) const {
       }
       painter.setRenderHint(QPainter::SmoothPixmapTransform,
                             transform_interpolation_ != TransformInterpolation::NearestNeighbor);
-      const auto delta = free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
-                                              transform_scale_x_sign_, transform_scale_y_sign_);
+      const auto delta = transform_session_delta();
       const QTransform document_to_widget(zoom_, 0.0, 0.0, zoom_, pan_.x(), pan_.y());
       painter.setTransform(delta * document_to_widget, true);
       painter.drawImage(QRectF(transform_multi_snapshot_rect_), transform_multi_snapshot_,
@@ -2935,29 +3495,48 @@ void CanvasWidget::draw_free_transform(QPainter& painter) const {
     painter.setRenderHint(QPainter::SmoothPixmapTransform,
                           transform_interpolation_ != TransformInterpolation::NearestNeighbor);
     painter.setOpacity(transform_proxy_layer_opacity_);
-    painter.translate(rect.center());
-    painter.rotate(transform_angle_);
-    painter.scale(transform_scale_x_sign_, transform_scale_y_sign_);
-    const QRectF local_rect(-rect.width() / 2.0, -rect.height() / 2.0, rect.width(), rect.height());
-    painter.drawImage(local_rect, transform_proxy_image_, QRectF(transform_proxy_image_.rect()));
+    if (transform_is_distorted()) {
+      // Skew/Distort/Perspective: the quad's homography maps the proxy directly.
+      const QTransform document_to_widget(zoom_, 0.0, 0.0, zoom_, pan_.x(), pan_.y());
+      painter.setTransform(transform_session_image_to_document(transform_proxy_image_) * document_to_widget, true);
+      painter.drawImage(QRectF(transform_proxy_image_.rect()), transform_proxy_image_,
+                        QRectF(transform_proxy_image_.rect()));
+    } else {
+      painter.translate(rect.center());
+      painter.rotate(transform_angle_);
+      painter.scale(transform_scale_x_sign_, transform_scale_y_sign_);
+      const QRectF local_rect(-rect.width() / 2.0, -rect.height() / 2.0, rect.width(), rect.height());
+      painter.drawImage(local_rect, transform_proxy_image_, QRectF(transform_proxy_image_.rect()));
+    }
     painter.restore();
   } else if (!transform_source_image_.isNull() && transform_preview_patches_.empty()) {
     painter.save();
     clip_painter_to_transform_artboard(painter);
     painter.setRenderHint(QPainter::SmoothPixmapTransform,
                           transform_interpolation_ != TransformInterpolation::NearestNeighbor);
-    painter.translate(rect.center());
-    painter.rotate(transform_angle_);
-    // Apply the scale-sign flips like the proxy path above: without them, dragging a
-    // handle across the anchor showed unmirrored text/pixels for the whole drag and the
-    // mirror only appeared at commit.
-    painter.scale(transform_scale_x_sign_, transform_scale_y_sign_);
-    const QRectF local_rect(-rect.width() / 2.0, -rect.height() / 2.0, rect.width(), rect.height());
-    painter.drawImage(local_rect, transform_source_image_, QRectF(transform_source_image_.rect()));
+    if (transform_is_distorted()) {
+      const QTransform document_to_widget(zoom_, 0.0, 0.0, zoom_, pan_.x(), pan_.y());
+      painter.setTransform(transform_session_image_to_document(transform_source_image_) * document_to_widget, true);
+      painter.drawImage(QRectF(transform_source_image_.rect()), transform_source_image_,
+                        QRectF(transform_source_image_.rect()));
+    } else {
+      painter.translate(rect.center());
+      painter.rotate(transform_angle_);
+      // Apply the scale-sign flips like the proxy path above: without them, dragging a
+      // handle across the anchor showed unmirrored text/pixels for the whole drag and the
+      // mirror only appeared at commit.
+      painter.scale(transform_scale_x_sign_, transform_scale_y_sign_);
+      const QRectF local_rect(-rect.width() / 2.0, -rect.height() / 2.0, rect.width(), rect.height());
+      painter.drawImage(local_rect, transform_source_image_, QRectF(transform_source_image_.rect()));
+    }
     painter.restore();
   }
 
-  draw_transform_controls(painter, transform_current_rect_, transform_angle_);
+  if (transform_is_distorted()) {
+    draw_distorted_transform_controls(painter);
+  } else {
+    draw_transform_controls(painter, transform_current_rect_, transform_angle_);
+  }
 
   // Reference point marker (Photoshop's circle with a crosshair): the pivot the
   // rotate handle, Alt scaling, and the numeric fields turn about. Session only,
@@ -3031,6 +3610,9 @@ void CanvasWidget::draw_move_transform_controls(QPainter& painter) const {
 CanvasWidget::TransformHandle CanvasWidget::transform_handle_at(QPoint widget_point, TransformHitZones zones) const {
   if (!transforming_layer_) {
     return TransformHandle::None;
+  }
+  if (transform_is_distorted()) {
+    return distorted_transform_handle_at(widget_point);
   }
   return transform_handle_at(widget_point, transform_current_rect_, transform_angle_, zones);
 }
@@ -3186,6 +3768,10 @@ QPointF CanvasWidget::transform_handle_grab_offset(TransformHandle handle, QRect
 }
 
 void CanvasWidget::update_free_transform_preview(QPointF document_point, Qt::KeyboardModifiers modifiers) {
+  if (transform_drag_kind_ != TransformDragKind::Scale) {
+    update_free_transform_distort(document_point, modifiers);
+    return;
+  }
   if (transform_drag_handle_ != TransformHandle::Rotate) {
     // A scale handle grabbed beside its line follows the pointer from where it
     // sits (the offset is zero for Move), so the press never jumps the edge.
@@ -3453,6 +4039,7 @@ void CanvasWidget::commit_free_transform() {
   if (transforming_layer_ && document_ != nullptr && missing_font_transform_confirm_callback_) {
     const bool geometry_changed =
         transform_scale_x_sign_ < 0.0 || transform_scale_y_sign_ < 0.0 || std::abs(transform_angle_) > 0.01 ||
+        transform_is_distorted() ||
         std::lround(transform_current_rect_.left()) != std::lround(transform_original_rect_.left()) ||
         std::lround(transform_current_rect_.top()) != std::lround(transform_original_rect_.top()) ||
         std::lround(transform_current_rect_.width()) != std::lround(transform_original_rect_.width()) ||
@@ -3500,9 +4087,7 @@ void CanvasWidget::commit_free_transform() {
 
   const auto transformed_result =
       resample_transformed_rgba8(transform_source_image_,
-                                  transform_source_to_document(transform_source_image_.size(), transform_current_rect_,
-                                                               transform_angle_, transform_scale_x_sign_,
-                                                               transform_scale_y_sign_),
+                                  transform_session_source_to_document(transform_source_image_.size()),
                                   transform_interpolation_);
   auto transformed = transformed_result.image;
   auto new_bounds = transformed_result.bounds;
@@ -3513,7 +4098,8 @@ void CanvasWidget::commit_free_transform() {
            static_cast<std::int32_t>(std::round(transform_original_rect_.width())),
            static_cast<std::int32_t>(std::round(transform_original_rect_.height()))};
   const auto orientation_changed = transform_scale_x_sign_ < 0.0 || transform_scale_y_sign_ < 0.0;
-  const auto changed = orientation_changed || std::abs(transform_angle_) > 0.01 || new_bounds.x != original_transform_bounds.x ||
+  const auto changed = orientation_changed || std::abs(transform_angle_) > 0.01 || transform_is_distorted() ||
+                       new_bounds.x != original_transform_bounds.x ||
                        new_bounds.y != original_transform_bounds.y ||
                        new_bounds.width != original_transform_bounds.width ||
                        new_bounds.height != original_transform_bounds.height;
@@ -3530,8 +4116,7 @@ void CanvasWidget::commit_free_transform() {
     layer->set_pixels(pixels_from_image_native(transformed));
     layer->set_bounds(new_bounds);
     if (text_layer) {
-      const auto delta = affine_from_qtransform(free_transform_delta(
-          transform_original_rect_, transform_current_rect_, transform_angle_, transform_scale_x_sign_, transform_scale_y_sign_));
+      const auto delta = affine_from_qtransform(transform_session_delta());
       layer->metadata()[kLayerMetadataTextTransform] =
           serialize_layer_affine_transform(compose_layer_affine_transform(delta, original_text_transform));
       layer->metadata()[kLayerMetadataTextRasterStatus] = "patchy_raster";
@@ -3547,11 +4132,10 @@ void CanvasWidget::commit_free_transform() {
       const auto* shape = layer_is_vector_shape(*layer) ? layer->vector_shape() : nullptr;
       const auto path_bounds = shape != nullptr ? shape->path.bounds() : std::nullopt;
       const auto delta =
-          path_bounds.has_value()
+          path_bounds.has_value() && !transform_is_distorted()
               ? shape_free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
                                            transform_scale_x_sign_, transform_scale_y_sign_, *path_bounds)
-              : free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
-                                     transform_scale_x_sign_, transform_scale_y_sign_);
+              : transform_session_delta();
       const std::array<double, 6> matrix{delta.m11(), delta.m12(), delta.m21(),
                                          delta.m22(), delta.dx(),  delta.dy()};
       patchy::transform_layer_vector_data(
@@ -3563,8 +4147,7 @@ void CanvasWidget::commit_free_transform() {
       // placement quad, then re-render crisply from the embedded source (the
       // resampled pixels committed above stay as the fallback).
       if (const auto placement = smart_object_placement_from_layer(*layer); placement.has_value()) {
-        const auto delta = free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
-                                                transform_scale_x_sign_, transform_scale_y_sign_);
+        const auto delta = transform_session_delta();
         auto updated = *placement;
         for (std::size_t i = 0; i < 8U; i += 2U) {
           const auto mapped = delta.map(QPointF(placement->transform[i], placement->transform[i + 1U]));
@@ -3589,8 +4172,7 @@ void CanvasWidget::commit_free_transform() {
     // the mask is document-space data independent of how the pixels re-render.
     if (auto updated_mask = transformed_linked_raster_mask(
             std::as_const(*layer),
-            free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
-                                 transform_scale_x_sign_, transform_scale_y_sign_),
+            transform_session_delta(),
             transform_interpolation_);
         updated_mask.has_value()) {
       layer->set_mask(std::move(*updated_mask));
@@ -3637,13 +4219,12 @@ void CanvasWidget::commit_free_transform_multi() {
     return;
   }
 
-  const auto delta = free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
-                                          transform_scale_x_sign_, transform_scale_y_sign_);
+  const auto delta = transform_session_delta();
   const std::array<double, 6> matrix{delta.m11(), delta.m12(), delta.m21(),
                                      delta.m22(), delta.dx(),  delta.dy()};
   const auto orientation_changed = transform_scale_x_sign_ < 0.0 || transform_scale_y_sign_ < 0.0;
   const auto changed =
-      orientation_changed || std::abs(transform_angle_) > 0.01 ||
+      orientation_changed || std::abs(transform_angle_) > 0.01 || transform_is_distorted() ||
       std::lround(transform_current_rect_.left()) != std::lround(transform_original_rect_.left()) ||
       std::lround(transform_current_rect_.top()) != std::lround(transform_original_rect_.top()) ||
       std::lround(transform_current_rect_.width()) != std::lround(transform_original_rect_.width()) ||
@@ -3830,8 +4411,7 @@ void CanvasWidget::commit_free_transform_with_pending_warp() {
     return;
   }
   const auto layer_id = *transform_layer_id_;
-  const auto delta = free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
-                                          transform_scale_x_sign_, transform_scale_y_sign_);
+  const auto delta = transform_session_delta();
   const bool stage_changed = !transform_delta_is_identity(delta);
   const bool changed = pending_warp_changed_ || stage_changed;
   auto content_to_document = pending_warp_content_to_document_;
@@ -4028,8 +4608,7 @@ bool CanvasWidget::begin_warp_transform() {
   // instead of being discarded, so Ctrl+T scale/rotate + warp commit as one bake.
   bool entry_changed = false;
   if (transforming_layer_) {
-    const auto delta = free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
-                                            transform_scale_x_sign_, transform_scale_y_sign_);
+    const auto delta = transform_session_delta();
     if (!transform_delta_is_identity(delta)) {
       content_to_document = compose_affine_over_homography(delta, content_to_document);
       entry_changed = true;
@@ -4690,6 +5269,8 @@ bool CanvasWidget::switch_warp_to_free_transform() {
 
   transforming_layer_ = true;
   clear_transform_session_steps();
+  transform_corner_offsets_ = {};
+  transform_distort_mode_ = TransformDistortMode::None;
   dragging_transform_ = false;
   transform_layer_id_ = layer_id;
   set_move_transform_controls_layer(std::nullopt);
@@ -4740,8 +5321,7 @@ bool CanvasWidget::resume_pending_warp_session() {
     cancel_free_transform();
     return false;
   }
-  const auto delta = free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
-                                          transform_scale_x_sign_, transform_scale_y_sign_);
+  const auto delta = transform_session_delta();
   const bool stage_changed = !transform_delta_is_identity(delta);
   auto content_to_document = pending_warp_content_to_document_;
   if (stage_changed) {
