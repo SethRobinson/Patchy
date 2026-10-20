@@ -1536,6 +1536,94 @@ void stroke_soft_edge_probes_match_photoshop_if_available() {
   CHECK(share <= 0.01);
 }
 
+// Several Stroke instances on one layer (GitHub issue 265): Photoshop paints the first
+// listed instance on top and, with Overprint off, its band knocks out the strokes listed
+// after it as it knocks out the content, so a Multiply stroke listed first multiplies the
+// BACKDROP inside its band, never the wider Normal stroke listed second. Patchy painted
+// the instances in list order, so the wider second stroke covered the first entirely.
+void compositor_multiple_strokes_stack_first_on_top_with_knockout() {
+  using namespace patchy;
+  Document document(40, 40, PixelFormat::rgb8());
+  document.add_pixel_layer("Backdrop", solid_rgb(40, 40, 200, 100, 50));
+  Layer styled(document.allocate_layer_id(), "Styled", solid_rgba(12, 12, 20, 220, 20, 255));
+  auto& layer = document.add_layer(std::move(styled));
+  layer.set_bounds(Rect{14, 14, 12, 12});
+  LayerStroke first;
+  first.enabled = true;
+  first.size = 3.0F;
+  first.position = LayerStrokePosition::Outside;
+  first.blend_mode = BlendMode::Multiply;
+  first.color = RgbColor{255, 255, 0};
+  LayerStroke second;
+  second.enabled = true;
+  second.size = 8.0F;
+  second.position = LayerStrokePosition::Outside;
+  second.color = RgbColor{0, 0, 255};
+  layer.layer_style().strokes = {first, second};
+  const auto flat = Compositor{}.flatten_rgb8(document);
+  // Inside the first stroke's 3 px band: yellow multiplied with the backdrop.
+  const auto* inner = flat.pixel(12, 20);
+  CHECK(inner[0] == 200 && inner[1] == 100 && inner[2] == 0);
+  // Past it, within the second stroke's band: plain blue.
+  const auto* outer = flat.pixel(8, 20);
+  CHECK(outer[0] == 0 && outer[1] == 0 && outer[2] == 255);
+  // Swapping the list order puts the blue stroke on top and covers the yellow band.
+  layer.layer_style().strokes = {second, first};
+  const auto swapped = Compositor{}.flatten_rgb8(document);
+  const auto* covered = swapped.pixel(12, 20);
+  CHECK(covered[0] == 0 && covered[1] == 0 && covered[2] == 255);
+}
+
+// ag-psd's strokes/src.psd (GitHub issue 265): a layer with two Stroke instances in an
+// 'lmfx' block, a 7 px Multiply stroke listed first and an 18 px Normal stroke second,
+// over a scribbled backdrop. ps-flat.bmp is Photoshop's flatten.
+void ag_psd_strokes_two_instances_match_photoshop_if_available() {
+  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "ag-psd" / "strokes";
+  patchy::test::skip_unless_exists(dir / "src.psd");
+  patchy::test::skip_unless_exists(dir / "ps-flat.bmp");
+  const auto document = patchy::psd::DocumentIo::read_file(dir / "src.psd");
+  const patchy::Layer* layer = nullptr;
+  for (const auto& candidate : document.layers()) {
+    if (candidate.name() == "Layer 1") {
+      layer = &candidate;
+    }
+  }
+  CHECK(layer != nullptr);
+  const auto& strokes = layer->layer_style().strokes;
+  CHECK(strokes.size() == 2);
+  CHECK(strokes[0].blend_mode == patchy::BlendMode::Multiply);
+  CHECK(std::abs(strokes[0].size - 7.0F) < 0.01F);
+  CHECK(strokes[1].blend_mode == patchy::BlendMode::Normal);
+  CHECK(std::abs(strokes[1].size - 18.0F) < 0.01F);
+  const auto reference = patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(dir / "ps-flat.bmp"));
+  const auto flat = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(reference.width() == flat.width() && reference.height() == flat.height());
+  write_rgb8_bmp_artifact("ag_psd_strokes_patchy", flat);
+  write_rgb8_bmp_artifact("ag_psd_strokes_photoshop", reference);
+  double total = 0.0;
+  std::uint64_t off = 0;
+  std::uint64_t count = 0;
+  for (std::int32_t y = 110; y < 275; ++y) {
+    for (std::int32_t x = 30; x < 372; ++x) {
+      const auto* a = reference.pixel(x, y);
+      const auto* b = flat.pixel(x, y);
+      const int delta = std::max({std::abs(a[0] - b[0]), std::abs(a[1] - b[1]), std::abs(a[2] - b[2])});
+      total += delta;
+      if (delta > 12) {
+        ++off;
+      }
+      ++count;
+    }
+  }
+  const double mean = total / static_cast<double>(count);
+  const double share = static_cast<double>(off) / static_cast<double>(count);
+  std::cout << "  strokes fixture vs Photoshop: mean " << mean << ", " << off << " pixels off by more than 12 ("
+            << share * 100.0 << "%)\n";
+  // Before the stacking fix the yellow band was missing: mean 6.8, 14% of the pixels off.
+  CHECK(mean <= 1.5);
+  CHECK(share <= 0.02);
+}
+
 }  // namespace
 
 
@@ -1611,6 +1699,10 @@ std::vector<patchy::test::TestCase> compositor_layer_styles_tests() {
        stroke_on_semi_transparent_content_matches_photoshop_probes_if_available},
       {"stroke_soft_edge_probes_match_photoshop_if_available",
        stroke_soft_edge_probes_match_photoshop_if_available},
+      {"compositor_multiple_strokes_stack_first_on_top_with_knockout",
+       compositor_multiple_strokes_stack_first_on_top_with_knockout},
+      {"ag_psd_strokes_two_instances_match_photoshop_if_available",
+       ag_psd_strokes_two_instances_match_photoshop_if_available},
       {"compositor_burn_dodge_effects_preserve_transparent_coverage", compositor_burn_dodge_effects_preserve_transparent_coverage},
   };
 }
