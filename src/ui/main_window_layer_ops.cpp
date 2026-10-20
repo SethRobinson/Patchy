@@ -2405,10 +2405,11 @@ void MainWindow::duplicate_layer_to_document() {
     Document fresh(source_document.width(), source_document.height(), source_document.format());
     fresh.print_settings() = source_document.print_settings();
     add_document_session(std::move(fresh), tr("Untitled"));
-    const auto* created = active_session();
+    auto* created = active_session();
     if (created == nullptr || created->session_id == source_session_id) {
       return;  // an edit lock kept the source active; nothing to copy into
     }
+    apply_opening_view(*created);
     target_session_id = created->session_id;
   }
   duplicate_layers_to_session(source_session_id, std::move(ids), target_session_id, placement, copy_name);
@@ -2638,6 +2639,7 @@ void MainWindow::edit_active_layer_style(std::optional<LayerStyleEffect> start_e
       image_document.add_pixel_layer(name.toStdString(), std::move(tile));
       add_document_session(std::move(image_document), name, QString(),
                            tr("Open pattern as image"));
+      apply_opening_view(session());
       // No backing file: closing must warn about unsaved changes.
       mark_session_modified(session());
       statusBar()->showMessage(tr("Opened pattern \"%1\" as a new image").arg(name));
