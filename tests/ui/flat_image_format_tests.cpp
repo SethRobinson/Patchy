@@ -43,6 +43,7 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
+#include <QDir>
 #include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -2939,6 +2940,113 @@ void ui_avif_opens_and_saves_as_a_read_write_format() {
   }
 }
 
+// Netpbm portable anymaps (.pbm/.pgm/.ppm, and .pnm for any of them) open through Qt's
+// built-in PPM handler, which sniffs the P1-P6 magic when the suffix says nothing; the
+// Open dialog lists them as one read-only row (GitHub issue 270). Unicode folder and
+// name as every file-opening path requires.
+void ui_portable_anymap_files_open() {
+  // A 1-bit PBM arrives as a two-color indexed image, which would otherwise raise the
+  // adopt-palette question (docs/palette-mode.md).
+  SettingsValueRestorer policy_restorer(QStringLiteral("imports/adoptIndexedPalette"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/adoptIndexedPalette"), QStringLiteral("never"));
+  const auto dir = patchy::ui::to_qstring(std::filesystem::absolute(patchy::test::unicode_artifact_dir(u8"portable-anymap")));
+  const auto write_bytes = [&](const QString& name, const QByteArray& bytes) {
+    const auto path = QDir(dir).filePath(name);
+    QFile file(path);
+    CHECK(file.open(QIODevice::WriteOnly) && file.write(bytes) == bytes.size());
+    return path;
+  };
+  // Colors through the exporter, so the check is independent of the buffer's byte order.
+  const auto pixel = [](const patchy::Document& document, int x, int y) {
+    const auto color = patchy::ui::qimage_from_document(document, true).pixelColor(x, y);
+    return std::array<int, 4>{color.red(), color.green(), color.blue(), color.alpha()};
+  };
+  // Binary pixmap (P6): three colors over two rows.
+  {
+    QByteArray bytes("P6\n3 2\n255\n");
+    const unsigned char rgb[] = {255, 0, 0, 0, 255, 0, 0, 0, 255, 10, 20, 30, 40, 50, 60, 70, 80, 90};
+    bytes.append(reinterpret_cast<const char*>(rgb), sizeof(rgb));
+    const auto path = write_bytes(QStringLiteral("pixmap.ppm"), bytes);
+    patchy::ui::MainWindow window;
+    show_window(window);
+    const auto sessions_before = patchy::ui::MainWindowTestAccess::session_count(window);
+    patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+    QApplication::processEvents();
+    CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == sessions_before + 1);
+    if (patchy::ui::MainWindowTestAccess::session_count(window) == sessions_before + 1) {
+      auto& document = patchy::ui::MainWindowTestAccess::document(window);
+      CHECK(document.width() == 3);
+      CHECK(document.height() == 2);
+      CHECK(pixel(document, 0, 0) == (std::array<int, 4>{255, 0, 0, 255}));
+      CHECK(pixel(document, 2, 0) == (std::array<int, 4>{0, 0, 255, 255}));
+      CHECK(pixel(document, 1, 1) == (std::array<int, 4>{40, 50, 60, 255}));
+    }
+  }
+  // Binary graymap (P5).
+  {
+    QByteArray bytes("P5\n3 2\n255\n");
+    const unsigned char gray[] = {0, 128, 255, 17, 34, 51};
+    bytes.append(reinterpret_cast<const char*>(gray), sizeof(gray));
+    const auto path = write_bytes(QStringLiteral("graymap.pgm"), bytes);
+    patchy::ui::MainWindow window;
+    show_window(window);
+    const auto sessions_before = patchy::ui::MainWindowTestAccess::session_count(window);
+    patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+    QApplication::processEvents();
+    CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == sessions_before + 1);
+    if (patchy::ui::MainWindowTestAccess::session_count(window) == sessions_before + 1) {
+      auto& document = patchy::ui::MainWindowTestAccess::document(window);
+      CHECK(document.width() == 3);
+      CHECK(document.height() == 2);
+      CHECK(pixel(document, 1, 0) == (std::array<int, 4>{128, 128, 128, 255}));
+      CHECK(pixel(document, 2, 1) == (std::array<int, 4>{51, 51, 51, 255}));
+    }
+  }
+  // Binary bitmap (P4): a set bit is black.
+  {
+    QByteArray bytes("P4\n8 2\n");
+    const unsigned char bits[] = {0xA0, 0x01};
+    bytes.append(reinterpret_cast<const char*>(bits), sizeof(bits));
+    const auto path = write_bytes(QStringLiteral("bitmap.pbm"), bytes);
+    patchy::ui::MainWindow window;
+    show_window(window);
+    const auto sessions_before = patchy::ui::MainWindowTestAccess::session_count(window);
+    patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+    QApplication::processEvents();
+    CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == sessions_before + 1);
+    if (patchy::ui::MainWindowTestAccess::session_count(window) == sessions_before + 1) {
+      auto& document = patchy::ui::MainWindowTestAccess::document(window);
+      CHECK(document.width() == 8);
+      CHECK(document.height() == 2);
+      CHECK(pixel(document, 0, 0) == (std::array<int, 4>{0, 0, 0, 255}));
+      CHECK(pixel(document, 1, 0) == (std::array<int, 4>{255, 255, 255, 255}));
+      CHECK(pixel(document, 2, 0) == (std::array<int, 4>{0, 0, 0, 255}));
+      CHECK(pixel(document, 7, 1) == (std::array<int, 4>{0, 0, 0, 255}));
+      CHECK(pixel(document, 0, 1) == (std::array<int, 4>{255, 255, 255, 255}));
+    }
+  }
+  // .pnm says nothing about the kind: the P6 magic decides, with a non-ASCII name.
+  {
+    QByteArray bytes("P6\n2 1\n255\n");
+    const unsigned char rgb[] = {1, 2, 3, 250, 251, 252};
+    bytes.append(reinterpret_cast<const char*>(rgb), sizeof(rgb));
+    const auto name = QString::fromUtf8(patchy::test::utf8_string(patchy::test::kUnicodePathStems[0])) + QStringLiteral(".pnm");
+    const auto path = write_bytes(name, bytes);
+    patchy::ui::MainWindow window;
+    show_window(window);
+    const auto sessions_before = patchy::ui::MainWindowTestAccess::session_count(window);
+    patchy::ui::MainWindowTestAccess::open_document_path(window, path);
+    QApplication::processEvents();
+    CHECK(patchy::ui::MainWindowTestAccess::session_count(window) == sessions_before + 1);
+    if (patchy::ui::MainWindowTestAccess::session_count(window) == sessions_before + 1) {
+      auto& document = patchy::ui::MainWindowTestAccess::document(window);
+      CHECK(document.width() == 2);
+      CHECK(document.height() == 1);
+      CHECK(pixel(document, 1, 0) == (std::array<int, 4>{250, 251, 252, 255}));
+    }
+  }
+}
+
 void ui_avif_save_options_persist_and_dialog() {
   auto settings = patchy::ui::app_settings();
   settings.remove(QStringLiteral("saveOptions"));
@@ -3519,6 +3627,7 @@ std::vector<patchy::test::TestCase> flat_image_format_tests() {
       {"ui_jxl_opens_and_saves_as_a_read_write_format", ui_jxl_opens_and_saves_as_a_read_write_format},
       {"ui_jxl_save_options_persist_and_dialog", ui_jxl_save_options_persist_and_dialog},
       {"ui_avif_opens_and_saves_as_a_read_write_format", ui_avif_opens_and_saves_as_a_read_write_format},
+      {"ui_portable_anymap_files_open", ui_portable_anymap_files_open},
       {"ui_avif_save_options_persist_and_dialog", ui_avif_save_options_persist_and_dialog},
       {"ui_jxl_animated_save_round_trips", ui_jxl_animated_save_round_trips},
       {"ui_rttex_opens_and_saves_as_a_read_write_format", ui_rttex_opens_and_saves_as_a_read_write_format},

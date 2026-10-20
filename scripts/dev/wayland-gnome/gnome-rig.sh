@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Headless GNOME Shell (mutter) rig for Wayland bug repros (docs/testing.md GNOME variant).
 #   gnome-rig.sh start-shell            starts gnome-shell --headless on its own session bus, writes env to build/gnome-rig/env
+#                                       (RIG_DESKTOP=<name> sets XDG_CURRENT_DESKTOP for the shell and the portals; default GNOME)
 #   gnome-rig.sh patchy <scale> [args]  launches the installed Flatpak on it
 #   gnome-rig.sh script <file.js>       forwards --run-script to the running instance
 #   gnome-rig.sh drive <commands...>    runs gnome-input.py with the given stdin lines (use printf | ...)
@@ -16,14 +17,18 @@ DISPLAY_NAME=wayland-patchy-gnome
 case "$1" in
   start-shell)
     rm -f "$OUT/env"
+    # The shell D-Bus-activates xdg-desktop-portal while it starts, so the portal's Wayland
+    # display and desktop name must already be in the bus's activation environment: a
+    # portal started without them never shows a dialog and the app waits forever.
     nohup dbus-run-session -- bash -c "echo \"export DBUS_SESSION_BUS_ADDRESS='\$DBUS_SESSION_BUS_ADDRESS'\" > '$OUT/env';
       echo \"export WAYLAND_DISPLAY=$DISPLAY_NAME\" >> '$OUT/env';
-      XDG_CURRENT_DESKTOP=GNOME XDG_SESSION_TYPE=wayland exec gnome-shell --headless --wayland --no-x11 --unsafe-mode --virtual-monitor ${MON:-1400x900} --wayland-display $DISPLAY_NAME" > "$OUT/shell.log" 2>&1 &
+      dbus-update-activation-environment WAYLAND_DISPLAY=$DISPLAY_NAME XDG_CURRENT_DESKTOP=${RIG_DESKTOP:-GNOME} XDG_SESSION_TYPE=wayland;
+      XDG_CURRENT_DESKTOP=${RIG_DESKTOP:-GNOME} XDG_SESSION_TYPE=wayland exec gnome-shell --headless --wayland --no-x11 --unsafe-mode --virtual-monitor ${MON:-1400x900} --wayland-display $DISPLAY_NAME" > "$OUT/shell.log" 2>&1 &
     echo $! > "$OUT/wrapper.pid"
     for _ in $(seq 60); do [ -S "$XDG_RUNTIME_DIR/$DISPLAY_NAME" ] && break; sleep 1; done
     sleep 3
     pgrep -f "gnome-shell --headless.*--wayland-display $DISPLAY_NAME" > "$OUT/shell.pid"
-    ls -la "$XDG_RUNTIME_DIR/$DISPLAY_NAME" && cat "$OUT/env" && echo "shell pid $(cat "$OUT/shell.pid")"
+    ls -la "$XDG_RUNTIME_DIR/$DISPLAY_NAME" && cat "$OUT/env" && echo "shell pid $(tr '\n' ' ' < "$OUT/shell.pid")"
     ;;
   patchy)
     . "$OUT/env"; scale=$2; shift 2
@@ -45,7 +50,10 @@ case "$1" in
     ;;
   stop)
     flatpak kill com.rtsoft.patchy 2>/dev/null
-    for f in shell.pid wrapper.pid; do [ -f "$OUT/$f" ] && kill "$(cat "$OUT/$f")" 2>/dev/null; done
+    # shell.pid can hold two pids (the launcher and the shell); kill each one.
+    for f in shell.pid wrapper.pid; do
+      [ -f "$OUT/$f" ] && for p in $(cat "$OUT/$f"); do kill "$p" 2>/dev/null; done
+    done
     sleep 1; pgrep -af "gnome-shell --headless" | grep -v pgrep
     ;;
 esac
