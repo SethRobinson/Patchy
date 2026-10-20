@@ -2569,12 +2569,16 @@ bool CanvasWidget::show_path_context_menu(QPointF widget_point, QPoint global_po
   add_edit_action(tr("Convert Point"), "pathMenuConvertPointAction", over_anchor,
                   PenHoverAction::Convert);
   menu.addSeparator();
-  auto* delete_selected_action = menu.addAction(tr("Delete Selected Points"));
+  // Path Select's selection is whole shapes, so its entries say so; the point
+  // entries above act on what is under the pointer and keep their names.
+  const bool shapes = path_edit_tool() == CanvasTool::PathSelect;
+  auto* delete_selected_action =
+      menu.addAction(shapes ? tr("Delete Selected Shapes") : tr("Delete Selected Points"));
   delete_selected_action->setObjectName(QStringLiteral("pathMenuDeleteSelectedAction"));
   delete_selected_action->setEnabled(has_selection);
   connect(delete_selected_action, &QAction::triggered, this,
           [this] { delete_selected_path_anchors(); });
-  auto* deselect_action = menu.addAction(tr("Deselect Points"));
+  auto* deselect_action = menu.addAction(shapes ? tr("Deselect Shapes") : tr("Deselect Points"));
   deselect_action->setObjectName(QStringLiteral("pathMenuDeselectAction"));
   deselect_action->setEnabled(has_selection);
   connect(deselect_action, &QAction::triggered, this, [this] { clear_path_edit_selection(); });

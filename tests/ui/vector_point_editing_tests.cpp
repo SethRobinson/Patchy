@@ -2112,6 +2112,42 @@ void ui_direct_select_drags_redraw_the_fill_live() {
   QApplication::processEvents();
 }
 
+// Under Path Select the selection entries of the path menu name shapes, the
+// point entries keep their names; Direct Select's name points. Delete Selected
+// Shapes removes the selected shape (GitHub issue 248 tool roles).
+void ui_path_select_context_menu_names_shapes() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_two_group_shape_layer(window, *canvas);
+  canvas->set_view_zoom_centered(1.0);
+  require_action(window, "toolPathSelectAction")->trigger();
+  QApplication::processEvents();
+  pen_click(*canvas, QPoint(450, 220));  // the second shape
+  with_path_context_menu([](QMenu& menu) {
+    CHECK(require_menu_action(menu, "pathMenuDeleteSelectedAction")->text() == QStringLiteral("Delete Selected Shapes"));
+    CHECK(require_menu_action(menu, "pathMenuDeselectAction")->text() == QStringLiteral("Deselect Shapes"));
+    CHECK(require_menu_action(menu, "pathMenuAddAnchorAction")->text() == QStringLiteral("Add Anchor Point"));
+    CHECK(require_menu_action(menu, "pathMenuDeleteAnchorAction")->text() == QStringLiteral("Delete Anchor Point"));
+    CHECK(require_menu_action(menu, "pathMenuConvertPointAction")->text() == QStringLiteral("Convert Point"));
+    require_menu_action(menu, "pathMenuDeleteSelectedAction")->trigger();
+  });
+  open_path_menu_at(*canvas, QPoint(600, 400));
+  const auto* layer = std::as_const(document).find_layer(layer_id);
+  CHECK(layer != nullptr && layer->vector_shape() != nullptr && layer->vector_shape()->path.subpaths.size() == 1);
+  require_action(window, "toolDirectSelectAction")->trigger();
+  QApplication::processEvents();
+  pen_click(*canvas, QPoint(100, 100));
+  with_path_context_menu([](QMenu& menu) {
+    CHECK(require_menu_action(menu, "pathMenuDeleteSelectedAction")->text() == QStringLiteral("Delete Selected Points"));
+    CHECK(require_menu_action(menu, "pathMenuDeselectAction")->text() == QStringLiteral("Deselect Points"));
+    menu.close();
+  });
+  open_path_menu_at(*canvas, QPoint(600, 400));
+}
+
 // Shift during an anchor drag constrains movement to the nearest horizontal,
 // vertical, or 45-degree axis, re-evaluated per move against the total delta
 // from the press point (Photoshop's vertex constraint, never latched).
@@ -2480,6 +2516,7 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
       {"ui_pen_click_on_an_open_end_continues_the_path", ui_pen_click_on_an_open_end_continues_the_path},
       {"ui_path_select_tools_show_their_own_arrow_cursors", ui_path_select_tools_show_their_own_arrow_cursors},
       {"ui_direct_select_drags_redraw_the_fill_live", ui_direct_select_drags_redraw_the_fill_live},
+      {"ui_path_select_context_menu_names_shapes", ui_path_select_context_menu_names_shapes},
       {"ui_ctrl_h_hides_path_points_with_selection_edges",
        ui_ctrl_h_hides_path_points_with_selection_edges},
       {"ui_direct_select_drags_marquee_selection_by_segment",

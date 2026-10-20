@@ -12935,6 +12935,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Click to continue the path from this end point</source>
         <translation>이 끝점에서 패스를 이어 그리려면 클릭하세요</translation>
     </message>
+    <message>
+        <source>Delete Selected Shapes</source>
+        <translation>선택한 모양 삭제</translation>
+    </message>
+    <message>
+        <source>Deselect Shapes</source>
+        <translation>모양 선택 취소</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>

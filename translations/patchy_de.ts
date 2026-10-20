@@ -12969,6 +12969,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Click to continue the path from this end point</source>
         <translation>Klicken Sie, um den Pfad an diesem Endpunkt fortzusetzen</translation>
     </message>
+    <message>
+        <source>Delete Selected Shapes</source>
+        <translation>Ausgewählte Formen löschen</translation>
+    </message>
+    <message>
+        <source>Deselect Shapes</source>
+        <translation>Formauswahl aufheben</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>

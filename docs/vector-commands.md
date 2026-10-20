@@ -275,7 +275,8 @@ when the path menu has no target), otherwise the gesture opened nothing.
 Every entry is always listed and enabled by context (object names
 `pathMenu*Action`): Add Anchor Point (over a segment), Delete Anchor Point
 and Convert Point (over an anchor), Delete Selected Points and Deselect
-Points (with a selection), then Free Transform Points (Direct Select with a
+Points (with a selection; Delete Selected Shapes and Deselect Shapes under Path
+Select, whose selection is whole shapes), then Free Transform Points (Direct Select with a
 selection) or Free Transform Path, enabled for Path/Direct Select only (the
 Pen family sees it disabled and keeps falling through to the layer
 transform). The menu uses the RAW hit, so it works with Auto Add/Delete off
