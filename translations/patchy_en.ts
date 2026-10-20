@@ -11043,19 +11043,73 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Solarize</source>
+        <source>Load LUT...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Find Edges</source>
+        <source>3D LUT:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>On</source>
+        <source>Load 3D LUT</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>%1 %2</source>
+        <source>3D LUT files (*.cube *.3dl)</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 is not a 3D LUT Patchy can read.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cyan</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <comment>ink</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Whites</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Neutrals</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blacks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <comment>selective color range</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Relative</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Absolute</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Selective Color: absolute</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Selective Color: relative</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -11072,10 +11126,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>Ridges</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>ZigZag</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -11120,6 +11170,26 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>Undefined Areas</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Solarize</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Find Edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>ZigZag</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -22729,7 +22799,27 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
+        <source>Color L&amp;ookup...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color Lookup</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancelled Color Lookup</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Selective Color...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Selective Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancelled Selective Color</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

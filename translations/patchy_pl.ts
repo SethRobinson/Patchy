@@ -11093,20 +11093,74 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Czarno-białe: %1 / %2 / %3 / %4 / %5 / %6</translation>
     </message>
     <message>
-        <source>Solarize</source>
-        <translation>Solaryzacja</translation>
+        <source>Load LUT...</source>
+        <translation>Wczytaj LUT...</translation>
     </message>
     <message>
-        <source>Find Edges</source>
-        <translation>Znajdź krawędzie</translation>
+        <source>3D LUT:</source>
+        <translation>LUT 3D:</translation>
     </message>
     <message>
-        <source>On</source>
-        <translation>Włączony</translation>
+        <source>Load 3D LUT</source>
+        <translation>Wczytaj LUT 3D</translation>
     </message>
     <message>
-        <source>%1 %2</source>
-        <translation>%1 %2</translation>
+        <source>3D LUT files (*.cube *.3dl)</source>
+        <translation>Pliki LUT 3D (*.cube *.3dl)</translation>
+    </message>
+    <message>
+        <source>%1 is not a 3D LUT Patchy can read.</source>
+        <translation>%1 nie jest tablicą LUT 3D, którą Patchy potrafi odczytać.</translation>
+    </message>
+    <message>
+        <source>Cyan</source>
+        <translation>Cyjan</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>Magenta</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>Żółty</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <comment>ink</comment>
+        <translation>Czarny</translation>
+    </message>
+    <message>
+        <source>Whites</source>
+        <translation>Biele</translation>
+    </message>
+    <message>
+        <source>Neutrals</source>
+        <translation>Neutralne</translation>
+    </message>
+    <message>
+        <source>Blacks</source>
+        <translation>Czernie</translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <comment>selective color range</comment>
+        <translation>Kolory:</translation>
+    </message>
+    <message>
+        <source>Relative</source>
+        <translation>Względne</translation>
+    </message>
+    <message>
+        <source>Absolute</source>
+        <translation>Bezwzględne</translation>
+    </message>
+    <message>
+        <source>Selective Color: absolute</source>
+        <translation>Kolor selektywny: bezwzględne</translation>
+    </message>
+    <message>
+        <source>Selective Color: relative</source>
+        <translation>Kolor selektywny: względne</translation>
     </message>
     <message>
         <source>Around Center</source>
@@ -11123,10 +11177,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Ridges</source>
         <translation>Grzbiety</translation>
-    </message>
-    <message>
-        <source>ZigZag</source>
-        <translation>Zygzak</translation>
     </message>
     <message>
         <source>Sine</source>
@@ -11171,6 +11221,26 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Undefined Areas</source>
         <translation>Obszary nieokreślone</translation>
+    </message>
+    <message>
+        <source>Solarize</source>
+        <translation>Solaryzacja</translation>
+    </message>
+    <message>
+        <source>Find Edges</source>
+        <translation>Znajdź krawędzie</translation>
+    </message>
+    <message>
+        <source>ZigZag</source>
+        <translation>Zygzak</translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation>Włączony</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <translation>%1 %2</translation>
     </message>
 </context>
 <context>
@@ -22865,7 +22935,7 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     </message>
     <message>
         <source>Blac&amp;k &amp;&amp; White...</source>
-        <translation>Czarno-&amp;białe...</translation>
+        <translation>&amp;Czarno-białe...</translation>
     </message>
     <message>
         <source>Black &amp; White</source>
@@ -22876,8 +22946,28 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
         <translation>Anulowano czarno-białe</translation>
     </message>
     <message>
-        <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
-        <translation>Wyszukiwanie koloru „%1” jest stosowane tak, jak zapisano je w pliku.</translation>
+        <source>Color L&amp;ookup...</source>
+        <translation>&amp;Wyszukiwanie koloru...</translation>
+    </message>
+    <message>
+        <source>Color Lookup</source>
+        <translation>Wyszukiwanie koloru</translation>
+    </message>
+    <message>
+        <source>Cancelled Color Lookup</source>
+        <translation>Anulowano wyszukiwanie koloru</translation>
+    </message>
+    <message>
+        <source>&amp;Selective Color...</source>
+        <translation>Kolor &amp;selektywny...</translation>
+    </message>
+    <message>
+        <source>Selective Color</source>
+        <translation>Kolor selektywny</translation>
+    </message>
+    <message>
+        <source>Cancelled Selective Color</source>
+        <translation>Anulowano kolor selektywny</translation>
     </message>
     <message>
         <source>Add %1 Smart Filter</source>

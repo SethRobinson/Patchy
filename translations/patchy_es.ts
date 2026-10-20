@@ -11059,20 +11059,74 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Blanco y negro: %1 / %2 / %3 / %4 / %5 / %6</translation>
     </message>
     <message>
-        <source>Solarize</source>
-        <translation>Solarizar</translation>
+        <source>Load LUT...</source>
+        <translation>Cargar LUT...</translation>
     </message>
     <message>
-        <source>Find Edges</source>
-        <translation>Hallar bordes</translation>
+        <source>3D LUT:</source>
+        <translation>LUT 3D:</translation>
     </message>
     <message>
-        <source>On</source>
-        <translation>Activado</translation>
+        <source>Load 3D LUT</source>
+        <translation>Cargar LUT 3D</translation>
     </message>
     <message>
-        <source>%1 %2</source>
-        <translation>%1 %2</translation>
+        <source>3D LUT files (*.cube *.3dl)</source>
+        <translation>Archivos LUT 3D (*.cube *.3dl)</translation>
+    </message>
+    <message>
+        <source>%1 is not a 3D LUT Patchy can read.</source>
+        <translation>%1 no es una LUT 3D que Patchy pueda leer.</translation>
+    </message>
+    <message>
+        <source>Cyan</source>
+        <translation>Cian</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>Magenta</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>Amarillo</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <comment>ink</comment>
+        <translation>Negro</translation>
+    </message>
+    <message>
+        <source>Whites</source>
+        <translation>Blancos</translation>
+    </message>
+    <message>
+        <source>Neutrals</source>
+        <translation>Neutros</translation>
+    </message>
+    <message>
+        <source>Blacks</source>
+        <translation>Negros</translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <comment>selective color range</comment>
+        <translation>Colores:</translation>
+    </message>
+    <message>
+        <source>Relative</source>
+        <translation>Relativo</translation>
+    </message>
+    <message>
+        <source>Absolute</source>
+        <translation>Absoluto</translation>
+    </message>
+    <message>
+        <source>Selective Color: absolute</source>
+        <translation>Corrección selectiva: absoluta</translation>
+    </message>
+    <message>
+        <source>Selective Color: relative</source>
+        <translation>Corrección selectiva: relativa</translation>
     </message>
     <message>
         <source>Around Center</source>
@@ -11089,10 +11143,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Ridges</source>
         <translation>Crestas</translation>
-    </message>
-    <message>
-        <source>ZigZag</source>
-        <translation>Zigzag</translation>
     </message>
     <message>
         <source>Sine</source>
@@ -11137,6 +11187,26 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Undefined Areas</source>
         <translation>Áreas no definidas</translation>
+    </message>
+    <message>
+        <source>Solarize</source>
+        <translation>Solarizar</translation>
+    </message>
+    <message>
+        <source>Find Edges</source>
+        <translation>Hallar bordes</translation>
+    </message>
+    <message>
+        <source>ZigZag</source>
+        <translation>Zigzag</translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation>Activado</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <translation>%1 %2</translation>
     </message>
 </context>
 <context>
@@ -22795,7 +22865,7 @@ Puedes hacerlo más tarde desde Ayuda &gt; Añadir Patchy al menú de aplicacion
     </message>
     <message>
         <source>Blac&amp;k &amp;&amp; White...</source>
-        <translation>Blanco y &amp;negro...</translation>
+        <translation>&amp;Blanco y negro...</translation>
     </message>
     <message>
         <source>Black &amp; White</source>
@@ -22806,8 +22876,28 @@ Puedes hacerlo más tarde desde Ayuda &gt; Añadir Patchy al menú de aplicacion
         <translation>Blanco y negro cancelado</translation>
     </message>
     <message>
-        <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
-        <translation>La consulta de colores «%1» se aplica tal como está guardada en el archivo.</translation>
+        <source>Color L&amp;ookup...</source>
+        <translation>C&amp;onsulta de colores...</translation>
+    </message>
+    <message>
+        <source>Color Lookup</source>
+        <translation>Consulta de colores</translation>
+    </message>
+    <message>
+        <source>Cancelled Color Lookup</source>
+        <translation>Consulta de colores cancelada</translation>
+    </message>
+    <message>
+        <source>&amp;Selective Color...</source>
+        <translation>Corrección &amp;selectiva...</translation>
+    </message>
+    <message>
+        <source>Selective Color</source>
+        <translation>Corrección selectiva</translation>
+    </message>
+    <message>
+        <source>Cancelled Selective Color</source>
+        <translation>Corrección selectiva cancelada</translation>
     </message>
     <message>
         <source>Add %1 Smart Filter</source>

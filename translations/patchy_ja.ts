@@ -11025,20 +11025,74 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>白黒: %1 / %2 / %3 / %4 / %5 / %6</translation>
     </message>
     <message>
-        <source>Solarize</source>
-        <translation>ソラリゼーション</translation>
+        <source>Load LUT...</source>
+        <translation>LUT を読み込み...</translation>
     </message>
     <message>
-        <source>Find Edges</source>
-        <translation>輪郭検出</translation>
+        <source>3D LUT:</source>
+        <translation>3D LUT:</translation>
     </message>
     <message>
-        <source>On</source>
-        <translation>オン</translation>
+        <source>Load 3D LUT</source>
+        <translation>3D LUT を読み込み</translation>
     </message>
     <message>
-        <source>%1 %2</source>
-        <translation>%1 %2</translation>
+        <source>3D LUT files (*.cube *.3dl)</source>
+        <translation>3D LUT ファイル (*.cube *.3dl)</translation>
+    </message>
+    <message>
+        <source>%1 is not a 3D LUT Patchy can read.</source>
+        <translation>%1 は Patchy が読み込める 3D LUT ではありません。</translation>
+    </message>
+    <message>
+        <source>Cyan</source>
+        <translation>シアン</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>マゼンタ</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>イエロー</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <comment>ink</comment>
+        <translation>ブラック</translation>
+    </message>
+    <message>
+        <source>Whites</source>
+        <translation>ホワイト系</translation>
+    </message>
+    <message>
+        <source>Neutrals</source>
+        <translation>ニュートラル系</translation>
+    </message>
+    <message>
+        <source>Blacks</source>
+        <translation>ブラック系</translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <comment>selective color range</comment>
+        <translation>カラー:</translation>
+    </message>
+    <message>
+        <source>Relative</source>
+        <translation>相対値</translation>
+    </message>
+    <message>
+        <source>Absolute</source>
+        <translation>絶対値</translation>
+    </message>
+    <message>
+        <source>Selective Color: absolute</source>
+        <translation>特定色域の選択: 絶対値</translation>
+    </message>
+    <message>
+        <source>Selective Color: relative</source>
+        <translation>特定色域の選択: 相対値</translation>
     </message>
     <message>
         <source>Around Center</source>
@@ -11055,10 +11109,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Ridges</source>
         <translation>折り返し</translation>
-    </message>
-    <message>
-        <source>ZigZag</source>
-        <translation>ジグザグ</translation>
     </message>
     <message>
         <source>Sine</source>
@@ -11103,6 +11153,26 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Undefined Areas</source>
         <translation>未定義領域</translation>
+    </message>
+    <message>
+        <source>Solarize</source>
+        <translation>ソラリゼーション</translation>
+    </message>
+    <message>
+        <source>Find Edges</source>
+        <translation>輪郭検出</translation>
+    </message>
+    <message>
+        <source>ZigZag</source>
+        <translation>ジグザグ</translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation>オン</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <translation>%1 %2</translation>
     </message>
 </context>
 <context>
@@ -22736,8 +22806,28 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>白黒をキャンセルしました</translation>
     </message>
     <message>
-        <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
-        <translation>カラールックアップ「%1」はファイルに保存されたとおりに適用されます。</translation>
+        <source>Color L&amp;ookup...</source>
+        <translation>カラールックアップ(&amp;O)...</translation>
+    </message>
+    <message>
+        <source>Color Lookup</source>
+        <translation>カラールックアップ</translation>
+    </message>
+    <message>
+        <source>Cancelled Color Lookup</source>
+        <translation>カラールックアップをキャンセルしました</translation>
+    </message>
+    <message>
+        <source>&amp;Selective Color...</source>
+        <translation>特定色域の選択(&amp;S)...</translation>
+    </message>
+    <message>
+        <source>Selective Color</source>
+        <translation>特定色域の選択</translation>
+    </message>
+    <message>
+        <source>Cancelled Selective Color</source>
+        <translation>特定色域の選択をキャンセルしました</translation>
     </message>
     <message>
         <source>Add %1 Smart Filter</source>

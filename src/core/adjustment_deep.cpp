@@ -102,6 +102,10 @@ DeepChannels DeepAdjuster::apply_encoded(DeepChannels color) const {
       const auto filtered = photo_filter_transfer(settings.photo_filter, color[0], color[1], color[2], false);
       return {clamp255(filtered[0]), clamp255(filtered[1]), clamp255(filtered[2])};
     }
+    case AdjustmentKind::SelectiveColor: {
+      const auto mapped = selective_color_transfer(settings.selective_color, color[0], color[1], color[2]);
+      return {clamp255(mapped[0]), clamp255(mapped[1]), clamp255(mapped[2])};
+    }
     case AdjustmentKind::ColorLookup: {
       if (settings.color_lookup.table == nullptr) {
         return color;

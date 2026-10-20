@@ -1099,6 +1099,25 @@ std::array<double, 3> ColorLookupTable::apply(double red, double green, double b
                        3U;
     return std::array<double, 3>{values[index] / 65535.0, values[index + 1] / 65535.0, values[index + 2] / 65535.0};
   };
+  if (size == 2) {
+    // Photoshop interpolates a two-point grid trilinearly and every larger grid
+    // tetrahedrally (probed at 2, 3, 5, 9, 17 and 33 points, #250).
+    std::array<double, 3> out{};
+    for (int dr = 0; dr < 2; ++dr) {
+      for (int dg = 0; dg < 2; ++dg) {
+        for (int db = 0; db < 2; ++db) {
+          const double weight = (dr != 0 ? fraction[0] : 1.0 - fraction[0]) *
+                                (dg != 0 ? fraction[1] : 1.0 - fraction[1]) *
+                                (db != 0 ? fraction[2] : 1.0 - fraction[2]);
+          const auto corner = node(dr, dg, db);
+          for (std::size_t c = 0; c < 3U; ++c) {
+            out[c] += 255.0 * weight * corner[c];
+          }
+        }
+      }
+    }
+    return out;
+  }
   // Tetrahedral interpolation: the cube splits into six tetrahedra along its main diagonal,
   // picked by the order of the fractions.
   const double fr = fraction[0];
@@ -1169,6 +1188,230 @@ std::shared_ptr<const ColorLookupTable> make_color_lookup_table(int size, std::v
 
 namespace {
 
+// Whitespace-separated tokens of one line, without a trailing comment.
+std::vector<std::string_view> lut_tokens(std::string_view line) {
+  if (const auto hash = line.find('#'); hash != std::string_view::npos) {
+    line = line.substr(0, hash);
+  }
+  std::vector<std::string_view> tokens;
+  std::size_t index = 0;
+  while (index < line.size()) {
+    while (index < line.size() && (line[index] == ' ' || line[index] == '\t' || line[index] == '\r')) {
+      ++index;
+    }
+    const auto start = index;
+    while (index < line.size() && line[index] != ' ' && line[index] != '\t' && line[index] != '\r') {
+      ++index;
+    }
+    if (index > start) {
+      tokens.push_back(line.substr(start, index - start));
+    }
+  }
+  return tokens;
+}
+
+// A decimal number such as "0.123456", "-1", "1e-3" or ".5", parsed without the C locale
+// (strtod reads "0.5" wrongly under a comma-decimal locale) or floating from_chars (missing
+// from some supported standard libraries).
+std::optional<double> lut_number(std::string_view token) {
+  std::size_t index = 0;
+  const bool negative = index < token.size() && token[index] == '-';
+  if (index < token.size() && (token[index] == '-' || token[index] == '+')) {
+    ++index;
+  }
+  std::uint64_t mantissa = 0;
+  int exponent = 0;
+  int digits = 0;
+  for (; index < token.size() && token[index] >= '0' && token[index] <= '9'; ++index, ++digits) {
+    if (mantissa < 100000000000000000ULL) {
+      mantissa = mantissa * 10U + static_cast<std::uint64_t>(token[index] - '0');
+    } else {
+      ++exponent;
+    }
+  }
+  if (index < token.size() && token[index] == '.') {
+    for (++index; index < token.size() && token[index] >= '0' && token[index] <= '9'; ++index, ++digits) {
+      if (mantissa < 100000000000000000ULL) {
+        mantissa = mantissa * 10U + static_cast<std::uint64_t>(token[index] - '0');
+        --exponent;
+      }
+    }
+  }
+  if (digits == 0) {
+    return std::nullopt;
+  }
+  if (index < token.size() && (token[index] == 'e' || token[index] == 'E')) {
+    ++index;
+    const bool negative_exponent = index < token.size() && token[index] == '-';
+    if (index < token.size() && (token[index] == '-' || token[index] == '+')) {
+      ++index;
+    }
+    int power = 0;
+    int power_digits = 0;
+    for (; index < token.size() && token[index] >= '0' && token[index] <= '9'; ++index, ++power_digits) {
+      power = std::min(power * 10 + (token[index] - '0'), 400);
+    }
+    if (power_digits == 0) {
+      return std::nullopt;
+    }
+    exponent += negative_exponent ? -power : power;
+  }
+  if (index != token.size()) {
+    return std::nullopt;
+  }
+  // Powers of ten up to 1e22 are exact doubles, so one division or multiplication rounds
+  // correctly and the result is the same on every toolchain.
+  double scale = 1.0;
+  for (int step = 0; step < std::min(std::abs(exponent), 22); ++step) {
+    scale *= 10.0;
+  }
+  double value = exponent < 0 ? static_cast<double>(mantissa) / scale : static_cast<double>(mantissa) * scale;
+  if (std::abs(exponent) > 22) {
+    value = exponent < 0 ? value / std::pow(10.0, -exponent - 22) : value * std::pow(10.0, exponent - 22);
+  }
+  if (!std::isfinite(value)) {
+    return std::nullopt;
+  }
+  return negative ? -value : value;
+}
+
+std::uint16_t lut_node(double unit) {
+  return static_cast<std::uint16_t>(std::lround(std::clamp(unit, 0.0, 1.0) * 65535.0));
+}
+
+ColorLookupFileResult parse_cube_lut(std::string_view text) {
+  ColorLookupFileResult result;
+  int size = 0;
+  std::vector<std::uint16_t> values;
+  while (!text.empty()) {
+    const auto end = text.find('\n');
+    const auto tokens = lut_tokens(text.substr(0, end));
+    text = end == std::string_view::npos ? std::string_view{} : text.substr(end + 1U);
+    if (tokens.empty()) {
+      continue;
+    }
+    const auto keyword = tokens.front();
+    if (keyword == "TITLE") {
+      continue;
+    }
+    if (keyword == "LUT_1D_SIZE" || keyword == "LUT_1D_INPUT_RANGE") {
+      result.error = "1D LUTs are not supported";
+      return result;
+    }
+    if (keyword == "LUT_3D_SIZE") {
+      const auto parsed = tokens.size() == 2U ? lut_number(tokens[1]) : std::nullopt;
+      size = parsed.has_value() ? static_cast<int>(*parsed) : 0;
+      if (size < 2 || size > 256) {
+        result.error = "unsupported LUT_3D_SIZE";
+        return result;
+      }
+      values.reserve(static_cast<std::size_t>(size) * static_cast<std::size_t>(size) *
+                     static_cast<std::size_t>(size) * 3U);
+      continue;
+    }
+    if (keyword == "DOMAIN_MIN" || keyword == "DOMAIN_MAX" || keyword == "LUT_3D_INPUT_RANGE") {
+      const double expected = keyword == "DOMAIN_MAX" ? 1.0 : 0.0;
+      for (std::size_t index = 1; index < tokens.size(); ++index) {
+        const auto value = lut_number(tokens[index]);
+        if (keyword == "LUT_3D_INPUT_RANGE") {
+          if (!value.has_value() || *value != (index == 1U ? 0.0 : 1.0)) {
+            result.error = "only the 0..1 input range is supported";
+            return result;
+          }
+        } else if (!value.has_value() || *value != expected) {
+          result.error = "only the 0..1 domain is supported";
+          return result;
+        }
+      }
+      continue;
+    }
+    if (tokens.size() != 3U || size == 0) {
+      result.error = "unexpected line in the LUT";
+      return result;
+    }
+    for (const auto token : tokens) {
+      const auto value = lut_number(token);
+      if (!value.has_value()) {
+        result.error = "unexpected number in the LUT";
+        return result;
+      }
+      values.push_back(lut_node(*value));
+    }
+  }
+  if (size == 0 || values.size() != static_cast<std::size_t>(size) * static_cast<std::size_t>(size) *
+                                          static_cast<std::size_t>(size) * 3U) {
+    result.error = "the LUT has the wrong number of entries";
+    return result;
+  }
+  result.table = make_color_lookup_table(size, std::move(values));
+  return result;
+}
+
+ColorLookupFileResult parse_3dl_lut(std::string_view text) {
+  ColorLookupFileResult result;
+  std::vector<double> inputs;
+  std::vector<std::array<double, 3>> rows;
+  while (!text.empty()) {
+    const auto end = text.find('\n');
+    const auto tokens = lut_tokens(text.substr(0, end));
+    text = end == std::string_view::npos ? std::string_view{} : text.substr(end + 1U);
+    if (tokens.empty() || tokens.front().starts_with("Mesh") || tokens.front().starts_with("LUT")) {
+      continue;
+    }
+    std::vector<double> numbers;
+    for (const auto token : tokens) {
+      const auto value = lut_number(token);
+      if (!value.has_value()) {
+        result.error = "unexpected number in the LUT";
+        return result;
+      }
+      numbers.push_back(*value);
+    }
+    if (inputs.empty()) {
+      inputs = std::move(numbers);
+      continue;
+    }
+    if (numbers.size() != 3U) {
+      result.error = "unexpected line in the LUT";
+      return result;
+    }
+    rows.push_back({numbers[0], numbers[1], numbers[2]});
+  }
+  const auto size = static_cast<int>(inputs.size());
+  if (size < 2 || size > 256 ||
+      rows.size() != static_cast<std::size_t>(size) * static_cast<std::size_t>(size) * static_cast<std::size_t>(size)) {
+    result.error = "the LUT has the wrong number of entries";
+    return result;
+  }
+  // The output bit depth is the smallest of 10, 12, 14 and 16 bits that holds every value.
+  double largest = 0.0;
+  for (const auto& row : rows) {
+    largest = std::max({largest, row[0], row[1], row[2]});
+  }
+  double full_scale = 65535.0;
+  for (const double candidate : {1023.0, 4095.0, 16383.0}) {
+    if (largest <= candidate) {
+      full_scale = candidate;
+      break;
+    }
+  }
+  std::vector<std::uint16_t> values(rows.size() * 3U);
+  const auto points = static_cast<std::size_t>(size);
+  for (std::size_t r = 0; r < points; ++r) {
+    for (std::size_t g = 0; g < points; ++g) {
+      for (std::size_t b = 0; b < points; ++b) {
+        const auto& row = rows[(r * points + g) * points + b];
+        const auto index = (r + g * points + b * points * points) * 3U;
+        for (std::size_t c = 0; c < 3U; ++c) {
+          values[index + c] = lut_node(row[c] / full_scale);
+        }
+      }
+    }
+  }
+  result.table = make_color_lookup_table(size, std::move(values));
+  return result;
+}
+
 std::mutex& color_lookup_registry_mutex() {
   static std::mutex mutex;
   return mutex;
@@ -1180,6 +1423,32 @@ std::map<std::string, std::shared_ptr<const ColorLookupTable>, std::less<>>& col
 }
 
 }  // namespace
+
+ColorLookupFileResult parse_color_lookup_file(std::span<const std::uint8_t> bytes, std::string_view extension) {
+  std::string lowered(extension);
+  std::transform(lowered.begin(), lowered.end(), lowered.begin(),
+                 [](char c) { return static_cast<char>(c >= 'A' && c <= 'Z' ? c - 'A' + 'a' : c); });
+  if (!lowered.empty() && lowered.front() == '.') {
+    lowered.erase(0, 1);
+  }
+  const std::string_view text(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+  ColorLookupFileResult result;
+  if (lowered == "cube") {
+    result = parse_cube_lut(text);
+  } else if (lowered == "3dl") {
+    result = parse_3dl_lut(text);
+  } else {
+    result.error = "unsupported LUT format";
+    return result;
+  }
+  if (result.table != nullptr) {
+    auto table = std::make_shared<ColorLookupTable>(*result.table);
+    table->source_format = lowered;
+    table->source.assign(bytes.begin(), bytes.end());
+    result.table = std::move(table);
+  }
+  return result;
+}
 
 void register_color_lookup_table(std::shared_ptr<const ColorLookupTable> table) {
   if (table == nullptr || table->id.empty() || !table->valid()) {
@@ -1196,6 +1465,82 @@ std::shared_ptr<const ColorLookupTable> find_color_lookup_table(std::string_view
   const std::lock_guard lock(color_lookup_registry_mutex());
   const auto found = color_lookup_registry().find(id);
   return found != color_lookup_registry().end() ? found->second : nullptr;
+}
+
+SelectiveColorAdjustment clamp_selective_color(SelectiveColorAdjustment settings) noexcept {
+  for (auto& range : settings.ranges) {
+    for (int* value : {&range.cyan, &range.magenta, &range.yellow, &range.black}) {
+      *value = std::clamp(*value, -100, 100);
+    }
+  }
+  return settings;
+}
+
+bool SelectiveColorAdjustment::has_effect() const noexcept {
+  const SelectiveColorCorrection none{};
+  return std::any_of(ranges.begin(), ranges.end(), [&none](const auto& range) { return !(range == none); });
+}
+
+std::array<double, 3> selective_color_transfer(const SelectiveColorAdjustment& settings, double red, double green,
+                                               double blue) {
+  // Each range weighs the color by how strongly it belongs there: the largest channel's
+  // primary (reds, greens, blues) by largest minus middle, the secondary the two largest
+  // make (yellows, cyans, magentas) by middle minus smallest, whites and blacks by how far
+  // the smallest (largest) channel sits above (below) mid gray, and neutrals by how close
+  // both extremes are to mid gray. Calibrated against Photoshop 2026 (#250).
+  const auto clamped = clamp_selective_color(settings);
+  const std::array<double, 3> in{std::clamp(red, 0.0, 255.0) / 255.0, std::clamp(green, 0.0, 255.0) / 255.0,
+                                 std::clamp(blue, 0.0, 255.0) / 255.0};
+  const double high = std::max({in[0], in[1], in[2]});
+  const double low = std::min({in[0], in[1], in[2]});
+  const double middle = in[0] + in[1] + in[2] - high - low;
+  std::array<double, 9> weight{};
+  const auto range = [](SelectiveColorRange which) { return static_cast<std::size_t>(which); };
+  if (in[0] == high) {
+    weight[range(SelectiveColorRange::Reds)] = high - middle;
+  }
+  if (in[1] == high) {
+    weight[range(SelectiveColorRange::Greens)] = high - middle;
+  }
+  if (in[2] == high) {
+    weight[range(SelectiveColorRange::Blues)] = high - middle;
+  }
+  if (in[0] == low) {
+    weight[range(SelectiveColorRange::Cyans)] = middle - low;
+  }
+  if (in[1] == low) {
+    weight[range(SelectiveColorRange::Magentas)] = middle - low;
+  }
+  if (in[2] == low) {
+    weight[range(SelectiveColorRange::Yellows)] = middle - low;
+  }
+  if (low > 0.5) {
+    weight[range(SelectiveColorRange::Whites)] = (low - 0.5) * 2.0;
+  }
+  if (high < 0.5) {
+    weight[range(SelectiveColorRange::Blacks)] = (0.5 - high) * 2.0;
+  }
+  if (!(high == 0.0 && low == 0.0) && !(high == 1.0 && low == 1.0)) {
+    weight[range(SelectiveColorRange::Neutrals)] = 1.0 - (std::abs(high - 0.5) + std::abs(low - 0.5));
+  }
+  std::array<double, 3> out = in;
+  for (std::size_t index = 0; index < clamped.ranges.size(); ++index) {
+    if (weight[index] == 0.0) {
+      continue;
+    }
+    const auto& correction = clamped.ranges[index];
+    const double black = correction.black / 100.0;
+    const std::array<int, 3> inks{correction.cyan, correction.magenta, correction.yellow};
+    for (std::size_t c = 0; c < 3U; ++c) {
+      // An ink takes its channel away; black takes all three. Relative scales by the ink
+      // the channel already carries (1 - value).
+      const double ink = inks[c] / 100.0;
+      const double scale = clamped.absolute ? 1.0 : 1.0 - in[c];
+      const double shift = std::clamp(((-1.0 - ink) * black - ink) * scale, -in[c], 1.0 - in[c]);
+      out[c] += shift * weight[index];
+    }
+  }
+  return {out[0] * 255.0, out[1] * 255.0, out[2] * 255.0};
 }
 
 BlackWhiteAdjustment clamp_black_white(BlackWhiteAdjustment settings) noexcept {
@@ -2076,6 +2421,8 @@ std::string adjustment_kind_key(AdjustmentKind kind) {
       return "black_white";
     case AdjustmentKind::ColorLookup:
       return "color_lookup";
+    case AdjustmentKind::SelectiveColor:
+      return "selective_color";
   }
   return "levels";
 }
@@ -2110,6 +2457,8 @@ std::string adjustment_display_name(AdjustmentKind kind) {
       return "Black & White";
     case AdjustmentKind::ColorLookup:
       return "Color Lookup";
+    case AdjustmentKind::SelectiveColor:
+      return "Selective Color";
   }
   return "Adjustment";
 }
@@ -2156,6 +2505,9 @@ std::optional<AdjustmentKind> adjustment_kind_from_key(std::string_view key) {
   }
   if (key == "color_lookup") {
     return AdjustmentKind::ColorLookup;
+  }
+  if (key == "selective_color") {
+    return AdjustmentKind::SelectiveColor;
   }
   return std::nullopt;
 }
@@ -2279,6 +2631,37 @@ std::optional<AdjustmentSettings> adjustment_settings_from_layer(const Layer& la
     bw.blues = (*weights)[4];
     bw.magentas = (*weights)[5];
     bw = clamp_black_white(bw);
+  }
+  {
+    // "relative|c,m,y,k;..." with nine corrections; anything malformed keeps the defaults.
+    const auto encoded = metadata_string_or(layer, kLayerMetadataAdjustmentSelectiveColor, {});
+    const auto bar = encoded.find('|');
+    if (bar != std::string_view::npos) {
+      SelectiveColorAdjustment parsed;
+      parsed.absolute = encoded.substr(0, bar) == "absolute";
+      // Nine "c,m,y,k" groups; read as 36 comma-separated numbers.
+      std::string flat(encoded.substr(bar + 1U));
+      std::replace(flat.begin(), flat.end(), ';', ',');
+      std::vector<int> numbers;
+      bool ok = true;
+      std::string_view rest(flat);
+      while (!rest.empty() && ok) {
+        const auto comma = rest.find(',');
+        const auto value = parse_int(rest.substr(0, comma));
+        ok = value.has_value();
+        if (ok) {
+          numbers.push_back(*value);
+        }
+        rest = comma == std::string_view::npos ? std::string_view{} : rest.substr(comma + 1U);
+      }
+      if (ok && numbers.size() == 36U) {
+        for (std::size_t index = 0; index < 9U; ++index) {
+          parsed.ranges[index] = SelectiveColorCorrection{numbers[index * 4U], numbers[index * 4U + 1U],
+                                                          numbers[index * 4U + 2U], numbers[index * 4U + 3U]};
+        }
+        settings.selective_color = clamp_selective_color(parsed);
+      }
+    }
   }
   settings.color_lookup.table =
       find_color_lookup_table(metadata_string_or(layer, kLayerMetadataAdjustmentColorLookupTable, {}));
@@ -2436,6 +2819,16 @@ void configure_adjustment_layer(Layer& layer, const AdjustmentSettings& settings
     set_metadata_string(layer, kLayerMetadataAdjustmentColorLookupTable,
                         settings.color_lookup.table != nullptr ? settings.color_lookup.table->id : std::string());
     set_metadata_string(layer, kLayerMetadataAdjustmentColorLookupName, settings.color_lookup.name);
+    {
+      const auto selective = clamp_selective_color(settings.selective_color);
+      std::string encoded = selective.absolute ? "absolute|" : "relative|";
+      for (std::size_t index = 0; index < selective.ranges.size(); ++index) {
+        const auto& range = selective.ranges[index];
+        encoded += (index == 0 ? "" : ";") + std::to_string(range.cyan) + ',' + std::to_string(range.magenta) + ',' +
+                   std::to_string(range.yellow) + ',' + std::to_string(range.black);
+      }
+      set_metadata_string(layer, kLayerMetadataAdjustmentSelectiveColor, encoded);
+    }
     set_metadata_string(layer, kLayerMetadataAdjustmentBlackWhiteTintColor,
                         std::to_string(bw.tint_color.red) + ';' + std::to_string(bw.tint_color.green) + ';' +
                             std::to_string(bw.tint_color.blue));
@@ -2551,6 +2944,7 @@ bool adjustment_runs_in_ink_space(const AdjustmentSettings& settings) noexcept {
     case AdjustmentKind::GradientMap:
     case AdjustmentKind::BlackWhite:
     case AdjustmentKind::ColorLookup:
+    case AdjustmentKind::SelectiveColor:
       return false;
   }
   return false;
@@ -2630,6 +3024,13 @@ RgbColor apply_adjustment_on_rgb(RgbColor color, const AdjustmentSettings& setti
       };
       return RgbColor{byte(out[0]), byte(out[1]), byte(out[2])};
     }
+    case AdjustmentKind::SelectiveColor: {
+      const auto out = selective_color_transfer(settings.selective_color, color.red, color.green, color.blue);
+      const auto byte = [](double value) {
+        return static_cast<std::uint8_t>(std::clamp(std::floor(value + 0.5), 0.0, 255.0));
+      };
+      return RgbColor{byte(out[0]), byte(out[1]), byte(out[2])};
+    }
     case AdjustmentKind::ColorLookup: {
       if (settings.color_lookup.table == nullptr) {
         return color;
@@ -2680,7 +3081,7 @@ std::optional<AdjustmentLut> build_adjustment_lut(const AdjustmentSettings& sett
   if (settings.kind == AdjustmentKind::HueSaturation || settings.kind == AdjustmentKind::Threshold ||
       settings.kind == AdjustmentKind::ChannelMixer || settings.kind == AdjustmentKind::PhotoFilter ||
       settings.kind == AdjustmentKind::GradientMap || settings.kind == AdjustmentKind::BlackWhite ||
-      settings.kind == AdjustmentKind::ColorLookup) {
+      settings.kind == AdjustmentKind::ColorLookup || settings.kind == AdjustmentKind::SelectiveColor) {
     return std::nullopt;
   }
   if (settings.kind == AdjustmentKind::Curves) {
@@ -2746,6 +3147,8 @@ bool adjustment_has_effect(const AdjustmentSettings& settings) {
       return true;  // every setting turns color into gray
     case AdjustmentKind::ColorLookup:
       return settings.color_lookup.table != nullptr;
+    case AdjustmentKind::SelectiveColor:
+      return settings.selective_color.has_effect();
   }
   return false;
 }
