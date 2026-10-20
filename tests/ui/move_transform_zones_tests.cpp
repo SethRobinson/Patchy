@@ -12,12 +12,17 @@
 #include <QColor>
 #include <QCursor>
 #include <QImage>
+#include <QList>
 #include <QPainter>
 #include <QPixmap>
 #include <QPoint>
 #include <QPointF>
+#include <QPushButton>
 #include <QRect>
+#include <QToolBar>
+#include <QToolButton>
 #include <QTransform>
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
@@ -490,10 +495,169 @@ void ui_move_cursor_shows_drag_only_where_a_press_moves() {
   CHECK(canvas->cursor().shape() == Qt::SizeAllCursor);
 }
 
+// GitHub issue 225: the Move bar carries a Warp button that starts the warp cage
+// on the selected layer directly, without a Free Transform first. During the
+// session the bar shows the transform row with the warp toggle checked.
+void ui_move_warp_button_starts_warp_from_the_bar() {
+  patchy::ui::MainWindow window;
+  const QRect bounds(100, 70, 160, 110);
+  prepare_zone_scene(window, bounds, true);
+  auto* canvas = require_canvas(window);
+  const auto center = canvas->widget_position_for_document_point(bounds.center());
+  send_mouse(*canvas, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+  CHECK(options_bar != nullptr);
+  const auto bar_strip = [&] {
+    auto image = options_bar->grab().toImage();
+    return image.copy(0, 0, std::min(image.width(), 760), image.height());
+  };
+  QList<QImage> strips{bar_strip()};
+
+  auto* warp_button = window.findChild<QToolButton*>(QStringLiteral("moveWarpButton"));
+  if (warp_button != nullptr && warp_button->isVisible()) {
+    warp_button->click();
+    QApplication::processEvents();
+    strips.push_back(bar_strip());
+    strips.push_back(canvas->grab().toImage().copy(
+        QRect(canvas->widget_position_for_document_point(bounds.topLeft()) - QPoint(40, 40),
+              QSize(bounds.width() + 80, bounds.height() + 80))));
+  }
+  save_stacked_artifact("ui_move_warp_button", strips);
+
+  CHECK(warp_button != nullptr);
+  CHECK(warp_button != nullptr && !warp_button->icon().isNull());
+  CHECK(canvas->warp_transform_active());
+  CHECK(!canvas->free_transform_active());
+  CHECK(warp_button != nullptr && !warp_button->isVisible());
+  auto* mode_toggle = window.findChild<QPushButton*>(QStringLiteral("transformWarpModeButton"));
+  CHECK(mode_toggle != nullptr && mode_toggle->isVisible() && mode_toggle->isChecked());
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->warp_transform_active());
+  CHECK(canvas->active_layer_document_rect() == bounds);
+  CHECK(warp_button != nullptr && warp_button->isVisible());
+
+  // The Move row keeps its single-row height with the extra button.
+  require_action_by_text(window, QStringLiteral("Marquee"))->trigger();
+  QApplication::processEvents();
+  const int marquee_height = options_bar->height();
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  CHECK(options_bar->height() == marquee_height);
+}
+
+// GitHub issue 225: Undo inside a pending Free Transform steps back through the
+// session's drags, numeric edits, and nudge runs without leaving the session; Redo
+// re-applies; with nothing left an unchanged session cancels instead of undoing
+// document history. Warp cage drags step the same way.
+void ui_transform_session_undo_steps_back_through_drags() {
+  patchy::ui::MainWindow window;
+  const QRect bounds(100, 70, 160, 110);
+  prepare_zone_scene(window, bounds, false);
+  auto* canvas = require_canvas(window);
+  auto* undo = require_hotkey_action(window, QStringLiteral("edit.undo"));
+  auto* redo = require_hotkey_action(window, QStringLiteral("edit.redo"));
+  const auto view_rect = QRect(canvas->widget_position_for_document_point(bounds.topLeft()) - QPoint(80, 80),
+                               QSize(bounds.width() + 200, bounds.height() + 160));
+  QList<QImage> strips;
+  const auto capture = [&] {
+    QApplication::processEvents();
+    strips.push_back(canvas->grab().toImage().copy(view_rect));
+  };
+  const auto rect_now = [&] { return require_state(*canvas); };
+
+  CHECK(canvas->begin_free_transform());
+  const auto start = rect_now();
+  // Step 1: drag the box 30 px right and 20 px down.
+  const auto center = canvas->widget_position_for_document_point(bounds.center());
+  drag(*canvas, center, center + QPoint(30, 20));
+  const auto moved = rect_now();
+  // Step 2: rotate 30 degrees in the options-bar fields.
+  CHECK(canvas->set_transform_controls_state(moved.reference_position, 100.0, 100.0, 30.0));
+  const auto rotated = rect_now();
+  // Step 3: three arrow nudges, one step.
+  for (int i = 0; i < 3; ++i) {
+    send_key(*canvas, Qt::Key_Right);
+  }
+  const auto nudged = rect_now();
+  capture();
+
+  undo->trigger();
+  const auto after_first_undo = rect_now();
+  capture();
+  undo->trigger();
+  const auto after_second_undo = rect_now();
+  capture();
+  save_stacked_artifact("ui_transform_session_undo_steps", strips);
+
+  CHECK(undo->isEnabled());
+  CHECK(canvas->free_transform_active());
+  CHECK(std::abs(nudged.reference_position.x() - rotated.reference_position.x() - 3.0) < 0.01);
+  // Undo takes back the whole nudge run, then the rotation.
+  CHECK(std::abs(after_first_undo.reference_position.x() - rotated.reference_position.x()) < 0.01);
+  CHECK(std::abs(after_first_undo.rotation_degrees - 30.0) < 0.01);
+  CHECK(std::abs(after_second_undo.rotation_degrees) < 0.01);
+  CHECK(std::abs(after_second_undo.reference_position.x() - moved.reference_position.x()) < 0.01);
+  // Redo re-applies the rotation; a new drag drops the remaining redo step.
+  CHECK(redo->isEnabled());
+  redo->trigger();
+  CHECK(std::abs(rect_now().rotation_degrees - 30.0) < 0.01);
+  CHECK(redo->isEnabled());
+  CHECK(canvas->set_transform_controls_state(rect_now().reference_position, 120.0, 100.0, 30.0));
+  CHECK(!redo->isEnabled());
+  // Back to the start: three steps (scale, rotate, move), still in the session.
+  undo->trigger();
+  undo->trigger();
+  undo->trigger();
+  CHECK(canvas->free_transform_active());
+  CHECK(std::abs(rect_now().reference_position.x() - start.reference_position.x()) < 0.01);
+  CHECK(std::abs(rect_now().reference_position.y() - start.reference_position.y()) < 0.01);
+  // One more Undo cancels the unchanged session; the document is untouched.
+  undo->trigger();
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  CHECK(canvas->active_layer_document_rect() == bounds);
+
+  // A committed session is one document history step, as before.
+  CHECK(canvas->begin_free_transform());
+  drag(*canvas, center, center + QPoint(30, 20));
+  CHECK(canvas->set_transform_controls_state(rect_now().reference_position, 100.0, 100.0, 90.0));
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  CHECK(canvas->active_layer_document_rect() != bounds);
+  undo->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->active_layer_document_rect() == bounds);
+
+  // Warp cage drags step the same way.
+  CHECK(canvas->begin_warp_transform());
+  CHECK(canvas->warp_handle_count() == 16);
+  const auto handle_before = canvas->warp_handle_document_position(5);
+  const auto handle_widget = canvas->widget_position_for_document_point(handle_before.toPoint());
+  drag(*canvas, handle_widget, handle_widget + QPoint(25, 15));
+  const auto handle_moved = canvas->warp_handle_document_position(5);
+  CHECK(std::hypot(handle_moved.x() - handle_before.x(), handle_moved.y() - handle_before.y()) > 10.0);
+  undo->trigger();
+  CHECK(canvas->warp_transform_active());
+  const auto handle_undone = canvas->warp_handle_document_position(5);
+  CHECK(std::hypot(handle_undone.x() - handle_before.x(), handle_undone.y() - handle_before.y()) < 0.01);
+  redo->trigger();
+  const auto handle_redone = canvas->warp_handle_document_position(5);
+  CHECK(std::hypot(handle_redone.x() - handle_moved.x(), handle_redone.y() - handle_moved.y()) < 0.01);
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->warp_transform_active());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> move_transform_zones_tests() {
   return {
+      {"ui_transform_session_undo_steps_back_through_drags", ui_transform_session_undo_steps_back_through_drags},
+      {"ui_move_warp_button_starts_warp_from_the_bar", ui_move_warp_button_starts_warp_from_the_bar},
       {"ui_transform_zone_passive_edges_resize_and_corners_rotate",
        ui_transform_zone_passive_edges_resize_and_corners_rotate},
       {"ui_transform_zone_rotated_session_edges_follow_the_box", ui_transform_zone_rotated_session_edges_follow_the_box},

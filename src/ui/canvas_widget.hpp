@@ -806,6 +806,18 @@ public:
   void finish_free_transform();
   void cancel_free_transform();
   [[nodiscard]] bool free_transform_active() const noexcept;
+  // Steps inside a pending Free Transform or Warp session (GitHub issue 225): every
+  // handle drag, numeric edit, warp preset, and run of arrow-key nudges is one step.
+  // Undo restores the geometry before the last step (the session stays open); Redo
+  // re-applies it. Both return false when there is nothing to step (or no session).
+  // A Free Transform <-> Warp mode switch starts the stack over.
+  bool undo_transform_session_step();
+  bool redo_transform_session_step();
+  [[nodiscard]] int transform_session_undo_step_count() const noexcept;
+  [[nodiscard]] int transform_session_redo_step_count() const noexcept;
+  // True when a pending Free Transform or Warp session holds anything a cancel
+  // would discard (a changed box or cage, or a stage carried over a mode switch).
+  [[nodiscard]] bool transform_session_has_changes() const;
   // True while the session transforms a flattened target set (a selected folder
   // or a multi-selection) instead of one layer. Warp refuses such sessions.
   [[nodiscard]] bool free_transform_is_multi_target() const noexcept;
@@ -2264,6 +2276,25 @@ private:
   void draw_warp_transform(QPainter& painter) const;
   void commit_warp_transform();
   void reset_warp_state();
+  // One pending-session state for the step history: the free-transform box (rect,
+  // angle, flips) or the warp cage (mesh, style), whichever mode is active.
+  struct TransformSessionStep {
+    QRectF rect;
+    double angle{0.0};
+    double scale_x_sign{1.0};
+    double scale_y_sign{1.0};
+    WarpMeshGrid mesh;
+    QString warp_style;
+    double warp_style_value{0.0};
+  };
+  [[nodiscard]] TransformSessionStep current_transform_session_step() const;
+  [[nodiscard]] static bool transform_session_steps_equal(const TransformSessionStep& a,
+                                                          const TransformSessionStep& b);
+  // Pushes `before` when the session state differs from it now. A nudge right after
+  // a nudge joins that step, so holding an arrow key is one step.
+  void record_transform_session_step(const TransformSessionStep& before, bool nudge = false);
+  void restore_transform_session_step(const TransformSessionStep& step);
+  void clear_transform_session_steps();
   bool constrain_pan() noexcept;
   // Re-anchors the view after the viewport changed from old_size (GitHub issue 241); true
   // when the pan moved. See docs/view-navigation.md, "Viewport resizes".
@@ -3171,6 +3202,10 @@ private:
   bool pending_warp_changed_{false};
   bool pending_warp_smart_object_{false};
   WarpMeshGrid pending_warp_mesh_{};
+  std::vector<TransformSessionStep> transform_session_undo_steps_;
+  std::vector<TransformSessionStep> transform_session_redo_steps_;
+  TransformSessionStep transform_session_step_at_press_{};
+  bool transform_session_last_step_was_nudge_{false};
   WarpMeshGrid pending_warp_original_mesh_{};
   std::array<double, 9> pending_warp_content_to_document_{1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0};
   double pending_warp_content_width_{0.0};

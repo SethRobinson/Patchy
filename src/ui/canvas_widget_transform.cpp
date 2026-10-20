@@ -1149,6 +1149,7 @@ bool CanvasWidget::begin_free_transform() {
       layer_is_text(*layer) ? move_layer_transform_local_rect(*layer).value_or(*opaque_rect) : *opaque_rect;
 
   transforming_layer_ = true;
+  clear_transform_session_steps();
   dragging_transform_ = false;
   transform_layer_id_ = layer->id();
   set_move_transform_controls_layer(std::nullopt);
@@ -1359,6 +1360,7 @@ bool CanvasWidget::begin_free_transform_multi(TransformTargetCollection collecti
   }
 
   transforming_layer_ = true;
+  clear_transform_session_steps();
   dragging_transform_ = false;
   transform_layer_id_.reset();
   transform_targets_ = std::move(collection.targets);
@@ -1501,6 +1503,7 @@ void CanvasWidget::clear_transform_commit_hold() {
 
 void CanvasWidget::reset_free_transform_session_state() {
   transforming_layer_ = false;
+  clear_transform_session_steps();
   dragging_transform_ = false;
   transform_layer_id_.reset();
   transform_drag_handle_ = TransformHandle::None;
@@ -2628,6 +2631,7 @@ bool CanvasWidget::set_transform_controls_state(QPointF reference_position, doub
     cancel_free_transform();
     return false;
   }
+  const auto step_before = current_transform_session_step();
 
   const auto scale_x_sign = transform_scale_sign(scale_x_percent, transform_scale_x_sign_);
   const auto scale_y_sign = transform_scale_sign(scale_y_percent, transform_scale_y_sign_);
@@ -2649,10 +2653,122 @@ bool CanvasWidget::set_transform_controls_state(QPointF reference_position, doub
   transform_scale_x_sign_ = scale_x_sign;
   transform_scale_y_sign_ = scale_y_sign;
   transform_angle_ = rotation_degrees;
+  record_transform_session_step(step_before);
   refresh_transform_composited_preview_cache();
   update_transform_preview_region(previous_preview_rect);
   notify_transform_controls_changed();
   return true;
+}
+
+CanvasWidget::TransformSessionStep CanvasWidget::current_transform_session_step() const {
+  TransformSessionStep step;
+  if (warping_layer_) {
+    step.mesh = warp_mesh_;
+    step.warp_style = warp_style_;
+    step.warp_style_value = warp_style_value_;
+  } else {
+    step.rect = transform_current_rect_;
+    step.angle = transform_angle_;
+    step.scale_x_sign = transform_scale_x_sign_;
+    step.scale_y_sign = transform_scale_y_sign_;
+  }
+  return step;
+}
+
+bool CanvasWidget::transform_session_steps_equal(const TransformSessionStep& a, const TransformSessionStep& b) {
+  return a.rect == b.rect && a.angle == b.angle && a.scale_x_sign == b.scale_x_sign &&
+         a.scale_y_sign == b.scale_y_sign && a.mesh.u_order == b.mesh.u_order && a.mesh.v_order == b.mesh.v_order &&
+         a.mesh.xs == b.mesh.xs && a.mesh.ys == b.mesh.ys && a.warp_style == b.warp_style &&
+         a.warp_style_value == b.warp_style_value;
+}
+
+void CanvasWidget::record_transform_session_step(const TransformSessionStep& before, bool nudge) {
+  if (!transforming_layer_ && !warping_layer_) {
+    return;
+  }
+  if (transform_session_steps_equal(before, current_transform_session_step())) {
+    return;
+  }
+  transform_session_redo_steps_.clear();
+  if (!(nudge && transform_session_last_step_was_nudge_ && !transform_session_undo_steps_.empty())) {
+    transform_session_undo_steps_.push_back(before);
+  }
+  transform_session_last_step_was_nudge_ = nudge;
+}
+
+void CanvasWidget::restore_transform_session_step(const TransformSessionStep& step) {
+  transform_session_last_step_was_nudge_ = false;
+  if (warping_layer_) {
+    warp_mesh_ = step.mesh;
+    warp_style_ = step.warp_style;
+    warp_style_value_ = step.warp_style_value;
+    refresh_warp_preview_cache();
+    update();
+    notify_transform_controls_changed();
+    return;
+  }
+  if (!prepare_free_transform_source()) {
+    return;
+  }
+  // The numeric-edit refresh: full-quality patches over the old-union-new region.
+  const auto previous_preview_rect = transform_preview_document_rect();
+  transform_current_rect_ = step.rect;
+  transform_angle_ = step.angle;
+  transform_scale_x_sign_ = step.scale_x_sign;
+  transform_scale_y_sign_ = step.scale_y_sign;
+  refresh_transform_composited_preview_cache();
+  update_transform_preview_region(previous_preview_rect);
+  update();
+  notify_transform_controls_changed();
+}
+
+void CanvasWidget::clear_transform_session_steps() {
+  transform_session_undo_steps_.clear();
+  transform_session_redo_steps_.clear();
+  transform_session_last_step_was_nudge_ = false;
+}
+
+bool CanvasWidget::undo_transform_session_step() {
+  if ((!transforming_layer_ && !warping_layer_) || dragging_transform_ || dragging_warp_handle_ ||
+      transform_session_undo_steps_.empty()) {
+    return false;
+  }
+  auto step = std::move(transform_session_undo_steps_.back());
+  transform_session_undo_steps_.pop_back();
+  transform_session_redo_steps_.push_back(current_transform_session_step());
+  restore_transform_session_step(step);
+  return true;
+}
+
+bool CanvasWidget::redo_transform_session_step() {
+  if ((!transforming_layer_ && !warping_layer_) || dragging_transform_ || dragging_warp_handle_ ||
+      transform_session_redo_steps_.empty()) {
+    return false;
+  }
+  auto step = std::move(transform_session_redo_steps_.back());
+  transform_session_redo_steps_.pop_back();
+  transform_session_undo_steps_.push_back(current_transform_session_step());
+  restore_transform_session_step(step);
+  return true;
+}
+
+int CanvasWidget::transform_session_undo_step_count() const noexcept {
+  return static_cast<int>(transform_session_undo_steps_.size());
+}
+
+int CanvasWidget::transform_session_redo_step_count() const noexcept {
+  return static_cast<int>(transform_session_redo_steps_.size());
+}
+
+bool CanvasWidget::transform_session_has_changes() const {
+  if (warping_layer_) {
+    return warp_entry_changed_ || warp_mesh_.xs != warp_original_mesh_.xs || warp_mesh_.ys != warp_original_mesh_.ys;
+  }
+  if (transforming_layer_) {
+    return transform_has_pending_warp_ || transform_current_rect_ != transform_original_rect_ ||
+           transform_angle_ != 0.0 || transform_scale_x_sign_ != 1.0 || transform_scale_y_sign_ != 1.0;
+  }
+  return false;
 }
 
 void CanvasWidget::set_transform_cursor_for_handle(TransformHandle handle, double angle_degrees) {
@@ -3928,6 +4044,7 @@ bool CanvasWidget::begin_warp_transform() {
   }
 
   warping_layer_ = true;
+  clear_transform_session_steps();
   dragging_warp_handle_ = false;
   warp_drag_index_ = -1;
   warp_layer_id_ = layer->id();
@@ -3979,9 +4096,11 @@ void CanvasWidget::apply_warp_style_preset(const QString& style, double value) {
   if (!warping_layer_) {
     return;
   }
+  const auto step_before = current_transform_session_step();
   if (style == QStringLiteral("warpCustom")) {
     warp_style_ = style;
     warp_style_value_ = value;
+    record_transform_session_step(step_before);
     notify_transform_controls_changed();
     return;
   }
@@ -3993,6 +4112,7 @@ void CanvasWidget::apply_warp_style_preset(const QString& style, double value) {
   warp_mesh_ = elevate_warp_mesh_to_cubic(*generated);
   warp_style_ = style;
   warp_style_value_ = value;
+  record_transform_session_step(step_before);
   refresh_warp_preview_cache();
   update();
   notify_transform_controls_changed();
@@ -4440,6 +4560,7 @@ void CanvasWidget::commit_warp_transform() {
 
 void CanvasWidget::reset_warp_state() {
   warping_layer_ = false;
+  clear_transform_session_steps();
   dragging_warp_handle_ = false;
   warp_drag_index_ = -1;
   warp_layer_id_.reset();
@@ -4568,6 +4689,7 @@ bool CanvasWidget::switch_warp_to_free_transform() {
   reset_warp_state();
 
   transforming_layer_ = true;
+  clear_transform_session_steps();
   dragging_transform_ = false;
   transform_layer_id_ = layer_id;
   set_move_transform_controls_layer(std::nullopt);
@@ -4633,6 +4755,7 @@ bool CanvasWidget::resume_pending_warp_session() {
   const bool entry_changed = pending_warp_changed_ || stage_changed;
 
   warping_layer_ = true;
+  clear_transform_session_steps();
   dragging_warp_handle_ = false;
   warp_drag_index_ = -1;
   warp_layer_id_ = layer_id;

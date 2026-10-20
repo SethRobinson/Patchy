@@ -412,6 +412,23 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       canvas_->set_show_transform_controls(checked);
     }
   });
+  // Warp straight from the Move bar (GitHub issue 225): the same entry as Edit >
+  // Warp Transform, so the cage is one click away before any transform starts.
+  // During a session the bar swaps to the transform row, whose own toggle switches
+  // between free transform and warp.
+  {
+    auto* move_warp_button = new QToolButton(toolbar);
+    move_warp_button->setObjectName(QStringLiteral("moveWarpButton"));
+    move_warp_button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    move_warp_button->setIcon(simple_icon(QStringLiteral("warp")));
+    move_warp_button->setIconSize(QSize(18, 18));
+    move_warp_button->setAutoRaise(true);
+    move_warp_button->setFocusPolicy(Qt::NoFocus);
+    move_warp_button->setProperty("optionsBarButton", true);
+    bind_tooltip(move_warp_button, QT_TR_NOOP("Warp Transform"));
+    add_option_widget(move_warp_button, {CanvasTool::Move});
+    connect(move_warp_button, &QToolButton::clicked, this, [this] { warp_transform_active_layer(); });
+  }
   // Snap mirrors View > Snap: one persisted setting (view/snapEnabled), two
   // surfaces. The action owns the state; the checkbox follows its toggled signal.
   move_snap_check_ = new CheckGlyphBox(tr("Snap"), toolbar);
