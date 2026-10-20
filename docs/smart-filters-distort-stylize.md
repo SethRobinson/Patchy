@@ -73,6 +73,27 @@ captures unless noted.
   coordinate ramps at moderate settings, and on the 64x48 fixtures a mean RGB difference
   of 1.3-2.3 levels (alpha 0.4-1.3), with isolated large differences on noise.
 
+### Wave (`Wave`, filterID `Wave`)
+
+- Keys from PS's recorded actions: `Wvtp` enum `Wvtp` (`WvSn` sine, `WvTr` triangle,
+  `WvSq` square), integers `NmbG` generators, `WLMn`/`WLMx` wavelength, `AmMn`/`AmMx`
+  amplitude, `SclH`/`SclV` scale percent, `UndA` enum `UndA` (`WrpA` wrap around,
+  `RptE` repeat edge pixels), `RndS` random seed (kept verbatim, no dialog control).
+  Entry `Wave...`.
+- Measured (16-bit coordinate ramps; 256x256, 128x192 and 192x144 canvases): the
+  horizontal shift of a pixel depends only on its row and the vertical shift only on its
+  column; one generator has period `2 * wavelength` px and amplitude
+  `0.78125 * amplitude` px whatever the canvas size; generators add (three equal waves
+  reach about twice one wave); a scale of 0 % removes that axis; the seed changes only
+  the phases; triangle and square keep the period and amplitude.
+- PS draws each generator's wavelength, amplitude and phases from its own random
+  generator, which probes cannot reproduce. Patchy draws them from the stored seed with
+  splitmix64 (wavelength and amplitude uniform integers in the ranges, two uniform
+  phases), so its pattern has PS's units and character but is not PS's pattern. The
+  fixture test checks the render is repeatable; `smart_filter_wave_keeps_photoshop_units`
+  pins the units. Wrap Around wraps sample positions over the filter canvas; Repeat Edge
+  Pixels clamps them to it.
+
 ## Fixtures
 
 `test-fixtures/psd/photoshop-smart-filter-<name>.psd`, self-authored through COM from a
@@ -80,5 +101,6 @@ captures unless noted.
 is the filtered Smart Object; "_source" is a hidden copy of its unfiltered pixels, so
 `psd_photoshop_distort_stylize_smart_filter_fixtures_round_trip_and_render` renders the
 stack from `_source` and compares Photoshop's baked layer (byte-exact for Solarize and
-Find Edges). Capture scripts write an empty descriptor only for filters without settings;
+Find Edges, a documented mean tolerance for ZigZag, repeatability only for the seeded
+Wave). Capture scripts write an empty descriptor only for filters without settings;
 every other filter passes PS's full recorded key list ([photoshop-com.md](photoshop-com.md)).

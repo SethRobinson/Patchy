@@ -22,6 +22,8 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <filesystem>
+#include <fstream>
 #include <set>
 #include <span>
 #include <string>
@@ -178,6 +180,45 @@ void smart_filter_schema_descriptors_author_parse_and_patch() {
   }
 }
 
+// Wave keeps Photoshop's units (COM probes, docs/smart-filters-distort-stylize.md):
+// one generator of wavelength 50 and amplitude 10 moves pixels by up to 7.8125 px
+// with a 100 px period, the horizontal shift depends only on the row, and a 0 %
+// vertical scale leaves rows in place.
+void smart_filter_wave_keeps_photoshop_units() {
+  const auto* schema = patchy::find_smart_filter_schema(patchy::SmartFilterKind::Wave);
+  CHECK(schema != nullptr);
+  constexpr std::int32_t width = 256;
+  constexpr std::int32_t height = 240;
+  patchy::PixelBuffer ramp(width, height, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      auto* px = ramp.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(x);
+      px[1] = 0;
+      px[2] = 0;
+      px[3] = 255;
+    }
+  }
+  auto stack = single_entry_stack(*schema, patchy::SchemaSmartFilter{{0, 1, 50, 50, 10, 10, 100, 0, 1, 7}});
+  const patchy::Rect bounds{0, 0, width, height};
+  const auto result = patchy::render_smart_filter_stack(ramp, bounds, bounds, stack);
+  CHECK(result.bounds.width == width && result.bounds.height == height);
+  std::vector<int> shift(static_cast<std::size_t>(height));
+  int largest = 0;
+  for (std::int32_t y = 0; y < height; ++y) {
+    const auto row_shift = static_cast<int>(result.pixels.pixel(128, y)[0]) - 128;
+    shift[static_cast<std::size_t>(y)] = row_shift;
+    largest = std::max(largest, std::abs(row_shift));
+    for (std::int32_t x = 32; x < width - 32; x += 16) {
+      CHECK(std::abs(static_cast<int>(result.pixels.pixel(x, y)[0]) - x - row_shift) <= 1);
+    }
+  }
+  CHECK(largest >= 7 && largest <= 8);
+  for (std::int32_t y = 0; y + 100 < height; ++y) {
+    CHECK(std::abs(shift[static_cast<std::size_t>(y)] - shift[static_cast<std::size_t>(y + 100)]) <= 1);
+  }
+}
+
 const patchy::UnknownPsdBlock& require_sold_block(const patchy::Layer& layer) {
   const auto& blocks = layer.unknown_psd_blocks();
   const auto found = std::find_if(blocks.begin(), blocks.end(), [](const auto& block) {
@@ -226,6 +267,10 @@ struct SchemaFixture {
   // the union of both rasters (RGB where both are visible).
   double mean_rgb_tolerance{0.0};
   double mean_alpha_tolerance{0.0};
+  // Photoshop draws this filter's pattern from a random generator probes cannot
+  // reproduce: Patchy renders its own deterministic pattern, so only the render
+  // itself (repeatable, inside the canvas, changed) is checked.
+  bool own_pattern{false};
 };
 
 void check_schema_fixture(const SchemaFixture& fixture) {
@@ -289,6 +334,38 @@ void check_schema_fixture(const SchemaFixture& fixture) {
   const auto rendered =
       patchy::render_smart_filter_stack(source.pixels(), source.bounds(), canvas, *stack);
   const auto expected_bounds = filtered.bounds();
+  if (fixture.own_pattern) {
+    const auto again =
+        patchy::render_smart_filter_stack(source.pixels(), source.bounds(), canvas, *stack);
+    CHECK(again.bounds.x == rendered.bounds.x && again.bounds.y == rendered.bounds.y);
+    CHECK(again.bounds.width == rendered.bounds.width &&
+          again.bounds.height == rendered.bounds.height);
+    CHECK(again.pixels.data().size() == rendered.pixels.data().size() &&
+          std::equal(again.pixels.data().begin(), again.pixels.data().end(),
+                     rendered.pixels.data().begin()));
+    CHECK(rendered.bounds.x >= 0 && rendered.bounds.y >= 0 &&
+          rendered.bounds.x + rendered.bounds.width <= canvas.width &&
+          rendered.bounds.y + rendered.bounds.height <= canvas.height);
+    // Patchy's own pattern for review (docs/smart-filters-distort-stylize.md):
+    // a PAM image (RGB_ALPHA) of the render beside the PS fixture.
+    std::filesystem::create_directories("test-artifacts");
+    {
+      std::ofstream pam(std::filesystem::path("test-artifacts") /
+                            (std::string(fixture.file) + ".patchy.pam"),
+                        std::ios::binary);
+      pam << "P7\nWIDTH " << rendered.bounds.width << "\nHEIGHT " << rendered.bounds.height
+          << "\nDEPTH 4\nMAXVAL 255\nTUPLTYPE RGB_ALPHA\nENDHDR\n";
+      for (std::int32_t y = 0; y < rendered.bounds.height; ++y) {
+        pam.write(reinterpret_cast<const char*>(rendered.pixels.pixel(0, y)),
+                  static_cast<std::streamsize>(rendered.bounds.width) * 4);
+      }
+    }
+    CHECK(!(rendered.bounds.x == source.bounds().x && rendered.bounds.y == source.bounds().y &&
+            rendered.pixels.data().size() == source.pixels().data().size() &&
+            std::equal(rendered.pixels.data().begin(), rendered.pixels.data().end(),
+                       source.pixels().data().begin())));
+    return;
+  }
   const auto sample = [](const patchy::PixelBuffer& pixels, patchy::Rect bounds, std::int32_t x,
                          std::int32_t y) -> std::array<int, 4> {
     if (x < bounds.x || y < bounds.y || x >= bounds.x + bounds.width ||
@@ -348,6 +425,9 @@ void psd_photoshop_distort_stylize_smart_filter_fixtures_round_trip_and_render()
       {"photoshop-smart-filter-zigzag.psd", patchy::SmartFilterKind::ZigZag, {10, 5, 2}, 3.0, 2.0},
       {"photoshop-smart-filter-zigzag-around.psd", patchy::SmartFilterKind::ZigZag, {-25, 3, 0},
        3.0, 2.0},
+      // Sine, 3 generators, wavelength 10..60, amplitude 2..8, 100 %, Repeat Edge Pixels.
+      {"photoshop-smart-filter-wave.psd", patchy::SmartFilterKind::Wave,
+       {0, 3, 10, 60, 2, 8, 100, 100, 1, 4242}, 0.0, 0.0, true},
   };
   for (const auto& fixture : fixtures) {
     check_schema_fixture(fixture);
@@ -361,6 +441,7 @@ std::vector<patchy::test::TestCase> smart_filter_distort_stylize_tests() {
       {"smart_filter_schema_tables_are_consistent", smart_filter_schema_tables_are_consistent},
       {"smart_filter_schema_descriptors_author_parse_and_patch",
        smart_filter_schema_descriptors_author_parse_and_patch},
+      {"smart_filter_wave_keeps_photoshop_units", smart_filter_wave_keeps_photoshop_units},
       {"psd_photoshop_distort_stylize_smart_filter_fixtures_round_trip_and_render",
        psd_photoshop_distort_stylize_smart_filter_fixtures_round_trip_and_render},
   };

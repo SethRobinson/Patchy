@@ -11060,6 +11060,50 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>ZigZag</source>
         <translation>水波</translation>
     </message>
+    <message>
+        <source>Sine</source>
+        <translation>正弦</translation>
+    </message>
+    <message>
+        <source>Wrap Around</source>
+        <translation>折回</translation>
+    </message>
+    <message>
+        <source>Repeat Edge Pixels</source>
+        <translation>重复边缘像素</translation>
+    </message>
+    <message>
+        <source>Generators</source>
+        <translation>生成器数</translation>
+    </message>
+    <message>
+        <source>Wavelength Min</source>
+        <translation>最小波长</translation>
+    </message>
+    <message>
+        <source>Wavelength Max</source>
+        <translation>最大波长</translation>
+    </message>
+    <message>
+        <source>Amplitude Min</source>
+        <translation>最小波幅</translation>
+    </message>
+    <message>
+        <source>Amplitude Max</source>
+        <translation>最大波幅</translation>
+    </message>
+    <message>
+        <source>Horizontal Scale</source>
+        <translation>水平比例</translation>
+    </message>
+    <message>
+        <source>Vertical Scale</source>
+        <translation>垂直比例</translation>
+    </message>
+    <message>
+        <source>Undefined Areas</source>
+        <translation>未定义区域</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

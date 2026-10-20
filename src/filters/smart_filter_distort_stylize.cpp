@@ -260,6 +260,97 @@ FilterRenderResult render_zigzag(const FilterRenderResult& input, Rect canvas, s
   });
 }
 
+// splitmix64 (AGENTS.md: deterministic across toolchains) with an explicit
+// 53-bit uniform mapping to [0, 1).
+struct SplitMix64 {
+  std::uint64_t state;
+  std::uint64_t next() noexcept {
+    auto z = (state += 0x9e3779b97f4a7c15ULL);
+    z = (z ^ (z >> 30U)) * 0xbf58476d1ce4e5b9ULL;
+    z = (z ^ (z >> 27U)) * 0x94d049bb133111ebULL;
+    return z ^ (z >> 31U);
+  }
+  double uniform() noexcept { return static_cast<double>(next() >> 11U) * 0x1.0p-53; }
+};
+
+// Wave (docs/smart-filters-distort-stylize.md): every generator adds one wave
+// of period 2 * wavelength pixels and amplitude 0.78125 * amplitude pixels
+// (Photoshop's units, independent of canvas size); the horizontal shift of a
+// pixel depends on its row and the vertical shift on its column, scaled by the
+// two Scale percentages. Photoshop draws each generator's wavelength,
+// amplitude and phases from its own random generator, which probes cannot
+// reproduce, so Patchy draws them from the stored seed with splitmix64: the
+// same settings give the same Patchy image, with Photoshop's character but not
+// its exact pattern.
+FilterRenderResult render_wave(const FilterRenderResult& input, Rect canvas,
+                               const SchemaSmartFilter& settings,
+                               const FilterProgress* progress) {
+  const auto& v = settings.values;
+  const auto type = v[0];
+  const auto generators = v[1];
+  const auto wavelength_low = std::min(v[2], v[3]);
+  const auto wavelength_high = std::max(v[2], v[3]);
+  const auto amplitude_low = std::min(v[4], v[5]);
+  const auto amplitude_high = std::max(v[4], v[5]);
+  const auto scale_x = static_cast<double>(v[6]) / 100.0;
+  const auto scale_y = static_cast<double>(v[7]) / 100.0;
+  const auto wrap = v[8] == 0;
+  SplitMix64 random{static_cast<std::uint64_t>(static_cast<std::uint32_t>(v[9]))};
+  struct Generator {
+    double wavelength;
+    double amplitude;
+    double phase_x;
+    double phase_y;
+  };
+  std::vector<Generator> waves;
+  waves.reserve(static_cast<std::size_t>(generators));
+  for (std::int32_t index = 0; index < generators; ++index) {
+    Generator wave{};
+    wave.wavelength = static_cast<double>(wavelength_low) +
+                      std::floor(random.uniform() *
+                                 static_cast<double>(wavelength_high - wavelength_low + 1));
+    wave.amplitude = 0.78125 * (static_cast<double>(amplitude_low) +
+                                std::floor(random.uniform() *
+                                           static_cast<double>(amplitude_high - amplitude_low + 1)));
+    wave.phase_x = 2.0 * kPi * random.uniform();
+    wave.phase_y = 2.0 * kPi * random.uniform();
+    waves.push_back(wave);
+  }
+  const auto shape = [type](double t) {
+    const auto s = std::sin(t);
+    if (type == 1) {
+      return std::asin(s) * (2.0 / kPi);
+    }
+    if (type == 2) {
+      return s >= 0.0 ? 1.0 : -1.0;
+    }
+    return s;
+  };
+  std::vector<double> shift_x(static_cast<std::size_t>(canvas.height), 0.0);
+  std::vector<double> shift_y(static_cast<std::size_t>(canvas.width), 0.0);
+  for (const auto& wave : waves) {
+    for (std::int32_t y = 0; y < canvas.height; ++y) {
+      shift_x[static_cast<std::size_t>(y)] +=
+          scale_x * wave.amplitude * shape(kPi * static_cast<double>(y) / wave.wavelength + wave.phase_x);
+    }
+    for (std::int32_t x = 0; x < canvas.width; ++x) {
+      shift_y[static_cast<std::size_t>(x)] +=
+          scale_y * wave.amplitude * shape(kPi * static_cast<double>(x) / wave.wavelength + wave.phase_y);
+    }
+  }
+  const auto width = static_cast<double>(canvas.width);
+  const auto height = static_cast<double>(canvas.height);
+  return render_inverse_mapped(input, canvas, progress, [&](double x, double y) {
+    auto source_x = x + shift_x[static_cast<std::size_t>(y)];
+    auto source_y = y + shift_y[static_cast<std::size_t>(x)];
+    if (wrap) {
+      source_x -= width * std::floor(source_x / width);
+      source_y -= height * std::floor(source_y / height);
+    }
+    return std::pair{source_x, source_y};
+  });
+}
+
 }  // namespace
 
 FilterRenderResult render_schema_smart_filter(const FilterRenderResult& current,
@@ -281,6 +372,8 @@ FilterRenderResult render_schema_smart_filter(const FilterRenderResult& current,
     case SmartFilterKind::ZigZag:
       return render_zigzag(current, filter_canvas_bounds, settings.values[0], settings.values[1],
                            settings.values[2], progress);
+    case SmartFilterKind::Wave:
+      return render_wave(current, filter_canvas_bounds, settings, progress);
     default:
       break;
   }

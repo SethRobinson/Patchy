@@ -11094,6 +11094,50 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>ZigZag</source>
         <translation>Zigzag</translation>
     </message>
+    <message>
+        <source>Sine</source>
+        <translation>Sinusoïde</translation>
+    </message>
+    <message>
+        <source>Wrap Around</source>
+        <translation>Bouclage</translation>
+    </message>
+    <message>
+        <source>Repeat Edge Pixels</source>
+        <translation>Répétition des pixels du contour</translation>
+    </message>
+    <message>
+        <source>Generators</source>
+        <translation>Générateurs</translation>
+    </message>
+    <message>
+        <source>Wavelength Min</source>
+        <translation>Longueur d'onde min.</translation>
+    </message>
+    <message>
+        <source>Wavelength Max</source>
+        <translation>Longueur d'onde max.</translation>
+    </message>
+    <message>
+        <source>Amplitude Min</source>
+        <translation>Amplitude min.</translation>
+    </message>
+    <message>
+        <source>Amplitude Max</source>
+        <translation>Amplitude max.</translation>
+    </message>
+    <message>
+        <source>Horizontal Scale</source>
+        <translation>Échelle horizontale</translation>
+    </message>
+    <message>
+        <source>Vertical Scale</source>
+        <translation>Échelle verticale</translation>
+    </message>
+    <message>
+        <source>Undefined Areas</source>
+        <translation>Zones non définies</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

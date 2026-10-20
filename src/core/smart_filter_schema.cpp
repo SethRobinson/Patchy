@@ -3,6 +3,7 @@
 #include "support/translate_noop.hpp"
 
 #include <array>
+#include <cstdint>
 
 namespace patchy {
 namespace {
@@ -27,6 +28,42 @@ constexpr SmartFilterField kZigZagFields[]{
      kZigZagStyles, 0, 0, 2},
 };
 
+constexpr SmartFilterFieldOption kWaveTypes[]{
+    {"WvSn", "sine", PATCHY_TRANSLATE_NOOP("QObject", "Sine")},
+    {"WvTr", "triangle", PATCHY_TRANSLATE_NOOP("QObject", "Triangle")},
+    {"WvSq", "square", PATCHY_TRANSLATE_NOOP("QObject", "Square")},
+};
+
+constexpr SmartFilterFieldOption kUndefinedAreas[]{
+    {"WrpA", "wrap_around", PATCHY_TRANSLATE_NOOP("QObject", "Wrap Around")},
+    {"RptE", "repeat_edge_pixels", PATCHY_TRANSLATE_NOOP("QObject", "Repeat Edge Pixels")},
+};
+
+// Photoshop's recorded Wave action (shipped Frames, Text Effects and Textures
+// sets): Wvtp, NmbG, WLMn, WLMx, AmMn, AmMx, SclH, SclV, UndA, RndS.
+constexpr SmartFilterField kWaveFields[]{
+    {"Wvtp", "type", PATCHY_TRANSLATE_NOOP("QObject", "Type"), SmartFilterFieldType::Enum, "Wvtp",
+     kWaveTypes, 0, 0, 0},
+    {"NmbG", "generators", PATCHY_TRANSLATE_NOOP("QObject", "Generators"),
+     SmartFilterFieldType::Integer, nullptr, {}, 1, 999, 5, 1, 100, nullptr},
+    {"WLMn", "wavelength_min", PATCHY_TRANSLATE_NOOP("QObject", "Wavelength Min"),
+     SmartFilterFieldType::Integer, nullptr, {}, 1, 999, 10, 1, 998, nullptr},
+    {"WLMx", "wavelength_max", PATCHY_TRANSLATE_NOOP("QObject", "Wavelength Max"),
+     SmartFilterFieldType::Integer, nullptr, {}, 1, 999, 120, 2, 999, nullptr},
+    {"AmMn", "amplitude_min", PATCHY_TRANSLATE_NOOP("QObject", "Amplitude Min"),
+     SmartFilterFieldType::Integer, nullptr, {}, 1, 999, 5, 1, 998, nullptr},
+    {"AmMx", "amplitude_max", PATCHY_TRANSLATE_NOOP("QObject", "Amplitude Max"),
+     SmartFilterFieldType::Integer, nullptr, {}, 1, 999, 35, 2, 999, nullptr},
+    {"SclH", "scale_horizontal", PATCHY_TRANSLATE_NOOP("QObject", "Horizontal Scale"),
+     SmartFilterFieldType::Integer, nullptr, {}, 0, 100, 100, 1, 100, PATCHY_TRANSLATE_NOOP("QObject", "%")},
+    {"SclV", "scale_vertical", PATCHY_TRANSLATE_NOOP("QObject", "Vertical Scale"),
+     SmartFilterFieldType::Integer, nullptr, {}, 0, 100, 100, 1, 100, PATCHY_TRANSLATE_NOOP("QObject", "%")},
+    {"UndA", "undefined_areas", PATCHY_TRANSLATE_NOOP("QObject", "Undefined Areas"),
+     SmartFilterFieldType::Enum, "UndA", kUndefinedAreas, 0, 0, 1},
+    {"RndS", "seed", PATCHY_TRANSLATE_NOOP("QObject", "Seed"), SmartFilterFieldType::Integer, nullptr,
+     {}, INT32_MIN, INT32_MAX, 1, 0, 1, nullptr, false, true},
+};
+
 constexpr std::array kSchemas{
     // Neither stores a Fltr object; the entry name has no ellipsis.
     SmartFilterSchema{SmartFilterKind::Solarize, "Slrz", false, 0x536c727aU, "Solarize",
@@ -38,6 +75,9 @@ constexpr std::array kSchemas{
     SmartFilterSchema{SmartFilterKind::ZigZag, "ZgZg", false, 0x5a675a67U, "ZigZag", "ZigZag...",
                       PATCHY_TRANSLATE_NOOP("QObject", "ZigZag"), "patchy.smart_filters.zigzag",
                       kZigZagFields},
+    SmartFilterSchema{SmartFilterKind::Wave, "Wave", false, 0x57617665U, "Wave", "Wave...",
+                      PATCHY_TRANSLATE_NOOP("QObject", "Wave"), "patchy.smart_filters.wave",
+                      kWaveFields},
 };
 
 }  // namespace
