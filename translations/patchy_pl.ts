@@ -11558,6 +11558,19 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Double-click to edit this effect in the Layer Style dialog; right-click for its menu.</source>
         <translation>Kliknij dwukrotnie, aby edytować ten efekt w oknie Styl warstwy; kliknij prawym przyciskiem, aby otworzyć jego menu.</translation>
     </message>
+    <message>
+        <source>Sharpen Edges</source>
+        <comment>Smart Filter</comment>
+        <translation>Wyostrz krawędzie</translation>
+    </message>
+    <message>
+        <source>Smart Sharpen</source>
+        <translation>Inteligentne wyostrzanie</translation>
+    </message>
+    <message>
+        <source> (Amount %1%, Radius %2 px, Legacy)</source>
+        <translation> (Wartość %1%, promień %2 px, tryb starszy)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23416,6 +23429,10 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     <message>
         <source>Edit %1...</source>
         <translation>Edytuj %1...</translation>
+    </message>
+    <message>
+        <source>Smart Sharpen</source>
+        <translation>Inteligentne wyostrzanie</translation>
     </message>
 </context>
 <context>

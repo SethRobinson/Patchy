@@ -11507,6 +11507,19 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Double-click to edit this effect in the Layer Style dialog; right-click for its menu.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Sharpen Edges</source>
+        <comment>Smart Filter</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Smart Sharpen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source> (Amount %1%, Radius %2 px, Legacy)</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23266,6 +23279,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     </message>
     <message>
         <source>Edit %1...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Smart Sharpen</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -25,6 +25,7 @@
 #include <array>
 #include <cmath>
 #include <cstdint>
+#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <span>
@@ -479,10 +480,11 @@ void destructive_classic_filters_share_the_native_kernels() {
     byte = static_cast<std::uint8_t>(state >> 24U);
   }
   const auto bounds = patchy::Rect{0, 0, 9, 7};
-  const std::array<std::pair<const char *, patchy::SmartFilterKind>, 3> cases{
+  const std::array<std::pair<const char *, patchy::SmartFilterKind>, 4> cases{
       {{"patchy.filters.blur", patchy::SmartFilterKind::Blur},
        {"patchy.filters.blur_more", patchy::SmartFilterKind::BlurMore},
-       {"patchy.filters.sharpen_more", patchy::SmartFilterKind::SharpenMore}}};
+       {"patchy.filters.sharpen_more", patchy::SmartFilterKind::SharpenMore},
+       {"patchy.filters.sharpen_edges", patchy::SmartFilterKind::SharpenEdges}}};
   for (const auto &[identifier, kind] : cases) {
     auto named = source;
     registry.apply(registry.default_invocation(identifier), named);
@@ -557,6 +559,163 @@ void smart_filter_effects_aligned_records_with_odd_lengths_stay_parsed() {
   CHECK(patchy::psd::serialize_filter_effects_block(block) == payload);
 }
 
+void psd_photoshop_smart_sharpen_legacy_renders_and_others_stay_locked() {
+  // Legacy-only Smart Sharpen (decided October 20, 2026): legacy mode,
+  // Gaussian Remove, Noise Reduction 0 renders as Unsharp Mask with threshold
+  // 0 (Photoshop draws both identically); every other variant stays
+  // preview-locked.
+  const auto document = read_fixture("photoshop-smart-filter-smart-sharpen.psd");
+  const auto &source = require_layer_named(document, "_Source");
+  const auto canvas = patchy::smart_filter_canvas_bounds(
+      document.width(), document.height(), source.bounds());
+  struct Rendered {
+    const char *name;
+    double amount;
+    double radius;
+  };
+  for (const auto &item : {Rendered{"Smart Sharpen legacy 100 2", 100.0, 2.0},
+                           Rendered{"Smart Sharpen legacy 250 0.7", 250.0, 0.7}}) {
+    const auto &layer = require_layer_named(document, item.name);
+    CHECK(patchy::smart_object_lock_reason(layer).empty());
+    const auto &stack = require_smart_filter_stack(document, item.name);
+    CHECK(stack.support == patchy::SmartFilterStackSupport::Supported);
+    const auto &entry = stack.entries.front();
+    CHECK(entry.kind == patchy::SmartFilterKind::SmartSharpen);
+    const auto *settings =
+        std::get_if<patchy::SmartSharpenSmartFilter>(&entry.parameters);
+    CHECK(settings != nullptr);
+    CHECK(std::abs(settings->amount_percent - item.amount) < 1e-9);
+    CHECK(std::abs(settings->radius_pixels - item.radius) < 1e-9);
+    const auto actual = patchy::render_smart_filter_stack(
+        source.pixels(), source.bounds(), canvas, stack);
+    const auto expected_bounds = layer.bounds();
+    CHECK(actual.bounds.x == expected_bounds.x &&
+          actual.bounds.y == expected_bounds.y &&
+          actual.bounds.width == expected_bounds.width &&
+          actual.bounds.height == expected_bounds.height);
+    // The entry renders exactly as an Unsharp Mask entry with threshold 0.
+    // On this partially transparent source Photoshop also sharpens alpha and
+    // its RGB rule is unresolved, so Photoshop's baked pixels are not a
+    // byte target here (docs/smart-filters-native.md, Unsharp Mask).
+    auto unsharp_stack = stack;
+    unsharp_stack.entries.front().kind = patchy::SmartFilterKind::UnsharpMask;
+    unsharp_stack.entries.front().parameters =
+        patchy::UnsharpMaskSmartFilter{item.amount, item.radius, 0};
+    const auto unsharp = patchy::render_smart_filter_stack(
+        source.pixels(), source.bounds(), canvas, unsharp_stack);
+    CHECK(unsharp.bounds.x == actual.bounds.x &&
+          unsharp.bounds.width == actual.bounds.width &&
+          unsharp.bounds.height == actual.bounds.height);
+    CHECK(std::equal(unsharp.pixels.data().begin(), unsharp.pixels.data().end(),
+                     actual.pixels.data().begin(), actual.pixels.data().end()));
+  }
+  for (const auto *name :
+       {"Smart Sharpen default mode", "Smart Sharpen legacy more accurate",
+        "Smart Sharpen legacy shadow fade"}) {
+    const auto &layer = require_layer_named(document, name);
+    CHECK(!patchy::smart_object_lock_reason(layer).empty());
+    const auto &stack = require_smart_filter_stack(document, name);
+    CHECK(stack.support == patchy::SmartFilterStackSupport::Unsupported);
+    CHECK(stack.entries.front().kind == patchy::SmartFilterKind::Unsupported);
+  }
+
+  // A clean save keeps the SoLd bytes; an Amount/Radius edit patches only
+  // those two values and stays in the legacy Gaussian case.
+  const auto clean = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(document));
+  for (const auto *name : {"Smart Sharpen legacy 100 2", "Smart Sharpen default mode"}) {
+    CHECK(require_sold_block(require_layer_named(clean, name)).payload ==
+          require_sold_block(require_layer_named(document, name)).payload);
+  }
+  auto edited = document;
+  auto *edited_layer = edited.find_layer(
+      require_layer_named(document, "Smart Sharpen legacy 100 2").id());
+  CHECK(edited_layer != nullptr);
+  auto edited_stack = *edited_layer->smart_filter_stack();
+  auto &edited_settings = std::get<patchy::SmartSharpenSmartFilter>(
+      edited_stack.entries.front().parameters);
+  edited_settings.amount_percent = 180.0;
+  edited_settings.radius_pixels = 3.5;
+  edited_layer->set_smart_filter_stack(std::move(edited_stack));
+  patchy::mark_layer_smart_object_block_dirty(*edited_layer);
+  const auto edited_bytes = patchy::psd::DocumentIo::write_layered_rgb8(edited);
+  // For the Photoshop open check (docs/photoshop-com.md).
+  patchy::psd::DocumentIo::write_layered_rgb8_file(
+      edited, std::filesystem::path("test-artifacts") / "smart-sharpen-edited.psd");
+  const auto reread = patchy::psd::DocumentIo::read(edited_bytes);
+  const auto &reread_entry =
+      require_smart_filter_stack(reread, "Smart Sharpen legacy 100 2")
+          .entries.front();
+  CHECK(reread_entry.kind == patchy::SmartFilterKind::SmartSharpen);
+  const auto &reread_settings =
+      std::get<patchy::SmartSharpenSmartFilter>(reread_entry.parameters);
+  CHECK(std::abs(reread_settings.amount_percent - 180.0) < 1e-9);
+  CHECK(std::abs(reread_settings.radius_pixels - 3.5) < 1e-9);
+  const auto reread_sold = descriptor_from_sold(
+      require_sold_block(require_layer_named(reread, "Smart Sharpen legacy 100 2"))
+          .payload);
+  const auto *filter = patchy::psd::descriptor_object(
+      *filter_fx_list(reread_sold).front().object_value, "Fltr");
+  CHECK(filter != nullptr && filter->class_id == "smartSharpen");
+  CHECK(filter->key_order.size() == 6U);
+}
+
+void smart_filter_sharpen_edges_tracks_photoshop_fixture() {
+  // Sharpen Edges is fitted, not byte-exact: within one level on 99.65% of
+  // probe samples (docs/smart-filters-native.md). Pin the measured agreement
+  // on Photoshop's own capture, once and twice applied (October 2026: 29 of
+  // 2244 and 30 of 2084 samples differ, largest 9 and 30).
+  const auto document =
+      read_fixture("photoshop-smart-filter-sharpen-edges.psd");
+  const auto &source = require_layer_named(document, "_Source");
+  const auto canvas = patchy::smart_filter_canvas_bounds(
+      document.width(), document.height(), source.bounds());
+  for (const auto *name : {"Sharpen Edges", "Sharpen Edges twice"}) {
+    const auto &layer = require_layer_named(document, name);
+    CHECK(patchy::smart_object_lock_reason(layer).empty());
+    const auto &stack = require_smart_filter_stack(document, name);
+    CHECK(stack.support == patchy::SmartFilterStackSupport::Supported);
+    for (const auto &entry : stack.entries) {
+      CHECK(entry.kind == patchy::SmartFilterKind::SharpenEdges);
+    }
+    const auto actual = patchy::render_smart_filter_stack(
+        source.pixels(), source.bounds(), canvas, stack);
+    const auto expected_bounds = layer.bounds();
+    CHECK(actual.bounds.x == expected_bounds.x &&
+          actual.bounds.y == expected_bounds.y &&
+          actual.bounds.width == expected_bounds.width &&
+          actual.bounds.height == expected_bounds.height);
+    if (actual.bounds.width != expected_bounds.width ||
+        actual.bounds.height != expected_bounds.height) {
+      continue;
+    }
+    std::size_t samples = 0;
+    std::size_t off = 0;
+    int largest = 0;
+    for (std::int32_t y = 0; y < expected_bounds.height; ++y) {
+      for (std::int32_t x = 0; x < expected_bounds.width; ++x) {
+        const auto *want = layer.pixels().pixel(x, y);
+        const auto *got = actual.pixels.pixel(x, y);
+        if (want[3] == 0U && got[3] == 0U) {
+          continue;
+        }
+        for (std::size_t channel = 0; channel < 4U; ++channel) {
+          const auto difference =
+              std::abs(int{want[channel]} - int{got[channel]});
+          ++samples;
+          off += difference != 0 ? 1U : 0U;
+          largest = std::max(largest, difference);
+        }
+      }
+    }
+    std::cerr << name << ": " << off << " of " << samples
+              << " samples differ, largest " << largest << "\n";
+    CHECK(samples > 0U);
+    CHECK(off * 60U <= samples);
+    CHECK(largest <= 32);
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> smart_filter_classic_tests() {
@@ -575,5 +734,9 @@ std::vector<patchy::test::TestCase> smart_filter_classic_tests() {
        destructive_classic_filters_share_the_native_kernels},
       {"smart_filter_effects_aligned_records_with_odd_lengths_stay_parsed",
        smart_filter_effects_aligned_records_with_odd_lengths_stay_parsed},
+      {"psd_photoshop_smart_sharpen_legacy_renders_and_others_stay_locked",
+       psd_photoshop_smart_sharpen_legacy_renders_and_others_stay_locked},
+      {"smart_filter_sharpen_edges_tracks_photoshop_fixture",
+       smart_filter_sharpen_edges_tracks_photoshop_fixture},
   };
 }

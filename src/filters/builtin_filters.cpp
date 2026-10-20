@@ -513,6 +513,10 @@ void photoshop_sharpen_more(PixelBuffer& pixels) {
   photoshop_classic_filter(pixels, SmartFilterKind::SharpenMore);
 }
 
+void photoshop_sharpen_edges(PixelBuffer& pixels) {
+  photoshop_classic_filter(pixels, SmartFilterKind::SharpenEdges);
+}
+
 void average(PixelBuffer& pixels) {
   require_uint8(pixels);
   if (pixels.format().channels < 3 || pixels.empty()) {
@@ -1033,6 +1037,7 @@ void register_builtin_filters(FilterRegistry& registry) {
   add("patchy.filters.blur_more", "Blur More", photoshop_blur_more);
   add("patchy.filters.average", "Average", average);
   add("patchy.filters.sharpen_more", "Sharpen More", photoshop_sharpen_more);
+  add("patchy.filters.sharpen_edges", "Sharpen Edges", photoshop_sharpen_edges);
 }
 
 }  // namespace patchy
