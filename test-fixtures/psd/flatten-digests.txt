@@ -82,6 +82,7 @@ ec07eaf898b0a29d photoshop-smart-filter-box-blur.psd
 f2bf42dce8c3d975 photoshop-smart-filter-dust-and-scratches.psd
 87fd37f8d0bdb1c9 photoshop-smart-filter-emboss.psd
 a00cc59a421ed652 photoshop-smart-filter-fibers.psd
+5d86cd81909a7667 photoshop-smart-filter-find-edges.psd
 58b52438a77e88b5 photoshop-smart-filter-high-pass.psd
 6a93c278433e8c77 photoshop-smart-filter-instances-base.psd
 615e5853026e2647 photoshop-smart-filter-instances-edit-contents.psd
@@ -95,9 +96,13 @@ bf5fa6de87028ba8 photoshop-smart-filter-other.psd
 f63cea89bfdc33b6 photoshop-smart-filter-radial-blur-zoom.psd
 c0a39197fc4785c3 photoshop-smart-filter-radial-blur.psd
 1b98d9c7b0ac6b8d photoshop-smart-filter-random.psd
+9b2c60c94278b504 photoshop-smart-filter-solarize.psd
 f2bf42dce8c3d975 photoshop-smart-filter-surface-blur.psd
 9a1663806ac7eb76 photoshop-smart-filter-tilt-shift.psd
 774b771808c21f09 photoshop-smart-filter-unsharp-motion.psd
+7cd920bf4b64a737 photoshop-smart-filter-wave.psd
+83124c4815a60bfb photoshop-smart-filter-zigzag-around.psd
+b6058a877a8cd02e photoshop-smart-filter-zigzag.psd
 fae153247444d536 photoshop-stroke-aa-matte.psd
 1aef2000219e220d photoshop-stroke-masked.psd
 700fc0a254417579 photoshop-stroke-overprint.psd

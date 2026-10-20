@@ -66,6 +66,10 @@ bool native_smart_filter_kind_supported(SmartFilterKind kind) {
     case SmartFilterKind::BoxBlur:
     case SmartFilterKind::RadialBlur:
     case SmartFilterKind::AddNoise:
+    case SmartFilterKind::Solarize:
+    case SmartFilterKind::FindEdges:
+    case SmartFilterKind::ZigZag:
+    case SmartFilterKind::Wave:
       return true;
     case SmartFilterKind::Offset:
     case SmartFilterKind::Maximum:

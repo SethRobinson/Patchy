@@ -1,6 +1,6 @@
 // smart_filter_tests() is split across part TUs purely for
 // translation-unit size (smart_filter_tests_flows.cpp, _guards.cpp,
-// _kinds.cpp, _table.cpp). The registration ORDER is a load-bearing contract:
+// _kinds.cpp, _schema.cpp, _table.cpp). The registration ORDER is a load-bearing contract:
 // QSettings state and on-disk artifacts leak between tests by
 // construction, so part1 + part2 + part3 concatenated below must
 // reproduce the historical monolith's registration vector exactly,
@@ -14,12 +14,13 @@ std::vector<patchy::test::TestCase> smart_filter_tests_part1();
 std::vector<patchy::test::TestCase> smart_filter_tests_part2();
 std::vector<patchy::test::TestCase> smart_filter_tests_part3();
 std::vector<patchy::test::TestCase> smart_filter_tests_part4();
+std::vector<patchy::test::TestCase> smart_filter_tests_part5();
 
 std::vector<patchy::test::TestCase> smart_filter_tests() {
   std::vector<patchy::test::TestCase> tests;
   for (const auto& part : {&smart_filter_tests_part1, &smart_filter_tests_part2,
-                           &smart_filter_tests_part3,
-                           &smart_filter_tests_part4}) {
+                           &smart_filter_tests_part3, &smart_filter_tests_part4,
+                           &smart_filter_tests_part5}) {
     auto cases = (*part)();
     tests.insert(tests.end(), cases.begin(), cases.end());
   }

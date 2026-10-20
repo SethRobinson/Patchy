@@ -17,6 +17,7 @@ std::vector<patchy::test::TestCase> stroke_mask_effects_tests();
 std::vector<patchy::test::TestCase> smart_objects_warp_tests();
 std::vector<patchy::test::TestCase> smart_filter_pixels_tests();
 std::vector<patchy::test::TestCase> smart_filter_descriptors_tests();
+std::vector<patchy::test::TestCase> smart_filter_distort_stylize_tests();
 std::vector<patchy::test::TestCase> smart_filter_table_tests();
 std::vector<patchy::test::TestCase> psd_writer_stability_tests();
 std::vector<patchy::test::TestCase> pattern_styles_fixtures_tests();

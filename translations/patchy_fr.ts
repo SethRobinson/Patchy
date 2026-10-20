@@ -11129,24 +11129,93 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Correction sélective : relative</translation>
     </message>
     <message>
-        <source>Squareness</source>
-        <translation>Forme carrée</translation>
+        <source>Around Center</source>
+        <translation>Autour du centre</translation>
+    </message>
+    <message>
+        <source>Out From Center</source>
+        <translation>À partir du centre</translation>
+    </message>
+    <message>
+        <source>Pond Ripples</source>
+        <translation>Ondulations de bassin</translation>
+    </message>
+    <message>
+        <source>Ridges</source>
+        <translation>Crêtes</translation>
+    </message>
+    <message>
+        <source>Sine</source>
+        <translation>Sinusoïde</translation>
+    </message>
+    <message>
+        <source>Wrap Around</source>
+        <translation>Bouclage</translation>
+    </message>
+    <message>
+        <source>Repeat Edge Pixels</source>
+        <translation>Répétition des pixels du contour</translation>
+    </message>
+    <message>
+        <source>Generators</source>
+        <translation>Générateurs</translation>
+    </message>
+    <message>
+        <source>Wavelength Min</source>
+        <translation>Longueur d&apos;onde min.</translation>
+    </message>
+    <message>
+        <source>Wavelength Max</source>
+        <translation>Longueur d&apos;onde max.</translation>
+    </message>
+    <message>
+        <source>Amplitude Min</source>
+        <translation>Amplitude min.</translation>
+    </message>
+    <message>
+        <source>Amplitude Max</source>
+        <translation>Amplitude max.</translation>
+    </message>
+    <message>
+        <source>Horizontal Scale</source>
+        <translation>Échelle horizontale</translation>
+    </message>
+    <message>
+        <source>Vertical Scale</source>
+        <translation>Échelle verticale</translation>
     </message>
     <message>
         <source>Undefined Areas</source>
         <translation>Zones non définies</translation>
     </message>
     <message>
+        <source>Solarize</source>
+        <translation>Solarisation</translation>
+    </message>
+    <message>
+        <source>Find Edges</source>
+        <translation>Tracé des contours</translation>
+    </message>
+    <message>
+        <source>ZigZag</source>
+        <translation>Zigzag</translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation>Activé</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
+        <translation>%1 %2</translation>
+    </message>
+    <message>
+        <source>Squareness</source>
+        <translation>Forme carrée</translation>
+    </message>
+    <message>
         <source>Set to Transparent</source>
         <translation>Rendre transparent</translation>
-    </message>
-    <message>
-        <source>Repeat Edge Pixels</source>
-        <translation>Répéter les pixels du bord</translation>
-    </message>
-    <message>
-        <source>Wrap Around</source>
-        <translation>Contourner</translation>
     </message>
     <message>
         <source>Minimum</source>
@@ -11219,15 +11288,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Fragment</source>
         <translation>Fragmentation</translation>
-    </message>
-    <message>
-        <source>On</source>
-        <translation>Activé</translation>
-    </message>
-    <message>
-        <source>%1 %2</source>
-        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
-        <translation>%1 %2</translation>
     </message>
 </context>
 <context>

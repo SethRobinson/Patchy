@@ -11163,24 +11163,93 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Kolor selektywny: względne</translation>
     </message>
     <message>
-        <source>Squareness</source>
-        <translation>Prostokątność</translation>
+        <source>Around Center</source>
+        <translation>Wokół środka</translation>
     </message>
     <message>
-        <source>Undefined Areas</source>
-        <translation>Obszary niezdefiniowane</translation>
+        <source>Out From Center</source>
+        <translation>Od środka</translation>
     </message>
     <message>
-        <source>Set to Transparent</source>
-        <translation>Ustaw jako przezroczyste</translation>
+        <source>Pond Ripples</source>
+        <translation>Fale na stawie</translation>
+    </message>
+    <message>
+        <source>Ridges</source>
+        <translation>Grzbiety</translation>
+    </message>
+    <message>
+        <source>Sine</source>
+        <translation>Sinusoida</translation>
+    </message>
+    <message>
+        <source>Wrap Around</source>
+        <translation>Zawijanie</translation>
     </message>
     <message>
         <source>Repeat Edge Pixels</source>
         <translation>Powtórz piksele krawędzi</translation>
     </message>
     <message>
-        <source>Wrap Around</source>
-        <translation>Zawijaj</translation>
+        <source>Generators</source>
+        <translation>Generatory</translation>
+    </message>
+    <message>
+        <source>Wavelength Min</source>
+        <translation>Długość fali min.</translation>
+    </message>
+    <message>
+        <source>Wavelength Max</source>
+        <translation>Długość fali maks.</translation>
+    </message>
+    <message>
+        <source>Amplitude Min</source>
+        <translation>Amplituda min.</translation>
+    </message>
+    <message>
+        <source>Amplitude Max</source>
+        <translation>Amplituda maks.</translation>
+    </message>
+    <message>
+        <source>Horizontal Scale</source>
+        <translation>Skala pozioma</translation>
+    </message>
+    <message>
+        <source>Vertical Scale</source>
+        <translation>Skala pionowa</translation>
+    </message>
+    <message>
+        <source>Undefined Areas</source>
+        <translation>Obszary nieokreślone</translation>
+    </message>
+    <message>
+        <source>Solarize</source>
+        <translation>Solaryzacja</translation>
+    </message>
+    <message>
+        <source>Find Edges</source>
+        <translation>Znajdź krawędzie</translation>
+    </message>
+    <message>
+        <source>ZigZag</source>
+        <translation>Zygzak</translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation>Włączony</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
+        <translation>%1 %2</translation>
+    </message>
+    <message>
+        <source>Squareness</source>
+        <translation>Prostokątność</translation>
+    </message>
+    <message>
+        <source>Set to Transparent</source>
+        <translation>Ustaw jako przezroczyste</translation>
     </message>
     <message>
         <source>Minimum</source>
@@ -11253,15 +11322,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Fragment</source>
         <translation>Fragment</translation>
-    </message>
-    <message>
-        <source>On</source>
-        <translation>Włączony</translation>
-    </message>
-    <message>
-        <source>%1 %2</source>
-        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
-        <translation>%1 %2</translation>
     </message>
 </context>
 <context>
@@ -23000,7 +23060,7 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     </message>
     <message>
         <source>Added %1 as a Smart Filter</source>
-        <translation>Dodano filtr inteligentny: %1</translation>
+        <translation>Dodano %1 jako filtr inteligentny</translation>
     </message>
     <message>
         <source>Added another %1 Smart Filter</source>

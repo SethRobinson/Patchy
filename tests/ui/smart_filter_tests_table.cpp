@@ -293,7 +293,7 @@ void ui_smart_filter_table_random_entries_edit_from_dialogs() {
 
 }  // namespace
 
-std::vector<patchy::test::TestCase> smart_filter_tests_part4() {
+std::vector<patchy::test::TestCase> smart_filter_tests_part5() {
   return {
       {"ui_smart_filter_table_entry_edits_renders_and_saves",
        ui_smart_filter_table_entry_edits_renders_and_saves},

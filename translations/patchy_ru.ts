@@ -11163,24 +11163,93 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Выборочная коррекция цвета: относительно</translation>
     </message>
     <message>
-        <source>Squareness</source>
-        <translation>Прямоугольность</translation>
+        <source>Around Center</source>
+        <translation>Вокруг центра</translation>
     </message>
     <message>
-        <source>Undefined Areas</source>
-        <translation>Неопределённые области</translation>
+        <source>Out From Center</source>
+        <translation>От центра</translation>
     </message>
     <message>
-        <source>Set to Transparent</source>
-        <translation>Сделать прозрачными</translation>
+        <source>Pond Ripples</source>
+        <translation>Круги на воде</translation>
     </message>
     <message>
-        <source>Repeat Edge Pixels</source>
-        <translation>Повторить краевые пиксели</translation>
+        <source>Ridges</source>
+        <translation>Гребни</translation>
+    </message>
+    <message>
+        <source>Sine</source>
+        <translation>Синусоида</translation>
     </message>
     <message>
         <source>Wrap Around</source>
         <translation>Вставить отсеченные фрагменты</translation>
+    </message>
+    <message>
+        <source>Repeat Edge Pixels</source>
+        <translation>Повторить граничные пикселы</translation>
+    </message>
+    <message>
+        <source>Generators</source>
+        <translation>Генераторы</translation>
+    </message>
+    <message>
+        <source>Wavelength Min</source>
+        <translation>Мин. длина волны</translation>
+    </message>
+    <message>
+        <source>Wavelength Max</source>
+        <translation>Макс. длина волны</translation>
+    </message>
+    <message>
+        <source>Amplitude Min</source>
+        <translation>Мин. амплитуда</translation>
+    </message>
+    <message>
+        <source>Amplitude Max</source>
+        <translation>Макс. амплитуда</translation>
+    </message>
+    <message>
+        <source>Horizontal Scale</source>
+        <translation>Масштаб по горизонтали</translation>
+    </message>
+    <message>
+        <source>Vertical Scale</source>
+        <translation>Масштаб по вертикали</translation>
+    </message>
+    <message>
+        <source>Undefined Areas</source>
+        <translation>Неопределенные области</translation>
+    </message>
+    <message>
+        <source>Solarize</source>
+        <translation>Соляризация</translation>
+    </message>
+    <message>
+        <source>Find Edges</source>
+        <translation>Выделение краев</translation>
+    </message>
+    <message>
+        <source>ZigZag</source>
+        <translation>Зигзаг</translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation>Вкл.</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
+        <translation>%1 %2</translation>
+    </message>
+    <message>
+        <source>Squareness</source>
+        <translation>Прямоугольность</translation>
+    </message>
+    <message>
+        <source>Set to Transparent</source>
+        <translation>Сделать прозрачными</translation>
     </message>
     <message>
         <source>Minimum</source>
@@ -11253,15 +11322,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Fragment</source>
         <translation>Фрагмент</translation>
-    </message>
-    <message>
-        <source>On</source>
-        <translation>Вкл.</translation>
-    </message>
-    <message>
-        <source>%1 %2</source>
-        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
-        <translation>%1 %2</translation>
     </message>
 </context>
 <context>

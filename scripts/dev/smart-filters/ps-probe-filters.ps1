@@ -10,7 +10,10 @@
 # cid(s), sid(s), applyFilter(eventCharOrString, descriptorOrNull).
 # Only documents this script opens are touched; each closes without saving. The
 # open document names before and after are printed so callers can report them.
-# Foreground/background colors are set to black/white for the run and restored.
+# -SetColors sets the foreground/background colors to -Foreground/-Background for
+# the run (Clouds, Fibers and Pointillize read them) and restores the originals
+# exactly, color model included, through Action Manager; without it the
+# colors are never touched.
 # With -CanvasWidth/-CanvasHeight the job document is a new transparent canvas
 # of that size with the source PLACED (embedded, centered) instead, so the
 # Smart Object is smaller or larger than the document.
@@ -24,6 +27,7 @@ param(
   [Parameter(Mandatory)] [string]$OutDir,
   [string]$Foreground = '000000',
   [string]$Background = 'FFFFFF',
+  [switch]$SetColors,
   [int]$CanvasWidth = 0,
   [int]$CanvasHeight = 0,
   [string]$Combined = ''
@@ -46,11 +50,22 @@ var log = [];
 var before = docNames();
 var savedDialogs = app.displayDialogs;
 var savedUnits = app.preferences.rulerUnits;
-var savedFg = app.foregroundColor; var savedBg = app.backgroundColor;
+function readColor(key) {
+  var r = new ActionReference(); r.putProperty(cid('Prpr'), cid(key)); r.putEnumerated(cid('capp'), cid('Ordn'), cid('Trgt'));
+  var d = executeActionGet(r); return {cls: d.getObjectType(cid(key)), value: d.getObjectValue(cid(key))};
+}
+function writeColor(key, saved) {
+  var s = new ActionDescriptor(); var r = new ActionReference(); r.putProperty(cid('Clr '), cid(key));
+  s.putReference(cid('null'), r); s.putObject(cid('T   '), saved.cls, saved.value); executeAction(cid('setd'), s, DialogModes.NO);
+}
+var setColors = $(if ($SetColors) { 'true' } else { 'false' });
+var savedFg = setColors ? readColor('FrgC') : null; var savedBg = setColors ? readColor('BckC') : null;
 app.displayDialogs = DialogModes.NO;
 app.preferences.rulerUnits = Units.PIXELS;
-var fg = new SolidColor(); fg.rgb.hexValue = '$Foreground'; app.foregroundColor = fg;
-var bg = new SolidColor(); bg.rgb.hexValue = '$Background'; app.backgroundColor = bg;
+if (setColors) {
+  var fg = new SolidColor(); fg.rgb.hexValue = '$Foreground'; app.foregroundColor = fg;
+  var bg = new SolidColor(); bg.rgb.hexValue = '$Background'; app.backgroundColor = bg;
+}
 $jobsText
 var combined = '$Combined';
 if (combined !== '') {
@@ -100,7 +115,7 @@ for (var j = 0; j < JOBS.length; j++) {
   }
   if (doc !== null) { try { doc.close(SaveOptions.DONOTSAVECHANGES); } catch (e2) { log.push('close failed ' + e2); } }
 }
-app.foregroundColor = savedFg; app.backgroundColor = savedBg;
+if (setColors) { writeColor('FrgC', savedFg); writeColor('BckC', savedBg); }
 app.preferences.rulerUnits = savedUnits;
 app.displayDialogs = savedDialogs;
 'before=' + before + '\nafter=' + docNames() + '\n' + log.join('\n');

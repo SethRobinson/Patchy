@@ -11113,15 +11113,27 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Squareness</source>
+        <source>Around Center</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Undefined Areas</source>
+        <source>Out From Center</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Set to Transparent</source>
+        <source>Pond Ripples</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ridges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sine</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wrap Around</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -11129,7 +11141,64 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Wrap Around</source>
+        <source>Generators</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wavelength Min</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wavelength Max</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Amplitude Min</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Amplitude Max</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Horizontal Scale</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Vertical Scale</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Undefined Areas</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Solarize</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Find Edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>ZigZag</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Squareness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Set to Transparent</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -11202,15 +11271,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>Fragment</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>On</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 %2</source>
-        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -11095,24 +11095,93 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>선택 색상: 상대치</translation>
     </message>
     <message>
-        <source>Squareness</source>
-        <translation>정사각형</translation>
+        <source>Around Center</source>
+        <translation>중심 둘레</translation>
     </message>
     <message>
-        <source>Undefined Areas</source>
-        <translation>정의되지 않은 영역</translation>
+        <source>Out From Center</source>
+        <translation>중심에서 바깥쪽</translation>
     </message>
     <message>
-        <source>Set to Transparent</source>
-        <translation>투명하게 설정</translation>
+        <source>Pond Ripples</source>
+        <translation>연못 물결</translation>
+    </message>
+    <message>
+        <source>Ridges</source>
+        <translation>물결</translation>
+    </message>
+    <message>
+        <source>Sine</source>
+        <translation>사인파</translation>
+    </message>
+    <message>
+        <source>Wrap Around</source>
+        <translation>둘러싸기</translation>
     </message>
     <message>
         <source>Repeat Edge Pixels</source>
         <translation>가장자리 픽셀 반복</translation>
     </message>
     <message>
-        <source>Wrap Around</source>
-        <translation>감싸기</translation>
+        <source>Generators</source>
+        <translation>생성기 수</translation>
+    </message>
+    <message>
+        <source>Wavelength Min</source>
+        <translation>최소 파장</translation>
+    </message>
+    <message>
+        <source>Wavelength Max</source>
+        <translation>최대 파장</translation>
+    </message>
+    <message>
+        <source>Amplitude Min</source>
+        <translation>최소 진폭</translation>
+    </message>
+    <message>
+        <source>Amplitude Max</source>
+        <translation>최대 진폭</translation>
+    </message>
+    <message>
+        <source>Horizontal Scale</source>
+        <translation>가로 비율</translation>
+    </message>
+    <message>
+        <source>Vertical Scale</source>
+        <translation>세로 비율</translation>
+    </message>
+    <message>
+        <source>Undefined Areas</source>
+        <translation>정의되지 않은 영역</translation>
+    </message>
+    <message>
+        <source>Solarize</source>
+        <translation>솔라리제이션</translation>
+    </message>
+    <message>
+        <source>Find Edges</source>
+        <translation>가장자리 찾기</translation>
+    </message>
+    <message>
+        <source>ZigZag</source>
+        <translation>지그재그</translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation>켜기</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
+        <translation>%1 %2</translation>
+    </message>
+    <message>
+        <source>Squareness</source>
+        <translation>정사각형</translation>
+    </message>
+    <message>
+        <source>Set to Transparent</source>
+        <translation>투명하게 설정</translation>
     </message>
     <message>
         <source>Minimum</source>
@@ -11185,15 +11254,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Fragment</source>
         <translation>분열</translation>
-    </message>
-    <message>
-        <source>On</source>
-        <translation>켜기</translation>
-    </message>
-    <message>
-        <source>%1 %2</source>
-        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
-        <translation>%1 %2</translation>
     </message>
 </context>
 <context>
@@ -22860,15 +22920,15 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     </message>
     <message>
         <source>Added %1 as a Smart Filter</source>
-        <translation>스마트 필터로 %1 추가</translation>
+        <translation>%1을(를) 스마트 필터로 추가했습니다</translation>
     </message>
     <message>
         <source>Added another %1 Smart Filter</source>
-        <translation>또 다른 %1 스마트 필터를 추가했습니다.</translation>
+        <translation>%1 스마트 필터를 하나 더 추가했습니다</translation>
     </message>
     <message>
         <source>Updated %1 Smart Filter</source>
-        <translation>업데이트된 %1 스마트 필터</translation>
+        <translation>%1 스마트 필터를 업데이트했습니다</translation>
     </message>
 </context>
 <context>

@@ -1,5 +1,6 @@
 #include "psd/psd_smart_objects.hpp"
 
+#include "core/smart_filter_schema.hpp"
 #include "core/warp_mesh.hpp"
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
@@ -153,6 +154,117 @@ DescriptorValue smart_filter_color(RgbColor color) {
   return value;
 }
 
+// Descriptor ids in the schema tables are charIDs when four characters long
+// and stringIDs otherwise (docs/smart-filters-distort-stylize.md).
+bool schema_id_long_form(std::string_view id) { return id.size() != 4U; }
+
+DescriptorValue schema_field_descriptor(const SmartFilterField& field, std::int32_t value) {
+  switch (field.type) {
+    case SmartFilterFieldType::Enum: {
+      const auto* native = field.options[static_cast<std::size_t>(value)].native_value;
+      return smart_filter_enum(field.enum_type, schema_id_long_form(field.enum_type), native,
+                               schema_id_long_form(native));
+    }
+    case SmartFilterFieldType::Boolean:
+      return smart_filter_bool(value != 0);
+    case SmartFilterFieldType::Integer:
+      break;
+  }
+  return smart_filter_integer(value);
+}
+
+// Reads one field's integer form; nullopt when the key is missing, has another
+// type, or holds a value outside the field's range or options.
+std::optional<std::int32_t> read_schema_field(const DescriptorObject& filter,
+                                              const SmartFilterField& field) {
+  const auto* value = descriptor_value(filter, field.key);
+  if (value == nullptr) {
+    return std::nullopt;
+  }
+  switch (field.type) {
+    case SmartFilterFieldType::Integer:
+      if (value->type == DescriptorValue::Type::Integer && value->integer_value >= field.minimum &&
+          value->integer_value <= field.maximum) {
+        return value->integer_value;
+      }
+      return std::nullopt;
+    case SmartFilterFieldType::Boolean:
+      if (value->type == DescriptorValue::Type::Bool) {
+        return value->bool_value ? 1 : 0;
+      }
+      return std::nullopt;
+    case SmartFilterFieldType::Enum:
+      if (value->type != DescriptorValue::Type::Enum || value->enum_type != field.enum_type) {
+        return std::nullopt;
+      }
+      for (std::size_t index = 0; index < field.options.size(); ++index) {
+        if (value->enum_value == field.options[index].native_value) {
+          return static_cast<std::int32_t>(index);
+        }
+      }
+      return std::nullopt;
+  }
+  return std::nullopt;
+}
+
+// The schema an imported filterFX entry names: by `Fltr` class, id form and
+// filterID, or by filterID alone for a filter that stores no `Fltr` object.
+const SmartFilterSchema* schema_for_native_entry(const DescriptorObject* filter,
+                                                 std::uint32_t filter_id) {
+  if (filter == nullptr) {
+    return find_smart_filter_schema_without_object(filter_id);
+  }
+  const auto* schema = find_smart_filter_schema_for_class(filter->class_id, filter_id);
+  return schema != nullptr && filter->class_id_long_form == schema->class_id_long_form ? schema
+                                                                                      : nullptr;
+}
+
+std::optional<SchemaSmartFilter> read_schema_settings(const DescriptorObject& filter,
+                                                      const SmartFilterSchema& schema) {
+  SchemaSmartFilter settings;
+  settings.values.reserve(schema.fields.size());
+  for (const auto& field : schema.fields) {
+    const auto value = read_schema_field(filter, field);
+    if (!value.has_value()) {
+      return std::nullopt;
+    }
+    settings.values.push_back(*value);
+  }
+  return settings;
+}
+
+// Patches the fields of an existing native Fltr object in place, keeping its
+// key order, id forms and any key the schema does not model.
+bool patch_schema_settings(DescriptorObject& filter, const SmartFilterSchema& schema,
+                           const SchemaSmartFilter& settings) {
+  if (!schema_settings_valid(schema, settings)) {
+    return false;
+  }
+  for (std::size_t index = 0; index < schema.fields.size(); ++index) {
+    const auto& field = schema.fields[index];
+    auto* value = const_cast<DescriptorValue*>(descriptor_value(filter, field.key));
+    if (value == nullptr || !read_schema_field(filter, field).has_value()) {
+      return false;
+    }
+    const auto setting = settings.values[index];
+    switch (field.type) {
+      case SmartFilterFieldType::Integer:
+        value->integer_value = setting;
+        break;
+      case SmartFilterFieldType::Boolean:
+        value->bool_value = setting != 0;
+        break;
+      case SmartFilterFieldType::Enum: {
+        const std::string native = field.options[static_cast<std::size_t>(setting)].native_value;
+        value->enum_value = native;
+        value->enum_value_long_form = schema_id_long_form(native);
+        break;
+      }
+    }
+  }
+  return true;
+}
+
 struct SmartFilterDescriptorSpec {
   std::optional<double> radius;
   double minimum_radius{0.1};
@@ -172,6 +284,9 @@ struct SmartFilterDescriptorSpec {
   std::optional<RadialBlurSmartFilter> radial_blur;
   // Add Noise emits Dstr, Nose, Mnch, FlRs in that order.
   std::optional<AddNoiseSmartFilter> add_noise;
+  // Table-described filters author every schema field in schema order.
+  const SmartFilterSchema* schema{nullptr};
+  const SchemaSmartFilter* schema_settings{nullptr};
   // Table-described filters (core/smart_filter_table.hpp) emit their fields
   // from the table, in its order.
   const SmartFilterTableSpec* table{nullptr};
@@ -362,6 +477,18 @@ smart_filter_descriptor_spec(const SmartFilterEntry &entry) {
     spec.filter_name = "Add Noise";
     spec.filter_class_id = "AdNs";
     spec.filter_id = 0x41644e73U;
+  } else if (const auto* schema = find_smart_filter_schema(entry.kind); schema != nullptr) {
+    const auto* settings = std::get_if<SchemaSmartFilter>(&entry.parameters);
+    if (settings == nullptr || !schema_settings_valid(*schema, *settings)) {
+      return std::nullopt;
+    }
+    spec.schema = schema;
+    spec.schema_settings = settings;
+    spec.default_entry_name = schema->entry_name;
+    spec.filter_name = schema->object_name;
+    spec.filter_class_id = schema->class_id;
+    spec.filter_class_id_long_form = schema->class_id_long_form;
+    spec.filter_id = schema->filter_id;
   } else if (const auto *table = smart_filter_table_spec(entry.kind);
              table != nullptr) {
     const auto *values = std::get_if<TableSmartFilter>(&entry.parameters);
@@ -504,12 +631,20 @@ make_smart_filter_entry_descriptor(const SmartFilterEntry &entry) {
     add_smart_filter_value(*filter.object_value, "FlRs", false,
                            smart_filter_integer(spec->add_noise->seed));
   }
+  if (spec->schema != nullptr) {
+    for (std::size_t index = 0; index < spec->schema->fields.size(); ++index) {
+      const auto& field = spec->schema->fields[index];
+      add_smart_filter_value(*filter.object_value, field.key, schema_id_long_form(field.key),
+                             schema_field_descriptor(field, spec->schema_settings->values[index]));
+    }
+  }
   if (spec->table != nullptr) {
     append_table_smart_filter_fields(*filter.object_value, *spec->table,
                                      *spec->table_values);
   }
   // A filter without settings (Clouds, Fragment, ...) has no Fltr object.
-  if (spec->filter_class_id != nullptr) {
+  if ((spec->schema == nullptr || spec->schema->has_filter_object) &&
+      spec->filter_class_id != nullptr) {
     add_smart_filter_value(*item.object_value, "Fltr", false,
                            std::move(filter));
   }
@@ -710,13 +845,15 @@ bool patch_smart_filter_descriptor(
     auto* blend =
         const_cast<DescriptorObject*>(descriptor_object(item, "blendOptions"));
     auto* filter = const_cast<DescriptorObject*>(descriptor_object(item, "Fltr"));
+    const bool expects_filter_object =
+        (spec->schema == nullptr || spec->schema->has_filter_object) &&
+        spec->filter_class_id != nullptr;
     if (name == nullptr || name->type != DescriptorValue::Type::String ||
         filter_id == nullptr || filter_id->type != DescriptorValue::Type::Integer ||
         blend == nullptr || blend->class_id != "blendOptions" ||
-        (spec->filter_class_id == nullptr
-             ? filter != nullptr
-             : (filter == nullptr ||
-                filter->class_id != spec->filter_class_id))) {
+        (expects_filter_object
+             ? filter == nullptr || filter->class_id != spec->filter_class_id
+             : filter != nullptr)) {
       return false;
     }
     if (!entry.native_name.empty()) {
@@ -736,6 +873,10 @@ bool patch_smart_filter_descriptor(
     opacity->double_value = std::clamp(entry.opacity, 0.0, 1.0) * 100.0;
     mode->enum_value = std::string(blend_mode_lfx2_string(entry.blend_mode));
     mode->enum_value_long_form = true;
+    if (spec->schema != nullptr && filter != nullptr &&
+        !patch_schema_settings(*filter, *spec->schema, *spec->schema_settings)) {
+      return false;
+    }
     if (spec->amount_percent.has_value()) {
       auto *amount = mutable_value_either(*filter, "Amnt", "amount");
       if (amount == nullptr ||
@@ -1333,6 +1474,17 @@ std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
             entry.kind = SmartFilterKind::Median;
             entry.parameters = MedianSmartFilter{radius->double_value};
           }
+        } else {
+          entry_supported = false;
+        }
+      } else if (const auto* schema = schema_for_native_entry(filter, entry.native_filter_id);
+                 schema != nullptr) {
+        if (auto settings = filter != nullptr ? read_schema_settings(*filter, *schema)
+                                              : std::optional<SchemaSmartFilter>(
+                                                    default_schema_settings(*schema));
+            settings.has_value()) {
+          entry.kind = schema->kind;
+          entry.parameters = std::move(*settings);
         } else {
           entry_supported = false;
         }

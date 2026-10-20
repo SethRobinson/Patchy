@@ -11095,24 +11095,93 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>選取顏色: 相對</translation>
     </message>
     <message>
-        <source>Squareness</source>
-        <translation>方形</translation>
+        <source>Around Center</source>
+        <translation>圍繞中心</translation>
     </message>
     <message>
-        <source>Undefined Areas</source>
-        <translation>未定義區域</translation>
+        <source>Out From Center</source>
+        <translation>從中心向外</translation>
     </message>
     <message>
-        <source>Set to Transparent</source>
-        <translation>設為透明</translation>
+        <source>Pond Ripples</source>
+        <translation>水池波紋</translation>
+    </message>
+    <message>
+        <source>Ridges</source>
+        <translation>起伏</translation>
+    </message>
+    <message>
+        <source>Sine</source>
+        <translation>正弦</translation>
+    </message>
+    <message>
+        <source>Wrap Around</source>
+        <translation>折回</translation>
     </message>
     <message>
         <source>Repeat Edge Pixels</source>
         <translation>重複邊緣像素</translation>
     </message>
     <message>
-        <source>Wrap Around</source>
-        <translation>折回</translation>
+        <source>Generators</source>
+        <translation>產生器數目</translation>
+    </message>
+    <message>
+        <source>Wavelength Min</source>
+        <translation>最小波長</translation>
+    </message>
+    <message>
+        <source>Wavelength Max</source>
+        <translation>最大波長</translation>
+    </message>
+    <message>
+        <source>Amplitude Min</source>
+        <translation>最小波幅</translation>
+    </message>
+    <message>
+        <source>Amplitude Max</source>
+        <translation>最大波幅</translation>
+    </message>
+    <message>
+        <source>Horizontal Scale</source>
+        <translation>水平比例</translation>
+    </message>
+    <message>
+        <source>Vertical Scale</source>
+        <translation>垂直比例</translation>
+    </message>
+    <message>
+        <source>Undefined Areas</source>
+        <translation>未定義區域</translation>
+    </message>
+    <message>
+        <source>Solarize</source>
+        <translation>曝光過度</translation>
+    </message>
+    <message>
+        <source>Find Edges</source>
+        <translation>尋找邊緣</translation>
+    </message>
+    <message>
+        <source>ZigZag</source>
+        <translation>水波</translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation>開啟</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
+        <translation>%1 %2</translation>
+    </message>
+    <message>
+        <source>Squareness</source>
+        <translation>方形</translation>
+    </message>
+    <message>
+        <source>Set to Transparent</source>
+        <translation>設為透明</translation>
     </message>
     <message>
         <source>Minimum</source>
@@ -11185,15 +11254,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Fragment</source>
         <translation>碎片</translation>
-    </message>
-    <message>
-        <source>On</source>
-        <translation>開啟</translation>
-    </message>
-    <message>
-        <source>%1 %2</source>
-        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
-        <translation>%1 %2</translation>
     </message>
 </context>
 <context>

@@ -1,10 +1,12 @@
 #include "filters/smart_filter_renderer.hpp"
 
 #include "core/blend_math.hpp"
+#include "core/smart_filter_schema.hpp"
 #include "core/rect_utils.hpp"
 #include "core/worker_budget.hpp"
 #include "filters/filter_kernels.hpp"
 #include "filters/filter_support.hpp"
+#include "filters/smart_filter_distort_stylize.hpp"
 #include "filters/smart_filter_table_render.hpp"
 #include "support/translate_noop.hpp"
 
@@ -2561,6 +2563,11 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
                          noise->amount_percent <= kMaximumAddNoiseAmount &&
                          noise->seed >= kMinimumAddNoiseSeed &&
                          noise->seed <= kMaximumAddNoiseSeed;
+    } else if (const auto *schema = find_smart_filter_schema(entry.kind);
+               schema != nullptr) {
+      const auto *settings = std::get_if<SchemaSmartFilter>(&entry.parameters);
+      parameters_valid =
+          settings != nullptr && schema_settings_valid(*schema, *settings);
     } else if (const auto *table = smart_filter_table_spec(entry.kind);
                table != nullptr) {
       const auto *values = std::get_if<TableSmartFilter>(&entry.parameters);
@@ -2580,6 +2587,7 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
          entry.kind != SmartFilterKind::BoxBlur &&
          entry.kind != SmartFilterKind::RadialBlur &&
          entry.kind != SmartFilterKind::AddNoise &&
+         find_smart_filter_schema(entry.kind) == nullptr &&
          smart_filter_table_spec(entry.kind) == nullptr &&
          (!std::isfinite(radius) || radius < minimum_radius ||
           radius > maximum_radius)) ||
@@ -2958,6 +2966,10 @@ FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
       filtered = render_add_noise_effect(current, noise.amount_percent,
                                          noise.gaussian, noise.monochromatic,
                                          noise.seed, &filter_progress);
+    } else if (find_smart_filter_schema(entry.kind) != nullptr) {
+      filtered = render_schema_smart_filter(
+          current, filter_canvas_bounds, entry.kind,
+          std::get<SchemaSmartFilter>(entry.parameters), &filter_progress);
     } else if (smart_filter_table_spec(entry.kind) != nullptr) {
       auto table_input = embed_in_filter_canvas(current.pixels, current.bounds,
                                                 filter_canvas_bounds);
