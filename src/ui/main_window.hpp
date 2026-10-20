@@ -1308,6 +1308,16 @@ private:
                                        std::optional<LayerId> restore_active_layer);
   void create_adjustment_layer(QString label, const AdjustmentSettings& settings);
   void edit_active_adjustment_layer();
+  // Runs the settings dialog of `original`'s kind (Levels, Curves, ...). `preview` shows
+  // candidate settings live, or nullopt to show the original again. With an adjustment
+  // layer id, Curves offers Auto and canvas sampling from the layers below that layer.
+  // Shared by adjustment layers and adjustment Smart Filters.
+  [[nodiscard]] std::optional<AdjustmentSettings> request_adjustment_settings(
+      const AdjustmentSettings& original,
+      const std::function<void(const std::optional<AdjustmentSettings>&)>& preview,
+      std::optional<LayerId> adjustment_layer_id = std::nullopt);
+  // Opens the dialog of an adjustment Smart Filter entry (main_window_smart_filter_adjustments.cpp).
+  void edit_adjustment_smart_filter(LayerId layer_id, std::size_t execution_index);
   void add_layer();
   void create_layer_folder();
   void create_layer_folder_from_layers(std::vector<LayerId> ids);

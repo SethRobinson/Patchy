@@ -28,6 +28,7 @@ Conventions: "PS" = Adobe Photoshop 2026/27.8, the installed ground truth; every
   - Radial Blur `RdlB`: `Amnt` int (1..100), `BlrM` (`Spn `/`Zm  `), `BlrQ` (`Drft`/`Gd  `/`Bst `). NO blur center is stored, so native mapping only at the default 50/50 center (quality samples 8/16/32); Spin renders, Zoom stays preview-locked.
   - Add Noise `AdNs`: `Dstr` (`Unfr`/`Gsn `), `Nose` #Prc (0.1..400), `Mnch` bool, `FlRs` seed integer stored verbatim.
   - Offset, Maximum, Minimum, Custom, Fragment, Crystallize, Pointillize, Mezzotint, Fibers (table-described; Pixelate, Render, Noise and Other captures): [smart-filters-pixelate-render.md](smart-filters-pixelate-render.md).
+  - Image > Adjustments (Levels, Curves, Hue/Saturation, Brightness/Contrast, Color Balance, Channel Mixer, Exposure, Posterize, Threshold, Photo Filter, Black & White): `Fltr` is the command's action descriptor, verbatim; [smart-filters-adjustments.md](smart-filters-adjustments.md).
 
   Whole-stack `enab`, `validAtPosition`, `filterMaskEnable`, `filterMaskLinked`, `filterMaskExtendWithWhite` live on the root. Action Manager stores out-of-range values verbatim, so authoring gates must enforce the dialog ranges; entries carry trailing `comp`/`compInfo`.
 - **FEid/FXid cache** associates records with SoLd `placed`, not source `Idnt`; PS writes outer version 3 (spec defines 1-3). Record: `u64 bodyLength`, Pascal `placed` uuid, record version 1, `u64 cacheLength`, cache planes, optional shared filter mask. Cache metadata: rect, depth, max channel count, then max+2 written/length/data slots; masks are 8-bit raw or PackBits. PS places 0-3 zero alignment bytes after each record inside the declared payload; that padding is NOT part of `bodyLength` and must not be confused with tagged-block padding. The reader also accepts pre-0.20 Patchy's unpadded multi-record shape and preserves it.
@@ -56,3 +57,14 @@ through Photoshop COM to `smart-gradient.psd`; `smart-gradient-16.psd` is its
 unfiltered 16-bit conversion. Edited parent previews widen to their parent depth.
 Acceptance covers unchanged, regenerated and moved caches plus embedded-content
 edits in PSD and PSB, with error-enabled Photoshop opens.
+
+## Preview-locked filters: what the user should see (recommendation)
+
+Not implemented. A stack that keeps Photoshop's preview says only that it holds unsupported
+data. Recommended: name the filter and the reason in the lock tooltip and status text, e.g.
+"Patchy cannot run Photoshop's Adaptive Wide Angle filter. The layer shows the result Photoshop
+saved. To edit it, hide or delete that filter, or rasterize the layer." Reasons by filter:
+Adaptive Wide Angle (Adobe US 8525871 family, active), Neural Filters (Adobe's models), Camera
+Raw, Liquify and Lighting Effects (not modeled), Lens Correction with a profile (Adobe lens
+data), gallery effects on a built-in texture (Adobe assets). Vanishing Point never occurs:
+Photoshop refuses it on a Smart Object (October 2026 probe).

@@ -7,6 +7,7 @@
 #include "psd/psd_io_internal.hpp"
 #include "psd/psd_layer_effects.hpp"
 #include "psd/psd_smart_filter_table.hpp"
+#include "psd/psd_smart_filter_adjustments.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
@@ -284,6 +285,8 @@ struct SmartFilterDescriptorSpec {
   std::optional<RadialBlurSmartFilter> radial_blur;
   // Add Noise emits Dstr, Nose, Mnch, FlRs in that order.
   std::optional<AddNoiseSmartFilter> add_noise;
+  // Adjustment commands (psd_smart_filter_adjustments.hpp) write their own Fltr keys.
+  const AdjustmentSettings* adjustment{nullptr};
   // Table-described filters author every schema field in schema order.
   const SmartFilterSchema* schema{nullptr};
   const SchemaSmartFilter* schema_settings{nullptr};
@@ -502,6 +505,25 @@ smart_filter_descriptor_spec(const SmartFilterEntry &entry) {
     spec.filter_class_id = table->class_id;
     spec.filter_class_id_long_form = table->class_id_long_form;
     spec.filter_id = table->filter_id;
+  } else if (entry.kind == SmartFilterKind::Adjustment) {
+    const auto *adjustment =
+        std::get_if<AdjustmentSmartFilter>(&entry.parameters);
+    const auto ids = adjustment != nullptr
+                         ? adjustment_smart_filter_ids(adjustment->settings.kind)
+                         : std::nullopt;
+    // A stringID class's filterID is Photoshop's run-time number: keep the stored one.
+    const auto filter_id =
+        ids.has_value() && ids->filter_id != 0U ? ids->filter_id
+                                                : entry.native_filter_id;
+    if (!ids.has_value() || filter_id == 0U) {
+      return std::nullopt;
+    }
+    spec.adjustment = &adjustment->settings;
+    spec.default_entry_name = ids->entry_name;
+    spec.filter_name = ids->filter_name;
+    spec.filter_class_id = ids->class_id;
+    spec.filter_class_id_long_form = ids->class_id_long_form;
+    spec.filter_id = filter_id;
   } else {
     return std::nullopt;
   }
@@ -641,6 +663,10 @@ make_smart_filter_entry_descriptor(const SmartFilterEntry &entry) {
   if (spec->table != nullptr) {
     append_table_smart_filter_fields(*filter.object_value, *spec->table,
                                      *spec->table_values);
+  }
+  if (spec->adjustment != nullptr &&
+      !write_adjustment_smart_filter(*filter.object_value, *spec->adjustment)) {
+    return std::nullopt;
   }
   // A filter without settings (Clouds, Fragment, ...) has no Fltr object.
   if ((spec->schema == nullptr || spec->schema->has_filter_object) &&
@@ -1021,6 +1047,10 @@ bool patch_smart_filter_descriptor(
     if (spec->table != nullptr && filter != nullptr &&
         !patch_table_smart_filter_fields(*filter, *spec->table,
                                          *spec->table_values)) {
+      return false;
+    }
+    if (spec->adjustment != nullptr &&
+        !write_adjustment_smart_filter(*filter, *spec->adjustment)) {
       return false;
     }
   }
@@ -1491,6 +1521,8 @@ std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
       } else if (parse_table_smart_filter(filter, entry.native_filter_id,
                                           entry, entry_supported)) {
         // Table-described filter (core/smart_filter_table.hpp).
+      } else if (parse_adjustment_smart_filter(filter, entry, entry_supported)) {
+        // An Image > Adjustments command (psd_smart_filter_adjustments.hpp).
       } else {
         entry_supported = false;
       }

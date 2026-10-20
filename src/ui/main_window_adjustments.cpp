@@ -758,296 +758,16 @@ void MainWindow::edit_active_adjustment_layer() {
     }
   };
 
-  std::optional<AdjustmentSettings> accepted_settings;
   auto preview_edit_lock = lock_preview_dialog_edits();
-  switch (original_settings->kind) {
-    case AdjustmentKind::Levels: {
-      const auto preview_changed = [apply_settings, restore_original_layer,
-                                    original_settings](bool enabled, const LevelsSettings& levels) {
-        if (!enabled) {
+  const std::function<void(const std::optional<AdjustmentSettings>&)> preview =
+      [apply_settings, restore_original_layer](const std::optional<AdjustmentSettings>& settings) {
+        if (settings.has_value()) {
+          apply_settings(*settings);
+        } else {
           restore_original_layer();
-          return;
         }
-        auto settings = *original_settings;
-        settings.levels = sanitized_levels_adjustment(levels);
-        apply_settings(settings);
       };
-      const auto result = request_levels_settings(this, preview_changed,
-                                                  LevelsSettings{original_settings->levels.black_input,
-                                                                 original_settings->levels.white_input,
-                                                                 original_settings->levels.gamma_percent,
-                                                                 original_settings->levels.black_output,
-                                                                 original_settings->levels.white_output,
-                                                                 original_settings->levels.channel,
-                                                                 original_settings->levels.red,
-                                                                 original_settings->levels.green,
-                                                                 original_settings->levels.blue});
-      if (result.has_value()) {
-        accepted_settings = *original_settings;
-        accepted_settings->levels = sanitized_levels_adjustment(*result);
-      }
-      break;
-    }
-    case AdjustmentKind::Curves: {
-      const auto preview_changed = [apply_settings, restore_original_layer,
-                                    original_settings](bool enabled, const CurvesSettings& curves) {
-        if (!enabled) {
-          restore_original_layer();
-          return;
-        }
-        auto settings = *original_settings;
-        settings.curves = curves;
-        apply_settings(settings);
-      };
-      // A clipped adjustment runs inside an isolated clipping buffer. Until the
-      // histogram renderer can expose that buffer directly, leave Auto disabled
-      // instead of presenting a backdrop-mixed histogram as the adjustment input.
-      const auto histograms = original_layer.clipped()
-                                  ? CurvesHistograms{}
-                                  : curves_histograms_before_adjustment(std::as_const(doc), layer_id);
-      auto hooks = curves_canvas_hooks(canvas_, [this, layer_id](QPoint point) {
-        return curves_sample_before_layer(std::as_const(document()), layer_id, point);
-      });
-      if (original_layer.clipped()) {
-        hooks.set_canvas_mode = {};
-      }
-      const auto result =
-          request_curves_settings(this, preview_changed, original_settings->curves, histograms, hooks);
-      if (result.has_value()) {
-        accepted_settings = *original_settings;
-        accepted_settings->curves = *result;
-      }
-      break;
-    }
-    case AdjustmentKind::HueSaturation: {
-      const auto preview_changed = [apply_settings, restore_original_layer, original_settings](
-                                       bool enabled, const HueSaturationSettings& hue_saturation) {
-        if (!enabled) {
-          restore_original_layer();
-          return;
-        }
-        auto settings = *original_settings;
-        settings.hue_saturation = to_hue_saturation_adjustment(hue_saturation);
-        apply_settings(settings);
-      };
-      const auto result = request_hue_saturation_settings(
-          this, preview_changed, to_hue_saturation_settings(original_settings->hue_saturation));
-      if (result.has_value()) {
-        accepted_settings = *original_settings;
-        accepted_settings->hue_saturation = to_hue_saturation_adjustment(*result);
-      }
-      break;
-    }
-    case AdjustmentKind::ColorBalance: {
-      const auto preview_changed = [apply_settings, restore_original_layer, original_settings](
-                                       bool enabled, const ColorBalanceSettings& color_balance) {
-        if (!enabled) {
-          restore_original_layer();
-          return;
-        }
-        auto settings = *original_settings;
-        settings.color_balance = color_balance;
-        apply_settings(settings);
-      };
-      const auto result =
-          request_color_balance_settings(this, preview_changed, original_settings->color_balance);
-      if (result.has_value()) {
-        accepted_settings = *original_settings;
-        accepted_settings->color_balance = *result;
-      }
-      break;
-    }
-    case AdjustmentKind::Invert:
-      break;  // handled by the early return above; nothing to edit
-    case AdjustmentKind::Posterize: {
-      const auto preview_changed = [apply_settings, restore_original_layer, original_settings](
-                                       bool enabled, const PosterizeSettings& posterize) {
-        if (!enabled) {
-          restore_original_layer();
-          return;
-        }
-        auto settings = *original_settings;
-        settings.posterize.levels = std::clamp(posterize.levels, 2, 255);
-        apply_settings(settings);
-      };
-      const auto result = request_posterize_settings(
-          this, preview_changed, PosterizeSettings{original_settings->posterize.levels});
-      if (result.has_value()) {
-        accepted_settings = *original_settings;
-        accepted_settings->posterize.levels = std::clamp(result->levels, 2, 255);
-      }
-      break;
-    }
-    case AdjustmentKind::Threshold: {
-      const auto preview_changed = [apply_settings, restore_original_layer, original_settings](
-                                       bool enabled, const ThresholdSettings& threshold) {
-        if (!enabled) {
-          restore_original_layer();
-          return;
-        }
-        auto settings = *original_settings;
-        settings.threshold.level = std::clamp(threshold.level, 1, 255);
-        apply_settings(settings);
-      };
-      const auto result = request_threshold_settings(
-          this, preview_changed, ThresholdSettings{original_settings->threshold.level});
-      if (result.has_value()) {
-        accepted_settings = *original_settings;
-        accepted_settings->threshold.level = std::clamp(result->level, 1, 255);
-      }
-      break;
-    }
-    case AdjustmentKind::ChannelMixer: {
-      const auto preview_changed = [apply_settings, restore_original_layer, original_settings](
-                                       bool enabled, const ChannelMixerSettings& mixer) {
-        if (!enabled) {
-          restore_original_layer();
-          return;
-        }
-        auto settings = *original_settings;
-        settings.channel_mixer = mixer;
-        apply_settings(settings);
-      };
-      const auto result =
-          request_channel_mixer_settings(this, preview_changed, original_settings->channel_mixer);
-      if (result.has_value()) {
-        accepted_settings = *original_settings;
-        accepted_settings->channel_mixer = *result;
-      }
-      break;
-    }
-    case AdjustmentKind::PhotoFilter: {
-      const auto preview_changed = [apply_settings, restore_original_layer, original_settings](
-                                       bool enabled, const PhotoFilterSettings& filter) {
-        if (!enabled) {
-          restore_original_layer();
-          return;
-        }
-        auto settings = *original_settings;
-        settings.photo_filter = filter;
-        apply_settings(settings);
-      };
-      const auto result = request_photo_filter_settings(this, preview_changed, original_settings->photo_filter);
-      if (result.has_value()) {
-        accepted_settings = *original_settings;
-        accepted_settings->photo_filter = *result;
-      }
-      break;
-    }
-    case AdjustmentKind::SelectiveColor: {
-      const auto preview_changed = [apply_settings, restore_original_layer, original_settings](
-                                       bool enabled, const SelectiveColorSettings& selective) {
-        if (!enabled) {
-          restore_original_layer();
-          return;
-        }
-        auto settings = *original_settings;
-        settings.selective_color = selective;
-        apply_settings(settings);
-      };
-      const auto result =
-          request_selective_color_settings(this, preview_changed, original_settings->selective_color);
-      if (result.has_value()) {
-        accepted_settings = *original_settings;
-        accepted_settings->selective_color = *result;
-      }
-      break;
-    }
-    case AdjustmentKind::ColorLookup: {
-      const auto preview_changed = [apply_settings, restore_original_layer, original_settings](
-                                       bool enabled, const ColorLookupSettings& look) {
-        if (!enabled) {
-          restore_original_layer();
-          return;
-        }
-        auto settings = *original_settings;
-        settings.color_lookup = look;
-        apply_settings(settings);
-      };
-      const auto result = request_color_lookup_settings(this, preview_changed, original_settings->color_lookup);
-      if (result.has_value()) {
-        accepted_settings = *original_settings;
-        accepted_settings->color_lookup = *result;
-      }
-      break;
-    }
-    case AdjustmentKind::BlackWhite: {
-      const auto preview_changed = [apply_settings, restore_original_layer, original_settings](
-                                       bool enabled, const BlackWhiteSettings& bw) {
-        if (!enabled) {
-          restore_original_layer();
-          return;
-        }
-        auto settings = *original_settings;
-        settings.black_white = bw;
-        apply_settings(settings);
-      };
-      const auto result = request_black_white_settings(this, preview_changed, original_settings->black_white);
-      if (result.has_value()) {
-        accepted_settings = *original_settings;
-        accepted_settings->black_white = *result;
-      }
-      break;
-    }
-    case AdjustmentKind::GradientMap: {
-      const auto preview_changed = [apply_settings, restore_original_layer, original_settings](
-                                       bool enabled, const GradientMapSettings& map) {
-        if (!enabled) {
-          restore_original_layer();
-          return;
-        }
-        auto settings = *original_settings;
-        settings.gradient_map = map;
-        apply_settings(settings);
-      };
-      const auto result =
-          request_gradient_map_settings(this, preview_changed, original_settings->gradient_map, &gradient_library(),
-                                        rgb_of(canvas_->primary_color()),
-                                        rgb_of(canvas_->secondary_color()));
-      if (result.has_value()) {
-        accepted_settings = *original_settings;
-        accepted_settings->gradient_map = *result;
-      }
-      break;
-    }
-    case AdjustmentKind::Exposure: {
-      const auto preview_changed = [apply_settings, restore_original_layer, original_settings](
-                                       bool enabled, const ExposureSettings& exposure) {
-        if (!enabled) {
-          restore_original_layer();
-          return;
-        }
-        auto settings = *original_settings;
-        settings.exposure = clamp_exposure(exposure);
-        apply_settings(settings);
-      };
-      const auto result = request_exposure_settings(this, preview_changed, original_settings->exposure);
-      if (result.has_value()) {
-        accepted_settings = *original_settings;
-        accepted_settings->exposure = clamp_exposure(*result);
-      }
-      break;
-    }
-    case AdjustmentKind::BrightnessContrast: {
-      const auto preview_changed = [apply_settings, restore_original_layer, original_settings](
-                                       bool enabled, const BrightnessContrastSettings& brightness_contrast) {
-        if (!enabled) {
-          restore_original_layer();
-          return;
-        }
-        auto settings = *original_settings;
-        settings.brightness_contrast = clamp_brightness_contrast(brightness_contrast);
-        apply_settings(settings);
-      };
-      const auto result = request_brightness_contrast_settings(
-          this, preview_changed, original_settings->brightness_contrast);
-      if (result.has_value()) {
-        accepted_settings = *original_settings;
-        accepted_settings->brightness_contrast = clamp_brightness_contrast(*result);
-      }
-      break;
-    }
-  }
+  const auto accepted_settings = request_adjustment_settings(*original_settings, preview, layer_id);
 
   restore_original_layer();
   preview_edit_lock.release();
@@ -1072,6 +792,308 @@ void MainWindow::edit_active_adjustment_layer() {
   refresh_layer_controls();
   refresh_document_info();
   statusBar()->showMessage(tr("Updated adjustment layer"));
+}
+
+std::optional<AdjustmentSettings> MainWindow::request_adjustment_settings(
+    const AdjustmentSettings& original,
+    const std::function<void(const std::optional<AdjustmentSettings>&)>& preview,
+    std::optional<LayerId> adjustment_layer_id) {
+  std::optional<AdjustmentSettings> accepted_settings;
+  switch (original.kind) {
+    case AdjustmentKind::Levels: {
+      const auto preview_changed = [&preview, &original](bool enabled, const LevelsSettings& levels) {
+        if (!enabled) {
+          preview(std::nullopt);
+          return;
+        }
+        auto settings = original;
+        settings.levels = sanitized_levels_adjustment(levels);
+        preview(settings);
+      };
+      const auto result = request_levels_settings(this, preview_changed,
+                                                  LevelsSettings{original.levels.black_input,
+                                                                 original.levels.white_input,
+                                                                 original.levels.gamma_percent,
+                                                                 original.levels.black_output,
+                                                                 original.levels.white_output,
+                                                                 original.levels.channel,
+                                                                 original.levels.red,
+                                                                 original.levels.green,
+                                                                 original.levels.blue});
+      if (result.has_value()) {
+        accepted_settings = original;
+        accepted_settings->levels = sanitized_levels_adjustment(*result);
+      }
+      break;
+    }
+    case AdjustmentKind::Curves: {
+      const auto preview_changed = [&preview, &original](bool enabled, const CurvesSettings& curves) {
+        if (!enabled) {
+          preview(std::nullopt);
+          return;
+        }
+        auto settings = original;
+        settings.curves = curves;
+        preview(settings);
+      };
+      // An adjustment layer's Auto and canvas sampling read the layers below it; an
+      // adjustment Smart Filter has no such input, so its dialog offers neither.
+      // A clipped adjustment runs inside an isolated clipping buffer. Until the
+      // histogram renderer can expose that buffer directly, leave Auto disabled
+      // instead of presenting a backdrop-mixed histogram as the adjustment input.
+      CurvesHistograms histograms;
+      CurvesDialogHooks hooks;
+      if (const auto* context = adjustment_layer_id.has_value()
+                                    ? std::as_const(document()).find_layer(*adjustment_layer_id)
+                                    : nullptr;
+          context != nullptr) {
+        const auto layer_id = *adjustment_layer_id;
+        if (!context->clipped()) {
+          histograms = curves_histograms_before_adjustment(std::as_const(document()), layer_id);
+        }
+        hooks = curves_canvas_hooks(canvas_, [this, layer_id](QPoint point) {
+          return curves_sample_before_layer(std::as_const(document()), layer_id, point);
+        });
+        if (context->clipped()) {
+          hooks.set_canvas_mode = {};
+        }
+      }
+      const auto result =
+          request_curves_settings(this, preview_changed, original.curves, histograms, hooks);
+      if (result.has_value()) {
+        accepted_settings = original;
+        accepted_settings->curves = *result;
+      }
+      break;
+    }
+    case AdjustmentKind::HueSaturation: {
+      const auto preview_changed = [&preview, &original](
+                                       bool enabled, const HueSaturationSettings& hue_saturation) {
+        if (!enabled) {
+          preview(std::nullopt);
+          return;
+        }
+        auto settings = original;
+        settings.hue_saturation = to_hue_saturation_adjustment(hue_saturation);
+        preview(settings);
+      };
+      const auto result = request_hue_saturation_settings(
+          this, preview_changed, to_hue_saturation_settings(original.hue_saturation));
+      if (result.has_value()) {
+        accepted_settings = original;
+        accepted_settings->hue_saturation = to_hue_saturation_adjustment(*result);
+      }
+      break;
+    }
+    case AdjustmentKind::ColorBalance: {
+      const auto preview_changed = [&preview, &original](
+                                       bool enabled, const ColorBalanceSettings& color_balance) {
+        if (!enabled) {
+          preview(std::nullopt);
+          return;
+        }
+        auto settings = original;
+        settings.color_balance = color_balance;
+        preview(settings);
+      };
+      const auto result =
+          request_color_balance_settings(this, preview_changed, original.color_balance);
+      if (result.has_value()) {
+        accepted_settings = original;
+        accepted_settings->color_balance = *result;
+      }
+      break;
+    }
+    case AdjustmentKind::Invert:
+      break;  // handled by the early return above; nothing to edit
+    case AdjustmentKind::Posterize: {
+      const auto preview_changed = [&preview, &original](
+                                       bool enabled, const PosterizeSettings& posterize) {
+        if (!enabled) {
+          preview(std::nullopt);
+          return;
+        }
+        auto settings = original;
+        settings.posterize.levels = std::clamp(posterize.levels, 2, 255);
+        preview(settings);
+      };
+      const auto result = request_posterize_settings(
+          this, preview_changed, PosterizeSettings{original.posterize.levels});
+      if (result.has_value()) {
+        accepted_settings = original;
+        accepted_settings->posterize.levels = std::clamp(result->levels, 2, 255);
+      }
+      break;
+    }
+    case AdjustmentKind::Threshold: {
+      const auto preview_changed = [&preview, &original](
+                                       bool enabled, const ThresholdSettings& threshold) {
+        if (!enabled) {
+          preview(std::nullopt);
+          return;
+        }
+        auto settings = original;
+        settings.threshold.level = std::clamp(threshold.level, 1, 255);
+        preview(settings);
+      };
+      const auto result = request_threshold_settings(
+          this, preview_changed, ThresholdSettings{original.threshold.level});
+      if (result.has_value()) {
+        accepted_settings = original;
+        accepted_settings->threshold.level = std::clamp(result->level, 1, 255);
+      }
+      break;
+    }
+    case AdjustmentKind::ChannelMixer: {
+      const auto preview_changed = [&preview, &original](
+                                       bool enabled, const ChannelMixerSettings& mixer) {
+        if (!enabled) {
+          preview(std::nullopt);
+          return;
+        }
+        auto settings = original;
+        settings.channel_mixer = mixer;
+        preview(settings);
+      };
+      const auto result =
+          request_channel_mixer_settings(this, preview_changed, original.channel_mixer);
+      if (result.has_value()) {
+        accepted_settings = original;
+        accepted_settings->channel_mixer = *result;
+      }
+      break;
+    }
+    case AdjustmentKind::PhotoFilter: {
+      const auto preview_changed = [&preview, &original](
+                                       bool enabled, const PhotoFilterSettings& filter) {
+        if (!enabled) {
+          preview(std::nullopt);
+          return;
+        }
+        auto settings = original;
+        settings.photo_filter = filter;
+        preview(settings);
+      };
+      const auto result = request_photo_filter_settings(this, preview_changed, original.photo_filter);
+      if (result.has_value()) {
+        accepted_settings = original;
+        accepted_settings->photo_filter = *result;
+      }
+      break;
+    }
+    case AdjustmentKind::SelectiveColor: {
+      const auto preview_changed = [&preview, &original](bool enabled, const SelectiveColorSettings& selective) {
+        if (!enabled) {
+          preview(std::nullopt);
+          return;
+        }
+        auto settings = original;
+        settings.selective_color = selective;
+        preview(settings);
+      };
+      const auto result = request_selective_color_settings(this, preview_changed, original.selective_color);
+      if (result.has_value()) {
+        accepted_settings = original;
+        accepted_settings->selective_color = *result;
+      }
+      break;
+    }
+    case AdjustmentKind::ColorLookup: {
+      const auto preview_changed = [&preview, &original](bool enabled, const ColorLookupSettings& look) {
+        if (!enabled) {
+          preview(std::nullopt);
+          return;
+        }
+        auto settings = original;
+        settings.color_lookup = look;
+        preview(settings);
+      };
+      const auto result = request_color_lookup_settings(this, preview_changed, original.color_lookup);
+      if (result.has_value()) {
+        accepted_settings = original;
+        accepted_settings->color_lookup = *result;
+      }
+      break;
+    }
+    case AdjustmentKind::BlackWhite: {
+      const auto preview_changed = [&preview, &original](
+                                       bool enabled, const BlackWhiteSettings& bw) {
+        if (!enabled) {
+          preview(std::nullopt);
+          return;
+        }
+        auto settings = original;
+        settings.black_white = bw;
+        preview(settings);
+      };
+      const auto result = request_black_white_settings(this, preview_changed, original.black_white);
+      if (result.has_value()) {
+        accepted_settings = original;
+        accepted_settings->black_white = *result;
+      }
+      break;
+    }
+    case AdjustmentKind::GradientMap: {
+      const auto preview_changed = [&preview, &original](
+                                       bool enabled, const GradientMapSettings& map) {
+        if (!enabled) {
+          preview(std::nullopt);
+          return;
+        }
+        auto settings = original;
+        settings.gradient_map = map;
+        preview(settings);
+      };
+      const auto result =
+          request_gradient_map_settings(this, preview_changed, original.gradient_map, &gradient_library(),
+                                        rgb_of(canvas_->primary_color()),
+                                        rgb_of(canvas_->secondary_color()));
+      if (result.has_value()) {
+        accepted_settings = original;
+        accepted_settings->gradient_map = *result;
+      }
+      break;
+    }
+    case AdjustmentKind::Exposure: {
+      const auto preview_changed = [&preview, &original](
+                                       bool enabled, const ExposureSettings& exposure) {
+        if (!enabled) {
+          preview(std::nullopt);
+          return;
+        }
+        auto settings = original;
+        settings.exposure = clamp_exposure(exposure);
+        preview(settings);
+      };
+      const auto result = request_exposure_settings(this, preview_changed, original.exposure);
+      if (result.has_value()) {
+        accepted_settings = original;
+        accepted_settings->exposure = clamp_exposure(*result);
+      }
+      break;
+    }
+    case AdjustmentKind::BrightnessContrast: {
+      const auto preview_changed = [&preview, &original](
+                                       bool enabled, const BrightnessContrastSettings& brightness_contrast) {
+        if (!enabled) {
+          preview(std::nullopt);
+          return;
+        }
+        auto settings = original;
+        settings.brightness_contrast = clamp_brightness_contrast(brightness_contrast);
+        preview(settings);
+      };
+      const auto result = request_brightness_contrast_settings(
+          this, preview_changed, original.brightness_contrast);
+      if (result.has_value()) {
+        accepted_settings = original;
+        accepted_settings->brightness_contrast = clamp_brightness_contrast(*result);
+      }
+      break;
+    }
+  }
+
+  return accepted_settings;
 }
 
 }  // namespace patchy::ui

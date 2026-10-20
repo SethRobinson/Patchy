@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/adjustment_layer.hpp"
 #include "core/layer.hpp"
 #include "core/smart_filter_table.hpp"
 
@@ -44,6 +45,9 @@ enum class SmartFilterKind {
   Pointillize,
   Mezzotint,
   Fibers,
+  // Image > Adjustments applied to a Smart Object (Levels, Curves, ...); the
+  // settings are an AdjustmentSmartFilter (docs/smart-filters-adjustments.md).
+  Adjustment,
 };
 
 struct GaussianBlurSmartFilter {
@@ -151,6 +155,17 @@ struct SchemaSmartFilter {
   std::vector<std::int32_t> values;
   bool operator==(const SchemaSmartFilter&) const = default;
 };
+// An Image > Adjustments command stored as a Smart Filter. Photoshop keeps the
+// command's action descriptor (Lvls, Crvs, HStr, BrgC, ...) as the entry's Fltr
+// object; Patchy reads it into the adjustment-layer model and renders it with
+// the adjustment-layer math (docs/smart-filters-adjustments.md).
+struct AdjustmentSmartFilter {
+  AdjustmentSettings settings;
+};
+// Compares the settings of the adjustment kind only (AdjustmentSettings holds
+// every kind's settings side by side).
+[[nodiscard]] bool operator==(const AdjustmentSmartFilter& a,
+                              const AdjustmentSmartFilter& b);
 
 using SmartFilterParameters =
     std::variant<std::monostate, GaussianBlurSmartFilter, HighPassSmartFilter,
@@ -159,7 +174,8 @@ using SmartFilterParameters =
                  MotionBlurSmartFilter, PlasticWrapSmartFilter,
                  MosaicSmartFilter, EmbossSmartFilter, BoxBlurSmartFilter,
                  RadialBlurSmartFilter, AddNoiseSmartFilter,
-                 SchemaSmartFilter, TableSmartFilter>;
+                 SchemaSmartFilter, TableSmartFilter,
+                 AdjustmentSmartFilter>;
 
 struct SmartFilterEntry {
   SmartFilterKind kind{SmartFilterKind::Unsupported};

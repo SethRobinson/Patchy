@@ -2371,6 +2371,12 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
             settings != nullptr) {
           entry_tooltip += smart_filter_schema_summary(*schema, *settings);
         }
+      } else if (const auto *adjustment =
+                     std::get_if<AdjustmentSmartFilter>(&entry.parameters);
+                 entry.kind == SmartFilterKind::Adjustment &&
+                 adjustment != nullptr) {
+        entry_name = localized_adjustment_display_name(adjustment->settings.kind);
+        entry_tooltip = entry_name;
       } else if (!entry.native_name.empty()) {
         entry_name = QString::fromStdString(entry.native_name);
         entry_tooltip = entry_name;

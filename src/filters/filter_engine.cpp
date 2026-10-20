@@ -1988,7 +1988,7 @@ void execute_builtin_filter(const FilterRegistry &registry,
       for (std::int32_t x = 0; x < pixels.width(); ++x) {
         auto *px = pixels.pixel(x, y);
         // Shared with the Threshold adjustment layer (core/adjustment_layer);
-        // both must keep the integer (30r + 59g + 11b) / 100 luminance.
+        // both must keep the rounded (30r + 59g + 11b) / 100 luminance.
         const auto value =
             threshold_luminance(px[0], px[1], px[2]) >= threshold ? 255 : 0;
         px[0] = static_cast<std::uint8_t>(value);
