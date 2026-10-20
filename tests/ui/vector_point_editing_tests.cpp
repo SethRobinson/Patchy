@@ -110,6 +110,38 @@ const patchy::PathAnchor& anchor_at(patchy::Document& document, patchy::LayerId 
   return layer->vector_shape()->path.subpaths[0].anchors[index];
 }
 
+// Writes `path` into the active target through the canvas's own edit route
+// (replace_path_edit_target, what every point and handle drag uses), so a shape
+// layer re-renders its fill. Tests that set handles must use this, not
+// set_vector_shape, or the fill stays the old shape in captures.
+void set_target_path_through_edits(patchy::ui::CanvasWidget& canvas, patchy::VectorPath path) {
+  std::vector<int> groups;
+  for (const auto& subpath : path.subpaths) {
+    if (std::find(groups.begin(), groups.end(), subpath.shape_group) == groups.end()) {
+      groups.push_back(subpath.shape_group);
+    }
+  }
+  canvas.replace_path_edit_target(std::move(path), groups);
+  QApplication::processEvents();
+}
+
+// The alpha of the shape layer's rendered fill at a document point (0 outside it).
+int layer_fill_alpha_at(patchy::Document& document, patchy::LayerId id, QPoint document_point) {
+  const auto* layer = std::as_const(document).find_layer(id);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return -1;
+  }
+  const auto bounds = layer->bounds();
+  const QPoint local(document_point.x() - bounds.x, document_point.y() - bounds.y);
+  const auto& pixels = layer->pixels();
+  if (local.x() < 0 || local.y() < 0 || local.x() >= pixels.width() || local.y() >= pixels.height() ||
+      pixels.format().channels < 4) {
+    return 0;
+  }
+  return pixels.pixel(local.x(), local.y())[3];
+}
+
 // True when a pixel near the document point reads as the path-overlay accent
 // (116, 192, 255) in a canvas grab.
 bool accent_overlay_near(patchy::ui::CanvasWidget& canvas, QPoint document_point) {
@@ -1045,23 +1077,25 @@ void ui_path_tools_keep_handle_knobs_to_direct_select() {
     auto& document = patchy::ui::MainWindowTestAccess::document(window);
     const auto layer_id = make_rect_shape_layer(window, *canvas);  // corners (100,100)..(300,220)
     {
-      auto* layer = document.find_layer(layer_id);
-      CHECK(layer != nullptr && layer->vector_shape() != nullptr);
-      if (layer == nullptr || layer->vector_shape() == nullptr) {
+      const auto* path = canvas->path_edit_target_path();
+      CHECK(path != nullptr);
+      if (path == nullptr) {
         return;
       }
-      auto content = *layer->vector_shape();
-      auto& anchor = content.path.subpaths[0].anchors[0];
+      auto curved = *path;  // the top-left corner turns smooth: a fill the captures can trust
+      auto& anchor = curved.subpaths[0].anchors[0];
       anchor.smooth = true;
       anchor.out_x = anchor.anchor_x + 60.0;
       anchor.out_y = anchor.anchor_y - 70.0;
       anchor.in_x = anchor.anchor_x - 60.0;
       anchor.in_y = anchor.anchor_y + 70.0;
-      layer->set_vector_shape(std::move(content));
+      set_target_path_through_edits(*canvas, std::move(curved));
     }
     canvas->set_view_zoom_centered(1.0);
     canvas->set_tool(tool);
     const bool path_select = tool == patchy::ui::CanvasTool::PathSelect;
+    // The fill follows the curve: above the old top edge, under the bulge.
+    CHECK(layer_fill_alpha_at(document, layer_id, QPoint(150, 80)) > 200);
     pen_click(*canvas, QPoint(100, 100));  // select (the anchor, or the whole shape)
     CHECK(canvas->path_edit_has_selection());
     save_widget_artifact(path_select ? "ui_path_roles_path_select_selected_shape"
@@ -1509,22 +1543,6 @@ void ui_path_transform_distort_never_folds_the_quad() {
   CHECK(corners_near(corners, {QPointF(150, 130), QPointF(300, 100), QPointF(300, 220), QPointF(100, 220)}));
 }
 
-// The alpha of the shape layer's rendered fill at a document point (0 outside it).
-int layer_fill_alpha_at(patchy::Document& document, patchy::LayerId id, QPoint document_point) {
-  const auto* layer = std::as_const(document).find_layer(id);
-  CHECK(layer != nullptr);
-  if (layer == nullptr) {
-    return -1;
-  }
-  const auto bounds = layer->bounds();
-  const QPoint local(document_point.x() - bounds.x, document_point.y() - bounds.y);
-  const auto& pixels = layer->pixels();
-  if (local.x() < 0 || local.y() < 0 || local.x() >= pixels.width() || local.y() >= pixels.height() ||
-      pixels.format().channels < 4) {
-    return 0;
-  }
-  return pixels.pixel(local.x(), local.y())[3];
-}
 
 // GitHub issue 248 follow-up: the shape's fill follows the path transform box
 // live (every drag frame re-rasterizes the one layer), not only on Enter: a
@@ -2038,6 +2056,62 @@ void ui_path_select_tools_show_their_own_arrow_cursors() {
   CHECK(image_of(hover(*canvas, QPoint(500, 400))) == direct_arrow);
 }
 
+// A Direct Select anchor or handle drag re-renders the shape's fill on every move,
+// not only on release (the live-fill rule the path transform box follows too):
+// a pixel the new outline leaves is empty mid-drag.
+void ui_direct_select_drags_redraw_the_fill_live() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
+  canvas->set_view_zoom_centered(1.0);
+  require_action(window, "toolDirectSelectAction")->trigger();
+  QApplication::processEvents();
+  // An anchor drag: the corner moves in, the corner's pixel empties mid-drag.
+  CHECK(layer_fill_alpha_at(document, layer_id, QPoint(105, 105)) > 200);
+  const auto corner = canvas->widget_position_for_document_point(QPoint(100, 100));
+  send_mouse(*canvas, QEvent::MouseButtonPress, corner, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(QPoint(150, 140)), Qt::NoButton,
+             Qt::LeftButton);
+  QApplication::processEvents();
+  save_widget_artifact("ui_direct_select_anchor_drag_mid", *canvas);
+  CHECK(layer_fill_alpha_at(document, layer_id, QPoint(105, 105)) == 0);
+  CHECK(layer_fill_alpha_at(document, layer_id, QPoint(200, 170)) > 200);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, canvas->widget_position_for_document_point(QPoint(150, 140)),
+             Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(layer_fill_alpha_at(document, layer_id, QPoint(105, 105)) > 200);
+
+  // A handle drag: the top edge bulges up through a smooth corner, then a knob
+  // drag flattens it, and the bulge's pixel empties mid-drag.
+  {
+    auto curved = *canvas->path_edit_target_path();
+    auto& anchor = curved.subpaths[0].anchors[0];
+    anchor.smooth = true;
+    anchor.out_x = 160.0;
+    anchor.out_y = 30.0;
+    anchor.in_x = 40.0;
+    anchor.in_y = 170.0;
+    set_target_path_through_edits(*canvas, std::move(curved));
+  }
+  CHECK(layer_fill_alpha_at(document, layer_id, QPoint(150, 80)) > 200);
+  pen_click(*canvas, QPoint(100, 100));
+  const auto knob = canvas->widget_position_for_document_point(QPoint(160, 30));
+  send_mouse(*canvas, QEvent::MouseButtonPress, knob, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(QPoint(160, 100)), Qt::NoButton,
+             Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(std::abs(anchor_at(document, layer_id, 0).out_y - 100.0) < 1.0);
+  CHECK(layer_fill_alpha_at(document, layer_id, QPoint(150, 80)) == 0);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, canvas->widget_position_for_document_point(QPoint(160, 100)),
+             Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+}
+
 // Shift during an anchor drag constrains movement to the nearest horizontal,
 // vertical, or 45-degree axis, re-evaluated per move against the total delta
 // from the press point (Photoshop's vertex constraint, never latched).
@@ -2405,6 +2479,7 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
        ui_pen_shift_keeps_45_degrees_and_ctrl_click_ends_the_path},
       {"ui_pen_click_on_an_open_end_continues_the_path", ui_pen_click_on_an_open_end_continues_the_path},
       {"ui_path_select_tools_show_their_own_arrow_cursors", ui_path_select_tools_show_their_own_arrow_cursors},
+      {"ui_direct_select_drags_redraw_the_fill_live", ui_direct_select_drags_redraw_the_fill_live},
       {"ui_ctrl_h_hides_path_points_with_selection_edges",
        ui_ctrl_h_hides_path_points_with_selection_edges},
       {"ui_direct_select_drags_marquee_selection_by_segment",

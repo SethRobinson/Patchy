@@ -35,7 +35,10 @@ discs with the dark edge and an accent dot (10 and 12 px glyphs read as too big 
 Photoshop's), and grab from 9 px (`kHandleHitRadiusPx`; a press
 nearer the anchor stays the anchor's; `ui_path_handle_knobs_read_and_grab`). Knobs are
 Direct Select's alone (and the Pen's Ctrl latch, which is Direct Select): Path Select draws
-and grabs none (`ui_path_tools_keep_handle_knobs_to_direct_select`; see "Tool roles"). `kGlyphReach` (8 px) is how far a glyph reaches
+and grabs none (`ui_path_tools_keep_handle_knobs_to_direct_select`; see "Tool roles"). Point and handle drags
+re-render a shape layer's fill on every move (`apply_path_edit`; `ui_direct_select_drags_redraw_the_fill_live`);
+tests that set up handles go through `replace_path_edit_target` (`set_target_path_through_edits`),
+never `set_vector_shape`, or captures show the old fill under the new outline. `kGlyphReach` (8 px) is how far a glyph reaches
 past its point; every repaint region around path points pads by it. The tests'
 `accent_overlay_near` probes 3 px around a point for the accent, which the inner ring and the
 knob dot satisfy.
