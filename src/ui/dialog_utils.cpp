@@ -549,6 +549,7 @@ public:
         return false;
       }
       scrubbing_ = true;
+      spin_->setProperty(kScrubActiveProperty, true);
       anchor_x_ = press_.x();
       anchor_value_ = scrub_value(spin_);
       anchor_rate_ = scrub_rate(modifiers);
@@ -572,6 +573,9 @@ public:
     const bool scrubbed = pressed_ && scrubbing_;
     pressed_ = false;
     scrubbing_ = false;
+    if (scrubbed && !spin_.isNull()) {
+      spin_->setProperty(kScrubActiveProperty, false);
+    }
     if (scrubbed && emit_finished && !spin_.isNull()) {
       Q_EMIT spin_->editingFinished();
     }
@@ -1871,6 +1875,10 @@ void install_prefix_scrub(QSpinBox* spin) {
     return;
   }
   install_scrub_handles(nullptr, spin, true);
+}
+
+bool spin_box_scrub_active(const QAbstractSpinBox* spin) {
+  return spin != nullptr && spin->property(kScrubActiveProperty).toBool();
 }
 
 void install_scrub_labels_in(QWidget* container) {

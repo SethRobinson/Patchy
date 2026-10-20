@@ -1227,6 +1227,13 @@ public:
   // makes when there is nothing to copy the size from.
   void set_artboard_default_size(QSize size) noexcept;
   [[nodiscard]] bool artboard_drag_active() const noexcept;
+  // A field scrub's live preview (the Properties and options-bar artboard X/Y/W/H): the
+  // canvas shows artboard `id` at `rect` as an Artboard-tool drag does (a same-size rect
+  // moves the artboard's pixels along, any other draws the resize outline), with any tool
+  // and without touching the document. The caller commits once when the scrub ends, then
+  // calls end_artboard_rect_preview (which leaves a mouse drag alone).
+  void preview_artboard_rect(LayerId id, QRect rect);
+  void end_artboard_rect_preview();
   // Keeps the artwork still on screen after an edit moved every document coordinate by
   // `document_shift` (an artboard edit that grew the canvas up or left).
   void shift_view_for_document_offset(QPoint document_shift);
@@ -2175,6 +2182,8 @@ private:
   [[nodiscard]] QRect artboard_resize_rect(QPoint point, Qt::KeyboardModifiers modifiers) const;
   bool handle_artboard_press(QMouseEvent* event);
   void update_artboard_drag(QMouseEvent* event);
+  // The moving artboard's pixels and the canvas without it, once per move.
+  void capture_artboard_drag_ghost();
   void finish_artboard_drag(QMouseEvent* event);
   void cancel_artboard_drag();
   bool handle_artboard_label_press(QMouseEvent* event);
@@ -2952,6 +2961,8 @@ private:
   QPoint artboard_press_widget_point_;
   bool artboard_drag_moved_{false};
   bool artboard_drag_duplicate_{false};
+  // The drag state shows a field scrub's preview_artboard_rect, not a mouse drag.
+  bool artboard_field_preview_{false};
   // The artboard's pixels at the start of a move, drawn at the moving rect.
   QImage artboard_drag_ghost_;
   // What the canvas shows where the moving artboard was (it, hidden): the drag shows the

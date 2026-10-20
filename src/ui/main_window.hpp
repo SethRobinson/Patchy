@@ -1358,6 +1358,12 @@ private:
   void apply_artboard_background_option(const QString& token, bool from_properties);
   void add_artboard_beside();
   void apply_properties_artboard_rect();
+  // A scrub of an artboard X/Y/W/H field previews on the canvas (preview_artboard_rect)
+  // and commits once at its editingFinished, like an Artboard-tool drag: running the
+  // whole resize per pixel made scrubs on large documents slow. false when there is no
+  // artboard to preview (the options-bar W/H then only set the new-artboard size).
+  bool preview_artboard_field_rect(bool from_properties);
+  void commit_artboard_field_preview();
   void finish_artboard_edit(const QString& status, std::optional<LayerId> select);
   void build_properties_artboard_panel(QWidget* parent, QVBoxLayout* layout);
   [[nodiscard]] std::pair<ArtboardBackground, RgbColor> current_artboard_background() const;
@@ -2689,6 +2695,9 @@ private:
   // bar) until its editingFinished: a label or field scrub, or a run of arrow steps, is
   // one undo step.
   ArtboardNudgeRun artboard_field_edit_run_{};
+  enum class ArtboardFieldPreview { None, Properties, OptionsBar };
+  ArtboardFieldPreview artboard_field_preview_{ArtboardFieldPreview::None};
+  std::int64_t artboard_field_preview_session_{0};
   [[nodiscard]] bool continues_artboard_field_edit(LayerId id) const;
   UnitSpinBox* properties_shape_width_spin_{nullptr};
   UnitSpinBox* properties_shape_height_spin_{nullptr};
