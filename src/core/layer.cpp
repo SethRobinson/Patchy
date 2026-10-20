@@ -246,6 +246,28 @@ LayerLockFlags Layer::lock_flags() const noexcept {
   return lock_flags_;
 }
 
+namespace {
+constexpr std::array<std::string_view, kLayerColorLast + 1U> kLayerColorLabelIds{
+    "none", "red", "orange", "yellow", "green", "blue", "violet", "gray"};
+}  // namespace
+
+std::string_view layer_color_label_id(LayerColorLabel label) noexcept {
+  return label <= kLayerColorLast ? kLayerColorLabelIds[label] : kLayerColorLabelIds[kLayerColorNone];
+}
+
+std::optional<LayerColorLabel> layer_color_label_from_id(std::string_view id) noexcept {
+  for (std::size_t index = 0; index < kLayerColorLabelIds.size(); ++index) {
+    if (kLayerColorLabelIds[index] == id) {
+      return static_cast<LayerColorLabel>(index);
+    }
+  }
+  return std::nullopt;
+}
+
+LayerColorLabel Layer::color_label() const noexcept {
+  return color_label_;
+}
+
 Rect Layer::bounds() const noexcept {
   return bounds_;
 }
@@ -535,6 +557,10 @@ void Layer::set_lock_flags(LayerLockFlags flags) noexcept {
   lock_flags_ = flags & kLayerLockAll;
   render_revision_ = next_layer_revision();
   content_revision_ = next_layer_revision();
+}
+
+void Layer::set_color_label(LayerColorLabel label) noexcept {
+  color_label_ = label;
 }
 
 void Layer::set_bounds(Rect bounds) noexcept {

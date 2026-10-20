@@ -465,6 +465,28 @@ QString photoshop_style_template() {
       background: @layer_row_selected_bg;
       border-bottom: 1px solid @layer_row_selected_border;
     }
+    /* Layer color labels (GitHub issue 244): a strip down the row's left edge. */
+    QWidget#layerRowColorStrip[layerColor="red"] {
+      background: @layer_color_red;
+    }
+    QWidget#layerRowColorStrip[layerColor="orange"] {
+      background: @layer_color_orange;
+    }
+    QWidget#layerRowColorStrip[layerColor="yellow"] {
+      background: @layer_color_yellow;
+    }
+    QWidget#layerRowColorStrip[layerColor="green"] {
+      background: @layer_color_green;
+    }
+    QWidget#layerRowColorStrip[layerColor="blue"] {
+      background: @layer_color_blue;
+    }
+    QWidget#layerRowColorStrip[layerColor="violet"] {
+      background: @layer_color_violet;
+    }
+    QWidget#layerRowColorStrip[layerColor="gray"] {
+      background: @layer_color_gray;
+    }
     QListWidget::indicator {
       width: 0;
       height: 0;

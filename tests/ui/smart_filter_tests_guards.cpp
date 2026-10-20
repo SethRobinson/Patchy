@@ -19,12 +19,14 @@
 #include "formats/tga_document_io.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/main_window.hpp"
+#include "ui/main_window_shared.hpp"
 #include "ui/script_engine.hpp"
 #include "ui/app_settings.hpp"
 #include "psd/psd_document_io.hpp"
 #include "psd/psd_filter_effects.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
+#include <map>
 #include <QAction>
 #include <QApplication>
 #include <QDialog>
@@ -38,6 +40,8 @@
 #include <QPushButton>
 #include <QSpinBox>
 #include <QTimer>
+#include <QMenu>
+#include <QTest>
 #include <QToolButton>
 #include <QWidget>
 #include <algorithm>
@@ -859,11 +863,10 @@ void ui_smart_filter_native_integrity_guards_reject_destructive_actions() {
       require_action(window, "imageSnapImageToPaletteAction"));
 }
 
-void ui_unsupported_smart_filter_guards_preserve_photoshop_preview() {
-  SettingsValueRestorer notes_setting(
-      QStringLiteral("imports/showPsdWarningsAndInfo"));
-  patchy::ui::app_settings().remove(
-      QStringLiteral("imports/showPsdWarningsAndInfo"));
+// "Applied Median then Gaussian" from the Photoshop model fixture with the Median's class
+// renamed to one Photoshop and Patchy both lack: a stack whose first filter Patchy cannot
+// render under a Gaussian it can.
+std::filesystem::path write_unmodeled_median_then_gaussian_fixture() {
   auto unsupported_document = patchy::psd::DocumentIo::read_file(
       patchy::test::committed_psd_fixture_path(
           "photoshop-smart-filter-model.psd"));
@@ -899,6 +902,385 @@ void ui_unsupported_smart_filter_guards_preserve_photoshop_preview() {
       "ui_unsupported_smart_filter_descriptor.psd");
   patchy::psd::DocumentIo::write_layered_rgb8_file(unsupported_document,
                                                     unsupported_path);
+  return unsupported_path;
+}
+
+// A Smart Filter row control by its execution index (rows list the stack top-down).
+template <typename Control>
+Control* smart_filter_control(QWidget* row, const QString& object_name, std::size_t execution_index) {
+  if (row == nullptr) {
+    return nullptr;
+  }
+  for (auto* control : row->findChildren<Control*>(object_name)) {
+    if (control->property("smartFilterExecutionIndex").toULongLong() == execution_index) {
+      return control;
+    }
+  }
+  return nullptr;
+}
+
+// GitHub issue 243: a stack running a filter Patchy cannot render offers exactly the
+// changes that leave a stack Patchy renders: hiding or deleting that filter, hiding the
+// stack, deleting the stack. The rest stay disabled and say why. Each change is one undo
+// step that brings Photoshop's preview back.
+void ui_unmodeled_smart_filter_controls_follow_what_patchy_renders() {
+  SettingsValueRestorer notes_setting(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  const auto fixture = write_unmodeled_median_then_gaussian_fixture();
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(
+      window, QString::fromStdWString(fixture.wstring()));
+  QApplication::processEvents();
+  const auto layer_name = QStringLiteral("Applied Median then Gaussian");
+  const auto layer_id = select_named_layer(window, layer_name);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(list != nullptr);
+  const auto parent_dir = QFileInfo(
+      patchy::ui::MainWindowTestAccess::active_session_path(window)).absolutePath();
+  const auto layer = [&] { return std::as_const(document).find_layer(layer_id); };
+  const auto row = [&]() -> QWidget* {
+    patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+    QApplication::processEvents();
+    return list->itemWidget(require_layer_item(*list, layer_name));
+  };
+  CHECK(layer() != nullptr && layer()->smart_filter_stack() != nullptr);
+  CHECK(layer()->smart_filter_stack()->entries.size() == 2U);
+  CHECK(layer()->smart_filter_stack()->entries[0].kind == patchy::SmartFilterKind::Unsupported);
+  CHECK(layer()->smart_filter_stack()->entries[1].kind == patchy::SmartFilterKind::GaussianBlur);
+  CHECK(layer()->smart_filter_stack()->support == patchy::SmartFilterStackSupport::Unsupported);
+  CHECK(patchy::smart_object_lock_reason(*layer()) == "filters");
+  const auto photoshop_pixels = layer()->pixels();
+  const auto photoshop_bounds = layer()->bounds();
+  const auto undo_depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  const auto back_to_photoshop_preview = [&] {
+    patchy::ui::MainWindowTestAccess::undo(window);
+    QApplication::processEvents();
+    CHECK(layer() != nullptr && layer()->smart_filter_stack() != nullptr);
+    CHECK(layer()->smart_filter_stack()->entries.size() == 2U);
+    CHECK(layer()->smart_filter_stack()->support == patchy::SmartFilterStackSupport::Unsupported);
+    CHECK(patchy::smart_object_lock_reason(*layer()) == "filters");
+    CHECK(patchy::ui::pixel_buffers_equal(layer()->pixels(), photoshop_pixels));
+    CHECK(filter_rect_equal(layer()->bounds(), photoshop_bounds));
+    CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth);
+  };
+  const auto one_undo_step = [&] {
+    CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth + 1U);
+    CHECK(patchy::smart_object_lock_reason(*layer()).empty());
+  };
+
+  auto* current_row = row();
+  save_widget_artifact("issue243_unmodeled_smart_filter_controls", *list);
+  auto* stack_eye = current_row->findChild<QToolButton*>(QStringLiteral("layerSmartFiltersVisibilityButton"));
+  auto* unmodeled_eye =
+      smart_filter_control<QToolButton>(current_row, QStringLiteral("layerSmartFilterVisibilityButton"), 0U);
+  auto* gaussian_eye =
+      smart_filter_control<QToolButton>(current_row, QStringLiteral("layerSmartFilterVisibilityButton"), 1U);
+  auto* unmodeled_edit =
+      smart_filter_control<QToolButton>(current_row, QStringLiteral("layerSmartFilterEditButton"), 0U);
+  auto* gaussian_edit =
+      smart_filter_control<QToolButton>(current_row, QStringLiteral("layerSmartFilterEditButton"), 1U);
+  auto* unmodeled_delete =
+      smart_filter_control<QAction>(current_row, QStringLiteral("layerSmartFilterDeleteAction"), 0U);
+  auto* gaussian_delete =
+      smart_filter_control<QAction>(current_row, QStringLiteral("layerSmartFilterDeleteAction"), 1U);
+  auto* gaussian_duplicate =
+      smart_filter_control<QAction>(current_row, QStringLiteral("layerSmartFilterDuplicateAction"), 1U);
+  auto* delete_all = current_row->findChild<QAction*>(QStringLiteral("layerSmartFiltersDeleteAction"));
+  CHECK(stack_eye != nullptr && unmodeled_eye != nullptr && gaussian_eye != nullptr);
+  CHECK(unmodeled_edit != nullptr && gaussian_edit != nullptr);
+  CHECK(unmodeled_delete != nullptr && gaussian_delete != nullptr && gaussian_duplicate != nullptr);
+  CHECK(delete_all != nullptr);
+  CHECK(stack_eye->isEnabled());
+  CHECK(stack_eye->toolTip() == QStringLiteral("Smart Filters visible. Click to hide."));
+  CHECK(unmodeled_eye->isEnabled());
+  CHECK(!gaussian_eye->isEnabled());
+  CHECK(gaussian_eye->toolTip() == patchy::ui::smart_filter_unmodeled_left_running_message());
+  CHECK(!unmodeled_edit->isEnabled());
+  CHECK(unmodeled_edit->toolTip() == patchy::ui::smart_filter_unmodeled_settings_message());
+  CHECK(!gaussian_edit->isEnabled());
+  CHECK(gaussian_edit->toolTip() == patchy::ui::smart_filter_unmodeled_stack_settings_message());
+  CHECK(unmodeled_delete->isEnabled());
+  CHECK(!gaussian_delete->isEnabled());
+  CHECK(gaussian_delete->toolTip() == patchy::ui::smart_filter_unmodeled_left_after_delete_message());
+  CHECK(!gaussian_duplicate->isEnabled());
+  CHECK(delete_all->isEnabled());
+  // Review captures of the two menus that now offer a delete.
+  const auto capture_menu = [](QToolButton* button, const std::string& name) {
+    CHECK(button != nullptr && button->isEnabled() && button->menu() != nullptr);
+    if (button == nullptr || button->menu() == nullptr) {
+      return;
+    }
+    button->menu()->popup(button->mapToGlobal(QPoint(0, button->height())));
+    QApplication::processEvents();
+    save_widget_artifact(name, *button->menu());
+    button->menu()->hide();
+    QApplication::processEvents();
+  };
+  capture_menu(current_row->findChild<QToolButton*>(QStringLiteral("layerSmartFiltersMoreButton")),
+               "issue243_delete_all_menu");
+  capture_menu(smart_filter_control<QToolButton>(current_row, QStringLiteral("layerSmartFilterMoreButton"), 0U),
+               "issue243_unmodeled_filter_menu");
+
+  // Hiding the filter Patchy cannot render: the Gaussian renders alone.
+  unmodeled_eye->click();
+  CHECK(process_events_until([&] {
+    return layer() != nullptr && layer()->smart_filter_stack() != nullptr &&
+           !layer()->smart_filter_stack()->entries[0].enabled;
+  }));
+  one_undo_step();
+  CHECK(layer()->smart_filter_stack()->support == patchy::SmartFilterStackSupport::Supported);
+  const auto gaussian_alone = patchy::ui::render_smart_object_layer_preview(
+      std::as_const(document), *layer(), canvas->transform_interpolation(), nullptr, parent_dir);
+  CHECK(gaussian_alone.has_value());
+  CHECK(patchy::ui::pixel_buffers_equal(layer()->pixels(), gaussian_alone->rendered.pixels));
+  current_row = row();
+  save_widget_artifact("issue243_unmodeled_smart_filter_hidden", *list);
+  unmodeled_eye =
+      smart_filter_control<QToolButton>(current_row, QStringLiteral("layerSmartFilterVisibilityButton"), 0U);
+  gaussian_eye =
+      smart_filter_control<QToolButton>(current_row, QStringLiteral("layerSmartFilterVisibilityButton"), 1U);
+  gaussian_edit =
+      smart_filter_control<QToolButton>(current_row, QStringLiteral("layerSmartFilterEditButton"), 1U);
+  CHECK(unmodeled_eye != nullptr && !unmodeled_eye->isEnabled());
+  CHECK(unmodeled_eye->toolTip() == patchy::ui::smart_filter_unmodeled_show_message());
+  CHECK(gaussian_eye != nullptr && gaussian_eye->isEnabled());
+  CHECK(gaussian_edit != nullptr && gaussian_edit->isEnabled());
+  back_to_photoshop_preview();
+
+  // Deleting it leaves the Gaussian, now editable.
+  smart_filter_control<QAction>(row(), QStringLiteral("layerSmartFilterDeleteAction"), 0U)->trigger();
+  CHECK(process_events_until([&] {
+    return layer() != nullptr && layer()->smart_filter_stack() != nullptr &&
+           layer()->smart_filter_stack()->entries.size() == 1U;
+  }));
+  one_undo_step();
+  CHECK(layer()->smart_filter_stack()->entries.front().kind == patchy::SmartFilterKind::GaussianBlur);
+  CHECK(layer()->smart_filter_stack()->support == patchy::SmartFilterStackSupport::Supported);
+  back_to_photoshop_preview();
+
+  // Hiding the stack shows the source; showing it again would run the unknown filter.
+  const auto unfiltered = [&] {
+    return patchy::ui::render_smart_object_unfiltered_layer_preview(
+        std::as_const(document), *layer(), canvas->transform_interpolation(), parent_dir);
+  };
+  row()->findChild<QToolButton*>(QStringLiteral("layerSmartFiltersVisibilityButton"))->click();
+  CHECK(process_events_until([&] {
+    return layer() != nullptr && layer()->smart_filter_stack() != nullptr &&
+           !layer()->smart_filter_stack()->enabled;
+  }));
+  one_undo_step();
+  const auto source = unfiltered();
+  CHECK(source.has_value());
+  CHECK(patchy::ui::pixel_buffers_equal(layer()->pixels(), source->pixels));
+  stack_eye = row()->findChild<QToolButton*>(QStringLiteral("layerSmartFiltersVisibilityButton"));
+  CHECK(stack_eye != nullptr && !stack_eye->isEnabled());
+  CHECK(stack_eye->toolTip() == patchy::ui::smart_filter_unmodeled_show_message());
+  back_to_photoshop_preview();
+
+  // Deleting every filter drops the stack and its cache record.
+  const auto placed_uuid = patchy::smart_object_placed_uuid(*layer());
+  row()->findChild<QAction*>(QStringLiteral("layerSmartFiltersDeleteAction"))->trigger();
+  CHECK(process_events_until([&] {
+    return layer() != nullptr && layer()->smart_filter_stack() == nullptr;
+  }));
+  one_undo_step();
+  CHECK(std::as_const(document).metadata().smart_filter_effects.find_unique(placed_uuid) == nullptr);
+  const auto deleted_source = unfiltered();
+  CHECK(deleted_source.has_value());
+  CHECK(patchy::ui::pixel_buffers_equal(layer()->pixels(), deleted_source->pixels));
+  back_to_photoshop_preview();
+  CHECK(std::as_const(document).metadata().smart_filter_effects.find_unique(placed_uuid) != nullptr);
+}
+
+// GitHub issue 243 with a real Photoshop filter Patchy does not model (Tilt-Shift): the
+// hidden filter, the hidden stack and the deleted stack each save and read back. The
+// saved files are the Photoshop acceptance inputs (docs/smart-objects.md).
+// GitHub issue 243 follow-up: every "..." button on a Smart Filter row opens its menu from a
+// real click. The header's button was missing from the list's own-click buttons, so the list
+// took the press as a row click and no menu opened. Clicks go through the list's event
+// filter like a user's; the menu that pops up reports which entries are enabled.
+void ui_smart_filter_row_menus_open_from_clicks() {
+  SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  // The popped-up menu's entries by object name, enabled or not; empty when none opened.
+  const auto click_for_menu = [](QToolButton* button) {
+    std::map<QString, bool> entries;
+    bool saw_menu = false;
+    QTimer::singleShot(50, [&] {
+      if (auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget()); menu != nullptr) {
+        saw_menu = true;
+        for (auto* action : menu->actions()) {
+          if (!action->isSeparator()) {
+            entries[action->objectName()] = action->isEnabled();
+          }
+        }
+        menu->hide();
+      }
+    });
+    QTest::mouseClick(button, Qt::LeftButton, Qt::NoModifier, button->rect().center());
+    process_events_for(100);
+    if (!saw_menu) {
+      entries.clear();
+    }
+    return std::pair{saw_menu, entries};
+  };
+
+  const auto check_layer = [&](const std::filesystem::path& file, const QString& layer_name, bool modeled) {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    patchy::ui::MainWindowTestAccess::open_document_path(window, QString::fromStdWString(file.wstring()));
+    QApplication::processEvents();
+    select_named_layer(window, layer_name);
+    auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+    CHECK(list != nullptr);
+    patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+    QApplication::processEvents();
+    auto* row = list->itemWidget(require_layer_item(*list, layer_name));
+    CHECK(row != nullptr);
+
+    auto* header_more = row->findChild<QToolButton*>(QStringLiteral("layerSmartFiltersMoreButton"));
+    CHECK(header_more != nullptr && header_more->isEnabled());
+    const auto [header_opened, header_entries] = click_for_menu(header_more);
+    CHECK(header_opened);
+    CHECK(header_entries.size() == 2U);
+    CHECK(header_entries.count(QStringLiteral("layerSmartFiltersVisibilityAction")) == 1U &&
+          header_entries.at(QStringLiteral("layerSmartFiltersVisibilityAction")));
+    CHECK(header_entries.count(QStringLiteral("layerSmartFiltersDeleteAction")) == 1U &&
+          header_entries.at(QStringLiteral("layerSmartFiltersDeleteAction")));
+
+    // Index 0 runs first (the lower row): Median, or the filter Patchy cannot render;
+    // index 1 is the Gaussian above it.
+    auto* first_more =
+        smart_filter_control<QToolButton>(row, QStringLiteral("layerSmartFilterMoreButton"), 0U);
+    auto* second_more =
+        smart_filter_control<QToolButton>(row, QStringLiteral("layerSmartFilterMoreButton"), 1U);
+    CHECK(first_more != nullptr && second_more != nullptr);
+    const auto [first_opened, first_entries] = click_for_menu(first_more);
+    CHECK(first_opened);
+    CHECK(first_entries.size() == 4U);
+    CHECK(first_entries.at(QStringLiteral("layerSmartFilterDeleteAction")));
+    CHECK(first_entries.at(QStringLiteral("layerSmartFilterDuplicateAction")) == modeled);
+    CHECK(first_entries.at(QStringLiteral("layerSmartFilterMoveUpAction")) == modeled);
+    CHECK(!first_entries.at(QStringLiteral("layerSmartFilterMoveDownAction")));  // already last to run
+    if (modeled) {
+      const auto [second_opened, second_entries] = click_for_menu(second_more);
+      CHECK(second_opened);
+      CHECK(second_entries.size() == 4U);
+      CHECK(second_entries.at(QStringLiteral("layerSmartFilterDeleteAction")));
+      CHECK(second_entries.at(QStringLiteral("layerSmartFilterDuplicateAction")));
+      CHECK(!second_entries.at(QStringLiteral("layerSmartFilterMoveUpAction")));
+      CHECK(second_entries.at(QStringLiteral("layerSmartFilterMoveDownAction")));
+    } else {
+      // Nothing in the Gaussian's menu can change while the other filter runs.
+      CHECK(!second_more->isEnabled());
+      CHECK(!click_for_menu(second_more).first);
+    }
+  };
+
+  // A stack Patchy renders, and the preview-locked one running a filter it cannot.
+  check_layer(patchy::test::committed_psd_fixture_path("photoshop-smart-filter-model.psd"),
+              QStringLiteral("Applied Median then Gaussian"), true);
+  check_layer(write_unmodeled_median_then_gaussian_fixture(), QStringLiteral("Applied Median then Gaussian"),
+              false);
+}
+
+void ui_photoshop_tilt_shift_smart_filter_hides_and_deletes() {
+  SettingsValueRestorer notes_setting(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  const auto fixture =
+      patchy::test::committed_psd_fixture_path("photoshop-smart-filter-tilt-shift.psd");
+  QString layer_name;
+  const auto fixture_document = patchy::psd::DocumentIo::read_file(fixture);
+  for (const auto& candidate : fixture_document.layers()) {
+    if (candidate.smart_filter_stack() != nullptr) {
+      layer_name = QString::fromStdString(candidate.name());
+    }
+  }
+  CHECK(!layer_name.isEmpty());
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(
+      window, QString::fromStdWString(fixture.wstring()));
+  QApplication::processEvents();
+  const auto layer_id = select_named_layer(window, layer_name);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(list != nullptr);
+  const auto layer = [&] { return std::as_const(document).find_layer(layer_id); };
+  const auto row = [&]() -> QWidget* {
+    patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+    QApplication::processEvents();
+    return list->itemWidget(require_layer_item(*list, layer_name));
+  };
+  CHECK(patchy::smart_object_lock_reason(*layer()) == "filters");
+  ensure_artifact_dir();
+  const auto save_and_reread = [&](const char* file_name) {
+    const auto path = std::filesystem::path("test-artifacts") / file_name;
+    patchy::psd::DocumentIo::write_layered_rgb8_file(std::as_const(document), path);
+    return patchy::psd::DocumentIo::read_file(path);
+  };
+  const auto reread_layer = [&](const patchy::Document& reread) -> const patchy::Layer* {
+    for (const auto& candidate : reread.layers()) {
+      if (QString::fromStdString(candidate.name()) == layer_name) {
+        return &candidate;
+      }
+    }
+    return nullptr;
+  };
+
+  smart_filter_control<QToolButton>(row(), QStringLiteral("layerSmartFilterVisibilityButton"), 0U)->click();
+  CHECK(process_events_until([&] {
+    return layer()->smart_filter_stack() != nullptr && !layer()->smart_filter_stack()->entries[0].enabled;
+  }));
+  const auto hidden_filter = save_and_reread("issue243_tilt_shift_filter_hidden.psd");
+  const auto* hidden_filter_layer = reread_layer(hidden_filter);
+  CHECK(hidden_filter_layer != nullptr && hidden_filter_layer->smart_filter_stack() != nullptr);
+  CHECK(!hidden_filter_layer->smart_filter_stack()->entries[0].enabled);
+  CHECK(hidden_filter_layer->smart_filter_stack()->entries[0].native_class_id == "blurbTransform");
+  CHECK(patchy::smart_object_lock_reason(*hidden_filter_layer).empty());
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+
+  row()->findChild<QToolButton*>(QStringLiteral("layerSmartFiltersVisibilityButton"))->click();
+  CHECK(process_events_until([&] {
+    return layer()->smart_filter_stack() != nullptr && !layer()->smart_filter_stack()->enabled;
+  }));
+  const auto hidden_stack = save_and_reread("issue243_tilt_shift_stack_hidden.psd");
+  const auto* hidden_stack_layer = reread_layer(hidden_stack);
+  CHECK(hidden_stack_layer != nullptr && hidden_stack_layer->smart_filter_stack() != nullptr);
+  CHECK(!hidden_stack_layer->smart_filter_stack()->enabled);
+  CHECK(patchy::smart_object_lock_reason(*hidden_stack_layer).empty());
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+
+  row()->findChild<QAction*>(QStringLiteral("layerSmartFiltersDeleteAction"))->trigger();
+  CHECK(process_events_until([&] { return layer()->smart_filter_stack() == nullptr; }));
+  const auto deleted = save_and_reread("issue243_tilt_shift_stack_deleted.psd");
+  const auto* deleted_layer = reread_layer(deleted);
+  CHECK(deleted_layer != nullptr && patchy::layer_is_smart_object(*deleted_layer));
+  CHECK(deleted_layer->smart_filter_stack() == nullptr);
+  CHECK(patchy::smart_object_lock_reason(*deleted_layer).empty());
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(patchy::smart_object_lock_reason(*layer()) == "filters");
+}
+
+void ui_unsupported_smart_filter_guards_preserve_photoshop_preview() {
+  SettingsValueRestorer notes_setting(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  const auto unsupported_path = write_unmodeled_median_then_gaussian_fixture();
 
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1433,6 +1815,11 @@ std::vector<patchy::test::TestCase> smart_filter_tests_part2() {
        ui_smart_filter_native_integrity_guards_reject_destructive_actions},
       {"ui_unsupported_smart_filter_guards_preserve_photoshop_preview",
        ui_unsupported_smart_filter_guards_preserve_photoshop_preview},
+      {"ui_unmodeled_smart_filter_controls_follow_what_patchy_renders",
+       ui_unmodeled_smart_filter_controls_follow_what_patchy_renders},
+      {"ui_photoshop_tilt_shift_smart_filter_hides_and_deletes",
+       ui_photoshop_tilt_shift_smart_filter_hides_and_deletes},
+      {"ui_smart_filter_row_menus_open_from_clicks", ui_smart_filter_row_menus_open_from_clicks},
       {"ui_pixel_mosaic_direct_action_appends_editable_smart_filter",
        ui_pixel_mosaic_direct_action_appends_editable_smart_filter},
       {"ui_emboss_direct_action_appends_editable_smart_filter",

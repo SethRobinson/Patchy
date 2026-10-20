@@ -133,6 +133,7 @@ struct HueSaturationSettings;
 // Same aliases as filter_workflows.hpp (an alias cannot be forward-declared);
 // identical redeclaration is legal and compiler-checked.
 using LevelsSettings = LevelsAdjustment;
+using ColorBalanceSettings = ColorBalanceAdjustment;
 using PosterizeSettings = PosterizeAdjustment;
 using ThresholdSettings = ThresholdAdjustment;
 using ExposureSettings = ExposureAdjustment;
@@ -218,6 +219,10 @@ public:
   void add_document_session(Document document, QString title, QString path = {},
                             QString initial_history_label = {},
                             SessionActivation activation = SessionActivation::Activate);
+  // The opening view for a session just added outside the open paths (recovery, Edit
+  // Contents, documents made from history, layers or patterns): fitted when larger than the
+  // view, 100% otherwise (GitHub issue 247), again once the event loop has laid the page out.
+  void apply_opening_view(DocumentSession& target_session);
   void open_command_line_files(const QStringList& paths);
   // Bring this already-running window to the foreground and open the files a second launch handed off
   // via the single-instance channel (see src/app/main.cpp).
@@ -1155,6 +1160,8 @@ private:
   void clear_internal_clipboard_on_external_change();
   void transform_active_layer_dialog();
   void warp_transform_active_layer();
+  // Edit > Transform > Skew/Distort/Perspective (GitHub issue 225).
+  void transform_active_layer_mode(TransformDistortMode mode);
   void add_text_at(QPoint document_point, QRect requested_text_box = {}, bool show_editor = true,
                    std::optional<patchy::VectorPath> requested_area = std::nullopt,
                    std::optional<LayerId> target_text_layer = std::nullopt);
@@ -1245,6 +1252,7 @@ private:
   void move_smart_filter(LayerId layer_id, std::size_t execution_index,
                          int visual_direction);
   void delete_smart_filter(LayerId layer_id, std::size_t execution_index);
+  void delete_smart_filter_stack(LayerId layer_id);
   // With `repeat` (Filter > Last Filter) the Look is applied without opening the gallery.
   void visual_filter_gallery_dialog(const FilterRecipe* repeat = nullptr);
   // The G'MIC Filter Library (main_window_gmic.cpp, docs/gmic.md).
@@ -1269,8 +1277,7 @@ private:
   void apply_hue_saturation_adjustment(const HueSaturationSettings& hue_saturation, bool allow_identity = false);
   void new_color_balance_adjustment_layer();
   void color_balance_dialog();
-  void apply_color_balance_adjustment(int cyan_red, int magenta_green, int yellow_blue,
-                                      bool allow_identity = false);
+  void apply_color_balance_adjustment(const ColorBalanceSettings& color_balance, bool allow_identity = false);
   void new_invert_adjustment_layer();
   void new_posterize_adjustment_layer();
   void apply_posterize_adjustment(const PosterizeSettings& settings, bool allow_identity = false);
@@ -1415,6 +1422,13 @@ private:
   void paste_layer_style_to_selected_layers();
   void delete_selected_layer_styles();
   void refresh_layer_style_action_states();
+  // Layer color labels (GitHub issue 244): one undo step that labels every
+  // selected (else the active) layer, groups included.
+  void set_selected_layers_color(LayerColorLabel label);
+  // Fills `menu` with the shared None..Gray actions, creating them on first use.
+  void populate_layer_color_actions(QMenu* menu);
+  // Checks the action matching the selection's common label (none when mixed).
+  void refresh_layer_color_action_states();
   void rasterize_active_layers();
   void rasterize_layer_ids(const std::vector<LayerId>& ids);
   void rasterize_active_layer_styles();
@@ -2348,6 +2362,8 @@ private:
   QToolButton* lock_all_button_{nullptr};
   QPushButton* add_layer_mask_button_{nullptr};
   QToolButton* layer_styles_button_{nullptr};
+  QMenu* layer_color_menu_{nullptr};
+  std::array<QAction*, kLayerColorLast + 1U> layer_color_actions_{};
   QAction* selection_new_mode_action_{nullptr};
   QAction* selection_add_mode_action_{nullptr};
   QAction* selection_subtract_mode_action_{nullptr};

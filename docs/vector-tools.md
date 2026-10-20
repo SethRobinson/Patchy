@@ -86,7 +86,8 @@ Custom Shape from Path adds a user entry.
 
 ## Path editing (Path Select / Direct Select)
 
-Path Select (A, black arrow) selects and drags whole shape groups. Direct
+Path Select (A, black arrow) selects and drags whole shape groups
+([press rules](vector-commands.md#pressing-and-picking-with-the-arrows)). Direct
 Select (white arrow; Shift+A cycles the A flyout) works per anchor: click or
 marquee selects, drag moves anchors or handle knobs (smooth pairs mirror; a
 collapsed handle on its corner anchor is not grabbable), Shift adds, arrows
@@ -96,7 +97,7 @@ selection, the options-bar Combine box rewrites the selected shapes' op in
 place. The Pen doubles as the point editor (insert by exact de Casteljau
 split, delete, Alt+click converts). Any direct edit drops the touched groups' live-shape
 annotations (PS's keyShapeInvalidated rule) and re-rasterizes; the target is
-the active shape layer, else the work path.
+the active shape layer (a press picks another), else the work path.
 
 ## Vector mask UI
 

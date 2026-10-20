@@ -28,6 +28,7 @@
 #include <QDateTime>
 #include <QKeyEvent>
 #include <QLatin1String>
+#include <QLineF>
 #include <QMenu>
 #include <QMouseEvent>
 #include <QPaintDevice>
@@ -70,6 +71,65 @@ constexpr double kPathHitRadiusPx = 7.0;       // half of the 14 px hit rect
 // knobs were too small to hit); a press closer to the anchor stays the anchor's.
 constexpr double kHandleHitRadiusPx = 9.0;
 constexpr qint64 kPathNudgeCoalesceMs = 800;
+
+// One subpath in document space; contains() closes an open one implicitly.
+QPainterPath subpath_painter_path(const PathSubpath& subpath) {
+  QPainterPath outline;
+  if (subpath.anchors.empty()) {
+    return outline;
+  }
+  outline.moveTo(subpath.anchors[0].anchor_x, subpath.anchors[0].anchor_y);
+  const auto anchor_count = subpath.anchors.size();
+  const auto segment_count = subpath.closed ? anchor_count : anchor_count - 1;
+  for (std::size_t i = 0; i < segment_count; ++i) {
+    const auto& a = subpath.anchors[i];
+    const auto& b = subpath.anchors[(i + 1) % anchor_count];
+    outline.cubicTo(a.out_x, a.out_y, b.in_x, b.in_y, b.anchor_x, b.anchor_y);
+  }
+  if (subpath.closed) {
+    outline.closeSubpath();
+  }
+  return outline;
+}
+
+// The topmost shape group whose filled outline contains the document point
+// (GitHub issue 248: a Path Select press inside a shape grabs it), or nullopt.
+std::optional<int> shape_group_containing(const VectorPath& path, QPointF document_point) {
+  for (auto it = path.subpaths.rbegin(); it != path.subpaths.rend(); ++it) {
+    if (it->anchors.size() >= 3 && subpath_painter_path(*it).contains(document_point)) {
+      return it->shape_group;
+    }
+  }
+  return std::nullopt;
+}
+
+// True when a marquee rect touches the subpath: its outline crosses the rect,
+// or (closed) its fill overlaps it.
+bool subpath_touches_rect(const PathSubpath& subpath, const QRectF& rect) {
+  const auto outline = subpath_painter_path(subpath);
+  if (subpath.closed) {
+    return outline.intersects(rect);
+  }
+  const QLineF edges[] = {QLineF(rect.topLeft(), rect.topRight()), QLineF(rect.topRight(), rect.bottomRight()),
+                          QLineF(rect.bottomRight(), rect.bottomLeft()),
+                          QLineF(rect.bottomLeft(), rect.topLeft())};
+  for (const auto& polygon : outline.toSubpathPolygons()) {
+    for (int i = 0; i < polygon.size(); ++i) {
+      if (rect.contains(polygon[i])) {
+        return true;
+      }
+      if (i + 1 < polygon.size()) {
+        const QLineF piece(polygon[i], polygon[i + 1]);
+        for (const auto& edge : edges) {
+          if (piece.intersects(edge, nullptr) == QLineF::BoundedIntersection) {
+            return true;
+          }
+        }
+      }
+    }
+  }
+  return false;
+}
 
 // De Casteljau split of the cubic (a.anchor, a.out, b.in, b.anchor) at t,
 // yielding the inserted anchor and the adjusted neighbor handles. Preserves
@@ -639,6 +699,40 @@ Layer* CanvasWidget::path_edit_target_layer() const {
     return layer;
   }
   return nullptr;
+}
+
+Layer* CanvasWidget::topmost_path_pick_layer_at(QPointF widget_point) const {
+  if (document_ == nullptr) {
+    return nullptr;
+  }
+  const auto document_point = document_position_f(widget_point);
+  const std::function<const Layer*(const std::vector<Layer>&)> walk =
+      [&](const std::vector<Layer>& layers) -> const Layer* {
+    for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
+      const auto& layer = *it;
+      if (!layer.visible()) {
+        continue;
+      }
+      if (layer.kind() == LayerKind::Group) {
+        if (const auto* found = walk(layer.children()); found != nullptr) {
+          return found;
+        }
+        continue;
+      }
+      if (!layer_is_vector_shape(layer) || !vector_lock_reason(layer).empty()) {
+        continue;
+      }
+      const auto& path = layer.vector_shape()->path;
+      std::pair<int, int> segment{-1, -1};
+      double segment_t = 0.0;
+      if (anchor_hit_in(path, widget_point).first >= 0 || segment_hit_in(path, widget_point, segment, segment_t) ||
+          shape_group_containing(path, document_point).has_value()) {
+        return &layer;
+      }
+    }
+    return nullptr;
+  };
+  return const_cast<Layer*>(walk(std::as_const(*document_).layers()));
 }
 
 void CanvasWidget::set_active_document_path(std::optional<DocumentPathId> id) {
@@ -1218,7 +1312,9 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
   };
 
   const auto widget_point = QPointF(event->position());
-  if (edit_tool == CanvasTool::DirectSelect) {
+  // A drawn knob drags its handle under both arrows: Path Select selects (and
+  // so draws the knobs of) every anchor of the shape.
+  {
     std::pair<int, int> handle_anchor{-1, -1};
     if (const auto side = path_handle_at(widget_point, handle_anchor); side != 0) {
       path_drag_mode_ = side < 0 ? PathEditDrag::HandleIn : PathEditDrag::HandleOut;
@@ -1370,6 +1466,44 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
       return true;
     }
   }
+  // Another shape layer under the pointer (topmost first, by its points,
+  // outline or fill) becomes the target and takes this same press, so one
+  // press picks and drags it (GitHub issue 248). Pixel layers are never picked.
+  if (!path_press_repicked_) {
+    if (auto* picked = topmost_path_pick_layer_at(widget_point);
+        picked != nullptr && &std::as_const(*picked).vector_shape()->path != path) {
+      activate_layer(*picked);
+      if (path_edit_target_path() == &std::as_const(*picked).vector_shape()->path) {
+        clear_path_edit_selection();
+        path_press_repicked_ = true;
+        const auto reset = qScopeGuard([this] { path_press_repicked_ = false; });
+        return handle_path_edit_press(event, document_point);
+      }
+    }
+  }
+  // Path Select: a press inside a shape's fill selects that shape and drags it.
+  if (edit_tool == CanvasTool::PathSelect) {
+    if (const auto group = shape_group_containing(*path, document_point); group.has_value()) {
+      if ((event->modifiers() & Qt::ShiftModifier) == 0) {
+        path_selected_anchors_.clear();
+        extra_selected_anchors_.clear();
+      }
+      for (int s = 0; s < static_cast<int>(path->subpaths.size()); ++s) {
+        if (path->subpaths[static_cast<std::size_t>(s)].shape_group != *group) {
+          continue;
+        }
+        for (int a = 0; a < static_cast<int>(path->subpaths[static_cast<std::size_t>(s)].anchors.size());
+             ++a) {
+          path_selected_anchors_.insert({s, a});
+        }
+      }
+      path_drag_mode_ = PathEditDrag::Anchors;
+      path_drag_anchor_ = {-1, -1};
+      notify_if_changed();
+      update();
+      return true;
+    }
+  }
   // Empty space: marquee selection.
   path_drag_mode_ = PathEditDrag::Marquee;
   path_marquee_start_ = document_point;
@@ -1487,7 +1621,9 @@ bool CanvasWidget::update_path_edit_drag(QPointF document_point, Qt::KeyboardMod
   path_drag_last_document_ = document_point;
   prune_path_edit_selection(*path);
   prune_extra_path_selection();
-  const auto label = edit_tool == CanvasTool::PathSelect ? tr("Move shape") : tr("Edit path");
+  const auto label = edit_tool == CanvasTool::PathSelect && path_drag_mode_ == PathEditDrag::Anchors
+                         ? tr("Move shape")
+                         : tr("Edit path");
   // Cross-layer part of the drag: selected anchors on the other panel-selected
   // shape layers move by the same delta, inside the same armed undo entry (the
   // snapshot is document-wide, so N layers still coalesce into one entry).
@@ -1610,6 +1746,12 @@ bool CanvasWidget::handle_path_edit_release(QMouseEvent* event) {
         }
       }
       if (edit_tool == CanvasTool::PathSelect) {
+        // Any shape the rect touches, anchors inside it or not (GitHub issue 248).
+        for (const auto& subpath : path->subpaths) {
+          if (!groups_in_box.contains(subpath.shape_group) && subpath_touches_rect(subpath, rect)) {
+            groups_in_box.insert(subpath.shape_group);
+          }
+        }
         for (int s = 0; s < static_cast<int>(path->subpaths.size()); ++s) {
           if (!groups_in_box.contains(path->subpaths[static_cast<std::size_t>(s)].shape_group)) {
             continue;
@@ -1984,8 +2126,7 @@ CanvasWidget::PathHoverTarget CanvasWidget::path_hover_target_at(QPointF widget_
     return PathHoverTarget::None;
   }
   std::pair<int, int> handle_anchor{-1, -1};
-  if (path_edit_tool() == CanvasTool::DirectSelect &&
-      path_handle_at(widget_point, handle_anchor) != 0) {
+  if (path_handle_at(widget_point, handle_anchor) != 0) {
     return PathHoverTarget::Handle;
   }
   if (path_anchor_at(widget_point).first >= 0) {
@@ -1996,6 +2137,13 @@ CanvasWidget::PathHoverTarget CanvasWidget::path_hover_target_at(QPointF widget_
   if (path_segment_at(widget_point, segment, segment_t)) {
     return PathHoverTarget::Segment;
   }
+  if (path_edit_tool() == CanvasTool::PathSelect &&
+      shape_group_containing(*path_edit_target_path(), document_position_f(widget_point)).has_value()) {
+    return PathHoverTarget::Fill;
+  }
+  if (topmost_path_pick_layer_at(widget_point) != nullptr) {
+    return PathHoverTarget::Fill;  // a press picks that shape layer
+  }
   return PathHoverTarget::None;
 }
 
@@ -2005,7 +2153,7 @@ void CanvasWidget::update_path_select_hover_hint(PathHoverTarget target) {
   if (target == previous || target == PathHoverTarget::None || !status_callback_) {
     return;
   }
-  if (path_edit_tool() == CanvasTool::PathSelect) {
+  if (path_edit_tool() == CanvasTool::PathSelect && target != PathHoverTarget::Handle) {
     status_callback_(
         resolve_modifier_names(tr("Click to select the shape, drag to move it. %CTRL%+T transforms it.")));
     return;
@@ -2021,6 +2169,7 @@ void CanvasWidget::update_path_select_hover_hint(PathHoverTarget target) {
     case PathHoverTarget::Segment:
       status_callback_(tr("Drag to move the segment, or the whole selection when its points are selected"));
       return;
+    case PathHoverTarget::Fill:
     case PathHoverTarget::None:
       return;
   }
@@ -2230,6 +2379,9 @@ void CanvasWidget::draw_path_edit_overlay(QPainter& painter) {
           const auto center = to_screen(extra_transform, anchor.anchor_x, anchor.anchor_y);
           const bool selected = selected_it != extra_selected_anchors_.end() &&
                                 selected_it->second.contains({s, a});
+          if (path_edit_tool() == CanvasTool::PathSelect && !selected) {
+            continue;  // Path Select shows unselected shapes as outlines only
+          }
           draw_anchor_glyph(painter, center, selected, accent);
         }
       }
@@ -2254,13 +2406,20 @@ void CanvasWidget::draw_path_edit_overlay(QPainter& painter) {
     draw_knob_glyph(painter, out_screen, accent);
   }
 
-  // Anchor squares: filled when selected, hollow otherwise.
+  // Anchor squares: filled when selected, hollow otherwise. Path Select draws
+  // only the selected shape's (an unselected one is just its outline, so a
+  // blank click visibly deselects; GitHub issue 248).
+  const bool selected_anchors_only = path_edit_tool() == CanvasTool::PathSelect;
   for (int s = 0; s < static_cast<int>(path->subpaths.size()); ++s) {
     const auto& subpath = path->subpaths[static_cast<std::size_t>(s)];
     for (int a = 0; a < static_cast<int>(subpath.anchors.size()); ++a) {
+      const bool selected = path_selected_anchors_.contains({s, a});
+      if (selected_anchors_only && !selected) {
+        continue;
+      }
       const auto center = to_screen(target_transform, subpath.anchors[static_cast<std::size_t>(a)].anchor_x,
                                     subpath.anchors[static_cast<std::size_t>(a)].anchor_y);
-      draw_anchor_glyph(painter, center, path_selected_anchors_.contains({s, a}), accent);
+      draw_anchor_glyph(painter, center, selected, accent);
     }
   }
 

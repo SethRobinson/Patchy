@@ -75,19 +75,23 @@ inline constexpr char kToolbarSpinboxWidthSampleProperty[] = "patchy.toolbarSpin
 // Set this bool property on an integer toolbar spin box to give its popup slider the
 // SliderCurve::FineLowEnd response (curved_slider.hpp) for size-like ranges.
 inline constexpr char kToolbarSpinboxSliderCurvedProperty[] = "patchy.popupSliderCurved";
-// Scrubby labels (GitHub issue 46, the Photoshop/Figma gesture): a horizontal drag
-// on `label` changes `spin`'s value by one singleStep per pixel (ten with Shift),
-// the label shows the SizeHor cursor, and the drag ends with the spin box's
-// editingFinished so undo paths that coalesce an edit session record one edit. A
-// press without a drag changes nothing. The field's own text is a handle too: a
-// horizontal drag past the drag distance that starts on the number scrubs the same
-// way (SizeHor cursor once dragging, the number selected afterwards when the field has
-// focus), while the press itself reaches the line edit unchanged, so a click still
-// focuses and places the caret and a double-click or Ctrl+A still selects; only
-// drag-selecting text inside the number is gone. `install_prefix_scrub` gives a
-// prefixed spin box with no label (Layers panel Opacity/Fill) the same field handle,
-// and makes its prefix text a label-like handle: a drag there scrubs and a plain click
-// focuses the field and selects the number. `install_scrub_labels_in` walks a
+// Scrub handles (GitHub issue 46; docs/ui-conventions.md). A label,
+// the gap between it and its field, and the field itself form one scrub zone:
+// - A horizontal drag past the drag distance changes `spin`'s value by one singleStep
+//   per pixel, ten with Shift, a tenth with Alt (integer fields then move every ten
+//   pixels); changing a modifier mid-drag continues from the current value. The
+//   pointer wraps at the screen edge where the platform allows it.
+// - A scrub ends with the spin box's editingFinished, so undo paths that coalesce an
+//   edit session record one step per scrub.
+// - The SizeHor cursor shows wherever a press scrubs.
+// - A press on the label or gap without a drag changes nothing. A press on the field
+//   released without a drag enters text editing with the number selected. While the
+//   field is being edited (after that click, Tab, or typing; until Enter, Esc or focus
+//   loss) it is an ordinary text field: drags select text, clicks place the caret, the
+//   I-beam shows. A scrub that started on an unfocused field gives focus back.
+// `install_prefix_scrub` gives a prefixed spin box with no label (Layers panel
+// Opacity/Fill) the field handle and makes its prefix text a label-like handle whose
+// click also enters editing. `install_scrub_labels_in` walks a
 // container's layout (nested layouts, child containers, QScrollArea contents and
 // QTabWidget pages included) and pairs every QLabel with letters in its text with the
 // spin box it names: the label's buddy when that is a spin box, else the next item in
@@ -103,7 +107,7 @@ inline constexpr char kToolbarSpinboxSliderCurvedProperty[] = "patchy.popupSlide
 // label that must not become a handle (the "to" between a range's two fields) sets
 // kScrubLabelExemptProperty. Tests: ui_dialog_scrub_labels_pair_every_row_shape,
 // ui_options_bar_label_scrub_changes_spin_value, ui_options_bar_field_drag_scrubs_and_click_edits,
-// ui_layer_opacity_prefix_scrub_is_one_undo_entry.
+// ui_scrub_gap_and_modifiers_follow_the_zone_rules, ui_layer_opacity_prefix_scrub_is_one_undo_entry.
 inline constexpr char kScrubHandleInstalledProperty[] = "patchy.scrubHandleInstalled";
 inline constexpr char kScrubLabelExemptProperty[] = "patchy.scrubLabelExempt";
 void install_scrub_label(QLabel* label, QAbstractSpinBox* spin);

@@ -174,9 +174,36 @@ struct SmartFilterStack {
   // same entries in reverse, with the final/topmost effect visually first.
   std::vector<SmartFilterEntry> entries;
   SmartFilterMask mask;
+  // The native stack around the entries: root flags, entry records with a readable
+  // enable flag, the shared mask, and the FEid render cache. Import clears it when any
+  // of them is outside the verified subset; entries may still be filters Patchy does not
+  // model (kind Unsupported) while it holds (GitHub issue 243).
+  bool native_shape_supported{true};
   // Fail closed: import code promotes this only after every entry and the
-  // shared mask have been decoded into the verified semantic subset.
+  // shared mask have been decoded into the verified semantic subset. Recompute it with
+  // smart_filter_stack_support after changing entries or enable flags.
   SmartFilterStackSupport support{SmartFilterStackSupport::Unsupported};
 };
+
+// Whether Patchy can render the stack itself: its native shape is supported and every
+// filter Photoshop would run is one Patchy models. A hidden entry, or every entry of a
+// hidden stack, does not run and may be a filter Patchy only preserves (GitHub issue 243).
+[[nodiscard]] inline bool smart_filter_entry_runs(const SmartFilterStack& stack,
+                                                  const SmartFilterEntry& entry) noexcept {
+  return stack.enabled && entry.enabled;
+}
+
+[[nodiscard]] inline SmartFilterStackSupport smart_filter_stack_support(
+    const SmartFilterStack& stack) noexcept {
+  if (!stack.native_shape_supported || stack.entries.empty() || stack.mask.linked) {
+    return SmartFilterStackSupport::Unsupported;
+  }
+  for (const auto& entry : stack.entries) {
+    if (entry.kind == SmartFilterKind::Unsupported && smart_filter_entry_runs(stack, entry)) {
+      return SmartFilterStackSupport::Unsupported;
+    }
+  }
+  return SmartFilterStackSupport::Supported;
+}
 
 }  // namespace patchy

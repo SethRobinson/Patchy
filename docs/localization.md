@@ -57,6 +57,10 @@ context name identifies the surface.
    translations. Desktop builds also check the live UI before linking the app or
    connector. Missing translations and broken language switching fail the build.
    An identical input set can reuse a previous successful check.
+5. After merging branches that both add messages, run `scripts\update-translations.ps1 -Check`.
+   Two branches appending to the same context can merge into one `<message>` holding two
+   `<source>` elements in every catalog ("missing source" from the gate); split them back
+   into separate messages.
 
 Application builds require a host Python 3.8+ interpreter, including WebAssembly
 cross builds. `scripts/check-translations.py` uses only the standard library and the

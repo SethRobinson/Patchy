@@ -152,6 +152,17 @@ constexpr int kMaxTextSizePixels = 8192;
 constexpr std::uint32_t kPsdProtectTransparency = 1U << 0U;
 constexpr std::uint32_t kPsdProtectComposite = 1U << 1U;
 constexpr std::uint32_t kPsdProtectPosition = 1U << 2U;
+// "Prevent Auto Nesting" (artboards), which Patchy does not model; kept on round trips.
+constexpr std::uint32_t kPsdProtectArtboardAutonest = 1U << 3U;
+// Lock All is its own bit: Photoshop writes 0x80000000 with the three single locks clear
+// (PS 2026 capture, GitHub issue 245), and reads three set singles as three locks, not Lock All.
+constexpr std::uint32_t kPsdProtectAll = 1U << 31U;
+// The Patchy locks an lspf value means.
+[[nodiscard]] LayerLockFlags layer_locks_from_psd_protection(std::uint32_t protection) noexcept;
+// The lspf value to write: the value read from the file while the locks still match it,
+// otherwise Lock All for all three locks (Patchy's Lock All), else the single locks, and
+// any Prevent Auto Nesting bit the file had either way.
+[[nodiscard]] std::uint32_t psd_protection_for_layer(const Layer& layer);
 // Photoshop's PSD/PSB dimension caps; a document over the PSD cap must be saved as PSB.
 constexpr std::int32_t kMaxPsdDimension = 30000;
 constexpr std::int32_t kMaxPsbDimension = 300000;
@@ -248,6 +259,8 @@ struct LayerRecord {
   // kLayerMetadataTextBoxBaselineInset.
   std::optional<double> text_box_baseline_inset;
   std::uint32_t protection_flags{0};
+  // Photoshop's 'lclr' layer color label (the u16 index; GitHub issue 244).
+  LayerColorLabel color_label{kLayerColorNone};
   bool layer_mask_hides_effects{false};
   bool vector_mask_hides_effects{false};
   bool blend_interior_elements{false};
@@ -677,14 +690,10 @@ std::optional<std::vector<std::uint8_t>> photoshop_brightness_contrast_descripto
     const BrightnessContrastAdjustment& settings, const Layer& layer);
 std::optional<AdjustmentSettings> parse_photoshop_color_balance_adjustment(
     std::span<const std::uint8_t> payload);
-// Patch-in-place: only the midtones bytes are rewritten from the model; the
-// imported shadows/highlights values and the preserve-luminosity byte keep
-// their original bytes (Patchy preserves but does not render them).
+// Writes all three tone triples and Preserve Luminosity over the original
+// payload (bytes past them are kept); fresh layers get the 20-byte shape.
 std::vector<std::uint8_t> photoshop_color_balance_payload(const ColorBalanceAdjustment& settings,
                                                           const UnknownPsdBlock* original);
-// True when the payload carries settings Patchy preserves but does not render
-// (nonzero shadows/highlights or preserve luminosity) - drives the import notice.
-[[nodiscard]] bool photoshop_color_balance_payload_has_unrendered_data(std::span<const std::uint8_t> payload);
 // Reads the legacy private 'plAD' block. Read-only since 2026-07: Photoshop
 // reports the unknown key as "unknown data" on open, so no kind writes it
 // anymore; native levl/curv/hue2/blnc blocks carry the modeled state instead.

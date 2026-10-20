@@ -10905,6 +10905,54 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>&amp;Cancel</source>
         <translation>&amp;Cancelar</translation>
     </message>
+    <message>
+        <source>Smart Filters actions</source>
+        <translation>Ações dos filtros inteligentes</translation>
+    </message>
+    <message>
+        <source>Delete All Smart Filters</source>
+        <translation>Excluir todos os filtros inteligentes</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t render every Smart Filter that would then run. Photoshop renders them when the file is opened there.</source>
+        <translation>O Patchy não consegue renderizar todos os filtros inteligentes que seriam aplicados. O Photoshop os renderiza quando o arquivo é aberto nele.</translation>
+    </message>
+    <message>
+        <source>Hiding this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or hide all Smart Filters.</source>
+        <translation>Ocultar este filtro deixaria ativos filtros inteligentes que o Patchy não consegue renderizar. Oculte ou exclua esses primeiro, ou oculte todos os filtros inteligentes.</translation>
+    </message>
+    <message>
+        <source>Deleting this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or delete all Smart Filters.</source>
+        <translation>Excluir este filtro deixaria ativos filtros inteligentes que o Patchy não consegue renderizar. Oculte ou exclua esses primeiro, ou exclua todos os filtros inteligentes.</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t edit this filter&apos;s settings. It is preserved unchanged.</source>
+        <translation>O Patchy não pode editar as configurações deste filtro. Ele é preservado sem alterações.</translation>
+    </message>
+    <message>
+        <source>This stack runs Smart Filters that Patchy can&apos;t render, so their settings can&apos;t change here. Hide or delete those filters first.</source>
+        <translation>Esta pilha aplica filtros inteligentes que o Patchy não consegue renderizar, então suas configurações não podem mudar aqui. Oculte ou exclua esses filtros primeiro.</translation>
+    </message>
+    <message>
+        <source>Hide All Smart Filters</source>
+        <translation>Ocultar todos os filtros inteligentes</translation>
+    </message>
+    <message>
+        <source>Show All Smart Filters</source>
+        <translation>Mostrar todos os filtros inteligentes</translation>
+    </message>
+    <message>
+        <source>Midtones</source>
+        <translation>Meios-tons</translation>
+    </message>
+    <message>
+        <source>Tone:</source>
+        <translation>Tom:</translation>
+    </message>
+    <message>
+        <source>Preserve Luminosity</source>
+        <translation>Preservar luminosidade</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -12528,6 +12576,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Added %1 to %2 to paint on</source>
         <translation>%1 adicionado a %2 para pintar</translation>
+    </message>
+    <message>
+        <source>Rasterize the layer to distort it</source>
+        <translation>Rasterize a camada para distorcê-la</translation>
+    </message>
+    <message>
+        <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
+        <translation>Um objeto inteligente em perspectiva não pode ser distorcido. Rasterize a camada primeiro.</translation>
     </message>
 </context>
 <context>
@@ -22457,6 +22513,50 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
         <translation>Não perguntar novamente</translation>
     </message>
     <message>
+        <source>Color</source>
+        <translation>Cor</translation>
+    </message>
+    <message>
+        <source>Orange</source>
+        <translation>Laranja</translation>
+    </message>
+    <message>
+        <source>Violet</source>
+        <translation>Violeta</translation>
+    </message>
+    <message>
+        <source>Gray</source>
+        <translation>Cinza</translation>
+    </message>
+    <message>
+        <source>Layer color</source>
+        <translation>Cor da camada</translation>
+    </message>
+    <message>
+        <source>Delete All Smart Filters</source>
+        <translation>Excluir todos os filtros inteligentes</translation>
+    </message>
+    <message>
+        <source>Deleted all Smart Filters</source>
+        <translation>Todos os filtros inteligentes foram excluídos</translation>
+    </message>
+    <message>
+        <source>Transform</source>
+        <translation>Transformar</translation>
+    </message>
+    <message>
+        <source>Skew</source>
+        <translation>Inclinar</translation>
+    </message>
+    <message>
+        <source>Distort</source>
+        <translation>Distorcer</translation>
+    </message>
+    <message>
+        <source>Perspective</source>
+        <translation>Perspectiva</translation>
+    </message>
+    <message>
         <source>Pi&amp;xel Grid</source>
         <translation>Grade de pi&amp;xels</translation>
     </message>
@@ -24200,6 +24300,30 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
     <message>
         <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
         <translation>Painel desconhecido &quot;%1&quot;. Painéis: %2.</translation>
+    </message>
+    <message>
+        <source>Unknown layer color label: %1</source>
+        <translation>Cor de camada desconhecida: %1</translation>
+    </message>
+    <message>
+        <source>layer.transform needs {matrix} or {quad}, not both.</source>
+        <translation>layer.transform precisa de {matrix} ou {quad}, não de ambos.</translation>
+    </message>
+    <message>
+        <source>layer.transform: unknown option %1</source>
+        <translation>layer.transform: opção desconhecida %1</translation>
+    </message>
+    <message>
+        <source>layer.transform: matrix must be six finite numbers.</source>
+        <translation>layer.transform: matrix deve ter seis números finitos.</translation>
+    </message>
+    <message>
+        <source>layer.transform: quad must be four [x, y] points.</source>
+        <translation>layer.transform: quad deve ter quatro pontos [x, y].</translation>
+    </message>
+    <message>
+        <source>layer.transform: unknown interpolation %1</source>
+        <translation>layer.transform: interpolação desconhecida %1</translation>
     </message>
 </context>
 <context>

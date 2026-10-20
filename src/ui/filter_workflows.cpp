@@ -765,10 +765,6 @@ std::optional<FilterInvocation> request_filter_settings(
 // (filter_engine.cpp already has anon-namespace twins of several).
 namespace {
 
-std::uint8_t filter_clamp_byte(int value) {
-  return static_cast<std::uint8_t>(std::clamp(value, 0, 255));
-}
-
 void report_filter_progress(const FilterProgress* progress, int completed, int total,
                             FilterProgressStage stage = FilterProgressStage::Filtering) {
   if (progress == nullptr || !progress->update) {
@@ -1287,39 +1283,37 @@ static void apply_hue_saturation_to_pixels_hard(PixelBuffer& pixels, Rect bounds
 
 static void apply_color_balance_to_pixels_hard(PixelBuffer& pixels, Rect bounds, const QRegion& selection,
                                    ColorBalanceSettings settings, const FilterProgress* progress) {
-  settings.cyan_red = std::clamp(settings.cyan_red, -100, 100);
-  settings.magenta_green = std::clamp(settings.magenta_green, -100, 100);
-  settings.yellow_blue = std::clamp(settings.yellow_blue, -100, 100);
-  const auto red_delta = static_cast<int>(std::round(static_cast<double>(settings.cyan_red) * 255.0 / 100.0));
-  const auto green_delta =
-      static_cast<int>(std::round(static_cast<double>(settings.magenta_green) * 255.0 / 100.0));
-  const auto blue_delta = static_cast<int>(std::round(static_cast<double>(settings.yellow_blue) * 255.0 / 100.0));
+  // The core math, so the destructive command matches a Color Balance adjustment
+  // layer with the same settings exactly. Without Preserve Luminosity the
+  // transfer is per channel and collapses to a LUT; with it the channels mix.
+  AdjustmentSettings adjustment;
+  adjustment.kind = AdjustmentKind::ColorBalance;
+  adjustment.color_balance = settings;
   if (pixels.format().bit_depth != BitDepth::UInt8) {
-    // 16/32-bit: the same per-channel offsets on display-encoded values.
-    const auto format = pixels.format();
-    const bool linear = format.bit_depth == BitDepth::Float32;
-    const std::array<float, 3> deltas{static_cast<float>(red_delta), static_cast<float>(green_delta),
-                                      static_cast<float>(blue_delta)};
-    for_each_selected_pixel(pixels, bounds, selection, progress, [&](std::int32_t x, std::int32_t y) {
-      auto* px = pixels.pixel(x, y);
-      auto value = load_pixel(format, px);
-      for (std::size_t c = 0; c < 3U; ++c) {
-        const auto encoded = linear ? static_cast<float>(srgb_encode(static_cast<double>(value[c]) / 255.0) * 255.0)
-                                    : value[c];
-        const auto shifted = std::clamp(encoded + deltas[c], 0.0F, 255.0F);
-        value[c] = linear ? static_cast<float>(srgb_decode(static_cast<double>(shifted) / 255.0) * 255.0) : shifted;
-      }
-      store_pixel(format, px, value);
-    });
+    apply_adjustment_to_deep_pixels(pixels, bounds, selection, adjustment, progress);
     return;
   }
-
-  for_each_selected_pixel(pixels, bounds, selection, progress, [&](std::int32_t x, std::int32_t y) {
-    auto* px = pixels.pixel(x, y);
-    px[0] = filter_clamp_byte(static_cast<int>(px[0]) + red_delta);
-    px[1] = filter_clamp_byte(static_cast<int>(px[1]) + green_delta);
-    px[2] = filter_clamp_byte(static_cast<int>(px[2]) + blue_delta);
-  });
+  const auto lut = build_adjustment_lut(adjustment);
+  const auto pixel_bytes = bytes_per_pixel(pixels.format());
+  const auto apply_span = [&](std::int32_t y, std::int32_t x_begin, std::int32_t x_end) {
+    auto* px = pixels.row(y).data() + static_cast<std::size_t>(x_begin) * pixel_bytes;
+    for (std::int32_t x = x_begin; x < x_end; ++x, px += pixel_bytes) {
+      if (lut.has_value()) {
+        px[0] = lut->red[px[0]];
+        px[1] = lut->green[px[1]];
+        px[2] = lut->blue[px[2]];
+        continue;
+      }
+      const auto adjusted = apply_adjustment_to_color(RgbColor{px[0], px[1], px[2]}, adjustment);
+      px[0] = adjusted.red;
+      px[1] = adjusted.green;
+      px[2] = adjusted.blue;
+    }
+  };
+  if (apply_row_spans_in_parallel(pixels, selection, progress, apply_span)) {
+    return;
+  }
+  for_each_selected_row_span(pixels, bounds, selection, progress, apply_span);
 }
 
 void apply_levels_to_pixels(PixelBuffer& pixels, Rect bounds, const FilterSelection& selection, LevelsSettings settings,

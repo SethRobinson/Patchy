@@ -982,15 +982,17 @@ void ui_pinball_folder_free_transform_end_to_end() {
   CHECK(images_equal_rgba(before, patchy::ui::qimage_from_document(doc, true)));
 }
 
-patchy::Layer* find_locked_smart_object(std::vector<patchy::Layer>& layers, const std::string& reason) {
+// The first perspective-placed smart object (nonAffineTransform differing from Trnf).
+patchy::Layer* find_perspective_smart_object(std::vector<patchy::Layer>& layers) {
   for (auto& layer : layers) {
     if (layer.kind() == patchy::LayerKind::Group) {
-      if (auto* found = find_locked_smart_object(layer.children(), reason); found != nullptr) {
+      if (auto* found = find_perspective_smart_object(layer.children()); found != nullptr) {
         return found;
       }
       continue;
     }
-    if (patchy::smart_object_lock_reason(layer) == reason) {
+    if (const auto placement = patchy::smart_object_placement_from_layer(layer);
+        placement.has_value() && placement->non_affine_transform.has_value()) {
       return &layer;
     }
   }
@@ -998,10 +1000,11 @@ patchy::Layer* find_locked_smart_object(std::vector<patchy::Layer>& layers, cons
 }
 
 // The reported repro: selecting EVERY row in the retronight poster (which
-// contains perspective-placed "non_affine" preview-locked smart objects) and
-// hitting Ctrl-T must transform everything together like Photoshop. The locked
-// smart objects' Trnf AND nonAffineTransform quads map per corner through the
-// shared delta, and one Undo restores the whole document byte-identically.
+// contains perspective-placed smart objects) and hitting Ctrl-T must transform
+// everything together like Photoshop. The perspective smart objects'
+// nonAffineTransform quads map per corner through the shared delta (Trnf stays
+// their bounding box, which a uniform scale maps per corner too), and one Undo
+// restores the whole document byte-identically.
 void ui_select_all_free_transform_transforms_retronight_poster() {
   const auto path = patchy::test::local_psd_fixture_path("pinball_retronight_poster_a3.psd");
   patchy::test::skip_unless_exists(path);
@@ -1016,7 +1019,7 @@ void ui_select_all_free_transform_transforms_retronight_poster() {
   CHECK(layer_list != nullptr);
   auto& doc = patchy::ui::MainWindowTestAccess::document(window);
 
-  auto* grid = find_locked_smart_object(doc.layers(), "non_affine");
+  auto* grid = find_perspective_smart_object(doc.layers());
   CHECK(grid != nullptr);
   const auto grid_id = grid->id();
   const auto placement_before = patchy::smart_object_placement_from_layer(*grid);
@@ -1063,14 +1066,14 @@ void ui_select_all_free_transform_transforms_retronight_poster() {
   QApplication::processEvents();
   CHECK(images_equal_rgba(before, patchy::ui::qimage_from_document(doc, true)));
 
-  // A single selected preview-locked smart object routes to the multi path
-  // and transforms too (the single-layer path used to refuse it). The GRID
-  // row sits inside collapsed folders, so push the selection directly.
+  // A single selected perspective smart object is editable now (GitHub issue
+  // 225), so it takes the single-layer path. The GRID row sits inside
+  // collapsed folders, so push the selection directly.
   canvas->set_selected_layer_ids({grid_id});
   require_action(window, "editFreeTransformAction")->trigger();
   QApplication::processEvents();
   CHECK(canvas->free_transform_active());
-  CHECK(canvas->free_transform_is_multi_target());
+  CHECK(!canvas->free_transform_is_multi_target());
   send_key(*canvas, Qt::Key_Escape);
   QApplication::processEvents();
   CHECK(!canvas->free_transform_active());

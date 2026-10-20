@@ -56,12 +56,6 @@ bool transforms_differ(const std::array<double, 8>& a, const std::array<double, 
   return false;
 }
 
-bool quad_is_affine(const std::array<double, 8>& quad) {
-  // A parallelogram satisfies corner0 + corner2 == corner1 + corner3.
-  return std::abs((quad[0] + quad[4]) - (quad[2] + quad[6])) <= kAffineEpsilon &&
-         std::abs((quad[1] + quad[5]) - (quad[3] + quad[7])) <= kAffineEpsilon;
-}
-
 bool known_smart_filter_blend_mode(std::string_view value, BlendMode& mode) {
   // Photoshop 2026 writes full stringIDs here, just like lfx2. Do not let the
   // shared converter's unknown-to-Normal fallback make an imported stack look
@@ -658,8 +652,19 @@ bool patch_smart_filter_descriptor(
   };
   for (std::size_t index = 0; index < stack.entries.size(); ++index) {
     const auto &entry = stack.entries[index];
-    const auto spec = smart_filter_descriptor_spec(entry);
     auto &item_value = list->list_value[index];
+    if (entry.kind == SmartFilterKind::Unsupported) {
+      // A filter Patchy does not model keeps its native record verbatim; only its enable
+      // flag follows the model (GitHub issue 243). A supported stack never runs it.
+      if (item_value.type != DescriptorValue::Type::Object ||
+          item_value.object_value == nullptr ||
+          item_value.object_value->class_id != "filterFX" ||
+          !set_smart_filter_bool(*item_value.object_value, "enab", entry.enabled)) {
+        return false;
+      }
+      continue;
+    }
+    const auto spec = smart_filter_descriptor_spec(entry);
     if (!spec.has_value() || item_value.type != DescriptorValue::Type::Object ||
         item_value.object_value == nullptr ||
         item_value.object_value->class_id != "filterFX") {
@@ -951,6 +956,7 @@ std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
   bool supported = filter_value->type == DescriptorValue::Type::Object &&
                    filter_value->object_value != nullptr;
   if (!supported) {
+    stack.native_shape_supported = false;
     return stack;
   }
   const auto& root = *filter_value->object_value;
@@ -972,10 +978,14 @@ std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
   // preview-locked until linked mask semantics are implemented.
   supported = supported && root_flags_valid && !stack.mask.linked;
   stack.mask.default_color = stack.mask.extend_with_white ? 255 : 0;
+  // The stack's own shape, apart from which filters its entries are: an entry Patchy
+  // does not model only gets kind Unsupported, so hiding or deleting it can still leave
+  // a stack Patchy renders (GitHub issue 243).
+  bool shape_supported = supported;
 
   const auto* list = descriptor_value(root, "filterFXList");
   if (list == nullptr || list->type != DescriptorValue::Type::List || list->list_value.empty()) {
-    supported = false;
+    shape_supported = false;
   } else {
     stack.entries.reserve(list->list_value.size());
     for (const auto& item : list->list_value) {
@@ -983,12 +993,13 @@ std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
       bool entry_supported = item.type == DescriptorValue::Type::Object && item.object_value != nullptr;
       if (!entry_supported) {
         stack.entries.push_back(std::move(entry));
-        supported = false;
+        shape_supported = false;
         continue;
       }
 
       const auto& native_entry = *item.object_value;
       entry_supported = native_entry.class_id == "filterFX";
+      shape_supported = shape_supported && entry_supported;
       const auto* name =
           descriptor_value_either(native_entry, "Nm  ", "Nm");
       if (name != nullptr && name->type == DescriptorValue::Type::String) {
@@ -1002,6 +1013,8 @@ std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
           read_smart_filter_bool(native_entry, "hasoptions", entry.has_options);
       const bool entry_flags_valid = entry_enabled_valid && entry_options_valid;
       entry_supported = entry_supported && entry_flags_valid;
+      // Hiding an entry Patchy does not model rewrites only its enable flag.
+      shape_supported = shape_supported && entry_enabled_valid;
       if (const auto* id = descriptor_value(native_entry, "filterID");
           id != nullptr && id->type == DescriptorValue::Type::Integer) {
         entry.native_filter_id = static_cast<std::uint32_t>(id->integer_value);
@@ -1295,14 +1308,13 @@ std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
       if (!entry_supported) {
         entry.kind = SmartFilterKind::Unsupported;
       }
-      supported = supported && entry_supported;
       // Photoshop serializes filterFXList in native execution order; its layer
       // panel presents the reverse order. Multi-filter COM fixtures pin this.
       stack.entries.push_back(std::move(entry));
     }
   }
-  stack.support = supported ? SmartFilterStackSupport::Supported
-                            : SmartFilterStackSupport::Unsupported;
+  stack.native_shape_supported = shape_supported;
+  stack.support = smart_filter_stack_support(stack);
   return stack;
 }
 
@@ -1451,12 +1463,11 @@ std::optional<PlacedLayerInfo> parse_sold_block(std::span<const std::uint8_t> pa
       if (!supported) {
         info.lock_reason = warp_reason;
       }
-    } else if (const auto non_affine = transform_from_list(descriptor_value(descriptor, "nonAffineTransform"));
-               non_affine.has_value() && transforms_differ(*transform, *non_affine)) {
-      info.lock_reason = "non_affine";
-    } else if (!quad_is_affine(*transform)) {
-      info.lock_reason = "non_affine";
     }
+    // A perspective placement (nonAffineTransform differing from Trnf, or a non-affine
+    // Trnf) renders through its quad's homography (smart_object_render_quad), so it no
+    // longer takes a "non_affine" preview lock (GitHub issue 225). The file's raster
+    // stays until the layer is edited.
     if (info.smart_filters.has_value() && info.lock_reason.empty()) {
       // The global FEid association is finalized only after every document
       // block has been parsed. Until then a filter-bearing layer stays locked;

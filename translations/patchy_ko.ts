@@ -10871,6 +10871,54 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>&amp;Cancel</source>
         <translation>취소(&amp;C)</translation>
     </message>
+    <message>
+        <source>Smart Filters actions</source>
+        <translation>스마트 필터 전체 작업</translation>
+    </message>
+    <message>
+        <source>Delete All Smart Filters</source>
+        <translation>모든 스마트 필터 삭제</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t render every Smart Filter that would then run. Photoshop renders them when the file is opened there.</source>
+        <translation>실행될 스마트 필터 중 Patchy가 렌더링할 수 없는 것이 있습니다. 파일을 Photoshop에서 열면 Photoshop이 렌더링합니다.</translation>
+    </message>
+    <message>
+        <source>Hiding this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or hide all Smart Filters.</source>
+        <translation>이 필터를 숨기면 Patchy가 렌더링할 수 없는 스마트 필터가 계속 실행됩니다. 먼저 해당 필터를 숨기거나 삭제하거나, 모든 스마트 필터를 숨기세요.</translation>
+    </message>
+    <message>
+        <source>Deleting this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or delete all Smart Filters.</source>
+        <translation>이 필터를 삭제하면 Patchy가 렌더링할 수 없는 스마트 필터가 계속 실행됩니다. 먼저 해당 필터를 숨기거나 삭제하거나, 모든 스마트 필터를 삭제하세요.</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t edit this filter&apos;s settings. It is preserved unchanged.</source>
+        <translation>Patchy는 이 필터의 설정을 편집할 수 없습니다. 변경 없이 보존됩니다.</translation>
+    </message>
+    <message>
+        <source>This stack runs Smart Filters that Patchy can&apos;t render, so their settings can&apos;t change here. Hide or delete those filters first.</source>
+        <translation>이 스택은 Patchy가 렌더링할 수 없는 스마트 필터를 실행하므로 여기서 설정을 변경할 수 없습니다. 먼저 해당 필터를 숨기거나 삭제하세요.</translation>
+    </message>
+    <message>
+        <source>Hide All Smart Filters</source>
+        <translation>모든 스마트 필터 숨기기</translation>
+    </message>
+    <message>
+        <source>Show All Smart Filters</source>
+        <translation>모든 스마트 필터 표시</translation>
+    </message>
+    <message>
+        <source>Midtones</source>
+        <translation>중간톤</translation>
+    </message>
+    <message>
+        <source>Tone:</source>
+        <translation>톤:</translation>
+    </message>
+    <message>
+        <source>Preserve Luminosity</source>
+        <translation>광도 유지</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -12494,6 +12542,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Added %1 to %2 to paint on</source>
         <translation>그리기 위해 %2에 %1을(를) 추가했습니다</translation>
+    </message>
+    <message>
+        <source>Rasterize the layer to distort it</source>
+        <translation>왜곡하려면 레이어를 래스터화하세요</translation>
+    </message>
+    <message>
+        <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
+        <translation>원근이 적용된 고급 개체는 뒤틀 수 없습니다. 먼저 레이어를 래스터화하세요.</translation>
     </message>
 </context>
 <context>
@@ -22387,6 +22443,50 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>다시 묻지 않음</translation>
     </message>
     <message>
+        <source>Color</source>
+        <translation>색상</translation>
+    </message>
+    <message>
+        <source>Orange</source>
+        <translation>주황색</translation>
+    </message>
+    <message>
+        <source>Violet</source>
+        <translation>보라색</translation>
+    </message>
+    <message>
+        <source>Gray</source>
+        <translation>회색</translation>
+    </message>
+    <message>
+        <source>Layer color</source>
+        <translation>레이어 색상</translation>
+    </message>
+    <message>
+        <source>Delete All Smart Filters</source>
+        <translation>모든 스마트 필터 삭제</translation>
+    </message>
+    <message>
+        <source>Deleted all Smart Filters</source>
+        <translation>모든 스마트 필터를 삭제했습니다</translation>
+    </message>
+    <message>
+        <source>Transform</source>
+        <translation>변형</translation>
+    </message>
+    <message>
+        <source>Skew</source>
+        <translation>기울이기</translation>
+    </message>
+    <message>
+        <source>Distort</source>
+        <translation>왜곡</translation>
+    </message>
+    <message>
+        <source>Perspective</source>
+        <translation>원근</translation>
+    </message>
+    <message>
         <source>Pi&amp;xel Grid</source>
         <translation>픽셀 격자(&amp;X)</translation>
     </message>
@@ -24129,6 +24229,30 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
         <translation>알 수 없는 패널 &quot;%1&quot;입니다. 패널: %2.</translation>
+    </message>
+    <message>
+        <source>Unknown layer color label: %1</source>
+        <translation>알 수 없는 레이어 색상: %1</translation>
+    </message>
+    <message>
+        <source>layer.transform needs {matrix} or {quad}, not both.</source>
+        <translation>layer.transform에는 {matrix} 또는 {quad} 중 하나만 지정하세요.</translation>
+    </message>
+    <message>
+        <source>layer.transform: unknown option %1</source>
+        <translation>layer.transform: 알 수 없는 옵션 %1</translation>
+    </message>
+    <message>
+        <source>layer.transform: matrix must be six finite numbers.</source>
+        <translation>layer.transform: matrix는 유한한 숫자 6개여야 합니다.</translation>
+    </message>
+    <message>
+        <source>layer.transform: quad must be four [x, y] points.</source>
+        <translation>layer.transform: quad는 [x, y] 점 4개여야 합니다.</translation>
+    </message>
+    <message>
+        <source>layer.transform: unknown interpolation %1</source>
+        <translation>layer.transform: 알 수 없는 보간 %1</translation>
     </message>
 </context>
 <context>

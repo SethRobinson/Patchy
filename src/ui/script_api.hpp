@@ -45,6 +45,8 @@ class ScriptLayerObject : public QObject {
   Q_PROPERTY(bool visible READ visible WRITE set_visible)
   Q_PROPERTY(QString blendMode READ blend_mode WRITE set_blend_mode)
   Q_PROPERTY(bool locked READ locked WRITE set_locked)
+  // The Layers panel color label (GitHub issue 244): "none", "red", ... "gray".
+  Q_PROPERTY(QString colorLabel READ color_label WRITE set_color_label)
   Q_PROPERTY(double x READ x WRITE set_x)
   Q_PROPERTY(double y READ y WRITE set_y)
   Q_PROPERTY(QJSValue bounds READ bounds)
@@ -86,6 +88,8 @@ public:
   void set_blend_mode(const QString& mode);
   [[nodiscard]] bool locked() const;
   void set_locked(bool locked);
+  [[nodiscard]] QString color_label() const;
+  void set_color_label(const QString& label);
   [[nodiscard]] int x() const;
   void set_x(double x);
   [[nodiscard]] int y() const;
@@ -138,6 +142,8 @@ public:
   Q_INVOKABLE void rerenderText();
 
   Q_INVOKABLE void moveTo(double x, double y);
+  // Free Transform with a matrix or a corner quad (GitHub issue 225; patchy.d.ts).
+  Q_INVOKABLE void transform(const QJSValue& options);
   Q_INVOKABLE QJSValue duplicate(const QJSValue& target = QJSValue());
   Q_INVOKABLE void remove();
   // Ungroup this group layer; returns the released layers top to bottom.

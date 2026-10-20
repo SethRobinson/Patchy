@@ -447,53 +447,57 @@ std::vector<std::uint8_t> photoshop_curves_payload(const CurvesAdjustment& curve
   return writer.bytes();
 }
 
+// 'blnc': shadows, midtones and highlights triples of big-endian int16
+// (cyan/red, magenta/green, yellow/blue), then the Preserve Luminosity byte and
+// one pad byte (20 bytes). A short payload of PS's older midtones-only shape
+// leaves the missing tones at zero.
 std::optional<AdjustmentSettings> parse_photoshop_color_balance_adjustment(
     std::span<const std::uint8_t> payload) {
   if (payload.size() < 12) {
     return std::nullopt;
   }
   BigEndianReader reader(payload);
-  reader.skip(6);  // shadows: preserved via patch-in-place, not modeled
+  const auto read_tone = [&reader] {
+    ColorBalanceTone tone;
+    for (auto* field : {&tone.cyan_red, &tone.magenta_green, &tone.yellow_blue}) {
+      *field = std::clamp(static_cast<int>(static_cast<std::int16_t>(reader.read_u16())), -100, 100);
+    }
+    return tone;
+  };
   AdjustmentSettings settings;
   settings.kind = AdjustmentKind::ColorBalance;
-  settings.color_balance.cyan_red =
-      std::clamp(static_cast<int>(static_cast<std::int16_t>(reader.read_u16())), -100, 100);
-  settings.color_balance.magenta_green =
-      std::clamp(static_cast<int>(static_cast<std::int16_t>(reader.read_u16())), -100, 100);
-  settings.color_balance.yellow_blue =
-      std::clamp(static_cast<int>(static_cast<std::int16_t>(reader.read_u16())), -100, 100);
+  settings.color_balance.shadows = read_tone();
+  settings.color_balance.set_tone(ColorBalanceToneRange::Midtones, read_tone());
+  if (payload.size() >= 18) {
+    settings.color_balance.highlights = read_tone();
+  }
+  settings.color_balance.preserve_luminosity = payload.size() >= 19 && payload[18] != 0;
   return settings;
 }
 
+// Rewrites the modeled bytes (all three tones and Preserve Luminosity) over the
+// original payload, so any trailing bytes past them survive unchanged.
 std::vector<std::uint8_t> photoshop_color_balance_payload(const ColorBalanceAdjustment& settings,
                                                           const UnknownPsdBlock* original) {
   std::vector<std::uint8_t> payload;
-  if (original != nullptr && original->payload.size() >= 12) {
-    payload = original->payload;  // keep shadows/highlights/preserve-luminosity bytes
+  if (original != nullptr && original->payload.size() >= 20) {
+    payload = original->payload;
   } else {
-    payload.assign(20, 0);  // PS 2026's fresh midtones-only shape
+    payload.assign(20, 0);
   }
-  const auto write_i16_at = [&payload](std::size_t offset, int value) {
-    const auto encoded = static_cast<std::uint16_t>(static_cast<std::int16_t>(std::clamp(value, -100, 100)));
-    payload[offset] = static_cast<std::uint8_t>(encoded >> 8U);
-    payload[offset + 1] = static_cast<std::uint8_t>(encoded & 0xFFU);
-  };
-  write_i16_at(6, settings.cyan_red);
-  write_i16_at(8, settings.magenta_green);
-  write_i16_at(10, settings.yellow_blue);
-  return payload;
-}
-
-bool photoshop_color_balance_payload_has_unrendered_data(std::span<const std::uint8_t> payload) {
-  for (std::size_t index = 0; index < payload.size(); ++index) {
-    const auto in_shadows = index < 6;
-    const auto in_highlights = index >= 12 && index < 18;
-    const auto is_preserve_luminosity = index == 18;
-    if ((in_shadows || in_highlights || is_preserve_luminosity) && payload[index] != 0) {
-      return true;
+  const auto write_tone_at = [&payload](std::size_t offset, const ColorBalanceTone& tone) {
+    for (const auto value : {tone.cyan_red, tone.magenta_green, tone.yellow_blue}) {
+      const auto encoded = static_cast<std::uint16_t>(static_cast<std::int16_t>(std::clamp(value, -100, 100)));
+      payload[offset] = static_cast<std::uint8_t>(encoded >> 8U);
+      payload[offset + 1] = static_cast<std::uint8_t>(encoded & 0xFFU);
+      offset += 2;
     }
-  }
-  return false;
+  };
+  write_tone_at(0, settings.shadows);
+  write_tone_at(6, settings.tone(ColorBalanceToneRange::Midtones));
+  write_tone_at(12, settings.highlights);
+  payload[18] = settings.preserve_luminosity ? 1U : 0U;
+  return payload;
 }
 
 std::optional<AdjustmentSettings> parse_photoshop_posterize_adjustment(std::span<const std::uint8_t> payload) {

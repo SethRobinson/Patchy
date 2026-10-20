@@ -775,25 +775,24 @@ void apply_layer_effects(LayerBuildContext& ctx, const af::AfClass& node, Layer&
     settings.threshold.level =
         std::clamp(to_255(params->double_field(af::tag4("Thre"), 0.5)), 1, 255);
   } else if (tag == af::tag4("CBRA")) {
-    // Patchy's Color Balance models one midtones triple; nonzero shadow or
-    // highlight axes fold away (approximate). Affinity's full-scale effect is
-    // roughly a tenth of Photoshop's -100..100 (pinned against the
-    // adjust-colourbalance render at three probes), hence the 10x mapping.
+    // Shadows, midtones and highlights map onto Patchy's three tone ranges
+    // (approximate). Affinity's -1..1 maps to 40% of Photoshop's -100..100: on
+    // the adjust-colourbalance corpus file (midtones 0.35, -0.2, 0.15) scales
+    // 34 to 40 give the closest render to Affinity's own (mean 0.84/255, worst
+    // 4/255; the earlier 10x, fitted to the pre-#250 flat shift, is 3.0 and 10).
     settings.kind = AdjustmentKind::ColorBalance;
     const auto to_balance = [](double value) {
-      return static_cast<int>(std::lround(std::clamp(value, -1.0, 1.0) * 10.0));
+      return static_cast<int>(std::lround(std::clamp(value, -1.0, 1.0) * 40.0));
     };
-    settings.color_balance.cyan_red = to_balance(params->double_field(af::tag4("MiCR"), 0.0));
-    settings.color_balance.magenta_green =
-        to_balance(params->double_field(af::tag4("MiMG"), 0.0));
-    settings.color_balance.yellow_blue =
-        to_balance(params->double_field(af::tag4("MiYB"), 0.0));
+    const auto tone = [&](const char* cyan_red, const char* magenta_green, const char* yellow_blue) {
+      return ColorBalanceTone{to_balance(params->double_field(tag_of(cyan_red), 0.0)),
+                              to_balance(params->double_field(tag_of(magenta_green), 0.0)),
+                              to_balance(params->double_field(tag_of(yellow_blue), 0.0))};
+    };
+    settings.color_balance.shadows = tone("ShCR", "ShMG", "ShYB");
+    settings.color_balance.set_tone(ColorBalanceToneRange::Midtones, tone("MiCR", "MiMG", "MiYB"));
+    settings.color_balance.highlights = tone("HiCR", "HiMG", "HiYB");
     approximate = true;
-    for (const char* axis : {"ShCR", "ShMG", "ShYB", "HiCR", "HiMG", "HiYB"}) {
-      if (std::abs(params->double_field(tag_of(axis), 0.0)) > 0.005) {
-        approximate = true;
-      }
-    }
   } else if (tag == af::tag4("HsRA")) {
     // HueA is in turns and maps 1:1 onto the visual shift (pinned against the
     // adjust-hsl render; the JS setter's sign is inverted relative to this,

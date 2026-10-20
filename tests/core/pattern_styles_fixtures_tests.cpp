@@ -2396,7 +2396,7 @@ void psd_adjustment_layers_render_and_round_trip() {
   document.add_layer(std::move(adjustment));
 
   const auto flattened = patchy::Compositor{}.flatten_rgb8(document);
-  CHECK(flattened.pixel(0, 0)[0] > 240);
+  CHECK(flattened.pixel(0, 0)[0] == 149);  // midtones red +50: a red gamma of 1.41
   CHECK(flattened.pixel(0, 0)[1] == 40);
 
   const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);

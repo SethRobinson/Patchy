@@ -136,6 +136,27 @@ std::string serialize_hue_saturation_band(const HueSaturationBand& band) {
   return encoded;
 }
 
+// "cyan_red;magenta_green;yellow_blue" for the shadows and highlights triples.
+std::string serialize_color_balance_tone(const ColorBalanceTone& tone) {
+  return std::to_string(std::clamp(tone.cyan_red, -100, 100)) + ';' +
+         std::to_string(std::clamp(tone.magenta_green, -100, 100)) + ';' +
+         std::to_string(std::clamp(tone.yellow_blue, -100, 100));
+}
+
+ColorBalanceTone parse_color_balance_tone(std::string_view encoded) {
+  std::array<int, 3> fields{};
+  for (std::size_t index = 0; index < fields.size(); ++index) {
+    const auto separator = encoded.find(';');
+    const auto value = parse_int(encoded.substr(0, separator));
+    if (!value.has_value() || (index + 1U < fields.size()) == (separator == std::string_view::npos)) {
+      return {};
+    }
+    fields[index] = std::clamp(*value, -100, 100);
+    encoded = separator == std::string_view::npos ? std::string_view{} : encoded.substr(separator + 1U);
+  }
+  return ColorBalanceTone{fields[0], fields[1], fields[2]};
+}
+
 std::optional<HueSaturationBand> parse_hue_saturation_band(std::string_view encoded) {
   std::array<int, 7> fields{};
   for (std::size_t index = 0; index < fields.size(); ++index) {
@@ -653,19 +674,51 @@ RgbColor apply_hue_saturation(RgbColor color, HueSaturationAdjustment settings) 
   return photoshop_hsl_reconstruct(light, half_chroma, sector, interpolant);
 }
 
-RgbColor apply_color_balance(RgbColor color, ColorBalanceAdjustment settings) {
-  settings.cyan_red = std::clamp(settings.cyan_red, -100, 100);
-  settings.magenta_green = std::clamp(settings.magenta_green, -100, 100);
-  settings.yellow_blue = std::clamp(settings.yellow_blue, -100, 100);
-  const auto red_delta = static_cast<int>(std::round(static_cast<double>(settings.cyan_red) * 255.0 / 100.0));
-  const auto green_delta = static_cast<int>(std::round(static_cast<double>(settings.magenta_green) * 255.0 / 100.0));
-  const auto blue_delta = static_cast<int>(std::round(static_cast<double>(settings.yellow_blue) * 255.0 / 100.0));
-  return RgbColor{clamp_byte(static_cast<float>(static_cast<int>(color.red) + red_delta)),
-                  clamp_byte(static_cast<float>(static_cast<int>(color.green) + green_delta)),
-                  clamp_byte(static_cast<float>(static_cast<int>(color.blue) + blue_delta))};
+RgbColor apply_color_balance(RgbColor color, const ColorBalanceAdjustment& settings) {
+  const auto levels = color_balance_channel_levels(settings);
+  const auto channel = [](std::uint8_t value, ColorBalanceChannelLevels record) {
+    const auto mapped = color_balance_transfer(static_cast<double>(value), record, true);
+    return static_cast<std::uint8_t>(std::clamp(std::floor(mapped + 0.5), 0.0, 255.0));
+  };
+  return RgbColor{channel(color.red, levels[0]), channel(color.green, levels[1]), channel(color.blue, levels[2])};
 }
 
 }  // namespace
+
+ColorBalanceTone ColorBalanceAdjustment::tone(ColorBalanceToneRange range) const noexcept {
+  switch (range) {
+    case ColorBalanceToneRange::Shadows:
+      return shadows;
+    case ColorBalanceToneRange::Highlights:
+      return highlights;
+    case ColorBalanceToneRange::Midtones:
+      break;
+  }
+  return ColorBalanceTone{cyan_red, magenta_green, yellow_blue};
+}
+
+void ColorBalanceAdjustment::set_tone(ColorBalanceToneRange range, ColorBalanceTone value) noexcept {
+  switch (range) {
+    case ColorBalanceToneRange::Shadows:
+      shadows = value;
+      return;
+    case ColorBalanceToneRange::Highlights:
+      highlights = value;
+      return;
+    case ColorBalanceToneRange::Midtones:
+      break;
+  }
+  cyan_red = value.cyan_red;
+  magenta_green = value.magenta_green;
+  yellow_blue = value.yellow_blue;
+}
+
+// Preserve Luminosity alone changes nothing: with every slider at zero the colors are
+// untouched, so their luminosity already matches.
+bool ColorBalanceAdjustment::has_effect() const noexcept {
+  return tone(ColorBalanceToneRange::Midtones).has_effect() || shadows.has_effect() ||
+         highlights.has_effect();
+}
 
 std::array<HueSaturationBand, 6> default_hue_saturation_bands() {
   std::array<HueSaturationBand, 6> bands{};
@@ -1295,6 +1348,58 @@ double levels_gamma_curve(double normalized, double gamma) {
   return photoshop_levels_gamma(normalized, gamma);
 }
 
+// Per channel c, with the three tone triples S (shadows), M (midtones), H (highlights):
+//   without Preserve Luminosity: input black max(0, -S[c]), input white 255 - max(0, H[c]),
+//     gamma exponent M[c] + S[c]/2 + H[c]/2 (each half truncated toward zero);
+//   with it: input black max(S) - S[c], input white 255 - (H[c] - min(H)),
+//     gamma exponent M[c] - (max(M) + min(M))/2; shadows and highlights add no gamma.
+std::array<ColorBalanceChannelLevels, 3> color_balance_channel_levels(const ColorBalanceAdjustment& settings) {
+  std::array<std::array<int, 3>, 3> tones{};
+  const std::array<ColorBalanceTone, 3> source{settings.shadows, settings.tone(ColorBalanceToneRange::Midtones),
+                                               settings.highlights};
+  for (std::size_t range = 0; range < 3U; ++range) {
+    tones[range] = {std::clamp(source[range].cyan_red, -100, 100),
+                    std::clamp(source[range].magenta_green, -100, 100),
+                    std::clamp(source[range].yellow_blue, -100, 100)};
+  }
+  const auto& shadows = tones[0];
+  const auto& midtones = tones[1];
+  const auto& highlights = tones[2];
+  std::array<ColorBalanceChannelLevels, 3> levels{};
+  for (std::size_t channel = 0; channel < 3U; ++channel) {
+    auto& record = levels[channel];
+    if (settings.preserve_luminosity) {
+      const auto [midtones_min, midtones_max] = std::minmax_element(midtones.begin(), midtones.end());
+      record.black_input = *std::max_element(shadows.begin(), shadows.end()) - shadows[channel];
+      record.white_input = 255 - (highlights[channel] - *std::min_element(highlights.begin(), highlights.end()));
+      record.gamma_exponent = midtones[channel] - (*midtones_max + *midtones_min) / 2;
+    } else {
+      record.black_input = std::max(0, -shadows[channel]);
+      record.white_input = 255 - std::max(0, highlights[channel]);
+      record.gamma_exponent = midtones[channel] + shadows[channel] / 2 + highlights[channel] / 2;
+    }
+    // Opposing extremes under Preserve Luminosity can cross the points; keep a valid range.
+    record.white_input = std::max(record.white_input, record.black_input + 1);
+  }
+  return levels;
+}
+
+double color_balance_transfer(double value, ColorBalanceChannelLevels levels, bool byte_points) {
+  auto normalized = std::clamp((value - static_cast<double>(levels.black_input)) /
+                                   static_cast<double>(levels.white_input - levels.black_input),
+                               0.0, 1.0);
+  if (byte_points && (levels.black_input != 0 || levels.white_input != 255)) {
+    normalized = std::floor(normalized * 255.0 + 0.5) / 255.0;
+  }
+  if (levels.gamma_exponent != 0) {
+    const auto gamma =
+        static_cast<double>(std::lround(100.0 * std::exp2(static_cast<double>(levels.gamma_exponent) / 100.0))) /
+        100.0;
+    normalized = photoshop_levels_gamma(normalized, gamma);
+  }
+  return normalized * 255.0;
+}
+
 double levels_record_transfer(double value, LevelsRecord record) {
   return levels_value(value, record);
 }
@@ -1487,6 +1592,13 @@ std::optional<AdjustmentSettings> adjustment_settings_from_layer(const Layer& la
   settings.color_balance.cyan_red = metadata_int_or(layer, kLayerMetadataAdjustmentColorBalanceCyanRed, 0);
   settings.color_balance.magenta_green = metadata_int_or(layer, kLayerMetadataAdjustmentColorBalanceMagentaGreen, 0);
   settings.color_balance.yellow_blue = metadata_int_or(layer, kLayerMetadataAdjustmentColorBalanceYellowBlue, 0);
+  settings.color_balance.shadows =
+      parse_color_balance_tone(metadata_string_or(layer, kLayerMetadataAdjustmentColorBalanceShadows, {}));
+  settings.color_balance.highlights =
+      parse_color_balance_tone(metadata_string_or(layer, kLayerMetadataAdjustmentColorBalanceHighlights, {}));
+  // Absent in documents from before tone ranges, which rendered without it.
+  settings.color_balance.preserve_luminosity =
+      metadata_int_or(layer, kLayerMetadataAdjustmentColorBalancePreserveLuminosity, 0) != 0;
   settings.posterize.levels =
       std::clamp(metadata_int_or(layer, kLayerMetadataAdjustmentPosterizeLevels, 4), 2, 255);
   settings.threshold.level =
@@ -1597,6 +1709,12 @@ void configure_adjustment_layer(Layer& layer, const AdjustmentSettings& settings
                    std::clamp(settings.color_balance.magenta_green, -100, 100));
   set_metadata_int(layer, kLayerMetadataAdjustmentColorBalanceYellowBlue,
                    std::clamp(settings.color_balance.yellow_blue, -100, 100));
+  set_metadata_string(layer, kLayerMetadataAdjustmentColorBalanceShadows,
+                      serialize_color_balance_tone(settings.color_balance.shadows));
+  set_metadata_string(layer, kLayerMetadataAdjustmentColorBalanceHighlights,
+                      serialize_color_balance_tone(settings.color_balance.highlights));
+  set_metadata_int(layer, kLayerMetadataAdjustmentColorBalancePreserveLuminosity,
+                   settings.color_balance.preserve_luminosity ? 1 : 0);
   set_metadata_int(layer, kLayerMetadataAdjustmentPosterizeLevels,
                    std::clamp(settings.posterize.levels, 2, 255));
   set_metadata_int(layer, kLayerMetadataAdjustmentThresholdLevel,
@@ -1832,8 +1950,7 @@ bool adjustment_has_effect(const AdjustmentSettings& settings) {
              settings.hue_saturation.saturation_delta != 0 || settings.hue_saturation.lightness_delta != 0 ||
              settings.hue_saturation.any_band_has_effect();
     case AdjustmentKind::ColorBalance:
-      return settings.color_balance.cyan_red != 0 || settings.color_balance.magenta_green != 0 ||
-             settings.color_balance.yellow_blue != 0;
+      return settings.color_balance.has_effect();
     case AdjustmentKind::Invert:
       return true;  // parameterless; the layer always inverts
     case AdjustmentKind::Posterize:

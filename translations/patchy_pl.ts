@@ -10939,6 +10939,54 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>&amp;Cancel</source>
         <translation>&amp;Anuluj</translation>
     </message>
+    <message>
+        <source>Smart Filters actions</source>
+        <translation>Działania inteligentnych filtrów</translation>
+    </message>
+    <message>
+        <source>Delete All Smart Filters</source>
+        <translation>Usuń wszystkie inteligentne filtry</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t render every Smart Filter that would then run. Photoshop renders them when the file is opened there.</source>
+        <translation>Patchy nie potrafi wyrenderować wszystkich inteligentnych filtrów, które zostałyby wtedy zastosowane. Photoshop wyrenderuje je po otwarciu w nim pliku.</translation>
+    </message>
+    <message>
+        <source>Hiding this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or hide all Smart Filters.</source>
+        <translation>Ukrycie tego filtra pozostawi aktywne inteligentne filtry, których Patchy nie potrafi wyrenderować. Najpierw je ukryj lub usuń albo ukryj wszystkie inteligentne filtry.</translation>
+    </message>
+    <message>
+        <source>Deleting this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or delete all Smart Filters.</source>
+        <translation>Usunięcie tego filtra pozostawi aktywne inteligentne filtry, których Patchy nie potrafi wyrenderować. Najpierw je ukryj lub usuń albo usuń wszystkie inteligentne filtry.</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t edit this filter&apos;s settings. It is preserved unchanged.</source>
+        <translation>Patchy nie może edytować ustawień tego filtra. Pozostaje zachowany bez zmian.</translation>
+    </message>
+    <message>
+        <source>This stack runs Smart Filters that Patchy can&apos;t render, so their settings can&apos;t change here. Hide or delete those filters first.</source>
+        <translation>Ten stos stosuje inteligentne filtry, których Patchy nie potrafi wyrenderować, więc ich ustawień nie można tu zmienić. Najpierw ukryj lub usuń te filtry.</translation>
+    </message>
+    <message>
+        <source>Hide All Smart Filters</source>
+        <translation>Ukryj wszystkie inteligentne filtry</translation>
+    </message>
+    <message>
+        <source>Show All Smart Filters</source>
+        <translation>Pokaż wszystkie inteligentne filtry</translation>
+    </message>
+    <message>
+        <source>Midtones</source>
+        <translation>Półtony</translation>
+    </message>
+    <message>
+        <source>Tone:</source>
+        <translation>Ton:</translation>
+    </message>
+    <message>
+        <source>Preserve Luminosity</source>
+        <translation>Zachowaj jasność</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -12562,6 +12610,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Added %1 to %2 to paint on</source>
         <translation>Dodano %1 do %2, aby na nim malować</translation>
+    </message>
+    <message>
+        <source>Rasterize the layer to distort it</source>
+        <translation>Zrasteryzuj warstwę, aby ją zniekształcić</translation>
+    </message>
+    <message>
+        <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
+        <translation>Obiektu inteligentnego w perspektywie nie można wypaczyć. Najpierw zrasteryzuj warstwę.</translation>
     </message>
 </context>
 <context>
@@ -22527,6 +22583,50 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
         <translation>Nie pytaj ponownie</translation>
     </message>
     <message>
+        <source>Color</source>
+        <translation>Kolor</translation>
+    </message>
+    <message>
+        <source>Orange</source>
+        <translation>Pomarańczowy</translation>
+    </message>
+    <message>
+        <source>Violet</source>
+        <translation>Fioletowy</translation>
+    </message>
+    <message>
+        <source>Gray</source>
+        <translation>Szary</translation>
+    </message>
+    <message>
+        <source>Layer color</source>
+        <translation>Kolor warstwy</translation>
+    </message>
+    <message>
+        <source>Delete All Smart Filters</source>
+        <translation>Usuń wszystkie inteligentne filtry</translation>
+    </message>
+    <message>
+        <source>Deleted all Smart Filters</source>
+        <translation>Usunięto wszystkie inteligentne filtry</translation>
+    </message>
+    <message>
+        <source>Transform</source>
+        <translation>Przekształć</translation>
+    </message>
+    <message>
+        <source>Skew</source>
+        <translation>Pochyl</translation>
+    </message>
+    <message>
+        <source>Distort</source>
+        <translation>Zniekształć</translation>
+    </message>
+    <message>
+        <source>Perspective</source>
+        <translation>Perspektywa</translation>
+    </message>
+    <message>
         <source>Pi&amp;xel Grid</source>
         <translation>Siatka pi&amp;kseli</translation>
     </message>
@@ -24271,6 +24371,30 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     <message>
         <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
         <translation>Nieznany panel &quot;%1&quot;. Panele: %2.</translation>
+    </message>
+    <message>
+        <source>Unknown layer color label: %1</source>
+        <translation>Nieznany kolor warstwy: %1</translation>
+    </message>
+    <message>
+        <source>layer.transform needs {matrix} or {quad}, not both.</source>
+        <translation>layer.transform wymaga {matrix} albo {quad}, nie obu.</translation>
+    </message>
+    <message>
+        <source>layer.transform: unknown option %1</source>
+        <translation>layer.transform: nieznana opcja %1</translation>
+    </message>
+    <message>
+        <source>layer.transform: matrix must be six finite numbers.</source>
+        <translation>layer.transform: matrix musi zawierać sześć skończonych liczb.</translation>
+    </message>
+    <message>
+        <source>layer.transform: quad must be four [x, y] points.</source>
+        <translation>layer.transform: quad musi zawierać cztery punkty [x, y].</translation>
+    </message>
+    <message>
+        <source>layer.transform: unknown interpolation %1</source>
+        <translation>layer.transform: nieznana interpolacja %1</translation>
     </message>
 </context>
 <context>

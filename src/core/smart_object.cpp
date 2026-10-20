@@ -3,6 +3,7 @@
 #include "core/document.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -182,6 +183,10 @@ std::string smart_object_placed_uuid(const Layer& layer) {
 
 std::string smart_object_lock_reason(const Layer& layer) {
   return std::string(metadata_value(layer, kLayerMetadataSmartObjectLock).value_or(std::string_view{}));
+}
+
+bool smart_object_lock_allows_smart_filter_edits(std::string_view lock_reason) noexcept {
+  return lock_reason.empty() || lock_reason == "external" || lock_reason == "filters";
 }
 
 bool layer_smart_object_block_dirty(const Layer& layer) {
@@ -445,6 +450,48 @@ std::optional<SmartObjectPlacement> smart_object_placement_from_layer(const Laye
     placement.anti_alias = std::atoi(std::string(*anti_alias).c_str());
   }
   return placement;
+}
+
+const std::array<double, 8>& smart_object_render_quad(const SmartObjectPlacement& placement) {
+  return placement.non_affine_transform.has_value() ? *placement.non_affine_transform : placement.transform;
+}
+
+SmartObjectPlacement map_smart_object_placement(const SmartObjectPlacement& placement,
+                                                const std::array<double, 9>& homography) {
+  const auto& source = smart_object_render_quad(placement);
+  std::array<double, 8> mapped{};
+  for (std::size_t i = 0; i < 8U; i += 2U) {
+    const double x = source[i];
+    const double y = source[i + 1U];
+    const double w = homography[6] * x + homography[7] * y + homography[8];
+    const double safe_w = std::abs(w) < 1e-12 ? 1.0 : w;
+    mapped[i] = (homography[0] * x + homography[1] * y + homography[2]) / safe_w;
+    mapped[i + 1U] = (homography[3] * x + homography[4] * y + homography[5]) / safe_w;
+  }
+  auto result = placement;
+  const bool affine_map = homography[6] == 0.0 && homography[7] == 0.0 && homography[8] == 1.0;
+  if (!placement.non_affine_transform.has_value() && affine_map) {
+    result.transform = mapped;
+    return result;
+  }
+  const double sum_x = mapped[0] + mapped[4] - mapped[2] - mapped[6];
+  const double sum_y = mapped[1] + mapped[5] - mapped[3] - mapped[7];
+  double scale = 1.0;
+  for (const auto value : mapped) {
+    scale = std::max(scale, std::abs(value));
+  }
+  if (std::abs(sum_x) <= 1e-9 * scale && std::abs(sum_y) <= 1e-9 * scale) {
+    result.transform = mapped;
+    result.non_affine_transform = mapped;
+    return result;
+  }
+  const double left = std::min({mapped[0], mapped[2], mapped[4], mapped[6]});
+  const double right = std::max({mapped[0], mapped[2], mapped[4], mapped[6]});
+  const double top = std::min({mapped[1], mapped[3], mapped[5], mapped[7]});
+  const double bottom = std::max({mapped[1], mapped[3], mapped[5], mapped[7]});
+  result.transform = {left, top, right, top, right, bottom, left, bottom};
+  result.non_affine_transform = mapped;
+  return result;
 }
 
 void store_smart_object_placement(Layer& layer, const SmartObjectPlacement& placement) {

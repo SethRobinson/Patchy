@@ -718,6 +718,10 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       transform_drag_grab_offset_ = transform_handle_grab_offset(handle, transform_current_rect_, transform_angle_,
                                                                  transform_drag_start_point_);
       transform_session_step_at_press_ = current_transform_session_step();
+      if (!begin_transform_distort_drag(handle, event->modifiers(), transform_drag_start_point_)) {
+        dragging_transform_ = false;
+        transform_drag_handle_ = TransformHandle::None;
+      }
       transform_drag_start_scale_x_sign_ = transform_scale_x_sign_;
       transform_drag_start_scale_y_sign_ = transform_scale_y_sign_;
       event->accept();
@@ -1087,6 +1091,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
           transform_drag_grab_offset_ = transform_handle_grab_offset(
               passive_handle, transform_current_rect_, transform_angle_, transform_drag_start_point_);
           transform_session_step_at_press_ = current_transform_session_step();
+          transform_drag_kind_ = TransformDragKind::Scale;
           transform_drag_start_scale_x_sign_ = transform_scale_x_sign_;
           transform_drag_start_scale_y_sign_ = transform_scale_y_sign_;
         } else {
@@ -1776,8 +1781,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
 
   if (transforming_layer_) {
     clear_move_hover_outline();
-    set_transform_cursor_at(event->pos(), transform_handle_at(event->pos()), transform_current_rect_,
-                            transform_angle_);
+    apply_session_transform_cursor(event->pos());
     last_mouse_position_ = event->pos();
     return;
   }
@@ -2440,6 +2444,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     update_free_transform_preview(document_position_f(event->position()), event->modifiers());
     dragging_transform_ = false;
     transform_drag_handle_ = TransformHandle::None;
+    transform_drag_kind_ = TransformDragKind::Scale;
     record_transform_session_step(transform_session_step_at_press_);
     clear_drag_readout();
     if (transform_drag_uses_proxy_preview_) {

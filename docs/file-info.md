@@ -120,6 +120,21 @@ copyright flag.
   then per entry u8 FileInfoTextKind and key/value/language as u32 length + UTF-8) for PNG
   text and comments. Patchy-born documents carry none, so the byte-stability canaries are
   unchanged.
+
+### Save stamp
+
+A PSD/PSB Save or Save As (`DocumentSaveCoordinator::write_prepared`, also scripts and
+`--export`) records itself in the session's XMP before the writer runs, through
+`stamp_xmp_for_save` with `save_stamp_now()` (local time and offset, `"Patchy " +
+PATCHY_VERSION`): xmp:ModifyDate and xmp:MetadataDate become the save time; xmp:CreateDate
+and xmp:CreatorTool are set only when absent; xmpMM:History gains a stEvt entry ("created"
+with no prior CreateDate or History, else "saved" with changed "/"). That is Photoshop's
+own behavior: a file another application created keeps its creator (a Photoshop 23.4 save
+of pinball_from_photoshop.psd left CreatorTool at "Adobe Photoshop 21.1" and added a
+history entry). Dates are ISO 8601 with the local offset (`xmp_date`). An unparseable
+packet is left alone. Recovery snapshots, flat formats and layered TIFF are not stamped;
+the core PSD writer is untouched, so the canaries hold. After Strip All Metadata the next
+PSD save writes the stamp again (dates and creator only).
 - PDF: the image-page writer (`pdf::ImageWriter::set_document_info`) writes `/Info` Title,
   Author, Subject (description) and Keywords from the first page's fields as UTF-16 hex
   strings; the Qt PDF paths (editable layers) set the title only.

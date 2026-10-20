@@ -137,9 +137,11 @@ struct SmartObjectPlacement {
   std::string uuid;
   std::array<double, 8> transform{};  // x,y of the 4 placed corners in document coords
   // The SoLd nonAffineTransform quad when it differs from Trnf (perspective
-  // placements). Free Transform maps it per corner alongside Trnf; the SoLd
-  // writer patches it directly when present and falls back to the per-corner
-  // Trnf delta (exact only for translations) when absent.
+  // placements): the corners the content's top left, top right, bottom right and
+  // bottom left land on. Photoshop then stores Trnf as that quad's axis-aligned
+  // bounding box (map_smart_object_placement). The SoLd writer patches it directly
+  // when present and falls back to the per-corner Trnf delta (exact only for
+  // translations) when absent.
   std::optional<std::array<double, 8>> non_affine_transform;
   double width{0.0};                  // source size in pixels (SoLd 'Sz')
   double height{0.0};
@@ -152,10 +154,26 @@ struct SmartObjectPlacement {
 [[nodiscard]] std::string smart_object_source_uuid(const Layer& layer);
 [[nodiscard]] std::string smart_object_placed_uuid(const Layer& layer);
 [[nodiscard]] std::string smart_object_lock_reason(const Layer& layer);
+// Lock reasons under which a layer's Smart Filter stack may still change: none, a linked
+// source (re-rendered from its file), and "filters", the preview lock of a stack running a
+// filter Patchy does not model, which hiding or deleting that filter lifts (GitHub issue 243).
+[[nodiscard]] bool smart_object_lock_allows_smart_filter_edits(std::string_view lock_reason) noexcept;
 [[nodiscard]] bool layer_smart_object_block_dirty(const Layer& layer);
 void mark_layer_smart_object_block_dirty(Layer& layer);
 [[nodiscard]] std::optional<SmartObjectPlacement> smart_object_placement_from_layer(const Layer& layer);
 void store_smart_object_placement(Layer& layer, const SmartObjectPlacement& placement);
+// The quad the content renders onto: nonAffineTransform when present, else Trnf.
+[[nodiscard]] const std::array<double, 8>& smart_object_render_quad(const SmartObjectPlacement& placement);
+// Free Transform of a placement (GitHub issue 225; docs/free-transform.md). Maps the
+// render quad through a document-space homography (row-major for column vectors,
+// x' = (h0 x + h1 y + h2) / w). A plain placement under an affine map keeps the
+// per-corner Trnf map with no nonAffineTransform (byte-identical to before). Any
+// other result follows Photoshop's perspective rule (pinball fixture): the mapped
+// corners become nonAffineTransform and Trnf becomes their axis-aligned bounding box
+// as a TL, TR, BR, BL rectangle; a result that is a parallelogram stores the same
+// quad in both.
+[[nodiscard]] SmartObjectPlacement map_smart_object_placement(const SmartObjectPlacement& placement,
+                                                             const std::array<double, 9>& homography);
 void set_layer_smart_object_metadata(Layer& layer, const SmartObjectPlacement& placement,
                                      std::string_view placed_uuid, std::string_view source_block,
                                      std::string_view lock_reason, std::string_view raster_status);

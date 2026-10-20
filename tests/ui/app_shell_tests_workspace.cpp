@@ -1985,6 +1985,35 @@ void ui_tool_palette_extension_survives_resize_cycles() {
   check_state("short once more");
 }
 
+// GitHub issue 241 follow-up: opening and closing the tool palette's extra columns
+// narrows and widens the canvas, and the document stays centered both ways.
+void ui_tool_palette_expansion_keeps_the_document_centered() {
+  patchy::ui::MainWindow window;
+  window.setAnimated(false);
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::create_document(window, 120, 80);
+  QApplication::processEvents();
+  const auto setup = shrink_window_until_tool_palette_overflows(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_view_zoom_centered(1.0);
+  QApplication::processEvents();
+  const auto centered = [canvas] {
+    const auto position = canvas->widget_position_f(QPointF(60.0, 40.0));
+    return std::abs(position.x() - canvas->width() / 2.0) <= 1.0 &&
+           std::abs(position.y() - canvas->height() / 2.0) <= 1.0;
+  };
+  CHECK(centered());
+  const auto collapsed_width = canvas->width();
+  setup.extension->click();
+  CHECK(process_events_until([&] { return canvas->width() < collapsed_width; }));
+  QApplication::processEvents();
+  CHECK(centered());
+  setup.extension->click();
+  CHECK(process_events_until([&] { return canvas->width() == collapsed_width; }));
+  QApplication::processEvents();
+  CHECK(centered());
+}
+
 void ui_tool_palette_extension_button_expands_palette() {
   patchy::ui::MainWindow window;
   // The expanded geometry is otherwise applied through the ~200ms main-window
@@ -3178,6 +3207,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part1() {
       {"ui_tool_palette_overflow_hides_quick_mask_before_swatches", ui_tool_palette_overflow_hides_quick_mask_before_swatches},
       {"ui_tool_palette_extension_survives_resize_cycles", ui_tool_palette_extension_survives_resize_cycles},
       {"ui_tool_palette_extension_button_expands_palette", ui_tool_palette_extension_button_expands_palette},
+      {"ui_tool_palette_expansion_keeps_the_document_centered", ui_tool_palette_expansion_keeps_the_document_centered},
       {"ui_tool_palette_expansion_keeps_columns_tight_and_aligned", ui_tool_palette_expansion_keeps_columns_tight_and_aligned},
       {"ui_tool_palette_expansion_sticky_after_tool_pick", ui_tool_palette_expansion_sticky_after_tool_pick},
       {"ui_tool_palette_expanded_zoom_double_click_sets_actual_pixels", ui_tool_palette_expanded_zoom_double_click_sets_actual_pixels},

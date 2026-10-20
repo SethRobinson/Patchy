@@ -1028,6 +1028,192 @@ void ui_path_handle_knobs_read_and_grab() {
   CHECK(std::abs(dragged.anchor_x - 100.0) < 0.5 && std::abs(dragged.anchor_y - 100.0) < 0.5);
 }
 
+// A drawn handle knob drags its handle under both arrow tools. Path Select
+// selects the whole shape, so every anchor's knobs show; a press on one used to
+// fall through to the anchor/segment hit and move the whole shape instead.
+void ui_path_select_tools_drag_drawn_handle_knobs() {
+  for (const auto tool : {patchy::ui::CanvasTool::PathSelect, patchy::ui::CanvasTool::DirectSelect}) {
+    VectorSettingsGuard settings_guard;
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* canvas = require_canvas(window);
+    auto& document = patchy::ui::MainWindowTestAccess::document(window);
+    const auto layer_id = make_rect_shape_layer(window, *canvas);  // corners (100,100)..(300,220)
+    {
+      auto* layer = document.find_layer(layer_id);
+      CHECK(layer != nullptr && layer->vector_shape() != nullptr);
+      if (layer == nullptr || layer->vector_shape() == nullptr) {
+        return;
+      }
+      auto content = *layer->vector_shape();
+      auto& anchor = content.path.subpaths[0].anchors[0];
+      anchor.smooth = true;
+      anchor.out_x = anchor.anchor_x + 60.0;
+      anchor.out_y = anchor.anchor_y - 70.0;
+      anchor.in_x = anchor.anchor_x - 60.0;
+      anchor.in_y = anchor.anchor_y + 70.0;
+      layer->set_vector_shape(std::move(content));
+    }
+    canvas->set_view_zoom_centered(1.0);
+    canvas->set_tool(tool);
+    const bool path_select = tool == patchy::ui::CanvasTool::PathSelect;
+    pen_click(*canvas, QPoint(100, 100));  // select (the anchor, or the whole shape)
+    CHECK(canvas->path_edit_has_selection());
+    CHECK(accent_overlay_near(*canvas, QPoint(160, 30)));  // the out knob is drawn
+    if (path_select) {
+      save_widget_artifact("ui_path_select_handle_knob_before", *canvas);
+    }
+
+    const auto knob = canvas->widget_position_for_document_point(QPoint(160, 30));
+    send_mouse(*canvas, QEvent::MouseButtonPress, knob, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseMove, knob + QPoint(10, 0), Qt::NoButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseMove, knob + QPoint(20, 0), Qt::NoButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, knob + QPoint(20, 0), Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    if (path_select) {
+      save_widget_artifact("ui_path_select_handle_knob_after", *canvas);
+    }
+    const auto& dragged = anchor_at(document, layer_id, 0);
+    CHECK(std::abs(dragged.out_x - 180.0) < 1.5);
+    CHECK(std::abs(dragged.anchor_x - 100.0) < 0.5 && std::abs(dragged.anchor_y - 100.0) < 0.5);
+    const auto& far_corner = anchor_at(document, layer_id, 2);  // the shape did not move
+    CHECK(std::abs(far_corner.anchor_x - 300.0) < 0.5 && std::abs(far_corner.anchor_y - 220.0) < 0.5);
+  }
+}
+
+// GitHub issue 248, point 1: a click on blank canvas, or past the canvas edge,
+// deselects the shape Path Select picked, and the deselected shape shows only
+// its outline (no anchor squares). Direct Select keeps the hollow anchors.
+void ui_path_select_blank_click_deselects_shape() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220), black fill
+  canvas->set_view_zoom_centered(0.5);
+  canvas->set_tool(patchy::ui::CanvasTool::PathSelect);
+  // An anchor square draws light pixels 3 px inside the corner, over the fill.
+  const auto corner_glyph_drawn = [&] {
+    const auto image = canvas->grab().toImage();
+    const auto probe = canvas->widget_position_for_document_point(QPoint(300, 220)) - QPoint(3, 3);
+    return image.pixelColor(probe).lightness() > 100;
+  };
+  pen_click(*canvas, QPoint(200, 100));  // the top edge
+  CHECK(canvas->path_edit_has_selection());
+  CHECK(corner_glyph_drawn());
+  save_widget_artifact("ui_path_select_blank_click_selected", *canvas);
+  pen_click(*canvas, QPoint(500, 400));  // blank canvas
+  save_widget_artifact("ui_path_select_blank_click_deselected", *canvas);
+  CHECK(!canvas->path_edit_has_selection());
+  CHECK(!corner_glyph_drawn());
+  pen_click(*canvas, QPoint(200, 100));
+  CHECK(canvas->path_edit_has_selection());
+  pen_click(*canvas, QPoint(-60, -60));  // the pasteboard
+  CHECK(!canvas->path_edit_has_selection());
+  CHECK(!corner_glyph_drawn());
+  canvas->set_tool(patchy::ui::CanvasTool::DirectSelect);
+  QApplication::processEvents();
+  CHECK(corner_glyph_drawn());  // hollow anchors on the active path
+}
+
+// GitHub issue 248, point 2: a Path Select click picks the shape under the
+// pointer even when another shape layer is active.
+void ui_path_select_click_picks_shape_under_pointer() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto first_id = make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  shape_drag(*canvas, QPoint(340, 60), QPoint(420, 160));  // "Rectangle 2", active
+  const auto second_id = *document.active_layer_id();
+  CHECK(second_id != first_id);
+  canvas->set_view_zoom_centered(1.0);
+  canvas->set_tool(patchy::ui::CanvasTool::PathSelect);
+  pen_click(*canvas, QPoint(200, 220));  // the first rectangle's bottom edge
+  save_widget_artifact("ui_path_select_pick_click", *canvas);
+  CHECK(*document.active_layer_id() == first_id);
+  CHECK(canvas->path_edit_has_selection());
+  // A drag inside the second rectangle's fill picks it and moves it in one press.
+  save_widget_artifact("ui_path_select_pick_before", *canvas);
+  shape_drag(*canvas, QPoint(380, 110), QPoint(400, 130));
+  save_widget_artifact("ui_path_select_pick_after", *canvas);
+  CHECK(*document.active_layer_id() == second_id);
+  CHECK(std::abs(anchor_at(document, second_id, 0).anchor_x - 360.0) < 1.0);
+  CHECK(std::abs(anchor_at(document, second_id, 0).anchor_y - 80.0) < 1.0);
+  CHECK(std::abs(anchor_at(document, first_id, 0).anchor_x - 100.0) < 0.5);  // untouched
+}
+
+// GitHub issue 248, point 2: a Path Select marquee that crosses a shape's edge
+// selects it, anchors inside the rect or not.
+void ui_path_select_marquee_touching_shape_selects_it() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
+  canvas->set_view_zoom_centered(1.0);
+  canvas->set_tool(patchy::ui::CanvasTool::PathSelect);
+  shape_drag(*canvas, QPoint(150, 50), QPoint(250, 140));  // crosses the top edge only
+  save_widget_artifact("ui_path_select_marquee_touch_after", *canvas);
+  CHECK(canvas->path_edit_has_selection());
+  CHECK(canvas->path_edit_selected_anchor_count() == 4);
+  shape_drag(*canvas, QPoint(320, 50), QPoint(400, 90));  // misses the shape
+  CHECK(!canvas->path_edit_has_selection());
+}
+
+// GitHub issue 248, point 3: a Path Select drag inside the shape's fill moves
+// the shape.
+void ui_path_select_drag_inside_fill_moves_shape() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
+  canvas->set_view_zoom_centered(1.0);
+  canvas->set_tool(patchy::ui::CanvasTool::PathSelect);
+  pen_click(*canvas, QPoint(200, 100));  // select it
+  CHECK(canvas->path_edit_has_selection());
+  save_widget_artifact("ui_path_select_fill_drag_before", *canvas);
+  shape_drag(*canvas, QPoint(200, 160), QPoint(230, 180));
+  save_widget_artifact("ui_path_select_fill_drag_after", *canvas);
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_x - 130.0) < 1.0);
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_y - 120.0) < 1.0);
+  CHECK(canvas->path_edit_has_selection());
+}
+
+// GitHub issue 248, point 4: a Direct Select press on a point of a shape that
+// is not selected yet drags that point at once, on the active shape and on
+// another shape layer.
+void ui_direct_select_drags_points_of_unselected_shapes() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto first_id = make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
+  canvas->set_tool(patchy::ui::CanvasTool::Rectangle);
+  shape_drag(*canvas, QPoint(340, 60), QPoint(420, 160));  // "Rectangle 2", active
+  const auto second_id = *document.active_layer_id();
+  canvas->set_view_zoom_centered(1.0);
+  canvas->set_tool(patchy::ui::CanvasTool::DirectSelect);
+  CHECK(!canvas->path_edit_has_selection());
+  shape_drag(*canvas, QPoint(340, 60), QPoint(350, 70));  // the active shape's corner
+  CHECK(std::abs(anchor_at(document, second_id, 0).anchor_x - 350.0) < 1.0);
+  shape_drag(*canvas, QPoint(100, 100), QPoint(120, 110));  // the other shape's corner
+  CHECK(*document.active_layer_id() == first_id);
+  CHECK(std::abs(anchor_at(document, first_id, 0).anchor_x - 120.0) < 1.0);
+  CHECK(std::abs(anchor_at(document, first_id, 0).anchor_y - 110.0) < 1.0);
+  CHECK(std::abs(anchor_at(document, first_id, 1).anchor_x - 300.0) < 0.5);  // only that point
+  // The pick and the drag are one undo step.
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(std::abs(anchor_at(document, first_id, 0).anchor_x - 100.0) < 0.5);
+  CHECK(std::abs(anchor_at(document, second_id, 0).anchor_x - 350.0) < 1.0);  // the earlier drag stays
+}
+
 // Shift during an anchor drag constrains movement to the nearest horizontal,
 // vertical, or 45-degree axis, re-evaluated per move against the total delta
 // from the press point (Photoshop's vertex constraint, never latched).
@@ -1362,6 +1548,13 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
       {"ui_layer_row_click_shows_anchors_for_shape_layer", ui_layer_row_click_shows_anchors_for_shape_layer},
       {"ui_path_overlay_outline_is_hairline", ui_path_overlay_outline_is_hairline},
       {"ui_path_handle_knobs_read_and_grab", ui_path_handle_knobs_read_and_grab},
+      {"ui_path_select_tools_drag_drawn_handle_knobs", ui_path_select_tools_drag_drawn_handle_knobs},
+      {"ui_path_select_blank_click_deselects_shape", ui_path_select_blank_click_deselects_shape},
+      {"ui_path_select_click_picks_shape_under_pointer", ui_path_select_click_picks_shape_under_pointer},
+      {"ui_path_select_marquee_touching_shape_selects_it", ui_path_select_marquee_touching_shape_selects_it},
+      {"ui_path_select_drag_inside_fill_moves_shape", ui_path_select_drag_inside_fill_moves_shape},
+      {"ui_direct_select_drags_points_of_unselected_shapes",
+       ui_direct_select_drags_points_of_unselected_shapes},
       {"ui_ctrl_h_hides_path_points_with_selection_edges",
        ui_ctrl_h_hides_path_points_with_selection_edges},
       {"ui_direct_select_drags_marquee_selection_by_segment",

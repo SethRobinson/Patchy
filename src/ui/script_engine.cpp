@@ -1935,6 +1935,79 @@ bool alignment_session_ready(ScriptEngineHost& host, CanvasWidget* canvas, const
 
 }  // namespace
 
+bool ScriptEngineHost::transform_layer(std::int64_t session_id, LayerId layer_id,
+                                       const std::optional<std::array<double, 6>>& matrix,
+                                       const std::optional<std::array<std::array<double, 2>, 4>>& quad,
+                                       std::optional<ResampleMethod> interpolation) {
+  pump_progress_indicator();
+  auto* initial_session = window_.session_with_id(session_id);
+  auto* canvas = initial_session != nullptr ? initial_session->canvas : nullptr;
+  if (canvas == nullptr) {
+    throw_js_error(tr("The document is no longer open."));
+    return false;
+  }
+  if (canvas->free_transform_active() || canvas->warp_transform_active() || canvas->path_transform_active()) {
+    throw_js_error(tr("%1: finish the pending transform first.").arg(QStringLiteral("layer.transform")));
+    return false;
+  }
+  if (!prepare_mutation(session_id)) {
+    return false;
+  }
+  // prepare_mutation may pump input; re-resolve the session before mutating.
+  auto* session = window_.session_with_id(session_id);
+  if (session == nullptr || session->canvas != canvas) {
+    throw_js_error(tr("The document is no longer open."));
+    return false;
+  }
+  std::optional<CanvasWidget::TransformInterpolation> canvas_interpolation;
+  if (interpolation.has_value()) {
+    switch (*interpolation) {
+      case ResampleMethod::Automatic:
+        canvas_interpolation = CanvasWidget::TransformInterpolation::Automatic;
+        break;
+      case ResampleMethod::NearestNeighbor:
+        canvas_interpolation = CanvasWidget::TransformInterpolation::NearestNeighbor;
+        break;
+      case ResampleMethod::Bilinear:
+        canvas_interpolation = CanvasWidget::TransformInterpolation::Bilinear;
+        break;
+      case ResampleMethod::Bicubic:
+        canvas_interpolation = CanvasWidget::TransformInterpolation::Bicubic;
+        break;
+      case ResampleMethod::BicubicSmoother:
+        canvas_interpolation = CanvasWidget::TransformInterpolation::BicubicSmoother;
+        break;
+      case ResampleMethod::BicubicSharper:
+        canvas_interpolation = CanvasWidget::TransformInterpolation::BicubicSharper;
+        break;
+    }
+  }
+  const auto place = [&matrix, &quad](const std::array<QPointF, 4>& box) {
+    std::array<QPointF, 4> corners = box;
+    for (std::size_t i = 0; i < corners.size(); ++i) {
+      if (quad.has_value()) {
+        corners[i] = QPointF((*quad)[i][0], (*quad)[i][1]);
+      } else if (matrix.has_value()) {
+        const auto& m = *matrix;
+        corners[i] = QPointF(m[0] * box[i].x() + m[2] * box[i].y() + m[4], m[1] * box[i].x() + m[3] * box[i].y() + m[5]);
+      }
+    }
+    return corners;
+  };
+  const auto* before_layer = std::as_const(session->document).find_layer(layer_id);
+  QRect dirty = before_layer != nullptr ? to_qrect(layer_render_bounds(*before_layer)) : QRect();
+  const auto error = canvas->apply_scripted_free_transform(layer_id, place, canvas_interpolation);
+  if (!error.isEmpty()) {
+    throw_js_error(error);
+    return false;
+  }
+  if (const auto* after_layer = std::as_const(session->document).find_layer(layer_id); after_layer != nullptr) {
+    dirty = dirty.united(to_qrect(layer_render_bounds(*after_layer)));
+  }
+  note_pixels_changed(session_id, dirty);
+  return true;
+}
+
 int ScriptEngineHost::align_layers(std::int64_t session_id, const std::vector<LayerId>& root_ids, AlignEdge edge,
                                    bool align_to_canvas) {
   pump_progress_indicator();
