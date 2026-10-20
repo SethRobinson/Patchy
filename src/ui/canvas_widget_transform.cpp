@@ -2987,20 +2987,11 @@ QPointF CanvasWidget::distorted_transform_handle_position(TransformHandle handle
 }
 
 double CanvasWidget::distorted_transform_handle_direction(TransformHandle handle) const {
-  const auto centroid = distorted_transform_handle_position(TransformHandle::Move);
-  QPointF direction;
-  if (transform_handle_is_edge(handle)) {
-    const auto [first, second] = transform_edge_corner_handles(handle);
-    const auto along = distorted_transform_handle_position(second) - distorted_transform_handle_position(first);
-    direction = QPointF(along.y(), -along.x());
-    const auto outward = distorted_transform_handle_position(handle) - centroid;
-    if (direction.x() * outward.x() + direction.y() * outward.y() < 0.0) {
-      direction = -direction;
-    }
-  } else {
-    direction = distorted_transform_handle_position(handle) - centroid;
-  }
-  return std::atan2(direction.y(), direction.x()) * 180.0 / kPi;
+  return transform_quad_handle_direction({distorted_transform_handle_position(TransformHandle::TopLeft),
+                                          distorted_transform_handle_position(TransformHandle::TopRight),
+                                          distorted_transform_handle_position(TransformHandle::BottomRight),
+                                          distorted_transform_handle_position(TransformHandle::BottomLeft)},
+                                         handle);
 }
 
 CanvasWidget::TransformHandle CanvasWidget::distorted_transform_handle_at(QPoint widget_point) const {
@@ -3121,12 +3112,7 @@ void CanvasWidget::apply_session_transform_cursor(QPoint widget_point, Qt::Keybo
     const auto kind = transform_drag_kind_for(hovered, modifiers);
     const bool refused = transform_handle_is_corner(hovered) && kind != TransformDragKind::Scale &&
                          !free_transform_accepts_non_affine();
-    if (kind != TransformDragKind::Scale && !refused) {
-      setCursor(transform_gesture_cursor(kind == TransformDragKind::SkewCorner || kind == TransformDragKind::SlideEdge
-                                             ? TransformGestureCursor::Skew
-                                         : kind == TransformDragKind::PerspectiveCorner
-                                             ? TransformGestureCursor::Perspective
-                                             : TransformGestureCursor::Distort));
+    if (!refused && apply_transform_gesture_cursor(kind)) {
       return;
     }
   }
@@ -3167,6 +3153,12 @@ void CanvasWidget::apply_session_transform_cursor(QPoint widget_point, Qt::Keybo
 
 CanvasWidget::TransformDragKind CanvasWidget::transform_drag_kind_for(TransformHandle handle,
                                                                       Qt::KeyboardModifiers modifiers) const noexcept {
+  return transform_drag_kind_for_mode(handle, modifiers, transform_distort_mode_);
+}
+
+CanvasWidget::TransformDragKind CanvasWidget::transform_drag_kind_for_mode(TransformHandle handle,
+                                                                           Qt::KeyboardModifiers modifiers,
+                                                                           TransformDistortMode mode) noexcept {
   const bool control = (modifiers & Qt::ControlModifier) != 0;
   const bool alt = (modifiers & Qt::AltModifier) != 0;
   const bool shift = (modifiers & Qt::ShiftModifier) != 0;
@@ -3177,7 +3169,7 @@ CanvasWidget::TransformDragKind CanvasWidget::transform_drag_kind_for(TransformH
     if (control) {
       return TransformDragKind::DistortCorner;
     }
-    switch (transform_distort_mode_) {
+    switch (mode) {
       case TransformDistortMode::Distort:
         return TransformDragKind::DistortCorner;
       case TransformDistortMode::Perspective:
@@ -3193,7 +3185,7 @@ CanvasWidget::TransformDragKind CanvasWidget::transform_drag_kind_for(TransformH
     if (control) {
       return shift ? TransformDragKind::SlideEdge : TransformDragKind::MoveEdge;
     }
-    switch (transform_distort_mode_) {
+    switch (mode) {
       case TransformDistortMode::Distort:
         return TransformDragKind::MoveEdge;
       case TransformDistortMode::Skew:
@@ -3250,10 +3242,38 @@ void CanvasWidget::update_free_transform_distort(QPointF document_point, Qt::Key
   const auto start = transform_drag_start_point_ + transform_drag_grab_offset_;
   const auto now = snapped_document_point_f(document_point + transform_drag_grab_offset_);
   const auto delta = inverse.map(now) - inverse.map(start);
-  auto offsets = transform_drag_start_corner_offsets_;
-  const auto corner = transform_corner_index_for_handle(transform_drag_handle_);
+  if (transform_drag_kind_ == TransformDragKind::Scale) {
+    return;
+  }
+  const auto [first_handle, second_handle] = transform_edge_corner_handles(transform_drag_handle_);
+  const auto offsets = transform_distorted_offsets(
+      transform_drag_kind_, transform_corner_index_for_handle(transform_drag_handle_),
+      {transform_corner_index_for_handle(first_handle), transform_corner_index_for_handle(second_handle)}, delta,
+      symmetric, transform_drag_start_corner_offsets_, transform_original_corners());
+  // Never fold the quad: a frame that would make it concave, self-crossing or
+  // collapsed, or turn it inside out, keeps the last good shape (the pointer can
+  // swing back). A folded quad's homography throws pixels across the horizon, far
+  // outside the box and the repaint (GitHub issue 225, Seth's "skew with vigor").
+  const auto start_winding = convex_quad_winding(transform_quad_for_offsets(transform_drag_start_corner_offsets_));
+  if (const auto winding = convex_quad_winding(transform_quad_for_offsets(offsets));
+      winding == 0 || (start_winding != 0 && winding != start_winding)) {
+    return;
+  }
+  transform_corner_offsets_ = offsets;
+  refresh_transform_preview_for_drag();
+  update_transform_preview_region(previous_preview_rect);
+  update_drag_readout_region();
+  notify_transform_controls_changed();
+}
+
+std::array<QPointF, 4> CanvasWidget::transform_distorted_offsets(TransformDragKind kind, int corner,
+                                                                 std::pair<int, int> edge_corners, QPointF delta,
+                                                                 bool symmetric,
+                                                                 const std::array<QPointF, 4>& start_offsets,
+                                                                 const std::array<QPointF, 4>& original_corners) {
+  auto offsets = start_offsets;
   const auto at = [&offsets](int index) -> QPointF& { return offsets[static_cast<std::size_t>(index)]; };
-  switch (transform_drag_kind_) {
+  switch (kind) {
     case TransformDragKind::DistortCorner:
       at(corner) += delta;
       if (symmetric) {
@@ -3283,16 +3303,12 @@ void CanvasWidget::update_free_transform_distort(QPointF document_point, Qt::Key
     }
     case TransformDragKind::MoveEdge:
     case TransformDragKind::SlideEdge: {
-      const auto [first_handle, second_handle] = transform_edge_corner_handles(transform_drag_handle_);
-      const auto first = transform_corner_index_for_handle(first_handle);
-      const auto second = transform_corner_index_for_handle(second_handle);
+      const auto [first, second] = edge_corners;
       auto travel = delta;
-      if (transform_drag_kind_ == TransformDragKind::SlideEdge) {
-        const auto corners = transform_original_corners();
-        const auto along = (corners[static_cast<std::size_t>(second)] + transform_drag_start_corner_offsets_
-                                                                            [static_cast<std::size_t>(second)]) -
-                           (corners[static_cast<std::size_t>(first)] +
-                            transform_drag_start_corner_offsets_[static_cast<std::size_t>(first)]);
+      if (kind == TransformDragKind::SlideEdge) {
+        const auto& corners = original_corners;
+        const auto along = (corners[static_cast<std::size_t>(second)] + start_offsets[static_cast<std::size_t>(second)]) -
+                           (corners[static_cast<std::size_t>(first)] + start_offsets[static_cast<std::size_t>(first)]);
         const auto length_squared = along.x() * along.x() + along.y() * along.y();
         travel = length_squared > 1e-12
                      ? along * ((delta.x() * along.x() + delta.y() * along.y()) / length_squared)
@@ -3307,22 +3323,55 @@ void CanvasWidget::update_free_transform_distort(QPointF document_point, Qt::Key
       break;
     }
     case TransformDragKind::Scale:
-      return;
+      break;
   }
-  // Never fold the quad: a frame that would make it concave, self-crossing or
-  // collapsed, or turn it inside out, keeps the last good shape (the pointer can
-  // swing back). A folded quad's homography throws pixels across the horizon, far
-  // outside the box and the repaint (GitHub issue 225, Seth's "skew with vigor").
-  const auto start_winding = convex_quad_winding(transform_quad_for_offsets(transform_drag_start_corner_offsets_));
-  if (const auto winding = convex_quad_winding(transform_quad_for_offsets(offsets));
-      winding == 0 || (start_winding != 0 && winding != start_winding)) {
-    return;
+  return offsets;
+}
+
+int CanvasWidget::transform_quad_winding(const std::array<QPointF, 4>& quad) {
+  return convex_quad_winding(quad);
+}
+
+double CanvasWidget::transform_quad_handle_direction(const std::array<QPointF, 4>& handle_corners,
+                                                     TransformHandle handle) {
+  const auto corner_position = [&](TransformHandle corner) {
+    switch (corner) {
+      case TransformHandle::TopLeft:
+        return handle_corners[0];
+      case TransformHandle::TopRight:
+        return handle_corners[1];
+      case TransformHandle::BottomRight:
+        return handle_corners[2];
+      default:
+        return handle_corners[3];
+    }
+  };
+  const auto centroid = (handle_corners[0] + handle_corners[1] + handle_corners[2] + handle_corners[3]) / 4.0;
+  QPointF direction;
+  if (transform_handle_is_edge(handle)) {
+    const auto [first, second] = transform_edge_corner_handles(handle);
+    const auto along = corner_position(second) - corner_position(first);
+    direction = QPointF(along.y(), -along.x());
+    const auto outward = (corner_position(first) + corner_position(second)) / 2.0 - centroid;
+    if (direction.x() * outward.x() + direction.y() * outward.y() < 0.0) {
+      direction = -direction;
+    }
+  } else {
+    direction = corner_position(handle) - centroid;
   }
-  transform_corner_offsets_ = offsets;
-  refresh_transform_preview_for_drag();
-  update_transform_preview_region(previous_preview_rect);
-  update_drag_readout_region();
-  notify_transform_controls_changed();
+  return std::atan2(direction.y(), direction.x()) * 180.0 / kPi;
+}
+
+bool CanvasWidget::apply_transform_gesture_cursor(TransformDragKind kind) {
+  if (kind == TransformDragKind::Scale) {
+    return false;
+  }
+  setCursor(transform_gesture_cursor(kind == TransformDragKind::SkewCorner || kind == TransformDragKind::SlideEdge
+                                         ? TransformGestureCursor::Skew
+                                     : kind == TransformDragKind::PerspectiveCorner
+                                         ? TransformGestureCursor::Perspective
+                                         : TransformGestureCursor::Distort));
+  return true;
 }
 
 bool CanvasWidget::transform_session_box_contains(QPoint widget_point) const {
