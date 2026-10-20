@@ -50,6 +50,7 @@
 #include <QTabWidget>
 #include <QTimer>
 #include <QToolTip>
+#include <QPointer>
 #include <QToolButton>
 #include <algorithm>
 #include <atomic>
@@ -628,6 +629,84 @@ void ui_layer_smart_object_badge_shows_linked_variant() {
   CHECK(opaque_pixels(linked_image) > 20);
   CHECK(embedded_image != linked_image);
   save_widget_artifact("ui_layer_smart_object_badge_linked_variant", window);
+}
+
+// GitHub issue 266: clicking a row's smart-object badge on a linked smart object whose
+// file is missing reports the error on the status bar, and the Layers panel must stay
+// where it was: the row is under the pointer, so centering it moved the list out from
+// under the button. A document long enough to scroll, the linked row scrolled to the top
+// edge of the viewport, then a user-style click on its badge: the scroll value, the row
+// widget and the badge's position are all unchanged afterwards.
+void ui_layer_smart_object_badge_click_keeps_panel_scroll() {
+  patchy::Document document(32, 32, patchy::PixelFormat::rgba8());
+  for (int index = 0; index < 24; ++index) {
+    document.add_pixel_layer("Filler " + std::to_string(index),
+                             solid_pixels(32, 32, patchy::PixelFormat::rgba8(), QColor(60, 60, 200, 255)));
+  }
+  document.add_pixel_layer("Linked", solid_pixels(32, 32, patchy::PixelFormat::rgba8(), QColor(60, 200, 60, 255)));
+  for (int index = 24; index < 27; ++index) {
+    document.add_pixel_layer("Filler " + std::to_string(index),
+                             solid_pixels(32, 32, patchy::PixelFormat::rgba8(), QColor(60, 60, 200, 255)));
+  }
+  patchy::SmartObjectPlacement placement;
+  placement.uuid = "11111111-2222-3333-4444-666666666666";
+  placement.transform = {0.0, 0.0, 32.0, 0.0, 32.0, 32.0, 0.0, 32.0};
+  placement.width = 32.0;
+  placement.height = 32.0;
+  patchy::Layer* linked_layer = nullptr;
+  for (auto& layer : document.layers()) {
+    if (layer.name() == "Linked") {
+      linked_layer = &layer;
+    }
+  }
+  CHECK(linked_layer != nullptr);
+  patchy::set_layer_smart_object_metadata(*linked_layer, placement, "placed-linked-missing", "SoLd", "external",
+                                          patchy::kSmartObjectRasterStatusPhotoshop);
+  patchy::SmartObjectSource missing;
+  missing.kind = patchy::SmartObjectSourceKind::ExternalFile;
+  missing.uuid = placement.uuid;
+  missing.filename = "nowhere.png";
+  missing.filetype = "png ";
+  missing.external_original_path =
+      QDir::toNativeSeparators(QFileInfo(QStringLiteral("test-artifacts/so-missing-266/nowhere.png")).absoluteFilePath())
+          .toStdString();
+  missing.external_rel_path = "so-missing-266/nowhere.png";
+  document.metadata().smart_objects.add_external(missing);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Badge Scroll"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* scroll_bar = layer_list->verticalScrollBar();
+  CHECK(scroll_bar != nullptr);
+  auto* item = require_layer_item(*layer_list, QStringLiteral("Linked"));
+  layer_list->scrollToItem(item, QAbstractItemView::PositionAtTop);
+  QApplication::processEvents();
+  // The list is long enough to scroll either way from here: rows above and below.
+  CHECK(scroll_bar->value() > scroll_bar->minimum());
+  CHECK(scroll_bar->value() < scroll_bar->maximum());
+  const auto scroll_before = scroll_bar->value();
+  QPointer<QWidget> row = layer_list->itemWidget(item);
+  CHECK(row != nullptr);
+  QPointer<QToolButton> badge = row->findChild<QToolButton*>(QStringLiteral("layerSmartObjectBadgeButton"));
+  CHECK(badge != nullptr);
+  const auto badge_global_before = badge->mapToGlobal(badge->rect().center());
+
+  click_widget_like_a_user(*layer_list->viewport(),
+                           layer_list->viewport()->mapFromGlobal(badge_global_before));
+  for (int pass = 0; pass < 4; ++pass) {
+    QApplication::processEvents();  // the badge handler and the status error are deferred
+  }
+
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("not found")));
+  CHECK(scroll_bar->value() == scroll_before);
+  CHECK(row != nullptr && badge != nullptr);  // no rebuild: the pointer is still over the same button
+  CHECK(badge->mapToGlobal(badge->rect().center()) == badge_global_before);
+  CHECK(badge->rect().contains(badge->mapFromGlobal(badge_global_before)));
+  save_widget_artifact("ui_layer_smart_object_badge_click_keeps_panel_scroll", window);
 }
 
 void ui_cmyk_smart_object_content_edits_keep_native_saves() {
@@ -3161,6 +3240,7 @@ std::vector<patchy::test::TestCase> smart_object_tests() {
       {"ui_smart_object_paint_prompt_locked_omits_edit_contents",
        ui_smart_object_paint_prompt_locked_omits_edit_contents},
       {"ui_layer_smart_object_badge_shows_linked_variant", ui_layer_smart_object_badge_shows_linked_variant},
+      {"ui_layer_smart_object_badge_click_keeps_panel_scroll", ui_layer_smart_object_badge_click_keeps_panel_scroll},
       {"ui_smart_object_edit_contents_commit_rerenders_parent",
        ui_smart_object_edit_contents_commit_rerenders_parent},
       {"ui_smart_object_locked_refusal_and_parent_close_prompt",

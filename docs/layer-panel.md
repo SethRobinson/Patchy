@@ -28,7 +28,7 @@ Profiling knobs and the `layerpanel` / `manylayers` perf scenarios live in
 
 New sessions build rows once. Their row-attachment callback pumps paints/timers
 with input excluded and the preview edit lock held; recursive rebuilds are refused.
-Slow setup shows an opening dialog while the first-render spinner animates. Hide the
+Slow setup shows an opening dialog while the first-render spinner animates; hide the
 welcome panel before inserting the tab. `ui_large_document_session_keeps_loading_responsive`
 pins spinner frames during row construction; the recent-file open test pins one rebuild.
 
@@ -37,11 +37,11 @@ restores the exact pre-dialog state, so only the previewed layer's thumbnail rev
 moved (`refresh_layer_thumbnails` + `refresh_layer_controls` cover it). Committing
 keeps the full rebuild.
 
-During guarded automation, script-originated rebuilds call `refresh_layer_list(true)` to capture old row widgets before clearing the list and deliver their deferred deletion after detachment. Manual callbacks and editable pauses use ordinary deferred deletion to preserve the current input receiver's lifetime. `ui_mcp_layer_rows_stay_bounded_during_long_script` pins the live-widget bound during execution.
+During guarded automation, script-originated rebuilds call `refresh_layer_list(true)` to capture old row widgets before clearing the list and deliver their deferred deletion after detachment. Manual callbacks and editable pauses use ordinary deferred deletion so the current input receiver outlives the event. `ui_mcp_layer_rows_stay_bounded_during_long_script` pins the live-widget bound during execution.
 
-Canvas-driven selection must not rebuild rows that already exist. `reveal_layer_in_layer_list` (Move-tool auto-select, `active_layer_changed_callback`) and `select_layers_in_layer_list` (rectangle and modifier selection) call `refresh_layer_list` only when a collapsed ancestor has to open, the name filter has to clear, or a target has no row; otherwise they select the existing row (`layer_row_item`) and let the ordinary selection handler run. Pinned by `ui_move_auto_select_click_keeps_existing_layer_rows` (a click on a child of a collapsed folder still rebuilds and reveals it). Press-phase profiling for the Move tool is in [performance.md](performance.md).
+Canvas-driven selection must not rebuild rows that already exist. `reveal_layer_in_layer_list` (Move-tool auto-select, `active_layer_changed_callback`) and `select_layers_in_layer_list` (rectangle and modifier selection) call `refresh_layer_list` only when a collapsed ancestor has to open, the name filter has to clear, or a target has no row; otherwise they select the existing row (`layer_row_item`) and let the ordinary selection handler run. Pinned by `ui_move_auto_select_click_keeps_existing_layer_rows` (a click on a child of a collapsed folder still rebuilds and reveals it). Both scroll through `scroll_layer_row_into_view`: a row already wholly on screen keeps the scroll position, an off-screen row is centered, and the badge buttons pass `clicked_in_panel` so a partly visible row under the pointer stays put too (#266, `ui_layer_smart_object_badge_click_keeps_panel_scroll`). Press-phase profiling for the Move tool is in [performance.md](performance.md).
 
-Row masks: `LayerListWidget::update_row_viewport_masks` (run on scroll, resize, scroll-range and value changes, and focus changes) masks the rows that sit under the raised scroll bars. The scroll-bar rects are mapped through global coordinates because the bars live in QAbstractScrollArea's own container widgets, siblings of the viewport rather than ancestors of the rows. Only rows intersecting the viewport are touched; rows scrolled in later get their mask from that scroll's pass. Pinned by `ui_layer_list_row_masks_map_scroll_bars_without_warnings`.
+Row masks: `LayerListWidget::update_row_viewport_masks` (on scroll, resize, scroll-range and value changes, and focus changes) masks the rows under the raised scroll bars. The scroll-bar rects are mapped through global coordinates because the bars live in QAbstractScrollArea's own container widgets, siblings of the viewport, not ancestors of the rows. Only rows intersecting the viewport are touched; rows scrolled in later get their mask from that scroll's pass. Pinned by `ui_layer_list_row_masks_map_scroll_bars_without_warnings`.
 
 The layer list may omit rows entirely: collapsed folders and the Layers panel name filter (`layerNameFilterEdit`) both rebuild without rows for excluded layers. Never assume every document layer has a row, and never introduce a "row exists but hidden" state; absent rows are the single not-shown state all consumers are hardened for. While the name filter is active, `LayerListWidget::set_drag_blocked` refuses drag reordering because a reorder would silently move filtered-out layers; each refused attempt reports through `show_status_error` and leftover held-button moves are swallowed so the base view cannot start a drag-selection sweep.
 
@@ -72,11 +72,11 @@ One-layer documents: with no active layer, a command or tool that needs one sele
 ### Range selection and the selected count
 
 Range selection normalizes selected ancestors with one const tree traversal
-(`root_drop_layer_ids`), preserving requested order and rejecting missing ids.
+(`root_drop_layer_ids`), keeping the requested order and rejecting missing ids.
 Thumbnail target styles repolish only when their active state changes. Slow selection
 updates show the delayed **Selecting layers...** canvas message. The selection handler
-and single-layer reveal path report the selected layer count in the status bar for
-canvas clicks, rectangle and panel selection. The count is one const traversal that
+and single-layer reveal path put the selected layer count on the status bar for
+canvas clicks, rectangle and panel selection, one const traversal that
 touches neither selection nor history: a selected folder counts itself and every
 descendant (nested folders and hidden, locked, collapsed, or filtered-out layers
 included), a selected parent and child never count a layer twice, and expanding a
@@ -128,9 +128,8 @@ The footer's `layerAddMaskButton` runs `MainWindow::add_layer_mask` (reveal-all,
 
 Dragging rows out of the panel onto another open document copies the layers there. The
 drag's mime data carries the layer ids (`application/x-patchy-layer-ids`) plus the source session as `pid:session_id`
-(`application/x-patchy-layer-source-session`, written by `LayerListWidget::mimeData` from the
-id `refresh_layer_list` stamps on the list) because layer ids restart per document, and a
-drag from another Patchy process never matches. `startDrag` offers `Copy | Move` so the
+(`application/x-patchy-layer-source-session`, from the id `refresh_layer_list` stamps on the list): layer ids
+restart per document, and a drag from another Patchy process never matches. `startDrag` offers `Copy | Move` so the
 cursor shows the copy badge over a foreign document; the panel's own reorder and the
 footer buttons keep forcing Move. Drop targets are every session canvas (a tab page or a
 float) and the document tabs, all handled by
@@ -142,9 +141,9 @@ tabs, or the preview-dialog edit lock refuses the drop (no drop cursor, and the 
 handlers never see a layer drag); the hovered tab lights through the shared tab-strip
 highlight (`show_tab_strip_highlight`, the float-docking overlay).
 
-The drop returns before any document work: the payload (ids, session ids, drop point,
-Shift) is copied out and `duplicate_layers_to_session` runs from `QTimer::singleShot(0)`
-(the source panel's `QDrag::exec` is still on the stack and the copy rebuilds its rows).
+The drop returns before any document work: the payload is copied out and
+`duplicate_layers_to_session` runs from `QTimer::singleShot(0)` (the source panel's
+`QDrag::exec` is still on the stack and the copy rebuilds its rows).
 `copy_layers_between_sessions` (main_window_layer_ops.cpp; `copy_layers_between_documents`
 is its Document-level core, shared with Files as Layers) backs the dialog and scripts
 too: it builds the payload Edit > Copy builds (root ids, referenced
@@ -159,9 +158,9 @@ active layer in source order, making the topmost copy active. Placement: a canva
 centers the copied set's movable extent on the drop point; Shift-drop, a tab drop, the
 dialog and scripts keep the source coordinates when the documents share dimensions and
 center on the target canvas otherwise. A root whose Smart Filters depend on position keeps
-its coordinates (the adopted cache would go stale; re-rendering it is a follow-up). Linked
-masks move inside `translate_moved_layer_metadata`; unlinked raster and vector masks are
-shifted explicitly so the copy stays one unit. The UI wrapper then refreshes the target
+its coordinates (the adopted cache would go stale). Linked
+masks move inside `translate_moved_layer_metadata`; unlinked raster and vector masks shift
+explicitly so the copy stays one unit. The UI wrapper then refreshes the target
 canvas, activates the target session and selects the copies. `ui_layer_drag_*`
 (layer_panel_organization_tests_cross_document.cpp) and
 `ui_layer_drag_to_float_canvas_centers_at_drop_point` (float_window_tests.cpp) pin it;
@@ -169,8 +168,7 @@ canvas, activates the target session and selects the copies. `ui_layer_drag_*`
 
 Duplicate Layer (`layerDuplicateAction`, the footer button and its drop target) runs
 `MainWindow::duplicate_layers`: the copies land as one block directly above the topmost
-selected root, in its parent and in source order (Photoshop),
-and become the selection. `ui_duplicate_layer_inserts_copies_above_source` pins it.
+selected root, in its parent and in source order (Photoshop), and become the selection. `ui_duplicate_layer_inserts_copies_above_source` pins it.
 
 Delete Layer (menu, footer button, Delete key, trash drop) runs `MainWindow::delete_layers`: it activates the sibling below the lowest deleted root, else the one above, else its group (issue 249).
 
@@ -194,4 +192,4 @@ target and no activation happens. `ui_duplicate_layer_to_document_dialog_copies`
 
 ## File drops onto the panel
 
-OS files dragged onto the list become layers of the active document (Files as Layers, [import.md](import.md)). `dragEnterEvent` asks the owner's `set_file_drop_paths_callback` once per drag and refuses a drag with neither layer ids nor usable files, so a text drag can no longer reach the selected-rows reorder fallback. File drags show the normal insertion preview with CopyAction; the drop records a `LayerFileDropRequest` (paths plus the `drop_target_at` result) that `MainWindow::handle_layer_drop` takes ahead of the layer request and hands to `add_files_as_layers_interactive` (plain opens when no document is active).
+OS files dragged onto the list become layers of the active document (Files as Layers, [import.md](import.md)). `dragEnterEvent` asks the owner's `set_file_drop_paths_callback` once per drag and refuses a drag with neither layer ids nor usable files (a text drag never reaches the selected-rows reorder fallback). File drags show the normal insertion preview with CopyAction; the drop records a `LayerFileDropRequest` (paths plus the `drop_target_at` result) that `MainWindow::handle_layer_drop` takes ahead of the layer request and hands to `add_files_as_layers_interactive` (plain opens with no active document).
