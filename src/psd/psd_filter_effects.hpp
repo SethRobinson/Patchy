@@ -62,8 +62,10 @@ native_filter_effects_cache(const SmartFilterEffectsRecord& record,
 
 // Builds the Photoshop version-1 FEid record used by a freshly rendered Smart
 // Filter instance. Cache planes contain the unfiltered placed/warped Smart
-// Object on the full document rectangle; the shared filter mask is always
-// written as an explicit 8-bit PackBits plane.
+// Object over `document_bounds`, which callers pass as the filter canvas (the
+// document united with the placed bounds, smart_filter_canvas_bounds). The
+// shared filter mask is always written as an explicit 8-bit PackBits plane over
+// its own rectangle, or over the canvas when it holds no pixels.
 [[nodiscard]] std::optional<SmartFilterEffectsRecord>
 author_filter_effects_record(std::string_view placed_uuid,
                              Rect document_bounds,

@@ -2089,7 +2089,7 @@ void CanvasWidget::draw_checkerboard(QPainter& painter, const QRectF& rect, QRec
   for (int y = start_y; y < visible.y() + visible.height(); y += square) {
     for (int x = start_x; x < visible.x() + visible.width(); x += square) {
       const bool dark = (((x - aligned.x()) / square) + ((y - aligned.y()) / square)) % 2 == 0;
-      painter.fillRect(QRect(x, y, square, square), dark ? QColor(188, 188, 188) : QColor(236, 236, 236));
+      painter.fillRect(QRect(x, y, square, square), dark ? checkerboard_dark_square() : checkerboard_light_square());
     }
   }
   painter.restore();

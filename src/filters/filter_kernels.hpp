@@ -62,6 +62,14 @@ void box_blur_kernel(PixelBuffer &pixels, const PixelBuffer &original, int radiu
 void radial_blur_kernel(PixelBuffer &pixels, const PixelBuffer &original, int amount, int samples, double center_x,
                         double center_y, const FilterProgress *progress);
 
+// Radial Blur's Zoom method: `samples` bilinear premultiplied taps along each
+// pixel's ray from (center_x, center_y), at scale factors spread evenly over
+// 1 - amount / 400 .. 1 + amount / 400 (Photoshop's streak extent, October 2026
+// dot probes). amount clamps to 0..100, samples to 4..32. Reports the Blurring
+// stage per row.
+void radial_zoom_kernel(PixelBuffer &pixels, const PixelBuffer &original, int amount, int samples, double center_x,
+                        double center_y, const FilterProgress *progress);
+
 // Bilinear luminance at +/- `distance` along `angle_degrees`, written as
 // clamp(128 + (highlight - shadow) * amount / 100) into R, G and B; alpha untouched.
 // Callers clamp their own ranges. Reports the Embossing stage per row.

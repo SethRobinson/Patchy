@@ -793,8 +793,8 @@ void psd_photoshop_radial_blur_smart_filter_fixtures_round_trip_and_gate() {
   CHECK(reread_settings.amount == 42);
   CHECK(reread_settings.quality == patchy::RadialBlurQuality::Best);
 
-  // The Zoom capture stays fail-closed: Patchy models the Spin method only,
-  // so the whole stack keeps Photoshop's preserved preview.
+  // The Zoom capture imports as editable too (October 2026); the method
+  // survives an edit and a clean save keeps the SoLd byte for byte.
   const auto zoom_path = patchy::test::committed_psd_fixture_path(
       "photoshop-smart-filter-radial-blur-zoom.psd");
   const auto zoom = patchy::psd::DocumentIo::read_file(zoom_path);
@@ -805,17 +805,37 @@ void psd_photoshop_radial_blur_smart_filter_fixtures_round_trip_and_gate() {
     }
   }
   CHECK(zoom_layer != nullptr);
-  CHECK(!patchy::smart_object_lock_reason(*zoom_layer).empty());
+  CHECK(patchy::smart_object_lock_reason(*zoom_layer).empty());
   const auto *zoom_stack = zoom_layer->smart_filter_stack();
-  CHECK(zoom_stack == nullptr ||
-        zoom_stack->support == patchy::SmartFilterStackSupport::Unsupported);
-  // Preservation: the zoom SoLd re-emits byte-for-byte.
+  CHECK(zoom_stack != nullptr &&
+        zoom_stack->support == patchy::SmartFilterStackSupport::Supported);
+  const auto &zoom_settings =
+      require_radial_blur_filter(zoom_stack->entries.front());
+  CHECK(zoom_settings.zoom);
+  CHECK(zoom_settings.amount == 25);
+  CHECK(zoom_settings.quality == patchy::RadialBlurQuality::Best);
   const auto zoom_sold = require_placed_layer_block(*zoom_layer).payload;
   const auto zoom_clean = patchy::psd::DocumentIo::read(
       patchy::psd::DocumentIo::write_layered_rgb8(zoom));
   CHECK(require_placed_layer_block(
             require_layer_named(zoom_clean, zoom_layer->name()))
             .payload == zoom_sold);
+  auto zoom_edited = zoom;
+  auto *zoom_edited_layer = zoom_edited.find_layer(zoom_layer->id());
+  CHECK(zoom_edited_layer != nullptr);
+  auto zoom_edited_stack = *zoom_edited_layer->smart_filter_stack();
+  std::get<patchy::RadialBlurSmartFilter>(
+      zoom_edited_stack.entries.front().parameters)
+      .amount = 60;
+  zoom_edited_layer->set_smart_filter_stack(std::move(zoom_edited_stack));
+  patchy::mark_layer_smart_object_block_dirty(*zoom_edited_layer);
+  const auto zoom_reread = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(zoom_edited));
+  const auto &zoom_reread_settings = require_radial_blur_filter(
+      require_smart_filter_stack(zoom_reread, zoom_layer->name())
+          .entries.front());
+  CHECK(zoom_reread_settings.zoom);
+  CHECK(zoom_reread_settings.amount == 60);
 }
 
 void psd_photoshop_add_noise_smart_filter_fixtures_round_trip_and_edit() {

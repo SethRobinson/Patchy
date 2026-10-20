@@ -621,9 +621,10 @@ std::optional<SmartObjectLayerPreview> render_smart_object_layer_preview(
                           ? result.unfiltered
                           : render_smart_filter_stack(result.unfiltered.pixels,
                                                       result.unfiltered.bounds,
-                                                      Rect::from_size(
+                                                      smart_filter_canvas_bounds(
                                                           document.width(),
-                                                          document.height()),
+                                                          document.height(),
+                                                          result.unfiltered.bounds),
                                                       *stack);
   } catch (const std::exception&) {
     return std::nullopt;
@@ -731,7 +732,8 @@ std::optional<SmartObjectLayerPreview> render_smart_object_image_preview(
                           ? result.unfiltered
                           : render_smart_filter_stack(result.unfiltered.pixels,
                                                       result.unfiltered.bounds,
-                                                      Rect::from_size(document.width(), document.height()),
+                                                      smart_filter_canvas_bounds(document.width(), document.height(),
+                                                                                 result.unfiltered.bounds),
                                                       *stack);
   } catch (const std::exception&) {
     return std::nullopt;
@@ -751,7 +753,9 @@ bool install_smart_object_layer_preview(Document& document, Layer& layer,
     }
     if (refresh_native_cache) {
       auto record = psd::author_filter_effects_record(
-          placed_uuid, Rect::from_size(document.width(), document.height()),
+          placed_uuid,
+          smart_filter_canvas_bounds(document.width(), document.height(),
+                                     preview.unfiltered.bounds),
           preview.unfiltered.pixels, preview.unfiltered.bounds, stack->mask);
       if (!record.has_value() ||
           !filter_effects.upsert_authored(std::move(*record))) {

@@ -1249,6 +1249,10 @@ void filter_catalog_defines_stable_named_contracts() {
       {"patchy.filters.tilt_shift_blur", Category::Blur, false, {}},
       {"patchy.filters.plastic_wrap", Category::Artistic, false,
        {{"highlight_strength", 9}, {"detail", 7}, {"smoothness", 5}}},
+      {"patchy.filters.blur", Category::Blur, false, {}},
+      {"patchy.filters.blur_more", Category::Blur, false, {}},
+      {"patchy.filters.average", Category::Blur, false, {}},
+      {"patchy.filters.sharpen_more", Category::Sharpen, false, {}},
   };
 
   const auto has_center_parameters = [](std::string_view identifier) {

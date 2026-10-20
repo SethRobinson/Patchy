@@ -11397,6 +11397,44 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Color and Vibrance</source>
         <translation>Color e intensidad</translation>
     </message>
+    <message>
+        <source>Invalid Average input</source>
+        <translation>Entrada de Promedio no válida</translation>
+    </message>
+    <message>
+        <source>Blur</source>
+        <comment>Smart Filter</comment>
+        <translation>Desenfocar</translation>
+    </message>
+    <message>
+        <source>Blur More</source>
+        <comment>Smart Filter</comment>
+        <translation>Desenfocar más</translation>
+    </message>
+    <message>
+        <source>Sharpen</source>
+        <comment>Smart Filter</comment>
+        <translation>Enfocar</translation>
+    </message>
+    <message>
+        <source>Sharpen More</source>
+        <comment>Smart Filter</comment>
+        <translation>Enfocar más</translation>
+    </message>
+    <message>
+        <source>Invert</source>
+        <comment>Smart Filter</comment>
+        <translation>Invertir</translation>
+    </message>
+    <message>
+        <source>Average</source>
+        <comment>Smart Filter</comment>
+        <translation>Promedio</translation>
+    </message>
+    <message>
+        <source> (Amount %1, Zoom, %2 quality)</source>
+        <translation> (Cantidad %1, Zoom, calidad %2)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23147,6 +23185,14 @@ Puedes hacerlo más tarde desde Ayuda &gt; Añadir Patchy al menú de aplicacion
     <message>
         <source>Cancelled Vibrance</source>
         <translation>Intensidad cancelada</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
+        <translation>Cambia a la herramienta Mesa de trabajo para añadir, redimensionar o duplicar mesas de trabajo</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
+        <translation>Cambia a la herramienta Mesa de trabajo (%1) para añadir, redimensionar o duplicar mesas de trabajo</translation>
     </message>
 </context>
 <context>
