@@ -9,6 +9,7 @@
 #include "ui/app_settings.hpp"
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget.hpp"
+#include "ui/dialog_utils.hpp"
 #include "ui/export_documents_folder_dialog.hpp"
 #include "ui/hotkey_registry.hpp"
 #include "ui/hotkey_registry.hpp"
@@ -35,6 +36,7 @@
 #include <QDir>
 #include <QProgressDialog>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
 #include <QMenuBar>
@@ -427,6 +429,119 @@ void ui_artboard_layers_panel_rows_and_properties_panel() {
   MainWindowTestAccess::select_layers(window, {child}, child);
   QApplication::processEvents();
   CHECK(panel->isHidden());
+}
+
+// The Properties panel's artboard X/Y/W/H fields scrub like the options bar's (issue 46):
+// a drag on "X:" moves the artboard live and adds one undo step, a drag on the W field
+// itself resizes it in one step, and a plain click on a field edits it, number selected.
+void ui_artboard_properties_fields_scrub_as_one_undo_step() {
+  for (const auto preference : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer scheme_restorer(preference);
+    const std::string scheme = preference == patchy::ui::ColorSchemePreference::Light ? "light" : "dark";
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto seed = board_document(300, 200);
+    const patchy::Rect start{10, 20, 120, 80};
+    const auto board = add_board(seed, "Card", start, patchy::ArtboardBackground::White, QColor(40, 120, 220));
+    window.add_document_session(std::move(seed), QStringLiteral("Scrub"));
+    QApplication::processEvents();
+    MainWindowTestAccess::select_layers(window, {board}, board);
+    MainWindowTestAccess::show_panel(window, QStringLiteral("propertiesDock"));
+    QApplication::processEvents();
+    auto* panel = window.findChild<QWidget*>(QStringLiteral("propertiesArtboardPanel"));
+    auto* x = window.findChild<QSpinBox*>(QStringLiteral("propertiesArtboardXSpin"));
+    auto* width = window.findChild<QSpinBox*>(QStringLiteral("propertiesArtboardWidthSpin"));
+    CHECK(panel != nullptr && x != nullptr && width != nullptr);
+    if (panel == nullptr || x == nullptr || width == nullptr) {
+      return;
+    }
+    CHECK(panel->isVisible());
+    QLabel* x_label = nullptr;
+    for (auto* label : panel->findChildren<QLabel*>()) {
+      if (label->text() == QStringLiteral("X:")) {
+        x_label = label;
+      }
+    }
+    CHECK(x_label != nullptr);
+    if (x_label == nullptr) {
+      return;
+    }
+    int finished = 0;
+    QObject::connect(x, &QAbstractSpinBox::editingFinished, x, [&finished] { ++finished; });
+    const auto rect_now = [&window, board] {
+      const auto* artboard = std::as_const(MainWindowTestAccess::document(window)).find_layer(board);
+      return artboard != nullptr ? artboard->artboard()->rect : patchy::Rect{};
+    };
+    const auto child_x = [&window, board] {
+      const auto* artboard = std::as_const(MainWindowTestAccess::document(window)).find_layer(board);
+      return artboard != nullptr && !artboard->children().empty() ? artboard->children()[0].bounds().x : -1;
+    };
+    const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+    const int drag_start = QApplication::startDragDistance();
+    const auto origin = x_label->rect().center();
+    send_mouse(*x_label, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*x_label, QEvent::MouseMove, origin + QPoint(drag_start + 10, 0), Qt::NoButton, Qt::LeftButton);
+    send_mouse(*x_label, QEvent::MouseMove, origin + QPoint(drag_start + 30, 0), Qt::NoButton, Qt::LeftButton);
+    QApplication::processEvents();
+    // Captured before any check, so a run on code without the handles still shows the drag.
+    if (auto* section = MainWindowTestAccess::panel_section(window, QStringLiteral("propertiesDock"))) {
+      save_widget_artifact("artboard_properties_scrub_mid_drag_" + scheme, *section);
+    }
+    save_widget_artifact("artboard_properties_scrub_mid_drag_window_" + scheme, window);
+    for (const auto* name : {"propertiesArtboardXSpin", "propertiesArtboardYSpin", "propertiesArtboardWidthSpin",
+                             "propertiesArtboardHeightSpin"}) {
+      const auto* spin = panel->findChild<QSpinBox*>(QLatin1String(name));
+      CHECK(spin != nullptr && spin->property(patchy::ui::kScrubHandleInstalledProperty).toBool());
+    }
+    CHECK(x_label->cursor().shape() == Qt::SizeHorCursor);
+    // Mid-drag: the artboard already follows the field.
+    CHECK(x->value() == start.x + drag_start + 30);
+    CHECK(rect_now().x == start.x + drag_start + 30);
+    send_mouse(*x_label, QEvent::MouseButtonRelease, origin + QPoint(drag_start + 30, 0), Qt::LeftButton,
+               Qt::NoButton);
+    QApplication::processEvents();
+    CHECK(finished == 1);
+    CHECK((rect_now() == patchy::Rect{start.x + drag_start + 30, start.y, start.width, start.height}));
+    CHECK(child_x() == start.x + drag_start + 30);  // the content travels with it
+    CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+    MainWindowTestAccess::undo(window);
+    QApplication::processEvents();
+    CHECK(rect_now() == start);
+    CHECK(child_x() == start.x);
+    CHECK(x->value() == start.x);
+
+    // A drag on the unfocused W field resizes in one step.
+    auto* editor = width->findChild<QLineEdit*>();
+    CHECK(editor != nullptr);
+    if (editor == nullptr) {
+      return;
+    }
+    const QPoint field_point(editor->width() / 2, editor->height() / 2);
+    send_mouse(*editor, QEvent::MouseButtonPress, field_point, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*editor, QEvent::MouseMove, field_point + QPoint(drag_start + 5, 0), Qt::NoButton, Qt::LeftButton);
+    send_mouse(*editor, QEvent::MouseMove, field_point + QPoint(drag_start + 20, 0), Qt::NoButton, Qt::LeftButton);
+    send_mouse(*editor, QEvent::MouseButtonRelease, field_point + QPoint(drag_start + 20, 0), Qt::LeftButton,
+               Qt::NoButton);
+    QApplication::processEvents();
+    CHECK(width->value() == start.width + drag_start + 20);
+    CHECK((rect_now() == patchy::Rect{start.x, start.y, start.width + drag_start + 20, start.height}));
+    CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+
+    // A plain click on a field edits it with the number selected and changes nothing.
+    const auto value_before_click = x->value();
+    auto* x_editor = x->findChild<QLineEdit*>();
+    CHECK(x_editor != nullptr);
+    if (x_editor != nullptr) {
+      x->setFocus(Qt::MouseFocusReason);
+      const QPoint x_point(x_editor->width() / 2, x_editor->height() / 2);
+      send_mouse(*x_editor, QEvent::MouseButtonPress, x_point, Qt::LeftButton, Qt::LeftButton);
+      send_mouse(*x_editor, QEvent::MouseButtonRelease, x_point, Qt::LeftButton, Qt::NoButton);
+      QApplication::processEvents();
+      CHECK(x->value() == value_before_click);
+      CHECK(x_editor->hasSelectedText());
+      CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+    }
+  }
 }
 
 // New Document's Artboards option starts the document as one artboard the canvas size,
@@ -1552,6 +1667,7 @@ std::vector<patchy::test::TestCase> artboard_ui_tests() {
       {"ui_artboard_move_tool_moves_artboards_and_auto_nests", ui_artboard_move_tool_moves_artboards_and_auto_nests},
       {"ui_artboard_prevent_auto_nesting_keeps_layer_in_place", ui_artboard_prevent_auto_nesting_keeps_layer_in_place},
       {"ui_artboard_layers_panel_rows_and_properties_panel", ui_artboard_layers_panel_rows_and_properties_panel},
+      {"ui_artboard_properties_fields_scrub_as_one_undo_step", ui_artboard_properties_fields_scrub_as_one_undo_step},
       {"ui_artboard_new_document_option", ui_artboard_new_document_option},
       {"ui_new_document_auto_accept_ignores_remembered_artboards",
        ui_new_document_auto_accept_ignores_remembered_artboards},

@@ -1365,11 +1365,15 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   });
   connect(artboard_width_spin_, &QSpinBox::valueChanged, this, [this](int value) {
-    apply_artboard_size_option(QSize(value, artboard_height_spin_->value()));
+    apply_artboard_size_option(QSize(value, artboard_height_spin_->value()), true);
   });
   connect(artboard_height_spin_, &QSpinBox::valueChanged, this, [this](int value) {
-    apply_artboard_size_option(QSize(artboard_width_spin_->value(), value));
+    apply_artboard_size_option(QSize(artboard_width_spin_->value(), value), true);
   });
+  // One undo step per scrub or run of arrow steps (artboard_field_edit_run_).
+  for (auto* spin : {artboard_width_spin_, artboard_height_spin_}) {
+    connect(spin, &QAbstractSpinBox::editingFinished, this, [this] { artboard_field_edit_run_ = ArtboardNudgeRun{}; });
+  }
   connect(artboard_swap, &QPushButton::clicked, this, [this] {
     apply_artboard_size_option(QSize(artboard_height_spin_->value(), artboard_width_spin_->value()));
   });

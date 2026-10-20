@@ -303,7 +303,15 @@ bool MainWindow::rerender_moved_artboard_smart_objects(LayerId root_id) {
   return true;
 }
 
-void MainWindow::move_artboard(LayerId id, QPoint delta, bool duplicate, bool nudge) {
+bool MainWindow::continues_artboard_field_edit(LayerId id) const {
+  const auto& active_session = session();
+  // A save in between ends the run, like a nudge run.
+  return artboard_field_edit_run_.session_id == active_session.session_id && artboard_field_edit_run_.artboard == id &&
+         artboard_field_edit_run_.revision == active_session.revision &&
+         active_session.saved_revision != active_session.revision;
+}
+
+void MainWindow::move_artboard(LayerId id, QPoint delta, bool duplicate, bool nudge, bool field_edit) {
   auto& doc = document();
   auto* artboard = top_level_artboard(doc, id);
   if (artboard == nullptr || (delta.isNull() && !duplicate)) {
@@ -314,9 +322,10 @@ void MainWindow::move_artboard(LayerId id, QPoint delta, bool duplicate, bool nu
   // snapshot, the rest only move while nothing else has happened in between.
   auto& active_session = session();
   // A save in between ends the run: a nudge after it must mark the document modified.
-  const bool continues_run = nudge && !duplicate && artboard_nudge_run_.session_id == active_session.session_id &&
-                             artboard_nudge_run_.artboard == id && artboard_nudge_run_.revision == active_session.revision &&
-                             active_session.saved_revision != active_session.revision;
+  const bool continues_run = (nudge && !duplicate && artboard_nudge_run_.session_id == active_session.session_id &&
+                              artboard_nudge_run_.artboard == id && artboard_nudge_run_.revision == active_session.revision &&
+                              active_session.saved_revision != active_session.revision) ||
+                             (field_edit && !duplicate && continues_artboard_field_edit(id));
   if (!continues_run) {
     push_undo_snapshot(duplicate ? tr("Duplicate artboard") : nudge ? tr("Nudge artboard") : tr("Move artboard"));
     artboard = top_level_artboard(doc, id);
@@ -346,14 +355,16 @@ void MainWindow::move_artboard(LayerId id, QPoint delta, bool duplicate, bool nu
     undo();
     show_status_error(tr("Could not rebuild the Smart Filter preview and cache"));
     artboard_nudge_run_ = ArtboardNudgeRun{};
+    artboard_field_edit_run_ = ArtboardNudgeRun{};
     return;
   }
   finish_artboard_edit(duplicate ? tr("Duplicated artboard") : tr("Moved artboard"), moved_id);
-  artboard_nudge_run_ = nudge ? ArtboardNudgeRun{active_session.session_id, id, active_session.revision}
-                              : ArtboardNudgeRun{};
+  const ArtboardNudgeRun run{active_session.session_id, id, active_session.revision};
+  artboard_nudge_run_ = nudge ? run : ArtboardNudgeRun{};
+  artboard_field_edit_run_ = field_edit && !duplicate ? run : ArtboardNudgeRun{};
 }
 
-void MainWindow::resize_artboard(LayerId id, QRect rect) {
+void MainWindow::resize_artboard(LayerId id, QRect rect, bool field_edit) {
   auto& doc = document();
   auto* artboard = top_level_artboard(doc, id);
   if (artboard == nullptr || rect.width() < 1 || rect.height() < 1) {
@@ -364,11 +375,17 @@ void MainWindow::resize_artboard(LayerId id, QRect rect) {
     return;
   }
   finish_active_text_editor();
-  push_undo_snapshot(tr("Resize artboard"));
-  artboard = top_level_artboard(doc, id);
+  if (!field_edit || !continues_artboard_field_edit(id)) {
+    push_undo_snapshot(tr("Resize artboard"));
+    artboard = top_level_artboard(doc, id);
+  }
   changed.rect = to_core(rect);
   artboard->set_artboard(std::move(changed));
   finish_artboard_edit(tr("Artboard is %1 x %2 px").arg(rect.width()).arg(rect.height()), id);
+  const auto& active_session = session();
+  artboard_field_edit_run_ =
+      field_edit ? ArtboardNudgeRun{active_session.session_id, id, active_session.revision} : ArtboardNudgeRun{};
+  artboard_nudge_run_ = ArtboardNudgeRun{};
 }
 
 void MainWindow::set_artboard_background(LayerId id, ArtboardBackground background, RgbColor color) {
@@ -734,7 +751,7 @@ void MainWindow::sync_artboard_controls() {
   }
 }
 
-void MainWindow::apply_artboard_size_option(QSize size) {
+void MainWindow::apply_artboard_size_option(QSize size, bool field_edit) {
   if (size.width() < 1 || size.height() < 1) {
     return;
   }
@@ -750,7 +767,7 @@ void MainWindow::apply_artboard_size_option(QSize size) {
   if (selected.has_value()) {
     // Resizes the selected artboard about its top-left corner, content untouched.
     const auto& rect = doc->find_layer(*selected)->artboard()->rect;
-    resize_artboard(*selected, QRect(rect.x, rect.y, size.width(), size.height()));
+    resize_artboard(*selected, QRect(rect.x, rect.y, size.width(), size.height()), field_edit);
     return;
   }
   auto settings = app_settings();
@@ -838,6 +855,7 @@ void MainWindow::build_properties_artboard_panel(QWidget* parent, QVBoxLayout* l
     bind_tooltip(spin, tooltip);
     configure_dialog_spinbox(spin, 84);
     connect(spin, &QSpinBox::valueChanged, this, [this](int) { apply_properties_artboard_rect(); });
+    connect(spin, &QAbstractSpinBox::editingFinished, this, [this] { artboard_field_edit_run_ = ArtboardNudgeRun{}; });
     return spin;
   };
   const auto add_label = [this, grid](const char* source, int row, int column) {
@@ -876,6 +894,7 @@ void MainWindow::build_properties_artboard_panel(QWidget* parent, QVBoxLayout* l
   });
   grid->setColumnStretch(4, 1);
   layout->addWidget(properties_artboard_panel_);
+  install_scrub_labels_in(properties_artboard_panel_);  // drag "X:" ... "H:" to scrub (issue 46)
 }
 
 void MainWindow::apply_properties_artboard_rect() {
@@ -892,9 +911,9 @@ void MainWindow::apply_properties_artboard_rect() {
                      properties_artboard_width_spin_->value(), properties_artboard_height_spin_->value());
   if (wanted.topLeft() != QPoint(rect.x, rect.y) && wanted.size() == QSize(rect.width, rect.height)) {
     // A new position moves the artboard with its content, like a drag.
-    move_artboard(*id, wanted.topLeft() - QPoint(rect.x, rect.y), false, false);
+    move_artboard(*id, wanted.topLeft() - QPoint(rect.x, rect.y), false, false, true);
   } else if (wanted != to_q(rect)) {
-    resize_artboard(*id, wanted);
+    resize_artboard(*id, wanted, true);
   }
 }
 
