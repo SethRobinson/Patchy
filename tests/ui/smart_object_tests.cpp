@@ -2778,6 +2778,12 @@ void ui_smart_object_missing_linked_files_dialog_lists_and_relinks() {
   patchy::ui::MainWindowTestAccess::place_linked_file_with_path(window, art_path);
   QApplication::processEvents();
   CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, psd_path));
+  // Hand-test copies: a PSD whose linked file is missing, plus that file under another name
+  // to relink to (build\issue-shots\test-files on the desk).
+  QFile::remove(QStringLiteral("test-artifacts/missing-link.psd"));
+  QFile::remove(QStringLiteral("test-artifacts/missing-link-source.png"));
+  CHECK(QFile::copy(psd_path, QStringLiteral("test-artifacts/missing-link.psd")));
+  CHECK(QFile::copy(art_path, QStringLiteral("test-artifacts/missing-link-source.png")));
   CHECK(QFile::remove(art_path));
 
   auto seen = std::make_shared<int>(0);
@@ -2905,6 +2911,55 @@ void ui_smart_object_missing_linked_files_dialog_lists_and_relinks() {
   process_events_for(400);
   CHECK(*seen == 2);
   CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("was not found")));
+}
+
+// GitHub issue 257 follow-up: a successful relink makes the chosen file's folder the next relink
+// dialog's starting folder, for this app session only (a fresh window starts at the usual
+// folder; nothing is written to settings). A refused relink leaves it alone.
+void ui_smart_object_relink_remembers_folder_for_the_session() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto default_start = patchy::ui::MainWindowTestAccess::relink_dialog_initial_path(window);
+  add_linked_test_document(window, 200, 160);
+  const auto dir = linked_test_dir(QStringLiteral("relink-folder"));
+  const auto art_path = write_linked_test_png(dir + QStringLiteral("/art.png"), QColor(20, 200, 40, 255));
+  patchy::ui::MainWindowTestAccess::place_linked_file_with_path(window, art_path);
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::relink_dialog_initial_path(window) == default_start);
+
+  // A refused relink (no such file; its "Relink failed" box is dismissed) changes nothing.
+  auto failed_boxes = std::make_shared<int>(0);
+  const std::function<void(int)> dismiss_failed_box = [&dismiss_failed_box, failed_boxes](int attempts) {
+    QTimer::singleShot(20, [&dismiss_failed_box, failed_boxes, attempts] {
+      auto* box = find_top_level_dialog(QStringLiteral("relinkSmartObjectFailedMessageBox"));
+      if (box == nullptr || !box->isVisible()) {
+        if (attempts > 0) {
+          dismiss_failed_box(attempts - 1);
+        }
+        return;
+      }
+      ++*failed_boxes;
+      box->reject();
+    });
+  };
+  dismiss_failed_box(100);
+  patchy::ui::MainWindowTestAccess::relink_smart_object_contents_with_path(window,
+                                                                           dir + QStringLiteral("/nowhere/none.png"));
+  process_events_for(100);
+  CHECK(*failed_boxes == 1);
+  CHECK(patchy::ui::MainWindowTestAccess::relink_dialog_initial_path(window) == default_start);
+
+  const auto other_dir = dir + QStringLiteral("/elsewhere");
+  CHECK(QDir().mkpath(other_dir));
+  const auto relink_path = write_linked_test_png(other_dir + QStringLiteral("/art2.png"), QColor(30, 60, 220, 255));
+  patchy::ui::MainWindowTestAccess::relink_smart_object_contents_with_path(window, relink_path);
+  QApplication::processEvents();
+  CHECK(QFileInfo(patchy::ui::MainWindowTestAccess::relink_dialog_initial_path(window)) == QFileInfo(other_dir));
+
+  // Per app session: another window (a fresh process in practice) starts at the usual folder.
+  patchy::ui::MainWindow fresh;
+  show_window(fresh);
+  CHECK(patchy::ui::MainWindowTestAccess::relink_dialog_initial_path(fresh) == default_start);
 }
 
 // GitHub issue 257, the reporter's file: ag-psd's animation-timeline test PSD links an mp3 the
@@ -3474,6 +3529,8 @@ std::vector<patchy::test::TestCase> smart_object_tests() {
       {"ui_smart_object_relink_and_embed_linked_work", ui_smart_object_relink_and_embed_linked_work},
       {"ui_smart_object_missing_linked_files_dialog_lists_and_relinks",
        ui_smart_object_missing_linked_files_dialog_lists_and_relinks},
+      {"ui_smart_object_relink_remembers_folder_for_the_session",
+       ui_smart_object_relink_remembers_folder_for_the_session},
       {"ui_smart_object_ag_psd_animation_timeline_reports_missing_link_if_available",
        ui_smart_object_ag_psd_animation_timeline_reports_missing_link_if_available},
       {"ui_smart_object_place_linked_links_the_file", ui_smart_object_place_linked_links_the_file},
