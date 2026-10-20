@@ -360,6 +360,7 @@ void finalize_smart_filter_layers(std::vector<Layer>& layers,
     const auto placed_uuid = smart_object_placed_uuid(std::as_const(layer));
     const auto* record = store.find_unique(placed_uuid);
     if (record == nullptr || !record->semantic_supported()) {
+      stack.native_shape_supported = false;
       stack.support = SmartFilterStackSupport::Unsupported;
       layer.set_smart_filter_stack(std::move(stack));
       continue;
@@ -368,13 +369,13 @@ void finalize_smart_filter_layers(std::vector<Layer>& layers,
     if (record->mask_present) {
       if (!record->mask_decoded || !record->mask.has_value() ||
           record->mask->samples == nullptr) {
-        stack.support = SmartFilterStackSupport::Unsupported;
+        stack.native_shape_supported = false;
       } else {
         const auto& native_mask = *record->mask;
         const auto expected = static_cast<std::size_t>(native_mask.bounds.width) *
                               static_cast<std::size_t>(native_mask.bounds.height);
         if (native_mask.bounds.empty() || native_mask.samples->size() != expected) {
-          stack.support = SmartFilterStackSupport::Unsupported;
+          stack.native_shape_supported = false;
         } else {
           PixelBuffer mask_pixels(native_mask.bounds.width, native_mask.bounds.height,
                                   PixelFormat::gray8());
@@ -385,6 +386,7 @@ void finalize_smart_filter_layers(std::vector<Layer>& layers,
         }
       }
     }
+    stack.support = smart_filter_stack_support(stack);
     const bool executable =
         stack.support == SmartFilterStackSupport::Supported;
     layer.set_smart_filter_stack(std::move(stack));
@@ -477,6 +479,7 @@ void copy_layer_state(Layer& target, const Layer& source) {
   target.set_visible(source.visible());
   target.set_clipped(source.clipped());
   target.set_lock_flags(source.lock_flags());
+  target.set_color_label(source.color_label());
   target.layer_style() = source.layer_style();
   target.metadata() = source.metadata();
   target.mask() = source.mask();
@@ -1112,9 +1115,11 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
     layer.layer_style().blend_interior_elements = record.blend_interior_elements;
     layer.layer_style().blend_clipped_elements = record.blend_clipped_elements;
     resolve_global_light(layer.layer_style(), global_light_angle, global_light_altitude);
-    set_layer_lock_flags(layer,
-                         record.protection_flags &
-                             (kPsdProtectTransparency | kPsdProtectComposite | kPsdProtectPosition));
+    set_layer_lock_flags(layer, layer_locks_from_psd_protection(record.protection_flags));
+    if (record.protection_flags != 0U) {
+      layer.metadata()[kLayerMetadataPsdProtectionFlags] = std::to_string(record.protection_flags);
+    }
+    layer.set_color_label(record.color_label);
     if (!vector_parse_failed && has_legacy_vscg && !vector_fill.has_value() && vector_mask_block.has_value() &&
         vector_stroke.has_value()) {
       if (vector_stroke->fill_enabled) {

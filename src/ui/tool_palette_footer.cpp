@@ -3,10 +3,14 @@
 #include "ui/theme_palette.hpp"
 
 #include <QAction>
+#include <QEvent>
+#include <QResizeEvent>
 #include <QPaintEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPen>
+
+#include <algorithm>
 
 namespace patchy::ui {
 
@@ -140,12 +144,39 @@ ToolPaletteFooter::ToolPaletteFooter(QAction* default_colors, QAction* swap_colo
   quick_mask_->setObjectName(QStringLiteral("quickMaskButton"));
   quick_mask_->setDefaultAction(quick_mask);
   quick_mask_->setAutoRaise(true);
-  // The action's two-state icon (GitHub issue 224), at the 22 px the palette's
-  // 24 px button height leaves: its frame fills less of the 32 px art than the
-  // tool glyphs do. QSS widens the button to the footer's 36 px.
+  // The action's two-state icon (GitHub issue 224) at 22 px: its frame fills less
+  // of the 32 px art than the tool glyphs do. QSS sizes the button (32 x 22
+  // content, 36 x 26 with padding and border) so the checked box, border
+  // included, fits the footer on every side; place_quick_mask centers it.
   quick_mask_->setToolButtonStyle(Qt::ToolButtonIconOnly);
   quick_mask_->setIconSize(QSize(22, 22));
-  quick_mask_->move(3, kWellHeight + 3);
+  // The QSS polish resizes the button after construction.
+  quick_mask_->installEventFilter(this);
+  place_quick_mask();
+}
+
+void ToolPaletteFooter::place_quick_mask() {
+  if (quick_mask_ == nullptr) {
+    return;
+  }
+  // The well is laid out for the collapsed column, so an expanded palette keeps the
+  // button under the well rather than in the middle of the wider bar.
+  const int cell = std::min(width(), kWidth);
+  const auto size = quick_mask_->size();
+  quick_mask_->move(std::max(0, (cell - size.width()) / 2),
+                    kWellHeight + std::max(0, (kHeight - kWellHeight - size.height()) / 2));
+}
+
+void ToolPaletteFooter::resizeEvent(QResizeEvent* event) {
+  QWidget::resizeEvent(event);
+  place_quick_mask();
+}
+
+bool ToolPaletteFooter::eventFilter(QObject* watched, QEvent* event) {
+  if (watched == quick_mask_ && event->type() == QEvent::Resize) {
+    place_quick_mask();
+  }
+  return QWidget::eventFilter(watched, event);
 }
 
 }  // namespace patchy::ui

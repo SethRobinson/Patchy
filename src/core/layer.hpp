@@ -10,6 +10,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -31,6 +32,25 @@ inline constexpr LayerLockFlags kLayerLockImagePixels = 1U << 1U;
 inline constexpr LayerLockFlags kLayerLockPosition = 1U << 2U;
 inline constexpr LayerLockFlags kLayerLockAll =
     kLayerLockTransparentPixels | kLayerLockImagePixels | kLayerLockPosition;
+
+// Layers panel color labels (GitHub issue 244). The values are Photoshop's own
+// 'lclr' indices, so they are a file-format contract. Other indices from a newer
+// file are kept on the layer and shown as no color.
+using LayerColorLabel = std::uint16_t;
+inline constexpr LayerColorLabel kLayerColorNone = 0U;
+inline constexpr LayerColorLabel kLayerColorRed = 1U;
+inline constexpr LayerColorLabel kLayerColorOrange = 2U;
+inline constexpr LayerColorLabel kLayerColorYellow = 3U;
+inline constexpr LayerColorLabel kLayerColorGreen = 4U;
+inline constexpr LayerColorLabel kLayerColorBlue = 5U;
+inline constexpr LayerColorLabel kLayerColorViolet = 6U;
+inline constexpr LayerColorLabel kLayerColorGray = 7U;
+inline constexpr LayerColorLabel kLayerColorLast = kLayerColorGray;
+// The stable ids "none", "red", "orange", "yellow", "green", "blue", "violet" and
+// "gray" (script values and the theme's layerColor property; permanent). An index
+// Patchy does not know reads as "none".
+[[nodiscard]] std::string_view layer_color_label_id(LayerColorLabel label) noexcept;
+[[nodiscard]] std::optional<LayerColorLabel> layer_color_label_from_id(std::string_view id) noexcept;
 
 struct Rect {
   std::int32_t x{0};
@@ -577,6 +597,7 @@ public:
   [[nodiscard]] float fill_opacity() const noexcept;
   [[nodiscard]] BlendMode blend_mode() const noexcept;
   [[nodiscard]] LayerLockFlags lock_flags() const noexcept;
+  [[nodiscard]] LayerColorLabel color_label() const noexcept;
   [[nodiscard]] Rect bounds() const noexcept;
   [[nodiscard]] PixelBuffer& pixels() noexcept;
   [[nodiscard]] const PixelBuffer& pixels() const noexcept;
@@ -635,6 +656,8 @@ public:
   void set_fill_opacity(float opacity);
   void set_blend_mode(BlendMode mode) noexcept;
   void set_lock_flags(LayerLockFlags flags) noexcept;
+  // A panel label only: it never changes pixels, so no revision moves.
+  void set_color_label(LayerColorLabel label) noexcept;
   void set_bounds(Rect bounds) noexcept;
   void set_pixels(PixelBuffer pixels);
   void set_mask(LayerMask mask);
@@ -690,6 +713,7 @@ private:
   float fill_opacity_{1.0F};
   BlendMode blend_mode_{BlendMode::Normal};
   LayerLockFlags lock_flags_{kLayerLockNone};
+  LayerColorLabel color_label_{kLayerColorNone};
   Rect bounds_{};
   PixelBuffer pixels_{};
   std::vector<Layer> children_{};

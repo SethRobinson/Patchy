@@ -16,6 +16,11 @@ layers throw for a non-parallelogram quad, a pending transform throws. `interpol
 takes the existing resample method ids. Permanent identifiers: the method name and the
 keys `matrix`, `quad`, `interpolation`. Pinned by `ui_script_layer_transform_quad_and_matrix`
 and `ui_script_layer_transform_refusals`.
+2026-10-20 (additive): `layer.colorLabel`, the Layers panel color label (GitHub issue 244):
+`"none"`, `"red"`, `"orange"`, `"yellow"`, `"green"`, `"blue"`, `"violet"`, `"gray"` (d.ts
+`PatchyLayerColorLabel`). Setting another value throws; an index Patchy does not know reads as
+`"none"`. PSD saves write it as Photoshop's `lclr` block. Permanent identifiers: the property
+and its eight values. Pinned by `ui_script_layer_color_label`.
 2026-10-19 (additive plus behavioral): `.tif`/`.tiff` saves take `layers` (layered TIFF,
 docs/tiff.md). `doc.saveAs` of a document with layers a flat file would lose now writes a
 layered TIFF by default (the same composite plus Photoshop's layer data in tag 37724) instead

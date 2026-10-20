@@ -154,6 +154,10 @@ struct SmartObjectPlacement {
 [[nodiscard]] std::string smart_object_source_uuid(const Layer& layer);
 [[nodiscard]] std::string smart_object_placed_uuid(const Layer& layer);
 [[nodiscard]] std::string smart_object_lock_reason(const Layer& layer);
+// Lock reasons under which a layer's Smart Filter stack may still change: none, a linked
+// source (re-rendered from its file), and "filters", the preview lock of a stack running a
+// filter Patchy does not model, which hiding or deleting that filter lifts (GitHub issue 243).
+[[nodiscard]] bool smart_object_lock_allows_smart_filter_edits(std::string_view lock_reason) noexcept;
 [[nodiscard]] bool layer_smart_object_block_dirty(const Layer& layer);
 void mark_layer_smart_object_block_dirty(Layer& layer);
 [[nodiscard]] std::optional<SmartObjectPlacement> smart_object_placement_from_layer(const Layer& layer);

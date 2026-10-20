@@ -51,6 +51,27 @@
 
 namespace patchy::psd {
 
+LayerLockFlags layer_locks_from_psd_protection(std::uint32_t protection) noexcept {
+  if ((protection & kPsdProtectAll) != 0U) {
+    return kLayerLockAll;
+  }
+  return protection & (kPsdProtectTransparency | kPsdProtectComposite | kPsdProtectPosition);
+}
+
+std::uint32_t psd_protection_for_layer(const Layer& layer) {
+  const auto locks = layer_lock_flags(layer) & kLayerLockAll;
+  std::uint32_t stored = 0U;
+  if (const auto found = layer.metadata().find(kLayerMetadataPsdProtectionFlags); found != layer.metadata().end()) {
+    stored = static_cast<std::uint32_t>(std::strtoul(found->second.c_str(), nullptr, 10));
+  }
+  if (stored != 0U && layer_locks_from_psd_protection(stored) == locks) {
+    return stored;
+  }
+  const std::uint32_t singles = locks == kLayerLockAll ? kPsdProtectAll : locks;
+  return singles | (stored & kPsdProtectArtboardAutonest);
+}
+
+
 namespace {
 
 // Layer and mask rectangles come straight from the file as four signed edges. Subtracting
@@ -138,7 +159,8 @@ bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock&
   // Runtime/legacy compound markers travel in plug-in resource 4211. Unknown
   // per-layer keys make Photoshop warn that editable data will be discarded.
   if (block.key == "pvcl" || block.key == "pvfi" ||
-      block.key == "luni" || block.key == "plFX" || block.key == "lspf" || block.key == "lmgm" ||
+      block.key == "luni" || block.key == "plFX" || block.key == "lspf" || block.key == "lclr" ||
+      block.key == "lmgm" ||
       block.key == "vmgm" || block.key == "infx" || block.key == "clbl" ||
       (block.key == "plAD" && encoded.kind == EncodedLayerKind::Adjustment)) {
     return true;
@@ -766,6 +788,10 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
         BigEndianReader protection_reader(record.additional_blocks.back().payload);
         record.protection_flags = protection_reader.read_u32();
       }
+      if (key == "lclr" && record.additional_blocks.back().payload.size() >= 2U) {
+        BigEndianReader color_reader(record.additional_blocks.back().payload);
+        record.color_label = color_reader.read_u16();
+      }
       if (key == "lmgm" && !record.additional_blocks.back().payload.empty()) {
         // "Layer Mask Hides Effects" blending option (first byte is the bool).
         record.layer_mask_hides_effects = record.additional_blocks.back().payload[0] != 0;
@@ -1160,12 +1186,28 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
     const auto fill_opacity_byte = static_cast<std::uint8_t>(
         std::clamp(std::lround(encoded.layer->fill_opacity() * 255.0F), 0L, 255L));
     bool wrote_fill_opacity = false;
-    const auto protection_flags = layer_lock_flags(*encoded.layer) &
-                                  (kPsdProtectTransparency | kPsdProtectComposite | kPsdProtectPosition);
+    const auto protection_flags = psd_protection_for_layer(*encoded.layer);
     if (protection_flags != 0U) {
       BigEndianWriter protection;
       protection.write_u32(protection_flags);
       write_additional_layer_block(extra, {'l', 's', 'p', 'f'}, protection.bytes(), large_document);
+    }
+
+    // The Layers panel color label (GitHub issue 244), after lspf as Photoshop
+    // orders it: a u16 index and six zero bytes. An imported block whose index
+    // still matches goes back verbatim; no block means no color.
+    const auto color_label = encoded.layer->color_label();
+    if (const auto* imported_color = find_layer_block(*encoded.layer, "lclr");
+        imported_color != nullptr && imported_color->payload.size() >= 2U &&
+        static_cast<LayerColorLabel>((imported_color->payload[0] << 8U) | imported_color->payload[1]) ==
+            color_label) {
+      write_additional_layer_block(extra, {'l', 'c', 'l', 'r'}, imported_color->payload, large_document);
+    } else if (color_label != kLayerColorNone) {
+      BigEndianWriter color;
+      color.write_u16(color_label);
+      color.write_u16(0);
+      color.write_u32(0);
+      write_additional_layer_block(extra, {'l', 'c', 'l', 'r'}, color.bytes(), large_document);
     }
 
     if (encoded.layer->layer_style().layer_mask_hides_effects) {

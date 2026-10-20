@@ -514,6 +514,26 @@ void ScriptLayerObject::set_locked(bool locked) {
   }
 }
 
+QString ScriptLayerObject::color_label() const {
+  const ScriptApiCall api_call(host_);
+  const auto* layer = read_layer();
+  const auto id = layer_color_label_id(layer != nullptr ? layer->color_label() : kLayerColorNone);
+  return QString::fromLatin1(id.data(), static_cast<qsizetype>(id.size()));
+}
+
+void ScriptLayerObject::set_color_label(const QString& label) {
+  const ScriptApiCall api_call(host_);
+  const auto parsed = layer_color_label_from_id(label.toStdString());
+  if (!parsed.has_value()) {
+    host_.throw_js_error(ScriptEngineHost::tr("Unknown layer color label: %1").arg(label));
+    return;
+  }
+  if (auto* layer = write_layer()) {
+    layer->set_color_label(*parsed);
+    host_.note_structure_changed(session_id_);
+  }
+}
+
 int ScriptLayerObject::x() const {
   const ScriptApiCall api_call(host_);
   const auto* layer = read_layer();

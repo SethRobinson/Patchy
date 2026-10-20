@@ -2,6 +2,7 @@
 #include "color/color_management.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/document.hpp"
+#include "core/pixel_tools.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/vector_shape.hpp"
 #include "formats/acv_curves_io.hpp"
@@ -967,12 +968,182 @@ void psd_layer_locks_import_and_export_lspf() {
     const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
     const auto payload = psd_layer_block_payload(psd_first_layer_extra_data(bytes), "lspf");
     CHECK(payload.has_value());
-    CHECK(read_u32_be_at(*payload, 0) == flags);
+    // Lock All is Photoshop's own 0x80000000 bit, not the three singles (GitHub issue 245).
+    CHECK(read_u32_be_at(*payload, 0) == (flags == patchy::kLayerLockAll ? 0x80000000U : flags));
 
     const auto read = patchy::psd::DocumentIo::read(bytes);
     CHECK(read.layers().size() == 1);
     CHECK(patchy::layer_lock_flags(read.layers().front()) == flags);
   }
+}
+
+// GitHub issue 244: the Layers panel color label is Photoshop's 'lclr' block, a
+// u16 index and six zero bytes. Every value round-trips on layers and groups; an
+// imported block goes back verbatim while its index is unchanged.
+void psd_layer_color_labels_round_trip_lclr() {
+  for (patchy::LayerColorLabel label = patchy::kLayerColorNone; label <= patchy::kLayerColorLast; ++label) {
+    patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+    auto& layer = document.add_pixel_layer("Labeled", solid_rgba(2, 2, 20, 40, 60, 255));
+    layer.set_color_label(label);
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    const auto payload = psd_layer_block_payload(psd_first_layer_extra_data(bytes), "lclr");
+    // No block means no color, as in Photoshop.
+    CHECK(payload.has_value() == (label != patchy::kLayerColorNone));
+    if (payload.has_value()) {
+      CHECK(payload->size() == 8U);
+      CHECK((((*payload)[0] << 8U) | (*payload)[1]) == label);
+      CHECK(std::all_of(payload->begin() + 2, payload->end(), [](std::uint8_t byte) { return byte == 0U; }));
+    }
+    const auto read = patchy::psd::DocumentIo::read(bytes);
+    CHECK(read.layers().size() == 1);
+    CHECK(read.layers().front().color_label() == label);
+  }
+
+  // Groups carry their own label, apart from their children's.
+  patchy::Document document(4, 2, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(4, 2, 255, 255, 255));
+  patchy::Layer group(document.allocate_layer_id(), "Green Folder", patchy::LayerKind::Group);
+  group.set_color_label(patchy::kLayerColorGreen);
+  patchy::Layer child(document.allocate_layer_id(), "Violet Child", solid_rgba(4, 2, 220, 20, 20, 255));
+  child.set_color_label(patchy::kLayerColorViolet);
+  group.add_child(std::move(child));
+  document.add_layer(std::move(group));
+  auto read = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  CHECK(read.layers().size() == 2);
+  CHECK(read.layers()[0].color_label() == patchy::kLayerColorNone);
+  CHECK(read.layers()[1].kind() == patchy::LayerKind::Group);
+  CHECK(read.layers()[1].color_label() == patchy::kLayerColorGreen);
+  CHECK(read.layers()[1].children().size() == 1);
+  CHECK(read.layers()[1].children().front().color_label() == patchy::kLayerColorViolet);
+
+  // An index from a newer Photoshop is kept as it is.
+  patchy::Document future(2, 2, patchy::PixelFormat::rgb8());
+  future.add_pixel_layer("Future", solid_rgba(2, 2, 20, 40, 60, 255)).set_color_label(12U);
+  auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(future));
+  CHECK(reread.layers().front().color_label() == 12U);
+
+  // The imported block (here with a nonzero trailing byte) is re-emitted
+  // verbatim while the index matches, regenerated when it changes, and dropped
+  // when the label is cleared.
+  auto& imported = reread.layers().front();
+  const auto block = std::find_if(imported.unknown_psd_blocks().begin(), imported.unknown_psd_blocks().end(),
+                                  [](const patchy::UnknownPsdBlock& entry) { return entry.key == "lclr"; });
+  CHECK(block != imported.unknown_psd_blocks().end());
+  block->payload = {0U, 3U, 0U, 0U, 0U, 0U, 0U, 1U};
+  imported.set_color_label(patchy::kLayerColorYellow);
+  auto payload = psd_layer_block_payload(
+      psd_first_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(reread)), "lclr");
+  CHECK(payload.has_value() && *payload == std::vector<std::uint8_t>({0U, 3U, 0U, 0U, 0U, 0U, 0U, 1U}));
+  imported.set_color_label(patchy::kLayerColorBlue);
+  payload = psd_layer_block_payload(
+      psd_first_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(reread)), "lclr");
+  CHECK(payload.has_value() && *payload == std::vector<std::uint8_t>({0U, 5U, 0U, 0U, 0U, 0U, 0U, 0U}));
+  imported.set_color_label(patchy::kLayerColorNone);
+  payload = psd_layer_block_payload(
+      psd_first_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(reread)), "lclr");
+  CHECK(!payload.has_value());
+
+  // Every label on a layer of its own, plus the labeled group: the file the
+  // Photoshop acceptance check opens (test-artifacts/psd-layer-color-labels.psd).
+  for (patchy::LayerColorLabel label = patchy::kLayerColorRed; label <= patchy::kLayerColorLast; ++label) {
+    document.add_pixel_layer("Label " + std::to_string(label), solid_rgba(4, 2, 40, 40, 40, 255))
+        .set_color_label(label);
+  }
+  std::filesystem::create_directories("test-artifacts");
+  const auto artifact = std::filesystem::path("test-artifacts") / "psd-layer-color-labels.psd";
+  patchy::psd::DocumentIo::write_layered_rgb8_file(document, artifact);
+  const auto saved = patchy::psd::DocumentIo::read_file(artifact);
+  CHECK(saved.layers().size() == 2U + patchy::kLayerColorLast);
+  for (std::size_t index = 2; index < saved.layers().size(); ++index) {
+    CHECK(saved.layers()[index].color_label() == static_cast<patchy::LayerColorLabel>(index - 1U));
+  }
+}
+
+// GitHub issue 244's sample (philipzae): five layers Photoshop labeled blue, red,
+// orange, yellow and green. Copied into local-test-fixtures (never committed).
+void psd_issue_244_sample_layer_colors_if_available() {
+  const auto path =
+      patchy::test::source_root_path() / "local-test-fixtures" / "psd" / "issue-244" / "Test - Layer Lock.psd";
+  patchy::test::skip_unless_exists(path);
+  std::ifstream input(path, std::ios::binary);
+  const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+  const auto expect_colors = [](const patchy::Document& document) {
+    const std::vector<std::pair<std::string, patchy::LayerColorLabel>> expected{
+        {"Full Lock", patchy::kLayerColorBlue},
+        {"Transparent Pixel Lock", patchy::kLayerColorRed},
+        {"Lock Image Pixels", patchy::kLayerColorOrange},
+        {"Lock Position", patchy::kLayerColorYellow},
+        {"Prevent Auto Nesting", patchy::kLayerColorGreen},
+    };
+    for (const auto& [name, label] : expected) {
+      const auto found = std::find_if(document.layers().begin(), document.layers().end(),
+                                      [&](const patchy::Layer& layer) { return layer.name() == name; });
+      CHECK(found != document.layers().end());
+      CHECK(found->color_label() == label);
+    }
+  };
+  const auto document = patchy::psd::DocumentIo::read(bytes);
+  expect_colors(document);
+  // Patchy's resave, kept for the Photoshop acceptance check.
+  std::filesystem::create_directories("test-artifacts");
+  const auto resaved = std::filesystem::path("test-artifacts") / "issue-244-sample-resaved.psd";
+  patchy::psd::DocumentIo::write_layered_rgb8_file(document, resaved);
+  expect_colors(patchy::psd::DocumentIo::read_file(resaved));
+}
+
+// Photoshop's lspf (PS 2026 capture, GitHub issues 245 and 246): Lock All is 0x80000000 with
+// the three single locks clear, Prevent Auto Nesting is 0x8. A file's value comes back
+// exactly while the locks are unchanged; an edit keeps the Prevent Auto Nesting bit.
+void psd_layer_lock_all_and_auto_nesting_bits_round_trip() {
+  const auto file_with_protection = [](std::uint32_t protection) {
+    patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+    auto& layer = document.add_pixel_layer("Locked", solid_rgba(2, 2, 20, 40, 60, 255));
+    patchy::set_layer_lock_flags(layer, patchy::kLayerLockTransparentPixels);
+    auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    // Rewrite the one lspf value the writer emitted (8BIM, key, u32 length 4, u32 value).
+    const std::array<std::uint8_t, 8> tag{'8', 'B', 'I', 'M', 'l', 's', 'p', 'f'};
+    const auto found = std::search(bytes.begin(), bytes.end(), tag.begin(), tag.end());
+    CHECK(found != bytes.end());
+    const auto value = static_cast<std::size_t>(std::distance(bytes.begin(), found)) + 12U;
+    for (int index = 0; index < 4; ++index) {
+      bytes[value + static_cast<std::size_t>(index)] =
+          static_cast<std::uint8_t>(protection >> (24 - 8 * index));
+    }
+    return bytes;
+  };
+  const auto written_protection = [](const patchy::Document& document) {
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    const auto payload = psd_layer_block_payload(psd_first_layer_extra_data(bytes), "lspf");
+    return payload.has_value() ? read_u32_be_at(*payload, 0) : 0U;
+  };
+
+  // Lock All opens fully locked and saves back as Lock All.
+  auto lock_all = patchy::psd::DocumentIo::read(file_with_protection(0x80000000U));
+  CHECK(lock_all.layers().size() == 1U);
+  CHECK(patchy::layer_lock_flags(lock_all.layers().front()) == patchy::kLayerLockAll);
+  CHECK(patchy::layer_locks_all(lock_all.layers().front()));
+  CHECK(written_protection(lock_all) == 0x80000000U);
+
+  // Three single locks stay three single locks, not Lock All.
+  const auto three = patchy::psd::DocumentIo::read(file_with_protection(0x7U));
+  CHECK(patchy::layer_lock_flags(three.layers().front()) == patchy::kLayerLockAll);
+  CHECK(written_protection(three) == 0x7U);
+
+  // Prevent Auto Nesting survives a save, alone or beside a lock, and after a lock edit.
+  auto nesting = patchy::psd::DocumentIo::read(file_with_protection(0x9U));
+  CHECK(patchy::layer_lock_flags(nesting.layers().front()) == patchy::kLayerLockTransparentPixels);
+  CHECK(written_protection(nesting) == 0x9U);
+  patchy::set_layer_lock_flag(nesting.layers().front(), patchy::kLayerLockPosition, true);
+  CHECK(written_protection(nesting) == 0xDU);
+  patchy::set_layer_locks_all(nesting.layers().front(), true);
+  CHECK(written_protection(nesting) == 0x80000008U);
+  const auto nesting_only = patchy::psd::DocumentIo::read(file_with_protection(0x8U));
+  CHECK(patchy::layer_lock_flags(nesting_only.layers().front()) == patchy::kLayerLockNone);
+  CHECK(written_protection(nesting_only) == 0x8U);
+
+  // Unlocking a Lock All layer writes no lock at all.
+  patchy::set_layer_locks_all(lock_all.layers().front(), false);
+  CHECK(written_protection(lock_all) == 0U);
 }
 
 void psd_layer_masks_render_and_round_trip() {
@@ -3268,6 +3439,114 @@ void psd_gray_ramp_dotgain20_matches_photoshop_srgb_if_available() {
   }
 }
 
+namespace {
+
+void write_binary_file(const std::filesystem::path& path, const std::vector<std::uint8_t>& bytes) {
+  std::ofstream file(path, std::ios::binary);
+  file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+}
+
+// Photoshop slices (GitHub issue 242, docs/ps-compat.md "Slices"): image resources 1050 and
+// 1054 survive a save byte for byte while the canvas geometry is unchanged, and every
+// whole-document geometry change drops them.
+std::vector<std::uint8_t> slice_test_resource(std::uint16_t id, std::span<const std::uint8_t> payload) {
+  patchy::psd::BigEndianWriter writer;
+  writer.write_bytes(std::array<std::uint8_t, 4>{'8', 'B', 'I', 'M'});
+  writer.write_u16(id);
+  writer.write_u16(0);
+  writer.write_u32(static_cast<std::uint32_t>(payload.size()));
+  writer.write_bytes(payload);
+  if (payload.size() % 2U != 0U) {
+    writer.write_u8(0);
+  }
+  return writer.bytes();
+}
+
+std::optional<std::vector<std::uint8_t>> saved_resource(const patchy::Document& document, std::uint16_t id) {
+  const auto read = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  return patchy::psd::find_image_resource_payload(read.metadata().raw_psd_image_resources, id);
+}
+
+void psd_slices_survive_saves_until_the_canvas_geometry_changes() {
+  const std::vector<std::uint8_t> slices{0, 0, 0, 6, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+  const std::vector<std::uint8_t> urls{0, 0, 0, 1, 0, 0, 0, 7};
+  const std::vector<std::uint8_t> other{0x12, 0x34};
+  patchy::Document document(40, 30, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(40, 30, 200, 100, 50));
+  auto& resources = document.metadata().raw_psd_image_resources;
+  for (const auto& [id, payload] : {std::pair{std::uint16_t{1050}, &slices}, std::pair{std::uint16_t{1054}, &urls},
+                                    std::pair{std::uint16_t{1080}, &other}}) {
+    const auto block = slice_test_resource(id, *payload);
+    resources.insert(resources.end(), block.begin(), block.end());
+  }
+
+  // A pixel edit keeps them.
+  document.layers().front().pixels().pixel(3, 4)[0] = 7;
+  CHECK(saved_resource(document, 1050) == slices);
+  CHECK(saved_resource(document, 1054) == urls);
+  // So does a canvas size change back to the same size (nothing moved).
+  {
+    auto same = document;
+    same.resize_canvas(40, 30);
+    CHECK(saved_resource(same, 1050) == slices);
+  }
+
+  const std::vector<std::pair<const char*, std::function<void(patchy::Document&)>>> geometry{
+      {"crop", [](patchy::Document& d) { CHECK(patchy::crop_document(d, patchy::Rect{2, 3, 20, 10})); }},
+      {"image size", [](patchy::Document& d) { patchy::resize_image_and_layers(d, 80, 60); }},
+      {"canvas size", [](patchy::Document& d) { patchy::resize_canvas_and_layers(d, 50, 30); }},
+      {"rotate 90", [](patchy::Document& d) { patchy::rotate_document_clockwise(d); }},
+      {"rotate 180", [](patchy::Document& d) { patchy::rotate_document_180(d); }},
+      {"flip", [](patchy::Document& d) { patchy::flip_document_horizontal(d); }},
+      {"script canvas", [](patchy::Document& d) { d.resize_canvas(60, 30); }},
+  };
+  for (const auto& [name, change] : geometry) {
+    auto changed = document;
+    change(changed);
+    const bool dropped = !saved_resource(changed, 1050).has_value() && !saved_resource(changed, 1054).has_value();
+    if (!dropped) {
+      std::cerr << "  slices survived " << name << "\n";
+    }
+    CHECK(dropped);
+    CHECK(saved_resource(changed, 1080) == other);  // unrelated resources stay
+  }
+}
+
+// The issue's sample, ag-psd's test/read/slices/src.psd (MIT; local-test-fixtures/psd/
+// issue-242/SOURCE.txt). Also writes the kept and the cropped saves for the Photoshop
+// open check into test-artifacts/psd-slices.
+void psd_issue_242_slices_sample_round_trips_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("issue-242/ag-psd-slices.psd");
+  patchy::test::skip_unless_exists(path);
+  const auto original = patchy::psd::DocumentIo::read_file(path);
+  const auto source = patchy::psd::find_image_resource_payload(original.metadata().raw_psd_image_resources, 1050);
+  CHECK(source.has_value() && source->size() == 4852U);
+  const auto out = std::filesystem::path("test-artifacts") / "psd-slices";
+  std::filesystem::create_directories(out);
+
+  auto edited = original;
+  for (auto& layer : edited.layers()) {
+    if (layer.kind() == patchy::LayerKind::Pixel && layer.pixels().width() > 4 && layer.pixels().height() > 4) {
+      auto* pixel = layer.pixels().pixel(2, 2);
+      pixel[0] = static_cast<std::uint8_t>(255 - pixel[0]);
+      break;
+    }
+  }
+  const auto kept_bytes = patchy::psd::DocumentIo::write_layered_rgb8(edited);
+  write_binary_file(out / "slices-edited.psd", kept_bytes);
+  const auto kept = patchy::psd::DocumentIo::read(kept_bytes);
+  CHECK(patchy::psd::find_image_resource_payload(kept.metadata().raw_psd_image_resources, 1050) == source);
+
+  auto cropped = original;
+  CHECK(patchy::crop_document(cropped, patchy::Rect{10, 10, 60, 50}));
+  const auto cropped_bytes = patchy::psd::DocumentIo::write_layered_rgb8(cropped);
+  write_binary_file(out / "slices-cropped.psd", cropped_bytes);
+  const auto reread = patchy::psd::DocumentIo::read(cropped_bytes);
+  CHECK(!patchy::psd::find_image_resource_payload(reread.metadata().raw_psd_image_resources, 1050).has_value());
+}
+
+}  // namespace
+
 std::vector<patchy::test::TestCase> psd_core_io_tests() {
   return {
       {"psd_flat_rgb8_round_trips", psd_flat_rgb8_round_trips},
@@ -3347,6 +3626,9 @@ std::vector<patchy::test::TestCase> psd_core_io_tests() {
       {"psd_opaque_rgb_layers_write_transparency_unless_background",
        psd_opaque_rgb_layers_write_transparency_unless_background},
       {"psd_layer_locks_import_and_export_lspf", psd_layer_locks_import_and_export_lspf},
+      {"psd_layer_color_labels_round_trip_lclr", psd_layer_color_labels_round_trip_lclr},
+      {"psd_issue_244_sample_layer_colors_if_available", psd_issue_244_sample_layer_colors_if_available},
+      {"psd_layer_lock_all_and_auto_nesting_bits_round_trip", psd_layer_lock_all_and_auto_nesting_bits_round_trip},
       {"psd_layer_masks_render_and_round_trip", psd_layer_masks_render_and_round_trip},
       {"psd_group_layer_mask_round_trips", psd_group_layer_mask_round_trips},
       {"psd_layer_mask_link_state_round_trips", psd_layer_mask_link_state_round_trips},
@@ -3382,5 +3664,8 @@ std::vector<patchy::test::TestCase> psd_core_io_tests() {
       {"psd_empty_document_saves_transparent_without_mutating_layers", psd_empty_document_saves_transparent_without_mutating_layers},
       {"psd_writer_rejects_layer_record_count_overflow", psd_writer_rejects_layer_record_count_overflow},
       {"psd_damaged_channel_cannot_consume_later_channels", psd_damaged_channel_cannot_consume_later_channels},
+      {"psd_slices_survive_saves_until_the_canvas_geometry_changes",
+       psd_slices_survive_saves_until_the_canvas_geometry_changes},
+      {"psd_issue_242_slices_sample_round_trips_if_available", psd_issue_242_slices_sample_round_trips_if_available},
   };
 }

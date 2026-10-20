@@ -10871,6 +10871,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>&amp;Cancel</source>
         <translation>キャンセル(&amp;C)</translation>
     </message>
+    <message>
+        <source>Smart Filters actions</source>
+        <translation>スマートフィルター全体の操作</translation>
+    </message>
+    <message>
+        <source>Delete All Smart Filters</source>
+        <translation>すべてのスマートフィルターを削除</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t render every Smart Filter that would then run. Photoshop renders them when the file is opened there.</source>
+        <translation>実行されることになるスマートフィルターの中に、Patchy で描画できないものがあります。ファイルを Photoshop で開くと Photoshop が描画します。</translation>
+    </message>
+    <message>
+        <source>Hiding this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or hide all Smart Filters.</source>
+        <translation>このフィルターを非表示にすると、Patchy で描画できないスマートフィルターが実行されたまま残ります。先にそれらを非表示にするか削除するか、すべてのスマートフィルターを非表示にしてください。</translation>
+    </message>
+    <message>
+        <source>Deleting this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or delete all Smart Filters.</source>
+        <translation>このフィルターを削除すると、Patchy で描画できないスマートフィルターが実行されたまま残ります。先にそれらを非表示にするか削除するか、すべてのスマートフィルターを削除してください。</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t edit this filter&apos;s settings. It is preserved unchanged.</source>
+        <translation>Patchy ではこのフィルターの設定を編集できません。変更されずに保持されます。</translation>
+    </message>
+    <message>
+        <source>This stack runs Smart Filters that Patchy can&apos;t render, so their settings can&apos;t change here. Hide or delete those filters first.</source>
+        <translation>このスタックは Patchy で描画できないスマートフィルターを実行するため、ここでは設定を変更できません。先にそれらのフィルターを非表示にするか削除してください。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22395,6 +22423,34 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>今後確認しない</translation>
     </message>
     <message>
+        <source>Color</source>
+        <translation>カラー</translation>
+    </message>
+    <message>
+        <source>Orange</source>
+        <translation>オレンジ</translation>
+    </message>
+    <message>
+        <source>Violet</source>
+        <translation>バイオレット</translation>
+    </message>
+    <message>
+        <source>Gray</source>
+        <translation>グレー</translation>
+    </message>
+    <message>
+        <source>Layer color</source>
+        <translation>レイヤーカラー</translation>
+    </message>
+    <message>
+        <source>Delete All Smart Filters</source>
+        <translation>すべてのスマートフィルターを削除</translation>
+    </message>
+    <message>
+        <source>Deleted all Smart Filters</source>
+        <translation>すべてのスマートフィルターを削除しました</translation>
+    </message>
+    <message>
         <source>Transform</source>
         <translation>変形</translation>
     </message>
@@ -24149,6 +24205,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
         <translation>不明なパネル &quot;%1&quot; です。パネル: %2。</translation>
+    </message>
+    <message>
+        <source>Unknown layer color label: %1</source>
+        <translation>不明なレイヤーカラー: %1</translation>
     </message>
     <message>
         <source>layer.transform needs {matrix} or {quad}, not both.</source>

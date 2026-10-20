@@ -1012,6 +1012,9 @@ void transform_layer_vector_data_projective(Document& document, Layer& layer,
 
 void transform_document_vector_data(Document& document, const std::array<double, 6>& matrix,
                                     Rect canvas_after, double stroke_scale) {
+  // Every whole-document geometry change comes through here, the flips and the square
+  // turns that keep the canvas size included.
+  forget_psd_slices(document);
   const auto walk = [&document, &matrix, canvas_after, stroke_scale](auto&& self,
                                                                      std::vector<Layer>& layers) -> void {
     for (auto& layer : layers) {

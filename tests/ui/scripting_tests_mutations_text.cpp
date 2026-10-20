@@ -293,6 +293,29 @@ void ui_script_layer_move_to_rounds_like_photoshop() {
   CHECK(bounds_of().y == -3);
 }
 
+// GitHub issue 244: layer.colorLabel reads and writes the Layers panel color
+// label; an unknown value throws and changes nothing.
+void ui_script_layer_color_label() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var layer = app.activeDocument.addLayer('Tagged');
+    if (layer.colorLabel !== 'none') throw Error('default ' + layer.colorLabel);
+    ['red', 'orange', 'yellow', 'green', 'blue', 'violet', 'gray', 'none'].forEach(function (label) {
+      layer.colorLabel = label;
+      if (layer.colorLabel !== label) throw Error('round trip ' + label + ' read ' + layer.colorLabel);
+    });
+    layer.colorLabel = 'violet';
+  )JS")));
+  const auto* layer = layer_named(document, "Tagged");
+  CHECK(layer != nullptr && layer->color_label() == patchy::kLayerColorViolet);
+  CHECK(!run_script(window, QStringLiteral("app.activeDocument.activeLayer.colorLabel = 'purple';")));
+  CHECK(backlog_contains(window, QStringLiteral("purple")));
+  layer = layer_named(document, "Tagged");
+  CHECK(layer != nullptr && layer->color_label() == patchy::kLayerColorViolet);
+}
+
 void ui_script_palette_validation_and_history() {
   using patchy::ui::MainWindowTestAccess;
   patchy::ui::MainWindow window;
@@ -2103,6 +2126,7 @@ std::vector<patchy::test::TestCase> scripting_tests_part1() {
       {"ui_script_import_files_as_layers", ui_script_import_files_as_layers},
       {"ui_script_export_pdf_writes_pages", ui_script_export_pdf_writes_pages},
       {"ui_script_layer_move_to_rounds_like_photoshop", ui_script_layer_move_to_rounds_like_photoshop},
+      {"ui_script_layer_color_label", ui_script_layer_color_label},
       {"ui_script_palette_validation_and_history", ui_script_palette_validation_and_history},
       {"ui_script_palette_unicode_files_and_indexed_png", ui_script_palette_unicode_files_and_indexed_png},
       {"ui_script_palette_named_controls_and_rename", ui_script_palette_named_controls_and_rename},

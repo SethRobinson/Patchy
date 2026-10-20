@@ -384,6 +384,34 @@ int text_points_to_pixels(double points, const Document& document) noexcept {
   return std::max(1, static_cast<int>(std::lround(std::max(0.01, points) * text_size_ppi(document) / 72.0)));
 }
 
+QString smart_filter_unmodeled_show_message() {
+  return QObject::tr(
+      "Patchy can't render every Smart Filter that would then run. Photoshop renders them when the file is "
+      "opened there.");
+}
+
+QString smart_filter_unmodeled_left_running_message() {
+  return QObject::tr(
+      "Hiding this filter would leave Smart Filters running that Patchy can't render. Hide or delete those "
+      "first, or hide all Smart Filters.");
+}
+
+QString smart_filter_unmodeled_left_after_delete_message() {
+  return QObject::tr(
+      "Deleting this filter would leave Smart Filters running that Patchy can't render. Hide or delete those "
+      "first, or delete all Smart Filters.");
+}
+
+QString smart_filter_unmodeled_settings_message() {
+  return QObject::tr("Patchy can't edit this filter's settings. It is preserved unchanged.");
+}
+
+QString smart_filter_unmodeled_stack_settings_message() {
+  return QObject::tr(
+      "This stack runs Smart Filters that Patchy can't render, so their settings can't change here. Hide or "
+      "delete those filters first.");
+}
+
 QString escape_qaction_ampersands(QString text) {
   return text.replace(QLatin1Char('&'), QStringLiteral("&&"));
 }

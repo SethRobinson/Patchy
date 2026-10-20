@@ -10871,6 +10871,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>&amp;Cancel</source>
         <translation>取消(&amp;C)</translation>
     </message>
+    <message>
+        <source>Smart Filters actions</source>
+        <translation>智能滤镜整体操作</translation>
+    </message>
+    <message>
+        <source>Delete All Smart Filters</source>
+        <translation>删除所有智能滤镜</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t render every Smart Filter that would then run. Photoshop renders them when the file is opened there.</source>
+        <translation>Patchy 无法渲染随后会运行的所有智能滤镜。在 Photoshop 中打开文件时，Photoshop 会渲染它们。</translation>
+    </message>
+    <message>
+        <source>Hiding this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or hide all Smart Filters.</source>
+        <translation>隐藏此滤镜后，仍会有 Patchy 无法渲染的智能滤镜在运行。请先隐藏或删除那些滤镜，或隐藏所有智能滤镜。</translation>
+    </message>
+    <message>
+        <source>Deleting this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or delete all Smart Filters.</source>
+        <translation>删除此滤镜后，仍会有 Patchy 无法渲染的智能滤镜在运行。请先隐藏或删除那些滤镜，或删除所有智能滤镜。</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t edit this filter&apos;s settings. It is preserved unchanged.</source>
+        <translation>Patchy 无法编辑此滤镜的设置。它会原样保留。</translation>
+    </message>
+    <message>
+        <source>This stack runs Smart Filters that Patchy can&apos;t render, so their settings can&apos;t change here. Hide or delete those filters first.</source>
+        <translation>此堆栈运行着 Patchy 无法渲染的智能滤镜，因此无法在此更改其设置。请先隐藏或删除那些滤镜。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22395,6 +22423,34 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>不再询问</translation>
     </message>
     <message>
+        <source>Color</source>
+        <translation>颜色</translation>
+    </message>
+    <message>
+        <source>Orange</source>
+        <translation>橙色</translation>
+    </message>
+    <message>
+        <source>Violet</source>
+        <translation>紫色</translation>
+    </message>
+    <message>
+        <source>Gray</source>
+        <translation>灰色</translation>
+    </message>
+    <message>
+        <source>Layer color</source>
+        <translation>图层颜色</translation>
+    </message>
+    <message>
+        <source>Delete All Smart Filters</source>
+        <translation>删除所有智能滤镜</translation>
+    </message>
+    <message>
+        <source>Deleted all Smart Filters</source>
+        <translation>已删除所有智能滤镜</translation>
+    </message>
+    <message>
         <source>Transform</source>
         <translation>变换</translation>
     </message>
@@ -24149,6 +24205,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
         <translation>未知面板 &quot;%1&quot;。面板：%2。</translation>
+    </message>
+    <message>
+        <source>Unknown layer color label: %1</source>
+        <translation>未知的图层颜色：%1</translation>
     </message>
     <message>
         <source>layer.transform needs {matrix} or {quad}, not both.</source>

@@ -11,6 +11,11 @@
 #include "ui/app_settings.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
+#include <QDir>
+#include <QFile>
+#include <QTemporaryDir>
+#include "psd/psd_document_io.hpp"
+#include "ui/qt_paths.hpp"
 #include <QAction>
 #include <QApplication>
 #include <QComboBox>
@@ -801,6 +806,66 @@ void ui_layer_lock_transparency_and_keyboard_nudge_work() {
   CHECK(color_close(canvas_pixel(*canvas, QPoint(5, 30)), QColor(255, 255, 255), 8));
   CHECK(color_close(canvas_pixel(*canvas, QPoint(20, 30)), QColor(20, 90, 220), 8));
   save_widget_artifact("ui_keyboard_nudge_layer", window);
+}
+
+// A layer saved with Photoshop's Lock All (lspf 0x80000000, the single locks clear; GitHub
+// issue 245) opens fully locked: the Lock All control is on and the row shows all three
+// lock badges. Saving writes Lock All back for Photoshop.
+void ui_psd_lock_all_layer_opens_fully_locked() {
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const auto psd_path = temp.filePath(QStringLiteral("lock-all.psd"));
+  {
+    patchy::Document document(64, 48, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background", solid_pixels(64, 48, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
+    auto& locked = document.add_pixel_layer("Full Lock",
+                                            solid_pixels(64, 48, patchy::PixelFormat::rgba8(), QColor(40, 90, 200)));
+    patchy::set_layer_lock_flags(locked, patchy::kLayerLockTransparentPixels);
+    auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    // The top layer's record comes last: rewrite its lspf value to Photoshop's Lock All.
+    const std::array<std::uint8_t, 8> tag{'8', 'B', 'I', 'M', 'l', 's', 'p', 'f'};
+    const auto last = std::find_end(bytes.begin(), bytes.end(), tag.begin(), tag.end());
+    CHECK(last != bytes.end());
+    const auto value = static_cast<std::size_t>(std::distance(bytes.begin(), last)) + 12U;
+    const std::array<std::uint8_t, 4> lock_all{0x80, 0x00, 0x00, 0x00};
+    std::copy(lock_all.begin(), lock_all.end(), bytes.begin() + static_cast<std::ptrdiff_t>(value));
+    QFile file(psd_path);
+    CHECK(file.open(QIODevice::WriteOnly));
+    CHECK(file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qint64>(bytes.size())) ==
+          static_cast<qint64>(bytes.size()));
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, psd_path);
+  QApplication::processEvents();
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  if (layer_list == nullptr) {
+    return;
+  }
+  if (auto* item = require_layer_item(*layer_list, QStringLiteral("Full Lock")); item != nullptr) {
+    layer_list->clearSelection();
+    layer_list->setCurrentItem(item);
+    item->setSelected(true);
+  }
+  QApplication::processEvents();
+  if (auto* panel = window.findChild<QWidget*>(QStringLiteral("layersDock")); panel != nullptr) {
+    save_widget_artifact("issue_245_layers_panel", *panel);
+  }
+  auto* lock_all_button = window.findChild<QToolButton*>(QStringLiteral("layerLockAllButton"));
+  CHECK(lock_all_button != nullptr && lock_all_button->isChecked());
+  auto* row = layer_list->itemWidget(require_layer_item(*layer_list, QStringLiteral("Full Lock")));
+  CHECK(row != nullptr);
+  CHECK(row != nullptr && row->findChildren<QLabel*>(QStringLiteral("layerLockBadge")).size() == 3);
+
+  // Saved back as Lock All, for the Photoshop check (test-artifacts/issue_245_lock_all_saved.psd).
+  ensure_artifact_dir();
+  const auto saved_path = QDir(QStringLiteral("test-artifacts")).absoluteFilePath(QStringLiteral("issue_245_lock_all_saved.psd"));
+  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, saved_path));
+  const auto saved = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(saved_path));
+  CHECK(saved.layers().size() == 2U);
+  CHECK(patchy::layer_locks_all(saved.layers().back()));
 }
 
 void ui_layer_full_lock_row_control_blocks_edits_and_move() {
@@ -2244,6 +2309,7 @@ std::vector<patchy::test::TestCase> selection_marquee_lasso_tests_part2() {
       {"ui_stroke_selection_dialog_paints_inside_center_and_outside_bands",
        ui_stroke_selection_dialog_paints_inside_center_and_outside_bands},
       {"ui_layer_lock_transparency_and_keyboard_nudge_work", ui_layer_lock_transparency_and_keyboard_nudge_work},
+      {"ui_psd_lock_all_layer_opens_fully_locked", ui_psd_lock_all_layer_opens_fully_locked},
       {"ui_layer_full_lock_row_control_blocks_edits_and_move",
        ui_layer_full_lock_row_control_blocks_edits_and_move},
       {"ui_folder_lock_inherits_to_child_layers", ui_folder_lock_inherits_to_child_layers},

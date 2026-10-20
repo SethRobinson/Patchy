@@ -10905,6 +10905,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>&amp;Cancel</source>
         <translation>&amp;Annuler</translation>
     </message>
+    <message>
+        <source>Smart Filters actions</source>
+        <translation>Actions des filtres dynamiques</translation>
+    </message>
+    <message>
+        <source>Delete All Smart Filters</source>
+        <translation>Supprimer tous les filtres dynamiques</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t render every Smart Filter that would then run. Photoshop renders them when the file is opened there.</source>
+        <translation>Patchy ne peut pas rendre tous les filtres dynamiques qui seraient alors appliqués. Photoshop les rend quand le fichier y est ouvert.</translation>
+    </message>
+    <message>
+        <source>Hiding this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or hide all Smart Filters.</source>
+        <translation>Masquer ce filtre laisserait actifs des filtres dynamiques que Patchy ne peut pas rendre. Masquez ou supprimez-les d&apos;abord, ou masquez tous les filtres dynamiques.</translation>
+    </message>
+    <message>
+        <source>Deleting this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or delete all Smart Filters.</source>
+        <translation>Supprimer ce filtre laisserait actifs des filtres dynamiques que Patchy ne peut pas rendre. Masquez ou supprimez-les d&apos;abord, ou supprimez tous les filtres dynamiques.</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t edit this filter&apos;s settings. It is preserved unchanged.</source>
+        <translation>Patchy ne peut pas modifier les réglages de ce filtre. Il est conservé tel quel.</translation>
+    </message>
+    <message>
+        <source>This stack runs Smart Filters that Patchy can&apos;t render, so their settings can&apos;t change here. Hide or delete those filters first.</source>
+        <translation>Cette pile applique des filtres dynamiques que Patchy ne peut pas rendre, donc leurs réglages ne peuvent pas changer ici. Masquez ou supprimez d&apos;abord ces filtres.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22465,6 +22493,34 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
         <translation>Ne plus demander</translation>
     </message>
     <message>
+        <source>Color</source>
+        <translation>Couleur</translation>
+    </message>
+    <message>
+        <source>Orange</source>
+        <translation>Orange</translation>
+    </message>
+    <message>
+        <source>Violet</source>
+        <translation>Violet</translation>
+    </message>
+    <message>
+        <source>Gray</source>
+        <translation>Gris</translation>
+    </message>
+    <message>
+        <source>Layer color</source>
+        <translation>Couleur du calque</translation>
+    </message>
+    <message>
+        <source>Delete All Smart Filters</source>
+        <translation>Supprimer tous les filtres dynamiques</translation>
+    </message>
+    <message>
+        <source>Deleted all Smart Filters</source>
+        <translation>Tous les filtres dynamiques ont été supprimés</translation>
+    </message>
+    <message>
         <source>Transform</source>
         <translation>Transformation</translation>
     </message>
@@ -24220,6 +24276,10 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
     <message>
         <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
         <translation>Panneau inconnu &quot;%1&quot;. Panneaux : %2.</translation>
+    </message>
+    <message>
+        <source>Unknown layer color label: %1</source>
+        <translation>Couleur de calque inconnue : %1</translation>
     </message>
     <message>
         <source>layer.transform needs {matrix} or {quad}, not both.</source>

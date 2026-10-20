@@ -10889,6 +10889,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>&amp;Cancel</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Smart Filters actions</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete All Smart Filters</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t render every Smart Filter that would then run. Photoshop renders them when the file is opened there.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hiding this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or hide all Smart Filters.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Deleting this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or delete all Smart Filters.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t edit this filter&apos;s settings. It is preserved unchanged.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This stack runs Smart Filters that Patchy can&apos;t render, so their settings can&apos;t change here. Hide or delete those filters first.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22388,6 +22416,34 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Orange</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Violet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gray</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete All Smart Filters</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Deleted all Smart Filters</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Transform</source>
         <translation type="unfinished"></translation>
     </message>
@@ -24142,6 +24198,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     </message>
     <message>
         <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unknown layer color label: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

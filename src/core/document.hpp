@@ -196,6 +196,7 @@ public:
   bool remove_channel(ChannelId id);
   bool rename_channel(ChannelId id, std::string name);
   bool reorder_channel(ChannelId id, std::size_t final_index);
+  // Changing the size also forgets imported Photoshop slices (forget_psd_slices).
   void resize_canvas(std::int32_t width, std::int32_t height);
   [[nodiscard]] LayerId allocate_layer_id() noexcept;
   [[nodiscard]] ChannelId allocate_channel_id();
@@ -228,5 +229,11 @@ private:
   ChannelId next_channel_id_{1};
   DocumentPathId next_path_id_{1};
 };
+
+// Photoshop slices (image resource 1050, Slices, and 1054, the slice URL list) are canvas
+// rectangles kept byte for byte from the imported file. A crop, resize, rotation, flip or
+// canvas size change makes them stale, so every whole-document geometry change drops them
+// and Photoshop rebuilds its default slice on open (docs/ps-compat.md, "Slices").
+void forget_psd_slices(Document& document);
 
 }  // namespace patchy

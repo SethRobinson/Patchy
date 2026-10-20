@@ -10905,6 +10905,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>&amp;Cancel</source>
         <translation>&amp;Annulla</translation>
     </message>
+    <message>
+        <source>Smart Filters actions</source>
+        <translation>Azioni filtri avanzati</translation>
+    </message>
+    <message>
+        <source>Delete All Smart Filters</source>
+        <translation>Elimina tutti i filtri avanzati</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t render every Smart Filter that would then run. Photoshop renders them when the file is opened there.</source>
+        <translation>Patchy non può elaborare tutti i filtri avanzati che verrebbero applicati. Photoshop li elabora quando il file viene aperto lì.</translation>
+    </message>
+    <message>
+        <source>Hiding this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or hide all Smart Filters.</source>
+        <translation>Nascondere questo filtro lascerebbe attivi filtri avanzati che Patchy non può elaborare. Nascondi o elimina prima quelli, oppure nascondi tutti i filtri avanzati.</translation>
+    </message>
+    <message>
+        <source>Deleting this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or delete all Smart Filters.</source>
+        <translation>Eliminare questo filtro lascerebbe attivi filtri avanzati che Patchy non può elaborare. Nascondi o elimina prima quelli, oppure elimina tutti i filtri avanzati.</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t edit this filter&apos;s settings. It is preserved unchanged.</source>
+        <translation>Patchy non può modificare le impostazioni di questo filtro. Viene conservato invariato.</translation>
+    </message>
+    <message>
+        <source>This stack runs Smart Filters that Patchy can&apos;t render, so their settings can&apos;t change here. Hide or delete those filters first.</source>
+        <translation>Questa pila applica filtri avanzati che Patchy non può elaborare, quindi le loro impostazioni non si possono cambiare qui. Nascondi o elimina prima quei filtri.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22465,6 +22493,34 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
         <translation>Non chiedere più</translation>
     </message>
     <message>
+        <source>Color</source>
+        <translation>Colore</translation>
+    </message>
+    <message>
+        <source>Orange</source>
+        <translation>Arancione</translation>
+    </message>
+    <message>
+        <source>Violet</source>
+        <translation>Viola</translation>
+    </message>
+    <message>
+        <source>Gray</source>
+        <translation>Grigio</translation>
+    </message>
+    <message>
+        <source>Layer color</source>
+        <translation>Colore del livello</translation>
+    </message>
+    <message>
+        <source>Delete All Smart Filters</source>
+        <translation>Elimina tutti i filtri avanzati</translation>
+    </message>
+    <message>
+        <source>Deleted all Smart Filters</source>
+        <translation>Tutti i filtri avanzati eliminati</translation>
+    </message>
+    <message>
         <source>Transform</source>
         <translation>Trasforma</translation>
     </message>
@@ -24220,6 +24276,10 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
     <message>
         <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
         <translation>Pannello sconosciuto &quot;%1&quot;. Pannelli: %2.</translation>
+    </message>
+    <message>
+        <source>Unknown layer color label: %1</source>
+        <translation>Colore del livello sconosciuto: %1</translation>
     </message>
     <message>
         <source>layer.transform needs {matrix} or {quad}, not both.</source>

@@ -25,7 +25,9 @@
 #include <QLabel>
 #include <QLatin1Char>
 #include <QLineEdit>
+#include <QActionGroup>
 #include <QMenu>
+#include <QPainter>
 #include <QMessageBox>
 #include <QMimeData>
 #include <QObject>
@@ -2868,6 +2870,119 @@ void MainWindow::delete_selected_layer_styles() {
       tr("Deleted layer style from %1 layer(s)").arg(static_cast<qulonglong>(deleted_count)));
 }
 
+void MainWindow::populate_layer_color_actions(QMenu* menu) {
+  if (layer_color_actions_.front() == nullptr) {
+    struct ColorEntry {
+      const char* text;
+      const char* object_name;
+      const char* hotkey_id;
+      QColor ThemePalette::* role;
+    };
+    // Indexed by LayerColorLabel; the hotkey ids are permanent.
+    const std::array<ColorEntry, kLayerColorLast + 1U> entries{{
+        {QT_TR_NOOP("None"), "layerColorNoneAction", "layer.color_none", nullptr},
+        {QT_TR_NOOP("Red"), "layerColorRedAction", "layer.color_red", &ThemePalette::layer_color_red},
+        {QT_TR_NOOP("Orange"), "layerColorOrangeAction", "layer.color_orange", &ThemePalette::layer_color_orange},
+        {QT_TR_NOOP("Yellow"), "layerColorYellowAction", "layer.color_yellow", &ThemePalette::layer_color_yellow},
+        {QT_TR_NOOP("Green"), "layerColorGreenAction", "layer.color_green", &ThemePalette::layer_color_green},
+        {QT_TR_NOOP("Blue"), "layerColorBlueAction", "layer.color_blue", &ThemePalette::layer_color_blue},
+        {QT_TR_NOOP("Violet"), "layerColorVioletAction", "layer.color_violet", &ThemePalette::layer_color_violet},
+        {QT_TR_NOOP("Gray"), "layerColorGrayAction", "layer.color_gray", &ThemePalette::layer_color_gray},
+    }};
+    // Optional exclusivity: a mixed selection checks nothing.
+    auto* group = new QActionGroup(this);
+    group->setExclusionPolicy(QActionGroup::ExclusionPolicy::ExclusiveOptional);
+    for (std::size_t index = 0; index < entries.size(); ++index) {
+      const auto& entry = entries[index];
+      auto* action = new QAction(tr(entry.text), this);
+      action->setObjectName(QLatin1String(entry.object_name));
+      action->setCheckable(true);
+      action->setMenuRole(QAction::NoRole);
+      bind_action_text(action, entry.text);
+      if (entry.role != nullptr) {
+        // A swatch in the label's own role, so menu and row strip always agree.
+        action->setIcon(themed_glyph_icon(QStringLiteral("layer-color-%1").arg(index), 16.0, entry.role,
+                                          [](QPainter& painter, const QColor& ink) {
+                                            painter.setPen(Qt::NoPen);
+                                            painter.setBrush(ink);
+                                            painter.drawRoundedRect(QRectF(2.0, 2.0, 12.0, 12.0), 2.5, 2.5);
+                                          }));
+      }
+      group->addAction(action);
+      register_hotkey(action, QLatin1String(entry.hotkey_id));
+      register_document_action(action);
+      const auto label = static_cast<LayerColorLabel>(index);
+      connect(action, &QAction::triggered, this, [this, label] { set_selected_layers_color(label); });
+      layer_color_actions_[index] = action;
+    }
+  }
+  for (auto* action : layer_color_actions_) {
+    menu->addAction(action);
+    if (action == layer_color_actions_.front()) {
+      menu->addSeparator();
+    }
+  }
+}
+
+void MainWindow::refresh_layer_color_action_states() {
+  std::optional<LayerColorLabel> common;
+  bool mixed = false;
+  bool any = false;
+  if (has_active_document() && !preview_dialog_edit_locked()) {
+    const auto& doc = std::as_const(document());
+    for (const auto id : selected_or_active_layer_ids()) {
+      const auto* layer = doc.find_layer(id);
+      if (layer == nullptr) {
+        continue;
+      }
+      any = true;
+      // An index Patchy does not know shows as no color.
+      const auto label = layer->color_label() <= kLayerColorLast ? layer->color_label() : kLayerColorNone;
+      mixed = mixed || (common.has_value() && *common != label);
+      common = label;
+    }
+  }
+  for (std::size_t index = 0; index < layer_color_actions_.size(); ++index) {
+    if (auto* action = layer_color_actions_[index]; action != nullptr) {
+      // Enabled state stays with the document-action registry, so hotkeys work.
+      action->setChecked(any && !mixed && common == static_cast<LayerColorLabel>(index));
+    }
+  }
+}
+
+void MainWindow::set_selected_layers_color(LayerColorLabel label) {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  if (!has_active_document()) {
+    return;
+  }
+  const auto ids = selected_or_active_layer_ids();
+  auto& doc = document();
+  const bool changes = std::any_of(ids.begin(), ids.end(), [&](LayerId id) {
+    const auto* layer = std::as_const(doc).find_layer(id);
+    return layer != nullptr && layer->color_label() != label;
+  });
+  if (!changes) {
+    refresh_layer_color_action_states();
+    return;
+  }
+  // A label is no pixel edit: locked layers take one too, as in Photoshop.
+  push_undo_snapshot(tr("Layer color"));
+  for (const auto id : ids) {
+    if (auto* layer = doc.find_layer(id); layer != nullptr) {
+      layer->set_color_label(label);
+    }
+  }
+  const auto active = doc.active_layer_id();
+  refresh_layer_list();
+  if (!ids.empty()) {
+    select_layers_in_layer_list(ids, active.value_or(ids.front()));
+  }
+  refresh_layer_color_action_states();
+}
+
 void MainWindow::refresh_layer_style_action_states() {
   bool can_copy = false;
   bool can_paste = false;
@@ -3081,6 +3196,11 @@ void MainWindow::show_layer_context_menu(QPoint position) {
                      group_target ? tr("Duplicate Group to Document...") : tr("Duplicate Layer to Document..."));
   auto* rename_action = menu.addAction(simple_icon(QStringLiteral("RN")),
                                        group_target ? tr("Rename Group...") : tr("Rename Layer..."));
+  // The Layer menu's color labels (GitHub issue 244), on the same shared actions.
+  auto* color_menu = menu.addMenu(tr("Color"));
+  color_menu->setObjectName(QStringLiteral("layerContextColorMenu"));
+  populate_layer_color_actions(color_menu);
+  refresh_layer_color_action_states();
   auto* delete_action = menu.addAction(simple_icon(QStringLiteral("trash")),
                                        group_target ? tr("Delete Group") : tr("Delete Layer"));
   QAction* ungroup_action = nullptr;
