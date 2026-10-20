@@ -1089,6 +1089,8 @@ void psd_issue_244_sample_layer_colors_if_available() {
   const auto resaved = std::filesystem::path("test-artifacts") / "issue-244-sample-resaved.psd";
   patchy::psd::DocumentIo::write_layered_rgb8_file(document, resaved);
   expect_colors(patchy::psd::DocumentIo::read_file(resaved));
+}
+
 // Photoshop's lspf (PS 2026 capture, GitHub issues 245 and 246): Lock All is 0x80000000 with
 // the three single locks clear, Prevent Auto Nesting is 0x8. A file's value comes back
 // exactly while the locks are unchanged; an edit keeps the Prevent Auto Nesting bit.
