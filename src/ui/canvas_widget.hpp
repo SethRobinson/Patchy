@@ -54,9 +54,6 @@
 #include <QSize>
 #include <QString>
 #include <QStringList>
-#ifdef PATCHY_GPU_CANVAS
-#include <QOpenGLWidget>
-#endif
 #include <QWidget>
 
 #include <array>
@@ -122,11 +119,7 @@ inline constexpr char kMoveAutoSelectTargetSettingsKey[] = "tools/moveAutoSelect
 [[nodiscard]] QString move_auto_select_target_token(MoveAutoSelectTarget target);
 [[nodiscard]] MoveAutoSelectTarget move_auto_select_target_from_token(const QString& token);
 
-#ifdef PATCHY_GPU_CANVAS
-class CanvasWidget final : public QOpenGLWidget {
-#else
 class CanvasWidget final : public QWidget {
-#endif
   Q_OBJECT
 
 public:
