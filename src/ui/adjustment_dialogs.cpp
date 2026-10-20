@@ -8,10 +8,12 @@
 #include "formats/acv_curves_io.hpp"
 #include "ui/blend_mode_ui.hpp"
 #include "ui/coalesced_preview_emitter.hpp"
+#include "ui/color_panel.hpp"
 #include "ui/curves_editor.hpp"
 #include "ui/curves_presets.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/qt_paths.hpp"
+#include "ui/theme_qss.hpp"
 #include "ui/filter_workflows_internal.hpp"
 
 #include <QAbstractItemView>
@@ -34,6 +36,7 @@
 #include <QPainter>
 #include <QPaintEvent>
 #include <QPixmap>
+#include <QPointer>
 #include <QPolygonF>
 #include <QPushButton>
 #include <QRect>
@@ -1612,6 +1615,73 @@ std::optional<ChannelMixerSettings> request_channel_mixer_settings(
                            show_row(dialog, *state, spins);
                            flush_preview();
                          });
+      });
+}
+
+std::optional<PhotoFilterSettings> request_photo_filter_settings(
+    QWidget* parent, std::function<void(bool, const PhotoFilterSettings&)> preview_changed,
+    PhotoFilterSettings initial) {
+  // Color and Preserve Luminosity live outside the slider rows; the density spin is the
+  // only row, so build_settings reads the rest from this shared state.
+  auto state = std::make_shared<PhotoFilterSettings>(clamp_photo_filter(initial));
+  const auto build_settings = [state](const std::vector<QSpinBox*>& spins) {
+    auto settings = *state;
+    settings.density = spins.front()->value();
+    return clamp_photo_filter(settings);
+  };
+  return request_adjustment_settings_dialog<PhotoFilterSettings>(
+      parent, QStringLiteral("patchyPhotoFilterDialog"), QObject::tr("Photo Filter"),
+      QStringLiteral("photoFilterPreviewCheck"),
+      {{QObject::tr("Density"), QStringLiteral("photoFilterDensity"), 1, 100, state->density, QStringLiteral(" %")}},
+      build_settings, std::move(preview_changed), {},
+      [state](QDialog& dialog, QFormLayout* form, const std::vector<QSpinBox*>&,
+              const std::function<void()>& flush_preview) {
+        auto* swatch = new QPushButton(&dialog);
+        swatch->setObjectName(QStringLiteral("photoFilterColorButton"));
+        swatch->setAccessibleName(QObject::tr("Filter color"));
+        const auto show = [swatch, state] {
+          const auto color = photo_filter_color(*state);
+          set_themed_style(*swatch, color_button_style(QColor(color.red, color.green, color.blue)));
+        };
+        show();
+        form->insertRow(0, QObject::tr("Filter Color:"), swatch);
+
+        auto* preserve = new QCheckBox(QObject::tr("Preserve Luminosity"), &dialog);
+        preserve->setObjectName(QStringLiteral("photoFilterPreserveCheck"));
+        preserve->setChecked(state->preserve_luminosity);
+        form->addRow(QString(), preserve);
+
+        QObject::connect(preserve, &QCheckBox::toggled, &dialog, [state, flush_preview](bool checked) {
+          state->preserve_luminosity = checked;
+          flush_preview();
+        });
+        QObject::connect(swatch, &QPushButton::clicked, &dialog, [&dialog, swatch, state, show, flush_preview] {
+          // Picks preview live; Cancel puts the original color back.
+          const QPointer<QPushButton> alive(swatch);
+          const auto original = *state;
+          const auto apply = [alive, state, show, flush_preview](QColor picked) {
+            if (alive == nullptr) {
+              return;
+            }
+            *state = photo_filter_with_color(*state, RgbColor{static_cast<std::uint8_t>(picked.red()),
+                                                              static_cast<std::uint8_t>(picked.green()),
+                                                              static_cast<std::uint8_t>(picked.blue())});
+            show();
+            flush_preview();
+          };
+          const auto current = photo_filter_color(original);
+          const auto picked = request_patchy_color(&dialog, QColor(current.red, current.green, current.blue),
+                                                   QObject::tr("Filter Color"), apply);
+          if (picked.has_value()) {
+            apply(*picked);
+          } else if (alive != nullptr) {
+            state->lab_l = original.lab_l;
+            state->lab_a = original.lab_a;
+            state->lab_b = original.lab_b;
+            show();
+            flush_preview();
+          }
+        });
       });
 }
 

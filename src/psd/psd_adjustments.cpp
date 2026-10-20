@@ -503,7 +503,7 @@ std::vector<std::uint8_t> photoshop_color_balance_payload(const ColorBalanceAdju
 // 'mixr' (RGB documents): u16 version (1), u16 monochrome, then four rows of five int16
 // (red, green, blue, an unused ink slot, constant). Rows 0..2 are the red, green and blue
 // outputs; with monochrome on, Photoshop keeps the gray mix in row 0 (layout pinned by the
-// #250 probe; docs/adjustments-calibration.md, "Channel Mixer").
+// #250 probe; docs/adjustment-kinds.md, "Channel Mixer").
 constexpr std::size_t kChannelMixerRowBytes = 10;
 constexpr std::size_t kChannelMixerPayloadBytes = 4 + 4 * kChannelMixerRowBytes;
 
@@ -569,6 +569,61 @@ std::vector<std::uint8_t> photoshop_channel_mixer_payload(const ChannelMixerAdju
     put_row(1, settings.green);
     put_row(2, settings.blue);
   }
+  return payload;
+}
+
+// 'phfl' version 2 (20 bytes): u16 version, u16 color space (7 = Lab), four u16 color
+// components (L in hundredths 0..10000, then a and b as int16 hundredths, then 0), u32
+// density percent, u8 preserve luminosity, 3 pad bytes. Layout pinned by the #250 probe
+// (docs/adjustment-kinds.md, "Photo Filter"). Other versions and color spaces stay
+// placeholders, written back unchanged.
+constexpr std::size_t kPhotoFilterPayloadBytes = 20;
+constexpr std::uint16_t kPhotoFilterLabColorSpace = 7;
+
+std::optional<AdjustmentSettings> parse_photoshop_photo_filter_adjustment(std::span<const std::uint8_t> payload) {
+  if (payload.size() < 17) {
+    return std::nullopt;
+  }
+  BigEndianReader reader(payload);
+  if (reader.read_u16() != 2U || reader.read_u16() != kPhotoFilterLabColorSpace) {
+    return std::nullopt;
+  }
+  AdjustmentSettings settings;
+  settings.kind = AdjustmentKind::PhotoFilter;
+  auto& filter = settings.photo_filter;
+  filter.lab_l = reader.read_u16();
+  filter.lab_a = static_cast<std::int16_t>(reader.read_u16());
+  filter.lab_b = static_cast<std::int16_t>(reader.read_u16());
+  reader.skip(2);
+  filter.density = static_cast<int>(std::min<std::uint32_t>(reader.read_u32(), 100U));
+  filter.preserve_luminosity = reader.read_u8() != 0U;
+  filter = clamp_photo_filter(filter);
+  return settings;
+}
+
+std::vector<std::uint8_t> photoshop_photo_filter_payload(const PhotoFilterAdjustment& settings,
+                                                         const UnknownPsdBlock* original) {
+  std::vector<std::uint8_t> payload;
+  if (original != nullptr && original->payload.size() >= kPhotoFilterPayloadBytes) {
+    payload = original->payload;
+  } else {
+    payload.assign(kPhotoFilterPayloadBytes, 0U);
+  }
+  const auto filter = clamp_photo_filter(settings);
+  const auto put16 = [&payload](std::size_t offset, int value) {
+    const auto encoded = static_cast<std::uint16_t>(static_cast<std::int16_t>(value));
+    payload[offset] = static_cast<std::uint8_t>(encoded >> 8U);
+    payload[offset + 1] = static_cast<std::uint8_t>(encoded & 0xFFU);
+  };
+  put16(0, 2);
+  put16(2, kPhotoFilterLabColorSpace);
+  put16(4, filter.lab_l);
+  put16(6, filter.lab_a);
+  put16(8, filter.lab_b);
+  put16(10, 0);
+  put16(12, 0);
+  put16(14, filter.density);
+  payload[16] = filter.preserve_luminosity ? 1U : 0U;
   return payload;
 }
 

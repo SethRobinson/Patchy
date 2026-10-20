@@ -1,6 +1,7 @@
 #include <QStatusBar>
 
 #include "ui/canvas_widget.hpp"
+#include "ui/color_panel.hpp"
 #include "ui/qt_paths.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/layer_tree.hpp"
@@ -20,6 +21,7 @@
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
 #include "formats/af_document_io.hpp"
+#include <QAction>
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
@@ -32,6 +34,7 @@
 #include <QItemSelectionModel>
 #include <QLabel>
 #include <QListWidget>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QProgressDialog>
 #include <QPushButton>
@@ -3359,9 +3362,9 @@ void ui_af_colour_balance_matches_affinity_render_if_available() {
     for (int x = 0; x < reference.width(); ++x) {
       const auto* rendered = flat.pixel(x, y);
       const auto expected = reference.pixelColor(x, y);
-      for (const auto [channel, value] : {std::pair{0, expected.red()}, std::pair{1, expected.green()},
-                                          std::pair{2, expected.blue()}}) {
-        const auto difference = std::abs(static_cast<int>(rendered[channel]) - value);
+      const std::array<int, 3> channels{expected.red(), expected.green(), expected.blue()};
+      for (std::size_t channel = 0; channel < channels.size(); ++channel) {
+        const auto difference = std::abs(static_cast<int>(rendered[channel]) - channels[channel]);
         sum += difference;
         worst = std::max(worst, difference);
       }
@@ -3422,13 +3425,93 @@ void ui_adjustment_placeholders_name_their_kind_in_layers_panel() {
         static_cast<qint64>(resaved.size()));
   resave_file.close();
   const auto tooltips = placeholder_tooltips(window);
-  CHECK(tooltips.size() == 6);
-  for (const auto* kind : {"Vibrance", "Black & White", "Photo Filter", "Color Lookup", "Gradient Map",
-                           "Selective Color"}) {
+  CHECK(tooltips.size() == 5);
+  for (const auto* kind : {"Vibrance", "Black & White", "Color Lookup", "Gradient Map", "Selective Color"}) {
     CHECK(std::any_of(tooltips.begin(), tooltips.end(), [kind](const QString& tooltip) {
       return tooltip.startsWith(QString::fromUtf8(kind) + QStringLiteral(" adjustment"));
     }));
   }
+}
+
+// Both New Adjustment Layer menus (Layer > New Adjustment Layer and the Layers panel's
+// footer button) offer the kind (#250, #252).
+void check_adjustment_kind_in_both_menus(patchy::ui::MainWindow& window, const char* action_key,
+                                         const QString& menu_text) {
+  CHECK(window.findChild<QAction*>(QStringLiteral("layerNew") + QString::fromUtf8(action_key) +
+                                   QStringLiteral("Action")) != nullptr);
+  auto* footer = window.findChild<QMenu*>(QStringLiteral("layerNewAdjustmentButtonMenu"));
+  CHECK(footer != nullptr);
+  if (footer == nullptr) {
+    return;
+  }
+  const auto actions = footer->actions();
+  CHECK(std::any_of(actions.begin(), actions.end(),
+                    [&menu_text](const QAction* action) { return action->text() == menu_text; }));
+}
+
+// The Photo Filter dialog starts on Photoshop's warming color at 25 % with Preserve
+// Luminosity on; its swatch opens Patchy's own picker, and the picked color, density and
+// checkbox all land on the new adjustment layer as Photoshop's Lab (#250).
+void ui_photo_filter_dialog_picks_color_and_density() {
+  patchy::Document source(32, 24, patchy::PixelFormat::rgba8());
+  source.add_pixel_layer("Paint", solid_pixels(32, 24, patchy::PixelFormat::rgba8(), QColor(200, 120, 40)));
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(source), QStringLiteral("Filter"));
+  show_window(window);
+  check_adjustment_kind_in_both_menus(window, "PhotoFilterAdjustment", QObject::tr("Photo &Filter..."));
+
+  bool dialog_checked = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyPhotoFilterDialog")));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* swatch = dialog->findChild<QPushButton*>(QStringLiteral("photoFilterColorButton"));
+    auto* density = dialog->findChild<QSpinBox*>(QStringLiteral("photoFilterDensitySpin"));
+    auto* preserve = dialog->findChild<QCheckBox*>(QStringLiteral("photoFilterPreserveCheck"));
+    CHECK(swatch != nullptr && density != nullptr && preserve != nullptr);
+    if (swatch == nullptr || density == nullptr || preserve == nullptr) {
+      dialog->reject();
+      return;
+    }
+    CHECK(density->value() == 25);
+    CHECK(density->minimum() == 1 && density->maximum() == 100);
+    CHECK(preserve->isChecked());
+    density->setValue(63);
+    preserve->setChecked(false);
+    QTimer::singleShot(0, [] {
+      auto* picker_dialog = find_top_level_dialog(QStringLiteral("patchyColorDialog"));
+      CHECK(picker_dialog != nullptr);
+      if (picker_dialog == nullptr) {
+        return;
+      }
+      CHECK(patchy::ui::apply_color_to_open_color_picker(QColor(40, 200, 120)));
+      picker_dialog->accept();
+    });
+    swatch->click();
+    save_widget_artifact("ui_photo_filter_dialog", *dialog);
+    dialog_checked = true;
+    dialog->accept();
+  });
+  require_action(window, "layerNewPhotoFilterAdjustmentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(dialog_checked);
+
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  CHECK(document.active_layer_id().has_value());
+  const auto* layer = document.find_layer(*document.active_layer_id());
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return;
+  }
+  const auto settings = patchy::adjustment_settings_from_layer(*layer);
+  CHECK(settings.has_value());
+  CHECK(settings->kind == patchy::AdjustmentKind::PhotoFilter);
+  CHECK(settings->photo_filter.lab_l == 7157 && settings->photo_filter.lab_a == -5502 &&
+        settings->photo_filter.lab_b == 2828);
+  CHECK(settings->photo_filter.density == 63);
+  CHECK(!settings->photo_filter.preserve_luminosity);
 }
 
 // The Channel Mixer dialog edits one output row at a time: the Output Channel combo picks
@@ -3440,6 +3523,7 @@ void ui_channel_mixer_dialog_edits_each_output_row() {
   patchy::ui::MainWindow window;
   window.add_document_session(std::move(source), QStringLiteral("Mixer"));
   show_window(window);
+  check_adjustment_kind_in_both_menus(window, "ChannelMixerAdjustment", QObject::tr("Channel &Mixer..."));
 
   bool dialog_checked = false;
   QTimer::singleShot(0, [&] {
@@ -3722,6 +3806,7 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
       {"ui_color_balance_dialog_adjusts_selected_pixels", ui_color_balance_dialog_adjusts_selected_pixels},
       {"ui_color_balance_dialog_tone_selector_edits_each_range", ui_color_balance_dialog_tone_selector_edits_each_range},
       {"ui_channel_mixer_dialog_edits_each_output_row", ui_channel_mixer_dialog_edits_each_output_row},
+      {"ui_photo_filter_dialog_picks_color_and_density", ui_photo_filter_dialog_picks_color_and_density},
       {"ui_adjustment_placeholders_name_their_kind_in_layers_panel",
        ui_adjustment_placeholders_name_their_kind_in_layers_panel},
       {"ui_af_colour_balance_matches_affinity_render_if_available",

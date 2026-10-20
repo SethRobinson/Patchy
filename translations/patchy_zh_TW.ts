@@ -10971,6 +10971,26 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Channel Mixer: monochrome %1 / %2 / %3, constant %4</source>
         <translation>色版混合器: 單色 %1 / %2 / %3，常數 %4</translation>
     </message>
+    <message>
+        <source>Density</source>
+        <translation>濃度</translation>
+    </message>
+    <message>
+        <source>Filter color</source>
+        <translation>濾鏡顏色</translation>
+    </message>
+    <message>
+        <source>Filter Color:</source>
+        <translation>濾鏡顏色:</translation>
+    </message>
+    <message>
+        <source>Filter Color</source>
+        <translation>濾鏡顏色</translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation>相片濾鏡: 濃度 %1%</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22553,6 +22573,18 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Channel Mixer</source>
         <translation>已取消色版混合器</translation>
+    </message>
+    <message>
+        <source>Photo &amp;Filter...</source>
+        <translation>相片濾鏡(&amp;F)...</translation>
+    </message>
+    <message>
+        <source>Photo Filter</source>
+        <translation>相片濾鏡</translation>
+    </message>
+    <message>
+        <source>Cancelled Photo Filter</source>
+        <translation>已取消相片濾鏡</translation>
     </message>
 </context>
 <context>

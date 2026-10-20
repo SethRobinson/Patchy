@@ -3138,10 +3138,13 @@ void color_balance_tones_round_trip_metadata_and_blnc() {
 // name their kind, raise one import notice, render nothing, and write their native block
 // back byte for byte (#250).
 void psd_unsupported_adjustments_import_as_placeholders_and_round_trip() {
-  const std::array<std::pair<std::array<char, 4>, const char*>, 6> kinds{{
+  // Photo Filter and Channel Mixer have real kinds, but a block version their parsers do not
+  // read (this 8-byte stub) still imports as a placeholder.
+  const std::array<std::pair<std::array<char, 4>, const char*>, 7> kinds{{
       {{'v', 'i', 'b', 'A'}, "vibrance"},
       {{'b', 'l', 'w', 'h'}, "black_white"},
       {{'p', 'h', 'f', 'l'}, "photo_filter"},
+      {{'m', 'i', 'x', 'r'}, "channel_mixer"},
       {{'c', 'l', 'r', 'L'}, "color_lookup"},
       {{'g', 'r', 'd', 'm'}, "gradient_map"},
       {{'s', 'e', 'l', 'c'}, "selective_color"},
@@ -3242,6 +3245,136 @@ void channel_mixer_matches_photoshop_2026_calibration() {
   CHECK(patchy::channel_mixer_weight(20) == 204);
   CHECK(patchy::channel_mixer_weight(-71) == -727);
   CHECK(patchy::channel_mixer_weight(-200) == -2048);
+}
+
+// Photo Filter reads and writes Photoshop's 'phfl' block (#250): version 2 with a Lab color,
+// a density and Preserve Luminosity. An unedited block re-emits byte for byte, an edit
+// rewrites only the modeled fields, and a version the parser does not read stays a
+// placeholder.
+void psd_photo_filter_reads_and_writes_phfl() {
+  // Photoshop 2026's own block for sRGB (236, 138, 0) at 25 % with Preserve Luminosity on.
+  const std::vector<std::uint8_t> payload{0x00, 0x02, 0x00, 0x07, 0x1A, 0x3F, 0x0C, 0xF2, 0x1C, 0x6F,
+                                          0x00, 0x00, 0x00, 0x00, 0x00, 0x19, 0x01, 0x00, 0x00, 0x00};
+  auto document = patchy::psd::DocumentIo::read(single_adjustment_layer_psd({{{'p', 'h', 'f', 'l'}, payload}}));
+  CHECK(document.layers().size() == 1);
+  CHECK(document.layers().front().kind() == patchy::LayerKind::Adjustment);
+  const auto settings = patchy::adjustment_settings_from_layer(document.layers().front());
+  CHECK(settings.has_value());
+  CHECK(settings->kind == patchy::AdjustmentKind::PhotoFilter);
+  const auto& filter = settings->photo_filter;
+  CHECK(filter.lab_l == 6719 && filter.lab_a == 3314 && filter.lab_b == 7279);
+  CHECK(filter.density == 25);
+  CHECK(filter.preserve_luminosity);
+  CHECK(filter == patchy::PhotoFilterAdjustment{});  // Photoshop's default is Patchy's default
+  const auto color = patchy::photo_filter_color(filter);
+  CHECK(color.red == 236 && color.green == 138 && color.blue == 0);
+  // The swatch path stores the same Lab Photoshop does for this color.
+  CHECK(patchy::photo_filter_with_color({}, patchy::RgbColor{236, 138, 0}) == filter);
+  const auto red = patchy::photo_filter_with_color({}, patchy::RgbColor{255, 0, 0});
+  CHECK(red.lab_l == 5429 && red.lab_a == 8081 && red.lab_b == 6989);
+
+  const auto unedited = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  CHECK(psd_layer_block_payload(psd_layer_extra_data(unedited, 0), "phfl") == payload);
+
+  auto edited = *settings;
+  edited.photo_filter.density = 63;
+  edited.photo_filter.preserve_luminosity = false;
+  patchy::configure_adjustment_layer(document.layers().front(), edited);
+  const auto rewritten = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  auto expected = payload;
+  expected[15] = 63;
+  expected[16] = 0;
+  CHECK(psd_layer_block_payload(psd_layer_extra_data(rewritten, 0), "phfl") == expected);
+  const auto reread = patchy::adjustment_settings_from_layer(patchy::psd::DocumentIo::read(rewritten).layers().front());
+  CHECK(reread.has_value());
+  CHECK(reread->photo_filter == edited.photo_filter);
+
+  // A fresh layer writes Photoshop's 20-byte shape.
+  patchy::AdjustmentSettings fresh;
+  fresh.kind = patchy::AdjustmentKind::PhotoFilter;
+  fresh.photo_filter = patchy::photo_filter_with_color({}, patchy::RgbColor{40, 200, 120});
+  fresh.photo_filter.density = 63;
+  patchy::Document created(4, 4, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(created.allocate_layer_id(), "Photo Filter", patchy::LayerKind::Adjustment);
+  layer.set_bounds(patchy::Rect::from_size(4, 4));
+  patchy::configure_adjustment_layer(layer, fresh);
+  created.add_layer(std::move(layer));
+  const auto fresh_bytes = psd_layer_block_payload(
+      psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(created), 0), "phfl");
+  CHECK(fresh_bytes.has_value());
+  CHECK((*fresh_bytes == std::vector<std::uint8_t>{0x00, 0x02, 0x00, 0x07, 0x1B, 0xF5, 0xEA, 0x82, 0x0B, 0x0C,
+                                                   0x00, 0x00, 0x00, 0x00, 0x00, 0x3F, 0x01, 0x00, 0x00, 0x00}));
+
+  // Version 3 is not read: the layer stays a Photo Filter placeholder with its block kept.
+  auto version3 = payload;
+  version3[1] = 0x03;
+  const auto placeholder =
+      patchy::psd::DocumentIo::read(single_adjustment_layer_psd({{{'p', 'h', 'f', 'l'}, version3}}));
+  CHECK(patchy::adjustment_placeholder_kind(placeholder.layers().front()) == "photo_filter");
+  CHECK(psd_layer_block_payload(psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(placeholder), 0),
+                                "phfl") == version3);
+}
+
+// Photo Filter output pinned to Photoshop 2026 (#250). The filter scales each XYZ (D50)
+// component toward the filter color's by the density; Preserve Luminosity restores the
+// source luma with PDF SetLum. These inputs match Photoshop to the level except a few bright
+// clipped colors (one level); the calibration note records the wider clip gap.
+void photo_filter_matches_photoshop_2026_calibration() {
+  using Triple = std::array<int, 3>;
+  struct Row {
+    Triple lab;
+    int density;
+    bool preserve;
+    std::array<Triple, 7> expected;
+  };
+  const std::array<Triple, 7> inputs{
+      {{17, 68, 204}, {136, 136, 136}, {51, 170, 238}, {204, 102, 34}, {255, 255, 255}, {0, 102, 34}, {238, 34, 255}}};
+  const std::array<Row, 7> rows{{
+      {{6719, 3314, 7279}, 25, false,
+       {{{50, 59, 180}, {133, 124, 119}, {80, 155, 210}, {194, 90, 26}, {250, 233, 225}, {17, 93, 27}, {230, 0, 226}}}},
+      {{5429, 8081, 6989}, 100, false,
+       {{{99, 0, 25}, {136, 0, 0}, {145, 38, 20}, {163, 0, 0}, {255, 0, 0}, {57, 36, 0}, {209, 0, 40}}}},
+      {{7157, -5502, 2828}, 63, false,
+       {{{0, 61, 151}, {87, 118, 97}, {0, 145, 175}, {146, 96, 7}, {166, 222, 186}, {0, 85, 17}, {174, 69, 189}}}},
+      {{6719, 3314, 7279}, 25, true,
+       {{{48, 57, 178}, {143, 134, 129}, {83, 158, 213}, {205, 101, 37}, {255, 255, 255}, {18, 94, 28}, {255, 28, 251}}}},
+      {{5429, 8081, 6989}, 100, true,
+       {{{135, 36, 61}, {231, 95, 95}, {219, 112, 94}, {239, 76, 76}, {255, 255, 255}, {83, 62, 26}, {255, 57, 95}}}},
+      {{7157, -5502, 2828}, 63, true,
+       {{{15, 76, 166}, {117, 148, 127}, {37, 182, 212}, {170, 120, 31}, {255, 255, 255}, {12, 97, 29}, {180, 75, 195}}}},
+      {{4829, 1981, -8106}, 50, true,
+       {{{14, 68, 213}, {128, 135, 166}, {51, 167, 255}, {189, 102, 71}, {255, 255, 255}, {14, 92, 54}, {188, 61, 255}}}},
+  }};
+  int exact = 0;
+  int total = 0;
+  for (const auto& row : rows) {
+    patchy::AdjustmentSettings settings;
+    settings.kind = patchy::AdjustmentKind::PhotoFilter;
+    settings.photo_filter = patchy::PhotoFilterAdjustment{row.lab[0], row.lab[1], row.lab[2], row.density, row.preserve};
+    CHECK(!patchy::build_adjustment_lut(settings).has_value());  // XYZ mixes channels
+    const patchy::DeepAdjuster deep(settings, patchy::DeepDomain::Encoded);
+    for (std::size_t index = 0; index < inputs.size(); ++index) {
+      const auto& in = inputs[index];
+      const patchy::RgbColor color{static_cast<std::uint8_t>(in[0]), static_cast<std::uint8_t>(in[1]),
+                                   static_cast<std::uint8_t>(in[2])};
+      const auto adjusted = patchy::apply_adjustment_to_color(color, settings);
+      const auto& expected = row.expected[index];
+      const std::array<int, 3> got{adjusted.red, adjusted.green, adjusted.blue};
+      const auto deep_out = deep.apply({static_cast<float>(in[0]), static_cast<float>(in[1]),
+                                        static_cast<float>(in[2])});
+      for (std::size_t c = 0; c < 3U; ++c) {
+        CHECK(std::abs(got[c] - expected[c]) <= 1);
+        exact += got[c] == expected[c] ? 1 : 0;
+        ++total;
+        // The deep path skips the 8-bit stage rounding, which can move a level or two.
+        CHECK(std::abs(static_cast<double>(deep_out[c]) - expected[c]) <= 2.5);
+      }
+    }
+  }
+  // The model misses five of these channel values, each by one level, all on bright colors
+  // where Preserve Luminosity clips.
+  std::cout << "[INFO] Photo Filter calibration: " << exact << " of " << total << " channel values exact\n";
+  CHECK(exact >= total - 5);
 }
 
 // Channel Mixer reads and writes Photoshop's 'mixr' block: the rows land on the right
@@ -3446,5 +3579,7 @@ std::vector<patchy::test::TestCase> adjustments_curves_tests() {
        psd_unsupported_adjustments_import_as_placeholders_and_round_trip},
       {"psd_channel_mixer_reads_and_writes_mixr", psd_channel_mixer_reads_and_writes_mixr},
       {"channel_mixer_matches_photoshop_2026_calibration", channel_mixer_matches_photoshop_2026_calibration},
+      {"psd_photo_filter_reads_and_writes_phfl", psd_photo_filter_reads_and_writes_phfl},
+      {"photo_filter_matches_photoshop_2026_calibration", photo_filter_matches_photoshop_2026_calibration},
   };
 }

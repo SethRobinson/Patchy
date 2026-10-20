@@ -143,6 +143,7 @@ constexpr std::array<char, 4> kPhotoshopBrightnessContrastDescriptorBlockKey{'C'
 // luminosity u8, pad u8. Patchy models the midtones triple only.
 constexpr std::array<char, 4> kPhotoshopColorBalanceBlockKey{'b', 'l', 'n', 'c'};
 constexpr std::array<char, 4> kPhotoshopChannelMixerBlockKey{'m', 'i', 'x', 'r'};
+constexpr std::array<char, 4> kPhotoshopPhotoFilterBlockKey{'p', 'h', 'f', 'l'};
 // version u16, colorize u8, pad u8, colorize h/s/l i16 x3, master h/s/l i16 x3,
 // then six band records of four i16 range stops plus an i16 h/s/l triple, then
 // an undocumented 36-byte trailer Photoshop always writes.
@@ -671,6 +672,11 @@ std::optional<AdjustmentSettings> parse_photoshop_channel_mixer_adjustment(std::
 // layers get Photoshop's 44-byte RGB shape.
 std::vector<std::uint8_t> photoshop_channel_mixer_payload(const ChannelMixerAdjustment& settings,
                                                           const UnknownPsdBlock* original);
+std::optional<AdjustmentSettings> parse_photoshop_photo_filter_adjustment(std::span<const std::uint8_t> payload);
+// Writes the modeled fields over the original payload (its trailing pad is kept); fresh
+// layers get Photoshop's 20-byte version 2 Lab shape.
+std::vector<std::uint8_t> photoshop_photo_filter_payload(const PhotoFilterAdjustment& settings,
+                                                         const UnknownPsdBlock* original);
 std::optional<AdjustmentSettings> parse_photoshop_exposure_adjustment(std::span<const std::uint8_t> payload);
 std::vector<std::uint8_t> photoshop_exposure_payload(const ExposureAdjustment& settings,
                                                      const UnknownPsdBlock* original);

@@ -10971,6 +10971,26 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Channel Mixer: monochrome %1 / %2 / %3, constant %4</source>
         <translation>チャンネルミキサー: モノクロ %1 / %2 / %3、定数 %4</translation>
     </message>
+    <message>
+        <source>Density</source>
+        <translation>適用量</translation>
+    </message>
+    <message>
+        <source>Filter color</source>
+        <translation>フィルターの色</translation>
+    </message>
+    <message>
+        <source>Filter Color:</source>
+        <translation>フィルターの色:</translation>
+    </message>
+    <message>
+        <source>Filter Color</source>
+        <translation>フィルターの色</translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation>レンズフィルター: 適用量 %1%</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22553,6 +22573,18 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Channel Mixer</source>
         <translation>チャンネルミキサーをキャンセルしました</translation>
+    </message>
+    <message>
+        <source>Photo &amp;Filter...</source>
+        <translation>レンズフィルター(&amp;F)...</translation>
+    </message>
+    <message>
+        <source>Photo Filter</source>
+        <translation>レンズフィルター</translation>
+    </message>
+    <message>
+        <source>Cancelled Photo Filter</source>
+        <translation>レンズフィルターをキャンセルしました</translation>
     </message>
 </context>
 <context>

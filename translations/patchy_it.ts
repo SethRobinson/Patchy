@@ -11005,6 +11005,26 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Channel Mixer: monochrome %1 / %2 / %3, constant %4</source>
         <translation>Miscelatore canale: monocromatico %1 / %2 / %3, costante %4</translation>
     </message>
+    <message>
+        <source>Density</source>
+        <translation>Densità</translation>
+    </message>
+    <message>
+        <source>Filter color</source>
+        <translation>Colore del filtro</translation>
+    </message>
+    <message>
+        <source>Filter Color:</source>
+        <translation>Colore del filtro:</translation>
+    </message>
+    <message>
+        <source>Filter Color</source>
+        <translation>Colore del filtro</translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation>Filtro fotografico: densità %1%</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22623,6 +22643,18 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
     <message>
         <source>Cancelled Channel Mixer</source>
         <translation>Miscelatore canale annullato</translation>
+    </message>
+    <message>
+        <source>Photo &amp;Filter...</source>
+        <translation>&amp;Filtro fotografico...</translation>
+    </message>
+    <message>
+        <source>Photo Filter</source>
+        <translation>Filtro fotografico</translation>
+    </message>
+    <message>
+        <source>Cancelled Photo Filter</source>
+        <translation>Filtro fotografico annullato</translation>
     </message>
 </context>
 <context>

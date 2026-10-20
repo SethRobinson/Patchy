@@ -98,6 +98,10 @@ DeepChannels DeepAdjuster::apply_encoded(DeepChannels color) const {
       }
       return {mix(mixer.red), mix(mixer.green), mix(mixer.blue)};
     }
+    case AdjustmentKind::PhotoFilter: {
+      const auto filtered = photo_filter_transfer(settings.photo_filter, color[0], color[1], color[2], false);
+      return {clamp255(filtered[0]), clamp255(filtered[1]), clamp255(filtered[2])};
+    }
     case AdjustmentKind::Invert:
       for (std::size_t c = 0; c < 3U; ++c) {
         out[c] = 255.0F - color[c];

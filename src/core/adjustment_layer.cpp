@@ -157,6 +157,85 @@ ChannelMixerRow parse_channel_mixer_row(std::string_view encoded, ChannelMixerRo
   return clamp_channel_mixer_row(ChannelMixerRow{fields[0], fields[1], fields[2], fields[3]});
 }
 
+// "L;a;b" in hundredths for the Photo Filter color; a malformed value keeps the fallback.
+std::string serialize_photo_filter_lab(const PhotoFilterAdjustment& settings) {
+  const auto clamped = clamp_photo_filter(settings);
+  return std::to_string(clamped.lab_l) + ';' + std::to_string(clamped.lab_a) + ';' + std::to_string(clamped.lab_b);
+}
+
+PhotoFilterAdjustment parse_photo_filter_lab(std::string_view encoded, PhotoFilterAdjustment fallback) {
+  std::array<int, 3> fields{};
+  for (std::size_t index = 0; index < fields.size(); ++index) {
+    const auto separator = encoded.find(';');
+    const auto value = parse_int(encoded.substr(0, separator));
+    if (!value.has_value() || (index + 1U < fields.size()) == (separator == std::string_view::npos)) {
+      return fallback;
+    }
+    fields[index] = *value;
+    encoded = separator == std::string_view::npos ? std::string_view{} : encoded.substr(separator + 1U);
+  }
+  fallback.lab_l = fields[0];
+  fallback.lab_a = fields[1];
+  fallback.lab_b = fields[2];
+  return clamp_photo_filter(fallback);
+}
+
+// sRGB (IEC 61966-2-1) to CIE XYZ under D50, Bradford-adapted as in the ICC sRGB profile;
+// Photoshop's Photo Filter works in this space (calibrated, #250).
+constexpr std::array<std::array<double, 3>, 3> kSrgbToXyzD50{{{0.4360747, 0.3850649, 0.1430804},
+                                                               {0.2225045, 0.7168786, 0.0606169},
+                                                               {0.0139322, 0.0971045, 0.7141733}}};
+
+std::array<double, 3> multiply3(const std::array<std::array<double, 3>, 3>& matrix, const std::array<double, 3>& v) {
+  return {matrix[0][0] * v[0] + matrix[0][1] * v[1] + matrix[0][2] * v[2],
+          matrix[1][0] * v[0] + matrix[1][1] * v[1] + matrix[1][2] * v[2],
+          matrix[2][0] * v[0] + matrix[2][1] * v[1] + matrix[2][2] * v[2]};
+}
+
+std::array<std::array<double, 3>, 3> inverse3(const std::array<std::array<double, 3>, 3>& m) {
+  const double det = m[0][0] * (m[1][1] * m[2][2] - m[1][2] * m[2][1]) -
+                     m[0][1] * (m[1][0] * m[2][2] - m[1][2] * m[2][0]) +
+                     m[0][2] * (m[1][0] * m[2][1] - m[1][1] * m[2][0]);
+  return {{{(m[1][1] * m[2][2] - m[1][2] * m[2][1]) / det, (m[0][2] * m[2][1] - m[0][1] * m[2][2]) / det,
+            (m[0][1] * m[1][2] - m[0][2] * m[1][1]) / det},
+           {(m[1][2] * m[2][0] - m[1][0] * m[2][2]) / det, (m[0][0] * m[2][2] - m[0][2] * m[2][0]) / det,
+            (m[0][2] * m[1][0] - m[0][0] * m[1][2]) / det},
+           {(m[1][0] * m[2][1] - m[1][1] * m[2][0]) / det, (m[0][1] * m[2][0] - m[0][0] * m[2][1]) / det,
+            (m[0][0] * m[1][1] - m[0][1] * m[1][0]) / det}}};
+}
+
+const std::array<std::array<double, 3>, 3>& xyz_d50_to_srgb() {
+  static const auto inverse = inverse3(kSrgbToXyzD50);
+  return inverse;
+}
+
+std::array<double, 3> d50_white() {
+  return {kSrgbToXyzD50[0][0] + kSrgbToXyzD50[0][1] + kSrgbToXyzD50[0][2],
+          kSrgbToXyzD50[1][0] + kSrgbToXyzD50[1][1] + kSrgbToXyzD50[1][2],
+          kSrgbToXyzD50[2][0] + kSrgbToXyzD50[2][1] + kSrgbToXyzD50[2][2]};
+}
+
+// 0..255 encoded to linear 0..1 and back; the encoder clamps to the sRGB gamut.
+double srgb_byte_to_linear(double value) {
+  const double v = value / 255.0;
+  return v <= 0.04045 ? v / 12.92 : std::pow((v + 0.055) / 1.055, 2.4);
+}
+
+double linear_to_srgb_byte(double value) {
+  const double v = std::clamp(value, 0.0, 1.0);
+  return 255.0 * (v <= 0.0031308 ? 12.92 * v : 1.055 * std::pow(v, 1.0 / 2.4) - 0.055);
+}
+
+double round_half_up(double value) {
+  return std::floor(value + 0.5);
+}
+
+// PDF luma on the 0..255 scale; Photoshop's 8-bit path rounds it to a whole level.
+double photo_filter_luma(const std::array<double, 3>& color, bool byte_stages) {
+  const double luma = (30.0 * color[0] + 59.0 * color[1] + 11.0 * color[2]) / 100.0;
+  return byte_stages ? round_half_up(luma) : luma;
+}
+
 // "cyan_red;magenta_green;yellow_blue" for the shadows and highlights triples.
 std::string serialize_color_balance_tone(const ColorBalanceTone& tone) {
   return std::to_string(std::clamp(tone.cyan_red, -100, 100)) + ';' +
@@ -707,10 +786,12 @@ RgbColor apply_color_balance(RgbColor color, const ColorBalanceAdjustment& setti
 }  // namespace
 
 const char* photoshop_placeholder_adjustment_kind(std::string_view block_key) noexcept {
-  static constexpr std::array<std::pair<std::string_view, const char*>, 6> kKinds{{
+  // Channel Mixer and Photo Filter stay listed for block versions their parsers do not read.
+  static constexpr std::array<std::pair<std::string_view, const char*>, 7> kKinds{{
       {"vibA", "vibrance"},
       {"blwh", "black_white"},
       {"phfl", "photo_filter"},
+      {"mixr", "channel_mixer"},
       {"clrL", "color_lookup"},
       {"grdm", "gradient_map"},
       {"selc", "selective_color"},
@@ -752,6 +833,92 @@ bool ChannelMixerAdjustment::has_effect() const noexcept {
   const ChannelMixerAdjustment identity;
   return clamp_channel_mixer_row(red) != identity.red || clamp_channel_mixer_row(green) != identity.green ||
          clamp_channel_mixer_row(blue) != identity.blue;
+}
+
+PhotoFilterAdjustment clamp_photo_filter(PhotoFilterAdjustment settings) noexcept {
+  settings.lab_l = std::clamp(settings.lab_l, 0, 10000);
+  settings.lab_a = std::clamp(settings.lab_a, -12800, 12700);
+  settings.lab_b = std::clamp(settings.lab_b, -12800, 12700);
+  settings.density = std::clamp(settings.density, 1, 100);
+  return settings;
+}
+
+RgbColor photo_filter_color(const PhotoFilterAdjustment& settings) {
+  const auto clamped = clamp_photo_filter(settings);
+  const auto f_inverse = [](double t) {
+    return t * t * t > 216.0 / 24389.0 ? t * t * t : (116.0 * t - 16.0) / (24389.0 / 27.0);
+  };
+  const double fy = (clamped.lab_l / 100.0 + 16.0) / 116.0;
+  const double fx = fy + clamped.lab_a / 100.0 / 500.0;
+  const double fz = fy - clamped.lab_b / 100.0 / 200.0;
+  const auto white = d50_white();
+  const auto linear =
+      multiply3(xyz_d50_to_srgb(), {f_inverse(fx) * white[0], f_inverse(fy) * white[1], f_inverse(fz) * white[2]});
+  const auto byte = [](double value) { return static_cast<std::uint8_t>(round_half_up(linear_to_srgb_byte(value))); };
+  return RgbColor{byte(linear[0]), byte(linear[1]), byte(linear[2])};
+}
+
+PhotoFilterAdjustment photo_filter_with_color(PhotoFilterAdjustment settings, RgbColor color) {
+  const auto xyz = multiply3(kSrgbToXyzD50, {srgb_byte_to_linear(color.red), srgb_byte_to_linear(color.green),
+                                             srgb_byte_to_linear(color.blue)});
+  const auto white = d50_white();
+  const auto f = [](double t) { return t > 216.0 / 24389.0 ? std::cbrt(t) : (24389.0 / 27.0 * t + 16.0) / 116.0; };
+  const double fx = f(xyz[0] / white[0]);
+  const double fy = f(xyz[1] / white[1]);
+  const double fz = f(xyz[2] / white[2]);
+  settings.lab_l = static_cast<int>(round_half_up(100.0 * (116.0 * fy - 16.0)));
+  settings.lab_a = static_cast<int>(round_half_up(100.0 * 500.0 * (fx - fy)));
+  settings.lab_b = static_cast<int>(round_half_up(100.0 * 200.0 * (fy - fz)));
+  return clamp_photo_filter(settings);
+}
+
+std::array<double, 3> photo_filter_transfer(const PhotoFilterAdjustment& settings, double red, double green,
+                                            double blue, bool byte_stages) {
+  const auto clamped = clamp_photo_filter(settings);
+  const auto filter = photo_filter_color(clamped);
+  const auto white = d50_white();
+  const auto filter_xyz = multiply3(kSrgbToXyzD50, {srgb_byte_to_linear(filter.red),
+                                                    srgb_byte_to_linear(filter.green),
+                                                    srgb_byte_to_linear(filter.blue)});
+  const auto source_xyz = multiply3(
+      kSrgbToXyzD50, {srgb_byte_to_linear(red), srgb_byte_to_linear(green), srgb_byte_to_linear(blue)});
+  const double density = clamped.density / 100.0;
+  std::array<double, 3> filtered_xyz{};
+  for (std::size_t c = 0; c < 3U; ++c) {
+    filtered_xyz[c] = source_xyz[c] * (1.0 - density + density * filter_xyz[c] / white[c]);
+  }
+  const auto linear = multiply3(xyz_d50_to_srgb(), filtered_xyz);
+  std::array<double, 3> out{};
+  for (std::size_t c = 0; c < 3U; ++c) {
+    out[c] = linear_to_srgb_byte(linear[c]);
+    if (byte_stages) {
+      out[c] = round_half_up(out[c]);
+    }
+  }
+  if (!clamped.preserve_luminosity) {
+    return out;
+  }
+  // PDF SetLum with ClipColor: shift to the source's luma, then pull out-of-range channels
+  // toward the luma. Photoshop clips bright colors slightly differently (up to 7 levels on
+  // the probe; docs/adjustment-kinds.md, "Photo Filter").
+  const double shift = photo_filter_luma({red, green, blue}, byte_stages) - photo_filter_luma(out, byte_stages);
+  for (auto& value : out) {
+    value += shift;
+  }
+  const double luma = photo_filter_luma(out, byte_stages);
+  const double low = std::min({out[0], out[1], out[2]});
+  const double high = std::max({out[0], out[1], out[2]});
+  if (low < 0.0 && luma > low) {
+    for (auto& value : out) {
+      value = luma + (value - luma) * luma / (luma - low);
+    }
+  }
+  if (high > 255.0 && high > luma) {
+    for (auto& value : out) {
+      value = luma + (value - luma) * (255.0 - luma) / (high - luma);
+    }
+  }
+  return out;
 }
 
 ColorBalanceTone ColorBalanceAdjustment::tone(ColorBalanceToneRange range) const noexcept {
@@ -1530,6 +1697,8 @@ std::string adjustment_kind_key(AdjustmentKind kind) {
       return "exposure";
     case AdjustmentKind::ChannelMixer:
       return "channel_mixer";
+    case AdjustmentKind::PhotoFilter:
+      return "photo_filter";
   }
   return "levels";
 }
@@ -1556,6 +1725,8 @@ std::string adjustment_display_name(AdjustmentKind kind) {
       return "Exposure";
     case AdjustmentKind::ChannelMixer:
       return "Channel Mixer";
+    case AdjustmentKind::PhotoFilter:
+      return "Photo Filter";
   }
   return "Adjustment";
 }
@@ -1590,6 +1761,9 @@ std::optional<AdjustmentKind> adjustment_kind_from_key(std::string_view key) {
   }
   if (key == "channel_mixer") {
     return AdjustmentKind::ChannelMixer;
+  }
+  if (key == "photo_filter") {
+    return AdjustmentKind::PhotoFilter;
   }
   return std::nullopt;
 }
@@ -1687,6 +1861,15 @@ std::optional<AdjustmentSettings> adjustment_settings_from_layer(const Layer& la
                                          defaults.blue);
     mixer.gray = parse_channel_mixer_row(metadata_string_or(layer, kLayerMetadataAdjustmentChannelMixerGray, {}),
                                          defaults.gray);
+  }
+  {
+    const PhotoFilterAdjustment defaults;
+    auto& filter = settings.photo_filter;
+    filter = parse_photo_filter_lab(metadata_string_or(layer, kLayerMetadataAdjustmentPhotoFilterLab, {}), defaults);
+    filter.density = std::clamp(metadata_int_or(layer, kLayerMetadataAdjustmentPhotoFilterDensity, defaults.density),
+                                1, 100);
+    filter.preserve_luminosity =
+        metadata_int_or(layer, kLayerMetadataAdjustmentPhotoFilterPreserveLuminosity, 1) != 0;
   }
   settings.posterize.levels =
       std::clamp(metadata_int_or(layer, kLayerMetadataAdjustmentPosterizeLevels, 4), 2, 255);
@@ -1813,6 +1996,11 @@ void configure_adjustment_layer(Layer& layer, const AdjustmentSettings& settings
                       serialize_channel_mixer_row(settings.channel_mixer.blue));
   set_metadata_string(layer, kLayerMetadataAdjustmentChannelMixerGray,
                       serialize_channel_mixer_row(settings.channel_mixer.gray));
+  set_metadata_string(layer, kLayerMetadataAdjustmentPhotoFilterLab, serialize_photo_filter_lab(settings.photo_filter));
+  set_metadata_int(layer, kLayerMetadataAdjustmentPhotoFilterDensity,
+                   clamp_photo_filter(settings.photo_filter).density);
+  set_metadata_int(layer, kLayerMetadataAdjustmentPhotoFilterPreserveLuminosity,
+                   settings.photo_filter.preserve_luminosity ? 1 : 0);
   set_metadata_int(layer, kLayerMetadataAdjustmentPosterizeLevels,
                    std::clamp(settings.posterize.levels, 2, 255));
   set_metadata_int(layer, kLayerMetadataAdjustmentThresholdLevel,
@@ -1920,6 +2108,7 @@ bool adjustment_runs_in_ink_space(const AdjustmentSettings& settings) noexcept {
     case AdjustmentKind::HueSaturation:
     case AdjustmentKind::ColorBalance:
     case AdjustmentKind::ChannelMixer:
+    case AdjustmentKind::PhotoFilter:
       return false;
   }
   return false;
@@ -1983,6 +2172,13 @@ RgbColor apply_adjustment_on_rgb(RgbColor color, const AdjustmentSettings& setti
       }
       return RgbColor{channel(mixer.red), channel(mixer.green), channel(mixer.blue)};
     }
+    case AdjustmentKind::PhotoFilter: {
+      const auto out = photo_filter_transfer(settings.photo_filter, color.red, color.green, color.blue, true);
+      const auto byte = [](double value) {
+        return static_cast<std::uint8_t>(std::clamp(std::floor(value + 0.5), 0.0, 255.0));
+      };
+      return RgbColor{byte(out[0]), byte(out[1]), byte(out[2])};
+    }
   }
   return color;
 }
@@ -2021,7 +2217,7 @@ std::optional<AdjustmentLut> build_adjustment_lut(const AdjustmentSettings& sett
   // RGB luminance, so a per-channel gray-probe LUT would be wrong for any
   // colored pixel. Both take the per-pixel path.
   if (settings.kind == AdjustmentKind::HueSaturation || settings.kind == AdjustmentKind::Threshold ||
-      settings.kind == AdjustmentKind::ChannelMixer) {
+      settings.kind == AdjustmentKind::ChannelMixer || settings.kind == AdjustmentKind::PhotoFilter) {
     return std::nullopt;
   }
   if (settings.kind == AdjustmentKind::Curves) {
@@ -2079,6 +2275,8 @@ bool adjustment_has_effect(const AdjustmentSettings& settings) {
     }
     case AdjustmentKind::ChannelMixer:
       return settings.channel_mixer.has_effect();
+    case AdjustmentKind::PhotoFilter:
+      return true;  // the minimum density is 1 %, which still tints
   }
   return false;
 }
