@@ -1364,7 +1364,10 @@ private:
   // artboard to preview (the options-bar W/H then only set the new-artboard size).
   bool preview_artboard_field_rect(bool from_properties);
   void commit_artboard_field_preview();
-  void finish_artboard_edit(const QString& status, std::optional<LayerId> select);
+  // `rows_unchanged`: the edit kept every layer and its place (a resize, a plain move, a
+  // background), so the Layers panel restamps its thumbnails instead of rebuilding every
+  // row widget, whose construction and QSS polish dominated each commit on Windows.
+  void finish_artboard_edit(const QString& status, std::optional<LayerId> select, bool rows_unchanged = false);
   void build_properties_artboard_panel(QWidget* parent, QVBoxLayout* layout);
   [[nodiscard]] std::pair<ArtboardBackground, RgbColor> current_artboard_background() const;
   [[nodiscard]] QSize current_artboard_size() const;

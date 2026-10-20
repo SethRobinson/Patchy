@@ -228,7 +228,7 @@ QSize MainWindow::current_artboard_size() const {
                std::max(1, settings.value(QStringLiteral("tools/artboardHeight"), 1080).toInt()));
 }
 
-void MainWindow::finish_artboard_edit(const QString& status, std::optional<LayerId> select) {
+void MainWindow::finish_artboard_edit(const QString& status, std::optional<LayerId> select, bool rows_unchanged) {
   auto& doc = document();
   // Every caller pushed its undo step before editing, so a refused edit undoes cleanly.
   if (!artboard_canvas_within_limit(std::as_const(doc))) {
@@ -255,7 +255,11 @@ void MainWindow::finish_artboard_edit(const QString& status, std::optional<Layer
       canvas_->document_changed();
     }
   }
-  refresh_layer_list();
+  if (rows_unchanged) {
+    refresh_layer_thumbnails();
+  } else {
+    refresh_layer_list();
+  }
   if (select.has_value()) {
     select_layers_in_layer_list({*select}, *select);
   }
@@ -358,7 +362,7 @@ void MainWindow::move_artboard(LayerId id, QPoint delta, bool duplicate, bool nu
     artboard_field_edit_run_ = ArtboardNudgeRun{};
     return;
   }
-  finish_artboard_edit(duplicate ? tr("Duplicated artboard") : tr("Moved artboard"), moved_id);
+  finish_artboard_edit(duplicate ? tr("Duplicated artboard") : tr("Moved artboard"), moved_id, !duplicate);
   const ArtboardNudgeRun run{active_session.session_id, id, active_session.revision};
   artboard_nudge_run_ = nudge ? run : ArtboardNudgeRun{};
   artboard_field_edit_run_ = field_edit && !duplicate ? run : ArtboardNudgeRun{};
@@ -381,7 +385,7 @@ void MainWindow::resize_artboard(LayerId id, QRect rect, bool field_edit) {
   }
   changed.rect = to_core(rect);
   artboard->set_artboard(std::move(changed));
-  finish_artboard_edit(tr("Artboard is %1 x %2 px").arg(rect.width()).arg(rect.height()), id);
+  finish_artboard_edit(tr("Artboard is %1 x %2 px").arg(rect.width()).arg(rect.height()), id, true);
   const auto& active_session = session();
   artboard_field_edit_run_ =
       field_edit ? ArtboardNudgeRun{active_session.session_id, id, active_session.revision} : ArtboardNudgeRun{};
@@ -403,7 +407,7 @@ void MainWindow::set_artboard_background(LayerId id, ArtboardBackground backgrou
   push_undo_snapshot(tr("Artboard background"));
   artboard = top_level_artboard(doc, id);
   artboard->set_artboard(std::move(changed));
-  finish_artboard_edit(tr("Changed the artboard background"), id);
+  finish_artboard_edit(tr("Changed the artboard background"), id, true);
 }
 
 void MainWindow::add_adjacent_artboard(LayerId id, int side) {
