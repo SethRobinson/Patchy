@@ -331,6 +331,14 @@ private:
 // (the #262 Layer Style shots, October 2026). ensure_capture_themed gives such a window
 // the active theme's sheet before the grab, in Dark and Light alike.
 void ensure_capture_themed(QWidget& widget);
+// The capture guard: empty when every visible widget under `root` carries the active
+// theme, otherwise a description of the first offender (class, objectName, role and
+// color). A widget fails when it is unpolished, when no window in its owner chain
+// carries the app sheet, or when the background or text color the stylesheet engine
+// left in its palette is Qt's default or the other scheme's value and matches no role
+// of the active palette. Every capture helper runs it before saving and fails loudly
+// instead of writing a misleading picture.
+QString capture_theme_mismatch(QWidget& root);
 QImage capture_widget_artifact(const std::string& name, QWidget& widget);
 void save_widget_artifact(const std::string& name, QWidget& widget);
 // Saves several captures stacked top to bottom (a 6 px gap between them) as one artifact,

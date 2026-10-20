@@ -26,6 +26,9 @@
 #include <QAbstractSpinBox>
 #include <QAction>
 #include <QApplication>
+#include <QStyle>
+#include <QPalette>
+#include "ui/theme_palette.hpp"
 #include <QCheckBox>
 #include <QComboBox>
 #include <QContextMenuEvent>
@@ -197,9 +200,106 @@ void ensure_capture_themed(QWidget& widget) {
   QApplication::processEvents();
 }
 
+namespace {
+
+bool window_chain_carries_app_sheet(QWidget& widget) {
+  const auto app_sheet = patchy::ui::photoshop_style();
+  for (QWidget* ancestor = &widget; ancestor != nullptr; ancestor = ancestor->parentWidget()) {
+    if (ancestor->styleSheet().startsWith(app_sheet)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool palette_has_color(const patchy::ui::ThemePalette& palette, QColor color) {
+  for (const auto& role : patchy::ui::theme_palette_roles()) {
+    if ((palette.*role.second).rgb() == color.rgb()) {
+      return true;
+    }
+  }
+  return false;
+}
+
+QColor generic_role_value(const patchy::ui::ThemePalette& palette, QPalette::ColorRole role) {
+  switch (role) {
+    case QPalette::Base:
+      return palette.field_bg_large;
+    case QPalette::Button:
+      return palette.button_bg;
+    case QPalette::Window:
+      return palette.window_bg;
+    case QPalette::WindowText:
+    case QPalette::Text:
+    case QPalette::ButtonText:
+      return palette.text_primary;
+    default:
+      return {};
+  }
+}
+
+QString describe_capture_offender(QWidget* widget, const char* what, QColor color) {
+  auto text = QString::fromLatin1(widget->metaObject()->className());
+  if (!widget->objectName().isEmpty()) {
+    text += QStringLiteral("#") + widget->objectName();
+  }
+  text += QStringLiteral(": ") + QString::fromLatin1(what);
+  if (color.isValid()) {
+    text += QStringLiteral(" ") + color.name();
+  }
+  return text;
+}
+
+}  // namespace
+
+QString capture_theme_mismatch(QWidget& root) {
+  if (!window_chain_carries_app_sheet(root)) {
+    return describe_capture_offender(&root, "no window in its owner chain carries the app stylesheet", {});
+  }
+  const auto scheme = patchy::ui::active_color_scheme();
+  const auto& active = patchy::ui::theme();
+  const auto& other = patchy::ui::theme(scheme == patchy::ui::ColorScheme::Light ? patchy::ui::ColorScheme::Dark
+                                                                                   : patchy::ui::ColorScheme::Light);
+  const auto standard = QApplication::style()->standardPalette();
+  auto widgets = root.findChildren<QWidget*>();
+  widgets.prepend(&root);
+  for (auto* widget : widgets) {
+    if (!widget->isVisible() || widget->width() <= 0 || widget->height() <= 0) {
+      continue;
+    }
+    if (!widget->testAttribute(Qt::WA_WState_Polished)) {
+      return describe_capture_offender(widget, "is not polished", {});
+    }
+    const auto& palette = widget->palette();
+    for (const auto role : {widget->backgroundRole(), widget->foregroundRole()}) {
+      const auto color = palette.color(role);
+      if (color.alpha() == 0 || palette_has_color(active, color)) {
+        continue;  // transparent, or a legitimate color of the active theme
+      }
+      const auto other_value = generic_role_value(other, role);
+      const bool qt_default = color.rgb() == standard.color(role).rgb();
+      const bool other_scheme = other_value.isValid() && color.rgb() == other_value.rgb();
+      if (qt_default || other_scheme) {
+        return describe_capture_offender(
+            widget,
+            qt_default ? (role == widget->backgroundRole() ? "background is Qt's unthemed default"
+                                                           : "text is Qt's unthemed default")
+                       : (role == widget->backgroundRole() ? "background is the other scheme's"
+                                                           : "text is the other scheme's"),
+            color);
+      }
+    }
+  }
+  return {};
+}
+
 QImage capture_widget_artifact(const std::string& name, QWidget& widget) {
   ensure_artifact_dir();
   ensure_capture_themed(widget);
+  const auto mismatch = capture_theme_mismatch(widget);
+  if (!mismatch.isEmpty()) {
+    throw std::runtime_error("capture '" + name + "' is not themed: " + mismatch.toStdString());
+  }
   const auto path = QString::fromStdString((std::filesystem::path("test-artifacts") / (name + ".png")).string());
   const auto pixmap = widget.grab();
   CHECK(!pixmap.isNull());
@@ -215,6 +315,12 @@ void save_window_popup_artifact(const std::string& name, QWidget& window, QWidge
   ensure_artifact_dir();
   ensure_capture_themed(window);
   ensure_capture_themed(popup);
+  for (auto* captured : {&window, &popup}) {
+    const auto mismatch = capture_theme_mismatch(*captured);
+    if (!mismatch.isEmpty()) {
+      throw std::runtime_error("capture '" + name + "' is not themed: " + mismatch.toStdString());
+    }
+  }
   auto shot = window.grab().toImage();
   const auto window_origin = window.mapToGlobal(QPoint(0, 0));
   const auto popup_position = popup.mapToGlobal(QPoint(0, 0)) - window_origin;
