@@ -23148,6 +23148,14 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
         <source>Cancelled Vibrance</source>
         <translation>Dynamik abgebrochen</translation>
     </message>
+    <message>
+        <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
+        <translation>Zum Zeichenflächen-Werkzeug wechseln, um Zeichenflächen hinzuzufügen, zu skalieren oder zu duplizieren</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
+        <translation>Zum Zeichenflächen-Werkzeug (%1) wechseln, um Zeichenflächen hinzuzufügen, zu skalieren oder zu duplizieren</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

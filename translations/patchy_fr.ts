@@ -23148,6 +23148,14 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
         <source>Cancelled Vibrance</source>
         <translation>Vibrance annulée</translation>
     </message>
+    <message>
+        <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
+        <translation>Passez à l'outil Plan de travail pour ajouter, redimensionner ou dupliquer des plans de travail</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
+        <translation>Passez à l'outil Plan de travail (%1) pour ajouter, redimensionner ou dupliquer des plans de travail</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

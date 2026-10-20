@@ -2156,6 +2156,12 @@ private:
   // another artboard's paper or its content, never work proportional to the document.
   [[nodiscard]] bool artboard_label_sits_on_light_backing(const std::vector<const Layer*>& artboards,
                                                           const QRectF& label_widget_rect) const;
+  // The artboard a Move-tool press at `widget_position` selects (and a drag moves), or
+  // none (GitHub issue 259): its name label with any setting, and with Auto-Select or
+  // Ctrl held its area where no layer is under the pointer. Hover, press and cursor
+  // share it so the outline promises exactly what the click does.
+  [[nodiscard]] std::optional<LayerId> move_artboard_target_at(QPoint widget_position,
+                                                               Qt::KeyboardModifiers modifiers) const;
   [[nodiscard]] QRectF artboard_add_button_widget_rect(QRect artboard_rect, int side) const;
   [[nodiscard]] int artboard_add_button_at(QPoint widget_point) const;
   [[nodiscard]] TransformHandle artboard_handle_at(QPoint widget_point) const;
@@ -3178,6 +3184,9 @@ private:
   QPoint text_rect_current_{};
   std::vector<LayerId> selected_layer_ids_;
   std::optional<QRect> move_hover_outline_rect_;
+  // The artboard the hover outline frames, when it frames one: its label takes the
+  // selected color while hovered (GitHub issue 259).
+  std::optional<LayerId> move_hover_artboard_id_;
   QPoint move_press_widget_position_{};
   QPoint move_preview_delta_{};
   std::vector<RenderedDocumentPatch> move_preview_patches_;

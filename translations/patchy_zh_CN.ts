@@ -23078,6 +23078,14 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <source>Cancelled Vibrance</source>
         <translation>已取消自然饱和度</translation>
     </message>
+    <message>
+        <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
+        <translation>切换到画板工具以添加、调整大小或复制画板</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
+        <translation>切换到画板工具 (%1) 以添加、调整大小或复制画板</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

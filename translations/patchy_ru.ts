@@ -23218,6 +23218,14 @@ Patchy можно будет запускать из меню, а на пане�
         <source>Cancelled Vibrance</source>
         <translation>Сочность отменена</translation>
     </message>
+    <message>
+        <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
+        <translation>Переключитесь на инструмент «Монтажная область», чтобы добавлять, изменять размер или дублировать монтажные области</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
+        <translation>Переключитесь на инструмент «Монтажная область» (%1), чтобы добавлять, изменять размер или дублировать монтажные области</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

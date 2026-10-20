@@ -23078,6 +23078,14 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <source>Cancelled Vibrance</source>
         <translation>自然な彩度をキャンセルしました</translation>
     </message>
+    <message>
+        <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
+        <translation>アートボードの追加、サイズ変更、複製にはアートボードツールに切り替えてください</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
+        <translation>アートボードの追加、サイズ変更、複製にはアートボードツール (%1) に切り替えてください</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

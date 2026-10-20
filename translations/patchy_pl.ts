@@ -23218,6 +23218,14 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
         <source>Cancelled Vibrance</source>
         <translation>Anulowano jaskrawość</translation>
     </message>
+    <message>
+        <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
+        <translation>Przełącz na narzędzie Obszar roboczy, aby dodawać, zmieniać rozmiar lub powielać obszary robocze</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
+        <translation>Przełącz na narzędzie Obszar roboczy (%1), aby dodawać, zmieniać rozmiar lub powielać obszary robocze</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

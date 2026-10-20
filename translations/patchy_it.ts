@@ -23148,6 +23148,14 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
         <source>Cancelled Vibrance</source>
         <translation>Vividezza annullata</translation>
     </message>
+    <message>
+        <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
+        <translation>Passa allo strumento Tavola da disegno per aggiungere, ridimensionare o duplicare le tavole da disegno</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
+        <translation>Passa allo strumento Tavola da disegno (%1) per aggiungere, ridimensionare o duplicare le tavole da disegno</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

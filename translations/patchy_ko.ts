@@ -23078,6 +23078,14 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <source>Cancelled Vibrance</source>
         <translation>활기를 취소했습니다</translation>
     </message>
+    <message>
+        <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
+        <translation>대지를 추가, 크기 조정 또는 복제하려면 대지 도구로 전환하세요</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
+        <translation>대지를 추가, 크기 조정 또는 복제하려면 대지 도구(%1)로 전환하세요</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

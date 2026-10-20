@@ -23148,6 +23148,14 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
         <source>Cancelled Vibrance</source>
         <translation>Vibratilidade cancelada</translation>
     </message>
+    <message>
+        <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
+        <translation>Mude para a ferramenta Prancheta para adicionar, redimensionar ou duplicar pranchetas</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
+        <translation>Mude para a ferramenta Prancheta (%1) para adicionar, redimensionar ou duplicar pranchetas</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
