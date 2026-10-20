@@ -31,7 +31,28 @@ times device pixel ratio. Lower scales keep the existing display mips. Editing
 gestures, transform/warp sessions, channel/mask inspection, Quick Mask, curves
 clipping views and seamless tiling temporarily use the existing pixel previews.
 The sharp view resumes afterward. Explicit grids, guides and editing overlays
-remain on top.
+remain on top (next section).
+
+## Overlay order
+
+The paint order is: composite (at 600% and up through `draw_deep_zoom_pixels`,
+which bakes View > Pixel Grid into its raster), then the preview frame
+(`draw_vector_preview`, a checkerboard plus the frame over the composite), then
+every overlay: the document grid, guides, artboards, the document border,
+selection edges, tool overlays and readouts, and the rulers last. Anything an
+overlay draws after the frame is above it by construction; only the pixel grid
+lives inside the composite's raster, so the frame covered it (it showed only in
+the frames before a new render landed, hence the flashes while zooming). The
+rule: with the pixel grid on at deep zoom, `draw_vector_preview` redraws the
+grid alone after the frame, a grid-only `deep_zoom_raster` (transparent except
+the lines) of the document pixels at the current view's cell edges, so each line
+keeps its cell's own tone and lands where the composite would draw it, including
+while an old frame is mapped to a new view. Any future frame that paints over the
+composite must do the same, or draw before `draw_deep_zoom_pixels`. The cost is
+one more write per exposed device pixel, the composite's own bound. Test:
+`ui_vector_preview_keeps_pixel_grid_and_overlays_above` (grid above the frame at
+600 to 1200% and mid-zoom, none below 600% or with the grid off, preview toggles,
+and guides, the document grid and selection edges above the frame).
 
 The view does not edit document paths, bounds, cached pixels, revisions, history,
 dirty state or output. Document previews and exports retain document resolution.

@@ -45,6 +45,7 @@
 #include "ui/dialog_utils.hpp"
 #include "ui/script_engine.hpp"
 #include "ui/vector_preview_renderer.hpp"
+#include "ui/canvas_widget_shared.hpp"
 #include <cstdio>
 #include <limits>
 #include <utility>
@@ -645,6 +646,156 @@ void ui_vector_preview_resource_notice_is_once_and_never_covers_other_status() {
   CHECK(window.statusBar()->currentMessage() == QStringLiteral("Another tool's message"));
 }
 
+// With Dynamic Vector Preview on, View > Pixel Grid vanished (the preview frame covered
+// the composite's deep-zoom raster, grid included) and only flashed during zooms. The grid
+// must show above the sharp view at every deep zoom, mid-zoom while the old frame is
+// mapped, and across preview toggles; guides, the document grid and selection edges stay
+// above it too (docs/vector-preview.md, "Overlay order").
+struct InteriorGridCheck {
+  int mismatches{0};  // fill or line color where the other was expected
+  int line_pixels{0};
+  int other{0};       // neither color: an overlay drawn over the interior
+};
+
+InteriorGridCheck interior_grid_check(CanvasWidget& canvas, QRgb fill, bool grid) {
+  QApplication::processEvents();
+  const auto image = canvas.grab().toImage().convertToFormat(QImage::Format_ARGB32_Premultiplied);
+  const auto ratio = canvas.devicePixelRatioF();
+  const auto device_x = [&](int x) {
+    return qRound(canvas.widget_position_for_document_point(QPoint(x, 0)).x() * ratio);
+  };
+  const auto device_y = [&](int y) {
+    return qRound(canvas.widget_position_for_document_point(QPoint(0, y)).y() * ratio);
+  };
+  const auto content = canvas_content_rect(canvas);
+  const QRect device_content(qRound(content.left() * ratio), qRound(content.top() * ratio),
+                             qRound(content.width() * ratio), qRound(content.height() * ratio));
+  const auto inside = device_content.intersected(image.rect());
+  const auto line = pixel_grid_line_color(fill);
+  InteriorGridCheck result;
+  // Document cells well inside the 4..20 x 3..15 rectangle, away from its edges.
+  for (int y = 5; y < 13; ++y) {
+    for (int x = 6; x < 18; ++x) {
+      for (int dy = device_y(y); dy < device_y(y + 1); ++dy) {
+        for (int dx = device_x(x); dx < device_x(x + 1); ++dx) {
+          if (!inside.contains(dx, dy)) { continue; }
+          const bool on_line = grid && (dx == device_x(x) || dy == device_y(y));
+          const auto shown = image.pixel(dx, dy) | 0xff000000U;
+          if (on_line) { ++result.line_pixels; }
+          if (shown == (on_line ? line : fill)) { continue; }
+          if (shown == line || shown == fill) { ++result.mismatches; } else { ++result.other; }
+        }
+      }
+    }
+  }
+  return result;
+}
+
+void ui_vector_preview_keeps_pixel_grid_and_overlays_above() {
+  Document doc(24, 18, PixelFormat::rgba8());
+  VectorShapeContent paper;
+  paper.fill.color = {244, 241, 233};
+  doc.add_layer(shape_layer(doc, paper));
+  LiveShapeParams params;
+  params.kind = LiveShapeKind::Rectangle;
+  params.left = 4; params.top = 3; params.right = 20; params.bottom = 15;
+  VectorShapeContent box;
+  box.path.subpaths = generate_live_shape_subpaths(params);
+  box.fill.color = {40, 140, 190};
+  doc.add_layer(shape_layer(doc, box));
+  const auto fill = qRgb(40, 140, 190);
+
+  CanvasWidget canvas;
+  canvas.resize(320, 240);
+  canvas.set_document(&doc);
+  canvas.show();
+  canvas.set_tool(CanvasTool::Pan);
+  canvas.set_pixel_grid_visible(true);
+  canvas.set_vector_preview_enabled(false);
+  canvas.set_view_zoom_centered(8.0);
+  settle(canvas);
+  const auto report = [&](const char* when, const InteriorGridCheck& check) {
+    std::cerr << when << ": " << check.line_pixels << " line pixels, " << check.mismatches << " mismatches, "
+              << check.other << " other\n";
+  };
+  auto check = interior_grid_check(canvas, fill, true);
+  report("preview off", check);
+  CHECK(check.line_pixels > 0 && check.mismatches == 0 && check.other == 0);
+
+  canvas.set_vector_preview_enabled(true);
+  settle(canvas);
+  CHECK(canvas.vector_preview_status().contains(QStringLiteral("sharp vector view")));
+  check = interior_grid_check(canvas, fill, true);
+  report("preview on", check);
+  save_image_artifact("ui_vector_preview_pixel_grid_800", canvas.grab().toImage());
+  CHECK(check.line_pixels > 0 && check.mismatches == 0 && check.other == 0);
+
+  // Mid-zoom (the old frame mapped to the new view, or the new one landed): grid either way.
+  for (const double zoom : {12.0, 6.0, 9.0}) {
+    canvas.set_view_zoom_centered(zoom);
+    check = interior_grid_check(canvas, fill, true);
+    report("zoom step", check);
+    CHECK(check.line_pixels > 0 && check.mismatches == 0 && check.other == 0);
+    settle(canvas);
+    CHECK(canvas.vector_preview_status().contains(QStringLiteral("sharp vector view")));
+    check = interior_grid_check(canvas, fill, true);
+    report("zoom settled", check);
+    CHECK(check.line_pixels > 0 && check.mismatches == 0 && check.other == 0);
+  }
+  // Below 600% the grid stays off with the preview on, as without it.
+  canvas.set_view_zoom_centered(5.0);
+  settle(canvas);
+  check = interior_grid_check(canvas, fill, false);
+  CHECK(check.mismatches == 0 && check.other == 0);
+  canvas.set_view_zoom_centered(8.0);
+  settle(canvas);
+
+  // View > Pixel Grid off removes it under the preview too; toggling the preview keeps it.
+  canvas.set_pixel_grid_visible(false);
+  check = interior_grid_check(canvas, fill, false);
+  CHECK(check.mismatches == 0 && check.other == 0);
+  canvas.set_pixel_grid_visible(true);
+  canvas.set_vector_preview_enabled(false);
+  settle(canvas);
+  CHECK(interior_grid_check(canvas, fill, true).line_pixels > 0);
+  canvas.set_vector_preview_enabled(true);
+  settle(canvas);
+  CHECK(canvas.vector_preview_status().contains(QStringLiteral("sharp vector view")));
+  check = interior_grid_check(canvas, fill, true);
+  report("preview toggled back on", check);
+  CHECK(check.line_pixels > 0 && check.mismatches == 0 && check.other == 0);
+
+  // The other overlays draw above the preview: each adds pixels of its own color.
+  doc.guides().push_back({GuideOrientation::Vertical, 10 * 32});
+  canvas.set_guides_visible(true);
+  check = interior_grid_check(canvas, fill, true);
+  report("guide", check);
+  CHECK(check.other > 0);
+  canvas.set_guides_visible(false);
+  CHECK(interior_grid_check(canvas, fill, true).other == 0);
+
+  doc.grid_settings().horizontal_cycle_32 = 8 * 32;
+  doc.grid_settings().vertical_cycle_32 = 8 * 32;
+  canvas.set_grid_subdivisions(2);
+  canvas.set_grid_visible(true);
+  check = interior_grid_check(canvas, fill, true);
+  report("document grid", check);
+  CHECK(check.other > 0);
+  canvas.set_grid_visible(false);
+  CHECK(interior_grid_check(canvas, fill, true).other == 0);
+
+  QImage alpha(6, 4, QImage::Format_Grayscale8);
+  alpha.fill(255);
+  canvas.apply_automatic_selection_mask(QRect(8, 7, 6, 4), alpha, SelectionMode::Replace, QStringLiteral("Select"));
+  settle(canvas);
+  CHECK(canvas.vector_preview_status().contains(QStringLiteral("sharp vector view")));
+  check = interior_grid_check(canvas, fill, true);
+  report("selection edges", check);
+  CHECK(check.other > 0);
+  canvas.set_selection_edges_visible(false);
+  CHECK(interior_grid_check(canvas, fill, true).other == 0);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> vector_preview_tests() {
@@ -658,5 +809,6 @@ std::vector<patchy::test::TestCase> vector_preview_tests() {
       {"ui_vector_preview_action_persistence_script_and_history", ui_vector_preview_action_persistence_script_and_history},
       {"ui_vector_preview_resource_notice_is_once_and_never_covers_other_status", ui_vector_preview_resource_notice_is_once_and_never_covers_other_status},
       {"ui_vector_preview_little_everywhere_if_available", ui_vector_preview_little_everywhere_if_available},
+      {"ui_vector_preview_keeps_pixel_grid_and_overlays_above", ui_vector_preview_keeps_pixel_grid_and_overlays_above},
   };
 }

@@ -696,7 +696,7 @@ QRgb pixel_grid_line_color(QRgb pixel) noexcept {
 
 QImage deep_zoom_raster(const QImage& source, QPoint document_origin, std::span<const int> edges_x,
                         std::span<const int> edges_y, double device_pixel_ratio, bool pixel_grid,
-                        QPoint& device_origin) {
+                        QPoint& device_origin, bool grid_only) {
   const auto columns = static_cast<int>(edges_x.size()) - 1;
   const auto rows = static_cast<int>(edges_y.size()) - 1;
   if (columns <= 0 || rows <= 0 || source.width() < columns || source.height() < rows ||
@@ -756,6 +756,14 @@ QImage deep_zoom_raster(const QImage& source, QPoint document_origin, std::span<
     if (row_line[static_cast<std::size_t>(y)] != 0) {
       for (int x = 0; x < width; ++x) {
         out[x] = tones[static_cast<std::size_t>(column_of[static_cast<std::size_t>(x)])];
+      }
+      continue;
+    }
+    if (grid_only && pixel_grid) {
+      for (int x = 0; x < width; ++x) {
+        out[x] = column_line[static_cast<std::size_t>(x)] != 0
+                     ? tones[static_cast<std::size_t>(column_of[static_cast<std::size_t>(x)])]
+                     : qRgba(0, 0, 0, 0);
       }
       continue;
     }

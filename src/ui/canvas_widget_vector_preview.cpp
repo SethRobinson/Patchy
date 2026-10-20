@@ -1,6 +1,7 @@
 #include "ui/canvas_widget.hpp"
 
 #include "ui/background_workers.hpp"
+#include "ui/canvas_widget_shared.hpp"
 #include "ui/vector_preview_renderer.hpp"
 
 #include <QApplication>
@@ -177,7 +178,7 @@ void CanvasWidget::prepare_vector_preview() {
   });
 }
 
-bool CanvasWidget::draw_vector_preview(QPainter& painter) {
+bool CanvasWidget::draw_vector_preview(QPainter& painter, QRect exposed_rect) {
   if (!vector_preview_available_for_view() || vector_preview_image_.isNull() ||
       !vector_preview_completed_view_ || vector_preview_completed_generation_ != vector_preview_generation_) {
     return false;
@@ -194,6 +195,15 @@ bool CanvasWidget::draw_vector_preview(QPainter& painter) {
                     destination.toAlignedRect().intersected(rect()));
   painter.drawImage(destination, vector_preview_image_);
   painter.restore();
+  // The frame just covered the composite's deep-zoom raster, pixel grid included. Put the
+  // grid back on top, from the document pixels (each line keeps its cell's own tone), at
+  // the current view's cell edges: so View > Pixel Grid shows with the sharp view, during
+  // a zoom while the old frame is mapped, and before a new frame lands. One grid-only
+  // raster write per exposed device pixel, the same bound as the composite's own blit.
+  if (pixel_grid_visible_ && uses_deep_zoom_pixel_renderer(view_zoom())) {
+    const QImage under = proof_display_image(render_cache_);
+    draw_deep_zoom_pixels(painter, under, QRect(QPoint(0, 0), under.size()), exposed_rect, true);
+  }
   return true;
 }
 

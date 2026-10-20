@@ -205,11 +205,13 @@ QRgb pixel_grid_line_color(QRgb pixel) noexcept;
 // the cover an aliased fillRect of its logical widget rect gets; rows likewise. edges_x and
 // edges_y hold one more entry than the columns and rows drawn. With `pixel_grid`, each
 // cell's first device column and row take pixel_grid_line_color (none along document
-// column or row 0). Returns premultiplied ARGB at device resolution and stores the device
+// column or row 0). With `grid_only` as well, every other device pixel is transparent:
+// the lines alone, for drawing over a frame that covered the raster (the Dynamic Vector
+// Preview blit). Returns premultiplied ARGB at device resolution and stores the device
 // position of its top-left pixel in device_origin; cost is one write per device pixel.
 QImage deep_zoom_raster(const QImage& source, QPoint document_origin, std::span<const int> edges_x,
                         std::span<const int> edges_y, double device_pixel_ratio, bool pixel_grid,
-                        QPoint& device_origin);
+                        QPoint& device_origin, bool grid_only = false);
 int display_mip_level_for_zoom(double zoom) noexcept;
 // "Layer N", one past the top-level count and not taken anywhere in the tree (New Layer,
 // and the layer a paint press adds to an empty artboard).
