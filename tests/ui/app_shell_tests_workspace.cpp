@@ -1868,6 +1868,55 @@ void ui_tool_palette_quick_mask_button_shows_its_icon() {
     }
   };
 
+  // The swap glyph's inked gap to the foreground swatch on its left equals its gap
+  // to the background swatch below it, and it keeps 2 px clear of the palette's
+  // right border (GitHub issue 251, second pass: Seth asked for equal spacing).
+  const auto check_swap_gaps = [&](const std::string& artifact) {
+    auto* swap = footer->findChild<QWidget*>(QStringLiteral("colorSwapButton"));
+    auto* foreground = footer->findChild<QWidget*>(QStringLiteral("foregroundColorButton"));
+    auto* background_swatch = footer->findChild<QWidget*>(QStringLiteral("backgroundColorButton"));
+    CHECK(swap != nullptr && foreground != nullptr && background_swatch != nullptr);
+    if (swap == nullptr || foreground == nullptr || background_swatch == nullptr) {
+      return;
+    }
+    const auto background = patchy::ui::theme().tool_palette_bg;
+    QPixmap rendered(footer->size());
+    rendered.setDevicePixelRatio(1.0);
+    rendered.fill(background);
+    footer->render(&rendered);
+    const auto image = rendered.toImage();
+    const auto box = swap->geometry();
+    int left = std::numeric_limits<int>::max();
+    int right = -1;
+    int bottom = -1;
+    for (int y = box.top(); y <= box.bottom(); ++y) {
+      for (int x = box.left(); x <= box.right(); ++x) {
+        const auto color = image.pixelColor(x, y);
+        if (std::abs(color.red() - background.red()) > 6 || std::abs(color.green() - background.green()) > 6 ||
+            std::abs(color.blue() - background.blue()) > 6) {
+          left = std::min(left, x);
+          right = std::max(right, x);
+          bottom = std::max(bottom, y);
+        }
+      }
+    }
+    CHECK(right >= 0);
+    const int left_gap = left - foreground->geometry().right() - 1;
+    const int bottom_gap = background_swatch->geometry().top() - bottom - 1;
+    const int border_column = std::min(footer->width(), patchy::ui::ToolPaletteFooter::kWidth) - 1;
+    const int border_clearance = border_column - right - 1;
+    fprintf(stderr, "  swap glyph gaps: left %d, bottom %d, border clearance %d\n", left_gap, bottom_gap,
+            border_clearance);
+    // The upper-right corner of the well at 8x, so a single pixel shows.
+    const QRect corner(foreground->geometry().right() - 3, 0, border_column + 1 - (foreground->geometry().right() - 3),
+                       background_swatch->geometry().top() + 4);
+    save_image_artifact(artifact, image.copy(corner).scaled(corner.size() * 8, Qt::IgnoreAspectRatio,
+                                                            Qt::FastTransformation));
+    CHECK(left_gap == bottom_gap);
+    CHECK(left_gap >= 1);
+    CHECK(border_clearance >= 2);
+  };
+
   // Off and On are different drawings: On tints the whole window, so it has
   // clearly more mask-red pixels. The frame is icon ink in each scheme.
   const auto red_pixels = [](const QImage& image) {
@@ -1901,6 +1950,8 @@ void ui_tool_palette_quick_mask_button_shows_its_icon() {
     process_events_for(60);
     check_edges_clear(scheme == patchy::ui::ColorSchemePreference::Dark ? "ui_tool_palette_footer_edges_dark"
                                                                          : "ui_tool_palette_footer_edges_light");
+    check_swap_gaps(scheme == patchy::ui::ColorSchemePreference::Dark ? "ui_tool_palette_swap_arrow_dark"
+                                                                       : "ui_tool_palette_swap_arrow_light");
     const auto ink = patchy::ui::theme().icon_ink;
     const auto off = action->icon().pixmap(QSize(22, 22), QIcon::Normal, QIcon::Off).toImage();
     const auto on = action->icon().pixmap(QSize(22, 22), QIcon::Normal, QIcon::On).toImage();
