@@ -33,6 +33,12 @@ class CanvasWidget;
 
 constexpr double kPi = 3.14159265358979323846;
 
+// The transparency checkerboard's two squares. Deliberately theme-exempt (the
+// color-scheme section of docs/ui-conventions.md): it depicts alpha, not chrome. The
+// artboard label ink reads them as the backing where the composite is clear.
+inline QColor checkerboard_dark_square() { return QColor(188, 188, 188); }
+inline QColor checkerboard_light_square() { return QColor(236, 236, 236); }
+
 // Whether the Move tool / free transform can pick up this layer's pixels,
 // shared by the move-tool code in canvas_widget.cpp and the transform TU.
 bool layer_has_movable_pixels(const Layer& layer);

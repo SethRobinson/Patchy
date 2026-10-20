@@ -11397,6 +11397,44 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Color and Vibrance</source>
         <translation>Farbe und Dynamik</translation>
     </message>
+    <message>
+        <source>Invalid Average input</source>
+        <translation>Ungültige Eingabe für Durchschnitt berechnen</translation>
+    </message>
+    <message>
+        <source>Blur</source>
+        <comment>Smart Filter</comment>
+        <translation>Weichzeichnen</translation>
+    </message>
+    <message>
+        <source>Blur More</source>
+        <comment>Smart Filter</comment>
+        <translation>Stärker weichzeichnen</translation>
+    </message>
+    <message>
+        <source>Sharpen</source>
+        <comment>Smart Filter</comment>
+        <translation>Scharfzeichnen</translation>
+    </message>
+    <message>
+        <source>Sharpen More</source>
+        <comment>Smart Filter</comment>
+        <translation>Stärker scharfzeichnen</translation>
+    </message>
+    <message>
+        <source>Invert</source>
+        <comment>Smart Filter</comment>
+        <translation>Umkehren</translation>
+    </message>
+    <message>
+        <source>Average</source>
+        <comment>Smart Filter</comment>
+        <translation>Durchschnitt berechnen</translation>
+    </message>
+    <message>
+        <source> (Amount %1, Zoom, %2 quality)</source>
+        <translation> (Stärke %1, Strahlenförmig, Qualität %2)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23147,6 +23185,14 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
     <message>
         <source>Cancelled Vibrance</source>
         <translation>Dynamik abgebrochen</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
+        <translation>Zum Zeichenflächen-Werkzeug wechseln, um Zeichenflächen hinzuzufügen, zu skalieren oder zu duplizieren</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
+        <translation>Zum Zeichenflächen-Werkzeug (%1) wechseln, um Zeichenflächen hinzuzufügen, zu skalieren oder zu duplizieren</translation>
     </message>
 </context>
 <context>

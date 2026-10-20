@@ -48,6 +48,18 @@ std::optional<SmartFilterKind> native_smart_filter_kind_for(
   if (filter_id == "patchy.filters.add_noise") {
     return SmartFilterKind::AddNoise;
   }
+  if (filter_id == "patchy.filters.blur") {
+    return SmartFilterKind::Blur;
+  }
+  if (filter_id == "patchy.filters.blur_more") {
+    return SmartFilterKind::BlurMore;
+  }
+  if (filter_id == "patchy.filters.sharpen_more") {
+    return SmartFilterKind::SharpenMore;
+  }
+  if (filter_id == "patchy.filters.average") {
+    return SmartFilterKind::Average;
+  }
   return std::nullopt;
 }
 
@@ -83,6 +95,12 @@ bool native_smart_filter_kind_supported(SmartFilterKind kind) {
     case SmartFilterKind::Diffuse:
     // Imported only; a single-effect gallery edits through its effect's dialog.
     case SmartFilterKind::FilterGallery:
+    case SmartFilterKind::Blur:
+    case SmartFilterKind::BlurMore:
+    case SmartFilterKind::Sharpen:
+    case SmartFilterKind::SharpenMore:
+    case SmartFilterKind::Invert:
+    case SmartFilterKind::Average:
       return true;
     case SmartFilterKind::Offset:
     case SmartFilterKind::Maximum:
@@ -130,6 +148,23 @@ smart_filter_entries_from_recipe(const FilterRecipe& recipe,
     const auto radial_blur = normalized->filter_id == "patchy.filters.radial_blur";
     const auto add_noise = normalized->filter_id == "patchy.filters.add_noise";
     SmartFilterEntry entry;
+    if (const auto *classic = parameterless_smart_filter_native(
+            *native_smart_filter_kind_for(normalized->filter_id));
+        classic != nullptr) {
+      // Photoshop's parameterless filters: no settings, no Fltr object.
+      entry.kind = classic->kind;
+      entry.native_name = classic->native_name;
+      entry.native_filter_id = classic->filter_id;
+      entry.parameters = std::monostate{};
+      entry.enabled = recipe_entry.enabled;
+      entry.has_options = false;
+      entry.opacity = recipe_entry.opacity;
+      entry.blend_mode = recipe_entry.blend_mode;
+      entry.foreground = normalized->foreground;
+      entry.background = normalized->background;
+      mapped.push_back(std::move(entry));
+      continue;
+    }
     if (radial_blur) {
       const auto amount_value = normalized->parameters.find("amount");
       const auto samples_value = normalized->parameters.find("samples");

@@ -1066,6 +1066,16 @@ std::optional<QRect> CanvasWidget::move_hover_outline_rect_at(QPoint widget_posi
     return std::nullopt;
   }
 
+  // An artboard's label, or with Auto-Select its empty area, is a Move target too: the
+  // outline frames the artboard the click would select (GitHub issue 259).
+  if (const auto artboard_id = move_artboard_target_at(widget_position, modifiers); artboard_id.has_value()) {
+    const auto* artboard = std::as_const(*document_).find_layer(*artboard_id);
+    if (artboard != nullptr && artboard->artboard().has_value()) {
+      const auto& rect = artboard->artboard()->rect;
+      return QRect(rect.x, rect.y, rect.width, rect.height);
+    }
+  }
+
   // Artwork on the pasteboard (outside the canvas) is picked and outlined like
   // artwork on it: the canvas clips what is painted, not what can be grabbed
   // (Seth, October 2026).
@@ -1107,7 +1117,8 @@ std::optional<QRect> CanvasWidget::move_hover_outline_rect_at(QPoint widget_posi
 
 void CanvasWidget::update_move_hover_outline(QPoint widget_position, Qt::KeyboardModifiers modifiers) {
   const auto next = move_hover_outline_rect_at(widget_position, modifiers);
-  if (move_hover_outline_rect_ == next) {
+  const auto next_artboard = next.has_value() ? move_artboard_target_at(widget_position, modifiers) : std::nullopt;
+  if (move_hover_outline_rect_ == next && move_hover_artboard_id_ == next_artboard) {
     return;
   }
 
@@ -1118,10 +1129,18 @@ void CanvasWidget::update_move_hover_outline(QPoint widget_position, Qt::Keyboar
   if (next.has_value()) {
     dirty = dirty.united(widget_rect_for_document_rect(*next));
   }
+  // A framed artboard's label changes color with the hover; it sits above the rect.
+  for (const auto& id : {move_hover_artboard_id_, next_artboard}) {
+    const auto* artboard = id.has_value() ? std::as_const(*document_).find_layer(*id) : nullptr;
+    if (artboard != nullptr && artboard->artboard().has_value()) {
+      dirty = dirty.united(artboard_label_widget_rect(*artboard).toAlignedRect().adjusted(-2, -2, 2, 2));
+    }
+  }
   move_hover_outline_rect_ = next;
+  move_hover_artboard_id_ = next_artboard;
 
   if (!dirty.isEmpty()) {
-    update(dirty);
+    update(dirty.adjusted(-2, -2, 2, 2));
   } else {
     update();
   }
@@ -1145,6 +1164,11 @@ bool CanvasWidget::move_press_drags_at(QPoint widget_position) const {
         artboard->artboard()->rect.contains(document_point.x(), document_point.y())) {
       return true;
     }
+  }
+  // Auto-Select on an artboard's empty area selects and drags the artboard (GitHub
+  // issue 259); the idle cursor has no event, so Ctrl is not read here.
+  if (move_artboard_target_at(widget_position, Qt::NoModifier).has_value()) {
+    return true;
   }
   auto passive_handle = TransformHandle::None;
   if (const auto rect = move_transform_controls_rect(); rect.has_value()) {
@@ -1173,13 +1197,21 @@ bool CanvasWidget::move_press_drags_at(QPoint widget_position) const {
 
 void CanvasWidget::clear_move_hover_outline() {
   if (!move_hover_outline_rect_.has_value()) {
+    move_hover_artboard_id_.reset();
     return;
   }
 
-  const auto dirty = widget_rect_for_document_rect(*move_hover_outline_rect_);
+  auto dirty = widget_rect_for_document_rect(*move_hover_outline_rect_);
+  if (move_hover_artboard_id_.has_value() && document_ != nullptr) {
+    const auto* artboard = std::as_const(*document_).find_layer(*move_hover_artboard_id_);
+    if (artboard != nullptr && artboard->artboard().has_value()) {
+      dirty = dirty.united(artboard_label_widget_rect(*artboard).toAlignedRect().adjusted(-2, -2, 2, 2));
+    }
+  }
   move_hover_outline_rect_.reset();
+  move_hover_artboard_id_.reset();
   if (!dirty.isEmpty()) {
-    update(dirty);
+    update(dirty.adjusted(-2, -2, 2, 2));
   } else {
     update();
   }

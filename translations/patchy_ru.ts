@@ -11431,6 +11431,44 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Color and Vibrance</source>
         <translation>Цвет и сочность</translation>
     </message>
+    <message>
+        <source>Invalid Average input</source>
+        <translation>Некорректные входные данные фильтра «Среднее»</translation>
+    </message>
+    <message>
+        <source>Blur</source>
+        <comment>Smart Filter</comment>
+        <translation>Размытие</translation>
+    </message>
+    <message>
+        <source>Blur More</source>
+        <comment>Smart Filter</comment>
+        <translation>Размытие+</translation>
+    </message>
+    <message>
+        <source>Sharpen</source>
+        <comment>Smart Filter</comment>
+        <translation>Резкость</translation>
+    </message>
+    <message>
+        <source>Sharpen More</source>
+        <comment>Smart Filter</comment>
+        <translation>Резкость+</translation>
+    </message>
+    <message>
+        <source>Invert</source>
+        <comment>Smart Filter</comment>
+        <translation>Инверсия</translation>
+    </message>
+    <message>
+        <source>Average</source>
+        <comment>Smart Filter</comment>
+        <translation>Среднее</translation>
+    </message>
+    <message>
+        <source> (Amount %1, Zoom, %2 quality)</source>
+        <translation> (Количество %1, Линейный, Качество %2)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23217,6 +23255,14 @@ Patchy можно будет запускать из меню, а на пане�
     <message>
         <source>Cancelled Vibrance</source>
         <translation>Сочность отменена</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
+        <translation>Переключитесь на инструмент «Монтажная область», чтобы добавлять, изменять размер или дублировать монтажные области</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
+        <translation>Переключитесь на инструмент «Монтажная область» (%1), чтобы добавлять, изменять размер или дублировать монтажные области</translation>
     </message>
 </context>
 <context>

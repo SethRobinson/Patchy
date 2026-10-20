@@ -196,23 +196,70 @@ void CanvasWidget::begin_artboard_move_drag(const Layer& artboard, QMouseEvent* 
 }
 
 bool CanvasWidget::handle_move_tool_artboard_press(QMouseEvent* event) {
-  // With an artboard itself selected (not a layer inside it), the Move tool moves the
-  // artboard: a press inside it starts the same gesture as the Artboard tool's.
-  if (tool_ != CanvasTool::Move || event->button() != Qt::LeftButton || document_ == nullptr || edit_locked_ ||
-      (event->modifiers() & Qt::ControlModifier) != 0) {
+  if (tool_ != CanvasTool::Move || event->button() != Qt::LeftButton || document_ == nullptr || edit_locked_) {
     return false;
   }
-  const auto id = selected_root_artboard_id();
+  const auto& document = std::as_const(*document_);
+  const auto point = document_position(event->pos());
+  // With an artboard itself selected (not a layer inside it), the Move tool moves the
+  // artboard: a press inside it starts the same gesture as the Artboard tool's.
+  if ((event->modifiers() & Qt::ControlModifier) == 0) {
+    if (const auto id = selected_root_artboard_id(); id.has_value()) {
+      const auto* artboard = document.find_layer(*id);
+      if (artboard != nullptr && artboard->visible() && artboard->artboard()->rect.contains(point.x(), point.y())) {
+        begin_artboard_move_drag(*artboard, event);
+        return true;
+      }
+    }
+  }
+  // Auto-Select (or Ctrl) on an artboard's empty area picks the artboard, the way it
+  // picks the layer under the pointer elsewhere (GitHub issue 259): the hover outline
+  // framed it, the click selects it in the Layers panel and a drag moves it.
+  const auto id = move_artboard_target_at(event->pos(), event->modifiers());
   if (!id.has_value()) {
     return false;
   }
-  const auto* artboard = std::as_const(*document_).find_layer(*id);
-  const auto point = document_position(event->pos());
-  if (artboard == nullptr || !artboard->visible() || !artboard->artboard()->rect.contains(point.x(), point.y())) {
+  const auto* artboard = document.find_layer(*id);
+  if (artboard == nullptr || !artboard->artboard().has_value()) {
     return false;
   }
+  request_artboard_edit({ArtboardEditRequest::Kind::Select, id, {}, {}, 0, false});
   begin_artboard_move_drag(*artboard, event);
   return true;
+}
+
+std::optional<LayerId> CanvasWidget::move_artboard_target_at(QPoint widget_position,
+                                                              Qt::KeyboardModifiers modifiers) const {
+  if (document_ == nullptr || tool_ != CanvasTool::Move) {
+    return std::nullopt;
+  }
+  if (const auto label = artboard_label_at(widget_position); label.has_value()) {
+    return label;
+  }
+  // Only a selecting press reads the artboard under the pointer: with Auto-Select off a
+  // plain press drags the selection from anywhere, and Shift adds to it.
+  if ((!auto_select_layer_ && !modifiers.testFlag(Qt::ControlModifier)) || modifiers.testFlag(Qt::ShiftModifier)) {
+    return std::nullopt;
+  }
+  // The passive transform box's edges and corners keep their grabs.
+  if (const auto rect = move_transform_controls_rect(); rect.has_value()) {
+    const auto handle = transform_handle_at(widget_position, *rect, 0.0, TransformHitZones::EdgesAndCorners);
+    if (handle != TransformHandle::None && handle != TransformHandle::Move) {
+      return std::nullopt;
+    }
+  }
+  const auto& document = std::as_const(*document_);
+  const auto point = document_position(widget_position);
+  // Any layer under the pointer, locked or not, is the pick there (a locked one reports
+  // its lock); the artboard is the pick only on its empty area.
+  if (topmost_move_layer_at(point, false) != nullptr) {
+    return std::nullopt;
+  }
+  const auto* artboard = artboard_at(document, point.x(), point.y());
+  if (artboard == nullptr || !artboard->visible()) {
+    return std::nullopt;
+  }
+  return artboard->id();
 }
 
 void CanvasWidget::request_artboard_edit(const ArtboardEditRequest& request) {
@@ -658,6 +705,69 @@ void CanvasWidget::draw_canvas_backdrop(QPainter& painter, const QRectF& target_
   }
 }
 
+namespace {
+
+// Perceived lightness of an sRGB color on 0..255, for the label ink decision.
+double srgb_luma(const QColor& color) {
+  return 0.299 * color.red() + 0.587 * color.green() + 0.114 * color.blue();
+}
+
+}  // namespace
+
+bool CanvasWidget::artboard_label_sits_on_light_backing(const std::vector<const Layer*>& artboards,
+                                                        const QRectF& label_widget_rect) const {
+  if (document_ == nullptr || label_widget_rect.isEmpty()) {
+    return false;
+  }
+  const auto& document = std::as_const(*document_);
+  // The frame is sampled at document resolution when the cache holds one; a label
+  // gets a small fixed grid of samples whatever its size or the zoom.
+  const bool frame_available = !render_cache_.isNull() && render_cache_.width() == document.width() &&
+                               render_cache_.height() == document.height();
+  const auto checkerboard =
+      QColor((checkerboard_dark_square().red() + checkerboard_light_square().red()) / 2,
+             (checkerboard_dark_square().green() + checkerboard_light_square().green()) / 2,
+             (checkerboard_dark_square().blue() + checkerboard_light_square().blue()) / 2);
+  const auto pasteboard = backdrop_color();
+  constexpr int kColumns = 6;
+  constexpr int kRows = 3;
+  double luma_sum = 0.0;
+  int samples = 0;
+  for (int row = 0; row < kRows; ++row) {
+    for (int column = 0; column < kColumns; ++column) {
+      const QPointF widget_point(label_widget_rect.left() + (column + 0.5) * label_widget_rect.width() / kColumns,
+                                 label_widget_rect.top() + (row + 0.5) * label_widget_rect.height() / kRows);
+      const auto document_point = document_position_f(widget_point);
+      const int x = static_cast<int>(std::floor(document_point.x()));
+      const int y = static_cast<int>(std::floor(document_point.y()));
+      // What shows where the composite is clear: inside an artboard its paper (the
+      // checkerboard for a Transparent one), between artboards the pasteboard.
+      QColor under = pasteboard;
+      for (const auto* artboard : artboards) {
+        if (artboard->visible() && artboard->artboard()->rect.contains(x, y)) {
+          const auto paper = artboard_background_rgba(*artboard->artboard());
+          under = paper.has_value() && (*paper)[3] == 255 ? QColor((*paper)[0], (*paper)[1], (*paper)[2])
+                                                           : checkerboard;
+          break;
+        }
+      }
+      QColor shown = under;
+      if (frame_available && x >= 0 && y >= 0 && x < document.width() && y < document.height()) {
+        const auto pixel = render_cache_.pixelColor(x, y);
+        const double alpha = pixel.alphaF();
+        shown = QColor::fromRgbF(static_cast<float>(pixel.redF() * alpha + under.redF() * (1.0 - alpha)),
+                                 static_cast<float>(pixel.greenF() * alpha + under.greenF() * (1.0 - alpha)),
+                                 static_cast<float>(pixel.blueF() * alpha + under.blueF() * (1.0 - alpha)));
+      }
+      luma_sum += srgb_luma(shown);
+      ++samples;
+    }
+  }
+  // The crossover where the dark ink starts to contrast better than the light one.
+  constexpr double kLightBackingLuma = 118.0;
+  return samples > 0 && luma_sum / samples > kLightBackingLuma;
+}
+
 void CanvasWidget::draw_artboard_overlay(QPainter& painter) const {
   if (document_ == nullptr) {
     return;
@@ -705,7 +815,14 @@ void CanvasWidget::draw_artboard_overlay(QPainter& painter) const {
     const auto label = artboard_label_widget_rect(*artboard).translated(widget_rect.topLeft() -
                                                                         widget_position_f(QPointF(artboard->artboard()->rect.x,
                                                                                                   artboard->artboard()->rect.y)));
-    painter.setPen(is_selected ? colors.canvas_artboard_selected : colors.canvas_artboard_label);
+    // The ink follows the backing (GitHub issue 260); a hovered label (GitHub issue 259)
+    // and a selected one take the selected color.
+    const bool is_hovered = tool_ == CanvasTool::Move && move_hover_artboard_id_.has_value() &&
+                            *move_hover_artboard_id_ == artboard->id();
+    const auto label_ink = artboard_label_sits_on_light_backing(artboards, label)
+                               ? colors.canvas_artboard_label_on_light
+                               : colors.canvas_artboard_label;
+    painter.setPen(is_selected || is_hovered ? colors.canvas_artboard_selected : label_ink);
     painter.drawText(label, Qt::AlignLeft | Qt::AlignVCenter,
                      metrics.elidedText(QString::fromStdString(artboard->name()), Qt::ElideRight, label.width()));
     if (is_dragged && artboard_drag_duplicate_) {

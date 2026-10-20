@@ -11363,6 +11363,44 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Color and Vibrance</source>
         <translation>색상 및 활기</translation>
     </message>
+    <message>
+        <source>Invalid Average input</source>
+        <translation>잘못된 평균 입력</translation>
+    </message>
+    <message>
+        <source>Blur</source>
+        <comment>Smart Filter</comment>
+        <translation>흐리게</translation>
+    </message>
+    <message>
+        <source>Blur More</source>
+        <comment>Smart Filter</comment>
+        <translation>더 흐리게</translation>
+    </message>
+    <message>
+        <source>Sharpen</source>
+        <comment>Smart Filter</comment>
+        <translation>선명하게</translation>
+    </message>
+    <message>
+        <source>Sharpen More</source>
+        <comment>Smart Filter</comment>
+        <translation>더 선명하게</translation>
+    </message>
+    <message>
+        <source>Invert</source>
+        <comment>Smart Filter</comment>
+        <translation>반전</translation>
+    </message>
+    <message>
+        <source>Average</source>
+        <comment>Smart Filter</comment>
+        <translation>평균</translation>
+    </message>
+    <message>
+        <source> (Amount %1, Zoom, %2 quality)</source>
+        <translation> (양 %1, 줌, %2 품질)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23077,6 +23115,14 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Vibrance</source>
         <translation>활기를 취소했습니다</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
+        <translation>대지를 추가, 크기 조정 또는 복제하려면 대지 도구로 전환하세요</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
+        <translation>대지를 추가, 크기 조정 또는 복제하려면 대지 도구(%1)로 전환하세요</translation>
     </message>
 </context>
 <context>

@@ -11397,6 +11397,44 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Color and Vibrance</source>
         <translation>Couleur et vibrance</translation>
     </message>
+    <message>
+        <source>Invalid Average input</source>
+        <translation>Entrée non valide pour Moyenne</translation>
+    </message>
+    <message>
+        <source>Blur</source>
+        <comment>Smart Filter</comment>
+        <translation>Flou</translation>
+    </message>
+    <message>
+        <source>Blur More</source>
+        <comment>Smart Filter</comment>
+        <translation>Flou plus important</translation>
+    </message>
+    <message>
+        <source>Sharpen</source>
+        <comment>Smart Filter</comment>
+        <translation>Plus net</translation>
+    </message>
+    <message>
+        <source>Sharpen More</source>
+        <comment>Smart Filter</comment>
+        <translation>Encore plus net</translation>
+    </message>
+    <message>
+        <source>Invert</source>
+        <comment>Smart Filter</comment>
+        <translation>Négatif</translation>
+    </message>
+    <message>
+        <source>Average</source>
+        <comment>Smart Filter</comment>
+        <translation>Moyenne</translation>
+    </message>
+    <message>
+        <source> (Amount %1, Zoom, %2 quality)</source>
+        <translation> (Valeur %1, Zoom, qualité %2)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23147,6 +23185,14 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
     <message>
         <source>Cancelled Vibrance</source>
         <translation>Vibrance annulée</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
+        <translation>Passez à l'outil Plan de travail pour ajouter, redimensionner ou dupliquer des plans de travail</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
+        <translation>Passez à l'outil Plan de travail (%1) pour ajouter, redimensionner ou dupliquer des plans de travail</translation>
     </message>
 </context>
 <context>

@@ -293,9 +293,13 @@ struct ThemePalette {
   QColor canvas_snap_guide;
   // Artboards on the canvas (docs/artboards.md): every artboard's outline and name
   // label, the selected one's outline, label and handles in the selected color, and the
-  // Artboard tool's handle fill. Drawn over the pasteboard and artwork alike.
+  // Artboard tool's handle fill. Drawn over the pasteboard and artwork alike. A label is
+  // ink on whatever it sits on (GitHub issue 260): `canvas_artboard_label` over a dark
+  // backing (the Dark pasteboard, a black artboard), `canvas_artboard_label_on_light` over
+  // a light one (the Light pasteboard, a white artboard's paper); both exist in each scheme.
   QColor canvas_artboard_outline;
   QColor canvas_artboard_label;
+  QColor canvas_artboard_label_on_light;
   QColor canvas_artboard_selected;
   QColor canvas_artboard_handle;
 
