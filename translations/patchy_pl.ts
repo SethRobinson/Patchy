@@ -22698,6 +22698,10 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
         <source>Cancelled Channel Mixer</source>
         <translation>Anulowano mieszanie kanałów</translation>
     </message>
+    <message>
+        <source>New Fill or Adjustment Layer</source>
+        <translation>Nowa warstwa wypełnienia lub dopasowania</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

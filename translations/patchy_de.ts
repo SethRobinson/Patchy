@@ -22628,6 +22628,10 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
         <source>Cancelled Channel Mixer</source>
         <translation>Kanalmixer abgebrochen</translation>
     </message>
+    <message>
+        <source>New Fill or Adjustment Layer</source>
+        <translation>Neue Füll- oder Einstellungsebene</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

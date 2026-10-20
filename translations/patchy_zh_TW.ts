@@ -22558,6 +22558,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <source>Cancelled Channel Mixer</source>
         <translation>已取消色版混合器</translation>
     </message>
+    <message>
+        <source>New Fill or Adjustment Layer</source>
+        <translation>新增填滿或調整圖層</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
