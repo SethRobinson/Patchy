@@ -15,6 +15,7 @@
 
 class QAction;
 class QPaintEvent;
+class QResizeEvent;
 
 namespace patchy::ui {
 
@@ -73,7 +74,15 @@ public:
   [[nodiscard]] QSize sizeHint() const override { return {kWidth, kHeight}; }
   [[nodiscard]] QSize minimumSizeHint() const override { return {kWidth, kHeight}; }
 
+protected:
+  void resizeEvent(QResizeEvent* event) override;
+  bool eventFilter(QObject* watched, QEvent* event) override;
+
 private:
+  // Centers the Quick Mask button under the well in the footer's real width,
+  // which can be a pixel or two narrower than kWidth (GitHub issue 224).
+  void place_quick_mask();
+
   ColorWellSwatch* foreground_{nullptr};
   ColorWellSwatch* background_{nullptr};
   ColorWellGlyphButton* swap_{nullptr};
