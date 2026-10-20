@@ -991,6 +991,83 @@ void draw_threshold_adjustment_thumbnail_symbol(QPainter& painter, const QColor&
   painter.drawLine(QPointF(square.center().x(), square.top()), QPointF(square.center().x(), square.bottom()));
 }
 
+// Adjustment kinds Patchy keeps but cannot apply yet (#250): their display names and
+// thumbnail symbols, drawn on a muted frame so they read as "not applied".
+QString adjustment_placeholder_display_name(std::string_view kind) {
+  if (kind == "vibrance") return QObject::tr("Vibrance");
+  if (kind == "black_white") return QObject::tr("Black & White");
+  if (kind == "photo_filter") return QObject::tr("Photo Filter");
+  if (kind == "channel_mixer") return QObject::tr("Channel Mixer");
+  if (kind == "color_lookup") return QObject::tr("Color Lookup");
+  if (kind == "gradient_map") return QObject::tr("Gradient Map");
+  if (kind == "selective_color") return QObject::tr("Selective Color");
+  return QObject::tr("Adjustment");
+}
+
+void draw_placeholder_adjustment_thumbnail_symbol(QPainter& painter, std::string_view kind) {
+  painter.setPen(Qt::NoPen);
+  if (kind == "vibrance") {
+    // A drop whose color strengthens toward its tip.
+    QPainterPath drop;
+    drop.moveTo(14.0, 6.0);
+    drop.cubicTo(19.0, 12.0, 21.0, 15.0, 21.0, 17.0);
+    drop.arcTo(QRectF(7.0, 10.0, 14.0, 13.0), 0.0, -180.0);
+    drop.cubicTo(7.0, 15.0, 9.0, 12.0, 14.0, 6.0);
+    QLinearGradient fill(QPointF(14.0, 23.0), QPointF(14.0, 6.0));
+    fill.setColorAt(0.0, QColor(150, 150, 150));
+    fill.setColorAt(1.0, QColor(255, 70, 120));
+    painter.fillPath(drop, fill);
+  } else if (kind == "black_white") {
+    // A disc holding a black-to-white ramp.
+    QLinearGradient ramp(QPointF(6.0, 0.0), QPointF(22.0, 0.0));
+    ramp.setColorAt(0.0, QColor(20, 22, 26));
+    ramp.setColorAt(1.0, QColor(245, 245, 245));
+    painter.setBrush(ramp);
+    painter.drawEllipse(QRectF(6.0, 6.0, 16.0, 16.0));
+  } else if (kind == "photo_filter") {
+    // A lens ring with a warm tint laid over it.
+    painter.setPen(QPen(QColor(220, 226, 234), 2.0));
+    painter.setBrush(Qt::NoBrush);
+    painter.drawEllipse(QRectF(6.0, 6.0, 16.0, 16.0));
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor(255, 150, 40, 170));
+    painter.drawEllipse(QRectF(9.0, 9.0, 10.0, 10.0));
+  } else if (kind == "channel_mixer") {
+    // Three channel bars at different levels.
+    painter.setBrush(QColor(235, 80, 80));
+    painter.drawRect(QRectF(7.0, 12.0, 4.0, 10.0));
+    painter.setBrush(QColor(90, 210, 110));
+    painter.drawRect(QRectF(12.0, 7.0, 4.0, 15.0));
+    painter.setBrush(QColor(90, 140, 245));
+    painter.drawRect(QRectF(17.0, 15.0, 4.0, 7.0));
+  } else if (kind == "color_lookup") {
+    // A small table of colors.
+    const std::array<QColor, 9> cells{QColor(230, 80, 70),  QColor(240, 170, 60), QColor(230, 220, 90),
+                                      QColor(90, 200, 120), QColor(70, 190, 200), QColor(80, 120, 230),
+                                      QColor(160, 90, 220), QColor(220, 90, 170), QColor(200, 200, 200)};
+    for (int index = 0; index < 9; ++index) {
+      painter.setBrush(cells[static_cast<std::size_t>(index)]);
+      painter.drawRect(QRectF(7.0 + (index % 3) * 5.0, 7.0 + (index / 3) * 5.0, 4.0, 4.0));
+    }
+  } else if (kind == "gradient_map") {
+    // A ramp from dark through color to light.
+    QLinearGradient ramp(QPointF(6.0, 0.0), QPointF(22.0, 0.0));
+    ramp.setColorAt(0.0, QColor(30, 20, 60));
+    ramp.setColorAt(0.5, QColor(220, 70, 90));
+    ramp.setColorAt(1.0, QColor(255, 235, 150));
+    painter.setBrush(ramp);
+    painter.drawRect(QRectF(6.0, 10.0, 16.0, 8.0));
+  } else if (kind == "selective_color") {
+    // Four ink dots.
+    const std::array<QColor, 4> inks{QColor(40, 200, 230), QColor(230, 60, 160), QColor(245, 220, 50),
+                                     QColor(25, 25, 28)};
+    for (int index = 0; index < 4; ++index) {
+      painter.setBrush(inks[static_cast<std::size_t>(index)]);
+      painter.drawEllipse(QRectF(7.0 + (index % 2) * 8.0, 7.0 + (index / 2) * 8.0, 6.0, 6.0));
+    }
+  }
+}
+
 void draw_invert_adjustment_thumbnail_symbol(QPainter& painter, const QColor& accent) {
   // A square split along the diagonal into a light and a dark half: a negative.
   const QRectF square(7.0, 7.0, 14.0, 14.0);
@@ -1202,6 +1279,20 @@ QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int docu
     }
     return pixmap;
   }
+  if (const auto placeholder = adjustment_placeholder_kind(layer);
+      !placeholder.empty() && layer.kind() == LayerKind::Pixel) {
+    QPixmap pixmap(kSize, kSize);
+    pixmap.fill(QColor(35, 41, 50));
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+    draw_adjustment_thumbnail_frame(painter, kSize, QColor(120, 126, 136));
+    draw_placeholder_adjustment_thumbnail_symbol(painter, placeholder);
+    painter.setBrush(Qt::NoBrush);
+    painter.setRenderHint(QPainter::Antialiasing, false);
+    painter.setPen(QPen(theme().layer_thumbnail_border, 1));
+    painter.drawRect(QRect(0, 0, kSize - 1, kSize - 1));
+    return pixmap;
+  }
   if (layer.kind() == LayerKind::Adjustment) {
     QPixmap pixmap(kSize, kSize);
     pixmap.fill(QColor(35, 41, 50));
@@ -1318,6 +1409,11 @@ QString layer_content_thumbnail_tooltip(const Layer& layer, bool report_font_pro
     }
     return QObject::tr("Text layer. Font is missing on this computer: %1.").arg(missing);
   };
+  if (const auto placeholder = adjustment_placeholder_kind(layer); !placeholder.empty()) {
+    return QObject::tr("%1 adjustment from Photoshop. Patchy cannot apply it yet: it has no effect here and is "
+                       "saved unchanged.")
+        .arg(adjustment_placeholder_display_name(placeholder));
+  }
   return layer_is_artboard(layer) ? QObject::tr("Artboard")
          : layer.kind() == LayerKind::Group
              ? QObject::tr("Folder layer")
@@ -1519,7 +1615,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   layout->addWidget(thumbnail, 0, Qt::AlignVCenter);
 
   if (layer.mask().has_value()) {
-    if (layer.kind() == LayerKind::Pixel && !layer_is_text(layer)) {
+    // An adjustment placeholder keeps its "what is this" tooltip: it has no pixels to edit.
+    if (layer.kind() == LayerKind::Pixel && !layer_is_text(layer) && adjustment_placeholder_kind(layer).empty()) {
       thumbnail->setToolTip(QObject::tr("Layer pixels. Click to edit them instead of the mask."));
     }
     auto* link = new QToolButton(row);

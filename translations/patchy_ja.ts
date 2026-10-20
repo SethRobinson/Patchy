@@ -10919,6 +10919,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Preserve Luminosity</source>
         <translation>輝度を保持</translation>
     </message>
+    <message>
+        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Vibrance, Black &amp; White or Gradient Map). They have no effect here and are saved unchanged.</source>
+        <translation>一部の調整レイヤーは、Patchy がまだ適用できない種類（自然な彩度、白黒、グラデーションマップなど）を使用しています。ここでは効果がなく、変更されずに保存されます。</translation>
+    </message>
+    <message>
+        <source>Vibrance</source>
+        <translation>自然な彩度</translation>
+    </message>
+    <message>
+        <source>Black &amp; White</source>
+        <translation>白黒</translation>
+    </message>
+    <message>
+        <source>Photo Filter</source>
+        <translation>レンズフィルター</translation>
+    </message>
+    <message>
+        <source>Channel Mixer</source>
+        <translation>チャンネルミキサー</translation>
+    </message>
+    <message>
+        <source>Color Lookup</source>
+        <translation>カラールックアップ</translation>
+    </message>
+    <message>
+        <source>Gradient Map</source>
+        <translation>グラデーションマップ</translation>
+    </message>
+    <message>
+        <source>Selective Color</source>
+        <translation>特定色域の選択</translation>
+    </message>
+    <message>
+        <source>%1 adjustment from Photoshop. Patchy cannot apply it yet: it has no effect here and is saved unchanged.</source>
+        <translation>Photoshop の%1調整。Patchy はまだ適用できません。ここでは効果がなく、変更されずに保存されます。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

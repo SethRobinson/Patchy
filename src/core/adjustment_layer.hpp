@@ -103,6 +103,9 @@ inline constexpr const char* kLayerMetadataAdjustmentColorBalanceHighlights =
     "patchy.adjustment.color_balance.highlights";
 inline constexpr const char* kLayerMetadataAdjustmentColorBalancePreserveLuminosity =
     "patchy.adjustment.color_balance.preserve_luminosity";
+// A Photoshop adjustment kind Patchy cannot apply yet imports as an empty placeholder layer
+// carrying its kind token here; the native block is kept and written back unchanged (#250).
+inline constexpr const char* kLayerMetadataAdjustmentPlaceholderKind = "patchy.adjustment.placeholder_kind";
 inline constexpr const char* kLayerMetadataAdjustmentPosterizeLevels = "patchy.adjustment.posterize.levels";
 inline constexpr const char* kLayerMetadataAdjustmentThresholdLevel = "patchy.adjustment.threshold.level";
 inline constexpr const char* kLayerMetadataAdjustmentExposureValue = "patchy.adjustment.exposure.value";
@@ -418,6 +421,12 @@ void set_curve_points_for_channel(CurvesAdjustment& curves, CurvesChannel channe
                                                                            bool unbounded);
 
 [[nodiscard]] bool layer_is_adjustment(const Layer& layer);
+// The placeholder kind token ("vibrance", "black_white", "photo_filter", "channel_mixer",
+// "color_lookup", "gradient_map", "selective_color") for a Photoshop adjustment block key
+// Patchy keeps but cannot apply yet, or nullptr.
+[[nodiscard]] const char* photoshop_placeholder_adjustment_kind(std::string_view block_key) noexcept;
+// The layer's placeholder kind token, or empty when it is not an adjustment placeholder.
+[[nodiscard]] std::string_view adjustment_placeholder_kind(const Layer& layer);
 [[nodiscard]] std::string adjustment_kind_key(AdjustmentKind kind);
 [[nodiscard]] std::string adjustment_display_name(AdjustmentKind kind);
 [[nodiscard]] std::optional<AdjustmentKind> adjustment_kind_from_key(std::string_view key);

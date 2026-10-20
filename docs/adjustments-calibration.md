@@ -40,6 +40,10 @@ Fitted against Photoshop's renders of psd-tools' `adjustments/levels_rgb.psd` an
 - **Levels:** the component channel record runs FIRST, then Composite RGB (the Curves order), and the channel result reaches the composite stage unrounded. Within 2/255 everywhere on the render; composite-first is off by up to 52, and a byte-rounded intermediate has ten times the 2/255 misses. `apply_levels` (core) and `build_levels_luts` (ui/filter_workflows.cpp, the destructive command) both follow it. A master-only adjustment is unchanged.
 - **Posterize:** `floor(floor(value * levels / 256) * 255 / (levels - 1))`, byte-exact at 3, 7, 13 and 21 levels (3 levels give 0, 127, 255). Refuted: nearest-step rounding, and rounding the output step instead of truncating it. `posterize_channel_value` serves the adjustment layer and `patchy.filters.posterize` alike.
 
+## Placeholders
+
+Photoshop adjustment kinds Patchy cannot apply yet (`vibA`, `blwh`, `phfl`, `mixr`, `clrL`, `grdm`, `selc`) import as empty pixel layers marked `patchy.adjustment.placeholder_kind` (`photoshop_placeholder_adjustment_kind`): the Layers panel draws the kind's symbol on a muted frame and a tooltip says it is kept but not applied, one import notice covers the file, and the native block is written back byte for byte. A kind leaves this list when it gets a real `AdjustmentKind`.
+
 ## Color Balance
 
 Fitted on a Photoshop 2026 COM probe (#250): a 256-step gray ramp plus a 16-level RGB cube through 60 settings (each slider at +-100 and +50 per tone, both Preserve Luminosity states, extra magnitudes, two mixed sets; adjustment layer and destructive command agree). The model matches 783,311 of 783,360 probe values (49 off by one) and both committed fixtures, `photoshop-color-balance{,-full}.psd`, exactly. S, M, H are the shadows, midtones and highlights triples (cyan/red, magenta/green, yellow/blue).
