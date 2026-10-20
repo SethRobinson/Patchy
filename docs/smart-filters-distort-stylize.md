@@ -110,6 +110,25 @@ captures unless noted.
   Amount: PS's character, not PS's pattern. `smart_filter_ripple_amount_zero_is_identity`
   pins the linear scale at 0.
 
+### Shear (`Shr `, filterID `Shr `)
+
+- Keys from PS's recorded actions: `ShrP` list of `Pnt ` objects (double `Hrzn`,
+  `Vrtc`), `UndA` enum `UndA` (`WrpA`, `RptE`), integers `ShrS`, `ShrE` (PS writes 0
+  and the last point index). Entry `Shear...`. Patchy has no curve editor: the curve,
+  `ShrS` and `ShrE` are hidden fields kept verbatim (the list is rewritten only if the
+  points change); the dialog edits Undefined Areas and blending.
+- Points live in a 128-unit grid. Row y reads a natural cubic spline (zero second
+  derivative at both ends, the Curves solver) through the points as a function of
+  `Vrtc` at `y * 128 / (H - 1)`; the row moves right by `spline * H / 128` pixels: PS
+  scales both axes by the canvas height (portrait probe). Rows outside the first and
+  last point hold their values. Wrap Around wraps over the canvas width; Repeat Edge
+  Pixels clamps. Bilinear sampling fits better than cubic.
+- Calibration: on 16-bit coordinate ramps the shift is within 0.06 px for a line and a
+  three-point bend and 0.6 px for a steep four-point curve (functional, not parametric,
+  spline). Open item: on the 8-bit 64x48 fixture PS's rows sit up to 0.7 px off that
+  model (best fit there is `(y + 0.5) * 128 / H`), so the fixture pins a loose mean
+  tolerance (RGB 8, alpha 4.5 levels; actual 7.1 and 3.8, mostly in its noise block).
+
 ## Fixtures
 
 `test-fixtures/psd/photoshop-smart-filter-<name>.psd`, self-authored through COM from a

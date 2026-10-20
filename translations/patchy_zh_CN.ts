@@ -11190,6 +11190,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Ripple</source>
         <translation>波纹</translation>
     </message>
+    <message>
+        <source>Curve</source>
+        <translation>曲线</translation>
+    </message>
+    <message>
+        <source>Curve Start</source>
+        <translation>曲线起点</translation>
+    </message>
+    <message>
+        <source>Curve End</source>
+        <translation>曲线终点</translation>
+    </message>
+    <message>
+        <source>Shear</source>
+        <translation>切变</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

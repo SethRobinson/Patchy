@@ -157,8 +157,48 @@ DescriptorValue smart_filter_color(RgbColor color) {
 // and stringIDs otherwise (docs/smart-filters-distort-stylize.md).
 bool schema_id_long_form(std::string_view id) { return id.size() != 4U; }
 
-DescriptorValue schema_field_descriptor(const SmartFilterField& field, std::int32_t value) {
+// Shear's curve: a list of `Pnt ` objects holding double `Hrzn` and `Vrtc`.
+std::optional<std::vector<double>> read_point_list(const DescriptorValue& value) {
+  if (value.type != DescriptorValue::Type::List) {
+    return std::nullopt;
+  }
+  std::vector<double> points;
+  points.reserve(value.list_value.size() * 2U);
+  for (const auto& item : value.list_value) {
+    if (item.type != DescriptorValue::Type::Object || item.object_value == nullptr ||
+        item.object_value->class_id != "Pnt ") {
+      return std::nullopt;
+    }
+    for (const auto* key : {"Hrzn", "Vrtc"}) {
+      const auto* coordinate = descriptor_value(*item.object_value, key);
+      if (coordinate == nullptr || coordinate->type != DescriptorValue::Type::Double ||
+          !std::isfinite(coordinate->double_value)) {
+        return std::nullopt;
+      }
+      points.push_back(coordinate->double_value);
+    }
+  }
+  return points;
+}
+
+DescriptorValue point_list_descriptor(const std::vector<double>& points) {
+  DescriptorValue list;
+  list.type = DescriptorValue::Type::List;
+  for (std::size_t index = 0; index + 1U < points.size(); index += 2U) {
+    auto point = smart_filter_object("Pnt ", false);
+    add_smart_filter_value(*point.object_value, "Hrzn", false, smart_filter_double(points[index]));
+    add_smart_filter_value(*point.object_value, "Vrtc", false,
+                           smart_filter_double(points[index + 1U]));
+    list.list_value.push_back(std::move(point));
+  }
+  return list;
+}
+
+DescriptorValue schema_field_descriptor(const SmartFilterField& field, std::int32_t value,
+                                        const std::vector<double>& points) {
   switch (field.type) {
+    case SmartFilterFieldType::PointList:
+      return point_list_descriptor(points);
     case SmartFilterFieldType::Enum: {
       const auto* native = field.options[static_cast<std::size_t>(value)].native_value;
       return smart_filter_enum(field.enum_type, schema_id_long_form(field.enum_type), native,
@@ -173,14 +213,30 @@ DescriptorValue schema_field_descriptor(const SmartFilterField& field, std::int3
 }
 
 // Reads one field's integer form; nullopt when the key is missing, has another
-// type, or holds a value outside the field's range or options.
+// type, or holds a value outside the field's range or options. A point list
+// returns its count and appends its coordinates to `points`.
 std::optional<std::int32_t> read_schema_field(const DescriptorObject& filter,
-                                              const SmartFilterField& field) {
+                                              const SmartFilterField& field,
+                                              std::vector<double>* points = nullptr) {
   const auto* value = descriptor_value(filter, field.key);
   if (value == nullptr) {
     return std::nullopt;
   }
   switch (field.type) {
+    case SmartFilterFieldType::PointList: {
+      auto list = read_point_list(*value);
+      if (!list.has_value()) {
+        return std::nullopt;
+      }
+      const auto count = static_cast<std::int64_t>(list->size() / 2U);
+      if (count < field.minimum || count > field.maximum) {
+        return std::nullopt;
+      }
+      if (points != nullptr) {
+        points->insert(points->end(), list->begin(), list->end());
+      }
+      return static_cast<std::int32_t>(count);
+    }
     case SmartFilterFieldType::Integer:
       if (value->type == DescriptorValue::Type::Integer && value->integer_value >= field.minimum &&
           value->integer_value <= field.maximum) {
@@ -223,7 +279,7 @@ std::optional<SchemaSmartFilter> read_schema_settings(const DescriptorObject& fi
   SchemaSmartFilter settings;
   settings.values.reserve(schema.fields.size());
   for (const auto& field : schema.fields) {
-    const auto value = read_schema_field(filter, field);
+    const auto value = read_schema_field(filter, field, &settings.points);
     if (!value.has_value()) {
       return std::nullopt;
     }
@@ -247,6 +303,13 @@ bool patch_schema_settings(DescriptorObject& filter, const SmartFilterSchema& sc
     }
     const auto setting = settings.values[index];
     switch (field.type) {
+      case SmartFilterFieldType::PointList:
+        // Rewritten only when the curve changed, so an untouched list keeps
+        // its exact native form.
+        if (read_point_list(*value) != settings.points) {
+          *value = point_list_descriptor(settings.points);
+        }
+        break;
       case SmartFilterFieldType::Integer:
         value->integer_value = setting;
         break;
@@ -616,7 +679,8 @@ make_smart_filter_entry_descriptor(const SmartFilterEntry &entry) {
     for (std::size_t index = 0; index < spec->schema->fields.size(); ++index) {
       const auto& field = spec->schema->fields[index];
       add_smart_filter_value(*filter.object_value, field.key, schema_id_long_form(field.key),
-                             schema_field_descriptor(field, spec->schema_settings->values[index]));
+                             schema_field_descriptor(field, spec->schema_settings->values[index],
+                                                     spec->schema_settings->points));
     }
   }
   if (spec->schema == nullptr || spec->schema->has_filter_object) {

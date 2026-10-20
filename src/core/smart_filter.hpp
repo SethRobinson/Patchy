@@ -33,6 +33,7 @@ enum class SmartFilterKind {
   ZigZag,
   Wave,
   Ripple,
+  Shear,
 };
 
 struct GaussianBlurSmartFilter {
@@ -138,6 +139,8 @@ struct AddNoiseSmartFilter {
 // Photoshop's descriptor key order (core/smart_filter_schema.hpp).
 struct SchemaSmartFilter {
   std::vector<std::int32_t> values;
+  // Horizontal, vertical pairs of a point-list field (Shear's curve), in order.
+  std::vector<double> points;
   bool operator==(const SchemaSmartFilter&) const = default;
 };
 

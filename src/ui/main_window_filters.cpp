@@ -253,6 +253,8 @@ void put_schema_invocation_parameters(FilterInvocation& invocation,
       case SmartFilterFieldType::Integer:
         invocation.parameters[field.parameter_key] = static_cast<std::int64_t>(value);
         break;
+      case SmartFilterFieldType::PointList:
+        break;
       case SmartFilterFieldType::Boolean:
         invocation.parameters[field.parameter_key] = value != 0;
         break;
@@ -282,6 +284,8 @@ SchemaSmartFilter schema_settings_from_invocation(const FilterInvocation& invoca
       case SmartFilterFieldType::Integer:
         value = smart_filter_integer_from_invocation(invocation, field.parameter_key, value,
                                                      field.minimum, field.maximum);
+        break;
+      case SmartFilterFieldType::PointList:
         break;
       case SmartFilterFieldType::Boolean:
         value = smart_filter_boolean_from_invocation(invocation, field.parameter_key, value != 0)
@@ -335,6 +339,8 @@ FilterDialogSpec schema_dialog_spec(const SmartFilterSchema& schema) {
         if (field.angle) {
           control.presentation = FilterParameterPresentation::Angle;
         }
+        break;
+      case SmartFilterFieldType::PointList:
         break;
       case SmartFilterFieldType::Boolean:
         control.kind = FilterParameterKind::Boolean;

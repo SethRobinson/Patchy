@@ -11224,6 +11224,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Ripple</source>
         <translation>Kräuseln</translation>
     </message>
+    <message>
+        <source>Curve</source>
+        <translation>Kurve</translation>
+    </message>
+    <message>
+        <source>Curve Start</source>
+        <translation>Kurvenanfang</translation>
+    </message>
+    <message>
+        <source>Curve End</source>
+        <translation>Kurvenende</translation>
+    </message>
+    <message>
+        <source>Shear</source>
+        <translation>Verbiegen</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

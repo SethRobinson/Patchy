@@ -71,6 +71,7 @@ bool native_smart_filter_kind_supported(SmartFilterKind kind) {
     case SmartFilterKind::ZigZag:
     case SmartFilterKind::Wave:
     case SmartFilterKind::Ripple:
+    case SmartFilterKind::Shear:
       return true;
     case SmartFilterKind::Unsupported:
       return false;

@@ -3,6 +3,7 @@
 #include "support/translate_noop.hpp"
 
 #include <array>
+#include <cmath>
 #include <cstdint>
 
 namespace patchy {
@@ -78,6 +79,20 @@ constexpr SmartFilterField kRippleFields[]{
      kRippleSizes, 0, 0, 1},
 };
 
+// Photoshop's recorded Shear action (shipped Text Effects and Textures sets):
+// ShrP (the curve), UndA, ShrS, ShrE. Patchy has no curve editor, so the curve
+// and the two integers Photoshop stores beside it stay hidden and verbatim.
+constexpr SmartFilterField kShearFields[]{
+    {"ShrP", "curve", PATCHY_TRANSLATE_NOOP("QObject", "Curve"), SmartFilterFieldType::PointList,
+     nullptr, {}, 2, 1000, 2, 2, 3, nullptr, false, true},
+    {"UndA", "undefined_areas", PATCHY_TRANSLATE_NOOP("QObject", "Undefined Areas"),
+     SmartFilterFieldType::Enum, "UndA", kUndefinedAreas, 0, 0, 0},
+    {"ShrS", "curve_start", PATCHY_TRANSLATE_NOOP("QObject", "Curve Start"),
+     SmartFilterFieldType::Integer, nullptr, {}, INT32_MIN, INT32_MAX, 0, 0, 1, nullptr, false, true},
+    {"ShrE", "curve_end", PATCHY_TRANSLATE_NOOP("QObject", "Curve End"),
+     SmartFilterFieldType::Integer, nullptr, {}, INT32_MIN, INT32_MAX, 1, 0, 1, nullptr, false, true},
+};
+
 constexpr std::array kSchemas{
     // Neither stores a Fltr object; the entry name has no ellipsis.
     SmartFilterSchema{SmartFilterKind::Solarize, "Slrz", false, 0x536c727aU, "Solarize",
@@ -95,6 +110,9 @@ constexpr std::array kSchemas{
     SmartFilterSchema{SmartFilterKind::Ripple, "Rple", false, 0x52706c65U, "Ripple", "Ripple...",
                       PATCHY_TRANSLATE_NOOP("QObject", "Ripple"), "patchy.smart_filters.ripple",
                       kRippleFields},
+    SmartFilterSchema{SmartFilterKind::Shear, "Shr ", false, 0x53687220U, "Shear", "Shear...",
+                      PATCHY_TRANSLATE_NOOP("QObject", "Shear"), "patchy.smart_filters.shear",
+                      kShearFields},
 };
 
 }  // namespace
@@ -135,6 +153,12 @@ SchemaSmartFilter default_schema_settings(const SmartFilterSchema& schema) {
   SchemaSmartFilter settings;
   settings.values.reserve(schema.fields.size());
   for (const auto& field : schema.fields) {
+    if (field.type == SmartFilterFieldType::PointList) {
+      // A straight vertical curve: no shift anywhere.
+      settings.values.push_back(2);
+      settings.points = {0.0, 0.0, 0.0, 128.0};
+      continue;
+    }
     settings.values.push_back(field.default_value);
   }
   return settings;
@@ -162,6 +186,17 @@ bool schema_settings_valid(const SmartFilterSchema& schema,
       case SmartFilterFieldType::Boolean:
         if (value != 0 && value != 1) {
           return false;
+        }
+        break;
+      case SmartFilterFieldType::PointList:
+        if (value < field.minimum || value > field.maximum ||
+            settings.points.size() != static_cast<std::size_t>(value) * 2U) {
+          return false;
+        }
+        for (const auto coordinate : settings.points) {
+          if (!std::isfinite(coordinate)) {
+            return false;
+          }
         }
         break;
     }

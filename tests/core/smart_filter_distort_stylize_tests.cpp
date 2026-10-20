@@ -68,6 +68,10 @@ patchy::SchemaSmartFilter alternate_settings(const patchy::SmartFilterSchema& sc
       case patchy::SmartFilterFieldType::Boolean:
         settings.values.push_back(field.default_value != 0 ? 0 : 1);
         break;
+      case patchy::SmartFilterFieldType::PointList:
+        settings.values.push_back(3);
+        settings.points.insert(settings.points.end(), {10.0, 0.0, -12.5, 64.0, 7.0, 128.0});
+        break;
     }
   }
   return settings;
@@ -459,6 +463,10 @@ void psd_photoshop_distort_stylize_smart_filter_fixtures_round_trip_and_render()
       // Amount 150, Medium. Photoshop stored this entry's foreground color as HSB.
       {"photoshop-smart-filter-ripple.psd", patchy::SmartFilterKind::Ripple, {150, 1}, 0.0, 0.0,
        true},
+      // Curve (0,0) (24,40) (-16,128), Wrap Around.
+      // 8-bit rows sit up to 0.7 px off the 16-bit-calibrated curve; the fixture's noise
+      // block magnifies that (docs/smart-filters-distort-stylize.md, Shear).
+      {"photoshop-smart-filter-shear.psd", patchy::SmartFilterKind::Shear, {3, 0, 0, 2}, 8.0, 4.5},
   };
   for (const auto& fixture : fixtures) {
     check_schema_fixture(fixture);
