@@ -10,12 +10,15 @@
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/export_documents_folder_dialog.hpp"
-#include "ui/hotkey_registry.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/image_sequence_dialog.hpp"
 #include "ui/main_window.hpp"
 #include "ui/print_dialog.hpp"
+#include "ui/qt_paths.hpp"
+#include "ui/theme_manager.hpp"
+#include "ui/theme_palette.hpp"
 #include "scripting_test_support.hpp"
+#include "local_psd_fixtures.hpp"
 #include "test_harness.hpp"
 #include "ui_test_access.hpp"
 #include "ui_test_groups.hpp"
@@ -52,8 +55,10 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -1109,6 +1114,155 @@ void ui_artboard_feature_interactions_match_photoshop() {
   QApplication::clipboard()->clear();
 }
 
+// Helpers for the artboard hover and label tests (GitHub issues 259 and 260).
+
+// Where an artboard's name label is drawn: above its top-left corner.
+QRect label_region(patchy::ui::CanvasWidget& canvas, patchy::Rect rect) {
+  const auto top_left = canvas.widget_position_for_document_point(QPoint(rect.x, rect.y));
+  return QRect(top_left.x() - 1, top_left.y() - 22, 90, 21);
+}
+
+// Pixels of `ink` in the label region that stand out from the region's dominant color
+// (the backing): a dark ink is not "found" on a dark pasteboard it nearly matches, so the
+// count is the glyph pixels, not the backing.
+int ink_pixels(const QImage& image, QRect region, QColor ink) {
+  region = region.intersected(image.rect());
+  std::map<QRgb, int> histogram;
+  for (int y = region.top(); y <= region.bottom(); ++y) {
+    for (int x = region.left(); x <= region.right(); ++x) {
+      ++histogram[image.pixel(x, y)];
+    }
+  }
+  QRgb backing = 0;
+  int best = -1;
+  for (const auto& [color, count] : histogram) {
+    if (count > best) {
+      best = count;
+      backing = color;
+    }
+  }
+  const QColor backing_color(backing);
+  int count = 0;
+  for (int y = region.top(); y <= region.bottom(); ++y) {
+    for (int x = region.left(); x <= region.right(); ++x) {
+      const auto color = image.pixelColor(x, y);
+      const bool stands_out = std::abs(color.red() - backing_color.red()) > 60 ||
+                              std::abs(color.green() - backing_color.green()) > 60 ||
+                              std::abs(color.blue() - backing_color.blue()) > 60;
+      if (stands_out && std::abs(color.red() - ink.red()) <= 36 && std::abs(color.green() - ink.green()) <= 36 &&
+          std::abs(color.blue() - ink.blue()) <= 36) {
+        ++count;
+      }
+    }
+  }
+  return count;
+}
+
+const char* scheme_label(patchy::ui::ColorSchemePreference preference) {
+  return preference == patchy::ui::ColorSchemePreference::Light ? "light" : "dark";
+}
+
+// GitHub issue 260: an artboard's name is ink on whatever it sits on. Over the pasteboard
+// it takes the scheme's pasteboard ink, over a neighbouring artboard's white paper the
+// dark ink and over black paper the light ink, in both schemes; a user pasteboard color
+// moves it the same way.
+void ui_artboard_label_ink_follows_what_it_sits_on() {
+  const patchy::Rect top_rect{20, 40, 200, 150};
+  const patchy::Rect below_rect{20, 190, 200, 150};  // its label sits on Top's white paper
+  const patchy::Rect dark_rect{300, 40, 180, 150};
+  const patchy::Rect under_rect{300, 190, 180, 150};  // its label sits on Dark's black paper
+  for (const auto preference : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer scheme_restorer(preference);
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto seed = board_document(520, 420);
+    add_board(seed, "Under Board", under_rect, patchy::ArtboardBackground::White, QColor());
+    add_board(seed, "Dark Board", dark_rect, patchy::ArtboardBackground::Black, QColor());
+    add_board(seed, "Below Board", below_rect, patchy::ArtboardBackground::White, QColor());
+    add_board(seed, "Top Board", top_rect, patchy::ArtboardBackground::White, QColor());
+    window.add_document_session(std::move(seed), QStringLiteral("Labels"));
+    auto* canvas = require_canvas(window);
+    canvas->set_zoom(1.0);
+    require_hotkey_action(window, QStringLiteral("tools.move"))->trigger();
+    QApplication::processEvents();
+    const auto& palette = patchy::ui::theme();
+    const auto ink_pixels = [&](const QImage& image, patchy::Rect rect, QColor ink) {
+      return ::ink_pixels(image, label_region(*canvas, rect), ink);
+    };
+    const bool light_pasteboard = preference == patchy::ui::ColorSchemePreference::Light;
+    const auto pasteboard_ink = light_pasteboard ? palette.canvas_artboard_label_on_light : palette.canvas_artboard_label;
+
+    auto image = canvas->grab().toImage();
+    save_widget_artifact(std::string("ui_issue_260_labels_") + scheme_label(preference), window);
+    CHECK(ink_pixels(image, top_rect, pasteboard_ink) > 6);
+    CHECK(ink_pixels(image, dark_rect, pasteboard_ink) > 6);
+    CHECK(ink_pixels(image, below_rect, palette.canvas_artboard_label_on_light) > 6);
+    CHECK(ink_pixels(image, under_rect, palette.canvas_artboard_label) > 6);
+
+    // A white pasteboard from the backdrop menu turns the pasteboard labels dark, a black
+    // one light, whatever the scheme.
+    canvas->set_backdrop_color_override(QColor(Qt::white));
+    QApplication::processEvents();
+    image = canvas->grab().toImage();
+    CHECK(ink_pixels(image, top_rect, palette.canvas_artboard_label_on_light) > 6);
+    canvas->set_backdrop_color_override(QColor(Qt::black));
+    QApplication::processEvents();
+    image = canvas->grab().toImage();
+    CHECK(ink_pixels(image, top_rect, palette.canvas_artboard_label) > 6);
+    canvas->set_backdrop_color_override(std::nullopt);
+  }
+}
+
+// GitHub issue 260 on the reporter's file (ag-psd's artboards sample): "custom board" sits
+// right under "white board", so its name is drawn on white paper and takes the dark ink,
+// while the names over the pasteboard keep the pasteboard ink.
+void ui_artboard_ag_psd_sample_labels_read_on_their_backing_if_available() {
+  const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "ag-psd" / "artboards" / "src.psd";
+  patchy::test::skip_unless_exists(path);
+  SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  for (const auto preference : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer scheme_restorer(preference);
+    patchy::ui::MainWindow window;
+    show_window(window);
+    MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(path));
+    QApplication::processEvents();
+    auto* canvas = require_canvas(window);
+    canvas->fit_to_view();
+    const auto& document = MainWindowTestAccess::document(window);
+    const patchy::Layer* white_board = nullptr;
+    const patchy::Layer* custom_board = nullptr;
+    for (const auto* artboard : patchy::document_artboards(document)) {
+      if (artboard->name() == "white board") {
+        white_board = artboard;
+      } else if (artboard->name() == "custom board") {
+        custom_board = artboard;
+      }
+    }
+    CHECK(white_board != nullptr && custom_board != nullptr);
+    if (white_board == nullptr || custom_board == nullptr) {
+      return;
+    }
+    const auto& palette = patchy::ui::theme();
+    const auto pasteboard_ink = preference == patchy::ui::ColorSchemePreference::Light
+                                    ? palette.canvas_artboard_label_on_light
+                                    : palette.canvas_artboard_label;
+    // Fitted, the label sits in the pasteboard gap below "white board" and keeps the
+    // pasteboard ink; at the reporter's zoom the gap is narrower than the label, which
+    // then sits on the white paper and takes the dark ink.
+    auto image = canvas->grab().toImage();
+    CHECK(ink_pixels(image, label_region(*canvas, custom_board->artboard()->rect), pasteboard_ink) > 6);
+    CHECK(ink_pixels(image, label_region(*canvas, white_board->artboard()->rect), pasteboard_ink) > 6);
+    canvas->set_zoom_centered(0.1);
+    QApplication::processEvents();
+    image = canvas->grab().toImage();
+    save_widget_artifact(std::string("ui_issue_260_ag_psd_") + scheme_label(preference), window);
+    CHECK(canvas_content_rect(*canvas).contains(label_region(*canvas, custom_board->artboard()->rect)));
+    CHECK(ink_pixels(image, label_region(*canvas, custom_board->artboard()->rect), palette.canvas_artboard_label_on_light) > 6);
+    CHECK(ink_pixels(image, label_region(*canvas, white_board->artboard()->rect), pasteboard_ink) > 6);
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> artboard_ui_tests() {
@@ -1131,5 +1285,8 @@ std::vector<patchy::test::TestCase> artboard_ui_tests() {
       {"ui_save_as_pdf_uses_the_pdf_options_dialog", ui_save_as_pdf_uses_the_pdf_options_dialog},
       {"ui_save_shows_progress_with_artboard_names", ui_save_shows_progress_with_artboard_names},
       {"ui_artboard_feature_interactions_match_photoshop", ui_artboard_feature_interactions_match_photoshop},
+      {"ui_artboard_label_ink_follows_what_it_sits_on", ui_artboard_label_ink_follows_what_it_sits_on},
+      {"ui_artboard_ag_psd_sample_labels_read_on_their_backing_if_available",
+       ui_artboard_ag_psd_sample_labels_read_on_their_backing_if_available},
   };
 }

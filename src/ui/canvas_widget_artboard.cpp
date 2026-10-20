@@ -658,6 +658,69 @@ void CanvasWidget::draw_canvas_backdrop(QPainter& painter, const QRectF& target_
   }
 }
 
+namespace {
+
+// Perceived lightness of an sRGB color on 0..255, for the label ink decision.
+double srgb_luma(const QColor& color) {
+  return 0.299 * color.red() + 0.587 * color.green() + 0.114 * color.blue();
+}
+
+}  // namespace
+
+bool CanvasWidget::artboard_label_sits_on_light_backing(const std::vector<const Layer*>& artboards,
+                                                        const QRectF& label_widget_rect) const {
+  if (document_ == nullptr || label_widget_rect.isEmpty()) {
+    return false;
+  }
+  const auto& document = std::as_const(*document_);
+  // The frame is sampled at document resolution when the cache holds one; a label
+  // gets a small fixed grid of samples whatever its size or the zoom.
+  const bool frame_available = !render_cache_.isNull() && render_cache_.width() == document.width() &&
+                               render_cache_.height() == document.height();
+  const auto checkerboard =
+      QColor((checkerboard_dark_square().red() + checkerboard_light_square().red()) / 2,
+             (checkerboard_dark_square().green() + checkerboard_light_square().green()) / 2,
+             (checkerboard_dark_square().blue() + checkerboard_light_square().blue()) / 2);
+  const auto pasteboard = backdrop_color();
+  constexpr int kColumns = 6;
+  constexpr int kRows = 3;
+  double luma_sum = 0.0;
+  int samples = 0;
+  for (int row = 0; row < kRows; ++row) {
+    for (int column = 0; column < kColumns; ++column) {
+      const QPointF widget_point(label_widget_rect.left() + (column + 0.5) * label_widget_rect.width() / kColumns,
+                                 label_widget_rect.top() + (row + 0.5) * label_widget_rect.height() / kRows);
+      const auto document_point = document_position_f(widget_point);
+      const int x = static_cast<int>(std::floor(document_point.x()));
+      const int y = static_cast<int>(std::floor(document_point.y()));
+      // What shows where the composite is clear: inside an artboard its paper (the
+      // checkerboard for a Transparent one), between artboards the pasteboard.
+      QColor under = pasteboard;
+      for (const auto* artboard : artboards) {
+        if (artboard->visible() && artboard->artboard()->rect.contains(x, y)) {
+          const auto paper = artboard_background_rgba(*artboard->artboard());
+          under = paper.has_value() && (*paper)[3] == 255 ? QColor((*paper)[0], (*paper)[1], (*paper)[2])
+                                                           : checkerboard;
+          break;
+        }
+      }
+      QColor shown = under;
+      if (frame_available && x >= 0 && y >= 0 && x < document.width() && y < document.height()) {
+        const auto pixel = render_cache_.pixelColor(x, y);
+        const double alpha = pixel.alphaF();
+        shown = QColor::fromRgbF(static_cast<float>(pixel.redF() * alpha + under.redF() * (1.0 - alpha)),
+                                 static_cast<float>(pixel.greenF() * alpha + under.greenF() * (1.0 - alpha)),
+                                 static_cast<float>(pixel.blueF() * alpha + under.blueF() * (1.0 - alpha)));
+      }
+      luma_sum += srgb_luma(shown);
+      ++samples;
+    }
+  }
+  // The crossover where the dark ink starts to contrast better than the light one.
+  constexpr double kLightBackingLuma = 118.0;
+  return samples > 0 && luma_sum / samples > kLightBackingLuma;
+}
+
 void CanvasWidget::draw_artboard_overlay(QPainter& painter) const {
   if (document_ == nullptr) {
     return;
@@ -705,7 +768,11 @@ void CanvasWidget::draw_artboard_overlay(QPainter& painter) const {
     const auto label = artboard_label_widget_rect(*artboard).translated(widget_rect.topLeft() -
                                                                         widget_position_f(QPointF(artboard->artboard()->rect.x,
                                                                                                   artboard->artboard()->rect.y)));
-    painter.setPen(is_selected ? colors.canvas_artboard_selected : colors.canvas_artboard_label);
+    // The ink follows the backing (GitHub issue 260); a selected label takes the selected color.
+    const auto label_ink = artboard_label_sits_on_light_backing(artboards, label)
+                               ? colors.canvas_artboard_label_on_light
+                               : colors.canvas_artboard_label;
+    painter.setPen(is_selected ? colors.canvas_artboard_selected : label_ink);
     painter.drawText(label, Qt::AlignLeft | Qt::AlignVCenter,
                      metrics.elidedText(QString::fromStdString(artboard->name()), Qt::ElideRight, label.width()));
     if (is_dragged && artboard_drag_duplicate_) {

@@ -2151,6 +2151,11 @@ private:
   void draw_artboard_overlay(QPainter& painter) const;
   [[nodiscard]] std::optional<LayerId> selected_artboard_id() const;
   [[nodiscard]] QRectF artboard_label_widget_rect(const Layer& artboard) const;
+  // Whether what the rendered frame shows under a label reads as light, so the label
+  // takes the dark ink (GitHub issue 260): a bounded grid of samples over the pasteboard,
+  // another artboard's paper or its content, never work proportional to the document.
+  [[nodiscard]] bool artboard_label_sits_on_light_backing(const std::vector<const Layer*>& artboards,
+                                                          const QRectF& label_widget_rect) const;
   [[nodiscard]] QRectF artboard_add_button_widget_rect(QRect artboard_rect, int side) const;
   [[nodiscard]] int artboard_add_button_at(QPoint widget_point) const;
   [[nodiscard]] TransformHandle artboard_handle_at(QPoint widget_point) const;
