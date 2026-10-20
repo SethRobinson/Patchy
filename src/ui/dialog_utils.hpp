@@ -18,6 +18,7 @@
 
 class QAction;
 class QBoxLayout;
+class QComboBox;
 class QDialog;
 class QIcon;
 class QAbstractSpinBox;
@@ -179,6 +180,16 @@ UnitIntSpinBox* add_dialog_slider_spin_row(QFormLayout* form, QWidget* parent, c
 // clamps it inside the screen's available horizontal range and flips it above
 // the anchor when it would run past the bottom. Call before show().
 void position_popup_below(const QWidget& anchor, QWidget& popup);
+// Pattern and gradient pickers can list hundreds of entries (a document's embedded patterns
+// ahead of the library). Fusion (the Linux desktop style) and the macOS style show a
+// non-editable combo box's list as a menu as tall as every row, placed so the current row
+// covers the box; on Wayland Qt cannot see where the window is, so that menu ran off the top
+// of the screen and its first rows could not be reached (GitHub issue 271). This gives `combo`
+// the scrolling list form on every style: at most kLongListPopupRows rows, opened below the
+// box (above it near the screen's bottom). Call it on every long list picker.
+// Test: ui_shape_pattern_list_popup_fits_the_screen.
+inline constexpr int kLongListPopupRows = 14;
+void use_scrolling_list_popup(QComboBox& combo);
 // For a dialog whose pages scroll (GitHub issue 92): a combo box, spin box or slider inside
 // a scroll area under `root` ignores the mouse wheel unless it holds keyboard focus (a click
 // or Tab; their focus policy drops from WheelFocus to StrongFocus), so a wheel that passes

@@ -1121,7 +1121,8 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     if (document_patterns != nullptr) {
       for (const auto& resource : document_patterns->patterns) {
         const auto name = QString::fromStdString(resource.name);
-        const auto display = name.isEmpty() ? QString::fromStdString(resource.id) : name;
+        const auto readable = document_pattern_display_name(resource);
+        const auto display = readable.isEmpty() ? QString::fromStdString(resource.id) : readable;
         combo->add_pattern(pattern_preset_icon(resource.tile), display, display,
                            QString::fromStdString(resource.id), name);
       }

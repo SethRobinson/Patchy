@@ -70,6 +70,11 @@
 #include <QToolButton>
 #include <QPushButton>
 #include <QEvent>
+#include <QPainter>
+#include <QStyleFactory>
+#include <QStyleOptionComboBox>
+#include <QTest>
+#include <QWheelEvent>
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -1837,6 +1842,148 @@ void ui_shape_pattern_dropdowns_show_embedded_thumbnails() {
   CHECK(edited.has_value());
   CHECK(edited->fill == initial.fill);
   CHECK(edited->stroke == initial.stroke);
+}
+
+// The whole available screen with the dialog and the open list where they sit, so the
+// shot shows whether the list fits.
+void save_screen_popup_artifact(const std::string& name, QWidget& window, QWidget& popup) {
+  ensure_artifact_dir();
+  ensure_capture_themed(window);
+  ensure_capture_themed(popup);
+  const auto screen_area = window.screen()->availableGeometry();
+  QImage shot(screen_area.size(), QImage::Format_ARGB32_Premultiplied);
+  shot.fill(QColor(96, 96, 104));
+  QPainter painter(&shot);
+  painter.drawPixmap(window.mapToGlobal(QPoint(0, 0)) - screen_area.topLeft(), window.grab());
+  painter.drawPixmap(popup.mapToGlobal(QPoint(0, 0)) - screen_area.topLeft(), popup.grab());
+  painter.end();
+  CHECK(shot.save(
+      QString::fromStdString((std::filesystem::path("test-artifacts") / (name + ".png")).string())));
+}
+
+// The checks a long pattern or gradient list must pass once its popup is open (GitHub
+// issue 271): the scrolling list form on every style, at most kLongListPopupRows rows,
+// inside the screen's available area, the wheel reaching the top and the keyboard
+// reaching and picking the first row. `combo` must be scrolled away from row 0 (its
+// current row is near the end).
+void check_long_list_popup_reaches_first_row(QComboBox& combo, const std::string& artifact,
+                                             QWidget& window) {
+  combo.showPopup();
+  QApplication::processEvents();
+  auto* view = combo.view();
+  auto* popup = view->window();
+  CHECK(popup->isVisible());
+  save_screen_popup_artifact(artifact, window, *popup);
+  QStyleOptionComboBox option;
+  option.initFrom(&combo);
+  option.editable = false;
+  CHECK(combo.style()->styleHint(QStyle::SH_ComboBox_Popup, &option, &combo) == 0);
+  const auto available = combo.screen()->availableGeometry();
+  CHECK(available.contains(popup->frameGeometry()));
+  const auto row_height = view->sizeHintForRow(0);
+  CHECK(row_height > 0);
+  CHECK(view->viewport()->height() <= row_height * patchy::ui::kLongListPopupRows);
+  auto* scroll_bar = view->verticalScrollBar();
+  CHECK(scroll_bar->isVisible());
+  CHECK(scroll_bar->value() > 0);
+  for (int step = 0; step < 200 && scroll_bar->value() > 0; ++step) {
+    const QPointF position(view->viewport()->width() / 2.0, view->viewport()->height() / 2.0);
+    QWheelEvent wheel(position, view->viewport()->mapToGlobal(position), QPoint(), QPoint(0, 120),
+                      Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+    QApplication::sendEvent(view->viewport(), &wheel);
+  }
+  CHECK(scroll_bar->value() == 0);
+  QTest::keyClick(view, Qt::Key_End);
+  QTest::keyClick(view, Qt::Key_Home);
+  const auto first = view->model()->index(0, combo.modelColumn(), view->rootIndex());
+  CHECK(view->currentIndex() == first);
+  CHECK(view->viewport()->rect().contains(view->visualRect(first)));
+  save_screen_popup_artifact(artifact + "_top", window, *popup);
+  QTest::keyClick(view, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(!popup->isVisible());
+  CHECK(combo.currentIndex() == 0);
+}
+
+// GitHub issue 271: with a document's embedded patterns ahead of the library, the Shape
+// Appearance pattern lists ran taller than the screen. Fusion (the Linux desktop style)
+// shows a combo's list as a menu sized to every row and placed so the current row covers
+// the box; on Wayland it ran off the top and the first rows could not be reached. The
+// first embedded pattern also showed its raw Photoshop localization key.
+void ui_shape_pattern_list_popup_fits_the_screen() {
+  ColorSchemeRestorer restore_scheme;
+  QTemporaryDir library_dir;
+  CHECK(library_dir.isValid());
+  patchy::ui::PatternLibrary library(library_dir.path());
+  const std::string tie_dye_key = "$$$/Presets/Patterns/Patterns_pat/TieDye=Tie Dye";
+  const std::string tie_dye_id = "b4b2bb21-0b6a-11d7-9c2f-271issue0001";
+  patchy::PatternStore patterns;
+  patterns.adopt({tie_dye_id, tie_dye_key,
+                  solid_pixels(8, 8, patchy::PixelFormat::rgba8(), QColor(200, 60, 160))});
+  // Well over a 1080 px screen of rows ahead of the library's own patterns.
+  constexpr int kEmbeddedCount = 80;
+  for (int index = 1; index < kEmbeddedCount; ++index) {
+    const auto shade = 40 + (index * 2);
+    patterns.adopt({"embedded-271-" + std::to_string(index), "Embedded " + std::to_string(index),
+                    solid_pixels(8, 8, patchy::PixelFormat::rgba8(), QColor(shade, 120, 255 - shade))});
+  }
+  const auto last_id = patterns.patterns.back().id;
+  std::unique_ptr<QStyle> fusion(QStyleFactory::create(QStringLiteral("Fusion")));
+  CHECK(fusion != nullptr);
+
+  for (const auto preference :
+       {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer::apply(preference);
+    const std::string scheme =
+        preference == patchy::ui::ColorSchemePreference::Light ? "light" : "dark";
+    patchy::ui::ShapeAppearanceSettings initial;
+    initial.fill.kind = patchy::VectorFillKind::Pattern;
+    initial.fill.pattern_id = last_id;
+    initial.fill.pattern_name = patterns.patterns.back().name;
+    initial.stroke.enabled = true;
+    initial.stroke.width = 4;
+    initial.stroke.content.kind = patchy::VectorFillKind::Pattern;
+    initial.stroke.content.pattern_id = last_id;
+    initial.stroke.content.pattern_name = patterns.patterns.back().name;
+    QTimer::singleShot(0, [&] {
+      try {
+        auto* dialog = find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+        CHECK(dialog != nullptr);
+        const std::array<QString, 2> combo_names{QStringLiteral("shapeFillPatternCombo"),
+                                                 QStringLiteral("shapeStrokePatternCombo")};
+        for (const auto& combo_name : combo_names) {
+          auto* combo = dialog->findChild<QComboBox*>(combo_name);
+          CHECK(combo != nullptr);
+          CHECK(combo->count() >= kEmbeddedCount);
+          CHECK(combo->currentData().toString() == QString::fromStdString(last_id));
+          // Every desktop style: the Linux one (Fusion) here, the platform's own elsewhere.
+          for (auto* style : {fusion.get(), static_cast<QStyle*>(nullptr)}) {
+            combo->setStyle(style);
+            combo->setCurrentIndex(combo->count() - 1);
+            check_long_list_popup_reaches_first_row(
+                *combo,
+                "ui_issue271_" + combo_name.toStdString() + (style != nullptr ? "_fusion_" : "_native_") +
+                    scheme,
+                *dialog);
+          }
+          combo->setStyle(nullptr);
+          // The Photoshop preset name shows its English default text, not the key.
+          CHECK(combo->itemText(0) == QStringLiteral("Tie Dye"));
+        }
+        dialog->accept();
+      } catch (...) {
+        patchy::ui::unwind_non_modal_dialog_loop(std::current_exception());
+      }
+    });
+    const auto edited = patchy::ui::request_shape_appearance_settings(
+        nullptr, {}, initial, {}, nullptr, &library, &patterns, {}, {});
+    CHECK(edited.has_value());
+    // Picking the preset keeps Photoshop's own name for the saved file.
+    CHECK(edited->fill.pattern_id == tie_dye_id);
+    CHECK(edited->fill.pattern_name == tie_dye_key);
+    CHECK(edited->stroke.content.pattern_id == tie_dye_id);
+    CHECK(edited->stroke.content.pattern_name == tie_dye_key);
+  }
 }
 
 void ui_shape_pattern_fill_uses_custom_library_pattern() {
@@ -5078,6 +5225,7 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_shape_pattern_fill_uses_custom_library_pattern},
       {"ui_shape_pattern_dropdowns_show_embedded_thumbnails",
        ui_shape_pattern_dropdowns_show_embedded_thumbnails},
+      {"ui_shape_pattern_list_popup_fits_the_screen", ui_shape_pattern_list_popup_fits_the_screen},
       {"ui_options_bar_pattern_fill_creates_pattern_shape",
        ui_options_bar_pattern_fill_creates_pattern_shape},
       {"ui_options_bar_edits_selected_shape_appearance",

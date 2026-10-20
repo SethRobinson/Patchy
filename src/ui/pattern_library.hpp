@@ -177,6 +177,10 @@ private:
 // helper translates one only while it is still equal to the shipped English
 // name; a user rename is displayed verbatim.
 [[nodiscard]] QString pattern_library_entry_display_name(const PatternLibraryEntry& entry);
+// The name a document's own pattern shows in pickers: a Photoshop preset's localization
+// key resolved to its English default (GitHub issue 271). Empty when the pattern has no
+// name. The resource keeps the raw name, which files and descriptors write back.
+[[nodiscard]] QString document_pattern_display_name(const PatternResource& resource);
 
 // Checkerboard-backed, repeated-tile preview shared by pickers and the manager.
 [[nodiscard]] QPixmap pattern_thumbnail(const PixelBuffer& tile, int extent = 48);

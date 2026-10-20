@@ -57,6 +57,9 @@ namespace patchy::ui {
 
 namespace {
 
+// Shape Appearance pattern rows: the name a picked pattern saves under.
+constexpr int kPatternSavedNameRole = Qt::UserRole + 1;
+
 QIcon color_swatch_icon(RgbColor color) {
   QPixmap pixmap(28, 14);
   pixmap.fill(Qt::transparent);
@@ -569,29 +572,40 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   // Both the fill and the stroke paint offer the same preset lists.
   const auto populate_gradient_combo = [gradient_library](QComboBox* combo) {
     combo->setIconSize(QSize(64, 16));
+    use_scrolling_list_popup(*combo);
     if (gradient_library != nullptr) {
       for (const auto& entry : gradient_library->entries()) {
         combo->addItem(QIcon(entry.thumbnail), entry.name, entry.storage_id);
       }
     }
   };
+  // Each row keeps the name the saved paint carries (kPatternSavedNameRole): a Photoshop
+  // preset shows its readable name but writes back its own localization key.
   const auto populate_pattern_combo = [pattern_library, document_patterns](QComboBox* combo) {
     combo->setIconSize(QSize(24, 24));
+    use_scrolling_list_popup(*combo);
     if (document_patterns != nullptr) {
       for (const auto& resource : document_patterns->patterns) {
-        const auto name = resource.name.empty() ? QObject::tr("Embedded pattern")
-                                                : QString::fromStdString(resource.name);
+        const auto display = document_pattern_display_name(resource);
+        const auto name = display.isEmpty() ? QObject::tr("Embedded pattern") : display;
         combo->addItem(QIcon(pattern_thumbnail(resource.tile, combo->iconSize().width())), name,
                        QString::fromStdString(resource.id));
+        combo->setItemData(combo->count() - 1,
+                           resource.name.empty() ? name : QString::fromStdString(resource.name),
+                           kPatternSavedNameRole);
       }
     }
     if (pattern_library != nullptr) {
       for (const auto& entry : pattern_library->entries()) {
         if (combo->findData(entry.id) < 0) {
           combo->addItem(QIcon(entry.thumbnail), entry.name, entry.id);
+          combo->setItemData(combo->count() - 1, entry.name, kPatternSavedNameRole);
         }
       }
     }
+  };
+  const auto saved_pattern_name = [](const QComboBox* combo) {
+    return combo->currentData(kPatternSavedNameRole).toString().toStdString();
   };
 
   auto* fill_gradient_combo = new QComboBox(fill_group);
@@ -1197,7 +1211,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     if (state->settings.fill.kind == VectorFillKind::Pattern &&
         state->settings.fill.pattern_id.empty() && fill_pattern_combo->count() > 0) {
       state->settings.fill.pattern_id = fill_pattern_combo->currentData().toString().toStdString();
-      state->settings.fill.pattern_name = fill_pattern_combo->currentText().toStdString();
+      state->settings.fill.pattern_name = saved_pattern_name(fill_pattern_combo);
     }
     refresh_fill_rows();
     notify({"fill.kind"});
@@ -1263,7 +1277,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   });
   QObject::connect(fill_pattern_combo, &QComboBox::currentIndexChanged, &dialog, [=](int) {
     state->settings.fill.pattern_id = fill_pattern_combo->currentData().toString().toStdString();
-    state->settings.fill.pattern_name = fill_pattern_combo->currentText().toStdString();
+    state->settings.fill.pattern_name = saved_pattern_name(fill_pattern_combo);
     notify({"fill.pattern_id", "fill.pattern_name"});
   });
   QObject::connect(pattern_scale_spin, &QSpinBox::valueChanged, &dialog, [=](int value) {
@@ -1367,7 +1381,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
     if (content.kind == VectorFillKind::Pattern && content.pattern_id.empty() &&
         stroke_pattern_combo->count() > 0) {
       content.pattern_id = stroke_pattern_combo->currentData().toString().toStdString();
-      content.pattern_name = stroke_pattern_combo->currentText().toStdString();
+      content.pattern_name = saved_pattern_name(stroke_pattern_combo);
     }
     refresh_stroke_rows();
     notify({"stroke.content.kind"});
@@ -1409,7 +1423,7 @@ std::optional<ShapeAppearanceSettings> request_shape_appearance_settings(
   QObject::connect(stroke_pattern_combo, &QComboBox::currentIndexChanged, &dialog, [=](int) {
     state->settings.stroke.content.pattern_id =
         stroke_pattern_combo->currentData().toString().toStdString();
-    state->settings.stroke.content.pattern_name = stroke_pattern_combo->currentText().toStdString();
+    state->settings.stroke.content.pattern_name = saved_pattern_name(stroke_pattern_combo);
     state->stroke_paint_touched = true;
     notify({"stroke.content.pattern_id", "stroke.content.pattern_name"});
   });

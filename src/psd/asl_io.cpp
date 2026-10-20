@@ -4,6 +4,7 @@
 #include "psd/psd_descriptor.hpp"
 #include "psd/psd_layer_effects.hpp"
 #include "psd/psd_patterns.hpp"
+#include "support/string_utils.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
@@ -26,15 +27,7 @@ constexpr std::array<const char*, 4> kBlendIfChannelIds{"Gry ", "Rd  ", "Grn ", 
 // Resolves Photoshop's ZString localization form "$$$/Some/Key=Display Name"
 // to its display text; plain names pass through unchanged.
 [[nodiscard]] std::string resolve_zstring_name(const std::string& name) {
-  if (!name.starts_with("$$$/")) {
-    return name;
-  }
-  const auto equals = name.find('=');
-  if (equals == std::string::npos || equals + 1U >= name.size()) {
-    const auto slash = name.rfind('/');
-    return slash == std::string::npos ? name : name.substr(slash + 1U);
-  }
-  return name.substr(equals + 1U);
+  return photoshop_zstring_display_text(name);
 }
 
 [[nodiscard]] std::string descriptor_string(const DescriptorObject& object, std::string_view key) {
