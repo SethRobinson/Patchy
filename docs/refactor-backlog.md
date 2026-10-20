@@ -34,6 +34,15 @@ canaries.
   named pin first, and must not route legacy calls through `default_invocation`. The
   deep (16/32-bit) kernels in `deep_filters.cpp` could be templates over the pixel type
   but differ by design in places (double running sums, no large-distance motion kernel).
+- Table-described native Smart Filters have two near-duplicate tables doing the same job
+  (PSD read, author and patch, render validation, settings dialog, Layers-panel text):
+  `core/smart_filter_schema.*` (Distort and Stylize: `SchemaSmartFilter`, integers plus a
+  point list) and `core/smart_filter_table.*` (Pixelate, Render, Noise and Other:
+  `TableSmartFilter`, typed values including unit doubles, integer lists and optional
+  keys). Merge them into one table whose value model covers both, keeping each filter's
+  descriptor bytes (key order, id forms, absent optional keys), dialog object names and
+  translation sources unchanged; the `photoshop-smart-filter-*` capture tests pin the
+  bytes and pixels.
 - The raw-or-PackBits plane loop appears in PSD channel data, PSD patterns, PAT, ABR,
   and PSD filter effects. PAT also duplicates the PSD pattern VMA slot parser. ABR's
   16-bit conversion intentionally differs from `deep_sample_to_byte`.

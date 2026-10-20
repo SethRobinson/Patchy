@@ -65,7 +65,9 @@ variants each left 69 to 324 mismatched pixels on the holed probe, this one none
   edge-clamped: `v = ((sum + floor(Scl / 2)) * floor(32768 / Scl)) >> 15` (arithmetic shift) plus
   `Ofst`, clamped; alpha unchanged. The 15-bit reciprocal was fit on six kernels (scales 1, 3, 4,
   7, 35, 193); plain rounding misses up to 15263 pixels, a 16-bit reciprocal 7138. The dialog edits Scale and Offset; the
-  matrix has no control yet and keeps its values.
+  matrix has no control yet and keeps its imported values. It waits for a 5x5 grid control
+  in the shared `FilterParameterPanel` (25 slider rows would be unusable): a new
+  presentation role laid out as a spin-box grid, its own object names and translations.
 - **Fragment** 0x4672676d, entry `Fragment`, no `Fltr`: four copies offset by (+/-4, +/-4),
   edge-clamped, averaged in byte-rounded premultiplied space: `p = round(c * a / 255)`, average
   the four `p` and `a` with round-half-up, unpremultiply `round(p * 255 / a)`.
