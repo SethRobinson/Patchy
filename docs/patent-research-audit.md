@@ -84,7 +84,8 @@ both outline modes exist; cost: no pixel preview when zoomed out past 50% or on 
 full-resolution live previews everywhere (large performance cost; not recommended). The
 "never composite source gradients" rule in legal-constraints.md stays as an engineering boundary
 (the gradient-domain field was not surveyed beyond these two patents and the PatchMatch trio), but
-it no longer cites US 9058699 as its source.
+it no longer cites US 9058699 as its source. Decision (2026-10-20): A, keep the previews as they
+are; re-check on the watch list below.
 
 ## 2. US 7768525 B2 (Microsoft, "Dynamic paint pickup"): the Mixer Brush
 
@@ -141,7 +142,8 @@ must composite the second stamp over the first inside the stroke buffer, which a
 per-dab colors). Test to pin it: a core test that the mixer dab API yields a foreground stamp and
 a pickup stamp and no mixed color, plus a pixel comparison of a calibrated stroke against the
 current reference within 1/255 (`mixer_brush_pickup_average_follows_canvas_and_dries_only_at_wet_zero`
-stays as the model test). Alternative: no change, with a re-check at 2028-03-07.
+stays as the model test). Alternative: no change, with a re-check at 2028-03-07. Decision
+(2026-10-20): A, the per-dab deposit stays as it is until the term ends.
 
 ## 3. US 8971623 B2 (Apple, "Overlaid user interface tools for applying effects to image"): Tilt-Shift grips
 
@@ -185,7 +187,8 @@ zoomable_image_preview.cpp; the pinned tests `ui_filter_gallery_tilt_shift_overl
 and `ui_filter_gallery_tilt_shift_grips_never_span_the_visible_image` become one "no boundary
 marks" test; the README Tilt-Shift screenshot is re-shot). Usability cost: the band's edges are
 shown only by the handle dots and by the preview blur itself. Alternative: keep the bars, with a
-re-check at 2032-12-26.
+re-check at 2032-12-26. Decision (2026-10-20): B, draw no boundary marks; implemented in the
+commit that follows this record.
 
 ## 6. Status sweep of application-number and "pending" entries
 
@@ -209,6 +212,19 @@ re-check at 2032-12-26.
 - **Microsoft US 2022/0109891 A1** (application 17/552,295, the rANS continuation): still pending.
 - **US 8427559 B2** (Buades, Coll, Morel non-local means; US application 11/579,380 filed
   2005-04-13): Expired - Fee Related. Used in item 4.
+
+## Decisions (October 20, 2026) and watch list
+
+- Item 1: A, keep the reduced-resolution Move and Free Transform previews.
+- Item 2: A, keep the Mixer Brush deposit as it is.
+- Item 3: B, the Tilt-Shift overlay draws no boundary marks (handle dots, rotation line and
+  center crosshair only).
+- Item 4: no change (A).
+- Item 5: A, keep the Filter Foundry fixtures with the notices now beside them.
+- Watch list: re-check Microsoft US 7768525 at 2028-03-07 (Mixer Brush deposit), Adobe
+  US 9058699 at 2029-02-02 and US 8380005 at 2031-12-23 (reduced-resolution composite
+  previews), Apple US 8971623 at 2032-12-26 (any new on-image band control), and patent
+  12731259 once its application number is confirmed.
 
 ## Not verified
 
