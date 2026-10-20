@@ -44,7 +44,7 @@ Design: [gmic.md](gmic.md); record: [patent-research-gmic.md](patent-research-gm
 
 ## Interactive previews
 
-- **Reduced-resolution composite previews stay for now** (Move, Free Transform; decision pending the map in [patent-research-preview.md](patent-research-preview.md)): re-check Adobe US 9058699 at 2029-02-02 and US 8380005 at 2031-12-23.
+- **Reduced-resolution composite previews stay** (Move, Free Transform; decided 2026-10-20, published earlier work recorded in [patent-research-preview.md](patent-research-preview.md)): re-check Adobe US 9058699 at 2029-02-02 and US 8380005 at 2031-12-23.
 
 ## Vector tracing
 

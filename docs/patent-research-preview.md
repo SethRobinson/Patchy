@@ -75,6 +75,13 @@ Claim 11 of US 9058699 is the broadest; claims 1 and 18 add one element each.
 | US 8380005 claim 1: access the image on selection; display a copy superimposed over the other image; extract the object from that copy; merge for a preview; refine on a higher-resolution representation of the object's portion | E1 (inserting an image places it as a layer over the composition; masking applies to the inserted image; the pyramid holds its higher-resolution data); E2 (silhouetting inside the program) | Partly: the superimposed-copy-then-extract order is implied, not stated, in the sources read |
 | Dependents 6, 7, 15, 16, 19, 20 (extraction by a drawn perimeter or by foreground and background classification) | E2 (silhouetting with automatic edge correction) | Partly; the manual would settle which tools existed |
 
+## Decision
+
+Decided 2026-10-20: A, keep the previews as they are. This record documents the published earlier
+work; re-check at the dates in the audit record's watch list (US 9058699 at 2029-02-02, US 8380005
+at 2031-12-23). The "what would complete the record" list below stays an optional follow-up, not
+scheduled work.
+
 ## Summary
 
 E1, one published document from 1994 that neither examiner cited, describes every element of

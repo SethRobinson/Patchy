@@ -88,8 +88,9 @@ it no longer cites US 9058699 as its source.
 
 A later note (2026-10-20): claim terms are read on their own words, so the specification's
 gradient-domain embodiments do not by themselves narrow "composite image"; the comparison above
-therefore rests on the design facts. The A or B decision was deferred until the prior-art element
-map was built; it is in [patent-research-preview.md](patent-research-preview.md).
+therefore rests on the design facts. Decision (2026-10-20), after the prior-art element map in
+[patent-research-preview.md](patent-research-preview.md) was built: A, keep the previews; that
+record documents the published earlier work, and the re-check dates are on the watch list.
 
 ## 2. US 7768525 B2 (Microsoft, "Dynamic paint pickup"): the Mixer Brush
 
@@ -232,8 +233,11 @@ day: `draw_boundary` removed from
 
 ## Decisions (October 20, 2026) and watch list
 
-- Item 1: deferred (later on 2026-10-20): A or B after the prior-art element map in
-  [patent-research-preview.md](patent-research-preview.md); the previews stay meanwhile.
+- Item 1: A (decided 2026-10-20 after the prior-art element map in
+  [patent-research-preview.md](patent-research-preview.md) was built): the reduced-resolution Move
+  and Free Transform previews stay as they are; that record documents the published earlier work;
+  re-check at the dates below. The map's "what would complete the record" list stays an optional
+  follow-up.
 - Item 2: A, keep the Mixer Brush deposit as it is.
 - Item 3: B, the Tilt-Shift overlay draws no boundary marks (handle dots, rotation line and
   center crosshair only).
