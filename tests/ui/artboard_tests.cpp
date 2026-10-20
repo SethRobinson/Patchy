@@ -1284,6 +1284,15 @@ int outline_pixels_on_bottom_edge(const QImage& image, patchy::ui::CanvasWidget&
   return count_pixels_close(image, band, QColor(95, 170, 255), 18);
 }
 
+// The hover outline's blue pixels in the band around a whole rect (every edge).
+int outline_pixels_around(const QImage& image, patchy::ui::CanvasWidget& canvas, patchy::Rect rect) {
+  const QRect widget(canvas.widget_position_for_document_point(QPoint(rect.x, rect.y)),
+                     canvas.widget_position_for_document_point(QPoint(rect.x + rect.width, rect.y + rect.height)));
+  const QColor blue(95, 170, 255);
+  return count_pixels_close(image, widget.adjusted(-3, -3, 3, 3), blue, 18) -
+         count_pixels_close(image, widget.adjusted(3, 3, -3, -3), blue, 18);
+}
+
 // Where an artboard's name label is drawn: above its top-left corner.
 QRect label_region(patchy::ui::CanvasWidget& canvas, patchy::Rect rect) {
   const auto top_left = canvas.widget_position_for_document_point(QPoint(rect.x, rect.y));
@@ -1579,6 +1588,65 @@ void ui_artboard_label_reads_across_a_neighbouring_boards_edge() {
   }
 }
 
+// GitHub issue 260, Seth's review: a narrow board shows its whole name, running past its
+// right edge. The name gives way only to another label on its row (clipped 6 px before
+// it) and to the visible canvas edge, and the Move tool's label hit area is the visible
+// text, so hovering the part past the board still frames the board.
+void ui_artboard_label_shows_its_full_name_past_a_narrow_board() {
+  const patchy::Rect narrow_rect{20, 40, 40, 60};
+  const patchy::Rect right_rect{200, 40, 100, 60};
+  const patchy::Rect long_rect{20, 200, 40, 60};
+  const std::string long_name(160, 'W');
+  for (const auto preference : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer scheme_restorer(preference);
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto seed = board_document(520, 420);
+    add_board(seed, long_name.c_str(), long_rect, patchy::ArtboardBackground::White, QColor());
+    const auto right = add_board(seed, "Right", right_rect, patchy::ArtboardBackground::White, QColor());
+    add_board(seed, "Narrow Board With A Rather Long Name To Clip", narrow_rect, patchy::ArtboardBackground::White, QColor());
+    window.add_document_session(std::move(seed), QStringLiteral("Names"));
+    auto* canvas = require_canvas(window);
+    canvas->set_zoom(1.0);
+    require_hotkey_action(window, QStringLiteral("tools.move"))->trigger();
+    canvas->set_auto_select_layer(true);
+    canvas->set_show_transform_controls(false);
+    QApplication::processEvents();
+    const auto& palette = patchy::ui::theme();
+    const auto pasteboard_ink = preference == patchy::ui::ColorSchemePreference::Light
+                                    ? palette.canvas_artboard_label_on_light
+                                    : palette.canvas_artboard_label;
+    auto image = canvas->grab().toImage();
+    save_widget_artifact(std::string("ui_issue_260_full_names_") + scheme_label(preference), window);
+
+    // The narrow board's name continues past its right edge (x 60) toward the next label.
+    const auto band = label_region(*canvas, narrow_rect);
+    const int narrow_right = canvas->widget_position_for_document_point(QPoint(60, 40)).x();
+    const int right_label_left = canvas->widget_position_for_document_point(QPoint(200, 40)).x();
+    const QRect past_board(narrow_right + 2, band.top(), right_label_left - 8 - (narrow_right + 2), band.height());
+    CHECK(ink_pixels(image, past_board, pasteboard_ink) > 20);
+    // It stops short of the "Right" label, which stays whole.
+    const QRect gap(right_label_left - 5, band.top(), 5, band.height());
+    CHECK(stand_out_pixels(image, gap) == 0);
+    CHECK(ink_pixels(image, label_region(*canvas, right_rect), pasteboard_ink) > 6);
+    // A name longer than the view ends before the visible canvas edge.
+    const auto long_band = label_region(*canvas, long_rect);
+    const auto content = canvas_content_rect(*canvas);
+    const QRect long_middle(long_band.left() + 150, long_band.top(), 100, long_band.height());
+    CHECK(ink_pixels(image, long_middle, pasteboard_ink) > 20);
+    const QRect edge(content.right() - 1, long_band.top(), 2, long_band.height());
+    CHECK(stand_out_pixels(image, edge) == 0);
+
+    // Hovering the name past the board frames the board (GitHub issue 259's hit area).
+    MainWindowTestAccess::select_layers(window, {right}, right);
+    QApplication::processEvents();
+    send_mouse(*canvas, QEvent::MouseMove, QPoint(narrow_right + 40, band.center().y()), Qt::NoButton, Qt::NoButton);
+    image = canvas->grab().toImage();
+    save_widget_artifact(std::string("ui_issue_260_full_names_hover_") + scheme_label(preference), window);
+    CHECK(outline_pixels_around(image, *canvas, narrow_rect) > 40);
+  }
+}
+
 // GitHub issue 260 on the reporter's file (ag-psd's artboards sample): "custom board" sits
 // right under "white board", so its name is drawn on white paper and takes the dark ink,
 // while the names over the pasteboard keep the pasteboard ink; and with the Move tool
@@ -1630,6 +1698,28 @@ void ui_artboard_ag_psd_sample_labels_read_on_their_backing_if_available() {
     save_widget_artifact(std::string("ui_issue_260_ag_psd_") + scheme_label(preference), window);
     CHECK(canvas_content_rect(*canvas).contains(label_region(*canvas, custom_board->artboard()->rect)));
     CHECK(ink_pixels(image, label_region(*canvas, custom_board->artboard()->rect), palette.canvas_artboard_label_on_light) > 6);
+    // The board is narrower than its name at this zoom: the whole name shows, past its
+    // right edge (Seth's review: "custom b..." is not readable).
+    {
+      const auto& custom_rect = custom_board->artboard()->rect;
+      const auto custom_label = label_region(*canvas, custom_rect);
+      const int board_right = canvas->widget_position_for_document_point(QPoint(custom_rect.x + custom_rect.width, custom_rect.y)).x();
+      // "custom board" overhangs this board by a few pixels, and the label's hit area is
+      // the visible text: a Move-tool hover just past the board's edge frames this board.
+      // The old elision ("custom b...") ended inside the board, so that hover framed
+      // "white board", whose paper is under the pointer there.
+      send_mouse(*canvas, QEvent::MouseMove, QPoint(board_right + 3, custom_label.center().y()), Qt::NoButton,
+                 Qt::NoButton);
+      const auto hovered = canvas->grab().toImage();
+      CHECK(outline_pixels_around(hovered, *canvas, custom_rect) > 40);
+      // Not "white board": its top edge (far from the hovered, blue-lit label) has no ring.
+      const auto& white_rect = white_board->artboard()->rect;
+      const auto white_top_left = canvas->widget_position_for_document_point(QPoint(white_rect.x, white_rect.y));
+      const auto white_top_right = canvas->widget_position_for_document_point(QPoint(white_rect.x + white_rect.width, white_rect.y));
+      const QRect white_top_band(white_top_left.x() - 3, white_top_left.y() - 3, white_top_right.x() - white_top_left.x() + 6, 7);
+      CHECK(count_pixels_close(hovered, white_top_band, QColor(95, 170, 255), 18) < 6);
+      send_mouse(*canvas, QEvent::MouseMove, QPoint(2, 2), Qt::NoButton, Qt::NoButton);
+    }
     CHECK(ink_pixels(image, label_region(*canvas, white_board->artboard()->rect), pasteboard_ink) > 6);
     // The name hangs over the white board's bottom edge: its part in the pasteboard gap
     // still reads, and the white board's outline does not cross it.
@@ -1688,6 +1778,8 @@ std::vector<patchy::test::TestCase> artboard_ui_tests() {
       {"ui_artboard_label_ink_follows_what_it_sits_on", ui_artboard_label_ink_follows_what_it_sits_on},
       {"ui_artboard_label_reads_across_a_neighbouring_boards_edge",
        ui_artboard_label_reads_across_a_neighbouring_boards_edge},
+      {"ui_artboard_label_shows_its_full_name_past_a_narrow_board",
+       ui_artboard_label_shows_its_full_name_past_a_narrow_board},
       {"ui_artboard_ag_psd_sample_labels_read_on_their_backing_if_available",
        ui_artboard_ag_psd_sample_labels_read_on_their_backing_if_available},
   };
