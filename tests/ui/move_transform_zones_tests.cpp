@@ -12,12 +12,17 @@
 #include <QColor>
 #include <QCursor>
 #include <QImage>
+#include <QList>
 #include <QPainter>
 #include <QPixmap>
 #include <QPoint>
 #include <QPointF>
+#include <QPushButton>
 #include <QRect>
+#include <QToolBar>
+#include <QToolButton>
 #include <QTransform>
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstddef>
@@ -490,10 +495,64 @@ void ui_move_cursor_shows_drag_only_where_a_press_moves() {
   CHECK(canvas->cursor().shape() == Qt::SizeAllCursor);
 }
 
+// GitHub issue 225: the Move bar carries a Warp button that starts the warp cage
+// on the selected layer directly, without a Free Transform first. During the
+// session the bar shows the transform row with the warp toggle checked.
+void ui_move_warp_button_starts_warp_from_the_bar() {
+  patchy::ui::MainWindow window;
+  const QRect bounds(100, 70, 160, 110);
+  prepare_zone_scene(window, bounds, true);
+  auto* canvas = require_canvas(window);
+  const auto center = canvas->widget_position_for_document_point(bounds.center());
+  send_mouse(*canvas, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+  CHECK(options_bar != nullptr);
+  const auto bar_strip = [&] {
+    auto image = options_bar->grab().toImage();
+    return image.copy(0, 0, std::min(image.width(), 760), image.height());
+  };
+  QList<QImage> strips{bar_strip()};
+
+  auto* warp_button = window.findChild<QToolButton*>(QStringLiteral("moveWarpButton"));
+  if (warp_button != nullptr && warp_button->isVisible()) {
+    warp_button->click();
+    QApplication::processEvents();
+    strips.push_back(bar_strip());
+    strips.push_back(canvas->grab().toImage().copy(
+        QRect(canvas->widget_position_for_document_point(bounds.topLeft()) - QPoint(40, 40),
+              QSize(bounds.width() + 80, bounds.height() + 80))));
+  }
+  save_stacked_artifact("ui_move_warp_button", strips);
+
+  CHECK(warp_button != nullptr);
+  CHECK(warp_button != nullptr && !warp_button->icon().isNull());
+  CHECK(canvas->warp_transform_active());
+  CHECK(!canvas->free_transform_active());
+  CHECK(warp_button != nullptr && !warp_button->isVisible());
+  auto* mode_toggle = window.findChild<QPushButton*>(QStringLiteral("transformWarpModeButton"));
+  CHECK(mode_toggle != nullptr && mode_toggle->isVisible() && mode_toggle->isChecked());
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->warp_transform_active());
+  CHECK(canvas->active_layer_document_rect() == bounds);
+  CHECK(warp_button != nullptr && warp_button->isVisible());
+
+  // The Move row keeps its single-row height with the extra button.
+  require_action_by_text(window, QStringLiteral("Marquee"))->trigger();
+  QApplication::processEvents();
+  const int marquee_height = options_bar->height();
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  QApplication::processEvents();
+  CHECK(options_bar->height() == marquee_height);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> move_transform_zones_tests() {
   return {
+      {"ui_move_warp_button_starts_warp_from_the_bar", ui_move_warp_button_starts_warp_from_the_bar},
       {"ui_transform_zone_passive_edges_resize_and_corners_rotate",
        ui_transform_zone_passive_edges_resize_and_corners_rotate},
       {"ui_transform_zone_rotated_session_edges_follow_the_box", ui_transform_zone_rotated_session_edges_follow_the_box},
