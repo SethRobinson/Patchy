@@ -53,6 +53,11 @@ class CanvasWidget;
 enum class CanvasTool;
 struct BrushPreset;
 
+// The tool's hotkey command id ("tools.brush"): a permanent identifier that also
+// names the active tool in the settings store (`tools/activeTool`, GitHub issue
+// 254). Never reuse or rename one; new tools append (docs/tool-options.md).
+[[nodiscard]] QString tool_hotkey_id(CanvasTool tool);
+
 // Recursive content checks shared by the split MainWindow translation units.
 // These deliberately inspect groups as well as the selected root because a
 // whole-document operation can otherwise rewrite a nested Smart Object's

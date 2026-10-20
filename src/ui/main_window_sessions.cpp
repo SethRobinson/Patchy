@@ -305,9 +305,15 @@ void MainWindow::add_document_session(Document document, QString title, QString 
   if (startup_tool_settings_pending_) {
     // Startup opens with no document, so the one-time settings load waits for the
     // first canvas; the options bar then re-reads the stored values it applied.
-    startup_tool_settings_pending_ = false;
+    // The flag clears after the load: save_tool_settings is a no-op until then.
     load_tool_settings();
     sync_tool_option_controls_from_canvas();
+    startup_tool_settings_pending_ = false;
+    // The stored tool's own activation (eraser values, status hint, flyout face) runs
+    // only now that a canvas exists; Brush is the palette's built-in default.
+    if (current_tool_ != CanvasTool::Brush) {
+      activate_tool(current_tool_);
+    }
   }
   update_start_panel_visibility();
 }

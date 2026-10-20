@@ -160,6 +160,8 @@ const char* tool_action_source(CanvasTool tool) {
   return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Tool");
 }
 
+}  // namespace
+
 QString tool_hotkey_id(CanvasTool tool) {
   switch (tool) {
     case CanvasTool::Move:
@@ -247,6 +249,8 @@ QString tool_hotkey_id(CanvasTool tool) {
   }
   return QStringLiteral("tools.unknown");
 }
+
+namespace {
 
 // Second tooltip line for the tools whose gestures are not obvious from the
 // name; the hotkey registry composes "Name (Key)" above it and translates
@@ -1157,6 +1161,8 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     canvas_->set_tool(selected);
     apply_selection_edge_settings_for_tool(selected);
     set_eraser_brush_settings_active(selected == CanvasTool::Eraser);
+    // The next launch starts on this tool (GitHub issue 254; tools/activeTool).
+    schedule_save_tool_settings();
     if (selected != CanvasTool::Text ||
         canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) == nullptr) {
       canvas_->setFocus(Qt::OtherFocusReason);
