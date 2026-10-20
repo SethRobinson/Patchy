@@ -377,7 +377,7 @@ void BrushTipLibrary::reload() {
         entry.dynamics = brush_dynamics_from_json(object.value(QStringLiteral("dynamics")).toObject());
         if (object.contains(QStringLiteral("toolFlow"))) {
           entry.tool_flow_percent =
-              std::clamp(object.value(QStringLiteral("toolFlow")).toInt(100), 1, 100);
+              std::clamp(object.value(QStringLiteral("toolFlow")).toInt(100), 0, 100);  // 0..100 (issue 253)
         }
         if (object.contains(QStringLiteral("toolAirbrush"))) {
           entry.tool_airbrush = object.value(QStringLiteral("toolAirbrush")).toBool(false);
@@ -460,7 +460,7 @@ bool BrushTipLibrary::write_sidecar(const BrushTipEntry& entry) const {
     object.insert(QStringLiteral("dynamics"), brush_dynamics_to_json(entry.dynamics));
   }
   if (entry.tool_flow_percent.has_value()) {
-    object.insert(QStringLiteral("toolFlow"), std::clamp(*entry.tool_flow_percent, 1, 100));
+    object.insert(QStringLiteral("toolFlow"), std::clamp(*entry.tool_flow_percent, 0, 100));
   }
   if (entry.tool_airbrush.has_value()) {
     object.insert(QStringLiteral("toolAirbrush"), *entry.tool_airbrush);
