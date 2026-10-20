@@ -11058,6 +11058,26 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
         <translation>Bianco e nero: %1 / %2 / %3 / %4 / %5 / %6</translation>
     </message>
+    <message>
+        <source>Load LUT...</source>
+        <translation>Carica LUT...</translation>
+    </message>
+    <message>
+        <source>3D LUT:</source>
+        <translation>LUT 3D:</translation>
+    </message>
+    <message>
+        <source>Load 3D LUT</source>
+        <translation>Carica LUT 3D</translation>
+    </message>
+    <message>
+        <source>3D LUT files (*.cube *.3dl)</source>
+        <translation>File LUT 3D (*.cube *.3dl)</translation>
+    </message>
+    <message>
+        <source>%1 is not a 3D LUT Patchy can read.</source>
+        <translation>%1 non è una LUT 3D che Patchy può leggere.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22695,7 +22715,7 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
     </message>
     <message>
         <source>&amp;Gradient Map...</source>
-        <translation>Mappa &amp;sfumatura...</translation>
+        <translation>M&amp;appa sfumatura...</translation>
     </message>
     <message>
         <source>Photo Filter</source>
@@ -22726,8 +22746,16 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
         <translation>Bianco e nero annullato</translation>
     </message>
     <message>
-        <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
-        <translation>La consultazione colore &quot;%1&quot; viene applicata così come è salvata nel file.</translation>
+        <source>Color L&amp;ookup...</source>
+        <translation>C&amp;onsultazione colore...</translation>
+    </message>
+    <message>
+        <source>Color Lookup</source>
+        <translation>Consultazione colore</translation>
+    </message>
+    <message>
+        <source>Cancelled Color Lookup</source>
+        <translation>Consultazione colore annullata</translation>
     </message>
 </context>
 <context>

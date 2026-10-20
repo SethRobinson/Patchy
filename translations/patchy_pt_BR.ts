@@ -11058,6 +11058,26 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
         <translation>Preto e branco: %1 / %2 / %3 / %4 / %5 / %6</translation>
     </message>
+    <message>
+        <source>Load LUT...</source>
+        <translation>Carregar LUT...</translation>
+    </message>
+    <message>
+        <source>3D LUT:</source>
+        <translation>LUT 3D:</translation>
+    </message>
+    <message>
+        <source>Load 3D LUT</source>
+        <translation>Carregar LUT 3D</translation>
+    </message>
+    <message>
+        <source>3D LUT files (*.cube *.3dl)</source>
+        <translation>Arquivos LUT 3D (*.cube *.3dl)</translation>
+    </message>
+    <message>
+        <source>%1 is not a 3D LUT Patchy can read.</source>
+        <translation>%1 não é uma LUT 3D que o Patchy consiga ler.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22675,7 +22695,7 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
     </message>
     <message>
         <source>Channel &amp;Mixer...</source>
-        <translation>&amp;Misturador de canais...</translation>
+        <translation>Mi&amp;sturador de canais...</translation>
     </message>
     <message>
         <source>Channel Mixer</source>
@@ -22715,7 +22735,7 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
     </message>
     <message>
         <source>Blac&amp;k &amp;&amp; White...</source>
-        <translation>Preto e &amp;branco...</translation>
+        <translation>P&amp;reto e branco...</translation>
     </message>
     <message>
         <source>Black &amp; White</source>
@@ -22726,8 +22746,16 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
         <translation>Preto e branco cancelado</translation>
     </message>
     <message>
-        <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
-        <translation>A pesquisa de cores &quot;%1&quot; é aplicada como está salva no arquivo.</translation>
+        <source>Color L&amp;ookup...</source>
+        <translation>Pesquisa de c&amp;ores...</translation>
+    </message>
+    <message>
+        <source>Color Lookup</source>
+        <translation>Pesquisa de cores</translation>
+    </message>
+    <message>
+        <source>Cancelled Color Lookup</source>
+        <translation>Pesquisa de cores cancelada</translation>
     </message>
 </context>
 <context>

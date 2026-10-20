@@ -11058,6 +11058,26 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
         <translation>Noir et blanc : %1 / %2 / %3 / %4 / %5 / %6</translation>
     </message>
+    <message>
+        <source>Load LUT...</source>
+        <translation>Charger une LUT...</translation>
+    </message>
+    <message>
+        <source>3D LUT:</source>
+        <translation>LUT 3D :</translation>
+    </message>
+    <message>
+        <source>Load 3D LUT</source>
+        <translation>Charger une LUT 3D</translation>
+    </message>
+    <message>
+        <source>3D LUT files (*.cube *.3dl)</source>
+        <translation>Fichiers LUT 3D (*.cube *.3dl)</translation>
+    </message>
+    <message>
+        <source>%1 is not a 3D LUT Patchy can read.</source>
+        <translation>%1 n&apos;est pas une LUT 3D que Patchy sait lire.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22695,7 +22715,7 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
     </message>
     <message>
         <source>&amp;Gradient Map...</source>
-        <translation>&amp;Courbe de transfert de dégradé...</translation>
+        <translation>C&amp;ourbe de transfert de dégradé...</translation>
     </message>
     <message>
         <source>Photo Filter</source>
@@ -22715,7 +22735,7 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
     </message>
     <message>
         <source>Blac&amp;k &amp;&amp; White...</source>
-        <translation>&amp;Noir et blanc...</translation>
+        <translation>Noi&amp;r et blanc...</translation>
     </message>
     <message>
         <source>Black &amp; White</source>
@@ -22726,8 +22746,16 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
         <translation>Noir et blanc annulé</translation>
     </message>
     <message>
-        <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
-        <translation>La correspondance de la couleur « %1 » est appliquée telle qu&apos;elle est enregistrée dans le fichier.</translation>
+        <source>Color L&amp;ookup...</source>
+        <translation>Corres&amp;pondance de la couleur...</translation>
+    </message>
+    <message>
+        <source>Color Lookup</source>
+        <translation>Correspondance de la couleur</translation>
+    </message>
+    <message>
+        <source>Cancelled Color Lookup</source>
+        <translation>Correspondance de la couleur annulée</translation>
     </message>
 </context>
 <context>

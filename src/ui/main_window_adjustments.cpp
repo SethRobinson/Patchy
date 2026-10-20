@@ -158,6 +158,8 @@ void MainWindow::populate_new_adjustment_layer_menu(QMenu* menu, const QString& 
                  [this] { new_gradient_map_adjustment_layer(); });
   add_adjustment(QT_TR_NOOP("Blac&k && White..."), QStringLiteral("BlackWhiteAdjustment"), QStringLiteral("BW"),
                  [this] { new_black_white_adjustment_layer(); });
+  add_adjustment(QT_TR_NOOP("Color L&ookup..."), QStringLiteral("ColorLookupAdjustment"), QStringLiteral("LUT"),
+                 [this] { new_color_lookup_adjustment_layer(); });
 }
 
 void MainWindow::new_levels_adjustment_layer() {
@@ -491,6 +493,31 @@ void MainWindow::new_gradient_map_adjustment_layer() {
   adjustment.kind = AdjustmentKind::GradientMap;
   adjustment.gradient_map = *settings;
   create_adjustment_layer(tr("Gradient Map"), adjustment);
+}
+
+void MainWindow::new_color_lookup_adjustment_layer() {
+  std::optional<LayerId> preview_id;
+  const auto restore_active_layer = document().active_layer_id();
+  const auto preview_changed = [this, &preview_id, restore_active_layer](bool enabled,
+                                                                         const ColorLookupSettings& look) {
+    AdjustmentSettings settings;
+    settings.kind = AdjustmentKind::ColorLookup;
+    settings.color_lookup = look;
+    update_adjustment_layer_preview(tr("Color Lookup"), settings, enabled, preview_id, restore_active_layer);
+  };
+
+  auto preview_edit_lock = lock_preview_dialog_edits();
+  const auto settings = request_color_lookup_settings(this, preview_changed);
+  remove_adjustment_layer_preview(preview_id, restore_active_layer);
+  preview_edit_lock.release();
+  if (!settings.has_value()) {
+    statusBar()->showMessage(tr("Cancelled Color Lookup"));
+    return;
+  }
+  AdjustmentSettings adjustment;
+  adjustment.kind = AdjustmentKind::ColorLookup;
+  adjustment.color_lookup = *settings;
+  create_adjustment_layer(tr("Color Lookup"), adjustment);
 }
 
 void MainWindow::new_black_white_adjustment_layer() {
@@ -880,12 +907,24 @@ void MainWindow::edit_active_adjustment_layer() {
       }
       break;
     }
-    case AdjustmentKind::ColorLookup:
-      // Imported lookups render and save unchanged; choosing another table is not offered yet.
-      statusBar()->showMessage(
-          tr("Color Lookup \"%1\" is applied as stored in the file.")
-              .arg(QString::fromStdString(original_settings->color_lookup.name)));
+    case AdjustmentKind::ColorLookup: {
+      const auto preview_changed = [apply_settings, restore_original_layer, original_settings](
+                                       bool enabled, const ColorLookupSettings& look) {
+        if (!enabled) {
+          restore_original_layer();
+          return;
+        }
+        auto settings = *original_settings;
+        settings.color_lookup = look;
+        apply_settings(settings);
+      };
+      const auto result = request_color_lookup_settings(this, preview_changed, original_settings->color_lookup);
+      if (result.has_value()) {
+        accepted_settings = *original_settings;
+        accepted_settings->color_lookup = *result;
+      }
       break;
+    }
     case AdjustmentKind::BlackWhite: {
       const auto preview_changed = [apply_settings, restore_original_layer, original_settings](
                                        bool enabled, const BlackWhiteSettings& bw) {

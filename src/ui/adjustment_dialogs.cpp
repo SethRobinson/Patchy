@@ -27,7 +27,9 @@
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QFormLayout>
+#include <QFile>
 #include <QFileInfo>
+#include <QMessageBox>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QLabel>
@@ -1683,6 +1685,67 @@ std::optional<PhotoFilterSettings> request_photo_filter_settings(
             show();
             flush_preview();
           }
+        });
+      });
+}
+
+std::optional<ColorLookupSettings> request_color_lookup_settings(
+    QWidget* parent, std::function<void(bool, const ColorLookupSettings&)> preview_changed,
+    ColorLookupSettings initial) {
+  auto state = std::make_shared<ColorLookupSettings>(std::move(initial));
+  const auto build_settings = [state](const std::vector<QSpinBox*>&) { return *state; };
+  return request_adjustment_settings_dialog<ColorLookupSettings>(
+      parent, QStringLiteral("patchyColorLookupDialog"), QObject::tr("Color Lookup"),
+      QStringLiteral("colorLookupPreviewCheck"), {}, build_settings, std::move(preview_changed), {},
+      [state](QDialog& dialog, QFormLayout* form, const std::vector<QSpinBox*>&,
+              const std::function<void()>& flush_preview) {
+        auto* row = new QWidget(&dialog);
+        auto* row_layout = new QHBoxLayout(row);
+        row_layout->setContentsMargins(0, 0, 0, 0);
+        auto* name = new QLabel(&dialog);
+        name->setObjectName(QStringLiteral("colorLookupNameLabel"));
+        name->setMinimumWidth(240);
+        auto* load = new QPushButton(QObject::tr("Load LUT..."), &dialog);
+        load->setObjectName(QStringLiteral("colorLookupLoadButton"));
+        row_layout->addWidget(name, 1);
+        row_layout->addWidget(load);
+        form->insertRow(0, QObject::tr("3D LUT:"), row);
+        // Without a table the lookup is identity, as an empty Photoshop Color Lookup is.
+        // Long file names elide in the middle (keeping the extension); the tooltip has the whole name.
+        const auto show = [state, name] {
+          const auto full = state->table != nullptr ? QString::fromStdString(state->name) : QObject::tr("None");
+          name->setText(name->fontMetrics().elidedText(full, Qt::ElideMiddle, name->minimumWidth()));
+          name->setToolTip(full);
+        };
+        show();
+        QObject::connect(load, &QPushButton::clicked, &dialog, [&dialog, state, show, flush_preview] {
+          const auto path = get_open_file_name(&dialog, QObject::tr("Load 3D LUT"), QString(),
+                                               QObject::tr("3D LUT files (*.cube *.3dl)"), nullptr,
+                                               QStringLiteral("colorLookupFileDialog"));
+          if (path.isEmpty()) {
+            return;
+          }
+          QFile file(path);
+          QByteArray bytes;
+          if (file.open(QIODevice::ReadOnly)) {
+            bytes = file.readAll();
+          }
+          const QFileInfo info(path);
+          const auto parsed = parse_color_lookup_file(
+              std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(bytes.constData()),
+                                            static_cast<std::size_t>(bytes.size())),
+              info.suffix().toStdString());
+          if (parsed.table == nullptr) {
+            (void)show_warning_message(&dialog, QObject::tr("Color Lookup"),
+                                       QObject::tr("%1 is not a 3D LUT Patchy can read.").arg(info.fileName()),
+                                       QMessageBox::Ok, QMessageBox::Ok, QStringLiteral("colorLookupLoadErrorBox"));
+            return;
+          }
+          register_color_lookup_table(parsed.table);
+          state->table = parsed.table;
+          state->name = info.fileName().toStdString();
+          show();
+          flush_preview();
         });
       });
 }

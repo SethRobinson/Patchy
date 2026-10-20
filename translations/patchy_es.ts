@@ -11058,6 +11058,26 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
         <translation>Blanco y negro: %1 / %2 / %3 / %4 / %5 / %6</translation>
     </message>
+    <message>
+        <source>Load LUT...</source>
+        <translation>Cargar LUT...</translation>
+    </message>
+    <message>
+        <source>3D LUT:</source>
+        <translation>LUT 3D:</translation>
+    </message>
+    <message>
+        <source>Load 3D LUT</source>
+        <translation>Cargar LUT 3D</translation>
+    </message>
+    <message>
+        <source>3D LUT files (*.cube *.3dl)</source>
+        <translation>Archivos LUT 3D (*.cube *.3dl)</translation>
+    </message>
+    <message>
+        <source>%1 is not a 3D LUT Patchy can read.</source>
+        <translation>%1 no es una LUT 3D que Patchy pueda leer.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22715,7 +22735,7 @@ Puedes hacerlo más tarde desde Ayuda &gt; Añadir Patchy al menú de aplicacion
     </message>
     <message>
         <source>Blac&amp;k &amp;&amp; White...</source>
-        <translation>Blanco y &amp;negro...</translation>
+        <translation>&amp;Blanco y negro...</translation>
     </message>
     <message>
         <source>Black &amp; White</source>
@@ -22726,8 +22746,16 @@ Puedes hacerlo más tarde desde Ayuda &gt; Añadir Patchy al menú de aplicacion
         <translation>Blanco y negro cancelado</translation>
     </message>
     <message>
-        <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
-        <translation>La consulta de colores «%1» se aplica tal como está guardada en el archivo.</translation>
+        <source>Color L&amp;ookup...</source>
+        <translation>C&amp;onsulta de colores...</translation>
+    </message>
+    <message>
+        <source>Color Lookup</source>
+        <translation>Consulta de colores</translation>
+    </message>
+    <message>
+        <source>Cancelled Color Lookup</source>
+        <translation>Consulta de colores cancelada</translation>
     </message>
 </context>
 <context>

@@ -11092,6 +11092,26 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
         <translation>Czarno-białe: %1 / %2 / %3 / %4 / %5 / %6</translation>
     </message>
+    <message>
+        <source>Load LUT...</source>
+        <translation>Wczytaj LUT...</translation>
+    </message>
+    <message>
+        <source>3D LUT:</source>
+        <translation>LUT 3D:</translation>
+    </message>
+    <message>
+        <source>Load 3D LUT</source>
+        <translation>Wczytaj LUT 3D</translation>
+    </message>
+    <message>
+        <source>3D LUT files (*.cube *.3dl)</source>
+        <translation>Pliki LUT 3D (*.cube *.3dl)</translation>
+    </message>
+    <message>
+        <source>%1 is not a 3D LUT Patchy can read.</source>
+        <translation>%1 nie jest tablicą LUT 3D, którą Patchy potrafi odczytać.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22785,7 +22805,7 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     </message>
     <message>
         <source>Blac&amp;k &amp;&amp; White...</source>
-        <translation>Czarno-&amp;białe...</translation>
+        <translation>&amp;Czarno-białe...</translation>
     </message>
     <message>
         <source>Black &amp; White</source>
@@ -22796,8 +22816,16 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
         <translation>Anulowano czarno-białe</translation>
     </message>
     <message>
-        <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
-        <translation>Wyszukiwanie koloru „%1” jest stosowane tak, jak zapisano je w pliku.</translation>
+        <source>Color L&amp;ookup...</source>
+        <translation>&amp;Wyszukiwanie koloru...</translation>
+    </message>
+    <message>
+        <source>Color Lookup</source>
+        <translation>Wyszukiwanie koloru</translation>
+    </message>
+    <message>
+        <source>Cancelled Color Lookup</source>
+        <translation>Anulowano wyszukiwanie koloru</translation>
     </message>
 </context>
 <context>

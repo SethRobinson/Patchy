@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -423,7 +424,8 @@ struct BlackWhiteAdjustment {
                                                          double green, double blue, bool byte_stages);
 
 // A sampled RGB-to-RGB 3D table, as Photoshop renders a Color Lookup ('clrL'): the layer's
-// ICC profile sampled at its own grid, 16-bit nodes, tetrahedral interpolation
+// ICC profile sampled at its own grid, 16-bit nodes, tetrahedral interpolation (trilinear
+// for a two-point grid)
 // (docs/adjustment-kinds.md, "Color Lookup"). Tables are applied exactly as stored, never
 // edited (docs/legal-constraints.md, "Adjustment layers").
 struct ColorLookupTable {
@@ -431,10 +433,24 @@ struct ColorLookupTable {
   int size{0};     // grid points per axis, 2..256
   // (r + g * size + b * size * size) * 3 + channel, 0..65535.
   std::vector<std::uint16_t> values;
+  // The LUT file the table came from, embedded with a Patchy-made lookup as Photoshop
+  // embeds it: "cube" or "3dl" and the file's bytes. Empty for tables read from a profile.
+  std::string source_format;
+  std::vector<std::uint8_t> source;
   [[nodiscard]] bool valid() const noexcept;
   // One color on the 0..255 scale, unrounded.
   [[nodiscard]] std::array<double, 3> apply(double red, double green, double blue) const noexcept;
 };
+// Parses a 3D LUT file a user picked: Adobe/Resolve `.cube` (LUT_3D_SIZE, default 0..1
+// domain, red fastest) or Autodesk `.3dl` (a first row of input positions, then integer
+// rows with blue fastest, scaled by the output bit depth the values imply). The table keeps
+// the file's bytes. Nullopt with a reason when the file is not a supported 3D LUT.
+struct ColorLookupFileResult {
+  std::shared_ptr<const ColorLookupTable> table;
+  std::string error;
+};
+[[nodiscard]] ColorLookupFileResult parse_color_lookup_file(std::span<const std::uint8_t> bytes,
+                                                            std::string_view extension);
 // Builds a table and its content id; null when the grid is unusable.
 [[nodiscard]] std::shared_ptr<const ColorLookupTable> make_color_lookup_table(int size,
                                                                               std::vector<std::uint16_t> values);

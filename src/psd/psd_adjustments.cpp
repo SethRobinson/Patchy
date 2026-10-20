@@ -1175,7 +1175,10 @@ std::vector<std::uint8_t> photoshop_color_lookup_payload(const ColorLookupAdjust
   unicode(payload, "");
   key(payload, "null");
   const bool has_table = settings.table != nullptr && settings.table->valid();
-  append_u32(payload, has_table ? 4U : 3U);
+  // A table loaded from a LUT file also embeds the file, as Photoshop does for a loaded LUT.
+  const bool has_source = has_table && !settings.table->source.empty() &&
+                          (settings.table->source_format == "cube" || settings.table->source_format == "3dl");
+  append_u32(payload, has_source ? 9U : has_table ? 4U : 3U);
   key(payload, "lookupType");
   append_text(payload, "enum");
   key(payload, "colorLookupType");
@@ -1192,6 +1195,24 @@ std::vector<std::uint8_t> photoshop_color_lookup_payload(const ColorLookupAdjust
     append_text(payload, "tdta");
     append_u32(payload, static_cast<std::uint32_t>(profile.size()));
     payload.insert(payload.end(), profile.begin(), profile.end());
+  }
+  if (has_source) {
+    const auto enumeration = [&key, &payload](std::string_view id, std::string_view type, std::string_view value) {
+      key(payload, id);
+      append_text(payload, "enum");
+      key(payload, type);
+      key(payload, value);
+    };
+    enumeration("LUTFormat", "LUTFormatType", settings.table->source_format == "3dl" ? "LUTFormat3DL" : "LUTFormatCUBE");
+    enumeration("dataOrder", "colorLookupOrder", "rgbOrder");
+    enumeration("tableOrder", "colorLookupOrder", "bgrOrder");
+    key(payload, "LUT3DFileData");
+    append_text(payload, "tdta");
+    append_u32(payload, static_cast<std::uint32_t>(settings.table->source.size()));
+    payload.insert(payload.end(), settings.table->source.begin(), settings.table->source.end());
+    key(payload, "LUT3DFileName");
+    append_text(payload, "TEXT");
+    unicode(payload, settings.name);
   }
   pad_to_four(payload);
   return payload;
