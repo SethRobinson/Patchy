@@ -373,6 +373,12 @@ FilterInvocation editable_smart_filter_invocation(SmartFilterKind kind) {
     put_schema_invocation_parameters(invocation, *schema, default_schema_settings(*schema));
     return invocation;
   }
+  if (kind == SmartFilterKind::SmartSharpen) {
+    invocation.filter_id = "patchy.smart_filters.smart_sharpen";
+    invocation.parameters["amount"] = 100.0;
+    invocation.parameters["radius"] = 1.0;
+    return invocation;
+  }
   if (parameterless_smart_filter_native(kind) != nullptr) {
     // No parameters: the dialog shows only its Blending section.
     invocation.filter_id =
@@ -464,6 +470,40 @@ FilterDialogSpec editable_smart_filter_dialog_spec(SmartFilterKind kind) {
       QString::fromStdString(editable_smart_filter_invocation(kind).filter_id);
   if (parameterless_smart_filter_native(kind) != nullptr) {
     spec.display_name = parameterless_smart_filter_display_name(kind);
+    return spec;
+  }
+  if (kind == SmartFilterKind::SmartSharpen) {
+    // Legacy Gaussian Smart Sharpen: Amount and Radius only; the other
+    // Photoshop options would leave the modeled case.
+    spec.display_name = QObject::tr("Smart Sharpen");
+    FilterControlSpec amount;
+    amount.label = QObject::tr("Amount");
+    amount.object_name = QStringLiteral("filterAmount");
+    amount.minimum = 1;
+    amount.maximum = 500;
+    amount.value = 100;
+    amount.suffix = QObject::tr("%");
+    amount.parameter_key = "amount";
+    amount.kind = FilterParameterKind::Double;
+    amount.default_value = 100.0;
+    amount.typed_minimum = 1.0;
+    amount.typed_maximum = 500.0;
+    amount.step = 1.0;
+    spec.controls.push_back(std::move(amount));
+    FilterControlSpec radius;
+    radius.label = QObject::tr("Radius");
+    radius.object_name = QStringLiteral("filterRadius");
+    radius.minimum = 0;
+    radius.maximum = 64;
+    radius.value = 1;
+    radius.suffix = QObject::tr(" px");
+    radius.parameter_key = "radius";
+    radius.kind = FilterParameterKind::Double;
+    radius.default_value = 1.0;
+    radius.typed_minimum = 0.1;
+    radius.typed_maximum = 64.0;
+    radius.step = 0.1;
+    spec.controls.push_back(std::move(radius));
     return spec;
   }
   spec.display_name =
@@ -775,6 +815,17 @@ SmartFilterStack smart_filter_stack_with_invocation(
     return stack;
   }
   if (parameterless_smart_filter_native(entry.kind) != nullptr) {
+    return stack;
+  }
+  if (auto *sharpen = std::get_if<SmartSharpenSmartFilter>(&entry.parameters);
+      entry.kind == SmartFilterKind::SmartSharpen && sharpen != nullptr) {
+    sharpen->amount_percent = std::clamp(
+        smart_filter_number_from_invocation(invocation, "amount",
+                                            sharpen->amount_percent),
+        1.0, 500.0);
+    sharpen->radius_pixels = std::clamp(
+        smart_filter_radius_from_invocation(invocation, sharpen->radius_pixels),
+        0.1, 64.0);
     return stack;
   }
   const auto radius = smart_filter_radius_from_invocation(invocation, 1.0);
@@ -1417,7 +1468,10 @@ void MainWindow::editable_smart_filter_dialog(
   const auto box = kind == SmartFilterKind::BoxBlur;
   const auto radial = kind == SmartFilterKind::RadialBlur;
   const auto add_noise = kind == SmartFilterKind::AddNoise;
-  const auto classic_name = parameterless_smart_filter_display_name(kind);
+  // Named through "%1" strings: the parameterless filters and Smart Sharpen.
+  const auto classic_name = kind == SmartFilterKind::SmartSharpen
+                                ? tr("Smart Sharpen")
+                                : parameterless_smart_filter_display_name(kind);
   const auto classic = !classic_name.isEmpty();
   if (!has_active_document() || canvas_ == nullptr) {
     return;
@@ -1533,6 +1587,16 @@ void MainWindow::editable_smart_filter_dialog(
         return;
       }
       put_schema_invocation_parameters(initial_invocation, *schema, *settings);
+    } else if (kind == SmartFilterKind::SmartSharpen) {
+      const auto *settings = std::get_if<SmartSharpenSmartFilter>(
+          &stack.entries[filter_index].parameters);
+      if (settings == nullptr) {
+        show_status_error(
+            tr("This Smart Filter can only be preserved, not edited"));
+        return;
+      }
+      initial_invocation.parameters["amount"] = settings->amount_percent;
+      initial_invocation.parameters["radius"] = settings->radius_pixels;
     } else if (parameterless_smart_filter_native(kind) != nullptr) {
       // No parameters: only the Blending section edits this entry.
     } else if (kind == SmartFilterKind::GaussianBlur) {
@@ -1688,7 +1752,7 @@ void MainWindow::editable_smart_filter_dialog(
     }
   }
 
-  if (adding && classic) {
+  if (adding && parameterless_smart_filter_native(kind) != nullptr) {
     // Like Photoshop, a parameterless filter is added without a dialog; its
     // Blending section stays editable from the entry row afterwards.
     if (!commit_smart_filter_stack_edit(

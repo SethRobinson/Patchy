@@ -2420,6 +2420,22 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                  .arg(plastic->smoothness);
           }
         }
+      } else if (const auto *sharpen =
+                     std::get_if<SmartSharpenSmartFilter>(&entry.parameters);
+                 entry.kind == SmartFilterKind::SmartSharpen &&
+                 sharpen != nullptr) {
+        entry_name = QObject::tr("Smart Sharpen");
+        auto radius = QString::number(sharpen->radius_pixels, 'f', 2);
+        while (radius.endsWith(QLatin1Char('0'))) {
+          radius.chop(1);
+        }
+        if (radius.endsWith(QLatin1Char('.'))) {
+          radius.chop(1);
+        }
+        entry_tooltip = entry_name +
+                        QObject::tr(" (Amount %1%, Radius %2 px, Legacy)")
+                            .arg(QString::number(sharpen->amount_percent, 'g', 6))
+                            .arg(radius);
       } else if (const auto classic_name =
                      parameterless_smart_filter_display_name(entry.kind);
                  !classic_name.isEmpty()) {

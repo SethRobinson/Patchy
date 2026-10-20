@@ -101,6 +101,8 @@ bool native_smart_filter_kind_supported(SmartFilterKind kind) {
     case SmartFilterKind::SharpenMore:
     case SmartFilterKind::Invert:
     case SmartFilterKind::Average:
+    // Imported only: no Filter-menu command maps onto Smart Sharpen.
+    case SmartFilterKind::SmartSharpen:
       return true;
     case SmartFilterKind::Offset:
     case SmartFilterKind::Maximum:

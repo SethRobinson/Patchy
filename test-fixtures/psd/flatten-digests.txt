@@ -106,6 +106,7 @@ c0a39197fc4785c3 photoshop-smart-filter-radial-blur.psd
 1b98d9c7b0ac6b8d photoshop-smart-filter-random.psd
 993c4d3ffd4b83db photoshop-smart-filter-ripple.psd
 37eecfb90babfbea photoshop-smart-filter-shear.psd
+5885fcd49e6cb845 photoshop-smart-filter-smart-sharpen.psd
 9b2c60c94278b504 photoshop-smart-filter-solarize.psd
 9c6e64d0c816e15a photoshop-smart-filter-spherize.psd
 f2bf42dce8c3d975 photoshop-smart-filter-surface-blur.psd

@@ -67,6 +67,8 @@ enum class SmartFilterKind {
   SharpenMore,
   Invert,
   Average,
+  // Smart Sharpen's legacy Gaussian case only (SmartSharpenSmartFilter).
+  SmartSharpen,
 };
 
 struct GaussianBlurSmartFilter {
@@ -246,6 +248,18 @@ struct FilterGallerySmartFilter {
   bool operator==(const FilterGallerySmartFilter&) const = default;
 };
 
+// Photoshop's Smart Sharpen (stringID smartSharpen, filterID 887), modeled only
+// in its legacy Gaussian case: useLegacy true, blur GsnB (Gaussian),
+// noiseReduction 0, no other key (moreAccurate, a fade). Photoshop
+// renders that byte for byte as Unsharp Mask with threshold 0 (October 2026
+// probes); every other Smart Sharpen stays preview-locked
+// (docs/patent-research-smart-sharpen.md).
+struct SmartSharpenSmartFilter {
+  double amount_percent{100.0};
+  double radius_pixels{1.0};
+  bool operator==(const SmartSharpenSmartFilter&) const = default;
+};
+
 using SmartFilterParameters =
     std::variant<std::monostate, GaussianBlurSmartFilter, HighPassSmartFilter,
                  MedianSmartFilter, DustAndScratchesSmartFilter,
@@ -254,7 +268,7 @@ using SmartFilterParameters =
                  MosaicSmartFilter, EmbossSmartFilter, BoxBlurSmartFilter,
                  RadialBlurSmartFilter, AddNoiseSmartFilter,
                  SchemaSmartFilter, TableSmartFilter, AdjustmentSmartFilter,
-                 FilterGallerySmartFilter>;
+                 FilterGallerySmartFilter, SmartSharpenSmartFilter>;
 
 struct SmartFilterEntry {
   SmartFilterKind kind{SmartFilterKind::Unsupported};

@@ -11469,6 +11469,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source> (Amount %1, Zoom, %2 quality)</source>
         <translation> (Количество %1, Линейный, Качество %2)</translation>
     </message>
+    <message>
+        <source>Smart Sharpen</source>
+        <translation>Умная резкость</translation>
+    </message>
+    <message>
+        <source> (Amount %1%, Radius %2 px, Legacy)</source>
+        <translation> (Эффект %1%, Радиус %2 пикс., Прежний)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23255,6 +23263,10 @@ Patchy можно будет запускать из меню, а на пане�
     <message>
         <source>Cancelled Vibrance</source>
         <translation>Сочность отменена</translation>
+    </message>
+    <message>
+        <source>Smart Sharpen</source>
+        <translation>Умная резкость</translation>
     </message>
 </context>
 <context>

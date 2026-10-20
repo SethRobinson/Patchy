@@ -11435,6 +11435,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source> (Amount %1, Zoom, %2 quality)</source>
         <translation> (Valeur %1, Zoom, qualité %2)</translation>
     </message>
+    <message>
+        <source>Smart Sharpen</source>
+        <translation>Netteté optimisée</translation>
+    </message>
+    <message>
+        <source> (Amount %1%, Radius %2 px, Legacy)</source>
+        <translation> (Gain %1 %, Rayon %2 px, Ancien)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23185,6 +23193,10 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
     <message>
         <source>Cancelled Vibrance</source>
         <translation>Vibrance annulée</translation>
+    </message>
+    <message>
+        <source>Smart Sharpen</source>
+        <translation>Netteté optimisée</translation>
     </message>
 </context>
 <context>

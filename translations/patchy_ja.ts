@@ -11401,6 +11401,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source> (Amount %1, Zoom, %2 quality)</source>
         <translation> (量 %1、ズーム、画質: %2)</translation>
     </message>
+    <message>
+        <source>Smart Sharpen</source>
+        <translation>スマートシャープ</translation>
+    </message>
+    <message>
+        <source> (Amount %1%, Radius %2 px, Legacy)</source>
+        <translation> (量 %1%、半径 %2 px、従来)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23115,6 +23123,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Vibrance</source>
         <translation>自然な彩度をキャンセルしました</translation>
+    </message>
+    <message>
+        <source>Smart Sharpen</source>
+        <translation>スマートシャープ</translation>
     </message>
 </context>
 <context>

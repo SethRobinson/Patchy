@@ -2940,6 +2940,16 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
                                               plastic->smoothness >= kMinimumPlasticWrapSmoothness &&
                                               plastic->smoothness <= kMaximumPlasticWrapSmoothness;
                                      });
+    } else if (entry.kind == SmartFilterKind::SmartSharpen) {
+      const auto *sharpen =
+          std::get_if<SmartSharpenSmartFilter>(&entry.parameters);
+      parameters_valid = sharpen != nullptr &&
+                         std::isfinite(sharpen->amount_percent) &&
+                         sharpen->amount_percent >= kMinimumUnsharpMaskAmount &&
+                         sharpen->amount_percent <= kMaximumUnsharpMaskAmount &&
+                         std::isfinite(sharpen->radius_pixels) &&
+                         sharpen->radius_pixels >= kMinimumGaussianRadius &&
+                         sharpen->radius_pixels <= kMaximumGaussianRadius;
     } else if (parameterless_smart_filter_native(entry.kind) != nullptr) {
       parameters_valid =
           std::holds_alternative<std::monostate>(entry.parameters);
@@ -2948,6 +2958,7 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
     }
     if (!parameters_valid ||
         (parameterless_smart_filter_native(entry.kind) == nullptr &&
+         entry.kind != SmartFilterKind::SmartSharpen &&
          entry.kind != SmartFilterKind::DustAndScratches &&
          entry.kind != SmartFilterKind::SurfaceBlur &&
          entry.kind != SmartFilterKind::UnsharpMask &&
@@ -3372,6 +3383,13 @@ FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
                                               plastic.detail, plastic.smoothness,
                                               &filter_progress);
       }
+    } else if (entry.kind == SmartFilterKind::SmartSharpen) {
+      // Legacy Gaussian Smart Sharpen is Photoshop's Unsharp Mask with
+      // threshold 0, byte for byte (October 2026 probes).
+      const auto &sharpen = std::get<SmartSharpenSmartFilter>(entry.parameters);
+      filtered = render_unsharp_mask(current, sharpen.amount_percent,
+                                     sharpen.radius_pixels, 0,
+                                     &filter_progress);
     } else if (entry.kind == SmartFilterKind::Invert) {
       filtered = render_invert_effect(current, &filter_progress);
     } else if (entry.kind == SmartFilterKind::Average) {

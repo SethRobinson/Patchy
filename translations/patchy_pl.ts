@@ -11469,6 +11469,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source> (Amount %1, Zoom, %2 quality)</source>
         <translation> (Ilość %1, przybliżenie, jakość %2)</translation>
     </message>
+    <message>
+        <source>Smart Sharpen</source>
+        <translation>Inteligentne wyostrzanie</translation>
+    </message>
+    <message>
+        <source> (Amount %1%, Radius %2 px, Legacy)</source>
+        <translation> (Wartość %1%, promień %2 px, tryb starszy)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23255,6 +23263,10 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     <message>
         <source>Cancelled Vibrance</source>
         <translation>Anulowano jaskrawość</translation>
+    </message>
+    <message>
+        <source>Smart Sharpen</source>
+        <translation>Inteligentne wyostrzanie</translation>
     </message>
 </context>
 <context>
