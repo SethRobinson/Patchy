@@ -50,6 +50,7 @@
 #include <QSplitter>
 #include <QToolBar>
 #include <QPainter>
+#include <QPixmap>
 #include <QToolButton>
 #include <QWidget>
 #include <algorithm>
@@ -1749,6 +1750,30 @@ void ui_tool_palette_quick_mask_button_shows_its_icon() {
   CHECK(action->toolTip().contains(QStringLiteral("Quick Mask")));
   CHECK(action->toolTip().contains(QStringLiteral("(Q)")));
 
+  // The whole button box, border included, sits inside the footer and is centered
+  // under the well, also in a column narrower than the designed 43 px (GitHub
+  // issue 224: a 42 px column cut off its right side and its bottom border).
+  auto* footer = palette->findChild<QWidget*>(QStringLiteral("toolPaletteFooter"));
+  CHECK(footer != nullptr);
+  if (footer == nullptr) {
+    return;
+  }
+  const auto check_placement = [&] {
+    const auto box = button->geometry();
+    CHECK(footer->rect().contains(box));
+    CHECK(box.top() >= patchy::ui::ToolPaletteFooter::kWellHeight);
+    const int cell = std::min(footer->width(), patchy::ui::ToolPaletteFooter::kWidth);
+    CHECK(std::abs(box.left() - (cell - 1 - box.right())) <= 1);
+  };
+  check_placement();
+  const auto footer_width = footer->width();
+  footer->resize(41, footer->height());
+  QApplication::processEvents();
+  check_placement();
+  footer->resize(footer_width, footer->height());
+  QApplication::processEvents();
+  check_placement();
+
   // Off and On are different drawings: On tints the whole window, so it has
   // clearly more mask-red pixels. The frame is icon ink in each scheme.
   const auto red_pixels = [](const QImage& image) {
@@ -1790,22 +1815,79 @@ void ui_tool_palette_quick_mask_button_shows_its_icon() {
     CHECK(red_pixels(on) > red_pixels(off) + 30);
     CHECK(ink_pixels(off, ink) >= 20);
     CHECK(ink_pixels(on, ink) >= 20);
-    // The footer as it sits under the tools, unchecked then checked.
-    const auto footer_rect = QRect(0, std::max(0, palette->height() - 110), palette->width(), 110);
+    // The icon's frame survives at 22 px and at 150%: its bottom edge is ink too.
+    for (const qreal scale : {1.0, 1.5}) {
+      QPixmap scaled(QSize(qRound(22 * scale), qRound(22 * scale)));
+      scaled.setDevicePixelRatio(scale);
+      scaled.fill(Qt::transparent);
+      QPainter icon_painter(&scaled);
+      action->icon().paint(&icon_painter, QRect(0, 0, 22, 22), Qt::AlignCenter, QIcon::Normal, QIcon::Off);
+      icon_painter.end();
+      const auto image = scaled.toImage();
+      const auto lower_half = image.copy(0, image.height() / 2, image.width(), image.height() / 2);
+      const auto upper_half = image.copy(0, 0, image.width(), image.height() / 2);
+      CHECK(ink_pixels(lower_half, ink) >= ink_pixels(upper_half, ink) / 3);
+    }
+
+    // The checked box shows its accent border on all four sides, at 100% and 150%
+    // (issue 224: the bottom line was cut off by the footer).
+    action->setChecked(true);
+    footer->repaint();
+    const auto border = patchy::ui::theme().accent_border_bright;
+    const auto near_border = [&border](QColor color) {
+      return std::abs(color.red() - border.red()) <= 12 && std::abs(color.green() - border.green()) <= 12 &&
+             std::abs(color.blue() - border.blue()) <= 12;
+    };
+    const auto box = button->geometry();
+    QList<QImage> scaled_footers;
+    for (const qreal scale : {1.0, 1.5}) {
+      QPixmap rendered(QSize(qRound(footer->width() * scale), qRound(footer->height() * scale)));
+      rendered.setDevicePixelRatio(scale);
+      rendered.fill(patchy::ui::theme().tool_palette_bg);
+      footer->render(&rendered);
+      const auto image = rendered.toImage();
+      const auto device = [scale](int logical) { return static_cast<int>(std::floor(logical * scale)); };
+      const auto side_has_border = [&](int x0, int y0, int x1, int y1) {
+        for (int y = std::max(0, y0); y <= std::min(image.height() - 1, y1); ++y) {
+          for (int x = std::max(0, x0); x <= std::min(image.width() - 1, x1); ++x) {
+            if (near_border(image.pixelColor(x, y))) {
+              return true;
+            }
+          }
+        }
+        return false;
+      };
+      const int cx = device(box.center().x());
+      const int cy = device(box.center().y());
+      const int pad = scale > 1.0 ? 1 : 0;
+      CHECK(side_has_border(cx, device(box.top()) - pad, cx, device(box.top()) + pad + 1));
+      CHECK(side_has_border(cx, device(box.bottom()) - pad, cx, device(box.bottom() + 1) - 1 + pad));
+      CHECK(side_has_border(device(box.left()) - pad, cy, device(box.left()) + pad + 1, cy));
+      CHECK(side_has_border(device(box.right()) - pad, cy, device(box.right() + 1) - 1 + pad, cy));
+      scaled_footers << image;
+    }
     action->setChecked(false);
+    footer->repaint();
+
+    // The footer as it sits under the tools, unchecked then checked, plus the
+    // checked footer at 150%.
+    const auto footer_rect = QRect(0, std::max(0, palette->height() - 110), palette->width(), 110);
     palette->repaint();
     const auto unchecked = palette->grab(footer_rect).toImage();
     action->setChecked(true);
     palette->repaint();
     const auto checked = palette->grab(footer_rect).toImage();
     action->setChecked(false);
-    QImage pair(unchecked.width() * 2 + 8, unchecked.height(), QImage::Format_ARGB32);
-    pair.fill(patchy::ui::theme().tool_palette_bg);
-    QPainter painter(&pair);
-    painter.drawImage(0, 0, unchecked);
-    painter.drawImage(unchecked.width() + 8, 0, checked);
+    const auto& hi_dpi = scaled_footers.back();
+    QImage row(unchecked.width() * 2 + hi_dpi.width() + 16, std::max(unchecked.height(), hi_dpi.height()),
+               QImage::Format_ARGB32);
+    row.fill(patchy::ui::theme().tool_palette_bg);
+    QPainter painter(&row);
+    painter.drawImage(0, row.height() - unchecked.height(), unchecked);
+    painter.drawImage(unchecked.width() + 8, row.height() - checked.height(), checked);
+    painter.drawImage(unchecked.width() * 2 + 16, row.height() - hi_dpi.height(), hi_dpi);
     painter.end();
-    strips << pair;
+    strips << row;
   }
   save_stacked_artifact("ui_tool_palette_quick_mask_icon", strips);
 }

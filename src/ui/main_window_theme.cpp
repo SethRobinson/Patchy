@@ -236,8 +236,10 @@ QString photoshop_style_template() {
       padding: 0;
     }
     QToolBar#toolPalette QToolButton#quickMaskButton {
-      min-width: 36px;
-      max-width: 36px;
+      min-width: 32px;
+      max-width: 32px;
+      min-height: 22px;
+      max-height: 22px;
     }
     QToolBar#toolPalette QToolButton#qt_toolbar_ext_button {
       min-height: 14px;
