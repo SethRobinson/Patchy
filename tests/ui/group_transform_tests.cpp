@@ -842,15 +842,15 @@ void ui_layer_and_free_transform_nudges_accept_keypad_modifier() {
   }
 }
 
-// A Move-tool double-click neither starts nor commits Free Transform (it once
-// did both; a hand that slipped between the clicks dragged the box). Each
+// A Move-tool double-click never starts Free Transform, and during a session it
+// applies the transform only inside the box (GitHub issue 225, like Enter). Each
 // double-click replays the full sequence Qt delivers (press, release,
-// double-click, release). Inside a pending box the double-click is a second
-// motionless press, which must not nudge the box: it sits on a half pixel
-// (the drag start rounds like the end) 4 px inside the layer's pre-session
-// right edge at 60, within snap tolerance (the session's own layers are not
-// snap targets).
-void ui_move_double_click_leaves_free_transform_alone() {
+// double-click, release). Off the box it is a second press that keeps the
+// session. The first click of the one inside is a motionless press, which must
+// not nudge the box: it sits on a half pixel (the drag start rounds like the
+// end) 4 px inside the layer's pre-session right edge at 60, within snap
+// tolerance (the session's own layers are not snap targets).
+void ui_move_double_click_commits_free_transform_inside_box() {
   patchy::Document document(200, 160, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Background",
                            solid_pixels(200, 160, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
@@ -907,9 +907,8 @@ void ui_move_double_click_leaves_free_transform_alone() {
     CHECK(unmoved->bounds().y == 40);
   }
 
-  // Drag the bottom-right handle out by 10 px; double-clicks inside and off
-  // the box keep the session, and Enter commits a 30 x 30 layer at the same
-  // origin.
+  // Drag the bottom-right handle out by 10 px; a double-click off the box keeps
+  // the session, and one inside commits a 30 x 30 layer at the same origin.
   require_action(window, "editFreeTransformAction")->trigger();
   QApplication::processEvents();
   CHECK(canvas->free_transform_active());
@@ -917,12 +916,9 @@ void ui_move_double_click_leaves_free_transform_alone() {
   send_mouse_f(QEvent::MouseMove, QPointF(70.0, 70.0), Qt::NoButton, Qt::LeftButton);
   send_mouse_f(QEvent::MouseButtonRelease, QPointF(70.0, 70.0), Qt::LeftButton, Qt::NoButton);
   CHECK(canvas->free_transform_active());
-  double_click(QPointF(55.5, 55.5));
-  CHECK(canvas->free_transform_active());
   double_click(QPointF(150.0, 120.0));
   CHECK(canvas->free_transform_active());
-  send_key(*canvas, Qt::Key_Return);
-  QApplication::processEvents();
+  double_click(QPointF(55.5, 55.5));
   CHECK(!canvas->free_transform_active());
   const auto* committed = doc.find_layer(red_id);
   CHECK(committed != nullptr);
@@ -1340,8 +1336,8 @@ std::vector<patchy::test::TestCase> group_transform_tests() {
        ui_group_transform_selection_reemission_keeps_session},
       {"ui_move_passive_transform_controls_frame_folder_and_multi_selection",
        ui_move_passive_transform_controls_frame_folder_and_multi_selection},
-      {"ui_move_double_click_leaves_free_transform_alone",
-       ui_move_double_click_leaves_free_transform_alone},
+      {"ui_move_double_click_commits_free_transform_inside_box",
+       ui_move_double_click_commits_free_transform_inside_box},
       {"ui_move_nudge_refreshes_stationary_hover_outline", ui_move_nudge_refreshes_stationary_hover_outline},
       {"ui_layer_and_free_transform_nudges_accept_keypad_modifier",
        ui_layer_and_free_transform_nudges_accept_keypad_modifier},

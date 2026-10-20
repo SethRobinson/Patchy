@@ -31,4 +31,12 @@ namespace patchy::ui {
 // Built once and cached.
 [[nodiscard]] QCursor move_pointer_cursor();
 
+// Free Transform gesture hints (GitHub issue 225): shown over a box handle or side while
+// the held modifiers (or the Edit > Transform mode) turn a drag into that gesture, before
+// it starts. The same arrow as move_pointer_cursor with a badge drawing the gesture's
+// shape: a slanted parallelogram (skew), an irregular four-sided shape (distort), a
+// trapezoid (perspective). Hotspot on the arrow tip. Built once and cached.
+enum class TransformGestureCursor { Skew, Distort, Perspective };
+[[nodiscard]] QCursor transform_gesture_cursor(TransformGestureCursor gesture);
+
 }  // namespace patchy::ui

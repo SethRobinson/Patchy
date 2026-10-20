@@ -12569,6 +12569,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Transform corners must form a convex shape</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>

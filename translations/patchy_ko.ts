@@ -12551,6 +12551,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
         <translation>원근이 적용된 고급 개체는 뒤틀 수 없습니다. 먼저 레이어를 래스터화하세요.</translation>
     </message>
+    <message>
+        <source>Transform corners must form a convex shape</source>
+        <translation>변형 모서리는 볼록한 모양을 이루어야 합니다</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
