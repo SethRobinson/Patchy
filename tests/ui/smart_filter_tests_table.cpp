@@ -17,6 +17,7 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QFileInfo>
+#include <QImage>
 #include <QLabel>
 #include <QListWidget>
 #include <QSpinBox>
@@ -24,8 +25,10 @@
 #include <QTimer>
 #include <QToolButton>
 
+#include <filesystem>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "ui_test_access.hpp"
@@ -46,6 +49,21 @@ const patchy::Layer &require_layer_named(const patchy::Document &document,
   }
   CHECK(false);
   return document.layers().front();
+}
+
+// Review shots under test-artifacts/smart-filter-table (offscreen grabs of
+// Patchy's own widgets and layer pixels).
+void save_layer_shot(const patchy::Layer &layer, const char *name) {
+  const auto &pixels = layer.pixels();
+  QImage image(pixels.width(), pixels.height(), QImage::Format_RGBA8888);
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    std::copy(pixels.pixel(0, y), pixels.pixel(0, y) + pixels.width() * 4,
+              image.scanLine(y));
+  }
+  std::filesystem::create_directories("test-artifacts/smart-filter-table");
+  image.scaled(image.width() * 3, image.height() * 3)
+      .save(QStringLiteral("test-artifacts/smart-filter-table/") +
+            QString::fromLatin1(name));
 }
 
 QWidget *layer_row(patchy::ui::MainWindow &window, const QString &name) {
@@ -92,6 +110,10 @@ void ui_smart_filter_table_entry_edits_renders_and_saves() {
   auto *edit = row->findChild<QToolButton *>(
       QStringLiteral("layerSmartFilterEditButton"));
   CHECK(edit != nullptr && edit->isEnabled());
+  std::filesystem::create_directories("test-artifacts/smart-filter-table");
+  row->grab().save(QStringLiteral("test-artifacts/smart-filter-table/offset-row.png"));
+  save_layer_shot(*std::as_const(document).find_layer(layer_id),
+                  "offset-photoshop-preview.png");
 
   bool edited = false;
   QTimer::singleShot(20, [&] {
@@ -146,6 +168,8 @@ void ui_smart_filter_table_entry_edits_renders_and_saves() {
       }
     }
   }
+
+  save_layer_shot(*layer, "offset-patchy-edited.png");
 
   const auto saved = temporary.filePath(QStringLiteral("table-edit.psd"));
   patchy::psd::DocumentIo::write_layered_rgb8_file(
