@@ -136,6 +136,27 @@ std::string serialize_hue_saturation_band(const HueSaturationBand& band) {
   return encoded;
 }
 
+// "red;green;blue;constant" for a Channel Mixer row; a malformed value keeps the fallback.
+std::string serialize_channel_mixer_row(const ChannelMixerRow& row) {
+  const auto clamped = clamp_channel_mixer_row(row);
+  return std::to_string(clamped.red) + ';' + std::to_string(clamped.green) + ';' + std::to_string(clamped.blue) +
+         ';' + std::to_string(clamped.constant);
+}
+
+ChannelMixerRow parse_channel_mixer_row(std::string_view encoded, ChannelMixerRow fallback) {
+  std::array<int, 4> fields{};
+  for (std::size_t index = 0; index < fields.size(); ++index) {
+    const auto separator = encoded.find(';');
+    const auto value = parse_int(encoded.substr(0, separator));
+    if (!value.has_value() || (index + 1U < fields.size()) == (separator == std::string_view::npos)) {
+      return fallback;
+    }
+    fields[index] = *value;
+    encoded = separator == std::string_view::npos ? std::string_view{} : encoded.substr(separator + 1U);
+  }
+  return clamp_channel_mixer_row(ChannelMixerRow{fields[0], fields[1], fields[2], fields[3]});
+}
+
 // "cyan_red;magenta_green;yellow_blue" for the shadows and highlights triples.
 std::string serialize_color_balance_tone(const ColorBalanceTone& tone) {
   return std::to_string(std::clamp(tone.cyan_red, -100, 100)) + ';' +
@@ -686,11 +707,10 @@ RgbColor apply_color_balance(RgbColor color, const ColorBalanceAdjustment& setti
 }  // namespace
 
 const char* photoshop_placeholder_adjustment_kind(std::string_view block_key) noexcept {
-  static constexpr std::array<std::pair<std::string_view, const char*>, 7> kKinds{{
+  static constexpr std::array<std::pair<std::string_view, const char*>, 6> kKinds{{
       {"vibA", "vibrance"},
       {"blwh", "black_white"},
       {"phfl", "photo_filter"},
-      {"mixr", "channel_mixer"},
       {"clrL", "color_lookup"},
       {"grdm", "gradient_map"},
       {"selc", "selective_color"},
@@ -705,6 +725,33 @@ const char* photoshop_placeholder_adjustment_kind(std::string_view block_key) no
 
 std::string_view adjustment_placeholder_kind(const Layer& layer) {
   return metadata_string_or(layer, kLayerMetadataAdjustmentPlaceholderKind, {});
+}
+
+ChannelMixerRow clamp_channel_mixer_row(ChannelMixerRow row) noexcept {
+  return ChannelMixerRow{std::clamp(row.red, -200, 200), std::clamp(row.green, -200, 200),
+                         std::clamp(row.blue, -200, 200), std::clamp(row.constant, -200, 200)};
+}
+
+int channel_mixer_weight(int percent) noexcept {
+  // Photoshop truncates each percentage toward zero onto a 1/1024 scale (calibrated, #250).
+  return std::clamp(percent, -200, 200) * 1024 / 100;
+}
+
+double channel_mixer_transfer(const ChannelMixerRow& row, double red, double green, double blue) {
+  // Integer weights over a power-of-two divisor keep 8-bit inputs exact, so rounding this
+  // half up reproduces Photoshop's 8-bit output.
+  return (red * channel_mixer_weight(row.red) + green * channel_mixer_weight(row.green) +
+          blue * channel_mixer_weight(row.blue) + 255.0 * channel_mixer_weight(row.constant)) /
+         1024.0;
+}
+
+bool ChannelMixerAdjustment::has_effect() const noexcept {
+  if (monochrome) {
+    return true;  // even 100/0/0 turns color into gray
+  }
+  const ChannelMixerAdjustment identity;
+  return clamp_channel_mixer_row(red) != identity.red || clamp_channel_mixer_row(green) != identity.green ||
+         clamp_channel_mixer_row(blue) != identity.blue;
 }
 
 ColorBalanceTone ColorBalanceAdjustment::tone(ColorBalanceToneRange range) const noexcept {
@@ -1481,6 +1528,8 @@ std::string adjustment_kind_key(AdjustmentKind kind) {
       return "brightness_contrast";
     case AdjustmentKind::Exposure:
       return "exposure";
+    case AdjustmentKind::ChannelMixer:
+      return "channel_mixer";
   }
   return "levels";
 }
@@ -1505,6 +1554,8 @@ std::string adjustment_display_name(AdjustmentKind kind) {
       return "Brightness/Contrast";
     case AdjustmentKind::Exposure:
       return "Exposure";
+    case AdjustmentKind::ChannelMixer:
+      return "Channel Mixer";
   }
   return "Adjustment";
 }
@@ -1536,6 +1587,9 @@ std::optional<AdjustmentKind> adjustment_kind_from_key(std::string_view key) {
   }
   if (key == "exposure") {
     return AdjustmentKind::Exposure;
+  }
+  if (key == "channel_mixer") {
+    return AdjustmentKind::ChannelMixer;
   }
   return std::nullopt;
 }
@@ -1621,6 +1675,19 @@ std::optional<AdjustmentSettings> adjustment_settings_from_layer(const Layer& la
   // Absent in documents from before tone ranges, which rendered without it.
   settings.color_balance.preserve_luminosity =
       metadata_int_or(layer, kLayerMetadataAdjustmentColorBalancePreserveLuminosity, 0) != 0;
+  {
+    const ChannelMixerAdjustment defaults;
+    auto& mixer = settings.channel_mixer;
+    mixer.monochrome = metadata_int_or(layer, kLayerMetadataAdjustmentChannelMixerMonochrome, 0) != 0;
+    mixer.red = parse_channel_mixer_row(metadata_string_or(layer, kLayerMetadataAdjustmentChannelMixerRed, {}),
+                                        defaults.red);
+    mixer.green = parse_channel_mixer_row(metadata_string_or(layer, kLayerMetadataAdjustmentChannelMixerGreen, {}),
+                                          defaults.green);
+    mixer.blue = parse_channel_mixer_row(metadata_string_or(layer, kLayerMetadataAdjustmentChannelMixerBlue, {}),
+                                         defaults.blue);
+    mixer.gray = parse_channel_mixer_row(metadata_string_or(layer, kLayerMetadataAdjustmentChannelMixerGray, {}),
+                                         defaults.gray);
+  }
   settings.posterize.levels =
       std::clamp(metadata_int_or(layer, kLayerMetadataAdjustmentPosterizeLevels, 4), 2, 255);
   settings.threshold.level =
@@ -1737,6 +1804,15 @@ void configure_adjustment_layer(Layer& layer, const AdjustmentSettings& settings
                       serialize_color_balance_tone(settings.color_balance.highlights));
   set_metadata_int(layer, kLayerMetadataAdjustmentColorBalancePreserveLuminosity,
                    settings.color_balance.preserve_luminosity ? 1 : 0);
+  set_metadata_int(layer, kLayerMetadataAdjustmentChannelMixerMonochrome, settings.channel_mixer.monochrome ? 1 : 0);
+  set_metadata_string(layer, kLayerMetadataAdjustmentChannelMixerRed,
+                      serialize_channel_mixer_row(settings.channel_mixer.red));
+  set_metadata_string(layer, kLayerMetadataAdjustmentChannelMixerGreen,
+                      serialize_channel_mixer_row(settings.channel_mixer.green));
+  set_metadata_string(layer, kLayerMetadataAdjustmentChannelMixerBlue,
+                      serialize_channel_mixer_row(settings.channel_mixer.blue));
+  set_metadata_string(layer, kLayerMetadataAdjustmentChannelMixerGray,
+                      serialize_channel_mixer_row(settings.channel_mixer.gray));
   set_metadata_int(layer, kLayerMetadataAdjustmentPosterizeLevels,
                    std::clamp(settings.posterize.levels, 2, 255));
   set_metadata_int(layer, kLayerMetadataAdjustmentThresholdLevel,
@@ -1843,6 +1919,7 @@ bool adjustment_runs_in_ink_space(const AdjustmentSettings& settings) noexcept {
     // Photoshop's CMYK forms of them are not modeled, so they stay on the RGB math.
     case AdjustmentKind::HueSaturation:
     case AdjustmentKind::ColorBalance:
+    case AdjustmentKind::ChannelMixer:
       return false;
   }
   return false;
@@ -1894,6 +1971,18 @@ RgbColor apply_adjustment_on_rgb(RgbColor color, const AdjustmentSettings& setti
       return RgbColor{exposure_channel_value(color.red, settings.exposure),
                       exposure_channel_value(color.green, settings.exposure),
                       exposure_channel_value(color.blue, settings.exposure)};
+    case AdjustmentKind::ChannelMixer: {
+      const auto& mixer = settings.channel_mixer;
+      const auto channel = [&color](const ChannelMixerRow& row) {
+        const auto mixed = channel_mixer_transfer(row, color.red, color.green, color.blue);
+        return static_cast<std::uint8_t>(std::clamp(std::floor(mixed + 0.5), 0.0, 255.0));
+      };
+      if (mixer.monochrome) {
+        const auto gray = channel(mixer.gray);
+        return RgbColor{gray, gray, gray};
+      }
+      return RgbColor{channel(mixer.red), channel(mixer.green), channel(mixer.blue)};
+    }
   }
   return color;
 }
@@ -1931,7 +2020,8 @@ std::optional<AdjustmentLut> build_adjustment_lut(const AdjustmentSettings& sett
   // Hue/Saturation mixes channels through HSL; Threshold compares the mixed
   // RGB luminance, so a per-channel gray-probe LUT would be wrong for any
   // colored pixel. Both take the per-pixel path.
-  if (settings.kind == AdjustmentKind::HueSaturation || settings.kind == AdjustmentKind::Threshold) {
+  if (settings.kind == AdjustmentKind::HueSaturation || settings.kind == AdjustmentKind::Threshold ||
+      settings.kind == AdjustmentKind::ChannelMixer) {
     return std::nullopt;
   }
   if (settings.kind == AdjustmentKind::Curves) {
@@ -1987,6 +2077,8 @@ bool adjustment_has_effect(const AdjustmentSettings& settings) {
       return exposure.exposure_hundredths != 0 || exposure.offset_ten_thousandths != 0 ||
              exposure.gamma_hundredths != 100;
     }
+    case AdjustmentKind::ChannelMixer:
+      return settings.channel_mixer.has_effect();
   }
   return false;
 }

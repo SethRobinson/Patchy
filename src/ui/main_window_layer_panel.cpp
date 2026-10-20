@@ -556,6 +556,8 @@ QColor adjustment_thumbnail_accent(const Layer& layer) {
       return QColor(250, 225, 120);
     case AdjustmentKind::Exposure:
       return QColor(255, 170, 110);
+    case AdjustmentKind::ChannelMixer:
+      return QColor(150, 200, 120);
   }
   return QColor(145, 175, 215);
 }
@@ -703,6 +705,15 @@ QString adjustment_settings_summary(const Layer& layer) {
       return QObject::tr("Brightness/Contrast: brightness %1, contrast %2")
           .arg(settings->brightness_contrast.brightness)
           .arg(settings->brightness_contrast.contrast);
+    case AdjustmentKind::ChannelMixer:
+      if (settings->channel_mixer.monochrome) {
+        return QObject::tr("Channel Mixer: monochrome %1 / %2 / %3, constant %4")
+            .arg(settings->channel_mixer.gray.red)
+            .arg(settings->channel_mixer.gray.green)
+            .arg(settings->channel_mixer.gray.blue)
+            .arg(settings->channel_mixer.gray.constant);
+      }
+      return QObject::tr("Channel Mixer");
   }
   return QObject::tr("Adjustment");
 }
@@ -1331,6 +1342,9 @@ QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int docu
           break;
         case AdjustmentKind::BrightnessContrast:
           draw_brightness_contrast_adjustment_thumbnail_symbol(painter, accent);
+          break;
+        case AdjustmentKind::ChannelMixer:
+          draw_placeholder_adjustment_thumbnail_symbol(painter, "channel_mixer");
           break;
       }
     }

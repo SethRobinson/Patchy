@@ -10989,6 +10989,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>%1 adjustment from Photoshop. Patchy cannot apply it yet: it has no effect here and is saved unchanged.</source>
         <translation>%1-Einstellungsebene aus Photoshop. Patchy kann sie noch nicht anwenden: Sie hat hier keine Wirkung und wird unverändert gespeichert.</translation>
     </message>
+    <message>
+        <source>Constant</source>
+        <translation>Konstante</translation>
+    </message>
+    <message>
+        <source>Output Channel:</source>
+        <translation>Ausgabekanal:</translation>
+    </message>
+    <message>
+        <source>Monochrome</source>
+        <translation>Monochrom</translation>
+    </message>
+    <message>
+        <source>Channel Mixer: monochrome %1 / %2 / %3, constant %4</source>
+        <translation>Kanalmixer: monochrom %1 / %2 / %3, Konstante %4</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22591,6 +22607,18 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
     <message>
         <source>Perspective</source>
         <translation>Perspektivisch verzerren</translation>
+    </message>
+    <message>
+        <source>Channel &amp;Mixer...</source>
+        <translation>Kanal&amp;mixer...</translation>
+    </message>
+    <message>
+        <source>Channel Mixer</source>
+        <translation>Kanalmixer</translation>
+    </message>
+    <message>
+        <source>Cancelled Channel Mixer</source>
+        <translation>Kanalmixer abgebrochen</translation>
     </message>
 </context>
 <context>

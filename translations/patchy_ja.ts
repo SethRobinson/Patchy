@@ -10955,6 +10955,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>%1 adjustment from Photoshop. Patchy cannot apply it yet: it has no effect here and is saved unchanged.</source>
         <translation>Photoshop の%1調整。Patchy はまだ適用できません。ここでは効果がなく、変更されずに保存されます。</translation>
     </message>
+    <message>
+        <source>Constant</source>
+        <translation>定数</translation>
+    </message>
+    <message>
+        <source>Output Channel:</source>
+        <translation>出力先チャンネル:</translation>
+    </message>
+    <message>
+        <source>Monochrome</source>
+        <translation>モノクロ</translation>
+    </message>
+    <message>
+        <source>Channel Mixer: monochrome %1 / %2 / %3, constant %4</source>
+        <translation>チャンネルミキサー: モノクロ %1 / %2 / %3、定数 %4</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22521,6 +22537,18 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Perspective</source>
         <translation>遠近法</translation>
+    </message>
+    <message>
+        <source>Channel &amp;Mixer...</source>
+        <translation>チャンネルミキサー(&amp;M)...</translation>
+    </message>
+    <message>
+        <source>Channel Mixer</source>
+        <translation>チャンネルミキサー</translation>
+    </message>
+    <message>
+        <source>Cancelled Channel Mixer</source>
+        <translation>チャンネルミキサーをキャンセルしました</translation>
     </message>
 </context>
 <context>

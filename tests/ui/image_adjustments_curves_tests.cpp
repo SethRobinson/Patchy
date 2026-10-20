@@ -3375,7 +3375,7 @@ void ui_af_colour_balance_matches_affinity_render_if_available() {
 
 // #250: an adjustment kind Patchy cannot apply yet shows a placeholder thumbnail whose
 // tooltip names the kind and says it is kept but not applied. With the local ag-psd sample
-// (skipped where absent) all seven of its unsupported kinds get one.
+// (skipped where absent) all six of its still unsupported kinds get one.
 void ui_adjustment_placeholders_name_their_kind_in_layers_panel() {
   const auto placeholder_tooltips = [](patchy::ui::MainWindow& window) {
     QStringList tooltips;
@@ -3422,13 +3422,82 @@ void ui_adjustment_placeholders_name_their_kind_in_layers_panel() {
         static_cast<qint64>(resaved.size()));
   resave_file.close();
   const auto tooltips = placeholder_tooltips(window);
-  CHECK(tooltips.size() == 7);
-  for (const auto* kind : {"Vibrance", "Black & White", "Photo Filter", "Channel Mixer", "Color Lookup",
-                           "Gradient Map", "Selective Color"}) {
+  CHECK(tooltips.size() == 6);
+  for (const auto* kind : {"Vibrance", "Black & White", "Photo Filter", "Color Lookup", "Gradient Map",
+                           "Selective Color"}) {
     CHECK(std::any_of(tooltips.begin(), tooltips.end(), [kind](const QString& tooltip) {
       return tooltip.startsWith(QString::fromUtf8(kind) + QStringLiteral(" adjustment"));
     }));
   }
+}
+
+// The Channel Mixer dialog edits one output row at a time: the Output Channel combo picks
+// red, green or blue and Monochrome switches the sliders to the gray row; every row keeps
+// its values, and all of them land on the new adjustment layer (#250).
+void ui_channel_mixer_dialog_edits_each_output_row() {
+  patchy::Document source(32, 24, patchy::PixelFormat::rgba8());
+  source.add_pixel_layer("Paint", solid_pixels(32, 24, patchy::PixelFormat::rgba8(), QColor(200, 120, 40)));
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(source), QStringLiteral("Mixer"));
+  show_window(window);
+
+  bool dialog_checked = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyChannelMixerDialog")));
+    CHECK(dialog != nullptr);
+    auto* output = dialog->findChild<QComboBox*>(QStringLiteral("channelMixerOutputCombo"));
+    auto* monochrome = dialog->findChild<QCheckBox*>(QStringLiteral("channelMixerMonochromeCheck"));
+    auto* red = dialog->findChild<QSpinBox*>(QStringLiteral("channelMixerRedSpin"));
+    auto* green = dialog->findChild<QSpinBox*>(QStringLiteral("channelMixerGreenSpin"));
+    auto* blue = dialog->findChild<QSpinBox*>(QStringLiteral("channelMixerBlueSpin"));
+    auto* constant = dialog->findChild<QSpinBox*>(QStringLiteral("channelMixerConstantSpin"));
+    CHECK(output != nullptr && monochrome != nullptr);
+    CHECK(red != nullptr && green != nullptr && blue != nullptr && constant != nullptr);
+    CHECK(output->count() == 3);
+    CHECK(!monochrome->isChecked());
+    const auto row_is = [&](int r, int g, int b, int c) {
+      return red->value() == r && green->value() == g && blue->value() == b && constant->value() == c;
+    };
+    const auto set_row = [&](int r, int g, int b, int c) {
+      red->setValue(r);
+      green->setValue(g);
+      blue->setValue(b);
+      constant->setValue(c);
+    };
+    CHECK(row_is(100, 0, 0, 0));  // Photoshop's identity for the red output
+    set_row(70, 20, 10, 0);
+    output->setCurrentIndex(1);
+    CHECK(row_is(0, 100, 0, 0));
+    set_row(-50, 150, 0, -45);
+    output->setCurrentIndex(0);
+    CHECK(row_is(70, 20, 10, 0));
+    monochrome->setChecked(true);
+    CHECK(!output->isEnabled());
+    CHECK(row_is(40, 40, 20, 0));  // Photoshop's monochrome default
+    set_row(33, 51, 17, -12);
+    monochrome->setChecked(false);
+    CHECK(row_is(70, 20, 10, 0));
+    monochrome->setChecked(true);
+    CHECK(row_is(33, 51, 17, -12));
+    save_widget_artifact("ui_channel_mixer_dialog", *dialog);
+    dialog_checked = true;
+    dialog->accept();
+  });
+  require_action(window, "layerNewChannelMixerAdjustmentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(dialog_checked);
+
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  CHECK(document.active_layer_id().has_value());
+  const auto* layer = document.find_layer(*document.active_layer_id());
+  CHECK(layer != nullptr);
+  const auto settings = patchy::adjustment_settings_from_layer(*layer);
+  CHECK(settings.has_value());
+  CHECK(settings->kind == patchy::AdjustmentKind::ChannelMixer);
+  CHECK(settings->channel_mixer.monochrome);
+  CHECK((settings->channel_mixer.gray == patchy::ChannelMixerRow{33, 51, 17, -12}));
+  CHECK((settings->channel_mixer.red == patchy::ChannelMixerRow{70, 20, 10, 0}));
+  CHECK((settings->channel_mixer.green == patchy::ChannelMixerRow{-50, 150, 0, -45}));
 }
 
 // The Tone combo retargets the three sliders to Shadows, Midtones or
@@ -3652,6 +3721,7 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
        ui_curves_clipped_adjustment_reedit_disables_auto},
       {"ui_color_balance_dialog_adjusts_selected_pixels", ui_color_balance_dialog_adjusts_selected_pixels},
       {"ui_color_balance_dialog_tone_selector_edits_each_range", ui_color_balance_dialog_tone_selector_edits_each_range},
+      {"ui_channel_mixer_dialog_edits_each_output_row", ui_channel_mixer_dialog_edits_each_output_row},
       {"ui_adjustment_placeholders_name_their_kind_in_layers_panel",
        ui_adjustment_placeholders_name_their_kind_in_layers_panel},
       {"ui_af_colour_balance_matches_affinity_render_if_available",

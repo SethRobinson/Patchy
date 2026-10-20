@@ -172,6 +172,8 @@ QString localized_adjustment_display_name(AdjustmentKind kind) {
       return QObject::tr("Brightness/Contrast");
     case AdjustmentKind::Exposure:
       return QObject::tr("Exposure");
+    case AdjustmentKind::ChannelMixer:
+      return QObject::tr("Channel Mixer");
   }
   return QObject::tr("Adjustment");
 }

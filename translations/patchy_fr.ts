@@ -10955,7 +10955,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Vibrance, Black &amp; White or Gradient Map). They have no effect here and are saved unchanged.</source>
-        <translation>Certains calques de réglage utilisent des types que Patchy ne sait pas encore appliquer (comme Vibrance, Noir et blanc ou Courbe de transfert de dégradé). Ils n'ont aucun effet ici et sont enregistrés tels quels.</translation>
+        <translation>Certains calques de réglage utilisent des types que Patchy ne sait pas encore appliquer (comme Vibrance, Noir et blanc ou Courbe de transfert de dégradé). Ils n&apos;ont aucun effet ici et sont enregistrés tels quels.</translation>
     </message>
     <message>
         <source>Vibrance</source>
@@ -10987,7 +10987,23 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>%1 adjustment from Photoshop. Patchy cannot apply it yet: it has no effect here and is saved unchanged.</source>
-        <translation>Réglage %1 issu de Photoshop. Patchy ne sait pas encore l'appliquer : il n'a aucun effet ici et est enregistré tel quel.</translation>
+        <translation>Réglage %1 issu de Photoshop. Patchy ne sait pas encore l&apos;appliquer : il n&apos;a aucun effet ici et est enregistré tel quel.</translation>
+    </message>
+    <message>
+        <source>Constant</source>
+        <translation>Constante</translation>
+    </message>
+    <message>
+        <source>Output Channel:</source>
+        <translation>Couche de sortie :</translation>
+    </message>
+    <message>
+        <source>Monochrome</source>
+        <translation>Monochrome</translation>
+    </message>
+    <message>
+        <source>Channel Mixer: monochrome %1 / %2 / %3, constant %4</source>
+        <translation>Mélangeur de couches : monochrome %1 / %2 / %3, constante %4</translation>
     </message>
 </context>
 <context>
@@ -22591,6 +22607,18 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
     <message>
         <source>Perspective</source>
         <translation>Perspective</translation>
+    </message>
+    <message>
+        <source>Channel &amp;Mixer...</source>
+        <translation>&amp;Mélangeur de couches...</translation>
+    </message>
+    <message>
+        <source>Channel Mixer</source>
+        <translation>Mélangeur de couches</translation>
+    </message>
+    <message>
+        <source>Cancelled Channel Mixer</source>
+        <translation>Mélangeur de couches annulé</translation>
     </message>
 </context>
 <context>
