@@ -12878,10 +12878,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Transform corners must form a convex shape</source>
         <translation>Углы трансформации должны образовывать выпуклую фигуру</translation>
     </message>
-    <message>
-        <source>Drag to move the point. Drag the outline or fill to move the shape.</source>
-        <translation>Перетаскивайте точку для перемещения. Перетащите контур или заливку, чтобы переместить фигуру.</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -15760,10 +15756,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Pen: click to add points, drag for curves. On a path, click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL%+drag selects or moves points.</source>
         <translation>Перо: щёлкайте для добавления точек, перетаскивайте для создания кривых. На контуре: щелчок по сегменту добавляет точку, по точке удаляет её; %ALT%+щелчок преобразует точку, %CTRL%+перетаскивание выделяет или перемещает точки.</translation>
-    </message>
-    <message>
-        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected points.</source>
-        <translation>Выделение контура: щёлкните фигуру для выделения, перетаскивайте для перемещения. %CTRL%+T трансформирует контур, Delete удаляет выделенные точки.</translation>
     </message>
     <message>
         <source>Direct Select: click or marquee points, drag points or handles. Shift adds, arrows nudge, Delete removes, %CTRL%+T transforms the selected points.</source>
@@ -22988,6 +22980,10 @@ Patchy можно будет запускать из меню, а на пане�
     <message>
         <source>Updated %1 Smart Filter</source>
         <translation>Обновлён смарт-фильтр «%1»</translation>
+    </message>
+    <message>
+        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
+        <translation>Выделение контура: щёлкните фигуру для выделения, перетаскивайте для перемещения. %CTRL%+T трансформирует контур, Delete удаляет выделенную фигуру.</translation>
     </message>
 </context>
 <context>

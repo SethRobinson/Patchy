@@ -12810,10 +12810,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Transform corners must form a convex shape</source>
         <translation>変形の四隅は凸形状になる必要があります</translation>
     </message>
-    <message>
-        <source>Drag to move the point. Drag the outline or fill to move the shape.</source>
-        <translation>ドラッグでポイントを移動。輪郭や塗りをドラッグするとシェイプを移動します。</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -19303,10 +19299,6 @@ Clipped to the layer below</source>
         <translation>ペン: クリックでポイント追加、ドラッグで曲線。パス上ではセグメントをクリックでポイント追加、ポイントをクリックで削除、%ALT%+クリックで切り替え、%CTRL%+ドラッグでポイントを選択/移動。</translation>
     </message>
     <message>
-        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected points.</source>
-        <translation>パス選択: シェイプをクリックで選択、ドラッグで移動。%CTRL%+Tでパスを変形、Deleteで選択したポイントを削除。</translation>
-    </message>
-    <message>
         <source>Direct Select: click or marquee points, drag points or handles. Shift adds, arrows nudge, Delete removes, %CTRL%+T transforms the selected points.</source>
         <translation>ダイレクト選択: ポイントをクリックまたは囲んで選択し、ポイントやハンドルをドラッグ。Shiftで追加、矢印キーで微調整、Deleteで削除、%CTRL%+Tで選択したポイントを変形。</translation>
     </message>
@@ -22848,6 +22840,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Updated %1 Smart Filter</source>
         <translation>%1スマートフィルターを更新しました</translation>
+    </message>
+    <message>
+        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
+        <translation>パス選択: シェイプをクリックで選択、ドラッグで移動。%CTRL%+Tでパスを変形、Deleteで選択したシェイプを削除。</translation>
     </message>
 </context>
 <context>

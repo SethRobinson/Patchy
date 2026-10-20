@@ -33,9 +33,9 @@ squares with a dark 1 px edge: white with an accent inner ring when unselected (
 hollow anchor), accent with a white inner ring when selected. Handle knobs are 8 px white
 discs with the dark edge and an accent dot (10 and 12 px glyphs read as too big beside
 Photoshop's), and grab from 9 px (`kHandleHitRadiusPx`; a press
-nearer the anchor stays the anchor's; `ui_path_handle_knobs_read_and_grab`). Path Select
-selects every anchor of the shape, so it draws every knob, and a drawn knob grabs under it too
-(its press used to start a marquee; `ui_path_select_tools_drag_drawn_handle_knobs`). `kGlyphReach` (8 px) is how far a glyph reaches
+nearer the anchor stays the anchor's; `ui_path_handle_knobs_read_and_grab`). Knobs are
+Direct Select's alone (and the Pen's Ctrl latch, which is Direct Select): Path Select draws
+and grabs none (`ui_path_tools_keep_handle_knobs_to_direct_select`; see "Tool roles"). `kGlyphReach` (8 px) is how far a glyph reaches
 past its point; every repaint region around path points pads by it. The tests'
 `accent_overlay_near` probes 3 px around a point for the accent, which the inner ring and the
 knob dot satisfy.
@@ -109,13 +109,25 @@ selection.
   `path_selected_anchors_`: clicks, marquees, deletes, prunes, deselects)
   and from every options-bar refresh (tool switches).
 
+## Tool roles
+
+The conventional split (GitHub issue 248, Seth's follow-up): each tool owns one job, and a
+press never does another tool's.
+
+| Tool | Owns | Never |
+|---|---|---|
+| Pen | creating and extending paths; its Ctrl latch is Direct Select | moving whole shapes |
+| Path Select (black arrow) | selecting and moving whole shapes (groups): filled anchors, no knobs | point, handle or segment edits |
+| Direct Select (white arrow) | every point, handle and segment edit; hollow anchors on the active path | moving a shape it did not select point by point |
+
+An anchor, outline or fill press under Path Select moves the whole group; the knob hit test
+(`path_handle_at`), knob drawing and the handle hover hint are Direct Select's only.
+
 ## Pressing and picking with the arrows
 
 GitHub issue 248. `handle_path_edit_press` tries, in order: a drawn handle knob
-of the target (both arrows), a target anchor (under Path Select a drawn one, an
-anchor of the selected shape, drags alone as `PathEditDrag::SingleAnchor` and
-keeps the shape selected; an undrawn one counts as outline and selects and
-moves the shape), Direct Select's panel-selected
+of the target (Direct Select), a target anchor (Path Select selects its whole
+group and moves it), Direct Select's panel-selected
 extra layers' anchors, a target segment, the extras' segments, then the pick:
 `topmost_path_pick_layer_at` walks visible, editable shape layers top-down
 (pixel layers never count) and takes the first whose anchor, outline or fill
@@ -138,14 +150,14 @@ active path. Switching from Path Select to Direct Select clears the point
 selection (`set_tool`): Path Select selects whole shapes, so its selection would
 make Direct Select's first press drag every point. Hover: a fill, or another
 layer's shape, is `PathHoverTarget::Fill` (Path Select's select-and-move hint;
-no Direct Select hint); under Path Select only a drawn anchor is
-`PathHoverTarget::Anchor`, with its own drag-the-point hint. Tests:
+no Direct Select hint); under Path Select every target is the shape and the hint says so.
+Tests:
 `ui_path_select_blank_click_deselects_shape`,
 `ui_path_select_click_picks_shape_under_pointer`,
 `ui_path_select_marquee_touching_shape_selects_it`,
 `ui_path_select_drag_inside_fill_moves_shape`,
 `ui_direct_select_drags_points_of_unselected_shapes`,
-`ui_path_select_drags_drawn_anchor_alone`,
+`ui_path_select_anchor_drag_moves_the_whole_shape`,
 `ui_direct_select_after_path_select_drags_one_point`,
 `ui_path_select_tools_drag_open_path_anchor`.
 

@@ -291,7 +291,7 @@ const char* tool_activation_hint_source(CanvasTool tool) {
              "moves points.");
     case CanvasTool::PathSelect:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the "
-             "path, Delete removes the selected points.");
+             "path, Delete removes the selected shape.");
     case CanvasTool::DirectSelect:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Direct Select: click or marquee points, drag points or handles. Shift adds, "
              "arrows nudge, Delete removes, %CTRL%+T transforms the selected points.");

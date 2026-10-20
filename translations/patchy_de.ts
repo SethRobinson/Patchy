@@ -12844,10 +12844,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Transform corners must form a convex shape</source>
         <translation>Die Transformationsecken müssen eine konvexe Form bilden</translation>
     </message>
-    <message>
-        <source>Drag to move the point. Drag the outline or fill to move the shape.</source>
-        <translation>Ziehen Sie, um den Punkt zu verschieben. Ziehen Sie die Kontur oder Füllung, um die Form zu verschieben.</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -15293,10 +15289,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Pen: click to add points, drag for curves. On a path, click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL%+drag selects or moves points.</source>
         <translation>Zeichenstift: Klicken Sie, um Punkte hinzuzufügen, ziehen Sie für Kurven. Auf einem Pfad fügt ein Klick auf ein Segment einen Punkt hinzu, ein Klick auf einen Punkt löscht ihn, %ALT%+Klick wandelt ihn um, %CTRL%+Ziehen wählt Punkte aus oder verschiebt sie.</translation>
-    </message>
-    <message>
-        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected points.</source>
-        <translation>Pfadauswahl: Klicken Sie auf eine Form, um sie auszuwählen, und ziehen Sie, um sie zu verschieben. %CTRL%+T transformiert den Pfad, Delete entfernt die ausgewählten Punkte.</translation>
     </message>
     <message>
         <source>Direct Select: click or marquee points, drag points or handles. Shift adds, arrows nudge, Delete removes, %CTRL%+T transforms the selected points.</source>
@@ -22918,6 +22910,10 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
     <message>
         <source>Updated %1 Smart Filter</source>
         <translation>Smartfilter „%1“ aktualisiert</translation>
+    </message>
+    <message>
+        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
+        <translation>Pfadauswahl: Klicken Sie auf eine Form, um sie auszuwählen, und ziehen Sie, um sie zu verschieben. %CTRL%+T transformiert den Pfad, Delete entfernt die ausgewählte Form.</translation>
     </message>
 </context>
 <context>

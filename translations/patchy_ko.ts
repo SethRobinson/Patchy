@@ -12810,10 +12810,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Transform corners must form a convex shape</source>
         <translation>변형 모서리는 볼록한 모양을 이루어야 합니다</translation>
     </message>
-    <message>
-        <source>Drag to move the point. Drag the outline or fill to move the shape.</source>
-        <translation>드래그하여 점을 이동합니다. 윤곽선이나 채우기를 드래그하면 도형을 이동합니다.</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -15690,10 +15686,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Pen: click to add points, drag for curves. On a path, click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL%+drag selects or moves points.</source>
         <translation>펜: 클릭하여 점을 추가하고 드래그하여 곡선을 만듭니다. 패스의 선분을 클릭하면 점이 추가되고, 점을 클릭하면 삭제됩니다. %ALT%+클릭으로 점을 변환하고, %CTRL%+드래그로 점을 선택하거나 이동합니다.</translation>
-    </message>
-    <message>
-        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected points.</source>
-        <translation>패스 선택: 모양을 클릭하여 선택하고 드래그하여 이동합니다. %CTRL%+T로 패스를 변형하고, Delete로 선택한 점을 삭제합니다.</translation>
     </message>
     <message>
         <source>Direct Select: click or marquee points, drag points or handles. Shift adds, arrows nudge, Delete removes, %CTRL%+T transforms the selected points.</source>
@@ -22848,6 +22840,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Updated %1 Smart Filter</source>
         <translation>%1 스마트 필터를 업데이트했습니다</translation>
+    </message>
+    <message>
+        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
+        <translation>패스 선택: 모양을 클릭하여 선택하고 드래그하여 이동합니다. %CTRL%+T로 패스를 변형하고, Delete로 선택한 모양을 삭제합니다.</translation>
     </message>
 </context>
 <context>

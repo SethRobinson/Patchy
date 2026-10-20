@@ -2547,9 +2547,7 @@ private:
   int pen_session_drag_anchor_{-1};
   QPointF pen_session_drag_last_document_{};
   // Path-edit session state (selection keys are (subpath, anchor) indices).
-  // SingleAnchor: Path Select's press on a drawn anchor moves that one point (its
-  // handles with it) and keeps the shape selected (GitHub issue 248).
-  enum class PathEditDrag { None, Anchors, SingleAnchor, HandleIn, HandleOut, Marquee };
+  enum class PathEditDrag { None, Anchors, HandleIn, HandleOut, Marquee };
   std::set<std::pair<int, int>> path_selected_anchors_;
   // Set while a press that picked another shape layer replays on the new target.
   bool path_press_repicked_ = false;

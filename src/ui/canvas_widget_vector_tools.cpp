@@ -1313,9 +1313,9 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
   };
 
   const auto widget_point = QPointF(event->position());
-  // A drawn knob drags its handle under both arrows: Path Select selects (and
-  // so draws the knobs of) every anchor of the shape.
-  {
+  // Handle knobs are Direct Select's (Path Select moves whole shapes and draws
+  // none; GitHub issue 248 tool roles).
+  if (edit_tool == CanvasTool::DirectSelect) {
     std::pair<int, int> handle_anchor{-1, -1};
     if (const auto side = path_handle_at(widget_point, handle_anchor); side != 0) {
       path_drag_mode_ = side < 0 ? PathEditDrag::HandleIn : PathEditDrag::HandleOut;
@@ -1326,14 +1326,6 @@ bool CanvasWidget::handle_path_edit_press(QMouseEvent* event, QPointF document_p
   }
   if (const auto anchor = path_anchor_at(widget_point); anchor.first >= 0) {
     const bool additive = (event->modifiers() & Qt::ShiftModifier) != 0;
-    // Path Select draws the selected shape's anchors: a drawn one drags alone,
-    // like its knobs; an undrawn one is part of the outline (GitHub issue 248).
-    if (edit_tool == CanvasTool::PathSelect && !additive && path_selected_anchors_.contains(anchor)) {
-      path_drag_mode_ = PathEditDrag::SingleAnchor;
-      path_drag_anchor_ = anchor;
-      update();
-      return true;
-    }
     if (edit_tool == CanvasTool::PathSelect) {
       // Whole shape-group selection.
       const auto group =
@@ -1607,7 +1599,7 @@ bool CanvasWidget::update_path_edit_drag(QPointF document_point, Qt::KeyboardMod
   }
   double dx = 0.0;
   double dy = 0.0;
-  if (path_drag_mode_ == PathEditDrag::Anchors || path_drag_mode_ == PathEditDrag::SingleAnchor) {
+  if (path_drag_mode_ == PathEditDrag::Anchors) {
     // Anchor drags track the total delta from the press so Shift can constrain
     // (and un-constrain) against it; each frame still applies an increment.
     const auto raw_total = document_point - path_drag_origin_document_;
@@ -1701,14 +1693,7 @@ bool CanvasWidget::update_path_edit_drag(QPointF document_point, Qt::KeyboardMod
   } else {
     auto& anchor = working.subpaths[static_cast<std::size_t>(path_drag_anchor_.first)]
                        .anchors[static_cast<std::size_t>(path_drag_anchor_.second)];
-    if (path_drag_mode_ == PathEditDrag::SingleAnchor) {
-      anchor.anchor_x += dx;
-      anchor.anchor_y += dy;
-      anchor.in_x += dx;
-      anchor.in_y += dy;
-      anchor.out_x += dx;
-      anchor.out_y += dy;
-    } else if (path_drag_mode_ == PathEditDrag::HandleIn) {
+    if (path_drag_mode_ == PathEditDrag::HandleIn) {
       anchor.in_x += dx;
       anchor.in_y += dy;
       if (anchor.smooth) {
@@ -2142,12 +2127,10 @@ CanvasWidget::PathHoverTarget CanvasWidget::path_hover_target_at(QPointF widget_
     return PathHoverTarget::None;
   }
   std::pair<int, int> handle_anchor{-1, -1};
-  if (path_handle_at(widget_point, handle_anchor) != 0) {
+  if (path_edit_tool() == CanvasTool::DirectSelect && path_handle_at(widget_point, handle_anchor) != 0) {
     return PathHoverTarget::Handle;
   }
-  if (const auto anchor = path_anchor_at(widget_point);
-      anchor.first >= 0 &&
-      (path_edit_tool() != CanvasTool::PathSelect || path_selected_anchors_.contains(anchor))) {
+  if (path_anchor_at(widget_point).first >= 0) {
     return PathHoverTarget::Anchor;
   }
   std::pair<int, int> segment{-1, -1};
@@ -2171,11 +2154,7 @@ void CanvasWidget::update_path_select_hover_hint(PathHoverTarget target) {
   if (target == previous || target == PathHoverTarget::None || !status_callback_) {
     return;
   }
-  if (path_edit_tool() == CanvasTool::PathSelect && target == PathHoverTarget::Anchor) {
-    status_callback_(tr("Drag to move the point. Drag the outline or fill to move the shape."));
-    return;
-  }
-  if (path_edit_tool() == CanvasTool::PathSelect && target != PathHoverTarget::Handle) {
+  if (path_edit_tool() == CanvasTool::PathSelect) {
     status_callback_(
         resolve_modifier_names(tr("Click to select the shape, drag to move it. %CTRL%+T transforms it.")));
     return;
@@ -2410,9 +2389,13 @@ void CanvasWidget::draw_path_edit_overlay(QPainter& painter) {
     }
   }
 
-  // Handles of selected anchors (DirectSelect editing surface).
+  // Handles of selected anchors: Direct Select's editing surface only (Path Select
+  // moves whole shapes, and the Pen grabs them through its Ctrl latch, which is
+  // Direct Select).
   painter.setPen(QPen(accent, 1.0));
-  for (const auto& key : path_selected_anchors_) {
+  static const std::set<std::pair<int, int>> kNoKnobs;
+  const auto& knob_anchors = path_edit_tool() == CanvasTool::DirectSelect ? path_selected_anchors_ : kNoKnobs;
+  for (const auto& key : knob_anchors) {
     const auto s = static_cast<std::size_t>(key.first);
     const auto a = static_cast<std::size_t>(key.second);
     if (s >= path->subpaths.size() || a >= path->subpaths[s].anchors.size()) {

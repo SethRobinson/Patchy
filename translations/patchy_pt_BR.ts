@@ -12844,10 +12844,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Transform corners must form a convex shape</source>
         <translation>Os cantos da transformação devem formar uma forma convexa</translation>
     </message>
-    <message>
-        <source>Drag to move the point. Drag the outline or fill to move the shape.</source>
-        <translation>Arraste para mover o ponto. Arraste o contorno ou o preenchimento para mover a forma.</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -15725,10 +15721,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Pen: click to add points, drag for curves. On a path, click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL%+drag selects or moves points.</source>
         <translation>Caneta: clique para adicionar pontos, arraste para curvas. Em um demarcador, clique em um segmento para adicionar um ponto, clique em um ponto para excluí-lo, %ALT%+clique para convertê-lo, %CTRL%+arraste seleciona ou move pontos.</translation>
-    </message>
-    <message>
-        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected points.</source>
-        <translation>Seleção de demarcador: clique em uma forma para selecioná-la e arraste para movê-la. %CTRL%+T transforma o demarcador, Delete remove os pontos selecionados.</translation>
     </message>
     <message>
         <source>Direct Select: click or marquee points, drag points or handles. Shift adds, arrows nudge, Delete removes, %CTRL%+T transforms the selected points.</source>
@@ -22918,6 +22910,10 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
     <message>
         <source>Updated %1 Smart Filter</source>
         <translation>Filtro inteligente atualizado: %1</translation>
+    </message>
+    <message>
+        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
+        <translation>Seleção de demarcador: clique em uma forma para selecioná-la e arraste para movê-la. %CTRL%+T transforma o demarcador, Delete remove a forma selecionada.</translation>
     </message>
 </context>
 <context>

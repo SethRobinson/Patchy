@@ -12878,10 +12878,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Transform corners must form a convex shape</source>
         <translation>Narożniki przekształcenia muszą tworzyć kształt wypukły</translation>
     </message>
-    <message>
-        <source>Drag to move the point. Drag the outline or fill to move the shape.</source>
-        <translation>Przeciągnij, aby przesunąć punkt. Przeciągnij obrys lub wypełnienie, aby przesunąć kształt.</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -15760,10 +15756,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Pen: click to add points, drag for curves. On a path, click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL%+drag selects or moves points.</source>
         <translation>Pióro: kliknij, aby dodać punkty, lub przeciągnij, aby tworzyć krzywe. Na ścieżce kliknij segment, aby dodać punkt, lub punkt, aby go usunąć; %ALT%+kliknięcie zmienia typ punktu, a %CTRL%+przeciągnięcie zaznacza lub przesuwa punkty.</translation>
-    </message>
-    <message>
-        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected points.</source>
-        <translation>Zaznaczanie ścieżek: kliknij kształt, aby go zaznaczyć, i przeciągnij, aby go przesunąć. %CTRL%+T przekształca ścieżkę, Delete usuwa zaznaczone punkty.</translation>
     </message>
     <message>
         <source>Direct Select: click or marquee points, drag points or handles. Shift adds, arrows nudge, Delete removes, %CTRL%+T transforms the selected points.</source>
@@ -22988,6 +22980,10 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     <message>
         <source>Updated %1 Smart Filter</source>
         <translation>Zaktualizowano filtr inteligentny: %1</translation>
+    </message>
+    <message>
+        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
+        <translation>Zaznaczanie ścieżek: kliknij kształt, aby go zaznaczyć, i przeciągnij, aby go przesunąć. %CTRL%+T przekształca ścieżkę, Delete usuwa zaznaczony kształt.</translation>
     </message>
 </context>
 <context>

@@ -11162,11 +11162,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Wavelength Min</source>
-        <translation>Lunghezza d'onda min.</translation>
+        <translation>Lunghezza d&apos;onda min.</translation>
     </message>
     <message>
         <source>Wavelength Max</source>
-        <translation>Lunghezza d'onda max.</translation>
+        <translation>Lunghezza d&apos;onda max.</translation>
     </message>
     <message>
         <source>Amplitude Min</source>
@@ -12843,10 +12843,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Transform corners must form a convex shape</source>
         <translation>Gli angoli della trasformazione devono formare una forma convessa</translation>
-    </message>
-    <message>
-        <source>Drag to move the point. Drag the outline or fill to move the shape.</source>
-        <translation>Trascina per spostare il punto. Trascina il contorno o il riempimento per spostare la forma.</translation>
     </message>
 </context>
 <context>
@@ -15293,10 +15289,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Pen: click to add points, drag for curves. On a path, click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL%+drag selects or moves points.</source>
         <translation>Penna: fai clic per aggiungere punti, trascina per le curve. Su un tracciato, fai clic su un segmento per aggiungere un punto, fai clic su un punto per eliminarlo, %ALT%+clic lo converte, %CTRL%+trascina seleziona o sposta i punti.</translation>
-    </message>
-    <message>
-        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected points.</source>
-        <translation>Selezione tracciato: fai clic su una forma per selezionarla, trascina per spostarla. %CTRL%+T trasforma il tracciato, Delete rimuove i punti selezionati.</translation>
     </message>
     <message>
         <source>Direct Select: click or marquee points, drag points or handles. Shift adds, arrows nudge, Delete removes, %CTRL%+T transforms the selected points.</source>
@@ -22918,6 +22910,10 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
     <message>
         <source>Updated %1 Smart Filter</source>
         <translation>Filtro avanzato %1 aggiornato</translation>
+    </message>
+    <message>
+        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
+        <translation>Selezione tracciato: fai clic su una forma per selezionarla, trascina per spostarla. %CTRL%+T trasforma il tracciato, Delete rimuove la forma selezionata.</translation>
     </message>
 </context>
 <context>

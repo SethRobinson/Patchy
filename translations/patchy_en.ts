@@ -12828,10 +12828,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Transform corners must form a convex shape</source>
         <translation type="unfinished"></translation>
     </message>
-    <message>
-        <source>Drag to move the point. Drag the outline or fill to move the shape.</source>
-        <translation type="unfinished"></translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -15276,10 +15272,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>Pen: click to add points, drag for curves. On a path, click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL%+drag selects or moves points.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected points.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -22840,6 +22832,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     </message>
     <message>
         <source>Updated %1 Smart Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

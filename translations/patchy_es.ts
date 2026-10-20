@@ -12844,10 +12844,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Transform corners must form a convex shape</source>
         <translation>Las esquinas de la transformación deben formar una figura convexa</translation>
     </message>
-    <message>
-        <source>Drag to move the point. Drag the outline or fill to move the shape.</source>
-        <translation>Arrastre para mover el punto. Arrastre el contorno o el relleno para mover la forma.</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -15293,10 +15289,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Pen: click to add points, drag for curves. On a path, click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL%+drag selects or moves points.</source>
         <translation>Pluma: haga clic para añadir puntos, arrastre para crear curvas. En un trazado, haga clic en un segmento para añadir un punto, haga clic en un punto para eliminarlo, %ALT%+clic lo convierte, %CTRL%+arrastrar selecciona o mueve puntos.</translation>
-    </message>
-    <message>
-        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected points.</source>
-        <translation>Selección de trazado: haga clic en una forma para seleccionarla, arrastre para moverla. %CTRL%+T transforma el trazado, Delete elimina los puntos seleccionados.</translation>
     </message>
     <message>
         <source>Direct Select: click or marquee points, drag points or handles. Shift adds, arrows nudge, Delete removes, %CTRL%+T transforms the selected points.</source>
@@ -22918,6 +22910,10 @@ Puedes hacerlo más tarde desde Ayuda &gt; Añadir Patchy al menú de aplicacion
     <message>
         <source>Updated %1 Smart Filter</source>
         <translation>Filtro inteligente %1 actualizado</translation>
+    </message>
+    <message>
+        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
+        <translation>Selección de trazado: haga clic en una forma para seleccionarla, arrastre para moverla. %CTRL%+T transforma el trazado, Delete elimina la forma seleccionada.</translation>
     </message>
 </context>
 <context>

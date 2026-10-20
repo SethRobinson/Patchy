@@ -12810,10 +12810,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Transform corners must form a convex shape</source>
         <translation>变换的四个角必须构成凸形</translation>
     </message>
-    <message>
-        <source>Drag to move the point. Drag the outline or fill to move the shape.</source>
-        <translation>拖动可移动锚点。拖动轮廓或填充可移动形状。</translation>
-    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
@@ -15258,10 +15254,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Pen: click to add points, drag for curves. On a path, click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL%+drag selects or moves points.</source>
         <translation>钢笔：单击添加锚点，拖动绘制曲线。在路径上，单击线段可添加锚点，单击锚点可将其删除，%ALT%+单击可转换锚点，%CTRL%+拖动可选择或移动锚点。</translation>
-    </message>
-    <message>
-        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected points.</source>
-        <translation>路径选择：单击形状可将其选中，拖动可移动它。%CTRL%+T 可变换路径，按 Delete 可删除所选锚点。</translation>
     </message>
     <message>
         <source>Direct Select: click or marquee points, drag points or handles. Shift adds, arrows nudge, Delete removes, %CTRL%+T transforms the selected points.</source>
@@ -22848,6 +22840,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Updated %1 Smart Filter</source>
         <translation>已更新%1智能滤镜</translation>
+    </message>
+    <message>
+        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
+        <translation>路径选择：单击形状可将其选中，拖动可移动它。%CTRL%+T 可变换路径，按 Delete 可删除所选形状。</translation>
     </message>
 </context>
 <context>

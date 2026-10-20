@@ -1030,10 +1030,10 @@ void ui_path_handle_knobs_read_and_grab() {
   CHECK(std::abs(dragged.anchor_x - 100.0) < 0.5 && std::abs(dragged.anchor_y - 100.0) < 0.5);
 }
 
-// A drawn handle knob drags its handle under both arrow tools. Path Select
-// selects the whole shape, so every anchor's knobs show; a press on one used to
-// fall through to the anchor/segment hit and move the whole shape instead.
-void ui_path_select_tools_drag_drawn_handle_knobs() {
+// Tool roles (GitHub issue 248, Seth's follow-up): handle knobs belong to Direct
+// Select, which draws and drags them; Path Select moves whole shapes and draws
+// none, so a press where a knob would be is just empty canvas there.
+void ui_path_tools_keep_handle_knobs_to_direct_select() {
   for (const auto tool : {patchy::ui::CanvasTool::PathSelect, patchy::ui::CanvasTool::DirectSelect}) {
     VectorSettingsGuard settings_guard;
     patchy::ui::MainWindow window;
@@ -1061,10 +1061,10 @@ void ui_path_select_tools_drag_drawn_handle_knobs() {
     const bool path_select = tool == patchy::ui::CanvasTool::PathSelect;
     pen_click(*canvas, QPoint(100, 100));  // select (the anchor, or the whole shape)
     CHECK(canvas->path_edit_has_selection());
-    CHECK(accent_overlay_near(*canvas, QPoint(160, 30)));  // the out knob is drawn
-    if (path_select) {
-      save_widget_artifact("ui_path_select_handle_knob_before", *canvas);
-    }
+    save_widget_artifact(path_select ? "ui_path_roles_path_select_selected_shape"
+                                     : "ui_path_roles_direct_select_one_point",
+                         *canvas);
+    CHECK(accent_overlay_near(*canvas, QPoint(160, 30)) == !path_select);  // the out knob: Direct Select only
 
     const auto knob = canvas->widget_position_for_document_point(QPoint(160, 30));
     send_mouse(*canvas, QEvent::MouseButtonPress, knob, Qt::LeftButton, Qt::LeftButton);
@@ -1072,11 +1072,8 @@ void ui_path_select_tools_drag_drawn_handle_knobs() {
     send_mouse(*canvas, QEvent::MouseMove, knob + QPoint(20, 0), Qt::NoButton, Qt::LeftButton);
     send_mouse(*canvas, QEvent::MouseButtonRelease, knob + QPoint(20, 0), Qt::LeftButton, Qt::NoButton);
     QApplication::processEvents();
-    if (path_select) {
-      save_widget_artifact("ui_path_select_handle_knob_after", *canvas);
-    }
     const auto& dragged = anchor_at(document, layer_id, 0);
-    CHECK(std::abs(dragged.out_x - 180.0) < 1.5);
+    CHECK(std::abs(dragged.out_x - (path_select ? 160.0 : 180.0)) < 1.5);
     CHECK(std::abs(dragged.anchor_x - 100.0) < 0.5 && std::abs(dragged.anchor_y - 100.0) < 0.5);
     const auto& far_corner = anchor_at(document, layer_id, 2);  // the shape did not move
     CHECK(std::abs(far_corner.anchor_x - 300.0) < 0.5 && std::abs(far_corner.anchor_y - 220.0) < 0.5);
@@ -1216,11 +1213,11 @@ void ui_direct_select_drags_points_of_unselected_shapes() {
   CHECK(std::abs(anchor_at(document, second_id, 0).anchor_x - 350.0) < 1.0);  // the earlier drag stays
 }
 
-// GitHub issue 248 follow-up: under Path Select a drawn anchor (one of the
-// selected shape's) drags alone, like its knobs, and the shape stays selected;
-// an undrawn anchor (shape not selected, on this or another layer) is part of
-// the outline and moves the whole shape. The hover hint says which.
-void ui_path_select_drags_drawn_anchor_alone() {
+// Tool roles (GitHub issue 248, Seth's follow-up): Path Select moves whole
+// shapes. A press on an anchor, the outline or the fill moves the whole shape,
+// selected or not, on this layer or a picked one, and the hover hint names the
+// shape, never a point. Point drags are Direct Select's.
+void ui_path_select_anchor_drag_moves_the_whole_shape() {
   VectorSettingsGuard settings_guard;
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1235,9 +1232,8 @@ void ui_path_select_drags_drawn_anchor_alone() {
   QApplication::processEvents();
   const auto shape_hint = patchy::ui::resolve_modifier_names(
       QStringLiteral("Click to select the shape, drag to move it. %CTRL%+T transforms it."));
-  const auto point_hint = QStringLiteral("Drag to move the point. Drag the outline or fill to move the shape.");
 
-  // Unselected active shape: its corner is outline, the press moves the shape.
+  // Unselected active shape: its corner moves the shape.
   hover(*canvas, QPoint(340, 60));
   CHECK(window.statusBar()->currentMessage() == shape_hint);
   shape_drag(*canvas, QPoint(340, 60), QPoint(350, 70));
@@ -1245,34 +1241,33 @@ void ui_path_select_drags_drawn_anchor_alone() {
   CHECK(std::abs(anchor_at(document, second_id, 2).anchor_x - 430.0) < 1.0);  // whole shape
   CHECK(canvas->path_edit_selected_anchor_count() == 4);
 
-  // Now selected: a press on its drawn corner moves that corner alone.
+  // Selected: its corner still moves the whole shape, with the same hint.
   hover(*canvas, QPoint(600, 500));
+  window.statusBar()->showMessage(QStringLiteral("marker"));
   hover(*canvas, QPoint(350, 70));
-  const auto hint_shown = window.statusBar()->currentMessage();
-  save_widget_artifact("ui_path_select_anchor_drag_before", *canvas);
+  CHECK(window.statusBar()->currentMessage() == shape_hint);
   shape_drag(*canvas, QPoint(350, 70), QPoint(330, 50));
-  save_widget_artifact("ui_path_select_anchor_drag_after", *canvas);
-  CHECK(hint_shown == point_hint);
   CHECK(std::abs(anchor_at(document, second_id, 0).anchor_x - 330.0) < 1.0);
   CHECK(std::abs(anchor_at(document, second_id, 0).anchor_y - 50.0) < 1.0);
-  CHECK(std::abs(anchor_at(document, second_id, 2).anchor_x - 430.0) < 1.0);  // stayed
-  CHECK(std::abs(anchor_at(document, second_id, 1).anchor_x - 430.0) < 1.0);
-  CHECK(canvas->path_edit_selected_anchor_count() == 4);  // the shape stays selected
-  // Its outline (a segment, not an anchor) still moves the whole shape.
-  shape_drag(*canvas, QPoint(430, 120), QPoint(440, 120));
+  CHECK(std::abs(anchor_at(document, second_id, 2).anchor_x - 410.0) < 1.0);
+  CHECK(std::abs(anchor_at(document, second_id, 2).anchor_y - 150.0) < 1.0);
+  CHECK(canvas->path_edit_selected_anchor_count() == 4);
+  // Its outline moves the whole shape too.
+  shape_drag(*canvas, QPoint(410, 100), QPoint(420, 100));
   CHECK(std::abs(anchor_at(document, second_id, 0).anchor_x - 340.0) < 1.0);
-  CHECK(std::abs(anchor_at(document, second_id, 2).anchor_x - 440.0) < 1.0);
+  CHECK(std::abs(anchor_at(document, second_id, 2).anchor_x - 420.0) < 1.0);
 
-  // The other layer's corner (not drawn): the press picks that shape and moves it.
+  // The other layer's corner: the press picks that shape and moves it.
   shape_drag(*canvas, QPoint(100, 100), QPoint(110, 105));
   CHECK(*document.active_layer_id() == first_id);
   CHECK(std::abs(anchor_at(document, first_id, 0).anchor_x - 110.0) < 1.0);
   CHECK(std::abs(anchor_at(document, first_id, 2).anchor_x - 310.0) < 1.0);
-  // Then its drawn corner drags alone.
+  // A single point is Direct Select's.
+  require_action(window, "toolDirectSelectAction")->trigger();
+  QApplication::processEvents();
   shape_drag(*canvas, QPoint(310, 225), QPoint(330, 240));
   CHECK(std::abs(anchor_at(document, first_id, 2).anchor_x - 330.0) < 1.0);
   CHECK(std::abs(anchor_at(document, first_id, 0).anchor_x - 110.0) < 1.0);
-  // One drag, one undo step.
   require_action_by_text(window, QStringLiteral("Undo"))->trigger();
   QApplication::processEvents();
   CHECK(std::abs(anchor_at(document, first_id, 2).anchor_x - 310.0) < 1.0);
@@ -1305,8 +1300,8 @@ void ui_direct_select_after_path_select_drags_one_point() {
   CHECK(canvas->path_edit_selected_anchor_count() == 1);
 }
 
-// GitHub issue 248 follow-up: an open path's anchors drag alone under both
-// arrows (Path Select once the path is selected).
+// An open path's anchor: Direct Select drags it alone, Path Select (once the path
+// is selected) moves the whole path (GitHub issue 248 tool roles).
 void ui_path_select_tools_drag_open_path_anchor() {
   for (const auto tool : {patchy::ui::CanvasTool::PathSelect, patchy::ui::CanvasTool::DirectSelect}) {
     VectorSettingsGuard settings_guard;
@@ -1337,7 +1332,11 @@ void ui_path_select_tools_drag_open_path_anchor() {
     shape_drag(*canvas, QPoint(200, 200), QPoint(210, 180));
     const auto& anchors = open_path().subpaths[0].anchors;
     CHECK(std::abs(anchors[1].anchor_x - 210.0) < 1.0 && std::abs(anchors[1].anchor_y - 180.0) < 1.0);
-    CHECK(std::abs(anchors[0].anchor_x - 100.0) < 0.5 && std::abs(anchors[2].anchor_x - 300.0) < 0.5);
+    if (tool == patchy::ui::CanvasTool::PathSelect) {
+      CHECK(std::abs(anchors[0].anchor_x - 110.0) < 1.0 && std::abs(anchors[2].anchor_x - 310.0) < 1.0);
+    } else {
+      CHECK(std::abs(anchors[0].anchor_x - 100.0) < 0.5 && std::abs(anchors[2].anchor_x - 300.0) < 0.5);
+    }
   }
 }
 
@@ -1947,14 +1946,14 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
       {"ui_layer_row_click_shows_anchors_for_shape_layer", ui_layer_row_click_shows_anchors_for_shape_layer},
       {"ui_path_overlay_outline_is_hairline", ui_path_overlay_outline_is_hairline},
       {"ui_path_handle_knobs_read_and_grab", ui_path_handle_knobs_read_and_grab},
-      {"ui_path_select_tools_drag_drawn_handle_knobs", ui_path_select_tools_drag_drawn_handle_knobs},
+      {"ui_path_tools_keep_handle_knobs_to_direct_select", ui_path_tools_keep_handle_knobs_to_direct_select},
       {"ui_path_select_blank_click_deselects_shape", ui_path_select_blank_click_deselects_shape},
       {"ui_path_select_click_picks_shape_under_pointer", ui_path_select_click_picks_shape_under_pointer},
       {"ui_path_select_marquee_touching_shape_selects_it", ui_path_select_marquee_touching_shape_selects_it},
       {"ui_path_select_drag_inside_fill_moves_shape", ui_path_select_drag_inside_fill_moves_shape},
       {"ui_direct_select_drags_points_of_unselected_shapes",
        ui_direct_select_drags_points_of_unselected_shapes},
-      {"ui_path_select_drags_drawn_anchor_alone", ui_path_select_drags_drawn_anchor_alone},
+      {"ui_path_select_anchor_drag_moves_the_whole_shape", ui_path_select_anchor_drag_moves_the_whole_shape},
       {"ui_direct_select_after_path_select_drags_one_point", ui_direct_select_after_path_select_drags_one_point},
       {"ui_path_select_tools_drag_open_path_anchor", ui_path_select_tools_drag_open_path_anchor},
       {"ui_path_transform_shows_free_transform_cursors", ui_path_transform_shows_free_transform_cursors},
