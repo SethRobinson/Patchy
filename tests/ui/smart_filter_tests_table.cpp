@@ -25,6 +25,7 @@
 #include <QTimer>
 #include <QToolButton>
 
+#include <algorithm>
 #include <filesystem>
 #include <functional>
 #include <string>
@@ -184,6 +185,47 @@ void ui_smart_filter_table_entry_edits_renders_and_saves() {
   CHECK(reread_values != nullptr && reread_values->values == values->values);
 }
 
+// Opening never re-renders a stack: until the user edits it, a layer whose
+// filters Patchy only approximates (Crystallize, Pointillize, Mezzotint,
+// Fibers) shows Photoshop's baked pixels, byte for byte
+// (docs/smart-filters-native.md, "Approximate renders").
+void ui_smart_filter_table_approximate_stacks_keep_photoshop_pixels_on_open() {
+  SettingsValueRestorer notes_setting(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(
+      QStringLiteral("imports/showPsdWarningsAndInfo"));
+  for (const char *fixture :
+       {"photoshop-smart-filter-random.psd", "photoshop-smart-filter-fibers.psd"}) {
+    const auto file = patchy::test::committed_psd_fixture_path(fixture);
+    const auto direct = patchy::psd::DocumentIo::read_file(file);
+    patchy::ui::MainWindow window;
+    show_window(window);
+    patchy::ui::MainWindowTestAccess::open_document_path(
+        window, QString::fromStdWString(file.wstring()));
+    QApplication::processEvents();
+    process_events_for(50);
+    const auto &opened =
+        std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+    int compared = 0;
+    for (const auto &layer : direct.layers()) {
+      if (layer.smart_filter_stack() == nullptr) {
+        continue;
+      }
+      CHECK(layer.smart_filter_stack()->support ==
+            patchy::SmartFilterStackSupport::Supported);
+      const auto &shown = require_layer_named(opened, layer.name());
+      CHECK(shown.bounds().x == layer.bounds().x &&
+            shown.bounds().y == layer.bounds().y &&
+            shown.bounds().width == layer.bounds().width &&
+            shown.bounds().height == layer.bounds().height);
+      CHECK(std::equal(layer.pixels().data().begin(), layer.pixels().data().end(),
+                       shown.pixels().data().begin(), shown.pixels().data().end()));
+      ++compared;
+    }
+    CHECK(compared >= 2);
+  }
+}
+
 // Photoshop re-randomizes Crystallize and Mezzotint, so an edit shows
 // Patchy's own deterministic rendering; the generated dialogs still carry the
 // imported values.
@@ -255,6 +297,8 @@ std::vector<patchy::test::TestCase> smart_filter_tests_part4() {
   return {
       {"ui_smart_filter_table_entry_edits_renders_and_saves",
        ui_smart_filter_table_entry_edits_renders_and_saves},
+      {"ui_smart_filter_table_approximate_stacks_keep_photoshop_pixels_on_open",
+       ui_smart_filter_table_approximate_stacks_keep_photoshop_pixels_on_open},
       {"ui_smart_filter_table_random_entries_edit_from_dialogs",
        ui_smart_filter_table_random_entries_edit_from_dialogs},
   };
