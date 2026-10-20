@@ -11112,6 +11112,56 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>%1 is not a 3D LUT Patchy can read.</source>
         <translation>%1 не является 3D LUT, которую может прочитать Patchy.</translation>
     </message>
+    <message>
+        <source>Cyan</source>
+        <translation>Голубой</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>Пурпурный</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>Желтый</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <comment>ink</comment>
+        <translation>Черный</translation>
+    </message>
+    <message>
+        <source>Whites</source>
+        <translation>Белые</translation>
+    </message>
+    <message>
+        <source>Neutrals</source>
+        <translation>Нейтральные</translation>
+    </message>
+    <message>
+        <source>Blacks</source>
+        <translation>Черные</translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <comment>selective color range</comment>
+        <translation>Цвета:</translation>
+    </message>
+    <message>
+        <source>Relative</source>
+        <translation>Относительно</translation>
+    </message>
+    <message>
+        <source>Absolute</source>
+        <translation>Абсолютно</translation>
+    </message>
+    <message>
+        <source>Selective Color: absolute</source>
+        <translation>Выборочная коррекция цвета: абсолютно</translation>
+    </message>
+    <message>
+        <source>Selective Color: relative</source>
+        <translation>Выборочная коррекция цвета: относительно</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22826,6 +22876,18 @@ Patchy можно будет запускать из меню, а на пане�
     <message>
         <source>Cancelled Color Lookup</source>
         <translation>Поиск цвета отменён</translation>
+    </message>
+    <message>
+        <source>&amp;Selective Color...</source>
+        <translation>&amp;Выборочная коррекция цвета...</translation>
+    </message>
+    <message>
+        <source>Selective Color</source>
+        <translation>Выборочная коррекция цвета</translation>
+    </message>
+    <message>
+        <source>Cancelled Selective Color</source>
+        <translation>Выборочная коррекция цвета отменена</translation>
     </message>
 </context>
 <context>

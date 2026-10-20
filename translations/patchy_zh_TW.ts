@@ -11044,6 +11044,56 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>%1 is not a 3D LUT Patchy can read.</source>
         <translation>%1 不是 Patchy 可讀取的 3D LUT。</translation>
     </message>
+    <message>
+        <source>Cyan</source>
+        <translation>青色</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>洋紅</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>黃色</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <comment>ink</comment>
+        <translation>黑色</translation>
+    </message>
+    <message>
+        <source>Whites</source>
+        <translation>白色</translation>
+    </message>
+    <message>
+        <source>Neutrals</source>
+        <translation>中性色</translation>
+    </message>
+    <message>
+        <source>Blacks</source>
+        <translation>黑色</translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <comment>selective color range</comment>
+        <translation>顏色:</translation>
+    </message>
+    <message>
+        <source>Relative</source>
+        <translation>相對</translation>
+    </message>
+    <message>
+        <source>Absolute</source>
+        <translation>絕對</translation>
+    </message>
+    <message>
+        <source>Selective Color: absolute</source>
+        <translation>選取顏色: 絕對</translation>
+    </message>
+    <message>
+        <source>Selective Color: relative</source>
+        <translation>選取顏色: 相對</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22686,6 +22736,18 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Color Lookup</source>
         <translation>已取消顏色查詢</translation>
+    </message>
+    <message>
+        <source>&amp;Selective Color...</source>
+        <translation>選取顏色(&amp;S)...</translation>
+    </message>
+    <message>
+        <source>Selective Color</source>
+        <translation>選取顏色</translation>
+    </message>
+    <message>
+        <source>Cancelled Selective Color</source>
+        <translation>已取消選取顏色</translation>
     </message>
 </context>
 <context>

@@ -11112,6 +11112,56 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>%1 is not a 3D LUT Patchy can read.</source>
         <translation>%1 nie jest tablicą LUT 3D, którą Patchy potrafi odczytać.</translation>
     </message>
+    <message>
+        <source>Cyan</source>
+        <translation>Cyjan</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>Magenta</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>Żółty</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <comment>ink</comment>
+        <translation>Czarny</translation>
+    </message>
+    <message>
+        <source>Whites</source>
+        <translation>Biele</translation>
+    </message>
+    <message>
+        <source>Neutrals</source>
+        <translation>Neutralne</translation>
+    </message>
+    <message>
+        <source>Blacks</source>
+        <translation>Czernie</translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <comment>selective color range</comment>
+        <translation>Kolory:</translation>
+    </message>
+    <message>
+        <source>Relative</source>
+        <translation>Względne</translation>
+    </message>
+    <message>
+        <source>Absolute</source>
+        <translation>Bezwzględne</translation>
+    </message>
+    <message>
+        <source>Selective Color: absolute</source>
+        <translation>Kolor selektywny: bezwzględne</translation>
+    </message>
+    <message>
+        <source>Selective Color: relative</source>
+        <translation>Kolor selektywny: względne</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22826,6 +22876,18 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     <message>
         <source>Cancelled Color Lookup</source>
         <translation>Anulowano wyszukiwanie koloru</translation>
+    </message>
+    <message>
+        <source>&amp;Selective Color...</source>
+        <translation>Kolor &amp;selektywny...</translation>
+    </message>
+    <message>
+        <source>Selective Color</source>
+        <translation>Kolor selektywny</translation>
+    </message>
+    <message>
+        <source>Cancelled Selective Color</source>
+        <translation>Anulowano kolor selektywny</translation>
     </message>
 </context>
 <context>

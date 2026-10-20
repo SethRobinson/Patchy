@@ -160,6 +160,8 @@ void MainWindow::populate_new_adjustment_layer_menu(QMenu* menu, const QString& 
                  [this] { new_black_white_adjustment_layer(); });
   add_adjustment(QT_TR_NOOP("Color L&ookup..."), QStringLiteral("ColorLookupAdjustment"), QStringLiteral("LUT"),
                  [this] { new_color_lookup_adjustment_layer(); });
+  add_adjustment(QT_TR_NOOP("&Selective Color..."), QStringLiteral("SelectiveColorAdjustment"), QStringLiteral("SC"),
+                 [this] { new_selective_color_adjustment_layer(); });
 }
 
 void MainWindow::new_levels_adjustment_layer() {
@@ -493,6 +495,31 @@ void MainWindow::new_gradient_map_adjustment_layer() {
   adjustment.kind = AdjustmentKind::GradientMap;
   adjustment.gradient_map = *settings;
   create_adjustment_layer(tr("Gradient Map"), adjustment);
+}
+
+void MainWindow::new_selective_color_adjustment_layer() {
+  std::optional<LayerId> preview_id;
+  const auto restore_active_layer = document().active_layer_id();
+  const auto preview_changed = [this, &preview_id, restore_active_layer](bool enabled,
+                                                                         const SelectiveColorSettings& selective) {
+    AdjustmentSettings settings;
+    settings.kind = AdjustmentKind::SelectiveColor;
+    settings.selective_color = selective;
+    update_adjustment_layer_preview(tr("Selective Color"), settings, enabled, preview_id, restore_active_layer);
+  };
+
+  auto preview_edit_lock = lock_preview_dialog_edits();
+  const auto settings = request_selective_color_settings(this, preview_changed);
+  remove_adjustment_layer_preview(preview_id, restore_active_layer);
+  preview_edit_lock.release();
+  if (!settings.has_value()) {
+    statusBar()->showMessage(tr("Cancelled Selective Color"));
+    return;
+  }
+  AdjustmentSettings adjustment;
+  adjustment.kind = AdjustmentKind::SelectiveColor;
+  adjustment.selective_color = *settings;
+  create_adjustment_layer(tr("Selective Color"), adjustment);
 }
 
 void MainWindow::new_color_lookup_adjustment_layer() {
@@ -904,6 +931,25 @@ void MainWindow::edit_active_adjustment_layer() {
       if (result.has_value()) {
         accepted_settings = *original_settings;
         accepted_settings->photo_filter = *result;
+      }
+      break;
+    }
+    case AdjustmentKind::SelectiveColor: {
+      const auto preview_changed = [apply_settings, restore_original_layer, original_settings](
+                                       bool enabled, const SelectiveColorSettings& selective) {
+        if (!enabled) {
+          restore_original_layer();
+          return;
+        }
+        auto settings = *original_settings;
+        settings.selective_color = selective;
+        apply_settings(settings);
+      };
+      const auto result =
+          request_selective_color_settings(this, preview_changed, original_settings->selective_color);
+      if (result.has_value()) {
+        accepted_settings = *original_settings;
+        accepted_settings->selective_color = *result;
       }
       break;
     }

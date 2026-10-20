@@ -43,6 +43,7 @@
 #include <QPointer>
 #include <QPolygonF>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QRect>
 #include <QSignalBlocker>
 #include <QSlider>
@@ -1685,6 +1686,83 @@ std::optional<PhotoFilterSettings> request_photo_filter_settings(
             show();
             flush_preview();
           }
+        });
+      });
+}
+
+std::optional<SelectiveColorSettings> request_selective_color_settings(
+    QWidget* parent, std::function<void(bool, const SelectiveColorSettings&)> preview_changed,
+    SelectiveColorSettings initial) {
+  struct State {
+    SelectiveColorSettings settings;
+    int range{0};  // SelectiveColorRange index the sliders show
+  };
+  auto state = std::make_shared<State>(State{clamp_selective_color(initial)});
+  const auto capture = [](State& value, const std::vector<QSpinBox*>& spins) {
+    auto& range = value.settings.ranges[static_cast<std::size_t>(value.range)];
+    range = SelectiveColorCorrection{spins[0]->value(), spins[1]->value(), spins[2]->value(), spins[3]->value()};
+  };
+  const auto build_settings = [state, capture](const std::vector<QSpinBox*>& spins) {
+    auto copy = *state;
+    capture(copy, spins);
+    return copy.settings;
+  };
+  const auto show_range = [](QDialog& dialog, State& value, const std::vector<QSpinBox*>& spins) {
+    const auto& range = value.settings.ranges[static_cast<std::size_t>(value.range)];
+    const std::array<int, 4> values{range.cyan, range.magenta, range.yellow, range.black};
+    const std::array<QString, 4> prefixes{QStringLiteral("selectiveColorCyan"), QStringLiteral("selectiveColorMagenta"),
+                                          QStringLiteral("selectiveColorYellow"), QStringLiteral("selectiveColorBlack")};
+    for (std::size_t index = 0; index < spins.size() && index < values.size(); ++index) {
+      if (auto* slider = dialog.findChild<QSlider*>(prefixes[index] + QStringLiteral("Slider"))) {
+        const QSignalBlocker block_slider(slider);
+        slider->setValue(values[index]);
+      }
+      const QSignalBlocker block_spin(spins[index]);
+      spins[index]->setValue(values[index]);
+    }
+  };
+  const auto& reds = state->settings.ranges[0];
+  const auto percent = QStringLiteral(" %");
+  return request_adjustment_settings_dialog<SelectiveColorSettings>(
+      parent, QStringLiteral("patchySelectiveColorDialog"), QObject::tr("Selective Color"),
+      QStringLiteral("selectiveColorPreviewCheck"),
+      {{QObject::tr("Cyan"), QStringLiteral("selectiveColorCyan"), -100, 100, reds.cyan, percent},
+       {QObject::tr("Magenta"), QStringLiteral("selectiveColorMagenta"), -100, 100, reds.magenta, percent},
+       {QObject::tr("Yellow"), QStringLiteral("selectiveColorYellow"), -100, 100, reds.yellow, percent},
+       {QObject::tr("Black", "ink"), QStringLiteral("selectiveColorBlack"), -100, 100, reds.black, percent}},
+      build_settings, std::move(preview_changed), {},
+      [state, capture, show_range](QDialog& dialog, QFormLayout* form, const std::vector<QSpinBox*>& spins,
+                                   const std::function<void()>& flush_preview) {
+        auto* colors = new QComboBox(&dialog);
+        colors->setObjectName(QStringLiteral("selectiveColorRangeCombo"));
+        colors->addItems({QObject::tr("Reds"), QObject::tr("Yellows"), QObject::tr("Greens"), QObject::tr("Cyans"),
+                          QObject::tr("Blues"), QObject::tr("Magentas"), QObject::tr("Whites"),
+                          QObject::tr("Neutrals"), QObject::tr("Blacks")});
+        form->insertRow(0, QObject::tr("Colors:", "selective color range"), colors);
+
+        auto* methods = new QWidget(&dialog);
+        auto* method_layout = new QHBoxLayout(methods);
+        method_layout->setContentsMargins(0, 0, 0, 0);
+        auto* relative = new QRadioButton(QObject::tr("Relative"), methods);
+        relative->setObjectName(QStringLiteral("selectiveColorRelativeRadio"));
+        auto* absolute = new QRadioButton(QObject::tr("Absolute"), methods);
+        absolute->setObjectName(QStringLiteral("selectiveColorAbsoluteRadio"));
+        (state->settings.absolute ? absolute : relative)->setChecked(true);
+        method_layout->addWidget(relative);
+        method_layout->addWidget(absolute);
+        method_layout->addStretch(1);
+        form->addRow(QObject::tr("Method:"), methods);
+
+        QObject::connect(colors, &QComboBox::currentIndexChanged, &dialog,
+                         [&dialog, state, spins, capture, show_range, flush_preview](int index) {
+                           capture(*state, spins);
+                           state->range = std::clamp(index, 0, 8);
+                           show_range(dialog, *state, spins);
+                           flush_preview();
+                         });
+        QObject::connect(absolute, &QRadioButton::toggled, &dialog, [state, flush_preview](bool checked) {
+          state->settings.absolute = checked;
+          flush_preview();
         });
       });
 }

@@ -11062,6 +11062,56 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>%1 is not a 3D LUT Patchy can read.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Cyan</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <comment>ink</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Whites</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Neutrals</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blacks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <comment>selective color range</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Relative</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Absolute</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Selective Color: absolute</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Selective Color: relative</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22678,6 +22728,18 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     </message>
     <message>
         <source>Cancelled Color Lookup</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Selective Color...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Selective Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancelled Selective Color</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

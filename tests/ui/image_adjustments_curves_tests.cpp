@@ -40,6 +40,7 @@
 #include <QMouseEvent>
 #include <QProgressDialog>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QSpinBox>
 #include <QTabBar>
 #include <QTabWidget>
@@ -3427,8 +3428,8 @@ void ui_adjustment_placeholders_name_their_kind_in_layers_panel() {
         static_cast<qint64>(resaved.size()));
   resave_file.close();
   const auto tooltips = placeholder_tooltips(window);
-  CHECK(tooltips.size() == 2);
-  for (const auto* kind : {"Vibrance", "Selective Color"}) {
+  CHECK(tooltips.size() == 1);
+  for (const auto* kind : {"Vibrance"}) {
     CHECK(std::any_of(tooltips.begin(), tooltips.end(), [kind](const QString& tooltip) {
       return tooltip.startsWith(QString::fromUtf8(kind) + QStringLiteral(" adjustment"));
     }));
@@ -3652,6 +3653,65 @@ void ui_color_lookup_dialog_loads_a_lut_from_a_unicode_path() {
     }
   }
   patchy::test::remove_test_scratch_tree(dir);
+}
+
+// The Selective Color dialog edits one color range at a time: the Colors combo picks it,
+// every range keeps its values, and the method and all ranges land on the new layer (#250).
+void ui_selective_color_dialog_edits_each_range() {
+  patchy::Document source(32, 24, patchy::PixelFormat::rgba8());
+  source.add_pixel_layer("Paint", solid_pixels(32, 24, patchy::PixelFormat::rgba8(), QColor(200, 120, 40)));
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(source), QStringLiteral("Selective"));
+  show_window(window);
+  check_adjustment_kind_in_both_menus(window, "SelectiveColorAdjustment", QObject::tr("&Selective Color..."));
+
+  bool dialog_checked = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchySelectiveColorDialog")));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* colors = dialog->findChild<QComboBox*>(QStringLiteral("selectiveColorRangeCombo"));
+    auto* cyan = dialog->findChild<QSpinBox*>(QStringLiteral("selectiveColorCyanSpin"));
+    auto* black = dialog->findChild<QSpinBox*>(QStringLiteral("selectiveColorBlackSpin"));
+    auto* absolute = dialog->findChild<QRadioButton*>(QStringLiteral("selectiveColorAbsoluteRadio"));
+    CHECK(colors != nullptr && cyan != nullptr && black != nullptr && absolute != nullptr);
+    if (colors == nullptr || cyan == nullptr || black == nullptr || absolute == nullptr) {
+      dialog->reject();
+      return;
+    }
+    CHECK(colors->count() == 9);
+    CHECK(!absolute->isChecked());
+    cyan->setValue(30);
+    colors->setCurrentIndex(7);  // Neutrals
+    CHECK(cyan->value() == 0);
+    black->setValue(20);
+    colors->setCurrentIndex(0);
+    CHECK(cyan->value() == 30);
+    absolute->setChecked(true);
+    save_widget_artifact("ui_selective_color_dialog", *dialog);
+    dialog_checked = true;
+    dialog->accept();
+  });
+  require_action(window, "layerNewSelectiveColorAdjustmentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(dialog_checked);
+
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  CHECK(document.active_layer_id().has_value());
+  const auto* layer = document.find_layer(*document.active_layer_id());
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return;
+  }
+  const auto settings = patchy::adjustment_settings_from_layer(*layer);
+  CHECK(settings.has_value() && settings->kind == patchy::AdjustmentKind::SelectiveColor);
+  if (settings.has_value()) {
+    CHECK(settings->selective_color.absolute);
+    CHECK((settings->selective_color.ranges[0] == patchy::SelectiveColorCorrection{30, 0, 0, 0}));
+    CHECK((settings->selective_color.ranges[7] == patchy::SelectiveColorCorrection{0, 0, 0, 20}));
+  }
 }
 
 // The Photo Filter dialog starts on Photoshop's warming color at 25 % with Preserve
@@ -4015,6 +4075,7 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
       {"ui_gradient_map_dialog_edits_gradient", ui_gradient_map_dialog_edits_gradient},
       {"ui_black_white_dialog_edits_weights_and_tint", ui_black_white_dialog_edits_weights_and_tint},
       {"ui_color_lookup_dialog_loads_a_lut_from_a_unicode_path", ui_color_lookup_dialog_loads_a_lut_from_a_unicode_path},
+      {"ui_selective_color_dialog_edits_each_range", ui_selective_color_dialog_edits_each_range},
       {"ui_adjustment_placeholders_name_their_kind_in_layers_panel",
        ui_adjustment_placeholders_name_their_kind_in_layers_panel},
       {"ui_af_colour_balance_matches_affinity_render_if_available",

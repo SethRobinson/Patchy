@@ -11044,6 +11044,56 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>%1 is not a 3D LUT Patchy can read.</source>
         <translation>%1 は Patchy が読み込める 3D LUT ではありません。</translation>
     </message>
+    <message>
+        <source>Cyan</source>
+        <translation>シアン</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>マゼンタ</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>イエロー</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <comment>ink</comment>
+        <translation>ブラック</translation>
+    </message>
+    <message>
+        <source>Whites</source>
+        <translation>ホワイト系</translation>
+    </message>
+    <message>
+        <source>Neutrals</source>
+        <translation>ニュートラル系</translation>
+    </message>
+    <message>
+        <source>Blacks</source>
+        <translation>ブラック系</translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <comment>selective color range</comment>
+        <translation>カラー:</translation>
+    </message>
+    <message>
+        <source>Relative</source>
+        <translation>相対値</translation>
+    </message>
+    <message>
+        <source>Absolute</source>
+        <translation>絶対値</translation>
+    </message>
+    <message>
+        <source>Selective Color: absolute</source>
+        <translation>特定色域の選択: 絶対値</translation>
+    </message>
+    <message>
+        <source>Selective Color: relative</source>
+        <translation>特定色域の選択: 相対値</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22686,6 +22736,18 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Color Lookup</source>
         <translation>カラールックアップをキャンセルしました</translation>
+    </message>
+    <message>
+        <source>&amp;Selective Color...</source>
+        <translation>特定色域の選択(&amp;S)...</translation>
+    </message>
+    <message>
+        <source>Selective Color</source>
+        <translation>特定色域の選択</translation>
+    </message>
+    <message>
+        <source>Cancelled Selective Color</source>
+        <translation>特定色域の選択をキャンセルしました</translation>
     </message>
 </context>
 <context>

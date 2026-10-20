@@ -4,7 +4,7 @@ Codec and calibration record for the Photoshop adjustment kinds added under #250
 
 ## Placeholders
 
-Photoshop adjustment kinds Patchy cannot apply yet (`vibA`, `selc`) import as empty pixel layers marked `patchy.adjustment.placeholder_kind` (`photoshop_placeholder_adjustment_kind`): the Layers panel draws the kind's symbol on a muted frame and a tooltip says it is kept but not applied, one import notice covers the file, and the native block is written back byte for byte. A kind leaves this list when it gets a real `AdjustmentKind`; `mixr`, `phfl`, `grdm`, `blwh` and `clrL` blocks their parsers do not read still import as placeholders.
+Photoshop adjustment kinds Patchy cannot apply yet (`vibA`) import as empty pixel layers marked `patchy.adjustment.placeholder_kind` (`photoshop_placeholder_adjustment_kind`): the Layers panel draws the kind's symbol on a muted frame and a tooltip says it is kept but not applied, one import notice covers the file, and the native block is written back byte for byte. A kind leaves this list when it gets a real `AdjustmentKind`; `mixr`, `phfl`, `grdm`, `blwh`, `clrL` and `selc` blocks their parsers do not read still import as placeholders.
 
 ## Channel Mixer
 
@@ -49,6 +49,14 @@ Photoshop adjustment kinds Patchy cannot apply yet (`vibA`, `selc`) import as em
 - Tables are registered by content id (`register_color_lookup_table`), like ink spaces; layer metadata keeps the id and the name. An unedited block is written back byte for byte; a Patchy-made lookup writes `lookupType`, the name, `Dthr` and the generated profile, then, for a table loaded from a file, `LUTFormat` (`LUTFormatCUBE` or `LUTFormat3DL`), `dataOrder` `rgbOrder`, `tableOrder` `bgrOrder`, the file bytes and its name, as Photoshop does. The binding rules are in [legal-constraints.md](legal-constraints.md).
 - Layer > New Adjustment Layer > Color Lookup (and editing one) has a Load LUT button for a file the user picks: `.cube` (`LUT_3D_SIZE` 2..256, comments and `TITLE` allowed, only the default 0..1 domain, red fastest; 1D LUTs are refused) and `.3dl` (a first row of input positions, then integer rows with blue fastest, scaled by the smallest of 10, 12, 14 or 16 bits that holds every value). `parse_color_lookup_file` reads both with a locale-free number parser. The `.3dl` row order and depth rule follow the common Autodesk convention and are not probed against Photoshop; `.look` is not read yet. Without a loaded table the layer is identity, as an empty Photoshop Color Lookup is.
 - The probes use Patchy's own looks only; the ag-psd sample embeds a look Photoshop bundles, which stays in `local-test-fixtures/` and never enters a committed test.
+
+## Selective Color
+
+`AdjustmentKind::SelectiveColor`, Photoshop's `selc` block: 84 bytes, u16 version 1, u16 method (0 Relative, 1 Absolute), then ten records of four int16 percentages (cyan, magenta, yellow, black, -100..100): an unused first record, then reds, yellows, greens, cyans, blues, magentas, whites, neutrals, blacks. An unedited block is written back byte for byte; an edit rewrites the method and the nine records; a fresh layer writes Photoshop's all-zero Relative block. Fitted on a Photoshop 2026 COM probe (#250): 20 settings (each range, each ink, both methods, a four-range mix). The method is the `Mthd` key; a `CrcM` key is ignored and leaves the layer Relative.
+
+- Weights, on 0..1 channels: reds, greens and blues take largest minus middle when that channel is the largest; cyans, magentas and yellows take middle minus smallest when red, green or blue is the smallest; whites take (smallest - 0.5) * 2 above mid gray, blacks (0.5 - largest) * 2 below it; neutrals take 1 - (|largest - 0.5| + |smallest - 0.5|) for every color but pure black and white.
+- Each channel then moves by `((-1 - ink) * black - ink) * m`, with the channel's own ink (cyan for red, magenta for green, yellow for blue), m = 1 in Absolute and 1 - value in Relative, clipped to the channel's room, times the range's weight; the ranges add up, and the result rounds half up. Every single-range probe matches within one level; the four-range mix within two in Absolute.
+- Ranges mix channels, so there is no LUT; 16/32-bit documents run the same math without the rounding. The model is implemented from Photoshop's own output; FFmpeg's LGPL filter was not used.
 
 ## Vibrance (placeholder; findings for a later pass)
 

@@ -11044,6 +11044,56 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>%1 is not a 3D LUT Patchy can read.</source>
         <translation>%1은(는) Patchy가 읽을 수 있는 3D LUT가 아닙니다.</translation>
     </message>
+    <message>
+        <source>Cyan</source>
+        <translation>녹청</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>마젠타</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>노랑</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <comment>ink</comment>
+        <translation>검정</translation>
+    </message>
+    <message>
+        <source>Whites</source>
+        <translation>흰색 계열</translation>
+    </message>
+    <message>
+        <source>Neutrals</source>
+        <translation>중간 계열</translation>
+    </message>
+    <message>
+        <source>Blacks</source>
+        <translation>검정 계열</translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <comment>selective color range</comment>
+        <translation>색상:</translation>
+    </message>
+    <message>
+        <source>Relative</source>
+        <translation>상대치</translation>
+    </message>
+    <message>
+        <source>Absolute</source>
+        <translation>절대치</translation>
+    </message>
+    <message>
+        <source>Selective Color: absolute</source>
+        <translation>선택 색상: 절대치</translation>
+    </message>
+    <message>
+        <source>Selective Color: relative</source>
+        <translation>선택 색상: 상대치</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22686,6 +22736,18 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Color Lookup</source>
         <translation>색상 검색을 취소했습니다</translation>
+    </message>
+    <message>
+        <source>&amp;Selective Color...</source>
+        <translation>선택 색상(&amp;S)...</translation>
+    </message>
+    <message>
+        <source>Selective Color</source>
+        <translation>선택 색상</translation>
+    </message>
+    <message>
+        <source>Cancelled Selective Color</source>
+        <translation>선택 색상을 취소했습니다</translation>
     </message>
 </context>
 <context>

@@ -1467,6 +1467,82 @@ std::shared_ptr<const ColorLookupTable> find_color_lookup_table(std::string_view
   return found != color_lookup_registry().end() ? found->second : nullptr;
 }
 
+SelectiveColorAdjustment clamp_selective_color(SelectiveColorAdjustment settings) noexcept {
+  for (auto& range : settings.ranges) {
+    for (int* value : {&range.cyan, &range.magenta, &range.yellow, &range.black}) {
+      *value = std::clamp(*value, -100, 100);
+    }
+  }
+  return settings;
+}
+
+bool SelectiveColorAdjustment::has_effect() const noexcept {
+  const SelectiveColorCorrection none{};
+  return std::any_of(ranges.begin(), ranges.end(), [&none](const auto& range) { return !(range == none); });
+}
+
+std::array<double, 3> selective_color_transfer(const SelectiveColorAdjustment& settings, double red, double green,
+                                               double blue) {
+  // Each range weighs the color by how strongly it belongs there: the largest channel's
+  // primary (reds, greens, blues) by largest minus middle, the secondary the two largest
+  // make (yellows, cyans, magentas) by middle minus smallest, whites and blacks by how far
+  // the smallest (largest) channel sits above (below) mid gray, and neutrals by how close
+  // both extremes are to mid gray. Calibrated against Photoshop 2026 (#250).
+  const auto clamped = clamp_selective_color(settings);
+  const std::array<double, 3> in{std::clamp(red, 0.0, 255.0) / 255.0, std::clamp(green, 0.0, 255.0) / 255.0,
+                                 std::clamp(blue, 0.0, 255.0) / 255.0};
+  const double high = std::max({in[0], in[1], in[2]});
+  const double low = std::min({in[0], in[1], in[2]});
+  const double middle = in[0] + in[1] + in[2] - high - low;
+  std::array<double, 9> weight{};
+  const auto range = [](SelectiveColorRange which) { return static_cast<std::size_t>(which); };
+  if (in[0] == high) {
+    weight[range(SelectiveColorRange::Reds)] = high - middle;
+  }
+  if (in[1] == high) {
+    weight[range(SelectiveColorRange::Greens)] = high - middle;
+  }
+  if (in[2] == high) {
+    weight[range(SelectiveColorRange::Blues)] = high - middle;
+  }
+  if (in[0] == low) {
+    weight[range(SelectiveColorRange::Cyans)] = middle - low;
+  }
+  if (in[1] == low) {
+    weight[range(SelectiveColorRange::Magentas)] = middle - low;
+  }
+  if (in[2] == low) {
+    weight[range(SelectiveColorRange::Yellows)] = middle - low;
+  }
+  if (low > 0.5) {
+    weight[range(SelectiveColorRange::Whites)] = (low - 0.5) * 2.0;
+  }
+  if (high < 0.5) {
+    weight[range(SelectiveColorRange::Blacks)] = (0.5 - high) * 2.0;
+  }
+  if (!(high == 0.0 && low == 0.0) && !(high == 1.0 && low == 1.0)) {
+    weight[range(SelectiveColorRange::Neutrals)] = 1.0 - (std::abs(high - 0.5) + std::abs(low - 0.5));
+  }
+  std::array<double, 3> out = in;
+  for (std::size_t index = 0; index < clamped.ranges.size(); ++index) {
+    if (weight[index] == 0.0) {
+      continue;
+    }
+    const auto& correction = clamped.ranges[index];
+    const double black = correction.black / 100.0;
+    const std::array<int, 3> inks{correction.cyan, correction.magenta, correction.yellow};
+    for (std::size_t c = 0; c < 3U; ++c) {
+      // An ink takes its channel away; black takes all three. Relative scales by the ink
+      // the channel already carries (1 - value).
+      const double ink = inks[c] / 100.0;
+      const double scale = clamped.absolute ? 1.0 : 1.0 - in[c];
+      const double shift = std::clamp(((-1.0 - ink) * black - ink) * scale, -in[c], 1.0 - in[c]);
+      out[c] += shift * weight[index];
+    }
+  }
+  return {out[0] * 255.0, out[1] * 255.0, out[2] * 255.0};
+}
+
 BlackWhiteAdjustment clamp_black_white(BlackWhiteAdjustment settings) noexcept {
   for (int* weight : {&settings.reds, &settings.yellows, &settings.greens, &settings.cyans, &settings.blues,
                       &settings.magentas}) {
@@ -2345,6 +2421,8 @@ std::string adjustment_kind_key(AdjustmentKind kind) {
       return "black_white";
     case AdjustmentKind::ColorLookup:
       return "color_lookup";
+    case AdjustmentKind::SelectiveColor:
+      return "selective_color";
   }
   return "levels";
 }
@@ -2379,6 +2457,8 @@ std::string adjustment_display_name(AdjustmentKind kind) {
       return "Black & White";
     case AdjustmentKind::ColorLookup:
       return "Color Lookup";
+    case AdjustmentKind::SelectiveColor:
+      return "Selective Color";
   }
   return "Adjustment";
 }
@@ -2425,6 +2505,9 @@ std::optional<AdjustmentKind> adjustment_kind_from_key(std::string_view key) {
   }
   if (key == "color_lookup") {
     return AdjustmentKind::ColorLookup;
+  }
+  if (key == "selective_color") {
+    return AdjustmentKind::SelectiveColor;
   }
   return std::nullopt;
 }
@@ -2548,6 +2631,37 @@ std::optional<AdjustmentSettings> adjustment_settings_from_layer(const Layer& la
     bw.blues = (*weights)[4];
     bw.magentas = (*weights)[5];
     bw = clamp_black_white(bw);
+  }
+  {
+    // "relative|c,m,y,k;..." with nine corrections; anything malformed keeps the defaults.
+    const auto encoded = metadata_string_or(layer, kLayerMetadataAdjustmentSelectiveColor, {});
+    const auto bar = encoded.find('|');
+    if (bar != std::string_view::npos) {
+      SelectiveColorAdjustment parsed;
+      parsed.absolute = encoded.substr(0, bar) == "absolute";
+      // Nine "c,m,y,k" groups; read as 36 comma-separated numbers.
+      std::string flat(encoded.substr(bar + 1U));
+      std::replace(flat.begin(), flat.end(), ';', ',');
+      std::vector<int> numbers;
+      bool ok = true;
+      std::string_view rest(flat);
+      while (!rest.empty() && ok) {
+        const auto comma = rest.find(',');
+        const auto value = parse_int(rest.substr(0, comma));
+        ok = value.has_value();
+        if (ok) {
+          numbers.push_back(*value);
+        }
+        rest = comma == std::string_view::npos ? std::string_view{} : rest.substr(comma + 1U);
+      }
+      if (ok && numbers.size() == 36U) {
+        for (std::size_t index = 0; index < 9U; ++index) {
+          parsed.ranges[index] = SelectiveColorCorrection{numbers[index * 4U], numbers[index * 4U + 1U],
+                                                          numbers[index * 4U + 2U], numbers[index * 4U + 3U]};
+        }
+        settings.selective_color = clamp_selective_color(parsed);
+      }
+    }
   }
   settings.color_lookup.table =
       find_color_lookup_table(metadata_string_or(layer, kLayerMetadataAdjustmentColorLookupTable, {}));
@@ -2705,6 +2819,16 @@ void configure_adjustment_layer(Layer& layer, const AdjustmentSettings& settings
     set_metadata_string(layer, kLayerMetadataAdjustmentColorLookupTable,
                         settings.color_lookup.table != nullptr ? settings.color_lookup.table->id : std::string());
     set_metadata_string(layer, kLayerMetadataAdjustmentColorLookupName, settings.color_lookup.name);
+    {
+      const auto selective = clamp_selective_color(settings.selective_color);
+      std::string encoded = selective.absolute ? "absolute|" : "relative|";
+      for (std::size_t index = 0; index < selective.ranges.size(); ++index) {
+        const auto& range = selective.ranges[index];
+        encoded += (index == 0 ? "" : ";") + std::to_string(range.cyan) + ',' + std::to_string(range.magenta) + ',' +
+                   std::to_string(range.yellow) + ',' + std::to_string(range.black);
+      }
+      set_metadata_string(layer, kLayerMetadataAdjustmentSelectiveColor, encoded);
+    }
     set_metadata_string(layer, kLayerMetadataAdjustmentBlackWhiteTintColor,
                         std::to_string(bw.tint_color.red) + ';' + std::to_string(bw.tint_color.green) + ';' +
                             std::to_string(bw.tint_color.blue));
@@ -2820,6 +2944,7 @@ bool adjustment_runs_in_ink_space(const AdjustmentSettings& settings) noexcept {
     case AdjustmentKind::GradientMap:
     case AdjustmentKind::BlackWhite:
     case AdjustmentKind::ColorLookup:
+    case AdjustmentKind::SelectiveColor:
       return false;
   }
   return false;
@@ -2899,6 +3024,13 @@ RgbColor apply_adjustment_on_rgb(RgbColor color, const AdjustmentSettings& setti
       };
       return RgbColor{byte(out[0]), byte(out[1]), byte(out[2])};
     }
+    case AdjustmentKind::SelectiveColor: {
+      const auto out = selective_color_transfer(settings.selective_color, color.red, color.green, color.blue);
+      const auto byte = [](double value) {
+        return static_cast<std::uint8_t>(std::clamp(std::floor(value + 0.5), 0.0, 255.0));
+      };
+      return RgbColor{byte(out[0]), byte(out[1]), byte(out[2])};
+    }
     case AdjustmentKind::ColorLookup: {
       if (settings.color_lookup.table == nullptr) {
         return color;
@@ -2949,7 +3081,7 @@ std::optional<AdjustmentLut> build_adjustment_lut(const AdjustmentSettings& sett
   if (settings.kind == AdjustmentKind::HueSaturation || settings.kind == AdjustmentKind::Threshold ||
       settings.kind == AdjustmentKind::ChannelMixer || settings.kind == AdjustmentKind::PhotoFilter ||
       settings.kind == AdjustmentKind::GradientMap || settings.kind == AdjustmentKind::BlackWhite ||
-      settings.kind == AdjustmentKind::ColorLookup) {
+      settings.kind == AdjustmentKind::ColorLookup || settings.kind == AdjustmentKind::SelectiveColor) {
     return std::nullopt;
   }
   if (settings.kind == AdjustmentKind::Curves) {
@@ -3015,6 +3147,8 @@ bool adjustment_has_effect(const AdjustmentSettings& settings) {
       return true;  // every setting turns color into gray
     case AdjustmentKind::ColorLookup:
       return settings.color_lookup.table != nullptr;
+    case AdjustmentKind::SelectiveColor:
+      return settings.selective_color.has_effect();
   }
   return false;
 }

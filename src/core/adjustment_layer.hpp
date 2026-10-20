@@ -132,6 +132,8 @@ inline constexpr const char* kLayerMetadataAdjustmentBlackWhiteTintColor = "patc
 // Color Lookup: the registered table's id (empty means identity) and the look's name.
 inline constexpr const char* kLayerMetadataAdjustmentColorLookupTable = "patchy.adjustment.color_lookup.table";
 inline constexpr const char* kLayerMetadataAdjustmentColorLookupName = "patchy.adjustment.color_lookup.name";
+// Selective Color: "relative|absolute" then nine "c,m,y,k" corrections separated by ';'.
+inline constexpr const char* kLayerMetadataAdjustmentSelectiveColor = "patchy.adjustment.selective_color";
 inline constexpr const char* kLayerMetadataAdjustmentThresholdLevel = "patchy.adjustment.threshold.level";
 inline constexpr const char* kLayerMetadataAdjustmentExposureValue = "patchy.adjustment.exposure.value";
 inline constexpr const char* kLayerMetadataAdjustmentExposureOffset = "patchy.adjustment.exposure.offset";
@@ -159,7 +161,8 @@ enum class AdjustmentKind {
   PhotoFilter,
   GradientMap,
   BlackWhite,
-  ColorLookup
+  ColorLookup,
+  SelectiveColor
 };
 
 enum class LevelsChannel {
@@ -469,6 +472,29 @@ struct ColorLookupAdjustment {
   }
 };
 
+// Photoshop's Selective Color ('selc'): a cyan, magenta, yellow and black correction
+// (-100..100 %) for each of nine color ranges, applied Relative (scaled by how much of the
+// ink the color already has) or Absolute (docs/adjustment-kinds.md, "Selective Color").
+enum class SelectiveColorRange { Reds, Yellows, Greens, Cyans, Blues, Magentas, Whites, Neutrals, Blacks };
+struct SelectiveColorCorrection {
+  int cyan{0};
+  int magenta{0};
+  int yellow{0};
+  int black{0};
+  friend bool operator==(const SelectiveColorCorrection&, const SelectiveColorCorrection&) = default;
+};
+struct SelectiveColorAdjustment {
+  bool absolute{false};
+  // In SelectiveColorRange order.
+  std::array<SelectiveColorCorrection, 9> ranges{};
+  [[nodiscard]] bool has_effect() const noexcept;
+  friend bool operator==(const SelectiveColorAdjustment&, const SelectiveColorAdjustment&) = default;
+};
+[[nodiscard]] SelectiveColorAdjustment clamp_selective_color(SelectiveColorAdjustment settings) noexcept;
+// One color on the 0..255 scale, unrounded.
+[[nodiscard]] std::array<double, 3> selective_color_transfer(const SelectiveColorAdjustment& settings, double red,
+                                                             double green, double blue);
+
 // Both Photoshop algorithms are modeled. Modern mode (Photoshop's default,
 // use_legacy false) takes brightness -150..150 and contrast -50..100; legacy
 // mode takes -100..100 for both. Old Patchy documents and 'brit'-only PSDs
@@ -500,6 +526,7 @@ struct AdjustmentSettings {
   GradientMapAdjustment gradient_map{};
   BlackWhiteAdjustment black_white{};
   ColorLookupAdjustment color_lookup{};
+  SelectiveColorAdjustment selective_color{};
   // Set for an adjustment layer that came from a CMYK document whose profile could be
   // read: the channel-wise kinds (Levels, Curves, Invert, Posterize, Brightness/Contrast,
   // Exposure) then run on the four inks instead of on RGB. See core/ink_space.hpp.

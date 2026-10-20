@@ -11078,6 +11078,56 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>%1 is not a 3D LUT Patchy can read.</source>
         <translation>%1 non è una LUT 3D che Patchy può leggere.</translation>
     </message>
+    <message>
+        <source>Cyan</source>
+        <translation>Ciano</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>Magenta</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>Giallo</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <comment>ink</comment>
+        <translation>Nero</translation>
+    </message>
+    <message>
+        <source>Whites</source>
+        <translation>Bianchi</translation>
+    </message>
+    <message>
+        <source>Neutrals</source>
+        <translation>Neutri</translation>
+    </message>
+    <message>
+        <source>Blacks</source>
+        <translation>Neri</translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <comment>selective color range</comment>
+        <translation>Colori:</translation>
+    </message>
+    <message>
+        <source>Relative</source>
+        <translation>Relativo</translation>
+    </message>
+    <message>
+        <source>Absolute</source>
+        <translation>Assoluto</translation>
+    </message>
+    <message>
+        <source>Selective Color: absolute</source>
+        <translation>Colore selettivo: assoluto</translation>
+    </message>
+    <message>
+        <source>Selective Color: relative</source>
+        <translation>Colore selettivo: relativo</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22756,6 +22806,18 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
     <message>
         <source>Cancelled Color Lookup</source>
         <translation>Consultazione colore annullata</translation>
+    </message>
+    <message>
+        <source>&amp;Selective Color...</source>
+        <translation>Colo&amp;re selettivo...</translation>
+    </message>
+    <message>
+        <source>Selective Color</source>
+        <translation>Colore selettivo</translation>
+    </message>
+    <message>
+        <source>Cancelled Selective Color</source>
+        <translation>Colore selettivo annullato</translation>
     </message>
 </context>
 <context>
