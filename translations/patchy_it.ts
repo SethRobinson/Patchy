@@ -11385,6 +11385,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Diffuse</source>
         <translation>Diffusione</translation>
     </message>
+    <message>
+        <source>Auto-nesting into and out of artboards prevented</source>
+        <translation>Annidamento automatico dentro e fuori dalle tavole da disegno impedito</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23115,6 +23119,18 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
     <message>
         <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
         <translation>Selezione tracciato: fai clic su una forma per selezionarla, trascina per spostarla, %ALT%+trascina per duplicarla. %CTRL%+T trasforma il tracciato, Delete rimuove la forma selezionata.</translation>
+    </message>
+    <message>
+        <source>Prevent Auto-Nesting</source>
+        <translation>Impedisci annidamento automatico</translation>
+    </message>
+    <message>
+        <source>Auto-nesting prevented</source>
+        <translation>Annidamento automatico impedito</translation>
+    </message>
+    <message>
+        <source>Auto-nesting allowed</source>
+        <translation>Annidamento automatico consentito</translation>
     </message>
 </context>
 <context>

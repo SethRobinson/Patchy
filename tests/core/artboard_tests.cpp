@@ -1,6 +1,7 @@
 // Artboards (docs/artboards.md): the model, the layer-tree and geometry rules, the
 // compositor against Photoshop's own composites, and the PSD 'artb'/'artd' records.
 #include "core/artboard.hpp"
+#include "core/layer_metadata.hpp"
 #include "core/layer_tree.hpp"
 #include "core/pixel_tools.hpp"
 #include "core/vector_shape.hpp"
@@ -20,6 +21,7 @@
 #include <iterator>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -27,6 +29,7 @@ namespace {
 using patchy::ArtboardBackground;
 using patchy::Document;
 using patchy::Layer;
+using patchy::LayerId;
 using patchy::LayerKind;
 using patchy::PixelBuffer;
 using patchy::PixelFormat;
@@ -624,6 +627,63 @@ void artboard_canvas_limits_background_and_masked_conversion() {
 // flatten_document_rgba8_rect (the editable PDF writer's per-chunk and banded composite)
 // equals the same rect cut from the full flatten, across artboard clips, a blended and
 // faded artboard, spill and a loose layer.
+// Prevent Auto-Nesting (GitHub issue 246): a locked layer never changes artboard on a
+// move, and nothing nests into or out of a locked artboard.
+void artboard_nest_moves_honor_prevent_auto_nesting() {
+  Document document(800, 400, PixelFormat::rgba8());
+  const auto loose = document.add_layer(pixel_layer(document, "Loose", Rect{20, 300, 40, 40}, {0, 0, 255, 255})).id();
+  auto first = patchy::make_artboard_group(document.allocate_layer_id(), "A1", Rect{0, 0, 300, 250});
+  auto inside_layer = pixel_layer(document, "Inside", Rect{50, 50, 40, 40}, {255, 0, 0, 255});
+  const auto inside = inside_layer.id();
+  first.add_child(std::move(inside_layer));
+  const auto board_a = document.add_layer(std::move(first)).id();
+  const auto board_b =
+      document.add_layer(patchy::make_artboard_group(document.allocate_layer_id(), "A2", Rect{450, 0, 300, 250})).id();
+  using Move = patchy::ArtboardNestMove;
+  const auto moves = [&document](LayerId id, std::int32_t dx, std::int32_t dy) {
+    return patchy::artboard_nest_moves(document, {id}, dx, dy);
+  };
+  const auto lock = [&document](LayerId id, bool locked) {
+    auto* layer = document.find_layer(id);
+    CHECK(layer != nullptr);
+    patchy::set_layer_prevents_auto_nesting(*layer, locked);
+    CHECK(patchy::layer_prevents_auto_nesting(*layer) == locked);
+    // Not an editing lock.
+    CHECK(!patchy::layer_locks_all(*layer));
+    CHECK(!patchy::layer_effectively_locks_position(document.layers(), id));
+  };
+
+  // Unlocked: into A1, from A1 into A2, and out to the top level.
+  CHECK(moves(loose, 0, -250) == (std::vector<Move>{{loose, board_a}}));
+  CHECK(moves(inside, 450, 0) == (std::vector<Move>{{inside, board_b}}));
+  CHECK(moves(inside, 0, 300) == (std::vector<Move>{{inside, std::nullopt}}));
+
+  // A locked layer stays where it is.
+  lock(loose, true);
+  lock(inside, true);
+  CHECK(moves(loose, 0, -250).empty());
+  CHECK(moves(inside, 450, 0).empty());
+  CHECK(moves(inside, 0, 300).empty());
+  lock(loose, false);
+  lock(inside, false);
+
+  // A locked artboard takes nothing in and lets nothing out.
+  lock(board_a, true);
+  CHECK(moves(loose, 0, -250).empty());
+  CHECK(moves(inside, 450, 0).empty());
+  CHECK(moves(inside, 0, 300).empty());
+  lock(board_a, false);
+  lock(board_b, true);
+  CHECK(moves(inside, 450, 0).empty());
+  CHECK(moves(inside, 0, 300) == (std::vector<Move>{{inside, std::nullopt}}));
+  CHECK(moves(loose, 0, -250) == (std::vector<Move>{{loose, board_a}}));
+
+  // The lock does not pass from an artboard to its children.
+  CHECK(!patchy::layer_prevents_auto_nesting(*document.find_layer(inside)));
+  CHECK((patchy::layer_effective_lock_flags(document.layers(), board_b) & patchy::kLayerLockArtboardAutonest) ==
+        patchy::kLayerLockNone);
+}
+
 void artboard_rect_flatten_matches_the_full_flatten() {
   const auto document = clip_scene();
   const auto full = patchy::flatten_document_rgba8(document);
@@ -647,6 +707,7 @@ void artboard_rect_flatten_matches_the_full_flatten() {
 std::vector<patchy::test::TestCase> artboard_tests() {
   return {
       {"artboard_rect_flatten_matches_the_full_flatten", artboard_rect_flatten_matches_the_full_flatten},
+      {"artboard_nest_moves_honor_prevent_auto_nesting", artboard_nest_moves_honor_prevent_auto_nesting},
       {"artboard_model_names_order_and_lookup", artboard_model_names_order_and_lookup},
       {"artboard_canvas_limits_background_and_masked_conversion",
        artboard_canvas_limits_background_and_masked_conversion},

@@ -4,6 +4,7 @@
 // source and the script API.
 #include "core/artboard.hpp"
 #include "core/document.hpp"
+#include "core/layer_metadata.hpp"
 #include "core/layer_render_utils.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/canvas_types.hpp"
@@ -29,6 +30,10 @@
 #include <QDir>
 #include <QProgressDialog>
 #include <QLabel>
+#include <QListWidget>
+#include <QMenu>
+#include <QMenuBar>
+#include <QToolButton>
 #include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
@@ -276,6 +281,98 @@ void ui_artboard_move_tool_moves_artboards_and_auto_nests() {
   canvas_drag(*canvas, {80, 80}, {300, 60});
   CHECK(patchy::artboard_owning_layer(document(), loose) == nullptr);
   CHECK(top_level(document(), "Loose") != nullptr);
+}
+
+// Prevent Auto-Nesting (GitHub issue 246): with Auto-Nest Layers on, a locked layer dragged
+// over an artboard moves but stays where it is in the tree, and a locked artboard takes
+// nothing in. The registered Prevent Auto-Nesting action (no menu-bar entry; the layer
+// context menu's Lock submenu shows it) sets it and shows the selection's state; the row
+// shows its badge.
+void ui_artboard_prevent_auto_nesting_keeps_layer_in_place() {
+  SettingsValueRestorer nest_restorer(QStringLiteral("tools/artboardAutoNest"));
+  patchy::ui::app_settings().setValue(QStringLiteral("tools/artboardAutoNest"), true);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto seed = board_document(400, 200);
+  // Loose above the artboard in the stack, so it stays visible over it after the drag.
+  const auto board = add_board(seed, "Board", patchy::Rect{0, 0, 150, 150}, patchy::ArtboardBackground::White,
+                               QColor(200, 0, 0));
+  const auto loose = add_solid_layer(seed, "Loose", QRect(250, 20, 40, 40), QColor(0, 160, 0));
+  window.add_document_session(std::move(seed), QStringLiteral("Prevent Auto-Nesting"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+  require_hotkey_action(window, QStringLiteral("tools.move"))->trigger();
+  const auto& document = [&window]() -> const patchy::Document& { return MainWindowTestAccess::document(window); };
+  const auto prevents = [&document](patchy::LayerId id) {
+    const auto* layer = document().find_layer(id);
+    return layer != nullptr && patchy::layer_prevents_auto_nesting(*layer);
+  };
+  auto* action = require_action(window, "layerPreventAutoNestingAction");
+  CHECK(action->isCheckable() && action->menuRole() == QAction::NoRole);
+  CHECK(require_hotkey_action(window, QStringLiteral("layer.prevent_auto_nesting")) == action);
+  // On the window for its hotkey, in no menu-bar menu.
+  CHECK(window.actions().contains(action));
+  for (auto* menu : window.menuBar()->findChildren<QMenu*>()) {
+    CHECK(!menu->actions().contains(action));
+  }
+
+  MainWindowTestAccess::select_layers(window, {loose}, loose);
+  QApplication::processEvents();
+  CHECK(!action->isChecked());
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(prevents(loose) && action->isChecked());
+  // Not an editing lock: Lock All and the position lock stay off.
+  for (const char* name : {"layerLockAllButton", "layerLockPositionButton"}) {
+    auto* button = window.findChild<QToolButton*>(QLatin1String(name));
+    CHECK(button != nullptr && !button->isChecked());
+  }
+  MainWindowTestAccess::select_layers(window, {board}, board);
+  QApplication::processEvents();
+  CHECK(!action->isChecked());
+  MainWindowTestAccess::select_layers(window, {loose}, loose);
+  QApplication::processEvents();
+  CHECK(action->isChecked());
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* row = layer_list != nullptr ? layer_list->itemWidget(require_layer_item(*layer_list, QStringLiteral("Loose")))
+                                    : nullptr;
+  const auto badges = row != nullptr ? row->findChildren<QLabel*>(QStringLiteral("layerLockBadge")) : QList<QLabel*>{};
+  CHECK(badges.size() == 1);
+  CHECK(!badges.isEmpty() && badges.front()->toolTip().contains(QStringLiteral("Auto-nesting")));
+
+  // Captures: test-artifacts/issue_246_drag_before.png and issue_246_drag_after.png.
+  save_widget_artifact("issue_246_drag_before", window);
+  canvas_drag(*canvas, {270, 40}, {80, 80});
+  QApplication::processEvents();
+  save_widget_artifact("issue_246_drag_after", window);
+  CHECK(patchy::artboard_owning_layer(document(), loose) == nullptr);
+  // It moved over the artboard (Snap may shift it a few pixels) but stayed at the top level.
+  const auto* moved = top_level(document(), "Loose");
+  CHECK(moved != nullptr && moved->bounds().x + 20 < 150 && moved->bounds().y + 20 < 150);
+
+  // Unlocked, but over a locked artboard: still nothing nests.
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(!prevents(loose) && !action->isChecked());
+  MainWindowTestAccess::select_layers(window, {board}, board);
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(prevents(board) && action->isChecked());
+  MainWindowTestAccess::select_layers(window, {loose}, loose);
+  canvas_drag(*canvas, {80, 80}, {90, 90});
+  CHECK(patchy::artboard_owning_layer(document(), loose) == nullptr);
+  // The artboard unlocked: the next drag nests as usual.
+  MainWindowTestAccess::select_layers(window, {board}, board);
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(!prevents(board));
+  MainWindowTestAccess::select_layers(window, {loose}, loose);
+  canvas_drag(*canvas, {90, 90}, {100, 100});
+  CHECK(patchy::artboard_owning_layer(document(), loose) != nullptr &&
+        patchy::artboard_owning_layer(document(), loose)->id() == board);
 }
 
 // The Layers panel marks artboard rows; the Properties panel shows the selected
@@ -1019,6 +1116,7 @@ std::vector<patchy::test::TestCase> artboard_ui_tests() {
       {"ui_artboard_tool_creates_resizes_moves_and_undoes", ui_artboard_tool_creates_resizes_moves_and_undoes},
       {"ui_artboard_layer_commands_and_fit_canvas", ui_artboard_layer_commands_and_fit_canvas},
       {"ui_artboard_move_tool_moves_artboards_and_auto_nests", ui_artboard_move_tool_moves_artboards_and_auto_nests},
+      {"ui_artboard_prevent_auto_nesting_keeps_layer_in_place", ui_artboard_prevent_auto_nesting_keeps_layer_in_place},
       {"ui_artboard_layers_panel_rows_and_properties_panel", ui_artboard_layers_panel_rows_and_properties_panel},
       {"ui_artboard_new_document_option", ui_artboard_new_document_option},
       {"ui_artboard_exports_to_files_and_print_pages", ui_artboard_exports_to_files_and_print_pages},

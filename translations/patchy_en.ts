@@ -11369,6 +11369,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Diffuse</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Auto-nesting into and out of artboards prevented</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23037,6 +23041,18 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     </message>
     <message>
         <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Prevent Auto-Nesting</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Auto-nesting prevented</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Auto-nesting allowed</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

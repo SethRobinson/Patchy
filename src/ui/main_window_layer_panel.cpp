@@ -335,6 +335,8 @@ QString layer_lock_flag_tooltip(LayerLockFlags flag, bool inherited) {
     text = QObject::tr("Image pixels locked");
   } else if (flag == kLayerLockPosition) {
     text = QObject::tr("Position locked");
+  } else if (flag == kLayerLockArtboardAutonest) {
+    text = QObject::tr("Auto-nesting into and out of artboards prevented");
   } else {
     text = QObject::tr("Layer locked");
   }
@@ -350,6 +352,9 @@ QString layer_lock_flag_icon_key(LayerLockFlags flag) {
   }
   if (flag == kLayerLockPosition) {
     return QStringLiteral("TR");
+  }
+  if (flag == kLayerLockArtboardAutonest) {
+    return QStringLiteral("tool-artboard");
   }
   return QStringLiteral("lock");
 }
@@ -1570,7 +1575,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                std::function<void(LayerId, std::size_t)> delete_smart_filter = {},
                                std::function<void(LayerId)> delete_smart_filter_stack = {},
                                bool vector_mask_target_active = false, QSize document_size = {},
-                               const std::function<std::optional<Rect>(const Layer&)>& content_crop = {}) {
+                               const std::function<std::optional<Rect>(const Layer&)>& content_crop = {},
+                               bool background_row = false) {
   // One crop per row: the content, mask, vector-mask, and Smart Filter mask
   // previews share it so the row keeps a single tile shape.
   const auto thumbnail_crop = content_crop ? content_crop(layer) : std::optional<Rect>{};
@@ -1878,8 +1884,14 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   auto* lock_badges = new QHBoxLayout();
   lock_badges->setContentsMargins(0, 0, 0, 0);
   lock_badges->setSpacing(2);
-  for (const auto flag : {kLayerLockTransparentPixels, kLayerLockImagePixels, kLayerLockPosition}) {
+  for (const auto flag : {kLayerLockTransparentPixels, kLayerLockImagePixels, kLayerLockPosition,
+                          kLayerLockArtboardAutonest}) {
     if ((effective_lock_flags & flag) == kLayerLockNone) {
+      continue;
+    }
+    // Photoshop stores Prevent Auto-Nesting on its Background (lspf 0xd) but shows that
+    // layer one lock icon; the Background's own lock badges stand for it here too.
+    if (flag == kLayerLockArtboardAutonest && background_row) {
       continue;
     }
     const bool inherited = (ancestor_lock_flags & flag) != kLayerLockNone &&
@@ -3546,6 +3558,7 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
     bool group_expanded{true};
     LayerLockFlags ancestor_lock_flags{kLayerLockNone};
     bool row_clipped{false};
+    bool background_row{false};
   };
   std::vector<PendingLayerRow> pending_rows;
   std::function<void(const std::vector<Layer>&, int, bool, LayerLockFlags)> append_layers =
@@ -3585,7 +3598,7 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
                            .arg(!ancestors_visible
                                     ? tr("\nHidden by parent folder")
                                     : QString())
-                           .arg(effective_lock_flags != kLayerLockNone ? tr("\nLocked") : QString())
+                           .arg((effective_lock_flags & kLayerLockAll) != kLayerLockNone ? tr("\nLocked") : QString())
                            .arg(layer_locks_transparent_pixels(*it) ? tr("\nTransparent pixels locked") : QString())
                            .arg(it->mask().has_value() ? tr("\nLayer mask") : QString())
                            .arg(folder_detail)
@@ -3602,11 +3615,16 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
         font.setBold(true);
         item->setFont(font);
       }
+      // A Background: the bottom top-level pixel layer named "Background" (the PSD reader's rule).
+      const auto background_row = depth == 0 && sibling_index == 0 && it->kind() == LayerKind::Pixel &&
+                                  QString::fromStdString(it->name()).compare(QStringLiteral("Background"),
+                                                                             Qt::CaseInsensitive) == 0;
       pending_rows.push_back(PendingLayerRow{item, &*it, depth, ancestors_visible, group_expanded,
-                                             ancestor_lock_flags, row_clipped});
+                                             ancestor_lock_flags, row_clipped, background_row});
       item_ms += phase_ms(item_started);
       if (is_group && group_expanded) {
-        append_layers(it->children(), depth + 1, effective_visible, effective_lock_flags);
+        // Folders pass on their editing locks, not Prevent Auto-Nesting.
+        append_layers(it->children(), depth + 1, effective_visible, effective_lock_flags & kLayerLockAll);
       }
     }
   };
@@ -3734,7 +3752,8 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
                                       QSize(document().width(), document().height()),
                                       [this](const Layer& row_layer) {
                                         return layer_thumbnail_crop(row_layer);
-                                      });
+                                      },
+                                      pending.background_row);
     widget_ms += phase_ms(widget_started);
     if (session_layer == layer.id() && layer_is_text(layer)) {
       // The content tile above came without the badge; the tooltip has to agree.
@@ -3959,6 +3978,9 @@ void MainWindow::refresh_layer_controls() {
     set_layer_lock_control_state(lock_image_pixels_button_, false, false, tr("Lock image pixels"));
     set_layer_lock_control_state(lock_position_button_, false, false, tr("Lock position"));
     set_layer_lock_control_state(lock_all_button_, false, false, tr("Lock all"));
+    if (layer_prevent_auto_nesting_action_ != nullptr) {
+      layer_prevent_auto_nesting_action_->setChecked(false);
+    }
     if (layer_blending_options_action_ != nullptr) {
       layer_blending_options_action_->setEnabled(false);
     }
@@ -4069,7 +4091,7 @@ void MainWindow::refresh_layer_controls() {
   for (const auto id : ids_for_lock_controls) {
     const auto* selected_layer = document().find_layer(id);
     const auto flags = selected_layer != nullptr ? layer_lock_flags(*selected_layer) : kLayerLockNone;
-    any_lock = any_lock || flags != kLayerLockNone;
+    any_lock = any_lock || (flags & kLayerLockAll) != kLayerLockNone;
     all_lock = all_lock && (flags & kLayerLockAll) == kLayerLockAll;
   }
   set_layer_lock_control_state(lock_transparent_pixels_button_, transparent_all, transparent_mixed,
@@ -4077,6 +4099,9 @@ void MainWindow::refresh_layer_controls() {
   set_layer_lock_control_state(lock_image_pixels_button_, image_all, image_mixed, tr("Lock image pixels"));
   set_layer_lock_control_state(lock_position_button_, position_all, position_mixed, tr("Lock position"));
   set_layer_lock_control_state(lock_all_button_, all_lock, any_lock && !all_lock, tr("Lock all"));
+  if (layer_prevent_auto_nesting_action_ != nullptr) {
+    layer_prevent_auto_nesting_action_->setChecked(lock_state_for_flag(kLayerLockArtboardAutonest).first);
+  }
   const auto edit_allowed = !preview_dialog_edit_locked();
   if (layer_blending_options_action_ != nullptr) {
     layer_blending_options_action_->setEnabled(edit_allowed);

@@ -11385,6 +11385,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Diffuse</source>
         <translation>Diffusion</translation>
     </message>
+    <message>
+        <source>Auto-nesting into and out of artboards prevented</source>
+        <translation>Automatisches Einordnen in und aus Zeichenflächen verhindert</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23115,6 +23119,18 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
     <message>
         <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
         <translation>Pfadauswahl: Klicken Sie auf eine Form, um sie auszuwählen, ziehen Sie, um sie zu verschieben, %ALT%+Ziehen dupliziert sie. %CTRL%+T transformiert den Pfad, Delete entfernt die ausgewählte Form.</translation>
+    </message>
+    <message>
+        <source>Prevent Auto-Nesting</source>
+        <translation>Automatisches Einordnen verhindern</translation>
+    </message>
+    <message>
+        <source>Auto-nesting prevented</source>
+        <translation>Automatisches Einordnen verhindert</translation>
+    </message>
+    <message>
+        <source>Auto-nesting allowed</source>
+        <translation>Automatisches Einordnen erlaubt</translation>
     </message>
 </context>
 <context>
