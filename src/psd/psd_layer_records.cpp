@@ -138,7 +138,8 @@ bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock&
   // Runtime/legacy compound markers travel in plug-in resource 4211. Unknown
   // per-layer keys make Photoshop warn that editable data will be discarded.
   if (block.key == "pvcl" || block.key == "pvfi" ||
-      block.key == "luni" || block.key == "plFX" || block.key == "lspf" || block.key == "lmgm" ||
+      block.key == "luni" || block.key == "plFX" || block.key == "lspf" || block.key == "lclr" ||
+      block.key == "lmgm" ||
       block.key == "vmgm" || block.key == "infx" || block.key == "clbl" ||
       (block.key == "plAD" && encoded.kind == EncodedLayerKind::Adjustment)) {
     return true;
@@ -766,6 +767,10 @@ LayerRecord read_layer_record(BigEndianReader& reader, bool large_document,
         BigEndianReader protection_reader(record.additional_blocks.back().payload);
         record.protection_flags = protection_reader.read_u32();
       }
+      if (key == "lclr" && record.additional_blocks.back().payload.size() >= 2U) {
+        BigEndianReader color_reader(record.additional_blocks.back().payload);
+        record.color_label = color_reader.read_u16();
+      }
       if (key == "lmgm" && !record.additional_blocks.back().payload.empty()) {
         // "Layer Mask Hides Effects" blending option (first byte is the bool).
         record.layer_mask_hides_effects = record.additional_blocks.back().payload[0] != 0;
@@ -1166,6 +1171,23 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
       BigEndianWriter protection;
       protection.write_u32(protection_flags);
       write_additional_layer_block(extra, {'l', 's', 'p', 'f'}, protection.bytes(), large_document);
+    }
+
+    // The Layers panel color label (GitHub issue 244), after lspf as Photoshop
+    // orders it: a u16 index and six zero bytes. An imported block whose index
+    // still matches goes back verbatim; no block means no color.
+    const auto color_label = encoded.layer->color_label();
+    if (const auto* imported_color = find_layer_block(*encoded.layer, "lclr");
+        imported_color != nullptr && imported_color->payload.size() >= 2U &&
+        static_cast<LayerColorLabel>((imported_color->payload[0] << 8U) | imported_color->payload[1]) ==
+            color_label) {
+      write_additional_layer_block(extra, {'l', 'c', 'l', 'r'}, imported_color->payload, large_document);
+    } else if (color_label != kLayerColorNone) {
+      BigEndianWriter color;
+      color.write_u16(color_label);
+      color.write_u16(0);
+      color.write_u32(0);
+      write_additional_layer_block(extra, {'l', 'c', 'l', 'r'}, color.bytes(), large_document);
     }
 
     if (encoded.layer->layer_style().layer_mask_hides_effects) {

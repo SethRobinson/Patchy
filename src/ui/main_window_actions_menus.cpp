@@ -929,13 +929,21 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   merge_down_action->setObjectName(QStringLiteral("layerMergeDownAction"));
   auto* rename_layer_action = layer_menu->addAction(tr("&Rename Layer..."));
   rename_layer_action->setObjectName(QStringLiteral("layerRenameAction"));
+  // Layer color labels (GitHub issue 244), Photoshop's lclr indices in order.
+  layer_color_menu_ = layer_menu->addMenu(tr("Color"));
+  layer_color_menu_->setObjectName(QStringLiteral("layerColorMenu"));
+  bind_widget_text(layer_color_menu_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Color"));
+  layer_color_menu_->menuAction()->setMenuRole(QAction::NoRole);
+  populate_layer_color_actions(layer_color_menu_);
+  connect(layer_color_menu_, &QMenu::aboutToShow, this, [this] { refresh_layer_color_action_states(); });
   auto* delete_layer_action = layer_menu->addAction(tr("&Delete Layer"));
   // (No separator before the fill group: the Layer menu's 23-row bound paid
   // for the Shape submenu with it.)
   auto* fill_layer_action = layer_menu->addAction(tr("&Fill Layer / Selection"));
   auto* fill_background_action = layer_menu->addAction(tr("Fill With &Background Color"));
   auto* clear_layer_action = layer_menu->addAction(tr("&Clear Layer / Selection"));
-  layer_menu->addSeparator();
+  // (No separator before Arrange: the Layer menu's 23-row bound paid for the
+  // Color submenu with it.)
   auto* layer_arrange_menu = layer_menu->addMenu(tr("Arran&ge"));
   layer_arrange_menu->setObjectName(QStringLiteral("layerArrangeMenu"));
   auto* layer_up_action = layer_arrange_menu->addAction(tr("Move Layer &Up"));
@@ -1262,7 +1270,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   for (auto* action : {add_layer_action, add_folder_action, layer_new_menu->menuAction(),
                        new_adjustment_layer_menu->menuAction(), new_fill_layer_menu->menuAction(),
                        layer_mask_menu->menuAction(), vector_mask_menu->menuAction(),
-                       layer_arrange_menu->menuAction(), layer_rotate_flip_menu->menuAction(),
+                       layer_color_menu_->menuAction(), layer_arrange_menu->menuAction(), layer_rotate_flip_menu->menuAction(),
                        layer_via_copy_action, layer_via_cut_action, add_mask_action, layer_clipping_mask_action_,
                        duplicate_layer_action, merge_visible_action, merge_down_action, rename_layer_action,
                        delete_layer_action, fill_layer_action, fill_background_action, clear_layer_action,

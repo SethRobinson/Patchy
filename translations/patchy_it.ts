@@ -22456,6 +22456,26 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
         <source>Don&apos;t Ask Again</source>
         <translation>Non chiedere più</translation>
     </message>
+    <message>
+        <source>Color</source>
+        <translation>Colore</translation>
+    </message>
+    <message>
+        <source>Orange</source>
+        <translation>Arancione</translation>
+    </message>
+    <message>
+        <source>Violet</source>
+        <translation>Viola</translation>
+    </message>
+    <message>
+        <source>Gray</source>
+        <translation>Grigio</translation>
+    </message>
+    <message>
+        <source>Layer color</source>
+        <translation>Colore del livello</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -24196,6 +24216,10 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
     <message>
         <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
         <translation>Pannello sconosciuto &quot;%1&quot;. Pannelli: %2.</translation>
+    </message>
+    <message>
+        <source>Unknown layer color label: %1</source>
+        <translation>Colore del livello sconosciuto: %1</translation>
     </message>
 </context>
 <context>

@@ -507,6 +507,7 @@ preview. PNG export may reserve one extra palette entry for transparency.
 | --- | --- |
 | `layer.name` / `layer.opacity` / `layer.visible` / `layer.locked` | The layer-panel basics. Opacity is 0..100. |
 | `layer.blendMode` | Blend mode id string, e.g. `"multiply"` (full list in `patchy.d.ts`). |
+| `layer.colorLabel` | The Layers panel color label: `"none"`, `"red"`, `"orange"`, `"yellow"`, `"green"`, `"blue"`, `"violet"` or `"gray"`. PSD saves keep it as Photoshop's layer color. |
 | `layer.x` / `layer.y` / `layer.moveTo(x, y)` | Content offset in document pixels. Moving via `x`/`y` is cheap, so animate sprites this way. Fractions round like Photoshop (halves up); layers always sit on whole pixels. A move works like the Move tool: a text layer's anchor, a shape's path, a smart object's placement and a linked mask travel with the pixels (an unlinked mask stays put), so later edits and saved PSDs keep the new position. Moving a group moves every layer inside it; a group has no position of its own, so `group.moveTo(dx, dy)` offsets its contents. |
 | `layer.bounds` | The content bounding box. |
 | `layer.isGroup` / `layer.children` / `layer.isText` / `layer.text` | Group and text access. Setting `text` re-renders the layer; the new text keeps the first character's formatting. |

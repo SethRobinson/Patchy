@@ -248,6 +248,8 @@ struct LayerRecord {
   // kLayerMetadataTextBoxBaselineInset.
   std::optional<double> text_box_baseline_inset;
   std::uint32_t protection_flags{0};
+  // Photoshop's 'lclr' layer color label (the u16 index; GitHub issue 244).
+  LayerColorLabel color_label{kLayerColorNone};
   bool layer_mask_hides_effects{false};
   bool vector_mask_hides_effects{false};
   bool blend_interior_elements{false};

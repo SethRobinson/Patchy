@@ -22386,6 +22386,26 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <source>Don&apos;t Ask Again</source>
         <translation>다시 묻지 않음</translation>
     </message>
+    <message>
+        <source>Color</source>
+        <translation>색상</translation>
+    </message>
+    <message>
+        <source>Orange</source>
+        <translation>주황색</translation>
+    </message>
+    <message>
+        <source>Violet</source>
+        <translation>보라색</translation>
+    </message>
+    <message>
+        <source>Gray</source>
+        <translation>회색</translation>
+    </message>
+    <message>
+        <source>Layer color</source>
+        <translation>레이어 색상</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -24125,6 +24145,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
         <translation>알 수 없는 패널 &quot;%1&quot;입니다. 패널: %2.</translation>
+    </message>
+    <message>
+        <source>Unknown layer color label: %1</source>
+        <translation>알 수 없는 레이어 색상: %1</translation>
     </message>
 </context>
 <context>

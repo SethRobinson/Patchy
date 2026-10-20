@@ -43,3 +43,24 @@ The hover outline, the rectangle pre-selection outlines and the outline of layer
 GitHub issue 171: while a selection rectangle is dragged, the targets releasing it would select carry the hover outline, drawn beside it in `paintEvent`. `collect_move_selection_candidates` walks the tree once when the rectangle starts (visible, unlocked leaves with a Move rect, each tagged with its target and unioned into a per-target outline); each pointer move then runs `move_selection_matches` (rect intersection against the document-clipped box, deduplicated in stack order) and repaints only the outlines that appear or disappear. Nothing proportional to layer pixels runs per move or per repaint: Move rects come from the `pixel_revision`-keyed alpha-bounds cache ([performance.md](performance.md)). Release re-collects and matches with the same functions, so the outline and the result cannot disagree. Escape and every other cancel clear the outlines with the box; the panel selection changes only on release.
 
 Coverage: `ui_move_rectangle_outlines_layers_before_release`, `ui_move_auto_select_group_picks_outermost_group`, `ui_move_auto_select_target_persists_across_windows`, plus the distribute-button checks in `ui_layer_distribute_requires_three_units_and_spaces_evenly` and `ui_layer_arrange_menu_hosts_align_and_distribute`.
+
+## Move-tool layer menu
+
+A right-click on the canvas with Move active opens `canvasContextMenu` on
+release (the right button never pans; the Move-tool layer entries are the first
+section of the shared canvas context menu, see "Canvas right-click menu" in
+[tools.md](tools.md)). It lists the hit leaf layers from top to bottom, including occluded
+layers and children of collapsed or filtered folders. Folder paths distinguish
+nested names. Picking a row replaces the layer selection; **Select All Layers
+Here** appears for multiple hits and selects them with the topmost active. Works
+with Auto-Select off; locks do not block explicit selection.
+
+Hit testing reads the const tree once, using raster alpha and masks or the text
+rectangle. Hidden and zero-opacity trees, transparent pixels, and masked-out
+folder contents are excluded. Empty canvas space opens no menu. Selection uses the
+rectangle-selection panel callback (rows revealed, count updated, no pixel or history edits).
+
+Crossing Qt's drag threshold cancels the pending menu even when the pointer returns to
+its start. Rulers, tablet-button actions, Space/middle-button panning, and active
+transform sessions keep their handling. Tool/document changes and edit locks close the
+popup; focus loss cancels a pending click. The `ui_move_layer_menu` tests pin it.

@@ -103,26 +103,9 @@ Tests: `ui_adjustment_layer_inserts_above_selection_with_white_mask`,
 `ui_adjustment_layer_preview_uses_topmost_selection_and_cancels_cleanly`, and
 `ui_hue_saturation_creates_masked_adjustment_layer` (selection masks).
 
-## Move-tool layer menu
+## Color labels
 
-A right-click on the canvas with Move active opens `canvasContextMenu` on
-release (the right button never pans; the Move-tool layer entries are the first
-section of the shared canvas context menu, see "Canvas right-click menu" in
-[tools.md](tools.md)). It lists the hit leaf layers from top to bottom, including occluded
-layers and children of collapsed or filtered folders. Folder paths distinguish
-nested names. Picking a row replaces the layer selection; **Select All Layers
-Here** appears for multiple hits and selects them with the topmost active. Works
-with Auto-Select off; locks do not block explicit selection.
-
-Hit testing reads the const tree once, using raster alpha and masks or the text
-rectangle. Hidden and zero-opacity trees, transparent pixels, and masked-out
-folder contents are excluded. Empty canvas space opens no menu. Selection uses the
-rectangle-selection panel callback (rows revealed, count updated, no pixel or history edits).
-
-Crossing Qt's drag threshold cancels the pending menu even when the pointer returns to
-its start. Rulers, tablet-button actions, Space/middle-button panning, and active
-transform sessions keep their handling. Tool/document changes and edit locks close the
-popup; focus loss cancels a pending click. The `ui_move_layer_menu` tests pin it.
+A layer's color label (GitHub issue 244) is `Layer::color_label()`, Photoshop's `lclr` index (0 none, 1 red, 2 orange, 3 yellow, 4 green, 5 blue, 6 violet, 7 gray; constants and the permanent ids in `core/layer.hpp`). It is not an edit to pixels, so it moves no revision, and locked layers take one. The row shows it as `layerRowColorStrip`, a 4 px strip at x 0 of `layerMainRow` inside the base indent, off the layout and transparent to the mouse, created only for a known nonzero label; QSS paints it from the `layer_color_*` theme roles through its `layerColor` property. Layer > Color (`layerColorMenu`, kept inside the Layer menu's 23-row bound) and the row's context menu (`layerContextColorMenu`) share the `layerColor*Action` actions (hotkey ids `layer.color_<id>`), built by `populate_layer_color_actions`; `set_selected_layers_color` labels the selected rows, groups included, as one undo step, and `refresh_layer_color_action_states` checks the common label (none for a mixed selection). Scripts: `layer.colorLabel`. PSD rules in [ps-compat.md](ps-compat.md). Pinned by `ui_layer_color_labels_menu_undo_and_row_strip`.
 
 ## Disclosure arrow, double-click, visibility eye
 

@@ -22379,6 +22379,26 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <source>Don&apos;t Ask Again</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Orange</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Violet</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gray</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer color</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -24118,6 +24138,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     </message>
     <message>
         <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Unknown layer color label: %1</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

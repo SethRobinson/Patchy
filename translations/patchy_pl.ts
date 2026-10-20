@@ -22526,6 +22526,26 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
         <source>Don&apos;t Ask Again</source>
         <translation>Nie pytaj ponownie</translation>
     </message>
+    <message>
+        <source>Color</source>
+        <translation>Kolor</translation>
+    </message>
+    <message>
+        <source>Orange</source>
+        <translation>Pomarańczowy</translation>
+    </message>
+    <message>
+        <source>Violet</source>
+        <translation>Fioletowy</translation>
+    </message>
+    <message>
+        <source>Gray</source>
+        <translation>Szary</translation>
+    </message>
+    <message>
+        <source>Layer color</source>
+        <translation>Kolor warstwy</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
@@ -24267,6 +24287,10 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     <message>
         <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
         <translation>Nieznany panel &quot;%1&quot;. Panele: %2.</translation>
+    </message>
+    <message>
+        <source>Unknown layer color label: %1</source>
+        <translation>Nieznany kolor warstwy: %1</translation>
     </message>
 </context>
 <context>

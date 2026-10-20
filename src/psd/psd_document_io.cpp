@@ -477,6 +477,7 @@ void copy_layer_state(Layer& target, const Layer& source) {
   target.set_visible(source.visible());
   target.set_clipped(source.clipped());
   target.set_lock_flags(source.lock_flags());
+  target.set_color_label(source.color_label());
   target.layer_style() = source.layer_style();
   target.metadata() = source.metadata();
   target.mask() = source.mask();
@@ -1115,6 +1116,7 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
     set_layer_lock_flags(layer,
                          record.protection_flags &
                              (kPsdProtectTransparency | kPsdProtectComposite | kPsdProtectPosition));
+    layer.set_color_label(record.color_label);
     if (!vector_parse_failed && has_legacy_vscg && !vector_fill.has_value() && vector_mask_block.has_value() &&
         vector_stroke.has_value()) {
       if (vector_stroke->fill_enabled) {

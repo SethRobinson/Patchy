@@ -19,6 +19,7 @@
 #include "ui/main_window.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/theme_palette.hpp"
 #include "psd/psd_document_io.hpp"
 #include "synthetic_dng.hpp"
 #include "test_harness.hpp"
@@ -33,6 +34,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QContextMenuEvent>
 #include <QMenu>
 #include <QPainter>
 #include <QStackedWidget>
@@ -2062,6 +2064,190 @@ void ui_layer_styles_menu_entry_opens_dialog_on_effect() {
   // Edit Layer Styles... opens the dialog on Blending Options, nothing turned on.
   seen = run_entry("layerBlendingOptionsAction", nullptr, false);
   CHECK(seen.current_page == QStringLiteral("layerStyleBlendingPage"));
+}
+
+// GitHub issue 244: Layer > Color and the row's context menu label the selected
+// layers (groups too) in one undo step, and a labeled row shows a strip down its
+// left edge in the label's theme role, inside the row's left margin.
+void ui_layer_color_labels_menu_undo_and_row_strip() {
+  patchy::Document document(96, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_pixels(96, 64, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
+  patchy::Layer group(document.allocate_layer_id(), "Folder", patchy::LayerKind::Group);
+  group.add_child(patchy::Layer(document.allocate_layer_id(), "Inside",
+                                solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(40, 90, 200))));
+  document.add_layer(std::move(group));
+  document.add_pixel_layer("Badge", solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(220, 90, 40)));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Layer Colors"));
+  QApplication::processEvents();
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  const auto& doc = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  const auto label_of = [&](const char* name) {
+    const patchy::Layer* found = nullptr;
+    const std::function<void(const std::vector<patchy::Layer>&)> walk = [&](const std::vector<patchy::Layer>& layers) {
+      for (const auto& layer : layers) {
+        if (layer.name() == name) {
+          found = &layer;
+        }
+        walk(layer.children());
+      }
+    };
+    walk(doc.layers());
+    CHECK(found != nullptr);
+    return found != nullptr ? found->color_label() : patchy::LayerColorLabel{0xffffU};
+  };
+  const auto strip_of = [&](const char* name) -> QWidget* {
+    auto* row = layer_list->itemWidget(require_layer_item(*layer_list, QString::fromLatin1(name)));
+    CHECK(row != nullptr);
+    return row != nullptr ? row->findChild<QWidget*>(QStringLiteral("layerRowColorStrip")) : nullptr;
+  };
+  const auto select_only = [&](std::initializer_list<const char*> names) {
+    layer_list->clearSelection();
+    bool first = true;
+    for (const auto* name : names) {
+      auto* item = require_layer_item(*layer_list, QString::fromLatin1(name));
+      if (first) {
+        layer_list->setCurrentItem(item);
+        first = false;
+      }
+      item->setSelected(true);
+    }
+    QApplication::processEvents();
+  };
+
+  // Layer > Color: None, a separator, then the seven colors in Photoshop's order.
+  auto* color_menu = window.findChild<QMenu*>(QStringLiteral("layerColorMenu"));
+  CHECK(color_menu != nullptr);
+  CHECK(color_menu->menuAction()->menuRole() == QAction::NoRole);
+  const std::array<const char*, 8> names{{"layerColorNoneAction", "layerColorRedAction", "layerColorOrangeAction",
+                                          "layerColorYellowAction", "layerColorGreenAction", "layerColorBlueAction",
+                                          "layerColorVioletAction", "layerColorGrayAction"}};
+  const auto actions = color_menu->actions();
+  CHECK(actions.size() == 9);
+  CHECK(actions[1]->isSeparator());
+  for (std::size_t index = 0; index < names.size(); ++index) {
+    auto* action = actions[static_cast<qsizetype>(index == 0 ? 0 : index + 1)];
+    CHECK(action->objectName() == QLatin1String(names[index]));
+    CHECK(action->isCheckable());
+    CHECK(action->menuRole() == QAction::NoRole);
+    CHECK(index == 0 || !action->icon().isNull());
+  }
+  auto* red = require_action(window, "layerColorRedAction");
+  auto* blue = require_action(window, "layerColorBlueAction");
+  auto* none = require_action(window, "layerColorNoneAction");
+
+  // One layer: labeled, its strip painted in the theme role, inside the margin.
+  select_only({"Badge"});
+  CHECK(strip_of("Badge") == nullptr);
+  const auto undo_depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  red->trigger();
+  QApplication::processEvents();
+  CHECK(label_of("Badge") == patchy::kLayerColorRed);
+  CHECK(label_of("Background") == patchy::kLayerColorNone);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth + 1);
+  auto* strip = strip_of("Badge");
+  CHECK(strip != nullptr);
+  CHECK(strip->property("layerColor").toString() == QStringLiteral("red"));
+  auto* row = layer_list->itemWidget(require_layer_item(*layer_list, QStringLiteral("Badge")));
+  auto* eye = row->findChild<QWidget*>(QStringLiteral("layerVisibilityCheck"));
+  CHECK(eye != nullptr);
+  CHECK(strip->x() == 0 && strip->width() <= 4 && strip->height() >= 40);
+  CHECK(strip->geometry().right() < eye->mapTo(strip->parentWidget(), QPoint()).x());
+  const auto row_image = row->grab().toImage();
+  const auto painted = row_image.pixelColor(QPoint(1, row->height() / 2) * row_image.devicePixelRatio());
+  CHECK(painted.rgb() == patchy::ui::theme().layer_color_red.rgb());
+  CHECK(strip_of("Background") == nullptr);
+  // The selection's label is the checked entry.
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  emit color_menu->aboutToShow();
+  CHECK(red->isChecked() && !none->isChecked());
+
+  // Undo takes the label off again; redo brings it back.
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(label_of("Badge") == patchy::kLayerColorNone);
+  CHECK(strip_of("Badge") == nullptr);
+
+  // A group and a layer together, from the row's context menu.
+  select_only({"Folder", "Background"});
+  bool saw_color_menu = false;
+  bool saw_blue = false;
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu == nullptr || menu->objectName() != QStringLiteral("layerContextMenu")) {
+        continue;
+      }
+      if (auto* submenu = menu->findChild<QMenu*>(QStringLiteral("layerContextColorMenu")); submenu != nullptr) {
+        saw_color_menu = true;
+        saw_blue = submenu->actions().contains(blue);
+      }
+      menu->close();
+      return;
+    }
+  });
+  const auto context_point = layer_list->visualItemRect(require_layer_item(*layer_list, QStringLiteral("Folder"))).center();
+  QContextMenuEvent context_event(QContextMenuEvent::Mouse, context_point,
+                                  layer_list->viewport()->mapToGlobal(context_point));
+  QApplication::sendEvent(layer_list->viewport(), &context_event);
+  QApplication::processEvents();
+  CHECK(saw_color_menu);
+  CHECK(saw_blue);
+  select_only({"Folder", "Background"});
+  blue->trigger();
+  QApplication::processEvents();
+  CHECK(label_of("Folder") == patchy::kLayerColorBlue);
+  CHECK(label_of("Background") == patchy::kLayerColorBlue);
+  CHECK(label_of("Inside") == patchy::kLayerColorNone);
+  CHECK(strip_of("Folder") != nullptr && strip_of("Background") != nullptr);
+
+  // A mixed selection checks nothing; None clears every selected label.
+  select_only({"Folder", "Badge"});
+  emit color_menu->aboutToShow();
+  CHECK(!blue->isChecked() && !none->isChecked());
+  none->trigger();
+  QApplication::processEvents();
+  CHECK(label_of("Folder") == patchy::kLayerColorNone);
+  CHECK(label_of("Background") == patchy::kLayerColorBlue);
+}
+
+// GitHub issue 244: the reporter's sample in the Layers panel, Dark and Light, for
+// the issue's before and after pictures, and every sample row's strip. The
+// "before" pictures came from this test without the strip checks on an older build.
+void ui_issue_244_sample_layers_panel_shots_if_available() {
+  const auto path =
+      patchy::test::source_root_path() / "local-test-fixtures" / "psd" / "issue-244" / "Test - Layer Lock.psd";
+  patchy::test::skip_unless_exists(path);
+  SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore(scheme);
+    patchy::ui::MainWindow window;
+    show_window(window);
+    patchy::ui::MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(path));
+    QApplication::processEvents();
+    QApplication::processEvents();
+    auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+    CHECK(layer_list != nullptr && layer_list->count() == 5);
+    for (const auto& [name, color] : std::array<std::pair<const char*, const char*>, 5>{{
+             {"Full Lock", "blue"},
+             {"Transparent Pixel Lock", "red"},
+             {"Lock Image Pixels", "orange"},
+             {"Lock Position", "yellow"},
+             {"Prevent Auto Nesting", "green"},
+         }}) {
+      auto* row = layer_list->itemWidget(require_layer_item(*layer_list, QString::fromLatin1(name)));
+      auto* strip = row != nullptr ? row->findChild<QWidget*>(QStringLiteral("layerRowColorStrip")) : nullptr;
+      CHECK(strip != nullptr && strip->property("layerColor").toString() == QLatin1String(color));
+    }
+    auto* panel = window.findChild<QWidget*>(QStringLiteral("layersPanel"));
+    CHECK(panel != nullptr);
+    save_widget_artifact(std::string("ui_issue_244_layers_panel_") +
+                             (scheme == patchy::ui::ColorSchemePreference::Dark ? "dark" : "light"),
+                         *panel);
+  }
 }
 
 void ui_layer_folders_expand_and_contract_children() {
@@ -4366,6 +4552,9 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
       {"ui_layer_styles_button_tracks_selection_and_lists_effects",
        ui_layer_styles_button_tracks_selection_and_lists_effects},
       {"ui_layer_styles_menu_entry_opens_dialog_on_effect", ui_layer_styles_menu_entry_opens_dialog_on_effect},
+      {"ui_layer_color_labels_menu_undo_and_row_strip", ui_layer_color_labels_menu_undo_and_row_strip},
+      {"ui_issue_244_sample_layers_panel_shots_if_available",
+       ui_issue_244_sample_layers_panel_shots_if_available},
       {"ui_layer_folders_expand_and_contract_children", ui_layer_folders_expand_and_contract_children},
       {"ui_layer_folders_open_with_saved_expansion_state", ui_layer_folders_open_with_saved_expansion_state},
       {"ui_layer_folder_toggle_saves_without_marking_modified", ui_layer_folder_toggle_saves_without_marking_modified},
