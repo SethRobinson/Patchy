@@ -10916,10 +10916,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>保持明度</translation>
     </message>
     <message>
-        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Vibrance, Black &amp; White or Gradient Map). They have no effect here and are saved unchanged.</source>
-        <translation>部分调整图层使用了 Patchy 尚无法应用的类型（例如自然饱和度、黑白或渐变映射）。它们在此处不起作用，并会原样保存。</translation>
-    </message>
-    <message>
         <source>Vibrance</source>
         <translation>自然饱和度</translation>
     </message>
@@ -11350,6 +11346,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Diffuse</source>
         <translation>扩散</translation>
+    </message>
+    <message>
+        <source>Auto-nesting into and out of artboards prevented</source>
+        <translation>已阻止自动嵌套进出画板</translation>
+    </message>
+    <message>
+        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Photoshop&apos;s Color and Vibrance). They have no effect here and are saved unchanged.</source>
+        <translation>部分调整图层使用了 Patchy 尚无法应用的类型（例如 Photoshop 的颜色和自然饱和度）。它们在此处不起作用，并会原样保存。</translation>
+    </message>
+    <message>
+        <source>Vibrance: vibrance %1, saturation %2</source>
+        <translation>自然饱和度: 自然饱和度 %1，饱和度 %2</translation>
+    </message>
+    <message>
+        <source>Color and Vibrance</source>
+        <translation>颜色和自然饱和度</translation>
     </message>
     <message>
         <source>Invalid Average input</source>
@@ -23083,6 +23095,26 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
         <translation>路径选择：单击形状可将其选中，拖动可移动它，%ALT%+拖动可复制它。%CTRL%+T 可变换路径，按 Delete 可删除所选形状。</translation>
+    </message>
+    <message>
+        <source>Prevent Auto-Nesting</source>
+        <translation>防止自动嵌套</translation>
+    </message>
+    <message>
+        <source>Auto-nesting prevented</source>
+        <translation>已阻止自动嵌套</translation>
+    </message>
+    <message>
+        <source>Auto-nesting allowed</source>
+        <translation>已允许自动嵌套</translation>
+    </message>
+    <message>
+        <source>&amp;Vibrance...</source>
+        <translation>自然饱和度(&amp;V)...</translation>
+    </message>
+    <message>
+        <source>Cancelled Vibrance</source>
+        <translation>已取消自然饱和度</translation>
     </message>
 </context>
 <context>

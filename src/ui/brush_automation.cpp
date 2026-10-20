@@ -223,8 +223,8 @@ ScriptStroke BrushAutomationLibrary::resolve(const QJsonObject& input) const {
   const auto integer = [&](const QString& k, int fallback, int lo, int hi) {
     return static_cast<int>(number(args, k, fallback, lo, hi, true));
   };
-  s.size = integer("size", s.size, 1, 1024); s.opacity = integer("opacity", s.opacity, 1, 100);
-  s.flow = integer("flow", s.flow, 1, 100); s.softness = integer("softness", s.softness, 0, 100);
+  s.size = integer("size", s.size, 1, 1024); s.opacity = integer("opacity", s.opacity, 0, 100);
+  s.flow = integer("flow", s.flow, 0, 100); s.softness = integer("softness", s.softness, 0, 100);
   if (s.mixer && s.opacity != 100) invalid(QCoreApplication::translate("patchy::ui::BrushAutomationLibrary", "opacity: Mixer uses Flow"));
   s.angle = number(args, "angle", s.angle, -180, 360); s.roundness = integer("roundness", s.roundness, 1, 100);
   if (args.contains("spacing")) s.spacing = number(args, "spacing", .25, .01, 10);

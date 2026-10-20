@@ -431,8 +431,10 @@ QImage active_layer_sample_region(const Layer& layer, QRect region) {
 
 void apply_fill_settings(EditOptions& options, const CanvasWidget& canvas) {
   constexpr double kFillMaxFeatherPixels = 50.0;
+  // Opacity 0 is a valid setting (issue 253); callers return before painting at 0, so the alpha
+  // written here is never the core's 1/255 floor in disguise.
   options.primary.a = static_cast<std::uint8_t>(std::clamp(
-      std::lround(static_cast<double>(options.primary.a) * std::clamp(canvas.fill_opacity(), 1, 100) / 100.0), 1L,
+      std::lround(static_cast<double>(options.primary.a) * std::clamp(canvas.fill_opacity(), 0, 100) / 100.0), 0L,
       255L));
   options.fill_softness_feather = std::clamp(canvas.fill_softness(), 0, 100) / 100.0 * kFillMaxFeatherPixels;
   options.flood_tolerance = std::clamp(canvas.fill_tolerance(), 0, 255);
@@ -694,7 +696,7 @@ QRgb pixel_grid_line_color(QRgb pixel) noexcept {
 
 QImage deep_zoom_raster(const QImage& source, QPoint document_origin, std::span<const int> edges_x,
                         std::span<const int> edges_y, double device_pixel_ratio, bool pixel_grid,
-                        QPoint& device_origin) {
+                        QPoint& device_origin, bool grid_only) {
   const auto columns = static_cast<int>(edges_x.size()) - 1;
   const auto rows = static_cast<int>(edges_y.size()) - 1;
   if (columns <= 0 || rows <= 0 || source.width() < columns || source.height() < rows ||
@@ -754,6 +756,14 @@ QImage deep_zoom_raster(const QImage& source, QPoint document_origin, std::span<
     if (row_line[static_cast<std::size_t>(y)] != 0) {
       for (int x = 0; x < width; ++x) {
         out[x] = tones[static_cast<std::size_t>(column_of[static_cast<std::size_t>(x)])];
+      }
+      continue;
+    }
+    if (grid_only && pixel_grid) {
+      for (int x = 0; x < width; ++x) {
+        out[x] = column_line[static_cast<std::size_t>(x)] != 0
+                     ? tones[static_cast<std::size_t>(column_of[static_cast<std::size_t>(x)])]
+                     : qRgba(0, 0, 0, 0);
       }
       continue;
     }

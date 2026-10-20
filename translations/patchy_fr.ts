@@ -10950,10 +10950,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Conserver la luminosité</translation>
     </message>
     <message>
-        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Vibrance, Black &amp; White or Gradient Map). They have no effect here and are saved unchanged.</source>
-        <translation>Certains calques de réglage utilisent des types que Patchy ne sait pas encore appliquer (comme Vibrance, Noir et blanc ou Courbe de transfert de dégradé). Ils n&apos;ont aucun effet ici et sont enregistrés tels quels.</translation>
-    </message>
-    <message>
         <source>Vibrance</source>
         <translation>Vibrance</translation>
     </message>
@@ -11384,6 +11380,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Diffuse</source>
         <translation>Diffusion</translation>
+    </message>
+    <message>
+        <source>Auto-nesting into and out of artboards prevented</source>
+        <translation>Imbrication auto dans et hors des plans de travail empêchée</translation>
+    </message>
+    <message>
+        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Photoshop&apos;s Color and Vibrance). They have no effect here and are saved unchanged.</source>
+        <translation>Certains calques de réglage utilisent des types que Patchy ne sait pas encore appliquer (comme Couleur et vibrance de Photoshop). Ils n&apos;ont aucun effet ici et sont enregistrés tels quels.</translation>
+    </message>
+    <message>
+        <source>Vibrance: vibrance %1, saturation %2</source>
+        <translation>Vibrance : vibrance %1, saturation %2</translation>
+    </message>
+    <message>
+        <source>Color and Vibrance</source>
+        <translation>Couleur et vibrance</translation>
     </message>
     <message>
         <source>Invalid Average input</source>
@@ -23153,6 +23165,26 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
     <message>
         <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
         <translation>Sélection de tracé : cliquez sur une forme pour la sélectionner, faites-la glisser pour la déplacer, %ALT%+glisser pour la dupliquer. %CTRL%+T transforme le tracé, Delete supprime la forme sélectionnée.</translation>
+    </message>
+    <message>
+        <source>Prevent Auto-Nesting</source>
+        <translation>Empêcher l&apos;imbrication auto</translation>
+    </message>
+    <message>
+        <source>Auto-nesting prevented</source>
+        <translation>Imbrication auto empêchée</translation>
+    </message>
+    <message>
+        <source>Auto-nesting allowed</source>
+        <translation>Imbrication auto autorisée</translation>
+    </message>
+    <message>
+        <source>&amp;Vibrance...</source>
+        <translation>&amp;Vibrance...</translation>
+    </message>
+    <message>
+        <source>Cancelled Vibrance</source>
+        <translation>Vibrance annulée</translation>
     </message>
 </context>
 <context>

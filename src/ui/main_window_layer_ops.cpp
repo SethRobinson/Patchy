@@ -3358,6 +3358,13 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   auto* all_lock_action = lock_menu->addAction(tr("Lock All"));
   all_lock_action->setCheckable(true);
   all_lock_action->setChecked(all_selected_have_lock(kLayerLockAll));
+  if (layer_prevent_auto_nesting_action_ != nullptr) {
+    // The shared registered action (its hotkey shows here); it runs from its own triggered
+    // signal, so the dispatch below has no branch for it.
+    lock_menu->addSeparator();
+    layer_prevent_auto_nesting_action_->setChecked(all_selected_have_lock(kLayerLockArtboardAutonest));
+    lock_menu->addAction(layer_prevent_auto_nesting_action_);
+  }
   auto* select_opaque_action = menu.addAction(tr("Load Layer Transparency"));
   const auto* active_smart_filters =
       active_layer != nullptr ? active_layer->smart_filter_stack() : nullptr;
@@ -3805,6 +3812,9 @@ void MainWindow::fill_active_layer_with_color(QColor color, QString label) {
     return;
   }
 
+  if (canvas_->fill_opacity() <= 0) {
+    return;  // Fill Opacity 0% paints nothing (issue 253): no undo entry, no document change
+  }
   select_only_layer_if_none_active();
   const auto ids = selected_or_active_layer_ids();
   if (ids.empty()) {

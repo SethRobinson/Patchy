@@ -34,8 +34,11 @@ hollow anchor), accent with a white inner ring when selected. Handle knobs are 8
 discs with the dark edge and an accent dot (10 and 12 px glyphs read as too big beside
 Photoshop's), and grab from 9 px (`kHandleHitRadiusPx`; a press
 nearer the anchor stays the anchor's; `ui_path_handle_knobs_read_and_grab`). Knobs are
-Direct Select's alone (and the Pen's Ctrl latch, which is Direct Select): Path Select draws
-and grabs none (`ui_path_tools_keep_handle_knobs_to_direct_select`; see "Tool roles"). Point and handle drags
+grabbed by Direct Select alone (and the Pen's Ctrl latch, which is Direct Select). Direct
+Select and the Pen family draw the knobs of selected points; the Pen keeps them after the
+button and Ctrl come up, so a Ctrl-drag can find them, but a plain Pen click never grabs one
+(`ui_pen_ctrl_selected_point_keeps_its_knobs`). Path Select draws and grabs none
+(`ui_path_tools_keep_handle_knobs_to_direct_select`; see "Tool roles"). Point and handle drags
 re-render a shape layer's fill on every move (`apply_path_edit`; `ui_direct_select_drags_redraw_the_fill_live`);
 tests that set up handles go through `replace_path_edit_target` (`set_target_path_through_edits`),
 never `set_vector_shape`, or captures show the old fill under the new outline. `kGlyphReach` (8 px) is how far a glyph reaches
@@ -119,12 +122,13 @@ press never does another tool's.
 
 | Tool | Owns | Never |
 |---|---|---|
-| Pen | creating and extending paths; its Ctrl latch is Direct Select | moving whole shapes |
+| Pen | creating and extending paths; its Ctrl latch is Direct Select; shows the knobs of selected points (grabbed only through the latch) | moving whole shapes |
 | Path Select (black arrow) | selecting and moving whole shapes (groups): filled anchors, no knobs | point, handle or segment edits |
 | Direct Select (white arrow) | every point, handle and segment edit; hollow anchors on the active path | moving a shape it did not select point by point |
 
 An anchor, outline or fill press under Path Select moves the whole group; the knob hit test
-(`path_handle_at`), knob drawing and the handle hover hint are Direct Select's only.
+(`path_handle_at`) and the handle hover hint are Direct Select's only, and knobs draw under
+Direct Select and the Pen family, never Path Select.
 
 Modifiers. Ctrl swaps the two arrows while held (`arrow_swap_active_`, read by
 `path_edit_tool()` like the Pen's `pen_temp_direct_select_` latch): set from the press
@@ -220,7 +224,7 @@ Tests:
 `ui_path_select_anchor_drag_moves_the_whole_shape`,
 `ui_direct_select_after_path_select_drags_one_point`,
 `ui_path_select_tools_drag_open_path_anchor`,
-`ui_path_select_switch_expands_points_and_pen_shows_no_knobs`,
+`ui_path_select_switch_expands_points_and_pen_keeps_selected_knobs`,
 `ui_point_selection_drops_when_the_active_layer_changes`,
 `ui_path_select_shift_click_adds_and_removes_shapes`.
 

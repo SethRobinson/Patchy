@@ -1020,6 +1020,10 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
         if (auto parsed = parse_photoshop_selective_color_adjustment(block.payload); parsed.has_value()) {
           native_adjustment_settings = parsed;
         }
+      } else if (block.key == "vibA") {
+        if (auto parsed = parse_photoshop_vibrance_adjustment(block.payload); parsed.has_value()) {
+          native_adjustment_settings = parsed;
+        }
       } else if (block.key == "clrL") {
         if (auto parsed = parse_photoshop_color_lookup_adjustment(block.payload); parsed.has_value()) {
           native_adjustment_settings = parsed;
@@ -1086,7 +1090,9 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
       // its native block (written back unchanged) and says what it is in the Layers panel.
       for (const auto& block : record.additional_blocks) {
         if (const auto* kind = photoshop_placeholder_adjustment_kind(block.key); kind != nullptr) {
-          layer.metadata()[kLayerMetadataAdjustmentPlaceholderKind] = kind;
+          layer.metadata()[kLayerMetadataAdjustmentPlaceholderKind] =
+              block.key == "vibA" && photoshop_vibrance_block_is_color_and_vibrance(block.payload) ? "color_vibrance"
+                                                                                                   : kind;
           has_adjustment_placeholders = true;
           break;
         }
@@ -1396,8 +1402,8 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
   if (has_adjustment_placeholders && notices != nullptr) {
     notices->push_back(PATCHY_TRANSLATE_NOOP(
         "QObject",
-        "Some adjustment layers use kinds Patchy cannot apply yet (such as Vibrance, Black & White or "
-        "Gradient Map). They have no effect here and are saved unchanged."));
+        "Some adjustment layers use kinds Patchy cannot apply yet (such as Photoshop's Color and "
+        "Vibrance). They have no effect here and are saved unchanged."));
   }
   return build_group_hierarchy(std::move(decoded_layers));
 }

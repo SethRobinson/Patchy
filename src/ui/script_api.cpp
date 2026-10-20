@@ -503,13 +503,13 @@ void ScriptLayerObject::set_blend_mode(const QString& mode) {
 bool ScriptLayerObject::locked() const {
   const ScriptApiCall api_call(host_);
   const auto* layer = read_layer();
-  return layer != nullptr && layer->lock_flags() != kLayerLockNone;
+  return layer != nullptr && (layer->lock_flags() & kLayerLockAll) != kLayerLockNone;
 }
 
 void ScriptLayerObject::set_locked(bool locked) {
   const ScriptApiCall api_call(host_);
   if (auto* layer = write_layer()) {
-    layer->set_lock_flags(locked ? kLayerLockAll : kLayerLockNone);
+    layer->set_lock_flags((layer->lock_flags() & kLayerLockArtboardAutonest) | (locked ? kLayerLockAll : kLayerLockNone));
     host_.note_structure_changed(session_id_);
   }
 }

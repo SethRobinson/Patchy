@@ -148,6 +148,7 @@ constexpr std::array<char, 4> kPhotoshopGradientMapBlockKey{'g', 'r', 'd', 'm'};
 constexpr std::array<char, 4> kPhotoshopBlackWhiteBlockKey{'b', 'l', 'w', 'h'};
 constexpr std::array<char, 4> kPhotoshopColorLookupBlockKey{'c', 'l', 'r', 'L'};
 constexpr std::array<char, 4> kPhotoshopSelectiveColorBlockKey{'s', 'e', 'l', 'c'};
+constexpr std::array<char, 4> kPhotoshopVibranceBlockKey{'v', 'i', 'b', 'A'};
 // version u16, colorize u8, pad u8, colorize h/s/l i16 x3, master h/s/l i16 x3,
 // then six band records of four i16 range stops plus an i16 h/s/l triple, then
 // an undocumented 36-byte trailer Photoshop always writes.
@@ -158,7 +159,7 @@ constexpr int kMaxTextSizePixels = 8192;
 constexpr std::uint32_t kPsdProtectTransparency = 1U << 0U;
 constexpr std::uint32_t kPsdProtectComposite = 1U << 1U;
 constexpr std::uint32_t kPsdProtectPosition = 1U << 2U;
-// "Prevent Auto Nesting" (artboards), which Patchy does not model; kept on round trips.
+// "Prevent Auto Nesting" (artboards): kLayerLockArtboardAutonest (GitHub issue 246).
 constexpr std::uint32_t kPsdProtectArtboardAutonest = 1U << 3U;
 // Lock All is its own bit: Photoshop writes 0x80000000 with the three single locks clear
 // (PS 2026 capture, GitHub issue 245), and reads three set singles as three locks, not Lock All.
@@ -166,8 +167,8 @@ constexpr std::uint32_t kPsdProtectAll = 1U << 31U;
 // The Patchy locks an lspf value means.
 [[nodiscard]] LayerLockFlags layer_locks_from_psd_protection(std::uint32_t protection) noexcept;
 // The lspf value to write: the value read from the file while the locks still match it,
-// otherwise Lock All for all three locks (Patchy's Lock All), else the single locks, and
-// any Prevent Auto Nesting bit the file had either way.
+// otherwise Lock All for all three locks (Patchy's Lock All), else the single locks,
+// plus Prevent Auto Nesting when the layer has it.
 [[nodiscard]] std::uint32_t psd_protection_for_layer(const Layer& layer);
 // Photoshop's PSD/PSB dimension caps; a document over the PSD cap must be saved as PSB.
 constexpr std::int32_t kMaxPsdDimension = 30000;
@@ -703,6 +704,17 @@ std::optional<AdjustmentSettings> parse_photoshop_selective_color_adjustment(std
 // (a fresh layer starts from Photoshop's all-zero Relative block).
 std::vector<std::uint8_t> photoshop_selective_color_payload(const SelectiveColorAdjustment& settings,
                                                             const UnknownPsdBlock* original);
+// A legacy Vibrance 'vibA' block; nullopt for anything else, including the readable blocks
+// photoshop_vibrance_block_is_color_and_vibrance accepts.
+std::optional<AdjustmentSettings> parse_photoshop_vibrance_adjustment(std::span<const std::uint8_t> payload);
+// True for a readable 'vibA' descriptor carrying Photoshop's newer Color and Vibrance
+// settings (useLegacy false, temperature, tint or another key), which Patchy keeps as a
+// placeholder.
+bool photoshop_vibrance_block_is_color_and_vibrance(std::span<const std::uint8_t> payload);
+// The original payload when the settings are unchanged; otherwise the legacy descriptor
+// Photoshop writes, holding only the non-zero sliders.
+std::vector<std::uint8_t> photoshop_vibrance_payload(const VibranceAdjustment& settings,
+                                                     const UnknownPsdBlock* original);
 std::optional<AdjustmentSettings> parse_photoshop_exposure_adjustment(std::span<const std::uint8_t> payload);
 std::vector<std::uint8_t> photoshop_exposure_payload(const ExposureAdjustment& settings,
                                                      const UnknownPsdBlock* original);

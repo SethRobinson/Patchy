@@ -52,14 +52,16 @@
 namespace patchy::psd {
 
 LayerLockFlags layer_locks_from_psd_protection(std::uint32_t protection) noexcept {
+  const LayerLockFlags autonest =
+      (protection & kPsdProtectArtboardAutonest) != 0U ? kLayerLockArtboardAutonest : kLayerLockNone;
   if ((protection & kPsdProtectAll) != 0U) {
-    return kLayerLockAll;
+    return kLayerLockAll | autonest;
   }
-  return protection & (kPsdProtectTransparency | kPsdProtectComposite | kPsdProtectPosition);
+  return (protection & (kPsdProtectTransparency | kPsdProtectComposite | kPsdProtectPosition)) | autonest;
 }
 
 std::uint32_t psd_protection_for_layer(const Layer& layer) {
-  const auto locks = layer_lock_flags(layer) & kLayerLockAll;
+  const auto locks = layer_lock_flags(layer) & kLayerLockStoredFlags;
   std::uint32_t stored = 0U;
   if (const auto found = layer.metadata().find(kLayerMetadataPsdProtectionFlags); found != layer.metadata().end()) {
     stored = static_cast<std::uint32_t>(std::strtoul(found->second.c_str(), nullptr, 10));
@@ -67,8 +69,9 @@ std::uint32_t psd_protection_for_layer(const Layer& layer) {
   if (stored != 0U && layer_locks_from_psd_protection(stored) == locks) {
     return stored;
   }
-  const std::uint32_t singles = locks == kLayerLockAll ? kPsdProtectAll : locks;
-  return singles | (stored & kPsdProtectArtboardAutonest);
+  const auto editing = locks & kLayerLockAll;
+  const std::uint32_t singles = editing == kLayerLockAll ? kPsdProtectAll : editing;
+  return singles | ((locks & kLayerLockArtboardAutonest) != kLayerLockNone ? kPsdProtectArtboardAutonest : 0U);
 }
 
 
@@ -189,7 +192,8 @@ bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock&
       (block.key == "levl" || block.key == "curv" || block.key == "hue2" || block.key == "nvrt" ||
        block.key == "post" || block.key == "thrs" || block.key == "brit" || block.key == "blnc" ||
        block.key == "expA" || block.key == "mixr" || block.key == "phfl" ||
-       block.key == "grdm" || block.key == "blwh" || block.key == "clrL" || block.key == "selc")) {
+       block.key == "grdm" || block.key == "blwh" || block.key == "clrL" || block.key == "selc" ||
+       block.key == "vibA")) {
     return true;
   }
   // The Brightness/Contrast emitter owns 'CgEd' (preserved, regenerated, or
@@ -1125,6 +1129,11 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
           extra, kPhotoshopSelectiveColorBlockKey,
           photoshop_selective_color_payload(settings->selective_color, find_layer_block(*encoded.layer, "selc")),
           large_document);
+    }
+    if (settings.has_value() && settings->kind == AdjustmentKind::Vibrance) {
+      write_additional_layer_block(
+          extra, kPhotoshopVibranceBlockKey,
+          photoshop_vibrance_payload(settings->vibrance, find_layer_block(*encoded.layer, "vibA")), large_document);
     }
     if (settings.has_value() && settings->kind == AdjustmentKind::ColorLookup) {
       write_additional_layer_block(

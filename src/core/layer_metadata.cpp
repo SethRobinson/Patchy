@@ -132,7 +132,16 @@ bool layer_locks_all(const Layer& layer) {
 }
 
 void set_layer_locks_all(Layer& layer, bool locked) {
-  set_layer_lock_flags(layer, locked ? kLayerLockAll : kLayerLockNone);
+  // Lock All covers the editing locks; Prevent Auto-Nesting keeps its own state.
+  set_layer_lock_flags(layer, (layer.lock_flags() & kLayerLockArtboardAutonest) | (locked ? kLayerLockAll : kLayerLockNone));
+}
+
+bool layer_prevents_auto_nesting(const Layer& layer) {
+  return has_all_flags(layer.lock_flags(), kLayerLockArtboardAutonest);
+}
+
+void set_layer_prevents_auto_nesting(Layer& layer, bool prevented) {
+  set_layer_lock_flag(layer, kLayerLockArtboardAutonest, prevented);
 }
 
 LayerLockFlags layer_lock_flags(const Layer& layer) {

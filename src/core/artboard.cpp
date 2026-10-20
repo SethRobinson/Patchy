@@ -204,6 +204,12 @@ std::vector<ArtboardNestMove> artboard_nest_moves(const Document& document, cons
     if (target == owner) {
       continue;
     }
+    // Prevent Auto-Nesting (GitHub issue 246): a locked layer stays where it is in the
+    // tree, and nothing auto-nests into or out of a locked artboard.
+    if (layer_prevents_auto_nesting(*layer) || (owner != nullptr && layer_prevents_auto_nesting(*owner)) ||
+        (target != nullptr && layer_prevents_auto_nesting(*target))) {
+      continue;
+    }
     moves.push_back({id, target != nullptr ? std::optional<LayerId>(target->id()) : std::nullopt});
   }
   return moves;

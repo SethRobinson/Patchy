@@ -1017,7 +1017,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
       draw_scaled_image(curves_clipping_mode_.has_value() && !curves_clipping_preview_image_.isNull()
                             ? curves_clipping_preview_image_
                             : render_cache_);
-      draw_vector_preview(painter);
+      draw_vector_preview(painter, exposed_rect);
     }
   }
   if (!curves_clipping_mode_.has_value()) {
@@ -2224,8 +2224,9 @@ void CanvasWidget::draw_deep_zoom_image(QPainter& painter, const QImage& image, 
 }
 
 void CanvasWidget::draw_deep_zoom_pixels(QPainter& painter, const QImage& image, QRect document_rect,
-                                         QRect exposed_rect) const {
-  if (image.isNull() || document_rect.isEmpty() || image.size() != document_rect.size() || zoom_ <= 0.0) {
+                                         QRect exposed_rect, bool grid_only) const {
+  if (image.isNull() || document_rect.isEmpty() || image.size() != document_rect.size() || zoom_ <= 0.0 ||
+      (grid_only && !pixel_grid_visible_)) {
     return;
   }
   const auto top_left = widget_position(document_rect.topLeft());
@@ -2262,7 +2263,7 @@ void CanvasWidget::draw_deep_zoom_pixels(QPainter& painter, const QImage& image,
   QPoint device_origin;
   auto raster = deep_zoom_raster(
       image.copy(first_x - document_rect.x(), first_y - document_rect.y(), end_x - first_x, end_y - first_y),
-      QPoint(first_x, first_y), edges_x, edges_y, ratio, pixel_grid_visible_, device_origin);
+      QPoint(first_x, first_y), edges_x, edges_y, ratio, pixel_grid_visible_, device_origin, grid_only);
   if (raster.isNull()) {
     return;
   }

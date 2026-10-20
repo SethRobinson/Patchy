@@ -49,7 +49,7 @@ bool needs_open_path_strokes(const Layer& layer) {
 
 bool plain_vector_group_child(const Layer& layer) {
   return layer.visible() && layer.opacity() == 1.0F && layer.fill_opacity() == 1.0F &&
-      !layer.clipped() && layer.lock_flags() == kLayerLockNone && !layer.mask() && !layer.vector_mask() &&
+      !layer.clipped() && (layer.lock_flags() & kLayerLockAll) == kLayerLockNone && !layer.mask() && !layer.vector_mask() &&
       layer.layer_style().empty() && !layer.smart_filter_stack() && layer.blend_mode() == BlendMode::Normal &&
       layer.restricted_channels() == 0 && layer.channel_restriction_supported() &&
       !blend_if_payload_has_non_identity_or_unsupported(layer.raw_psd_blending_ranges());
@@ -66,7 +66,7 @@ std::optional<VectorShapeContent> restored_open_path_strokes(const std::vector<L
   const auto& strokes = children[first];
   const bool grouped = children.size() == first + 1 && strokes.kind() == LayerKind::Group;
   if (grouped && (!strokes.visible() || strokes.clipped() ||
-      strokes.fill_opacity() != 1.0F || strokes.lock_flags() != kLayerLockNone || strokes.mask() ||
+      strokes.fill_opacity() != 1.0F || (strokes.lock_flags() & kLayerLockAll) != kLayerLockNone || strokes.mask() ||
       strokes.vector_mask() || !strokes.layer_style().empty() || strokes.smart_filter_stack() ||
       strokes.restricted_channels() != 0 || !strokes.channel_restriction_supported() ||
       blend_if_payload_has_non_identity_or_unsupported(strokes.raw_psd_blending_ranges()) ||
@@ -387,7 +387,7 @@ void collapse_compound_vector_groups(Document& document) {
         const bool fill_boundary = compound_vector_group_kind(inner) == CompoundVectorGroupKind::FillOpacity;
         if (!fill_boundary && group_kind != CompoundVectorGroupKind::OpenPathStrokes) { continue; }
         if (fill_boundary) {
-          if (inner.lock_flags() != kLayerLockNone || inner.mask() || inner.vector_mask() || !inner.layer_style().empty() ||
+          if ((inner.lock_flags() & kLayerLockAll) != kLayerLockNone || inner.mask() || inner.vector_mask() || !inner.layer_style().empty() ||
               inner.blend_mode() != BlendMode::Normal || !inner.visible() || inner.clipped() ||
               inner.restricted_channels() != 0 || !inner.channel_restriction_supported() ||
               blend_if_payload_has_non_identity_or_unsupported(inner.raw_psd_blending_ranges())) { continue; }
@@ -402,7 +402,7 @@ void collapse_compound_vector_groups(Document& document) {
       if (!restored) for (const auto& child : *paints) {
         // A foreign editor may have changed the group. Fail open as ordinary
         // native layers rather than discarding unrepresentable new properties.
-        if (!layer_is_vector_shape(child) || layer_is_compound_vector(child) || !child.visible() || child.lock_flags() != kLayerLockNone ||
+        if (!layer_is_vector_shape(child) || layer_is_compound_vector(child) || !child.visible() || (child.lock_flags() & kLayerLockAll) != kLayerLockNone ||
             child.clipped() || child.mask() || child.vector_mask() || !child.layer_style().empty() ||
             child.smart_filter_stack() || child.blend_mode() != BlendMode::Normal ||
             !vector_lock_reason(child).empty() || child.restricted_channels() != 0 ||

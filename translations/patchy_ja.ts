@@ -10916,10 +10916,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>輝度を保持</translation>
     </message>
     <message>
-        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Vibrance, Black &amp; White or Gradient Map). They have no effect here and are saved unchanged.</source>
-        <translation>一部の調整レイヤーは、Patchy がまだ適用できない種類（自然な彩度、白黒、グラデーションマップなど）を使用しています。ここでは効果がなく、変更されずに保存されます。</translation>
-    </message>
-    <message>
         <source>Vibrance</source>
         <translation>自然な彩度</translation>
     </message>
@@ -11350,6 +11346,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Diffuse</source>
         <translation>拡散</translation>
+    </message>
+    <message>
+        <source>Auto-nesting into and out of artboards prevented</source>
+        <translation>アートボードへの自動ネストとアートボードからの自動解除を防止</translation>
+    </message>
+    <message>
+        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Photoshop&apos;s Color and Vibrance). They have no effect here and are saved unchanged.</source>
+        <translation>一部の調整レイヤーは、Patchy がまだ適用できない種類（Photoshop のカラーと自然な彩度など）を使用しています。ここでは効果がなく、変更されずに保存されます。</translation>
+    </message>
+    <message>
+        <source>Vibrance: vibrance %1, saturation %2</source>
+        <translation>自然な彩度: 自然な彩度 %1、彩度 %2</translation>
+    </message>
+    <message>
+        <source>Color and Vibrance</source>
+        <translation>カラーと自然な彩度</translation>
     </message>
     <message>
         <source>Invalid Average input</source>
@@ -23083,6 +23095,26 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
         <translation>パス選択: シェイプをクリックで選択、ドラッグで移動、%ALT%+ドラッグで複製。%CTRL%+Tでパスを変形、Deleteで選択したシェイプを削除。</translation>
+    </message>
+    <message>
+        <source>Prevent Auto-Nesting</source>
+        <translation>自動ネストを防止</translation>
+    </message>
+    <message>
+        <source>Auto-nesting prevented</source>
+        <translation>自動ネストを防止しました</translation>
+    </message>
+    <message>
+        <source>Auto-nesting allowed</source>
+        <translation>自動ネストを許可しました</translation>
+    </message>
+    <message>
+        <source>&amp;Vibrance...</source>
+        <translation>自然な彩度(&amp;V)...</translation>
+    </message>
+    <message>
+        <source>Cancelled Vibrance</source>
+        <translation>自然な彩度をキャンセルしました</translation>
     </message>
 </context>
 <context>

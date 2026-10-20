@@ -17,7 +17,7 @@ namespace patchy::ui {
 using namespace script_vector;
 namespace {
 bool shape_editable(const Document& doc, const Layer& item) {
-  return item.vector_shape() && vector_lock_reason(item).empty() && item.lock_flags() == kLayerLockNone &&
+  return item.vector_shape() && vector_lock_reason(item).empty() && (item.lock_flags() & kLayerLockAll) == kLayerLockNone &&
     !layer_effectively_locks_image_pixels(doc.layers(), item.id()) && !layer_effectively_locks_position(doc.layers(), item.id());
 }
 void appearance(ScriptEngineHost& host, const QJsonObject& args, VectorShapeContent& content, PatternStore& patterns) {

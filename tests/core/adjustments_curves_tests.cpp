@@ -3139,8 +3139,8 @@ void color_balance_tones_round_trip_metadata_and_blnc() {
 // name their kind, raise one import notice, render nothing, and write their native block
 // back byte for byte (#250).
 void psd_unsupported_adjustments_import_as_placeholders_and_round_trip() {
-  // Photo Filter and Channel Mixer have real kinds, but a block version their parsers do not
-  // read (this 8-byte stub) still imports as a placeholder.
+  // Every kind has a real implementation now, but a block its parser does not read (this
+  // 8-byte stub) still imports as a placeholder.
   const std::array<std::pair<std::array<char, 4>, const char*>, 7> kinds{{
       {{'v', 'i', 'b', 'A'}, "vibrance"},
       {{'b', 'l', 'w', 'h'}, "black_white"},
@@ -4101,6 +4101,201 @@ void selective_color_matches_photoshop_2026_calibration() {
   CHECK(exact >= 171);
 }
 
+// Vibrance reads and writes Photoshop's legacy 'vibA' block (#250): a descriptor holding
+// only the non-zero sliders. An unedited block re-emits byte for byte, an edit writes
+// exactly the block Photoshop writes for the same values, a fresh layer writes the empty
+// legacy descriptor, and a block with Photoshop's newer Color and Vibrance settings stays
+// a "color_vibrance" placeholder with its bytes kept.
+void psd_vibrance_reads_and_writes_viba() {
+  // Photoshop 2026's legacy blocks for Vibrance -40 / Saturation 30 and 50 / 50.
+  const std::vector<std::uint8_t> payload{
+      0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x6E,
+      0x75, 0x6C, 0x6C, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x08, 0x76, 0x69, 0x62, 0x72,
+      0x61, 0x6E, 0x63, 0x65, 0x6C, 0x6F, 0x6E, 0x67, 0xFF, 0xFF, 0xFF, 0xD8, 0x00, 0x00, 0x00,
+      0x00, 0x53, 0x74, 0x72, 0x74, 0x6C, 0x6F, 0x6E, 0x67, 0x00, 0x00, 0x00, 0x1E, 0x00, 0x00};
+  const std::vector<std::uint8_t> photoshop_50_50{
+      0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x6E,
+      0x75, 0x6C, 0x6C, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x08, 0x76, 0x69, 0x62, 0x72,
+      0x61, 0x6E, 0x63, 0x65, 0x6C, 0x6F, 0x6E, 0x67, 0x00, 0x00, 0x00, 0x32, 0x00, 0x00, 0x00,
+      0x00, 0x53, 0x74, 0x72, 0x74, 0x6C, 0x6F, 0x6E, 0x67, 0x00, 0x00, 0x00, 0x32, 0x00, 0x00};
+  const auto read_document = [](const std::vector<std::uint8_t>& bytes, std::vector<std::string>* notices = nullptr) {
+    patchy::psd::ReadOptions options;
+    options.notices = notices;
+    return patchy::psd::DocumentIo::read(single_adjustment_layer_psd({{{'v', 'i', 'b', 'A'}, bytes}}), options);
+  };
+  auto document = read_document(payload);
+  const auto settings = patchy::adjustment_settings_from_layer(document.layers().front());
+  CHECK(settings.has_value());
+  if (!settings.has_value()) {
+    return;
+  }
+  CHECK(settings->kind == patchy::AdjustmentKind::Vibrance);
+  CHECK((settings->vibrance == patchy::VibranceAdjustment{-40, 30}));
+  CHECK(psd_layer_block_payload(psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(document), 0),
+                                "vibA") == payload);
+
+  auto edited = *settings;
+  edited.vibrance = patchy::VibranceAdjustment{50, 50};
+  patchy::configure_adjustment_layer(document.layers().front(), edited);
+  CHECK(psd_layer_block_payload(psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(document), 0),
+                                "vibA") == photoshop_50_50);
+
+  // A fresh layer at zero is the legacy descriptor with no keys, which Photoshop opens as
+  // legacy Vibrance (its own new-layer default, useLegacy false, would select Color and
+  // Vibrance).
+  patchy::AdjustmentSettings fresh;
+  fresh.kind = patchy::AdjustmentKind::Vibrance;
+  patchy::Document created(4, 4, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(created.allocate_layer_id(), "Vibrance", patchy::LayerKind::Adjustment);
+  layer.set_bounds(patchy::Rect::from_size(4, 4));
+  patchy::configure_adjustment_layer(layer, fresh);
+  created.add_layer(std::move(layer));
+  const std::vector<std::uint8_t> empty_block{0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00,
+                                              0x00, 0x00, 0x6E, 0x75, 0x6C, 0x6C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  CHECK(psd_layer_block_payload(psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(created), 0),
+                                "vibA") == empty_block);
+  const auto reread_fresh = patchy::adjustment_settings_from_layer(read_document(empty_block).layers().front());
+  CHECK(reread_fresh.has_value() && reread_fresh->kind == patchy::AdjustmentKind::Vibrance &&
+        !reread_fresh->vibrance.has_effect());
+
+  // useLegacy true is the legacy default spelled out, so it still reads.
+  const std::vector<std::uint8_t> explicit_legacy{
+      0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x6E,
+      0x75, 0x6C, 0x6C, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x09, 0x75, 0x73, 0x65, 0x4C,
+      0x65, 0x67, 0x61, 0x63, 0x79, 0x62, 0x6F, 0x6F, 0x6C, 0x01};
+  const auto legacy = patchy::adjustment_settings_from_layer(read_document(explicit_legacy).layers().front());
+  CHECK(legacy.has_value() && legacy->kind == patchy::AdjustmentKind::Vibrance);
+
+  // Photoshop's newer Color and Vibrance blocks: its new-layer default (useLegacy false) and
+  // a Temperature setting.
+  const std::vector<std::vector<std::uint8_t>> color_and_vibrance{
+      {0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+       0x6E, 0x75, 0x6C, 0x6C, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x09, 0x75, 0x73,
+       0x65, 0x4C, 0x65, 0x67, 0x61, 0x63, 0x79, 0x62, 0x6F, 0x6F, 0x6C, 0x00},
+      {0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x6E, 0x75,
+       0x6C, 0x6C, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x0B, 0x74, 0x65, 0x6D, 0x70, 0x65, 0x72,
+       0x61, 0x74, 0x75, 0x72, 0x65, 0x6C, 0x6F, 0x6E, 0x67, 0x00, 0x00, 0x00, 0x14, 0x00, 0x00, 0x00}};
+  for (const auto& block : color_and_vibrance) {
+    std::vector<std::string> notices;
+    const auto placeholder = read_document(block, &notices);
+    CHECK(placeholder.layers().front().kind() == patchy::LayerKind::Pixel);
+    CHECK(patchy::adjustment_placeholder_kind(placeholder.layers().front()) == "color_vibrance");
+    CHECK(notices.size() == 1U && notices.front().find("Color and Vibrance") != std::string::npos);
+    CHECK(psd_layer_block_payload(psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(placeholder), 0),
+                                  "vibA") == block);
+  }
+
+  // Layer metadata keeps both sliders.
+  patchy::Layer metadata_layer(1, "Vibrance", patchy::LayerKind::Adjustment);
+  patchy::configure_adjustment_layer(metadata_layer, edited);
+  const auto from_metadata = patchy::adjustment_settings_from_layer(metadata_layer);
+  CHECK(from_metadata.has_value() && from_metadata->vibrance == edited.vibrance);
+
+  // A hue (across) by saturation (down) sweep, bright above and dark below, under Vibrance
+  // 60 / Saturation -20: the Photoshop open check reads this PSD (docs/photoshop-com.md) and
+  // compares its composite with Patchy's, saved beside it.
+  constexpr std::int32_t kWidth = 96;
+  constexpr std::int32_t kHeight = 64;
+  patchy::Document sweep(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer pixels(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < kHeight; ++y) {
+    for (std::int32_t x = 0; x < kWidth; ++x) {
+      const double hue = 6.0 * x / kWidth;
+      const double saturation = (y % 32) / 31.0;
+      const double value = y < 32 ? 1.0 : 0.45;
+      const double f = hue - std::floor(hue);
+      const std::array<double, 6> rise{1.0, 1.0 - f, 0.0, 0.0, f, 1.0};
+      const auto sector = static_cast<std::size_t>(hue);
+      const std::array<double, 3> unit{rise[sector], rise[(sector + 4U) % 6U], rise[(sector + 2U) % 6U]};
+      auto* pixel = pixels.pixel(x, y);
+      for (std::size_t c = 0; c < 3U; ++c) {
+        pixel[c] = static_cast<std::uint8_t>(std::lround(255.0 * value * (1.0 - saturation * (1.0 - unit[c]))));
+      }
+      pixel[3] = 255;
+    }
+  }
+  sweep.add_pixel_layer("Sweep", std::move(pixels));
+  patchy::Layer vibrance_layer(sweep.allocate_layer_id(), "Vibrance 1", patchy::LayerKind::Adjustment);
+  vibrance_layer.set_bounds(patchy::Rect::from_size(kWidth, kHeight));
+  patchy::AdjustmentSettings sweep_settings;
+  sweep_settings.kind = patchy::AdjustmentKind::Vibrance;
+  sweep_settings.vibrance = patchy::VibranceAdjustment{60, -20};
+  patchy::configure_adjustment_layer(vibrance_layer, sweep_settings);
+  sweep.add_layer(std::move(vibrance_layer));
+  const auto sweep_bytes = patchy::psd::DocumentIo::write_layered_rgb8(sweep);
+  std::filesystem::create_directories("test-artifacts");
+  std::ofstream sweep_file("test-artifacts/vibrance-sweep-patchy.psd", std::ios::binary);
+  sweep_file.write(reinterpret_cast<const char*>(sweep_bytes.data()), static_cast<std::streamsize>(sweep_bytes.size()));
+  patchy::Document render(kWidth, kHeight, patchy::PixelFormat::rgb8());
+  render.add_pixel_layer("Patchy", patchy::Compositor{}.flatten_rgb8(sweep));
+  patchy::test::write_bmp_artifact("vibrance_sweep_patchy", render);
+}
+
+// Vibrance output against Photoshop 2026's legacy Vibrance (#250). Saturation is
+// Photoshop's own math (a linear-light scale around 0.288 R + 0.712 G) and matches to one
+// level. Vibrance is Patchy's fitted curve: within 10 levels of Photoshop on these inputs
+// (docs/adjustment-kinds.md, "Vibrance", records the tolerance), Vibrance runs before
+// Saturation, and gray never changes.
+void vibrance_matches_photoshop_2026_calibration() {
+  using Triple = std::array<int, 3>;
+  struct Row {
+    int vibrance;
+    int saturation;
+    std::array<Triple, 12> expected;
+  };
+  const std::array<Triple, 12> inputs{{{17, 68, 204}, {136, 136, 136}, {51, 170, 238}, {204, 102, 34},
+                                       {255, 0, 0}, {238, 204, 170}, {85, 85, 119}, {136, 119, 119},
+                                       {119, 136, 119}, {221, 51, 102}, {102, 170, 34}, {34, 17, 17}}};
+  const std::array<Row, 10> rows{{
+      {100, 0, {{{3, 66, 204}, {136, 136, 136}, {19, 167, 238}, {204, 98, 11}, {255, 0, 0}, {240, 198, 155}, {55, 55, 124}, {140, 115, 115}, {100, 140, 100}, {222, 21, 94}, {99, 171, 10}, {35, 15, 15}}}},
+      {50, 0, {{{11, 67, 204}, {136, 136, 136}, {39, 169, 238}, {204, 100, 25}, {255, 0, 0}, {239, 203, 166}, {76, 76, 121}, {137, 118, 118}, {114, 138, 114}, {221, 40, 98}, {101, 170, 25}, {34, 16, 16}}}},
+      {25, 0, {{{14, 67, 204}, {136, 136, 136}, {45, 169, 238}, {204, 101, 30}, {255, 0, 0}, {238, 203, 169}, {81, 81, 120}, {136, 119, 119}, {117, 137, 117}, {221, 46, 100}, {101, 170, 30}, {34, 17, 17}}}},
+      {-50, 0, {{{82, 101, 204}, {136, 136, 136}, {110, 182, 237}, {203, 123, 88}, {255, 99, 99}, {235, 215, 197}, {91, 91, 109}, {128, 120, 120}, {120, 128, 120}, {220, 104, 130}, {114, 168, 76}, {32, 25, 25}}}},
+      {-100, 0, {{{111, 123, 203}, {136, 136, 136}, {142, 192, 237}, {202, 139, 117}, {255, 137, 137}, {231, 222, 214}, {90, 90, 97}, {119, 117, 117}, {117, 119, 117}, {219, 133, 150}, {124, 167, 99}, {30, 28, 28}}}},
+      {0, 100, {{{0, 76, 255}, {136, 136, 136}, {0, 189, 255}, {248, 0, 0}, {255, 0, 0}, {255, 193, 100}, {85, 85, 144}, {147, 114, 114}, {105, 140, 105}, {255, 0, 52}, {0, 184, 0}, {42, 9, 9}}}},
+      {0, -50, {{{43, 63, 154}, {136, 136, 136}, {113, 159, 200}, {176, 124, 105}, {210, 106, 106}, {227, 209, 194}, {85, 85, 104}, {130, 122, 122}, {125, 134, 125}, {184, 102, 118}, {131, 162, 115}, {29, 20, 20}}}},
+      {50, 50, {{{0, 71, 242}, {136, 136, 136}, {0, 179, 255}, {228, 69, 0}, {255, 0, 0}, {250, 197, 133}, {76, 76, 138}, {143, 115, 115}, {104, 141, 104}, {252, 0, 76}, {49, 178, 0}, {39, 12, 12}}}},
+      {-40, 30, {{{68, 97, 225}, {136, 136, 136}, {71, 185, 255}, {216, 108, 34}, {255, 41, 41}, {240, 211, 183}, {91, 91, 116}, {131, 119, 119}, {118, 130, 118}, {237, 73, 117}, {94, 172, 0}, {34, 23, 23}}}},
+      {70, -60, {{{44, 60, 141}, {136, 136, 136}, {116, 155, 190}, {170, 126, 112}, {199, 115, 115}, {224, 208, 195}, {70, 70, 95}, {130, 122, 122}, {124, 134, 124}, {174, 104, 118}, {136, 161, 123}, {28, 20, 20}}}},
+  }};
+  int exact = 0;
+  int total = 0;
+  for (const auto& row : rows) {
+    patchy::AdjustmentSettings settings;
+    settings.kind = patchy::AdjustmentKind::Vibrance;
+    settings.vibrance = patchy::VibranceAdjustment{row.vibrance, row.saturation};
+    CHECK(patchy::adjustment_has_effect(settings));
+    CHECK(!patchy::build_adjustment_lut(settings).has_value());  // the gain depends on all three channels
+    const patchy::DeepAdjuster deep(settings, patchy::DeepDomain::Encoded);
+    const int tolerance = row.vibrance == 0 ? 1 : 10;
+    for (std::size_t index = 0; index < inputs.size(); ++index) {
+      const auto& in = inputs[index];
+      const patchy::RgbColor color{static_cast<std::uint8_t>(in[0]), static_cast<std::uint8_t>(in[1]),
+                                   static_cast<std::uint8_t>(in[2])};
+      const auto adjusted = patchy::apply_adjustment_to_color(color, settings);
+      const std::array<int, 3> got{adjusted.red, adjusted.green, adjusted.blue};
+      const auto deep_out = deep.apply({static_cast<float>(in[0]), static_cast<float>(in[1]),
+                                        static_cast<float>(in[2])});
+      for (std::size_t c = 0; c < 3U; ++c) {
+        CHECK(std::abs(got[c] - row.expected[index][c]) <= tolerance);
+        exact += got[c] == row.expected[index][c] ? 1 : 0;
+        ++total;
+        CHECK(std::abs(static_cast<double>(deep_out[c]) - row.expected[index][c]) <= tolerance + 0.5);
+      }
+    }
+  }
+  std::cout << "[INFO] Vibrance calibration: " << exact << " of " << total << " channel values exact" << '\n';
+  // 221 of these 360 values are exact; Saturation alone is exact on all 72 of its own.
+  CHECK(exact >= 215);
+
+  patchy::AdjustmentSettings none;
+  none.kind = patchy::AdjustmentKind::Vibrance;
+  CHECK(!patchy::adjustment_has_effect(none));
+  const patchy::RgbColor sample{204, 102, 34};
+  const auto unchanged = patchy::apply_adjustment_to_color(sample, none);
+  CHECK(unchanged.red == 204 && unchanged.green == 102 && unchanged.blue == 34);
+}
+
 // Channel Mixer reads and writes Photoshop's 'mixr' block: the rows land on the right
 // outputs, monochrome keeps its gray mix, an unedited block re-emits byte for byte, and
 // the preset-name 'CgEd' goes once the mix is edited (#250).
@@ -4313,5 +4508,7 @@ std::vector<patchy::test::TestCase> adjustments_curves_tests() {
       {"color_lookup_files_parse_and_embed", color_lookup_files_parse_and_embed},
       {"psd_selective_color_reads_and_writes_selc", psd_selective_color_reads_and_writes_selc},
       {"selective_color_matches_photoshop_2026_calibration", selective_color_matches_photoshop_2026_calibration},
+      {"psd_vibrance_reads_and_writes_viba", psd_vibrance_reads_and_writes_viba},
+      {"vibrance_matches_photoshop_2026_calibration", vibrance_matches_photoshop_2026_calibration},
   };
 }

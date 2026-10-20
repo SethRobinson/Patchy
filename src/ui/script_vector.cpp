@@ -123,7 +123,7 @@ const Layer& layer(ScriptEngineHost& host, std::int64_t session, LayerId id, boo
   const auto& doc = document(host, session);
   const auto* result = doc.find_layer(id);
   if (!result) { invalid("layer.id"); }
-  if (editable && (result->lock_flags() != kLayerLockNone ||
+  if (editable && ((result->lock_flags() & kLayerLockAll) != kLayerLockNone ||
       layer_effectively_locks_image_pixels(doc.layers(), id) || layer_effectively_locks_position(doc.layers(), id) ||
       !vector_lock_reason(*result).empty())) { invalid("layer.locked"); }
   return *result;

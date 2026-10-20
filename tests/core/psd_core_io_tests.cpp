@@ -1129,17 +1129,31 @@ void psd_layer_lock_all_and_auto_nesting_bits_round_trip() {
   CHECK(patchy::layer_lock_flags(three.layers().front()) == patchy::kLayerLockAll);
   CHECK(written_protection(three) == 0x7U);
 
-  // Prevent Auto Nesting survives a save, alone or beside a lock, and after a lock edit.
+  // Prevent Auto Nesting (GitHub issue 246) opens as its own lock and survives a save, alone
+  // or beside a lock, and after a lock edit.
   auto nesting = patchy::psd::DocumentIo::read(file_with_protection(0x9U));
-  CHECK(patchy::layer_lock_flags(nesting.layers().front()) == patchy::kLayerLockTransparentPixels);
+  CHECK(patchy::layer_lock_flags(nesting.layers().front()) ==
+        (patchy::kLayerLockTransparentPixels | patchy::kLayerLockArtboardAutonest));
+  CHECK(patchy::layer_prevents_auto_nesting(nesting.layers().front()));
   CHECK(written_protection(nesting) == 0x9U);
   patchy::set_layer_lock_flag(nesting.layers().front(), patchy::kLayerLockPosition, true);
   CHECK(written_protection(nesting) == 0xDU);
   patchy::set_layer_locks_all(nesting.layers().front(), true);
   CHECK(written_protection(nesting) == 0x80000008U);
-  const auto nesting_only = patchy::psd::DocumentIo::read(file_with_protection(0x8U));
-  CHECK(patchy::layer_lock_flags(nesting_only.layers().front()) == patchy::kLayerLockNone);
+  CHECK(patchy::layer_prevents_auto_nesting(nesting.layers().front()));
+  auto nesting_only = patchy::psd::DocumentIo::read(file_with_protection(0x8U));
+  CHECK(patchy::layer_lock_flags(nesting_only.layers().front()) == patchy::kLayerLockArtboardAutonest);
+  CHECK(!patchy::layer_locks_all(nesting_only.layers().front()));
   CHECK(written_protection(nesting_only) == 0x8U);
+  // Clearing it in Patchy drops the bit; setting it on a new layer writes it.
+  patchy::set_layer_prevents_auto_nesting(nesting_only.layers().front(), false);
+  CHECK(written_protection(nesting_only) == 0U);
+  patchy::Document fresh(2, 2, patchy::PixelFormat::rgb8());
+  patchy::set_layer_prevents_auto_nesting(fresh.add_pixel_layer("Fresh", solid_rgba(2, 2, 1, 2, 3, 255)), true);
+  CHECK(written_protection(fresh) == 0x8U);
+  const auto fresh_read =
+      patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(fresh));
+  CHECK(patchy::layer_lock_flags(fresh_read.layers().front()) == patchy::kLayerLockArtboardAutonest);
 
   // Unlocking a Lock All layer writes no lock at all.
   patchy::set_layer_locks_all(lock_all.layers().front(), false);

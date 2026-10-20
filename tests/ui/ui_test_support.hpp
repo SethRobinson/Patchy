@@ -329,6 +329,10 @@ void save_widget_artifact(const std::string& name, QWidget& widget);
 // Saves several captures stacked top to bottom (a 6 px gap between them) as one artifact,
 // for before/after shots that cover more than one widget or state.
 void save_stacked_artifact(const std::string& name, const QList<QImage>& strips);
+// A window grab with one of its popups (an options-bar slider popup is its own top-level
+// window, so a plain grab would not show it) painted in place, cropped around `field` and
+// the popup. For issue shots of a popup open at a value.
+void save_window_popup_artifact(const std::string& name, QWidget& window, QWidget& field, QWidget& popup);
 
 void send_mouse(QWidget& widget, QEvent::Type type, QPoint position, Qt::MouseButton button, Qt::MouseButtons buttons,
                 Qt::KeyboardModifiers modifiers = Qt::NoModifier);

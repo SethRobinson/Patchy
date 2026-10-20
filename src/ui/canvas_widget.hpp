@@ -1423,7 +1423,10 @@ private:
   [[nodiscard]] VectorPreviewView vector_preview_view() const noexcept;
   [[nodiscard]] bool vector_preview_settled() const noexcept;
   void prepare_vector_preview();
-  bool draw_vector_preview(QPainter& painter);
+  // Draws the completed preview frame over the composite, then (at deep zoom, with View >
+  // Pixel Grid on) the pixel grid alone from the document pixels, since the frame covered
+  // the composite's raster, grid included (docs/vector-preview.md, "Overlay order").
+  bool draw_vector_preview(QPainter& painter, QRect exposed_rect);
   void report_vector_preview_status(QString status, bool notice = false);
   // True when a paint should keep showing the previous frame and let the async
   // refresh swap the new composite in, instead of blocking the paint on a full
@@ -1523,8 +1526,10 @@ private:
   void draw_checkerboard(QPainter& painter, const QRectF& rect, QRect exposed_rect) const;
   void draw_deep_zoom_image(QPainter& painter, const QImage& image, QRect exposed_rect) const;
   // The deep-zoom renderer for the document pixels of document_rect held in `image`:
-  // one deep_zoom_raster blit of the exposed part, pixel grid included.
-  void draw_deep_zoom_pixels(QPainter& painter, const QImage& image, QRect document_rect, QRect exposed_rect) const;
+  // one deep_zoom_raster blit of the exposed part, pixel grid included. With `grid_only`
+  // it blits the grid lines alone (transparent elsewhere) over whatever is already drawn.
+  void draw_deep_zoom_pixels(QPainter& painter, const QImage& image, QRect document_rect, QRect exposed_rect,
+                             bool grid_only = false) const;
   // Seamless tiling mode internals (canvas_widget_render.cpp). tiling_ghosts_visible is
   // the cheap gate; tiling_direct_offsets returns the wrap offsets whose ghost tiles
   // intersect widget_rect, or an EMPTY vector when there are more than the direct-draw

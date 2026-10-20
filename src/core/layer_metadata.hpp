@@ -138,6 +138,9 @@ void set_layer_locks_position(Layer& layer, bool locked);
 
 [[nodiscard]] bool layer_locks_all(const Layer& layer);
 void set_layer_locks_all(Layer& layer, bool locked);
+// Prevent Auto-Nesting (kLayerLockArtboardAutonest), the layer's own flag only.
+[[nodiscard]] bool layer_prevents_auto_nesting(const Layer& layer);
+void set_layer_prevents_auto_nesting(Layer& layer, bool prevented);
 
 [[nodiscard]] LayerLockFlags layer_lock_flags(const Layer& layer);
 void set_layer_lock_flags(Layer& layer, LayerLockFlags flags);

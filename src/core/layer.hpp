@@ -32,6 +32,12 @@ inline constexpr LayerLockFlags kLayerLockImagePixels = 1U << 1U;
 inline constexpr LayerLockFlags kLayerLockPosition = 1U << 2U;
 inline constexpr LayerLockFlags kLayerLockAll =
     kLayerLockTransparentPixels | kLayerLockImagePixels | kLayerLockPosition;
+// Photoshop's "Prevent Auto-Nesting" (PSD lspf 0x8, GitHub issue 246): a Move drag with
+// Auto-Nest Layers never moves this layer into or out of an artboard, and on an artboard
+// nothing auto-nests into or out of it. Not an editing lock: kLayerLockAll and every
+// "locked" check leave it out, and folders do not pass it to their children.
+inline constexpr LayerLockFlags kLayerLockArtboardAutonest = 1U << 3U;
+inline constexpr LayerLockFlags kLayerLockStoredFlags = kLayerLockAll | kLayerLockArtboardAutonest;
 
 // Layers panel color labels (GitHub issue 244). The values are Photoshop's own
 // 'lclr' indices, so they are a file-format contract. Other indices from a newer
