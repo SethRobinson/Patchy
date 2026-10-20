@@ -448,13 +448,13 @@ void smart_filter_table_kernels_keep_their_contracts() {
   CHECK(wrapped.bounds.x == 0 && wrapped.bounds.width == 9);
   CHECK(same_visible(wrapped.pixels, pixels));
   // Radii below 1.5 round to a 3x3 window; 0.2 still renders as 1.
-  const auto small = patchy::render_smart_filter_stack(
+  const auto tiny_radius = patchy::render_smart_filter_stack(
       pixels, bounds,
       stack_of(patchy::SmartFilterKind::Minimum, {0.2, std::string("squareness")}));
   const auto one = patchy::render_smart_filter_stack(
       pixels, bounds,
       stack_of(patchy::SmartFilterKind::Minimum, {1.49, std::string("squareness")}));
-  CHECK(same_visible(small.pixels, one.pixels));
+  CHECK(same_visible(tiny_radius.pixels, one.pixels));
   // Minimum fills the transparent pixel (alpha takes the maximum) with the
   // window's darkest color; Maximum makes its neighbours transparent.
   CHECK(one.pixels.pixel(4, 3)[3] == 255U);
