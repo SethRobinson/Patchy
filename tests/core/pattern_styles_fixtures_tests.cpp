@@ -424,7 +424,7 @@ void psd_photoshop_bevel_subs_fixture_round_trips() {
   CHECK(document.metadata().patterns.find(texture_bevel.texture.pattern_id) != nullptr);
 
   // Simulate an edit (drop the preserved style blocks) and require the
-  // regenerated descriptors to re-read with identical modeled values â€”
+  // regenerated descriptors to re-read with identical modeled values —
   // including EXACT custom contour points, the better-than-Satin guarantee.
   for (auto& layer : document.layers()) {
     std::erase_if(layer.unknown_psd_blocks(), [](const patchy::UnknownPsdBlock& block) {
@@ -1523,14 +1523,40 @@ void psd_photoshop_stroke_aa_matte_fixture_matches_render() {
   }
   const auto total_pixels =
       static_cast<double>(reference.width()) * static_cast<double>(reference.height());
-  // 2.13% at capture time (the pre-subpixel threshold anchor measured 3.50%).
+  // Per-layer picture: the ellipse spans x < 180, the diamond 180..340, the
+  // Shape Burst ellipse the rest.
+  for (const auto [name, left, right] : {std::tuple{"ellipse", 0, 180}, std::tuple{"diamond", 180, 340},
+                                         std::tuple{"sbellipse", 340, 560}}) {
+    std::uint64_t over = 0;
+    double total = 0.0;
+    for (std::int32_t y = 0; y < reference.height(); ++y) {
+      for (std::int32_t x = left; x < std::min(right, reference.width()); ++x) {
+        const auto* a = reference.pixel(x, y);
+        const auto* b = flat.pixel(x, y);
+        int max_delta = 0;
+        for (int channel = 0; channel < 3; ++channel) {
+          max_delta = std::max(max_delta, std::abs(static_cast<int>(a[channel]) - static_cast<int>(b[channel])));
+        }
+        total += max_delta;
+        if (max_delta > 6) {
+          ++over;
+        }
+      }
+    }
+    std::cout << "  aa-matte " << name << ": mean " << total / (static_cast<double>(right - left) * reference.height())
+              << ", " << over << " pixels over 6\n";
+  }
+  std::cout << "  aa-matte overall: mean " << metrics.mean_abs_channel_delta << ", "
+            << static_cast<double>(over_aa_tolerance) / total_pixels * 100.0 << "% over 6\n";
+  // 2.13% at capture time with the subpixel anchor; the pixel-center anchor with
+  // the edge-alpha ring (October 2026) is measured by the per-layer lines above.
   CHECK(static_cast<double>(over_aa_tolerance) / total_pixels <= 0.03);
 }
 
 // Photoshop 2026 authored photoshop-stroke-overprint.psd/.bmp via COM (July
 // 2026): eight stroke arms over an orange (255,128,0) backdrop, gray (110)
 // content, pinning the Overprint knockout model. Arms: Inside 29% white
-// overprint off (band = 0.29*white + 0.71*orange â€” content fully knocked
+// overprint off (band = 0.29*white + 0.71*orange — content fully knocked
 // out), the same with overprint ON (band = stroke over the gray content),
 // 60% off, Multiply (200,100,50) 100% off (blend mode applies against the
 // BACKDROP), an AA ellipse at 29% off (fringe compensation), a
@@ -1963,7 +1989,7 @@ void psd_photoshop_shadow_conceals_fixture_matches_render() {
 // (docs/ps-compat.md).
 void psd_photoshop_pillow_emboss_fixtures_match_render() {
   // photoshop-emboss-styles adds AA-ellipse pillow probes (fringe pixels
-  // carry BOTH sides' shading â€” the two-sided composite) and plain-Emboss
+  // carry BOTH sides' shading — the two-sided composite) and plain-Emboss
   // squares/ellipse (same calibrated model, one global sign, no flip).
   for (const auto* stem :
        {"photoshop-pillow-emboss", "photoshop-pillow-emboss2", "photoshop-emboss-styles"}) {
@@ -2006,8 +2032,8 @@ void psd_photoshop_pillow_emboss_fixtures_match_render() {
 }
 
 // Photoshop 2026 authored photoshop-stroke-shapeburst.psd via COM (July 2026):
-// three L-shaped mattes carrying Shape Burst gradient strokes â€” Outside 10 px,
-// Center 12 px with Reverse, and Inside 10 px at Scale 50 â€” saved alongside
+// three L-shaped mattes carrying Shape Burst gradient strokes — Outside 10 px,
+// Center 12 px with Reverse, and Inside 10 px at Scale 50 — saved alongside
 // Photoshop's own flatten. It pins the calibrated mapping (docs/ps-compat.md):
 // the ramp is linear in the band's Euclidean distance field with position 0 at
 // the outer band limit, Center strokes ramp continuously across the contour,
@@ -2040,7 +2066,7 @@ void psd_photoshop_stroke_shapeburst_fixture_matches_render() {
   // Straight band runs match within +/-1; the only pixels past the 6/255 AA
   // tolerance (0.09% of the canvas at capture time) are band-edge arcs at
   // shape corners, where the shared stroke coverage ramp (linear in center
-  // distance) overfills slightly against Photoshop's rounder arc coverage â€”
+  // distance) overfills slightly against Photoshop's rounder arc coverage —
   // a solid-stroke coverage property, not part of the Shape Burst mapping.
   CHECK(metrics.mean_abs_channel_delta <= 0.10);
   std::uint64_t over_aa_tolerance = 0;
@@ -2706,6 +2732,8 @@ std::vector<patchy::test::TestCase> pattern_styles_fixtures_tests() {
       {"psd_photoshop_stroke_shapeburst_fixture_matches_render",
        psd_photoshop_stroke_shapeburst_fixture_matches_render},
       {"psd_lfx2_float_color_descriptor_reads_as_rgb", psd_lfx2_float_color_descriptor_reads_as_rgb},
+      {"ag_psd_effects_stroke_layer_matches_photoshop_if_available",
+       ag_psd_effects_stroke_layer_matches_photoshop_if_available},
       {"ag_psd_effects_noise_gradient_overlay_matches_photoshop_if_available",
        ag_psd_effects_noise_gradient_overlay_matches_photoshop_if_available},
       {"ag_psd_float_color_outer_glow_matches_photoshop_if_available",

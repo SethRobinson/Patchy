@@ -1474,6 +1474,68 @@ void stroke_on_semi_transparent_content_matches_photoshop_probes_if_available() 
   CHECK(compared > 0);
 }
 
+// Soft-edged strokes (GitHub issue 261): Photoshop 2026 authored and rendered
+// local-test-fixtures/stroke-soft-probes/probes.psd (make_probes.jsx): 40 px squares
+// filled through a selection feathered 0, 1, 2, 4 and 8 px, one per column, with
+// Outside 2, 5 and 10 px, Inside 5 px and Center 6 px solid strokes, one per row.
+// probes-flat.bmp is its merge over white. They pin the band model in
+// stroke_alpha_mask: the outer band measures from the first pixel with any alpha and
+// its last ring reads that pixel's alpha, the inner band from the first pixel below
+// full alpha with its last ring reading the missing alpha, and every partial pixel
+// carries the two paints. Before this model the band sat about a pixel inside
+// Photoshop's on every feathered square (the reporter's "1 px smaller" stroke).
+void stroke_soft_edge_probes_match_photoshop_if_available() {
+  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "stroke-soft-probes";
+  patchy::test::skip_unless_exists(dir / "probes.psd");
+  patchy::test::skip_unless_exists(dir / "probes-flat.bmp");
+  const auto document = patchy::psd::DocumentIo::read_file(dir / "probes.psd");
+  const auto reference = patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(dir / "probes-flat.bmp"));
+  std::vector<std::uint8_t> coverage;
+  const auto flat = patchy::Compositor{}.flatten_rgb8(document, &coverage);
+  CHECK(reference.width() == flat.width() && reference.height() == flat.height());
+  constexpr int kCell = 96;
+  const char* feathers[] = {"f0", "f1", "f2", "f4", "f8"};
+  const char* strokes[] = {"out2", "out5", "in5", "ctr6", "out10"};
+  double worst_cell_mean = 0.0;
+  std::uint64_t total_off = 0;
+  std::uint64_t total_pixels = 0;
+  for (int row = 0; row < 5; ++row) {
+    for (int column = 0; column < 5; ++column) {
+      double total = 0.0;
+      int worst = 0;
+      std::uint64_t off = 0;
+      for (std::int32_t y = row * kCell; y < (row + 1) * kCell; ++y) {
+        for (std::int32_t x = column * kCell; x < (column + 1) * kCell; ++x) {
+          const auto* a = reference.pixel(x, y);
+          const auto* b = flat.pixel(x, y);
+          const auto alpha = static_cast<double>(coverage[static_cast<std::size_t>(y) * flat.width() + x]) / 255.0;
+          int delta = 0;
+          for (int channel = 0; channel < 3; ++channel) {
+            const int over_white = static_cast<int>(std::lround(b[channel] * alpha + 255.0 * (1.0 - alpha)));
+            delta = std::max(delta, std::abs(a[channel] - over_white));
+          }
+          total += delta;
+          worst = std::max(worst, delta);
+          if (delta > 8) {
+            ++off;
+          }
+        }
+      }
+      const double mean = total / (static_cast<double>(kCell) * kCell);
+      std::cout << "  " << feathers[column] << "_" << strokes[row] << ": mean " << mean << ", worst " << worst
+                << ", " << off << " pixels off by more than 8\n";
+      worst_cell_mean = std::max(worst_cell_mean, mean);
+      total_off += off;
+      total_pixels += static_cast<std::uint64_t>(kCell) * kCell;
+    }
+  }
+  const double share = static_cast<double>(total_off) / static_cast<double>(total_pixels);
+  std::cout << "  soft stroke probes: worst cell mean " << worst_cell_mean << ", " << share * 100.0
+            << "% of pixels off by more than 8\n";
+  CHECK(worst_cell_mean <= 1.5);
+  CHECK(share <= 0.01);
+}
+
 }  // namespace
 
 
@@ -1547,6 +1609,8 @@ std::vector<patchy::test::TestCase> compositor_layer_styles_tests() {
        shape_effect_silhouette_matches_photoshop_probes_if_available},
       {"stroke_on_semi_transparent_content_matches_photoshop_probes_if_available",
        stroke_on_semi_transparent_content_matches_photoshop_probes_if_available},
+      {"stroke_soft_edge_probes_match_photoshop_if_available",
+       stroke_soft_edge_probes_match_photoshop_if_available},
       {"compositor_burn_dodge_effects_preserve_transparent_coverage", compositor_burn_dodge_effects_preserve_transparent_coverage},
   };
 }
