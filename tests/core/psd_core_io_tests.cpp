@@ -3559,6 +3559,101 @@ void psd_issue_242_slices_sample_round_trips_if_available() {
   CHECK(!patchy::psd::find_image_resource_payload(reread.metadata().raw_psd_image_resources, 1050).has_value());
 }
 
+// Photoshop annotations (GitHub issue 258, docs/ps-compat.md "Annotations"): the notes live in
+// the document-global 'Anno' tagged block {u16 major 2, u16 minor 1, u32 count, records}.
+// Patchy has no Note tool, so the block rides the generic unknown-global preserve path and
+// must come back byte for byte after an edit and a save. The sample is ag-psd's
+// test/read-write/annotations/src.psd (MIT; local-test-fixtures/ag-psd/annotations/
+// SOURCE.txt). The resave is also written to test-artifacts/psd-annotations for the
+// Photoshop open check.
+std::optional<std::uint32_t> annotation_count(std::span<const std::uint8_t> payload) {
+  if (payload.size() < 8U || patchy::test::read_u32_be_at(payload, 0) != 0x00020001U) {
+    return std::nullopt;  // not the 2.1 layout ag-psd and Photoshop write
+  }
+  return patchy::test::read_u32_be_at(payload, 4);
+}
+
+// The raw 'Anno' payload as stored in the file, found independently of the reader.
+std::optional<std::vector<std::uint8_t>> raw_anno_payload(std::span<const std::uint8_t> bytes) {
+  static constexpr std::array<std::uint8_t, 8> kHeader{'8', 'B', 'I', 'M', 'A', 'n', 'n', 'o'};
+  const auto it = std::search(bytes.begin(), bytes.end(), kHeader.begin(), kHeader.end());
+  if (it == bytes.end()) {
+    return std::nullopt;
+  }
+  const auto offset = static_cast<std::size_t>(std::distance(bytes.begin(), it)) + kHeader.size();
+  if (offset + 4U > bytes.size()) {
+    return std::nullopt;
+  }
+  const auto length = patchy::test::read_u32_be_at(bytes, offset);
+  if (offset + 4U + length > bytes.size()) {
+    return std::nullopt;
+  }
+  return std::vector<std::uint8_t>(bytes.begin() + static_cast<std::ptrdiff_t>(offset + 4U),
+                                   bytes.begin() + static_cast<std::ptrdiff_t>(offset + 4U + length));
+}
+
+const patchy::UnknownPsdBlock* find_global_block(const patchy::Document& document, std::string_view key) {
+  for (const auto& block : document.metadata().unknown_psd_resources) {
+    if (block.key == key) {
+      return &block;
+    }
+  }
+  return nullptr;
+}
+
+void psd_annotations_survive_save_if_available() {
+  const auto path = patchy::test::local_format_fixture_path("ag-psd", "annotations/src.psd");
+  patchy::test::skip_unless_exists(path);
+  const auto source_bytes = patchy::test::read_binary_file(path);
+  const auto source_raw = raw_anno_payload(source_bytes);
+  CHECK(source_raw.has_value());
+  CHECK(annotation_count(*source_raw) == std::uint32_t{2});
+
+  const auto original = patchy::psd::DocumentIo::read_file(path);
+  const auto* imported = find_global_block(original, "Anno");
+  CHECK(imported != nullptr);
+  CHECK(imported->payload == *source_raw);
+  CHECK(!imported->long_length);
+
+  // An ordinary pixel edit before the save: notes must survive real work, not just a no-op resave.
+  auto edited = original;
+  bool painted = false;
+  for (auto& layer : edited.layers()) {
+    if (layer.kind() == patchy::LayerKind::Pixel && layer.pixels().width() > 4 && layer.pixels().height() > 4) {
+      auto* pixel = layer.pixels().pixel(2, 2);
+      pixel[0] = static_cast<std::uint8_t>(255 - pixel[0]);
+      painted = true;
+      break;
+    }
+  }
+  CHECK(painted);
+  const auto saved_bytes = patchy::psd::DocumentIo::write_layered_rgb8(edited);
+  const auto out = std::filesystem::path("test-artifacts") / "psd-annotations";
+  std::filesystem::create_directories(out);
+  write_binary_file(out / "annotations-resaved.psd", saved_bytes);
+
+  // Byte for byte in the file itself, and through the reader again.
+  CHECK(raw_anno_payload(saved_bytes) == source_raw);
+  const auto reread = patchy::psd::DocumentIo::read(saved_bytes);
+  const auto* kept = find_global_block(reread, "Anno");
+  CHECK(kept != nullptr);
+  CHECK(kept->payload == *source_raw);
+  CHECK(annotation_count(kept->payload) == std::uint32_t{2});
+
+  // The other preserved global blocks (the sample carries 'Patt' and 'FMsk') keep their
+  // order and bytes too: the annotations are not special-cased.
+  std::vector<std::string> original_keys;
+  std::vector<std::string> kept_keys;
+  for (const auto& block : original.metadata().unknown_psd_resources) {
+    original_keys.push_back(block.key);
+  }
+  for (const auto& block : reread.metadata().unknown_psd_resources) {
+    kept_keys.push_back(block.key);
+  }
+  CHECK(original_keys == kept_keys);
+  CHECK(std::find(kept_keys.begin(), kept_keys.end(), "FMsk") != kept_keys.end());
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> psd_core_io_tests() {
@@ -3681,5 +3776,6 @@ std::vector<patchy::test::TestCase> psd_core_io_tests() {
       {"psd_slices_survive_saves_until_the_canvas_geometry_changes",
        psd_slices_survive_saves_until_the_canvas_geometry_changes},
       {"psd_issue_242_slices_sample_round_trips_if_available", psd_issue_242_slices_sample_round_trips_if_available},
+      {"psd_annotations_survive_save_if_available", psd_annotations_survive_save_if_available},
   };
 }
