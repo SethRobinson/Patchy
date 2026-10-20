@@ -1211,6 +1211,38 @@ int ink_pixels(const QImage& image, QRect region, QColor ink) {
   return count;
 }
 
+// Pixels that stand out from the region's dominant color, whatever they are: ink or its
+// halo on a strip of pasteboard or paper.
+int stand_out_pixels(const QImage& image, QRect region) {
+  region = region.intersected(image.rect());
+  std::map<QRgb, int> histogram;
+  for (int y = region.top(); y <= region.bottom(); ++y) {
+    for (int x = region.left(); x <= region.right(); ++x) {
+      ++histogram[image.pixel(x, y)];
+    }
+  }
+  QRgb backing = 0;
+  int best = -1;
+  for (const auto& [color, count] : histogram) {
+    if (count > best) {
+      best = count;
+      backing = color;
+    }
+  }
+  const QColor backing_color(backing);
+  int count = 0;
+  for (int y = region.top(); y <= region.bottom(); ++y) {
+    for (int x = region.left(); x <= region.right(); ++x) {
+      const auto color = image.pixelColor(x, y);
+      if (std::abs(color.red() - backing_color.red()) > 60 || std::abs(color.green() - backing_color.green()) > 60 ||
+          std::abs(color.blue() - backing_color.blue()) > 60) {
+        ++count;
+      }
+    }
+  }
+  return count;
+}
+
 const char* scheme_label(patchy::ui::ColorSchemePreference preference) {
   return preference == patchy::ui::ColorSchemePreference::Light ? "light" : "dark";
 }
@@ -1394,6 +1426,44 @@ void ui_artboard_label_ink_follows_what_it_sits_on() {
   }
 }
 
+// GitHub issue 260, Seth's review: a name hanging a few pixels over the board above it
+// straddles that board's paper and the pasteboard. The glyph pixels over the paper take
+// the dark ink, the part over the pasteboard still reads (a halo in the other ink where
+// the pasteboard is dark), and the board above's outline never crosses the name: labels
+// draw after every outline.
+void ui_artboard_label_reads_across_a_neighbouring_boards_edge() {
+  const patchy::Rect top_rect{20, 40, 200, 150};
+  const patchy::Rect below_rect{20, 198, 200, 120};  // an 8 px gap, narrower than the label
+  for (const auto preference : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer scheme_restorer(preference);
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto seed = board_document(520, 420);
+    add_board(seed, "Hanging Name", below_rect, patchy::ArtboardBackground::White, QColor());
+    add_board(seed, "Top Board", top_rect, patchy::ArtboardBackground::White, QColor());
+    window.add_document_session(std::move(seed), QStringLiteral("Straddle"));
+    auto* canvas = require_canvas(window);
+    canvas->set_zoom(1.0);
+    require_hotkey_action(window, QStringLiteral("tools.move"))->trigger();
+    QApplication::processEvents();
+    const auto& palette = patchy::ui::theme();
+    const auto image = canvas->grab().toImage();
+    save_widget_artifact(std::string("ui_issue_260_straddle_") + scheme_label(preference), window);
+
+    const auto label = label_region(*canvas, below_rect);
+    const int paper_bottom = canvas->widget_position_for_document_point(QPoint(20, 190)).y();  // first gap row
+    // Over the paper: the dark ink.
+    const QRect on_paper(label.left(), label.top(), label.width(), paper_bottom - 1 - label.top());
+    CHECK(ink_pixels(image, on_paper, palette.canvas_artboard_label_on_light) > 6);
+    // Over the gap: something readable, not dark ink lost on a dark pasteboard.
+    const QRect in_gap(label.left(), paper_bottom, label.width(), 4);
+    CHECK(stand_out_pixels(image, in_gap) > 4);
+    // The upper board's bottom outline runs through the name and the name wins.
+    const QRect outline_row(label.left(), paper_bottom - 1, label.width(), 1);
+    CHECK(count_pixels_close(image, outline_row, palette.canvas_artboard_label_on_light, 36) > 2);
+  }
+}
+
 // GitHub issue 260 on the reporter's file (ag-psd's artboards sample): "custom board" sits
 // right under "white board", so its name is drawn on white paper and takes the dark ink,
 // while the names over the pasteboard keep the pasteboard ink; and with the Move tool
@@ -1446,6 +1516,20 @@ void ui_artboard_ag_psd_sample_labels_read_on_their_backing_if_available() {
     CHECK(canvas_content_rect(*canvas).contains(label_region(*canvas, custom_board->artboard()->rect)));
     CHECK(ink_pixels(image, label_region(*canvas, custom_board->artboard()->rect), palette.canvas_artboard_label_on_light) > 6);
     CHECK(ink_pixels(image, label_region(*canvas, white_board->artboard()->rect), pasteboard_ink) > 6);
+    // The name hangs over the white board's bottom edge: its part in the pasteboard gap
+    // still reads, and the white board's outline does not cross it.
+    {
+      const auto& white_rect = white_board->artboard()->rect;
+      const auto& custom_rect = custom_board->artboard()->rect;
+      const auto custom_label = label_region(*canvas, custom_rect);
+      const int paper_bottom = canvas->widget_position_for_document_point(QPoint(white_rect.x, white_rect.y + white_rect.height)).y();
+      const int custom_top = canvas->widget_position_for_document_point(QPoint(custom_rect.x, custom_rect.y)).y();
+      CHECK(custom_label.top() < paper_bottom && paper_bottom < custom_top - 4);
+      const QRect in_gap(custom_label.left(), paper_bottom, custom_label.width(), std::max(1, custom_top - 4 - paper_bottom));
+      CHECK(stand_out_pixels(image, in_gap) > 4);
+      const QRect outline_row(custom_label.left(), paper_bottom - 1, custom_label.width(), 1);
+      CHECK(count_pixels_close(image, outline_row, palette.canvas_artboard_label_on_light, 36) > 2);
+    }
     canvas->fit_to_view();
     QApplication::processEvents();
 
@@ -1486,6 +1570,8 @@ std::vector<patchy::test::TestCase> artboard_ui_tests() {
       {"ui_artboard_move_tool_hover_frames_artboard_and_click_selects_it",
        ui_artboard_move_tool_hover_frames_artboard_and_click_selects_it},
       {"ui_artboard_label_ink_follows_what_it_sits_on", ui_artboard_label_ink_follows_what_it_sits_on},
+      {"ui_artboard_label_reads_across_a_neighbouring_boards_edge",
+       ui_artboard_label_reads_across_a_neighbouring_boards_edge},
       {"ui_artboard_ag_psd_sample_labels_read_on_their_backing_if_available",
        ui_artboard_ag_psd_sample_labels_read_on_their_backing_if_available},
   };
