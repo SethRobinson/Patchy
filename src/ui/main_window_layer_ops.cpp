@@ -2877,6 +2877,53 @@ void MainWindow::refresh_layer_style_action_states() {
   }
 }
 
+namespace {
+
+// The layer that becomes active after deleting `deleted_roots` (GitHub issue 249): the
+// sibling below the lowest deleted root in its group, the one above when that root was the
+// bottom of its group, else the group itself; nullopt when the root had no parent and no
+// sibling is left. Layers are stored bottom first, so "below" is a lower index.
+std::optional<LayerId> layer_to_activate_after_delete(const std::vector<Layer>& layers,
+                                                      const std::vector<LayerId>& deleted_roots) {
+  const std::set<LayerId> deleted(deleted_roots.begin(), deleted_roots.end());
+  struct Found {
+    const std::vector<Layer>* siblings{nullptr};
+    std::size_t index{0};
+    std::optional<LayerId> parent;
+  };
+  std::optional<Found> lowest;
+  // Panel order, top to bottom: a folder, then its contents, then the sibling below it. The
+  // last deleted root met is the lowest in the panel.
+  const auto visit = [&](auto&& self, const std::vector<Layer>& siblings, std::optional<LayerId> parent) -> void {
+    for (std::size_t index = siblings.size(); index-- > 0;) {
+      const auto& layer = siblings[index];
+      if (deleted.contains(layer.id())) {
+        lowest = Found{&siblings, index, parent};
+        continue;
+      }
+      self(self, layer.children(), layer.id());
+    }
+  };
+  visit(visit, layers, std::nullopt);
+  if (!lowest.has_value()) {
+    return std::nullopt;
+  }
+  const auto& siblings = *lowest->siblings;
+  for (std::size_t index = lowest->index; index-- > 0;) {
+    if (!deleted.contains(siblings[index].id())) {
+      return siblings[index].id();
+    }
+  }
+  for (auto index = lowest->index + 1; index < siblings.size(); ++index) {
+    if (!deleted.contains(siblings[index].id())) {
+      return siblings[index].id();
+    }
+  }
+  return lowest->parent;
+}
+
+}  // namespace
+
 void MainWindow::delete_active_layer() {
   delete_layers(selected_or_active_layer_ids());
 }
@@ -2892,9 +2939,13 @@ void MainWindow::delete_layers(std::vector<LayerId> ids) {
     return;
   }
   auto& doc = document();
+  const auto next_active = layer_to_activate_after_delete(std::as_const(doc).layers(), ids);
   push_undo_snapshot(tr("Delete layer"));
   for (const auto id : ids) {
     doc.remove_layer(id);
+  }
+  if (next_active.has_value() && std::as_const(doc).find_layer(*next_active) != nullptr) {
+    doc.set_active_layer(*next_active);
   }
   refresh_layer_list();
   refresh_layer_controls();
