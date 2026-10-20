@@ -11240,6 +11240,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Shear</source>
         <translation>Cisalhamento</translation>
     </message>
+    <message>
+        <source>Horizontal Only</source>
+        <translation>Somente horizontal</translation>
+    </message>
+    <message>
+        <source>Vertical Only</source>
+        <translation>Somente vertical</translation>
+    </message>
+    <message>
+        <source>Mode</source>
+        <translation>Modo</translation>
+    </message>
+    <message>
+        <source>Rectangular to Polar</source>
+        <translation>Retangulares para polares</translation>
+    </message>
+    <message>
+        <source>Polar to Rectangular</source>
+        <translation>Polares para retangulares</translation>
+    </message>
+    <message>
+        <source>Conversion</source>
+        <translation>Conversão</translation>
+    </message>
+    <message>
+        <source>Pinch</source>
+        <translation>Comprimir</translation>
+    </message>
+    <message>
+        <source>Spherize</source>
+        <translation>Esferizar</translation>
+    </message>
+    <message>
+        <source>Polar Coordinates</source>
+        <translation>Coordenadas polares</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

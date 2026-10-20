@@ -11274,6 +11274,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Shear</source>
         <translation>Искривление</translation>
     </message>
+    <message>
+        <source>Horizontal Only</source>
+        <translation>Только по горизонтали</translation>
+    </message>
+    <message>
+        <source>Vertical Only</source>
+        <translation>Только по вертикали</translation>
+    </message>
+    <message>
+        <source>Mode</source>
+        <translation>Режим</translation>
+    </message>
+    <message>
+        <source>Rectangular to Polar</source>
+        <translation>Прямоугольные в полярные</translation>
+    </message>
+    <message>
+        <source>Polar to Rectangular</source>
+        <translation>Полярные в прямоугольные</translation>
+    </message>
+    <message>
+        <source>Conversion</source>
+        <translation>Преобразование</translation>
+    </message>
+    <message>
+        <source>Pinch</source>
+        <translation>Дисторсия</translation>
+    </message>
+    <message>
+        <source>Spherize</source>
+        <translation>Сферизация</translation>
+    </message>
+    <message>
+        <source>Polar Coordinates</source>
+        <translation>Полярные координаты</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

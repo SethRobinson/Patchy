@@ -467,6 +467,13 @@ void psd_photoshop_distort_stylize_smart_filter_fixtures_round_trip_and_render()
       // 8-bit rows sit up to 0.7 px off the 16-bit-calibrated curve; the fixture's noise
       // block magnifies that (docs/smart-filters-distort-stylize.md, Shear).
       {"photoshop-smart-filter-shear.psd", patchy::SmartFilterKind::Shear, {3, 0, 0, 2}, 8.0, 4.5},
+      // Captured through ArtLayer.applyTwirl(120), applyPinch(60), applySpherize(80, Normal)
+      // and applyPolarCoordinates(Rectangular to Polar).
+      {"photoshop-smart-filter-twirl.psd", patchy::SmartFilterKind::Twirl, {120}, 3.0, 3.0},
+      {"photoshop-smart-filter-pinch.psd", patchy::SmartFilterKind::Pinch, {60}, 3.0, 3.0},
+      {"photoshop-smart-filter-spherize.psd", patchy::SmartFilterKind::Spherize, {80, 0}, 3.0, 3.0},
+      {"photoshop-smart-filter-polar-coordinates.psd", patchy::SmartFilterKind::PolarCoordinates, {0},
+       3.0, 3.0},
   };
   for (const auto& fixture : fixtures) {
     check_schema_fixture(fixture);

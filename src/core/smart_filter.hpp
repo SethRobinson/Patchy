@@ -38,6 +38,10 @@ enum class SmartFilterKind {
   Adjustment,
   Ripple,
   Shear,
+  Twirl,
+  Pinch,
+  Spherize,
+  PolarCoordinates,
 };
 
 struct GaussianBlurSmartFilter {

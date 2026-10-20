@@ -134,6 +134,34 @@ captures unless noted.
   model (best fit there is `(y + 0.5) * 128 / H`), so the fixture pins a loose mean
   tolerance (RGB 8, alpha 4.5 levels; actual 7.1 and 3.8, mostly in its noise block).
 
+### Twirl, Pinch, Spherize, Polar Coordinates (`Twrl`, `Pnch`, `Sphr`, `Plr `)
+
+- Key lists read back after the DOM calls `applyTwirl`, `applyPinch`, `applySpherize`,
+  `applyPolarCoordinates` on a Smart Object (the DOM passes every argument, no dialog):
+  Twirl `Angl` integer (-999..999); Pinch `Amnt` (-100..100); Spherize `Amnt`
+  (-100..100) and `SphM` enum `SphM` (`Nrml`, `HrzO`, `VrtO`); Polar Coordinates `Cnvr`
+  enum `Cnvr` (`RctP` rectangular to polar, `PlrR` polar to rectangular). filterIDs are
+  the class 4ccs; entries `Twirl...`, `Pinch...`, `Spherize...`,
+  `Polar Coordinates...`.
+- All four run over the filter canvas in ZigZag's normalized ellipse (center W/2, H/2;
+  radii W/2, H/2), confirmed on square, portrait and off-center probes.
+- Twirl: inside the ellipse the source turns by `-Angl * (1 - r)^2` degrees, radius kept.
+  Mean position error 0.05-0.27 px (fitted exponent 1.98, jitter as in ZigZag).
+- Pinch: source radius `r * (1 + 0.78125 * Amnt / 100 * (1 - r^2)^2)`, angle kept; the
+  0.78125 is Wave's constant again. Mean error 0.03-0.07 px.
+- Spherize normalizes by the half extent minus one (radii W/2 - 1, H/2 - 1: PS keeps the
+  edge pixel; 128 instead of 127 misses by 9 px at the edge). Profile for `a = |Amnt|/100`:
+  `r + a * ((2/pi) asin(r) - r)` for positive, `r + a * (sin(pi r / 2) - r)` for negative
+  amounts (linear in a, exact). Normal maps radially inside the ellipse; Horizontal Only
+  and Vertical Only map one axis over the whole canvas (exact: 0.016 px). Normal is 0.05
+  px mean but up to a few px in the last pixel ring, where asin is steep.
+- Polar Coordinates, exact on 16-bit ramps (0.011-0.013 px): Rectangular to Polar reads
+  `x = W * (1 - phi / 2 pi)` wrapped, `y = r * H`, with `phi` the clockwise angle from up
+  and `r` the ellipse radius; Polar to Rectangular reads `phi = 2 pi (1 - (x + 1) / W)`,
+  `r = y / H` (note the one-column offset).
+- Fixtures (64x48, captured through the DOM): mean RGB 0.9-2.0 levels, alpha 0.4-2.6
+  levels against PS; tests pin 3 and 3.
+
 ## Fixtures
 
 `test-fixtures/psd/photoshop-smart-filter-<name>.psd`, self-authored through COM from a

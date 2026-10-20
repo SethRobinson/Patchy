@@ -93,6 +93,42 @@ constexpr SmartFilterField kShearFields[]{
      SmartFilterFieldType::Integer, nullptr, {}, INT32_MIN, INT32_MAX, 1, 0, 1, nullptr, false, true},
 };
 
+// Keys read back from Photoshop after ArtLayer.applyTwirl/applyPinch/
+// applySpherize/applyPolarCoordinates on a Smart Object (the DOM passes every
+// argument, so these are the complete key lists).
+constexpr SmartFilterField kTwirlFields[]{
+    {"Angl", "angle", PATCHY_TRANSLATE_NOOP("QObject", "Angle"), SmartFilterFieldType::Integer,
+     nullptr, {}, -999, 999, 50, -999, 999, PATCHY_TRANSLATE_NOOP("QObject", " degrees")},
+};
+
+constexpr SmartFilterField kPinchFields[]{
+    {"Amnt", "amount", PATCHY_TRANSLATE_NOOP("QObject", "Amount"), SmartFilterFieldType::Integer,
+     nullptr, {}, -100, 100, 50, -100, 100, PATCHY_TRANSLATE_NOOP("QObject", "%")},
+};
+
+constexpr SmartFilterFieldOption kSpherizeModes[]{
+    {"Nrml", "normal", PATCHY_TRANSLATE_NOOP("QObject", "Normal")},
+    {"HrzO", "horizontal_only", PATCHY_TRANSLATE_NOOP("QObject", "Horizontal Only")},
+    {"VrtO", "vertical_only", PATCHY_TRANSLATE_NOOP("QObject", "Vertical Only")},
+};
+
+constexpr SmartFilterField kSpherizeFields[]{
+    {"Amnt", "amount", PATCHY_TRANSLATE_NOOP("QObject", "Amount"), SmartFilterFieldType::Integer,
+     nullptr, {}, -100, 100, 100, -100, 100, PATCHY_TRANSLATE_NOOP("QObject", "%")},
+    {"SphM", "mode", PATCHY_TRANSLATE_NOOP("QObject", "Mode"), SmartFilterFieldType::Enum, "SphM",
+     kSpherizeModes, 0, 0, 0},
+};
+
+constexpr SmartFilterFieldOption kPolarConversions[]{
+    {"RctP", "rectangular_to_polar", PATCHY_TRANSLATE_NOOP("QObject", "Rectangular to Polar")},
+    {"PlrR", "polar_to_rectangular", PATCHY_TRANSLATE_NOOP("QObject", "Polar to Rectangular")},
+};
+
+constexpr SmartFilterField kPolarFields[]{
+    {"Cnvr", "conversion", PATCHY_TRANSLATE_NOOP("QObject", "Conversion"),
+     SmartFilterFieldType::Enum, "Cnvr", kPolarConversions, 0, 0, 0},
+};
+
 constexpr std::array kSchemas{
     // Neither stores a Fltr object; the entry name has no ellipsis.
     SmartFilterSchema{SmartFilterKind::Solarize, "Slrz", false, 0x536c727aU, "Solarize",
@@ -113,6 +149,19 @@ constexpr std::array kSchemas{
     SmartFilterSchema{SmartFilterKind::Shear, "Shr ", false, 0x53687220U, "Shear", "Shear...",
                       PATCHY_TRANSLATE_NOOP("QObject", "Shear"), "patchy.smart_filters.shear",
                       kShearFields},
+    SmartFilterSchema{SmartFilterKind::Twirl, "Twrl", false, 0x5477726cU, "Twirl", "Twirl...",
+                      PATCHY_TRANSLATE_NOOP("QObject", "Twirl"), "patchy.smart_filters.twirl",
+                      kTwirlFields},
+    SmartFilterSchema{SmartFilterKind::Pinch, "Pnch", false, 0x506e6368U, "Pinch", "Pinch...",
+                      PATCHY_TRANSLATE_NOOP("QObject", "Pinch"), "patchy.smart_filters.pinch",
+                      kPinchFields},
+    SmartFilterSchema{SmartFilterKind::Spherize, "Sphr", false, 0x53706872U, "Spherize",
+                      "Spherize...", PATCHY_TRANSLATE_NOOP("QObject", "Spherize"),
+                      "patchy.smart_filters.spherize", kSpherizeFields},
+    SmartFilterSchema{SmartFilterKind::PolarCoordinates, "Plr ", false, 0x506c7220U,
+                      "Polar Coordinates", "Polar Coordinates...",
+                      PATCHY_TRANSLATE_NOOP("QObject", "Polar Coordinates"),
+                      "patchy.smart_filters.polar_coordinates", kPolarFields},
 };
 
 }  // namespace

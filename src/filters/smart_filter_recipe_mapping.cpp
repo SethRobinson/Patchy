@@ -75,6 +75,10 @@ bool native_smart_filter_kind_supported(SmartFilterKind kind) {
     case SmartFilterKind::Adjustment:
     case SmartFilterKind::Ripple:
     case SmartFilterKind::Shear:
+    case SmartFilterKind::Twirl:
+    case SmartFilterKind::Pinch:
+    case SmartFilterKind::Spherize:
+    case SmartFilterKind::PolarCoordinates:
       return true;
     case SmartFilterKind::Unsupported:
       return false;

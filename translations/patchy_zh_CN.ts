@@ -11206,6 +11206,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Shear</source>
         <translation>切变</translation>
     </message>
+    <message>
+        <source>Horizontal Only</source>
+        <translation>仅水平</translation>
+    </message>
+    <message>
+        <source>Vertical Only</source>
+        <translation>仅垂直</translation>
+    </message>
+    <message>
+        <source>Mode</source>
+        <translation>模式</translation>
+    </message>
+    <message>
+        <source>Rectangular to Polar</source>
+        <translation>平面坐标到极坐标</translation>
+    </message>
+    <message>
+        <source>Polar to Rectangular</source>
+        <translation>极坐标到平面坐标</translation>
+    </message>
+    <message>
+        <source>Conversion</source>
+        <translation>转换</translation>
+    </message>
+    <message>
+        <source>Pinch</source>
+        <translation>挤压</translation>
+    </message>
+    <message>
+        <source>Spherize</source>
+        <translation>球面化</translation>
+    </message>
+    <message>
+        <source>Polar Coordinates</source>
+        <translation>极坐标</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
