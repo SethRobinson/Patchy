@@ -10967,6 +10967,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>This stack runs Smart Filters that Patchy can&apos;t render, so their settings can&apos;t change here. Hide or delete those filters first.</source>
         <translation>Ten stos stosuje inteligentne filtry, których Patchy nie potrafi wyrenderować, więc ich ustawień nie można tu zmienić. Najpierw ukryj lub usuń te filtry.</translation>
     </message>
+    <message>
+        <source>Hide All Smart Filters</source>
+        <translation>Ukryj wszystkie inteligentne filtry</translation>
+    </message>
+    <message>
+        <source>Show All Smart Filters</source>
+        <translation>Pokaż wszystkie inteligentne filtry</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -1894,7 +1894,27 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       stack_more_button->installEventFilter(list_parent);
     }
     auto* stack_menu = new QMenu(stack_more_button);
+    stack_menu->setToolTipsVisible(true);
     stack_more_button->setMenu(stack_menu);
+    // The same change as the header eye, named in the menu (GitHub issue 243).
+    auto* stack_visibility_action =
+        stack_menu->addAction(smart_filters->enabled ? QObject::tr("Hide All Smart Filters")
+                                                     : QObject::tr("Show All Smart Filters"));
+    stack_visibility_action->setObjectName(QStringLiteral("layerSmartFiltersVisibilityAction"));
+    const bool stack_toggle_allowed = stack_changeable && renders(toggled_stack);
+    stack_visibility_action->setEnabled(stack_toggle_allowed && ancestors_visible);
+    if (!stack_toggle_allowed && stack_changeable) {
+      stack_visibility_action->setToolTip(smart_filter_unmodeled_show_message());
+    }
+    QObject::connect(stack_visibility_action, &QAction::triggered, row,
+                     [parent, id = layer.id(), show = !smart_filters->enabled, set_smart_filter_stack_enabled] {
+      if (set_smart_filter_stack_enabled) {
+        QTimer::singleShot(0, parent, [id, show, set_smart_filter_stack_enabled] {
+          set_smart_filter_stack_enabled(id, show);
+        });
+      }
+    });
+    stack_menu->addSeparator();
     auto* delete_stack_action = stack_menu->addAction(QObject::tr("Delete All Smart Filters"));
     delete_stack_action->setObjectName(QStringLiteral("layerSmartFiltersDeleteAction"));
     delete_stack_action->setEnabled(stack_changeable && ancestors_visible);
