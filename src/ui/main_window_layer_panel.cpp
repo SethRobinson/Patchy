@@ -1590,7 +1590,9 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                std::function<void(LayerId, bool)> set_layer_effects_visible = {},
                                std::function<void(LayerId, LayerStyleEffect, std::size_t, bool)>
                                    set_layer_effect_enabled = {},
-                               std::function<void(LayerId, LayerStyleEffect, std::size_t)> edit_layer_effect = {}) {
+                               std::function<void(LayerId, LayerStyleEffect, std::size_t)> edit_layer_effect = {},
+                               bool effects_expanded = false,
+                               std::function<void(LayerId)> toggle_effects_expanded = {}) {
   // One crop per row: the content, mask, vector-mask, and Smart Filter mask
   // previews share it so the row keeps a single tile shape.
   const auto thumbnail_crop = content_crop ? content_crop(layer) : std::optional<Rect>{};
@@ -2605,30 +2607,53 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
     }
   }
   if (const auto effect_rows = layer_effect_rows(layer.layer_style()); !effect_rows.empty()) {
-    // The layer's effects as rows (GitHub issue 256): a header whose eye is the master
-    // "effects visible" switch (Photoshop's masterFXSwitch), then one row per effect in the
-    // Layer Style dialog's order, each with its own eye and an Edit pencil (or a double-click)
-    // that opens the dialog on that effect. A locked layer keeps the rows read-only.
+    // The layer's effects as rows (GitHub issue 256): a "Layer Styles" header with a disclosure
+    // arrow (closed by default, remembered per session) and the master "effects visible" eye
+    // (Photoshop's masterFXSwitch), then, when open, one row per effect in the Layer Style
+    // dialog's order, each with its own eye, an Edit pencil (or a double-click) that opens the
+    // dialog on that effect, and a right-click menu. A locked layer keeps the rows read-only.
     const auto& style = layer.layer_style();
     const bool effects_editable = (effective_lock_flags & kLayerLockAll) != kLayerLockAll;
-    const auto locked_tooltip = QObject::tr("The layer is locked, so its effects cannot be changed here.");
+    const auto locked_tooltip = QObject::tr("The layer is locked, so its layer styles cannot be changed here.");
     const auto row_tooltip = effects_editable ? QString() : locked_tooltip;
     const bool layer_shown = ancestors_visible && layer.visible();
+    const bool master_on = style.effects_visible;
 
     auto [effects_header, effects_header_layout] =
         make_nested_row(QStringLiteral("layerEffectsRow"), 0, row_tooltip);
+    auto* effects_disclosure = new QToolButton(effects_header);
+    effects_disclosure->setObjectName(QStringLiteral("layerEffectsDisclosureButton"));
+    effects_disclosure->setCheckable(true);
+    effects_disclosure->setChecked(effects_expanded);
+    effects_disclosure->setArrowType(effects_expanded ? Qt::DownArrow : Qt::RightArrow);
+    effects_disclosure->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    effects_disclosure->setFixedSize(kLayerFolderDisclosureWidth, kLayerFolderDisclosureHeight);
+    effects_disclosure->setFocusPolicy(Qt::NoFocus);
+    effects_disclosure->setToolTip(effects_expanded ? QObject::tr("Collapse the layer style rows")
+                                                    : QObject::tr("Expand the layer style rows"));
+    if (list_parent != nullptr) {
+      effects_disclosure->installEventFilter(list_parent);
+    }
+    QObject::connect(effects_disclosure, &QToolButton::clicked, row,
+                     [parent, id = layer.id(), toggle_effects_expanded] {
+      if (toggle_effects_expanded) {
+        // Deferred: the toggle rebuilds the rows, deleting this button.
+        QTimer::singleShot(0, parent, [id, toggle_effects_expanded] { toggle_effects_expanded(id); });
+      }
+    });
+    effects_header_layout->addWidget(effects_disclosure, 0, Qt::AlignVCenter);
     auto* effects_visibility = new QToolButton(effects_header);
     effects_visibility->setObjectName(QStringLiteral("layerEffectsVisibilityButton"));
-    configure_nested_visibility_button(effects_visibility, style.effects_visible,
-                                       QObject::tr("Effects visible. Click to hide them all."),
-                                       QObject::tr("Effects hidden. Click to show them."), effects_editable,
+    configure_nested_visibility_button(effects_visibility, master_on,
+                                       QObject::tr("Layer styles visible. Click to hide them all."),
+                                       QObject::tr("Layer styles hidden. Click to show them."), effects_editable,
                                        locked_tooltip);
     QObject::connect(effects_visibility, &QToolButton::toggled, row,
                      [parent, id = layer.id(), effects_visibility, set_layer_effects_visible](bool checked) {
       effects_visibility->setIcon(simple_icon(checked ? QStringLiteral("eye") : QStringLiteral("eyeOff"),
                                               checked ? theme().layer_eye_on : theme().layer_eye_off));
-      effects_visibility->setToolTip(checked ? QObject::tr("Effects visible. Click to hide them all.")
-                                             : QObject::tr("Effects hidden. Click to show them."));
+      effects_visibility->setToolTip(checked ? QObject::tr("Layer styles visible. Click to hide them all.")
+                                             : QObject::tr("Layer styles hidden. Click to show them."));
       if (set_layer_effects_visible) {
         // Deferred: the handler rebuilds the layer rows, deleting this button.
         QTimer::singleShot(0, parent, [id, checked, set_layer_effects_visible] {
@@ -2637,19 +2662,31 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       }
     });
     effects_header_layout->addWidget(effects_visibility, 0, Qt::AlignVCenter);
-    auto* effects_label = new LayerRowElidingLabel(QObject::tr("Effects"), effects_header);
+    auto* effects_label = new LayerRowElidingLabel(QObject::tr("Layer Styles"), effects_header);
     effects_label->setObjectName(QStringLiteral("layerEffectsLabel"));
     effects_label->setStyleSheet(QStringLiteral("background: transparent;"));
     auto effects_font = effects_label->font();
     effects_font.setBold(true);
     effects_label->setFont(effects_font);
-    effects_label->setEnabled(layer_shown && style.effects_visible);
+    effects_label->setEnabled(layer_shown && master_on);
     if (list_parent != nullptr) {
       effects_label->installEventFilter(list_parent);
     }
     effects_header_layout->addWidget(effects_label, 1, Qt::AlignVCenter);
 
-    for (const auto& effect_row : effect_rows) {
+    // With the master eye off, each effect's eye keeps showing its own state but drawn
+    // dimmed (a theme role, both schemes): clicking it still flips that effect's flag.
+    const auto effect_eye_color = [master_on](bool on) {
+      return !master_on ? theme().text_disabled : on ? theme().layer_eye_on : theme().layer_eye_off;
+    };
+    const auto effect_eye_tooltip = [master_on](bool on) {
+      if (!master_on) {
+        return on ? QObject::tr("Effect on, but the layer styles are hidden. Click to turn it off.")
+                  : QObject::tr("Effect off, and the layer styles are hidden. Click to turn it on.");
+      }
+      return on ? QObject::tr("Effect visible. Click to hide.") : QObject::tr("Effect hidden. Click to show.");
+    };
+    for (const auto& effect_row : effects_expanded ? effect_rows : std::vector<LayerEffectRow>{}) {
       auto [entry_row, entry_layout] = make_nested_row(QStringLiteral("layerEffectEntryRow"), 14, row_tooltip);
       entry_row->setProperty("layerEffectKind", static_cast<int>(effect_row.effect));
       entry_row->setProperty("layerEffectIndex",
@@ -2657,17 +2694,18 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
 
       auto* entry_visibility = new QToolButton(entry_row);
       entry_visibility->setObjectName(QStringLiteral("layerEffectVisibilityButton"));
-      configure_nested_visibility_button(entry_visibility, effect_row.enabled,
-                                         QObject::tr("Effect visible. Click to hide."),
-                                         QObject::tr("Effect hidden. Click to show."), effects_editable,
-                                         locked_tooltip);
+      configure_nested_visibility_button(entry_visibility, effect_row.enabled, effect_eye_tooltip(true),
+                                         effect_eye_tooltip(false), effects_editable, locked_tooltip);
+      entry_visibility->setIcon(simple_icon(effect_row.enabled ? QStringLiteral("eye") : QStringLiteral("eyeOff"),
+                                            effect_eye_color(effect_row.enabled)));
+      entry_visibility->setProperty("layerEffectEyeDimmed", !master_on);
       QObject::connect(entry_visibility, &QToolButton::toggled, row,
                        [parent, id = layer.id(), effect = effect_row.effect, index = effect_row.index,
-                        entry_visibility, set_layer_effect_enabled](bool checked) {
+                        entry_visibility, set_layer_effect_enabled, effect_eye_color,
+                        effect_eye_tooltip](bool checked) {
         entry_visibility->setIcon(simple_icon(checked ? QStringLiteral("eye") : QStringLiteral("eyeOff"),
-                                              checked ? theme().layer_eye_on : theme().layer_eye_off));
-        entry_visibility->setToolTip(checked ? QObject::tr("Effect visible. Click to hide.")
-                                             : QObject::tr("Effect hidden. Click to show."));
+                                              effect_eye_color(checked)));
+        entry_visibility->setToolTip(effect_eye_tooltip(checked));
         if (set_layer_effect_enabled) {
           QTimer::singleShot(0, parent, [id, effect, index, checked, set_layer_effect_enabled] {
             set_layer_effect_enabled(id, effect, index, checked);
@@ -2679,10 +2717,10 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       auto* entry_label = new LayerRowElidingLabel(layer_effect_display_name(effect_row.effect), entry_row);
       entry_label->setObjectName(QStringLiteral("layerEffectEntryLabel"));
       entry_label->setStyleSheet(QStringLiteral("background: transparent;"));
-      entry_label->setEnabled(layer_shown && effect_row.enabled && style.effects_visible);
-      entry_label->setToolTip(effects_editable
-                                  ? QObject::tr("Double-click to edit this effect in the Layer Style dialog.")
-                                  : locked_tooltip);
+      entry_label->setEnabled(layer_shown && effect_row.enabled && master_on);
+      entry_label->setToolTip(effects_editable ? QObject::tr("Double-click to edit this effect in the Layer "
+                                                             "Style dialog; right-click for its menu.")
+                                               : locked_tooltip);
       if (list_parent != nullptr) {
         entry_label->installEventFilter(list_parent);
       }
@@ -3767,7 +3805,9 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
               ? 1 + static_cast<int>(smart_filters->entries.size())
               : 0;
       const auto effect_count = it->layer_style().effect_count();
-      const auto effect_row_count = effect_count > 0 ? 1 + static_cast<int>(effect_count) : 0;
+      const auto effects_expanded = session().expanded_layer_effects.contains(it->id());
+      const auto effect_row_count =
+          effect_count > 0 ? 1 + (effects_expanded ? static_cast<int>(effect_count) : 0) : 0;
       item->setSizeHint(QSize(0, 44 + 26 * (smart_filter_row_count + effect_row_count)));
       item->setForeground(effective_visible ? QBrush(QColor(226, 230, 237)) : QBrush(QColor(126, 132, 142)));
       if (active.has_value() && *active == it->id()) {
@@ -3925,7 +3965,9 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
                                       },
                                       [this](LayerId layer_id, LayerStyleEffect effect, std::size_t index) {
                                         edit_layer_effect(layer_id, effect, index);
-                                      });
+                                      },
+                                      session().expanded_layer_effects.contains(layer.id()),
+                                      [this](LayerId layer_id) { toggle_layer_effects_expanded(layer_id); });
     widget_ms += phase_ms(widget_started);
     if (session_layer == layer.id() && layer_is_text(layer)) {
       // The content tile above came without the badge; the tooltip has to agree.

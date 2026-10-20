@@ -11436,32 +11436,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation> (Quantidade %1, zoom, qualidade %2)</translation>
     </message>
     <message>
-        <source>The layer is locked, so its effects cannot be changed here.</source>
-        <translation>A camada está bloqueada, então seus efeitos não podem ser alterados aqui.</translation>
-    </message>
-    <message>
-        <source>Effects visible. Click to hide them all.</source>
-        <translation>Efeitos visíveis. Clique para ocultar todos.</translation>
-    </message>
-    <message>
-        <source>Effects hidden. Click to show them.</source>
-        <translation>Efeitos ocultos. Clique para mostrar.</translation>
-    </message>
-    <message>
-        <source>Effects</source>
-        <translation>Efeitos</translation>
-    </message>
-    <message>
         <source>Effect visible. Click to hide.</source>
         <translation>Efeito visível. Clique para ocultar.</translation>
     </message>
     <message>
         <source>Effect hidden. Click to show.</source>
         <translation>Efeito oculto. Clique para mostrar.</translation>
-    </message>
-    <message>
-        <source>Double-click to edit this effect in the Layer Style dialog.</source>
-        <translation>Clique duas vezes para editar este efeito na caixa de diálogo Estilo de camada.</translation>
     </message>
     <message>
         <source>Edit this effect in the Layer Style dialog</source>
@@ -11506,6 +11486,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>%1 and more</source>
         <extracomment>Open-dialog file type row: %1 is a short list of *.ext patterns</extracomment>
         <translation>%1 e mais</translation>
+    </message>
+    <message>
+        <source>The layer is locked, so its layer styles cannot be changed here.</source>
+        <translation>A camada está bloqueada, então seus estilos de camada não podem ser alterados aqui.</translation>
+    </message>
+    <message>
+        <source>Collapse the layer style rows</source>
+        <translation>Recolher as linhas de estilos de camada</translation>
+    </message>
+    <message>
+        <source>Expand the layer style rows</source>
+        <translation>Expandir as linhas de estilos de camada</translation>
+    </message>
+    <message>
+        <source>Layer styles visible. Click to hide them all.</source>
+        <translation>Estilos de camada visíveis. Clique para ocultar todos.</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden. Click to show them.</source>
+        <translation>Estilos de camada ocultos. Clique para mostrar.</translation>
+    </message>
+    <message>
+        <source>Layer Styles</source>
+        <translation>Estilos de camada</translation>
+    </message>
+    <message>
+        <source>Effect on, but the layer styles are hidden. Click to turn it off.</source>
+        <translation>Efeito ativado, mas os estilos de camada estão ocultos. Clique para desativá-lo.</translation>
+    </message>
+    <message>
+        <source>Effect off, and the layer styles are hidden. Click to turn it on.</source>
+        <translation>Efeito desativado, e os estilos de camada estão ocultos. Clique para ativá-lo.</translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog; right-click for its menu.</source>
+        <translation>Clique duas vezes para editar este efeito na caixa de diálogo Estilo de camada; clique com o botão direito para o menu.</translation>
     </message>
 </context>
 <context>
@@ -23267,22 +23283,6 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
         <translation>Mude para a ferramenta Prancheta (%1) para adicionar, redimensionar ou duplicar pranchetas</translation>
     </message>
     <message>
-        <source>Show Effects</source>
-        <translation>Mostrar efeitos</translation>
-    </message>
-    <message>
-        <source>Hide Effects</source>
-        <translation>Ocultar efeitos</translation>
-    </message>
-    <message>
-        <source>Effects shown</source>
-        <translation>Efeitos mostrados</translation>
-    </message>
-    <message>
-        <source>Effects hidden</source>
-        <translation>Efeitos ocultos</translation>
-    </message>
-    <message>
         <source>Show %1</source>
         <translation>Mostrar %1</translation>
     </message>
@@ -23316,6 +23316,34 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
             <numerusform>%n arquivo de objeto inteligente vinculado novamente</numerusform>
             <numerusform>%n arquivos de objetos inteligentes vinculados novamente</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Show Layer Styles</source>
+        <translation>Mostrar estilos de camada</translation>
+    </message>
+    <message>
+        <source>Hide Layer Styles</source>
+        <translation>Ocultar estilos de camada</translation>
+    </message>
+    <message>
+        <source>Layer styles shown</source>
+        <translation>Estilos de camada mostrados</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden</source>
+        <translation>Estilos de camada ocultos</translation>
+    </message>
+    <message>
+        <source>Delete %1</source>
+        <translation>Excluir %1</translation>
+    </message>
+    <message>
+        <source>%1 deleted</source>
+        <translation>%1 excluído</translation>
+    </message>
+    <message>
+        <source>Edit %1...</source>
+        <translation>Editar %1...</translation>
     </message>
 </context>
 <context>

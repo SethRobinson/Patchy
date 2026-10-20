@@ -11436,32 +11436,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation> (Fattore %1, Zoom, qualità %2)</translation>
     </message>
     <message>
-        <source>The layer is locked, so its effects cannot be changed here.</source>
-        <translation>Il livello è bloccato, quindi i suoi effetti non possono essere modificati qui.</translation>
-    </message>
-    <message>
-        <source>Effects visible. Click to hide them all.</source>
-        <translation>Effetti visibili. Fai clic per nasconderli tutti.</translation>
-    </message>
-    <message>
-        <source>Effects hidden. Click to show them.</source>
-        <translation>Effetti nascosti. Fai clic per mostrarli.</translation>
-    </message>
-    <message>
-        <source>Effects</source>
-        <translation>Effetti</translation>
-    </message>
-    <message>
         <source>Effect visible. Click to hide.</source>
         <translation>Effetto visibile. Fai clic per nasconderlo.</translation>
     </message>
     <message>
         <source>Effect hidden. Click to show.</source>
         <translation>Effetto nascosto. Fai clic per mostrarlo.</translation>
-    </message>
-    <message>
-        <source>Double-click to edit this effect in the Layer Style dialog.</source>
-        <translation>Fai doppio clic per modificare questo effetto nella finestra Stile livello.</translation>
     </message>
     <message>
         <source>Edit this effect in the Layer Style dialog</source>
@@ -11506,6 +11486,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>%1 and more</source>
         <extracomment>Open-dialog file type row: %1 is a short list of *.ext patterns</extracomment>
         <translation>%1 e altri</translation>
+    </message>
+    <message>
+        <source>The layer is locked, so its layer styles cannot be changed here.</source>
+        <translation>Il livello è bloccato, quindi i suoi stili di livello non possono essere modificati qui.</translation>
+    </message>
+    <message>
+        <source>Collapse the layer style rows</source>
+        <translation>Comprimi le righe degli stili di livello</translation>
+    </message>
+    <message>
+        <source>Expand the layer style rows</source>
+        <translation>Espandi le righe degli stili di livello</translation>
+    </message>
+    <message>
+        <source>Layer styles visible. Click to hide them all.</source>
+        <translation>Stili di livello visibili. Fai clic per nasconderli tutti.</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden. Click to show them.</source>
+        <translation>Stili di livello nascosti. Fai clic per mostrarli.</translation>
+    </message>
+    <message>
+        <source>Layer Styles</source>
+        <translation>Stili di livello</translation>
+    </message>
+    <message>
+        <source>Effect on, but the layer styles are hidden. Click to turn it off.</source>
+        <translation>Effetto attivo, ma gli stili di livello sono nascosti. Fai clic per disattivarlo.</translation>
+    </message>
+    <message>
+        <source>Effect off, and the layer styles are hidden. Click to turn it on.</source>
+        <translation>Effetto disattivato, e gli stili di livello sono nascosti. Fai clic per attivarlo.</translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog; right-click for its menu.</source>
+        <translation>Fai doppio clic per modificare questo effetto nella finestra Stile livello; clic destro per il suo menu.</translation>
     </message>
 </context>
 <context>
@@ -23267,22 +23283,6 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
         <translation>Passa allo strumento Tavola da disegno (%1) per aggiungere, ridimensionare o duplicare le tavole da disegno</translation>
     </message>
     <message>
-        <source>Show Effects</source>
-        <translation>Mostra effetti</translation>
-    </message>
-    <message>
-        <source>Hide Effects</source>
-        <translation>Nascondi effetti</translation>
-    </message>
-    <message>
-        <source>Effects shown</source>
-        <translation>Effetti mostrati</translation>
-    </message>
-    <message>
-        <source>Effects hidden</source>
-        <translation>Effetti nascosti</translation>
-    </message>
-    <message>
         <source>Show %1</source>
         <translation>Mostra %1</translation>
     </message>
@@ -23316,6 +23316,34 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
             <numerusform>Ricollegato %n file di oggetto avanzato</numerusform>
             <numerusform>Ricollegati %n file di oggetti avanzati</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Show Layer Styles</source>
+        <translation>Mostra stili di livello</translation>
+    </message>
+    <message>
+        <source>Hide Layer Styles</source>
+        <translation>Nascondi stili di livello</translation>
+    </message>
+    <message>
+        <source>Layer styles shown</source>
+        <translation>Stili di livello mostrati</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden</source>
+        <translation>Stili di livello nascosti</translation>
+    </message>
+    <message>
+        <source>Delete %1</source>
+        <translation>Elimina %1</translation>
+    </message>
+    <message>
+        <source>%1 deleted</source>
+        <translation>%1 eliminato</translation>
+    </message>
+    <message>
+        <source>Edit %1...</source>
+        <translation>Modifica %1...</translation>
     </message>
 </context>
 <context>

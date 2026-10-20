@@ -166,6 +166,8 @@ struct LayerEffectRow {
 [[nodiscard]] bool* layer_effect_enabled_flag(LayerStyle& style, LayerStyleEffect effect, std::size_t index);
 // The effect's name as the Layer Style dialog lists it ("Drop Shadow").
 [[nodiscard]] QString layer_effect_display_name(LayerStyleEffect effect);
+// Erases that instance from its kind's list; false when `index` is past it.
+bool remove_layer_effect_instance(LayerStyle& style, LayerStyleEffect effect, std::size_t index);
 
 // Text sizes are shown in points but rendered in document pixels through the
 // document's print PPI (default 300 when unset).

@@ -73,6 +73,9 @@ struct DocumentSession {
   int floated_from_tab_index{-1};
   SessionHistory history;
   std::set<LayerId> collapsed_layer_groups;
+  // Layers whose effect rows are open in the Layers panel (GitHub issue 256 follow-up):
+  // closed by default, remembered for the session only, never written to the file.
+  std::set<LayerId> expanded_layer_effects;
   // Alt-click eye isolation. `saved` is the pre-isolation visibility snapshot
   // (pre-order); `applied` is the state right after isolating, so any outside
   // visibility change invalidates the restore and the next Alt-click starts a

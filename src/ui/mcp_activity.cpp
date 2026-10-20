@@ -260,6 +260,7 @@ bool McpActivity::eventFilter(QObject* watched, QEvent* event) {
        qobject_cast<ZoomPercentEdit*>(widget->parentWidget()) != nullptr)) { return false; }
   if (widget->objectName() == QStringLiteral("layerNameFilterEdit") ||
       widget->objectName() == QStringLiteral("layerFolderDisclosureButton") ||
+      widget->objectName() == QStringLiteral("layerEffectsDisclosureButton") ||
       widget->property("dockCollapseButton").toBool() ||
       widget->objectName() == QStringLiteral("rightDockResizeHandle") ||
       widget->objectName().endsWith(QStringLiteral("DockTitle")) ||
