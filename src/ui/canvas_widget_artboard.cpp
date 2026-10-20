@@ -26,6 +26,7 @@
 #include <QPainterPath>
 #include <QPen>
 #include <QRectF>
+#include <QScrollBar>
 #include <Qt>
 
 #include <algorithm>
@@ -38,6 +39,8 @@ namespace patchy::ui {
 namespace {
 
 constexpr double kLabelGap = 4.0;          // widget px between the label baseline and the artboard
+constexpr double kLabelMinWidth = 24.0;    // a clipped label keeps a hit area and its ellipsis
+constexpr double kLabelCollisionGap = 6.0; // widget px kept before a neighbouring label on the same row
 constexpr double kAddButtonRadius = 9.0;   // the "+" buttons beside the selected artboard
 constexpr double kAddButtonOffset = 22.0;  // their centers, this far outside its edge
 constexpr double kHandleSize = 8.0;
@@ -183,6 +186,7 @@ std::optional<LayerId> CanvasWidget::selected_root_artboard_id() const {
 }
 
 void CanvasWidget::begin_artboard_move_drag(const Layer& artboard, QMouseEvent* event) {
+  artboard_field_preview_ = false;
   artboard_drag_mode_ = ArtboardDragMode::Move;
   artboard_drag_id_ = artboard.id();
   artboard_drag_start_rect_ = qrect(artboard.artboard()->rect);
@@ -285,9 +289,28 @@ QRectF CanvasWidget::artboard_label_widget_rect(const Layer& artboard) const {
   const auto& rect = artboard.artboard()->rect;
   const QFontMetricsF metrics(artboard_label_font(*this));
   const auto top_left = widget_position_f(QPointF(rect.x, rect.y));
-  const auto width = std::min(metrics.horizontalAdvance(QString::fromStdString(artboard.name())) + 2.0,
-                              std::max(24.0, widget_position_f(QPointF(rect.x + rect.width, rect.y)).x() - top_left.x()));
-  return QRectF(top_left.x(), top_left.y() - kLabelGap - metrics.height(), width, metrics.height());
+  const auto height = metrics.height();
+  const auto top = top_left.y() - kLabelGap - height;
+  // The whole name, past a narrow board if need be (the overlay reads the backing and
+  // halos a straddle). It gives way only to another label on its row that starts
+  // inside it, and to the visible canvas edge, and then only as far as needed.
+  auto right = top_left.x() + metrics.horizontalAdvance(QString::fromStdString(artboard.name())) + 2.0;
+  const double visible_right =
+      width() - (vertical_scroll_bar_ != nullptr && vertical_scroll_bar_->isVisible() ? vertical_scroll_bar_->width() : 0);
+  right = std::min(right, visible_right - 2.0);
+  if (document_ != nullptr) {
+    for (const auto* other : document_artboards(std::as_const(*document_))) {
+      if (other->id() == artboard.id() || !other->visible()) {
+        continue;
+      }
+      const auto other_top_left = widget_position_f(QPointF(other->artboard()->rect.x, other->artboard()->rect.y));
+      if (other_top_left.x() > top_left.x() && other_top_left.x() < right &&
+          std::abs(other_top_left.y() - top_left.y()) < height) {
+        right = other_top_left.x() - kLabelCollisionGap;
+      }
+    }
+  }
+  return QRectF(top_left.x(), top, std::max(kLabelMinWidth, right - top_left.x()), height);
 }
 
 std::optional<LayerId> CanvasWidget::artboard_label_at(QPoint widget_point) const {
@@ -469,6 +492,7 @@ bool CanvasWidget::handle_artboard_press(QMouseEvent* event) {
     return true;  // the tool owns the press; nothing may change
   }
   const auto& document = std::as_const(*document_);
+  artboard_field_preview_ = false;
   artboard_press_widget_point_ = event->pos();
   artboard_drag_start_point_ = document_position_f(event->position());
   artboard_drag_moved_ = false;
@@ -519,25 +543,7 @@ void CanvasWidget::update_artboard_drag(QMouseEvent* event) {
   if (!artboard_drag_moved_ &&
       (event->pos() - artboard_press_widget_point_).manhattanLength() >= QApplication::startDragDistance()) {
     artboard_drag_moved_ = true;
-    if (artboard_drag_mode_ == ArtboardDragMode::Move && document_ != nullptr && artboard_drag_id_.has_value()) {
-      // The artboard alone (its paper and content, nothing around or over it), carried
-      // along at the moving rect, and the canvas without it where it was.
-      const auto& document = std::as_const(*document_);
-      const auto rect = artboard_drag_start_rect_.intersected(QRect(0, 0, document.width(), document.height()));
-      if (!rect.isEmpty()) {
-        std::vector<LayerId> others;
-        for (const auto& layer : document.layers()) {
-          if (layer.id() != *artboard_drag_id_) {
-            others.push_back(layer.id());
-          }
-        }
-        artboard_drag_ghost_ = qimage_from_document_rect_with_hidden_layers_banded(document, rect, true, others);
-        if (!artboard_drag_duplicate_) {
-          artboard_drag_vacated_ =
-              qimage_from_document_rect_with_hidden_layers_banded(document, rect, true, {*artboard_drag_id_});
-        }
-      }
-    }
+    capture_artboard_drag_ghost();
   }
   if (!artboard_drag_moved_) {
     return;
@@ -574,6 +580,59 @@ void CanvasWidget::update_artboard_drag(QMouseEvent* event) {
       break;
   }
   update();
+}
+
+void CanvasWidget::capture_artboard_drag_ghost() {
+  if (artboard_drag_mode_ != ArtboardDragMode::Move || document_ == nullptr || !artboard_drag_id_.has_value()) {
+    return;
+  }
+  // The artboard alone (its paper and content, nothing around or over it), carried
+  // along at the moving rect, and the canvas without it where it was.
+  const auto& document = std::as_const(*document_);
+  const auto rect = artboard_drag_start_rect_.intersected(QRect(0, 0, document.width(), document.height()));
+  if (rect.isEmpty()) {
+    return;
+  }
+  std::vector<LayerId> others;
+  for (const auto& layer : document.layers()) {
+    if (layer.id() != *artboard_drag_id_) {
+      others.push_back(layer.id());
+    }
+  }
+  artboard_drag_ghost_ = qimage_from_document_rect_with_hidden_layers_banded(document, rect, true, others);
+  if (!artboard_drag_duplicate_) {
+    artboard_drag_vacated_ =
+        qimage_from_document_rect_with_hidden_layers_banded(document, rect, true, {*artboard_drag_id_});
+  }
+}
+
+void CanvasWidget::preview_artboard_rect(LayerId id, QRect rect) {
+  if (document_ == nullptr) {
+    return;
+  }
+  const auto* artboard = std::as_const(*document_).find_layer(id);
+  if (artboard == nullptr || !artboard->artboard().has_value()) {
+    return;
+  }
+  const auto start = qrect(artboard->artboard()->rect);
+  const auto mode = rect.size() == start.size() ? ArtboardDragMode::Move : ArtboardDragMode::Resize;
+  if (!artboard_field_preview_ || artboard_drag_mode_ != mode || artboard_drag_id_ != id) {
+    cancel_artboard_drag();
+    artboard_drag_mode_ = mode;
+    artboard_drag_id_ = id;
+    artboard_drag_start_rect_ = start;
+    artboard_drag_moved_ = true;
+    artboard_field_preview_ = true;
+    capture_artboard_drag_ghost();
+  }
+  artboard_drag_rect_ = rect;
+  update();
+}
+
+void CanvasWidget::end_artboard_rect_preview() {
+  if (artboard_field_preview_) {
+    cancel_artboard_drag();
+  }
 }
 
 void CanvasWidget::finish_artboard_drag(QMouseEvent* event) {
@@ -616,6 +675,7 @@ void CanvasWidget::finish_artboard_drag(QMouseEvent* event) {
 void CanvasWidget::cancel_artboard_drag() {
   const bool had_drag = artboard_drag_mode_ != ArtboardDragMode::None;
   artboard_drag_mode_ = ArtboardDragMode::None;
+  artboard_field_preview_ = false;
   artboard_drag_id_.reset();
   artboard_drag_handle_ = TransformHandle::None;
   artboard_drag_moved_ = false;
@@ -793,7 +853,20 @@ void CanvasWidget::draw_artboard_overlay(QPainter& painter) const {
     const auto clipped = artboard_drag_start_rect_.intersected(QRect(0, 0, document_->width(), document_->height()));
     const auto offset = artboard_drag_rect_.topLeft() - artboard_drag_start_rect_.topLeft();
     if (!artboard_drag_vacated_.isNull() && !artboard_drag_duplicate_) {
-      painter.drawImage(widget_rect_for_document_rect(QRectF(clipped)), artboard_drag_vacated_);
+      // The vacated image keeps alpha, so it goes over the backdrop of an empty canvas
+      // (pasteboard, other artboards' checkerboard), not over the artboard still drawn there.
+      const auto vacated = widget_rect_for_document_rect(QRectF(clipped));
+      const auto exposed = vacated.toAlignedRect();
+      painter.fillRect(vacated, backdrop_color());
+      for (const auto* other : artboards) {
+        if (other->visible() && other->id() != *artboard_drag_id_) {
+          const auto& rect = other->artboard()->rect;
+          draw_checkerboard(painter,
+                            widget_rect_for_document_rect(QRectF(rect.x, rect.y, rect.width, rect.height)).intersected(vacated),
+                            exposed);
+        }
+      }
+      painter.drawImage(vacated, artboard_drag_vacated_);
     }
     painter.drawImage(widget_rect_for_document_rect(QRectF(clipped.translated(offset))), artboard_drag_ghost_);
   }

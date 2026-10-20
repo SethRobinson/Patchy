@@ -1364,15 +1364,18 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       apply_artboard_size_option(size);
     }
   });
-  connect(artboard_width_spin_, &QSpinBox::valueChanged, this, [this](int value) {
-    apply_artboard_size_option(QSize(value, artboard_height_spin_->value()), true);
-  });
-  connect(artboard_height_spin_, &QSpinBox::valueChanged, this, [this](int value) {
-    apply_artboard_size_option(QSize(artboard_width_spin_->value(), value), true);
-  });
-  // One undo step per scrub or run of arrow steps (artboard_field_edit_run_).
+  // A scrub previews on the canvas and commits at its editingFinished; typed values and
+  // arrow steps apply at once, one undo step per run (artboard_field_edit_run_).
   for (auto* spin : {artboard_width_spin_, artboard_height_spin_}) {
-    connect(spin, &QAbstractSpinBox::editingFinished, this, [this] { artboard_field_edit_run_ = ArtboardNudgeRun{}; });
+    connect(spin, &QSpinBox::valueChanged, this, [this, spin](int) {
+      if (!spin_box_scrub_active(spin) || !preview_artboard_field_rect(false)) {
+        apply_artboard_size_option(QSize(artboard_width_spin_->value(), artboard_height_spin_->value()), true);
+      }
+    });
+    connect(spin, &QAbstractSpinBox::editingFinished, this, [this] {
+      commit_artboard_field_preview();
+      artboard_field_edit_run_ = ArtboardNudgeRun{};
+    });
   }
   connect(artboard_swap, &QPushButton::clicked, this, [this] {
     apply_artboard_size_option(QSize(artboard_height_spin_->value(), artboard_width_spin_->value()));

@@ -706,7 +706,7 @@ void MainWindow::sync_artboard_controls() {
   }
   const auto background = artboard != nullptr ? artboard->artboard()->background : current_artboard_background().first;
   for (auto* spin : {artboard_width_spin_, artboard_height_spin_}) {
-    if (spin != nullptr) {
+    if (spin != nullptr && !spin_box_scrub_active(spin)) {
       const QSignalBlocker blocker(spin);
       spin->setValue(spin == artboard_width_spin_ ? size.width() : size.height());
     }
@@ -737,7 +737,7 @@ void MainWindow::sync_artboard_controls() {
       for (auto [spin, value] : {std::pair{properties_artboard_x_spin_, rect.x}, std::pair{properties_artboard_y_spin_, rect.y},
                                  std::pair{properties_artboard_width_spin_, rect.width},
                                  std::pair{properties_artboard_height_spin_, rect.height}}) {
-        if (spin != nullptr) {
+        if (spin != nullptr && !spin_box_scrub_active(spin)) {
           const QSignalBlocker blocker(spin);
           spin->setValue(value);
         }
@@ -854,8 +854,15 @@ void MainWindow::build_properties_artboard_panel(QWidget* parent, QVBoxLayout* l
     spin->setKeyboardTracking(false);
     bind_tooltip(spin, tooltip);
     configure_dialog_spinbox(spin, 84);
-    connect(spin, &QSpinBox::valueChanged, this, [this](int) { apply_properties_artboard_rect(); });
-    connect(spin, &QAbstractSpinBox::editingFinished, this, [this] { artboard_field_edit_run_ = ArtboardNudgeRun{}; });
+    connect(spin, &QSpinBox::valueChanged, this, [this, spin](int) {
+      if (!spin_box_scrub_active(spin) || !preview_artboard_field_rect(true)) {
+        apply_properties_artboard_rect();
+      }
+    });
+    connect(spin, &QAbstractSpinBox::editingFinished, this, [this] {
+      commit_artboard_field_preview();
+      artboard_field_edit_run_ = ArtboardNudgeRun{};
+    });
     return spin;
   };
   const auto add_label = [this, grid](const char* source, int row, int column) {
@@ -895,6 +902,56 @@ void MainWindow::build_properties_artboard_panel(QWidget* parent, QVBoxLayout* l
   grid->setColumnStretch(4, 1);
   layout->addWidget(properties_artboard_panel_);
   install_scrub_labels_in(properties_artboard_panel_);  // drag "X:" ... "H:" to scrub (issue 46)
+}
+
+bool MainWindow::preview_artboard_field_rect(bool from_properties) {
+  if (!has_active_document() || canvas_ == nullptr) {
+    return false;
+  }
+  const auto& doc = std::as_const(document());
+  std::optional<LayerId> id;
+  if (from_properties) {
+    id = canvas_->selected_root_artboard_id();
+  } else if (const auto active = doc.active_layer_id(); active.has_value()) {
+    // The options-bar W/H follow the artboard holding the active layer (apply_artboard_size_option).
+    if (const auto* owner = artboard_owning_layer(doc, *active); owner != nullptr) {
+      id = owner->id();
+    }
+  }
+  const auto* artboard = id.has_value() ? doc.find_layer(*id) : nullptr;
+  if (artboard == nullptr || !artboard->artboard().has_value()) {
+    return false;
+  }
+  const auto& rect = artboard->artboard()->rect;
+  const auto wanted =
+      from_properties
+          ? QRect(properties_artboard_x_spin_->value(), properties_artboard_y_spin_->value(),
+                  properties_artboard_width_spin_->value(), properties_artboard_height_spin_->value())
+          : QRect(rect.x, rect.y, artboard_width_spin_->value(), artboard_height_spin_->value());
+  canvas_->preview_artboard_rect(*id, wanted);
+  artboard_field_preview_ = from_properties ? ArtboardFieldPreview::Properties : ArtboardFieldPreview::OptionsBar;
+  artboard_field_preview_session_ = session().session_id;
+  return true;
+}
+
+void MainWindow::commit_artboard_field_preview() {
+  const auto preview = std::exchange(artboard_field_preview_, ArtboardFieldPreview::None);
+  if (preview == ArtboardFieldPreview::None) {
+    return;
+  }
+  if (canvas_ != nullptr) {
+    canvas_->end_artboard_rect_preview();
+  }
+  if (!has_active_document() || session().session_id != artboard_field_preview_session_) {
+    // The document changed under the scrub: the preview is dropped and the fields reread.
+    sync_artboard_controls();
+    return;
+  }
+  if (preview == ArtboardFieldPreview::Properties) {
+    apply_properties_artboard_rect();
+  } else {
+    apply_artboard_size_option(QSize(artboard_width_spin_->value(), artboard_height_spin_->value()), true);
+  }
 }
 
 void MainWindow::apply_properties_artboard_rect() {
