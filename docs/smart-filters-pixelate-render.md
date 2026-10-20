@@ -105,8 +105,11 @@ Descriptor facts from the captures; these entries stay preview-locked:
 
 - Facet `Fct `, Despeckle `Dspc`, Clouds `Clds`, Difference Clouds `DfrC`: no `Fltr`, `hasoptions`
   false. Clouds re-rendered identically in two documents (deterministic in PS; uses `FrgC`/`BckC`).
-- Color Halftone `ClrH`: integers `Rds ` then `Ang1`..`Ang4`; anti-aliased dots on a grid not
-  yet derived. Lens Flare `LnsF`: integer `Brgh`, `FlrC` point object (`Hrzn`, `Vrtc` #Pxl), enum `Lns `
+- Color Halftone `ClrH`: integers `Rds ` then `Ang1`..`Ang4` (RGB uses `Ang1`..`Ang3`). On flat
+  gray 128 at `Rds ` 8 and angle 0 each channel is an ink dot (channel 0) about 8.8 px across on an
+  11 px grid, edges taking only 69, 135, 194 and 237; the grid anchor, cell sampling and edge
+  function are not derived yet (probes: flat gray and 16 px gray bands, radii 4, 5, 8, angles 0,
+  30, 45). Lens Flare `LnsF`: integer `Brgh`, `FlrC` point object (`Hrzn`, `Vrtc` #Pxl), enum `Lns `
   (`Zm  ` zoom, `Nkn ` 35 mm, `Nkn1` 105 mm, `PnVs` movie prime).
 - HSB/HSL: event and class `HsbP`/0x48736250, entry `HSB/HSL`, enums `Inpt` and `Otpt` (`ClrS`:
   `RGBC`, `HSBl`, `HSLC`). RGB to HSB: alpha unchanged, B = max, H = hue * 256 / 360 (blue is
