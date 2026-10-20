@@ -2564,7 +2564,8 @@ void ensure_patterns_for_style(Document& doc, const LayerStyle& style,
 
 }  // namespace
 
-void MainWindow::edit_active_layer_style(std::optional<LayerStyleEffect> start_effect) {
+void MainWindow::edit_active_layer_style(std::optional<LayerStyleEffect> start_effect, std::size_t start_index,
+                                         bool enable_start_effect) {
   if (preview_dialog_edit_locked()) { show_preview_dialog_edit_lock_message(); return; }
   if (!has_active_document() || refuse_layer_dialog_during_transform()) return;
   finish_pending_shape_appearance_edit();
@@ -2679,7 +2680,7 @@ void MainWindow::edit_active_layer_style(std::optional<LayerStyleEffect> start_e
       &gradient_library(),
       {static_cast<std::uint8_t>(fg.red()), static_cast<std::uint8_t>(fg.green()), static_cast<std::uint8_t>(fg.blue())},
       {static_cast<std::uint8_t>(bg.red()), static_cast<std::uint8_t>(bg.green()), static_cast<std::uint8_t>(bg.blue())},
-      &context, std::as_const(doc).color_state().bit_depth, start_effect);
+      &context, std::as_const(doc).color_state().bit_depth, start_effect, start_index, enable_start_effect);
   const auto available = doc.metadata().patterns;
   restore();
   bool changed = false;
@@ -2723,6 +2724,88 @@ void MainWindow::edit_active_layer_style(std::optional<LayerStyleEffect> start_e
   refresh_layer_thumbnails();
   refresh_layer_controls();
   open_pending_pattern_images();
+}
+
+bool MainWindow::apply_layer_effect_row_edit(LayerId layer_id, const QString& undo_text, const QString& status_text,
+                                             const std::function<bool(LayerStyle&)>& edit) {
+  if (!has_active_document() || canvas_ == nullptr) {
+    return false;
+  }
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    refresh_layer_list();
+    return false;
+  }
+  auto& doc = document();
+  const auto* layer = std::as_const(doc).find_layer(layer_id);
+  if (layer == nullptr) {
+    return false;
+  }
+  if (layer_is_effectively_locked(doc.layers(), layer_id)) {
+    show_status_error(tr("Layer is locked."));
+    refresh_layer_list();
+    return false;
+  }
+  // Decide on a copy first: a no-op (the eye already agrees) records no history step.
+  auto next = layer->layer_style();
+  if (!edit(next)) {
+    refresh_layer_list();
+    return false;
+  }
+  push_undo_snapshot(undo_text);
+  auto* target = doc.find_layer(layer_id);
+  target->layer_style() = std::move(next);
+  // The preserved lfx2 bytes no longer describe the style; the writer regenerates it.
+  clear_layer_psd_style_source(*target);
+  canvas_->document_changed();
+  refresh_layer_list();
+  refresh_layer_thumbnails();
+  refresh_layer_controls();
+  statusBar()->showMessage(status_text);
+  return true;
+}
+
+void MainWindow::set_layer_effects_visible(LayerId layer_id, bool visible) {
+  apply_layer_effect_row_edit(layer_id, visible ? tr("Show Effects") : tr("Hide Effects"),
+                              visible ? tr("Effects shown") : tr("Effects hidden"), [visible](LayerStyle& style) {
+    if (style.effects_visible == visible) {
+      return false;
+    }
+    style.effects_visible = visible;
+    return true;
+  });
+}
+
+void MainWindow::set_layer_effect_enabled(LayerId layer_id, LayerStyleEffect effect, std::size_t index,
+                                          bool enabled) {
+  const auto name = layer_effect_display_name(effect);
+  apply_layer_effect_row_edit(layer_id, enabled ? tr("Show %1").arg(name) : tr("Hide %1").arg(name),
+                              enabled ? tr("%1 shown").arg(name) : tr("%1 hidden").arg(name),
+                              [effect, index, enabled](LayerStyle& style) {
+    auto* flag = layer_effect_enabled_flag(style, effect, index);
+    if (flag == nullptr || *flag == enabled) {
+      return false;
+    }
+    *flag = enabled;
+    return true;
+  });
+}
+
+void MainWindow::edit_layer_effect(LayerId layer_id, LayerStyleEffect effect, std::size_t index) {
+  if (!has_active_document() || document().find_layer(layer_id) == nullptr) {
+    return;
+  }
+  // Like the fx badge: keep a multi-selection that holds the row, keep the panel still.
+  const auto selected = selected_layer_ids();
+  if (std::find(selected.begin(), selected.end(), layer_id) != selected.end()) {
+    select_layers_in_layer_list(selected, layer_id, true);
+  } else {
+    reveal_layer_in_layer_list(layer_id, true);
+  }
+  if (document().active_layer_id() != layer_id) {
+    document().set_active_layer(layer_id);
+  }
+  edit_active_layer_style(effect, index, false);
 }
 
 void MainWindow::copy_active_layer_style() {

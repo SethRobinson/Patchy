@@ -11435,6 +11435,69 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source> (Amount %1, Zoom, %2 quality)</source>
         <translation> (Valeur %1, Zoom, qualité %2)</translation>
     </message>
+    <message>
+        <source>The layer is locked, so its effects cannot be changed here.</source>
+        <translation>Le calque est verrouillé, ses effets ne peuvent donc pas être modifiés ici.</translation>
+    </message>
+    <message>
+        <source>Effects visible. Click to hide them all.</source>
+        <translation>Effets visibles. Cliquez pour tous les masquer.</translation>
+    </message>
+    <message>
+        <source>Effects hidden. Click to show them.</source>
+        <translation>Effets masqués. Cliquez pour les afficher.</translation>
+    </message>
+    <message>
+        <source>Effects</source>
+        <translation>Effets</translation>
+    </message>
+    <message>
+        <source>Effect visible. Click to hide.</source>
+        <translation>Effet visible. Cliquez pour le masquer.</translation>
+    </message>
+    <message>
+        <source>Effect hidden. Click to show.</source>
+        <translation>Effet masqué. Cliquez pour l&apos;afficher.</translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog.</source>
+        <translation>Double-cliquez pour modifier cet effet dans la boîte de dialogue Style de calque.</translation>
+    </message>
+    <message>
+        <source>Edit this effect in the Layer Style dialog</source>
+        <translation>Modifier cet effet dans la boîte de dialogue Style de calque</translation>
+    </message>
+    <message>
+        <source>Missing Linked Files</source>
+        <translation>Fichiers liés manquants</translation>
+    </message>
+    <message>
+        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
+        <translation>Ces objets dynamiques liés pointent vers des fichiers que Patchy ne trouve pas. Rétablissez le lien de chacun vers un fichier maintenant, ou continuez avec les aperçus enregistrés et utilisez plus tard Calque &gt; Objets dynamiques &gt; Rétablir le lien vers le fichier...</translation>
+    </message>
+    <message>
+        <source>Relink...</source>
+        <translation>Rétablir le lien...</translation>
+    </message>
+    <message>
+        <source>Used by layer &quot;%1&quot;</source>
+        <translation>Utilisé par le calque « %1 »</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used by %n layers: %1</source>
+        <translation>
+            <numerusform>Utilisé par %n calque : %1</numerusform>
+            <numerusform>Utilisé par %n calques : %1</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Relinked to %1</source>
+        <translation>Lien rétabli vers %1</translation>
+    </message>
+    <message>
+        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
+        <translation>Les fichiers manquants restent signalés dans la barre d&apos;état. Les préférences permettent de réactiver cette boîte de dialogue pour les documents ouverts.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23188,11 +23251,62 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
     </message>
     <message>
         <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
-        <translation>Passez à l'outil Plan de travail pour ajouter, redimensionner ou dupliquer des plans de travail</translation>
+        <translation>Passez à l&apos;outil Plan de travail pour ajouter, redimensionner ou dupliquer des plans de travail</translation>
     </message>
     <message>
         <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
-        <translation>Passez à l'outil Plan de travail (%1) pour ajouter, redimensionner ou dupliquer des plans de travail</translation>
+        <translation>Passez à l&apos;outil Plan de travail (%1) pour ajouter, redimensionner ou dupliquer des plans de travail</translation>
+    </message>
+    <message>
+        <source>Show Effects</source>
+        <translation>Afficher les effets</translation>
+    </message>
+    <message>
+        <source>Hide Effects</source>
+        <translation>Masquer les effets</translation>
+    </message>
+    <message>
+        <source>Effects shown</source>
+        <translation>Effets affichés</translation>
+    </message>
+    <message>
+        <source>Effects hidden</source>
+        <translation>Effets masqués</translation>
+    </message>
+    <message>
+        <source>Show %1</source>
+        <translation>Afficher %1</translation>
+    </message>
+    <message>
+        <source>Hide %1</source>
+        <translation>Masquer %1</translation>
+    </message>
+    <message>
+        <source>%1 shown</source>
+        <translation>%1 affiché</translation>
+    </message>
+    <message>
+        <source>%1 hidden</source>
+        <translation>%1 masqué</translation>
+    </message>
+    <message>
+        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
+        <translation>Afficher la boîte de dialogue Fichiers liés manquants à l&apos;ouverture d&apos;un document dont des fichiers liés manquent</translation>
+    </message>
+    <message>
+        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
+        <translation>Calque &gt; Objets dynamiques &gt; Rétablir le lien vers le fichier... répare un lien à tout moment.</translation>
+    </message>
+    <message>
+        <source>This document has no missing linked files</source>
+        <translation>Ce document n&apos;a aucun fichier lié manquant</translation>
+    </message>
+    <message numerus="yes">
+        <source>Relinked %n smart object file(s)</source>
+        <translation>
+            <numerusform>Lien rétabli pour %n fichier d&apos;objet dynamique</numerusform>
+            <numerusform>Lien rétabli pour %n fichiers d&apos;objets dynamiques</numerusform>
+        </translation>
     </message>
 </context>
 <context>

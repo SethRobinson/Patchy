@@ -95,6 +95,9 @@ public:
   // keeps the plain item double-click behavior.
   void set_content_thumbnail_double_click_callback(std::function<void(QListWidgetItem*)> callback);
   void set_smart_filter_double_click_callback(std::function<void(QListWidgetItem*, std::size_t)> callback);
+  // Double-click inside a layer effect row: the effect kind (a LayerStyleEffect value) and
+  // its index in that kind's list.
+  void set_layer_effect_double_click_callback(std::function<void(QListWidgetItem*, int, std::size_t)> callback);
   // Photoshop's in-place rename: a double-click on the row's name label (or
   // begin_inline_rename from the Rename command) swaps the label for a line
   // edit. Return or focus loss commits through this callback with the row's
@@ -270,6 +273,7 @@ private:
   std::function<void(QListWidgetItem*)> item_double_click_callback_;
   std::function<void(QListWidgetItem*)> content_thumbnail_double_click_callback_;
   std::function<void(QListWidgetItem*, std::size_t)> smart_filter_double_click_callback_;
+  std::function<void(QListWidgetItem*, int, std::size_t)> layer_effect_double_click_callback_;
   std::function<void(LayerId, const QString&)> inline_rename_callback_;
   QPointer<QLineEdit> inline_rename_edit_;
   QPointer<QLabel> inline_rename_label_;

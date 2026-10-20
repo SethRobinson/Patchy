@@ -1281,6 +1281,16 @@ void MainWindow::create_docks() {
           edit_smart_filter(layer_id, execution_index);
         });
       });
+  layer_list->set_layer_effect_double_click_callback(
+      [this](QListWidgetItem* item, int effect_kind, std::size_t index) {
+        const auto layer_id = static_cast<LayerId>(item->data(kLayerIdRole).toULongLong());
+        if (layer_id == 0) {
+          return;
+        }
+        QTimer::singleShot(0, this, [this, layer_id, effect_kind, index] {
+          edit_layer_effect(layer_id, static_cast<LayerStyleEffect>(effect_kind), index);
+        });
+      });
   connect(layer_list_, &QListWidget::itemChanged, this, [this](QListWidgetItem* item) {
     set_layer_visibility_from_item(item);
   });

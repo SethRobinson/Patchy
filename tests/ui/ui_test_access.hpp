@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <functional>
 #include <optional>
+#include <string>
 #include <utility>
 
 namespace patchy::ui {
@@ -288,6 +289,15 @@ public:
 
   static void relink_smart_object_contents_with_path(MainWindow& window, const QString& path) {
     window.relink_smart_object_contents_with_path(path);
+  }
+
+  static std::optional<QString> relink_missing_smart_object_source(MainWindow& window, const std::string& uuid,
+                                                                   const QString& path) {
+    return window.relink_missing_smart_object_source(uuid, path);
+  }
+
+  static void show_missing_linked_files_dialog(MainWindow& window) {
+    window.show_missing_linked_files_dialog(false);
   }
 
   static void show_layer_context_menu(MainWindow& window, QPoint position) {

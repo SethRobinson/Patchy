@@ -11401,6 +11401,68 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source> (Amount %1, Zoom, %2 quality)</source>
         <translation> (量 %1、ズーム、画質: %2)</translation>
     </message>
+    <message>
+        <source>The layer is locked, so its effects cannot be changed here.</source>
+        <translation>レイヤーがロックされているため、ここでエフェクトを変更できません。</translation>
+    </message>
+    <message>
+        <source>Effects visible. Click to hide them all.</source>
+        <translation>エフェクトは表示中です。クリックですべて非表示にします。</translation>
+    </message>
+    <message>
+        <source>Effects hidden. Click to show them.</source>
+        <translation>エフェクトは非表示です。クリックで表示します。</translation>
+    </message>
+    <message>
+        <source>Effects</source>
+        <translation>エフェクト</translation>
+    </message>
+    <message>
+        <source>Effect visible. Click to hide.</source>
+        <translation>エフェクトは表示中です。クリックで非表示にします。</translation>
+    </message>
+    <message>
+        <source>Effect hidden. Click to show.</source>
+        <translation>エフェクトは非表示です。クリックで表示します。</translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog.</source>
+        <translation>ダブルクリックでレイヤースタイルダイアログでこのエフェクトを編集します。</translation>
+    </message>
+    <message>
+        <source>Edit this effect in the Layer Style dialog</source>
+        <translation>レイヤースタイルダイアログでこのエフェクトを編集</translation>
+    </message>
+    <message>
+        <source>Missing Linked Files</source>
+        <translation>見つからないリンクファイル</translation>
+    </message>
+    <message>
+        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
+        <translation>これらのリンクされたスマートオブジェクトは、Patchy が見つけられないファイルを参照しています。今すぐそれぞれをファイルに再リンクするか、保存されたプレビューのまま続行して、後でレイヤー &gt; スマートオブジェクト &gt; ファイルに再リンク... を使用してください。</translation>
+    </message>
+    <message>
+        <source>Relink...</source>
+        <translation>再リンク...</translation>
+    </message>
+    <message>
+        <source>Used by layer &quot;%1&quot;</source>
+        <translation>レイヤー「%1」で使用</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used by %n layers: %1</source>
+        <translation>
+            <numerusform>%n 個のレイヤーで使用: %1</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Relinked to %1</source>
+        <translation>%1 に再リンクしました</translation>
+    </message>
+    <message>
+        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
+        <translation>見つからないファイルは引き続きステータスバーに表示されます。環境設定で、開いたドキュメントに対してこのダイアログを再び有効にできます。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23123,6 +23185,56 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
         <translation>アートボードの追加、サイズ変更、複製にはアートボードツール (%1) に切り替えてください</translation>
+    </message>
+    <message>
+        <source>Show Effects</source>
+        <translation>効果を表示</translation>
+    </message>
+    <message>
+        <source>Hide Effects</source>
+        <translation>エフェクトを非表示</translation>
+    </message>
+    <message>
+        <source>Effects shown</source>
+        <translation>エフェクトを表示しました</translation>
+    </message>
+    <message>
+        <source>Effects hidden</source>
+        <translation>エフェクトを非表示にしました</translation>
+    </message>
+    <message>
+        <source>Show %1</source>
+        <translation>%1 を表示</translation>
+    </message>
+    <message>
+        <source>Hide %1</source>
+        <translation>%1 を非表示</translation>
+    </message>
+    <message>
+        <source>%1 shown</source>
+        <translation>%1 を表示しました</translation>
+    </message>
+    <message>
+        <source>%1 hidden</source>
+        <translation>%1 を非表示にしました</translation>
+    </message>
+    <message>
+        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
+        <translation>リンクファイルが見つからないドキュメントを開くときに「見つからないリンクファイル」ダイアログを表示する</translation>
+    </message>
+    <message>
+        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
+        <translation>レイヤー &gt; スマートオブジェクト &gt; ファイルに再リンク... でいつでもリンクを修復できます。</translation>
+    </message>
+    <message>
+        <source>This document has no missing linked files</source>
+        <translation>このドキュメントに見つからないリンクファイルはありません</translation>
+    </message>
+    <message numerus="yes">
+        <source>Relinked %n smart object file(s)</source>
+        <translation>
+            <numerusform>%n 個のスマートオブジェクトファイルを再リンクしました</numerusform>
+        </translation>
     </message>
 </context>
 <context>

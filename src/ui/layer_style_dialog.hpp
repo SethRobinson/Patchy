@@ -63,8 +63,10 @@ enum class LayerStyleEffect {
 // inert. open_pattern_as_image is forwarded to the Pattern Manager's "Open as
 // Image" button; the caller must DEFER the actual document creation until this
 // dialog has closed (the preview-dialog edit lock forbids
-// add_document_session). start_effect opens the dialog on that effect's first
-// instance and turns it on, exactly as ticking its category checkbox would.
+// add_document_session). start_effect opens the dialog on that effect's
+// start_effect_index instance and, with enable_start_effect, turns it on exactly as
+// ticking its category checkbox would (the Layers panel's effect rows open a hidden
+// effect without showing it).
 [[nodiscard]] std::optional<LayerStyleSettings> request_layer_style_settings(
     QWidget* parent, const Layer& layer,
     std::function<void(const LayerStyleSettings&)> preview_changed = {},
@@ -77,6 +79,7 @@ enum class LayerStyleEffect {
     RgbColor background = RgbColor{255, 255, 255},
     const AppearanceDialogContext<LayerStyleSettings>* batch = nullptr,
     BitDepth document_depth = BitDepth::UInt8,
-    std::optional<LayerStyleEffect> start_effect = std::nullopt);
+    std::optional<LayerStyleEffect> start_effect = std::nullopt, std::size_t start_effect_index = 0,
+    bool enable_start_effect = true);
 
 }  // namespace patchy::ui

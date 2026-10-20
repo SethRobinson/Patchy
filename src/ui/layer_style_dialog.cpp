@@ -774,7 +774,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     std::function<void(const QString& name, const PixelBuffer& tile)> open_pattern_as_image,
     GradientLibrary *gradient_library, RgbColor foreground,
     RgbColor background, const AppearanceDialogContext<LayerStyleSettings>* batch, BitDepth document_depth,
-    std::optional<LayerStyleEffect> start_effect) {
+    std::optional<LayerStyleEffect> start_effect, std::size_t start_effect_index, bool enable_start_effect) {
   const auto request_started = std::chrono::steady_clock::now();
   const LayerStyleSettings original_settings{
       static_cast<int>(std::round(layer.opacity() * 100.0F)),
@@ -3457,11 +3457,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     }();
     for (int row = 0; row < categories->count(); ++row) {
       auto* item = categories->item(row);
-      if (item_kind(item) != start_kind || item_effect_index(item) != 0) {
+      if (item_kind(item) != start_kind || item_effect_index(item) != static_cast<int>(start_effect_index)) {
         continue;
       }
       categories->setCurrentItem(item);
-      if (item->checkState() != Qt::Checked) {
+      if (enable_start_effect && item->checkState() != Qt::Checked) {
         item->setCheckState(Qt::Checked);
       }
       break;

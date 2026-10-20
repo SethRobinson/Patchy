@@ -11435,6 +11435,69 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source> (Amount %1, Zoom, %2 quality)</source>
         <translation> (Fattore %1, Zoom, qualità %2)</translation>
     </message>
+    <message>
+        <source>The layer is locked, so its effects cannot be changed here.</source>
+        <translation>Il livello è bloccato, quindi i suoi effetti non possono essere modificati qui.</translation>
+    </message>
+    <message>
+        <source>Effects visible. Click to hide them all.</source>
+        <translation>Effetti visibili. Fai clic per nasconderli tutti.</translation>
+    </message>
+    <message>
+        <source>Effects hidden. Click to show them.</source>
+        <translation>Effetti nascosti. Fai clic per mostrarli.</translation>
+    </message>
+    <message>
+        <source>Effects</source>
+        <translation>Effetti</translation>
+    </message>
+    <message>
+        <source>Effect visible. Click to hide.</source>
+        <translation>Effetto visibile. Fai clic per nasconderlo.</translation>
+    </message>
+    <message>
+        <source>Effect hidden. Click to show.</source>
+        <translation>Effetto nascosto. Fai clic per mostrarlo.</translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog.</source>
+        <translation>Fai doppio clic per modificare questo effetto nella finestra Stile livello.</translation>
+    </message>
+    <message>
+        <source>Edit this effect in the Layer Style dialog</source>
+        <translation>Modifica questo effetto nella finestra Stile livello</translation>
+    </message>
+    <message>
+        <source>Missing Linked Files</source>
+        <translation>File collegati mancanti</translation>
+    </message>
+    <message>
+        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
+        <translation>Questi oggetti avanzati collegati puntano a file che Patchy non trova. Ricollega ciascuno a un file adesso, oppure continua con le anteprime salvate e usa più tardi Livello &gt; Oggetti avanzati &gt; Ricollega a file...</translation>
+    </message>
+    <message>
+        <source>Relink...</source>
+        <translation>Ricollega...</translation>
+    </message>
+    <message>
+        <source>Used by layer &quot;%1&quot;</source>
+        <translation>Usato dal livello &quot;%1&quot;</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used by %n layers: %1</source>
+        <translation>
+            <numerusform>Usato da %n livello: %1</numerusform>
+            <numerusform>Usato da %n livelli: %1</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Relinked to %1</source>
+        <translation>Ricollegato a %1</translation>
+    </message>
+    <message>
+        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
+        <translation>I file mancanti restano indicati nella barra di stato. Dalle Preferenze puoi riattivare questa finestra per i documenti aperti.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23193,6 +23256,57 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
     <message>
         <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
         <translation>Passa allo strumento Tavola da disegno (%1) per aggiungere, ridimensionare o duplicare le tavole da disegno</translation>
+    </message>
+    <message>
+        <source>Show Effects</source>
+        <translation>Mostra effetti</translation>
+    </message>
+    <message>
+        <source>Hide Effects</source>
+        <translation>Nascondi effetti</translation>
+    </message>
+    <message>
+        <source>Effects shown</source>
+        <translation>Effetti mostrati</translation>
+    </message>
+    <message>
+        <source>Effects hidden</source>
+        <translation>Effetti nascosti</translation>
+    </message>
+    <message>
+        <source>Show %1</source>
+        <translation>Mostra %1</translation>
+    </message>
+    <message>
+        <source>Hide %1</source>
+        <translation>Nascondi %1</translation>
+    </message>
+    <message>
+        <source>%1 shown</source>
+        <translation>%1 mostrato</translation>
+    </message>
+    <message>
+        <source>%1 hidden</source>
+        <translation>%1 nascosto</translation>
+    </message>
+    <message>
+        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
+        <translation>Mostra la finestra File collegati mancanti all&apos;apertura di un documento con file collegati mancanti</translation>
+    </message>
+    <message>
+        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
+        <translation>Livello &gt; Oggetti avanzati &gt; Ricollega a file... ripara un collegamento in qualsiasi momento.</translation>
+    </message>
+    <message>
+        <source>This document has no missing linked files</source>
+        <translation>Questo documento non ha file collegati mancanti</translation>
+    </message>
+    <message numerus="yes">
+        <source>Relinked %n smart object file(s)</source>
+        <translation>
+            <numerusform>Ricollegato %n file di oggetto avanzato</numerusform>
+            <numerusform>Ricollegati %n file di oggetti avanzati</numerusform>
+        </translation>
     </message>
 </context>
 <context>

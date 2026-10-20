@@ -2654,6 +2654,8 @@ void MainWindow::open_document_path(QString path) {
     if (cmyk_proof_opened) {
       show_cmyk_proof_open_notice();
     }
+    // Linked smart objects whose files are missing (GitHub issue 257; off in Preferences).
+    show_missing_linked_files_dialog(true);
     // Photoshop's Missing Fonts dialog on open (GitHub issue 169; off in Preferences). Last, so
     // its own status message is not overwritten by the "Opened" one.
     show_resolve_missing_fonts_dialog(true);

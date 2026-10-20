@@ -176,6 +176,12 @@ bool LayerStyle::empty() const noexcept {
          !has_enabled_bevel && !has_enabled_satin;
 }
 
+std::size_t LayerStyle::effect_count() const noexcept {
+  return drop_shadows.size() + inner_shadows.size() + outer_glows.size() + inner_glows.size() +
+         color_overlays.size() + gradient_fills.size() + pattern_overlays.size() + strokes.size() +
+         bevels.size() + satins.size();
+}
+
 bool Rect::empty() const noexcept {
   return width <= 0 || height <= 0;
 }

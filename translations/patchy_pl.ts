@@ -11469,6 +11469,70 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source> (Amount %1, Zoom, %2 quality)</source>
         <translation> (Ilość %1, przybliżenie, jakość %2)</translation>
     </message>
+    <message>
+        <source>The layer is locked, so its effects cannot be changed here.</source>
+        <translation>Warstwa jest zablokowana, więc jej efektów nie można tu zmienić.</translation>
+    </message>
+    <message>
+        <source>Effects visible. Click to hide them all.</source>
+        <translation>Efekty widoczne. Kliknij, aby ukryć wszystkie.</translation>
+    </message>
+    <message>
+        <source>Effects hidden. Click to show them.</source>
+        <translation>Efekty ukryte. Kliknij, aby pokazać.</translation>
+    </message>
+    <message>
+        <source>Effects</source>
+        <translation>Efekty</translation>
+    </message>
+    <message>
+        <source>Effect visible. Click to hide.</source>
+        <translation>Efekt widoczny. Kliknij, aby ukryć.</translation>
+    </message>
+    <message>
+        <source>Effect hidden. Click to show.</source>
+        <translation>Efekt ukryty. Kliknij, aby pokazać.</translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog.</source>
+        <translation>Kliknij dwukrotnie, aby edytować ten efekt w oknie Styl warstwy.</translation>
+    </message>
+    <message>
+        <source>Edit this effect in the Layer Style dialog</source>
+        <translation>Edytuj ten efekt w oknie Styl warstwy</translation>
+    </message>
+    <message>
+        <source>Missing Linked Files</source>
+        <translation>Brakujące połączone pliki</translation>
+    </message>
+    <message>
+        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
+        <translation>Te połączone obiekty inteligentne wskazują pliki, których Patchy nie może znaleźć. Połącz każdy z nich ponownie z plikiem teraz lub kontynuuj z zapisanymi podglądami i użyj później Warstwa &gt; Obiekty inteligentne &gt; Połącz ponownie z plikiem...</translation>
+    </message>
+    <message>
+        <source>Relink...</source>
+        <translation>Połącz ponownie...</translation>
+    </message>
+    <message>
+        <source>Used by layer &quot;%1&quot;</source>
+        <translation>Używany przez warstwę „%1”</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used by %n layers: %1</source>
+        <translation>
+            <numerusform>Używany przez %n warstwę: %1</numerusform>
+            <numerusform>Używany przez %n warstwy: %1</numerusform>
+            <numerusform>Używany przez %n warstw: %1</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Relinked to %1</source>
+        <translation>Połączono ponownie z %1</translation>
+    </message>
+    <message>
+        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
+        <translation>Brakujące pliki nadal są pokazywane na pasku stanu. W preferencjach można ponownie włączyć to okno dla otwieranych dokumentów.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23263,6 +23327,58 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     <message>
         <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
         <translation>Przełącz na narzędzie Obszar roboczy (%1), aby dodawać, zmieniać rozmiar lub powielać obszary robocze</translation>
+    </message>
+    <message>
+        <source>Show Effects</source>
+        <translation>Pokaż efekty</translation>
+    </message>
+    <message>
+        <source>Hide Effects</source>
+        <translation>Ukryj efekty</translation>
+    </message>
+    <message>
+        <source>Effects shown</source>
+        <translation>Efekty pokazane</translation>
+    </message>
+    <message>
+        <source>Effects hidden</source>
+        <translation>Efekty ukryte</translation>
+    </message>
+    <message>
+        <source>Show %1</source>
+        <translation>Pokaż %1</translation>
+    </message>
+    <message>
+        <source>Hide %1</source>
+        <translation>Ukryj %1</translation>
+    </message>
+    <message>
+        <source>%1 shown</source>
+        <translation>Pokazano %1</translation>
+    </message>
+    <message>
+        <source>%1 hidden</source>
+        <translation>Ukryto %1</translation>
+    </message>
+    <message>
+        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
+        <translation>Pokazuj okno Brakujące połączone pliki przy otwieraniu dokumentu z brakującymi połączonymi plikami</translation>
+    </message>
+    <message>
+        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
+        <translation>Warstwa &gt; Obiekty inteligentne &gt; Połącz ponownie z plikiem... naprawia połączenie w dowolnej chwili.</translation>
+    </message>
+    <message>
+        <source>This document has no missing linked files</source>
+        <translation>W tym dokumencie nie brakuje połączonych plików</translation>
+    </message>
+    <message numerus="yes">
+        <source>Relinked %n smart object file(s)</source>
+        <translation>
+            <numerusform>Połączono ponownie %n plik obiektu inteligentnego</numerusform>
+            <numerusform>Połączono ponownie %n pliki obiektów inteligentnych</numerusform>
+            <numerusform>Połączono ponownie %n plików obiektów inteligentnych</numerusform>
+        </translation>
     </message>
 </context>
 <context>
