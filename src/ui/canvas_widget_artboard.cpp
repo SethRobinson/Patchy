@@ -183,6 +183,7 @@ std::optional<LayerId> CanvasWidget::selected_root_artboard_id() const {
 }
 
 void CanvasWidget::begin_artboard_move_drag(const Layer& artboard, QMouseEvent* event) {
+  artboard_field_preview_ = false;
   artboard_drag_mode_ = ArtboardDragMode::Move;
   artboard_drag_id_ = artboard.id();
   artboard_drag_start_rect_ = qrect(artboard.artboard()->rect);
@@ -469,6 +470,7 @@ bool CanvasWidget::handle_artboard_press(QMouseEvent* event) {
     return true;  // the tool owns the press; nothing may change
   }
   const auto& document = std::as_const(*document_);
+  artboard_field_preview_ = false;
   artboard_press_widget_point_ = event->pos();
   artboard_drag_start_point_ = document_position_f(event->position());
   artboard_drag_moved_ = false;
@@ -519,25 +521,7 @@ void CanvasWidget::update_artboard_drag(QMouseEvent* event) {
   if (!artboard_drag_moved_ &&
       (event->pos() - artboard_press_widget_point_).manhattanLength() >= QApplication::startDragDistance()) {
     artboard_drag_moved_ = true;
-    if (artboard_drag_mode_ == ArtboardDragMode::Move && document_ != nullptr && artboard_drag_id_.has_value()) {
-      // The artboard alone (its paper and content, nothing around or over it), carried
-      // along at the moving rect, and the canvas without it where it was.
-      const auto& document = std::as_const(*document_);
-      const auto rect = artboard_drag_start_rect_.intersected(QRect(0, 0, document.width(), document.height()));
-      if (!rect.isEmpty()) {
-        std::vector<LayerId> others;
-        for (const auto& layer : document.layers()) {
-          if (layer.id() != *artboard_drag_id_) {
-            others.push_back(layer.id());
-          }
-        }
-        artboard_drag_ghost_ = qimage_from_document_rect_with_hidden_layers_banded(document, rect, true, others);
-        if (!artboard_drag_duplicate_) {
-          artboard_drag_vacated_ =
-              qimage_from_document_rect_with_hidden_layers_banded(document, rect, true, {*artboard_drag_id_});
-        }
-      }
-    }
+    capture_artboard_drag_ghost();
   }
   if (!artboard_drag_moved_) {
     return;
@@ -574,6 +558,59 @@ void CanvasWidget::update_artboard_drag(QMouseEvent* event) {
       break;
   }
   update();
+}
+
+void CanvasWidget::capture_artboard_drag_ghost() {
+  if (artboard_drag_mode_ != ArtboardDragMode::Move || document_ == nullptr || !artboard_drag_id_.has_value()) {
+    return;
+  }
+  // The artboard alone (its paper and content, nothing around or over it), carried
+  // along at the moving rect, and the canvas without it where it was.
+  const auto& document = std::as_const(*document_);
+  const auto rect = artboard_drag_start_rect_.intersected(QRect(0, 0, document.width(), document.height()));
+  if (rect.isEmpty()) {
+    return;
+  }
+  std::vector<LayerId> others;
+  for (const auto& layer : document.layers()) {
+    if (layer.id() != *artboard_drag_id_) {
+      others.push_back(layer.id());
+    }
+  }
+  artboard_drag_ghost_ = qimage_from_document_rect_with_hidden_layers_banded(document, rect, true, others);
+  if (!artboard_drag_duplicate_) {
+    artboard_drag_vacated_ =
+        qimage_from_document_rect_with_hidden_layers_banded(document, rect, true, {*artboard_drag_id_});
+  }
+}
+
+void CanvasWidget::preview_artboard_rect(LayerId id, QRect rect) {
+  if (document_ == nullptr) {
+    return;
+  }
+  const auto* artboard = std::as_const(*document_).find_layer(id);
+  if (artboard == nullptr || !artboard->artboard().has_value()) {
+    return;
+  }
+  const auto start = qrect(artboard->artboard()->rect);
+  const auto mode = rect.size() == start.size() ? ArtboardDragMode::Move : ArtboardDragMode::Resize;
+  if (!artboard_field_preview_ || artboard_drag_mode_ != mode || artboard_drag_id_ != id) {
+    cancel_artboard_drag();
+    artboard_drag_mode_ = mode;
+    artboard_drag_id_ = id;
+    artboard_drag_start_rect_ = start;
+    artboard_drag_moved_ = true;
+    artboard_field_preview_ = true;
+    capture_artboard_drag_ghost();
+  }
+  artboard_drag_rect_ = rect;
+  update();
+}
+
+void CanvasWidget::end_artboard_rect_preview() {
+  if (artboard_field_preview_) {
+    cancel_artboard_drag();
+  }
 }
 
 void CanvasWidget::finish_artboard_drag(QMouseEvent* event) {
@@ -616,6 +653,7 @@ void CanvasWidget::finish_artboard_drag(QMouseEvent* event) {
 void CanvasWidget::cancel_artboard_drag() {
   const bool had_drag = artboard_drag_mode_ != ArtboardDragMode::None;
   artboard_drag_mode_ = ArtboardDragMode::None;
+  artboard_field_preview_ = false;
   artboard_drag_id_.reset();
   artboard_drag_handle_ = TransformHandle::None;
   artboard_drag_moved_ = false;
@@ -788,7 +826,20 @@ void CanvasWidget::draw_artboard_overlay(QPainter& painter) const {
     const auto clipped = artboard_drag_start_rect_.intersected(QRect(0, 0, document_->width(), document_->height()));
     const auto offset = artboard_drag_rect_.topLeft() - artboard_drag_start_rect_.topLeft();
     if (!artboard_drag_vacated_.isNull() && !artboard_drag_duplicate_) {
-      painter.drawImage(widget_rect_for_document_rect(QRectF(clipped)), artboard_drag_vacated_);
+      // The vacated image keeps alpha, so it goes over the backdrop of an empty canvas
+      // (pasteboard, other artboards' checkerboard), not over the artboard still drawn there.
+      const auto vacated = widget_rect_for_document_rect(QRectF(clipped));
+      const auto exposed = vacated.toAlignedRect();
+      painter.fillRect(vacated, backdrop_color());
+      for (const auto* other : artboards) {
+        if (other->visible() && other->id() != *artboard_drag_id_) {
+          const auto& rect = other->artboard()->rect;
+          draw_checkerboard(painter,
+                            widget_rect_for_document_rect(QRectF(rect.x, rect.y, rect.width, rect.height)).intersected(vacated),
+                            exposed);
+        }
+      }
+      painter.drawImage(vacated, artboard_drag_vacated_);
     }
     painter.drawImage(widget_rect_for_document_rect(QRectF(clipped.translated(offset))), artboard_drag_ghost_);
   }

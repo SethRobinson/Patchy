@@ -34,6 +34,7 @@
 #include <QComboBox>
 #include <QDialog>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QProgressDialog>
 #include <QLabel>
 #include <QLineEdit>
@@ -62,9 +63,11 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <functional>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -432,8 +435,9 @@ void ui_artboard_layers_panel_rows_and_properties_panel() {
 }
 
 // The Properties panel's artboard X/Y/W/H fields scrub like the options bar's (issue 46):
-// a drag on "X:" moves the artboard live and adds one undo step, a drag on the W field
-// itself resizes it in one step, and a plain click on a field edits it, number selected.
+// a drag on "X:" previews the move on the canvas and the release moves the artboard in one
+// undo step, a drag on the W field itself resizes it in one step, and a plain click on a
+// field edits it, number selected.
 void ui_artboard_properties_fields_scrub_as_one_undo_step() {
   for (const auto preference : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
     ColorSchemeRestorer scheme_restorer(preference);
@@ -494,9 +498,16 @@ void ui_artboard_properties_fields_scrub_as_one_undo_step() {
       CHECK(spin != nullptr && spin->property(patchy::ui::kScrubHandleInstalledProperty).toBool());
     }
     CHECK(x_label->cursor().shape() == Qt::SizeHorCursor);
-    // Mid-drag: the artboard already follows the field.
+    // Mid-drag: the canvas previews the move; the document waits for the release. The
+    // spot the artboard left shows the pasteboard, not the artboard still in the document.
     CHECK(x->value() == start.x + drag_start + 30);
-    CHECK(rect_now().x == start.x + drag_start + 30);
+    CHECK(rect_now() == start);
+    auto* canvas = require_canvas(window);
+    CHECK(canvas->artboard_drag_active());
+    const auto frame = canvas->grab().toImage();
+    const auto left_spot = frame.pixelColor(canvas->widget_position_for_document_point(QPoint(start.x + 3, start.y + 5)));
+    CHECK(!color_close(left_spot, QColor(40, 120, 220), 40));
+    CHECK(!color_close(left_spot, QColor(Qt::white), 30));
     send_mouse(*x_label, QEvent::MouseButtonRelease, origin + QPoint(drag_start + 30, 0), Qt::LeftButton,
                Qt::NoButton);
     QApplication::processEvents();
@@ -541,6 +552,184 @@ void ui_artboard_properties_fields_scrub_as_one_undo_step() {
       CHECK(x_editor->hasSelectedText());
       CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
     }
+  }
+}
+
+// A W scrub in the Properties panel costs what a handle drag of the Artboard tool costs:
+// while it runs the canvas previews the new rect and the document stays untouched, and
+// the release commits one resize (Seth, October 21, 2026: the scrub was slow on a large
+// document because every pixel ran the whole resize, recomposite and panel refresh).
+// Prints the timings of the handle drag, the scrub, arrow steps and a typed value.
+void check_artboard_scrub_costs_a_handle_drag(patchy::ui::MainWindow& window, patchy::LayerId board,
+                                              const char* name) {
+  auto* canvas = require_canvas(window);
+  require_hotkey_action(window, QStringLiteral("tools.artboard"))->trigger();
+  MainWindowTestAccess::select_layers(window, {board}, board);
+  MainWindowTestAccess::show_panel(window, QStringLiteral("propertiesDock"));
+  canvas->fit_to_view();
+  canvas->force_refresh();
+  QApplication::processEvents();
+  auto* width = window.findChild<QSpinBox*>(QStringLiteral("propertiesArtboardWidthSpin"));
+  auto* panel = window.findChild<QWidget*>(QStringLiteral("propertiesArtboardPanel"));
+  CHECK(width != nullptr && panel != nullptr);
+  if (width == nullptr || panel == nullptr) {
+    return;
+  }
+  QLabel* w_label = nullptr;
+  for (auto* label : panel->findChildren<QLabel*>()) {
+    if (label->text() == QStringLiteral("W:")) {
+      w_label = label;
+    }
+  }
+  CHECK(w_label != nullptr);
+  if (w_label == nullptr) {
+    return;
+  }
+  const auto rect_now = [&window, board] {
+    const auto* artboard = std::as_const(MainWindowTestAccess::document(window)).find_layer(board);
+    return artboard != nullptr ? artboard->artboard()->rect : patchy::Rect{};
+  };
+  const auto start = rect_now();
+  CHECK(start.width > 100);
+  // One step as the user sees it: the event, then the repaint it asked for.
+  const auto settle = [&] {
+    QApplication::processEvents();
+    canvas->repaint();
+  };
+  const auto elapsed_ms = [](const QElapsedTimer& timer) { return static_cast<double>(timer.nsecsElapsed()) / 1.0e6; };
+  constexpr int kSteps = 12;
+  const int drag_start = QApplication::startDragDistance();
+
+  // The Artboard tool: drag the right-edge handle inward in 12 steps.
+  const auto handle =
+      canvas->widget_position_for_document_point(QPoint(start.x + start.width, start.y + start.height / 2));
+  QElapsedTimer timer;
+  send_mouse(*canvas, QEvent::MouseButtonPress, handle, Qt::LeftButton, Qt::LeftButton);
+  double handle_step_ms = 0.0;
+  for (int step = 1; step <= kSteps; ++step) {
+    timer.start();
+    send_mouse(*canvas, QEvent::MouseMove, handle - QPoint(drag_start + 2 * step, 0), Qt::NoButton, Qt::LeftButton);
+    settle();
+    handle_step_ms += elapsed_ms(timer);
+  }
+  handle_step_ms /= kSteps;
+  timer.start();
+  send_mouse(*canvas, QEvent::MouseButtonRelease, handle - QPoint(drag_start + 2 * kSteps, 0), Qt::LeftButton,
+             Qt::NoButton);
+  settle();
+  const double handle_release_ms = elapsed_ms(timer);
+  CHECK(rect_now().width < start.width);
+  MainWindowTestAccess::undo(window);
+  settle();
+  CHECK(rect_now() == start);
+
+  // The same kind of change by scrubbing the W label: the document must stay untouched
+  // until the release, which commits one undo step.
+  const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+  const auto origin = w_label->rect().center();
+  send_mouse(*w_label, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton);
+  double scrub_step_ms = 0.0;
+  bool document_untouched = true;
+  bool previewed = true;
+  for (int step = 1; step <= kSteps; ++step) {
+    timer.start();
+    send_mouse(*w_label, QEvent::MouseMove, origin - QPoint(drag_start + 2 * step, 0), Qt::NoButton, Qt::LeftButton);
+    settle();
+    scrub_step_ms += elapsed_ms(timer);
+    document_untouched = document_untouched && rect_now() == start &&
+                         MainWindowTestAccess::active_session_undo_depth(window) == depth;
+    previewed = previewed && canvas->artboard_drag_active();
+  }
+  scrub_step_ms /= kSteps;
+  const int scrubbed_width = width->value();
+  timer.start();
+  send_mouse(*w_label, QEvent::MouseButtonRelease, origin - QPoint(drag_start + 2 * kSteps, 0), Qt::LeftButton,
+             Qt::NoButton);
+  settle();
+  const double scrub_release_ms = elapsed_ms(timer);
+  CHECK(scrubbed_width == start.width - (drag_start + 2 * kSteps));  // the scrub counts from the press
+  CHECK((rect_now() == patchy::Rect{start.x, start.y, scrubbed_width, start.height}));
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  CHECK(!canvas->artboard_drag_active());
+
+  // Arrow steps and a typed value commit at once (one undo step per run).
+  auto* editor = width->findChild<QLineEdit*>();
+  CHECK(editor != nullptr);
+  double arrow_step_ms = 0.0;
+  double typed_ms = 0.0;
+  if (editor != nullptr) {
+    width->setFocus(Qt::OtherFocusReason);
+    QApplication::processEvents();
+    for (int step = 0; step < 4; ++step) {
+      timer.start();
+      send_key(*editor, Qt::Key_Up);
+      settle();
+      arrow_step_ms += elapsed_ms(timer);
+    }
+    arrow_step_ms /= 4;
+    CHECK(rect_now().width == scrubbed_width + 4);
+    const int typed = start.width - 50;
+    editor->selectAll();
+    editor->insert(QString::number(typed));
+    timer.start();
+    send_key(*editor, Qt::Key_Return);
+    settle();
+    typed_ms = elapsed_ms(timer);
+    CHECK(rect_now().width == typed);
+  }
+  std::printf("[TIMING] %s: handle drag %.1f ms/step, release %.1f ms; W scrub %.1f ms/step, release %.1f ms; "
+              "arrow %.1f ms/step; typed+Enter %.1f ms\n",
+              name, handle_step_ms, handle_release_ms, scrub_step_ms, scrub_release_ms, arrow_step_ms, typed_ms);
+  std::fflush(stdout);
+  CHECK(document_untouched);
+  CHECK(previewed);
+  // A scrub step costs about what a handle-drag step costs (both repaint a preview).
+  CHECK(scrub_step_ms <= 3.0 * handle_step_ms + 20.0);
+}
+
+// The timing above on a large document: one 4000 x 3000 artboard holding three
+// translucent layers its size, and on the ag-psd artboards sample when present.
+void ui_artboard_properties_scrub_previews_like_the_handle_drag() {
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    constexpr int kWidth = 4000;
+    constexpr int kHeight = 3000;
+    auto seed = board_document(kWidth, kHeight);
+    const patchy::Rect rect{0, 0, kWidth, kHeight};
+    const auto board = add_board(seed, "Big", rect, patchy::ArtboardBackground::White, QColor());
+    for (int index = 0; index < 3; ++index) {
+      patchy::Layer layer(seed.allocate_layer_id(), "Photo " + std::to_string(index + 1),
+                          solid_pixels(kWidth, kHeight, patchy::PixelFormat::rgba8(),
+                                       QColor(60 * index + 40, 120, 200 - 50 * index, 170)));
+      layer.set_bounds(rect);
+      seed.layers().back().add_child(std::move(layer));
+    }
+    window.add_document_session(std::move(seed), QStringLiteral("Big Board"));
+    check_artboard_scrub_costs_a_handle_drag(window, board, "4000x3000 artboard, 3 layers");
+  }
+  const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "ag-psd" / "artboards" / "src.psd";
+  if (!std::filesystem::exists(path)) {
+    std::printf("[TIMING] ag-psd artboards sample not present; skipped\n");
+    return;
+  }
+  SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(path));
+  QApplication::processEvents();
+  std::optional<patchy::LayerId> widest;
+  int widest_width = 0;
+  for (const auto* artboard : patchy::document_artboards(MainWindowTestAccess::document(window))) {
+    if (artboard->artboard()->rect.width > widest_width) {
+      widest_width = artboard->artboard()->rect.width;
+      widest = artboard->id();
+    }
+  }
+  CHECK(widest.has_value());
+  if (widest.has_value()) {
+    check_artboard_scrub_costs_a_handle_drag(window, *widest, "ag-psd artboards sample");
   }
 }
 
@@ -1584,6 +1773,8 @@ std::vector<patchy::test::TestCase> artboard_ui_tests() {
       {"ui_artboard_prevent_auto_nesting_keeps_layer_in_place", ui_artboard_prevent_auto_nesting_keeps_layer_in_place},
       {"ui_artboard_layers_panel_rows_and_properties_panel", ui_artboard_layers_panel_rows_and_properties_panel},
       {"ui_artboard_properties_fields_scrub_as_one_undo_step", ui_artboard_properties_fields_scrub_as_one_undo_step},
+      {"ui_artboard_properties_scrub_previews_like_the_handle_drag",
+       ui_artboard_properties_scrub_previews_like_the_handle_drag},
       {"ui_artboard_new_document_option", ui_artboard_new_document_option},
       {"ui_new_document_auto_accept_ignores_remembered_artboards",
        ui_new_document_auto_accept_ignores_remembered_artboards},

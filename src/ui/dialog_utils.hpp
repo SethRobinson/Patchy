@@ -110,6 +110,12 @@ inline constexpr char kToolbarSpinboxSliderCurvedProperty[] = "patchy.popupSlide
 // ui_scrub_gap_and_modifiers_follow_the_zone_rules, ui_layer_opacity_prefix_scrub_is_one_undo_entry.
 inline constexpr char kScrubHandleInstalledProperty[] = "patchy.scrubHandleInstalled";
 inline constexpr char kScrubLabelExemptProperty[] = "patchy.scrubLabelExempt";
+// True on a spin box while a scrub drags its value: set once the drag passes the drag
+// distance, cleared just before the scrub's editingFinished. A field whose edits are
+// expensive previews those values and commits once at editingFinished (the artboard
+// X/Y/W/H fields); typed values and arrow steps arrive with it false.
+inline constexpr char kScrubActiveProperty[] = "patchy.scrubActive";
+[[nodiscard]] bool spin_box_scrub_active(const QAbstractSpinBox* spin);
 void install_scrub_label(QLabel* label, QAbstractSpinBox* spin);
 void install_prefix_scrub(QSpinBox* spin);
 void install_scrub_labels_in(QWidget* container);
