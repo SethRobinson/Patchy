@@ -608,6 +608,11 @@ public:
   Q_PROPERTY(bool gamutWarning READ gamut_warning WRITE set_gamut_warning)
   [[nodiscard]] bool gamut_warning() const;
   void set_gamut_warning(bool enabled);
+  // View > Pixel Grid: the saved app-wide preference for lines between pixels at 600%
+  // and up. Only window captures see it.
+  Q_PROPERTY(bool pixelGrid READ pixel_grid WRITE set_pixel_grid)
+  [[nodiscard]] bool pixel_grid() const;
+  void set_pixel_grid(bool enabled);
   Q_INVOKABLE void present(const QJSValue& delayMs = QJSValue());
   Q_PROPERTY(bool slowMode READ slow_mode WRITE set_slow_mode)
   [[nodiscard]] bool slow_mode() const;

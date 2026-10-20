@@ -1852,6 +1852,13 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   view_menu->addSeparator();
   view_rulers_action_ = view_menu->addAction(tr("&Rulers"));
   view_grid_action_ = view_menu->addAction(tr("&Grid"));
+  // Lines between pixels at 600% and up (GitHub issue 239); an app-wide preference.
+  view_pixel_grid_action_ = view_menu->addAction(tr("Pi&xel Grid"));
+  view_pixel_grid_action_->setObjectName(QStringLiteral("viewTogglePixelGridAction"));
+  view_pixel_grid_action_->setMenuRole(QAction::NoRole);
+  view_pixel_grid_action_->setCheckable(true);
+  view_pixel_grid_action_->setChecked(view_pixel_grid_visible_);
+  register_hotkey(view_pixel_grid_action_, "view.pixel_grid");
   view_guides_action_ = view_menu->addAction(tr("&Guides"));
   view_snap_action_ = view_menu->addAction(tr("&Snap"));
   view_lock_guides_action_ = view_menu->addAction(tr("Lock Guides"));
@@ -2007,6 +2014,10 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   });
   connect(view_grid_action_, &QAction::toggled, this, [this, apply_view_settings](bool checked) {
     view_grid_visible_ = checked;
+    apply_view_settings();
+  });
+  connect(view_pixel_grid_action_, &QAction::toggled, this, [this, apply_view_settings](bool checked) {
+    view_pixel_grid_visible_ = checked;
     apply_view_settings();
   });
   connect(view_guides_action_, &QAction::toggled, this, [this, apply_view_settings](bool checked) {

@@ -1028,6 +1028,10 @@ public:
   [[nodiscard]] bool grid_visible() const noexcept;
   void set_guides_visible(bool visible) noexcept;
   [[nodiscard]] bool guides_visible() const noexcept;
+  // View > Pixel Grid (GitHub issue 239): lines between pixels wherever the deep-zoom
+  // renderer draws (600% and up), each tinted from its own pixel. On by default.
+  void set_pixel_grid_visible(bool visible) noexcept;
+  [[nodiscard]] bool pixel_grid_visible() const noexcept;
   void set_guides_locked(bool locked) noexcept;
   [[nodiscard]] bool guides_locked() const noexcept;
   void set_snap_enabled(bool enabled) noexcept;
@@ -1483,6 +1487,9 @@ private:
   [[nodiscard]] QImage compose_document_rect(QRect area) const;
   void draw_checkerboard(QPainter& painter, const QRectF& rect, QRect exposed_rect) const;
   void draw_deep_zoom_image(QPainter& painter, const QImage& image, QRect exposed_rect) const;
+  // The deep-zoom renderer for the document pixels of document_rect held in `image`:
+  // one deep_zoom_raster blit of the exposed part, pixel grid included.
+  void draw_deep_zoom_pixels(QPainter& painter, const QImage& image, QRect document_rect, QRect exposed_rect) const;
   // Seamless tiling mode internals (canvas_widget_render.cpp). tiling_ghosts_visible is
   // the cheap gate; tiling_direct_offsets returns the wrap offsets whose ghost tiles
   // intersect widget_rect, or an EMPTY vector when there are more than the direct-draw
@@ -2859,6 +2866,7 @@ private:
   std::function<void(std::optional<QColor>)> backdrop_color_change_requested_callback_;
   std::function<void()> custom_backdrop_color_requested_callback_;
   bool grid_visible_{false};
+  bool pixel_grid_visible_{true};
   bool guides_visible_{true};
   bool guides_locked_{false};
   bool snap_enabled_{true};

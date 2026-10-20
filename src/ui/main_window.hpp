@@ -2611,6 +2611,7 @@ private:
   bool document_proof_gamut_{false};
   QAction* view_grid_action_{nullptr};
   QAction* view_guides_action_{nullptr};
+  QAction* view_pixel_grid_action_{nullptr};
   QAction* view_snap_action_{nullptr};
   QAction* view_lock_guides_action_{nullptr};
   QAction* view_snap_guides_action_{nullptr};
@@ -2949,6 +2950,7 @@ private:
   std::vector<QPointer<UnitSpinBox>> ruler_unit_fields_;
   bool view_grid_visible_{false};
   bool view_guides_visible_{true};
+  bool view_pixel_grid_visible_{true};
   // Photoshop's View > Show > Target Path (Ctrl+Shift+H). Deliberately NOT
   // persisted: every launch starts visible, like Photoshop.
   bool view_target_path_visible_{true};

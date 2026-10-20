@@ -3486,6 +3486,8 @@ bool ScriptUiObject::proof_colors() const { const ScriptApiCall api_call(host_);
 void ScriptUiObject::set_proof_colors(bool enabled) { const ScriptApiCall api_call(host_); host_.set_view_proof_colors(enabled); }
 bool ScriptUiObject::gamut_warning() const { const ScriptApiCall api_call(host_); return host_.view_gamut_warning(); }
 void ScriptUiObject::set_gamut_warning(bool enabled) { const ScriptApiCall api_call(host_); host_.set_view_gamut_warning(enabled); }
+bool ScriptUiObject::pixel_grid() const { const ScriptApiCall api_call(host_); return host_.view_pixel_grid(); }
+void ScriptUiObject::set_pixel_grid(bool enabled) { const ScriptApiCall api_call(host_); host_.set_view_pixel_grid(enabled); }
 bool ScriptUiObject::slow_mode() const { return host_.slow_mode(); }
 void ScriptUiObject::set_slow_mode(bool enabled) { host_.set_slow_mode(enabled); }
 bool ScriptUiObject::paused() const { return host_.paused(); }

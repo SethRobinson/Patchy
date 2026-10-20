@@ -220,6 +220,18 @@ bool CanvasWidget::grid_visible() const noexcept {
   return grid_visible_;
 }
 
+void CanvasWidget::set_pixel_grid_visible(bool visible) noexcept {
+  if (pixel_grid_visible_ == visible) {
+    return;
+  }
+  pixel_grid_visible_ = visible;
+  update();
+}
+
+bool CanvasWidget::pixel_grid_visible() const noexcept {
+  return pixel_grid_visible_;
+}
+
 void CanvasWidget::set_guides_visible(bool visible) noexcept {
   if (guides_visible_ == visible) {
     return;

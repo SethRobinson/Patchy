@@ -3682,6 +3682,11 @@ void ScriptEngineHost::set_view_proof_colors(bool enabled) {
   pump_progress_indicator();
   window_.view_proof_colors_action_->setChecked(enabled);
 }
+bool ScriptEngineHost::view_pixel_grid() const { return window_.view_pixel_grid_action_->isChecked(); }
+void ScriptEngineHost::set_view_pixel_grid(bool enabled) {
+  pump_progress_indicator();
+  window_.view_pixel_grid_action_->setChecked(enabled);
+}
 bool ScriptEngineHost::view_gamut_warning() const { return window_.view_gamut_warning_action_->isChecked(); }
 void ScriptEngineHost::set_view_gamut_warning(bool enabled) {
   pump_progress_indicator();

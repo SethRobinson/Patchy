@@ -22456,6 +22456,10 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
         <source>Don&apos;t Ask Again</source>
         <translation>Nicht mehr fragen</translation>
     </message>
+    <message>
+        <source>Pi&amp;xel Grid</source>
+        <translation>Pi&amp;xelraster</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

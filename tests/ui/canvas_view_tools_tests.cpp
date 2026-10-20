@@ -63,6 +63,8 @@
 #include <QProxyStyle>
 #include <QPixmap>
 #include <QAbstractButton>
+#include <QProcess>
+#include <QProcessEnvironment>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QStringList>
@@ -96,6 +98,7 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <set>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -1993,6 +1996,8 @@ void ui_canvas_deep_zoom_without_grid_keeps_pixels_sharp() {
   patchy::ui::CanvasWidget canvas;
   canvas.resize(180, 140);
   canvas.set_document(&document);
+  // The sample row is a pixel-grid line row; this pins the pixels, not the grid.
+  canvas.set_pixel_grid_visible(false);
   canvas.set_zoom(12.25);
   canvas.show();
   QApplication::processEvents();
@@ -2239,6 +2244,287 @@ void ui_canvas_styled_text_at_150_percent_has_no_repeated_columns() {
   std::cerr << "repeated column share: 150% " << share_150 << ", 200% " << share_200 << '\n';
   CHECK(share_150 < 0.2);
   CHECK(share_200 > 0.95);
+}
+
+// 8 x 6 pixels, each a different color: the left half light, the right half dark, none
+// equal to any pixel_grid_line_color of another, so a grid line shows as a color that is
+// not in the document.
+patchy::Document pixel_grid_document() {
+  patchy::Document document(8, 6, patchy::PixelFormat::rgb8());
+  auto pixels = solid_pixels(8, 6, patchy::PixelFormat::rgb8(), Qt::white);
+  for (int y = 0; y < 6; ++y) {
+    for (int x = 0; x < 8; ++x) {
+      const auto color = x < 4 ? QColor(230 - 3 * x, 225 - 5 * y, 240) : QColor(20 + 3 * x, 30 + 5 * y, 10);
+      fill_pixel_rect(pixels, QRect(x, y, 1, 1), color);
+    }
+  }
+  document.add_pixel_layer("Pixels", std::move(pixels));
+  return document;
+}
+
+struct PixelGridCheck {
+  int mismatches{0};
+  int line_pixels{0};
+};
+
+// Compares every device pixel of every document cell (inside the document's frame, one
+// logical pixel wide) against the expected deep-zoom output: document pixel (x, y) covers device
+// columns [qRound(left(x) * ratio), qRound(left(x + 1) * ratio)) with left() the widget
+// position, and, when `grid`, its first device column (x > 0) and row (y > 0) carry
+// pixel_grid_line_color.
+PixelGridCheck check_pixel_grid_cells(patchy::ui::CanvasWidget& canvas, const patchy::Document& document,
+                                      bool grid) {
+  QApplication::processEvents();
+  const auto image = canvas.grab().toImage().convertToFormat(QImage::Format_ARGB32_Premultiplied);
+  const auto ratio = canvas.devicePixelRatioF();
+  const auto device_x = [&](int x) {
+    return qRound(canvas.widget_position_for_document_point(QPoint(x, 0)).x() * ratio);
+  };
+  const auto device_y = [&](int y) {
+    return qRound(canvas.widget_position_for_document_point(QPoint(0, y)).y() * ratio);
+  };
+  const auto content = canvas_content_rect(canvas);
+  const QRect device_content(qRound(content.left() * ratio), qRound(content.top() * ratio),
+                             qRound(content.width() * ratio), qRound(content.height() * ratio));
+  const auto edge = static_cast<int>(std::ceil(ratio));
+  const QRect frame(device_x(0) + edge, device_y(0) + edge, device_x(document.width()) - device_x(0) - 2 * edge,
+                    device_y(document.height()) - device_y(0) - 2 * edge);
+  const auto inside = frame.intersected(device_content).intersected(image.rect());
+  const auto& pixels = document.layers().front().pixels();
+  PixelGridCheck result;
+  for (int y = 0; y < document.height(); ++y) {
+    for (int x = 0; x < document.width(); ++x) {
+      const auto* px = pixels.pixel(x, y);
+      const auto pixel = qRgb(px[0], px[1], px[2]);
+      const auto line = patchy::ui::pixel_grid_line_color(pixel);
+      for (int dy = device_y(y); dy < device_y(y + 1); ++dy) {
+        for (int dx = device_x(x); dx < device_x(x + 1); ++dx) {
+          if (!inside.contains(dx, dy)) {
+            continue;
+          }
+          const bool on_line = grid && ((dx == device_x(x) && x > 0) || (dy == device_y(y) && y > 0));
+          const auto shown = image.pixel(dx, dy) | 0xff000000U;
+          if (on_line) {
+            ++result.line_pixels;
+          }
+          if (shown != (on_line ? line : pixel)) {
+            ++result.mismatches;
+          }
+        }
+      }
+    }
+  }
+  return result;
+}
+
+// Device pixels inside the document that show none of its pixel colors (grid lines).
+int non_document_colors(patchy::ui::CanvasWidget& canvas, const patchy::Document& document) {
+  QApplication::processEvents();
+  const auto image = canvas.grab().toImage();
+  const auto ratio = canvas.devicePixelRatioF();
+  std::set<QRgb> colors;
+  const auto& pixels = document.layers().front().pixels();
+  for (int y = 0; y < document.height(); ++y) {
+    for (int x = 0; x < document.width(); ++x) {
+      const auto* px = pixels.pixel(x, y);
+      colors.insert(qRgb(px[0], px[1], px[2]));
+    }
+  }
+  const auto top_left = canvas.widget_position_for_document_point(QPoint(0, 0));
+  const auto bottom_right = canvas.widget_position_for_document_point(QPoint(document.width(), document.height()));
+  const auto edge = static_cast<int>(std::ceil(ratio));
+  const QRect inside(qRound(top_left.x() * ratio) + edge, qRound(top_left.y() * ratio) + edge,
+                     qRound((bottom_right.x() - top_left.x()) * ratio) - 2 * edge,
+                     qRound((bottom_right.y() - top_left.y()) * ratio) - 2 * edge);
+  int count = 0;
+  for (int y = inside.top(); y <= inside.bottom(); ++y) {
+    for (int x = inside.left(); x <= inside.right(); ++x) {
+      if (image.rect().contains(x, y) && !colors.contains(image.pixel(x, y) | 0xff000000U)) {
+        ++count;
+      }
+    }
+  }
+  return count;
+}
+
+// The pixel grid (GitHub issue 239) appears at 600% and not below, tints each line from
+// its own pixel (lighter over dark pixels, darker over light ones), and View > Pixel
+// Grid off removes it.
+void ui_canvas_pixel_grid_shows_from_600_percent() {
+  using patchy::ui::pixel_grid_line_color;
+  CHECK(pixel_grid_line_color(qRgb(255, 255, 255)) == qRgb(200, 200, 200));
+  CHECK(pixel_grid_line_color(qRgb(0, 0, 0)) == qRgb(63, 63, 63));
+  CHECK(qGray(pixel_grid_line_color(qRgb(240, 200, 60))) < qGray(qRgb(240, 200, 60)));
+  CHECK(qGray(pixel_grid_line_color(qRgb(30, 40, 90))) > qGray(qRgb(30, 40, 90)));
+  // A transparent pixel reads over the light checkerboard, so its line is darker gray.
+  CHECK(qGray(pixel_grid_line_color(qRgba(0, 0, 0, 0))) < 224);
+
+  auto document = pixel_grid_document();
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(300, 240);
+  canvas.set_document(&document);
+  canvas.show();
+  CHECK(canvas.pixel_grid_visible());
+
+  for (const double zoom : {4.0, 5.0, 5.9}) {
+    canvas.set_view_zoom_centered(zoom);
+    if (const auto lines = non_document_colors(canvas, document); lines != 0) {
+      std::cerr << lines << " grid pixels at " << zoom << '\n';
+      CHECK(false);
+    }
+  }
+  for (const double zoom : {6.0, 6.5, 8.0, 12.0}) {
+    canvas.set_view_zoom_centered(zoom);
+    const auto check = check_pixel_grid_cells(canvas, document, true);
+    if (check.mismatches != 0 || check.line_pixels == 0) {
+      std::cerr << "pixel grid at " << zoom << ": " << check.mismatches << " mismatches, " << check.line_pixels
+                << " line pixels\n";
+      save_image_artifact("ui_canvas_pixel_grid_threshold", canvas.grab().toImage());
+      CHECK(false);
+    }
+  }
+  canvas.set_view_zoom_centered(8.0);
+  canvas.set_pixel_grid_visible(false);
+  CHECK(non_document_colors(canvas, document) == 0);
+  CHECK(check_pixel_grid_cells(canvas, document, false).mismatches == 0);
+}
+
+// Grid lines sit exactly on the first device column and row of each pixel at 800% and
+// 1600%, at device pixel ratio 1 here and 1.5 in a child run of this test
+// (QT_SCALE_FACTOR=1.5).
+void ui_canvas_pixel_grid_lands_on_pixel_boundaries() {
+  const bool child = qEnvironmentVariableIsSet("PATCHY_PIXEL_GRID_DPR_CHILD");
+  auto document = pixel_grid_document();
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(300, 240);
+  canvas.set_document(&document);
+  canvas.show();
+  QApplication::processEvents();
+  const auto ratio = canvas.devicePixelRatioF();
+  std::cout << "pixel grid device pixel ratio " << ratio << '\n';
+  CHECK(std::abs(ratio - (child ? 1.5 : 1.0)) < 0.001);
+  for (const double zoom : {8.0, 16.0}) {
+    canvas.set_view_zoom_centered(zoom);
+    const auto check = check_pixel_grid_cells(canvas, document, true);
+    if (check.mismatches != 0 || check.line_pixels == 0) {
+      std::cerr << "pixel grid at " << zoom << " ratio " << ratio << ": " << check.mismatches << " mismatches, "
+                << check.line_pixels << " line pixels\n";
+      save_image_artifact(child ? "ui_canvas_pixel_grid_boundaries_150" : "ui_canvas_pixel_grid_boundaries_100",
+                          canvas.grab().toImage());
+      CHECK(false);
+    }
+  }
+  if (child) {
+    return;
+  }
+  QProcess scaled;
+  auto environment = QProcessEnvironment::systemEnvironment();
+  environment.insert(QStringLiteral("QT_SCALE_FACTOR"), QStringLiteral("1.5"));
+  environment.insert(QStringLiteral("PATCHY_PIXEL_GRID_DPR_CHILD"), QStringLiteral("1"));
+  environment.remove(QStringLiteral("PATCHY_UI_TEST_FILTER"));
+  scaled.setProcessEnvironment(environment);
+  scaled.setProcessChannelMode(QProcess::MergedChannels);
+  scaled.setProgram(QCoreApplication::applicationFilePath());
+  scaled.setArguments({QStringLiteral("ui_canvas_pixel_grid_lands_on_pixel_boundaries")});
+  scaled.start();
+  CHECK(scaled.waitForStarted(30000));
+  CHECK(scaled.waitForFinished(180000));
+  const auto output = QString::fromUtf8(scaled.readAll());
+  const bool passed = scaled.exitStatus() == QProcess::NormalExit && scaled.exitCode() == 0 &&
+                      output.contains(QStringLiteral("pixel grid device pixel ratio 1.5")) &&
+                      output.contains(QStringLiteral("[PASS] ui_canvas_pixel_grid_lands_on_pixel_boundaries")) &&
+                      !output.contains(QStringLiteral("[FAIL]"));
+  if (!passed) {
+    std::cerr << "device pixel ratio 1.5 child run:\n" << output.toStdString() << '\n';
+  }
+  CHECK(passed);
+}
+
+// Issue 239's before/after images: a light and a dark area of a varied image at 800%, with
+// View > Pixel Grid off (what Patchy drew before) and on.
+void ui_canvas_pixel_grid_capture_light_and_dark_areas() {
+  patchy::Document document(32, 12, patchy::PixelFormat::rgb8());
+  auto pixels = solid_pixels(32, 12, patchy::PixelFormat::rgb8(), Qt::white);
+  std::uint64_t state = 0x239239239ULL;
+  const auto next = [&state] {
+    state += 0x9e3779b97f4a7c15ULL;
+    auto z = state;
+    z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
+    z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
+    return static_cast<int>((z ^ (z >> 31)) % 24U);
+  };
+  for (int y = 0; y < 12; ++y) {
+    for (int x = 0; x < 32; ++x) {
+      const auto color = x < 16 ? QColor(214 + next() / 2, 222 + next() / 3, 236 + next() / 3 - y)
+                                : QColor(46 + next() + y, 32 + next(), 24 + next() / 2);
+      fill_pixel_rect(pixels, QRect(x, y, 1, 1), color);
+    }
+  }
+  document.add_pixel_layer("Photo", std::move(pixels));
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(320, 240);
+  canvas.set_document(&document);
+  canvas.show();
+  const auto capture = [&](QPoint center) {
+    canvas.set_view_zoom_centered(8.0);
+    QApplication::processEvents();
+    // Center the 12 x 12 pixel area around `center` (8 px per pixel = 96 x 96 screen px).
+    const auto at = canvas.widget_position_for_document_point(center);
+    const QRect area(at.x() - 48, at.y() - 48, 96, 96);
+    return render_widget_image(canvas).copy(area.intersected(canvas_content_rect(canvas)));
+  };
+  // The view shows 40 x 30 document pixels at 800%, so the whole 32 x 12 image fits.
+  for (const bool grid : {false, true}) {
+    canvas.set_pixel_grid_visible(grid);
+    const auto light = capture(QPoint(8, 6));
+    const auto dark = capture(QPoint(24, 6));
+    save_image_artifact(grid ? "ui_pixel_grid_800_light_after" : "ui_pixel_grid_800_light_before", light);
+    save_image_artifact(grid ? "ui_pixel_grid_800_dark_after" : "ui_pixel_grid_800_dark_before", dark);
+  }
+  CHECK(non_document_colors(canvas, document) > 0);
+}
+
+// View > Pixel Grid is on by default, saved as view/pixelGrid, read by a new window, and
+// reachable from scripts (patchy.ui.pixelGrid and the view.pixel_grid command).
+void ui_pixel_grid_toggle_persists_and_scripts() {
+  using patchy::test::ui::scripting_support::backlog_contains;
+  using patchy::test::ui::scripting_support::run_script;
+  SettingsValueRestorer saved(QStringLiteral("view/pixelGrid"));
+  patchy::ui::app_settings().remove(QStringLiteral("view/pixelGrid"));
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* action = window.findChild<QAction*>(QStringLiteral("viewTogglePixelGridAction"));
+    CHECK(action != nullptr);
+    if (action == nullptr) {
+      return;
+    }
+    auto* canvas = require_canvas(window);
+    CHECK(action->isCheckable() && action->isChecked());
+    CHECK(action->menuRole() == QAction::NoRole);
+    CHECK(canvas->pixel_grid_visible());
+    action->trigger();
+    QApplication::processEvents();
+    CHECK(!canvas->pixel_grid_visible());
+    CHECK(!patchy::ui::app_settings().value(QStringLiteral("view/pixelGrid"), true).toBool());
+    CHECK(run_script(window, QStringLiteral(
+                                 "console.log('grid=' + patchy.ui.pixelGrid); patchy.ui.pixelGrid = true;"
+                                 "console.log('grid now=' + patchy.ui.pixelGrid);")));
+    CHECK(backlog_contains(window, QStringLiteral("grid=false")));
+    CHECK(backlog_contains(window, QStringLiteral("grid now=true")));
+    CHECK(action->isChecked() && canvas->pixel_grid_visible());
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("view/pixelGrid"), false).toBool());
+    CHECK(run_script(window, QStringLiteral("console.log('command=' + app.runCommand('view.pixel_grid'));")));
+    CHECK(backlog_contains(window, QStringLiteral("command=true")));
+    CHECK(!action->isChecked() && !canvas->pixel_grid_visible());
+  }
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* action = window.findChild<QAction*>(QStringLiteral("viewTogglePixelGridAction"));
+    CHECK(action != nullptr && !action->isChecked());
+    CHECK(!require_canvas(window)->pixel_grid_visible());
+  }
 }
 
 void ui_zoomed_out_canvas_uses_downsampled_display_mip() {
@@ -5570,6 +5856,10 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
        ui_canvas_fractional_zoom_smooths_between_whole_zooms},
       {"ui_canvas_styled_text_at_150_percent_has_no_repeated_columns",
        ui_canvas_styled_text_at_150_percent_has_no_repeated_columns},
+      {"ui_canvas_pixel_grid_shows_from_600_percent", ui_canvas_pixel_grid_shows_from_600_percent},
+      {"ui_canvas_pixel_grid_lands_on_pixel_boundaries", ui_canvas_pixel_grid_lands_on_pixel_boundaries},
+      {"ui_canvas_pixel_grid_capture_light_and_dark_areas", ui_canvas_pixel_grid_capture_light_and_dark_areas},
+      {"ui_pixel_grid_toggle_persists_and_scripts", ui_pixel_grid_toggle_persists_and_scripts},
       {"ui_zoomed_out_canvas_uses_downsampled_display_mip",
        ui_zoomed_out_canvas_uses_downsampled_display_mip},
       {"ui_shape_flyout_and_zoom_tool_work", ui_shape_flyout_and_zoom_tool_work},

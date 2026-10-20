@@ -22386,6 +22386,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <source>Don&apos;t Ask Again</source>
         <translation>다시 묻지 않음</translation>
     </message>
+    <message>
+        <source>Pi&amp;xel Grid</source>
+        <translation>픽셀 격자(&amp;X)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

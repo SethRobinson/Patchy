@@ -22526,6 +22526,10 @@ Patchy можно будет запускать из меню, а на пане�
         <source>Don&apos;t Ask Again</source>
         <translation>Больше не спрашивать</translation>
     </message>
+    <message>
+        <source>Pi&amp;xel Grid</source>
+        <translation>Пиксельная с&amp;етка</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

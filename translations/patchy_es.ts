@@ -22456,6 +22456,10 @@ Puedes hacerlo más tarde desde Ayuda &gt; Añadir Patchy al menú de aplicacion
         <source>Don&apos;t Ask Again</source>
         <translation>No volver a preguntar</translation>
     </message>
+    <message>
+        <source>Pi&amp;xel Grid</source>
+        <translation>Cuadrícula de pí&amp;xeles</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

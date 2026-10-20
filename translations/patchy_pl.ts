@@ -22526,6 +22526,10 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
         <source>Don&apos;t Ask Again</source>
         <translation>Nie pytaj ponownie</translation>
     </message>
+    <message>
+        <source>Pi&amp;xel Grid</source>
+        <translation>Siatka pi&amp;kseli</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

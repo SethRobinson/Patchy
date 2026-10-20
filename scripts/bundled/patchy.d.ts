@@ -1316,6 +1316,12 @@ interface PatchyUi {
    * gray on the canvas. Same scope and limits as proofColors.
    */
   gamutWarning: boolean;
+  /**
+   * View > Pixel Grid: thin lines between pixels at 600% zoom and up, each tinted from its
+   * own pixel. An application-wide preference, saved, on by default. A view only: only
+   * window captures see it.
+   */
+  pixelGrid: boolean;
   /** Show completed edits now; optionally hold the frame for 0..1000 ms (default 0).
    * Services Stop and painting without reentering script callbacks or adding history.
    * Upload edited arrays with setPixels first. Headless work does not need pacing.
