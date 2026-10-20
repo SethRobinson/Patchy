@@ -2518,6 +2518,19 @@ bool CanvasWidget::begin_path_transform() {
   path_transform_drag_handle_ = TransformHandle::None;
   path_transform_corner_offsets_ = {};
   path_transform_drag_kind_ = TransformDragKind::Scale;
+  path_transform_owner_snapshot_.reset();
+  path_transform_live_path_.reset();
+  path_transform_owner_document_ = document_;
+  path_transform_owner_is_mask_ = layer_edit_target_ == LayerEditTarget::VectorMask;
+  if (path_transform_owner_is_mask_) {
+    if (const auto* layer = vector_mask_target_layer(); layer != nullptr) {
+      path_transform_owner_snapshot_ = std::as_const(*layer);
+    }
+  } else if (!active_document_path_.has_value() && text_area_edit_target_path() == nullptr) {
+    if (const auto* layer = path_edit_target_layer(); layer != nullptr) {
+      path_transform_owner_snapshot_ = std::as_const(*layer);
+    }
+  }
   if (status_callback_) {
     status_callback_(tr("Transform path: drag inside to move, handles to scale, outside to "
                         "rotate. Enter commits, Esc cancels."));
@@ -2898,6 +2911,7 @@ bool CanvasWidget::handle_path_transform_move(QMouseEvent* event, QPointF docume
       return true;
     }
     path_transform_corner_offsets_ = offsets;
+    refresh_path_transform_live_fill();
     update();
     return true;
   }
@@ -2920,6 +2934,7 @@ bool CanvasWidget::handle_path_transform_move(QMouseEvent* event, QPointF docume
         }
         path_transform_angle_ = angle;
       }
+      refresh_path_transform_live_fill();
       update();
       return true;
     }
@@ -2977,6 +2992,7 @@ bool CanvasWidget::handle_path_transform_move(QMouseEvent* event, QPointF docume
     }
   }
   path_transform_current_rect_ = rect;
+  refresh_path_transform_live_fill();
   update();
   return true;
 }
@@ -3002,6 +3018,7 @@ bool CanvasWidget::handle_path_transform_key(QKeyEvent* event) {
           event->key() == Qt::Key_Up     ? -step
           : event->key() == Qt::Key_Down ? step
                                          : 0.0);
+      refresh_path_transform_live_fill();
       update();
       return true;
     }
@@ -3017,6 +3034,27 @@ void CanvasWidget::commit_path_transform() {
   const bool changed = path_transform_current_rect_ != path_transform_original_rect_ ||
                        path_transform_angle_ != 0.0 || path_transform_distorted();
   auto transformed = path_transform_preview_path();
+  const auto touched_groups = path_transform_touched_groups(transformed);
+  // The live fill's writes were un-armed: put the original back so the undo
+  // snapshot the commit arms holds it, then apply the result as one edit.
+  restore_path_transform_owner();
+  path_transform_active_ = false;
+  path_transform_drag_handle_ = TransformHandle::None;
+  if (changed) {
+    path_edit_undo_armed_ = false;
+    apply_path_edit(std::move(transformed), tr("Transform path"), touched_groups);
+    path_edit_undo_armed_ = false;
+    if (status_callback_) {
+      status_callback_(tr("Transformed the path"));
+    }
+  }
+  path_transform_original_ = VectorPath{};
+  path_transform_subset_.clear();
+  update_tool_cursor();
+  update();
+}
+
+std::vector<int> CanvasWidget::path_transform_touched_groups(const VectorPath& transformed) const {
   // Direct edits drop the touched groups' live-shape annotations
   // (keyShapeInvalidated); collect the groups the transform touched.
   std::vector<int> touched_groups;
@@ -3036,26 +3074,61 @@ void CanvasWidget::commit_path_transform() {
       touched_groups.push_back(subpath.shape_group);
     }
   }
-  path_transform_active_ = false;
-  path_transform_drag_handle_ = TransformHandle::None;
-  if (changed) {
-    path_edit_undo_armed_ = false;
-    apply_path_edit(std::move(transformed), tr("Transform path"), touched_groups);
-    path_edit_undo_armed_ = false;
-    if (status_callback_) {
-      status_callback_(tr("Transformed the path"));
-    }
+  return touched_groups;
+}
+
+void CanvasWidget::refresh_path_transform_live_fill() {
+  if (!path_transform_active_ || !path_transform_owner_snapshot_.has_value() || document_ == nullptr ||
+      document_ != path_transform_owner_document_) {
+    return;  // work paths and saved paths have no fill: the outline preview is all
   }
-  path_transform_original_ = VectorPath{};
-  path_transform_subset_.clear();
-  update_tool_cursor();
-  update();
+  auto preview = path_transform_preview_path();
+  if (path_transform_live_path_.has_value() && *path_transform_live_path_ == preview) {
+    return;
+  }
+  // One layer's re-raster per change, un-armed (the Direct Select drag cost);
+  // the commit restores and re-applies it as the session's one undo entry.
+  const auto touched_groups = path_transform_touched_groups(preview);
+  path_transform_live_path_ = preview;
+  replace_path_edit_target(std::move(preview), touched_groups);
+}
+
+void CanvasWidget::restore_path_transform_owner() {
+  const auto snapshot = std::move(path_transform_owner_snapshot_);
+  const auto written = std::move(path_transform_live_path_);
+  path_transform_owner_snapshot_.reset();
+  path_transform_live_path_.reset();
+  if (!snapshot.has_value() || !written.has_value() || document_ == nullptr ||
+      document_ != path_transform_owner_document_) {
+    return;
+  }
+  auto* layer = document_->find_layer(snapshot->id());
+  if (layer == nullptr) {
+    return;
+  }
+  // Only while the layer still holds the session's last write: anything that
+  // replaced it meanwhile (a history restore) wins.
+  const auto& current = std::as_const(*layer);
+  const auto* current_path = path_transform_owner_is_mask_
+                                 ? (current.vector_mask() != nullptr ? &current.vector_mask()->path : nullptr)
+                                 : (current.vector_shape() != nullptr ? &current.vector_shape()->path : nullptr);
+  if (current_path == nullptr || *current_path != *written) {
+    return;
+  }
+  const auto old_effect_rect = to_qrect(layer_bounds_with_effects(current, current.bounds()));
+  *layer = *snapshot;
+  document_changed_effect_bounds(old_effect_rect.united(
+      to_qrect(layer_bounds_with_effects(std::as_const(*layer), std::as_const(*layer).bounds()))));
+  if (path_edited_callback_) {
+    path_edited_callback_();
+  }
 }
 
 void CanvasWidget::cancel_path_transform() {
   if (!path_transform_active_) {
     return;
   }
+  restore_path_transform_owner();
   path_transform_active_ = false;
   path_transform_drag_handle_ = TransformHandle::None;
   path_transform_original_ = VectorPath{};

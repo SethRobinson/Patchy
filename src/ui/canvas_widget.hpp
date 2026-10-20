@@ -1948,6 +1948,13 @@ private:
   [[nodiscard]] std::array<QPointF, 4> path_transform_handle_corners() const;
   [[nodiscard]] bool path_transform_distorted() const noexcept;
   [[nodiscard]] patchy::VectorPath path_transform_preview_path() const;
+  // The groups a transformed path touches (keyShapeInvalidated drops their live shapes).
+  [[nodiscard]] std::vector<int> path_transform_touched_groups(const patchy::VectorPath& transformed) const;
+  // Live fill (GitHub issue 248): a shape layer or vector mask target re-rasterizes with
+  // the preview path on every change, un-armed; the restore puts the layer back as the
+  // session found it, only while it still holds the session's last write.
+  void refresh_path_transform_live_fill();
+  void restore_path_transform_owner();
   [[nodiscard]] TransformHandle path_transform_handle_at(QPointF widget_point) const;
   bool handle_path_transform_press(QPointF document_point, QPointF widget_point, Qt::KeyboardModifiers modifiers);
   bool handle_path_transform_move(QMouseEvent* event, QPointF document_point);
@@ -2594,6 +2601,12 @@ private:
   QPointF path_transform_drag_grab_offset_;
   // The modifiers the session cursor last showed, for refreshes without an event.
   Qt::KeyboardModifiers path_transform_cursor_modifiers_{};
+  // The live-fill target as the session found it (shape layer or vector-mask owner),
+  // the document it lives in, and the path the live fill last wrote into it.
+  std::optional<patchy::Layer> path_transform_owner_snapshot_;
+  patchy::Document* path_transform_owner_document_{nullptr};
+  bool path_transform_owner_is_mask_{false};
+  std::optional<patchy::VectorPath> path_transform_live_path_;
   QPoint move_start_{};
   QPoint selection_start_{};
   QPoint selection_current_{};
