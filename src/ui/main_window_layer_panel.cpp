@@ -335,6 +335,8 @@ QString layer_lock_flag_tooltip(LayerLockFlags flag, bool inherited) {
     text = QObject::tr("Image pixels locked");
   } else if (flag == kLayerLockPosition) {
     text = QObject::tr("Position locked");
+  } else if (flag == kLayerLockArtboardAutonest) {
+    text = QObject::tr("Auto-nesting into and out of artboards prevented");
   } else {
     text = QObject::tr("Layer locked");
   }
@@ -350,6 +352,9 @@ QString layer_lock_flag_icon_key(LayerLockFlags flag) {
   }
   if (flag == kLayerLockPosition) {
     return QStringLiteral("TR");
+  }
+  if (flag == kLayerLockArtboardAutonest) {
+    return QStringLiteral("tool-artboard");
   }
   return QStringLiteral("lock");
 }
@@ -1878,7 +1883,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   auto* lock_badges = new QHBoxLayout();
   lock_badges->setContentsMargins(0, 0, 0, 0);
   lock_badges->setSpacing(2);
-  for (const auto flag : {kLayerLockTransparentPixels, kLayerLockImagePixels, kLayerLockPosition}) {
+  for (const auto flag : {kLayerLockTransparentPixels, kLayerLockImagePixels, kLayerLockPosition,
+                          kLayerLockArtboardAutonest}) {
     if ((effective_lock_flags & flag) == kLayerLockNone) {
       continue;
     }
@@ -3585,7 +3591,7 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
                            .arg(!ancestors_visible
                                     ? tr("\nHidden by parent folder")
                                     : QString())
-                           .arg(effective_lock_flags != kLayerLockNone ? tr("\nLocked") : QString())
+                           .arg((effective_lock_flags & kLayerLockAll) != kLayerLockNone ? tr("\nLocked") : QString())
                            .arg(layer_locks_transparent_pixels(*it) ? tr("\nTransparent pixels locked") : QString())
                            .arg(it->mask().has_value() ? tr("\nLayer mask") : QString())
                            .arg(folder_detail)
@@ -3606,7 +3612,8 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
                                              ancestor_lock_flags, row_clipped});
       item_ms += phase_ms(item_started);
       if (is_group && group_expanded) {
-        append_layers(it->children(), depth + 1, effective_visible, effective_lock_flags);
+        // Folders pass on their editing locks, not Prevent Auto-Nesting.
+        append_layers(it->children(), depth + 1, effective_visible, effective_lock_flags & kLayerLockAll);
       }
     }
   };
@@ -3959,6 +3966,9 @@ void MainWindow::refresh_layer_controls() {
     set_layer_lock_control_state(lock_image_pixels_button_, false, false, tr("Lock image pixels"));
     set_layer_lock_control_state(lock_position_button_, false, false, tr("Lock position"));
     set_layer_lock_control_state(lock_all_button_, false, false, tr("Lock all"));
+    if (layer_prevent_auto_nesting_action_ != nullptr) {
+      layer_prevent_auto_nesting_action_->setChecked(false);
+    }
     if (layer_blending_options_action_ != nullptr) {
       layer_blending_options_action_->setEnabled(false);
     }
@@ -4069,7 +4079,7 @@ void MainWindow::refresh_layer_controls() {
   for (const auto id : ids_for_lock_controls) {
     const auto* selected_layer = document().find_layer(id);
     const auto flags = selected_layer != nullptr ? layer_lock_flags(*selected_layer) : kLayerLockNone;
-    any_lock = any_lock || flags != kLayerLockNone;
+    any_lock = any_lock || (flags & kLayerLockAll) != kLayerLockNone;
     all_lock = all_lock && (flags & kLayerLockAll) == kLayerLockAll;
   }
   set_layer_lock_control_state(lock_transparent_pixels_button_, transparent_all, transparent_mixed,
@@ -4077,6 +4087,9 @@ void MainWindow::refresh_layer_controls() {
   set_layer_lock_control_state(lock_image_pixels_button_, image_all, image_mixed, tr("Lock image pixels"));
   set_layer_lock_control_state(lock_position_button_, position_all, position_mixed, tr("Lock position"));
   set_layer_lock_control_state(lock_all_button_, all_lock, any_lock && !all_lock, tr("Lock all"));
+  if (layer_prevent_auto_nesting_action_ != nullptr) {
+    layer_prevent_auto_nesting_action_->setChecked(lock_state_for_flag(kLayerLockArtboardAutonest).first);
+  }
   const auto edit_allowed = !preview_dialog_edit_locked();
   if (layer_blending_options_action_ != nullptr) {
     layer_blending_options_action_->setEnabled(edit_allowed);

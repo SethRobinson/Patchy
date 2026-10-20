@@ -35,6 +35,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QContextMenuEvent>
+#include <QDir>
 #include <QMenu>
 #include <QPainter>
 #include <QStackedWidget>
@@ -2388,6 +2389,112 @@ void ui_issue_244_sample_layers_panel_shots_if_available() {
   }
 }
 
+// GitHub issue 246: the same sample's "Prevent Auto Nesting" layer opens with the lock. Its
+// row shows the badge, the right-click Lock submenu shows the registered action checked, and
+// a resave keeps lspf 0x8 for the Photoshop open check
+// (test-artifacts/issue_246_sample_resaved.psd).
+const patchy::Layer* top_level_layer_named(const patchy::Document& document, const char* name) {
+  const auto& layers = document.layers();
+  const auto found = std::find_if(layers.begin(), layers.end(),
+                                  [name](const patchy::Layer& layer) { return layer.name() == name; });
+  return found != layers.end() ? &*found : nullptr;
+}
+
+void ui_issue_246_sample_prevent_auto_nesting_if_available() {
+  const auto path =
+      patchy::test::source_root_path() / "local-test-fixtures" / "psd" / "issue-244" / "Test - Layer Lock.psd";
+  patchy::test::skip_unless_exists(path);
+  SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(path));
+  QApplication::processEvents();
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr && layer_list->count() == 5);
+  auto* item = require_layer_item(*layer_list, QStringLiteral("Prevent Auto Nesting"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(item);
+  item->setSelected(true);
+  QApplication::processEvents();
+  const auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* layer = top_level_layer_named(document, "Prevent Auto Nesting");
+  CHECK(layer != nullptr && patchy::layer_lock_flags(*layer) == patchy::kLayerLockArtboardAutonest);
+  auto* row = layer_list->itemWidget(item);
+  const auto badges = row != nullptr ? row->findChildren<QLabel*>(QStringLiteral("layerLockBadge")) : QList<QLabel*>{};
+  CHECK(badges.size() == 1);
+  CHECK(!badges.isEmpty() &&
+        badges.front()->toolTip() == QStringLiteral("Auto-nesting into and out of artboards prevented"));
+  // Not an editing lock: none of the Layers panel lock buttons is on.
+  for (const char* name :
+       {"layerLockTransparentButton", "layerLockPixelsButton", "layerLockPositionButton", "layerLockAllButton"}) {
+    auto* button = window.findChild<QToolButton*>(QLatin1String(name));
+    CHECK(button != nullptr && !button->isChecked());
+  }
+  auto* action = require_action(window, "layerPreventAutoNestingAction");
+  CHECK(action->isChecked());
+  if (auto* panel = window.findChild<QWidget*>(QStringLiteral("layersPanel")); panel != nullptr) {
+    save_widget_artifact("issue_246_layers_panel_badge", *panel);
+  }
+
+  bool saw_context_entry = false;
+  bool context_entry_checked = false;
+  QTimer::singleShot(0, [&] {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu == nullptr || menu->objectName() != QStringLiteral("layerContextMenu")) {
+        continue;
+      }
+      for (auto* lock_menu : menu->findChildren<QMenu*>()) {
+        if (!lock_menu->actions().contains(action)) {
+          continue;
+        }
+        saw_context_entry = true;
+        context_entry_checked = action->isCheckable() && action->isChecked();
+        lock_menu->popup(menu->geometry().topRight());
+        QApplication::processEvents();
+        save_widget_artifact("issue_246_context_lock_menu", *lock_menu);
+        lock_menu->hide();
+      }
+      menu->close();
+      return;
+    }
+  });
+  const auto context_point = layer_list->visualItemRect(item).center();
+  QContextMenuEvent context_event(QContextMenuEvent::Mouse, context_point,
+                                  layer_list->viewport()->mapToGlobal(context_point));
+  QApplication::sendEvent(layer_list->viewport(), &context_event);
+  QApplication::processEvents();
+  CHECK(saw_context_entry);
+  CHECK(context_entry_checked);
+
+  // Set in Patchy on "Lock Position": the row gains the badge and the save writes 0x4 | 0x8.
+  auto* position_item = require_layer_item(*layer_list, QStringLiteral("Lock Position"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(position_item);
+  position_item->setSelected(true);
+  QApplication::processEvents();
+  CHECK(!action->isChecked());
+  action->trigger();
+  QApplication::processEvents();
+  CHECK(action->isChecked());
+  auto* position_row = layer_list->itemWidget(require_layer_item(*layer_list, QStringLiteral("Lock Position")));
+  CHECK(position_row != nullptr && position_row->findChildren<QLabel*>(QStringLiteral("layerLockBadge")).size() == 2);
+
+  ensure_artifact_dir();
+  const auto saved_path =
+      QDir(QStringLiteral("test-artifacts")).absoluteFilePath(QStringLiteral("issue_246_sample_resaved.psd"));
+  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, saved_path));
+  const auto saved = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(saved_path));
+  const auto* saved_layer = top_level_layer_named(saved, "Prevent Auto Nesting");
+  CHECK(saved_layer != nullptr && patchy::layer_lock_flags(*saved_layer) == patchy::kLayerLockArtboardAutonest);
+  const auto* full = top_level_layer_named(saved, "Full Lock");
+  CHECK(full != nullptr && patchy::layer_locks_all(*full) && !patchy::layer_prevents_auto_nesting(*full));
+  const auto* position = top_level_layer_named(saved, "Lock Position");
+  CHECK(position != nullptr &&
+        patchy::layer_lock_flags(*position) == (patchy::kLayerLockPosition | patchy::kLayerLockArtboardAutonest));
+}
+
 void ui_layer_folders_expand_and_contract_children() {
   patchy::Document document(32, 32, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background",
@@ -4694,6 +4801,8 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
       {"ui_layer_color_labels_menu_undo_and_row_strip", ui_layer_color_labels_menu_undo_and_row_strip},
       {"ui_issue_244_sample_layers_panel_shots_if_available",
        ui_issue_244_sample_layers_panel_shots_if_available},
+      {"ui_issue_246_sample_prevent_auto_nesting_if_available",
+       ui_issue_246_sample_prevent_auto_nesting_if_available},
       {"ui_layer_folders_expand_and_contract_children", ui_layer_folders_expand_and_contract_children},
       {"ui_layer_folders_open_with_saved_expansion_state", ui_layer_folders_open_with_saved_expansion_state},
       {"ui_layer_folder_toggle_saves_without_marking_modified", ui_layer_folder_toggle_saves_without_marking_modified},

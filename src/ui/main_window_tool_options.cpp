@@ -1421,7 +1421,11 @@ void MainWindow::set_active_layer_lock_flag(LayerLockFlags flag, bool locked) {
   }
   refresh_layer_list();
   refresh_layer_controls();
-  statusBar()->showMessage(locked ? tr("Layer lock enabled") : tr("Layer lock disabled"));
+  if (flag == kLayerLockArtboardAutonest) {
+    statusBar()->showMessage(locked ? tr("Auto-nesting prevented") : tr("Auto-nesting allowed"));
+  } else {
+    statusBar()->showMessage(locked ? tr("Layer lock enabled") : tr("Layer lock disabled"));
+  }
 }
 
 void MainWindow::refresh_layer_clipping_action_state() {
