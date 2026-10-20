@@ -192,7 +192,8 @@ bool should_skip_layer_block(const EncodedLayer& encoded, const UnknownPsdBlock&
       (block.key == "levl" || block.key == "curv" || block.key == "hue2" || block.key == "nvrt" ||
        block.key == "post" || block.key == "thrs" || block.key == "brit" || block.key == "blnc" ||
        block.key == "expA" || block.key == "mixr" || block.key == "phfl" ||
-       block.key == "grdm" || block.key == "blwh" || block.key == "clrL" || block.key == "selc")) {
+       block.key == "grdm" || block.key == "blwh" || block.key == "clrL" || block.key == "selc" ||
+       block.key == "vibA")) {
     return true;
   }
   // The Brightness/Contrast emitter owns 'CgEd' (preserved, regenerated, or
@@ -1128,6 +1129,11 @@ void write_layer_record(BigEndianWriter& writer, const EncodedLayer& encoded, bo
           extra, kPhotoshopSelectiveColorBlockKey,
           photoshop_selective_color_payload(settings->selective_color, find_layer_block(*encoded.layer, "selc")),
           large_document);
+    }
+    if (settings.has_value() && settings->kind == AdjustmentKind::Vibrance) {
+      write_additional_layer_block(
+          extra, kPhotoshopVibranceBlockKey,
+          photoshop_vibrance_payload(settings->vibrance, find_layer_block(*encoded.layer, "vibA")), large_document);
     }
     if (settings.has_value() && settings->kind == AdjustmentKind::ColorLookup) {
       write_additional_layer_block(

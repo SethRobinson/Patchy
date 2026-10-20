@@ -10950,10 +10950,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Luminanz erhalten</translation>
     </message>
     <message>
-        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Vibrance, Black &amp; White or Gradient Map). They have no effect here and are saved unchanged.</source>
-        <translation>Einige Einstellungsebenen verwenden Arten, die Patchy noch nicht anwenden kann (etwa Dynamik, Schwarzweiß oder Verlaufsumsetzung). Sie haben hier keine Wirkung und werden unverändert gespeichert.</translation>
-    </message>
-    <message>
         <source>Vibrance</source>
         <translation>Dynamik</translation>
     </message>
@@ -11388,6 +11384,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Auto-nesting into and out of artboards prevented</source>
         <translation>Automatisches Einordnen in und aus Zeichenflächen verhindert</translation>
+    </message>
+    <message>
+        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Photoshop&apos;s Color and Vibrance). They have no effect here and are saved unchanged.</source>
+        <translation>Einige Einstellungsebenen verwenden Arten, die Patchy noch nicht anwenden kann (etwa Farbe und Dynamik aus Photoshop). Sie haben hier keine Wirkung und werden unverändert gespeichert.</translation>
+    </message>
+    <message>
+        <source>Vibrance: vibrance %1, saturation %2</source>
+        <translation>Dynamik: Dynamik %1, Sättigung %2</translation>
+    </message>
+    <message>
+        <source>Color and Vibrance</source>
+        <translation>Farbe und Dynamik</translation>
     </message>
 </context>
 <context>
@@ -23131,6 +23139,14 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
     <message>
         <source>Auto-nesting allowed</source>
         <translation>Automatisches Einordnen erlaubt</translation>
+    </message>
+    <message>
+        <source>&amp;Vibrance...</source>
+        <translation>&amp;Dynamik...</translation>
+    </message>
+    <message>
+        <source>Cancelled Vibrance</source>
+        <translation>Dynamik abgebrochen</translation>
     </message>
 </context>
 <context>

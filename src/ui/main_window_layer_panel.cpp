@@ -611,6 +611,8 @@ QColor adjustment_thumbnail_accent(const Layer& layer) {
       return QColor(110, 190, 220);
     case AdjustmentKind::SelectiveColor:
       return QColor(230, 140, 170);
+    case AdjustmentKind::Vibrance:
+      return QColor(255, 115, 150);
   }
   return QColor(145, 175, 215);
 }
@@ -774,6 +776,10 @@ QString adjustment_settings_summary(const Layer& layer) {
     case AdjustmentKind::SelectiveColor:
       return settings->selective_color.absolute ? QObject::tr("Selective Color: absolute")
                                                 : QObject::tr("Selective Color: relative");
+    case AdjustmentKind::Vibrance:
+      return QObject::tr("Vibrance: vibrance %1, saturation %2")
+          .arg(settings->vibrance.vibrance)
+          .arg(settings->vibrance.saturation);
     case AdjustmentKind::BlackWhite: {
       const auto& bw = settings->black_white;
       return QObject::tr("Black & White: %1 / %2 / %3 / %4 / %5 / %6")
@@ -1084,6 +1090,7 @@ void draw_threshold_adjustment_thumbnail_symbol(QPainter& painter, const QColor&
 // thumbnail symbols, drawn on a muted frame so they read as "not applied".
 QString adjustment_placeholder_display_name(std::string_view kind) {
   if (kind == "vibrance") return QObject::tr("Vibrance");
+  if (kind == "color_vibrance") return QObject::tr("Color and Vibrance");
   if (kind == "black_white") return QObject::tr("Black & White");
   if (kind == "photo_filter") return QObject::tr("Photo Filter");
   if (kind == "channel_mixer") return QObject::tr("Channel Mixer");
@@ -1095,7 +1102,7 @@ QString adjustment_placeholder_display_name(std::string_view kind) {
 
 void draw_placeholder_adjustment_thumbnail_symbol(QPainter& painter, std::string_view kind) {
   painter.setPen(Qt::NoPen);
-  if (kind == "vibrance") {
+  if (kind == "vibrance" || kind == "color_vibrance") {
     // A drop whose color strengthens toward its tip.
     QPainterPath drop;
     drop.moveTo(14.0, 6.0);
@@ -1438,6 +1445,9 @@ QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int docu
           break;
         case AdjustmentKind::SelectiveColor:
           draw_placeholder_adjustment_thumbnail_symbol(painter, "selective_color");
+          break;
+        case AdjustmentKind::Vibrance:
+          draw_placeholder_adjustment_thumbnail_symbol(painter, "vibrance");
           break;
       }
     }

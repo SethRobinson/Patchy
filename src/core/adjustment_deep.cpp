@@ -106,6 +106,13 @@ DeepChannels DeepAdjuster::apply_encoded(DeepChannels color) const {
       const auto mapped = selective_color_transfer(settings.selective_color, color[0], color[1], color[2]);
       return {clamp255(mapped[0]), clamp255(mapped[1]), clamp255(mapped[2])};
     }
+    case AdjustmentKind::Vibrance: {
+      if (!settings.vibrance.has_effect()) {
+        return color;
+      }
+      const auto mapped = vibrance_transfer(settings.vibrance, color[0], color[1], color[2]);
+      return {clamp255(mapped[0]), clamp255(mapped[1]), clamp255(mapped[2])};
+    }
     case AdjustmentKind::ColorLookup: {
       if (settings.color_lookup.table == nullptr) {
         return color;

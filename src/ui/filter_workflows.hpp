@@ -85,6 +85,7 @@ using GradientMapSettings = GradientMapAdjustment;
 using BlackWhiteSettings = BlackWhiteAdjustment;
 using ColorLookupSettings = ColorLookupAdjustment;
 using SelectiveColorSettings = SelectiveColorAdjustment;
+using VibranceSettings = VibranceAdjustment;
 class GradientLibrary;
 using BrightnessContrastSettings = BrightnessContrastAdjustment;
 
@@ -197,6 +198,9 @@ void blend_by_selection_coverage(PixelBuffer& result, const PixelBuffer& origina
 [[nodiscard]] std::optional<SelectiveColorSettings> request_selective_color_settings(
     QWidget* parent, std::function<void(bool, const SelectiveColorSettings&)> preview_changed = {},
     SelectiveColorSettings initial = {});
+[[nodiscard]] std::optional<VibranceSettings> request_vibrance_settings(
+    QWidget* parent, std::function<void(bool, const VibranceSettings&)> preview_changed = {},
+    VibranceSettings initial = {});
 // Load LUT picks a .cube or .3dl file the user owns (docs/legal-constraints.md); without
 // one the lookup is identity.
 [[nodiscard]] std::optional<ColorLookupSettings> request_color_lookup_settings(

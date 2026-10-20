@@ -3380,8 +3380,9 @@ void ui_af_colour_balance_matches_affinity_render_if_available() {
 }
 
 // #250: an adjustment kind Patchy cannot apply yet shows a placeholder thumbnail whose
-// tooltip names the kind and says it is kept but not applied. With the local ag-psd sample
-// (skipped where absent) all six of its still unsupported kinds get one.
+// tooltip names the kind and says it is kept but not applied. Photoshop's Color and
+// Vibrance is the one such kind left. The local ag-psd sample (skipped where absent) now
+// opens with every adjustment applied, its legacy Vibrance layer included.
 void ui_adjustment_placeholders_name_their_kind_in_layers_panel() {
   const auto placeholder_tooltips = [](patchy::ui::MainWindow& window) {
     QStringList tooltips;
@@ -3397,15 +3398,15 @@ void ui_adjustment_placeholders_name_their_kind_in_layers_panel() {
   {
     patchy::Document source(32, 24, patchy::PixelFormat::rgba8());
     source.add_pixel_layer("Background", solid_pixels(32, 24, patchy::PixelFormat::rgba8(), QColor(90, 120, 150)));
-    patchy::Layer placeholder(source.allocate_layer_id(), "Vibrance 1", patchy::LayerKind::Pixel);
-    placeholder.metadata()[patchy::kLayerMetadataAdjustmentPlaceholderKind] = "vibrance";
+    patchy::Layer placeholder(source.allocate_layer_id(), "Color and Vibrance 1", patchy::LayerKind::Pixel);
+    placeholder.metadata()[patchy::kLayerMetadataAdjustmentPlaceholderKind] = "color_vibrance";
     source.add_layer(std::move(placeholder));
     patchy::ui::MainWindow window;
     window.add_document_session(std::move(source), QStringLiteral("Placeholder"));
     show_window(window);
     const auto tooltips = placeholder_tooltips(window);
     CHECK(tooltips.size() == 1);
-    CHECK(tooltips.front().startsWith(QStringLiteral("Vibrance adjustment from Photoshop.")));
+    CHECK(tooltips.front().startsWith(QStringLiteral("Color and Vibrance adjustment from Photoshop.")));
   }
 
   const auto sample = patchy::test::local_format_fixture_path("ag-psd-adjustments", "ag-psd-adjustments.psd");
@@ -3427,13 +3428,17 @@ void ui_adjustment_placeholders_name_their_kind_in_layers_panel() {
   CHECK(resave_file.write(reinterpret_cast<const char*>(resaved.data()), static_cast<qint64>(resaved.size())) ==
         static_cast<qint64>(resaved.size()));
   resave_file.close();
-  const auto tooltips = placeholder_tooltips(window);
-  CHECK(tooltips.size() == 1);
-  for (const auto* kind : {"Vibrance"}) {
-    CHECK(std::any_of(tooltips.begin(), tooltips.end(), [kind](const QString& tooltip) {
-      return tooltip.startsWith(QString::fromUtf8(kind) + QStringLiteral(" adjustment"));
-    }));
+  CHECK(placeholder_tooltips(window).isEmpty());
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  bool found_vibrance = false;
+  for (const auto& layer : document.layers()) {
+    if (const auto settings = patchy::adjustment_settings_from_layer(layer);
+        settings.has_value() && settings->kind == patchy::AdjustmentKind::Vibrance) {
+      found_vibrance = true;
+      CHECK((settings->vibrance == patchy::VibranceAdjustment{21, -4}));
+    }
   }
+  CHECK(found_vibrance);
 }
 
 // Both New Adjustment Layer menus (Layer > New Adjustment Layer and the Layers panel's
@@ -3711,6 +3716,61 @@ void ui_selective_color_dialog_edits_each_range() {
     CHECK(settings->selective_color.absolute);
     CHECK((settings->selective_color.ranges[0] == patchy::SelectiveColorCorrection{30, 0, 0, 0}));
     CHECK((settings->selective_color.ranges[7] == patchy::SelectiveColorCorrection{0, 0, 0, 20}));
+  }
+}
+
+// The Vibrance dialog has Photoshop's two sliders, both starting at zero, and both values
+// land on the new adjustment layer (#250).
+void ui_vibrance_dialog_sets_both_sliders() {
+  patchy::Document source(32, 24, patchy::PixelFormat::rgba8());
+  source.add_pixel_layer("Paint", solid_pixels(32, 24, patchy::PixelFormat::rgba8(), QColor(150, 120, 110)));
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(source), QStringLiteral("Vibrance"));
+  show_window(window);
+  check_adjustment_kind_in_both_menus(window, "VibranceAdjustment", QObject::tr("&Vibrance..."));
+
+  bool dialog_checked = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyVibranceDialog")));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* vibrance = dialog->findChild<QSpinBox*>(QStringLiteral("vibranceAmountSpin"));
+    auto* saturation = dialog->findChild<QSpinBox*>(QStringLiteral("vibranceSaturationSpin"));
+    CHECK(vibrance != nullptr && saturation != nullptr);
+    if (vibrance == nullptr || saturation == nullptr) {
+      dialog->reject();
+      return;
+    }
+    CHECK(vibrance->value() == 0 && saturation->value() == 0);
+    CHECK(vibrance->minimum() == -100 && vibrance->maximum() == 100);
+    CHECK(saturation->minimum() == -100 && saturation->maximum() == 100);
+    vibrance->setValue(60);
+    saturation->setValue(-20);
+    save_widget_artifact("ui_vibrance_dialog", *dialog);
+    dialog_checked = true;
+    dialog->accept();
+  });
+  require_action(window, "layerNewVibranceAdjustmentAction")->trigger();
+  QApplication::processEvents();
+  CHECK(dialog_checked);
+
+  const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  CHECK(document.active_layer_id().has_value());
+  const auto* layer = document.active_layer_id().has_value() ? document.find_layer(*document.active_layer_id())
+                                                             : nullptr;
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return;
+  }
+  const auto settings = patchy::adjustment_settings_from_layer(*layer);
+  CHECK(settings.has_value() && settings->kind == patchy::AdjustmentKind::Vibrance);
+  if (settings.has_value()) {
+    CHECK((settings->vibrance == patchy::VibranceAdjustment{60, -20}));
+  }
+  if (auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList")); layer_list != nullptr) {
+    save_widget_artifact("ui_vibrance_layers_panel", *layer_list);
   }
 }
 
@@ -4076,6 +4136,7 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
       {"ui_black_white_dialog_edits_weights_and_tint", ui_black_white_dialog_edits_weights_and_tint},
       {"ui_color_lookup_dialog_loads_a_lut_from_a_unicode_path", ui_color_lookup_dialog_loads_a_lut_from_a_unicode_path},
       {"ui_selective_color_dialog_edits_each_range", ui_selective_color_dialog_edits_each_range},
+      {"ui_vibrance_dialog_sets_both_sliders", ui_vibrance_dialog_sets_both_sliders},
       {"ui_adjustment_placeholders_name_their_kind_in_layers_panel",
        ui_adjustment_placeholders_name_their_kind_in_layers_panel},
       {"ui_af_colour_balance_matches_affinity_render_if_available",

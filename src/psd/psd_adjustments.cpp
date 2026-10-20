@@ -942,6 +942,83 @@ std::vector<std::uint8_t> photoshop_black_white_payload(const BlackWhiteAdjustme
   return payload;
 }
 
+// 'vibA' (docs/adjustment-kinds.md, "Vibrance"): u32 descriptor version 16 and a descriptor
+// holding only its non-zero keys: the 'vibrance' long (stringID) and the 'Strt' long
+// (charID), each -100..100. Photoshop's newer Color and Vibrance adds useLegacy false (the
+// legacy algorithm is the default when the key is absent), temperature and tint.
+std::optional<DescriptorObject> read_vibrance_descriptor(std::span<const std::uint8_t> payload) {
+  try {
+    BigEndianReader reader(payload);
+    if (reader.read_u32() != 16U) {
+      return std::nullopt;
+    }
+    return read_descriptor(reader);
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
+}
+
+std::optional<AdjustmentSettings> parse_photoshop_vibrance_adjustment(std::span<const std::uint8_t> payload) {
+  const auto descriptor = read_vibrance_descriptor(payload);
+  if (!descriptor.has_value()) {
+    return std::nullopt;
+  }
+  AdjustmentSettings settings;
+  settings.kind = AdjustmentKind::Vibrance;
+  for (const auto& [key, value] : descriptor->values) {
+    if ((key == "vibrance" || key == "Strt") && value.type == DescriptorValue::Type::Integer) {
+      (key == "vibrance" ? settings.vibrance.vibrance : settings.vibrance.saturation) = value.integer_value;
+    } else if (!(key == "useLegacy" && value.type == DescriptorValue::Type::Bool && value.bool_value)) {
+      return std::nullopt;
+    }
+  }
+  settings.vibrance = clamp_vibrance(settings.vibrance);
+  return settings;
+}
+
+bool photoshop_vibrance_block_is_color_and_vibrance(std::span<const std::uint8_t> payload) {
+  return read_vibrance_descriptor(payload).has_value() && !parse_photoshop_vibrance_adjustment(payload).has_value();
+}
+
+std::vector<std::uint8_t> photoshop_vibrance_payload(const VibranceAdjustment& settings,
+                                                     const UnknownPsdBlock* original) {
+  const auto clamped = clamp_vibrance(settings);
+  if (original != nullptr) {
+    if (const auto parsed = parse_photoshop_vibrance_adjustment(original->payload);
+        parsed.has_value() && parsed->vibrance == clamped) {
+      return original->payload;
+    }
+  }
+  // Photoshop's layout: version, the one-character empty name, class 'null', then the
+  // non-zero sliders, padded to four bytes. An all-zero block is a fresh legacy layer.
+  BigEndianWriter writer;
+  writer.write_u32(16);
+  writer.write_u32(1);
+  writer.write_u16(0);
+  writer.write_u32(0);
+  const auto write_text = [&writer](std::string_view text) {
+    for (const char c : text) {
+      writer.write_u8(static_cast<std::uint8_t>(c));
+    }
+  };
+  write_text("null");
+  writer.write_u32((clamped.vibrance != 0 ? 1U : 0U) + (clamped.saturation != 0 ? 1U : 0U));
+  if (clamped.vibrance != 0) {
+    writer.write_u32(8);
+    write_text("vibrancelong");
+    writer.write_u32(static_cast<std::uint32_t>(clamped.vibrance));
+  }
+  if (clamped.saturation != 0) {
+    writer.write_u32(0);
+    write_text("Strtlong");
+    writer.write_u32(static_cast<std::uint32_t>(clamped.saturation));
+  }
+  while (writer.bytes().size() % 4U != 0U) {
+    writer.write_u8(0);
+  }
+  return std::move(writer.bytes());
+}
+
 // 'clrL' (docs/adjustment-kinds.md, "Color Lookup"): u16 version 1, u32 descriptor version
 // 16 and a descriptor whose lookupType is 3DLUT, abstractProfile or deviceLinkProfile, with
 // the look's name (Nm), Dthr, and the ICC 'profile' Photoshop renders through; a 3DLUT also

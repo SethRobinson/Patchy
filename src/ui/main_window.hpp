@@ -143,6 +143,7 @@ using GradientMapSettings = GradientMapAdjustment;
 using BlackWhiteSettings = BlackWhiteAdjustment;
 using ColorLookupSettings = ColorLookupAdjustment;
 using SelectiveColorSettings = SelectiveColorAdjustment;
+using VibranceSettings = VibranceAdjustment;
 using BrightnessContrastSettings = BrightnessContrastAdjustment;
 struct ScannerAcquireResult;
 struct UpdateInfo;
@@ -1294,6 +1295,7 @@ private:
   void new_black_white_adjustment_layer();
   void new_color_lookup_adjustment_layer();
   void new_selective_color_adjustment_layer();
+  void new_vibrance_adjustment_layer();
   void apply_threshold_adjustment(const ThresholdSettings& settings, bool allow_identity = false);
   void new_exposure_adjustment_layer();
   void apply_exposure_adjustment(const ExposureSettings& settings, bool allow_identity = false);

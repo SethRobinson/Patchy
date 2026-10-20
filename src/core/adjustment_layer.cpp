@@ -937,7 +937,7 @@ RgbColor apply_color_balance(RgbColor color, const ColorBalanceAdjustment& setti
 }  // namespace
 
 const char* photoshop_placeholder_adjustment_kind(std::string_view block_key) noexcept {
-  // Channel Mixer and Photo Filter stay listed for block versions their parsers do not read.
+  // Every kind stays listed for blocks its parser cannot read.
   static constexpr std::array<std::pair<std::string_view, const char*>, 7> kKinds{{
       {"vibA", "vibrance"},
       {"blwh", "black_white"},
@@ -1541,6 +1541,100 @@ std::array<double, 3> selective_color_transfer(const SelectiveColorAdjustment& s
     }
   }
   return {out[0] * 255.0, out[1] * 255.0, out[2] * 255.0};
+}
+
+VibranceAdjustment clamp_vibrance(VibranceAdjustment settings) noexcept {
+  settings.vibrance = std::clamp(settings.vibrance, -100, 100);
+  settings.saturation = std::clamp(settings.saturation, -100, 100);
+  return settings;
+}
+
+namespace {
+
+// Patchy's Vibrance curve (docs/adjustment-kinds.md, "Vibrance"). Each pixel, in linear
+// light, is scaled by a gain k around a pivot gray P on its own gray axis, so its hue is
+// kept. Both depend only on the pixel's largest channel `high`, its saturation
+// s = 1 - low / high and, for a boost, its hue; the constants are a least-squares fit to
+// Photoshop 2026's legacy Vibrance. No other pixel or image statistic is consulted.
+struct VibranceCurve {
+  // Pivot: P = high * (1 - c * (1 - high)^e1 * s^e2 * (1 - s)^e3); 1 at white, high at full s.
+  double pivot_scale, pivot_high, pivot_s, pivot_gray;
+  // Very dark colors change less: the gain's swing scales with min(1, high / dark_end)^dark_power.
+  double dark_end, dark_power;
+};
+constexpr VibranceCurve kVibranceReduce{1.93, 0.863, 1.136, 0.800, 0.0488, 0.740};
+constexpr VibranceCurve kVibranceBoost{0.890, 1.623, 2.663, 0.0669, 0.0747, 1.102};
+// Reduce: k = 1 + v * (1 - 0.75 * dark * s^1.788); the most saturated colors keep 3/4 of
+// their chroma at -100 and grays-to-be lose all of it.
+constexpr double kVibranceReduceKeep = 0.750;
+constexpr double kVibranceReducePower = 1.788;
+// Boost: k = 1 + hue_weight * 0.888 * dark * v^1.137 * (1 - s)^1.012 * s^0.597 * high^-0.423,
+// strongest on muted, darker colors and zero on gray and on fully saturated ones.
+constexpr double kVibranceBoostScale = 0.888;
+constexpr double kVibranceBoostAmountPower = 1.137;
+constexpr double kVibranceBoostSaturatedPower = 1.012;
+constexpr double kVibranceBoostMutedPower = 0.597;
+constexpr double kVibranceBoostBrightPower = 0.423;
+// A boost is 17 % weaker for red-to-orange hues: full reduction while red is the largest
+// channel and the middle one (green) sits at most 0.522 of the way from the smallest to
+// the largest, easing back to none by 0.740 on the yellow side and linearly over the whole
+// red-magenta sector (blue the middle channel) on the other.
+constexpr double kVibranceRedDepth = 0.170;
+constexpr double kVibranceRedPlateau = 0.522;
+constexpr double kVibranceRedEnd = 0.740;
+// Saturation's gray: Photoshop weighs linear red and green only (#250 probe, exact to one
+// level).
+constexpr double kVibranceGrayRed = 0.288;
+constexpr double kVibranceGrayGreen = 0.712;
+
+double vibrance_red_weight(const std::array<double, 3>& in, double high, double low) {
+  if (in[0] != high || high <= low) {
+    return 1.0;
+  }
+  const double fraction = (in[1] + in[2] - low - low) / (high - low);
+  const double depth = in[1] >= in[2]
+                           ? std::clamp((kVibranceRedEnd - fraction) / (kVibranceRedEnd - kVibranceRedPlateau),
+                                        0.0, 1.0)
+                           : 1.0 - fraction;
+  return 1.0 - kVibranceRedDepth * depth;
+}
+
+}  // namespace
+
+std::array<double, 3> vibrance_transfer(const VibranceAdjustment& settings, double red, double green,
+                                        double blue) {
+  const auto clamped = clamp_vibrance(settings);
+  std::array<double, 3> in{srgb_byte_to_linear(std::clamp(red, 0.0, 255.0)),
+                           srgb_byte_to_linear(std::clamp(green, 0.0, 255.0)),
+                           srgb_byte_to_linear(std::clamp(blue, 0.0, 255.0))};
+  const double high = std::max({in[0], in[1], in[2]});
+  const double low = std::min({in[0], in[1], in[2]});
+  if (clamped.vibrance != 0 && high > 0.0 && high > low) {
+    const double amount = clamped.vibrance / 100.0;
+    const double s = 1.0 - low / high;
+    const auto& curve = amount < 0.0 ? kVibranceReduce : kVibranceBoost;
+    const double pivot = high * (1.0 - curve.pivot_scale * std::pow(1.0 - high, curve.pivot_high) *
+                                           std::pow(s, curve.pivot_s) * std::pow(1.0 - s, curve.pivot_gray));
+    const double dark = std::pow(std::min(1.0, high / curve.dark_end), curve.dark_power);
+    const double gain =
+        amount < 0.0
+            ? 1.0 + amount * (1.0 - kVibranceReduceKeep * dark * std::pow(s, kVibranceReducePower))
+            : 1.0 + vibrance_red_weight(in, high, low) * kVibranceBoostScale * dark *
+                        std::pow(amount, kVibranceBoostAmountPower) *
+                        std::pow(1.0 - s, kVibranceBoostSaturatedPower) * std::pow(s, kVibranceBoostMutedPower) *
+                        std::pow(high, -kVibranceBoostBrightPower);
+    for (auto& channel : in) {
+      channel = std::clamp(pivot + gain * (channel - pivot), 0.0, 1.0);
+    }
+  }
+  if (clamped.saturation != 0) {
+    const double gray = kVibranceGrayRed * in[0] + kVibranceGrayGreen * in[1];
+    const double scale = 1.0 + clamped.saturation / 100.0;
+    for (auto& channel : in) {
+      channel = gray + scale * (channel - gray);
+    }
+  }
+  return {linear_to_srgb_byte(in[0]), linear_to_srgb_byte(in[1]), linear_to_srgb_byte(in[2])};
 }
 
 BlackWhiteAdjustment clamp_black_white(BlackWhiteAdjustment settings) noexcept {
@@ -2430,6 +2524,8 @@ std::string adjustment_kind_key(AdjustmentKind kind) {
       return "color_lookup";
     case AdjustmentKind::SelectiveColor:
       return "selective_color";
+    case AdjustmentKind::Vibrance:
+      return "vibrance";
   }
   return "levels";
 }
@@ -2466,6 +2562,8 @@ std::string adjustment_display_name(AdjustmentKind kind) {
       return "Color Lookup";
     case AdjustmentKind::SelectiveColor:
       return "Selective Color";
+    case AdjustmentKind::Vibrance:
+      return "Vibrance";
   }
   return "Adjustment";
 }
@@ -2515,6 +2613,9 @@ std::optional<AdjustmentKind> adjustment_kind_from_key(std::string_view key) {
   }
   if (key == "selective_color") {
     return AdjustmentKind::SelectiveColor;
+  }
+  if (key == "vibrance") {
+    return AdjustmentKind::Vibrance;
   }
   return std::nullopt;
 }
@@ -2669,6 +2770,10 @@ std::optional<AdjustmentSettings> adjustment_settings_from_layer(const Layer& la
         settings.selective_color = clamp_selective_color(parsed);
       }
     }
+  }
+  if (const auto vibrance = parse_int_list(metadata_string_or(layer, kLayerMetadataAdjustmentVibrance, {}), 2);
+      vibrance.has_value()) {
+    settings.vibrance = clamp_vibrance(VibranceAdjustment{(*vibrance)[0], (*vibrance)[1]});
   }
   settings.color_lookup.table =
       find_color_lookup_table(metadata_string_or(layer, kLayerMetadataAdjustmentColorLookupTable, {}));
@@ -2836,6 +2941,11 @@ void configure_adjustment_layer(Layer& layer, const AdjustmentSettings& settings
       }
       set_metadata_string(layer, kLayerMetadataAdjustmentSelectiveColor, encoded);
     }
+    {
+      const auto vibrance = clamp_vibrance(settings.vibrance);
+      set_metadata_string(layer, kLayerMetadataAdjustmentVibrance,
+                          std::to_string(vibrance.vibrance) + ';' + std::to_string(vibrance.saturation));
+    }
     set_metadata_string(layer, kLayerMetadataAdjustmentBlackWhiteTintColor,
                         std::to_string(bw.tint_color.red) + ';' + std::to_string(bw.tint_color.green) + ';' +
                             std::to_string(bw.tint_color.blue));
@@ -2952,6 +3062,7 @@ bool adjustment_runs_in_ink_space(const AdjustmentSettings& settings) noexcept {
     case AdjustmentKind::BlackWhite:
     case AdjustmentKind::ColorLookup:
     case AdjustmentKind::SelectiveColor:
+    case AdjustmentKind::Vibrance:
       return false;
   }
   return false;
@@ -3038,6 +3149,16 @@ RgbColor apply_adjustment_on_rgb(RgbColor color, const AdjustmentSettings& setti
       };
       return RgbColor{byte(out[0]), byte(out[1]), byte(out[2])};
     }
+    case AdjustmentKind::Vibrance: {
+      if (!settings.vibrance.has_effect()) {
+        return color;
+      }
+      const auto out = vibrance_transfer(settings.vibrance, color.red, color.green, color.blue);
+      const auto byte = [](double value) {
+        return static_cast<std::uint8_t>(std::clamp(std::floor(value + 0.5), 0.0, 255.0));
+      };
+      return RgbColor{byte(out[0]), byte(out[1]), byte(out[2])};
+    }
     case AdjustmentKind::ColorLookup: {
       if (settings.color_lookup.table == nullptr) {
         return color;
@@ -3088,7 +3209,8 @@ std::optional<AdjustmentLut> build_adjustment_lut(const AdjustmentSettings& sett
   if (settings.kind == AdjustmentKind::HueSaturation || settings.kind == AdjustmentKind::Threshold ||
       settings.kind == AdjustmentKind::ChannelMixer || settings.kind == AdjustmentKind::PhotoFilter ||
       settings.kind == AdjustmentKind::GradientMap || settings.kind == AdjustmentKind::BlackWhite ||
-      settings.kind == AdjustmentKind::ColorLookup || settings.kind == AdjustmentKind::SelectiveColor) {
+      settings.kind == AdjustmentKind::ColorLookup || settings.kind == AdjustmentKind::SelectiveColor ||
+      settings.kind == AdjustmentKind::Vibrance) {
     return std::nullopt;
   }
   if (settings.kind == AdjustmentKind::Curves) {
@@ -3156,6 +3278,8 @@ bool adjustment_has_effect(const AdjustmentSettings& settings) {
       return settings.color_lookup.table != nullptr;
     case AdjustmentKind::SelectiveColor:
       return settings.selective_color.has_effect();
+    case AdjustmentKind::Vibrance:
+      return settings.vibrance.has_effect();
   }
   return false;
 }

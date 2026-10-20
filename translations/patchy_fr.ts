@@ -10950,10 +10950,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Conserver la luminosité</translation>
     </message>
     <message>
-        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Vibrance, Black &amp; White or Gradient Map). They have no effect here and are saved unchanged.</source>
-        <translation>Certains calques de réglage utilisent des types que Patchy ne sait pas encore appliquer (comme Vibrance, Noir et blanc ou Courbe de transfert de dégradé). Ils n&apos;ont aucun effet ici et sont enregistrés tels quels.</translation>
-    </message>
-    <message>
         <source>Vibrance</source>
         <translation>Vibrance</translation>
     </message>
@@ -11388,6 +11384,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Auto-nesting into and out of artboards prevented</source>
         <translation>Imbrication auto dans et hors des plans de travail empêchée</translation>
+    </message>
+    <message>
+        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Photoshop&apos;s Color and Vibrance). They have no effect here and are saved unchanged.</source>
+        <translation>Certains calques de réglage utilisent des types que Patchy ne sait pas encore appliquer (comme Couleur et vibrance de Photoshop). Ils n&apos;ont aucun effet ici et sont enregistrés tels quels.</translation>
+    </message>
+    <message>
+        <source>Vibrance: vibrance %1, saturation %2</source>
+        <translation>Vibrance : vibrance %1, saturation %2</translation>
+    </message>
+    <message>
+        <source>Color and Vibrance</source>
+        <translation>Couleur et vibrance</translation>
     </message>
 </context>
 <context>
@@ -23131,6 +23139,14 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
     <message>
         <source>Auto-nesting allowed</source>
         <translation>Imbrication auto autorisée</translation>
+    </message>
+    <message>
+        <source>&amp;Vibrance...</source>
+        <translation>&amp;Vibrance...</translation>
+    </message>
+    <message>
+        <source>Cancelled Vibrance</source>
+        <translation>Vibrance annulée</translation>
     </message>
 </context>
 <context>

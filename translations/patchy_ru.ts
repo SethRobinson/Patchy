@@ -10984,10 +10984,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Сохранить яркость</translation>
     </message>
     <message>
-        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Vibrance, Black &amp; White or Gradient Map). They have no effect here and are saved unchanged.</source>
-        <translation>Некоторые корректирующие слои используют виды, которые Patchy пока не умеет применять (например, Сочность, Черно-белое или Карта градиента). Здесь они не действуют и сохраняются без изменений.</translation>
-    </message>
-    <message>
         <source>Vibrance</source>
         <translation>Сочность</translation>
     </message>
@@ -11422,6 +11418,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Auto-nesting into and out of artboards prevented</source>
         <translation>Автовложение в монтажные области и из них запрещено</translation>
+    </message>
+    <message>
+        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Photoshop&apos;s Color and Vibrance). They have no effect here and are saved unchanged.</source>
+        <translation>Некоторые корректирующие слои используют виды, которые Patchy пока не умеет применять (например, «Цвет и сочность» из Photoshop). Здесь они не действуют и сохраняются без изменений.</translation>
+    </message>
+    <message>
+        <source>Vibrance: vibrance %1, saturation %2</source>
+        <translation>Сочность: сочность %1, насыщенность %2</translation>
+    </message>
+    <message>
+        <source>Color and Vibrance</source>
+        <translation>Цвет и сочность</translation>
     </message>
 </context>
 <context>
@@ -23201,6 +23209,14 @@ Patchy можно будет запускать из меню, а на пане�
     <message>
         <source>Auto-nesting allowed</source>
         <translation>Автовложение разрешено</translation>
+    </message>
+    <message>
+        <source>&amp;Vibrance...</source>
+        <translation>&amp;Сочность...</translation>
+    </message>
+    <message>
+        <source>Cancelled Vibrance</source>
+        <translation>Сочность отменена</translation>
     </message>
 </context>
 <context>

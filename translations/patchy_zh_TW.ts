@@ -10916,10 +10916,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>保持明度</translation>
     </message>
     <message>
-        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Vibrance, Black &amp; White or Gradient Map). They have no effect here and are saved unchanged.</source>
-        <translation>部分調整圖層使用了 Patchy 尚無法套用的類型（例如自然飽和度、黑白或漸層對應）。它們在此處沒有作用，並會原樣儲存。</translation>
-    </message>
-    <message>
         <source>Vibrance</source>
         <translation>自然飽和度</translation>
     </message>
@@ -11354,6 +11350,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Auto-nesting into and out of artboards prevented</source>
         <translation>已防止自動巢狀進出工作區域</translation>
+    </message>
+    <message>
+        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Photoshop&apos;s Color and Vibrance). They have no effect here and are saved unchanged.</source>
+        <translation>部分調整圖層使用了 Patchy 尚無法套用的類型（例如 Photoshop 的顏色和自然飽和度）。它們在此處沒有作用，並會原樣儲存。</translation>
+    </message>
+    <message>
+        <source>Vibrance: vibrance %1, saturation %2</source>
+        <translation>自然飽和度: 自然飽和度 %1，飽和度 %2</translation>
+    </message>
+    <message>
+        <source>Color and Vibrance</source>
+        <translation>顏色和自然飽和度</translation>
     </message>
 </context>
 <context>
@@ -23061,6 +23069,14 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Auto-nesting allowed</source>
         <translation>已允許自動巢狀</translation>
+    </message>
+    <message>
+        <source>&amp;Vibrance...</source>
+        <translation>自然飽和度(&amp;V)...</translation>
+    </message>
+    <message>
+        <source>Cancelled Vibrance</source>
+        <translation>已取消自然飽和度</translation>
     </message>
 </context>
 <context>

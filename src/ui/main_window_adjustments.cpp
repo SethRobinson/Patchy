@@ -150,6 +150,8 @@ void MainWindow::populate_new_adjustment_layer_menu(QMenu* menu, const QString& 
                  [this] { new_threshold_adjustment_layer(); });
   add_adjustment(QT_TR_NOOP("&Exposure..."), QStringLiteral("ExposureAdjustment"), QStringLiteral("EXP"),
                  [this] { new_exposure_adjustment_layer(); });
+  add_adjustment(QT_TR_NOOP("&Vibrance..."), QStringLiteral("VibranceAdjustment"), QStringLiteral("VIB"),
+                 [this] { new_vibrance_adjustment_layer(); });
   add_adjustment(QT_TR_NOOP("Channel &Mixer..."), QStringLiteral("ChannelMixerAdjustment"), QStringLiteral("MIX"),
                  [this] { new_channel_mixer_adjustment_layer(); });
   add_adjustment(QT_TR_NOOP("Photo &Filter..."), QStringLiteral("PhotoFilterAdjustment"), QStringLiteral("PHF"),
@@ -520,6 +522,31 @@ void MainWindow::new_selective_color_adjustment_layer() {
   adjustment.kind = AdjustmentKind::SelectiveColor;
   adjustment.selective_color = *settings;
   create_adjustment_layer(tr("Selective Color"), adjustment);
+}
+
+void MainWindow::new_vibrance_adjustment_layer() {
+  std::optional<LayerId> preview_id;
+  const auto restore_active_layer = document().active_layer_id();
+  const auto preview_changed = [this, &preview_id, restore_active_layer](bool enabled,
+                                                                         const VibranceSettings& vibrance) {
+    AdjustmentSettings settings;
+    settings.kind = AdjustmentKind::Vibrance;
+    settings.vibrance = vibrance;
+    update_adjustment_layer_preview(tr("Vibrance"), settings, enabled, preview_id, restore_active_layer);
+  };
+
+  auto preview_edit_lock = lock_preview_dialog_edits();
+  const auto settings = request_vibrance_settings(this, preview_changed);
+  remove_adjustment_layer_preview(preview_id, restore_active_layer);
+  preview_edit_lock.release();
+  if (!settings.has_value()) {
+    statusBar()->showMessage(tr("Cancelled Vibrance"));
+    return;
+  }
+  AdjustmentSettings adjustment;
+  adjustment.kind = AdjustmentKind::Vibrance;
+  adjustment.vibrance = *settings;
+  create_adjustment_layer(tr("Vibrance"), adjustment);
 }
 
 void MainWindow::new_color_lookup_adjustment_layer() {
@@ -995,6 +1022,23 @@ std::optional<AdjustmentSettings> MainWindow::request_adjustment_settings(
       if (result.has_value()) {
         accepted_settings = original;
         accepted_settings->selective_color = *result;
+      }
+      break;
+    }
+    case AdjustmentKind::Vibrance: {
+      const auto preview_changed = [&preview, &original](bool enabled, const VibranceSettings& vibrance) {
+        if (!enabled) {
+          preview(std::nullopt);
+          return;
+        }
+        auto settings = original;
+        settings.vibrance = vibrance;
+        preview(settings);
+      };
+      const auto result = request_vibrance_settings(this, preview_changed, original.vibrance);
+      if (result.has_value()) {
+        accepted_settings = original;
+        accepted_settings->vibrance = *result;
       }
       break;
     }

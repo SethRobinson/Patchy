@@ -1767,6 +1767,17 @@ std::optional<SelectiveColorSettings> request_selective_color_settings(
       });
 }
 
+std::optional<VibranceSettings> request_vibrance_settings(
+    QWidget* parent, std::function<void(bool, const VibranceSettings&)> preview_changed, VibranceSettings initial) {
+  initial = clamp_vibrance(initial);
+  return request_adjustment_settings_dialog<VibranceSettings>(
+      parent, QStringLiteral("patchyVibranceDialog"), QObject::tr("Vibrance"), QStringLiteral("vibrancePreviewCheck"),
+      {{QObject::tr("Vibrance"), QStringLiteral("vibranceAmount"), -100, 100, initial.vibrance, {}},
+       {QObject::tr("Saturation"), QStringLiteral("vibranceSaturation"), -100, 100, initial.saturation, {}}},
+      [](const std::vector<QSpinBox*>& spins) { return VibranceSettings{spins[0]->value(), spins[1]->value()}; },
+      std::move(preview_changed));
+}
+
 std::optional<ColorLookupSettings> request_color_lookup_settings(
     QWidget* parent, std::function<void(bool, const ColorLookupSettings&)> preview_changed,
     ColorLookupSettings initial) {

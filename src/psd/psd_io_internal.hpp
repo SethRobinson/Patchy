@@ -148,6 +148,7 @@ constexpr std::array<char, 4> kPhotoshopGradientMapBlockKey{'g', 'r', 'd', 'm'};
 constexpr std::array<char, 4> kPhotoshopBlackWhiteBlockKey{'b', 'l', 'w', 'h'};
 constexpr std::array<char, 4> kPhotoshopColorLookupBlockKey{'c', 'l', 'r', 'L'};
 constexpr std::array<char, 4> kPhotoshopSelectiveColorBlockKey{'s', 'e', 'l', 'c'};
+constexpr std::array<char, 4> kPhotoshopVibranceBlockKey{'v', 'i', 'b', 'A'};
 // version u16, colorize u8, pad u8, colorize h/s/l i16 x3, master h/s/l i16 x3,
 // then six band records of four i16 range stops plus an i16 h/s/l triple, then
 // an undocumented 36-byte trailer Photoshop always writes.
@@ -703,6 +704,17 @@ std::optional<AdjustmentSettings> parse_photoshop_selective_color_adjustment(std
 // (a fresh layer starts from Photoshop's all-zero Relative block).
 std::vector<std::uint8_t> photoshop_selective_color_payload(const SelectiveColorAdjustment& settings,
                                                             const UnknownPsdBlock* original);
+// A legacy Vibrance 'vibA' block; nullopt for anything else, including the readable blocks
+// photoshop_vibrance_block_is_color_and_vibrance accepts.
+std::optional<AdjustmentSettings> parse_photoshop_vibrance_adjustment(std::span<const std::uint8_t> payload);
+// True for a readable 'vibA' descriptor carrying Photoshop's newer Color and Vibrance
+// settings (useLegacy false, temperature, tint or another key), which Patchy keeps as a
+// placeholder.
+bool photoshop_vibrance_block_is_color_and_vibrance(std::span<const std::uint8_t> payload);
+// The original payload when the settings are unchanged; otherwise the legacy descriptor
+// Photoshop writes, holding only the non-zero sliders.
+std::vector<std::uint8_t> photoshop_vibrance_payload(const VibranceAdjustment& settings,
+                                                     const UnknownPsdBlock* original);
 std::optional<AdjustmentSettings> parse_photoshop_exposure_adjustment(std::span<const std::uint8_t> payload);
 std::vector<std::uint8_t> photoshop_exposure_payload(const ExposureAdjustment& settings,
                                                      const UnknownPsdBlock* original);

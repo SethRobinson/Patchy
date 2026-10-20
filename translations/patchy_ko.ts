@@ -10916,10 +10916,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>광도 유지</translation>
     </message>
     <message>
-        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Vibrance, Black &amp; White or Gradient Map). They have no effect here and are saved unchanged.</source>
-        <translation>일부 조정 레이어는 Patchy가 아직 적용할 수 없는 종류(활기, 흑백, 그레이디언트 맵 등)를 사용합니다. 여기서는 효과가 없으며 변경 없이 저장됩니다.</translation>
-    </message>
-    <message>
         <source>Vibrance</source>
         <translation>활기</translation>
     </message>
@@ -11354,6 +11350,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Auto-nesting into and out of artboards prevented</source>
         <translation>대지 안팎으로의 자동 중첩 방지됨</translation>
+    </message>
+    <message>
+        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Photoshop&apos;s Color and Vibrance). They have no effect here and are saved unchanged.</source>
+        <translation>일부 조정 레이어는 Patchy가 아직 적용할 수 없는 종류(Photoshop의 색상 및 활기 등)를 사용합니다. 여기서는 효과가 없으며 변경 없이 저장됩니다.</translation>
+    </message>
+    <message>
+        <source>Vibrance: vibrance %1, saturation %2</source>
+        <translation>활기: 활기 %1, 채도 %2</translation>
+    </message>
+    <message>
+        <source>Color and Vibrance</source>
+        <translation>색상 및 활기</translation>
     </message>
 </context>
 <context>
@@ -23061,6 +23069,14 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Auto-nesting allowed</source>
         <translation>자동 중첩 허용됨</translation>
+    </message>
+    <message>
+        <source>&amp;Vibrance...</source>
+        <translation>활기(&amp;V)...</translation>
+    </message>
+    <message>
+        <source>Cancelled Vibrance</source>
+        <translation>활기를 취소했습니다</translation>
     </message>
 </context>
 <context>

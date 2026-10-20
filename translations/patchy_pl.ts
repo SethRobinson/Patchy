@@ -10984,10 +10984,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Zachowaj jasność</translation>
     </message>
     <message>
-        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Vibrance, Black &amp; White or Gradient Map). They have no effect here and are saved unchanged.</source>
-        <translation>Niektóre warstwy dopasowania używają rodzajów, których Patchy nie potrafi jeszcze zastosować (np. Jaskrawość, Czarno-białe lub Mapa gradientu). Nie działają tutaj i są zapisywane bez zmian.</translation>
-    </message>
-    <message>
         <source>Vibrance</source>
         <translation>Jaskrawość</translation>
     </message>
@@ -11422,6 +11418,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Auto-nesting into and out of artboards prevented</source>
         <translation>Automatyczne zagnieżdżanie w obszarach roboczych i poza nimi zablokowane</translation>
+    </message>
+    <message>
+        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Photoshop&apos;s Color and Vibrance). They have no effect here and are saved unchanged.</source>
+        <translation>Niektóre warstwy dopasowania używają rodzajów, których Patchy nie potrafi jeszcze zastosować (np. Kolor i jaskrawość z Photoshopa). Nie działają tutaj i są zapisywane bez zmian.</translation>
+    </message>
+    <message>
+        <source>Vibrance: vibrance %1, saturation %2</source>
+        <translation>Jaskrawość: jaskrawość %1, nasycenie %2</translation>
+    </message>
+    <message>
+        <source>Color and Vibrance</source>
+        <translation>Kolor i jaskrawość</translation>
     </message>
 </context>
 <context>
@@ -23201,6 +23209,14 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     <message>
         <source>Auto-nesting allowed</source>
         <translation>Automatyczne zagnieżdżanie dozwolone</translation>
+    </message>
+    <message>
+        <source>&amp;Vibrance...</source>
+        <translation>&amp;Jaskrawość...</translation>
+    </message>
+    <message>
+        <source>Cancelled Vibrance</source>
+        <translation>Anulowano jaskrawość</translation>
     </message>
 </context>
 <context>
