@@ -12,6 +12,90 @@
 #include <tuple>
 
 namespace patchy::metadata {
+
+std::string xmp_date(std::int64_t unix_seconds, int utc_offset_minutes) {
+  // Civil date from days since 1970-01-01 (Howard Hinnant's algorithm): no time zone
+  // database and no locale, the same on every platform.
+  const auto local = unix_seconds + static_cast<std::int64_t>(utc_offset_minutes) * 60;
+  auto days = local / 86400;
+  auto seconds = local % 86400;
+  if (seconds < 0) {
+    seconds += 86400;
+    --days;
+  }
+  days += 719468;
+  const auto era = (days >= 0 ? days : days - 146096) / 146097;
+  const auto day_of_era = days - era * 146097;
+  const auto year_of_era = (day_of_era - day_of_era / 1460 + day_of_era / 36524 - day_of_era / 146096) / 365;
+  const auto day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+  const auto month_index = (5 * day_of_year + 2) / 153;
+  const auto day = day_of_year - (153 * month_index + 2) / 5 + 1;
+  const auto month = month_index < 10 ? month_index + 3 : month_index - 9;
+  const auto year = year_of_era + era * 400 + (month <= 2 ? 1 : 0);
+  const auto offset = std::abs(utc_offset_minutes);
+  char buffer[40];
+  std::snprintf(buffer, sizeof(buffer), "%04lld-%02lld-%02lldT%02lld:%02lld:%02lld%c%02d:%02d",
+                static_cast<long long>(year), static_cast<long long>(month), static_cast<long long>(day),
+                static_cast<long long>(seconds / 3600), static_cast<long long>((seconds / 60) % 60),
+                static_cast<long long>(seconds % 60), utc_offset_minutes < 0 ? '-' : '+', offset / 60, offset % 60);
+  return buffer;
+}
+
+void stamp_xmp_for_save(DocumentFileInfo& info, const SaveStamp& stamp) {
+  XmpPacket packet;
+  if (info.xmp && !info.xmp->empty()) {
+    auto parsed = parse_xmp(*info.xmp);
+    if (!parsed.has_value()) {
+      return;
+    }
+    packet = std::move(*parsed);
+  }
+  const bool first_save = packet.text(xmp_ns::kXmp, "CreateDate").empty();
+  if (packet.text(xmp_ns::kXmp, "CreatorTool").empty()) {
+    packet.set_simple(xmp_ns::kXmp, "CreatorTool", stamp.software);
+  }
+  if (first_save) {
+    packet.set_simple(xmp_ns::kXmp, "CreateDate", stamp.when);
+  }
+  packet.set_simple(xmp_ns::kXmp, "ModifyDate", stamp.when);
+  packet.set_simple(xmp_ns::kXmp, "MetadataDate", stamp.when);
+
+  XmpValue event;
+  event.kind = XmpValue::Kind::Struct;
+  const auto field = [&event](std::string_view name, const std::string& value) {
+    XmpProperty property;
+    property.ns = std::string(xmp_ns::kStEvt);
+    property.name = std::string(name);
+    property.value.text = value;
+    event.fields.push_back(std::move(property));
+  };
+  // "created" only for a packet with no creation date and no history: a document's
+  // first save, not a file another application wrote without a CreateDate.
+  const bool created = first_save && packet.find(xmp_ns::kXmpMM, "History") == nullptr;
+  field("action", created ? "created" : "saved");
+  field("when", stamp.when);
+  field("softwareAgent", stamp.software);
+  if (!created) {
+    field("changed", "/");
+  }
+  auto* history = packet.find(xmp_ns::kXmpMM, "History");
+  if (history == nullptr || history->value.kind != XmpValue::Kind::Seq) {
+    if (history != nullptr) {
+      packet.erase(xmp_ns::kXmpMM, "History");
+    }
+    XmpProperty property;
+    property.ns = std::string(xmp_ns::kXmpMM);
+    property.name = "History";
+    property.value.kind = XmpValue::Kind::Seq;
+    packet.properties.push_back(std::move(property));
+    history = &packet.properties.back();
+  }
+  history->value.items.push_back(std::move(event));
+
+  const auto text = serialize_xmp(packet);
+  info.xmp = make_metadata_bytes(std::vector<std::uint8_t>(text.begin(), text.end()));
+}
+
 namespace {
 
 using Bytes = std::vector<std::uint8_t>;

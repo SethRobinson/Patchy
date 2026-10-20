@@ -178,6 +178,13 @@ const ThemePalette& dark_palette() {
       .layer_thumbnail_border = rgb(0x969ea8),
       .layer_mask_disabled_cross = rgb(0xe84646),
       .layer_clip_badge = rgb(0x96cdff),
+      .layer_color_red = rgb(0xe5534b),
+      .layer_color_orange = rgb(0xe8913a),
+      .layer_color_yellow = rgb(0xe3c23b),
+      .layer_color_green = rgb(0x57b45a),
+      .layer_color_blue = rgb(0x4a90e2),
+      .layer_color_violet = rgb(0xa070d8),
+      .layer_color_gray = rgb(0x8c9299),
 
       // Bright accent.
       .accent_bright = rgb(0x31a8ff),
@@ -667,6 +674,16 @@ const ThemePalette& light_palette() {
     // the blue of a selected one.
     light.layer_clip_badge = rgb(0x1a73e8);
 
+    // Layer color labels: a step deeper than Dark's, so each strip holds its
+    // hue against a near-white row instead of washing out.
+    light.layer_color_red = rgb(0xd1342c);
+    light.layer_color_orange = rgb(0xd9761c);
+    light.layer_color_yellow = rgb(0xc9a20e);
+    light.layer_color_green = rgb(0x3e9a43);
+    light.layer_color_blue = rgb(0x2f76c9);
+    light.layer_color_violet = rgb(0x8352c4);
+    light.layer_color_gray = rgb(0x7a8088);
+
     // Icon ink. The flip lands close, but these are the most-looked-at pixels in
     // the app and deserve exact values.
     light.icon_ink = rgb(0x333a42);
@@ -864,6 +881,13 @@ std::span<const ThemePaletteRole> theme_palette_roles() {
       PATCHY_THEME_ROLE(layer_thumbnail_border),
       PATCHY_THEME_ROLE(layer_mask_disabled_cross),
       PATCHY_THEME_ROLE(layer_clip_badge),
+      PATCHY_THEME_ROLE(layer_color_red),
+      PATCHY_THEME_ROLE(layer_color_orange),
+      PATCHY_THEME_ROLE(layer_color_yellow),
+      PATCHY_THEME_ROLE(layer_color_green),
+      PATCHY_THEME_ROLE(layer_color_blue),
+      PATCHY_THEME_ROLE(layer_color_violet),
+      PATCHY_THEME_ROLE(layer_color_gray),
 
       PATCHY_THEME_ROLE(accent_bright),
       PATCHY_THEME_ROLE(accent_bright_hover),

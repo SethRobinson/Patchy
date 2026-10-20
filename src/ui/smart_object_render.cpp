@@ -491,8 +491,8 @@ std::optional<QImage> render_smart_object_vector_contents(const SmartObjectSourc
     return std::nullopt;
   }
   // The quad's own edge lengths: the top edge carries the artwork's width, the left
-  // edge its height, whatever the rotation.
-  const auto& quad = placement.transform;
+  // edge its height, whatever the rotation (a perspective placement's real quad).
+  const auto& quad = smart_object_render_quad(placement);
   const double width = std::hypot(quad[2] - quad[0], quad[3] - quad[1]);
   const double height = std::hypot(quad[6] - quad[0], quad[7] - quad[1]);
   if (!std::isfinite(width) || !std::isfinite(height) || width < 0.5 || height < 0.5) {
@@ -589,7 +589,9 @@ std::optional<TransformedImage> render_smart_object_pixels(
   const auto height = static_cast<qreal>(source_image.height());
   const QPolygonF source_quad({QPointF(0.0, 0.0), QPointF(width, 0.0), QPointF(width, height),
                                QPointF(0.0, height)});
-  const auto& quad = placement.transform;
+  // A perspective placement renders onto its nonAffineTransform corners through
+  // the homography (resample_transformed_rgba8 inverts it per pixel).
+  const auto& quad = smart_object_render_quad(placement);
   const QPolygonF target_quad({QPointF(quad[0], quad[1]), QPointF(quad[2], quad[3]),
                                QPointF(quad[4], quad[5]), QPointF(quad[6], quad[7])});
   QTransform source_to_document;

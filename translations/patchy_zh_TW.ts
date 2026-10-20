@@ -10900,6 +10900,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>這個堆疊執行了 Patchy 無法算繪的智慧型濾鏡，因此無法在此變更其設定。請先隱藏或刪除那些濾鏡。</translation>
     </message>
     <message>
+        <source>Hide All Smart Filters</source>
+        <translation>隱藏所有智慧型濾鏡</translation>
+    </message>
+    <message>
+        <source>Show All Smart Filters</source>
+        <translation>顯示所有智慧型濾鏡</translation>
+    </message>
+    <message>
         <source>Midtones</source>
         <translation>中間調</translation>
     </message>
@@ -12534,6 +12542,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Added %1 to %2 to paint on</source>
         <translation>已向 %2 加入 %1 用於繪畫</translation>
+    </message>
+    <message>
+        <source>Rasterize the layer to distort it</source>
+        <translation>請先點陣化圖層再進行扭曲</translation>
+    </message>
+    <message>
+        <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
+        <translation>透視狀態的智慧型物件無法彎曲。請先點陣化圖層。</translation>
     </message>
 </context>
 <context>
@@ -22427,12 +22443,48 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>不再詢問</translation>
     </message>
     <message>
+        <source>Color</source>
+        <translation>顏色</translation>
+    </message>
+    <message>
+        <source>Orange</source>
+        <translation>橙色</translation>
+    </message>
+    <message>
+        <source>Violet</source>
+        <translation>紫色</translation>
+    </message>
+    <message>
+        <source>Gray</source>
+        <translation>灰色</translation>
+    </message>
+    <message>
+        <source>Layer color</source>
+        <translation>圖層顏色</translation>
+    </message>
+    <message>
         <source>Delete All Smart Filters</source>
         <translation>刪除所有智慧型濾鏡</translation>
     </message>
     <message>
         <source>Deleted all Smart Filters</source>
         <translation>已刪除所有智慧型濾鏡</translation>
+    </message>
+    <message>
+        <source>Transform</source>
+        <translation>變形</translation>
+    </message>
+    <message>
+        <source>Skew</source>
+        <translation>傾斜</translation>
+    </message>
+    <message>
+        <source>Distort</source>
+        <translation>扭曲</translation>
+    </message>
+    <message>
+        <source>Perspective</source>
+        <translation>透視</translation>
     </message>
 </context>
 <context>
@@ -24173,6 +24225,30 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
         <translation>未知的面板 &quot;%1&quot;。面板：%2。</translation>
+    </message>
+    <message>
+        <source>Unknown layer color label: %1</source>
+        <translation>未知的圖層顏色：%1</translation>
+    </message>
+    <message>
+        <source>layer.transform needs {matrix} or {quad}, not both.</source>
+        <translation>layer.transform 需要 {matrix} 或 {quad} 其中之一，不能同時提供。</translation>
+    </message>
+    <message>
+        <source>layer.transform: unknown option %1</source>
+        <translation>layer.transform：未知的選項 %1</translation>
+    </message>
+    <message>
+        <source>layer.transform: matrix must be six finite numbers.</source>
+        <translation>layer.transform：matrix 必須是六個有限數字。</translation>
+    </message>
+    <message>
+        <source>layer.transform: quad must be four [x, y] points.</source>
+        <translation>layer.transform：quad 必須是四個 [x, y] 點。</translation>
+    </message>
+    <message>
+        <source>layer.transform: unknown interpolation %1</source>
+        <translation>layer.transform：未知的內插方式 %1</translation>
     </message>
 </context>
 <context>

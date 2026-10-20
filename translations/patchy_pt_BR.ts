@@ -10934,6 +10934,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Esta pilha aplica filtros inteligentes que o Patchy não consegue renderizar, então suas configurações não podem mudar aqui. Oculte ou exclua esses filtros primeiro.</translation>
     </message>
     <message>
+        <source>Hide All Smart Filters</source>
+        <translation>Ocultar todos os filtros inteligentes</translation>
+    </message>
+    <message>
+        <source>Show All Smart Filters</source>
+        <translation>Mostrar todos os filtros inteligentes</translation>
+    </message>
+    <message>
         <source>Midtones</source>
         <translation>Meios-tons</translation>
     </message>
@@ -12568,6 +12576,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Added %1 to %2 to paint on</source>
         <translation>%1 adicionado a %2 para pintar</translation>
+    </message>
+    <message>
+        <source>Rasterize the layer to distort it</source>
+        <translation>Rasterize a camada para distorcê-la</translation>
+    </message>
+    <message>
+        <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
+        <translation>Um objeto inteligente em perspectiva não pode ser distorcido. Rasterize a camada primeiro.</translation>
     </message>
 </context>
 <context>
@@ -22497,12 +22513,48 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
         <translation>Não perguntar novamente</translation>
     </message>
     <message>
+        <source>Color</source>
+        <translation>Cor</translation>
+    </message>
+    <message>
+        <source>Orange</source>
+        <translation>Laranja</translation>
+    </message>
+    <message>
+        <source>Violet</source>
+        <translation>Violeta</translation>
+    </message>
+    <message>
+        <source>Gray</source>
+        <translation>Cinza</translation>
+    </message>
+    <message>
+        <source>Layer color</source>
+        <translation>Cor da camada</translation>
+    </message>
+    <message>
         <source>Delete All Smart Filters</source>
         <translation>Excluir todos os filtros inteligentes</translation>
     </message>
     <message>
         <source>Deleted all Smart Filters</source>
         <translation>Todos os filtros inteligentes foram excluídos</translation>
+    </message>
+    <message>
+        <source>Transform</source>
+        <translation>Transformar</translation>
+    </message>
+    <message>
+        <source>Skew</source>
+        <translation>Inclinar</translation>
+    </message>
+    <message>
+        <source>Distort</source>
+        <translation>Distorcer</translation>
+    </message>
+    <message>
+        <source>Perspective</source>
+        <translation>Perspectiva</translation>
     </message>
 </context>
 <context>
@@ -24244,6 +24296,30 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
     <message>
         <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
         <translation>Painel desconhecido &quot;%1&quot;. Painéis: %2.</translation>
+    </message>
+    <message>
+        <source>Unknown layer color label: %1</source>
+        <translation>Cor de camada desconhecida: %1</translation>
+    </message>
+    <message>
+        <source>layer.transform needs {matrix} or {quad}, not both.</source>
+        <translation>layer.transform precisa de {matrix} ou {quad}, não de ambos.</translation>
+    </message>
+    <message>
+        <source>layer.transform: unknown option %1</source>
+        <translation>layer.transform: opção desconhecida %1</translation>
+    </message>
+    <message>
+        <source>layer.transform: matrix must be six finite numbers.</source>
+        <translation>layer.transform: matrix deve ter seis números finitos.</translation>
+    </message>
+    <message>
+        <source>layer.transform: quad must be four [x, y] points.</source>
+        <translation>layer.transform: quad deve ter quatro pontos [x, y].</translation>
+    </message>
+    <message>
+        <source>layer.transform: unknown interpolation %1</source>
+        <translation>layer.transform: interpolação desconhecida %1</translation>
     </message>
 </context>
 <context>

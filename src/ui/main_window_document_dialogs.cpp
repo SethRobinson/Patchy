@@ -99,17 +99,11 @@ namespace patchy::ui {
 
 namespace {
 
-// New documents open fully visible: an oversized canvas fits to the view like
-// file-open does, but smaller ones stay at 100% (a fresh blank canvas zoomed
-// past 100% reads as broken). No-op while the window has no size (startup).
+// New documents open like opened files: an oversized canvas fits the view, a smaller one
+// shows at 100% (GitHub issue 247). No-op while the window has no size (startup).
 void fit_new_document_view(CanvasWidget* canvas) {
-  if (canvas == nullptr) {
-    return;
-  }
-  canvas->fit_to_view();
-  if (canvas->view_zoom() > 1.0) {
-    canvas->set_view_zoom(1.0);
-    canvas->center_document_in_view();
+  if (canvas != nullptr) {
+    canvas->fit_to_view_without_enlarging();
   }
 }
 

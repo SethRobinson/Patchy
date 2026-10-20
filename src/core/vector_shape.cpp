@@ -303,6 +303,26 @@ void transform_vector_path(VectorPath& path, const std::array<double, 6>& matrix
   }
 }
 
+void transform_vector_path_projective(VectorPath& path, const std::array<double, 9>& homography) {
+  const auto apply = [&homography](double& x, double& y) {
+    const double w = homography[6] * x + homography[7] * y + homography[8];
+    if (std::abs(w) < 1e-12) {
+      return;
+    }
+    const double source_x = x;
+    const double source_y = y;
+    x = (homography[0] * source_x + homography[1] * source_y + homography[2]) / w;
+    y = (homography[3] * source_x + homography[4] * source_y + homography[5]) / w;
+  };
+  for (auto& subpath : path.subpaths) {
+    for (auto& anchor : subpath.anchors) {
+      apply(anchor.anchor_x, anchor.anchor_y);
+      apply(anchor.in_x, anchor.in_y);
+      apply(anchor.out_x, anchor.out_y);
+    }
+  }
+}
+
 void translate_vector_path(VectorPath& path, double dx, double dy) {
   transform_vector_path(path, {1.0, 0.0, 0.0, 1.0, dx, dy});
 }

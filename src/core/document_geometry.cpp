@@ -978,6 +978,38 @@ void transform_layer_vector_data(Document& document, Layer& layer,
   }
 }
 
+void transform_layer_vector_data_projective(Document& document, Layer& layer,
+                                            const std::array<double, 9>& homography, Rect canvas_after) {
+  bool touched = false;
+  if (const auto* shape = layer.vector_shape(); shape != nullptr) {
+    auto content = *shape;
+    transform_vector_path_projective(content.path, homography);
+    for (auto& part : content.parts) {
+      const auto anchor = part.pattern_anchor;
+      const double w = homography[6] * anchor[0] + homography[7] * anchor[1] + homography[8];
+      if (std::abs(w) >= 1e-12) {
+        part.pattern_anchor = {(homography[0] * anchor[0] + homography[1] * anchor[1] + homography[2]) / w,
+                               (homography[3] * anchor[0] + homography[4] * anchor[1] + homography[5]) / w};
+      }
+    }
+    content.origination.clear();
+    layer.set_vector_shape(std::move(content));
+    layer.metadata()[kLayerMetadataVectorRasterStatus] = kVectorRasterStatusPatchy;
+    update_vector_shape_raster(layer, canvas_after, &document.metadata().patterns);
+    touched = true;
+  }
+  if (const auto* mask = layer.vector_mask(); mask != nullptr) {
+    auto updated = *mask;
+    transform_vector_path_projective(updated.path, homography);
+    layer.set_vector_mask(std::move(updated));
+    update_vector_mask_raster(layer, canvas_after);
+    touched = true;
+  }
+  if (touched) {
+    mark_layer_vector_block_dirty(layer);
+  }
+}
+
 void transform_document_vector_data(Document& document, const std::array<double, 6>& matrix,
                                     Rect canvas_after, double stroke_scale) {
   // Every whole-document geometry change comes through here, the flips and the square

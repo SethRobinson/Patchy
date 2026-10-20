@@ -141,6 +141,9 @@ constexpr const char* kLayerContentThumbnailFontBadgeHiddenProperty = "patchyFon
 constexpr const char* kLayerMaskThumbnailRevisionProperty = "patchyMaskRevision";
 
 constexpr int kLayerRowBaseIndent = 6;
+// The color label strip sits inside the base indent (GitHub issue 244).
+constexpr int kLayerColorStripWidth = 4;
+static_assert(kLayerColorStripWidth < kLayerRowBaseIndent);
 constexpr int kLayerFolderDisclosureWidth = 18;
 constexpr int kLayerFolderDisclosureHeight = 20;
 constexpr int kLayerRowHorizontalSpacing = 6;
@@ -1397,6 +1400,20 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   }
   row_layout->addWidget(main_row);
 
+  // The layer's color label (GitHub issue 244): a strip down the row's left
+  // edge, inside the base indent, so it takes no layout width and leaves the eye
+  // column alone. Mouse presses pass through to the row.
+  if (const auto color = layer.color_label();
+      color != kLayerColorNone && color <= kLayerColorLast) {
+    auto* strip = new QWidget(main_row);
+    strip->setObjectName(QStringLiteral("layerRowColorStrip"));
+    const auto id = layer_color_label_id(color);
+    strip->setProperty("layerColor", QString::fromLatin1(id.data(), static_cast<qsizetype>(id.size())));
+    strip->setAttribute(Qt::WA_StyledBackground, true);
+    strip->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+    strip->setGeometry(0, 0, kLayerColorStripWidth, main_row->maximumHeight());
+  }
+
   auto* layout = new QHBoxLayout(main_row);
   layout->setContentsMargins(kLayerRowBaseIndent, 4, 8, 4);
   layout->setSpacing(kLayerRowHorizontalSpacing);
@@ -1877,7 +1894,27 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       stack_more_button->installEventFilter(list_parent);
     }
     auto* stack_menu = new QMenu(stack_more_button);
+    stack_menu->setToolTipsVisible(true);
     stack_more_button->setMenu(stack_menu);
+    // The same change as the header eye, named in the menu (GitHub issue 243).
+    auto* stack_visibility_action =
+        stack_menu->addAction(smart_filters->enabled ? QObject::tr("Hide All Smart Filters")
+                                                     : QObject::tr("Show All Smart Filters"));
+    stack_visibility_action->setObjectName(QStringLiteral("layerSmartFiltersVisibilityAction"));
+    const bool stack_toggle_allowed = stack_changeable && renders(toggled_stack);
+    stack_visibility_action->setEnabled(stack_toggle_allowed && ancestors_visible);
+    if (!stack_toggle_allowed && stack_changeable) {
+      stack_visibility_action->setToolTip(smart_filter_unmodeled_show_message());
+    }
+    QObject::connect(stack_visibility_action, &QAction::triggered, row,
+                     [parent, id = layer.id(), show = !smart_filters->enabled, set_smart_filter_stack_enabled] {
+      if (set_smart_filter_stack_enabled) {
+        QTimer::singleShot(0, parent, [id, show, set_smart_filter_stack_enabled] {
+          set_smart_filter_stack_enabled(id, show);
+        });
+      }
+    });
+    stack_menu->addSeparator();
     auto* delete_stack_action = stack_menu->addAction(QObject::tr("Delete All Smart Filters"));
     delete_stack_action->setObjectName(QStringLiteral("layerSmartFiltersDeleteAction"));
     delete_stack_action->setEnabled(stack_changeable && ancestors_visible);

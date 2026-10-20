@@ -514,6 +514,26 @@ void ScriptLayerObject::set_locked(bool locked) {
   }
 }
 
+QString ScriptLayerObject::color_label() const {
+  const ScriptApiCall api_call(host_);
+  const auto* layer = read_layer();
+  const auto id = layer_color_label_id(layer != nullptr ? layer->color_label() : kLayerColorNone);
+  return QString::fromLatin1(id.data(), static_cast<qsizetype>(id.size()));
+}
+
+void ScriptLayerObject::set_color_label(const QString& label) {
+  const ScriptApiCall api_call(host_);
+  const auto parsed = layer_color_label_from_id(label.toStdString());
+  if (!parsed.has_value()) {
+    host_.throw_js_error(ScriptEngineHost::tr("Unknown layer color label: %1").arg(label));
+    return;
+  }
+  if (auto* layer = write_layer()) {
+    layer->set_color_label(*parsed);
+    host_.note_structure_changed(session_id_);
+  }
+}
+
 int ScriptLayerObject::x() const {
   const ScriptApiCall api_call(host_);
   const auto* layer = read_layer();
@@ -540,6 +560,75 @@ void ScriptLayerObject::set_y(double y) {
   if (current != nullptr) {
     moveTo(script_layer_position_bounds(*current).x, y);
   }
+}
+
+void ScriptLayerObject::transform(const QJSValue& options) {
+  const ScriptApiCall api_call(host_);
+  if (read_layer() == nullptr) {
+    return;
+  }
+  if (!options.isObject() || options.isArray()) {
+    host_.throw_js_error(ScriptEngineHost::tr("layer.transform needs {matrix} or {quad}, not both."));
+    return;
+  }
+  for (QJSValueIterator it(options); it.hasNext();) {
+    it.next();
+    const auto key = it.name();
+    if (key != QStringLiteral("matrix") && key != QStringLiteral("quad") && key != QStringLiteral("interpolation")) {
+      host_.throw_js_error(ScriptEngineHost::tr("layer.transform: unknown option %1").arg(key));
+      return;
+    }
+  }
+  const auto present = [](const QJSValue& value) { return !value.isUndefined() && !value.isNull(); };
+  const auto matrix_value = options.property(QStringLiteral("matrix"));
+  const auto quad_value = options.property(QStringLiteral("quad"));
+  if (present(matrix_value) == present(quad_value)) {
+    host_.throw_js_error(ScriptEngineHost::tr("layer.transform needs {matrix} or {quad}, not both."));
+    return;
+  }
+  const auto finite_number = [](const QJSValue& value, double& out) {
+    if (!value.isNumber()) {
+      return false;
+    }
+    out = value.toNumber();
+    return std::isfinite(out) && std::abs(out) <= 1e7;
+  };
+  std::optional<std::array<double, 6>> matrix;
+  std::optional<std::array<std::array<double, 2>, 4>> quad;
+  if (present(matrix_value)) {
+    std::array<double, 6> values{};
+    bool valid = matrix_value.isArray() && matrix_value.property(QStringLiteral("length")).toInt() == 6;
+    for (quint32 i = 0; valid && i < 6U; ++i) {
+      valid = finite_number(matrix_value.property(i), values[i]);
+    }
+    if (!valid) {
+      host_.throw_js_error(ScriptEngineHost::tr("layer.transform: matrix must be six finite numbers."));
+      return;
+    }
+    matrix = values;
+  } else {
+    std::array<std::array<double, 2>, 4> points{};
+    bool valid = quad_value.isArray() && quad_value.property(QStringLiteral("length")).toInt() == 4;
+    for (quint32 i = 0; valid && i < 4U; ++i) {
+      const auto point = quad_value.property(i);
+      valid = point.isArray() && point.property(QStringLiteral("length")).toInt() == 2 &&
+              finite_number(point.property(0U), points[i][0]) && finite_number(point.property(1U), points[i][1]);
+    }
+    if (!valid) {
+      host_.throw_js_error(ScriptEngineHost::tr("layer.transform: quad must be four [x, y] points."));
+      return;
+    }
+    quad = points;
+  }
+  std::optional<ResampleMethod> interpolation;
+  if (const auto value = options.property(QStringLiteral("interpolation")); present(value)) {
+    interpolation = parse_resample_method(value.toString().toStdString());
+    if (!interpolation.has_value()) {
+      host_.throw_js_error(ScriptEngineHost::tr("layer.transform: unknown interpolation %1").arg(value.toString()));
+      return;
+    }
+  }
+  host_.transform_layer(session_id_, layer_id_, matrix, quad, interpolation);
 }
 
 void ScriptLayerObject::moveTo(double x, double y) {

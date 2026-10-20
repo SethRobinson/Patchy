@@ -260,7 +260,12 @@ public:
   // fit_to_view uses the smaller) and centers it.
   void fill_to_view();
   void refresh_tool_cursor();
+  // View > Fit on Screen: the whole document in the viewport, zooming in when it is small.
   void fit_to_view();
+  // The view a document opens with (File > Open and every other opening or new-document
+  // path): a document larger than the viewport is fitted, a smaller one shows at 100% view
+  // zoom, centered, as in other editors (GitHub issue 247).
+  void fit_to_view_without_enlarging();
   // Recenters the document in the viewport at the current zoom. Used after
   // operations that change document geometry (crop, image/canvas resize,
   // canvas rotate), where the stale pan could otherwise leave the remaining
@@ -835,6 +840,34 @@ public:
   // still cancels everything. The reverse switch is begin_warp_transform, which
   // carries a pending free-transform stage into the cage instead of discarding it.
   bool switch_warp_to_free_transform();
+  // Skew, Distort and Perspective (GitHub issue 225; docs/free-transform.md). A Free
+  // Transform session carries four corner offsets on top of its box, so the result
+  // can be any quad. Edit > Transform picks a mode in which plain corner and edge
+  // drags skew, distort or apply perspective; without one, Ctrl+drag a corner
+  // distorts, Ctrl+drag an edge skews (Ctrl+Shift slides it along itself), and
+  // Ctrl+Alt+Shift+drag a corner applies perspective.
+  using TransformDistortMode = ::patchy::ui::TransformDistortMode;
+  // Starts a Free Transform session if none is open, then sets the mode.
+  bool begin_free_transform_mode(TransformDistortMode mode);
+  [[nodiscard]] TransformDistortMode free_transform_distort_mode() const noexcept;
+  // The session's corners in document space, in the order of the layer's own top
+  // left, top right, bottom right and bottom left (a flip moves them on screen).
+  [[nodiscard]] std::array<QPointF, 4> free_transform_quad() const;
+  // Places the four corners (same order). Refused (false) for a non-affine quad on a
+  // layer that cannot take one (see free_transform_accepts_non_affine).
+  bool set_free_transform_quad(const std::array<QPointF, 4>& corners);
+  // False when a target layer can only take an affine (parallelogram) result: type
+  // layers, which must be rasterized first.
+  [[nodiscard]] bool free_transform_accepts_non_affine() const;
+  // Scripted Free Transform (layer.transform): one session on `layer_id` (a group
+  // transforms its contents), corners placed where `place` maps the session box (the
+  // layer's own TL, TR, BR, BL in document space), committed at once through the
+  // interactive commit's per-type rules but without its own history entry (the script
+  // run owns the undo snapshot) and without dialogs. Returns the refusal message, or an
+  // empty string once committed.
+  [[nodiscard]] QString apply_scripted_free_transform(
+      LayerId layer_id, const std::function<std::array<QPointF, 4>(const std::array<QPointF, 4>& box)>& place,
+      std::optional<TransformInterpolation> interpolation);
   // Options-bar preset: bakes a style (warpArc/.../warpRise, bend percent) into the
   // working cage; manual handle drags flip the reported style back to warpCustom.
   void apply_warp_style_preset(const QString& style, double value);
@@ -1294,6 +1327,8 @@ private:
   // a band just outside each corner (Rotate), and a Move core that a small box keeps
   // ahead of its handles.
   enum class TransformHitZones { HandlesOnly, EdgesAndCorners };
+  // What a Free Transform handle drag does (transform_drag_kind_for, chosen at press).
+  enum class TransformDragKind { Scale, DistortCorner, SkewCorner, PerspectiveCorner, MoveEdge, SlideEdge };
 
   enum class StrokeConstraintAxis {
     None,
@@ -1826,7 +1861,7 @@ private:
   // actionable state (never back to plain hovering), so confirmations that
   // other code shows are not overwritten by mouse motion.
   void update_path_hover_hint(PenHoverAction action);
-  enum class PathHoverTarget { None, Anchor, Handle, Segment };
+  enum class PathHoverTarget { None, Anchor, Handle, Segment, Fill };
   [[nodiscard]] PathHoverTarget path_hover_target_at(QPointF widget_point) const;
   void update_path_select_hover_hint(PathHoverTarget target);
   bool handle_pen_ctrl_press(QMouseEvent* event, QPointF document_point);
@@ -1843,6 +1878,9 @@ private:
   // Pen's Ctrl latch is held, the actual tool otherwise.
   [[nodiscard]] CanvasTool path_edit_tool() const noexcept;
   [[nodiscard]] patchy::Layer* path_edit_target_layer() const;
+  // The topmost visible, editable shape layer whose anchor, outline or fill is
+  // under the pointer: Path/Direct Select pick it as their target (GitHub issue 248).
+  [[nodiscard]] patchy::Layer* topmost_path_pick_layer_at(QPointF widget_point) const;
   mutable std::optional<patchy::VectorPath> text_area_path_cache_;
   mutable std::optional<patchy::LayerId> text_area_path_layer_;
   mutable std::uint64_t text_area_path_revision_{0};
@@ -1901,6 +1939,36 @@ private:
   // preview instead of sitting at the committed position until release.
   // Hit-testing keeps document coordinates (the session owns the mouse).
   [[nodiscard]] QTransform free_transform_preview_delta() const;
+  [[nodiscard]] bool transform_is_distorted() const noexcept;
+  // The box's affine (free_transform_delta of the session); ignores corner offsets.
+  [[nodiscard]] QTransform transform_affine_delta() const;
+  // Original box -> document for the whole session: the affine when undistorted,
+  // else the homography onto the corner quad.
+  [[nodiscard]] QTransform transform_session_delta() const;
+  // Source image (covering the original box) -> document, distortion included.
+  [[nodiscard]] QTransform transform_session_source_to_document(QSize source_size) const;
+  [[nodiscard]] QTransform transform_session_image_to_document(const QImage& image) const;
+  [[nodiscard]] std::array<QPointF, 4> transform_original_corners() const;
+  [[nodiscard]] std::array<QPointF, 4> transform_quad_for_offsets(const std::array<QPointF, 4>& offsets) const;
+  // Original corner index (0 TL, 1 TR, 2 BR, 3 BL) a box handle sits on, flips included.
+  [[nodiscard]] int transform_corner_index_for_handle(TransformHandle handle) const noexcept;
+  // The two corner handles at the ends of an edge handle, clockwise.
+  [[nodiscard]] static std::pair<TransformHandle, TransformHandle> transform_edge_corner_handles(TransformHandle edge);
+  [[nodiscard]] static bool transform_handle_is_corner(TransformHandle handle) noexcept;
+  [[nodiscard]] static bool transform_handle_is_edge(TransformHandle handle) noexcept;
+  [[nodiscard]] QPointF distorted_transform_handle_position(TransformHandle handle) const;
+  [[nodiscard]] TransformHandle distorted_transform_handle_at(QPoint widget_point) const;
+  // On-screen outward direction (degrees, y down) of a handle on the distorted quad.
+  [[nodiscard]] double distorted_transform_handle_direction(TransformHandle handle) const;
+  void draw_distorted_transform_controls(QPainter& painter) const;
+  // Cursor for a pointer over the session box (distorted or not).
+  void apply_session_transform_cursor(QPoint widget_point);
+  [[nodiscard]] TransformDragKind transform_drag_kind_for(TransformHandle handle,
+                                                          Qt::KeyboardModifiers modifiers) const noexcept;
+  // Sets up a Skew/Distort/Perspective drag at press; false (with a status message)
+  // when the gesture would need a non-affine result the target cannot take.
+  bool begin_transform_distort_drag(TransformHandle handle, Qt::KeyboardModifiers modifiers, QPointF document_press);
+  void update_free_transform_distort(QPointF document_point, Qt::KeyboardModifiers modifiers);
   [[nodiscard]] QTransform layer_preview_transform(patchy::LayerId id) const;
   // Document-space bounds of the overlay-drawn layer paths that currently
   // ride a preview transform (mapped through it, padded for anchor squares);
@@ -2283,6 +2351,7 @@ private:
     double angle{0.0};
     double scale_x_sign{1.0};
     double scale_y_sign{1.0};
+    std::array<QPointF, 4> corner_offsets{};
     WarpMeshGrid mesh;
     QString warp_style;
     double warp_style_value{0.0};
@@ -2432,6 +2501,8 @@ private:
   // Path-edit session state (selection keys are (subpath, anchor) indices).
   enum class PathEditDrag { None, Anchors, HandleIn, HandleOut, Marquee };
   std::set<std::pair<int, int>> path_selected_anchors_;
+  // Set while a press that picked another shape layer replays on the new target.
+  bool path_press_repicked_ = false;
   // Selected anchors on OTHER panel-selected shape layers (never the primary
   // target); drags, nudges, deletes, and the count span both structures.
   std::map<LayerId, std::set<std::pair<int, int>>> extra_selected_anchors_;
@@ -3079,6 +3150,14 @@ private:
   QRectF transform_drag_start_rect_{};
   QPointF transform_drag_start_point_{};
   QPointF transform_drag_grab_offset_{};
+  // Skew/Distort/Perspective state: per-corner offsets in the ORIGINAL box's frame
+  // and units (layer top left, top right, bottom right, bottom left), mapped through
+  // the box's affine (rect, angle, flips). All zero is exactly the plain affine
+  // session, which keeps every pinned commit byte unchanged.
+  std::array<QPointF, 4> transform_corner_offsets_{};
+  std::array<QPointF, 4> transform_drag_start_corner_offsets_{};
+  TransformDistortMode transform_distort_mode_{TransformDistortMode::None};
+  TransformDragKind transform_drag_kind_{TransformDragKind::Scale};
   TransformHandle transform_drag_handle_{TransformHandle::None};
   double transform_angle_{0.0};
   double transform_start_angle_{0.0};

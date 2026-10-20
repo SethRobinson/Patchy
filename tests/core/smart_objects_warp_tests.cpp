@@ -200,6 +200,8 @@ void psd_smart_object_document_resize_scales_placements_if_available() {
   }
 }
 
+// The first perspective-placed smart object (nonAffineTransform differing from
+// Trnf). Since GitHub issue 225 these import editable (no "non_affine" lock).
 patchy::Layer* first_non_affine_locked_layer(std::vector<patchy::Layer>& layers) {
   for (auto& layer : layers) {
     if (layer.kind() == patchy::LayerKind::Group) {
@@ -208,7 +210,8 @@ patchy::Layer* first_non_affine_locked_layer(std::vector<patchy::Layer>& layers)
       }
       continue;
     }
-    if (patchy::smart_object_lock_reason(layer) == "non_affine") {
+    if (const auto placement = patchy::smart_object_placement_from_layer(layer);
+        placement.has_value() && placement->non_affine_transform.has_value()) {
       return &layer;
     }
   }
@@ -226,6 +229,8 @@ void psd_smart_object_non_affine_quad_maps_through_affine_transform_if_available
   auto document = patchy::psd::DocumentIo::read_file(path);
   auto* locked = first_non_affine_locked_layer(document.layers());
   CHECK(locked != nullptr);
+  // Perspective placements render through their quad now, so they import editable.
+  CHECK(patchy::smart_object_lock_reason(*locked).empty());
   const auto layer_name = locked->name();
   const auto placement = patchy::smart_object_placement_from_layer(*locked);
   CHECK(placement.has_value());
@@ -2152,6 +2157,66 @@ void psd_smart_object_clean_element_normalization_keeps_wrapper() {
 
 }  // namespace
 
+// Free Transform of a placement (GitHub issue 225), pinned to Photoshop's own
+// perspective layers in the pinball poster: Trnf is the axis-aligned bounding
+// box of nonAffineTransform, written TL, TR, BR, BL. The numbers are that file's.
+void smart_object_placement_perspective_rule_matches_photoshop() {
+  const std::array<double, 9> identity{1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0};
+  patchy::SmartObjectPlacement photoshop;
+  photoshop.transform = {-1546.0, -132.0, 2746.0719, -132.0, 2746.0719, 337.0, -1546.0, 337.0};
+  photoshop.non_affine_transform =
+      std::array<double, 8>{-1546.0, -132.0, 2746.0719, -132.0, 1255.0, 337.0, -54.9281, 337.0};
+  const auto same = patchy::map_smart_object_placement(photoshop, identity);
+  for (std::size_t i = 0; i < 8U; ++i) {
+    CHECK(std::abs(same.transform[i] - photoshop.transform[i]) < 1e-9);
+    CHECK(std::abs((*same.non_affine_transform)[i] - (*photoshop.non_affine_transform)[i]) < 1e-9);
+  }
+  // The second capture is turned 180 degrees: its corners start at the bottom right.
+  patchy::SmartObjectPlacement turned;
+  turned.transform = {-1404.7288, 421.0, 2605.0, 421.0, 2605.0, 846.0, -1404.7288, 846.0};
+  turned.non_affine_transform =
+      std::array<double, 8>{2605.0, 846.0, -1404.7288, 846.0, -55.0, 421.0, 1255.2712, 421.0};
+  const auto turned_same = patchy::map_smart_object_placement(turned, identity);
+  for (std::size_t i = 0; i < 8U; ++i) {
+    CHECK(std::abs(turned_same.transform[i] - turned.transform[i]) < 1e-9);
+  }
+  CHECK(patchy::smart_object_render_quad(turned) == *turned.non_affine_transform);
+
+  // A plain placement under an affine map keeps the per-corner Trnf map.
+  patchy::SmartObjectPlacement plain;
+  plain.transform = {10.0, 20.0, 110.0, 20.0, 110.0, 80.0, 10.0, 80.0};
+  const auto moved = patchy::map_smart_object_placement(plain, {2.0, 0.0, 5.0, 0.0, 1.0, -3.0, 0.0, 0.0, 1.0});
+  CHECK(!moved.non_affine_transform.has_value());
+  CHECK(moved.transform == (std::array<double, 8>{25.0, 17.0, 225.0, 17.0, 225.0, 77.0, 25.0, 77.0}));
+  // A perspective map: the corners go to nonAffineTransform, their bounds to Trnf.
+  const std::array<double, 9> perspective{1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.005, 0.0, 1.0};
+  const auto distorted = patchy::map_smart_object_placement(plain, perspective);
+  CHECK(distorted.non_affine_transform.has_value());
+  const auto& quad = *distorted.non_affine_transform;
+  CHECK(std::abs(quad[0] - 10.0 / 1.05) < 1e-9);
+  CHECK(std::abs(quad[3] - 20.0 / 1.55) < 1e-9);
+  const double left = std::min({quad[0], quad[2], quad[4], quad[6]});
+  const double bottom = std::max({quad[1], quad[3], quad[5], quad[7]});
+  CHECK(std::abs(distorted.transform[0] - left) < 1e-12);
+  CHECK(std::abs(distorted.transform[6] - left) < 1e-12);
+  CHECK(std::abs(distorted.transform[5] - bottom) < 1e-12);
+  CHECK(distorted.transform[1] == distorted.transform[3]);
+  // A plain placement under a skew (affine) keeps the Trnf-only map; an already
+  // perspective placement keeps its quad under an identity map.
+  const auto skewed = patchy::map_smart_object_placement(plain, {1.0, 0.5, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0});
+  CHECK(!skewed.non_affine_transform.has_value());
+  const auto unchanged = patchy::map_smart_object_placement(distorted, identity);
+  CHECK(unchanged.non_affine_transform == distorted.non_affine_transform);
+  CHECK(unchanged.transform == distorted.transform);
+  // A perspective placement mapped back to a parallelogram stores that quad in both.
+  patchy::SmartObjectPlacement flat_again;
+  flat_again.transform = plain.transform;
+  flat_again.non_affine_transform = plain.transform;
+  const auto parallelogram = patchy::map_smart_object_placement(flat_again, {1.0, 0.5, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0});
+  CHECK(parallelogram.non_affine_transform.has_value());
+  CHECK(parallelogram.transform == *parallelogram.non_affine_transform);
+}
+
 std::vector<patchy::test::TestCase> smart_objects_warp_tests() {
   return {
       {"psd_global_link_blocks_round_trip_with_smart_object_layers",
@@ -2161,6 +2226,7 @@ std::vector<patchy::test::TestCase> smart_objects_warp_tests() {
        psd_smart_object_sources_survive_resave_if_available},
       {"psd_smart_object_document_resize_scales_placements_if_available",
        psd_smart_object_document_resize_scales_placements_if_available},
+      {"smart_object_placement_perspective_rule_matches_photoshop", smart_object_placement_perspective_rule_matches_photoshop},
       {"psd_smart_object_non_affine_quad_maps_through_affine_transform_if_available",
        psd_smart_object_non_affine_quad_maps_through_affine_transform_if_available},
       {"psb_layered_round_trip_preserves_layers_and_blocks",

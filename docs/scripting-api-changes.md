@@ -8,6 +8,19 @@ Remove Object, Align/Distribute and smart objects) are in
 [scripting-api-changes-through-2026-09-30.md](scripting-api-changes-through-2026-09-30.md).
 Every entry below is API 1.
 
+2026-10-20 (additive): `layer.transform({matrix} | {quad}, interpolation?)`, Edit > Free
+Transform in one call through the interactive commit (GitHub issue 225): `matrix` maps the
+layer's transform box, `quad` places its corners (layer order TL, TR, BR, BL), so skew,
+distort and perspective are scriptable; smart objects keep a perspective placement, type
+layers throw for a non-parallelogram quad, a pending transform throws. `interpolation`
+takes the existing resample method ids. Permanent identifiers: the method name and the
+keys `matrix`, `quad`, `interpolation`. Pinned by `ui_script_layer_transform_quad_and_matrix`
+and `ui_script_layer_transform_refusals`.
+2026-10-20 (additive): `layer.colorLabel`, the Layers panel color label (GitHub issue 244):
+`"none"`, `"red"`, `"orange"`, `"yellow"`, `"green"`, `"blue"`, `"violet"`, `"gray"` (d.ts
+`PatchyLayerColorLabel`). Setting another value throws; an index Patchy does not know reads as
+`"none"`. PSD saves write it as Photoshop's `lclr` block. Permanent identifiers: the property
+and its eight values. Pinned by `ui_script_layer_color_label`.
 2026-10-19 (additive plus behavioral): `.tif`/`.tiff` saves take `layers` (layered TIFF,
 docs/tiff.md). `doc.saveAs` of a document with layers a flat file would lose now writes a
 layered TIFF by default (the same composite plus Photoshop's layer data in tag 37724) instead

@@ -977,6 +977,120 @@ void psd_layer_locks_import_and_export_lspf() {
   }
 }
 
+// GitHub issue 244: the Layers panel color label is Photoshop's 'lclr' block, a
+// u16 index and six zero bytes. Every value round-trips on layers and groups; an
+// imported block goes back verbatim while its index is unchanged.
+void psd_layer_color_labels_round_trip_lclr() {
+  for (patchy::LayerColorLabel label = patchy::kLayerColorNone; label <= patchy::kLayerColorLast; ++label) {
+    patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+    auto& layer = document.add_pixel_layer("Labeled", solid_rgba(2, 2, 20, 40, 60, 255));
+    layer.set_color_label(label);
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    const auto payload = psd_layer_block_payload(psd_first_layer_extra_data(bytes), "lclr");
+    // No block means no color, as in Photoshop.
+    CHECK(payload.has_value() == (label != patchy::kLayerColorNone));
+    if (payload.has_value()) {
+      CHECK(payload->size() == 8U);
+      CHECK((((*payload)[0] << 8U) | (*payload)[1]) == label);
+      CHECK(std::all_of(payload->begin() + 2, payload->end(), [](std::uint8_t byte) { return byte == 0U; }));
+    }
+    const auto read = patchy::psd::DocumentIo::read(bytes);
+    CHECK(read.layers().size() == 1);
+    CHECK(read.layers().front().color_label() == label);
+  }
+
+  // Groups carry their own label, apart from their children's.
+  patchy::Document document(4, 2, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", solid_rgb(4, 2, 255, 255, 255));
+  patchy::Layer group(document.allocate_layer_id(), "Green Folder", patchy::LayerKind::Group);
+  group.set_color_label(patchy::kLayerColorGreen);
+  patchy::Layer child(document.allocate_layer_id(), "Violet Child", solid_rgba(4, 2, 220, 20, 20, 255));
+  child.set_color_label(patchy::kLayerColorViolet);
+  group.add_child(std::move(child));
+  document.add_layer(std::move(group));
+  auto read = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  CHECK(read.layers().size() == 2);
+  CHECK(read.layers()[0].color_label() == patchy::kLayerColorNone);
+  CHECK(read.layers()[1].kind() == patchy::LayerKind::Group);
+  CHECK(read.layers()[1].color_label() == patchy::kLayerColorGreen);
+  CHECK(read.layers()[1].children().size() == 1);
+  CHECK(read.layers()[1].children().front().color_label() == patchy::kLayerColorViolet);
+
+  // An index from a newer Photoshop is kept as it is.
+  patchy::Document future(2, 2, patchy::PixelFormat::rgb8());
+  future.add_pixel_layer("Future", solid_rgba(2, 2, 20, 40, 60, 255)).set_color_label(12U);
+  auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(future));
+  CHECK(reread.layers().front().color_label() == 12U);
+
+  // The imported block (here with a nonzero trailing byte) is re-emitted
+  // verbatim while the index matches, regenerated when it changes, and dropped
+  // when the label is cleared.
+  auto& imported = reread.layers().front();
+  const auto block = std::find_if(imported.unknown_psd_blocks().begin(), imported.unknown_psd_blocks().end(),
+                                  [](const patchy::UnknownPsdBlock& entry) { return entry.key == "lclr"; });
+  CHECK(block != imported.unknown_psd_blocks().end());
+  block->payload = {0U, 3U, 0U, 0U, 0U, 0U, 0U, 1U};
+  imported.set_color_label(patchy::kLayerColorYellow);
+  auto payload = psd_layer_block_payload(
+      psd_first_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(reread)), "lclr");
+  CHECK(payload.has_value() && *payload == std::vector<std::uint8_t>({0U, 3U, 0U, 0U, 0U, 0U, 0U, 1U}));
+  imported.set_color_label(patchy::kLayerColorBlue);
+  payload = psd_layer_block_payload(
+      psd_first_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(reread)), "lclr");
+  CHECK(payload.has_value() && *payload == std::vector<std::uint8_t>({0U, 5U, 0U, 0U, 0U, 0U, 0U, 0U}));
+  imported.set_color_label(patchy::kLayerColorNone);
+  payload = psd_layer_block_payload(
+      psd_first_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(reread)), "lclr");
+  CHECK(!payload.has_value());
+
+  // Every label on a layer of its own, plus the labeled group: the file the
+  // Photoshop acceptance check opens (test-artifacts/psd-layer-color-labels.psd).
+  for (patchy::LayerColorLabel label = patchy::kLayerColorRed; label <= patchy::kLayerColorLast; ++label) {
+    document.add_pixel_layer("Label " + std::to_string(label), solid_rgba(4, 2, 40, 40, 40, 255))
+        .set_color_label(label);
+  }
+  std::filesystem::create_directories("test-artifacts");
+  const auto artifact = std::filesystem::path("test-artifacts") / "psd-layer-color-labels.psd";
+  patchy::psd::DocumentIo::write_layered_rgb8_file(document, artifact);
+  const auto saved = patchy::psd::DocumentIo::read_file(artifact);
+  CHECK(saved.layers().size() == 2U + patchy::kLayerColorLast);
+  for (std::size_t index = 2; index < saved.layers().size(); ++index) {
+    CHECK(saved.layers()[index].color_label() == static_cast<patchy::LayerColorLabel>(index - 1U));
+  }
+}
+
+// GitHub issue 244's sample (philipzae): five layers Photoshop labeled blue, red,
+// orange, yellow and green. Copied into local-test-fixtures (never committed).
+void psd_issue_244_sample_layer_colors_if_available() {
+  const auto path =
+      patchy::test::source_root_path() / "local-test-fixtures" / "psd" / "issue-244" / "Test - Layer Lock.psd";
+  patchy::test::skip_unless_exists(path);
+  std::ifstream input(path, std::ios::binary);
+  const std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+  const auto expect_colors = [](const patchy::Document& document) {
+    const std::vector<std::pair<std::string, patchy::LayerColorLabel>> expected{
+        {"Full Lock", patchy::kLayerColorBlue},
+        {"Transparent Pixel Lock", patchy::kLayerColorRed},
+        {"Lock Image Pixels", patchy::kLayerColorOrange},
+        {"Lock Position", patchy::kLayerColorYellow},
+        {"Prevent Auto Nesting", patchy::kLayerColorGreen},
+    };
+    for (const auto& [name, label] : expected) {
+      const auto found = std::find_if(document.layers().begin(), document.layers().end(),
+                                      [&](const patchy::Layer& layer) { return layer.name() == name; });
+      CHECK(found != document.layers().end());
+      CHECK(found->color_label() == label);
+    }
+  };
+  const auto document = patchy::psd::DocumentIo::read(bytes);
+  expect_colors(document);
+  // Patchy's resave, kept for the Photoshop acceptance check.
+  std::filesystem::create_directories("test-artifacts");
+  const auto resaved = std::filesystem::path("test-artifacts") / "issue-244-sample-resaved.psd";
+  patchy::psd::DocumentIo::write_layered_rgb8_file(document, resaved);
+  expect_colors(patchy::psd::DocumentIo::read_file(resaved));
+}
+
 // Photoshop's lspf (PS 2026 capture, GitHub issues 245 and 246): Lock All is 0x80000000 with
 // the three single locks clear, Prevent Auto Nesting is 0x8. A file's value comes back
 // exactly while the locks are unchanged; an edit keeps the Prevent Auto Nesting bit.
@@ -3512,6 +3626,8 @@ std::vector<patchy::test::TestCase> psd_core_io_tests() {
       {"psd_opaque_rgb_layers_write_transparency_unless_background",
        psd_opaque_rgb_layers_write_transparency_unless_background},
       {"psd_layer_locks_import_and_export_lspf", psd_layer_locks_import_and_export_lspf},
+      {"psd_layer_color_labels_round_trip_lclr", psd_layer_color_labels_round_trip_lclr},
+      {"psd_issue_244_sample_layer_colors_if_available", psd_issue_244_sample_layer_colors_if_available},
       {"psd_layer_lock_all_and_auto_nesting_bits_round_trip", psd_layer_lock_all_and_auto_nesting_bits_round_trip},
       {"psd_layer_masks_render_and_round_trip", psd_layer_masks_render_and_round_trip},
       {"psd_group_layer_mask_round_trips", psd_group_layer_mask_round_trips},

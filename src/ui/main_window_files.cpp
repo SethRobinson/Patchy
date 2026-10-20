@@ -2622,7 +2622,7 @@ void MainWindow::open_document_path(QString path) {
     }
     {
       const UiProfileScope profile_scope("open.fit_to_view");
-      canvas_->fit_to_view();
+      canvas_->fit_to_view_without_enlarging();
     }
     open_extra_imported_page_sessions(loaded_file_name, std::move(loaded->extra_documents), loaded->pdf_color_mode,
                                       loaded->pdf_bit_depth.value_or(BitDepth::UInt8), loaded->import_notices);
@@ -2933,7 +2933,7 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
       open_cmyk_source_in_proof_mode(target_session);
     }
     canvas_->set_document(&target_session.document);
-    canvas_->fit_to_view();
+    canvas_->fit_to_view_without_enlarging();
     refresh_layer_list();
     refresh_layer_controls();
     refresh_channel_panel();
@@ -3065,7 +3065,7 @@ void MainWindow::finish_scanner_import(ScannerAcquireResult result, bool delete_
     // closing must warn about unsaved changes.
     add_document_session(std::move(loaded.document), tr("Scanned Image"), QString(),
                          tr("Import from scanner"));
-    canvas_->fit_to_view();
+    canvas_->fit_to_view_without_enlarging();
     refresh_layer_list();
     refresh_layer_controls();
     update_undo_redo_actions();
@@ -3407,7 +3407,7 @@ bool MainWindow::run_divide_photos_flow(std::shared_ptr<const PixelBuffer> sourc
         // real file name.
         add_document_session(std::move(photo_document), QFileInfo(path).fileName(), path,
                              tr("Divide scanned photos"));
-        canvas_->fit_to_view();
+        canvas_->fit_to_view_without_enlarging();
       }
       refresh_layer_list();
       refresh_layer_controls();
@@ -3433,7 +3433,7 @@ bool MainWindow::run_divide_photos_flow(std::shared_ptr<const PixelBuffer> sourc
     // Untitled + modified, like scanner import: each photo exists nowhere else yet.
     add_document_session(std::move(photo_document), tr("Photo %1").arg(photo_number), QString(),
                          tr("Divide scanned photos"));
-    canvas_->fit_to_view();
+    canvas_->fit_to_view_without_enlarging();
     mark_session_modified(session());
     ++photo_number;
   }
@@ -3573,7 +3573,7 @@ void MainWindow::import_sprite_sheet() {
     }
     add_document_session(std::move(*sliced), tr("Sprite Frames"), QString(),
                          tr("Import sprite sheet"));
-    canvas_->fit_to_view();
+    canvas_->fit_to_view_without_enlarging();
     refresh_layer_list();
     refresh_layer_controls();
     update_undo_redo_actions();
@@ -3687,7 +3687,7 @@ void MainWindow::import_image_sequence() {
   }
   add_document_session(std::move(*imported), tr("Image Sequence"), QString(),
                        tr("Import image sequence"));
-  canvas_->fit_to_view();
+  canvas_->fit_to_view_without_enlarging();
   refresh_layer_list();
   refresh_layer_controls();
   update_undo_redo_actions();
@@ -3947,6 +3947,7 @@ bool MainWindow::open_recovered_document(const QString& psb_path, const QString&
     record_text_layout_metrics_for_reopened_text(loaded->document);
     add_document_session(std::move(loaded->document), title, original_path, tr("Recover"));
     auto& recovered = session();
+    apply_opening_view(recovered);
     // Recovered content is by definition unsaved: Save goes to the original path.
     mark_session_modified(recovered);
     if (session_id != nullptr) {

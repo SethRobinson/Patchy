@@ -1492,6 +1492,80 @@ void ui_zoom_preset_recovers_parked_view() {
 // GitHub issue 241: a viewport resize keeps a fitting document centered, keeps a fitting
 // document the user parked off center at its offset from the center, and keeps the
 // document point under the view center in place when the document overflows.
+// GitHub issue 247: a document opens at 100% view zoom, centered, unless it is larger than
+// the view; only then is it fitted. View > Fit on Screen still zooms a small one in. The
+// checks read the canvas's own device pixel ratio, so the same test covers a 150% display
+// when the suite runs under QT_SCALE_FACTOR=1.5.
+void ui_open_shows_small_images_at_actual_size_and_fits_large_ones() {
+  ensure_artifact_dir();
+  const auto folder = std::filesystem::absolute(std::filesystem::path("test-artifacts") / "issue247_open");
+  std::filesystem::create_directories(folder);
+  const auto write_png = [&folder](const char* name, int width, int height) {
+    QImage image(width, height, QImage::Format_RGB32);
+    image.fill(QColor(200, 120, 40));
+    const auto path = QString::fromStdWString((folder / name).wstring());
+    CHECK(image.save(path));
+    return path;
+  };
+  const auto small_path = write_png("small.png", 120, 80);
+  const auto large_path = write_png("large.png", 5000, 3000);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto canvas = [&] { return patchy::ui::MainWindowTestAccess::canvas(window); };
+  const auto check_opening_view = [&](int width, int height) {
+    auto* view = canvas();
+    CHECK(view != nullptr);
+    if (view == nullptr) {
+      return;
+    }
+    std::cout << "issue 247: " << width << " x " << height << " opens at " << view->view_zoom() * 100.0
+              << "% (device pixel ratio " << view->devicePixelRatioF() << ", view " << view->width() << " x "
+              << view->height() << ")" << std::endl;
+    const auto top_left = view->widget_position_for_document_point(QPoint(0, 0));
+    const auto bottom_right = view->widget_position_for_document_point(QPoint(width, height));
+    const bool larger_than_view = width * (1.0 / view->devicePixelRatioF()) > view->width() - 80 ||
+                                  height * (1.0 / view->devicePixelRatioF()) > view->height() - 80;
+    if (larger_than_view) {
+      CHECK(view->view_zoom() < 1.0);
+      CHECK(top_left.x() >= 0 && top_left.y() >= 0);
+      CHECK(bottom_right.x() <= view->width() && bottom_right.y() <= view->height());
+    } else {
+      CHECK(std::abs(view->view_zoom() - 1.0) < 1e-9);
+    }
+    // Centered either way.
+    CHECK(std::abs(top_left.x() + bottom_right.x() - view->width()) <= 2);
+    CHECK(std::abs(top_left.y() + bottom_right.y() - view->height()) <= 2);
+  };
+
+  patchy::ui::MainWindowTestAccess::open_document_path(window, small_path);
+  QApplication::processEvents();
+  check_opening_view(120, 80);
+  save_widget_artifact("issue247_small_image_opens_at_100", window);
+  // View > Fit on Screen is the explicit zoom-in.
+  require_action(window, "viewFitOnScreenAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas()->view_zoom() > 1.0);
+
+  patchy::ui::MainWindowTestAccess::open_document_path(window, large_path);
+  QApplication::processEvents();
+  check_opening_view(5000, 3000);
+
+  // Opening a folder activates one document and adds the rest in the background; those
+  // take the same view the first time they are shown.
+  const auto opened = patchy::ui::MainWindowTestAccess::open_folder_path(
+      window, QString::fromStdWString(folder.wstring()));
+  CHECK(opened == 2);
+  const auto count = patchy::ui::MainWindowTestAccess::session_count(window);
+  for (std::size_t index = count - 2U; index < count; ++index) {
+    patchy::ui::MainWindowTestAccess::activate_session(window, index);
+    process_events_for(50);
+    const auto& document = patchy::ui::MainWindowTestAccess::session_document(window, index);
+    check_opening_view(document.width(), document.height());
+  }
+
+}
+
 void ui_canvas_resize_keeps_document_centered_and_view_center_stable() {
   patchy::Document document(200, 150, patchy::PixelFormat::rgba8());
   document.add_pixel_layer("Paint", solid_pixels(200, 150, patchy::PixelFormat::rgba8(), QColor(90, 120, 200)));
@@ -5550,6 +5624,8 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_zoom_preset_recovers_parked_view", ui_zoom_preset_recovers_parked_view},
       {"ui_canvas_resize_keeps_document_centered_and_view_center_stable",
        ui_canvas_resize_keeps_document_centered_and_view_center_stable},
+      {"ui_open_shows_small_images_at_actual_size_and_fits_large_ones",
+       ui_open_shows_small_images_at_actual_size_and_fits_large_ones},
       {"ui_window_resize_panels_tabs_and_floats_keep_small_document_centered",
        ui_window_resize_panels_tabs_and_floats_keep_small_document_centered},
       {"ui_canvas_focus_in_restores_tool_cursor", ui_canvas_focus_in_restores_tool_cursor},

@@ -280,8 +280,7 @@ void CanvasWidget::apply_zoom_cursor(bool zoom_out) {
 
 void CanvasWidget::apply_move_tool_cursor(QPoint widget_position) {
   if (transforming_layer_) {
-    set_transform_cursor_at(widget_position, transform_handle_at(widget_position), transform_current_rect_,
-                            transform_angle_);
+    apply_session_transform_cursor(widget_position);
     return;
   }
   if (const auto rect = move_transform_controls_rect(); rect.has_value()) {

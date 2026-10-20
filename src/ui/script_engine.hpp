@@ -355,6 +355,13 @@ public:
   // session's layer selection) through its canvas, riding this run's undo
   // snapshot. Returns the number of layers moved; -1 with a JS error thrown
   // on refusal (no movable unit, fewer than three units to distribute).
+  // layer.transform (GitHub issue 225): Free Transform through the session's canvas
+  // (the interactive per-type rules) as part of the run's undo snapshot. `matrix` maps
+  // the layer box ([a, b, c, d, e, f]: x' = a x + c y + e, y' = b x + d y + f); `quad`
+  // places its corners. Returns false with a JS error thrown on refusal.
+  bool transform_layer(std::int64_t session_id, LayerId layer_id, const std::optional<std::array<double, 6>>& matrix,
+                       const std::optional<std::array<std::array<double, 2>, 4>>& quad,
+                       std::optional<ResampleMethod> interpolation);
   int align_layers(std::int64_t session_id, const std::vector<LayerId>& root_ids, AlignEdge edge,
                    bool align_to_canvas);
   int distribute_layers(std::int64_t session_id, const std::vector<LayerId>& root_ids, DistributeMode mode);
