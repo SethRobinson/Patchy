@@ -76,3 +76,64 @@ Construction of the US 9019310 terms against Blur [Depth-of-Field]; US 9723204 a
 [Motion]; continuations in the Adobe 2012 and 2014 families and the Apple family; the third
 independent claim of US 8831371 and the remaining independent claims of US 8824793; design
 patents; legal status and fee payment of every patent listed; dates of the prior-art items.
+
+## Family triage of the offered filters (2026-10-20)
+
+The named exclusions above are a name rule, not a per-filter review, and an outside audit asked
+what that leaves uncovered. Method: the 394 offered filters were grouped by the areas
+[legal-constraints.md](legal-constraints.md) treats as patent-sensitive, the G'MIC bodies of every
+filter in those groups were read in `gmic_stdlib.gmic` down to the CImg entry point, and the CImg
+implementation was read where Patchy's own rules forbid a technique (bilateral and median). One
+patent was read claim by claim (US 8427559); the rest is triage by algorithm class against the
+claim elements already recorded, with no new assignee sweep. Limits: names, bodies and two
+implementations only; a filter's defaults may call helpers not listed here.
+
+- **Sharpening by deconvolution** (Patchy's own Unsharp Mask rule names deconvolution as needing
+  a review): Sharpen [Deblur] (`deblur`, regularized Jansson-Van Cittert), [Richardson-Lucy]
+  (`deblur_richardsonlucy`, 1972) and [Gold-Meinel] (`deblur_goldmeinel`) are non-blind: the
+  kernel is a Gaussian of the user's sigma with the user's iteration count. No blur or shake
+  estimation from the image, no ranking, no automatic threshold, no patch search, which are the
+  elements of the deblurring, ranked-sharpening (US 7724980) and patch-sharpening (US 8687913,
+  US 9142009) families the record lists. Offered.
+- **Other sharpening**: [Multiscale] (Laplacian-pyramid detail layers smoothed per scale by
+  `bilateral` and `guided`), [Texture] (rolling guidance difference), [Shock Filters], [Inverse
+  Diffusion] (`sharpen`), [Octave Sharpening] (summed unsharp radii), [Unsharp Mask], [Alpha]
+  (`sharpen_alpha`): adaptivity only through range-weighted smoothing, no self-similarity, no
+  sharpness ranking. Offered.
+- **Denoising with patch search**: Smooth [NL-Means] (`nlmeans`, `nlmeans_core`) is Buades 2005
+  non-local means, an exhaustive patch-distance weighted average over a spatial window: no offset
+  propagation or random search (outside US 8285055), no candidate lists (outside US 8340463). Its
+  own patent, US 8427559 B2 (Buades, Coll, Morel; US application 11/579,380 filed 2005-04-13,
+  granted 2013-04-23; claim 1: a learning zone, window-to-window distances, weights from the
+  distances, a weighted mean), is "Expired - Fee Related" on Google Patents, so the method is
+  prior art. Offered. The name rule missed it (no "Patch" in the name); this entry is the record.
+  Smooth [Patch-Based], [Patch-PCA] and the built-in `denoise` stay excluded.
+- **Bilateral, median and local histograms** (the Surface Blur rule): CImg `blur_bilateral` is
+  the bilateral grid (Paris and Durand 2006: one joint space-range grid, Gaussian-blurred and
+  sliced), not a per-window value histogram with a box spatial kernel (US 8594445 claim 1) and not
+  merged column histograms slid along the scanline (US 7920741). This covers Smooth [Bilateral],
+  the bilateral option of Smooth [Skin] and Sharpen [Multiscale]. CImg `blur_median` sorts each
+  window (`median()`), no histogram. `_fx_equalize_local_histograms` builds one weighted histogram
+  per pixel from its own crop, never merged or slid; Local Normalization uses blurred mean and
+  variance. Absent from the implementation, by reading it.
+- **Inpainting and content-aware fill**: every Inpaint filter is excluded. Smooth Abstract
+  (`inpaint_pde` over a gradient mask), Solidify (`solidify`, `inpaint_pde`) and Upscale
+  [Diffusion] use diffusion inpainting or anisotropic diffusion (Bertalmio 2000 class), no patch
+  search: the non-patch helper carve-out above covers them.
+- **Gradient domain**: Make Seamless [Diffusion] uses `periodize_poisson` (Moisan 2011 periodic
+  plus smooth decomposition, a Fourier Laplacian solve on one image), not compositing of another
+  image's gradients. Blend [Seamless] stays excluded.
+- **Blur Gallery style**: [Depth-of-Field] and [Motion] stay excluded. Blur [Bloom], [Glow],
+  [Linear], [Multidirectional], [Gaussian], [Radial] and [Angular] are one global kernel or one
+  polar transform. Artistic / Bokeh draws random discs as a screen layer and reads no highlights,
+  so US 8824793's threshold-selected boost is absent.
+- **Content classification**: Smooth [Skin] (`detect_skin`, a color-space threshold), Extract
+  Objects (connected components of a picked color) and Red-Eye Attenuation (a chroma threshold)
+  use fixed color rules, no learned model. The automatic-selection record's detector rule is about
+  ML selection; these stay offered and are listed here as the classification-adjacent set.
+
+Outcome: no additional exclusion is recommended from this read; the one real gap (NL-Means) is
+closed by expiry. Open: no assignee sweep was run for sharpening, skin smoothing or guided
+filtering (Smooth [Guided] implements He 2010; US 9286663 and US 9478017 cite guided filtering and
+were not read); `build_allowlist.py`'s named list stays a name rule, and this section is the
+per-family record it lacked. Adding a filter to any family above needs the same check.
