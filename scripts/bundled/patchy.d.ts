@@ -415,7 +415,8 @@ interface PatchyLayer {
    * one of: `matrix`, applied to the layer's transform box ([a, b, c, d, e, f] maps
    * x' = a x + c y + e, y' = b x + d y + f, like transformShape); or `quad`, the box's
    * new corners in document pixels, in the layer's own order (top left, top right,
-   * bottom right, bottom left), so any four points distort or apply perspective. Smart
+   * bottom right, bottom left), so any four points that form a convex shape distort or
+   * apply perspective (a crossed or concave quad throws). Smart
    * objects keep the result as a perspective placement; type layers take only a
    * parallelogram (rasterize first for perspective) and throw otherwise. A group
    * transforms its contents. `interpolation` defaults to the Free Transform setting.

@@ -11056,12 +11056,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Kolor filtra</translation>
     </message>
     <message>
-        <source>Photo Filter: density %1%</source>
-        <translation>Filtr fotograficzny: gęstość %1%</translation>
-    </message>
-    <message>
         <source>Gradient Stop Color</source>
         <translation>Kolor punktu gradientu</translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation>Filtr fotograficzny: gęstość %1%</translation>
     </message>
     <message>
         <source>Gradient Map: %1</source>
@@ -12698,6 +12698,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
         <translation>Obiektu inteligentnego w perspektywie nie można wypaczyć. Najpierw zrasteryzuj warstwę.</translation>
+    </message>
+    <message>
+        <source>Transform corners must form a convex shape</source>
+        <translation>Narożniki przekształcenia muszą tworzyć kształt wypukły</translation>
     </message>
 </context>
 <context>
@@ -22723,8 +22727,16 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
         <translation>Anulowano mieszanie kanałów</translation>
     </message>
     <message>
+        <source>New Fill or Adjustment Layer</source>
+        <translation>Nowa warstwa wypełnienia lub dopasowania</translation>
+    </message>
+    <message>
         <source>Photo &amp;Filter...</source>
         <translation>&amp;Filtr fotograficzny...</translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation>Mapa &amp;gradientu...</translation>
     </message>
     <message>
         <source>Photo Filter</source>
@@ -22733,10 +22745,6 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     <message>
         <source>Cancelled Photo Filter</source>
         <translation>Anulowano filtr fotograficzny</translation>
-    </message>
-    <message>
-        <source>&amp;Gradient Map...</source>
-        <translation>Mapa &amp;gradientu...</translation>
     </message>
     <message>
         <source>Gradient Map</source>

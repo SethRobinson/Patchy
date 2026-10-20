@@ -11006,11 +11006,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Photo Filter: density %1%</source>
+        <source>Gradient Stop Color</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Gradient Stop Color</source>
+        <source>Photo Filter: density %1%</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -12647,6 +12647,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Transform corners must form a convex shape</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -22576,7 +22580,15 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>New Fill or Adjustment Layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Photo &amp;Filter...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -22585,10 +22597,6 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     </message>
     <message>
         <source>Cancelled Photo Filter</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>&amp;Gradient Map...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

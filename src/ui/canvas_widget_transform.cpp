@@ -2921,6 +2921,33 @@ bool quad_is_parallelogram(const std::array<QPointF, 4>& quad) {
   return std::abs(a.x() - b.x()) <= 1e-6 * scale && std::abs(a.y() - b.y()) <= 1e-6 * scale;
 }
 
+// +1 or -1 for a strictly convex quad (the winding of its corners), 0 for a concave,
+// self-crossing or collapsed one. A projective map onto anything but a convex quad
+// sends part of the image across the horizon, far outside the quad.
+int convex_quad_winding(const std::array<QPointF, 4>& quad) {
+  double scale = 1.0;
+  for (const auto& corner : quad) {
+    scale = std::max({scale, std::abs(corner.x()), std::abs(corner.y())});
+  }
+  int winding = 0;
+  for (std::size_t i = 0; i < quad.size(); ++i) {
+    const auto a = quad[i];
+    const auto b = quad[(i + 1U) % quad.size()];
+    const auto c = quad[(i + 2U) % quad.size()];
+    const auto cross = (b.x() - a.x()) * (c.y() - b.y()) - (b.y() - a.y()) * (c.x() - b.x());
+    if (std::abs(cross) <= 1e-9 * scale * scale) {
+      return 0;
+    }
+    const int sign = cross > 0.0 ? 1 : -1;
+    if (winding == 0) {
+      winding = sign;
+    } else if (sign != winding) {
+      return 0;
+    }
+  }
+  return winding;
+}
+
 double segment_distance(QPointF point, QPointF a, QPointF b, double* parameter) {
   const auto ab = b - a;
   const auto length_squared = ab.x() * ab.x() + ab.y() * ab.y();
@@ -3082,9 +3109,26 @@ void CanvasWidget::draw_distorted_transform_controls(QPainter& painter) const {
   painter.restore();
 }
 
-void CanvasWidget::apply_session_transform_cursor(QPoint widget_point) {
+void CanvasWidget::apply_session_transform_cursor(QPoint widget_point, Qt::KeyboardModifiers modifiers) {
   if (!transforming_layer_) {
     return;
+  }
+  transform_cursor_modifiers_ = modifiers;
+  // Over a corner or side whose drag the held modifiers (or the Edit > Transform
+  // mode) turn into skew, distort or perspective, show that gesture first.
+  if (const auto hovered = transform_handle_at(widget_point);
+      transform_handle_is_corner(hovered) || transform_handle_is_edge(hovered)) {
+    const auto kind = transform_drag_kind_for(hovered, modifiers);
+    const bool refused = transform_handle_is_corner(hovered) && kind != TransformDragKind::Scale &&
+                         !free_transform_accepts_non_affine();
+    if (kind != TransformDragKind::Scale && !refused) {
+      setCursor(transform_gesture_cursor(kind == TransformDragKind::SkewCorner || kind == TransformDragKind::SlideEdge
+                                             ? TransformGestureCursor::Skew
+                                         : kind == TransformDragKind::PerspectiveCorner
+                                             ? TransformGestureCursor::Perspective
+                                             : TransformGestureCursor::Distort));
+      return;
+    }
   }
   if (!transform_is_distorted()) {
     set_transform_cursor_at(widget_point, transform_handle_at(widget_point), transform_current_rect_,
@@ -3191,7 +3235,9 @@ bool CanvasWidget::begin_transform_distort_drag(TransformHandle handle, Qt::Keyb
 }
 
 void CanvasWidget::update_free_transform_distort(QPointF document_point, Qt::KeyboardModifiers modifiers) {
-  Q_UNUSED(modifiers);
+  // Alt (read live, like the scale handles' Alt) mirrors the drag about the center:
+  // the diagonally opposite corner, or the opposite side, moves the other way.
+  const bool symmetric = (modifiers & Qt::AltModifier) != 0;
   const auto previous_preview_rect = transform_preview_document_rect();
   // The box's affine stays fixed during these drags; the pointer travel moves
   // corners in the layer's own frame (offsets), so a later scale or rotate of
@@ -3210,6 +3256,9 @@ void CanvasWidget::update_free_transform_distort(QPointF document_point, Qt::Key
   switch (transform_drag_kind_) {
     case TransformDragKind::DistortCorner:
       at(corner) += delta;
+      if (symmetric) {
+        at((corner + 2) % 4) -= delta;
+      }
       break;
     case TransformDragKind::SkewCorner:
       // The corner slides along one of its two sides (the one the pointer follows).
@@ -3251,16 +3300,41 @@ void CanvasWidget::update_free_transform_distort(QPointF document_point, Qt::Key
       }
       at(first) += travel;
       at(second) += travel;
+      if (symmetric) {
+        at((first + 2) % 4) -= travel;
+        at((second + 2) % 4) -= travel;
+      }
       break;
     }
     case TransformDragKind::Scale:
       return;
+  }
+  // Never fold the quad: a frame that would make it concave, self-crossing or
+  // collapsed, or turn it inside out, keeps the last good shape (the pointer can
+  // swing back). A folded quad's homography throws pixels across the horizon, far
+  // outside the box and the repaint (GitHub issue 225, Seth's "skew with vigor").
+  const auto start_winding = convex_quad_winding(transform_quad_for_offsets(transform_drag_start_corner_offsets_));
+  if (const auto winding = convex_quad_winding(transform_quad_for_offsets(offsets));
+      winding == 0 || (start_winding != 0 && winding != start_winding)) {
+    return;
   }
   transform_corner_offsets_ = offsets;
   refresh_transform_preview_for_drag();
   update_transform_preview_region(previous_preview_rect);
   update_drag_readout_region();
   notify_transform_controls_changed();
+}
+
+bool CanvasWidget::transform_session_box_contains(QPoint widget_point) const {
+  if (!transforming_layer_) {
+    return false;
+  }
+  const auto quad = transform_quad_for_offsets(transform_corner_offsets_);
+  QPolygonF polygon;
+  for (const auto& corner : quad) {
+    polygon << widget_position_f(corner);
+  }
+  return polygon.containsPoint(QPointF(widget_point), Qt::OddEvenFill);
 }
 
 bool CanvasWidget::free_transform_accepts_non_affine() const {
@@ -3362,6 +3436,10 @@ bool CanvasWidget::set_free_transform_quad(const std::array<QPointF, 4>& corners
     if (!std::isfinite(corner.x()) || !std::isfinite(corner.y())) {
       return false;
     }
+  }
+  if (convex_quad_winding(corners) == 0) {
+    report_status_error(tr("Transform corners must form a convex shape"));
+    return false;
   }
   if (!quad_is_parallelogram(corners) && !free_transform_accepts_non_affine()) {
     report_status_error(tr("Rasterize the layer to distort it"));

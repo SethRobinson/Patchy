@@ -1464,7 +1464,7 @@ void MainWindow::create_docks() {
   delete_button->setIcon(simple_icon(QStringLiteral("trash")));
   bind_tooltip(add_button, QT_TR_NOOP("New Layer"));
   bind_tooltip(add_folder_button, QT_TR_NOOP("New Folder"));
-  bind_tooltip(adjustment_button, QT_TR_NOOP("New Adjustment Layer"));
+  bind_tooltip(adjustment_button, QT_TR_NOOP("New Fill or Adjustment Layer"));
   bind_tooltip(styles_button, QT_TR_NOOP("Layer Styles"));
   bind_tooltip(add_mask_button, QT_TR_NOOP("Add Layer Mask"));
   bind_tooltip(duplicate_button, QT_TR_NOOP("Duplicate Layer"));
@@ -1496,6 +1496,10 @@ void MainWindow::create_docks() {
   }
   auto* adjustment_button_menu = new QMenu(adjustment_button);
   adjustment_button_menu->setObjectName(QStringLiteral("layerNewAdjustmentButtonMenu"));
+  // The fill layers first, then the adjustments, built by the same functions as Layer > New
+  // Fill Layer and Layer > New Adjustment Layer, so a new kind lands in both (GitHub issue 252).
+  populate_new_fill_layer_menu(adjustment_button_menu);
+  adjustment_button_menu->addSeparator();
   populate_new_adjustment_layer_menu(adjustment_button_menu);
   hide_menu_action_icons(adjustment_button_menu);
   adjustment_button->setMenu(adjustment_button_menu);

@@ -11022,12 +11022,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Colore del filtro</translation>
     </message>
     <message>
-        <source>Photo Filter: density %1%</source>
-        <translation>Filtro fotografico: densità %1%</translation>
-    </message>
-    <message>
         <source>Gradient Stop Color</source>
         <translation>Colore del punto della sfumatura</translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation>Filtro fotografico: densità %1%</translation>
     </message>
     <message>
         <source>Gradient Map: %1</source>
@@ -12664,6 +12664,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
         <translation>Un oggetto avanzato in prospettiva non può essere alterato. Rasterizza prima il livello.</translation>
+    </message>
+    <message>
+        <source>Transform corners must form a convex shape</source>
+        <translation>Gli angoli della trasformazione devono formare una forma convessa</translation>
     </message>
 </context>
 <context>
@@ -22653,8 +22657,16 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
         <translation>Miscelatore canale annullato</translation>
     </message>
     <message>
+        <source>New Fill or Adjustment Layer</source>
+        <translation>Nuovo livello di riempimento o di regolazione</translation>
+    </message>
+    <message>
         <source>Photo &amp;Filter...</source>
         <translation>&amp;Filtro fotografico...</translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation>Mappa &amp;sfumatura...</translation>
     </message>
     <message>
         <source>Photo Filter</source>
@@ -22663,10 +22675,6 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
     <message>
         <source>Cancelled Photo Filter</source>
         <translation>Filtro fotografico annullato</translation>
-    </message>
-    <message>
-        <source>&amp;Gradient Map...</source>
-        <translation>Mappa &amp;sfumatura...</translation>
     </message>
     <message>
         <source>Gradient Map</source>

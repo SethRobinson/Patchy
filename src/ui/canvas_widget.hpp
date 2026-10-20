@@ -1969,7 +1969,11 @@ private:
   [[nodiscard]] double distorted_transform_handle_direction(TransformHandle handle) const;
   void draw_distorted_transform_controls(QPainter& painter) const;
   // Cursor for a pointer over the session box (distorted or not).
-  void apply_session_transform_cursor(QPoint widget_point);
+  // Session hover cursor. `modifiers` (folded from the current event) pick the gesture
+  // a press would start, so Ctrl over a handle already shows the distort hint.
+  void apply_session_transform_cursor(QPoint widget_point, Qt::KeyboardModifiers modifiers);
+  // True when the point lies inside the session's (possibly distorted) box.
+  [[nodiscard]] bool transform_session_box_contains(QPoint widget_point) const;
   [[nodiscard]] TransformDragKind transform_drag_kind_for(TransformHandle handle,
                                                           Qt::KeyboardModifiers modifiers) const noexcept;
   // Sets up a Skew/Distort/Perspective drag at press; false (with a status message)
@@ -3166,6 +3170,9 @@ private:
   std::array<QPointF, 4> transform_drag_start_corner_offsets_{};
   TransformDistortMode transform_distort_mode_{TransformDistortMode::None};
   TransformDragKind transform_drag_kind_{TransformDragKind::Scale};
+  // The modifiers the session cursor last showed (hover or a modifier key), so a
+  // cursor refresh without an event keeps the gesture hint.
+  Qt::KeyboardModifiers transform_cursor_modifiers_{};
   TransformHandle transform_drag_handle_{TransformHandle::None};
   double transform_angle_{0.0};
   double transform_start_angle_{0.0};

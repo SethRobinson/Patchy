@@ -10988,12 +10988,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>필터 색상</translation>
     </message>
     <message>
-        <source>Photo Filter: density %1%</source>
-        <translation>포토 필터: 농도 %1%</translation>
-    </message>
-    <message>
         <source>Gradient Stop Color</source>
         <translation>그레이디언트 정지점 색상</translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation>포토 필터: 농도 %1%</translation>
     </message>
     <message>
         <source>Gradient Map: %1</source>
@@ -12630,6 +12630,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
         <translation>원근이 적용된 고급 개체는 뒤틀 수 없습니다. 먼저 레이어를 래스터화하세요.</translation>
+    </message>
+    <message>
+        <source>Transform corners must form a convex shape</source>
+        <translation>변형 모서리는 볼록한 모양을 이루어야 합니다</translation>
     </message>
 </context>
 <context>
@@ -22583,8 +22587,16 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>채널 혼합을 취소했습니다</translation>
     </message>
     <message>
+        <source>New Fill or Adjustment Layer</source>
+        <translation>새 채우기 또는 조정 레이어</translation>
+    </message>
+    <message>
         <source>Photo &amp;Filter...</source>
         <translation>포토 필터(&amp;F)...</translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation>그레이디언트 맵(&amp;G)...</translation>
     </message>
     <message>
         <source>Photo Filter</source>
@@ -22593,10 +22605,6 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Photo Filter</source>
         <translation>포토 필터를 취소했습니다</translation>
-    </message>
-    <message>
-        <source>&amp;Gradient Map...</source>
-        <translation>그레이디언트 맵(&amp;G)...</translation>
     </message>
     <message>
         <source>Gradient Map</source>

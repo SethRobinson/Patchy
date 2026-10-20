@@ -10988,12 +10988,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>フィルターの色</translation>
     </message>
     <message>
-        <source>Photo Filter: density %1%</source>
-        <translation>レンズフィルター: 適用量 %1%</translation>
-    </message>
-    <message>
         <source>Gradient Stop Color</source>
         <translation>グラデーションの分岐点の色</translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation>レンズフィルター: 適用量 %1%</translation>
     </message>
     <message>
         <source>Gradient Map: %1</source>
@@ -12630,6 +12630,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
         <translation>遠近法を適用したスマートオブジェクトはワープできません。先にレイヤーをラスタライズしてください。</translation>
+    </message>
+    <message>
+        <source>Transform corners must form a convex shape</source>
+        <translation>変形の四隅は凸形状になる必要があります</translation>
     </message>
 </context>
 <context>
@@ -22583,8 +22587,16 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>チャンネルミキサーをキャンセルしました</translation>
     </message>
     <message>
+        <source>New Fill or Adjustment Layer</source>
+        <translation>新規塗りつぶしまたは調整レイヤー</translation>
+    </message>
+    <message>
         <source>Photo &amp;Filter...</source>
         <translation>レンズフィルター(&amp;F)...</translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation>グラデーションマップ(&amp;G)...</translation>
     </message>
     <message>
         <source>Photo Filter</source>
@@ -22593,10 +22605,6 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Photo Filter</source>
         <translation>レンズフィルターをキャンセルしました</translation>
-    </message>
-    <message>
-        <source>&amp;Gradient Map...</source>
-        <translation>グラデーションマップ(&amp;G)...</translation>
     </message>
     <message>
         <source>Gradient Map</source>

@@ -11022,12 +11022,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Filterfarbe</translation>
     </message>
     <message>
-        <source>Photo Filter: density %1%</source>
-        <translation>Fotofilter: Dichte %1 %</translation>
-    </message>
-    <message>
         <source>Gradient Stop Color</source>
         <translation>Farbe des Verlaufspunkts</translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation>Fotofilter: Dichte %1 %</translation>
     </message>
     <message>
         <source>Gradient Map: %1</source>
@@ -12664,6 +12664,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
         <translation>Ein perspektivisch verzerrtes Smartobjekt kann nicht verkrümmt werden. Rastern Sie die Ebene zuerst.</translation>
+    </message>
+    <message>
+        <source>Transform corners must form a convex shape</source>
+        <translation>Die Transformationsecken müssen eine konvexe Form bilden</translation>
     </message>
 </context>
 <context>
@@ -22653,8 +22657,16 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
         <translation>Kanalmixer abgebrochen</translation>
     </message>
     <message>
+        <source>New Fill or Adjustment Layer</source>
+        <translation>Neue Füll- oder Einstellungsebene</translation>
+    </message>
+    <message>
         <source>Photo &amp;Filter...</source>
         <translation>&amp;Fotofilter...</translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation>&amp;Verlaufsumsetzung...</translation>
     </message>
     <message>
         <source>Photo Filter</source>
@@ -22663,10 +22675,6 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
     <message>
         <source>Cancelled Photo Filter</source>
         <translation>Fotofilter abgebrochen</translation>
-    </message>
-    <message>
-        <source>&amp;Gradient Map...</source>
-        <translation>&amp;Verlaufsumsetzung...</translation>
     </message>
     <message>
         <source>Gradient Map</source>

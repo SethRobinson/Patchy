@@ -10988,12 +10988,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>滤镜颜色</translation>
     </message>
     <message>
-        <source>Photo Filter: density %1%</source>
-        <translation>照片滤镜: 浓度 %1%</translation>
-    </message>
-    <message>
         <source>Gradient Stop Color</source>
         <translation>渐变色标颜色</translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation>照片滤镜: 浓度 %1%</translation>
     </message>
     <message>
         <source>Gradient Map: %1</source>
@@ -12630,6 +12630,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
         <translation>透视状态的智能对象无法变形。请先栅格化图层。</translation>
+    </message>
+    <message>
+        <source>Transform corners must form a convex shape</source>
+        <translation>变换的四个角必须构成凸形</translation>
     </message>
 </context>
 <context>
@@ -22583,8 +22587,16 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>已取消通道混合器</translation>
     </message>
     <message>
+        <source>New Fill or Adjustment Layer</source>
+        <translation>新建填充或调整图层</translation>
+    </message>
+    <message>
         <source>Photo &amp;Filter...</source>
         <translation>照片滤镜(&amp;F)...</translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation>渐变映射(&amp;G)...</translation>
     </message>
     <message>
         <source>Photo Filter</source>
@@ -22593,10 +22605,6 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Photo Filter</source>
         <translation>已取消照片滤镜</translation>
-    </message>
-    <message>
-        <source>&amp;Gradient Map...</source>
-        <translation>渐变映射(&amp;G)...</translation>
     </message>
     <message>
         <source>Gradient Map</source>

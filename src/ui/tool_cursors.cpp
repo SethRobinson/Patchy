@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstddef>
 #include <numbers>
+#include <utility>
 
 #include <QColor>
 #include <QPainter>
@@ -191,18 +192,40 @@ QCursor build_corner_rotate_cursor(int quarter_turns) {
 // A plain arrow pointer (tip at the hotspot) with a four-way move badge below
 // right of it: four short arms, each ending in a solid arrowhead. Same
 // dark-halo/light-ink passes as the other tool cursors.
+// The pointer arrow the Move and transform-gesture cursors share: light fill, dark
+// outline, tip at (2.5, 2.5) for a (3, 3) hotspot.
+void draw_pointer_arrow(QPainter& painter) {
+  const QPolygonF arrow({QPointF(2.5, 2.5), QPointF(2.5, 18.5), QPointF(6.5, 14.8), QPointF(9.4, 21.2),
+                         QPointF(12.0, 20.0), QPointF(9.2, 13.8), QPointF(14.5, 13.8)});
+  painter.setPen(QPen(QColor(20, 23, 28), 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+  painter.setBrush(QColor(245, 248, 252));
+  painter.drawPolygon(arrow);
+}
+
+// The arrow plus a closed outline badge at the lower right (a halo pass, then ink).
+QCursor build_transform_gesture_cursor(const QPolygonF& badge) {
+  constexpr int kSize = 32;
+  QPixmap pixmap(kSize, kSize);
+  pixmap.fill(Qt::transparent);
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+  draw_pointer_arrow(painter);
+  painter.setBrush(Qt::NoBrush);
+  for (const auto& [color, width] : {std::pair{QColor(20, 23, 28), 3.6}, std::pair{QColor(245, 248, 252), 1.6}}) {
+    painter.setPen(QPen(color, width, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+    painter.drawPolygon(badge);
+  }
+  painter.end();
+  return QCursor(pixmap, 3, 3);
+}
+
 QCursor build_move_pointer_cursor() {
   constexpr int kSize = 32;
   QPixmap pixmap(kSize, kSize);
   pixmap.fill(Qt::transparent);
   QPainter painter(&pixmap);
   painter.setRenderHint(QPainter::Antialiasing);
-
-  const QPolygonF arrow({QPointF(2.5, 2.5), QPointF(2.5, 18.5), QPointF(6.5, 14.8), QPointF(9.4, 21.2),
-                         QPointF(12.0, 20.0), QPointF(9.2, 13.8), QPointF(14.5, 13.8)});
-  painter.setPen(QPen(QColor(20, 23, 28), 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-  painter.setBrush(QColor(245, 248, 252));
-  painter.drawPolygon(arrow);
+  draw_pointer_arrow(painter);
 
   const QPointF center(22.5, 22.5);
   constexpr double kArm = 6.5;
@@ -261,6 +284,22 @@ QCursor corner_rotate_cursor(double corner_direction_degrees) {
   }();
   const auto quarter = static_cast<long>(std::lround((corner_direction_degrees - 315.0) / 90.0));
   return cursors[static_cast<std::size_t>(((quarter % 4) + 4) % 4)];
+}
+
+QCursor transform_gesture_cursor(TransformGestureCursor gesture) {
+  // Built once and reused: the session hover re-applies one on every mouse move.
+  static const std::array<QCursor, 3> cursors = {
+      // Skew: a parallelogram leaning right.
+      build_transform_gesture_cursor(
+          QPolygonF({QPointF(19.5, 17.5), QPointF(29.0, 17.5), QPointF(26.0, 28.5), QPointF(16.5, 28.5)})),
+      // Distort: four free corners.
+      build_transform_gesture_cursor(
+          QPolygonF({QPointF(17.0, 18.5), QPointF(29.0, 16.5), QPointF(27.0, 29.0), QPointF(19.5, 26.5)})),
+      // Perspective: a trapezoid, the far side short.
+      build_transform_gesture_cursor(
+          QPolygonF({QPointF(20.5, 17.5), QPointF(25.5, 17.5), QPointF(29.5, 28.5), QPointF(16.5, 28.5)})),
+  };
+  return cursors[static_cast<std::size_t>(gesture)];
 }
 
 QCursor move_pointer_cursor() {

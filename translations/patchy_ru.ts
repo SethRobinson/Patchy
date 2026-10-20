@@ -11056,12 +11056,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Цвет фильтра</translation>
     </message>
     <message>
-        <source>Photo Filter: density %1%</source>
-        <translation>Фотофильтр: плотность %1%</translation>
-    </message>
-    <message>
         <source>Gradient Stop Color</source>
         <translation>Цвет контрольной точки градиента</translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation>Фотофильтр: плотность %1%</translation>
     </message>
     <message>
         <source>Gradient Map: %1</source>
@@ -12698,6 +12698,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
         <translation>Смарт-объект в перспективе нельзя деформировать. Сначала растрируйте слой.</translation>
+    </message>
+    <message>
+        <source>Transform corners must form a convex shape</source>
+        <translation>Углы трансформации должны образовывать выпуклую фигуру</translation>
     </message>
 </context>
 <context>
@@ -22723,8 +22727,16 @@ Patchy можно будет запускать из меню, а на пане�
         <translation>Микширование каналов отменено</translation>
     </message>
     <message>
+        <source>New Fill or Adjustment Layer</source>
+        <translation>Новый слой заливки или корректирующий слой</translation>
+    </message>
+    <message>
         <source>Photo &amp;Filter...</source>
         <translation>&amp;Фотофильтр...</translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation>&amp;Карта градиента...</translation>
     </message>
     <message>
         <source>Photo Filter</source>
@@ -22733,10 +22745,6 @@ Patchy можно будет запускать из меню, а на пане�
     <message>
         <source>Cancelled Photo Filter</source>
         <translation>Фотофильтр отменён</translation>
-    </message>
-    <message>
-        <source>&amp;Gradient Map...</source>
-        <translation>&amp;Карта градиента...</translation>
     </message>
     <message>
         <source>Gradient Map</source>

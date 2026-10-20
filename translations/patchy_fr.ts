@@ -11022,12 +11022,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Couleur du filtre</translation>
     </message>
     <message>
-        <source>Photo Filter: density %1%</source>
-        <translation>Filtre photo : densité %1 %</translation>
-    </message>
-    <message>
         <source>Gradient Stop Color</source>
         <translation>Couleur du point de dégradé</translation>
+    </message>
+    <message>
+        <source>Photo Filter: density %1%</source>
+        <translation>Filtre photo : densité %1 %</translation>
     </message>
     <message>
         <source>Gradient Map: %1</source>
@@ -12664,6 +12664,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
         <translation>Un objet dynamique en perspective ne peut pas être déformé. Pixellisez d’abord le calque.</translation>
+    </message>
+    <message>
+        <source>Transform corners must form a convex shape</source>
+        <translation>Les coins de la transformation doivent former une forme convexe</translation>
     </message>
 </context>
 <context>
@@ -22653,8 +22657,16 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
         <translation>Mélangeur de couches annulé</translation>
     </message>
     <message>
+        <source>New Fill or Adjustment Layer</source>
+        <translation>Nouveau calque de remplissage ou de réglage</translation>
+    </message>
+    <message>
         <source>Photo &amp;Filter...</source>
         <translation>&amp;Filtre photo...</translation>
+    </message>
+    <message>
+        <source>&amp;Gradient Map...</source>
+        <translation>&amp;Courbe de transfert de dégradé...</translation>
     </message>
     <message>
         <source>Photo Filter</source>
@@ -22663,10 +22675,6 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
     <message>
         <source>Cancelled Photo Filter</source>
         <translation>Filtre photo annulé</translation>
-    </message>
-    <message>
-        <source>&amp;Gradient Map...</source>
-        <translation>&amp;Courbe de transfert de dégradé...</translation>
     </message>
     <message>
         <source>Gradient Map</source>
