@@ -11072,6 +11072,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
         <translation>Параметры недавнего документа: %1 x %2 пикселей при %3 пикселей на дюйм</translation>
     </message>
+    <message>
+        <source>Solarize</source>
+        <translation>Соляризация</translation>
+    </message>
+    <message>
+        <source>Find Edges</source>
+        <translation>Выделение краев</translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation>Вкл.</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <translation>%1 %2</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22762,6 +22778,26 @@ Patchy можно будет запускать из меню, а на пане�
     <message>
         <source>Cancelled Gradient Map</source>
         <translation>Карта градиента отменена</translation>
+    </message>
+    <message>
+        <source>Add %1 Smart Filter</source>
+        <translation>Добавить смарт-фильтр «%1»</translation>
+    </message>
+    <message>
+        <source>Edit %1 Smart Filter</source>
+        <translation>Изменить смарт-фильтр «%1»</translation>
+    </message>
+    <message>
+        <source>Added %1 as a Smart Filter</source>
+        <translation>Добавлен смарт-фильтр «%1»</translation>
+    </message>
+    <message>
+        <source>Added another %1 Smart Filter</source>
+        <translation>Добавлен ещё один смарт-фильтр «%1»</translation>
+    </message>
+    <message>
+        <source>Updated %1 Smart Filter</source>
+        <translation>Обновлён смарт-фильтр «%1»</translation>
     </message>
 </context>
 <context>

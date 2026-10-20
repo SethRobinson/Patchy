@@ -27,6 +27,9 @@ enum class SmartFilterKind {
   BoxBlur,
   RadialBlur,
   AddNoise,
+  // Table-described filters (core/smart_filter_schema.hpp); append only.
+  Solarize,
+  FindEdges,
 };
 
 struct GaussianBlurSmartFilter {
@@ -128,13 +131,21 @@ struct AddNoiseSmartFilter {
   bool operator==(const AddNoiseSmartFilter&) const = default;
 };
 
+// Settings of a table-described filter: one integer per schema field, in
+// Photoshop's descriptor key order (core/smart_filter_schema.hpp).
+struct SchemaSmartFilter {
+  std::vector<std::int32_t> values;
+  bool operator==(const SchemaSmartFilter&) const = default;
+};
+
 using SmartFilterParameters =
     std::variant<std::monostate, GaussianBlurSmartFilter, HighPassSmartFilter,
                  MedianSmartFilter, DustAndScratchesSmartFilter,
                  SurfaceBlurSmartFilter, UnsharpMaskSmartFilter,
                  MotionBlurSmartFilter, PlasticWrapSmartFilter,
                  MosaicSmartFilter, EmbossSmartFilter, BoxBlurSmartFilter,
-                 RadialBlurSmartFilter, AddNoiseSmartFilter>;
+                 RadialBlurSmartFilter, AddNoiseSmartFilter,
+                 SchemaSmartFilter>;
 
 struct SmartFilterEntry {
   SmartFilterKind kind{SmartFilterKind::Unsupported};

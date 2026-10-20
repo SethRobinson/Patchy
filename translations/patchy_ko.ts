@@ -11004,6 +11004,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
         <translation>최근 문서의 설정: %3ppi에서 %1 x %2픽셀</translation>
     </message>
+    <message>
+        <source>Solarize</source>
+        <translation>솔라리제이션</translation>
+    </message>
+    <message>
+        <source>Find Edges</source>
+        <translation>가장자리 찾기</translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation>켜기</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <translation>%1 %2</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22622,6 +22638,26 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Gradient Map</source>
         <translation>그레이디언트 맵을 취소했습니다</translation>
+    </message>
+    <message>
+        <source>Add %1 Smart Filter</source>
+        <translation>%1 스마트 필터 추가</translation>
+    </message>
+    <message>
+        <source>Edit %1 Smart Filter</source>
+        <translation>%1 스마트 필터 편집</translation>
+    </message>
+    <message>
+        <source>Added %1 as a Smart Filter</source>
+        <translation>%1을(를) 스마트 필터로 추가했습니다</translation>
+    </message>
+    <message>
+        <source>Added another %1 Smart Filter</source>
+        <translation>%1 스마트 필터를 하나 더 추가했습니다</translation>
+    </message>
+    <message>
+        <source>Updated %1 Smart Filter</source>
+        <translation>%1 스마트 필터를 업데이트했습니다</translation>
     </message>
 </context>
 <context>

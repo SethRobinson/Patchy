@@ -11038,6 +11038,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
         <translation>Le impostazioni di un documento recente: %1 x %2 px a %3 ppi</translation>
     </message>
+    <message>
+        <source>Solarize</source>
+        <translation>Solarizza</translation>
+    </message>
+    <message>
+        <source>Find Edges</source>
+        <translation>Trova bordi</translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation>Attivato</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <translation>%1 %2</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22692,6 +22708,26 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
     <message>
         <source>Cancelled Gradient Map</source>
         <translation>Mappa sfumatura annullata</translation>
+    </message>
+    <message>
+        <source>Add %1 Smart Filter</source>
+        <translation>Aggiungi filtro avanzato %1</translation>
+    </message>
+    <message>
+        <source>Edit %1 Smart Filter</source>
+        <translation>Modifica filtro avanzato %1</translation>
+    </message>
+    <message>
+        <source>Added %1 as a Smart Filter</source>
+        <translation>%1 aggiunto come filtro avanzato</translation>
+    </message>
+    <message>
+        <source>Added another %1 Smart Filter</source>
+        <translation>Aggiunto un altro filtro avanzato %1</translation>
+    </message>
+    <message>
+        <source>Updated %1 Smart Filter</source>
+        <translation>Filtro avanzato %1 aggiornato</translation>
     </message>
 </context>
 <context>

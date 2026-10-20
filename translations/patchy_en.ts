@@ -11022,6 +11022,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Solarize</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Find Edges</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22614,6 +22630,26 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     </message>
     <message>
         <source>Cancelled Gradient Map</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add %1 Smart Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit %1 Smart Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Added %1 as a Smart Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Added another %1 Smart Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Updated %1 Smart Filter</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

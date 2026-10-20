@@ -79,7 +79,7 @@ The Brush bar's Mode (`brushModeCombo`, setting `tools/brushMode`, script `mode`
 
 ## Mixer Brush, Smoothing, and the healing family
 
-The Mixer Brush pickup engine and its calibration, plus the shared Brush/Mixer/Eraser stroke Smoothing stabilizer, live in [mixer.md](mixer.md). The Healing Brush, Spot Healing, Patch, Remove Object, and the shared retouch Sample All Layers option live in [healing.md](healing.md) with their binding legal envelope.
+The Mixer Brush pickup engine and its calibration, plus the shared Brush/Mixer/Eraser stroke Smoothing stabilizer, live in [mixer.md](mixer.md). The Healing Brush, Spot Healing, Patch, Remove Object, and the shared retouch Sample All Layers option live in [healing.md](healing.md) with their binding patent boundary.
 
 ## Local adjustment brushes
 

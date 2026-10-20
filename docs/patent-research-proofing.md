@@ -2,8 +2,8 @@
 
 Record for View > Proof Colors and View > Gamut Warning (GitHub issue 90, design in
 [cmyk.md](cmyk.md)). The binding boundary is the "Soft proof and gamut warning" bullet in
-[legal-constraints.md](legal-constraints.md). Written October 14, 2026. This is a prior-art
-note and a keyword search, not a claim-level review by counsel.
+[legal-constraints.md](legal-constraints.md). Written October 14, 2026. This is a note on
+published earlier work and a keyword search, not a claim-level review.
 
 ## What Patchy does
 

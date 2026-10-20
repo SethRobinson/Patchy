@@ -13,11 +13,12 @@
 std::vector<patchy::test::TestCase> smart_filter_tests_part1();
 std::vector<patchy::test::TestCase> smart_filter_tests_part2();
 std::vector<patchy::test::TestCase> smart_filter_tests_part3();
+std::vector<patchy::test::TestCase> smart_filter_tests_part4();
 
 std::vector<patchy::test::TestCase> smart_filter_tests() {
   std::vector<patchy::test::TestCase> tests;
   for (const auto& part : {&smart_filter_tests_part1, &smart_filter_tests_part2,
-                           &smart_filter_tests_part3}) {
+                           &smart_filter_tests_part3, &smart_filter_tests_part4}) {
     auto cases = (*part)();
     tests.insert(tests.end(), cases.begin(), cases.end());
   }

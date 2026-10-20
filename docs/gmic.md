@@ -166,7 +166,7 @@ a document action, created only when `gmic::engine_available()`).
     `GmicRunInput`: layers through `load_rgba_row` in the Encoded domain (every bit depth,
     0..255 floats), the engine, outputs back in layer formats (1, 2, 3 or 4 channels; no
     alpha means opaque).
-  - **Layers (Seth, October 2026): a filter changes every chosen layer it may change,
+  - **Layers (decided October 2026): a filter changes every chosen layer it may change,
     like G'MIC-Qt's "In place" output.** The input mode (`.` active, `*` all, `+` active and
     the one below, `-` active and the one above, `v` visible, `i` hidden) picks layers from
     `gmic_layer_snapshots`: top of the stack first, groups opened, adjustment layers skipped,
@@ -205,7 +205,7 @@ a document action, created only when `gmic::engine_available()`).
       blended by coverage). A result of another size (CRT Phosphors, CRT Scanlines, frames)
       is placed where it lands without a selection and seen through the layer's frame
       (`filter_bounds` keeps the whole result's): the layer keeps its size, uncovered
-      selected pixels keep the original, and a result note says so (Seth, October 2026, as
+      selected pixels keep the original, and a result note says so (decided October 2026, as
       Krita masks output by the selection). New layers ignore it.
     - `commit_gmic_render` writes every changed layer and new one under one undo snapshot;
       the status bar gives the count or new size.
@@ -332,12 +332,12 @@ For 4.0.5 the library declares 440 filters; 394 are allowed and 46 are listed wi
   file. Such a filter is kept when it runs with the parameter empty; the panel gives the
   parameter a path field and a Browse button, and what the filter then reads or writes is the
   path the user chose.
-- The named list is by rule, not a legal review of each filter. The binding boundary is in
+- The named list is by rule, not a review of each filter. The binding boundary is in
   [legal-constraints.md](legal-constraints.md).
 - The catalog is not the execution boundary. `gmic_command_policy.hpp` stubs excluded apply,
   preview, private-helper and algorithm command families at registration, including later
   redefinitions. Nested formula `run()`, aliases and `$$name` body copying get the refusal too.
-  Shared non-patch helpers and formulas remain usable; this is no sandbox or legal clearance.
+  Shared non-patch helpers and formulas remain usable; this is no sandbox and no review of user code.
 
 ### FFT
 

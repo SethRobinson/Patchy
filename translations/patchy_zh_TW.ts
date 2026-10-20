@@ -11004,6 +11004,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
         <translation>最近文件的設定：%1 x %2 px，%3 ppi</translation>
     </message>
+    <message>
+        <source>Solarize</source>
+        <translation>曝光過度</translation>
+    </message>
+    <message>
+        <source>Find Edges</source>
+        <translation>尋找邊緣</translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation>開啟</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <translation>%1 %2</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22622,6 +22638,26 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Gradient Map</source>
         <translation>已取消漸層對應</translation>
+    </message>
+    <message>
+        <source>Add %1 Smart Filter</source>
+        <translation>新增%1智慧型濾鏡</translation>
+    </message>
+    <message>
+        <source>Edit %1 Smart Filter</source>
+        <translation>編輯%1智慧型濾鏡</translation>
+    </message>
+    <message>
+        <source>Added %1 as a Smart Filter</source>
+        <translation>已將%1新增為智慧型濾鏡</translation>
+    </message>
+    <message>
+        <source>Added another %1 Smart Filter</source>
+        <translation>已再新增一個%1智慧型濾鏡</translation>
+    </message>
+    <message>
+        <source>Updated %1 Smart Filter</source>
+        <translation>已更新%1智慧型濾鏡</translation>
     </message>
 </context>
 <context>

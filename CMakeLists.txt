@@ -158,6 +158,7 @@ add_library(patchy_core
   src/core/heal_membrane.cpp
   src/core/image_trace.cpp
   src/core/layer.cpp
+  src/core/smart_filter_schema.cpp
   src/core/layer_alignment.cpp
   src/core/layer_metadata.cpp
   src/core/layer_render_utils.cpp
@@ -454,6 +455,7 @@ add_library(patchy_filters
   src/filters/rgba_filter_staging.hpp
   src/filters/smart_filter_recipe_mapping.cpp
   src/filters/smart_filter_renderer.cpp
+  src/filters/smart_filter_distort_stylize.cpp
 )
 target_link_libraries(patchy_filters PUBLIC patchy_core)
 patchy_configure_target(patchy_filters)
@@ -2060,6 +2062,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/jxl_tests.cpp
     tests/core/raw_heif_tests.cpp
     tests/core/smart_filter_descriptors_tests.cpp
+    tests/core/smart_filter_distort_stylize_tests.cpp
     tests/core/smart_filter_descriptors_tests_canonical.cpp
     tests/core/smart_filter_descriptors_tests_fixtures.cpp
     tests/core/smart_filter_pixels_tests.cpp
@@ -2174,6 +2177,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/smart_filter_tests_flows.cpp
       tests/ui/smart_filter_tests_guards.cpp
       tests/ui/smart_filter_tests_kinds.cpp
+      tests/ui/smart_filter_tests_schema.cpp
       tests/ui/smart_object_tests.cpp
       tests/ui/warp_tests.cpp
       tests/ui/import_print_resolution_tests.cpp

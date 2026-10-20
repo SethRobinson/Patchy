@@ -11004,6 +11004,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
         <translation>最近のドキュメントの設定: %1 x %2 px、%3 ppi</translation>
     </message>
+    <message>
+        <source>Solarize</source>
+        <translation>ソラリゼーション</translation>
+    </message>
+    <message>
+        <source>Find Edges</source>
+        <translation>輪郭検出</translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation>オン</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <translation>%1 %2</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22622,6 +22638,26 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Gradient Map</source>
         <translation>グラデーションマップをキャンセルしました</translation>
+    </message>
+    <message>
+        <source>Add %1 Smart Filter</source>
+        <translation>%1スマートフィルターを追加</translation>
+    </message>
+    <message>
+        <source>Edit %1 Smart Filter</source>
+        <translation>%1スマートフィルターを編集</translation>
+    </message>
+    <message>
+        <source>Added %1 as a Smart Filter</source>
+        <translation>%1をスマートフィルターとして追加しました</translation>
+    </message>
+    <message>
+        <source>Added another %1 Smart Filter</source>
+        <translation>%1スマートフィルターをもう1つ追加しました</translation>
+    </message>
+    <message>
+        <source>Updated %1 Smart Filter</source>
+        <translation>%1スマートフィルターを更新しました</translation>
     </message>
 </context>
 <context>

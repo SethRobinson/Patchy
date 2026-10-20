@@ -9,6 +9,7 @@
 #include "core/vector_shape.hpp"
 #include "core/adjustment_layer.hpp"
 #include "core/smart_filter.hpp"
+#include "core/smart_filter_schema.hpp"
 #include "ui/canvas_types.hpp"
 #include "color/color_management.hpp"
 #include "core/palette.hpp"
@@ -36,6 +37,7 @@
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/modifier_names.hpp"
 #include "ui/filter_workflows.hpp"
+#include "ui/localization.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/document_float_window.hpp"
 #include "ui/color_panel.hpp"
@@ -133,6 +135,39 @@ int qInitResources_icons();
 namespace patchy::ui {
 
 namespace {
+
+// " (Angle 50 degrees, Mode Normal)" for a table-described Smart Filter row
+// tooltip; empty for a filter without visible settings.
+QString smart_filter_schema_summary(const SmartFilterSchema& schema,
+                                    const SchemaSmartFilter& settings) {
+  QStringList parts;
+  for (std::size_t index = 0; index < schema.fields.size() && index < settings.values.size();
+       ++index) {
+    const auto& field = schema.fields[index];
+    if (field.hidden) {
+      continue;
+    }
+    const auto value = settings.values[index];
+    QString text;
+    switch (field.type) {
+      case SmartFilterFieldType::Integer:
+        text = QString::number(value) +
+               (field.suffix != nullptr ? translate_data_text(field.suffix) : QString());
+        break;
+      case SmartFilterFieldType::Boolean:
+        text = value != 0 ? QObject::tr("On") : QObject::tr("Off");
+        break;
+      case SmartFilterFieldType::Enum:
+        if (value >= 0 && static_cast<std::size_t>(value) < field.options.size()) {
+          text = translate_data_text(field.options[static_cast<std::size_t>(value)].label);
+        }
+        break;
+    }
+    parts.push_back(QObject::tr("%1 %2").arg(translate_data_text(field.label), text));
+  }
+  return parts.isEmpty() ? QString() : QStringLiteral(" (") + parts.join(QStringLiteral(", ")) +
+                                           QLatin1Char(')');
+}
 
 constexpr const char* kLayerContentThumbnailRevisionProperty = "patchyContentRevision";
 // Set while the thumbnail leaves out a text layer's missing-font badge because an open session
@@ -2287,6 +2322,14 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                .arg(noise->monochromatic
                                         ? QObject::tr(", Monochromatic")
                                         : QString());
+        }
+      } else if (const auto* schema = find_smart_filter_schema(entry.kind);
+                 schema != nullptr) {
+        entry_name = translate_data_text(schema->display_name);
+        entry_tooltip = entry_name;
+        if (const auto* settings = std::get_if<SchemaSmartFilter>(&entry.parameters);
+            settings != nullptr) {
+          entry_tooltip += smart_filter_schema_summary(*schema, *settings);
         }
       } else if (!entry.native_name.empty()) {
         entry_name = QString::fromStdString(entry.native_name);
