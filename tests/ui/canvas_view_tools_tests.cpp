@@ -4174,106 +4174,152 @@ void ui_options_bar_label_scrub_changes_spin_value() {
   CHECK(handles >= 30);
 }
 
-// A drag inside a numeric field scrubs it like its label: past the drag distance
-// the value moves one step per pixel, the field shows SizeHor while dragging, and
-// the drag ends with one editingFinished and the number selected. A click, a move
-// short of the drag distance, a double-click, Ctrl+A and Shift+arrow selection all
-// behave as an ordinary text field.
+// The field is part of the scrub zone (dialog_utils.hpp). Not being edited, a drag
+// on it scrubs (SizeHor, one editingFinished, focus handed back) and a press released
+// without a drag, or one short of the drag distance, enters editing with the number
+// selected. While editing, drags select text and change nothing, clicks and
+// double-clicks behave as in any text field, until Enter or Esc ends editing. A field
+// focused with Tab is being edited from the start.
 void ui_options_bar_field_drag_scrubs_and_click_edits() {
   patchy::ui::MainWindow window;
   show_window(window);
   require_action_by_text(window, QStringLiteral("Brush"))->trigger();
   QApplication::processEvents();
+  auto* canvas = require_canvas(window);
   auto* size_spin = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
   CHECK(size_spin != nullptr);
   auto* editor = size_spin->findChild<QLineEdit*>();
   CHECK(editor != nullptr);
-  CHECK(editor->cursor().shape() == Qt::IBeamCursor);
   int finished = 0;
   QObject::connect(size_spin, &QAbstractSpinBox::editingFinished, size_spin, [&finished] { ++finished; });
-
-  size_spin->setValue(40);
   const int drag_start = QApplication::startDragDistance();
   const QPoint origin(editor->width() / 2, editor->height() / 2);
-  // Focus first, as a real click hands it out before the press reaches the line edit.
-  size_spin->setFocus(Qt::MouseFocusReason);
-  QApplication::processEvents();
-  send_mouse(*editor, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton);
-  send_mouse(*editor, QEvent::MouseMove, origin + QPoint(drag_start + 15, 0), Qt::NoButton, Qt::LeftButton);
+  // Just past the right-aligned number, so a leftward drag from here crosses its digits.
+  const QPoint click_point(editor->width() - editor->textMargins().right() - 2, editor->height() / 2);
+  const auto focus_canvas = [&] {
+    canvas->setFocus(Qt::OtherFocusReason);
+    QApplication::processEvents();
+    CHECK(canvas->hasFocus());
+  };
+  // A real click: the window system hands out focus before the press arrives.
+  const auto press = [&](QPoint point) {
+    if (!size_spin->hasFocus()) {
+      size_spin->setFocus(Qt::MouseFocusReason);
+    }
+    send_mouse(*editor, QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton);
+  };
+  const auto move = [&](QPoint point, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+    send_mouse(*editor, QEvent::MouseMove, point, Qt::NoButton, Qt::LeftButton, modifiers);
+  };
+  const auto release = [&](QPoint point) {
+    send_mouse(*editor, QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+
+  // An unfocused field scrubs and hands focus back to the canvas.
+  focus_canvas();
+  CHECK(editor->cursor().shape() == Qt::SizeHorCursor);
+  size_spin->setValue(40);
+  press(origin);
+  move(origin + QPoint(drag_start + 15, 0));
   CHECK(size_spin->value() == 40 + drag_start + 15);
   CHECK(editor->cursor().shape() == Qt::SizeHorCursor);
-  send_mouse(*editor, QEvent::MouseMove, origin + QPoint(-(drag_start + 1), 0), Qt::NoButton, Qt::LeftButton,
-             Qt::ShiftModifier);
-  CHECK(size_spin->value() == std::max(size_spin->minimum(), 40 - 10 * (drag_start + 1)));
-  send_mouse(*editor, QEvent::MouseMove, origin + QPoint(-(drag_start + 4), 0), Qt::NoButton, Qt::LeftButton);
-  CHECK(size_spin->value() == 40 - (drag_start + 4));
-  send_mouse(*editor, QEvent::MouseButtonRelease, origin + QPoint(-(drag_start + 4), 0), Qt::LeftButton,
-             Qt::NoButton);
-  QApplication::processEvents();
+  release(origin + QPoint(drag_start + 15, 0));
   CHECK(finished == 1);
-  CHECK(size_spin->value() == 40 - (drag_start + 4));
-  CHECK(editor->cursor().shape() == Qt::IBeamCursor);
-  CHECK(size_spin->hasFocus());
-  CHECK(editor->selectedText() == size_spin->cleanText());
+  CHECK(!size_spin->hasFocus());
+  CHECK(canvas->hasFocus());
 
-  // A click edits: the caret lands where the press was, nothing changes, no editingFinished.
+  // A click without a drag, and one that moved short of the drag distance, enter
+  // editing with the number selected and change nothing.
   size_spin->setValue(40);
+  for (const int short_move : {0, std::max(0, drag_start - 2)}) {
+    focus_canvas();
+    const int finished_before_click = finished;
+    press(origin);
+    move(origin + QPoint(short_move, 0));
+    release(origin + QPoint(short_move, 0));
+    CHECK(size_spin->value() == 40);
+    CHECK(finished == finished_before_click);
+    CHECK(size_spin->hasFocus());
+    CHECK(editor->selectedText() == size_spin->cleanText());
+    CHECK(editor->cursor().shape() == Qt::IBeamCursor);
+  }
+
+  // Editing: a drag selects text and changes no value; a click places the caret; a
+  // double-click selects; typing edits.
   editor->deselect();
-  const QPoint click_point(editor->width() - editor->textMargins().right() - 8, editor->height() / 2);
-  send_mouse(*editor, QEvent::MouseButtonPress, click_point, Qt::LeftButton, Qt::LeftButton);
-  send_mouse(*editor, QEvent::MouseButtonRelease, click_point, Qt::LeftButton, Qt::NoButton);
-  QApplication::processEvents();
+  const int finished_before_select = finished;
+  press(click_point);
+  move(click_point - QPoint(drag_start + 25, 0));
+  release(click_point - QPoint(drag_start + 25, 0));
+  CHECK(editor->cursorPositionAt(click_point) == static_cast<int>(editor->text().length()));
   CHECK(size_spin->value() == 40);
-  CHECK(finished == 1);
+  CHECK(editor->hasSelectedText());
+  CHECK(finished == finished_before_select);
+  press(click_point);
+  release(click_point);
   CHECK(!editor->hasSelectedText());
   CHECK(editor->cursorPosition() == editor->cursorPositionAt(click_point));
-  // A move short of the drag distance neither scrubs nor drag-selects.
-  send_mouse(*editor, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton);
-  send_mouse(*editor, QEvent::MouseMove, origin + QPoint(std::max(0, drag_start - 2), 0), Qt::NoButton,
-             Qt::LeftButton);
-  send_mouse(*editor, QEvent::MouseButtonRelease, origin + QPoint(std::max(0, drag_start - 2), 0),
-             Qt::LeftButton, Qt::NoButton);
-  QApplication::processEvents();
-  CHECK(size_spin->value() == 40);
-  CHECK(finished == 1);
-  CHECK(!editor->hasSelectedText());
-  // Typing still edits the field.
+  press(click_point);
+  release(click_point);
+  send_mouse(*editor, QEvent::MouseButtonDblClick, click_point, Qt::LeftButton, Qt::LeftButton);
+  release(click_point);
+  CHECK(editor->hasSelectedText());
+  // Let Qt's triple-click window close so the next press here is an ordinary press.
+  process_events_for(QApplication::doubleClickInterval() + 50);
   send_key(*size_spin, Qt::Key_A, Qt::ControlModifier);
+  CHECK(editor->selectedText() == size_spin->cleanText());
   for (int typed = 0; typed < 2; ++typed) {
     QKeyEvent digit(QEvent::KeyPress, Qt::Key_5, Qt::NoModifier, QStringLiteral("5"));
     QApplication::sendEvent(size_spin, &digit);
   }
-  send_key(*size_spin, Qt::Key_Return);
-  QApplication::processEvents();
-  CHECK(size_spin->value() == 55);
-  // A double-click, Ctrl+A and Shift+Home still select.
-  editor->deselect();
-  send_mouse(*editor, QEvent::MouseButtonPress, click_point, Qt::LeftButton, Qt::LeftButton);
-  send_mouse(*editor, QEvent::MouseButtonRelease, click_point, Qt::LeftButton, Qt::NoButton);
-  send_mouse(*editor, QEvent::MouseButtonDblClick, click_point, Qt::LeftButton, Qt::LeftButton);
-  send_mouse(*editor, QEvent::MouseButtonRelease, click_point, Qt::LeftButton, Qt::NoButton);
-  QApplication::processEvents();
-  CHECK(editor->hasSelectedText());
-  CHECK(size_spin->value() == 55);
-  editor->deselect();
-  send_key(*size_spin, Qt::Key_A, Qt::ControlModifier);
-  CHECK(editor->selectedText() == size_spin->cleanText());
   send_key(*size_spin, Qt::Key_End);
   send_key(*size_spin, Qt::Key_Home, Qt::ShiftModifier);
   CHECK(editor->hasSelectedText());
+
+  // Enter ends editing: the focused field scrubs again and keeps focus, number selected.
+  send_key(*size_spin, Qt::Key_Return);
   CHECK(size_spin->value() == 55);
+  const int finished_before_scrub = finished;
+  press(origin);
+  move(origin + QPoint(drag_start + 5, 0));
+  release(origin + QPoint(drag_start + 5, 0));
+  CHECK(size_spin->value() == 55 + drag_start + 5);
+  CHECK(finished == finished_before_scrub + 1);
+  CHECK(size_spin->hasFocus());
+  CHECK(editor->selectedText() == size_spin->cleanText());
+  // Esc ends editing too.
+  press(origin);
+  release(origin);
+  send_key(*size_spin, Qt::Key_Escape);
+  size_spin->setValue(30);
+  press(origin);
+  move(origin - QPoint(drag_start + 4, 0));
+  release(origin - QPoint(drag_start + 4, 0));
+  CHECK(size_spin->value() == 30 - (drag_start + 4));
+
+  // Tab into the field: editing from the start, so a drag selects.
+  focus_canvas();
+  size_spin->setValue(40);
+  size_spin->setFocus(Qt::TabFocusReason);
+  QApplication::processEvents();
+  editor->deselect();
+  press(click_point);
+  move(click_point - QPoint(drag_start + 25, 0));
+  release(click_point - QPoint(drag_start + 25, 0));
+  CHECK(size_spin->value() == 40);
+  CHECK(editor->hasSelectedText());
 
   // Review artifact: the Size field before and after a 25 px drag inside it.
+  focus_canvas();
   size_spin->setValue(40);
-  editor->deselect();
   const auto grab_field = [size_spin] {
     return size_spin->grab().toImage().scaled(size_spin->size() * 3, Qt::IgnoreAspectRatio, Qt::FastTransformation);
   };
   QList<QImage> strips{grab_field()};
-  send_mouse(*editor, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton);
-  send_mouse(*editor, QEvent::MouseMove, origin + QPoint(25, 0), Qt::NoButton, Qt::LeftButton);
-  send_mouse(*editor, QEvent::MouseButtonRelease, origin + QPoint(25, 0), Qt::LeftButton, Qt::NoButton);
-  QApplication::processEvents();
+  press(origin);
+  move(origin + QPoint(25, 0));
+  release(origin + QPoint(25, 0));
   strips.append(grab_field());
   CHECK(size_spin->value() == 65);
   save_stacked_artifact("ui_options_bar_field_drag", strips);
@@ -4292,6 +4338,111 @@ void ui_options_bar_field_drag_scrubs_and_click_edits() {
              Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
   CHECK(opacity_spin->value() == 80 - (drag_start + 10));
+}
+
+// The gap between a label and its field scrubs like the label, with the SizeHor
+// cursor on hover; a label whose field sits past a slider has no gap zone. Shift
+// moves ten steps per pixel, Alt a tenth (integer fields every ten pixels), and a
+// modifier change mid-drag continues from the current value.
+void ui_scrub_gap_and_modifiers_follow_the_zone_rules() {
+  QWidget panel;
+  auto* rows = new QVBoxLayout(&panel);
+  auto* row = new QHBoxLayout();
+  row->setSpacing(10);
+  auto* label = new QLabel(QStringLiteral("Amount"), &panel);
+  auto* amount = new QSpinBox(&panel);
+  amount->setRange(0, 1000);
+  amount->setValue(50);
+  auto* radius = new QDoubleSpinBox(&panel);
+  radius->setRange(0.0, 100.0);
+  radius->setDecimals(2);
+  radius->setSingleStep(0.5);
+  radius->setValue(2.0);
+  row->addWidget(label);
+  row->addWidget(amount);
+  row->addWidget(new QLabel(QStringLiteral("Radius"), &panel));
+  row->addWidget(radius);
+  row->addStretch(1);
+  rows->addLayout(row);
+  auto* slider_row = new QHBoxLayout();
+  auto* jitter_label = new QLabel(QStringLiteral("Jitter"), &panel);
+  auto* jitter_slider = new QSlider(Qt::Horizontal, &panel);
+  jitter_slider->setFixedWidth(120);
+  auto* jitter = new QSpinBox(&panel);
+  slider_row->addWidget(jitter_label);
+  slider_row->addWidget(jitter_slider);
+  slider_row->addWidget(jitter);
+  slider_row->addStretch(1);
+  rows->addLayout(slider_row);
+  patchy::ui::install_scrub_labels_in(&panel);
+  panel.resize(520, 120);
+  panel.show();
+  QApplication::processEvents();
+  CHECK(jitter->property(patchy::ui::kScrubHandleInstalledProperty).toBool());
+
+  const int drag_start = QApplication::startDragDistance();
+  const int gap_left = label->geometry().right() + 1;
+  const int gap_right = amount->geometry().left() - 1;
+  CHECK(gap_right >= gap_left);
+  const QPoint gap((gap_left + gap_right) / 2, label->geometry().center().y());
+  CHECK(panel.childAt(gap) == nullptr);
+  send_mouse(panel, QEvent::MouseMove, gap, Qt::NoButton, Qt::NoButton);
+  CHECK(panel.cursor().shape() == Qt::SizeHorCursor);
+  const QPoint empty(panel.width() - 4, label->geometry().center().y());
+  send_mouse(panel, QEvent::MouseMove, empty, Qt::NoButton, Qt::NoButton);
+  CHECK(panel.cursor().shape() != Qt::SizeHorCursor);
+  const QPoint after_jitter(jitter_label->geometry().right() + 3, jitter_label->geometry().center().y());
+  if (panel.childAt(after_jitter) == nullptr) {
+    send_mouse(panel, QEvent::MouseMove, after_jitter, Qt::NoButton, Qt::NoButton);
+    CHECK(panel.cursor().shape() != Qt::SizeHorCursor);
+  }
+
+  int finished = 0;
+  QObject::connect(amount, &QAbstractSpinBox::editingFinished, amount, [&finished] { ++finished; });
+  // A drag from the gap scrubs, one editingFinished; a click there changes nothing.
+  send_mouse(panel, QEvent::MouseButtonPress, gap, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(panel, QEvent::MouseMove, gap + QPoint(drag_start + 6, 0), Qt::NoButton, Qt::LeftButton);
+  CHECK(amount->value() == 50 + drag_start + 6);
+  send_mouse(panel, QEvent::MouseButtonRelease, gap + QPoint(drag_start + 6, 0), Qt::LeftButton, Qt::NoButton);
+  CHECK(finished == 1);
+  amount->setValue(50);
+  send_mouse(panel, QEvent::MouseButtonPress, gap, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(panel, QEvent::MouseButtonRelease, gap, Qt::LeftButton, Qt::NoButton);
+  CHECK(amount->value() == 50);
+  CHECK(finished == 1);
+
+  // Alt on the label: a tenth of a step per pixel, whole steps on an integer field.
+  const QPoint on_label = label->rect().center();
+  send_mouse(*label, QEvent::MouseButtonPress, on_label, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(*label, QEvent::MouseMove, on_label + QPoint(drag_start + 20, 0), Qt::NoButton, Qt::LeftButton,
+             Qt::AltModifier);
+  CHECK(amount->value() == 50 + static_cast<int>(std::trunc((drag_start + 20) * 0.1)));
+  send_mouse(*label, QEvent::MouseButtonRelease, on_label + QPoint(drag_start + 20, 0), Qt::LeftButton,
+             Qt::NoButton, Qt::AltModifier);
+  // Shift pressed mid-drag continues from the current value at ten steps per pixel.
+  amount->setValue(50);
+  send_mouse(*label, QEvent::MouseButtonPress, on_label, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*label, QEvent::MouseMove, on_label + QPoint(drag_start + 5, 0), Qt::NoButton, Qt::LeftButton);
+  const int before_shift = amount->value();
+  CHECK(before_shift == 50 + drag_start + 5);
+  send_mouse(*label, QEvent::MouseMove, on_label + QPoint(drag_start + 5, 0), Qt::NoButton, Qt::LeftButton,
+             Qt::ShiftModifier);
+  CHECK(amount->value() == before_shift);
+  send_mouse(*label, QEvent::MouseMove, on_label + QPoint(drag_start + 8, 0), Qt::NoButton, Qt::LeftButton,
+             Qt::ShiftModifier);
+  CHECK(amount->value() == before_shift + 30);
+  send_mouse(*label, QEvent::MouseButtonRelease, on_label + QPoint(drag_start + 8, 0), Qt::LeftButton,
+             Qt::NoButton, Qt::ShiftModifier);
+  // A decimal field moves by fractions of its step under Alt.
+  auto* radius_editor = radius->findChild<QLineEdit*>();
+  CHECK(radius_editor != nullptr);
+  const QPoint radius_point(radius_editor->width() / 2, radius_editor->height() / 2);
+  send_mouse(*radius_editor, QEvent::MouseButtonPress, radius_point, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(*radius_editor, QEvent::MouseMove, radius_point + QPoint(drag_start + 10, 0), Qt::NoButton,
+             Qt::LeftButton, Qt::AltModifier);
+  send_mouse(*radius_editor, QEvent::MouseButtonRelease, radius_point + QPoint(drag_start + 10, 0), Qt::LeftButton,
+             Qt::NoButton, Qt::AltModifier);
+  CHECK(std::abs(radius->value() - (2.0 + (drag_start + 10) * 0.1 * 0.5)) < 0.011);
 }
 
 // The Brush bar's Mode combo (core/paint_mode.hpp): Normal, Dissolve, Behind, Clear,
@@ -4581,9 +4732,10 @@ void ui_layer_opacity_prefix_scrub_is_one_undo_entry() {
   CHECK(opacity_spin->value() == 100);
   CHECK(editor->hasSelectedText());
 
-  // A drag that starts on the number scrubs as well. Toolbar spin boxes right-align
-  // their text, so the number's x comes from the editor's own cursor geometry rather
-  // than from the left margin.
+  // The prefix click entered editing, so a drag on the number now selects text and
+  // changes nothing; once focus leaves, a drag on the number scrubs. Toolbar spin boxes
+  // right-align their text, so the number's x comes from the editor's own cursor
+  // geometry rather than from the left margin.
   editor->deselect();
   QPoint number_point(-1, editor->height() / 2);
   for (int x = 0; x < editor->width() && number_point.x() < 0; ++x) {
@@ -4593,6 +4745,16 @@ void ui_layer_opacity_prefix_scrub_is_one_undo_entry() {
   }
   CHECK(number_point.x() >= 0);
   CHECK(editor->cursorPositionAt(number_point) >= static_cast<int>(opacity_spin->prefix().length()));
+  send_mouse(*editor, QEvent::MouseButtonPress, number_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*editor, QEvent::MouseMove, number_point + QPoint(drag_start + 20, 0), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*editor, QEvent::MouseButtonRelease, number_point + QPoint(drag_start + 20, 0), Qt::LeftButton,
+             Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(opacity_spin->value() == 100);
+  CHECK(editor->hasSelectedText());
+  opacity_spin->clearFocus();
+  QApplication::processEvents();
+  editor->deselect();
   send_mouse(*editor, QEvent::MouseButtonPress, number_point, Qt::LeftButton, Qt::LeftButton);
   send_mouse(*editor, QEvent::MouseMove, number_point + QPoint(-(drag_start + 20), 0), Qt::NoButton, Qt::LeftButton);
   CHECK(opacity_spin->value() == 100 - (drag_start + 20));
@@ -5684,6 +5846,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_options_bar_labels_drop_the_trailing_colon", ui_options_bar_labels_drop_the_trailing_colon},
       {"ui_options_bar_label_scrub_changes_spin_value", ui_options_bar_label_scrub_changes_spin_value},
       {"ui_options_bar_field_drag_scrubs_and_click_edits", ui_options_bar_field_drag_scrubs_and_click_edits},
+      {"ui_scrub_gap_and_modifiers_follow_the_zone_rules", ui_scrub_gap_and_modifiers_follow_the_zone_rules},
       {"ui_brush_mode_combo_lists_paint_modes_and_persists", ui_brush_mode_combo_lists_paint_modes_and_persists},
       {"ui_dialog_scrub_labels_pair_every_row_shape", ui_dialog_scrub_labels_pair_every_row_shape},
       {"ui_layer_opacity_prefix_scrub_is_one_undo_entry", ui_layer_opacity_prefix_scrub_is_one_undo_entry},
