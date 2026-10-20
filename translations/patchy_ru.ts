@@ -11240,6 +11240,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>%1 %2</source>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
         <translation>%1 %2</translation>
     </message>
     <message>
@@ -11275,6 +11276,86 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Искривление</translation>
     </message>
     <message>
+        <source>Squareness</source>
+        <translation>Прямоугольность</translation>
+    </message>
+    <message>
+        <source>Set to Transparent</source>
+        <translation>Сделать прозрачными</translation>
+    </message>
+    <message>
+        <source>Minimum</source>
+        <translation>Минимум</translation>
+    </message>
+    <message>
+        <source>Matrix</source>
+        <translation>Матрица</translation>
+    </message>
+    <message>
+        <source>Crystallize</source>
+        <translation>Кристаллизация</translation>
+    </message>
+    <message>
+        <source>Pointillize</source>
+        <translation>Пуантилизм</translation>
+    </message>
+    <message>
+        <source>Mezzotint</source>
+        <translation>Меццо-тинто</translation>
+    </message>
+    <message>
+        <source>Fine Dots</source>
+        <translation>Мелкие точки</translation>
+    </message>
+    <message>
+        <source>Medium Dots</source>
+        <translation>Средние точки</translation>
+    </message>
+    <message>
+        <source>Grainy Dots</source>
+        <translation>Зернистые точки</translation>
+    </message>
+    <message>
+        <source>Coarse Dots</source>
+        <translation>Крупные точки</translation>
+    </message>
+    <message>
+        <source>Short Lines</source>
+        <translation>Короткие линии</translation>
+    </message>
+    <message>
+        <source>Medium Lines</source>
+        <translation>Средние линии</translation>
+    </message>
+    <message>
+        <source>Long Lines</source>
+        <translation>Длинные линии</translation>
+    </message>
+    <message>
+        <source>Short Strokes</source>
+        <translation>Короткие штрихи</translation>
+    </message>
+    <message>
+        <source>Medium Strokes</source>
+        <translation>Средние штрихи</translation>
+    </message>
+    <message>
+        <source>Long Strokes</source>
+        <translation>Длинные штрихи</translation>
+    </message>
+    <message>
+        <source>Fibers</source>
+        <translation>Волокна</translation>
+    </message>
+    <message>
+        <source>Variance</source>
+        <translation>Дисперсия</translation>
+    </message>
+    <message>
+        <source>Fragment</source>
+        <translation>Фрагмент</translation>
+    </message>
+    <message>
         <source>Horizontal Only</source>
         <translation>Только по горизонтали</translation>
     </message>
@@ -11299,18 +11380,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Преобразование</translation>
     </message>
     <message>
-        <source>Pinch</source>
-        <translation>Дисторсия</translation>
-    </message>
-    <message>
-        <source>Spherize</source>
-        <translation>Сферизация</translation>
-    </message>
-    <message>
-        <source>Polar Coordinates</source>
-        <translation>Полярные координаты</translation>
-    </message>
-    <message>
         <source>Lower</source>
         <translation>Нижний</translation>
     </message>
@@ -11323,16 +11392,28 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Уровень</translation>
     </message>
     <message>
-        <source>Trace Contour</source>
-        <translation>Трассировка контура</translation>
-    </message>
-    <message>
         <source>Darken Only</source>
         <translation>Только замена темным</translation>
     </message>
     <message>
         <source>Lighten Only</source>
         <translation>Только замена светлым</translation>
+    </message>
+    <message>
+        <source>Pinch</source>
+        <translation>Дисторсия</translation>
+    </message>
+    <message>
+        <source>Spherize</source>
+        <translation>Сферизация</translation>
+    </message>
+    <message>
+        <source>Polar Coordinates</source>
+        <translation>Полярные координаты</translation>
+    </message>
+    <message>
+        <source>Trace Contour</source>
+        <translation>Трассировка контура</translation>
     </message>
     <message>
         <source>Diffuse</source>
@@ -12775,10 +12856,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Инструмент «Перо» рисует контуры на содержимом слоя.</translation>
     </message>
     <message>
-        <source>Click to add points, drag for curves. Click the first point to close; Enter commits an open path; Esc cancels.</source>
-        <translation>Щёлкайте для добавления точек, перетаскивайте для создания кривых. Щёлкните первую точку для замыкания; Enter завершает открытый контур, Esc отменяет.</translation>
-    </message>
-    <message>
         <source>Select a shape layer or draw a path first</source>
         <translation>Выберите слой-фигуру или сначала нарисуйте контур</translation>
     </message>
@@ -12975,8 +13052,20 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Углы трансформации должны образовывать выпуклую фигуру</translation>
     </message>
     <message>
-        <source>Drag to move the point. Drag the outline or fill to move the shape.</source>
-        <translation>Перетаскивайте точку для перемещения. Перетащите контур или заливку, чтобы переместить фигуру.</translation>
+        <source>Extend path</source>
+        <translation>Продолжить контур</translation>
+    </message>
+    <message>
+        <source>Click to add points, drag for curves; Shift keeps 45 degrees. Click the first point to close; Enter or %CTRL%+click away ends an open path; Esc cancels.</source>
+        <translation>Щёлкайте для добавления точек, перетаскивайте для создания кривых; Shift держит 45 градусов. Щёлкните первую точку для замыкания; Enter или %CTRL%+щелчок в стороне завершает открытый контур, Esc отменяет.</translation>
+    </message>
+    <message>
+        <source>Duplicate shape</source>
+        <translation>Дублировать фигуру</translation>
+    </message>
+    <message>
+        <source>Click to continue the path from this end point</source>
+        <translation>Щёлкните, чтобы продолжить контур от этой конечной точки</translation>
     </message>
 </context>
 <context>
@@ -15830,18 +15919,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Инструмент</translation>
     </message>
     <message>
-        <source>Click to place points, drag for curves. On a path: click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL% moves points.</source>
-        <translation>Щёлкайте для добавления точек, перетаскивайте для создания кривых. На контуре: щелчок по сегменту добавляет точку, по точке удаляет её; %ALT%+щелчок преобразует точку, %CTRL% перемещает точки.</translation>
-    </message>
-    <message>
-        <source>Select and move whole shapes. %CTRL%+T transforms the path.</source>
-        <translation>Выделять и перемещать целые фигуры. %CTRL%+T трансформирует контур.</translation>
-    </message>
-    <message>
-        <source>Select and drag points and handles. Delete removes the selected points.</source>
-        <translation>Выделяйте и перетаскивайте точки и направляющие. Delete удаляет выделенные точки.</translation>
-    </message>
-    <message>
         <source>Click a path segment to insert a point.</source>
         <translation>Щелкните сегмент пути, чтобы вставить точку.</translation>
     </message>
@@ -15856,10 +15933,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Pen: click to add points, drag for curves. On a path, click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL%+drag selects or moves points.</source>
         <translation>Перо: щёлкайте для добавления точек, перетаскивайте для создания кривых. На контуре: щелчок по сегменту добавляет точку, по точке удаляет её; %ALT%+щелчок преобразует точку, %CTRL%+перетаскивание выделяет или перемещает точки.</translation>
-    </message>
-    <message>
-        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected points.</source>
-        <translation>Выделение контура: щёлкните фигуру для выделения, перетаскивайте для перемещения. %CTRL%+T трансформирует контур, Delete удаляет выделенные точки.</translation>
     </message>
     <message>
         <source>Direct Select: click or marquee points, drag points or handles. Shift adds, arrows nudge, Delete removes, %CTRL%+T transforms the selected points.</source>
@@ -23084,6 +23157,26 @@ Patchy можно будет запускать из меню, а на пане�
     <message>
         <source>Updated %1 Smart Filter</source>
         <translation>Обновлён смарт-фильтр «%1»</translation>
+    </message>
+    <message>
+        <source>Patchy edits Filter Gallery entries that hold one effect</source>
+        <translation>Patchy редактирует только записи галереи фильтров с одним эффектом</translation>
+    </message>
+    <message>
+        <source>Click to place points, drag for curves, Shift keeps 45 degrees. On a path: click a segment to add a point, click a point to delete it or an open end to continue it, %ALT%+click converts it, %CTRL% moves points, %CTRL%+click away ends the path.</source>
+        <translation>Щёлкайте для добавления точек, перетаскивайте для создания кривых, Shift держит 45 градусов. На контуре: щелчок по сегменту добавляет точку, по точке удаляет её, по открытому концу продолжает контур; %ALT%+щелчок преобразует точку, %CTRL% перемещает точки, %CTRL%+щелчок в стороне завершает контур.</translation>
+    </message>
+    <message>
+        <source>Select and move whole shapes. Shift+click adds or removes a shape, %ALT%+drag duplicates it, %CTRL% switches to Direct Select. %CTRL%+T transforms the selected shapes.</source>
+        <translation>Выделять и перемещать целые фигуры. Shift+щелчок добавляет или убирает фигуру, %ALT%+перетаскивание дублирует её, %CTRL% переключает на прямое выделение. %CTRL%+T трансформирует выделенные фигуры.</translation>
+    </message>
+    <message>
+        <source>Select and drag points and handles. %ALT%+click selects a whole subpath, %ALT%+drag on a handle breaks the pair, %CTRL% switches to Path Select. Delete removes the selected points.</source>
+        <translation>Выделяйте и перетаскивайте точки и направляющие. %ALT%+щелчок выделяет весь подконтур, %ALT%+перетаскивание направляющей разрывает пару, %CTRL% переключает на выделение контура. Delete удаляет выделенные точки.</translation>
+    </message>
+    <message>
+        <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
+        <translation>Выделение контура: щёлкните фигуру для выделения, перетаскивайте для перемещения, %ALT%+перетаскивание для дублирования. %CTRL%+T трансформирует контур, Delete удаляет выделенную фигуру.</translation>
     </message>
 </context>
 <context>

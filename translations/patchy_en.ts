@@ -11190,6 +11190,87 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>%1 %2</source>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Squareness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Set to Transparent</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Minimum</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Matrix</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Crystallize</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pointillize</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mezzotint</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fine Dots</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Medium Dots</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Grainy Dots</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Coarse Dots</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Short Lines</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Medium Lines</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Long Lines</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Short Strokes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Medium Strokes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Long Strokes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fibers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Variance</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fragment</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -12581,10 +12662,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Click to add points, drag for curves. Click the first point to close; Enter commits an open path; Esc cancels.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Select a shape layer or draw a path first</source>
         <translation type="unfinished"></translation>
     </message>
@@ -12925,7 +13002,19 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Drag to move the point. Drag the outline or fill to move the shape.</source>
+        <source>Extend path</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click to add points, drag for curves; Shift keeps 45 degrees. Click the first point to close; Enter or %CTRL%+click away ends an open path; Esc cancels.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Duplicate shape</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click to continue the path from this end point</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -15347,18 +15436,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Click to place points, drag for curves. On a path: click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL% moves points.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Select and move whole shapes. %CTRL%+T transforms the path.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Select and drag points and handles. Delete removes the selected points.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Click a path segment to insert a point.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -15372,10 +15449,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>Pen: click to add points, drag for curves. On a path, click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL%+drag selects or moves points.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected points.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -22936,6 +23009,26 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     </message>
     <message>
         <source>Updated %1 Smart Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Patchy edits Filter Gallery entries that hold one effect</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click to place points, drag for curves, Shift keeps 45 degrees. On a path: click a segment to add a point, click a point to delete it or an open end to continue it, %ALT%+click converts it, %CTRL% moves points, %CTRL%+click away ends the path.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select and move whole shapes. Shift+click adds or removes a shape, %ALT%+drag duplicates it, %CTRL% switches to Direct Select. %CTRL%+T transforms the selected shapes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select and drag points and handles. %ALT%+click selects a whole subpath, %ALT%+drag on a handle breaks the pair, %CTRL% switches to Path Select. Delete removes the selected points.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

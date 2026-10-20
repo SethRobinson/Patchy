@@ -136,6 +136,14 @@ void paint_pen_action_badge(QPainter& painter, CanvasWidget::PenHoverAction acti
       stroke(kSelectionCursorInk, kSelectionCursorWidth);
       return;
     }
+    case PenHoverAction::Continue: {
+      // A small solid anchor square: continue from this point.
+      const QRectF square(center.x() - 2.5, center.y() - 2.5, 5.0, 5.0);
+      painter.setPen(QPen(kSelectionCursorHalo, kSelectionCursorHaloWidth - 1.0));
+      painter.setBrush(kSelectionCursorInk);
+      painter.drawRect(square);
+      return;
+    }
     case PenHoverAction::Draw:
       return;
   }
@@ -166,8 +174,8 @@ QCursor build_pen_tool_cursor(CanvasWidget::PenHoverAction action) {
 }
 
 QCursor pen_tool_cursor(CanvasWidget::PenHoverAction action) {
-  static const std::array<QCursor, 5> cursors = [] {
-    std::array<QCursor, 5> result;
+  static const std::array<QCursor, 6> cursors = [] {
+    std::array<QCursor, 6> result;
     for (std::size_t i = 0; i < result.size(); ++i) {
       result[i] = build_pen_tool_cursor(static_cast<CanvasWidget::PenHoverAction>(i));
     }
@@ -208,7 +216,7 @@ CanvasWidget::PenHoverAction CanvasWidget::apply_pen_cursor(QPointF widget_point
   // badge classification is skipped mid-gesture so drags never flicker it.
   if ((modifiers & Qt::ControlModifier) != 0 || pen_temp_direct_select_ ||
       pen_session_drag_anchor_ >= 0) {
-    setCursor(Qt::ArrowCursor);
+    setCursor(direct_select_cursor());
     return PenHoverAction::Draw;
   }
   const auto hit = pen_hover_hit(widget_point, document_position_f(widget_point), modifiers);
@@ -356,11 +364,7 @@ void CanvasWidget::update_tool_cursor() {
     return;
   }
   if (tool_ == CanvasTool::PathSelect || tool_ == CanvasTool::DirectSelect) {
-    if (path_transform_active_) {
-      apply_path_transform_cursor(last_mouse_position_, path_transform_cursor_modifiers_);
-    } else {
-      setCursor(Qt::ArrowCursor);
-    }
+    apply_arrow_cursor();
     return;
   }
   // Alt turns a paint/shape/fill tool into a temporary colour picker; show the

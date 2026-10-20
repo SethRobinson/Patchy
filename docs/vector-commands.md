@@ -33,9 +33,9 @@ squares with a dark 1 px edge: white with an accent inner ring when unselected (
 hollow anchor), accent with a white inner ring when selected. Handle knobs are 8 px white
 discs with the dark edge and an accent dot (10 and 12 px glyphs read as too big beside
 Photoshop's), and grab from 9 px (`kHandleHitRadiusPx`; a press
-nearer the anchor stays the anchor's; `ui_path_handle_knobs_read_and_grab`). Path Select
-selects every anchor of the shape, so it draws every knob, and a drawn knob grabs under it too
-(its press used to start a marquee; `ui_path_select_tools_drag_drawn_handle_knobs`). `kGlyphReach` (8 px) is how far a glyph reaches
+nearer the anchor stays the anchor's; `ui_path_handle_knobs_read_and_grab`). Knobs are
+Direct Select's alone (and the Pen's Ctrl latch, which is Direct Select): Path Select draws
+and grabs none (`ui_path_tools_keep_handle_knobs_to_direct_select`; see "Tool roles"). `kGlyphReach` (8 px) is how far a glyph reaches
 past its point; every repaint region around path points pads by it. The tests'
 `accent_overlay_near` probes 3 px around a point for the accent, which the inner ring and the
 knob dot satisfy.
@@ -109,13 +109,67 @@ selection.
   `path_selected_anchors_`: clicks, marquees, deletes, prunes, deselects)
   and from every options-bar refresh (tool switches).
 
+## Tool roles
+
+The conventional split (GitHub issue 248, Seth's follow-up): each tool owns one job, and a
+press never does another tool's.
+
+| Tool | Owns | Never |
+|---|---|---|
+| Pen | creating and extending paths; its Ctrl latch is Direct Select | moving whole shapes |
+| Path Select (black arrow) | selecting and moving whole shapes (groups): filled anchors, no knobs | point, handle or segment edits |
+| Direct Select (white arrow) | every point, handle and segment edit; hollow anchors on the active path | moving a shape it did not select point by point |
+
+An anchor, outline or fill press under Path Select moves the whole group; the knob hit test
+(`path_handle_at`), knob drawing and the handle hover hint are Direct Select's only.
+
+Modifiers. Ctrl swaps the two arrows while held (`arrow_swap_active_`, read by
+`path_edit_tool()` like the Pen's `pen_temp_direct_select_` latch): set from the press
+for the whole gesture, from hover moves and from Ctrl key presses through the canvas key
+filter, never mid-drag, reset by `set_tool` and by Ctrl+T (whose Ctrl is the shortcut's;
+`begin_path_transform` reads the real `tool_`). The selection follows the tool that
+presses (`path_selection_by_path_select_`): a Direct Select press drops Path Select's
+whole-shape selection first, a Path Select press expands Direct Select's points. Path
+Select Alt-drag duplicates: the first drag move copies every selected group into new
+groups of the same path (`next_shape_group`) and drags the copies, one "Duplicate shape"
+undo entry with the drag (`path_drag_duplicate_pending_`). Direct Select Alt+click on a
+point or segment selects its whole subpath; Alt at a handle press breaks a smooth pair
+(`path_drag_break_pair_`, the anchor turns corner and only that handle moves). A plain
+handle drag on a smooth anchor keeps the pair colinear: the opposite handle turns with it
+and keeps its own length (it is not mirrored).
+
+Cursors (`tool_cursors.cpp`, Patchy's own art from the shared pointer arrow, hotspot on
+the tip, theme-exempt like the other tool cursors): `path_select_cursor()` is the arrow
+solid dark with a light edge, `direct_select_cursor()` the light arrow with a hollow
+anchor square badge; `apply_arrow_cursor` shows the one `path_edit_tool()` reports, so
+Ctrl flips it, and the Pen's Ctrl latch shows the Direct Select arrow. Coverage:
+`ui_direct_select_alt_click_selects_the_whole_subpath`,
+`ui_direct_select_handle_drag_keeps_the_pair_colinear_and_alt_breaks_it`,
+`ui_ctrl_swaps_the_arrow_tools`, `ui_path_select_alt_drag_duplicates_the_shape`,
+`ui_path_select_tools_show_their_own_arrow_cursors`.
+
+## Pen: extending and ending paths
+
+GitHub issue 248. Shift keeps a new point on a 45-degree line from the last one and a
+dragged handle on a 45-degree direction from its anchor (`constrain_drag_to_axes`, the
+Direct Select vertex constraint). A Pen click (no session, no Alt) on an end point of an
+open subpath of the target continues that subpath (`pen_open_endpoint_at`, before the
+Auto Add/Delete edit, so it never deletes the point): the session starts from its anchors,
+run backwards when continuing from the first one so it always grows at its last anchor
+(`PenContinuation`), and commit (Enter, Ctrl+click away, closing on the other end, a tool
+switch) replaces that subpath in place in its original direction, one "Extend path" undo
+entry; it is skipped when the target or that subpath changed under the session or nothing
+was added. The hover shows `PenHoverAction::Continue` (a solid square badge, hint "Click to
+continue the path from this end point"). Mid-session, Ctrl+click away from the session's
+points ends the path open (`handle_pen_ctrl_press`). Coverage:
+`ui_pen_shift_keeps_45_degrees_and_ctrl_click_ends_the_path`,
+`ui_pen_click_on_an_open_end_continues_the_path`.
+
 ## Pressing and picking with the arrows
 
 GitHub issue 248. `handle_path_edit_press` tries, in order: a drawn handle knob
-of the target (both arrows), a target anchor (under Path Select a drawn one, an
-anchor of the selected shape, drags alone as `PathEditDrag::SingleAnchor` and
-keeps the shape selected; an undrawn one counts as outline and selects and
-moves the shape), Direct Select's panel-selected
+of the target (Direct Select), a target anchor (Path Select selects its whole
+group and moves it), Direct Select's panel-selected
 extra layers' anchors, a target segment, the extras' segments, then the pick:
 `topmost_path_pick_layer_at` walks visible, editable shape layers top-down
 (pixel layers never count) and takes the first whose anchor, outline or fill
@@ -136,18 +190,36 @@ target (and an unselected panel-selected extra) shows just its outline, so a
 blank click visibly deselects. Direct Select keeps hollow anchors on the
 active path. Switching from Path Select to Direct Select clears the point
 selection (`set_tool`): Path Select selects whole shapes, so its selection would
-make Direct Select's first press drag every point. Hover: a fill, or another
+make Direct Select's first press drag every point; switching to Path Select from
+Direct Select or the Pen expands carried-over points to their whole groups
+(`expand_path_selection_to_groups`), so Path Select never holds part of a shape.
+A Path Select press on a group (anchor, outline or fill) goes through
+`path_select_press_group`: a plain press keeps a selection that already holds the
+group (dragging then moves every selected shape) and otherwise selects just it;
+Shift adds the group, or deselects it when it is already selected (no drag).
+
+The point selection is (subpath, anchor) indices into the target path, so it is
+tied to the target's owner (`path_edit_target_owner_key`: vector mask, document
+path, text area, shape layer or work path, with its id, recorded on every
+`notify_path_selection_changed`). `drop_point_selection_if_target_changed` clears
+it when the owner changes: on `activate_layer`, `set_layer_edit_target`,
+`set_panel_selected_layer_ids` (every Layers-panel activation ends there through
+`refresh_layer_controls`), and before every press, path key and Ctrl+T, so Delete
+never removes another layer's points. Hover: a fill, or another
 layer's shape, is `PathHoverTarget::Fill` (Path Select's select-and-move hint;
-no Direct Select hint); under Path Select only a drawn anchor is
-`PathHoverTarget::Anchor`, with its own drag-the-point hint. Tests:
+no Direct Select hint); under Path Select every target is the shape and the hint says so.
+Tests:
 `ui_path_select_blank_click_deselects_shape`,
 `ui_path_select_click_picks_shape_under_pointer`,
 `ui_path_select_marquee_touching_shape_selects_it`,
 `ui_path_select_drag_inside_fill_moves_shape`,
 `ui_direct_select_drags_points_of_unselected_shapes`,
-`ui_path_select_drags_drawn_anchor_alone`,
+`ui_path_select_anchor_drag_moves_the_whole_shape`,
 `ui_direct_select_after_path_select_drags_one_point`,
-`ui_path_select_tools_drag_open_path_anchor`.
+`ui_path_select_tools_drag_open_path_anchor`,
+`ui_path_select_switch_expands_points_and_pen_shows_no_knobs`,
+`ui_point_selection_drops_when_the_active_layer_changes`,
+`ui_path_select_shift_click_adds_and_removes_shapes`.
 
 ## Moving a selection
 
@@ -298,8 +370,9 @@ place.
 
 Ctrl+T with Path Select or Direct Select active (and a targetable path)
 starts a PATH transform session instead of the layer one: a rotated-box
-overlay over the path (the bezier hull, handles included), or over the
-Direct Select anchor subset (Photoshop's Free Transform Points), with the
+overlay over the path (the bezier hull, handles included), over the
+Direct Select anchor subset (Photoshop's Free Transform Points), or over the
+shapes Path Select has selected (whole groups; `ui_path_select_transform_moves_only_selected_shapes`), with the
 usual move/scale/rotate, arrow nudges, Enter/Esc, tool-switch commit,
 document-switch cancel. Ctrl+T during a session is a no-op. The commit is
 ONE `apply_path_edit` undo entry ("Transform path") routed to the active

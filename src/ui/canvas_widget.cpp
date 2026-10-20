@@ -495,8 +495,14 @@ void CanvasWidget::set_tool(CanvasTool tool) {
       // Path Select selects whole shapes; Direct Select starts with no points
       // selected, so its first press drags one point (GitHub issue 248).
       clear_path_edit_selection();
+    } else if (tool == CanvasTool::PathSelect && tool_ != CanvasTool::PathSelect) {
+      // Carried-over points (Direct Select, the Pen's Ctrl latch) become their
+      // whole shapes: Path Select never holds a partial shape.
+      expand_path_selection_to_groups();
     }
     pen_temp_direct_select_ = false;
+    arrow_swap_active_ = false;
+    path_selection_by_path_select_ = tool == CanvasTool::PathSelect;
     pen_session_drag_anchor_ = -1;
     path_hover_hint_action_ = PenHoverAction::Draw;
     path_hover_hint_target_ = PathHoverTarget::None;
@@ -620,6 +626,7 @@ void CanvasWidget::set_layer_edit_target(LayerEditTarget target) noexcept {
     mask_display_image_revision_ = 0;
   }
   layer_edit_target_ = target;
+  drop_point_selection_if_target_changed();
   if (target != LayerEditTarget::DocumentChannel) {
     active_document_channel_id_ = 0;
   }
@@ -1849,6 +1856,7 @@ void CanvasWidget::activate_layer(Layer& layer) {
     document_->set_active_layer(layer.id());
   }
   layer_edit_target_ = LayerEditTarget::Content;
+  drop_point_selection_if_target_changed();
   if (active_layer_changed_callback_) {
     active_layer_changed_callback_(layer.id());
   }

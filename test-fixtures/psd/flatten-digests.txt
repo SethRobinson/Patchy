@@ -83,7 +83,9 @@ ec07eaf898b0a29d photoshop-smart-filter-box-blur.psd
 1f2c60665bb3e012 photoshop-smart-filter-diffuse.psd
 f2bf42dce8c3d975 photoshop-smart-filter-dust-and-scratches.psd
 87fd37f8d0bdb1c9 photoshop-smart-filter-emboss.psd
+a00cc59a421ed652 photoshop-smart-filter-fibers.psd
 5d86cd81909a7667 photoshop-smart-filter-find-edges.psd
+6810a6b0900f07a2 photoshop-smart-filter-gallery.psd
 58b52438a77e88b5 photoshop-smart-filter-high-pass.psd
 6a93c278433e8c77 photoshop-smart-filter-instances-base.psd
 615e5853026e2647 photoshop-smart-filter-instances-edit-contents.psd
@@ -92,11 +94,13 @@ c6596eafe117aad2 photoshop-smart-filter-instances-replace-contents.psd
 42f4c9c09dda2a19 photoshop-smart-filter-median.psd
 3184a48c2d26184d photoshop-smart-filter-model.psd
 56d6a83a8e5b4ec9 photoshop-smart-filter-mosaic.psd
+bf5fa6de87028ba8 photoshop-smart-filter-other.psd
 ce62608009bd5622 photoshop-smart-filter-pinch.psd
 4b98966ab184a18c photoshop-smart-filter-plastic-wrap.psd
 7ee9614414d54486 photoshop-smart-filter-polar-coordinates.psd
 f63cea89bfdc33b6 photoshop-smart-filter-radial-blur-zoom.psd
 c0a39197fc4785c3 photoshop-smart-filter-radial-blur.psd
+1b98d9c7b0ac6b8d photoshop-smart-filter-random.psd
 993c4d3ffd4b83db photoshop-smart-filter-ripple.psd
 37eecfb90babfbea photoshop-smart-filter-shear.psd
 9b2c60c94278b504 photoshop-smart-filter-solarize.psd

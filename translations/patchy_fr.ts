@@ -11206,6 +11206,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>%1 %2</source>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
         <translation>%1 %2</translation>
     </message>
     <message>
@@ -11241,6 +11242,86 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Cisaillement</translation>
     </message>
     <message>
+        <source>Squareness</source>
+        <translation>Forme carrée</translation>
+    </message>
+    <message>
+        <source>Set to Transparent</source>
+        <translation>Rendre transparent</translation>
+    </message>
+    <message>
+        <source>Minimum</source>
+        <translation>Minimum</translation>
+    </message>
+    <message>
+        <source>Matrix</source>
+        <translation>Matrice</translation>
+    </message>
+    <message>
+        <source>Crystallize</source>
+        <translation>Cristallisation</translation>
+    </message>
+    <message>
+        <source>Pointillize</source>
+        <translation>Pointillisme</translation>
+    </message>
+    <message>
+        <source>Mezzotint</source>
+        <translation>Manière noire</translation>
+    </message>
+    <message>
+        <source>Fine Dots</source>
+        <translation>Points fins</translation>
+    </message>
+    <message>
+        <source>Medium Dots</source>
+        <translation>Points moyens</translation>
+    </message>
+    <message>
+        <source>Grainy Dots</source>
+        <translation>Points granuleux</translation>
+    </message>
+    <message>
+        <source>Coarse Dots</source>
+        <translation>Points grossiers</translation>
+    </message>
+    <message>
+        <source>Short Lines</source>
+        <translation>Lignes courtes</translation>
+    </message>
+    <message>
+        <source>Medium Lines</source>
+        <translation>Lignes moyennes</translation>
+    </message>
+    <message>
+        <source>Long Lines</source>
+        <translation>Lignes longues</translation>
+    </message>
+    <message>
+        <source>Short Strokes</source>
+        <translation>Traits courts</translation>
+    </message>
+    <message>
+        <source>Medium Strokes</source>
+        <translation>Traits moyens</translation>
+    </message>
+    <message>
+        <source>Long Strokes</source>
+        <translation>Traits longs</translation>
+    </message>
+    <message>
+        <source>Fibers</source>
+        <translation>Fibres</translation>
+    </message>
+    <message>
+        <source>Variance</source>
+        <translation>Variance</translation>
+    </message>
+    <message>
+        <source>Fragment</source>
+        <translation>Fragmentation</translation>
+    </message>
+    <message>
         <source>Horizontal Only</source>
         <translation>Horizontal uniquement</translation>
     </message>
@@ -11265,18 +11346,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Conversion</translation>
     </message>
     <message>
-        <source>Pinch</source>
-        <translation>Pincement</translation>
-    </message>
-    <message>
-        <source>Spherize</source>
-        <translation>Sphérisation</translation>
-    </message>
-    <message>
-        <source>Polar Coordinates</source>
-        <translation>Coordonnées polaires</translation>
-    </message>
-    <message>
         <source>Lower</source>
         <translation>Inférieur</translation>
     </message>
@@ -11289,16 +11358,28 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Niveau</translation>
     </message>
     <message>
-        <source>Trace Contour</source>
-        <translation>Tracé des courbes de niveau</translation>
-    </message>
-    <message>
         <source>Darken Only</source>
         <translation>Assombrir uniquement</translation>
     </message>
     <message>
         <source>Lighten Only</source>
         <translation>Éclaircir uniquement</translation>
+    </message>
+    <message>
+        <source>Pinch</source>
+        <translation>Pincement</translation>
+    </message>
+    <message>
+        <source>Spherize</source>
+        <translation>Sphérisation</translation>
+    </message>
+    <message>
+        <source>Polar Coordinates</source>
+        <translation>Coordonnées polaires</translation>
+    </message>
+    <message>
+        <source>Trace Contour</source>
+        <translation>Tracé des courbes de niveau</translation>
     </message>
     <message>
         <source>Diffuse</source>
@@ -12597,10 +12678,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>L&apos;outil Plume dessine des tracés sur le contenu du calque</translation>
     </message>
     <message>
-        <source>Click to add points, drag for curves. Click the first point to close; Enter commits an open path; Esc cancels.</source>
-        <translation>Cliquez pour ajouter des points, faites glisser pour tracer des courbes. Cliquez sur le premier point pour fermer ; Enter valide un tracé ouvert ; Esc annule.</translation>
-    </message>
-    <message>
         <source>Select a shape layer or draw a path first</source>
         <translation>Sélectionnez d&apos;abord un calque de forme ou dessinez un tracé</translation>
     </message>
@@ -12941,8 +13018,20 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Les coins de la transformation doivent former une forme convexe</translation>
     </message>
     <message>
-        <source>Drag to move the point. Drag the outline or fill to move the shape.</source>
-        <translation>Faites glisser pour déplacer le point. Faites glisser le contour ou le remplissage pour déplacer la forme.</translation>
+        <source>Extend path</source>
+        <translation>Prolonger le tracé</translation>
+    </message>
+    <message>
+        <source>Click to add points, drag for curves; Shift keeps 45 degrees. Click the first point to close; Enter or %CTRL%+click away ends an open path; Esc cancels.</source>
+        <translation>Cliquez pour ajouter des points, faites glisser pour tracer des courbes ; Shift garde 45 degrés. Cliquez sur le premier point pour fermer ; Enter ou %CTRL%+clic à côté termine un tracé ouvert ; Esc annule.</translation>
+    </message>
+    <message>
+        <source>Duplicate shape</source>
+        <translation>Dupliquer la forme</translation>
+    </message>
+    <message>
+        <source>Click to continue the path from this end point</source>
+        <translation>Cliquez pour prolonger le tracé à partir de ce point d&apos;extrémité</translation>
     </message>
 </context>
 <context>
@@ -15363,18 +15452,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Outil</translation>
     </message>
     <message>
-        <source>Click to place points, drag for curves. On a path: click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL% moves points.</source>
-        <translation>Cliquez pour placer des points, faites glisser pour des courbes. Sur un tracé : cliquez sur un segment pour ajouter un point, cliquez sur un point pour le supprimer, %ALT%+clic le convertit, %CTRL% déplace les points.</translation>
-    </message>
-    <message>
-        <source>Select and move whole shapes. %CTRL%+T transforms the path.</source>
-        <translation>Sélectionner et déplacer des formes entières. %CTRL%+T transforme le tracé.</translation>
-    </message>
-    <message>
-        <source>Select and drag points and handles. Delete removes the selected points.</source>
-        <translation>Sélectionner et faire glisser des points et des poignées. Delete supprime les points sélectionnés.</translation>
-    </message>
-    <message>
         <source>Click a path segment to insert a point.</source>
         <translation>Cliquez sur un segment du tracé pour insérer un point.</translation>
     </message>
@@ -15389,10 +15466,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Pen: click to add points, drag for curves. On a path, click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL%+drag selects or moves points.</source>
         <translation>Plume : cliquez pour ajouter des points, faites glisser pour des courbes. Sur un tracé, cliquez sur un segment pour ajouter un point, cliquez sur un point pour le supprimer, %ALT%+clic le convertit, %CTRL%+glisser sélectionne ou déplace les points.</translation>
-    </message>
-    <message>
-        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected points.</source>
-        <translation>Sélection de tracé : cliquez sur une forme pour la sélectionner, faites-la glisser pour la déplacer. %CTRL%+T transforme le tracé, Delete supprime les points sélectionnés.</translation>
     </message>
     <message>
         <source>Direct Select: click or marquee points, drag points or handles. Shift adds, arrows nudge, Delete removes, %CTRL%+T transforms the selected points.</source>
@@ -23014,6 +23087,26 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
     <message>
         <source>Updated %1 Smart Filter</source>
         <translation>Filtre dynamique %1 mis à jour</translation>
+    </message>
+    <message>
+        <source>Patchy edits Filter Gallery entries that hold one effect</source>
+        <translation>Patchy ne modifie que les entrées de la Galerie de filtres qui contiennent un seul effet</translation>
+    </message>
+    <message>
+        <source>Click to place points, drag for curves, Shift keeps 45 degrees. On a path: click a segment to add a point, click a point to delete it or an open end to continue it, %ALT%+click converts it, %CTRL% moves points, %CTRL%+click away ends the path.</source>
+        <translation>Cliquez pour placer des points, faites glisser pour des courbes, Shift garde 45 degrés. Sur un tracé : cliquez sur un segment pour ajouter un point, sur un point pour le supprimer ou sur une extrémité ouverte pour le prolonger, %ALT%+clic le convertit, %CTRL% déplace les points, %CTRL%+clic à côté termine le tracé.</translation>
+    </message>
+    <message>
+        <source>Select and move whole shapes. Shift+click adds or removes a shape, %ALT%+drag duplicates it, %CTRL% switches to Direct Select. %CTRL%+T transforms the selected shapes.</source>
+        <translation>Sélectionner et déplacer des formes entières. Shift+clic ajoute ou retire une forme, %ALT%+glisser la duplique, %CTRL% passe à la Sélection directe. %CTRL%+T transforme les formes sélectionnées.</translation>
+    </message>
+    <message>
+        <source>Select and drag points and handles. %ALT%+click selects a whole subpath, %ALT%+drag on a handle breaks the pair, %CTRL% switches to Path Select. Delete removes the selected points.</source>
+        <translation>Sélectionner et faire glisser des points et des poignées. %ALT%+clic sélectionne un sous-tracé entier, %ALT%+glisser une poignée sépare la paire, %CTRL% passe à la Sélection de tracé. Delete supprime les points sélectionnés.</translation>
+    </message>
+    <message>
+        <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
+        <translation>Sélection de tracé : cliquez sur une forme pour la sélectionner, faites-la glisser pour la déplacer, %ALT%+glisser pour la dupliquer. %CTRL%+T transforme le tracé, Delete supprime la forme sélectionnée.</translation>
     </message>
 </context>
 <context>

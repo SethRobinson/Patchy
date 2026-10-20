@@ -2,6 +2,8 @@
 #include <QLayout>
 #include <QScrollBar>
 #include <QStatusBar>
+#include "ui/modifier_names.hpp"
+#include "ui/tool_cursors.hpp"
 #include "ui/canvas_widget.hpp"
 #include "core/pattern_presets.hpp"
 #include "ui/theme_manager.hpp"
@@ -2428,7 +2430,7 @@ void ui_pen_hover_shows_context_cursor_badges() {
   // and back on release (the folded-modifier filter path).
   hover(QPoint(500, 400), Qt::NoModifier);
   send_key_press(*canvas, Qt::Key_Control, Qt::NoModifier);
-  CHECK(canvas->cursor().shape() == Qt::ArrowCursor);
+  CHECK(canvas->cursor().pixmap().toImage() == patchy::ui::direct_select_cursor().pixmap().toImage());
   send_key_release(*canvas, Qt::Key_Control, Qt::ControlModifier);
   CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
 
@@ -2533,9 +2535,9 @@ void ui_pen_session_start_shows_hint_message() {
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
-  const auto hint = QStringLiteral(
-      "Click to add points, drag for curves. Click the first point to close; "
-      "Enter commits an open path; Esc cancels.");
+  const auto hint = patchy::ui::resolve_modifier_names(QStringLiteral(
+      "Click to add points, drag for curves; Shift keeps 45 degrees. Click the first point to close; "
+      "Enter or %CTRL%+click away ends an open path; Esc cancels."));
 
   make_rect_shape_layer(window, *canvas);
   canvas->set_tool(patchy::ui::CanvasTool::Pen);

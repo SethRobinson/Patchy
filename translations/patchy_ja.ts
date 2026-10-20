@@ -11172,6 +11172,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>%1 %2</source>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
         <translation>%1 %2</translation>
     </message>
     <message>
@@ -11207,6 +11208,86 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>シアー</translation>
     </message>
     <message>
+        <source>Squareness</source>
+        <translation>正方形</translation>
+    </message>
+    <message>
+        <source>Set to Transparent</source>
+        <translation>透明にする</translation>
+    </message>
+    <message>
+        <source>Minimum</source>
+        <translation>最小</translation>
+    </message>
+    <message>
+        <source>Matrix</source>
+        <translation>マトリクス</translation>
+    </message>
+    <message>
+        <source>Crystallize</source>
+        <translation>水晶</translation>
+    </message>
+    <message>
+        <source>Pointillize</source>
+        <translation>点描</translation>
+    </message>
+    <message>
+        <source>Mezzotint</source>
+        <translation>メゾティント</translation>
+    </message>
+    <message>
+        <source>Fine Dots</source>
+        <translation>微細ドット</translation>
+    </message>
+    <message>
+        <source>Medium Dots</source>
+        <translation>中ドット</translation>
+    </message>
+    <message>
+        <source>Grainy Dots</source>
+        <translation>粒状ドット</translation>
+    </message>
+    <message>
+        <source>Coarse Dots</source>
+        <translation>粗いドット</translation>
+    </message>
+    <message>
+        <source>Short Lines</source>
+        <translation>短い線</translation>
+    </message>
+    <message>
+        <source>Medium Lines</source>
+        <translation>中くらいの線</translation>
+    </message>
+    <message>
+        <source>Long Lines</source>
+        <translation>長い線</translation>
+    </message>
+    <message>
+        <source>Short Strokes</source>
+        <translation>短いストローク</translation>
+    </message>
+    <message>
+        <source>Medium Strokes</source>
+        <translation>中くらいのストローク</translation>
+    </message>
+    <message>
+        <source>Long Strokes</source>
+        <translation>長いストローク</translation>
+    </message>
+    <message>
+        <source>Fibers</source>
+        <translation>繊維</translation>
+    </message>
+    <message>
+        <source>Variance</source>
+        <translation>変化</translation>
+    </message>
+    <message>
+        <source>Fragment</source>
+        <translation>分割</translation>
+    </message>
+    <message>
         <source>Horizontal Only</source>
         <translation>水平方向のみ</translation>
     </message>
@@ -11231,18 +11312,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>変換</translation>
     </message>
     <message>
-        <source>Pinch</source>
-        <translation>つまむ</translation>
-    </message>
-    <message>
-        <source>Spherize</source>
-        <translation>球面</translation>
-    </message>
-    <message>
-        <source>Polar Coordinates</source>
-        <translation>極座標</translation>
-    </message>
-    <message>
         <source>Lower</source>
         <translation>下</translation>
     </message>
@@ -11255,16 +11324,28 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>レベル</translation>
     </message>
     <message>
-        <source>Trace Contour</source>
-        <translation>輪郭のトレース</translation>
-    </message>
-    <message>
         <source>Darken Only</source>
         <translation>比較（暗）のみ</translation>
     </message>
     <message>
         <source>Lighten Only</source>
         <translation>比較（明）のみ</translation>
+    </message>
+    <message>
+        <source>Pinch</source>
+        <translation>つまむ</translation>
+    </message>
+    <message>
+        <source>Spherize</source>
+        <translation>球面</translation>
+    </message>
+    <message>
+        <source>Polar Coordinates</source>
+        <translation>極座標</translation>
+    </message>
+    <message>
+        <source>Trace Contour</source>
+        <translation>輪郭のトレース</translation>
     </message>
     <message>
         <source>Diffuse</source>
@@ -12439,10 +12520,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>ペンツールはレイヤーコンテンツにパスを描きます</translation>
     </message>
     <message>
-        <source>Click to add points, drag for curves. Click the first point to close; Enter commits an open path; Esc cancels.</source>
-        <translation>クリックでポイントを追加、ドラッグで曲線を描画。最初のポイントをクリックすると閉じ、Enter で開いたパスを確定、Esc でキャンセルします。</translation>
-    </message>
-    <message>
         <source>Select a shape layer or draw a path first</source>
         <translation>先にシェイプレイヤーを選択するかパスを描いてください</translation>
     </message>
@@ -12907,8 +12984,20 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>変形の四隅は凸形状になる必要があります</translation>
     </message>
     <message>
-        <source>Drag to move the point. Drag the outline or fill to move the shape.</source>
-        <translation>ドラッグでポイントを移動。輪郭や塗りをドラッグするとシェイプを移動します。</translation>
+        <source>Extend path</source>
+        <translation>パスを延長</translation>
+    </message>
+    <message>
+        <source>Click to add points, drag for curves; Shift keeps 45 degrees. Click the first point to close; Enter or %CTRL%+click away ends an open path; Esc cancels.</source>
+        <translation>クリックでポイントを追加、ドラッグで曲線を描画。Shiftで45度に固定します。最初のポイントをクリックすると閉じ、Enterまたは離れた場所で%CTRL%+クリックすると開いたパスを終了、Escでキャンセルします。</translation>
+    </message>
+    <message>
+        <source>Duplicate shape</source>
+        <translation>シェイプを複製</translation>
+    </message>
+    <message>
+        <source>Click to continue the path from this end point</source>
+        <translation>クリックでこの端点からパスを続けます</translation>
     </message>
 </context>
 <context>
@@ -19371,18 +19460,6 @@ Clipped to the layer below</source>
         <translation>ペンツール</translation>
     </message>
     <message>
-        <source>Click to place points, drag for curves. On a path: click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL% moves points.</source>
-        <translation>クリックでポイントを置き、ドラッグで曲線を描きます。パス上では: セグメントをクリックでポイント追加、ポイントをクリックで削除、%ALT%+クリックで切り替え、%CTRL%でポイントを移動。</translation>
-    </message>
-    <message>
-        <source>Select and move whole shapes. %CTRL%+T transforms the path.</source>
-        <translation>シェイプ全体を選択して移動します。%CTRL%+Tでパスを変形。</translation>
-    </message>
-    <message>
-        <source>Select and drag points and handles. Delete removes the selected points.</source>
-        <translation>ポイントとハンドルを選択してドラッグします。Deleteで選択したポイントを削除。</translation>
-    </message>
-    <message>
         <source>Click a path segment to insert a point.</source>
         <translation>パスのセグメントをクリックしてポイントを挿入します。</translation>
     </message>
@@ -19397,10 +19474,6 @@ Clipped to the layer below</source>
     <message>
         <source>Pen: click to add points, drag for curves. On a path, click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL%+drag selects or moves points.</source>
         <translation>ペン: クリックでポイント追加、ドラッグで曲線。パス上ではセグメントをクリックでポイント追加、ポイントをクリックで削除、%ALT%+クリックで切り替え、%CTRL%+ドラッグでポイントを選択/移動。</translation>
-    </message>
-    <message>
-        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected points.</source>
-        <translation>パス選択: シェイプをクリックで選択、ドラッグで移動。%CTRL%+Tでパスを変形、Deleteで選択したポイントを削除。</translation>
     </message>
     <message>
         <source>Direct Select: click or marquee points, drag points or handles. Shift adds, arrows nudge, Delete removes, %CTRL%+T transforms the selected points.</source>
@@ -22944,6 +23017,26 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Updated %1 Smart Filter</source>
         <translation>%1スマートフィルターを更新しました</translation>
+    </message>
+    <message>
+        <source>Patchy edits Filter Gallery entries that hold one effect</source>
+        <translation>Patchy で編集できるのは、効果が 1 つだけのフィルターギャラリー項目です</translation>
+    </message>
+    <message>
+        <source>Click to place points, drag for curves, Shift keeps 45 degrees. On a path: click a segment to add a point, click a point to delete it or an open end to continue it, %ALT%+click converts it, %CTRL% moves points, %CTRL%+click away ends the path.</source>
+        <translation>クリックでポイントを置き、ドラッグで曲線を描きます。Shiftで45度に固定。パス上では: セグメントをクリックでポイント追加、ポイントをクリックで削除、開いた端点をクリックで続きを描画、%ALT%+クリックで切り替え、%CTRL%でポイントを移動、離れた場所で%CTRL%+クリックでパスを終了。</translation>
+    </message>
+    <message>
+        <source>Select and move whole shapes. Shift+click adds or removes a shape, %ALT%+drag duplicates it, %CTRL% switches to Direct Select. %CTRL%+T transforms the selected shapes.</source>
+        <translation>シェイプ全体を選択して移動します。Shift+クリックでシェイプを追加または解除、%ALT%+ドラッグで複製、%CTRL%で直接選択に切り替え。%CTRL%+Tで選択したシェイプを変形。</translation>
+    </message>
+    <message>
+        <source>Select and drag points and handles. %ALT%+click selects a whole subpath, %ALT%+drag on a handle breaks the pair, %CTRL% switches to Path Select. Delete removes the selected points.</source>
+        <translation>ポイントとハンドルを選択してドラッグします。%ALT%+クリックでサブパス全体を選択、ハンドルを%ALT%+ドラッグでペアを分離、%CTRL%でパス選択に切り替え。Deleteで選択したポイントを削除。</translation>
+    </message>
+    <message>
+        <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
+        <translation>パス選択: シェイプをクリックで選択、ドラッグで移動、%ALT%+ドラッグで複製。%CTRL%+Tでパスを変形、Deleteで選択したシェイプを削除。</translation>
     </message>
 </context>
 <context>

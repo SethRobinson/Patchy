@@ -6,7 +6,9 @@
 #include "psd/psd_descriptor.hpp"
 #include "psd/psd_io_internal.hpp"
 #include "psd/psd_layer_effects.hpp"
+#include "psd/psd_smart_filter_table.hpp"
 #include "psd/psd_smart_filter_adjustments.hpp"
+#include "psd/psd_smart_filter_gallery.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
@@ -349,9 +351,15 @@ struct SmartFilterDescriptorSpec {
   std::optional<AddNoiseSmartFilter> add_noise;
   // Adjustment commands (psd_smart_filter_adjustments.hpp) write their own Fltr keys.
   const AdjustmentSettings* adjustment{nullptr};
+  // Filter Gallery entries (psd_smart_filter_gallery.hpp) patch their effects in place.
+  const FilterGallerySmartFilter* gallery{nullptr};
   // Table-described filters author every schema field in schema order.
   const SmartFilterSchema* schema{nullptr};
   const SchemaSmartFilter* schema_settings{nullptr};
+  // Table-described filters (core/smart_filter_table.hpp) emit their fields
+  // from the table, in its order.
+  const SmartFilterTableSpec* table{nullptr};
+  const TableSmartFilter* table_values{nullptr};
   const char* default_entry_name{nullptr};
   const char* filter_name{nullptr};
   const char* filter_class_id{nullptr};
@@ -550,6 +558,19 @@ smart_filter_descriptor_spec(const SmartFilterEntry &entry) {
     spec.filter_class_id = schema->class_id;
     spec.filter_class_id_long_form = schema->class_id_long_form;
     spec.filter_id = schema->filter_id;
+  } else if (const auto *table = smart_filter_table_spec(entry.kind);
+             table != nullptr) {
+    const auto *values = std::get_if<TableSmartFilter>(&entry.parameters);
+    if (values == nullptr || !table_smart_filter_valid(*table, *values)) {
+      return std::nullopt;
+    }
+    spec.table = table;
+    spec.table_values = values;
+    spec.default_entry_name = table->entry_name;
+    spec.filter_name = table->filter_name;
+    spec.filter_class_id = table->class_id;
+    spec.filter_class_id_long_form = table->class_id_long_form;
+    spec.filter_id = table->filter_id;
   } else if (entry.kind == SmartFilterKind::Adjustment) {
     const auto *adjustment =
         std::get_if<AdjustmentSmartFilter>(&entry.parameters);
@@ -569,6 +590,17 @@ smart_filter_descriptor_spec(const SmartFilterEntry &entry) {
     spec.filter_class_id = ids->class_id;
     spec.filter_class_id_long_form = ids->class_id_long_form;
     spec.filter_id = filter_id;
+  } else if (entry.kind == SmartFilterKind::FilterGallery) {
+    const auto *gallery =
+        std::get_if<FilterGallerySmartFilter>(&entry.parameters);
+    if (gallery == nullptr || gallery->effects.empty()) {
+      return std::nullopt;
+    }
+    spec.gallery = gallery;
+    spec.default_entry_name = "Filter Gallery...";
+    spec.filter_name = "Filter Gallery";
+    spec.filter_class_id = "GEfc";
+    spec.filter_id = kFilterGalleryFilterId;
   } else {
     return std::nullopt;
   }
@@ -583,7 +615,8 @@ smart_filter_descriptor_spec(const SmartFilterEntry &entry) {
 std::optional<DescriptorValue>
 make_smart_filter_entry_descriptor(const SmartFilterEntry &entry) {
   const auto spec = smart_filter_descriptor_spec(entry);
-  if (!spec.has_value()) {
+  // Patchy never creates a Filter Gallery entry; it only edits imported ones in place.
+  if (!spec.has_value() || spec->gallery != nullptr) {
     return std::nullopt;
   }
   auto item = smart_filter_object("filterFX", true);
@@ -610,9 +643,10 @@ make_smart_filter_entry_descriptor(const SmartFilterEntry &entry) {
                          smart_filter_color(entry.foreground));
   add_smart_filter_value(*item.object_value, "BckC", false,
                          smart_filter_color(entry.background));
-  auto filter =
-      smart_filter_object(spec->filter_class_id,
-                          spec->filter_class_id_long_form, spec->filter_name);
+  auto filter = smart_filter_object(
+      spec->filter_class_id != nullptr ? spec->filter_class_id : "",
+      spec->filter_class_id_long_form,
+      spec->filter_name != nullptr ? spec->filter_name : "");
   if (spec->highlight_strength.has_value()) {
     add_smart_filter_value(
         *filter.object_value, "Hghl", false,
@@ -705,12 +739,19 @@ make_smart_filter_entry_descriptor(const SmartFilterEntry &entry) {
                                                      spec->schema_settings->points));
     }
   }
+  if (spec->table != nullptr) {
+    append_table_smart_filter_fields(*filter.object_value, *spec->table,
+                                     *spec->table_values);
+  }
   if (spec->adjustment != nullptr &&
       !write_adjustment_smart_filter(*filter.object_value, *spec->adjustment)) {
     return std::nullopt;
   }
-  if (spec->schema == nullptr || spec->schema->has_filter_object) {
-    add_smart_filter_value(*item.object_value, "Fltr", false, std::move(filter));
+  // A filter without settings (Clouds, Fragment, ...) has no Fltr object.
+  if ((spec->schema == nullptr || spec->schema->has_filter_object) &&
+      spec->filter_class_id != nullptr) {
+    add_smart_filter_value(*item.object_value, "Fltr", false,
+                           std::move(filter));
   }
   add_smart_filter_value(
       *item.object_value, "filterID", true,
@@ -926,7 +967,8 @@ bool patch_smart_filter_descriptor(
         const_cast<DescriptorObject*>(descriptor_object(item, "blendOptions"));
     auto* filter = const_cast<DescriptorObject*>(descriptor_object(item, "Fltr"));
     const bool expects_filter_object =
-        spec->schema == nullptr || spec->schema->has_filter_object;
+        (spec->schema == nullptr || spec->schema->has_filter_object) &&
+        spec->filter_class_id != nullptr;
     if (name == nullptr || name->type != DescriptorValue::Type::String ||
         filter_id == nullptr || filter_id->type != DescriptorValue::Type::Integer ||
         blend == nullptr || blend->class_id != "blendOptions" ||
@@ -1097,8 +1139,17 @@ bool patch_smart_filter_descriptor(
       monochromatic->bool_value = spec->add_noise->monochromatic;
       seed->integer_value = spec->add_noise->seed;
     }
+    if (spec->table != nullptr && filter != nullptr &&
+        !patch_table_smart_filter_fields(*filter, *spec->table,
+                                         *spec->table_values)) {
+      return false;
+    }
     if (spec->adjustment != nullptr &&
         !write_adjustment_smart_filter(*filter, *spec->adjustment)) {
+      return false;
+    }
+    if (spec->gallery != nullptr &&
+        !write_filter_gallery_smart_filter(*filter, *spec->gallery)) {
       return false;
     }
   }
@@ -1569,8 +1620,13 @@ std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
         } else {
           entry_supported = false;
         }
+      } else if (parse_table_smart_filter(filter, entry.native_filter_id,
+                                          entry, entry_supported)) {
+        // Table-described filter (core/smart_filter_table.hpp).
       } else if (parse_adjustment_smart_filter(filter, entry, entry_supported)) {
         // An Image > Adjustments command (psd_smart_filter_adjustments.hpp).
+      } else if (parse_filter_gallery_smart_filter(filter, entry, entry_supported)) {
+        // A Filter Gallery entry (psd_smart_filter_gallery.hpp).
       } else {
         entry_supported = false;
       }

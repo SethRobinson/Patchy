@@ -11172,6 +11172,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>%1 %2</source>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
         <translation>%1 %2</translation>
     </message>
     <message>
@@ -11207,6 +11208,86 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>切变</translation>
     </message>
     <message>
+        <source>Squareness</source>
+        <translation>方形</translation>
+    </message>
+    <message>
+        <source>Set to Transparent</source>
+        <translation>设置为透明</translation>
+    </message>
+    <message>
+        <source>Minimum</source>
+        <translation>最小值</translation>
+    </message>
+    <message>
+        <source>Matrix</source>
+        <translation>矩阵</translation>
+    </message>
+    <message>
+        <source>Crystallize</source>
+        <translation>晶格化</translation>
+    </message>
+    <message>
+        <source>Pointillize</source>
+        <translation>点彩化</translation>
+    </message>
+    <message>
+        <source>Mezzotint</source>
+        <translation>铜版雕刻</translation>
+    </message>
+    <message>
+        <source>Fine Dots</source>
+        <translation>精细点</translation>
+    </message>
+    <message>
+        <source>Medium Dots</source>
+        <translation>中等点</translation>
+    </message>
+    <message>
+        <source>Grainy Dots</source>
+        <translation>粒状点</translation>
+    </message>
+    <message>
+        <source>Coarse Dots</source>
+        <translation>粗网点</translation>
+    </message>
+    <message>
+        <source>Short Lines</source>
+        <translation>短直线</translation>
+    </message>
+    <message>
+        <source>Medium Lines</source>
+        <translation>中长直线</translation>
+    </message>
+    <message>
+        <source>Long Lines</source>
+        <translation>长直线</translation>
+    </message>
+    <message>
+        <source>Short Strokes</source>
+        <translation>短描边</translation>
+    </message>
+    <message>
+        <source>Medium Strokes</source>
+        <translation>中长描边</translation>
+    </message>
+    <message>
+        <source>Long Strokes</source>
+        <translation>长描边</translation>
+    </message>
+    <message>
+        <source>Fibers</source>
+        <translation>纤维</translation>
+    </message>
+    <message>
+        <source>Variance</source>
+        <translation>差异</translation>
+    </message>
+    <message>
+        <source>Fragment</source>
+        <translation>碎片</translation>
+    </message>
+    <message>
         <source>Horizontal Only</source>
         <translation>仅水平</translation>
     </message>
@@ -11231,18 +11312,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>转换</translation>
     </message>
     <message>
-        <source>Pinch</source>
-        <translation>挤压</translation>
-    </message>
-    <message>
-        <source>Spherize</source>
-        <translation>球面化</translation>
-    </message>
-    <message>
-        <source>Polar Coordinates</source>
-        <translation>极坐标</translation>
-    </message>
-    <message>
         <source>Lower</source>
         <translation>较低</translation>
     </message>
@@ -11255,16 +11324,28 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>色阶</translation>
     </message>
     <message>
-        <source>Trace Contour</source>
-        <translation>等高线</translation>
-    </message>
-    <message>
         <source>Darken Only</source>
         <translation>仅变暗</translation>
     </message>
     <message>
         <source>Lighten Only</source>
         <translation>仅变亮</translation>
+    </message>
+    <message>
+        <source>Pinch</source>
+        <translation>挤压</translation>
+    </message>
+    <message>
+        <source>Spherize</source>
+        <translation>球面化</translation>
+    </message>
+    <message>
+        <source>Polar Coordinates</source>
+        <translation>极坐标</translation>
+    </message>
+    <message>
+        <source>Trace Contour</source>
+        <translation>等高线</translation>
     </message>
     <message>
         <source>Diffuse</source>
@@ -12563,10 +12644,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>钢笔工具在图层内容上绘制路径</translation>
     </message>
     <message>
-        <source>Click to add points, drag for curves. Click the first point to close; Enter commits an open path; Esc cancels.</source>
-        <translation>单击添加锚点，拖动绘制曲线。单击第一个锚点可闭合路径；按 Enter 提交开放路径；按 Esc 取消。</translation>
-    </message>
-    <message>
         <source>Select a shape layer or draw a path first</source>
         <translation>请先选择形状图层或绘制路径</translation>
     </message>
@@ -12907,8 +12984,20 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>变换的四个角必须构成凸形</translation>
     </message>
     <message>
-        <source>Drag to move the point. Drag the outline or fill to move the shape.</source>
-        <translation>拖动可移动锚点。拖动轮廓或填充可移动形状。</translation>
+        <source>Extend path</source>
+        <translation>延长路径</translation>
+    </message>
+    <message>
+        <source>Click to add points, drag for curves; Shift keeps 45 degrees. Click the first point to close; Enter or %CTRL%+click away ends an open path; Esc cancels.</source>
+        <translation>单击添加锚点，拖动绘制曲线；按住 Shift 保持 45 度。单击第一个锚点可闭合路径；按 Enter 或在别处 %CTRL%+单击可结束开放路径；按 Esc 取消。</translation>
+    </message>
+    <message>
+        <source>Duplicate shape</source>
+        <translation>复制形状</translation>
+    </message>
+    <message>
+        <source>Click to continue the path from this end point</source>
+        <translation>单击可从此端点继续绘制路径</translation>
     </message>
 </context>
 <context>
@@ -15328,18 +15417,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>工具</translation>
     </message>
     <message>
-        <source>Click to place points, drag for curves. On a path: click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL% moves points.</source>
-        <translation>单击放置锚点，拖动绘制曲线。在路径上：单击线段可添加锚点，单击锚点可将其删除，%ALT%+单击可转换锚点，%CTRL% 可移动锚点。</translation>
-    </message>
-    <message>
-        <source>Select and move whole shapes. %CTRL%+T transforms the path.</source>
-        <translation>选择并移动整个形状。%CTRL%+T 可变换路径。</translation>
-    </message>
-    <message>
-        <source>Select and drag points and handles. Delete removes the selected points.</source>
-        <translation>选择并拖动锚点和手柄。按 Delete 可删除所选锚点。</translation>
-    </message>
-    <message>
         <source>Click a path segment to insert a point.</source>
         <translation>单击路径线段可插入锚点。</translation>
     </message>
@@ -15354,10 +15431,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Pen: click to add points, drag for curves. On a path, click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL%+drag selects or moves points.</source>
         <translation>钢笔：单击添加锚点，拖动绘制曲线。在路径上，单击线段可添加锚点，单击锚点可将其删除，%ALT%+单击可转换锚点，%CTRL%+拖动可选择或移动锚点。</translation>
-    </message>
-    <message>
-        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected points.</source>
-        <translation>路径选择：单击形状可将其选中，拖动可移动它。%CTRL%+T 可变换路径，按 Delete 可删除所选锚点。</translation>
     </message>
     <message>
         <source>Direct Select: click or marquee points, drag points or handles. Shift adds, arrows nudge, Delete removes, %CTRL%+T transforms the selected points.</source>
@@ -22944,6 +23017,26 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Updated %1 Smart Filter</source>
         <translation>已更新%1智能滤镜</translation>
+    </message>
+    <message>
+        <source>Patchy edits Filter Gallery entries that hold one effect</source>
+        <translation>Patchy 只能编辑仅含一个效果的滤镜库条目</translation>
+    </message>
+    <message>
+        <source>Click to place points, drag for curves, Shift keeps 45 degrees. On a path: click a segment to add a point, click a point to delete it or an open end to continue it, %ALT%+click converts it, %CTRL% moves points, %CTRL%+click away ends the path.</source>
+        <translation>单击放置锚点，拖动绘制曲线，按住 Shift 保持 45 度。在路径上：单击线段可添加锚点，单击锚点可将其删除，单击开放端点可继续绘制，%ALT%+单击可转换锚点，%CTRL% 可移动锚点，在别处 %CTRL%+单击可结束路径。</translation>
+    </message>
+    <message>
+        <source>Select and move whole shapes. Shift+click adds or removes a shape, %ALT%+drag duplicates it, %CTRL% switches to Direct Select. %CTRL%+T transforms the selected shapes.</source>
+        <translation>选择并移动整个形状。Shift+单击可添加或移除形状，%ALT%+拖动可复制形状，%CTRL% 可切换到直接选择。%CTRL%+T 可变换所选形状。</translation>
+    </message>
+    <message>
+        <source>Select and drag points and handles. %ALT%+click selects a whole subpath, %ALT%+drag on a handle breaks the pair, %CTRL% switches to Path Select. Delete removes the selected points.</source>
+        <translation>选择并拖动锚点和手柄。%ALT%+单击可选择整个子路径，%ALT%+拖动手柄可断开成对手柄，%CTRL% 可切换到路径选择。按 Delete 可删除所选锚点。</translation>
+    </message>
+    <message>
+        <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
+        <translation>路径选择：单击形状可将其选中，拖动可移动它，%ALT%+拖动可复制它。%CTRL%+T 可变换路径，按 Delete 可删除所选形状。</translation>
     </message>
 </context>
 <context>

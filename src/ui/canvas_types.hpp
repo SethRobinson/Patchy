@@ -187,7 +187,8 @@ enum class PenHoverAction {
   Add,
   Delete,
   Convert,
-  Close
+  Close,
+  Continue  // an open path's end point: a click continues that path
 };
 
 enum class MarqueeStyle {

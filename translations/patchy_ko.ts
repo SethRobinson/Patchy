@@ -11172,6 +11172,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>%1 %2</source>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
         <translation>%1 %2</translation>
     </message>
     <message>
@@ -11207,6 +11208,86 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>기울임</translation>
     </message>
     <message>
+        <source>Squareness</source>
+        <translation>정사각형</translation>
+    </message>
+    <message>
+        <source>Set to Transparent</source>
+        <translation>투명하게 설정</translation>
+    </message>
+    <message>
+        <source>Minimum</source>
+        <translation>최소</translation>
+    </message>
+    <message>
+        <source>Matrix</source>
+        <translation>행렬</translation>
+    </message>
+    <message>
+        <source>Crystallize</source>
+        <translation>결정화</translation>
+    </message>
+    <message>
+        <source>Pointillize</source>
+        <translation>점묘화</translation>
+    </message>
+    <message>
+        <source>Mezzotint</source>
+        <translation>메조틴트</translation>
+    </message>
+    <message>
+        <source>Fine Dots</source>
+        <translation>미세한 점</translation>
+    </message>
+    <message>
+        <source>Medium Dots</source>
+        <translation>중간 점</translation>
+    </message>
+    <message>
+        <source>Grainy Dots</source>
+        <translation>거친 입자 점</translation>
+    </message>
+    <message>
+        <source>Coarse Dots</source>
+        <translation>굵은 점</translation>
+    </message>
+    <message>
+        <source>Short Lines</source>
+        <translation>짧은 선</translation>
+    </message>
+    <message>
+        <source>Medium Lines</source>
+        <translation>중간 선</translation>
+    </message>
+    <message>
+        <source>Long Lines</source>
+        <translation>긴 선</translation>
+    </message>
+    <message>
+        <source>Short Strokes</source>
+        <translation>짧은 획</translation>
+    </message>
+    <message>
+        <source>Medium Strokes</source>
+        <translation>중간 획</translation>
+    </message>
+    <message>
+        <source>Long Strokes</source>
+        <translation>긴 획</translation>
+    </message>
+    <message>
+        <source>Fibers</source>
+        <translation>섬유</translation>
+    </message>
+    <message>
+        <source>Variance</source>
+        <translation>편차</translation>
+    </message>
+    <message>
+        <source>Fragment</source>
+        <translation>분열</translation>
+    </message>
+    <message>
         <source>Horizontal Only</source>
         <translation>가로만</translation>
     </message>
@@ -11231,18 +11312,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>변환</translation>
     </message>
     <message>
-        <source>Pinch</source>
-        <translation>핀치</translation>
-    </message>
-    <message>
-        <source>Spherize</source>
-        <translation>구형화</translation>
-    </message>
-    <message>
-        <source>Polar Coordinates</source>
-        <translation>극좌표</translation>
-    </message>
-    <message>
         <source>Lower</source>
         <translation>아래</translation>
     </message>
@@ -11255,16 +11324,28 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>레벨</translation>
     </message>
     <message>
-        <source>Trace Contour</source>
-        <translation>윤곽선 추적</translation>
-    </message>
-    <message>
         <source>Darken Only</source>
         <translation>어둡게만</translation>
     </message>
     <message>
         <source>Lighten Only</source>
         <translation>밝게만</translation>
+    </message>
+    <message>
+        <source>Pinch</source>
+        <translation>핀치</translation>
+    </message>
+    <message>
+        <source>Spherize</source>
+        <translation>구형화</translation>
+    </message>
+    <message>
+        <source>Polar Coordinates</source>
+        <translation>극좌표</translation>
+    </message>
+    <message>
+        <source>Trace Contour</source>
+        <translation>윤곽선 추적</translation>
     </message>
     <message>
         <source>Diffuse</source>
@@ -12707,10 +12788,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>펜 도구는 레이어 내용에 경로를 그립니다.</translation>
     </message>
     <message>
-        <source>Click to add points, drag for curves. Click the first point to close; Enter commits an open path; Esc cancels.</source>
-        <translation>클릭하여 점을 추가하고 드래그하여 곡선을 만듭니다. 첫 점을 클릭하면 패스가 닫힙니다. Enter로 열린 패스를 확정하고 Esc로 취소합니다.</translation>
-    </message>
-    <message>
         <source>Select a shape layer or draw a path first</source>
         <translation>모양 레이어를 선택하거나 먼저 패스를 그립니다.</translation>
     </message>
@@ -12907,8 +12984,20 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>변형 모서리는 볼록한 모양을 이루어야 합니다</translation>
     </message>
     <message>
-        <source>Drag to move the point. Drag the outline or fill to move the shape.</source>
-        <translation>드래그하여 점을 이동합니다. 윤곽선이나 채우기를 드래그하면 도형을 이동합니다.</translation>
+        <source>Extend path</source>
+        <translation>패스 연장</translation>
+    </message>
+    <message>
+        <source>Click to add points, drag for curves; Shift keeps 45 degrees. Click the first point to close; Enter or %CTRL%+click away ends an open path; Esc cancels.</source>
+        <translation>클릭하여 점을 추가하고 드래그하여 곡선을 만듭니다. Shift로 45도를 유지합니다. 첫 점을 클릭하면 패스가 닫힙니다. Enter 또는 빈 곳을 %CTRL%+클릭하면 열린 패스를 끝내고 Esc로 취소합니다.</translation>
+    </message>
+    <message>
+        <source>Duplicate shape</source>
+        <translation>모양 복제</translation>
+    </message>
+    <message>
+        <source>Click to continue the path from this end point</source>
+        <translation>이 끝점에서 패스를 이어 그리려면 클릭하세요</translation>
     </message>
 </context>
 <context>
@@ -15760,18 +15849,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>도구</translation>
     </message>
     <message>
-        <source>Click to place points, drag for curves. On a path: click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL% moves points.</source>
-        <translation>클릭하여 점을 놓고 드래그하여 곡선을 만듭니다. 패스에서 선분을 클릭하면 점이 추가되고, 점을 클릭하면 삭제됩니다. %ALT%+클릭으로 점을 변환하고, %CTRL%로 점을 이동합니다.</translation>
-    </message>
-    <message>
-        <source>Select and move whole shapes. %CTRL%+T transforms the path.</source>
-        <translation>모양 전체를 선택하고 이동합니다. %CTRL%+T로 패스를 변형합니다.</translation>
-    </message>
-    <message>
-        <source>Select and drag points and handles. Delete removes the selected points.</source>
-        <translation>점과 핸들을 선택하고 드래그합니다. Delete로 선택한 점을 삭제합니다.</translation>
-    </message>
-    <message>
         <source>Click a path segment to insert a point.</source>
         <translation>점을 삽입하려면 패스 세그먼트를 클릭합니다.</translation>
     </message>
@@ -15786,10 +15863,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Pen: click to add points, drag for curves. On a path, click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL%+drag selects or moves points.</source>
         <translation>펜: 클릭하여 점을 추가하고 드래그하여 곡선을 만듭니다. 패스의 선분을 클릭하면 점이 추가되고, 점을 클릭하면 삭제됩니다. %ALT%+클릭으로 점을 변환하고, %CTRL%+드래그로 점을 선택하거나 이동합니다.</translation>
-    </message>
-    <message>
-        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected points.</source>
-        <translation>패스 선택: 모양을 클릭하여 선택하고 드래그하여 이동합니다. %CTRL%+T로 패스를 변형하고, Delete로 선택한 점을 삭제합니다.</translation>
     </message>
     <message>
         <source>Direct Select: click or marquee points, drag points or handles. Shift adds, arrows nudge, Delete removes, %CTRL%+T transforms the selected points.</source>
@@ -22944,6 +23017,26 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Updated %1 Smart Filter</source>
         <translation>%1 스마트 필터를 업데이트했습니다</translation>
+    </message>
+    <message>
+        <source>Patchy edits Filter Gallery entries that hold one effect</source>
+        <translation>Patchy는 효과가 하나인 필터 갤러리 항목만 편집할 수 있습니다</translation>
+    </message>
+    <message>
+        <source>Click to place points, drag for curves, Shift keeps 45 degrees. On a path: click a segment to add a point, click a point to delete it or an open end to continue it, %ALT%+click converts it, %CTRL% moves points, %CTRL%+click away ends the path.</source>
+        <translation>클릭하여 점을 놓고 드래그하여 곡선을 만들며, Shift로 45도를 유지합니다. 패스에서 선분을 클릭하면 점이 추가되고, 점을 클릭하면 삭제되며, 열린 끝점을 클릭하면 이어 그립니다. %ALT%+클릭으로 점을 변환하고, %CTRL%로 점을 이동하며, 빈 곳을 %CTRL%+클릭하면 패스를 끝냅니다.</translation>
+    </message>
+    <message>
+        <source>Select and move whole shapes. Shift+click adds or removes a shape, %ALT%+drag duplicates it, %CTRL% switches to Direct Select. %CTRL%+T transforms the selected shapes.</source>
+        <translation>모양 전체를 선택하고 이동합니다. Shift+클릭으로 모양을 추가하거나 제외하고, %ALT%+드래그로 복제하며, %CTRL%로 직접 선택으로 전환합니다. %CTRL%+T로 선택한 모양을 변형합니다.</translation>
+    </message>
+    <message>
+        <source>Select and drag points and handles. %ALT%+click selects a whole subpath, %ALT%+drag on a handle breaks the pair, %CTRL% switches to Path Select. Delete removes the selected points.</source>
+        <translation>점과 핸들을 선택하고 드래그합니다. %ALT%+클릭으로 하위 패스 전체를 선택하고, 핸들을 %ALT%+드래그하면 쌍이 분리되며, %CTRL%로 패스 선택으로 전환합니다. Delete로 선택한 점을 삭제합니다.</translation>
+    </message>
+    <message>
+        <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
+        <translation>패스 선택: 모양을 클릭하여 선택하고 드래그하여 이동하며, %ALT%+드래그로 복제합니다. %CTRL%+T로 패스를 변형하고, Delete로 선택한 모양을 삭제합니다.</translation>
     </message>
 </context>
 <context>

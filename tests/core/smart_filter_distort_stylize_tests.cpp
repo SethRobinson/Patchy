@@ -203,7 +203,7 @@ void smart_filter_wave_keeps_photoshop_units() {
       px[3] = 255;
     }
   }
-  auto stack = single_entry_stack(*schema, patchy::SchemaSmartFilter{{0, 1, 50, 50, 10, 10, 100, 0, 1, 7}});
+  auto stack = single_entry_stack(*schema, patchy::SchemaSmartFilter{{0, 1, 50, 50, 10, 10, 100, 0, 1, 7}, {}});
   const patchy::Rect bounds{0, 0, width, height};
   const auto result = patchy::render_smart_filter_stack(ramp, bounds, bounds, stack);
   CHECK(result.bounds.width == width && result.bounds.height == height);
@@ -240,12 +240,12 @@ void smart_filter_ripple_amount_zero_is_identity() {
   const patchy::Rect bounds{0, 0, 40, 30};
   for (std::int32_t size = 0; size < 3; ++size) {
     const auto still = patchy::render_smart_filter_stack(
-        pixels, bounds, bounds, single_entry_stack(*schema, patchy::SchemaSmartFilter{{0, size}}));
+        pixels, bounds, bounds, single_entry_stack(*schema, patchy::SchemaSmartFilter{{0, size}, {}}));
     CHECK(still.bounds.width == 40 && still.bounds.height == 30);
     CHECK(std::equal(still.pixels.data().begin(), still.pixels.data().end(),
                      pixels.data().begin()));
     const auto moved = patchy::render_smart_filter_stack(
-        pixels, bounds, bounds, single_entry_stack(*schema, patchy::SchemaSmartFilter{{300, size}}));
+        pixels, bounds, bounds, single_entry_stack(*schema, patchy::SchemaSmartFilter{{300, size}, {}}));
     CHECK(!std::equal(moved.pixels.data().begin(), moved.pixels.data().end(),
                       pixels.data().begin()));
   }

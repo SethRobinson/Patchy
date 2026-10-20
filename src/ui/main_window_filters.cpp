@@ -34,6 +34,7 @@
 #include "ui/liquify_dialog.hpp"
 #include "ui/localization.hpp"
 #include "ui/qt_geometry.hpp"
+#include "ui/smart_filter_table_ui.hpp"
 #include "ui/smart_object_render.hpp"
 #include "ui/update_checker.hpp"
 #include "ui/visual_filter_gallery_dialog.hpp"
@@ -361,6 +362,10 @@ FilterDialogSpec schema_dialog_spec(const SmartFilterSchema& schema) {
 }
 
 FilterInvocation editable_smart_filter_invocation(SmartFilterKind kind) {
+  if (const auto *table = smart_filter_table_spec(kind); table != nullptr) {
+    return table_smart_filter_invocation(*table,
+                                         default_table_smart_filter(*table));
+  }
   FilterInvocation invocation;
   invocation.schema_version = 1U;
   if (const auto* schema = find_smart_filter_schema(kind); schema != nullptr) {
@@ -425,6 +430,9 @@ FilterInvocation editable_smart_filter_invocation(SmartFilterKind kind) {
 }
 
 FilterDialogSpec editable_smart_filter_dialog_spec(SmartFilterKind kind) {
+  if (const auto *table = smart_filter_table_spec(kind); table != nullptr) {
+    return table_smart_filter_dialog_spec(*table);
+  }
   if (const auto* schema = find_smart_filter_schema(kind); schema != nullptr) {
     return schema_dialog_spec(*schema);
   }
@@ -809,8 +817,9 @@ SmartFilterStack smart_filter_stack_with_invocation(
         invocation, "angle", motion->angle_degrees, -360, 360);
     motion->distance_pixels = smart_filter_integer_from_invocation(
         invocation, "distance", motion->distance_pixels, 1, 2000);
-  } else if (entry.kind == SmartFilterKind::PlasticWrap) {
-    auto *plastic = std::get_if<PlasticWrapSmartFilter>(&entry.parameters);
+  } else if (smart_filter_dialog_kind(entry) == SmartFilterKind::PlasticWrap) {
+    // A Plastic Wrap entry, or a Filter Gallery entry holding one Plastic Wrap.
+    auto *plastic = editable_plastic_wrap(entry);
     if (plastic == nullptr) {
       throw std::invalid_argument("Smart Filter settings are unavailable");
     }
@@ -881,6 +890,13 @@ SmartFilterStack smart_filter_stack_with_invocation(
         smart_filter_integer_from_invocation(invocation, "seed", noise->seed,
                                              0, 999999999),
         0, 999999999);
+  } else if (const auto *table = smart_filter_table_spec(entry.kind);
+             table != nullptr) {
+    auto *values = std::get_if<TableSmartFilter>(&entry.parameters);
+    if (values == nullptr) {
+      throw std::invalid_argument("Smart Filter settings are unavailable");
+    }
+    *values = table_smart_filter_from_invocation(*table, invocation, *values);
   } else {
     throw std::invalid_argument("Smart Filter radius is unavailable");
   }
@@ -891,6 +907,22 @@ SmartFilterEntry make_editable_smart_filter_entry(
     SmartFilterKind kind, const FilterInvocation& invocation,
     RgbColor foreground,
     RgbColor background) {
+  if (const auto *table = smart_filter_table_spec(kind); table != nullptr) {
+    SmartFilterEntry entry;
+    entry.kind = kind;
+    entry.native_name = table->entry_name;
+    entry.native_class_id = table->class_id != nullptr ? table->class_id : "";
+    entry.native_filter_id = table->filter_id;
+    entry.enabled = true;
+    entry.has_options = table->has_options;
+    entry.opacity = 1.0;
+    entry.blend_mode = BlendMode::Normal;
+    entry.foreground = foreground;
+    entry.background = background;
+    entry.parameters = table_smart_filter_from_invocation(
+        *table, invocation, default_table_smart_filter(*table));
+    return entry;
+  }
   const auto high_pass = kind == SmartFilterKind::HighPass;
   const auto median = kind == SmartFilterKind::Median;
   const auto dust = kind == SmartFilterKind::DustAndScratches;
@@ -1439,12 +1471,21 @@ void MainWindow::editable_smart_filter_dialog(
     }
     stack = *current;
     filter_index = *execution_index;
-    if (stack.entries[filter_index].kind != kind) {
+    if (smart_filter_dialog_kind(stack.entries[filter_index]) != kind) {
       show_status_error(
           tr("This Smart Filter can only be preserved, not edited"));
       return;
     }
-    if (const auto* schema = find_smart_filter_schema(kind); schema != nullptr) {
+    if (const auto *table = smart_filter_table_spec(kind); table != nullptr) {
+      const auto *values = std::get_if<TableSmartFilter>(
+          &stack.entries[filter_index].parameters);
+      if (values == nullptr) {
+        show_status_error(
+            tr("This Smart Filter can only be preserved, not edited"));
+        return;
+      }
+      initial_invocation = table_smart_filter_invocation(*table, *values);
+    } else if (const auto* schema = find_smart_filter_schema(kind); schema != nullptr) {
       const auto* settings = std::get_if<SchemaSmartFilter>(
           &stack.entries[filter_index].parameters);
       if (settings == nullptr) {
@@ -1591,8 +1632,7 @@ void MainWindow::editable_smart_filter_dialog(
       initial_invocation.parameters["seed"] =
           static_cast<std::int64_t>(settings->seed);
     } else {
-      const auto *settings = std::get_if<PlasticWrapSmartFilter>(
-          &stack.entries[filter_index].parameters);
+      const auto *settings = editable_plastic_wrap(stack.entries[filter_index]);
       if (settings == nullptr) {
         show_status_error(
             tr("This Smart Filter can only be preserved, not edited"));
@@ -1773,12 +1813,16 @@ void MainWindow::editable_smart_filter_dialog(
                                 .united(to_qrect(original_bounds)));
   preview_cleanup.dismiss();
   preview_edit_lock.release();
-  const auto* table_schema = find_smart_filter_schema(kind);
+  const auto *table_spec = smart_filter_table_spec(kind);
+  const auto *table_schema = find_smart_filter_schema(kind);
+  const bool table_described = table_spec != nullptr || table_schema != nullptr;
   const auto table_name =
-      table_schema != nullptr ? translate_data_text(table_schema->display_name) : QString();
+      table_spec != nullptr ? table_smart_filter_display_name(*table_spec)
+      : table_schema != nullptr ? translate_data_text(table_schema->display_name)
+                                : QString();
   if (!settings.has_value()) {
     statusBar()->showMessage(
-        table_schema != nullptr ? tr("Cancelled %1").arg(table_name)
+        table_described ? tr("Cancelled %1").arg(table_name)
         : radial   ? tr("Cancelled Radial Blur")
         : add_noise ? tr("Cancelled Add Noise")
         : box      ? tr("Cancelled Box Blur")
@@ -1802,7 +1846,7 @@ void MainWindow::editable_smart_filter_dialog(
   candidate.entries[filter_index].opacity =
       std::clamp(blending_settings.opacity, 0.0, 1.0);
   const auto undo_text =
-      table_schema != nullptr
+      table_described
           ? (adding ? tr("Add %1 Smart Filter").arg(table_name)
                     : tr("Edit %1 Smart Filter").arg(table_name))
       : radial      ? (adding ? tr("Add Radial Blur Smart Filter")
@@ -1832,7 +1876,7 @@ void MainWindow::editable_smart_filter_dialog(
                   : (adding ? tr("Add Gaussian Blur Smart Filter")
                             : tr("Edit Gaussian Blur Smart Filter"));
   const auto status_text =
-      table_schema != nullptr
+      table_described
           ? (adding ? (creating_stack
                            ? tr("Added %1 as a Smart Filter").arg(table_name)
                            : tr("Added another %1 Smart Filter").arg(table_name))
@@ -1911,9 +1955,11 @@ void MainWindow::edit_smart_filter(LayerId layer_id,
   if (stack == nullptr || execution_index >= stack->entries.size()) {
     return;
   }
-  const auto kind = stack->entries[execution_index].kind;
+  const auto kind = smart_filter_dialog_kind(stack->entries[execution_index]);
   if (kind == SmartFilterKind::Adjustment) {
     edit_adjustment_smart_filter(layer_id, execution_index);
+  } else if (kind == SmartFilterKind::FilterGallery) {
+    show_status_error(tr("Patchy edits Filter Gallery entries that hold one effect"));
   } else if (native_smart_filter_kind_supported(kind)) {
     editable_smart_filter_dialog(layer_id, kind, execution_index);
   } else {

@@ -220,7 +220,8 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
         (key_event->key() == Qt::Key_Shift || key_event->key() == Qt::Key_Alt ||
          (key_event->key() == Qt::Key_Control && (pen_family_tool_active() || tool_ == CanvasTool::Move ||
                                                   tool_ == CanvasTool::Text || transforming_layer_ ||
-                                                  path_transform_active_)))) {
+                                                  path_transform_active_ || tool_ == CanvasTool::PathSelect ||
+                                                  tool_ == CanvasTool::DirectSelect)))) {
       // The event reports the modifier state before this key, so fold the
       // pressed/released key into the modifiers we evaluate.
       const auto bit = key_event->key() == Qt::Key_Shift   ? Qt::ShiftModifier
@@ -236,6 +237,11 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
         // The path transform box takes the same gestures (GitHub issue 248).
         if (path_transform_drag_handle_ == TransformHandle::None) {
           apply_path_transform_cursor(last_mouse_position_, modifiers);
+        }
+      } else if (tool_ == CanvasTool::PathSelect || tool_ == CanvasTool::DirectSelect) {
+        // Ctrl swaps the two arrows with a stationary pointer (not mid-drag).
+        if (path_drag_mode_ == PathEditDrag::None) {
+          set_arrow_swap((modifiers & Qt::ControlModifier) != 0);
         }
       } else if (tool_ == CanvasTool::Zoom) {
         if (key_event->key() == Qt::Key_Alt) {
@@ -1763,7 +1769,13 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
       apply_path_transform_cursor(event->pos(), event->modifiers());
     }
     if ((event->buttons() & Qt::LeftButton) == 0 && !path_transform_active_) {
+      if (path_drag_mode_ == PathEditDrag::None) {
+        set_arrow_swap((event->modifiers() & Qt::ControlModifier) != 0);
+      }
       update_path_select_hover_hint(path_hover_target_at(event->position()));
+    }
+    if (!path_transform_active_) {
+      apply_arrow_cursor();
     }
     event->accept();
     return;
@@ -2425,6 +2437,9 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
 
   if (tool_ == CanvasTool::PathSelect || tool_ == CanvasTool::DirectSelect) {
     if (handle_path_edit_release(event)) {
+      if (!path_transform_active_) {
+        set_arrow_swap((event->modifiers() & Qt::ControlModifier) != 0);
+      }
       event->accept();
       return;
     }
@@ -3580,8 +3595,7 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
   // Shift pressed mid-anchor-drag arrives as a key event, not a mouse move;
   // replay the drag at the last raw pointer position so a stationary cursor
   // still snaps onto the constrained axis.
-  if ((path_drag_mode_ == PathEditDrag::Anchors || path_drag_mode_ == PathEditDrag::SingleAnchor) &&
-      event->key() == Qt::Key_Shift &&
+  if (path_drag_mode_ == PathEditDrag::Anchors && event->key() == Qt::Key_Shift &&
       !event->isAutoRepeat()) {
     update_path_edit_drag(path_drag_raw_document_, event->modifiers() | Qt::ShiftModifier);
     event->accept();
@@ -4004,8 +4018,7 @@ void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
   }
   // Shift released mid-anchor-drag: snap the selection back to the raw mouse
   // position without waiting for the next mouse move.
-  if ((path_drag_mode_ == PathEditDrag::Anchors || path_drag_mode_ == PathEditDrag::SingleAnchor) &&
-      event->key() == Qt::Key_Shift &&
+  if (path_drag_mode_ == PathEditDrag::Anchors && event->key() == Qt::Key_Shift &&
       !event->isAutoRepeat()) {
     update_path_edit_drag(path_drag_raw_document_, event->modifiers() & ~Qt::ShiftModifier);
     event->accept();
