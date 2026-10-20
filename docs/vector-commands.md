@@ -33,7 +33,9 @@ squares with a dark 1 px edge: white with an accent inner ring when unselected (
 hollow anchor), accent with a white inner ring when selected. Handle knobs are 8 px white
 discs with the dark edge and an accent dot (10 and 12 px glyphs read as too big beside
 Photoshop's), and grab from 9 px (`kHandleHitRadiusPx`; a press
-nearer the anchor stays the anchor's; `ui_path_handle_knobs_read_and_grab`). `kGlyphReach` (8 px) is how far a glyph reaches
+nearer the anchor stays the anchor's; `ui_path_handle_knobs_read_and_grab`). Path Select
+selects every anchor of the shape, so it draws every knob, and a drawn knob grabs under it too
+(its press used to start a marquee; `ui_path_select_tools_drag_drawn_handle_knobs`). `kGlyphReach` (8 px) is how far a glyph reaches
 past its point; every repaint region around path points pads by it. The tests'
 `accent_overlay_near` probes 3 px around a point for the accent, which the inner ring and the
 knob dot satisfy.
