@@ -22503,6 +22503,8 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
     <message>
         <source>Layer color</source>
         <translation>Ebenenfarbe</translation>
+    </message>
+    <message>
         <source>Delete All Smart Filters</source>
         <translation>Alle Smartfilter löschen</translation>
     </message>

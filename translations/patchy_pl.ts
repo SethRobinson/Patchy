@@ -22573,6 +22573,8 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     <message>
         <source>Layer color</source>
         <translation>Kolor warstwy</translation>
+    </message>
+    <message>
         <source>Delete All Smart Filters</source>
         <translation>Usuń wszystkie inteligentne filtry</translation>
     </message>

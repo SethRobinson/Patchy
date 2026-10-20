@@ -22503,6 +22503,8 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
     <message>
         <source>Layer color</source>
         <translation>Colore del livello</translation>
+    </message>
+    <message>
         <source>Delete All Smart Filters</source>
         <translation>Elimina tutti i filtri avanzati</translation>
     </message>

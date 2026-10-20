@@ -22425,6 +22425,9 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     </message>
     <message>
         <source>Layer color</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Delete All Smart Filters</source>
         <translation type="unfinished"></translation>
     </message>

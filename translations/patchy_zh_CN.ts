@@ -22433,6 +22433,8 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Layer color</source>
         <translation>图层颜色</translation>
+    </message>
+    <message>
         <source>Delete All Smart Filters</source>
         <translation>删除所有智能滤镜</translation>
     </message>

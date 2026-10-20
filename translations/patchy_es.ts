@@ -22503,6 +22503,8 @@ Puedes hacerlo más tarde desde Ayuda &gt; Añadir Patchy al menú de aplicacion
     <message>
         <source>Layer color</source>
         <translation>Color de capa</translation>
+    </message>
+    <message>
         <source>Delete All Smart Filters</source>
         <translation>Eliminar todos los filtros inteligentes</translation>
     </message>

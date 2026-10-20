@@ -22573,6 +22573,8 @@ Patchy можно будет запускать из меню, а на пане�
     <message>
         <source>Layer color</source>
         <translation>Цвет слоя</translation>
+    </message>
+    <message>
         <source>Delete All Smart Filters</source>
         <translation>Удалить все смарт-фильтры</translation>
     </message>

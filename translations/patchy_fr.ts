@@ -22503,6 +22503,8 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
     <message>
         <source>Layer color</source>
         <translation>Couleur du calque</translation>
+    </message>
+    <message>
         <source>Delete All Smart Filters</source>
         <translation>Supprimer tous les filtres dynamiques</translation>
     </message>
