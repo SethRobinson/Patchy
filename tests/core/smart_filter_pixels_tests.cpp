@@ -670,10 +670,47 @@ void smart_filter_median_matches_square_clamped_channels_and_native_paths() {
                    all_transparent_result.pixels.data().end(),
                    all_transparent.data().begin()));
 
+  // The Smart Filter runs over the filter canvas, so the window sees
+  // transparent pixels past the placed bounds where the plain primitive
+  // clamps at the layer edge; the result is trimmed to visible alpha.
+  const patchy::Rect median_canvas{0, 0, 96, 80};
+  patchy::PixelBuffer embedded(median_canvas.width, median_canvas.height,
+                               patchy::PixelFormat::rgba8());
+  embedded.clear(0);
+  for (std::int32_t y = 0; y < bounds.height; ++y) {
+    const auto* row = source.pixel(0, y);
+    std::copy(row, row + static_cast<std::size_t>(bounds.width) * 4U,
+              embedded.pixel(bounds.x, bounds.y + y));
+  }
+  const auto canvas_median =
+      patchy::render_photoshop_median(embedded, median_canvas, 2.75);
   const auto native = patchy::render_smart_filter_stack(
-      source, bounds, patchy::Rect{0, 0, 96, 80},
-      test_median_smart_filter_stack(2.75));
-  check_filter_result_equal(radius_two, native);
+      source, bounds, median_canvas, test_median_smart_filter_stack(2.75));
+  CHECK(native.bounds.x >= bounds.x && native.bounds.y >= bounds.y &&
+        native.bounds.x + native.bounds.width <= bounds.x + bounds.width &&
+        native.bounds.y + native.bounds.height <= bounds.y + bounds.height);
+  bool eroded = false;
+  for (std::int32_t y = 0; y < median_canvas.height; ++y) {
+    for (std::int32_t x = 0; x < median_canvas.width; ++x) {
+      const auto* want = canvas_median.pixels.pixel(x, y);
+      const bool inside = x >= native.bounds.x && y >= native.bounds.y &&
+                          x < native.bounds.x + native.bounds.width &&
+                          y < native.bounds.y + native.bounds.height;
+      if (!inside) {
+        CHECK(want[3] == 0U);
+        continue;
+      }
+      const auto* got = native.pixels.pixel(x - native.bounds.x, y - native.bounds.y);
+      CHECK(want[3] == got[3]);
+      CHECK(want[3] == 0U || std::equal(want, want + 3, got));
+      if (x >= bounds.x && y >= bounds.y && x < bounds.x + bounds.width &&
+          y < bounds.y + bounds.height) {
+        const auto* clamped = radius_two.pixels.pixel(x - bounds.x, y - bounds.y);
+        eroded = eroded || got[3] < clamped[3];
+      }
+    }
+  }
+  CHECK(eroded);
 
   patchy::FilterRegistry registry;
   patchy::register_builtin_filters(registry);

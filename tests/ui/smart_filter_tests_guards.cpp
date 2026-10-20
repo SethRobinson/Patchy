@@ -452,9 +452,11 @@ void ui_smart_filter_move_drag_and_nudge_rerender_cache_and_roundtrip() {
             .metadata()
             .smart_filter_effects.find_unique(placed_uuid);
     CHECK(actual_record != nullptr && actual_record->semantic_supported());
+    // The cache covers the document united with the moved placement.
     const auto expected_record = patchy::psd::author_filter_effects_record(
-        placed_uuid, patchy::Rect::from_size(document.width(),
-                                             document.height()),
+        placed_uuid,
+        patchy::smart_filter_canvas_bounds(document.width(), document.height(),
+                                           expected_preview->unfiltered.bounds),
         expected_preview->unfiltered.pixels,
         expected_preview->unfiltered.bounds,
         moved->smart_filter_stack()->mask);

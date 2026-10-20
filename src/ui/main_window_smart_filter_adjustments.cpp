@@ -77,7 +77,7 @@ void MainWindow::edit_adjustment_smart_filter(LayerId layer_id, std::size_t exec
   }
   auto unfiltered_pixels = std::make_shared<const PixelBuffer>(unfiltered_preview->pixels);
   const auto unfiltered_bounds = unfiltered_preview->bounds;
-  const auto filter_canvas_bounds = Rect::from_size(doc.width(), doc.height());
+  const auto filter_canvas_bounds = smart_filter_canvas_bounds(doc.width(), doc.height(), unfiltered_bounds);
   auto original_pixels = std::make_shared<const PixelBuffer>(std::as_const(*layer).pixels());
   const auto original_bounds = layer->bounds();
   auto last_preview_bounds = std::make_shared<Rect>(original_bounds);

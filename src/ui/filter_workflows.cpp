@@ -5,6 +5,7 @@
 #include "core/pixel_depth.hpp"
 #include "core/rect_utils.hpp"
 #include "core/worker_budget.hpp"
+#include "filters/smart_filter_recipe_mapping.hpp"
 #include "formats/acv_curves_io.hpp"
 #include "ui/blend_mode_ui.hpp"
 #include "ui/coalesced_preview_emitter.hpp"
@@ -266,7 +267,32 @@ QString filter_parameter_suffix(FilterParameterUnit unit) {
 }  // namespace
 
 QString filter_display_name(const FilterDefinition& filter) {
+  // Photoshop's parameterless filters share labels with the categories
+  // ("Blur"); their own translations carry a disambiguation.
+  if (const auto kind = native_smart_filter_kind_for(filter.identifier);
+      kind.has_value() && parameterless_smart_filter_native(*kind) != nullptr) {
+    return parameterless_smart_filter_display_name(*kind);
+  }
   return translate_data_text(filter.display_name);
+}
+
+QString parameterless_smart_filter_display_name(SmartFilterKind kind) {
+  switch (kind) {
+    case SmartFilterKind::Blur:
+      return QObject::tr("Blur", "Smart Filter");
+    case SmartFilterKind::BlurMore:
+      return QObject::tr("Blur More", "Smart Filter");
+    case SmartFilterKind::Sharpen:
+      return QObject::tr("Sharpen", "Smart Filter");
+    case SmartFilterKind::SharpenMore:
+      return QObject::tr("Sharpen More", "Smart Filter");
+    case SmartFilterKind::Invert:
+      return QObject::tr("Invert", "Smart Filter");
+    case SmartFilterKind::Average:
+      return QObject::tr("Average", "Smart Filter");
+    default:
+      return {};
+  }
 }
 
 QString filter_category_display_name(FilterCategory category) {
