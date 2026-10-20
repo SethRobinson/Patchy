@@ -1326,6 +1326,10 @@ private:
   // Artboards (main_window_artboards.cpp, docs/artboards.md). Every edit is one undo step
   // and grows the canvas until the artboards fit, the view following the artwork.
   void handle_artboard_edit(const ArtboardEditRequest& request);
+  // Selecting an artboard with the Move tool (a canvas click or its Layers panel row)
+  // names the Artboard tool and its hotkey in the status bar, since the "+" buttons,
+  // handles and copies live there (GitHub issue 259). Nothing with any other tool.
+  void show_artboard_tool_hint_for_move_tool();
   std::optional<LayerId> create_artboard(QRect rect, std::string name, ArtboardBackground background, RgbColor color,
                                          const QString& undo_label);
   void move_artboard(LayerId id, QPoint delta, bool duplicate, bool nudge);

@@ -488,6 +488,42 @@ void high_pass(PixelBuffer& pixels) {
   });
 }
 
+// Photoshop's parameterless filters. The legacy path keeps the buffer size;
+// samples past it repeat its edge (the named-parameter path pads for growth).
+void photoshop_classic_filter(PixelBuffer& pixels, SmartFilterKind kind) {
+  require_uint8(pixels);
+  if (pixels.format().channels < 3 || pixels.empty()) {
+    return;
+  }
+  stage_rgba_and_render(pixels, [kind](const PixelBuffer& rgba) {
+    return render_photoshop_classic_filter(
+        rgba, Rect::from_size(rgba.width(), rgba.height()), kind);
+  });
+}
+
+void photoshop_blur(PixelBuffer& pixels) {
+  photoshop_classic_filter(pixels, SmartFilterKind::Blur);
+}
+
+void photoshop_blur_more(PixelBuffer& pixels) {
+  photoshop_classic_filter(pixels, SmartFilterKind::BlurMore);
+}
+
+void photoshop_sharpen_more(PixelBuffer& pixels) {
+  photoshop_classic_filter(pixels, SmartFilterKind::SharpenMore);
+}
+
+void average(PixelBuffer& pixels) {
+  require_uint8(pixels);
+  if (pixels.format().channels < 3 || pixels.empty()) {
+    return;
+  }
+  stage_rgba_and_render(pixels, [](const PixelBuffer& rgba) {
+    return render_visible_average(rgba,
+                                  Rect::from_size(rgba.width(), rgba.height()));
+  });
+}
+
 void median(PixelBuffer& pixels) {
   require_uint8(pixels);
   if (pixels.format().channels < 3 || pixels.empty()) {
@@ -991,6 +1027,12 @@ void register_builtin_filters(FilterRegistry& registry) {
   add("patchy.filters.iris_blur", "Iris Blur", iris_blur);
   add("patchy.filters.tilt_shift_blur", "Tilt-Shift Blur", tilt_shift_blur);
   add("patchy.filters.plastic_wrap", "Plastic Wrap", plastic_wrap);
+  // Photoshop's parameterless filters (October 2026). Appended: the catalog
+  // order of the filters above is a test-pinned contract.
+  add("patchy.filters.blur", "Blur", photoshop_blur);
+  add("patchy.filters.blur_more", "Blur More", photoshop_blur_more);
+  add("patchy.filters.average", "Average", average);
+  add("patchy.filters.sharpen_more", "Sharpen More", photoshop_sharpen_more);
 }
 
 }  // namespace patchy

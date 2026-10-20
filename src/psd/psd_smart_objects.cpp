@@ -601,6 +601,14 @@ smart_filter_descriptor_spec(const SmartFilterEntry &entry) {
     spec.filter_name = "Filter Gallery";
     spec.filter_class_id = "GEfc";
     spec.filter_id = kFilterGalleryFilterId;
+  } else if (const auto *classic = parameterless_smart_filter_native(entry.kind);
+             classic != nullptr) {
+    // No Fltr object: filter_name and filter_class_id stay null.
+    if (!std::holds_alternative<std::monostate>(entry.parameters)) {
+      return std::nullopt;
+    }
+    spec.default_entry_name = classic->native_name;
+    spec.filter_id = classic->filter_id;
   } else {
     return std::nullopt;
   }
@@ -643,6 +651,14 @@ make_smart_filter_entry_descriptor(const SmartFilterEntry &entry) {
                          smart_filter_color(entry.foreground));
   add_smart_filter_value(*item.object_value, "BckC", false,
                          smart_filter_color(entry.background));
+  if (spec->filter_class_id == nullptr) {
+    // Photoshop's parameterless filters end at BckC, filterID (October 2026
+    // captures).
+    add_smart_filter_value(
+        *item.object_value, "filterID", true,
+        smart_filter_integer(static_cast<std::int32_t>(spec->filter_id)));
+    return item;
+  }
   auto filter = smart_filter_object(
       spec->filter_class_id != nullptr ? spec->filter_class_id : "",
       spec->filter_class_id_long_form,
@@ -703,11 +719,14 @@ make_smart_filter_entry_descriptor(const SmartFilterEntry &entry) {
   }
   if (spec->radial_blur.has_value()) {
     // Photoshop's Radial Blur key order is Amnt (plain integer), BlrM, BlrQ
-    // (July 2026 capture). Patchy authors the Spin method only.
+    // (July 2026 capture); BlrM keeps the entry's Spin or Zoom method.
     add_smart_filter_value(*filter.object_value, "Amnt", false,
                            smart_filter_integer(spec->radial_blur->amount));
     add_smart_filter_value(*filter.object_value, "BlrM", false,
-                           smart_filter_enum("BlrM", false, "Spn ", false));
+                           smart_filter_enum("BlrM", false,
+                                             spec->radial_blur->zoom ? "Zm  "
+                                                                     : "Spn ",
+                                             false));
     const auto quality =
         spec->radial_blur->quality == RadialBlurQuality::Draft
             ? "Drft"
@@ -966,6 +985,7 @@ bool patch_smart_filter_descriptor(
     auto* blend =
         const_cast<DescriptorObject*>(descriptor_object(item, "blendOptions"));
     auto* filter = const_cast<DescriptorObject*>(descriptor_object(item, "Fltr"));
+    // Parameterless classics (no class id) store no Fltr object either.
     const bool expects_filter_object =
         (spec->schema == nullptr || spec->schema->has_filter_object) &&
         spec->filter_class_id != nullptr;
@@ -1107,7 +1127,8 @@ bool patch_smart_filter_descriptor(
       if (amount == nullptr ||
           amount->type != DescriptorValue::Type::Integer || method == nullptr ||
           method->type != DescriptorValue::Type::Enum ||
-          method->enum_value != "Spn " || quality == nullptr ||
+          method->enum_value != (spec->radial_blur->zoom ? "Zm  " : "Spn ") ||
+          quality == nullptr ||
           quality->type != DescriptorValue::Type::Enum) {
         return false;
       }
@@ -1512,11 +1533,11 @@ std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
             descriptor_value_either(*filter, "BlrM", "blurMethod");
         const auto *quality =
             descriptor_value_either(*filter, "BlrQ", "blurQuality");
-        // Patchy models the Spin method only; a Zoom entry (or an unknown
-        // quality token) stays Unsupported and preview-locks the stack.
-        const auto spin = method != nullptr &&
-                          method->type == DescriptorValue::Type::Enum &&
-                          method->enum_value == "Spn ";
+        // Spin and Zoom; an unknown method or quality token stays
+        // Unsupported and preview-locks the stack.
+        const auto method_valid =
+            method != nullptr && method->type == DescriptorValue::Type::Enum &&
+            (method->enum_value == "Spn " || method->enum_value == "Zm  ");
         const auto quality_valid =
             quality != nullptr && quality->type == DescriptorValue::Type::Enum &&
             (quality->enum_value == "Drft" || quality->enum_value == "Gd  " ||
@@ -1524,14 +1545,15 @@ std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
         if (amount != nullptr &&
             amount->type == DescriptorValue::Type::Integer &&
             amount->integer_value >= 1 && amount->integer_value <= 100 &&
-            spin && quality_valid) {
+            method_valid && quality_valid) {
           entry.kind = SmartFilterKind::RadialBlur;
           entry.parameters = RadialBlurSmartFilter{
               amount->integer_value,
               quality->enum_value == "Drft"
                   ? RadialBlurQuality::Draft
                   : (quality->enum_value == "Gd  " ? RadialBlurQuality::Good
-                                                   : RadialBlurQuality::Best)};
+                                                   : RadialBlurQuality::Best),
+              method->enum_value == "Zm  "};
         } else {
           entry_supported = false;
         }
@@ -1609,6 +1631,13 @@ std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
         } else {
           entry_supported = false;
         }
+      } else if (const auto *classic =
+                     parameterless_smart_filter_native_for_id(
+                         entry.native_filter_id);
+                 classic != nullptr &&
+                 descriptor_value(native_entry, "Fltr") == nullptr) {
+        entry.kind = classic->kind;
+        entry.parameters = std::monostate{};
       } else if (const auto* schema = schema_for_native_entry(filter, entry.native_filter_id);
                  schema != nullptr) {
         if (auto settings = filter != nullptr ? read_schema_settings(*filter, *schema)

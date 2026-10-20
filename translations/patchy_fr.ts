@@ -11398,35 +11398,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Couleur et vibrance</translation>
     </message>
     <message>
-        <source>Missing Linked Files</source>
-        <translation>Fichiers liés manquants</translation>
+        <source>Invalid Average input</source>
+        <translation>Entrée non valide pour Moyenne</translation>
     </message>
     <message>
-        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
-        <translation>Ces objets dynamiques liés pointent vers des fichiers que Patchy ne trouve pas. Rétablissez le lien de chacun vers un fichier maintenant, ou continuez avec les aperçus enregistrés et utilisez plus tard Calque &gt; Objets dynamiques &gt; Rétablir le lien vers le fichier...</translation>
+        <source>Blur</source>
+        <comment>Smart Filter</comment>
+        <translation>Flou</translation>
     </message>
     <message>
-        <source>Relink...</source>
-        <translation>Rétablir le lien...</translation>
+        <source>Blur More</source>
+        <comment>Smart Filter</comment>
+        <translation>Flou plus important</translation>
     </message>
     <message>
-        <source>Used by layer &quot;%1&quot;</source>
-        <translation>Utilisé par le calque « %1 »</translation>
-    </message>
-    <message numerus="yes">
-        <source>Used by %n layers: %1</source>
-        <translation>
-            <numerusform>Utilisé par %n calque : %1</numerusform>
-            <numerusform>Utilisé par %n calques : %1</numerusform>
-        </translation>
+        <source>Sharpen</source>
+        <comment>Smart Filter</comment>
+        <translation>Plus net</translation>
     </message>
     <message>
-        <source>Relinked to %1</source>
-        <translation>Lien rétabli vers %1</translation>
+        <source>Sharpen More</source>
+        <comment>Smart Filter</comment>
+        <translation>Encore plus net</translation>
     </message>
     <message>
-        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
-        <translation>Les fichiers manquants restent signalés dans la barre d&apos;état. Les préférences permettent de réactiver cette boîte de dialogue pour les documents ouverts.</translation>
+        <source>Invert</source>
+        <comment>Smart Filter</comment>
+        <translation>Négatif</translation>
+    </message>
+    <message>
+        <source>Average</source>
+        <comment>Smart Filter</comment>
+        <translation>Moyenne</translation>
+    </message>
+    <message>
+        <source> (Amount %1, Zoom, %2 quality)</source>
+        <translation> (Valeur %1, Zoom, qualité %2)</translation>
     </message>
     <message>
         <source>The layer is locked, so its effects cannot be changed here.</source>
@@ -11459,6 +11466,37 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Edit this effect in the Layer Style dialog</source>
         <translation>Modifier cet effet dans la boîte de dialogue Style de calque</translation>
+    </message>
+    <message>
+        <source>Missing Linked Files</source>
+        <translation>Fichiers liés manquants</translation>
+    </message>
+    <message>
+        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
+        <translation>Ces objets dynamiques liés pointent vers des fichiers que Patchy ne trouve pas. Rétablissez le lien de chacun vers un fichier maintenant, ou continuez avec les aperçus enregistrés et utilisez plus tard Calque &gt; Objets dynamiques &gt; Rétablir le lien vers le fichier...</translation>
+    </message>
+    <message>
+        <source>Relink...</source>
+        <translation>Rétablir le lien...</translation>
+    </message>
+    <message>
+        <source>Used by layer &quot;%1&quot;</source>
+        <translation>Utilisé par le calque « %1 »</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used by %n layers: %1</source>
+        <translation>
+            <numerusform>Utilisé par %n calque : %1</numerusform>
+            <numerusform>Utilisé par %n calques : %1</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Relinked to %1</source>
+        <translation>Lien rétabli vers %1</translation>
+    </message>
+    <message>
+        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
+        <translation>Les fichiers manquants restent signalés dans la barre d&apos;état. Les préférences permettent de réactiver cette boîte de dialogue pour les documents ouverts.</translation>
     </message>
 </context>
 <context>
@@ -23212,23 +23250,12 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
         <translation>Vibrance annulée</translation>
     </message>
     <message>
-        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
-        <translation>Afficher la boîte de dialogue Fichiers liés manquants à l&apos;ouverture d&apos;un document dont des fichiers liés manquent</translation>
+        <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
+        <translation>Passez à l&apos;outil Plan de travail pour ajouter, redimensionner ou dupliquer des plans de travail</translation>
     </message>
     <message>
-        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
-        <translation>Calque &gt; Objets dynamiques &gt; Rétablir le lien vers le fichier... répare un lien à tout moment.</translation>
-    </message>
-    <message>
-        <source>This document has no missing linked files</source>
-        <translation>Ce document n&apos;a aucun fichier lié manquant</translation>
-    </message>
-    <message numerus="yes">
-        <source>Relinked %n smart object file(s)</source>
-        <translation>
-            <numerusform>Lien rétabli pour %n fichier d&apos;objet dynamique</numerusform>
-            <numerusform>Lien rétabli pour %n fichiers d&apos;objets dynamiques</numerusform>
-        </translation>
+        <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
+        <translation>Passez à l&apos;outil Plan de travail (%1) pour ajouter, redimensionner ou dupliquer des plans de travail</translation>
     </message>
     <message>
         <source>Show Effects</source>
@@ -23261,6 +23288,25 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
     <message>
         <source>%1 hidden</source>
         <translation>%1 masqué</translation>
+    </message>
+    <message>
+        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
+        <translation>Afficher la boîte de dialogue Fichiers liés manquants à l&apos;ouverture d&apos;un document dont des fichiers liés manquent</translation>
+    </message>
+    <message>
+        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
+        <translation>Calque &gt; Objets dynamiques &gt; Rétablir le lien vers le fichier... répare un lien à tout moment.</translation>
+    </message>
+    <message>
+        <source>This document has no missing linked files</source>
+        <translation>Ce document n&apos;a aucun fichier lié manquant</translation>
+    </message>
+    <message numerus="yes">
+        <source>Relinked %n smart object file(s)</source>
+        <translation>
+            <numerusform>Lien rétabli pour %n fichier d&apos;objet dynamique</numerusform>
+            <numerusform>Lien rétabli pour %n fichiers d&apos;objets dynamiques</numerusform>
+        </translation>
     </message>
 </context>
 <context>

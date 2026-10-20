@@ -11364,34 +11364,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>顏色和自然飽和度</translation>
     </message>
     <message>
-        <source>Missing Linked Files</source>
-        <translation>遺失的連結檔案</translation>
+        <source>Invalid Average input</source>
+        <translation>無效的平均輸入</translation>
     </message>
     <message>
-        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
-        <translation>這些連結的智慧型物件指向 Patchy 找不到的檔案。現在將每個物件重新連結至檔案，或先使用儲存的預覽繼續，稍後再使用「圖層 &gt; 智慧型物件 &gt; 重新連結至檔案...」。</translation>
+        <source>Blur</source>
+        <comment>Smart Filter</comment>
+        <translation>模糊</translation>
     </message>
     <message>
-        <source>Relink...</source>
-        <translation>重新連結...</translation>
+        <source>Blur More</source>
+        <comment>Smart Filter</comment>
+        <translation>更模糊</translation>
     </message>
     <message>
-        <source>Used by layer &quot;%1&quot;</source>
-        <translation>由圖層「%1」使用</translation>
-    </message>
-    <message numerus="yes">
-        <source>Used by %n layers: %1</source>
-        <translation>
-            <numerusform>由 %n 個圖層使用：%1</numerusform>
-        </translation>
+        <source>Sharpen</source>
+        <comment>Smart Filter</comment>
+        <translation>銳利化</translation>
     </message>
     <message>
-        <source>Relinked to %1</source>
-        <translation>已重新連結至 %1</translation>
+        <source>Sharpen More</source>
+        <comment>Smart Filter</comment>
+        <translation>更銳利化</translation>
     </message>
     <message>
-        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
-        <translation>遺失的檔案仍會顯示在狀態列中。可以在偏好設定中為開啟的文件重新啟用此對話方塊。</translation>
+        <source>Invert</source>
+        <comment>Smart Filter</comment>
+        <translation>負片效果</translation>
+    </message>
+    <message>
+        <source>Average</source>
+        <comment>Smart Filter</comment>
+        <translation>平均</translation>
+    </message>
+    <message>
+        <source> (Amount %1, Zoom, %2 quality)</source>
+        <translation> （總量 %1，縮放，%2 品質）</translation>
     </message>
     <message>
         <source>The layer is locked, so its effects cannot be changed here.</source>
@@ -11424,6 +11432,36 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Edit this effect in the Layer Style dialog</source>
         <translation>在「圖層樣式」對話方塊中編輯此效果</translation>
+    </message>
+    <message>
+        <source>Missing Linked Files</source>
+        <translation>遺失的連結檔案</translation>
+    </message>
+    <message>
+        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
+        <translation>這些連結的智慧型物件指向 Patchy 找不到的檔案。現在將每個物件重新連結至檔案，或先使用儲存的預覽繼續，稍後再使用「圖層 &gt; 智慧型物件 &gt; 重新連結至檔案...」。</translation>
+    </message>
+    <message>
+        <source>Relink...</source>
+        <translation>重新連結...</translation>
+    </message>
+    <message>
+        <source>Used by layer &quot;%1&quot;</source>
+        <translation>由圖層「%1」使用</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used by %n layers: %1</source>
+        <translation>
+            <numerusform>由 %n 個圖層使用：%1</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Relinked to %1</source>
+        <translation>已重新連結至 %1</translation>
+    </message>
+    <message>
+        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
+        <translation>遺失的檔案仍會顯示在狀態列中。可以在偏好設定中為開啟的文件重新啟用此對話方塊。</translation>
     </message>
 </context>
 <context>
@@ -23141,22 +23179,12 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>已取消自然飽和度</translation>
     </message>
     <message>
-        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
-        <translation>開啟缺少連結檔案的文件時顯示「遺失的連結檔案」對話方塊</translation>
+        <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
+        <translation>切換到工作區域工具以新增、調整大小或複製工作區域</translation>
     </message>
     <message>
-        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
-        <translation>「圖層 &gt; 智慧型物件 &gt; 重新連結至檔案...」可隨時修復連結。</translation>
-    </message>
-    <message>
-        <source>This document has no missing linked files</source>
-        <translation>此文件沒有遺失的連結檔案</translation>
-    </message>
-    <message numerus="yes">
-        <source>Relinked %n smart object file(s)</source>
-        <translation>
-            <numerusform>已重新連結 %n 個智慧型物件檔案</numerusform>
-        </translation>
+        <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
+        <translation>切換到工作區域工具 (%1) 以新增、調整大小或複製工作區域</translation>
     </message>
     <message>
         <source>Show Effects</source>
@@ -23189,6 +23217,24 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>%1 hidden</source>
         <translation>已隱藏%1</translation>
+    </message>
+    <message>
+        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
+        <translation>開啟缺少連結檔案的文件時顯示「遺失的連結檔案」對話方塊</translation>
+    </message>
+    <message>
+        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
+        <translation>「圖層 &gt; 智慧型物件 &gt; 重新連結至檔案...」可隨時修復連結。</translation>
+    </message>
+    <message>
+        <source>This document has no missing linked files</source>
+        <translation>此文件沒有遺失的連結檔案</translation>
+    </message>
+    <message numerus="yes">
+        <source>Relinked %n smart object file(s)</source>
+        <translation>
+            <numerusform>已重新連結 %n 個智慧型物件檔案</numerusform>
+        </translation>
     </message>
 </context>
 <context>

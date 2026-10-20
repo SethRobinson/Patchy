@@ -11364,34 +11364,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>색상 및 활기</translation>
     </message>
     <message>
-        <source>Missing Linked Files</source>
-        <translation>누락된 연결 파일</translation>
+        <source>Invalid Average input</source>
+        <translation>잘못된 평균 입력</translation>
     </message>
     <message>
-        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
-        <translation>이 연결된 스마트 개체는 Patchy가 찾을 수 없는 파일을 가리킵니다. 지금 각각을 파일에 다시 연결하거나, 저장된 미리보기로 계속한 뒤 나중에 레이어 &gt; 스마트 개체 &gt; 파일에 다시 연결...을 사용하세요.</translation>
+        <source>Blur</source>
+        <comment>Smart Filter</comment>
+        <translation>흐리게</translation>
     </message>
     <message>
-        <source>Relink...</source>
-        <translation>다시 연결...</translation>
+        <source>Blur More</source>
+        <comment>Smart Filter</comment>
+        <translation>더 흐리게</translation>
     </message>
     <message>
-        <source>Used by layer &quot;%1&quot;</source>
-        <translation>레이어 &quot;%1&quot;에서 사용</translation>
-    </message>
-    <message numerus="yes">
-        <source>Used by %n layers: %1</source>
-        <translation>
-            <numerusform>레이어 %n개에서 사용: %1</numerusform>
-        </translation>
+        <source>Sharpen</source>
+        <comment>Smart Filter</comment>
+        <translation>선명하게</translation>
     </message>
     <message>
-        <source>Relinked to %1</source>
-        <translation>%1에 다시 연결됨</translation>
+        <source>Sharpen More</source>
+        <comment>Smart Filter</comment>
+        <translation>더 선명하게</translation>
     </message>
     <message>
-        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
-        <translation>누락된 파일은 상태 표시줄에 계속 표시됩니다. 환경 설정에서 열린 문서에 대해 이 대화 상자를 다시 켤 수 있습니다.</translation>
+        <source>Invert</source>
+        <comment>Smart Filter</comment>
+        <translation>반전</translation>
+    </message>
+    <message>
+        <source>Average</source>
+        <comment>Smart Filter</comment>
+        <translation>평균</translation>
+    </message>
+    <message>
+        <source> (Amount %1, Zoom, %2 quality)</source>
+        <translation> (양 %1, 줌, %2 품질)</translation>
     </message>
     <message>
         <source>The layer is locked, so its effects cannot be changed here.</source>
@@ -11424,6 +11432,36 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Edit this effect in the Layer Style dialog</source>
         <translation>레이어 스타일 대화 상자에서 이 효과 편집</translation>
+    </message>
+    <message>
+        <source>Missing Linked Files</source>
+        <translation>누락된 연결 파일</translation>
+    </message>
+    <message>
+        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
+        <translation>이 연결된 스마트 개체는 Patchy가 찾을 수 없는 파일을 가리킵니다. 지금 각각을 파일에 다시 연결하거나, 저장된 미리보기로 계속한 뒤 나중에 레이어 &gt; 스마트 개체 &gt; 파일에 다시 연결...을 사용하세요.</translation>
+    </message>
+    <message>
+        <source>Relink...</source>
+        <translation>다시 연결...</translation>
+    </message>
+    <message>
+        <source>Used by layer &quot;%1&quot;</source>
+        <translation>레이어 &quot;%1&quot;에서 사용</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used by %n layers: %1</source>
+        <translation>
+            <numerusform>레이어 %n개에서 사용: %1</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Relinked to %1</source>
+        <translation>%1에 다시 연결됨</translation>
+    </message>
+    <message>
+        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
+        <translation>누락된 파일은 상태 표시줄에 계속 표시됩니다. 환경 설정에서 열린 문서에 대해 이 대화 상자를 다시 켤 수 있습니다.</translation>
     </message>
 </context>
 <context>
@@ -23141,22 +23179,12 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>활기를 취소했습니다</translation>
     </message>
     <message>
-        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
-        <translation>연결 파일이 누락된 문서를 열 때 누락된 연결 파일 대화 상자 표시</translation>
+        <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
+        <translation>대지를 추가, 크기 조정 또는 복제하려면 대지 도구로 전환하세요</translation>
     </message>
     <message>
-        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
-        <translation>레이어 &gt; 스마트 개체 &gt; 파일에 다시 연결...로 언제든지 연결을 복구할 수 있습니다.</translation>
-    </message>
-    <message>
-        <source>This document has no missing linked files</source>
-        <translation>이 문서에는 누락된 연결 파일이 없습니다</translation>
-    </message>
-    <message numerus="yes">
-        <source>Relinked %n smart object file(s)</source>
-        <translation>
-            <numerusform>스마트 개체 파일 %n개를 다시 연결했습니다</numerusform>
-        </translation>
+        <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
+        <translation>대지를 추가, 크기 조정 또는 복제하려면 대지 도구(%1)로 전환하세요</translation>
     </message>
     <message>
         <source>Show Effects</source>
@@ -23189,6 +23217,24 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>%1 hidden</source>
         <translation>%1 숨겨짐</translation>
+    </message>
+    <message>
+        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
+        <translation>연결 파일이 누락된 문서를 열 때 누락된 연결 파일 대화 상자 표시</translation>
+    </message>
+    <message>
+        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
+        <translation>레이어 &gt; 스마트 개체 &gt; 파일에 다시 연결...로 언제든지 연결을 복구할 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>This document has no missing linked files</source>
+        <translation>이 문서에는 누락된 연결 파일이 없습니다</translation>
+    </message>
+    <message numerus="yes">
+        <source>Relinked %n smart object file(s)</source>
+        <translation>
+            <numerusform>스마트 개체 파일 %n개를 다시 연결했습니다</numerusform>
+        </translation>
     </message>
 </context>
 <context>

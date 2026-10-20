@@ -11432,36 +11432,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Цвет и сочность</translation>
     </message>
     <message>
-        <source>Missing Linked Files</source>
-        <translation>Отсутствующие связанные файлы</translation>
+        <source>Invalid Average input</source>
+        <translation>Некорректные входные данные фильтра «Среднее»</translation>
     </message>
     <message>
-        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
-        <translation>Эти связанные смарт-объекты ссылаются на файлы, которые Patchy не может найти. Свяжите каждый из них с файлом сейчас или продолжите с сохранёнными превью и позже используйте Слой &gt; Смарт-объекты &gt; Связать с другим файлом...</translation>
+        <source>Blur</source>
+        <comment>Smart Filter</comment>
+        <translation>Размытие</translation>
     </message>
     <message>
-        <source>Relink...</source>
-        <translation>Связать заново...</translation>
+        <source>Blur More</source>
+        <comment>Smart Filter</comment>
+        <translation>Размытие+</translation>
     </message>
     <message>
-        <source>Used by layer &quot;%1&quot;</source>
-        <translation>Используется слоем «%1»</translation>
-    </message>
-    <message numerus="yes">
-        <source>Used by %n layers: %1</source>
-        <translation>
-            <numerusform>Используется %n слоем: %1</numerusform>
-            <numerusform>Используется %n слоями: %1</numerusform>
-            <numerusform>Используется %n слоями: %1</numerusform>
-        </translation>
+        <source>Sharpen</source>
+        <comment>Smart Filter</comment>
+        <translation>Резкость</translation>
     </message>
     <message>
-        <source>Relinked to %1</source>
-        <translation>Связано с %1</translation>
+        <source>Sharpen More</source>
+        <comment>Smart Filter</comment>
+        <translation>Резкость+</translation>
     </message>
     <message>
-        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
-        <translation>Отсутствующие файлы по-прежнему показываются в строке состояния. В настройках этот диалог можно снова включить для открываемых документов.</translation>
+        <source>Invert</source>
+        <comment>Smart Filter</comment>
+        <translation>Инверсия</translation>
+    </message>
+    <message>
+        <source>Average</source>
+        <comment>Smart Filter</comment>
+        <translation>Среднее</translation>
+    </message>
+    <message>
+        <source> (Amount %1, Zoom, %2 quality)</source>
+        <translation> (Количество %1, Линейный, Качество %2)</translation>
     </message>
     <message>
         <source>The layer is locked, so its effects cannot be changed here.</source>
@@ -11494,6 +11500,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Edit this effect in the Layer Style dialog</source>
         <translation>Изменить этот эффект в диалоге «Стиль слоя»</translation>
+    </message>
+    <message>
+        <source>Missing Linked Files</source>
+        <translation>Отсутствующие связанные файлы</translation>
+    </message>
+    <message>
+        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
+        <translation>Эти связанные смарт-объекты ссылаются на файлы, которые Patchy не может найти. Свяжите каждый из них с файлом сейчас или продолжите с сохранёнными превью и позже используйте Слой &gt; Смарт-объекты &gt; Связать с другим файлом...</translation>
+    </message>
+    <message>
+        <source>Relink...</source>
+        <translation>Связать заново...</translation>
+    </message>
+    <message>
+        <source>Used by layer &quot;%1&quot;</source>
+        <translation>Используется слоем «%1»</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used by %n layers: %1</source>
+        <translation>
+            <numerusform>Используется %n слоем: %1</numerusform>
+            <numerusform>Используется %n слоями: %1</numerusform>
+            <numerusform>Используется %n слоями: %1</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Relinked to %1</source>
+        <translation>Связано с %1</translation>
+    </message>
+    <message>
+        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
+        <translation>Отсутствующие файлы по-прежнему показываются в строке состояния. В настройках этот диалог можно снова включить для открываемых документов.</translation>
     </message>
 </context>
 <context>
@@ -23283,24 +23321,12 @@ Patchy можно будет запускать из меню, а на пане�
         <translation>Сочность отменена</translation>
     </message>
     <message>
-        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
-        <translation>Показывать диалог «Отсутствующие связанные файлы» при открытии документа с отсутствующими связанными файлами</translation>
+        <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
+        <translation>Переключитесь на инструмент «Монтажная область», чтобы добавлять, изменять размер или дублировать монтажные области</translation>
     </message>
     <message>
-        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
-        <translation>Слой &gt; Смарт-объекты &gt; Связать с другим файлом... восстанавливает связь в любое время.</translation>
-    </message>
-    <message>
-        <source>This document has no missing linked files</source>
-        <translation>В этом документе нет отсутствующих связанных файлов</translation>
-    </message>
-    <message numerus="yes">
-        <source>Relinked %n smart object file(s)</source>
-        <translation>
-            <numerusform>Связан заново %n файл смарт-объекта</numerusform>
-            <numerusform>Связаны заново %n файла смарт-объектов</numerusform>
-            <numerusform>Связано заново %n файлов смарт-объектов</numerusform>
-        </translation>
+        <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
+        <translation>Переключитесь на инструмент «Монтажная область» (%1), чтобы добавлять, изменять размер или дублировать монтажные области</translation>
     </message>
     <message>
         <source>Show Effects</source>
@@ -23333,6 +23359,26 @@ Patchy можно будет запускать из меню, а на пане�
     <message>
         <source>%1 hidden</source>
         <translation>%1: скрыто</translation>
+    </message>
+    <message>
+        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
+        <translation>Показывать диалог «Отсутствующие связанные файлы» при открытии документа с отсутствующими связанными файлами</translation>
+    </message>
+    <message>
+        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
+        <translation>Слой &gt; Смарт-объекты &gt; Связать с другим файлом... восстанавливает связь в любое время.</translation>
+    </message>
+    <message>
+        <source>This document has no missing linked files</source>
+        <translation>В этом документе нет отсутствующих связанных файлов</translation>
+    </message>
+    <message numerus="yes">
+        <source>Relinked %n smart object file(s)</source>
+        <translation>
+            <numerusform>Связан заново %n файл смарт-объекта</numerusform>
+            <numerusform>Связаны заново %n файла смарт-объектов</numerusform>
+            <numerusform>Связано заново %n файлов смарт-объектов</numerusform>
+        </translation>
     </message>
 </context>
 <context>

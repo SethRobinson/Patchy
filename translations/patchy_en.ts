@@ -11382,34 +11382,41 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Missing Linked Files</source>
+        <source>Invalid Average input</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
+        <source>Blur</source>
+        <comment>Smart Filter</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Relink...</source>
+        <source>Blur More</source>
+        <comment>Smart Filter</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Used by layer &quot;%1&quot;</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message numerus="yes">
-        <source>Used by %n layers: %1</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>Relinked to %1</source>
+        <source>Sharpen</source>
+        <comment>Smart Filter</comment>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
+        <source>Sharpen More</source>
+        <comment>Smart Filter</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Invert</source>
+        <comment>Smart Filter</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Average</source>
+        <comment>Smart Filter</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source> (Amount %1, Zoom, %2 quality)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -11442,6 +11449,37 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>Edit this effect in the Layer Style dialog</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Missing Linked Files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Relink...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Used by layer &quot;%1&quot;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Used by %n layers: %1</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Relinked to %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -23135,23 +23173,12 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
+        <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
+        <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>This document has no missing linked files</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message numerus="yes">
-        <source>Relinked %n smart object file(s)</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
     </message>
     <message>
         <source>Show Effects</source>
@@ -23184,6 +23211,25 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>%1 hidden</source>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This document has no missing linked files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Relinked %n smart object file(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
     </message>
 </context>
 <context>

@@ -2362,7 +2362,9 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                   : (radial->quality == RadialBlurQuality::Good
                          ? QObject::tr("Good")
                          : QObject::tr("Best"));
-          entry_tooltip += QObject::tr(" (Amount %1, Spin, %2 quality)")
+          entry_tooltip += (radial->zoom
+                                ? QObject::tr(" (Amount %1, Zoom, %2 quality)")
+                                : QObject::tr(" (Amount %1, Spin, %2 quality)"))
                                .arg(radial->amount)
                                .arg(quality);
         }
@@ -2427,6 +2429,11 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                  .arg(plastic->smoothness);
           }
         }
+      } else if (const auto classic_name =
+                     parameterless_smart_filter_display_name(entry.kind);
+                 !classic_name.isEmpty()) {
+        entry_name = classic_name;
+        entry_tooltip = entry_name;
       } else if (!entry.native_name.empty()) {
         entry_name = QString::fromStdString(entry.native_name);
         entry_tooltip = entry_name;

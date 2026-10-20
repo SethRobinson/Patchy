@@ -11398,35 +11398,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Cor e vibratilidade</translation>
     </message>
     <message>
-        <source>Missing Linked Files</source>
-        <translation>Arquivos vinculados ausentes</translation>
+        <source>Invalid Average input</source>
+        <translation>Entrada de média inválida</translation>
     </message>
     <message>
-        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
-        <translation>Estes objetos inteligentes vinculados apontam para arquivos que o Patchy não encontra. Vincule cada um novamente a um arquivo agora, ou continue com as visualizações armazenadas e use depois Camada &gt; Objetos inteligentes &gt; Vincular novamente ao arquivo...</translation>
+        <source>Blur</source>
+        <comment>Smart Filter</comment>
+        <translation>Desfocar</translation>
     </message>
     <message>
-        <source>Relink...</source>
-        <translation>Vincular novamente...</translation>
+        <source>Blur More</source>
+        <comment>Smart Filter</comment>
+        <translation>Desfocar mais</translation>
     </message>
     <message>
-        <source>Used by layer &quot;%1&quot;</source>
-        <translation>Usado pela camada &quot;%1&quot;</translation>
-    </message>
-    <message numerus="yes">
-        <source>Used by %n layers: %1</source>
-        <translation>
-            <numerusform>Usado por %n camada: %1</numerusform>
-            <numerusform>Usado por %n camadas: %1</numerusform>
-        </translation>
+        <source>Sharpen</source>
+        <comment>Smart Filter</comment>
+        <translation>Tornar nítido</translation>
     </message>
     <message>
-        <source>Relinked to %1</source>
-        <translation>Vinculado novamente a %1</translation>
+        <source>Sharpen More</source>
+        <comment>Smart Filter</comment>
+        <translation>Tornar mais nítido</translation>
     </message>
     <message>
-        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
-        <translation>Os arquivos ausentes continuam aparecendo na barra de status. As Preferências podem reativar esta caixa de diálogo para documentos abertos.</translation>
+        <source>Invert</source>
+        <comment>Smart Filter</comment>
+        <translation>Inverter</translation>
+    </message>
+    <message>
+        <source>Average</source>
+        <comment>Smart Filter</comment>
+        <translation>Média</translation>
+    </message>
+    <message>
+        <source> (Amount %1, Zoom, %2 quality)</source>
+        <translation> (Quantidade %1, zoom, qualidade %2)</translation>
     </message>
     <message>
         <source>The layer is locked, so its effects cannot be changed here.</source>
@@ -11459,6 +11466,37 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Edit this effect in the Layer Style dialog</source>
         <translation>Editar este efeito na caixa de diálogo Estilo de camada</translation>
+    </message>
+    <message>
+        <source>Missing Linked Files</source>
+        <translation>Arquivos vinculados ausentes</translation>
+    </message>
+    <message>
+        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
+        <translation>Estes objetos inteligentes vinculados apontam para arquivos que o Patchy não encontra. Vincule cada um novamente a um arquivo agora, ou continue com as visualizações armazenadas e use depois Camada &gt; Objetos inteligentes &gt; Vincular novamente ao arquivo...</translation>
+    </message>
+    <message>
+        <source>Relink...</source>
+        <translation>Vincular novamente...</translation>
+    </message>
+    <message>
+        <source>Used by layer &quot;%1&quot;</source>
+        <translation>Usado pela camada &quot;%1&quot;</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used by %n layers: %1</source>
+        <translation>
+            <numerusform>Usado por %n camada: %1</numerusform>
+            <numerusform>Usado por %n camadas: %1</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Relinked to %1</source>
+        <translation>Vinculado novamente a %1</translation>
+    </message>
+    <message>
+        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
+        <translation>Os arquivos ausentes continuam aparecendo na barra de status. As Preferências podem reativar esta caixa de diálogo para documentos abertos.</translation>
     </message>
 </context>
 <context>
@@ -23212,23 +23250,12 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
         <translation>Vibratilidade cancelada</translation>
     </message>
     <message>
-        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
-        <translation>Mostrar a caixa de diálogo Arquivos vinculados ausentes ao abrir um documento com arquivos vinculados ausentes</translation>
+        <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
+        <translation>Mude para a ferramenta Prancheta para adicionar, redimensionar ou duplicar pranchetas</translation>
     </message>
     <message>
-        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
-        <translation>Camada &gt; Objetos inteligentes &gt; Vincular novamente ao arquivo... repara um vínculo a qualquer momento.</translation>
-    </message>
-    <message>
-        <source>This document has no missing linked files</source>
-        <translation>Este documento não tem arquivos vinculados ausentes</translation>
-    </message>
-    <message numerus="yes">
-        <source>Relinked %n smart object file(s)</source>
-        <translation>
-            <numerusform>%n arquivo de objeto inteligente vinculado novamente</numerusform>
-            <numerusform>%n arquivos de objetos inteligentes vinculados novamente</numerusform>
-        </translation>
+        <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
+        <translation>Mude para a ferramenta Prancheta (%1) para adicionar, redimensionar ou duplicar pranchetas</translation>
     </message>
     <message>
         <source>Show Effects</source>
@@ -23261,6 +23288,25 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
     <message>
         <source>%1 hidden</source>
         <translation>%1 oculto</translation>
+    </message>
+    <message>
+        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
+        <translation>Mostrar a caixa de diálogo Arquivos vinculados ausentes ao abrir um documento com arquivos vinculados ausentes</translation>
+    </message>
+    <message>
+        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
+        <translation>Camada &gt; Objetos inteligentes &gt; Vincular novamente ao arquivo... repara um vínculo a qualquer momento.</translation>
+    </message>
+    <message>
+        <source>This document has no missing linked files</source>
+        <translation>Este documento não tem arquivos vinculados ausentes</translation>
+    </message>
+    <message numerus="yes">
+        <source>Relinked %n smart object file(s)</source>
+        <translation>
+            <numerusform>%n arquivo de objeto inteligente vinculado novamente</numerusform>
+            <numerusform>%n arquivos de objetos inteligentes vinculados novamente</numerusform>
+        </translation>
     </message>
 </context>
 <context>

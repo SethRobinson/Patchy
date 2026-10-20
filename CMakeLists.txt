@@ -2083,6 +2083,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/smart_filter_table_tests.cpp
     tests/core/smart_filter_adjustment_tests.cpp
     tests/core/smart_filter_gallery_tests.cpp
+    tests/core/smart_filter_classic_tests.cpp
     tests/core/smart_objects_warp_tests.cpp
     tests/core/stroke_mask_effects_tests.cpp
     tests/core/pdf_tests.cpp
@@ -2193,6 +2194,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/flat_image_format_tests.cpp
       tests/ui/smart_filter_tests.cpp
       tests/ui/smart_filter_tests_flows.cpp
+      tests/ui/smart_filter_tests_classic.cpp
       tests/ui/smart_filter_tests_guards.cpp
       tests/ui/smart_filter_tests_kinds.cpp
       tests/ui/smart_filter_tests_schema.cpp

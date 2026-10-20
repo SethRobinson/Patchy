@@ -13,6 +13,7 @@ GitHub issue 168, Photoshop's Auto-Select dropdown. `MoveAutoSelectTarget` on th
 - Group maps the hit leaf to its outermost group (`CanvasWidget::auto_select_target_layer`). An artboard is skipped: inside one, the outermost group within it is the target, and a direct child of the artboard is its own target. A top-level leaf is always its own target.
 - Every path that selects by clicking reads it: a plain Auto-Select click and drag (the group is activated and its movable leaves move), Ctrl/Cmd+click (also with Auto-Select off, so the combo stays enabled), Shift+click toggles, Alt-drag duplication of the hit root, the hover outline (the union of the group's visible leaves' Move rects, `move_target_outline_bounds`), and selection rectangles. A press with Auto-Select off that drags the selection never maps anything.
 - A group target counts as selected only when the group itself is in the selection, not through a selected child.
+- An artboard's label, or with Auto-Select (or Ctrl) its empty area, is the target there (GitHub issue 259): the outline frames the artboard rect, and the press selects and drags the artboard. Details in [artboards.md](artboards.md).
 
 ## Transform box hit zones
 

@@ -93,8 +93,8 @@ enum class MotionBlurKernel { Automatic, Taps, RunningSum };
 // coordinates. It replicates the destructive patchy.filters.radial_blur math
 // byte for byte; the stack embeds in the filter canvas first so output can
 // grow inside it like Gaussian Blur. Quality maps Draft/Good/Best to
-// 8/16/32 samples. Photoshop's Zoom method is deliberately unsupported and
-// keeps its stack preview-locked.
+// 8/16/32 samples. Native Zoom entries render through the stack with
+// radial_zoom_kernel (filters/filter_kernels.hpp).
 [[nodiscard]] FilterRenderResult render_radial_blur(
     const PixelBuffer &pixels, Rect bounds, std::int32_t amount,
     std::int32_t samples, double center_x, double center_y,
@@ -108,6 +108,20 @@ enum class MotionBlurKernel { Automatic, Taps, RunningSum };
 [[nodiscard]] FilterRenderResult render_add_noise(
     const PixelBuffer &pixels, Rect bounds, double amount_percent,
     bool gaussian, bool monochromatic, std::int32_t seed,
+    const FilterProgress *progress = nullptr);
+
+// Photoshop's parameterless 3x3 filters (Blur, Blur More, Sharpen, Sharpen
+// More) as destructive kernels: the native Smart Filter math, with samples
+// past the buffer repeating its edge. Keeps the supplied bounds; callers pad
+// one transparent pixel where the blurs may grow.
+[[nodiscard]] FilterRenderResult render_photoshop_classic_filter(
+    const PixelBuffer &pixels, Rect bounds, SmartFilterKind kind,
+    const FilterProgress *progress = nullptr);
+// The destructive Average: every visible pixel takes the alpha-weighted mean
+// colour of the visible pixels (hidden colours never count, unlike
+// Photoshop's), rounded half up; alpha and bounds unchanged.
+[[nodiscard]] FilterRenderResult render_visible_average(
+    const PixelBuffer &pixels, Rect bounds,
     const FilterProgress *progress = nullptr);
 
 // Renders a complete native Smart Filter stack from the immutable placed or

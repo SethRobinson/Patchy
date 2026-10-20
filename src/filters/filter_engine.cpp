@@ -2131,6 +2131,30 @@ void execute_builtin_filter(const FilterRegistry &registry,
     return;
   }
 
+  if (identifier == "patchy.filters.blur" ||
+      identifier == "patchy.filters.blur_more" ||
+      identifier == "patchy.filters.sharpen_more") {
+    // The native Smart Filter kernels (docs/smart-filters-native.md).
+    const auto kind = identifier == "patchy.filters.blur"
+                          ? SmartFilterKind::Blur
+                          : (identifier == "patchy.filters.blur_more"
+                                 ? SmartFilterKind::BlurMore
+                                 : SmartFilterKind::SharpenMore);
+    stage_rgba_and_render(pixels, [&](const PixelBuffer &rgba) {
+      return render_photoshop_classic_filter(
+          rgba, Rect::from_size(rgba.width(), rgba.height()), kind, progress);
+    });
+    return;
+  }
+
+  if (identifier == "patchy.filters.average") {
+    stage_rgba_and_render(pixels, [&](const PixelBuffer &rgba) {
+      return render_visible_average(
+          rgba, Rect::from_size(rgba.width(), rgba.height()), progress);
+    });
+    return;
+  }
+
   if (identifier == "patchy.filters.sharpen") {
     const auto amount =
         std::clamp(filter_value(invocation, "amount", 100), 0, 300);
@@ -3006,6 +3030,12 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
     radius.practical_minimum = 1.0;
     radius.practical_maximum = kBlurSliderMaximumRadius;
     metadata = catalog_metadata(Category::Blur, false, {std::move(radius)});
+  } else if (identifier == "patchy.filters.blur" ||
+             identifier == "patchy.filters.blur_more" ||
+             identifier == "patchy.filters.average") {
+    metadata = catalog_metadata(Category::Blur, false, {});
+  } else if (identifier == "patchy.filters.sharpen_more") {
+    metadata = catalog_metadata(Category::Sharpen, false, {});
   } else if (identifier == "patchy.filters.sharpen") {
     metadata =
         catalog_metadata(Category::Sharpen, false,
@@ -3383,7 +3413,15 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
       return std::clamp(static_cast<int>(std::ceil(reach)), 0, 256);
     };
   } else if (identifier == "patchy.filters.sharpen" ||
-             identifier == "patchy.filters.edge_detect") {
+             identifier == "patchy.filters.edge_detect" ||
+             identifier == "patchy.filters.sharpen_more") {
+    metadata.translation_support =
+        [](const FilterInvocation &) -> std::optional<int> { return 1; };
+  } else if (identifier == "patchy.filters.blur" ||
+             identifier == "patchy.filters.blur_more") {
+    // A 3x3 blur reaches one pixel past the content.
+    metadata.output_margin = [](const FilterInvocation &, std::int32_t,
+                                std::int32_t) { return 1; };
     metadata.translation_support =
         [](const FilterInvocation &) -> std::optional<int> { return 1; };
   }
