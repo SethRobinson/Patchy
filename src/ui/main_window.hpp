@@ -448,7 +448,7 @@ private:
   };
 
   // Defaults match the Round startup preset (brush_presets.cpp); load_tool_settings()
-  // re-derives them from the preset on every launch.
+  // restores the stored values over them (GitHub issue 254, docs/tool-options.md).
   struct BrushToolSettings {
     int size{12};
     int opacity{100};
@@ -2278,8 +2278,14 @@ private:
   // (startup no longer auto-creates a document).
   StartPanel* start_panel_{nullptr};
   // The one-time tool-settings load waits for the first canvas: load_tool_settings
-  // needs a canvas to apply to and startup opens with none.
+  // needs a canvas to apply to and startup opens with none. While it is pending,
+  // save_tool_settings writes nothing: a save before the load would overwrite the
+  // stored values with the defaults donor's.
   bool startup_tool_settings_pending_{true};
+  // Checks the palette button of the tool stored under tools/activeTool before any
+  // document exists (the start panel shows the right tool); the first canvas then
+  // activates it for real through load_tool_settings (GitHub issue 254).
+  void restore_startup_tool_selection();
   void update_start_panel_visibility();
   // Re-reads the options-bar controls create_actions initialized from the startup
   // defaults donor; runs after the deferred load_tool_settings.
@@ -2542,6 +2548,11 @@ private:
   std::shared_ptr<StartupLibraryPreloads> library_preloads_;
   void start_library_preloads();
   void adopt_preloaded_pattern_library();
+  // Test seam: while held, the pattern preload worker of every window constructed afterwards
+  // keeps its result back until that window asks for the library (pattern_library()), the
+  // window is destroyed, or the hold is released, so a test can drive a window whose
+  // preload has not landed yet (docs/startup-performance.md).
+  static void hold_pattern_preload_for_tests(bool hold);
   GradientLibrary* gradient_library_{nullptr};
   CustomShapeLibrary* custom_shape_library_{nullptr};
   StyleLibrary* style_library_{nullptr};

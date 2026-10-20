@@ -69,7 +69,7 @@ std::vector<float> dilate_mask(const std::vector<float>& input, int width, int h
 // per-sample seed cost, `d` receives min over q' of (q - q')^2 + f[q']. `v`/`z` are
 // scratch of size n / n+1. Envelope intersections are computed in double so the
 // integer-valued inputs stay exact; no RNG, no toolchain-dependent math.
-void squared_distance_transform_1d(const float* f, float* d, int* v, double* z, int n) {
+void squared_distance_transform_1d(const float* f, float* d, int* v, double* z, int n, int* arg) {
   int k = 0;
   v[0] = 0;
   z[0] = -1.0e30;
@@ -97,10 +97,14 @@ void squared_distance_transform_1d(const float* f, float* d, int* v, double* z, 
     }
     const auto dx = static_cast<float>(q - v[k]);
     d[q] = dx * dx + f[v[k]];
+    if (arg != nullptr) {
+      arg[q] = v[k];
+    }
   }
 }
 
-void exact_squared_distance_transform(std::vector<float>& field, int width, int height) {
+void exact_squared_distance_transform(std::vector<float>& field, int width, int height,
+                                      std::vector<int>* sources) {
   if (width <= 0 || height <= 0) {
     return;
   }
@@ -109,20 +113,74 @@ void exact_squared_distance_transform(std::vector<float>& field, int width, int 
   std::vector<float> d(static_cast<std::size_t>(n), 0.0F);
   std::vector<int> v(static_cast<std::size_t>(n), 0);
   std::vector<double> z(static_cast<std::size_t>(n) + 1U, 0.0);
+  std::vector<int> arg;
+  // Column pass: each pixel learns the row of its nearest source within its
+  // own column; the row pass then picks the column whose column-distance plus
+  // horizontal offset is smallest, so that column's recorded row completes the
+  // source. The lower envelope yields the argmin for free.
+  std::vector<int> source_rows;
+  if (sources != nullptr) {
+    arg.assign(static_cast<std::size_t>(n), 0);
+    source_rows.assign(static_cast<std::size_t>(width) * static_cast<std::size_t>(height), 0);
+    sources->assign(source_rows.size(), -1);
+  }
   for (int x = 0; x < width; ++x) {
     for (int y = 0; y < height; ++y) {
       f[static_cast<std::size_t>(y)] = field[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + x];
     }
-    squared_distance_transform_1d(f.data(), d.data(), v.data(), z.data(), height);
+    squared_distance_transform_1d(f.data(), d.data(), v.data(), z.data(), height,
+                                  sources != nullptr ? arg.data() : nullptr);
     for (int y = 0; y < height; ++y) {
-      field[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + x] = d[static_cast<std::size_t>(y)];
+      const auto index = static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + x;
+      field[index] = d[static_cast<std::size_t>(y)];
+      if (sources != nullptr) {
+        source_rows[index] = arg[static_cast<std::size_t>(y)];
+      }
     }
   }
   for (int y = 0; y < height; ++y) {
     auto* row = field.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(width);
     std::copy(row, row + width, f.data());
-    squared_distance_transform_1d(f.data(), d.data(), v.data(), z.data(), width);
+    squared_distance_transform_1d(f.data(), d.data(), v.data(), z.data(), width,
+                                  sources != nullptr ? arg.data() : nullptr);
     std::copy(d.data(), d.data() + width, row);
+    if (sources != nullptr) {
+      for (int x = 0; x < width; ++x) {
+        const auto index = static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + x;
+        if (row[x] >= kEdtUnreached * 0.5F) {
+          continue;
+        }
+        const auto source_x = arg[static_cast<std::size_t>(x)];
+        const auto source_y = source_rows[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
+                                          static_cast<std::size_t>(source_x)];
+        (*sources)[index] = source_y * width + source_x;
+      }
+    }
+  }
+}
+
+void exact_squared_distance_transform(std::vector<float>& field, int width, int height) {
+  exact_squared_distance_transform(field, width, height, nullptr);
+}
+
+void stroke_distance_field_with_edge_alpha(const std::vector<float>& base, int width, int height,
+                                           bool sources_are_painted, std::vector<float>& distance,
+                                           std::vector<float>& edge_alpha) {
+  distance.assign(base.size(), kEdtUnreached);
+  for (std::size_t index = 0; index < base.size(); ++index) {
+    const bool source = sources_are_painted ? base[index] > 0.0F : base[index] < 1.0F;
+    if (source) {
+      distance[index] = 0.0F;
+    }
+  }
+  std::vector<int> sources;
+  exact_squared_distance_transform(distance, width, height, &sources);
+  edge_alpha.assign(base.size(), sources_are_painted ? 0.0F : 1.0F);
+  for (std::size_t index = 0; index < base.size(); ++index) {
+    distance[index] = std::sqrt(distance[index]);
+    if (sources[index] >= 0) {
+      edge_alpha[index] = base[static_cast<std::size_t>(sources[index])];
+    }
   }
 }
 
@@ -212,46 +270,6 @@ void stroke_subpixel_distance_fields(const std::vector<float>& matte, int width,
   if (need_inside) {
     read_back(stroke_distance_field(fine, fine_width, fine_height, false), inside);
   }
-}
-
-bool stroke_matte_reaches_half_coverage_near(const std::vector<float>& matte, int width, int height,
-                                             int x, int y, float reach) {
-  // Distances here are plain center-to-sample: this is the promotion
-  // heuristic's own reach, not band placement, so the supersampled fields'
-  // +1/3 px readback compensation does not apply. Fixed loop order and plain
-  // float bilinear math keep the result deterministic across toolchains.
-  constexpr int kScale = 3;
-  const auto steps = static_cast<int>(std::floor(static_cast<double>(reach) * kScale));
-  const auto steps_squared = steps * steps;
-  const auto center_fine_x = x * kScale + 1;
-  const auto center_fine_y = y * kScale + 1;
-  for (int j = -steps; j <= steps; ++j) {
-    for (int i = -steps; i <= steps; ++i) {
-      if (i * i + j * j > steps_squared) {
-        continue;
-      }
-      const auto fine_x = center_fine_x + i;
-      const auto fine_y = center_fine_y + j;
-      // Identical sample placement to the supersample loop above: fine centers
-      // land at -1/3, 0, +1/3 around each coarse center.
-      const auto cy = (static_cast<float>(fine_y) + 0.5F) / kScale - 0.5F;
-      const auto cx = (static_cast<float>(fine_x) + 0.5F) / kScale - 0.5F;
-      const auto y0 = std::clamp(static_cast<int>(std::floor(cy)), 0, height - 1);
-      const auto y1 = std::min(y0 + 1, height - 1);
-      const auto ty = std::clamp(cy - static_cast<float>(y0), 0.0F, 1.0F);
-      const auto x0 = std::clamp(static_cast<int>(std::floor(cx)), 0, width - 1);
-      const auto x1 = std::min(x0 + 1, width - 1);
-      const auto tx = std::clamp(cx - static_cast<float>(x0), 0.0F, 1.0F);
-      const auto* row0 = matte.data() + static_cast<std::size_t>(y0) * width;
-      const auto* row1 = matte.data() + static_cast<std::size_t>(y1) * width;
-      const auto top = row0[x0] + (row0[x1] - row0[x0]) * tx;
-      const auto bottom = row1[x0] + (row1[x1] - row1[x0]) * tx;
-      if (top + (bottom - top) * ty >= 0.5F) {
-        return true;
-      }
-    }
-  }
-  return false;
 }
 
 void box_blur_mask_into(const std::vector<float>& input, std::vector<float>& horizontal,
@@ -1247,131 +1265,38 @@ std::vector<float> stroke_alpha_mask(const PixelBuffer& source, const Layer& lay
   const auto band_in = position == LayerStrokePosition::Outside  ? 0.0F
                        : position == LayerStrokePosition::Center ? size * 0.5F
                                                                  : size;
-  // Photoshop vectorizes the matte's coverage boundary at subpixel precision
-  // rather than dilating from every alpha>0 pixel: an anti-aliased fringe
-  // stays OUTSIDE the contour (on AA text the alpha>0 shape is one fringe
-  // fatter per side, landing the band ~1 px outward and closing narrow
-  // inter-glyph gaps Photoshop leaves clean — title.psd probes, July 2026),
-  // while flat low-alpha regions are stroked in full (the pinned
-  // photoshop-stroke-partial-alpha fixture's 25% strip). Approximate that
-  // with the half-covered-or-more pixels plus any painted pixel that is both
-  // farther than 2 px from every such solid pixel CENTER and farther than
-  // 3 px from every half-coverage crossing of the bilinear field (the same
-  // subpixel convention the band anchor uses): an AA fringe always hugs a
-  // half-coverage crossing whatever the lattice phase, while a flat sub-half
-  // wash never contains one. Distance to solid centers alone misfired on
-  // smooth-AA text — fringe pixels at sqrt(5) from every solid center became
-  // isolated solid islands and the band bloomed a square size+1 "nub" around
-  // each (the bad_stroke.psd regression, July 2026). The crossing reach is
-  // 3 px, not the 2 px solid gate: transform re-rasterization stretches
-  // glyph-corner ramps so their 1-6/255 tips sit sqrt(8) from every solid
-  // center with the crossing up to 2.75 px away (bad_stroke_transformed.psd,
-  // 51 corner nubs at a 2 px reach, zero at 3). Residual: a faint tail
-  // extending 3+ px past the half-coverage crossing still promotes, as a
-  // contiguous ring, not blobs. Binary mattes are identical under all these
-  // conventions, so the pinned COM band calibration is unaffected.
-  std::vector<float> contour(base.size(), 0.0F);
-  auto has_solid_pixel = false;
-  auto has_faint_pixel = false;
-  for (std::size_t index = 0; index < base.size(); ++index) {
-    if (base[index] >= 0.5F) {
-      contour[index] = 1.0F;
-      has_solid_pixel = true;
-    } else if (base[index] > 0.0F) {
-      has_faint_pixel = true;
-    }
-  }
-  if (!has_solid_pixel) {
-    for (std::size_t index = 0; index < base.size(); ++index) {
-      contour[index] = base[index] > 0.0F ? 1.0F : 0.0F;
-    }
-  } else if (has_faint_pixel) {
-    constexpr float kAaFringeReach = 2.0F;
-    constexpr float kAaCrossingReach = 3.0F;
-    // Bilinear values are convex combinations of their cell corners, so a
-    // half-coverage sample can only exist within sqrt(2) px of a solid pixel
-    // center: beyond kAaCrossingReach + sqrt(2) the denial scan cannot
-    // succeed and the candidate promotes directly.
-    constexpr float kDenialSkip = kAaCrossingReach + 1.4142137F;
-    const auto solid_distance = stroke_distance_field(contour, width, height, true);
-    for (std::int32_t y = 0; y < height; ++y) {
-      for (std::int32_t x = 0; x < width; ++x) {
-        const auto index = static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
-                           static_cast<std::size_t>(x);
-        if (base[index] <= 0.0F || contour[index] != 0.0F ||
-            solid_distance[index] <= kAaFringeReach) {
-          continue;
-        }
-        if (solid_distance[index] > kDenialSkip ||
-            !stroke_matte_reaches_half_coverage_near(base, width, height, x, y, kAaCrossingReach)) {
-          contour[index] = 1.0F;
-        }
-      }
-    }
-  }
-  // Anchor matte for the band distances: augmented flat-wash (and no-solid
-  // fallback) pixels stroke as a fully solid shape, while true AA fringes
-  // keep their raw alpha so the subpixel path can place the contour at the
-  // matte's real half-coverage crossing instead of a whole-pixel staircase.
-  // A fully binary matte skips the supersampled path entirely and stays
-  // bit-identical to the pinned pixel-center calibration.
-  // A semi-transparent contour pixel that is part of semi-transparent CONTENT
-  // rather than the AA edge of opaque content (every neighbour at least as
-  // opaque as itself is semi-transparent too: a 50% wash, a feathered fill, a
-  // gradient fading inside the shape) anchors at 1: Photoshop's band then runs
-  // from the pixel centers and the ring rule below (edge alpha) carries the fade.
-  // An AA edge pixel has an opaque neighbour inward and keeps the subpixel
-  // crossing. Decided per pixel so a cropped render agrees with the full one.
-  const auto content_partial = [&](std::size_t index, std::int32_t x, std::int32_t y) {
-    const auto alpha = base[index];
-    if (planes == nullptr || alpha <= 0.0F || alpha >= 1.0F) {
-      return false;
-    }
-    const auto opaque_neighbour = [&](std::int32_t nx, std::int32_t ny) {
-      if (nx < 0 || ny < 0 || nx >= width || ny >= height) {
-        return false;
-      }
-      const auto neighbour = base[static_cast<std::size_t>(ny) * static_cast<std::size_t>(width) +
-                                  static_cast<std::size_t>(nx)];
-      return neighbour >= alpha && neighbour >= 1.0F;
-    };
-    return !opaque_neighbour(x - 1, y) && !opaque_neighbour(x + 1, y) && !opaque_neighbour(x, y - 1) &&
-           !opaque_neighbour(x, y + 1);
-  };
-  auto has_subpixel_fringe = false;
-  std::vector<float> anchor_matte(base.size(), 0.0F);
-  for (std::int32_t y = 0; y < height; ++y) {
-    for (std::int32_t x = 0; x < width; ++x) {
-      const auto index = static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x);
-      const auto anchored = contour[index] > 0.0F
-                                ? (base[index] >= 0.5F && !content_partial(index, x, y) ? base[index] : 1.0F)
-                                : base[index];
-      anchor_matte[index] = anchored;
-      if (anchored > 0.0F && anchored < 1.0F) {
-        has_subpixel_fringe = true;
-      }
-    }
-  }
+  // Photoshop's band geometry on anti-aliased and soft edges (25 PS 2026 probes:
+  // feathered squares at feather 0/1/2/4/8 px with Outside 2/5/10, Inside 5 and
+  // Center 6 strokes, local-test-fixtures/stroke-soft-probes, October 2026,
+  // GitHub issue 261). The OUTER band measures from the pixel centers of every
+  // painted pixel (alpha > 0, a 1/255 fringe included) and its last ring reads
+  // that nearest pixel's alpha: coverage = clamp(band + e - d). The INNER band
+  // measures from the pixel centers of every pixel below full alpha and its last
+  // ring reads that pixel's missing alpha: coverage = clamp(band + (1 - e) - d).
+  // A binary matte keeps the pinned "contour half a pixel past the pixel
+  // center plus a 1 px ramp" (e is 1 outside, 0 inside). Every pixel in between
+  // (0 < a < 1) is the two-paint case below whatever its distance from the
+  // opaque core: the outer band sits under all of them and the inner band
+  // replaces them (an 8 px feather shows the stroke under its whole fringe).
+  // The earlier half-coverage anchor read the ring from the opaque interior and
+  // sat the band about a pixel inside Photoshop's on soft edges.
   std::vector<float> outside_distance;
+  std::vector<float> outside_edge_alpha;
   std::vector<float> inside_distance;
-  if (has_subpixel_fringe) {
-    stroke_subpixel_distance_fields(anchor_matte, width, height, band_out > 0.0F, band_in > 0.0F,
-                                    outside_distance, inside_distance);
-  } else {
-    if (band_out > 0.0F) {
-      outside_distance = stroke_distance_field(contour, width, height, true);
-    }
-    if (band_in > 0.0F) {
-      inside_distance = stroke_distance_field(contour, width, height, false);
-    }
+  std::vector<float> inside_edge_alpha;
+  if (band_out > 0.0F) {
+    stroke_distance_field_with_edge_alpha(base, width, height, true, outside_distance, outside_edge_alpha);
+  }
+  if (band_in > 0.0F) {
+    stroke_distance_field_with_edge_alpha(base, width, height, false, inside_distance, inside_edge_alpha);
   }
 
   std::vector<float> mask(base.size(), 0.0F);
-  // Semi-transparent content INSIDE the contour (a feathered edge, a 50% fill, a
-  // gradient fading to nothing; Photoshop 2026 probes on a square whose alpha ramps
-  // 1 -> 0 and on a flat 50% square, October 2026, docs/layer-effects-render.md
-  // "Strokes on semi-transparent content"): the outer band takes the pixel's missing
-  // alpha (1 - a) UNDER the content, as a second paint beside it, and the inner band
+  // Semi-transparent content (a feathered edge, a 50% fill, a gradient fading to
+  // nothing; Photoshop 2026 probes on a square whose alpha ramps 1 -> 0 and on a
+  // flat 50% square, October 2026, docs/layer-effects-render.md "Strokes on
+  // semi-transparent content"): the outer band takes the pixel's missing alpha
+  // (1 - a) UNDER the content, as a second paint beside it, and the inner band
   // treats every such pixel as band at coverage a, replacing the content. When the
   // caller asks for the planes, the under-content part moves out of the over-draw
   // mask into `underlay` and the band membership into `knockout`; without them the
@@ -1379,32 +1304,22 @@ std::vector<float> stroke_alpha_mask(const PixelBuffer& source, const Layer& lay
   // renders identically.
   const bool split_planes = planes != nullptr && planes->underlay != nullptr && planes->inside != nullptr &&
                             planes->knockout != nullptr;
-  // The outer band's last ring follows the edge it comes from: Photoshop's ring
-  // pixel at distance `band` reads the edge pixel's alpha, not 1 (a 50% square
-  // has a 50% ring; the ramp's ring fades with it), so the band reaches
-  // `band + edge alpha - distance`, the edge alpha taken as the largest alpha
-  // within the band's reach plus one pixel (exact on these probes to within 0.12
-  // on that one ring). An opaque matte's AA edge reaches its opaque interior
-  // within that disc, so the pinned 1 stays.
-  std::vector<float> edge_alpha;
   if (split_planes) {
     planes->underlay->assign(base.size(), 0.0F);
     planes->inside->assign(base.size(), 0.0F);
     planes->knockout->assign(base.size(), 0.0F);
     planes->partial_content = false;
-    const bool any_partial = std::any_of(base.begin(), base.end(), [](float a) { return a > 0.0F && a < 1.0F; });
-    if (any_partial && band_out > 0.0F) {
-      edge_alpha = dilate_mask(base, width, height, static_cast<int>(std::ceil(band_out)) + 1);
-    }
   }
   for (std::size_t index = 0; index < base.size(); ++index) {
     const auto center_alpha = base[index];
-    auto outside_coverage =
-        outside_distance.empty() ? 0.0F : stroke_band_coverage(outside_distance[index], band_out);
-    if (!edge_alpha.empty() && !outside_distance.empty() && outside_coverage > 0.0F) {
-      outside_coverage = clamp_unit(band_out + edge_alpha[index] - outside_distance[index]);
-    }
-    auto inside_coverage = inside_distance.empty() ? 0.0F : stroke_band_coverage(inside_distance[index], band_in);
+    const auto outside_coverage =
+        outside_distance.empty()
+            ? 0.0F
+            : clamp_unit(band_out + outside_edge_alpha[index] - outside_distance[index]);
+    auto inside_coverage =
+        inside_distance.empty()
+            ? 0.0F
+            : clamp_unit(band_in + (1.0F - inside_edge_alpha[index]) - inside_distance[index]);
     const bool partial = center_alpha > 0.0F && center_alpha < 1.0F;
     if (split_planes && partial && !inside_distance.empty()) {
       inside_coverage = 1.0F;
@@ -1442,6 +1357,20 @@ std::vector<float> stroke_alpha_mask(const PixelBuffer& source, const Layer& lay
     // Inside stroke spans size+1 and a Center stroke spans size+2. Pinned by
     // the photoshop-stroke-shapeburst fixtures within +/-1/255 (COM probes,
     // July 2026).
+    // The ramp keeps its own anchor: the matte's bilinear half-coverage crossing
+    // (stroke_subpixel_distance_fields), pinned by the photoshop-stroke-aa-matte
+    // Shape Burst ellipse; a binary matte reads the same fields as the band.
+    // A binary matte reads the band's own pixel-center fields, bit for bit.
+    const bool has_fringe = std::any_of(base.begin(), base.end(), [](float a) { return a > 0.0F && a < 1.0F; });
+    std::vector<float> ramp_outside;
+    std::vector<float> ramp_inside;
+    if (has_fringe) {
+      stroke_subpixel_distance_fields(base, width, height, band_out > 0.0F, band_in > 0.0F, ramp_outside,
+                                      ramp_inside);
+    } else {
+      ramp_outside = outside_distance;
+      ramp_inside = inside_distance;
+    }
     auto& positions = *shape_burst_positions;
     positions.assign(base.size(), 0.0F);
     const auto outer_reach = band_out > 0.0F ? band_out + kStrokeContourOffset : 0.0F;
@@ -1449,10 +1378,10 @@ std::vector<float> stroke_alpha_mask(const PixelBuffer& source, const Layer& lay
     const auto span = std::max(1.0F, outer_reach + inner_reach);
     for (std::size_t index = 0; index < base.size(); ++index) {
       float along;
-      if (contour[index] > 0.0F) {
-        along = inside_distance.empty() ? span : band_out + inside_distance[index];
+      if (base[index] >= 0.5F) {
+        along = ramp_inside.empty() ? span : band_out + ramp_inside[index];
       } else {
-        along = outside_distance.empty() ? 0.0F : outer_reach - outside_distance[index];
+        along = ramp_outside.empty() ? 0.0F : outer_reach - ramp_outside[index];
       }
       positions[index] = clamp_unit(along / span);
     }

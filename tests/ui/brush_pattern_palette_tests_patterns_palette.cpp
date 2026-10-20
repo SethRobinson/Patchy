@@ -8,6 +8,7 @@
 #include "core/palette_presets.hpp"
 #include "ui/palette_panel.hpp"
 #include "ui/pattern_library.hpp"
+#include "ui/localization.hpp"
 #include "ui/brush_tip_library.hpp"
 #include "ui/brush_automation.hpp"
 #include "ui/brush_tip_manager_dialog.hpp"
@@ -43,6 +44,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QLabel>
+#include <QScopeGuard>
 #include <QTemporaryDir>
 #include <QMimeData>
 #include <QMessageBox>
@@ -1872,6 +1874,50 @@ void ui_pattern_library_off_thread_load_matches_direct_load() {
   CHECK(adopted->default_patterns_match_factory());
 }
 
+// A language switch rebuilds the Pattern Stamp list with translated names. Switching
+// before the startup preload has landed must still list every pattern (the switch adopts
+// the preload), not leave the list empty until the worker's adoption arrives.
+void ui_pattern_stamp_list_fills_on_language_switch_before_preload_lands() {
+  auto& manager = patchy::ui::LocalizationManager::instance();
+  const auto original = manager.current_language();
+  // A fresh profile, as the build-time translation check runs: the window's worker seeds
+  // the factory set itself.
+  clear_pattern_test_state();
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("patterns/defaultPatternsVersion"), 0);
+    settings.sync();
+  }
+  patchy::ui::MainWindowTestAccess::hold_pattern_preload(true);
+  const auto restore = qScopeGuard([&] {
+    patchy::ui::MainWindowTestAccess::hold_pattern_preload(false);
+    manager.set_language(original, false);
+    QApplication::processEvents();
+    clear_pattern_test_state();
+  });
+  CHECK(manager.set_language(QStringLiteral("en"), false));
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  auto* combo = window.findChild<QComboBox*>(QStringLiteral("patternStampPatternCombo"));
+  CHECK(combo != nullptr);
+  process_events_for(100);
+  // The worker is held: nothing adopted, nothing listed yet.
+  CHECK(!patchy::ui::MainWindowTestAccess::pattern_library_adopted(window));
+  CHECK(combo->count() == 0);
+
+  CHECK(manager.set_language(QStringLiteral("de"), false));
+  for (int pass = 0; pass < 3; ++pass) {
+    QApplication::processEvents();
+  }
+  CHECK(patchy::ui::MainWindowTestAccess::pattern_library_adopted(window));
+  const auto& entries = window.pattern_library().entries();
+  CHECK(!entries.empty());
+  CHECK(static_cast<std::size_t>(combo->count()) == entries.size());
+  for (std::size_t index = 0; index < entries.size(); ++index) {
+    CHECK(combo->itemText(static_cast<int>(index)) == patchy::ui::pattern_library_entry_display_name(entries[index]));
+  }
+}
+
 void ui_brush_tip_library_off_thread_load_matches_direct_load() {
   QTemporaryDir directory;
   CHECK(directory.isValid());
@@ -2217,6 +2263,8 @@ std::vector<patchy::test::TestCase> brush_pattern_palette_tests_part1() {
       {"ui_default_patterns_seed_once_and_restore", ui_default_patterns_seed_once_and_restore},
       {"ui_pattern_library_off_thread_load_matches_direct_load",
        ui_pattern_library_off_thread_load_matches_direct_load},
+      {"ui_pattern_stamp_list_fills_on_language_switch_before_preload_lands",
+       ui_pattern_stamp_list_fills_on_language_switch_before_preload_lands},
       {"ui_brush_tip_library_off_thread_load_matches_direct_load",
        ui_brush_tip_library_off_thread_load_matches_direct_load},
       {"ui_brush_tip_softness_feathers_stroke_and_size_reaches_1024",

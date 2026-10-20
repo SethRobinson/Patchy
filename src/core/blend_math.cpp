@@ -305,6 +305,28 @@ RgbColor oklab_to_rgb(Oklab color) {
                   clamp_byte(static_cast<float>(linear_to_srgb(b) * 255.0))};
 }
 
+// CIELAB (D65 white) to sRGB for the Lab noise gradient model: XYZ and linear
+// RGB clip at zero and one before the sRGB transfer. GitHub issue 263.
+RgbColor lab_noise_to_rgb(double lightness, double a, double b) {
+  const auto inverse = [](double t) {
+    constexpr double delta = 6.0 / 29.0;
+    return t > delta ? t * t * t : 3.0 * delta * delta * (t - 4.0 / 29.0);
+  };
+  const double fy = (lightness + 16.0) / 116.0;
+  const double x = std::max(0.0, 0.95047 * inverse(fy + a / 500.0));
+  const double y = std::max(0.0, inverse(fy));
+  const double z = std::max(0.0, 1.08883 * inverse(fy - b / 200.0));
+  const double red = 3.2406 * x - 1.5372 * y - 0.4986 * z;
+  const double green = -0.9689 * x + 1.8758 * y + 0.0415 * z;
+  const double blue = 0.0557 * x - 0.2040 * y + 1.0570 * z;
+  const auto encode = [](double linear) {
+    const auto clamped = std::clamp(linear, 0.0, 1.0);
+    const auto encoded = clamped <= 0.0031308 ? 12.92 * clamped : 1.055 * std::pow(clamped, 1.0 / 2.4) - 0.055;
+    return clamp_byte(static_cast<float>(encoded * 255.0));
+  };
+  return RgbColor{encode(red), encode(green), encode(blue)};
+}
+
 double catmull_rom(double p0, double p1, double p2, double p3, double t) {
   const auto t2 = t * t;
   const auto t3 = t2 * t;
@@ -917,11 +939,15 @@ RgbColor gradient_color(const LayerStyleGradient& gradient, float position,
                       clamp_byte(static_cast<float>(rgb[1] * 255.0)),
                       clamp_byte(static_cast<float>(rgb[2] * 255.0))};
     }
-    // RGB is native. Lab noise is kept editable and deterministic; render its
-    // bounded channels through an OKLab-shaped approximation.
+    // RGB is native. Lab noise: L = 100 v, a and b = 255 v - 128 (the channel
+    // ranges Photoshop's dialog shows), converted as CIELAB with a D65 white
+    // straight into sRGB, XYZ and linear RGB clipped. Against the Photoshop
+    // probes in docs/gradients.md this sits about three times closer than the
+    // earlier OKLab stand-in (10 to 13 levels mean on full-range Lab noise
+    // instead of 31 to 36); the measured residuals are recorded there.
     if (gradient.noise.color_model == GradientNoiseColorModel::Lab) {
-      return oklab_to_rgb(Oklab{noise_channel(0), noise_channel(1) - 0.5,
-                                noise_channel(2) - 0.5});
+      return lab_noise_to_rgb(noise_channel(0) * 100.0, noise_channel(1) * 255.0 - 128.0,
+                              noise_channel(2) * 255.0 - 128.0);
     }
     return RgbColor{clamp_byte(static_cast<float>(noise_channel(0) * 255.0)),
                     clamp_byte(static_cast<float>(noise_channel(1) * 255.0)),

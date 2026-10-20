@@ -207,6 +207,12 @@ public:
     return window.custom_shape_library();
   }
 
+  // Holds back the pattern preload of windows constructed while set (released when the
+  // window asks for its library, is destroyed, or the hold is cleared), so a test can drive
+  // a window before the startup worker lands (docs/startup-performance.md).
+  static void hold_pattern_preload(bool hold) { MainWindow::hold_pattern_preload_for_tests(hold); }
+  static bool pattern_library_adopted(const MainWindow& window) { return window.pattern_library_ != nullptr; }
+
   static ImageSaveOptions image_save_defaults(MainWindow& window) {
     return window.image_save_defaults_for_document();
   }

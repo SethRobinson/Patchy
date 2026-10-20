@@ -927,13 +927,22 @@ void cleanup_after_visual_test() {
   patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("en"), false);
   auto settings = patchy::ui::app_settings();
   settings.remove(QStringLiteral("preferences/language"));
+  // The New Document dialog remembers its Recent row (Artboards included), unit and
+  // group across windows; a test that created an artboard document must not hand the
+  // next test a New that creates one too. Every test seeds what it asserts.
+  settings.remove(QStringLiteral("newDocument"));
   // Each selection tool's Feather and Anti-alias persist as soon as a test touches the
   // options bar; a soft edge left behind would reshape every later test's selections.
   for (const char* key :
        {"tools/marqueeFeather", "tools/marqueeAntiAlias", "tools/ellipticalMarqueeFeather",
         "tools/ellipticalMarqueeAntiAlias", "tools/lassoFeather", "tools/lassoAntiAlias",
         "tools/magneticLassoFeather", "tools/magneticLassoAntiAlias", "tools/wandFeather", "tools/wandAntiAlias",
-        "tools/quickSelectFeather"}) {
+        "tools/quickSelectFeather",
+        // The active tool and the Brush bar persist too (GitHub issue 254); a test that
+        // switched tools or resized the brush must not start the next test's window there.
+        "tools/activeTool", "tools/brushSize", "tools/brushOpacity", "tools/brushFlow", "tools/brushSoftness",
+        "tools/brushAirbrush", "tools/brushTip", "tools/brushPreset", "tools/eraserSize", "tools/eraserOpacity",
+        "tools/eraserSoftness", "tools/marqueeCornerRadius", "tools/shapeFill"}) {
     settings.remove(QLatin1StringView(key));
   }
   settings.sync();
@@ -1602,6 +1611,13 @@ void accept_new_document_dialog(int width_value, int height_value) {
       QApplication::processEvents();
       width->setValue(width_value);
       height->setValue(height_value);
+      // A plain document: the Last Used card of an artboard document created earlier in
+      // the same test would otherwise tick Artboards and leave no Background row
+      // (ui_transparency_checkerboard_and_copy_paste_preserve_alpha in a full run).
+      if (auto* artboards = dialog->findChild<QCheckBox*>(QStringLiteral("newDocumentArtboardsCheck"));
+          artboards != nullptr) {
+        artboards->setChecked(false);
+      }
       widget->grab().save(QStringLiteral("test-artifacts/ui_new_document_dialog.png"));
       dialog->accept();
       return;

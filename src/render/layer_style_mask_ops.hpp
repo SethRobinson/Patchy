@@ -65,7 +65,9 @@ void max_filter_row(const std::vector<float>& input, std::vector<float>& output,
 
 std::vector<float> dilate_mask(const std::vector<float>& input, int width, int height, int radius);
 
-void squared_distance_transform_1d(const float* f, float* d, int* v, double* z, int n);
+// `arg` (optional, size n) receives the index of the sample each output's distance
+// came from: the EDT's nearest source along this axis.
+void squared_distance_transform_1d(const float* f, float* d, int* v, double* z, int n, int* arg = nullptr);
 
 // Exact squared Euclidean distance transform. On entry `field` holds 0 at source
 // pixels and a large sentinel (>= kEdtUnreached) elsewhere; on return every pixel
@@ -74,12 +76,25 @@ void squared_distance_transform_1d(const float* f, float* d, int* v, double* z, 
 constexpr float kEdtUnreached = 1.0e20F;
 
 void exact_squared_distance_transform(std::vector<float>& field, int width, int height);
+// The same transform that also reports, per pixel, the linear index of the nearest
+// source pixel (-1 where no source exists). Ties resolve through the lower envelope's
+// parabola order, deterministically across toolchains.
+void exact_squared_distance_transform(std::vector<float>& field, int width, int height,
+                                      std::vector<int>* sources);
 
 std::vector<float> stroke_distance_field(const std::vector<float>& base, int width, int height,
                                          bool sources_are_painted);
 
-// Stroke distance fields anchored at the matte's SUBPIXEL half-coverage
-// crossing instead of a binarized pixel-center set: the matte is supersampled
+// Distance from every pixel center to the nearest painted (alpha > 0) or, with
+// `sources_are_painted` false, non-solid (alpha < 1) pixel center of `base`, plus that
+// pixel's alpha in `edge_alpha` (0 or 1 where no source exists). The Photoshop stroke
+// band's anchor and last-ring value (docs/layer-effects-render.md "Stroke").
+void stroke_distance_field_with_edge_alpha(const std::vector<float>& base, int width, int height,
+                                           bool sources_are_painted, std::vector<float>& distance,
+                                           std::vector<float>& edge_alpha);
+
+// Shape Burst ramp distance fields anchored at the matte's SUBPIXEL half-coverage
+// crossing (the band itself uses stroke_distance_field_with_edge_alpha): the matte is supersampled
 // 3x (bilinear; the odd scale keeps every coarse pixel center exactly on a
 // fine center), thresholded at 0.5 in the fine grid, EDT'd exactly, and read
 // back at the coarse centers with a +1/3 px compensation chosen so a BINARY
@@ -92,17 +107,6 @@ std::vector<float> stroke_distance_field(const std::vector<float>& base, int wid
 void stroke_subpixel_distance_fields(const std::vector<float>& matte, int width, int height,
                                      bool need_outside, bool need_inside,
                                      std::vector<float>& outside, std::vector<float>& inside);
-
-// True if the bilinearly-interpolated matte reaches half coverage (>= 0.5) at
-// any 1/3-px fine-grid sample (stroke_subpixel_distance_fields' grid) within
-// `reach` px (Euclidean, inclusive) of the coarse pixel center (x, y). Used by
-// the stroke contour's flat-wash promotion: an anti-aliased fringe always hugs
-// a half-coverage crossing, a flat sub-half wash never contains one. Bilinear
-// values are convex combinations of their cell corners, so this can only
-// return true within sqrt(2) px of a >= 0.5 coarse pixel; callers may skip the
-// scan when the coarse solid distance exceeds reach + sqrt(2).
-bool stroke_matte_reaches_half_coverage_near(const std::vector<float>& matte, int width, int height,
-                                             int x, int y, float reach);
 
 // The binary contour sits half a pixel past the last source pixel center, and the
 // 1px anti-aliasing ramp is centered on the band edge, so a band reaching `band`

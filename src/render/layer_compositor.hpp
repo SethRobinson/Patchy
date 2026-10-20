@@ -1801,6 +1801,29 @@ inline float stroke_knockout_factor(const PreparedStroke& prepared, const Layer&
   return clamp_unit((1.0F - region) / remaining);
 }
 
+// The factor a stroke stacked ABOVE a lower stroke's draw applies to it (GitHub
+// issue 265): the upper band's own over-draw coverage knocks the lower stroke
+// out exactly as it knocks out content, with the same Normal-mode compensation
+// for the upper draw that follows. The content plane cannot serve here: on a
+// layer with anti-aliased pixels it holds the inner band membership, which is
+// zero across an Outside band.
+inline float stroke_stack_knockout_factor(const PreparedStroke& upper, const Layer& layer, std::int32_t x,
+                                          std::int32_t y, std::optional<Rect> layer_mask_bounds) {
+  const auto coverage = prepared_stroke_coverage(upper, layer, x, y, layer_mask_bounds);
+  if (coverage <= 0.0F) {
+    return 1.0F;
+  }
+  if (upper.stroke->blend_mode != BlendMode::Normal) {
+    return clamp_unit(1.0F - coverage);
+  }
+  const auto draw_alpha = prepared_stroke_draw_alpha(upper, layer, x, y, coverage);
+  const auto remaining = 1.0F - draw_alpha;
+  if (remaining <= 1e-6F) {
+    return 0.0F;
+  }
+  return clamp_unit((1.0F - coverage) / remaining);
+}
+
 // Overprint-off knockout is invisible for an opaque Normal stroke at full
 // layer opacity: the stroke covers exactly what it would have knocked out.
 // Skipping it keeps the base pass's fast row path and the pinned opaque
@@ -1822,9 +1845,19 @@ inline bool stroke_knockout_is_identity(const LayerStroke& stroke, const Layer& 
   return true;
 }
 
+// `above`: the prepared non-identity strokes listed BEFORE this one in the
+// style. Photoshop stacks several Stroke instances like layers: the first
+// listed instance paints on top, and with Overprint off each band knocks the
+// strokes beneath it out as it does the content (ag-psd's strokes fixture,
+// GitHub issue 265: a 7 px Multiply stroke listed before an 18 px Normal one
+// multiplies the backdrop inside its band, never the stroke under it). Each
+// upper stroke's knockout factor attenuates this draw exactly as it attenuates
+// the base content; an opaque Normal stroke above needs none (its own draw
+// covers the band).
 template <typename Target>
 void render_prepared_stroke(Target& destination, const Layer& layer, const PreparedStroke& prepared,
-                            std::optional<Rect> layer_mask_bounds) {
+                            std::optional<Rect> layer_mask_bounds,
+                            const std::vector<const PreparedStroke*>& above = {}) {
   const auto& stroke = *prepared.stroke;
   if (stroke.opacity <= 0.0F) {
     return;  // the knockout already happened in the base pass; nothing to draw
@@ -1855,6 +1888,12 @@ void render_prepared_stroke(Target& destination, const Layer& layer, const Prepa
       }
       auto color = stroke.color;
       auto alpha = mask_alpha * stroke.opacity * layer.opacity();
+      for (const auto* upper : above) {
+        alpha *= stroke_stack_knockout_factor(*upper, layer, x, y, layer_mask_bounds);
+      }
+      if (alpha <= 0.0F) {
+        continue;
+      }
       if (stroke.uses_gradient) {
         // Shape Burst samples with endpoint smoothing (the probes show the
         // Intr ease applied even to a two-stop ramp, unlike the pinned linear
@@ -2509,7 +2548,7 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
               std::array<float, 3> underlay_sum{0.0F, 0.0F, 0.0F};
               if (has_underlay && source_coverage > 0.0F && source_coverage < 1.0F) {
                 auto remaining = 1.0F;
-                for (auto it = underlay_strokes.rbegin(); it != underlay_strokes.rend(); ++it) {
+                for (auto it = underlay_strokes.begin(); it != underlay_strokes.end(); ++it) {
                   const auto& prepared = *it;
                   const auto plane = prepared_stroke_underlay(prepared, layer, x, y, layer_mask_bounds);
                   if (plane <= 0.0F) {
@@ -2698,14 +2737,15 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
               auto source_coverage =
                   mask_row != nullptr ? source_alpha * mask_row[x - draw_rect.x] : source_alpha;
               // The stroke paint beneath semi-transparent content: each stroke, top
-              // first, takes its share of the pixel's missing alpha (the probes:
+              // first (the FIRST listed instance, GitHub issue 265), takes its share
+              // of the pixel's missing alpha (the probes:
               // (1 - a) at full stroke opacity, Fill Opacity scaling the content only,
               // a Multiply stroke blended against the backdrop). Zero for opaque pixels.
               float underlay_alpha = 0.0F;
               std::array<float, 3> underlay_sum{0.0F, 0.0F, 0.0F};
               if (has_underlay && source_coverage > 0.0F && source_coverage < 1.0F) {
                 auto remaining = 1.0F;
-                for (auto it = underlay_strokes.rbegin(); it != underlay_strokes.rend(); ++it) {
+                for (auto it = underlay_strokes.begin(); it != underlay_strokes.end(); ++it) {
                   const auto& prepared = *it;
                   const auto plane = prepared_stroke_underlay(prepared, layer, x, y, layer_mask_bounds);
                   if (plane <= 0.0F) {
@@ -3082,20 +3122,29 @@ void composite_pixel_layer(Target& destination, const Layer& layer, Rect clip,
                             knockout);
       });
     }
-    for (std::uint32_t index = 0; index < style.strokes.size(); ++index) {
+    // Several Stroke instances stack like layers, the first listed on top
+    // (see render_prepared_stroke): draw from the last to the first, each
+    // knocked out by the non-identity strokes listed before it.
+    for (std::uint32_t index = static_cast<std::uint32_t>(style.strokes.size()); index-- > 0;) {
       const auto& stroke = style.strokes[index];
       profile_compositor_step(destination, layer, "stroke", clip, [&] {
+        std::vector<const PreparedStroke*> above;
+        for (const auto& candidate : knockout_strokes) {
+          if (candidate.effect_index < index && !candidate.stroke->overprint) {
+            above.push_back(&candidate);
+          }
+        }
         const auto prepared =
             std::find_if(knockout_strokes.begin(), knockout_strokes.end(),
                          [index](const PreparedStroke& candidate) { return candidate.effect_index == index; });
         if (prepared != knockout_strokes.end()) {
           // Reuse the band mask the knockout pass already resolved.
-          render_prepared_stroke(destination, layer, *prepared, layer_mask_bounds);
+          render_prepared_stroke(destination, layer, *prepared, layer_mask_bounds, above);
         } else if (stroke.opacity > 0.0F) {
           if (auto fresh = prepare_stroke_render(layer, effect_source, clip, bounds, stroke, layer_mask_bounds, masks,
                                                  index)) {
             fresh->draw_includes_underlay = fresh->entry->partial_content && !fold_underlay;
-            render_prepared_stroke(destination, layer, *fresh, layer_mask_bounds);
+            render_prepared_stroke(destination, layer, *fresh, layer_mask_bounds, above);
           }
         }
       });
@@ -4442,9 +4491,23 @@ void composite_pass_through_group(Target& destination, const Layer& layer, Rect 
         render_inner_shadow(destination, layer, *silhouette, clip, silhouette_rect,
                             style.inner_shadows[index], mask_bounds, masks, index, nullptr);
       }
+      // Stroke instances stack first-on-top here too (render_prepared_stroke).
+      std::vector<PreparedStroke> group_strokes;
       for (std::uint32_t index = 0; index < style.strokes.size(); ++index) {
-        render_stroke(destination, layer, *silhouette, clip, silhouette_rect, style.strokes[index],
-                      mask_bounds, masks, index);
+        if (auto prepared = prepare_stroke_render(layer, *silhouette, clip, silhouette_rect, style.strokes[index],
+                                                  mask_bounds, masks, index)) {
+          group_strokes.push_back(std::move(*prepared));
+        }
+      }
+      for (auto it = group_strokes.rbegin(); it != group_strokes.rend(); ++it) {
+        std::vector<const PreparedStroke*> above;
+        for (const auto& candidate : group_strokes) {
+          if (candidate.effect_index < it->effect_index && !candidate.stroke->overprint &&
+              !stroke_knockout_is_identity(*candidate.stroke, layer)) {
+            above.push_back(&candidate);
+          }
+        }
+        render_prepared_stroke(destination, layer, *it, mask_bounds, above);
       }
       for (std::uint32_t index = 0; index < style.bevels.size(); ++index) {
         if (style.bevels[index].style == BevelEmbossStyleKind::StrokeEmboss) {

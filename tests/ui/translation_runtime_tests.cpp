@@ -173,11 +173,14 @@ void ui_translation_language_switch_matches_fresh_windows() {
     QEvent initial_event(QEvent::LanguageChange);
     QCoreApplication::sendEvent(&live, &initial_event);
     settle_translations();
+    int check_ordinal = 0;  // numbers each switch so a failure says which one it was
     const auto check = [&](const QString& language) {
       CHECK(manager.set_language(language, false));
       settle_translations();
+      ++check_ordinal;
       failures += differences(fresh.value(language), snapshot(live),
-                              language + (with_document ? QStringLiteral(" (document)") : QStringLiteral(" (empty)")));
+                              language + QStringLiteral("#%1").arg(check_ordinal) +
+                                  (with_document ? QStringLiteral(" (document)") : QStringLiteral(" (empty)")));
     };
     for (const auto& language : manager.languages()) {
       check(language.code);
