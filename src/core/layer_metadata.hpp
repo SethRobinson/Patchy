@@ -16,6 +16,9 @@ inline constexpr const char* kLayerMetadataMaskLinked = "patchy.mask_linked";
 // mask. Such masks are written back as the file's alpha / a PSD "Alpha 1" channel on save.
 inline constexpr const char* kLayerMetadataDocumentAlpha = "patchy.document_alpha";
 inline constexpr const char* kLayerMetadataGroupExpanded = "patchy.layer_group_expanded";
+// The layer's PSD lspf protection value as read, in decimal: the PSD writer re-emits it while
+// the locks still match it, keeping Photoshop's Lock All and Prevent Auto Nesting bits.
+inline constexpr const char* kLayerMetadataPsdProtectionFlags = "patchy.psd.protection_flags";
 inline constexpr const char* kLayerMetadataText = "patchy.text";
 inline constexpr const char* kLayerMetadataTextHtml = "patchy.text.html";
 inline constexpr const char* kLayerMetadataTextRuns = "patchy.text.runs";

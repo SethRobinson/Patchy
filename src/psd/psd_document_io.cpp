@@ -1112,9 +1112,10 @@ std::vector<Layer> read_layer_info_records(BigEndianReader& layer_reader, std::i
     layer.layer_style().blend_interior_elements = record.blend_interior_elements;
     layer.layer_style().blend_clipped_elements = record.blend_clipped_elements;
     resolve_global_light(layer.layer_style(), global_light_angle, global_light_altitude);
-    set_layer_lock_flags(layer,
-                         record.protection_flags &
-                             (kPsdProtectTransparency | kPsdProtectComposite | kPsdProtectPosition));
+    set_layer_lock_flags(layer, layer_locks_from_psd_protection(record.protection_flags));
+    if (record.protection_flags != 0U) {
+      layer.metadata()[kLayerMetadataPsdProtectionFlags] = std::to_string(record.protection_flags);
+    }
     if (!vector_parse_failed && has_legacy_vscg && !vector_fill.has_value() && vector_mask_block.has_value() &&
         vector_stroke.has_value()) {
       if (vector_stroke->fill_enabled) {

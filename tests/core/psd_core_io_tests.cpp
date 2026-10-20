@@ -967,12 +967,68 @@ void psd_layer_locks_import_and_export_lspf() {
     const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
     const auto payload = psd_layer_block_payload(psd_first_layer_extra_data(bytes), "lspf");
     CHECK(payload.has_value());
-    CHECK(read_u32_be_at(*payload, 0) == flags);
+    // Lock All is Photoshop's own 0x80000000 bit, not the three singles (GitHub issue 245).
+    CHECK(read_u32_be_at(*payload, 0) == (flags == patchy::kLayerLockAll ? 0x80000000U : flags));
 
     const auto read = patchy::psd::DocumentIo::read(bytes);
     CHECK(read.layers().size() == 1);
     CHECK(patchy::layer_lock_flags(read.layers().front()) == flags);
   }
+}
+
+// Photoshop's lspf (PS 2026 capture, GitHub issues 245 and 246): Lock All is 0x80000000 with
+// the three single locks clear, Prevent Auto Nesting is 0x8. A file's value comes back
+// exactly while the locks are unchanged; an edit keeps the Prevent Auto Nesting bit.
+void psd_layer_lock_all_and_auto_nesting_bits_round_trip() {
+  const auto file_with_protection = [](std::uint32_t protection) {
+    patchy::Document document(2, 2, patchy::PixelFormat::rgb8());
+    auto& layer = document.add_pixel_layer("Locked", solid_rgba(2, 2, 20, 40, 60, 255));
+    patchy::set_layer_lock_flags(layer, patchy::kLayerLockTransparentPixels);
+    auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    // Rewrite the one lspf value the writer emitted (8BIM, key, u32 length 4, u32 value).
+    const std::array<std::uint8_t, 8> tag{'8', 'B', 'I', 'M', 'l', 's', 'p', 'f'};
+    const auto found = std::search(bytes.begin(), bytes.end(), tag.begin(), tag.end());
+    CHECK(found != bytes.end());
+    const auto value = static_cast<std::size_t>(std::distance(bytes.begin(), found)) + 12U;
+    for (int index = 0; index < 4; ++index) {
+      bytes[value + static_cast<std::size_t>(index)] =
+          static_cast<std::uint8_t>(protection >> (24 - 8 * index));
+    }
+    return bytes;
+  };
+  const auto written_protection = [](const patchy::Document& document) {
+    const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    const auto payload = psd_layer_block_payload(psd_first_layer_extra_data(bytes), "lspf");
+    return payload.has_value() ? read_u32_be_at(*payload, 0) : 0U;
+  };
+
+  // Lock All opens fully locked and saves back as Lock All.
+  auto lock_all = patchy::psd::DocumentIo::read(file_with_protection(0x80000000U));
+  CHECK(lock_all.layers().size() == 1U);
+  CHECK(patchy::layer_lock_flags(lock_all.layers().front()) == patchy::kLayerLockAll);
+  CHECK(patchy::layer_locks_all(lock_all.layers().front()));
+  CHECK(written_protection(lock_all) == 0x80000000U);
+
+  // Three single locks stay three single locks, not Lock All.
+  const auto three = patchy::psd::DocumentIo::read(file_with_protection(0x7U));
+  CHECK(patchy::layer_lock_flags(three.layers().front()) == patchy::kLayerLockAll);
+  CHECK(written_protection(three) == 0x7U);
+
+  // Prevent Auto Nesting survives a save, alone or beside a lock, and after a lock edit.
+  auto nesting = patchy::psd::DocumentIo::read(file_with_protection(0x9U));
+  CHECK(patchy::layer_lock_flags(nesting.layers().front()) == patchy::kLayerLockTransparentPixels);
+  CHECK(written_protection(nesting) == 0x9U);
+  patchy::set_layer_lock_flag(nesting.layers().front(), patchy::kLayerLockPosition, true);
+  CHECK(written_protection(nesting) == 0xDU);
+  patchy::set_layer_locks_all(nesting.layers().front(), true);
+  CHECK(written_protection(nesting) == 0x80000008U);
+  const auto nesting_only = patchy::psd::DocumentIo::read(file_with_protection(0x8U));
+  CHECK(patchy::layer_lock_flags(nesting_only.layers().front()) == patchy::kLayerLockNone);
+  CHECK(written_protection(nesting_only) == 0x8U);
+
+  // Unlocking a Lock All layer writes no lock at all.
+  patchy::set_layer_locks_all(lock_all.layers().front(), false);
+  CHECK(written_protection(lock_all) == 0U);
 }
 
 void psd_layer_masks_render_and_round_trip() {
@@ -3347,6 +3403,7 @@ std::vector<patchy::test::TestCase> psd_core_io_tests() {
       {"psd_opaque_rgb_layers_write_transparency_unless_background",
        psd_opaque_rgb_layers_write_transparency_unless_background},
       {"psd_layer_locks_import_and_export_lspf", psd_layer_locks_import_and_export_lspf},
+      {"psd_layer_lock_all_and_auto_nesting_bits_round_trip", psd_layer_lock_all_and_auto_nesting_bits_round_trip},
       {"psd_layer_masks_render_and_round_trip", psd_layer_masks_render_and_round_trip},
       {"psd_group_layer_mask_round_trips", psd_group_layer_mask_round_trips},
       {"psd_layer_mask_link_state_round_trips", psd_layer_mask_link_state_round_trips},
