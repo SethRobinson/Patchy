@@ -11479,6 +11479,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Los archivos que faltan se siguen mostrando en la barra de estado. En Preferencias puede volver a activar este diálogo para los documentos abiertos.</translation>
     </message>
     <message>
+        <source>Portable Anymap Image</source>
+        <translation>Imagen Portable Anymap</translation>
+    </message>
+    <message>
+        <source>%1 and more</source>
+        <extracomment>Open-dialog file type row: %1 is a short list of *.ext patterns</extracomment>
+        <translation>%1 y más</translation>
+    </message>
+    <message>
         <source>The layer is locked, so its layer styles cannot be changed here.</source>
         <translation>La capa está bloqueada, por lo que sus estilos de capa no se pueden cambiar aquí.</translation>
     </message>

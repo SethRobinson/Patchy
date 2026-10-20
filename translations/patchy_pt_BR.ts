@@ -11479,6 +11479,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Os arquivos ausentes continuam aparecendo na barra de status. As Preferências podem reativar esta caixa de diálogo para documentos abertos.</translation>
     </message>
     <message>
+        <source>Portable Anymap Image</source>
+        <translation>Imagem Portable Anymap</translation>
+    </message>
+    <message>
+        <source>%1 and more</source>
+        <extracomment>Open-dialog file type row: %1 is a short list of *.ext patterns</extracomment>
+        <translation>%1 e mais</translation>
+    </message>
+    <message>
         <source>The layer is locked, so its layer styles cannot be changed here.</source>
         <translation>A camada está bloqueada, então seus estilos de camada não podem ser alterados aqui.</translation>
     </message>

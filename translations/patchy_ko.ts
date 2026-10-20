@@ -11444,6 +11444,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>누락된 파일은 상태 표시줄에 계속 표시됩니다. 환경 설정에서 열린 문서에 대해 이 대화 상자를 다시 켤 수 있습니다.</translation>
     </message>
     <message>
+        <source>Portable Anymap Image</source>
+        <translation>Portable Anymap 이미지</translation>
+    </message>
+    <message>
+        <source>%1 and more</source>
+        <extracomment>Open-dialog file type row: %1 is a short list of *.ext patterns</extracomment>
+        <translation>%1 외</translation>
+    </message>
+    <message>
         <source>The layer is locked, so its layer styles cannot be changed here.</source>
         <translation>레이어가 잠겨 있어 여기에서 레이어 스타일을 변경할 수 없습니다.</translation>
     </message>

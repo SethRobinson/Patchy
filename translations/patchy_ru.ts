@@ -11514,6 +11514,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Отсутствующие файлы по-прежнему показываются в строке состояния. В настройках этот диалог можно снова включить для открываемых документов.</translation>
     </message>
     <message>
+        <source>Portable Anymap Image</source>
+        <translation>Изображение Portable Anymap</translation>
+    </message>
+    <message>
+        <source>%1 and more</source>
+        <extracomment>Open-dialog file type row: %1 is a short list of *.ext patterns</extracomment>
+        <translation>%1 и более</translation>
+    </message>
+    <message>
         <source>The layer is locked, so its layer styles cannot be changed here.</source>
         <translation>Слой заблокирован, поэтому его стили слоя здесь изменить нельзя.</translation>
     </message>

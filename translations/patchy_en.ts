@@ -11463,6 +11463,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Portable Anymap Image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 and more</source>
+        <extracomment>Open-dialog file type row: %1 is a short list of *.ext patterns</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>The layer is locked, so its layer styles cannot be changed here.</source>
         <translation type="unfinished"></translation>
     </message>

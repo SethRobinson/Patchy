@@ -11479,6 +11479,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>I file mancanti restano indicati nella barra di stato. Dalle Preferenze puoi riattivare questa finestra per i documenti aperti.</translation>
     </message>
     <message>
+        <source>Portable Anymap Image</source>
+        <translation>Immagine Portable Anymap</translation>
+    </message>
+    <message>
+        <source>%1 and more</source>
+        <extracomment>Open-dialog file type row: %1 is a short list of *.ext patterns</extracomment>
+        <translation>%1 e altri</translation>
+    </message>
+    <message>
         <source>The layer is locked, so its layer styles cannot be changed here.</source>
         <translation>Il livello è bloccato, quindi i suoi stili di livello non possono essere modificati qui.</translation>
     </message>

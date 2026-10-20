@@ -11479,6 +11479,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Fehlende Dateien werden weiterhin in der Statusleiste angezeigt. In den Einstellungen lässt sich dieser Dialog für geöffnete Dokumente wieder einschalten.</translation>
     </message>
     <message>
+        <source>Portable Anymap Image</source>
+        <translation>Portable-Anymap-Bild</translation>
+    </message>
+    <message>
+        <source>%1 and more</source>
+        <extracomment>Open-dialog file type row: %1 is a short list of *.ext patterns</extracomment>
+        <translation>%1 und mehr</translation>
+    </message>
+    <message>
         <source>The layer is locked, so its layer styles cannot be changed here.</source>
         <translation>Die Ebene ist gesperrt, daher können ihre Ebenenstile hier nicht geändert werden.</translation>
     </message>

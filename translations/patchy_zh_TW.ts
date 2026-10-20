@@ -11444,6 +11444,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>遺失的檔案仍會顯示在狀態列中。可以在偏好設定中為開啟的文件重新啟用此對話方塊。</translation>
     </message>
     <message>
+        <source>Portable Anymap Image</source>
+        <translation>Portable Anymap 影像</translation>
+    </message>
+    <message>
+        <source>%1 and more</source>
+        <extracomment>Open-dialog file type row: %1 is a short list of *.ext patterns</extracomment>
+        <translation>%1 及其他</translation>
+    </message>
+    <message>
         <source>The layer is locked, so its layer styles cannot be changed here.</source>
         <translation>圖層已鎖定，無法在此處變更其圖層樣式。</translation>
     </message>

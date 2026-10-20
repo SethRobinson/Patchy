@@ -1332,8 +1332,9 @@ private:
   void show_artboard_tool_hint_for_move_tool();
   std::optional<LayerId> create_artboard(QRect rect, std::string name, ArtboardBackground background, RgbColor color,
                                          const QString& undo_label);
-  void move_artboard(LayerId id, QPoint delta, bool duplicate, bool nudge);
-  void resize_artboard(LayerId id, QRect rect);
+  // `field_edit`: a value from an artboard X/Y/W/H field (artboard_field_edit_run_).
+  void move_artboard(LayerId id, QPoint delta, bool duplicate, bool nudge, bool field_edit = false);
+  void resize_artboard(LayerId id, QRect rect, bool field_edit = false);
   void set_artboard_background(LayerId id, ArtboardBackground background, RgbColor color);
   void add_adjacent_artboard(LayerId id, int side);
   void rename_artboard(LayerId id);
@@ -1353,7 +1354,7 @@ private:
   // or the top level off every artboard (tools/artboardAutoNest).
   void refresh_after_artboard_nesting();
   void sync_artboard_controls();
-  void apply_artboard_size_option(QSize size);
+  void apply_artboard_size_option(QSize size, bool field_edit = false);
   void apply_artboard_background_option(const QString& token, bool from_properties);
   void add_artboard_beside();
   void apply_properties_artboard_rect();
@@ -2681,6 +2682,11 @@ private:
     std::int64_t revision{-1};
   };
   ArtboardNudgeRun artboard_nudge_run_{};
+  // The same for the values one artboard X/Y/W/H field sends (Properties panel, options
+  // bar) until its editingFinished: a label or field scrub, or a run of arrow steps, is
+  // one undo step.
+  ArtboardNudgeRun artboard_field_edit_run_{};
+  [[nodiscard]] bool continues_artboard_field_edit(LayerId id) const;
   UnitSpinBox* properties_shape_width_spin_{nullptr};
   UnitSpinBox* properties_shape_height_spin_{nullptr};
   QPushButton* properties_shape_link_size_button_{nullptr};
