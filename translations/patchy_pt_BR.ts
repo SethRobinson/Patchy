@@ -22609,6 +22609,10 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
         <translation>Perspectiva</translation>
     </message>
     <message>
+        <source>Pi&amp;xel Grid</source>
+        <translation>Grade de pi&amp;xels</translation>
+    </message>
+    <message>
         <source>Channel &amp;Mixer...</source>
         <translation>&amp;Misturador de canais...</translation>
     </message>

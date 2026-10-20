@@ -22679,6 +22679,10 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
         <translation>Perspektywa</translation>
     </message>
     <message>
+        <source>Pi&amp;xel Grid</source>
+        <translation>Siatka pi&amp;kseli</translation>
+    </message>
+    <message>
         <source>Channel &amp;Mixer...</source>
         <translation>&amp;Mieszanie kanałów...</translation>
     </message>

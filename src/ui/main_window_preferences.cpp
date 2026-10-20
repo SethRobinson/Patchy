@@ -2102,6 +2102,7 @@ void MainWindow::apply_canvas_aid_settings(CanvasWidget* canvas) const {
   canvas->set_rulers_visible(view_rulers_visible_);
   canvas->set_ruler_unit(ruler_unit_);
   canvas->set_grid_visible(view_grid_visible_);
+  canvas->set_pixel_grid_visible(view_pixel_grid_visible_);
   canvas->set_guides_visible(view_guides_visible_);
   canvas->set_guides_locked(view_guides_locked_);
   canvas->set_snap_enabled(view_snap_enabled_);
@@ -2371,6 +2372,7 @@ void MainWindow::load_view_settings() {
       MeasurementUnit::Pixels);
   apply_ruler_unit_to_fields();  // the options-bar fields exist by now; the docks enroll themselves
   view_grid_visible_ = settings.value(QStringLiteral("view/gridVisible"), view_grid_visible_).toBool();
+  view_pixel_grid_visible_ = settings.value(QStringLiteral("view/pixelGrid"), view_pixel_grid_visible_).toBool();
   view_guides_visible_ = settings.value(QStringLiteral("view/guidesVisible"), view_guides_visible_).toBool();
   view_guides_locked_ = settings.value(QStringLiteral("view/guidesLocked"), view_guides_locked_).toBool();
   view_snap_enabled_ = settings.value(QStringLiteral("view/snapEnabled"), view_snap_enabled_).toBool();
@@ -2418,6 +2420,9 @@ void MainWindow::load_view_settings() {
   if (view_grid_action_ != nullptr) {
     view_grid_action_->setChecked(view_grid_visible_);
   }
+  if (view_pixel_grid_action_ != nullptr) {
+    view_pixel_grid_action_->setChecked(view_pixel_grid_visible_);
+  }
   if (view_guides_action_ != nullptr) {
     view_guides_action_->setChecked(view_guides_visible_);
   }
@@ -2451,6 +2456,7 @@ void MainWindow::save_view_settings() const {
   settings.setValue(QStringLiteral("view/rulersVisible"), view_rulers_visible_);
   settings.setValue(QStringLiteral("view/rulerUnits"), measurement_unit_settings_token(ruler_unit_));
   settings.setValue(QStringLiteral("view/gridVisible"), view_grid_visible_);
+  settings.setValue(QStringLiteral("view/pixelGrid"), view_pixel_grid_visible_);
   settings.setValue(QStringLiteral("view/guidesVisible"), view_guides_visible_);
   settings.setValue(QStringLiteral("view/guidesLocked"), view_guides_locked_);
   settings.setValue(QStringLiteral("view/snapEnabled"), view_snap_enabled_);

@@ -27,6 +27,7 @@
 #include <QEventLoop>
 #include <QFileDialog>
 #include <QFileInfo>
+#include <QFocusEvent>
 #include <QFormLayout>
 #include <QFrame>
 #include <QGuiApplication>
@@ -479,104 +480,290 @@ private:
   qint64 popup_dismissed_ms_{-1};
 };
 
-// One controller per scrub handle (dialog_utils.hpp). A Label handle is a label beside
-// the field: its presses are consumed so no text selection starts, and moves and the
-// release arrive through Qt's implicit grab on the pressed widget. A Field handle is the
-// spin box's own line edit: a press on its prefix text (when `prefix_scrub`) is consumed
-// the same way, while a press on the number passes through untouched (focus, caret,
-// double-click) and only the moves are held back until the drag distance, so a click
-// still edits and a drag scrubs.
-template <typename SpinBox>
-class ScrubDragController final : public QObject {
-public:
-  enum class Kind { Label, Field };
+// Scrub handles (dialog_utils.hpp). The value math works on any QSpinBox or
+// QDoubleSpinBox; one ScrubGesture is one press-to-release drag.
+double scrub_value(const QAbstractSpinBox* spin) {
+  if (const auto* int_spin = qobject_cast<const QSpinBox*>(spin); int_spin != nullptr) {
+    return int_spin->value();
+  }
+  if (const auto* double_spin = qobject_cast<const QDoubleSpinBox*>(spin); double_spin != nullptr) {
+    return double_spin->value();
+  }
+  return 0.0;
+}
 
-  ScrubDragController(QWidget* handle, SpinBox* spin, Kind kind, bool prefix_scrub = false)
-      : QObject(handle), handle_(handle), spin_(spin), kind_(kind), prefix_scrub_(prefix_scrub) {
-    handle_->installEventFilter(this);
-    if (kind_ == Kind::Label) {
-      handle_->setCursor(Qt::SizeHorCursor);
+double scrub_step(const QAbstractSpinBox* spin) {
+  if (const auto* int_spin = qobject_cast<const QSpinBox*>(spin); int_spin != nullptr) {
+    return int_spin->singleStep();
+  }
+  if (const auto* double_spin = qobject_cast<const QDoubleSpinBox*>(spin); double_spin != nullptr) {
+    return double_spin->singleStep();
+  }
+  return 1.0;
+}
+
+// `steps` single steps away from `anchor`. Integer fields move only by whole steps,
+// truncated toward zero, so a fine (Alt) drag changes the value every ten pixels in
+// either direction.
+void set_scrub_value(QAbstractSpinBox* spin, double anchor, double steps) {
+  if (auto* int_spin = qobject_cast<QSpinBox*>(spin); int_spin != nullptr) {
+    int_spin->setValue(static_cast<int>(anchor + std::trunc(steps) * int_spin->singleStep()));
+  } else if (auto* double_spin = qobject_cast<QDoubleSpinBox*>(spin); double_spin != nullptr) {
+    double_spin->setValue(anchor + steps * double_spin->singleStep());
+  }
+}
+
+// Pixels per step: Shift moves ten steps per pixel, Alt (Option) a tenth of a step,
+// Photoshop's scrubby-slider modifiers.
+double scrub_rate(Qt::KeyboardModifiers modifiers) {
+  if ((modifiers & Qt::ShiftModifier) != 0) {
+    return 10.0;
+  }
+  if ((modifiers & Qt::AltModifier) != 0) {
+    return 0.1;
+  }
+  return 1.0;
+}
+
+// The pointer may be warped back to the far side of the screen during a scrub, so a
+// long drag never stops at the screen edge. Wayland and the offscreen/minimal test
+// platforms cannot move the pointer.
+bool scrub_can_warp_pointer() {
+  const auto platform = QGuiApplication::platformName();
+  return !platform.startsWith(QLatin1String("wayland")) && platform != QLatin1String("offscreen") &&
+         platform != QLatin1String("minimal");
+}
+
+class ScrubGesture {
+public:
+  void press(QAbstractSpinBox* spin, QPoint global) {
+    spin_ = spin;
+    pressed_ = true;
+    scrubbing_ = false;
+    press_ = global;
+    wrap_offset_ = 0;
+  }
+
+  [[nodiscard]] bool pressed() const noexcept { return pressed_; }
+  [[nodiscard]] bool scrubbing() const noexcept { return scrubbing_; }
+  [[nodiscard]] QAbstractSpinBox* spin() const noexcept { return spin_.data(); }
+
+  // Follows the pointer; true once the drag passed the drag distance and changes the value.
+  bool move(QPoint global, Qt::KeyboardModifiers modifiers) {
+    if (!pressed_ || spin_.isNull()) {
+      return false;
     }
+    const int x = global.x() + wrap_offset_;
+    if (!scrubbing_) {
+      if (std::abs(x - press_.x()) < QApplication::startDragDistance()) {
+        return false;
+      }
+      scrubbing_ = true;
+      anchor_x_ = press_.x();
+      anchor_value_ = scrub_value(spin_);
+      anchor_rate_ = scrub_rate(modifiers);
+    }
+    // A modifier pressed or released mid-drag continues from the current value at the
+    // new rate instead of jumping as if it had been held since the press.
+    if (const auto rate = scrub_rate(modifiers); rate != anchor_rate_) {
+      anchor_x_ = x;
+      anchor_value_ = scrub_value(spin_);
+      anchor_rate_ = rate;
+    }
+    set_scrub_value(spin_, anchor_value_, static_cast<double>(x - anchor_x_) * anchor_rate_);
+    wrap_pointer(global);
+    return true;
+  }
+
+  // Ends the gesture; a scrub ends with one editingFinished, so edit-session undo paths
+  // record one step. A caller about to move focus off the field passes false: the
+  // spin box's own focus-out emits it. Returns whether the gesture scrubbed.
+  bool finish(bool emit_finished = true) {
+    const bool scrubbed = pressed_ && scrubbing_;
+    pressed_ = false;
+    scrubbing_ = false;
+    if (scrubbed && emit_finished && !spin_.isNull()) {
+      Q_EMIT spin_->editingFinished();
+    }
+    return scrubbed;
+  }
+
+private:
+  void wrap_pointer(QPoint global) {
+    if (!scrub_can_warp_pointer()) {
+      return;
+    }
+    const auto* screen = QGuiApplication::screenAt(global);
+    if (screen == nullptr) {
+      return;
+    }
+    const auto bounds = screen->geometry();
+    if (global.x() <= bounds.left() + 1) {
+      const int target = bounds.right() - 2;
+      QCursor::setPos(target, global.y());
+      wrap_offset_ -= target - global.x();
+    } else if (global.x() >= bounds.right() - 1) {
+      const int target = bounds.left() + 2;
+      QCursor::setPos(target, global.y());
+      wrap_offset_ += global.x() - target;
+    }
+  }
+
+  QPointer<QAbstractSpinBox> spin_;
+  bool pressed_{false};
+  bool scrubbing_{false};
+  QPoint press_;
+  int anchor_x_{0};
+  double anchor_value_{0.0};
+  double anchor_rate_{1.0};
+  int wrap_offset_{0};
+};
+
+bool scrub_target_enabled(const QAbstractSpinBox* spin) {
+  return spin != nullptr && spin->isEnabled() && !spin->isReadOnly();
+}
+
+// A label beside the field: every left press is a scrub gesture (a click changes nothing).
+class ScrubLabelHandle final : public QObject {
+public:
+  ScrubLabelHandle(QLabel* label, QAbstractSpinBox* spin) : QObject(label), label_(label), spin_(spin) {
+    label->installEventFilter(this);
+    label->setCursor(Qt::SizeHorCursor);
   }
 
 protected:
   bool eventFilter(QObject* watched, QEvent* event) override {
-    if (watched != handle_ || spin_.isNull()) {
+    if (watched != label_ || spin_.isNull()) {
       return QObject::eventFilter(watched, event);
     }
     switch (event->type()) {
       case QEvent::MouseButtonPress: {
         const auto* mouse = static_cast<QMouseEvent*>(event);
-        if (mouse->button() != Qt::LeftButton || !spin_->isEnabled() || spin_->isReadOnly() ||
-            over_popup_chevron(mouse->position().toPoint())) {
+        if (mouse->button() != Qt::LeftButton || !scrub_target_enabled(spin_)) {
           return false;
         }
-        pressed_ = true;
-        scrubbing_ = false;
-        press_on_prefix_ = kind_ == Kind::Field && over_prefix(mouse->position().toPoint());
-        press_global_ = mouse->globalPosition().toPoint();
-        start_value_ = spin_->value();
-        // A press on the number reaches the line edit as an ordinary click.
-        return kind_ == Kind::Label || press_on_prefix_;
+        gesture_.press(spin_, mouse->globalPosition().toPoint());
+        return true;
       }
       case QEvent::MouseMove: {
         const auto* mouse = static_cast<QMouseEvent*>(event);
-        if (pressed_ && (mouse->buttons() & Qt::LeftButton) == 0) {
-          pressed_ = false;  // the release went elsewhere
-          scrubbing_ = false;
-        }
-        if (!pressed_) {
-          if (kind_ == Kind::Field) {
-            handle_->setCursor(idle_field_cursor(mouse->position().toPoint()));
-          }
+        if (!gesture_.pressed()) {
           return false;
         }
-        const int delta = mouse->globalPosition().toPoint().x() - press_global_.x();
-        if (!scrubbing_) {
-          if (std::abs(delta) < QApplication::startDragDistance()) {
-            return true;
-          }
-          scrubbing_ = true;
-          if (kind_ == Kind::Field) {
-            handle_->setCursor(Qt::SizeHorCursor);
-            if (auto* editor = qobject_cast<QLineEdit*>(handle_.data()); editor != nullptr) {
-              editor->deselect();
-            }
-          }
-        }
-        const double steps = static_cast<double>(delta) * ((mouse->modifiers() & Qt::ShiftModifier) != 0 ? 10.0 : 1.0);
-        spin_->setValue(static_cast<decltype(spin_->value())>(start_value_ + steps * spin_->singleStep()));
+        (void)gesture_.move(mouse->globalPosition().toPoint(), mouse->modifiers());
         return true;
       }
       case QEvent::MouseButtonRelease: {
         const auto* mouse = static_cast<QMouseEvent*>(event);
-        if (mouse->button() != Qt::LeftButton || !pressed_) {
+        if (mouse->button() != Qt::LeftButton || !gesture_.pressed()) {
           return false;
         }
-        pressed_ = false;
-        if (scrubbing_) {
-          scrubbing_ = false;
-          Q_EMIT spin_->editingFinished();
-          if (kind_ == Kind::Field) {
-            handle_->setCursor(idle_field_cursor(mouse->position().toPoint()));
-            // A field the press focused keeps focus with its number selected, as a
-            // click into a toolbar field leaves it, so typing replaces the value.
-            if (spin_->hasFocus()) {
-              spin_->selectAll();
-            }
-          }
-          return true;
+        (void)gesture_.finish();
+        return true;
+      }
+      default:
+        break;
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+private:
+  QPointer<QLabel> label_;
+  QPointer<QAbstractSpinBox> spin_;
+  ScrubGesture gesture_;
+};
+
+// The field's own line edit. Until the field is being edited, a press is a gesture: a
+// drag past the drag distance scrubs and then hands keyboard focus back to where it was,
+// and a press released without moving enters text editing with the number selected.
+// While the field is being edited (after that click, Tab, or typing; until Enter, Esc
+// or focus loss) the line edit gets every mouse event, so drags select text and
+// clicks place the caret. A prefix (`prefix_scrub`, the Layers panel's "Opacity:")
+// always scrubs like a label, and its click enters editing too.
+class ScrubFieldHandle final : public QObject {
+public:
+  ScrubFieldHandle(QLineEdit* editor, QAbstractSpinBox* spin, bool prefix_scrub)
+      : QObject(editor), editor_(editor), spin_(spin), prefix_scrub_(prefix_scrub) {
+    editor->installEventFilter(this);
+    spin->installEventFilter(this);
+    update_cursor(QPoint(-1, -1));
+    QObject::connect(qApp, &QApplication::focusChanged, this, [this](QWidget* old, QWidget* now) {
+      if (now != nullptr && (now == spin_.data() || now == editor_.data())) {
+        focus_before_ = old;
+      }
+    });
+  }
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (spin_.isNull() || editor_.isNull()) {
+      return QObject::eventFilter(watched, event);
+    }
+    if (watched == spin_) {
+      watch_spin(event);
+      return QObject::eventFilter(watched, event);
+    }
+    if (watched != editor_) {
+      return QObject::eventFilter(watched, event);
+    }
+    switch (event->type()) {
+      case QEvent::MouseButtonPress: {
+        const auto* mouse = static_cast<QMouseEvent*>(event);
+        const auto position = mouse->position().toPoint();
+        if (mouse->button() != Qt::LeftButton || !scrub_target_enabled(spin_) || over_popup_chevron(position)) {
+          return false;
         }
-        if (press_on_prefix_) {
+        const bool on_prefix = over_prefix(position);
+        // Qt hands out click focus before the press arrives, so a focus that came with
+        // this very press does not mean the field was already being edited.
+        const bool focus_came_with_press = focus_in_pending_press_;
+        focus_in_pending_press_ = false;
+        if (!on_prefix && editing_ && !focus_came_with_press) {
+          return false;
+        }
+        gesture_.press(spin_, mouse->globalPosition().toPoint());
+        restore_focus_after_scrub_ = focus_came_with_press || !spin_->hasFocus();
+        focus_to_restore_ = focus_came_with_press ? focus_before_ : QPointer<QWidget>();
+        return true;
+      }
+      case QEvent::MouseMove: {
+        const auto* mouse = static_cast<QMouseEvent*>(event);
+        if (!gesture_.pressed()) {
+          update_cursor(mouse->position().toPoint());
+          return false;
+        }
+        if (gesture_.move(mouse->globalPosition().toPoint(), mouse->modifiers())) {
+          editor_->deselect();
+        }
+        return true;
+      }
+      case QEvent::MouseButtonRelease: {
+        const auto* mouse = static_cast<QMouseEvent*>(event);
+        if (mouse->button() != Qt::LeftButton || !gesture_.pressed()) {
+          return false;
+        }
+        const bool focus_leaves = gesture_.scrubbing() && restore_focus_after_scrub_ && spin_->hasFocus();
+        if (gesture_.finish(!focus_leaves)) {
+          if (restore_focus_after_scrub_) {
+            if (!focus_to_restore_.isNull() && focus_to_restore_->isVisible()) {
+              focus_to_restore_->setFocus(Qt::OtherFocusReason);
+            } else {
+              spin_->clearFocus();
+            }
+          } else if (spin_->hasFocus()) {
+            spin_->selectAll();
+          }
+        } else {
+          editing_ = true;
           spin_->setFocus(Qt::MouseFocusReason);
           spin_->selectAll();
-          return true;
         }
-        return kind_ == Kind::Label;
+        update_cursor(mouse->position().toPoint());
+        return true;
       }
       case QEvent::Leave:
-        if (kind_ == Kind::Field && !pressed_) {
-          handle_->setCursor(Qt::IBeamCursor);
+        if (!gesture_.pressed()) {
+          update_cursor(QPoint(-1, -1));
         }
         break;
       default:
@@ -586,51 +773,204 @@ protected:
   }
 
 private:
-  bool over_prefix(QPoint position) const {
-    if (!prefix_scrub_) {
-      return false;
+  void watch_spin(QEvent* event) {
+    switch (event->type()) {
+      case QEvent::FocusIn: {
+        const auto reason = static_cast<QFocusEvent*>(event)->reason();
+        if (reason == Qt::MouseFocusReason) {
+          // Cleared once the event loop runs: the press that caused it arrives first.
+          focus_in_pending_press_ = true;
+          QMetaObject::invokeMethod(this, [this] { focus_in_pending_press_ = false; }, Qt::QueuedConnection);
+        } else if (reason == Qt::TabFocusReason || reason == Qt::BacktabFocusReason ||
+                   reason == Qt::ShortcutFocusReason) {
+          editing_ = true;
+        }
+        update_cursor(QPoint(-1, -1));
+        break;
+      }
+      case QEvent::FocusOut:
+        if (static_cast<QFocusEvent*>(event)->reason() != Qt::PopupFocusReason) {
+          editing_ = false;
+          update_cursor(QPoint(-1, -1));
+        }
+        break;
+      case QEvent::KeyPress: {
+        const auto key = static_cast<QKeyEvent*>(event)->key();
+        if (key == Qt::Key_Return || key == Qt::Key_Enter || key == Qt::Key_Escape) {
+          editing_ = false;
+        } else if (key != Qt::Key_Shift && key != Qt::Key_Control && key != Qt::Key_Alt &&
+                   key != Qt::Key_Meta) {
+          editing_ = true;
+        }
+        update_cursor(QPoint(-1, -1));
+        break;
+      }
+      default:
+        break;
     }
-    auto* editor = qobject_cast<QLineEdit*>(handle_.data());
-    const auto prefix = spin_->prefix();
-    if (editor == nullptr || prefix.isEmpty()) {
-      return false;
-    }
-    return editor->cursorPositionAt(position) < static_cast<int>(prefix.length());
   }
 
   // The trailing area of a toolbar field opens its popup slider (NumericPopupController).
   bool over_popup_chevron(QPoint position) const {
-    return kind_ == Kind::Field && spin_->property(kNumericPopupInstalledProperty).toBool() &&
-           position.x() >= handle_->width() - kChevronAreaWidth;
+    return spin_->property(kNumericPopupInstalledProperty).toBool() &&
+           position.x() >= editor_->width() - kChevronAreaWidth;
   }
 
-  Qt::CursorShape idle_field_cursor(QPoint position) const {
-    return over_prefix(position) ? Qt::SizeHorCursor : Qt::IBeamCursor;
+  bool over_prefix(QPoint position) const {
+    if (!prefix_scrub_) {
+      return false;
+    }
+    const auto prefix = spin_->property("prefix").toString();
+    return !prefix.isEmpty() && editor_->cursorPositionAt(position) < static_cast<int>(prefix.length());
   }
 
-  QPointer<QWidget> handle_;
-  QPointer<SpinBox> spin_;
-  Kind kind_{Kind::Label};
+  // SizeHor wherever a press scrubs: the prefix, and the number while it is not being
+  // edited. The I-beam while editing.
+  void update_cursor(QPoint position) {
+    const bool scrubs = !editing_ || (position.x() >= 0 && over_prefix(position));
+    editor_->setCursor(scrubs ? Qt::SizeHorCursor : Qt::IBeamCursor);
+  }
+
+  QPointer<QLineEdit> editor_;
+  QPointer<QAbstractSpinBox> spin_;
   bool prefix_scrub_{false};
-  bool pressed_{false};
-  bool press_on_prefix_{false};
-  bool scrubbing_{false};
-  QPoint press_global_;
-  decltype(std::declval<SpinBox>().value()) start_value_{};
+  bool editing_{false};
+  bool focus_in_pending_press_{false};
+  bool restore_focus_after_scrub_{false};
+  QPointer<QWidget> focus_before_;
+  QPointer<QWidget> focus_to_restore_;
+  ScrubGesture gesture_;
 };
 
-// The label handle (when `label` is set) and the field handle on the spin box's own
-// line edit, marking the spin box installed.
-template <typename SpinBox>
-void install_scrub_handles(QLabel* label, SpinBox* spin, bool prefix_scrub) {
-  using Controller = ScrubDragController<SpinBox>;
+// The gap between a label and the field to its right scrubs like the label, so label,
+// gap and field are one continuous zone. The gap belongs to the label's parent widget,
+// which gets mouse tracking for the hover cursor; zones are measured at event time, so
+// relayouts, wrapping and hidden rows need no bookkeeping.
+class ScrubGapZones final : public QObject {
+public:
+  static void add(QLabel* label, QAbstractSpinBox* spin) {
+    auto* parent = label->parentWidget();
+    if (parent == nullptr) {
+      return;
+    }
+    // One zone set per parent, reached through a property (no Q_OBJECT for findChild).
+    constexpr auto kZonesProperty = "patchy.scrubGapZones";
+    auto* zones = static_cast<ScrubGapZones*>(parent->property(kZonesProperty).value<QObject*>());
+    if (zones == nullptr) {
+      zones = new ScrubGapZones(parent);
+      parent->setProperty(kZonesProperty, QVariant::fromValue<QObject*>(zones));
+    }
+    zones->pairs_.push_back({label, spin});
+  }
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (watched != parent_) {
+      return QObject::eventFilter(watched, event);
+    }
+    switch (event->type()) {
+      case QEvent::MouseButtonPress: {
+        const auto* mouse = static_cast<QMouseEvent*>(event);
+        auto* spin = mouse->button() == Qt::LeftButton ? spin_at(mouse->position().toPoint()) : nullptr;
+        if (!scrub_target_enabled(spin)) {
+          return false;
+        }
+        gesture_.press(spin, mouse->globalPosition().toPoint());
+        return true;
+      }
+      case QEvent::MouseMove: {
+        const auto* mouse = static_cast<QMouseEvent*>(event);
+        if (gesture_.pressed()) {
+          (void)gesture_.move(mouse->globalPosition().toPoint(), mouse->modifiers());
+          return true;
+        }
+        show_cursor(spin_at(mouse->position().toPoint()) != nullptr);
+        return false;
+      }
+      case QEvent::MouseButtonRelease: {
+        const auto* mouse = static_cast<QMouseEvent*>(event);
+        if (mouse->button() != Qt::LeftButton || !gesture_.pressed()) {
+          return false;
+        }
+        (void)gesture_.finish();
+        show_cursor(spin_at(mouse->position().toPoint()) != nullptr);
+        return true;
+      }
+      case QEvent::Leave:
+        if (!gesture_.pressed()) {
+          show_cursor(false);
+        }
+        break;
+      default:
+        break;
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+private:
+  // The widest gap that still reads as "label, field": layout spacing, never a slider
+  // or another control sitting between them.
+  static constexpr int kMaxGap = 24;
+
+  explicit ScrubGapZones(QWidget* parent)
+      : QObject(parent), parent_(parent), parent_had_cursor_(parent->testAttribute(Qt::WA_SetCursor)) {
+    parent->setMouseTracking(true);
+    parent->installEventFilter(this);
+  }
+
+  QAbstractSpinBox* spin_at(QPoint position) const {
+    for (const auto& pair : pairs_) {
+      if (pair.label.isNull() || pair.spin.isNull() || !pair.label->isVisible() || !pair.spin->isVisible()) {
+        continue;
+      }
+      const auto label = pair.label->geometry();
+      const QRect field(parent_->mapFromGlobal(pair.spin->mapToGlobal(QPoint(0, 0))), pair.spin->size());
+      const int gap = field.left() - label.right() - 1;
+      if (gap <= 0 || gap > kMaxGap || field.top() > label.bottom() || field.bottom() < label.top()) {
+        continue;
+      }
+      const QRect zone(QPoint(label.right() + 1, std::min(label.top(), field.top())),
+                       QPoint(field.left() - 1, std::max(label.bottom(), field.bottom())));
+      if (zone.contains(position)) {
+        return pair.spin;
+      }
+    }
+    return nullptr;
+  }
+
+  void show_cursor(bool scrub) {
+    if (parent_had_cursor_ || parent_.isNull() || scrub == cursor_shown_) {
+      return;
+    }
+    cursor_shown_ = scrub;
+    if (scrub) {
+      parent_->setCursor(Qt::SizeHorCursor);
+    } else {
+      parent_->unsetCursor();
+    }
+  }
+
+  struct Pair {
+    QPointer<QLabel> label;
+    QPointer<QAbstractSpinBox> spin;
+  };
+  QPointer<QWidget> parent_;
+  bool parent_had_cursor_{false};
+  bool cursor_shown_{false};
+  std::vector<Pair> pairs_;
+  ScrubGesture gesture_;
+};
+
+// The label handle and its gap (when `label` is set) and the field handle on the spin
+// box's own line edit, marking the spin box installed.
+void install_scrub_handles(QLabel* label, QAbstractSpinBox* spin, bool prefix_scrub) {
   spin->setProperty(kScrubHandleInstalledProperty, true);
   if (label != nullptr) {
-    new Controller(label, spin, Controller::Kind::Label);
+    new ScrubLabelHandle(label, spin);
+    ScrubGapZones::add(label, spin);
   }
-  if (auto* editor = spin->template findChild<QLineEdit*>(); editor != nullptr) {
-    editor->setCursor(Qt::IBeamCursor);
-    new Controller(editor, spin, Controller::Kind::Field, prefix_scrub);
+  if (auto* editor = spin->findChild<QLineEdit*>(); editor != nullptr) {
+    new ScrubFieldHandle(editor, spin, prefix_scrub);
   }
 }
 
@@ -1529,21 +1869,18 @@ QFont offset_font(QFont font, int size_delta, bool bold) {
 }
 
 void install_scrub_label(QLabel* label, QAbstractSpinBox* spin) {
-  if (label == nullptr || spin == nullptr || spin->property(kScrubHandleInstalledProperty).toBool()) {
+  if (label == nullptr || spin == nullptr || spin->property(kScrubHandleInstalledProperty).toBool() ||
+      (qobject_cast<QSpinBox*>(spin) == nullptr && qobject_cast<QDoubleSpinBox*>(spin) == nullptr)) {
     return;
   }
-  if (auto* int_spin = qobject_cast<QSpinBox*>(spin); int_spin != nullptr) {
-    install_scrub_handles(label, int_spin, false);
-  } else if (auto* double_spin = qobject_cast<QDoubleSpinBox*>(spin); double_spin != nullptr) {
-    install_scrub_handles(label, double_spin, false);
-  }
+  install_scrub_handles(label, spin, false);
 }
 
 void install_prefix_scrub(QSpinBox* spin) {
   if (spin == nullptr || spin->property(kScrubHandleInstalledProperty).toBool()) {
     return;
   }
-  install_scrub_handles(static_cast<QLabel*>(nullptr), spin, true);
+  install_scrub_handles(nullptr, spin, true);
 }
 
 void install_scrub_labels_in(QWidget* container) {

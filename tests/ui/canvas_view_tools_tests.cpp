@@ -63,6 +63,8 @@
 #include <QProxyStyle>
 #include <QPixmap>
 #include <QAbstractButton>
+#include <QProcess>
+#include <QProcessEnvironment>
 #include <QPushButton>
 #include <QSpinBox>
 #include <QStringList>
@@ -96,6 +98,7 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <set>
 #include <limits>
 #include <memory>
 #include <optional>
@@ -2067,6 +2070,8 @@ void ui_canvas_deep_zoom_without_grid_keeps_pixels_sharp() {
   patchy::ui::CanvasWidget canvas;
   canvas.resize(180, 140);
   canvas.set_document(&document);
+  // The sample row is a pixel-grid line row; this pins the pixels, not the grid.
+  canvas.set_pixel_grid_visible(false);
   canvas.set_zoom(12.25);
   canvas.show();
   QApplication::processEvents();
@@ -2313,6 +2318,287 @@ void ui_canvas_styled_text_at_150_percent_has_no_repeated_columns() {
   std::cerr << "repeated column share: 150% " << share_150 << ", 200% " << share_200 << '\n';
   CHECK(share_150 < 0.2);
   CHECK(share_200 > 0.95);
+}
+
+// 8 x 6 pixels, each a different color: the left half light, the right half dark, none
+// equal to any pixel_grid_line_color of another, so a grid line shows as a color that is
+// not in the document.
+patchy::Document pixel_grid_document() {
+  patchy::Document document(8, 6, patchy::PixelFormat::rgb8());
+  auto pixels = solid_pixels(8, 6, patchy::PixelFormat::rgb8(), Qt::white);
+  for (int y = 0; y < 6; ++y) {
+    for (int x = 0; x < 8; ++x) {
+      const auto color = x < 4 ? QColor(230 - 3 * x, 225 - 5 * y, 240) : QColor(20 + 3 * x, 30 + 5 * y, 10);
+      fill_pixel_rect(pixels, QRect(x, y, 1, 1), color);
+    }
+  }
+  document.add_pixel_layer("Pixels", std::move(pixels));
+  return document;
+}
+
+struct PixelGridCheck {
+  int mismatches{0};
+  int line_pixels{0};
+};
+
+// Compares every device pixel of every document cell (inside the document's frame, one
+// logical pixel wide) against the expected deep-zoom output: document pixel (x, y) covers device
+// columns [qRound(left(x) * ratio), qRound(left(x + 1) * ratio)) with left() the widget
+// position, and, when `grid`, its first device column (x > 0) and row (y > 0) carry
+// pixel_grid_line_color.
+PixelGridCheck check_pixel_grid_cells(patchy::ui::CanvasWidget& canvas, const patchy::Document& document,
+                                      bool grid) {
+  QApplication::processEvents();
+  const auto image = canvas.grab().toImage().convertToFormat(QImage::Format_ARGB32_Premultiplied);
+  const auto ratio = canvas.devicePixelRatioF();
+  const auto device_x = [&](int x) {
+    return qRound(canvas.widget_position_for_document_point(QPoint(x, 0)).x() * ratio);
+  };
+  const auto device_y = [&](int y) {
+    return qRound(canvas.widget_position_for_document_point(QPoint(0, y)).y() * ratio);
+  };
+  const auto content = canvas_content_rect(canvas);
+  const QRect device_content(qRound(content.left() * ratio), qRound(content.top() * ratio),
+                             qRound(content.width() * ratio), qRound(content.height() * ratio));
+  const auto edge = static_cast<int>(std::ceil(ratio));
+  const QRect frame(device_x(0) + edge, device_y(0) + edge, device_x(document.width()) - device_x(0) - 2 * edge,
+                    device_y(document.height()) - device_y(0) - 2 * edge);
+  const auto inside = frame.intersected(device_content).intersected(image.rect());
+  const auto& pixels = document.layers().front().pixels();
+  PixelGridCheck result;
+  for (int y = 0; y < document.height(); ++y) {
+    for (int x = 0; x < document.width(); ++x) {
+      const auto* px = pixels.pixel(x, y);
+      const auto pixel = qRgb(px[0], px[1], px[2]);
+      const auto line = patchy::ui::pixel_grid_line_color(pixel);
+      for (int dy = device_y(y); dy < device_y(y + 1); ++dy) {
+        for (int dx = device_x(x); dx < device_x(x + 1); ++dx) {
+          if (!inside.contains(dx, dy)) {
+            continue;
+          }
+          const bool on_line = grid && ((dx == device_x(x) && x > 0) || (dy == device_y(y) && y > 0));
+          const auto shown = image.pixel(dx, dy) | 0xff000000U;
+          if (on_line) {
+            ++result.line_pixels;
+          }
+          if (shown != (on_line ? line : pixel)) {
+            ++result.mismatches;
+          }
+        }
+      }
+    }
+  }
+  return result;
+}
+
+// Device pixels inside the document that show none of its pixel colors (grid lines).
+int non_document_colors(patchy::ui::CanvasWidget& canvas, const patchy::Document& document) {
+  QApplication::processEvents();
+  const auto image = canvas.grab().toImage();
+  const auto ratio = canvas.devicePixelRatioF();
+  std::set<QRgb> colors;
+  const auto& pixels = document.layers().front().pixels();
+  for (int y = 0; y < document.height(); ++y) {
+    for (int x = 0; x < document.width(); ++x) {
+      const auto* px = pixels.pixel(x, y);
+      colors.insert(qRgb(px[0], px[1], px[2]));
+    }
+  }
+  const auto top_left = canvas.widget_position_for_document_point(QPoint(0, 0));
+  const auto bottom_right = canvas.widget_position_for_document_point(QPoint(document.width(), document.height()));
+  const auto edge = static_cast<int>(std::ceil(ratio));
+  const QRect inside(qRound(top_left.x() * ratio) + edge, qRound(top_left.y() * ratio) + edge,
+                     qRound((bottom_right.x() - top_left.x()) * ratio) - 2 * edge,
+                     qRound((bottom_right.y() - top_left.y()) * ratio) - 2 * edge);
+  int count = 0;
+  for (int y = inside.top(); y <= inside.bottom(); ++y) {
+    for (int x = inside.left(); x <= inside.right(); ++x) {
+      if (image.rect().contains(x, y) && !colors.contains(image.pixel(x, y) | 0xff000000U)) {
+        ++count;
+      }
+    }
+  }
+  return count;
+}
+
+// The pixel grid (GitHub issue 239) appears at 600% and not below, tints each line from
+// its own pixel (lighter over dark pixels, darker over light ones), and View > Pixel
+// Grid off removes it.
+void ui_canvas_pixel_grid_shows_from_600_percent() {
+  using patchy::ui::pixel_grid_line_color;
+  CHECK(pixel_grid_line_color(qRgb(255, 255, 255)) == qRgb(200, 200, 200));
+  CHECK(pixel_grid_line_color(qRgb(0, 0, 0)) == qRgb(63, 63, 63));
+  CHECK(qGray(pixel_grid_line_color(qRgb(240, 200, 60))) < qGray(qRgb(240, 200, 60)));
+  CHECK(qGray(pixel_grid_line_color(qRgb(30, 40, 90))) > qGray(qRgb(30, 40, 90)));
+  // A transparent pixel reads over the light checkerboard, so its line is darker gray.
+  CHECK(qGray(pixel_grid_line_color(qRgba(0, 0, 0, 0))) < 224);
+
+  auto document = pixel_grid_document();
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(300, 240);
+  canvas.set_document(&document);
+  canvas.show();
+  CHECK(canvas.pixel_grid_visible());
+
+  for (const double zoom : {4.0, 5.0, 5.9}) {
+    canvas.set_view_zoom_centered(zoom);
+    if (const auto lines = non_document_colors(canvas, document); lines != 0) {
+      std::cerr << lines << " grid pixels at " << zoom << '\n';
+      CHECK(false);
+    }
+  }
+  for (const double zoom : {6.0, 6.5, 8.0, 12.0}) {
+    canvas.set_view_zoom_centered(zoom);
+    const auto check = check_pixel_grid_cells(canvas, document, true);
+    if (check.mismatches != 0 || check.line_pixels == 0) {
+      std::cerr << "pixel grid at " << zoom << ": " << check.mismatches << " mismatches, " << check.line_pixels
+                << " line pixels\n";
+      save_image_artifact("ui_canvas_pixel_grid_threshold", canvas.grab().toImage());
+      CHECK(false);
+    }
+  }
+  canvas.set_view_zoom_centered(8.0);
+  canvas.set_pixel_grid_visible(false);
+  CHECK(non_document_colors(canvas, document) == 0);
+  CHECK(check_pixel_grid_cells(canvas, document, false).mismatches == 0);
+}
+
+// Grid lines sit exactly on the first device column and row of each pixel at 800% and
+// 1600%, at device pixel ratio 1 here and 1.5 in a child run of this test
+// (QT_SCALE_FACTOR=1.5).
+void ui_canvas_pixel_grid_lands_on_pixel_boundaries() {
+  const bool child = qEnvironmentVariableIsSet("PATCHY_PIXEL_GRID_DPR_CHILD");
+  auto document = pixel_grid_document();
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(300, 240);
+  canvas.set_document(&document);
+  canvas.show();
+  QApplication::processEvents();
+  const auto ratio = canvas.devicePixelRatioF();
+  std::cout << "pixel grid device pixel ratio " << ratio << '\n';
+  CHECK(std::abs(ratio - (child ? 1.5 : 1.0)) < 0.001);
+  for (const double zoom : {8.0, 16.0}) {
+    canvas.set_view_zoom_centered(zoom);
+    const auto check = check_pixel_grid_cells(canvas, document, true);
+    if (check.mismatches != 0 || check.line_pixels == 0) {
+      std::cerr << "pixel grid at " << zoom << " ratio " << ratio << ": " << check.mismatches << " mismatches, "
+                << check.line_pixels << " line pixels\n";
+      save_image_artifact(child ? "ui_canvas_pixel_grid_boundaries_150" : "ui_canvas_pixel_grid_boundaries_100",
+                          canvas.grab().toImage());
+      CHECK(false);
+    }
+  }
+  if (child) {
+    return;
+  }
+  QProcess scaled;
+  auto environment = QProcessEnvironment::systemEnvironment();
+  environment.insert(QStringLiteral("QT_SCALE_FACTOR"), QStringLiteral("1.5"));
+  environment.insert(QStringLiteral("PATCHY_PIXEL_GRID_DPR_CHILD"), QStringLiteral("1"));
+  environment.remove(QStringLiteral("PATCHY_UI_TEST_FILTER"));
+  scaled.setProcessEnvironment(environment);
+  scaled.setProcessChannelMode(QProcess::MergedChannels);
+  scaled.setProgram(QCoreApplication::applicationFilePath());
+  scaled.setArguments({QStringLiteral("ui_canvas_pixel_grid_lands_on_pixel_boundaries")});
+  scaled.start();
+  CHECK(scaled.waitForStarted(30000));
+  CHECK(scaled.waitForFinished(180000));
+  const auto output = QString::fromUtf8(scaled.readAll());
+  const bool passed = scaled.exitStatus() == QProcess::NormalExit && scaled.exitCode() == 0 &&
+                      output.contains(QStringLiteral("pixel grid device pixel ratio 1.5")) &&
+                      output.contains(QStringLiteral("[PASS] ui_canvas_pixel_grid_lands_on_pixel_boundaries")) &&
+                      !output.contains(QStringLiteral("[FAIL]"));
+  if (!passed) {
+    std::cerr << "device pixel ratio 1.5 child run:\n" << output.toStdString() << '\n';
+  }
+  CHECK(passed);
+}
+
+// Issue 239's before/after images: a light and a dark area of a varied image at 800%, with
+// View > Pixel Grid off (what Patchy drew before) and on.
+void ui_canvas_pixel_grid_capture_light_and_dark_areas() {
+  patchy::Document document(32, 12, patchy::PixelFormat::rgb8());
+  auto pixels = solid_pixels(32, 12, patchy::PixelFormat::rgb8(), Qt::white);
+  std::uint64_t state = 0x239239239ULL;
+  const auto next = [&state] {
+    state += 0x9e3779b97f4a7c15ULL;
+    auto z = state;
+    z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
+    z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
+    return static_cast<int>((z ^ (z >> 31)) % 24U);
+  };
+  for (int y = 0; y < 12; ++y) {
+    for (int x = 0; x < 32; ++x) {
+      const auto color = x < 16 ? QColor(214 + next() / 2, 222 + next() / 3, 236 + next() / 3 - y)
+                                : QColor(46 + next() + y, 32 + next(), 24 + next() / 2);
+      fill_pixel_rect(pixels, QRect(x, y, 1, 1), color);
+    }
+  }
+  document.add_pixel_layer("Photo", std::move(pixels));
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(320, 240);
+  canvas.set_document(&document);
+  canvas.show();
+  const auto capture = [&](QPoint center) {
+    canvas.set_view_zoom_centered(8.0);
+    QApplication::processEvents();
+    // Center the 12 x 12 pixel area around `center` (8 px per pixel = 96 x 96 screen px).
+    const auto at = canvas.widget_position_for_document_point(center);
+    const QRect area(at.x() - 48, at.y() - 48, 96, 96);
+    return render_widget_image(canvas).copy(area.intersected(canvas_content_rect(canvas)));
+  };
+  // The view shows 40 x 30 document pixels at 800%, so the whole 32 x 12 image fits.
+  for (const bool grid : {false, true}) {
+    canvas.set_pixel_grid_visible(grid);
+    const auto light = capture(QPoint(8, 6));
+    const auto dark = capture(QPoint(24, 6));
+    save_image_artifact(grid ? "ui_pixel_grid_800_light_after" : "ui_pixel_grid_800_light_before", light);
+    save_image_artifact(grid ? "ui_pixel_grid_800_dark_after" : "ui_pixel_grid_800_dark_before", dark);
+  }
+  CHECK(non_document_colors(canvas, document) > 0);
+}
+
+// View > Pixel Grid is on by default, saved as view/pixelGrid, read by a new window, and
+// reachable from scripts (patchy.ui.pixelGrid and the view.pixel_grid command).
+void ui_pixel_grid_toggle_persists_and_scripts() {
+  using patchy::test::ui::scripting_support::backlog_contains;
+  using patchy::test::ui::scripting_support::run_script;
+  SettingsValueRestorer saved(QStringLiteral("view/pixelGrid"));
+  patchy::ui::app_settings().remove(QStringLiteral("view/pixelGrid"));
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* action = window.findChild<QAction*>(QStringLiteral("viewTogglePixelGridAction"));
+    CHECK(action != nullptr);
+    if (action == nullptr) {
+      return;
+    }
+    auto* canvas = require_canvas(window);
+    CHECK(action->isCheckable() && action->isChecked());
+    CHECK(action->menuRole() == QAction::NoRole);
+    CHECK(canvas->pixel_grid_visible());
+    action->trigger();
+    QApplication::processEvents();
+    CHECK(!canvas->pixel_grid_visible());
+    CHECK(!patchy::ui::app_settings().value(QStringLiteral("view/pixelGrid"), true).toBool());
+    CHECK(run_script(window, QStringLiteral(
+                                 "console.log('grid=' + patchy.ui.pixelGrid); patchy.ui.pixelGrid = true;"
+                                 "console.log('grid now=' + patchy.ui.pixelGrid);")));
+    CHECK(backlog_contains(window, QStringLiteral("grid=false")));
+    CHECK(backlog_contains(window, QStringLiteral("grid now=true")));
+    CHECK(action->isChecked() && canvas->pixel_grid_visible());
+    CHECK(patchy::ui::app_settings().value(QStringLiteral("view/pixelGrid"), false).toBool());
+    CHECK(run_script(window, QStringLiteral("console.log('command=' + app.runCommand('view.pixel_grid'));")));
+    CHECK(backlog_contains(window, QStringLiteral("command=true")));
+    CHECK(!action->isChecked() && !canvas->pixel_grid_visible());
+  }
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* action = window.findChild<QAction*>(QStringLiteral("viewTogglePixelGridAction"));
+    CHECK(action != nullptr && !action->isChecked());
+    CHECK(!require_canvas(window)->pixel_grid_visible());
+  }
 }
 
 void ui_zoomed_out_canvas_uses_downsampled_display_mip() {
@@ -4174,106 +4460,152 @@ void ui_options_bar_label_scrub_changes_spin_value() {
   CHECK(handles >= 30);
 }
 
-// A drag inside a numeric field scrubs it like its label: past the drag distance
-// the value moves one step per pixel, the field shows SizeHor while dragging, and
-// the drag ends with one editingFinished and the number selected. A click, a move
-// short of the drag distance, a double-click, Ctrl+A and Shift+arrow selection all
-// behave as an ordinary text field.
+// The field is part of the scrub zone (dialog_utils.hpp). Not being edited, a drag
+// on it scrubs (SizeHor, one editingFinished, focus handed back) and a press released
+// without a drag, or one short of the drag distance, enters editing with the number
+// selected. While editing, drags select text and change nothing, clicks and
+// double-clicks behave as in any text field, until Enter or Esc ends editing. A field
+// focused with Tab is being edited from the start.
 void ui_options_bar_field_drag_scrubs_and_click_edits() {
   patchy::ui::MainWindow window;
   show_window(window);
   require_action_by_text(window, QStringLiteral("Brush"))->trigger();
   QApplication::processEvents();
+  auto* canvas = require_canvas(window);
   auto* size_spin = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
   CHECK(size_spin != nullptr);
   auto* editor = size_spin->findChild<QLineEdit*>();
   CHECK(editor != nullptr);
-  CHECK(editor->cursor().shape() == Qt::IBeamCursor);
   int finished = 0;
   QObject::connect(size_spin, &QAbstractSpinBox::editingFinished, size_spin, [&finished] { ++finished; });
-
-  size_spin->setValue(40);
   const int drag_start = QApplication::startDragDistance();
   const QPoint origin(editor->width() / 2, editor->height() / 2);
-  // Focus first, as a real click hands it out before the press reaches the line edit.
-  size_spin->setFocus(Qt::MouseFocusReason);
-  QApplication::processEvents();
-  send_mouse(*editor, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton);
-  send_mouse(*editor, QEvent::MouseMove, origin + QPoint(drag_start + 15, 0), Qt::NoButton, Qt::LeftButton);
+  // Just past the right-aligned number, so a leftward drag from here crosses its digits.
+  const QPoint click_point(editor->width() - editor->textMargins().right() - 2, editor->height() / 2);
+  const auto focus_canvas = [&] {
+    canvas->setFocus(Qt::OtherFocusReason);
+    QApplication::processEvents();
+    CHECK(canvas->hasFocus());
+  };
+  // A real click: the window system hands out focus before the press arrives.
+  const auto press = [&](QPoint point) {
+    if (!size_spin->hasFocus()) {
+      size_spin->setFocus(Qt::MouseFocusReason);
+    }
+    send_mouse(*editor, QEvent::MouseButtonPress, point, Qt::LeftButton, Qt::LeftButton);
+  };
+  const auto move = [&](QPoint point, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+    send_mouse(*editor, QEvent::MouseMove, point, Qt::NoButton, Qt::LeftButton, modifiers);
+  };
+  const auto release = [&](QPoint point) {
+    send_mouse(*editor, QEvent::MouseButtonRelease, point, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+
+  // An unfocused field scrubs and hands focus back to the canvas.
+  focus_canvas();
+  CHECK(editor->cursor().shape() == Qt::SizeHorCursor);
+  size_spin->setValue(40);
+  press(origin);
+  move(origin + QPoint(drag_start + 15, 0));
   CHECK(size_spin->value() == 40 + drag_start + 15);
   CHECK(editor->cursor().shape() == Qt::SizeHorCursor);
-  send_mouse(*editor, QEvent::MouseMove, origin + QPoint(-(drag_start + 1), 0), Qt::NoButton, Qt::LeftButton,
-             Qt::ShiftModifier);
-  CHECK(size_spin->value() == std::max(size_spin->minimum(), 40 - 10 * (drag_start + 1)));
-  send_mouse(*editor, QEvent::MouseMove, origin + QPoint(-(drag_start + 4), 0), Qt::NoButton, Qt::LeftButton);
-  CHECK(size_spin->value() == 40 - (drag_start + 4));
-  send_mouse(*editor, QEvent::MouseButtonRelease, origin + QPoint(-(drag_start + 4), 0), Qt::LeftButton,
-             Qt::NoButton);
-  QApplication::processEvents();
+  release(origin + QPoint(drag_start + 15, 0));
   CHECK(finished == 1);
-  CHECK(size_spin->value() == 40 - (drag_start + 4));
-  CHECK(editor->cursor().shape() == Qt::IBeamCursor);
-  CHECK(size_spin->hasFocus());
-  CHECK(editor->selectedText() == size_spin->cleanText());
+  CHECK(!size_spin->hasFocus());
+  CHECK(canvas->hasFocus());
 
-  // A click edits: the caret lands where the press was, nothing changes, no editingFinished.
+  // A click without a drag, and one that moved short of the drag distance, enter
+  // editing with the number selected and change nothing.
   size_spin->setValue(40);
+  for (const int short_move : {0, std::max(0, drag_start - 2)}) {
+    focus_canvas();
+    const int finished_before_click = finished;
+    press(origin);
+    move(origin + QPoint(short_move, 0));
+    release(origin + QPoint(short_move, 0));
+    CHECK(size_spin->value() == 40);
+    CHECK(finished == finished_before_click);
+    CHECK(size_spin->hasFocus());
+    CHECK(editor->selectedText() == size_spin->cleanText());
+    CHECK(editor->cursor().shape() == Qt::IBeamCursor);
+  }
+
+  // Editing: a drag selects text and changes no value; a click places the caret; a
+  // double-click selects; typing edits.
   editor->deselect();
-  const QPoint click_point(editor->width() - editor->textMargins().right() - 8, editor->height() / 2);
-  send_mouse(*editor, QEvent::MouseButtonPress, click_point, Qt::LeftButton, Qt::LeftButton);
-  send_mouse(*editor, QEvent::MouseButtonRelease, click_point, Qt::LeftButton, Qt::NoButton);
-  QApplication::processEvents();
+  const int finished_before_select = finished;
+  press(click_point);
+  move(click_point - QPoint(drag_start + 25, 0));
+  release(click_point - QPoint(drag_start + 25, 0));
+  CHECK(editor->cursorPositionAt(click_point) == static_cast<int>(editor->text().length()));
   CHECK(size_spin->value() == 40);
-  CHECK(finished == 1);
+  CHECK(editor->hasSelectedText());
+  CHECK(finished == finished_before_select);
+  press(click_point);
+  release(click_point);
   CHECK(!editor->hasSelectedText());
   CHECK(editor->cursorPosition() == editor->cursorPositionAt(click_point));
-  // A move short of the drag distance neither scrubs nor drag-selects.
-  send_mouse(*editor, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton);
-  send_mouse(*editor, QEvent::MouseMove, origin + QPoint(std::max(0, drag_start - 2), 0), Qt::NoButton,
-             Qt::LeftButton);
-  send_mouse(*editor, QEvent::MouseButtonRelease, origin + QPoint(std::max(0, drag_start - 2), 0),
-             Qt::LeftButton, Qt::NoButton);
-  QApplication::processEvents();
-  CHECK(size_spin->value() == 40);
-  CHECK(finished == 1);
-  CHECK(!editor->hasSelectedText());
-  // Typing still edits the field.
+  press(click_point);
+  release(click_point);
+  send_mouse(*editor, QEvent::MouseButtonDblClick, click_point, Qt::LeftButton, Qt::LeftButton);
+  release(click_point);
+  CHECK(editor->hasSelectedText());
+  // Let Qt's triple-click window close so the next press here is an ordinary press.
+  process_events_for(QApplication::doubleClickInterval() + 50);
   send_key(*size_spin, Qt::Key_A, Qt::ControlModifier);
+  CHECK(editor->selectedText() == size_spin->cleanText());
   for (int typed = 0; typed < 2; ++typed) {
     QKeyEvent digit(QEvent::KeyPress, Qt::Key_5, Qt::NoModifier, QStringLiteral("5"));
     QApplication::sendEvent(size_spin, &digit);
   }
-  send_key(*size_spin, Qt::Key_Return);
-  QApplication::processEvents();
-  CHECK(size_spin->value() == 55);
-  // A double-click, Ctrl+A and Shift+Home still select.
-  editor->deselect();
-  send_mouse(*editor, QEvent::MouseButtonPress, click_point, Qt::LeftButton, Qt::LeftButton);
-  send_mouse(*editor, QEvent::MouseButtonRelease, click_point, Qt::LeftButton, Qt::NoButton);
-  send_mouse(*editor, QEvent::MouseButtonDblClick, click_point, Qt::LeftButton, Qt::LeftButton);
-  send_mouse(*editor, QEvent::MouseButtonRelease, click_point, Qt::LeftButton, Qt::NoButton);
-  QApplication::processEvents();
-  CHECK(editor->hasSelectedText());
-  CHECK(size_spin->value() == 55);
-  editor->deselect();
-  send_key(*size_spin, Qt::Key_A, Qt::ControlModifier);
-  CHECK(editor->selectedText() == size_spin->cleanText());
   send_key(*size_spin, Qt::Key_End);
   send_key(*size_spin, Qt::Key_Home, Qt::ShiftModifier);
   CHECK(editor->hasSelectedText());
+
+  // Enter ends editing: the focused field scrubs again and keeps focus, number selected.
+  send_key(*size_spin, Qt::Key_Return);
   CHECK(size_spin->value() == 55);
+  const int finished_before_scrub = finished;
+  press(origin);
+  move(origin + QPoint(drag_start + 5, 0));
+  release(origin + QPoint(drag_start + 5, 0));
+  CHECK(size_spin->value() == 55 + drag_start + 5);
+  CHECK(finished == finished_before_scrub + 1);
+  CHECK(size_spin->hasFocus());
+  CHECK(editor->selectedText() == size_spin->cleanText());
+  // Esc ends editing too.
+  press(origin);
+  release(origin);
+  send_key(*size_spin, Qt::Key_Escape);
+  size_spin->setValue(30);
+  press(origin);
+  move(origin - QPoint(drag_start + 4, 0));
+  release(origin - QPoint(drag_start + 4, 0));
+  CHECK(size_spin->value() == 30 - (drag_start + 4));
+
+  // Tab into the field: editing from the start, so a drag selects.
+  focus_canvas();
+  size_spin->setValue(40);
+  size_spin->setFocus(Qt::TabFocusReason);
+  QApplication::processEvents();
+  editor->deselect();
+  press(click_point);
+  move(click_point - QPoint(drag_start + 25, 0));
+  release(click_point - QPoint(drag_start + 25, 0));
+  CHECK(size_spin->value() == 40);
+  CHECK(editor->hasSelectedText());
 
   // Review artifact: the Size field before and after a 25 px drag inside it.
+  focus_canvas();
   size_spin->setValue(40);
-  editor->deselect();
   const auto grab_field = [size_spin] {
     return size_spin->grab().toImage().scaled(size_spin->size() * 3, Qt::IgnoreAspectRatio, Qt::FastTransformation);
   };
   QList<QImage> strips{grab_field()};
-  send_mouse(*editor, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton);
-  send_mouse(*editor, QEvent::MouseMove, origin + QPoint(25, 0), Qt::NoButton, Qt::LeftButton);
-  send_mouse(*editor, QEvent::MouseButtonRelease, origin + QPoint(25, 0), Qt::LeftButton, Qt::NoButton);
-  QApplication::processEvents();
+  press(origin);
+  move(origin + QPoint(25, 0));
+  release(origin + QPoint(25, 0));
   strips.append(grab_field());
   CHECK(size_spin->value() == 65);
   save_stacked_artifact("ui_options_bar_field_drag", strips);
@@ -4292,6 +4624,111 @@ void ui_options_bar_field_drag_scrubs_and_click_edits() {
              Qt::LeftButton, Qt::NoButton);
   QApplication::processEvents();
   CHECK(opacity_spin->value() == 80 - (drag_start + 10));
+}
+
+// The gap between a label and its field scrubs like the label, with the SizeHor
+// cursor on hover; a label whose field sits past a slider has no gap zone. Shift
+// moves ten steps per pixel, Alt a tenth (integer fields every ten pixels), and a
+// modifier change mid-drag continues from the current value.
+void ui_scrub_gap_and_modifiers_follow_the_zone_rules() {
+  QWidget panel;
+  auto* rows = new QVBoxLayout(&panel);
+  auto* row = new QHBoxLayout();
+  row->setSpacing(10);
+  auto* label = new QLabel(QStringLiteral("Amount"), &panel);
+  auto* amount = new QSpinBox(&panel);
+  amount->setRange(0, 1000);
+  amount->setValue(50);
+  auto* radius = new QDoubleSpinBox(&panel);
+  radius->setRange(0.0, 100.0);
+  radius->setDecimals(2);
+  radius->setSingleStep(0.5);
+  radius->setValue(2.0);
+  row->addWidget(label);
+  row->addWidget(amount);
+  row->addWidget(new QLabel(QStringLiteral("Radius"), &panel));
+  row->addWidget(radius);
+  row->addStretch(1);
+  rows->addLayout(row);
+  auto* slider_row = new QHBoxLayout();
+  auto* jitter_label = new QLabel(QStringLiteral("Jitter"), &panel);
+  auto* jitter_slider = new QSlider(Qt::Horizontal, &panel);
+  jitter_slider->setFixedWidth(120);
+  auto* jitter = new QSpinBox(&panel);
+  slider_row->addWidget(jitter_label);
+  slider_row->addWidget(jitter_slider);
+  slider_row->addWidget(jitter);
+  slider_row->addStretch(1);
+  rows->addLayout(slider_row);
+  patchy::ui::install_scrub_labels_in(&panel);
+  panel.resize(520, 120);
+  panel.show();
+  QApplication::processEvents();
+  CHECK(jitter->property(patchy::ui::kScrubHandleInstalledProperty).toBool());
+
+  const int drag_start = QApplication::startDragDistance();
+  const int gap_left = label->geometry().right() + 1;
+  const int gap_right = amount->geometry().left() - 1;
+  CHECK(gap_right >= gap_left);
+  const QPoint gap((gap_left + gap_right) / 2, label->geometry().center().y());
+  CHECK(panel.childAt(gap) == nullptr);
+  send_mouse(panel, QEvent::MouseMove, gap, Qt::NoButton, Qt::NoButton);
+  CHECK(panel.cursor().shape() == Qt::SizeHorCursor);
+  const QPoint empty(panel.width() - 4, label->geometry().center().y());
+  send_mouse(panel, QEvent::MouseMove, empty, Qt::NoButton, Qt::NoButton);
+  CHECK(panel.cursor().shape() != Qt::SizeHorCursor);
+  const QPoint after_jitter(jitter_label->geometry().right() + 3, jitter_label->geometry().center().y());
+  if (panel.childAt(after_jitter) == nullptr) {
+    send_mouse(panel, QEvent::MouseMove, after_jitter, Qt::NoButton, Qt::NoButton);
+    CHECK(panel.cursor().shape() != Qt::SizeHorCursor);
+  }
+
+  int finished = 0;
+  QObject::connect(amount, &QAbstractSpinBox::editingFinished, amount, [&finished] { ++finished; });
+  // A drag from the gap scrubs, one editingFinished; a click there changes nothing.
+  send_mouse(panel, QEvent::MouseButtonPress, gap, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(panel, QEvent::MouseMove, gap + QPoint(drag_start + 6, 0), Qt::NoButton, Qt::LeftButton);
+  CHECK(amount->value() == 50 + drag_start + 6);
+  send_mouse(panel, QEvent::MouseButtonRelease, gap + QPoint(drag_start + 6, 0), Qt::LeftButton, Qt::NoButton);
+  CHECK(finished == 1);
+  amount->setValue(50);
+  send_mouse(panel, QEvent::MouseButtonPress, gap, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(panel, QEvent::MouseButtonRelease, gap, Qt::LeftButton, Qt::NoButton);
+  CHECK(amount->value() == 50);
+  CHECK(finished == 1);
+
+  // Alt on the label: a tenth of a step per pixel, whole steps on an integer field.
+  const QPoint on_label = label->rect().center();
+  send_mouse(*label, QEvent::MouseButtonPress, on_label, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(*label, QEvent::MouseMove, on_label + QPoint(drag_start + 20, 0), Qt::NoButton, Qt::LeftButton,
+             Qt::AltModifier);
+  CHECK(amount->value() == 50 + static_cast<int>(std::trunc((drag_start + 20) * 0.1)));
+  send_mouse(*label, QEvent::MouseButtonRelease, on_label + QPoint(drag_start + 20, 0), Qt::LeftButton,
+             Qt::NoButton, Qt::AltModifier);
+  // Shift pressed mid-drag continues from the current value at ten steps per pixel.
+  amount->setValue(50);
+  send_mouse(*label, QEvent::MouseButtonPress, on_label, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*label, QEvent::MouseMove, on_label + QPoint(drag_start + 5, 0), Qt::NoButton, Qt::LeftButton);
+  const int before_shift = amount->value();
+  CHECK(before_shift == 50 + drag_start + 5);
+  send_mouse(*label, QEvent::MouseMove, on_label + QPoint(drag_start + 5, 0), Qt::NoButton, Qt::LeftButton,
+             Qt::ShiftModifier);
+  CHECK(amount->value() == before_shift);
+  send_mouse(*label, QEvent::MouseMove, on_label + QPoint(drag_start + 8, 0), Qt::NoButton, Qt::LeftButton,
+             Qt::ShiftModifier);
+  CHECK(amount->value() == before_shift + 30);
+  send_mouse(*label, QEvent::MouseButtonRelease, on_label + QPoint(drag_start + 8, 0), Qt::LeftButton,
+             Qt::NoButton, Qt::ShiftModifier);
+  // A decimal field moves by fractions of its step under Alt.
+  auto* radius_editor = radius->findChild<QLineEdit*>();
+  CHECK(radius_editor != nullptr);
+  const QPoint radius_point(radius_editor->width() / 2, radius_editor->height() / 2);
+  send_mouse(*radius_editor, QEvent::MouseButtonPress, radius_point, Qt::LeftButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(*radius_editor, QEvent::MouseMove, radius_point + QPoint(drag_start + 10, 0), Qt::NoButton,
+             Qt::LeftButton, Qt::AltModifier);
+  send_mouse(*radius_editor, QEvent::MouseButtonRelease, radius_point + QPoint(drag_start + 10, 0), Qt::LeftButton,
+             Qt::NoButton, Qt::AltModifier);
+  CHECK(std::abs(radius->value() - (2.0 + (drag_start + 10) * 0.1 * 0.5)) < 0.011);
 }
 
 // The Brush bar's Mode combo (core/paint_mode.hpp): Normal, Dissolve, Behind, Clear,
@@ -4581,9 +5018,10 @@ void ui_layer_opacity_prefix_scrub_is_one_undo_entry() {
   CHECK(opacity_spin->value() == 100);
   CHECK(editor->hasSelectedText());
 
-  // A drag that starts on the number scrubs as well. Toolbar spin boxes right-align
-  // their text, so the number's x comes from the editor's own cursor geometry rather
-  // than from the left margin.
+  // The prefix click entered editing, so a drag on the number now selects text and
+  // changes nothing; once focus leaves, a drag on the number scrubs. Toolbar spin boxes
+  // right-align their text, so the number's x comes from the editor's own cursor
+  // geometry rather than from the left margin.
   editor->deselect();
   QPoint number_point(-1, editor->height() / 2);
   for (int x = 0; x < editor->width() && number_point.x() < 0; ++x) {
@@ -4593,6 +5031,16 @@ void ui_layer_opacity_prefix_scrub_is_one_undo_entry() {
   }
   CHECK(number_point.x() >= 0);
   CHECK(editor->cursorPositionAt(number_point) >= static_cast<int>(opacity_spin->prefix().length()));
+  send_mouse(*editor, QEvent::MouseButtonPress, number_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*editor, QEvent::MouseMove, number_point + QPoint(drag_start + 20, 0), Qt::NoButton, Qt::LeftButton);
+  send_mouse(*editor, QEvent::MouseButtonRelease, number_point + QPoint(drag_start + 20, 0), Qt::LeftButton,
+             Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(opacity_spin->value() == 100);
+  CHECK(editor->hasSelectedText());
+  opacity_spin->clearFocus();
+  QApplication::processEvents();
+  editor->deselect();
   send_mouse(*editor, QEvent::MouseButtonPress, number_point, Qt::LeftButton, Qt::LeftButton);
   send_mouse(*editor, QEvent::MouseMove, number_point + QPoint(-(drag_start + 20), 0), Qt::NoButton, Qt::LeftButton);
   CHECK(opacity_spin->value() == 100 - (drag_start + 20));
@@ -4869,9 +5317,10 @@ void ui_layer_folder_blend_mode_offers_pass_through() {
   // The folder's Blending Options list it first and show it.
   blend_rows::with_layer_style_blend_combo(
       window,
-      [pass_through](QComboBox& blend) {
-        CHECK(blend.itemData(0).toInt() == pass_through);
-        CHECK(blend.currentData().toInt() == pass_through);
+      [](QComboBox& blend) {
+        const auto folder_mode = static_cast<int>(patchy::BlendMode::PassThrough);
+        CHECK(blend.itemData(0).toInt() == folder_mode);
+        CHECK(blend.currentData().toInt() == folder_mode);
       },
       false);
 
@@ -4881,7 +5330,8 @@ void ui_layer_folder_blend_mode_offers_pass_through() {
   CHECK(blend_combo->currentText() == QStringLiteral("Normal"));
   CHECK(blend_combo->itemData(0).toInt() == normal);
   blend_rows::with_layer_style_blend_combo(
-      window, [pass_through](QComboBox& blend) { CHECK(blend.findData(pass_through) < 0); }, false);
+      window,
+      [](QComboBox& blend) { CHECK(blend.findData(static_cast<int>(patchy::BlendMode::PassThrough)) < 0); }, false);
   // Back on the folder, the panel offers it again.
   blend_rows::activate(window, ids.folder_id);
   CHECK(blend_combo->itemData(0).toInt() == pass_through);
@@ -5646,6 +6096,10 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
        ui_canvas_fractional_zoom_smooths_between_whole_zooms},
       {"ui_canvas_styled_text_at_150_percent_has_no_repeated_columns",
        ui_canvas_styled_text_at_150_percent_has_no_repeated_columns},
+      {"ui_canvas_pixel_grid_shows_from_600_percent", ui_canvas_pixel_grid_shows_from_600_percent},
+      {"ui_canvas_pixel_grid_lands_on_pixel_boundaries", ui_canvas_pixel_grid_lands_on_pixel_boundaries},
+      {"ui_canvas_pixel_grid_capture_light_and_dark_areas", ui_canvas_pixel_grid_capture_light_and_dark_areas},
+      {"ui_pixel_grid_toggle_persists_and_scripts", ui_pixel_grid_toggle_persists_and_scripts},
       {"ui_zoomed_out_canvas_uses_downsampled_display_mip",
        ui_zoomed_out_canvas_uses_downsampled_display_mip},
       {"ui_shape_flyout_and_zoom_tool_work", ui_shape_flyout_and_zoom_tool_work},
@@ -5684,6 +6138,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_options_bar_labels_drop_the_trailing_colon", ui_options_bar_labels_drop_the_trailing_colon},
       {"ui_options_bar_label_scrub_changes_spin_value", ui_options_bar_label_scrub_changes_spin_value},
       {"ui_options_bar_field_drag_scrubs_and_click_edits", ui_options_bar_field_drag_scrubs_and_click_edits},
+      {"ui_scrub_gap_and_modifiers_follow_the_zone_rules", ui_scrub_gap_and_modifiers_follow_the_zone_rules},
       {"ui_brush_mode_combo_lists_paint_modes_and_persists", ui_brush_mode_combo_lists_paint_modes_and_persists},
       {"ui_dialog_scrub_labels_pair_every_row_shape", ui_dialog_scrub_labels_pair_every_row_shape},
       {"ui_layer_opacity_prefix_scrub_is_one_undo_entry", ui_layer_opacity_prefix_scrub_is_one_undo_entry},

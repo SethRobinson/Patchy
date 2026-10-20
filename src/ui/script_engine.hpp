@@ -533,6 +533,9 @@ public:
   void set_view_proof_colors(bool enabled);
   [[nodiscard]] bool view_gamut_warning() const;
   void set_view_gamut_warning(bool enabled);
+  // View > Pixel Grid, the saved preference (GitHub issue 239).
+  [[nodiscard]] bool view_pixel_grid() const;
+  void set_view_pixel_grid(bool enabled);
   void fit_view_on_screen();
   void present_script_view(int delay_ms = 0, bool slow_hold = false);
   [[nodiscard]] bool slow_mode() const;

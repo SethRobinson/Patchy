@@ -1718,8 +1718,9 @@ void big_brush_stroke_perf() {
   canvas->set_primary_color(Qt::black);
   canvas->set_brush_opacity(100);
   canvas->set_brush_softness(0);
-  // 0 is fit; 150% interpolates and 100% / 200% draw exact pixels (GitHub issue 210).
-  for (const double zoom : {0.0, 1.0, 1.5, 2.0}) {
+  // 0 is fit; 150% interpolates and 100% / 200% draw exact pixels (GitHub issue 210);
+  // 800% is the deep-zoom raster with the pixel grid (GitHub issue 239).
+  for (const double zoom : {0.0, 1.0, 1.5, 2.0, 8.0}) {
     const auto label = zoom == 0.0 ? std::string("fit") : std::to_string(static_cast<int>(zoom * 100.0)) + "%";
     for (const int brush_size : {40, 300}) {
       if (zoom == 0.0) {

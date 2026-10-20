@@ -849,32 +849,8 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
       draw_canvas_backdrop(painter, target_rect, patch_exposed);
     }
     if (uses_deep_zoom_pixel_renderer(view_zoom())) {
-      painter.save();
-      painter.setClipRect(patch_exposed);
-      painter.setRenderHint(QPainter::Antialiasing, false);
-      painter.setRenderHint(QPainter::SmoothPixmapTransform, false);
-      for (int y = 0; y < patch.image.height(); ++y) {
-        const auto document_y = patch.document_rect.y() + y;
-        const auto top = widget_position(QPoint(0, document_y)).y();
-        const auto bottom = widget_position(QPoint(0, document_y + 1)).y();
-        if (bottom <= top) {
-          continue;
-        }
-        for (int x = 0; x < patch.image.width(); ++x) {
-          const auto color = patch.image.pixelColor(x, y);
-          if (color.alpha() == 0) {
-            continue;
-          }
-          const auto document_x = patch.document_rect.x() + x;
-          const auto left = widget_position(QPoint(document_x, 0)).x();
-          const auto right = widget_position(QPoint(document_x + 1, 0)).x();
-          if (right <= left) {
-            continue;
-          }
-          painter.fillRect(QRect(left, top, right - left, bottom - top), color);
-        }
-      }
-      painter.restore();
+      draw_deep_zoom_pixels(painter, patch.image, QRect(patch.document_rect.topLeft(), patch.image.size()),
+                            patch_exposed);
       return;
     }
 
@@ -2244,56 +2220,58 @@ void CanvasWidget::draw_deep_zoom_image(QPainter& painter, const QImage& image, 
   if (document_ == nullptr || image.isNull() || !uses_deep_zoom_pixel_renderer(view_zoom())) {
     return;
   }
+  draw_deep_zoom_pixels(painter, image, QRect(0, 0, image.width(), image.height()), exposed_rect);
+}
 
-  const QRect target_rect(widget_position(QPoint(0, 0)),
-                          QSize(widget_position(QPoint(document_->width(), document_->height())).x() -
-                                    widget_position(QPoint(0, 0)).x(),
-                                widget_position(QPoint(document_->width(), document_->height())).y() -
-                                    widget_position(QPoint(0, 0)).y()));
-  const auto visible_target = target_rect.intersected(exposed_rect);
+void CanvasWidget::draw_deep_zoom_pixels(QPainter& painter, const QImage& image, QRect document_rect,
+                                         QRect exposed_rect) const {
+  if (image.isNull() || document_rect.isEmpty() || image.size() != document_rect.size() || zoom_ <= 0.0) {
+    return;
+  }
+  const auto top_left = widget_position(document_rect.topLeft());
+  const auto bottom_right = widget_position(document_rect.bottomRight() + QPoint(1, 1));
+  const auto visible_target = QRect(top_left, bottom_right - QPoint(1, 1)).intersected(exposed_rect);
   if (visible_target.isEmpty()) {
     return;
   }
-
-  const auto source_left = std::clamp(
+  // Only the document pixels under the exposed rect, plus one each side for rounding.
+  const auto first_x = std::clamp(
       static_cast<int>(std::floor((static_cast<double>(visible_target.left()) - pan_.x()) / zoom_)) - 1,
-      0, image.width());
-  const auto source_top = std::clamp(
+      document_rect.left(), document_rect.right() + 1);
+  const auto first_y = std::clamp(
       static_cast<int>(std::floor((static_cast<double>(visible_target.top()) - pan_.y()) / zoom_)) - 1,
-      0, image.height());
-  const auto source_right = std::clamp(
+      document_rect.top(), document_rect.bottom() + 1);
+  const auto end_x = std::clamp(
       static_cast<int>(std::ceil((static_cast<double>(visible_target.right() + 1) - pan_.x()) / zoom_)) + 1,
-      0, image.width());
-  const auto source_bottom = std::clamp(
+      document_rect.left(), document_rect.right() + 1);
+  const auto end_y = std::clamp(
       static_cast<int>(std::ceil((static_cast<double>(visible_target.bottom() + 1) - pan_.y()) / zoom_)) + 1,
-      0, image.height());
-  if (source_left >= source_right || source_top >= source_bottom) {
+      document_rect.top(), document_rect.bottom() + 1);
+  if (first_x >= end_x || first_y >= end_y) {
     return;
   }
-
+  std::vector<int> edges_x;
+  std::vector<int> edges_y;
+  for (int x = first_x; x <= end_x; ++x) {
+    edges_x.push_back(widget_position(QPoint(x, 0)).x());
+  }
+  for (int y = first_y; y <= end_y; ++y) {
+    edges_y.push_back(widget_position(QPoint(0, y)).y());
+  }
+  const auto ratio = painter.device() != nullptr ? painter.device()->devicePixelRatioF() : 1.0;
+  QPoint device_origin;
+  auto raster = deep_zoom_raster(
+      image.copy(first_x - document_rect.x(), first_y - document_rect.y(), end_x - first_x, end_y - first_y),
+      QPoint(first_x, first_y), edges_x, edges_y, ratio, pixel_grid_visible_, device_origin);
+  if (raster.isNull()) {
+    return;
+  }
+  raster.setDevicePixelRatio(ratio);
   painter.save();
   painter.setClipRect(visible_target);
   painter.setRenderHint(QPainter::Antialiasing, false);
   painter.setRenderHint(QPainter::SmoothPixmapTransform, false);
-  for (int y = source_top; y < source_bottom; ++y) {
-    const auto top = widget_position(QPoint(0, y)).y();
-    const auto bottom = widget_position(QPoint(0, y + 1)).y();
-    if (bottom <= top) {
-      continue;
-    }
-    for (int x = source_left; x < source_right; ++x) {
-      const auto color = image.pixelColor(x, y);
-      if (color.alpha() == 0) {
-        continue;
-      }
-      const auto left = widget_position(QPoint(x, 0)).x();
-      const auto right = widget_position(QPoint(x + 1, 0)).x();
-      if (right <= left) {
-        continue;
-      }
-      painter.fillRect(QRect(left, top, right - left, bottom - top), color);
-    }
-  }
+  painter.drawImage(QPointF(device_origin.x() / ratio, device_origin.y() / ratio), raster);
   painter.restore();
 }
 

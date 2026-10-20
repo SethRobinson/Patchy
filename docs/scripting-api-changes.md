@@ -8,6 +8,10 @@ Remove Object, Align/Distribute and smart objects) are in
 [scripting-api-changes-through-2026-09-30.md](scripting-api-changes-through-2026-09-30.md).
 Every entry below is API 1.
 
+2026-10-20 (additive): `patchy.ui.pixelGrid` reads and sets View > Pixel Grid, the saved
+application-wide view preference for lines between pixels at 600% zoom and up (GitHub issue
+239). Permanent identifiers: the property, command id `view.pixel_grid` and settings key
+`view/pixelGrid`. Pinned by `ui_pixel_grid_toggle_persists_and_scripts`.
 2026-10-20 (additive): `layer.transform({matrix} | {quad}, interpolation?)`, Edit > Free
 Transform in one call through the interactive commit (GitHub issue 225): `matrix` maps the
 layer's transform box, `quad` places its corners (layer order TL, TR, BR, BL), so skew,

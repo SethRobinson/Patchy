@@ -22609,6 +22609,10 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
         <translation>Perspektivisch verzerren</translation>
     </message>
     <message>
+        <source>Pi&amp;xel Grid</source>
+        <translation>Pi&amp;xelraster</translation>
+    </message>
+    <message>
         <source>Channel &amp;Mixer...</source>
         <translation>Kanal&amp;mixer...</translation>
     </message>

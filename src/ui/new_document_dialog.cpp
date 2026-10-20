@@ -1214,6 +1214,9 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
 
   append_themed_style(dialog, new_document_dialog_style());
   dialog.resize(724, 540);
+  // Always over the main window: a remembered spot (a far corner, another monitor) only made
+  // the dialog hard to find (Seth, October 2026).
+  mark_dialog_always_centered(dialog);
   width->setFocus(Qt::OtherFocusReason);
   width->selectAll();
 

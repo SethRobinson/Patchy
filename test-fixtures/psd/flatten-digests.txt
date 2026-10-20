@@ -25,8 +25,8 @@ b7070b9de475b945 photoshop-brightness-contrast-modern.psd
 3ea89ceacb80d1b5 photoshop-clip-base-effects.psd
 745dac33488e4c25 photoshop-clipping-mask.psd
 5eb6a1308b31a4eb photoshop-cmyk-style-colors.psd
-3a35db9013be5915 photoshop-color-balance-full.psd
-3a35db9013be5915 photoshop-color-balance.psd
+5e137c1ade87f2ad photoshop-color-balance-full.psd
+c2a611d6a8894a45 photoshop-color-balance.psd
 c6dfa66168a0e490 photoshop-compound-text.psd
 48484118f51d9c65 photoshop-curves-clipped.psd
 60373566b39eefe5 photoshop-curves-masked.psd

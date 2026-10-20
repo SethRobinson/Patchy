@@ -22679,6 +22679,10 @@ Patchy можно будет запускать из меню, а на пане�
         <translation>Перспектива</translation>
     </message>
     <message>
+        <source>Pi&amp;xel Grid</source>
+        <translation>Пиксельная с&amp;етка</translation>
+    </message>
+    <message>
         <source>Channel &amp;Mixer...</source>
         <translation>&amp;Микширование каналов...</translation>
     </message>

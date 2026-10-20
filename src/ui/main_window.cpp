@@ -11499,6 +11499,7 @@ bool command_works_without_document(const QAction& action, const QString& comman
       QStringLiteral("plugins.open_folder"),
       QStringLiteral("plugins.rescan"),
       QStringLiteral("view.vector_preview"),  // a preference, also in Preferences
+      QStringLiteral("view.pixel_grid"),      // a preference
   };
   if (ids.contains(command_id)) {
     return true;

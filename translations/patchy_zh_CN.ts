@@ -22539,6 +22539,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>透视</translation>
     </message>
     <message>
+        <source>Pi&amp;xel Grid</source>
+        <translation>像素网格(&amp;X)</translation>
+    </message>
+    <message>
         <source>Channel &amp;Mixer...</source>
         <translation>通道混合器(&amp;M)...</translation>
     </message>

@@ -22609,6 +22609,10 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
         <translation>Perspective</translation>
     </message>
     <message>
+        <source>Pi&amp;xel Grid</source>
+        <translation>Grille de pi&amp;xels</translation>
+    </message>
+    <message>
         <source>Channel &amp;Mixer...</source>
         <translation>&amp;Mélangeur de couches...</translation>
     </message>

@@ -22532,6 +22532,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Pi&amp;xel Grid</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Channel &amp;Mixer...</source>
         <translation type="unfinished"></translation>
     </message>
