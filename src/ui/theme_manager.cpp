@@ -3,8 +3,10 @@
 #include "ui/app_settings.hpp"
 
 #include <QGuiApplication>
+#include <QPalette>
 #include <QSettings>
 #include <QStyleHints>
+#include <QToolTip>
 
 namespace patchy::ui {
 
@@ -54,6 +56,8 @@ ThemeManager& ThemeManager::instance() {
 }
 
 ThemeManager::ThemeManager() {
+  apply_tooltip_palette();
+  connect(this, &ThemeManager::color_scheme_changed, this, [this] { apply_tooltip_palette(); });
   // On Windows this fires within a frame of the user flipping the OS toggle;
   // QWindowsTheme watches AppsUseLightTheme and re-reports on WM_SETTINGCHANGE,
   // so there is no reason to read the registry ourselves. Under offscreen it
@@ -108,9 +112,20 @@ void ThemeManager::mirror_scheme_onto_qt() {
   }
 }
 
+// Tooltips are top-level QTipLabels with no owner, so the MainWindow's stylesheet
+// never reaches them and Qt painted the platform's yellow or white tip in Dark.
+// QToolTip's application palette is the one surface they read (October 2026).
+void ThemeManager::apply_tooltip_palette() {
+  auto palette = QToolTip::palette();
+  palette.setColor(QPalette::ToolTipBase, theme().panel_bg);
+  palette.setColor(QPalette::ToolTipText, theme().text_primary);
+  QToolTip::setPalette(palette);
+}
+
 void ThemeManager::apply_resolved_scheme() {
   const auto scheme = resolved_scheme();
   if (scheme == active_color_scheme()) {
+    apply_tooltip_palette();
     return;
   }
   set_active_color_scheme(scheme);

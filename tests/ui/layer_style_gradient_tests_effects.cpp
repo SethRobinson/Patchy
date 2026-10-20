@@ -1151,42 +1151,38 @@ void ui_offscreen_dialog_capture_uses_active_theme() {
     patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
     auto layer = make_gradient_fill_test_layer(document);
     bool inspected = false;
+    // Nothing throws across the dialog's event loop (an exception there aborts
+    // on macOS): the checks run through report_failure and the palette the
+    // stylesheet engine leaves on each widget, not through platform-sensitive
+    // pixels.
     QTimer::singleShot(0, [&] {
       auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
-      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        patchy::test::report_failure("no Layer Style dialog");
+        return;
+      }
       select_layer_style_gradient_page(*dialog);
+      // The capture restores the dialog's own sheet when it returns; read the
+      // palettes while the theme is applied, as the guard sees them.
+      ThemedCaptureScope themed(*dialog);
       const auto shot = capture_widget_artifact(
           std::string("ui_offscreen_dialog_capture_theme_") + (light ? "light" : "dark"), *dialog);
       auto* list = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
       auto* buttons = dialog->findChild<QDialogButtonBox*>();
-      CHECK(list != nullptr && buttons != nullptr);
       auto* ok = buttons != nullptr ? buttons->button(QDialogButtonBox::Ok) : nullptr;
-      CHECK(ok != nullptr);
-      const auto same = [](QColor actual, QColor expected) {
-        return std::abs(actual.red() - expected.red()) <= 1 && std::abs(actual.green() - expected.green()) <= 1 &&
-               std::abs(actual.blue() - expected.blue()) <= 1;
-      };
-      if (list != nullptr) {
-        // Empty viewport ground below the last category row.
-        const auto last = list->visualItemRect(list->item(list->count() - 1));
-        const auto probe = list->viewport()->mapTo(dialog, QPoint(list->viewport()->width() / 2,
-                                                                  std::min(last.bottom() + 8, list->viewport()->height() - 3)));
-        const auto color = QColor(shot.pixel(probe));
-        if (!same(color, palette.field_bg_large)) {
-          std::cout << "  category list ground " << color.name().toStdString() << " vs "
-                    << palette.field_bg_large.name().toStdString() << "\n";
+      if (shot.isNull() || list == nullptr || ok == nullptr) {
+        patchy::test::report_failure("capture, category list or OK button missing");
+      } else {
+        const auto list_ground = list->viewport()->palette().color(QPalette::Base);
+        const auto button_ground = ok->palette().color(QPalette::Button);
+        if (list_ground.rgb() != palette.field_bg_large.rgb()) {
+          patchy::test::report_failure("category list ground " + list_ground.name().toStdString() + " vs " +
+                                       palette.field_bg_large.name().toStdString());
         }
-        CHECK(same(color, palette.field_bg_large));
-      }
-      if (ok != nullptr) {
-        // Inside the 1 px border, left of the label's padding.
-        const auto probe = ok->mapTo(dialog, QPoint(3, ok->height() / 2));
-        const auto color = QColor(shot.pixel(probe));
-        if (!same(color, palette.button_bg)) {
-          std::cout << "  OK button ground " << color.name().toStdString() << " vs "
-                    << palette.button_bg.name().toStdString() << "\n";
+        if (button_ground.rgb() != palette.button_bg.rgb()) {
+          patchy::test::report_failure("OK button ground " + button_ground.name().toStdString() + " vs " +
+                                       palette.button_bg.name().toStdString());
         }
-        CHECK(same(color, palette.button_bg));
       }
       inspected = true;
       QTimer::singleShot(0, dialog, [dialog] { dialog->reject(); });

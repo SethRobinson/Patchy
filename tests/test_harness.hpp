@@ -78,6 +78,18 @@ inline void check(bool condition, const char* expression, const char* file, int 
   }
 }
 
+// Failures recorded without throwing, for code that runs inside Qt's event dispatch
+// (a capture inside run_non_modal_dialog, a driver lambda): an exception there aborts
+// the process on macOS. The runner fails the test with these messages once it returns.
+inline std::vector<std::string>& deferred_failures() {
+  static std::vector<std::string> failures;
+  return failures;
+}
+
+inline void report_failure(std::string message) {
+  deferred_failures().push_back(std::move(message));
+}
+
 inline void suppress_crash_dialogs() noexcept {
 #ifdef _WIN32
   SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
@@ -325,17 +337,29 @@ inline int run_test_suite(const std::vector<TestCase>& tests, int argc, char** a
       options.around_each();
     }
     // Flushed per test so the log shows how far a run got if it is killed.
+    deferred_failures().clear();
     try {
       test->run();
-      ++passed;
-      std::cout << "[PASS] " << test->name << std::endl;
+      if (deferred_failures().empty()) {
+        ++passed;
+        std::cout << "[PASS] " << test->name << std::endl;
+      } else {
+        failed.push_back(test->name);
+        for (const auto& message : deferred_failures()) {
+          std::cerr << "[FAIL] " << test->name << ": " << message << std::endl;
+        }
+      }
     } catch (const TestSkipped& skipped_test) {
       ++skipped;
       std::cout << "[SKIP] " << test->name << ": " << skipped_test.reason << std::endl;
     } catch (const std::exception& error) {
       failed.push_back(test->name);
       std::cerr << "[FAIL] " << test->name << ": " << error.what() << std::endl;
+      for (const auto& message : deferred_failures()) {
+        std::cerr << "[FAIL] " << test->name << ": " << message << std::endl;
+      }
     }
+    deferred_failures().clear();
     if (options.around_each) {
       options.around_each();
     }

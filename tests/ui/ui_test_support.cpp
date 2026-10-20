@@ -184,7 +184,7 @@ std::pair<int, int> max_edge_ramp(const QImage& image) {
   return std::pair<int, int>{best_opaque, max_ramp};
 }
 
-void ensure_capture_themed(QWidget& widget) {
+ThemedCaptureScope::ThemedCaptureScope(QWidget& widget) {
   const auto app_sheet = patchy::ui::photoshop_style();
   // The MainWindow and make_themed_dialog_parent() carry exactly the app sheet;
   // a dialog owned by either inherits it. Walk the owner chain across windows.
@@ -193,11 +193,29 @@ void ensure_capture_themed(QWidget& widget) {
       return;
     }
   }
-  auto* window = widget.window();
+  window_ = widget.window();
+  previous_sheet_ = window_->styleSheet();
   // Prepend, so the window's own appended chrome sheet keeps winning ties.
-  window->setStyleSheet(app_sheet + QStringLiteral("\n") + window->styleSheet());
-  window->ensurePolished();
+  window_->setStyleSheet(app_sheet + QStringLiteral("\n") + previous_sheet_);
+  window_->ensurePolished();
   QApplication::processEvents();
+}
+
+ThemedCaptureScope::~ThemedCaptureScope() {
+  // The capture must leave the widget exactly as it found it: a bare CanvasWidget
+  // grabbed mid-test kept the theme sheet and behaved differently afterwards
+  // (ui_drag_size_readout_shows_dimensions, October 2026).
+  if (window_ != nullptr) {
+    window_->setStyleSheet(previous_sheet_);
+    window_->ensurePolished();
+    QApplication::processEvents();
+  }
+}
+
+void ensure_capture_themed(QWidget& widget) {
+  // Kept for callers that theme a window for the rest of a test on purpose.
+  ThemedCaptureScope scope(widget);
+  scope.release();
 }
 
 namespace {
@@ -238,6 +256,20 @@ QColor generic_role_value(const patchy::ui::ThemePalette& palette, QPalette::Col
   }
 }
 
+// Widgets that show document content or a user-chosen color rather than chrome:
+// their palette carries that content, so the theme rule does not apply to them or
+// to their children (docs/testing.md lists them).
+bool shows_content_not_chrome(const QWidget* widget) {
+  for (const QWidget* w = widget; w != nullptr; w = w->parentWidget()) {
+    const auto name = w->objectName();
+    if (name == QStringLiteral("inlineTextEditor") || name.endsWith(QStringLiteral("ColorButton")) ||
+        name.endsWith(QStringLiteral("ColorSwatch"))) {
+      return true;
+    }
+  }
+  return false;
+}
+
 QString describe_capture_offender(QWidget* widget, const char* what, QColor color) {
   auto text = QString::fromLatin1(widget->metaObject()->className());
   if (!widget->objectName().isEmpty()) {
@@ -253,7 +285,9 @@ QString describe_capture_offender(QWidget* widget, const char* what, QColor colo
 }  // namespace
 
 QString capture_theme_mismatch(QWidget& root) {
-  if (!window_chain_carries_app_sheet(root)) {
+  // A tooltip (QTipLabel) has no owner on Windows and is themed through
+  // QToolTip's application palette, which the palette checks below verify.
+  if (!root.inherits("QTipLabel") && !window_chain_carries_app_sheet(root)) {
     return describe_capture_offender(&root, "no window in its owner chain carries the app stylesheet", {});
   }
   const auto scheme = patchy::ui::active_color_scheme();
@@ -264,7 +298,7 @@ QString capture_theme_mismatch(QWidget& root) {
   auto widgets = root.findChildren<QWidget*>();
   widgets.prepend(&root);
   for (auto* widget : widgets) {
-    if (!widget->isVisible() || widget->width() <= 0 || widget->height() <= 0) {
+    if (!widget->isVisible() || widget->width() <= 0 || widget->height() <= 0 || shows_content_not_chrome(widget)) {
       continue;
     }
     if (!widget->testAttribute(Qt::WA_WState_Polished)) {
@@ -295,15 +329,20 @@ QString capture_theme_mismatch(QWidget& root) {
 
 QImage capture_widget_artifact(const std::string& name, QWidget& widget) {
   ensure_artifact_dir();
-  ensure_capture_themed(widget);
+  ThemedCaptureScope themed(widget);
   const auto mismatch = capture_theme_mismatch(widget);
   if (!mismatch.isEmpty()) {
-    throw std::runtime_error("capture '" + name + "' is not themed: " + mismatch.toStdString());
+    // Never throw here: captures run inside Qt's event dispatch, where an
+    // exception aborts the process on macOS. The runner fails the test.
+    patchy::test::report_failure("capture '" + name + "' is not themed: " + mismatch.toStdString());
+    return {};
   }
   const auto path = QString::fromStdString((std::filesystem::path("test-artifacts") / (name + ".png")).string());
   const auto pixmap = widget.grab();
-  CHECK(!pixmap.isNull());
-  CHECK(pixmap.save(path));
+  if (pixmap.isNull() || !pixmap.save(path)) {
+    patchy::test::report_failure("capture '" + name + "' could not be saved");
+    return {};
+  }
   return pixmap.toImage();
 }
 
@@ -313,12 +352,13 @@ void save_widget_artifact(const std::string& name, QWidget& widget) {
 
 void save_window_popup_artifact(const std::string& name, QWidget& window, QWidget& field, QWidget& popup) {
   ensure_artifact_dir();
-  ensure_capture_themed(window);
-  ensure_capture_themed(popup);
+  ThemedCaptureScope themed_window(window);
+  ThemedCaptureScope themed_popup(popup);
   for (auto* captured : {&window, &popup}) {
     const auto mismatch = capture_theme_mismatch(*captured);
     if (!mismatch.isEmpty()) {
-      throw std::runtime_error("capture '" + name + "' is not themed: " + mismatch.toStdString());
+      patchy::test::report_failure("capture '" + name + "' is not themed: " + mismatch.toStdString());
+      return;
     }
   }
   auto shot = window.grab().toImage();
