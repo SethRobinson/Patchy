@@ -214,6 +214,8 @@ private:
   }
 
   std::thread thread_;
+  // Only the watcher thread reads it; wasm runs no watcher.
+  bool stopping_ = false;
 #endif
   long long limit_seconds_;
   Report report_;
@@ -222,7 +224,6 @@ private:
   std::chrono::steady_clock::time_point deadline_{};
   std::string name_;
   bool armed_ = false;
-  bool stopping_ = false;
 };
 
 // Exit code of a run whose command line is wrong or whose filter selects no test.

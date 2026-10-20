@@ -36,9 +36,11 @@ constexpr std::array<std::string_view, 2> kAvifBrands = {"avif", "avis"};
   return std::find(kAvifBrands.begin(), kAvifBrands.end(), brand) != kAvifBrands.end();
 }
 
+#if defined(PATCHY_AVIF_DECODER)
 std::string default_frame_name(int index, std::uint32_t delay_ms) {
   return "Frame " + std::to_string(index) + " " + animation::format_delay_seconds_token(delay_ms);
 }
+#endif
 
 }  // namespace
 

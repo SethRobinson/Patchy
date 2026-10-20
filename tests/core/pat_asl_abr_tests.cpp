@@ -16,6 +16,7 @@
 #include "psd/psd_layer_effects.hpp"
 #include "psd/psd_patterns.hpp"
 #include "psd/psd_document_io.hpp"
+#include "support/string_utils.hpp"
 #include "core/pattern_presets.hpp"
 #include "core/style_presets.hpp"
 #include "test_harness.hpp"
@@ -990,6 +991,34 @@ void psd_pattern_multichannel_decodes_as_grayscale() {
   CHECK(pat_pixel[0] == 10 && pat_pixel[1] == 10 && pat_pixel[2] == 10 && pat_pixel[3] == 255);
 }
 
+// GitHub issue 271: Photoshop's own presets carry a localization key as their name. The
+// decoded resource keeps it (descriptors and saves write it back); pickers show the
+// English default after the first '='.
+void psd_pattern_preset_key_name_reads_as_its_default_text() {
+  const std::string key = "$$$/Presets/Patterns/Patterns_pat/TieDye=Tie Dye";
+  const std::vector<TestPatPlane> planes{
+      {0, 0, 0, 2, 2, 8, 0, {10, 20, 30, 40}},
+      {1, 0, 0, 2, 2, 8, 0, {50, 60, 70, 80}},
+      {2, 0, 0, 2, 2, 8, 0, {90, 100, 110, 120}},
+  };
+  const auto pat = test_color_pat_bytes(3, 2, 2, key, "eeeeeeee-0000-0000-0000-000000000271", planes);
+  const auto patterns = patchy::psd::parse_patterns_block(pat_record_as_patterns_block(pat), nullptr);
+  CHECK(patterns.size() == 1U);
+  CHECK(patterns.front().name == key);
+  CHECK(patchy::photoshop_zstring_display_text(patterns.front().name) == "Tie Dye");
+  std::string error;
+  const auto standalone = patchy::psd::read_pat(pat, error);
+  CHECK(standalone.has_value() && standalone->patterns.size() == 1U);
+  CHECK(standalone->patterns.front().name == key);
+
+  CHECK(patchy::photoshop_zstring_display_text("Bricks") == "Bricks");
+  CHECK(patchy::photoshop_zstring_display_text("") == "");
+  CHECK(patchy::photoshop_zstring_display_text("$$$/Presets/Patterns/Clouds") == "Clouds");
+  CHECK(patchy::photoshop_zstring_display_text("$$$/Presets/Patterns/Clouds=") == "Clouds");
+  CHECK(patchy::photoshop_zstring_display_text("$$$/Key=a = b") == "a = b");
+  CHECK(patchy::photoshop_zstring_display_text("Price $$$/Key=x") == "Price $$$/Key=x");
+}
+
 void psd_pattern_vma_cannot_consume_the_next_record() {
   auto malformed_pat = test_raw_rgb_pat_bytes(
       "88888888-9999-aaaa-bbbb-cccccccccccc");
@@ -1519,6 +1548,8 @@ std::vector<patchy::test::TestCase> pat_asl_abr_tests() {
        psd_pattern_unused_vma_slot_is_not_decoded},
       {"psd_pattern_multichannel_decodes_as_grayscale",
        psd_pattern_multichannel_decodes_as_grayscale},
+      {"psd_pattern_preset_key_name_reads_as_its_default_text",
+       psd_pattern_preset_key_name_reads_as_its_default_text},
       {"psd_pattern_vma_cannot_consume_the_next_record",
        psd_pattern_vma_cannot_consume_the_next_record},
       {"abr_v6_fixture_parses_brushes_names_and_spacing", abr_v6_fixture_parses_brushes_names_and_spacing},

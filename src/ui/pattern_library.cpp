@@ -2,6 +2,7 @@
 
 #include "core/pattern_presets.hpp"
 #include "psd/pat_reader.hpp"
+#include "support/string_utils.hpp"
 #include "ui/photo_pattern_presets.hpp"
 #include "ui/localization.hpp"
 
@@ -92,6 +93,10 @@ QString default_patterns_folder_name() {
 
 QString photo_patterns_folder_name() {
   return QObject::tr("Textures");
+}
+
+QString document_pattern_display_name(const PatternResource& resource) {
+  return qstring_from_utf8(photoshop_zstring_display_text(resource.name));
 }
 
 QString pattern_library_entry_display_name(const PatternLibraryEntry& entry) {
@@ -481,7 +486,8 @@ QString PatternLibrary::import_pat(const QString& path, QString& error, QStringL
   int pattern_index = 0;
   for (const auto& imported : parsed->patterns) {
     ++pattern_index;
-    auto name = qstring_from_utf8(imported.name).trimmed();
+    // Photoshop's own .pat sets name each pattern with a localization key (issue 271).
+    auto name = qstring_from_utf8(photoshop_zstring_display_text(imported.name)).trimmed();
     if (name.isEmpty()) {
       name = tr("Pattern %1").arg(pattern_index);
     }
