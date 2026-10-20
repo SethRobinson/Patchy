@@ -149,3 +149,47 @@ a pickup stamp and no mixed color, plus a pixel comparison of a calibrated strok
 current reference within 1/255 (`mixer_brush_pickup_average_follows_canvas_and_dries_only_at_wet_zero`
 stays as the model test). Alternative: no change, with a re-check at 2028-03-07.
 
+## 3. US 8971623 B2 (Apple, "Overlaid user interface tools for applying effects to image"): Tilt-Shift grips
+
+Status: Active, adjusted expiry 2032-12-26 (filed 2012-09-27, priority 2012-03-06, granted
+2015-03-03).
+
+**Claims read.** Claim 1 (medium, GUI): a display area; an image processing tool for (i) receiving
+a selection of a location of the image, (ii) overlaying on the image a user interface item
+comprising "a first line located to a first side of the selected location that divides the image
+into a first area that includes the location and a second area that does not include the location
+and a second line located to the other side of the location that divides the image into a third
+area that includes the location and a fourth area that does not", (iii) defining the effect area
+as the second and fourth areas, (iv) applying the effect there. Claims 9 and 15 are the same with
+a touch input at the location. Dependents: horizontal lines (2, 3, 13, 19), a user-adjustable
+distance between the lines (4, 11, 17), blur (5, 8), a predefined initial distance (10, 16), an
+amount varying with distance from the location (7), tilt-shift (14, 20), darkening (12, 18). The
+specification describes "two visible horizontal lines overlaid on the image" that are moved and
+spread by dragging; it never says they run edge to edge, and the figures show full-width lines.
+
+**Patchy** (`draw_tilt_shift_overlay`, src/ui/zoomable_image_preview.cpp): the user places the
+center (i, present), the blur applies outside the band (iii and iv, present), and each band edge is
+marked by a 52 px grip bar centered on the axis through the center, clipped inside the image.
+Element (ii) is where the designs differ. A short bar does not divide the image into two areas: both
+sides stay connected around its ends, so the overlaid item does not comprise lines that divide the
+image on that reading. The other reading: the bar is the visible part of the boundary line the tool
+uses, and the defined area is exactly the two half-planes it marks, so "line" means that boundary
+and the bar merely draws less of it.
+
+**Comparison.** The claim does not say edge to edge, so the grip design differs from element (ii)
+on the first reading above and not on the second. The record's "nothing spans or divides the
+image" describes the drawing correctly, no more. Published earlier work describing on-image band
+interfaces (Instagram, Snapseed and TiltShift Generator before 2012-03-06) is noted in the main
+record.
+
+**Alternative design recorded (not made).** Draw no boundary marks at all:
+delete `draw_boundary` and its two calls, keep the filled focus-handle dots and the hollow
+transition-handle dots already drawn at the same points, the rotation handle line (it passes
+through the location rather than lying to one side of it, so it is not a flanking line) and the
+center crosshair. Dots are not lines and divide nothing. Effort: small (about 20 lines in
+zoomable_image_preview.cpp; the pinned tests `ui_filter_gallery_tilt_shift_overlay_uses_grip_bars`
+and `ui_filter_gallery_tilt_shift_grips_never_span_the_visible_image` become one "no boundary
+marks" test; the README Tilt-Shift screenshot is re-shot). Usability cost: the band's edges are
+shown only by the handle dots and by the preview blur itself. Alternative: keep the bars, with a
+re-check at 2032-12-26.
+
