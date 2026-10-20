@@ -11470,17 +11470,106 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation> (Ilość %1, przybliżenie, jakość %2)</translation>
     </message>
     <message>
+        <source>Effect visible. Click to hide.</source>
+        <translation>Efekt widoczny. Kliknij, aby ukryć.</translation>
+    </message>
+    <message>
+        <source>Effect hidden. Click to show.</source>
+        <translation>Efekt ukryty. Kliknij, aby pokazać.</translation>
+    </message>
+    <message>
+        <source>Edit this effect in the Layer Style dialog</source>
+        <translation>Edytuj ten efekt w oknie Styl warstwy</translation>
+    </message>
+    <message>
+        <source>Missing Linked Files</source>
+        <translation>Brakujące połączone pliki</translation>
+    </message>
+    <message>
+        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
+        <translation>Te połączone obiekty inteligentne wskazują pliki, których Patchy nie może znaleźć. Połącz każdy z nich ponownie z plikiem teraz lub kontynuuj z zapisanymi podglądami i użyj później Warstwa &gt; Obiekty inteligentne &gt; Połącz ponownie z plikiem...</translation>
+    </message>
+    <message>
+        <source>Relink...</source>
+        <translation>Połącz ponownie...</translation>
+    </message>
+    <message>
+        <source>Used by layer &quot;%1&quot;</source>
+        <translation>Używany przez warstwę „%1”</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used by %n layers: %1</source>
+        <translation>
+            <numerusform>Używany przez %n warstwę: %1</numerusform>
+            <numerusform>Używany przez %n warstwy: %1</numerusform>
+            <numerusform>Używany przez %n warstw: %1</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Relinked to %1</source>
+        <translation>Połączono ponownie z %1</translation>
+    </message>
+    <message>
+        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
+        <translation>Brakujące pliki nadal są pokazywane na pasku stanu. W preferencjach można ponownie włączyć to okno dla otwieranych dokumentów.</translation>
+    </message>
+    <message>
+        <source>Portable Anymap Image</source>
+        <translation>Obraz Portable Anymap</translation>
+    </message>
+    <message>
+        <source>%1 and more</source>
+        <extracomment>Open-dialog file type row: %1 is a short list of *.ext patterns</extracomment>
+        <translation>%1 i więcej</translation>
+    </message>
+    <message>
+        <source>The layer is locked, so its layer styles cannot be changed here.</source>
+        <translation>Warstwa jest zablokowana, więc jej stylów warstwy nie można tu zmienić.</translation>
+    </message>
+    <message>
+        <source>Collapse the layer style rows</source>
+        <translation>Zwiń wiersze stylów warstwy</translation>
+    </message>
+    <message>
+        <source>Expand the layer style rows</source>
+        <translation>Rozwiń wiersze stylów warstwy</translation>
+    </message>
+    <message>
+        <source>Layer styles visible. Click to hide them all.</source>
+        <translation>Style warstwy widoczne. Kliknij, aby ukryć wszystkie.</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden. Click to show them.</source>
+        <translation>Style warstwy ukryte. Kliknij, aby pokazać.</translation>
+    </message>
+    <message>
+        <source>Layer Styles</source>
+        <translation>Style warstwy</translation>
+    </message>
+    <message>
+        <source>Effect on, but the layer styles are hidden. Click to turn it off.</source>
+        <translation>Efekt włączony, ale style warstwy są ukryte. Kliknij, aby go wyłączyć.</translation>
+    </message>
+    <message>
+        <source>Effect off, and the layer styles are hidden. Click to turn it on.</source>
+        <translation>Efekt wyłączony, a style warstwy są ukryte. Kliknij, aby go włączyć.</translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog; right-click for its menu.</source>
+        <translation>Kliknij dwukrotnie, aby edytować ten efekt w oknie Styl warstwy; kliknij prawym przyciskiem, aby otworzyć jego menu.</translation>
+    </message>
+    <message>
+        <source>Sharpen Edges</source>
+        <comment>Smart Filter</comment>
+        <translation>Wyostrz krawędzie</translation>
+    </message>
+    <message>
         <source>Smart Sharpen</source>
         <translation>Inteligentne wyostrzanie</translation>
     </message>
     <message>
         <source> (Amount %1%, Radius %2 px, Legacy)</source>
         <translation> (Wartość %1%, promień %2 px, tryb starszy)</translation>
-    </message>
-    <message>
-        <source>Sharpen Edges</source>
-        <comment>Smart Filter</comment>
-        <translation>Wyostrz krawędzie</translation>
     </message>
 </context>
 <context>
@@ -23268,6 +23357,78 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     <message>
         <source>Cancelled Vibrance</source>
         <translation>Anulowano jaskrawość</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
+        <translation>Przełącz na narzędzie Obszar roboczy, aby dodawać, zmieniać rozmiar lub powielać obszary robocze</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
+        <translation>Przełącz na narzędzie Obszar roboczy (%1), aby dodawać, zmieniać rozmiar lub powielać obszary robocze</translation>
+    </message>
+    <message>
+        <source>Show %1</source>
+        <translation>Pokaż %1</translation>
+    </message>
+    <message>
+        <source>Hide %1</source>
+        <translation>Ukryj %1</translation>
+    </message>
+    <message>
+        <source>%1 shown</source>
+        <translation>Pokazano %1</translation>
+    </message>
+    <message>
+        <source>%1 hidden</source>
+        <translation>Ukryto %1</translation>
+    </message>
+    <message>
+        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
+        <translation>Pokazuj okno Brakujące połączone pliki przy otwieraniu dokumentu z brakującymi połączonymi plikami</translation>
+    </message>
+    <message>
+        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
+        <translation>Warstwa &gt; Obiekty inteligentne &gt; Połącz ponownie z plikiem... naprawia połączenie w dowolnej chwili.</translation>
+    </message>
+    <message>
+        <source>This document has no missing linked files</source>
+        <translation>W tym dokumencie nie brakuje połączonych plików</translation>
+    </message>
+    <message numerus="yes">
+        <source>Relinked %n smart object file(s)</source>
+        <translation>
+            <numerusform>Połączono ponownie %n plik obiektu inteligentnego</numerusform>
+            <numerusform>Połączono ponownie %n pliki obiektów inteligentnych</numerusform>
+            <numerusform>Połączono ponownie %n plików obiektów inteligentnych</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Show Layer Styles</source>
+        <translation>Pokaż style warstwy</translation>
+    </message>
+    <message>
+        <source>Hide Layer Styles</source>
+        <translation>Ukryj style warstwy</translation>
+    </message>
+    <message>
+        <source>Layer styles shown</source>
+        <translation>Style warstwy pokazane</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden</source>
+        <translation>Style warstwy ukryte</translation>
+    </message>
+    <message>
+        <source>Delete %1</source>
+        <translation>Usuń %1</translation>
+    </message>
+    <message>
+        <source>%1 deleted</source>
+        <translation>Usunięto %1</translation>
+    </message>
+    <message>
+        <source>Edit %1...</source>
+        <translation>Edytuj %1...</translation>
     </message>
     <message>
         <source>Smart Sharpen</source>

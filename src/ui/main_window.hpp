@@ -448,7 +448,7 @@ private:
   };
 
   // Defaults match the Round startup preset (brush_presets.cpp); load_tool_settings()
-  // re-derives them from the preset on every launch.
+  // restores the stored values over them (GitHub issue 254, docs/tool-options.md).
   struct BrushToolSettings {
     int size{12};
     int opacity{100};
@@ -1326,10 +1326,15 @@ private:
   // Artboards (main_window_artboards.cpp, docs/artboards.md). Every edit is one undo step
   // and grows the canvas until the artboards fit, the view following the artwork.
   void handle_artboard_edit(const ArtboardEditRequest& request);
+  // Selecting an artboard with the Move tool (a canvas click or its Layers panel row)
+  // names the Artboard tool and its hotkey in the status bar, since the "+" buttons,
+  // handles and copies live there (GitHub issue 259). Nothing with any other tool.
+  void show_artboard_tool_hint_for_move_tool();
   std::optional<LayerId> create_artboard(QRect rect, std::string name, ArtboardBackground background, RgbColor color,
                                          const QString& undo_label);
-  void move_artboard(LayerId id, QPoint delta, bool duplicate, bool nudge);
-  void resize_artboard(LayerId id, QRect rect);
+  // `field_edit`: a value from an artboard X/Y/W/H field (artboard_field_edit_run_).
+  void move_artboard(LayerId id, QPoint delta, bool duplicate, bool nudge, bool field_edit = false);
+  void resize_artboard(LayerId id, QRect rect, bool field_edit = false);
   void set_artboard_background(LayerId id, ArtboardBackground background, RgbColor color);
   void add_adjacent_artboard(LayerId id, int side);
   void rename_artboard(LayerId id);
@@ -1349,7 +1354,7 @@ private:
   // or the top level off every artboard (tools/artboardAutoNest).
   void refresh_after_artboard_nesting();
   void sync_artboard_controls();
-  void apply_artboard_size_option(QSize size);
+  void apply_artboard_size_option(QSize size, bool field_edit = false);
   void apply_artboard_background_option(const QString& token, bool from_properties);
   void add_artboard_beside();
   void apply_properties_artboard_rect();
@@ -1440,8 +1445,27 @@ private:
   // trailing frame-time token on the selected (else active) layers' names, as one
   // undoable rename batch.
   void set_selected_layers_frame_time(std::optional<std::uint32_t> delay_ms);
-  // start_effect opens the dialog on that effect, turned on (the footer menu).
-  void edit_active_layer_style(std::optional<LayerStyleEffect> start_effect = std::nullopt);
+  // start_effect opens the dialog on that effect's `start_index` instance, turned on
+  // (the footer menu) unless `enable_start_effect` is false (the panel's effect rows).
+  void edit_active_layer_style(std::optional<LayerStyleEffect> start_effect = std::nullopt,
+                               std::size_t start_index = 0, bool enable_start_effect = true);
+  // The Layers panel's effect rows (GitHub issue 256): the master "effects visible"
+  // switch, one effect's visibility, and the Layer Style dialog opened on one effect.
+  // Each change is one undo step; a locked layer refuses.
+  void set_layer_effects_visible(LayerId layer_id, bool visible);
+  void set_layer_effect_enabled(LayerId layer_id, LayerStyleEffect effect, std::size_t index, bool enabled);
+  void edit_layer_effect(LayerId layer_id, LayerStyleEffect effect, std::size_t index);
+  // Removes that effect instance (one undo step; the saved PSD drops it).
+  void delete_layer_effect(LayerId layer_id, LayerStyleEffect effect, std::size_t index);
+  // The effect row's own right-click menu: Edit, Hide/Show, Delete.
+  void show_layer_effect_context_menu(LayerId layer_id, LayerStyleEffect effect, std::size_t index,
+                                      QPoint global_position);
+  // The effect rows' disclosure state (session only): closed by default; opening a layer's
+  // list, and `reveal_layer_effects` (an effect added this session) marks it open.
+  void toggle_layer_effects_expanded(LayerId layer_id);
+  void reveal_layer_effects(LayerId layer_id);
+  bool apply_layer_effect_row_edit(LayerId layer_id, const QString& undo_text, const QString& status_text,
+                                   const std::function<bool(LayerStyle&)>& edit);
   void copy_active_layer_style();
   void paste_layer_style_to_selected_layers();
   void delete_selected_layer_styles();
@@ -1643,6 +1667,17 @@ private:
                                      const std::function<bool()>& before_mutation, QString* error);
   void relink_smart_object_contents();
   void relink_smart_object_contents_with_path(const QString& path);
+  // Where the relink file dialog opens: the last relinked file's folder this session, else the
+  // usual start folder.
+  [[nodiscard]] QString relink_dialog_initial_path() const;
+  // The Missing Linked Files dialog (GitHub issue 257): after an interactive open when
+  // imports/showMissingLinksDialog allows (`on_open`), one row per linked smart object file the
+  // document cannot find, each with Relink... (the Relink to File flow for a layer placed from
+  // it) and a Continue button that keeps the stored previews.
+  void show_missing_linked_files_dialog(bool on_open);
+  // Relinks every layer placed from the missing link element `source_uuid` to `path` through
+  // relink_smart_object_contents_with_path; the new file name on success.
+  std::optional<QString> relink_missing_smart_object_source(const std::string& source_uuid, const QString& path);
   void embed_linked_smart_object();
   // `vector_contents` (a source carrying the file bytes) lets each layer rasterize
   // vector artwork at its own placement scale instead of resampling `rendered_image`.
@@ -1706,8 +1741,13 @@ private:
   void reorder_layers_from_list();
   void toggle_layer_folder_expanded(LayerId id, bool include_nested = false);
   void toggle_all_layer_folders_expanded(LayerId reference_id);
-  void reveal_layer_in_layer_list(LayerId id);
-  void select_layers_in_layer_list(const std::vector<LayerId>& ids, LayerId active_id);
+  // Selects the layer's row, rebuilding the rows only when a collapsed ancestor or the
+  // name filter hides it. The list scrolls only when the row is off screen; `clicked_in_panel`
+  // (the row's own badge buttons) also keeps a partly visible row where the pointer found it
+  // (GitHub issue 266).
+  void reveal_layer_in_layer_list(LayerId id, bool clicked_in_panel = false);
+  void select_layers_in_layer_list(const std::vector<LayerId>& ids, LayerId active_id,
+                                   bool clicked_in_panel = false);
   // Select > Deselect Layers: no selected rows and no active layer.
   void deselect_all_layers();
   // For a command that needs a layer: with no active layer, a one-layer
@@ -2251,8 +2291,14 @@ private:
   // (startup no longer auto-creates a document).
   StartPanel* start_panel_{nullptr};
   // The one-time tool-settings load waits for the first canvas: load_tool_settings
-  // needs a canvas to apply to and startup opens with none.
+  // needs a canvas to apply to and startup opens with none. While it is pending,
+  // save_tool_settings writes nothing: a save before the load would overwrite the
+  // stored values with the defaults donor's.
   bool startup_tool_settings_pending_{true};
+  // Checks the palette button of the tool stored under tools/activeTool before any
+  // document exists (the start panel shows the right tool); the first canvas then
+  // activates it for real through load_tool_settings (GitHub issue 254).
+  void restore_startup_tool_selection();
   void update_start_panel_visibility();
   // Re-reads the options-bar controls create_actions initialized from the startup
   // defaults donor; runs after the deferred load_tool_settings.
@@ -2515,6 +2561,11 @@ private:
   std::shared_ptr<StartupLibraryPreloads> library_preloads_;
   void start_library_preloads();
   void adopt_preloaded_pattern_library();
+  // Test seam: while held, the pattern preload worker of every window constructed afterwards
+  // keeps its result back until that window asks for the library (pattern_library()), the
+  // window is destroyed, or the hold is released, so a test can drive a window whose
+  // preload has not landed yet (docs/startup-performance.md).
+  static void hold_pattern_preload_for_tests(bool hold);
   GradientLibrary* gradient_library_{nullptr};
   CustomShapeLibrary* custom_shape_library_{nullptr};
   StyleLibrary* style_library_{nullptr};
@@ -2634,6 +2685,11 @@ private:
     std::int64_t revision{-1};
   };
   ArtboardNudgeRun artboard_nudge_run_{};
+  // The same for the values one artboard X/Y/W/H field sends (Properties panel, options
+  // bar) until its editingFinished: a label or field scrub, or a run of arrow steps, is
+  // one undo step.
+  ArtboardNudgeRun artboard_field_edit_run_{};
+  [[nodiscard]] bool continues_artboard_field_edit(LayerId id) const;
   UnitSpinBox* properties_shape_width_spin_{nullptr};
   UnitSpinBox* properties_shape_height_spin_{nullptr};
   QPushButton* properties_shape_link_size_button_{nullptr};
@@ -2832,6 +2888,9 @@ private:
     std::vector<PatternResource> patterns;
   };
   std::optional<LayerStyleClipboard> layer_style_clipboard_;
+  // The folder of the last successful Relink to File, the next relink dialog's starting
+  // folder for this app session only (in memory, never a settings key; GitHub issue 257).
+  QString last_relink_directory_;
   std::optional<QByteArray> patchy_system_clipboard_signature_;
   std::vector<LayerId> pending_layer_opacity_ids_;
   std::vector<LayerId> pending_layer_fill_opacity_ids_;

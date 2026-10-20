@@ -585,7 +585,10 @@ struct LayerStyle {
   std::vector<LayerBevelEmboss> bevels;
   std::vector<LayerSatin> satins;
 
+  // No enabled effect (nothing renders). Hidden instances do not count.
   [[nodiscard]] bool empty() const noexcept;
+  // Every effect instance, shown or hidden: the Layers panel's effect rows.
+  [[nodiscard]] std::size_t effect_count() const noexcept;
 };
 
 class Layer {

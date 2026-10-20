@@ -9,6 +9,7 @@
 #include "core/smart_object.hpp"
 #include "core/pixel_depth.hpp"
 #include "core/vector_shape.hpp"
+#include "ui/missing_links_dialog.hpp"
 #include "ui/smart_object_render.hpp"
 #include "ui/pattern_library.hpp"
 #include "psd/psd_binary.hpp"
@@ -34,6 +35,8 @@
 #include <QAction>
 #include <QApplication>
 #include <QByteArray>
+#include <QCheckBox>
+#include <QDialog>
 #include <QDir>
 #include <QEventLoop>
 #include <QFile>
@@ -50,6 +53,8 @@
 #include <QTabWidget>
 #include <QTimer>
 #include <QToolTip>
+#include <QPointer>
+#include <QPushButton>
 #include <QToolButton>
 #include <algorithm>
 #include <atomic>
@@ -628,6 +633,84 @@ void ui_layer_smart_object_badge_shows_linked_variant() {
   CHECK(opaque_pixels(linked_image) > 20);
   CHECK(embedded_image != linked_image);
   save_widget_artifact("ui_layer_smart_object_badge_linked_variant", window);
+}
+
+// GitHub issue 266: clicking a row's smart-object badge on a linked smart object whose
+// file is missing reports the error on the status bar, and the Layers panel must stay
+// where it was: the row is under the pointer, so centering it moved the list out from
+// under the button. A document long enough to scroll, the linked row scrolled to the top
+// edge of the viewport, then a user-style click on its badge: the scroll value, the row
+// widget and the badge's position are all unchanged afterwards.
+void ui_layer_smart_object_badge_click_keeps_panel_scroll() {
+  patchy::Document document(32, 32, patchy::PixelFormat::rgba8());
+  for (int index = 0; index < 24; ++index) {
+    document.add_pixel_layer("Filler " + std::to_string(index),
+                             solid_pixels(32, 32, patchy::PixelFormat::rgba8(), QColor(60, 60, 200, 255)));
+  }
+  document.add_pixel_layer("Linked", solid_pixels(32, 32, patchy::PixelFormat::rgba8(), QColor(60, 200, 60, 255)));
+  for (int index = 24; index < 27; ++index) {
+    document.add_pixel_layer("Filler " + std::to_string(index),
+                             solid_pixels(32, 32, patchy::PixelFormat::rgba8(), QColor(60, 60, 200, 255)));
+  }
+  patchy::SmartObjectPlacement placement;
+  placement.uuid = "11111111-2222-3333-4444-666666666666";
+  placement.transform = {0.0, 0.0, 32.0, 0.0, 32.0, 32.0, 0.0, 32.0};
+  placement.width = 32.0;
+  placement.height = 32.0;
+  patchy::Layer* linked_layer = nullptr;
+  for (auto& layer : document.layers()) {
+    if (layer.name() == "Linked") {
+      linked_layer = &layer;
+    }
+  }
+  CHECK(linked_layer != nullptr);
+  patchy::set_layer_smart_object_metadata(*linked_layer, placement, "placed-linked-missing", "SoLd", "external",
+                                          patchy::kSmartObjectRasterStatusPhotoshop);
+  patchy::SmartObjectSource missing;
+  missing.kind = patchy::SmartObjectSourceKind::ExternalFile;
+  missing.uuid = placement.uuid;
+  missing.filename = "nowhere.png";
+  missing.filetype = "png ";
+  missing.external_original_path =
+      QDir::toNativeSeparators(QFileInfo(QStringLiteral("test-artifacts/so-missing-266/nowhere.png")).absoluteFilePath())
+          .toStdString();
+  missing.external_rel_path = "so-missing-266/nowhere.png";
+  document.metadata().smart_objects.add_external(missing);
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Badge Scroll"));
+  QApplication::processEvents();
+
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  auto* scroll_bar = layer_list->verticalScrollBar();
+  CHECK(scroll_bar != nullptr);
+  auto* item = require_layer_item(*layer_list, QStringLiteral("Linked"));
+  layer_list->scrollToItem(item, QAbstractItemView::PositionAtTop);
+  QApplication::processEvents();
+  // The list is long enough to scroll either way from here: rows above and below.
+  CHECK(scroll_bar->value() > scroll_bar->minimum());
+  CHECK(scroll_bar->value() < scroll_bar->maximum());
+  const auto scroll_before = scroll_bar->value();
+  QPointer<QWidget> row = layer_list->itemWidget(item);
+  CHECK(row != nullptr);
+  QPointer<QToolButton> badge = row->findChild<QToolButton*>(QStringLiteral("layerSmartObjectBadgeButton"));
+  CHECK(badge != nullptr);
+  const auto badge_global_before = badge->mapToGlobal(badge->rect().center());
+
+  click_widget_like_a_user(*layer_list->viewport(),
+                           layer_list->viewport()->mapFromGlobal(badge_global_before));
+  for (int pass = 0; pass < 4; ++pass) {
+    QApplication::processEvents();  // the badge handler and the status error are deferred
+  }
+
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("not found")));
+  CHECK(scroll_bar->value() == scroll_before);
+  CHECK(row != nullptr && badge != nullptr);  // no rebuild: the pointer is still over the same button
+  CHECK(badge->mapToGlobal(badge->rect().center()) == badge_global_before);
+  CHECK(badge->rect().contains(badge->mapFromGlobal(badge_global_before)));
+  save_widget_artifact("ui_layer_smart_object_badge_click_keeps_panel_scroll", window);
 }
 
 void ui_cmyk_smart_object_content_edits_keep_native_saves() {
@@ -2663,6 +2746,254 @@ void ui_script_smart_object_options_and_errors() {
 // A linked file that is gone: the open reports it, the layer keeps its stored
 // preview, update refuses with the reason, saving keeps the link, and Relink to
 // File (which accepts SVG) repairs it.
+// Polls for the Missing Linked Files dialog and hands it to `act` (which must close it).
+void handle_missing_links_dialog(std::function<void(QDialog&)> act, std::shared_ptr<int> seen, int attempts = 100) {
+  QTimer::singleShot(20, [act = std::move(act), seen, attempts]() mutable {
+    auto* dialog = find_top_level_dialog(QStringLiteral("missingLinksDialog"));
+    if (dialog == nullptr || !dialog->isVisible()) {
+      if (attempts > 0) {
+        handle_missing_links_dialog(std::move(act), seen, attempts - 1);
+      }
+      return;
+    }
+    ++*seen;
+    act(*dialog);
+  });
+}
+
+// GitHub issue 257: opening a document whose linked smart object file is missing shows the
+// Missing Linked Files dialog (Photoshop's "Cannot locate linked assets"), one row per missing
+// file naming the layers placed from it and the stored path, with Relink... per row and
+// Continue. Continue keeps the stored preview; Relink... runs the Relink to File flow. The
+// dialog's "Don't show" box turns it off for later opens; the status bar note stays.
+void ui_smart_object_missing_linked_files_dialog_lists_and_relinks() {
+  SettingsValueRestorer restorer(QStringLiteral("imports/showMissingLinksDialog"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/showMissingLinksDialog"), true);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  add_linked_test_document(window, 200, 160);
+  const auto dir = linked_test_dir(QStringLiteral("missing-dialog"));
+  const auto art_path = write_linked_test_png(dir + QStringLiteral("/art.png"), QColor(20, 200, 40, 255));
+  const auto psd_path = dir + QStringLiteral("/parent.psd");
+  patchy::ui::MainWindowTestAccess::place_linked_file_with_path(window, art_path);
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, psd_path));
+  // Hand-test copies: a PSD whose linked file is missing, plus that file under another name
+  // to relink to (build\issue-shots\test-files on the desk).
+  QFile::remove(QStringLiteral("test-artifacts/missing-link.psd"));
+  QFile::remove(QStringLiteral("test-artifacts/missing-link-source.png"));
+  CHECK(QFile::copy(psd_path, QStringLiteral("test-artifacts/missing-link.psd")));
+  CHECK(QFile::copy(art_path, QStringLiteral("test-artifacts/missing-link-source.png")));
+  CHECK(QFile::remove(art_path));
+
+  auto seen = std::make_shared<int>(0);
+  handle_missing_links_dialog(
+      [&art_path](QDialog& dialog) {
+        auto* name = dialog.findChild<QLabel*>(QStringLiteral("missingLinkName0"));
+        auto* detail = dialog.findChild<QLabel*>(QStringLiteral("missingLinkDetail0"));
+        auto* path = dialog.findChild<QLabel*>(QStringLiteral("missingLinkPath0"));
+        auto* relink = dialog.findChild<QPushButton*>(QStringLiteral("missingLinkRelinkButton0"));
+        auto* dont_show = dialog.findChild<QCheckBox*>(QStringLiteral("missingLinksDontShowCheck"));
+        auto* continue_button = dialog.findChild<QPushButton*>(QStringLiteral("missingLinksContinueButton"));
+        CHECK(name != nullptr && name->text() == QStringLiteral("art.png"));
+        CHECK(detail != nullptr && detail->text().contains(QStringLiteral("\"art\"")));  // the placed layer's name
+        CHECK(path != nullptr && path->text() == QDir::toNativeSeparators(art_path));
+        CHECK(relink != nullptr && relink->isEnabled());
+        CHECK(dialog.findChild<QLabel*>(QStringLiteral("missingLinkName1")) == nullptr);
+        CHECK(dont_show != nullptr && !dont_show->isChecked());
+        CHECK(continue_button != nullptr && continue_button->isDefault());
+        save_widget_artifact("ui_smart_object_missing_linked_files_dialog", dialog);
+        if (continue_button != nullptr) {
+          continue_button->click();
+        } else {
+          dialog.reject();
+        }
+      },
+      seen);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, psd_path);
+  process_events_for(100);
+  CHECK(*seen == 1);
+  // Continue: the stored preview and the status bar note stay.
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("was not found")));
+  save_widget_artifact("ui_smart_object_missing_linked_files_after_continue", window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layers = linked_layers(document);
+  CHECK(layers.size() == 1U);
+  const auto layer_id = layers.front()->id();
+  CHECK(layer_center_color(*layers.front()).green() > 150);
+  const auto uuid = patchy::smart_object_source_uuid(*layers.front());
+  CHECK(document.metadata().smart_objects.find(uuid) != nullptr);
+
+  // The dialog's Relink... runs the relink flow for the row's layers: a fresh element, the
+  // layer re-rendered from the new file, one undo step. A refused relink reports nothing.
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  CHECK(!patchy::ui::MainWindowTestAccess::relink_missing_smart_object_source(window, "no-such-element",
+                                                                              art_path)
+             .has_value());
+  const auto replacement_path = write_linked_test_png(dir + QStringLiteral("/art2.png"), QColor(30, 60, 220, 255));
+  const auto relinked_name =
+      patchy::ui::MainWindowTestAccess::relink_missing_smart_object_source(window, uuid, replacement_path);
+  QApplication::processEvents();
+  CHECK(relinked_name.has_value() && *relinked_name == QStringLiteral("art2.png"));
+  CHECK(document.metadata().smart_objects.find(uuid) == nullptr);
+  const auto* relinked = document.find_layer(layer_id);
+  CHECK(relinked != nullptr && patchy::smart_object_lock_reason(*relinked) == "external");
+  CHECK(relinked != nullptr && layer_center_color(*relinked).blue() > 150);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 1);
+  // Nothing is missing now: the command path says so instead of showing the dialog.
+  patchy::ui::MainWindowTestAccess::show_missing_linked_files_dialog(window);
+  QApplication::processEvents();
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("no missing linked files")));
+
+  // The dialog itself: a row's Relink... reports the new name and disables; "Don't show"
+  // comes back inverted as show_on_open.
+  {
+    std::vector<patchy::ui::MissingLinkEntry> entries(2);
+    entries[0].source_uuid = "a";
+    entries[0].file_name = QStringLiteral("one.png");
+    entries[0].stored_path = QStringLiteral("D:\\art\\one.png");
+    entries[0].layer_names = {QStringLiteral("Hero"), QStringLiteral("Hero copy")};
+    entries[1].source_uuid = "b";
+    entries[1].file_name = QStringLiteral("two.svg");
+    entries[1].stored_path = QStringLiteral("D:\\art\\two.svg");
+    entries[1].layer_names = {QStringLiteral("Logo")};
+    int relink_calls = 0;
+    QTimer::singleShot(0, [&] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("missingLinksDialog"));
+      CHECK(dialog != nullptr);
+      if (dialog == nullptr) {
+        return;
+      }
+      auto* detail0 = dialog->findChild<QLabel*>(QStringLiteral("missingLinkDetail0"));
+      CHECK(detail0 != nullptr && detail0->text().contains(QStringLiteral("2 layers")) &&
+            detail0->text().contains(QStringLiteral("Hero copy")));
+      auto* relink0 = dialog->findChild<QPushButton*>(QStringLiteral("missingLinkRelinkButton0"));
+      auto* relink1 = dialog->findChild<QPushButton*>(QStringLiteral("missingLinkRelinkButton1"));
+      CHECK(relink0 != nullptr && relink1 != nullptr);
+      relink1->click();  // refused: stays enabled, nothing counted
+      CHECK(relink1->isEnabled());
+      relink0->click();
+      CHECK(!relink0->isEnabled());
+      CHECK(detail0 != nullptr && detail0->text().contains(QStringLiteral("Relinked to new-one.png")));
+      auto* path0 = dialog->findChild<QLabel*>(QStringLiteral("missingLinkPath0"));
+      CHECK(path0 != nullptr && !path0->isVisible());
+      dialog->findChild<QCheckBox*>(QStringLiteral("missingLinksDontShowCheck"))->setChecked(true);
+      dialog->findChild<QPushButton*>(QStringLiteral("missingLinksContinueButton"))->click();
+    });
+    const auto result = patchy::ui::run_missing_links_dialog(
+        &window, entries, true, [&relink_calls](const patchy::ui::MissingLinkEntry& entry) -> std::optional<QString> {
+          ++relink_calls;
+          if (entry.source_uuid == std::string("a")) {
+            return QStringLiteral("new-one.png");
+          }
+          return std::nullopt;
+        });
+    CHECK(relink_calls == 2);
+    CHECK(result.relinked == 1);
+    CHECK(!result.show_on_open);
+  }
+
+  // Turned off through the open-time dialog: the next open stays quiet.
+  CHECK(QFile::remove(replacement_path));
+  handle_missing_links_dialog(
+      [](QDialog& dialog) {
+        dialog.findChild<QCheckBox*>(QStringLiteral("missingLinksDontShowCheck"))->setChecked(true);
+        dialog.findChild<QPushButton*>(QStringLiteral("missingLinksContinueButton"))->click();
+      },
+      seen);
+  CHECK(patchy::ui::MainWindowTestAccess::save_document_to_path(window, psd_path));
+  patchy::ui::MainWindowTestAccess::open_document_path(window, psd_path);
+  process_events_for(100);
+  CHECK(*seen == 2);
+  CHECK(!patchy::ui::app_settings().value(QStringLiteral("imports/showMissingLinksDialog"), true).toBool());
+  handle_missing_links_dialog([](QDialog& dialog) { dialog.reject(); }, seen, 10);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, psd_path);
+  process_events_for(400);
+  CHECK(*seen == 2);
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("was not found")));
+}
+
+// GitHub issue 257 follow-up: a successful relink makes the chosen file's folder the next relink
+// dialog's starting folder, for this app session only (a fresh window starts at the usual
+// folder; nothing is written to settings). A refused relink leaves it alone.
+void ui_smart_object_relink_remembers_folder_for_the_session() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  const auto default_start = patchy::ui::MainWindowTestAccess::relink_dialog_initial_path(window);
+  add_linked_test_document(window, 200, 160);
+  const auto dir = linked_test_dir(QStringLiteral("relink-folder"));
+  const auto art_path = write_linked_test_png(dir + QStringLiteral("/art.png"), QColor(20, 200, 40, 255));
+  patchy::ui::MainWindowTestAccess::place_linked_file_with_path(window, art_path);
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::relink_dialog_initial_path(window) == default_start);
+
+  // A refused relink (no such file; its "Relink failed" box is dismissed) changes nothing.
+  auto failed_boxes = std::make_shared<int>(0);
+  const std::function<void(int)> dismiss_failed_box = [&dismiss_failed_box, failed_boxes](int attempts) {
+    QTimer::singleShot(20, [&dismiss_failed_box, failed_boxes, attempts] {
+      auto* box = find_top_level_dialog(QStringLiteral("relinkSmartObjectFailedMessageBox"));
+      if (box == nullptr || !box->isVisible()) {
+        if (attempts > 0) {
+          dismiss_failed_box(attempts - 1);
+        }
+        return;
+      }
+      ++*failed_boxes;
+      box->reject();
+    });
+  };
+  dismiss_failed_box(100);
+  patchy::ui::MainWindowTestAccess::relink_smart_object_contents_with_path(window,
+                                                                           dir + QStringLiteral("/nowhere/none.png"));
+  process_events_for(100);
+  CHECK(*failed_boxes == 1);
+  CHECK(patchy::ui::MainWindowTestAccess::relink_dialog_initial_path(window) == default_start);
+
+  const auto other_dir = dir + QStringLiteral("/elsewhere");
+  CHECK(QDir().mkpath(other_dir));
+  const auto relink_path = write_linked_test_png(other_dir + QStringLiteral("/art2.png"), QColor(30, 60, 220, 255));
+  patchy::ui::MainWindowTestAccess::relink_smart_object_contents_with_path(window, relink_path);
+  QApplication::processEvents();
+  CHECK(QFileInfo(patchy::ui::MainWindowTestAccess::relink_dialog_initial_path(window)) == QFileInfo(other_dir));
+
+  // Per app session: another window (a fresh process in practice) starts at the usual folder.
+  patchy::ui::MainWindow fresh;
+  show_window(fresh);
+  CHECK(patchy::ui::MainWindowTestAccess::relink_dialog_initial_path(fresh) == default_start);
+}
+
+// GitHub issue 257, the reporter's file: ag-psd's animation-timeline test PSD links an mp3 the
+// reader cannot find. Opening it lists the link in the Missing Linked Files dialog.
+void ui_smart_object_ag_psd_animation_timeline_reports_missing_link_if_available() {
+  const auto psd_path = patchy::ui::to_qstring(
+      patchy::test::local_format_fixture_path("ag-psd/animation-timeline", "src.psd"));
+  if (!QFileInfo::exists(psd_path)) {
+    patchy::test::skip("optional fixture missing: " +
+                       patchy::test::fixture_display_path(patchy::ui::to_filesystem_path(psd_path)));
+  }
+  SettingsValueRestorer restorer(QStringLiteral("imports/showMissingLinksDialog"));
+  patchy::ui::app_settings().setValue(QStringLiteral("imports/showMissingLinksDialog"), true);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto seen = std::make_shared<int>(0);
+  handle_missing_links_dialog(
+      [](QDialog& dialog) {
+        auto* name = dialog.findChild<QLabel*>(QStringLiteral("missingLinkName0"));
+        auto* detail = dialog.findChild<QLabel*>(QStringLiteral("missingLinkDetail0"));
+        CHECK(name != nullptr && !name->text().isEmpty());
+        CHECK(detail != nullptr && detail->text().contains(QStringLiteral("Used by")));
+        std::cout << "[INFO] missing link: " << (name != nullptr ? name->text().toStdString() : std::string())
+                  << " / " << (detail != nullptr ? detail->text().toStdString() : std::string()) << "\n";
+        save_widget_artifact("ui_smart_object_ag_psd_missing_links_dialog", dialog);
+        dialog.findChild<QPushButton*>(QStringLiteral("missingLinksContinueButton"))->click();
+      },
+      seen);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, psd_path);
+  process_events_for(200);
+  CHECK(*seen == 1);
+  CHECK(window.statusBar()->currentMessage().contains(QStringLiteral("was not found")));
+}
+
 void ui_smart_object_missing_linked_file_is_reported_and_relinks() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -3161,6 +3492,7 @@ std::vector<patchy::test::TestCase> smart_object_tests() {
       {"ui_smart_object_paint_prompt_locked_omits_edit_contents",
        ui_smart_object_paint_prompt_locked_omits_edit_contents},
       {"ui_layer_smart_object_badge_shows_linked_variant", ui_layer_smart_object_badge_shows_linked_variant},
+      {"ui_layer_smart_object_badge_click_keeps_panel_scroll", ui_layer_smart_object_badge_click_keeps_panel_scroll},
       {"ui_smart_object_edit_contents_commit_rerenders_parent",
        ui_smart_object_edit_contents_commit_rerenders_parent},
       {"ui_smart_object_locked_refusal_and_parent_close_prompt",
@@ -3195,6 +3527,12 @@ std::vector<patchy::test::TestCase> smart_object_tests() {
       {"ui_smart_object_stale_linked_file_noticed_on_open",
        ui_smart_object_stale_linked_file_noticed_on_open},
       {"ui_smart_object_relink_and_embed_linked_work", ui_smart_object_relink_and_embed_linked_work},
+      {"ui_smart_object_missing_linked_files_dialog_lists_and_relinks",
+       ui_smart_object_missing_linked_files_dialog_lists_and_relinks},
+      {"ui_smart_object_relink_remembers_folder_for_the_session",
+       ui_smart_object_relink_remembers_folder_for_the_session},
+      {"ui_smart_object_ag_psd_animation_timeline_reports_missing_link_if_available",
+       ui_smart_object_ag_psd_animation_timeline_reports_missing_link_if_available},
       {"ui_smart_object_place_linked_links_the_file", ui_smart_object_place_linked_links_the_file},
       {"ui_smart_object_placed_svg_is_vector_contents", ui_smart_object_placed_svg_is_vector_contents},
       {"ui_smart_object_linked_svg_child_saves_vectors_without_warning",

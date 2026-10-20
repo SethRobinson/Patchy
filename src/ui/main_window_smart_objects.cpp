@@ -11,6 +11,7 @@
 #include <QStatusBar>
 #include "ui/canvas_widget.hpp"
 #include "ui/main_window_shared.hpp"
+#include "ui/app_settings.hpp"
 
 #include "core/layer_metadata.hpp"
 #include "core/smart_object.hpp"
@@ -28,6 +29,7 @@
 #include "ui/edit_conversions.hpp"
 #include "ui/layer_list_widget.hpp"
 #include "ui/localization.hpp"
+#include "ui/missing_links_dialog.hpp"
 #include "ui/smart_object_render.hpp"
 #include "ui/tile_preview_window.hpp"
 #include "ui/update_checker.hpp"
@@ -918,12 +920,126 @@ void MainWindow::relink_smart_object_contents() {
     return;
   }
   const auto path = get_open_file_name(
-      this, tr("Relink to File"), file_dialog_initial_path(QString(), QString()),
+      this, tr("Relink to File"), relink_dialog_initial_path(),
       tr("Embeddable Files (*.psd *.psb *.png *.jpg *.jpeg *.tif *.tiff *.bmp *.svg *.svgz);;All Files (*.*)"),
       nullptr, QStringLiteral("relinkSmartObjectFileDialog"));
   if (!path.isEmpty()) {
     relink_smart_object_contents_with_path(path);
   }
+}
+
+QString MainWindow::relink_dialog_initial_path() const {
+  return last_relink_directory_.isEmpty() ? file_dialog_initial_path(QString(), QString())
+                                          : last_relink_directory_;
+}
+
+namespace {
+
+// Persisted settings key (never rename): whether an interactive open shows the Missing Linked
+// Files dialog.
+constexpr auto kShowMissingLinksDialogKey = "imports/showMissingLinksDialog";
+
+// Every linked smart object layer placed from `source_uuid`, top of the stack first (the order
+// the Layers panel lists them), hidden layers and layers inside groups included.
+void collect_layers_linked_to_source(const std::vector<Layer>& layers, const std::string& source_uuid,
+                                     std::vector<const Layer*>& found) {
+  for (auto it = layers.rbegin(); it != layers.rend(); ++it) {
+    const auto& layer = *it;
+    if (layer_is_smart_object(layer) && smart_object_lock_reason(layer) == "external" &&
+        smart_object_source_uuid(layer) == source_uuid) {
+      found.push_back(&layer);
+    }
+    if (!layer.children().empty()) {
+      collect_layers_linked_to_source(layer.children(), source_uuid, found);
+    }
+  }
+}
+
+}  // namespace
+
+void MainWindow::show_missing_linked_files_dialog(bool on_open) {
+  if (canvas_ == nullptr || !has_active_document() || preview_dialog_edit_locked()) {
+    return;
+  }
+  auto settings = app_settings();
+  const bool show_on_open = settings.value(QLatin1String(kShowMissingLinksDialogKey), true).toBool();
+  if (on_open && (unattended_automation() || !show_on_open)) {
+    return;
+  }
+  const auto& doc = std::as_const(document());
+  const auto document_dir = session().path.isEmpty() ? QString() : QFileInfo(session().path).absolutePath();
+  std::vector<MissingLinkEntry> entries;
+  for (const auto& block : doc.metadata().smart_objects.blocks) {
+    for (const auto& source : block.sources) {
+      if (source.kind != SmartObjectSourceKind::ExternalFile ||
+          resolve_smart_object_external_path(source, document_dir).has_value()) {
+        continue;
+      }
+      std::vector<const Layer*> layers;
+      collect_layers_linked_to_source(doc.layers(), source.uuid, layers);
+      if (layers.empty()) {
+        continue;  // an orphaned element: nothing to relink, and the writer leaves it out
+      }
+      MissingLinkEntry entry;
+      entry.source_uuid = source.uuid;
+      entry.file_name = QString::fromStdString(source.filename);
+      entry.stored_path = QString::fromStdString(
+          !source.external_original_path.empty() ? source.external_original_path
+          : !source.external_rel_path.empty()    ? source.external_rel_path
+                                                 : source.external_full_path);
+      for (const auto* layer : layers) {
+        entry.layer_names.push_back(QString::fromStdString(layer->name()));
+      }
+      entries.push_back(std::move(entry));
+    }
+  }
+  if (entries.empty()) {
+    if (!on_open) {
+      statusBar()->showMessage(tr("This document has no missing linked files"));
+    }
+    return;
+  }
+  const auto result = run_missing_links_dialog(
+      this, entries, show_on_open, [this](const MissingLinkEntry& entry) -> std::optional<QString> {
+        const auto path = get_open_file_name(
+            this, tr("Relink to File"), relink_dialog_initial_path(),
+            tr("Embeddable Files (*.psd *.psb *.png *.jpg *.jpeg *.tif *.tiff *.bmp *.svg *.svgz);;All Files (*.*)"),
+            nullptr, QStringLiteral("relinkSmartObjectFileDialog"));
+        if (path.isEmpty()) {
+          return std::nullopt;
+        }
+        return relink_missing_smart_object_source(entry.source_uuid, path);
+      });
+  if (result.show_on_open != show_on_open) {
+    settings.setValue(QLatin1String(kShowMissingLinksDialogKey), result.show_on_open);
+  }
+  if (result.relinked > 0) {
+    statusBar()->showMessage(tr("Relinked %n smart object file(s)", nullptr, result.relinked));
+  }
+}
+
+std::optional<QString> MainWindow::relink_missing_smart_object_source(const std::string& source_uuid,
+                                                                      const QString& path) {
+  if (!has_active_document()) {
+    return std::nullopt;
+  }
+  std::vector<const Layer*> layers;
+  collect_layers_linked_to_source(std::as_const(document()).layers(), source_uuid, layers);
+  if (layers.empty()) {
+    return std::nullopt;
+  }
+  // Relink to File works on the active layer and repoints every layer sharing the element.
+  const auto target = layers.front()->id();
+  if (document().active_layer_id() != target) {
+    document().set_active_layer(target);
+    refresh_layer_list();
+  }
+  relink_smart_object_contents_with_path(path);
+  // A refused relink (unreadable file, undecodable contents) leaves the old element in place.
+  if (std::as_const(document()).metadata().smart_objects.find(source_uuid) != nullptr) {
+    return std::nullopt;
+  }
+  return QFileInfo(path).fileName();
 }
 
 void MainWindow::relink_smart_object_contents_with_path(const QString& path) {
@@ -1061,6 +1177,7 @@ void MainWindow::relink_smart_object_contents_with_path(const QString& path) {
   refresh_layer_controls();
   canvas_->document_changed();
   statusBar()->showMessage(tr("Relinked smart object to %1").arg(info.fileName()));
+  last_relink_directory_ = info.absolutePath();
 }
 
 void MainWindow::embed_linked_smart_object() {

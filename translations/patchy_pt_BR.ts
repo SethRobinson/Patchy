@@ -11436,17 +11436,105 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation> (Quantidade %1, zoom, qualidade %2)</translation>
     </message>
     <message>
+        <source>Effect visible. Click to hide.</source>
+        <translation>Efeito visível. Clique para ocultar.</translation>
+    </message>
+    <message>
+        <source>Effect hidden. Click to show.</source>
+        <translation>Efeito oculto. Clique para mostrar.</translation>
+    </message>
+    <message>
+        <source>Edit this effect in the Layer Style dialog</source>
+        <translation>Editar este efeito na caixa de diálogo Estilo de camada</translation>
+    </message>
+    <message>
+        <source>Missing Linked Files</source>
+        <translation>Arquivos vinculados ausentes</translation>
+    </message>
+    <message>
+        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
+        <translation>Estes objetos inteligentes vinculados apontam para arquivos que o Patchy não encontra. Vincule cada um novamente a um arquivo agora, ou continue com as visualizações armazenadas e use depois Camada &gt; Objetos inteligentes &gt; Vincular novamente ao arquivo...</translation>
+    </message>
+    <message>
+        <source>Relink...</source>
+        <translation>Vincular novamente...</translation>
+    </message>
+    <message>
+        <source>Used by layer &quot;%1&quot;</source>
+        <translation>Usado pela camada &quot;%1&quot;</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used by %n layers: %1</source>
+        <translation>
+            <numerusform>Usado por %n camada: %1</numerusform>
+            <numerusform>Usado por %n camadas: %1</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Relinked to %1</source>
+        <translation>Vinculado novamente a %1</translation>
+    </message>
+    <message>
+        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
+        <translation>Os arquivos ausentes continuam aparecendo na barra de status. As Preferências podem reativar esta caixa de diálogo para documentos abertos.</translation>
+    </message>
+    <message>
+        <source>Portable Anymap Image</source>
+        <translation>Imagem Portable Anymap</translation>
+    </message>
+    <message>
+        <source>%1 and more</source>
+        <extracomment>Open-dialog file type row: %1 is a short list of *.ext patterns</extracomment>
+        <translation>%1 e mais</translation>
+    </message>
+    <message>
+        <source>The layer is locked, so its layer styles cannot be changed here.</source>
+        <translation>A camada está bloqueada, então seus estilos de camada não podem ser alterados aqui.</translation>
+    </message>
+    <message>
+        <source>Collapse the layer style rows</source>
+        <translation>Recolher as linhas de estilos de camada</translation>
+    </message>
+    <message>
+        <source>Expand the layer style rows</source>
+        <translation>Expandir as linhas de estilos de camada</translation>
+    </message>
+    <message>
+        <source>Layer styles visible. Click to hide them all.</source>
+        <translation>Estilos de camada visíveis. Clique para ocultar todos.</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden. Click to show them.</source>
+        <translation>Estilos de camada ocultos. Clique para mostrar.</translation>
+    </message>
+    <message>
+        <source>Layer Styles</source>
+        <translation>Estilos de camada</translation>
+    </message>
+    <message>
+        <source>Effect on, but the layer styles are hidden. Click to turn it off.</source>
+        <translation>Efeito ativado, mas os estilos de camada estão ocultos. Clique para desativá-lo.</translation>
+    </message>
+    <message>
+        <source>Effect off, and the layer styles are hidden. Click to turn it on.</source>
+        <translation>Efeito desativado, e os estilos de camada estão ocultos. Clique para ativá-lo.</translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog; right-click for its menu.</source>
+        <translation>Clique duas vezes para editar este efeito na caixa de diálogo Estilo de camada; clique com o botão direito para o menu.</translation>
+    </message>
+    <message>
+        <source>Sharpen Edges</source>
+        <comment>Smart Filter</comment>
+        <translation>Nitidez nas bordas</translation>
+    </message>
+    <message>
         <source>Smart Sharpen</source>
         <translation>Nitidez inteligente</translation>
     </message>
     <message>
         <source> (Amount %1%, Radius %2 px, Legacy)</source>
         <translation> (Intensidade %1%, Raio %2 px, Legado)</translation>
-    </message>
-    <message>
-        <source>Sharpen Edges</source>
-        <comment>Smart Filter</comment>
-        <translation>Nitidez nas bordas</translation>
     </message>
 </context>
 <context>
@@ -23198,6 +23286,77 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
     <message>
         <source>Cancelled Vibrance</source>
         <translation>Vibratilidade cancelada</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
+        <translation>Mude para a ferramenta Prancheta para adicionar, redimensionar ou duplicar pranchetas</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
+        <translation>Mude para a ferramenta Prancheta (%1) para adicionar, redimensionar ou duplicar pranchetas</translation>
+    </message>
+    <message>
+        <source>Show %1</source>
+        <translation>Mostrar %1</translation>
+    </message>
+    <message>
+        <source>Hide %1</source>
+        <translation>Ocultar %1</translation>
+    </message>
+    <message>
+        <source>%1 shown</source>
+        <translation>%1 mostrado</translation>
+    </message>
+    <message>
+        <source>%1 hidden</source>
+        <translation>%1 oculto</translation>
+    </message>
+    <message>
+        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
+        <translation>Mostrar a caixa de diálogo Arquivos vinculados ausentes ao abrir um documento com arquivos vinculados ausentes</translation>
+    </message>
+    <message>
+        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
+        <translation>Camada &gt; Objetos inteligentes &gt; Vincular novamente ao arquivo... repara um vínculo a qualquer momento.</translation>
+    </message>
+    <message>
+        <source>This document has no missing linked files</source>
+        <translation>Este documento não tem arquivos vinculados ausentes</translation>
+    </message>
+    <message numerus="yes">
+        <source>Relinked %n smart object file(s)</source>
+        <translation>
+            <numerusform>%n arquivo de objeto inteligente vinculado novamente</numerusform>
+            <numerusform>%n arquivos de objetos inteligentes vinculados novamente</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Show Layer Styles</source>
+        <translation>Mostrar estilos de camada</translation>
+    </message>
+    <message>
+        <source>Hide Layer Styles</source>
+        <translation>Ocultar estilos de camada</translation>
+    </message>
+    <message>
+        <source>Layer styles shown</source>
+        <translation>Estilos de camada mostrados</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden</source>
+        <translation>Estilos de camada ocultos</translation>
+    </message>
+    <message>
+        <source>Delete %1</source>
+        <translation>Excluir %1</translation>
+    </message>
+    <message>
+        <source>%1 deleted</source>
+        <translation>%1 excluído</translation>
+    </message>
+    <message>
+        <source>Edit %1...</source>
+        <translation>Editar %1...</translation>
     </message>
     <message>
         <source>Smart Sharpen</source>

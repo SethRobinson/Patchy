@@ -11402,17 +11402,104 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation> (양 %1, 줌, %2 품질)</translation>
     </message>
     <message>
+        <source>Effect visible. Click to hide.</source>
+        <translation>효과가 표시됩니다. 숨기려면 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Effect hidden. Click to show.</source>
+        <translation>효과가 숨겨졌습니다. 표시하려면 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Edit this effect in the Layer Style dialog</source>
+        <translation>레이어 스타일 대화 상자에서 이 효과 편집</translation>
+    </message>
+    <message>
+        <source>Missing Linked Files</source>
+        <translation>누락된 연결 파일</translation>
+    </message>
+    <message>
+        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
+        <translation>이 연결된 스마트 개체는 Patchy가 찾을 수 없는 파일을 가리킵니다. 지금 각각을 파일에 다시 연결하거나, 저장된 미리보기로 계속한 뒤 나중에 레이어 &gt; 스마트 개체 &gt; 파일에 다시 연결...을 사용하세요.</translation>
+    </message>
+    <message>
+        <source>Relink...</source>
+        <translation>다시 연결...</translation>
+    </message>
+    <message>
+        <source>Used by layer &quot;%1&quot;</source>
+        <translation>레이어 &quot;%1&quot;에서 사용</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used by %n layers: %1</source>
+        <translation>
+            <numerusform>레이어 %n개에서 사용: %1</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Relinked to %1</source>
+        <translation>%1에 다시 연결됨</translation>
+    </message>
+    <message>
+        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
+        <translation>누락된 파일은 상태 표시줄에 계속 표시됩니다. 환경 설정에서 열린 문서에 대해 이 대화 상자를 다시 켤 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>Portable Anymap Image</source>
+        <translation>Portable Anymap 이미지</translation>
+    </message>
+    <message>
+        <source>%1 and more</source>
+        <extracomment>Open-dialog file type row: %1 is a short list of *.ext patterns</extracomment>
+        <translation>%1 외</translation>
+    </message>
+    <message>
+        <source>The layer is locked, so its layer styles cannot be changed here.</source>
+        <translation>레이어가 잠겨 있어 여기에서 레이어 스타일을 변경할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Collapse the layer style rows</source>
+        <translation>레이어 스타일 행 접기</translation>
+    </message>
+    <message>
+        <source>Expand the layer style rows</source>
+        <translation>레이어 스타일 행 펼치기</translation>
+    </message>
+    <message>
+        <source>Layer styles visible. Click to hide them all.</source>
+        <translation>레이어 스타일이 표시됩니다. 모두 숨기려면 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden. Click to show them.</source>
+        <translation>레이어 스타일이 숨겨졌습니다. 표시하려면 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Layer Styles</source>
+        <translation>레이어 스타일</translation>
+    </message>
+    <message>
+        <source>Effect on, but the layer styles are hidden. Click to turn it off.</source>
+        <translation>효과는 켜져 있지만 레이어 스타일이 숨겨져 있습니다. 끄려면 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Effect off, and the layer styles are hidden. Click to turn it on.</source>
+        <translation>효과가 꺼져 있고 레이어 스타일도 숨겨져 있습니다. 켜려면 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog; right-click for its menu.</source>
+        <translation>두 번 클릭하면 레이어 스타일 대화 상자에서 이 효과를 편집하고, 마우스 오른쪽 버튼을 클릭하면 메뉴가 열립니다.</translation>
+    </message>
+    <message>
+        <source>Sharpen Edges</source>
+        <comment>Smart Filter</comment>
+        <translation>가장자리 선명하게</translation>
+    </message>
+    <message>
         <source>Smart Sharpen</source>
         <translation>고급 선명 효과</translation>
     </message>
     <message>
         <source> (Amount %1%, Radius %2 px, Legacy)</source>
         <translation> (양 %1%, 반경 %2 px, 레거시)</translation>
-    </message>
-    <message>
-        <source>Sharpen Edges</source>
-        <comment>Smart Filter</comment>
-        <translation>가장자리 선명하게</translation>
     </message>
 </context>
 <context>
@@ -23128,6 +23215,76 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Vibrance</source>
         <translation>활기를 취소했습니다</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
+        <translation>대지를 추가, 크기 조정 또는 복제하려면 대지 도구로 전환하세요</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
+        <translation>대지를 추가, 크기 조정 또는 복제하려면 대지 도구(%1)로 전환하세요</translation>
+    </message>
+    <message>
+        <source>Show %1</source>
+        <translation>%1 표시</translation>
+    </message>
+    <message>
+        <source>Hide %1</source>
+        <translation>%1 숨기기</translation>
+    </message>
+    <message>
+        <source>%1 shown</source>
+        <translation>%1 표시됨</translation>
+    </message>
+    <message>
+        <source>%1 hidden</source>
+        <translation>%1 숨겨짐</translation>
+    </message>
+    <message>
+        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
+        <translation>연결 파일이 누락된 문서를 열 때 누락된 연결 파일 대화 상자 표시</translation>
+    </message>
+    <message>
+        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
+        <translation>레이어 &gt; 스마트 개체 &gt; 파일에 다시 연결...로 언제든지 연결을 복구할 수 있습니다.</translation>
+    </message>
+    <message>
+        <source>This document has no missing linked files</source>
+        <translation>이 문서에는 누락된 연결 파일이 없습니다</translation>
+    </message>
+    <message numerus="yes">
+        <source>Relinked %n smart object file(s)</source>
+        <translation>
+            <numerusform>스마트 개체 파일 %n개를 다시 연결했습니다</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Show Layer Styles</source>
+        <translation>레이어 스타일 표시</translation>
+    </message>
+    <message>
+        <source>Hide Layer Styles</source>
+        <translation>레이어 스타일 숨기기</translation>
+    </message>
+    <message>
+        <source>Layer styles shown</source>
+        <translation>레이어 스타일이 표시됨</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden</source>
+        <translation>레이어 스타일이 숨겨짐</translation>
+    </message>
+    <message>
+        <source>Delete %1</source>
+        <translation>%1 삭제</translation>
+    </message>
+    <message>
+        <source>%1 deleted</source>
+        <translation>%1 삭제됨</translation>
+    </message>
+    <message>
+        <source>Edit %1...</source>
+        <translation>%1 편집...</translation>
     </message>
     <message>
         <source>Smart Sharpen</source>

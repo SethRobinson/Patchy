@@ -28,6 +28,7 @@
 #include "ui/options_flow_layout.hpp"
 
 #include "core/blend_math.hpp"
+#include "core/artboard.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/smart_object.hpp"
 #include "core/layer_render_utils.hpp"
@@ -116,6 +117,7 @@
 #include <QTableWidgetItem>
 #include <QTextEdit>
 #include <QTimer>
+#include <QMenu>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -132,8 +134,10 @@
 #include <numeric>
 #include <functional>
 #include <exception>
+#include <condition_variable>
 #include <future>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <qlatin1stringview.h>
 #include <unordered_set>
@@ -648,6 +652,29 @@ std::optional<Load> take_preloaded(std::future<Load>& future) {
   }
 }
 
+// MainWindow::hold_pattern_preload_for_tests: the pattern worker waits on this before it
+// publishes its result; the window releases it when it asks for the library.
+struct PatternPreloadHold {
+  std::mutex mutex;
+  std::condition_variable released_cv;
+  bool released{false};
+
+  void release() {
+    {
+      const std::lock_guard<std::mutex> lock(mutex);
+      released = true;
+    }
+    released_cv.notify_all();
+  }
+
+  void wait() {
+    std::unique_lock<std::mutex> lock(mutex);
+    released_cv.wait(lock, [this] { return released; });
+  }
+};
+
+std::shared_ptr<PatternPreloadHold> pattern_preload_hold_for_tests;  // GUI thread only
+
 }  // namespace
 
 struct StartupLibraryPreloads {
@@ -661,11 +688,23 @@ struct StartupLibraryPreloads {
     if (brush_tips.valid()) {
       brush_tips.wait();
     }
+    if (pattern_hold != nullptr) {
+      pattern_hold->release();
+    }
     if (patterns.valid()) {
       patterns.wait();
     }
   }
+
+  std::shared_ptr<PatternPreloadHold> pattern_hold;  // the test hold this worker waits on, if any
 };
+
+void MainWindow::hold_pattern_preload_for_tests(bool hold) {
+  if (pattern_preload_hold_for_tests != nullptr) {
+    pattern_preload_hold_for_tests->release();
+  }
+  pattern_preload_hold_for_tests = hold ? std::make_shared<PatternPreloadHold>() : nullptr;
+}
 
 // Called first in the constructor: the tips are needed by the options bar a few milliseconds
 // later, the patterns only when the Pattern Stamp list, a pattern fill, or a document needs
@@ -683,11 +722,17 @@ void MainWindow::start_library_preloads() {
       stored_default_asset_version(app_settings(), QStringLiteral("patterns/defaultPatternsVersion"));
   auto* app = QCoreApplication::instance();
   QPointer<MainWindow> window(this);
+  library_preloads_->pattern_hold = pattern_preload_hold_for_tests;
   library_preloads_->patterns = start_preload<PatternLibraryLoad>(
-      [directory = PatternLibrary::resolved_storage_dir(), patterns_version] {
-        return PatternLibrary::load_off_gui_thread(directory, [patterns_version](PatternLibrary& library) {
+      [directory = PatternLibrary::resolved_storage_dir(), patterns_version,
+       hold = library_preloads_->pattern_hold] {
+        auto load = PatternLibrary::load_off_gui_thread(directory, [patterns_version](PatternLibrary& library) {
           return seed_default_patterns(library, patterns_version);
         });
+        if (hold != nullptr) {
+          hold->wait();
+        }
+        return load;
       },
       [app, window] {
         QMetaObject::invokeMethod(
@@ -739,6 +784,9 @@ PatternLibrary& MainWindow::pattern_library() {
         stored_default_asset_version(settings, QStringLiteral("patterns/defaultPatternsVersion"));
     std::optional<PatternLibraryLoad> preloaded;
     if (library_preloads_ != nullptr) {
+      if (library_preloads_->pattern_hold != nullptr) {
+        library_preloads_->pattern_hold->release();
+      }
       preloaded = take_preloaded(library_preloads_->patterns);
     }
     const int preseeded = preloaded.has_value() ? preloaded->prepared : 0;
@@ -1113,6 +1161,11 @@ void MainWindow::set_active_layer_from_selection() {
     canvas_->set_selected_layer_ids(selected_ids);
   }
   report_layer_selection_count(selected_ids);
+  if (selected_ids.size() == 1U) {
+    if (const auto* layer = document().find_layer(selected_ids.front()); layer != nullptr && layer_is_artboard(*layer)) {
+      show_artboard_tool_hint_for_move_tool();
+    }
+  }
   // A pure multi-selection change (same active layer) still decides whether
   // Combine Shapes applies.
   refresh_combine_shapes_action_states();
@@ -1781,7 +1834,68 @@ constexpr std::array<SelectionEdgeSettingKeys, 7> kSelectionEdgeSettingKeys{{
     {CanvasTool::ObjectSelect, "tools/objectSelectFeather", "tools/objectSelectAntiAlias"},
 }};
 
+// A stored number, clamped to the control's range; a missing key or one that does not
+// parse as a number (a hand-edited ini) reads as the default (GitHub issue 254).
+int stored_int(const QSettings& settings, const char* key, int fallback, int minimum, int maximum) {
+  const auto value = settings.value(QLatin1String(key));
+  bool ok = false;
+  const int number = value.toInt(&ok);
+  return ok ? std::clamp(number, minimum, maximum) : fallback;
+}
+
+// A stored flag; only the forms QSettings writes (true/false, 1/0) count, anything else
+// reads as the default.
+bool stored_bool(const QSettings& settings, const char* key, bool fallback) {
+  const auto text = settings.value(QLatin1String(key)).toString().trimmed().toLower();
+  if (text == QLatin1String("true") || text == QLatin1String("1")) {
+    return true;
+  }
+  if (text == QLatin1String("false") || text == QLatin1String("0")) {
+    return false;
+  }
+  return fallback;
+}
+
+// Permanent identifier: the active tool on the next launch (docs/tool-options.md).
+constexpr auto kActiveToolSettingsKey = "tools/activeTool";
+
 }  // namespace
+
+void MainWindow::restore_startup_tool_selection() {
+  if (tool_action_group_ == nullptr) {
+    return;
+  }
+  const auto token = app_settings().value(QLatin1String(kActiveToolSettingsKey)).toString();
+  if (token.isEmpty()) {
+    return;
+  }
+  for (auto* action : tool_action_group_->actions()) {
+    const auto tool = static_cast<CanvasTool>(action->data().toInt());
+    if (tool_hotkey_id(tool) != token) {
+      continue;
+    }
+    if (tool == CanvasTool::Brush) {
+      return;  // the palette's built-in default
+    }
+    // Without a document the tool actions are disabled, so trigger() would be ignored
+    // and the group handler needs a canvas anyway: check the button and give the
+    // flyout the member's face by hand; load_tool_settings activates the tool for
+    // real when the first canvas arrives.
+    action->setChecked(true);
+    current_tool_ = tool;
+    for (auto* button : findChildren<QToolButton*>()) {
+      auto* menu = button->menu();
+      if (!button->property("toolFlyout").toBool() || menu == nullptr || !menu->actions().contains(action)) {
+        continue;
+      }
+      button->setDefaultAction(action);
+      button->setMenu(menu);
+      button->setToolTip(action->toolTip());
+    }
+    refresh_options_bar();
+    return;
+  }
+}
 
 void MainWindow::activate_tool(CanvasTool tool) {
   if (tool_action_group_ == nullptr) {
@@ -1800,22 +1914,39 @@ void MainWindow::load_tool_settings() {
     return;
   }
   auto settings = app_settings();
-  // Standard Brush tip, opacity, flow, Airbrush, and softness are deliberately not
-  // restored: every launch starts from the Round startup preset (round tip,
-  // 100% opacity, 100% flow, Airbrush off, 0% soft) so a leftover bitmap tip or
-  // a barely-visible paint rate cannot leave the brush in a confusing state.
-  // The eraser resets the same way; only its size is kept across restarts.
+  // The Brush bar comes back as it was left (GitHub issue 254, like Photoshop's tool
+  // options): size, opacity, flow, Airbrush, Soft, the tip and the preset row, with the
+  // Round startup preset as the default for every missing or malformed key. The Eraser
+  // keeps its own size, opacity and Soft. A stored tip the library no longer holds falls
+  // back to Round inside set_active_brush_tip; the tip's imported ABR flow and Airbrush
+  // are not re-applied over the stored values.
+  BrushToolSettings defaults{};
   if (const auto* preset = find_brush_preset(default_startup_brush_preset_id()); preset != nullptr) {
-    stored_paint_brush_settings_ =
-        BrushToolSettings{preset->size, preset->opacity, preset->flow, preset->softness,
-                          preset->build_up};
-  } else {
-    stored_paint_brush_settings_ = BrushToolSettings{};
+    defaults = BrushToolSettings{preset->size, preset->opacity, preset->flow, preset->softness, preset->build_up};
   }
-  stored_eraser_brush_settings_ = stored_paint_brush_settings_;
-  stored_eraser_brush_settings_.size =
-      settings.value(QStringLiteral("tools/eraserSize"), stored_paint_brush_settings_.size).toInt();
-  set_active_brush_tip(builtin_round_brush_tip_id(), false);
+  stored_paint_brush_settings_ = BrushToolSettings{
+      stored_int(settings, "tools/brushSize", defaults.size, 1, kMaxBrushSize),
+      stored_int(settings, "tools/brushOpacity", defaults.opacity, 0, 100),
+      stored_int(settings, "tools/brushFlow", defaults.flow, 0, 100),
+      stored_int(settings, "tools/brushSoftness", defaults.softness, 0, 100),
+      stored_bool(settings, "tools/brushAirbrush", defaults.airbrush)};
+  stored_eraser_brush_settings_ = defaults;
+  stored_eraser_brush_settings_.size = stored_int(settings, "tools/eraserSize", defaults.size, 1, kMaxBrushSize);
+  stored_eraser_brush_settings_.opacity = stored_int(settings, "tools/eraserOpacity", defaults.opacity, 0, 100);
+  stored_eraser_brush_settings_.softness =
+      stored_int(settings, "tools/eraserSoftness", defaults.softness, 0, 100);
+  set_active_brush_tip(settings.value(QStringLiteral("tools/brushTip")).toString(), false,
+                       /*apply_tool_settings=*/false);
+  if (brush_preset_combo_ != nullptr) {
+    // The preset row names the preset last picked; its values come from the keys above.
+    const auto preset_id = settings.value(QStringLiteral("tools/brushPreset")).toString();
+    if (const auto index = brush_preset_combo_->findData(preset_id);
+        index >= 0 && find_brush_preset(preset_id) != nullptr) {
+      const QSignalBlocker blocker(brush_preset_combo_);
+      brush_preset_combo_->setCurrentIndex(index);
+      brush_preset_combo_->setProperty("lastBrushPresetId", preset_id);
+    }
+  }
   apply_active_brush_settings_to_canvas();
   current_mixer_wet_ =
       std::clamp(settings.value(QStringLiteral("tools/mixerWet"), current_mixer_wet_).toInt(), 0, 100);
@@ -1875,6 +2006,20 @@ void MainWindow::load_tool_settings() {
     }
   }
   apply_selection_edge_settings_for_tool(current_tool_);
+  current_marquee_corner_radius_ =
+      stored_int(settings, "tools/marqueeCornerRadius", current_marquee_corner_radius_, 0, 512);
+  canvas_->set_marquee_corner_radius(current_marquee_corner_radius_);
+  if (auto* corner_radius = findChild<QSpinBox*>(QStringLiteral("selectionCornerRadiusSpin"));
+      corner_radius != nullptr) {
+    const QSignalBlocker blocker(corner_radius);
+    corner_radius->setValue(current_marquee_corner_radius_);
+  }
+  current_fill_shapes_ = stored_bool(settings, "tools/shapeFill", current_fill_shapes_);
+  canvas_->set_fill_shapes(current_fill_shapes_);
+  if (auto* fill_shapes = findChild<QCheckBox*>(QStringLiteral("shapeFillCheck")); fill_shapes != nullptr) {
+    const QSignalBlocker blocker(fill_shapes);
+    fill_shapes->setChecked(current_fill_shapes_);
+  }
   canvas_->set_quick_select_size(
       settings.value(QStringLiteral("tools/quickSelectSize"), canvas_->quick_select_size()).toInt());
   canvas_->set_quick_select_sample_all_layers(
@@ -2205,7 +2350,9 @@ void MainWindow::schedule_save_tool_settings() {
 }
 
 void MainWindow::save_tool_settings() const {
-  if (canvas_ == nullptr) {
+  // Nothing to save before the stored values were read: a save here would write the
+  // defaults donor's values over them (startup_tool_settings_pending_).
+  if (canvas_ == nullptr || startup_tool_settings_pending_) {
     return;
   }
   // An explicit save captures the current state, so drop any debounced one
@@ -2214,12 +2361,30 @@ void MainWindow::save_tool_settings() const {
     tool_settings_save_timer_->stop();
   }
   auto settings = app_settings();
-  // Standard Brush tip/opacity/flow/Airbrush/softness (and the paint brush size) reset to
-  // the Round startup preset on every launch (see load_tool_settings()), so the
-  // eraser size is the only brush value worth persisting.
-  const auto eraser_size =
-      eraser_brush_settings_active_ ? canvas_->brush_size() : stored_eraser_brush_settings_.size;
-  settings.setValue(QStringLiteral("tools/eraserSize"), eraser_size);
+  settings.setValue(QLatin1String(kActiveToolSettingsKey), tool_hotkey_id(current_tool_));
+  // The canvas holds the set the active tool uses; the other set is the stashed one.
+  const BrushToolSettings live{canvas_->brush_size(), canvas_->brush_opacity(), canvas_->brush_flow(),
+                               canvas_->brush_softness(), canvas_->brush_build_up()};
+  const auto& paint = eraser_brush_settings_active_ ? stored_paint_brush_settings_ : live;
+  const auto& eraser = eraser_brush_settings_active_ ? live : stored_eraser_brush_settings_;
+  settings.setValue(QStringLiteral("tools/brushSize"), paint.size);
+  settings.setValue(QStringLiteral("tools/brushOpacity"), paint.opacity);
+  settings.setValue(QStringLiteral("tools/brushFlow"), paint.flow);
+  settings.setValue(QStringLiteral("tools/brushSoftness"), paint.softness);
+  settings.setValue(QStringLiteral("tools/brushAirbrush"), paint.airbrush);
+  settings.setValue(QStringLiteral("tools/eraserSize"), eraser.size);
+  settings.setValue(QStringLiteral("tools/eraserOpacity"), eraser.opacity);
+  settings.setValue(QStringLiteral("tools/eraserSoftness"), eraser.softness);
+  settings.setValue(QStringLiteral("tools/brushTip"), active_brush_tip_id_);
+  if (brush_preset_combo_ != nullptr) {
+    // Built-in presets only: an automation brush is a library object of its own.
+    const auto preset_id = brush_preset_combo_->property("lastBrushPresetId").toString();
+    if (find_brush_preset(preset_id) != nullptr) {
+      settings.setValue(QStringLiteral("tools/brushPreset"), preset_id);
+    }
+  }
+  settings.setValue(QStringLiteral("tools/marqueeCornerRadius"), current_marquee_corner_radius_);
+  settings.setValue(QStringLiteral("tools/shapeFill"), current_fill_shapes_);
   settings.setValue(QStringLiteral("tools/mixerWet"), current_mixer_wet_);
   settings.setValue(QStringLiteral("tools/mixerLoad"), current_mixer_load_);
   settings.setValue(QStringLiteral("tools/mixerMix"), current_mixer_mix_);

@@ -11470,17 +11470,106 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation> (Количество %1, Линейный, Качество %2)</translation>
     </message>
     <message>
+        <source>Effect visible. Click to hide.</source>
+        <translation>Эффект виден. Нажмите, чтобы скрыть.</translation>
+    </message>
+    <message>
+        <source>Effect hidden. Click to show.</source>
+        <translation>Эффект скрыт. Нажмите, чтобы показать.</translation>
+    </message>
+    <message>
+        <source>Edit this effect in the Layer Style dialog</source>
+        <translation>Изменить этот эффект в диалоге «Стиль слоя»</translation>
+    </message>
+    <message>
+        <source>Missing Linked Files</source>
+        <translation>Отсутствующие связанные файлы</translation>
+    </message>
+    <message>
+        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
+        <translation>Эти связанные смарт-объекты ссылаются на файлы, которые Patchy не может найти. Свяжите каждый из них с файлом сейчас или продолжите с сохранёнными превью и позже используйте Слой &gt; Смарт-объекты &gt; Связать с другим файлом...</translation>
+    </message>
+    <message>
+        <source>Relink...</source>
+        <translation>Связать заново...</translation>
+    </message>
+    <message>
+        <source>Used by layer &quot;%1&quot;</source>
+        <translation>Используется слоем «%1»</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used by %n layers: %1</source>
+        <translation>
+            <numerusform>Используется %n слоем: %1</numerusform>
+            <numerusform>Используется %n слоями: %1</numerusform>
+            <numerusform>Используется %n слоями: %1</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Relinked to %1</source>
+        <translation>Связано с %1</translation>
+    </message>
+    <message>
+        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
+        <translation>Отсутствующие файлы по-прежнему показываются в строке состояния. В настройках этот диалог можно снова включить для открываемых документов.</translation>
+    </message>
+    <message>
+        <source>Portable Anymap Image</source>
+        <translation>Изображение Portable Anymap</translation>
+    </message>
+    <message>
+        <source>%1 and more</source>
+        <extracomment>Open-dialog file type row: %1 is a short list of *.ext patterns</extracomment>
+        <translation>%1 и более</translation>
+    </message>
+    <message>
+        <source>The layer is locked, so its layer styles cannot be changed here.</source>
+        <translation>Слой заблокирован, поэтому его стили слоя здесь изменить нельзя.</translation>
+    </message>
+    <message>
+        <source>Collapse the layer style rows</source>
+        <translation>Свернуть строки стилей слоя</translation>
+    </message>
+    <message>
+        <source>Expand the layer style rows</source>
+        <translation>Развернуть строки стилей слоя</translation>
+    </message>
+    <message>
+        <source>Layer styles visible. Click to hide them all.</source>
+        <translation>Стили слоя видны. Нажмите, чтобы скрыть все.</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden. Click to show them.</source>
+        <translation>Стили слоя скрыты. Нажмите, чтобы показать.</translation>
+    </message>
+    <message>
+        <source>Layer Styles</source>
+        <translation>Стили слоя</translation>
+    </message>
+    <message>
+        <source>Effect on, but the layer styles are hidden. Click to turn it off.</source>
+        <translation>Эффект включён, но стили слоя скрыты. Нажмите, чтобы выключить его.</translation>
+    </message>
+    <message>
+        <source>Effect off, and the layer styles are hidden. Click to turn it on.</source>
+        <translation>Эффект выключен, и стили слоя скрыты. Нажмите, чтобы включить его.</translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog; right-click for its menu.</source>
+        <translation>Дважды нажмите, чтобы изменить этот эффект в диалоге «Стиль слоя»; правая кнопка открывает его меню.</translation>
+    </message>
+    <message>
+        <source>Sharpen Edges</source>
+        <comment>Smart Filter</comment>
+        <translation>Резкость на краях</translation>
+    </message>
+    <message>
         <source>Smart Sharpen</source>
         <translation>Умная резкость</translation>
     </message>
     <message>
         <source> (Amount %1%, Radius %2 px, Legacy)</source>
         <translation> (Эффект %1%, Радиус %2 пикс., Прежний)</translation>
-    </message>
-    <message>
-        <source>Sharpen Edges</source>
-        <comment>Smart Filter</comment>
-        <translation>Резкость на краях</translation>
     </message>
 </context>
 <context>
@@ -23268,6 +23357,78 @@ Patchy можно будет запускать из меню, а на пане�
     <message>
         <source>Cancelled Vibrance</source>
         <translation>Сочность отменена</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
+        <translation>Переключитесь на инструмент «Монтажная область», чтобы добавлять, изменять размер или дублировать монтажные области</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
+        <translation>Переключитесь на инструмент «Монтажная область» (%1), чтобы добавлять, изменять размер или дублировать монтажные области</translation>
+    </message>
+    <message>
+        <source>Show %1</source>
+        <translation>Показать %1</translation>
+    </message>
+    <message>
+        <source>Hide %1</source>
+        <translation>Скрыть %1</translation>
+    </message>
+    <message>
+        <source>%1 shown</source>
+        <translation>%1: показано</translation>
+    </message>
+    <message>
+        <source>%1 hidden</source>
+        <translation>%1: скрыто</translation>
+    </message>
+    <message>
+        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
+        <translation>Показывать диалог «Отсутствующие связанные файлы» при открытии документа с отсутствующими связанными файлами</translation>
+    </message>
+    <message>
+        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
+        <translation>Слой &gt; Смарт-объекты &gt; Связать с другим файлом... восстанавливает связь в любое время.</translation>
+    </message>
+    <message>
+        <source>This document has no missing linked files</source>
+        <translation>В этом документе нет отсутствующих связанных файлов</translation>
+    </message>
+    <message numerus="yes">
+        <source>Relinked %n smart object file(s)</source>
+        <translation>
+            <numerusform>Связан заново %n файл смарт-объекта</numerusform>
+            <numerusform>Связаны заново %n файла смарт-объектов</numerusform>
+            <numerusform>Связано заново %n файлов смарт-объектов</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Show Layer Styles</source>
+        <translation>Показать стили слоя</translation>
+    </message>
+    <message>
+        <source>Hide Layer Styles</source>
+        <translation>Скрыть стили слоя</translation>
+    </message>
+    <message>
+        <source>Layer styles shown</source>
+        <translation>Стили слоя показаны</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden</source>
+        <translation>Стили слоя скрыты</translation>
+    </message>
+    <message>
+        <source>Delete %1</source>
+        <translation>Удалить %1</translation>
+    </message>
+    <message>
+        <source>%1 deleted</source>
+        <translation>%1: удалено</translation>
+    </message>
+    <message>
+        <source>Edit %1...</source>
+        <translation>Изменить %1...</translation>
     </message>
     <message>
         <source>Smart Sharpen</source>

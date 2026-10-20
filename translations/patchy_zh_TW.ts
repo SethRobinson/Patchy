@@ -11402,17 +11402,104 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation> （總量 %1，縮放，%2 品質）</translation>
     </message>
     <message>
+        <source>Effect visible. Click to hide.</source>
+        <translation>效果顯示中。按一下可隱藏。</translation>
+    </message>
+    <message>
+        <source>Effect hidden. Click to show.</source>
+        <translation>效果已隱藏。按一下可顯示。</translation>
+    </message>
+    <message>
+        <source>Edit this effect in the Layer Style dialog</source>
+        <translation>在「圖層樣式」對話方塊中編輯此效果</translation>
+    </message>
+    <message>
+        <source>Missing Linked Files</source>
+        <translation>遺失的連結檔案</translation>
+    </message>
+    <message>
+        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
+        <translation>這些連結的智慧型物件指向 Patchy 找不到的檔案。現在將每個物件重新連結至檔案，或先使用儲存的預覽繼續，稍後再使用「圖層 &gt; 智慧型物件 &gt; 重新連結至檔案...」。</translation>
+    </message>
+    <message>
+        <source>Relink...</source>
+        <translation>重新連結...</translation>
+    </message>
+    <message>
+        <source>Used by layer &quot;%1&quot;</source>
+        <translation>由圖層「%1」使用</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used by %n layers: %1</source>
+        <translation>
+            <numerusform>由 %n 個圖層使用：%1</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Relinked to %1</source>
+        <translation>已重新連結至 %1</translation>
+    </message>
+    <message>
+        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
+        <translation>遺失的檔案仍會顯示在狀態列中。可以在偏好設定中為開啟的文件重新啟用此對話方塊。</translation>
+    </message>
+    <message>
+        <source>Portable Anymap Image</source>
+        <translation>Portable Anymap 影像</translation>
+    </message>
+    <message>
+        <source>%1 and more</source>
+        <extracomment>Open-dialog file type row: %1 is a short list of *.ext patterns</extracomment>
+        <translation>%1 及其他</translation>
+    </message>
+    <message>
+        <source>The layer is locked, so its layer styles cannot be changed here.</source>
+        <translation>圖層已鎖定，無法在此處變更其圖層樣式。</translation>
+    </message>
+    <message>
+        <source>Collapse the layer style rows</source>
+        <translation>收合圖層樣式列</translation>
+    </message>
+    <message>
+        <source>Expand the layer style rows</source>
+        <translation>展開圖層樣式列</translation>
+    </message>
+    <message>
+        <source>Layer styles visible. Click to hide them all.</source>
+        <translation>圖層樣式顯示中。按一下可全部隱藏。</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden. Click to show them.</source>
+        <translation>圖層樣式已隱藏。按一下可顯示。</translation>
+    </message>
+    <message>
+        <source>Layer Styles</source>
+        <translation>圖層樣式</translation>
+    </message>
+    <message>
+        <source>Effect on, but the layer styles are hidden. Click to turn it off.</source>
+        <translation>效果已開啟，但圖層樣式已隱藏。按一下可關閉。</translation>
+    </message>
+    <message>
+        <source>Effect off, and the layer styles are hidden. Click to turn it on.</source>
+        <translation>效果已關閉，且圖層樣式已隱藏。按一下可開啟。</translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog; right-click for its menu.</source>
+        <translation>按兩下可在「圖層樣式」對話方塊中編輯此效果；按右鍵可開啟其選單。</translation>
+    </message>
+    <message>
+        <source>Sharpen Edges</source>
+        <comment>Smart Filter</comment>
+        <translation>銳利化邊緣</translation>
+    </message>
+    <message>
         <source>Smart Sharpen</source>
         <translation>智慧銳利化</translation>
     </message>
     <message>
         <source> (Amount %1%, Radius %2 px, Legacy)</source>
         <translation> （總量 %1%，半徑 %2 px，舊版）</translation>
-    </message>
-    <message>
-        <source>Sharpen Edges</source>
-        <comment>Smart Filter</comment>
-        <translation>銳利化邊緣</translation>
     </message>
 </context>
 <context>
@@ -23128,6 +23215,76 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Vibrance</source>
         <translation>已取消自然飽和度</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
+        <translation>切換到工作區域工具以新增、調整大小或複製工作區域</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
+        <translation>切換到工作區域工具 (%1) 以新增、調整大小或複製工作區域</translation>
+    </message>
+    <message>
+        <source>Show %1</source>
+        <translation>顯示%1</translation>
+    </message>
+    <message>
+        <source>Hide %1</source>
+        <translation>隱藏%1</translation>
+    </message>
+    <message>
+        <source>%1 shown</source>
+        <translation>已顯示%1</translation>
+    </message>
+    <message>
+        <source>%1 hidden</source>
+        <translation>已隱藏%1</translation>
+    </message>
+    <message>
+        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
+        <translation>開啟缺少連結檔案的文件時顯示「遺失的連結檔案」對話方塊</translation>
+    </message>
+    <message>
+        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
+        <translation>「圖層 &gt; 智慧型物件 &gt; 重新連結至檔案...」可隨時修復連結。</translation>
+    </message>
+    <message>
+        <source>This document has no missing linked files</source>
+        <translation>此文件沒有遺失的連結檔案</translation>
+    </message>
+    <message numerus="yes">
+        <source>Relinked %n smart object file(s)</source>
+        <translation>
+            <numerusform>已重新連結 %n 個智慧型物件檔案</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Show Layer Styles</source>
+        <translation>顯示圖層樣式</translation>
+    </message>
+    <message>
+        <source>Hide Layer Styles</source>
+        <translation>隱藏圖層樣式</translation>
+    </message>
+    <message>
+        <source>Layer styles shown</source>
+        <translation>已顯示圖層樣式</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden</source>
+        <translation>已隱藏圖層樣式</translation>
+    </message>
+    <message>
+        <source>Delete %1</source>
+        <translation>刪除%1</translation>
+    </message>
+    <message>
+        <source>%1 deleted</source>
+        <translation>已刪除%1</translation>
+    </message>
+    <message>
+        <source>Edit %1...</source>
+        <translation>編輯%1...</translation>
     </message>
     <message>
         <source>Smart Sharpen</source>

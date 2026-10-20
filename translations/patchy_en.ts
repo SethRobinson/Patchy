@@ -11420,16 +11420,104 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Smart Sharpen</source>
+        <source>Effect visible. Click to hide.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source> (Amount %1%, Radius %2 px, Legacy)</source>
+        <source>Effect hidden. Click to show.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit this effect in the Layer Style dialog</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Missing Linked Files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Relink...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Used by layer &quot;%1&quot;</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Used by %n layers: %1</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Relinked to %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Portable Anymap Image</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 and more</source>
+        <extracomment>Open-dialog file type row: %1 is a short list of *.ext patterns</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The layer is locked, so its layer styles cannot be changed here.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Collapse the layer style rows</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Expand the layer style rows</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer styles visible. Click to hide them all.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer styles hidden. Click to show them.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer Styles</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Effect on, but the layer styles are hidden. Click to turn it off.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Effect off, and the layer styles are hidden. Click to turn it on.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog; right-click for its menu.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Sharpen Edges</source>
         <comment>Smart Filter</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Smart Sharpen</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source> (Amount %1%, Radius %2 px, Legacy)</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -23120,6 +23208,77 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     </message>
     <message>
         <source>Cancelled Vibrance</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hide %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 shown</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 hidden</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This document has no missing linked files</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>Relinked %n smart object file(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Show Layer Styles</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hide Layer Styles</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer styles shown</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer styles hidden</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 deleted</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit %1...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

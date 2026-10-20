@@ -9,13 +9,19 @@
 #include "ui/app_settings.hpp"
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget.hpp"
+#include "ui/dialog_utils.hpp"
 #include "ui/export_documents_folder_dialog.hpp"
+#include "ui/hotkey_registry.hpp"
 #include "ui/hotkey_registry.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/image_sequence_dialog.hpp"
 #include "ui/main_window.hpp"
 #include "ui/print_dialog.hpp"
+#include "ui/qt_paths.hpp"
+#include "ui/theme_manager.hpp"
+#include "ui/theme_palette.hpp"
 #include "scripting_test_support.hpp"
+#include "local_psd_fixtures.hpp"
 #include "test_harness.hpp"
 #include "ui_test_access.hpp"
 #include "ui_test_groups.hpp"
@@ -30,6 +36,7 @@
 #include <QDir>
 #include <QProgressDialog>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
 #include <QMenuBar>
@@ -43,6 +50,7 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QSpinBox>
+#include <QStatusBar>
 #include <QTemporaryDir>
 #include <QTimer>
 #if defined(PATCHY_HAVE_QT_PDF)
@@ -52,8 +60,10 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -421,6 +431,119 @@ void ui_artboard_layers_panel_rows_and_properties_panel() {
   CHECK(panel->isHidden());
 }
 
+// The Properties panel's artboard X/Y/W/H fields scrub like the options bar's (issue 46):
+// a drag on "X:" moves the artboard live and adds one undo step, a drag on the W field
+// itself resizes it in one step, and a plain click on a field edits it, number selected.
+void ui_artboard_properties_fields_scrub_as_one_undo_step() {
+  for (const auto preference : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer scheme_restorer(preference);
+    const std::string scheme = preference == patchy::ui::ColorSchemePreference::Light ? "light" : "dark";
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto seed = board_document(300, 200);
+    const patchy::Rect start{10, 20, 120, 80};
+    const auto board = add_board(seed, "Card", start, patchy::ArtboardBackground::White, QColor(40, 120, 220));
+    window.add_document_session(std::move(seed), QStringLiteral("Scrub"));
+    QApplication::processEvents();
+    MainWindowTestAccess::select_layers(window, {board}, board);
+    MainWindowTestAccess::show_panel(window, QStringLiteral("propertiesDock"));
+    QApplication::processEvents();
+    auto* panel = window.findChild<QWidget*>(QStringLiteral("propertiesArtboardPanel"));
+    auto* x = window.findChild<QSpinBox*>(QStringLiteral("propertiesArtboardXSpin"));
+    auto* width = window.findChild<QSpinBox*>(QStringLiteral("propertiesArtboardWidthSpin"));
+    CHECK(panel != nullptr && x != nullptr && width != nullptr);
+    if (panel == nullptr || x == nullptr || width == nullptr) {
+      return;
+    }
+    CHECK(panel->isVisible());
+    QLabel* x_label = nullptr;
+    for (auto* label : panel->findChildren<QLabel*>()) {
+      if (label->text() == QStringLiteral("X:")) {
+        x_label = label;
+      }
+    }
+    CHECK(x_label != nullptr);
+    if (x_label == nullptr) {
+      return;
+    }
+    int finished = 0;
+    QObject::connect(x, &QAbstractSpinBox::editingFinished, x, [&finished] { ++finished; });
+    const auto rect_now = [&window, board] {
+      const auto* artboard = std::as_const(MainWindowTestAccess::document(window)).find_layer(board);
+      return artboard != nullptr ? artboard->artboard()->rect : patchy::Rect{};
+    };
+    const auto child_x = [&window, board] {
+      const auto* artboard = std::as_const(MainWindowTestAccess::document(window)).find_layer(board);
+      return artboard != nullptr && !artboard->children().empty() ? artboard->children()[0].bounds().x : -1;
+    };
+    const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+    const int drag_start = QApplication::startDragDistance();
+    const auto origin = x_label->rect().center();
+    send_mouse(*x_label, QEvent::MouseButtonPress, origin, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*x_label, QEvent::MouseMove, origin + QPoint(drag_start + 10, 0), Qt::NoButton, Qt::LeftButton);
+    send_mouse(*x_label, QEvent::MouseMove, origin + QPoint(drag_start + 30, 0), Qt::NoButton, Qt::LeftButton);
+    QApplication::processEvents();
+    // Captured before any check, so a run on code without the handles still shows the drag.
+    if (auto* section = MainWindowTestAccess::panel_section(window, QStringLiteral("propertiesDock"))) {
+      save_widget_artifact("artboard_properties_scrub_mid_drag_" + scheme, *section);
+    }
+    save_widget_artifact("artboard_properties_scrub_mid_drag_window_" + scheme, window);
+    for (const auto* name : {"propertiesArtboardXSpin", "propertiesArtboardYSpin", "propertiesArtboardWidthSpin",
+                             "propertiesArtboardHeightSpin"}) {
+      const auto* spin = panel->findChild<QSpinBox*>(QLatin1String(name));
+      CHECK(spin != nullptr && spin->property(patchy::ui::kScrubHandleInstalledProperty).toBool());
+    }
+    CHECK(x_label->cursor().shape() == Qt::SizeHorCursor);
+    // Mid-drag: the artboard already follows the field.
+    CHECK(x->value() == start.x + drag_start + 30);
+    CHECK(rect_now().x == start.x + drag_start + 30);
+    send_mouse(*x_label, QEvent::MouseButtonRelease, origin + QPoint(drag_start + 30, 0), Qt::LeftButton,
+               Qt::NoButton);
+    QApplication::processEvents();
+    CHECK(finished == 1);
+    CHECK((rect_now() == patchy::Rect{start.x + drag_start + 30, start.y, start.width, start.height}));
+    CHECK(child_x() == start.x + drag_start + 30);  // the content travels with it
+    CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+    MainWindowTestAccess::undo(window);
+    QApplication::processEvents();
+    CHECK(rect_now() == start);
+    CHECK(child_x() == start.x);
+    CHECK(x->value() == start.x);
+
+    // A drag on the unfocused W field resizes in one step.
+    auto* editor = width->findChild<QLineEdit*>();
+    CHECK(editor != nullptr);
+    if (editor == nullptr) {
+      return;
+    }
+    const QPoint field_point(editor->width() / 2, editor->height() / 2);
+    send_mouse(*editor, QEvent::MouseButtonPress, field_point, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*editor, QEvent::MouseMove, field_point + QPoint(drag_start + 5, 0), Qt::NoButton, Qt::LeftButton);
+    send_mouse(*editor, QEvent::MouseMove, field_point + QPoint(drag_start + 20, 0), Qt::NoButton, Qt::LeftButton);
+    send_mouse(*editor, QEvent::MouseButtonRelease, field_point + QPoint(drag_start + 20, 0), Qt::LeftButton,
+               Qt::NoButton);
+    QApplication::processEvents();
+    CHECK(width->value() == start.width + drag_start + 20);
+    CHECK((rect_now() == patchy::Rect{start.x, start.y, start.width + drag_start + 20, start.height}));
+    CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+
+    // A plain click on a field edits it with the number selected and changes nothing.
+    const auto value_before_click = x->value();
+    auto* x_editor = x->findChild<QLineEdit*>();
+    CHECK(x_editor != nullptr);
+    if (x_editor != nullptr) {
+      x->setFocus(Qt::MouseFocusReason);
+      const QPoint x_point(x_editor->width() / 2, x_editor->height() / 2);
+      send_mouse(*x_editor, QEvent::MouseButtonPress, x_point, Qt::LeftButton, Qt::LeftButton);
+      send_mouse(*x_editor, QEvent::MouseButtonRelease, x_point, Qt::LeftButton, Qt::NoButton);
+      QApplication::processEvents();
+      CHECK(x->value() == value_before_click);
+      CHECK(x_editor->hasSelectedText());
+      CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+    }
+  }
+}
+
 // New Document's Artboards option starts the document as one artboard the canvas size,
 // holding "Layer 1".
 void ui_artboard_new_document_option() {
@@ -458,6 +581,47 @@ void ui_artboard_new_document_option() {
     CHECK(artboards[0]->children().size() == 1 && artboards[0]->children()[0].name() == "Layer 1");
   }
   CHECK(patchy::ui::app_settings().value(QStringLiteral("newDocument/artboards")).toBool());
+}
+
+// The plain-document helper the suite uses (accept_new_document_dialog) must not inherit
+// Artboards from the Last Used card of an artboard document created just before: the
+// checkerboard test found no Background row after one in a full run.
+void ui_new_document_auto_accept_ignores_remembered_artboards() {
+  SettingsValueRestorer option_restorer(QStringLiteral("newDocument/artboards"));
+  QGuiApplication::clipboard()->clear();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto done = std::make_shared<bool>(false);
+  auto step = std::make_shared<std::function<bool()>>();
+  *step = [done] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyNewDocumentDialog"));
+    if (dialog == nullptr) {
+      return false;
+    }
+    auto* artboards = dialog->findChild<QCheckBox*>(QStringLiteral("newDocumentArtboardsCheck"));
+    auto* create = dialog->findChild<QPushButton*>(QStringLiteral("newDocumentCreateButton"));
+    if (artboards == nullptr || create == nullptr) {
+      return false;
+    }
+    artboards->setChecked(true);
+    create->click();
+    *done = true;
+    return true;
+  };
+  drive_modal(step);
+  require_hotkey_action(window, QStringLiteral("file.new"))->trigger();
+  CHECK(*done);
+  CHECK(patchy::document_artboards(std::as_const(MainWindowTestAccess::document(window))).size() == 1);
+
+  accept_new_document_dialog(220, 180);
+  require_hotkey_action(window, QStringLiteral("file.new"))->trigger();
+  QApplication::processEvents();
+  const auto& plain = std::as_const(MainWindowTestAccess::document(window));
+  CHECK(plain.width() == 220 && plain.height() == 180);
+  CHECK(patchy::document_artboards(plain).empty());
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  CHECK(layer_list != nullptr && find_layer_item(*layer_list, QStringLiteral("Background")) != nullptr);
 }
 
 // File > Export > Artboards to Files writes one file per artboard named for it, at the
@@ -1109,6 +1273,391 @@ void ui_artboard_feature_interactions_match_photoshop() {
   QApplication::clipboard()->clear();
 }
 
+// Helpers for the artboard hover and label tests (GitHub issues 259 and 260).
+
+// The Move tool's hover outline is a blue dashed ring on the first pixels outside the
+// framed rect: counted on a band around the rect's bottom edge, which no child shares.
+int outline_pixels_on_bottom_edge(const QImage& image, patchy::ui::CanvasWidget& canvas, patchy::Rect rect) {
+  const auto bottom_left = canvas.widget_position_for_document_point(QPoint(rect.x, rect.y + rect.height));
+  const auto bottom_right = canvas.widget_position_for_document_point(QPoint(rect.x + rect.width, rect.y + rect.height));
+  const QRect band(bottom_left.x() - 3, bottom_left.y() - 3, bottom_right.x() - bottom_left.x() + 6, 7);
+  return count_pixels_close(image, band, QColor(95, 170, 255), 18);
+}
+
+// Where an artboard's name label is drawn: above its top-left corner.
+QRect label_region(patchy::ui::CanvasWidget& canvas, patchy::Rect rect) {
+  const auto top_left = canvas.widget_position_for_document_point(QPoint(rect.x, rect.y));
+  return QRect(top_left.x() - 1, top_left.y() - 22, 90, 21);
+}
+
+// Pixels of `ink` in the label region that stand out from the region's dominant color
+// (the backing): a dark ink is not "found" on a dark pasteboard it nearly matches, so the
+// count is the glyph pixels, not the backing.
+int ink_pixels(const QImage& image, QRect region, QColor ink) {
+  region = region.intersected(image.rect());
+  std::map<QRgb, int> histogram;
+  for (int y = region.top(); y <= region.bottom(); ++y) {
+    for (int x = region.left(); x <= region.right(); ++x) {
+      ++histogram[image.pixel(x, y)];
+    }
+  }
+  QRgb backing = 0;
+  int best = -1;
+  for (const auto& [color, count] : histogram) {
+    if (count > best) {
+      best = count;
+      backing = color;
+    }
+  }
+  const QColor backing_color(backing);
+  int count = 0;
+  for (int y = region.top(); y <= region.bottom(); ++y) {
+    for (int x = region.left(); x <= region.right(); ++x) {
+      const auto color = image.pixelColor(x, y);
+      const bool stands_out = std::abs(color.red() - backing_color.red()) > 60 ||
+                              std::abs(color.green() - backing_color.green()) > 60 ||
+                              std::abs(color.blue() - backing_color.blue()) > 60;
+      if (stands_out && std::abs(color.red() - ink.red()) <= 36 && std::abs(color.green() - ink.green()) <= 36 &&
+          std::abs(color.blue() - ink.blue()) <= 36) {
+        ++count;
+      }
+    }
+  }
+  return count;
+}
+
+// Pixels that stand out from the region's dominant color, whatever they are: ink or its
+// halo on a strip of pasteboard or paper.
+int stand_out_pixels(const QImage& image, QRect region) {
+  region = region.intersected(image.rect());
+  std::map<QRgb, int> histogram;
+  for (int y = region.top(); y <= region.bottom(); ++y) {
+    for (int x = region.left(); x <= region.right(); ++x) {
+      ++histogram[image.pixel(x, y)];
+    }
+  }
+  QRgb backing = 0;
+  int best = -1;
+  for (const auto& [color, count] : histogram) {
+    if (count > best) {
+      best = count;
+      backing = color;
+    }
+  }
+  const QColor backing_color(backing);
+  int count = 0;
+  for (int y = region.top(); y <= region.bottom(); ++y) {
+    for (int x = region.left(); x <= region.right(); ++x) {
+      const auto color = image.pixelColor(x, y);
+      if (std::abs(color.red() - backing_color.red()) > 60 || std::abs(color.green() - backing_color.green()) > 60 ||
+          std::abs(color.blue() - backing_color.blue()) > 60) {
+        ++count;
+      }
+    }
+  }
+  return count;
+}
+
+const char* scheme_label(patchy::ui::ColorSchemePreference preference) {
+  return preference == patchy::ui::ColorSchemePreference::Light ? "light" : "dark";
+}
+
+// GitHub issue 259: with the Move tool, hovering an artboard's label, or (with
+// Auto-Select) its empty area, frames the artboard with the hover outline and turns its
+// label the selected color; a click there selects the artboard in the Layers panel. A
+// layer inside the artboard keeps its own outline and pick, and Auto-Select off keeps
+// dragging the selection from anywhere.
+void ui_artboard_move_tool_hover_frames_artboard_and_click_selects_it() {
+  for (const auto preference : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer scheme_restorer(preference);
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto seed = board_document(400, 300);
+    const auto loose = add_solid_layer(seed, "Loose", QRect(300, 200, 40, 40), QColor(0, 160, 0));
+    const patchy::Rect board_rect{20, 40, 200, 160};
+    const auto board = add_board(seed, "Board", board_rect, patchy::ArtboardBackground::White, QColor(200, 0, 0));
+    window.add_document_session(std::move(seed), QStringLiteral("Hover"));
+    auto* canvas = require_canvas(window);
+    canvas->set_zoom(1.0);
+    require_hotkey_action(window, QStringLiteral("tools.move"))->trigger();
+    canvas->set_auto_select_layer(true);
+    canvas->set_show_transform_controls(false);
+    MainWindowTestAccess::select_layers(window, {loose}, loose);
+    QApplication::processEvents();
+    const auto& document = [&window]() -> const patchy::Document& { return MainWindowTestAccess::document(window); };
+    const patchy::Rect child_rect{20, 40, 100, 80};  // the board's art, its top-left quarter
+    const auto hover = [&](QPoint document_point, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+      send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(document_point), Qt::NoButton,
+                 Qt::NoButton, modifiers);
+      return canvas->grab().toImage();
+    };
+    const auto click = [&](QPoint document_point) {
+      const auto position = canvas->widget_position_for_document_point(document_point);
+      send_mouse(*canvas, QEvent::MouseButtonPress, position, Qt::LeftButton, Qt::LeftButton);
+      send_mouse(*canvas, QEvent::MouseButtonRelease, position, Qt::LeftButton, Qt::NoButton);
+      QApplication::processEvents();
+    };
+
+    // The Artboard tool hint names the registry's current binding (Shift+V cycles the
+    // Move flyout by default); it is shown on a selecting click, never on a hover.
+    const auto hint_prefix = QStringLiteral("Switch to the Artboard tool");
+    QString shortcut = patchy::ui::action_shortcut_text(require_hotkey_action(window, QStringLiteral("tools.artboard")));
+    if (shortcut.isEmpty()) {
+      shortcut = patchy::ui::action_shortcut_text(require_hotkey_action(window, QStringLiteral("tools.cycle.move")));
+    }
+    CHECK(!shortcut.isEmpty());
+    const auto hint = QStringLiteral("Switch to the Artboard tool (%1) to add, resize or duplicate artboards").arg(shortcut);
+
+    // The empty area frames the artboard and lights its label.
+    const QPoint empty_area(180, 180);
+    window.statusBar()->clearMessage();
+    auto image = hover(empty_area);
+    save_widget_artifact(std::string("ui_issue_259_hover_") + scheme_label(preference), window);
+    CHECK(outline_pixels_on_bottom_edge(image, *canvas, board_rect) > 20);
+    CHECK(count_pixels_close(image, label_region(*canvas, board_rect), patchy::ui::theme().canvas_artboard_selected, 40) > 3);
+    CHECK(canvas->cursor().shape() == Qt::SizeAllCursor);
+    CHECK(!window.statusBar()->currentMessage().startsWith(hint_prefix));
+
+    // The art inside keeps its own outline: the artboard is not framed over it.
+    image = hover(QPoint(40, 60));
+    CHECK(outline_pixels_on_bottom_edge(image, *canvas, child_rect) > 20);
+    CHECK(outline_pixels_on_bottom_edge(image, *canvas, board_rect) < 6);
+
+    // The label frames the artboard with any setting.
+    const auto label_point = canvas->widget_position_for_document_point(QPoint(board_rect.x, board_rect.y)) + QPoint(8, -8);
+    send_mouse(*canvas, QEvent::MouseMove, label_point, Qt::NoButton, Qt::NoButton);
+    image = canvas->grab().toImage();
+    CHECK(outline_pixels_on_bottom_edge(image, *canvas, board_rect) > 20);
+
+    // Off the artboard nothing is framed.
+    image = hover(QPoint(260, 60));
+    CHECK(outline_pixels_on_bottom_edge(image, *canvas, board_rect) < 6);
+
+    // A click on the empty area selects the artboard in the Layers panel and shows the hint.
+    click(empty_area);
+    CHECK(document().active_layer_id().has_value() && *document().active_layer_id() == board);
+    auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+    CHECK(layer_list != nullptr);
+    if (layer_list != nullptr) {
+      auto* row = require_layer_item(*layer_list, QStringLiteral("Board"));
+      CHECK(row != nullptr && row->isSelected());
+      CHECK(layer_list->selectedItems().size() == 1);
+    }
+    CHECK(window.statusBar()->currentMessage() == hint);
+    save_widget_artifact(std::string("ui_issue_259_selected_") + scheme_label(preference), window);
+
+    // The label click shows it too, and so does selecting the artboard's row in the panel.
+    MainWindowTestAccess::select_layers(window, {loose}, loose);
+    window.statusBar()->clearMessage();
+    send_mouse(*canvas, QEvent::MouseButtonPress, label_point, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, label_point, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    CHECK(document().active_layer_id().has_value() && *document().active_layer_id() == board);
+    CHECK(window.statusBar()->currentMessage() == hint);
+    MainWindowTestAccess::select_layers(window, {loose}, loose);
+    window.statusBar()->clearMessage();
+    if (layer_list != nullptr) {
+      auto* row = require_layer_item(*layer_list, QStringLiteral("Board"));
+      layer_list->clearSelection();
+      layer_list->setCurrentItem(row);
+      row->setSelected(true);
+      QApplication::processEvents();
+      CHECK(document().active_layer_id().has_value() && *document().active_layer_id() == board);
+      CHECK(window.statusBar()->currentMessage() == hint);
+    }
+    // With the Artboard tool itself a selecting click shows no hint.
+    MainWindowTestAccess::select_layers(window, {loose}, loose);
+    require_hotkey_action(window, QStringLiteral("tools.artboard"))->trigger();
+    QApplication::processEvents();
+    window.statusBar()->clearMessage();
+    click(empty_area);
+    CHECK(document().active_layer_id().has_value() && *document().active_layer_id() == board);
+    CHECK(!window.statusBar()->currentMessage().startsWith(hint_prefix));
+    require_hotkey_action(window, QStringLiteral("tools.move"))->trigger();
+    canvas->set_auto_select_layer(true);
+    QApplication::processEvents();
+
+    // Auto-Select off: the empty area is not a pick (a press there drags the selection).
+    MainWindowTestAccess::select_layers(window, {loose}, loose);
+    canvas->set_auto_select_layer(false);
+    image = hover(empty_area);
+    CHECK(outline_pixels_on_bottom_edge(image, *canvas, board_rect) < 6);
+    click(empty_area);
+    CHECK(document().active_layer_id().has_value() && *document().active_layer_id() == loose);
+    // Ctrl previews and makes the pick with Auto-Select off too.
+    image = hover(empty_area, Qt::ControlModifier);
+    CHECK(outline_pixels_on_bottom_edge(image, *canvas, board_rect) > 20);
+  }
+}
+
+// GitHub issue 260: an artboard's name is ink on whatever it sits on. Over the pasteboard
+// it takes the scheme's pasteboard ink, over a neighbouring artboard's white paper the
+// dark ink and over black paper the light ink, in both schemes; a user pasteboard color
+// moves it the same way.
+void ui_artboard_label_ink_follows_what_it_sits_on() {
+  const patchy::Rect top_rect{20, 40, 200, 150};
+  const patchy::Rect below_rect{20, 190, 200, 150};  // its label sits on Top's white paper
+  const patchy::Rect dark_rect{300, 40, 180, 150};
+  const patchy::Rect under_rect{300, 190, 180, 150};  // its label sits on Dark's black paper
+  for (const auto preference : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer scheme_restorer(preference);
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto seed = board_document(520, 420);
+    add_board(seed, "Under Board", under_rect, patchy::ArtboardBackground::White, QColor());
+    add_board(seed, "Dark Board", dark_rect, patchy::ArtboardBackground::Black, QColor());
+    add_board(seed, "Below Board", below_rect, patchy::ArtboardBackground::White, QColor());
+    add_board(seed, "Top Board", top_rect, patchy::ArtboardBackground::White, QColor());
+    window.add_document_session(std::move(seed), QStringLiteral("Labels"));
+    auto* canvas = require_canvas(window);
+    canvas->set_zoom(1.0);
+    require_hotkey_action(window, QStringLiteral("tools.move"))->trigger();
+    QApplication::processEvents();
+    const auto& palette = patchy::ui::theme();
+    const auto ink_pixels = [&](const QImage& image, patchy::Rect rect, QColor ink) {
+      return ::ink_pixels(image, label_region(*canvas, rect), ink);
+    };
+    const bool light_pasteboard = preference == patchy::ui::ColorSchemePreference::Light;
+    const auto pasteboard_ink = light_pasteboard ? palette.canvas_artboard_label_on_light : palette.canvas_artboard_label;
+
+    auto image = canvas->grab().toImage();
+    save_widget_artifact(std::string("ui_issue_260_labels_") + scheme_label(preference), window);
+    CHECK(ink_pixels(image, top_rect, pasteboard_ink) > 6);
+    CHECK(ink_pixels(image, dark_rect, pasteboard_ink) > 6);
+    CHECK(ink_pixels(image, below_rect, palette.canvas_artboard_label_on_light) > 6);
+    CHECK(ink_pixels(image, under_rect, palette.canvas_artboard_label) > 6);
+
+    // A white pasteboard from the backdrop menu turns the pasteboard labels dark, a black
+    // one light, whatever the scheme.
+    canvas->set_backdrop_color_override(QColor(Qt::white));
+    QApplication::processEvents();
+    image = canvas->grab().toImage();
+    CHECK(ink_pixels(image, top_rect, palette.canvas_artboard_label_on_light) > 6);
+    canvas->set_backdrop_color_override(QColor(Qt::black));
+    QApplication::processEvents();
+    image = canvas->grab().toImage();
+    CHECK(ink_pixels(image, top_rect, palette.canvas_artboard_label) > 6);
+    canvas->set_backdrop_color_override(std::nullopt);
+  }
+}
+
+// GitHub issue 260, Seth's review: a name hanging a few pixels over the board above it
+// straddles that board's paper and the pasteboard. The glyph pixels over the paper take
+// the dark ink, the part over the pasteboard still reads (a halo in the other ink where
+// the pasteboard is dark), and the board above's outline never crosses the name: labels
+// draw after every outline.
+void ui_artboard_label_reads_across_a_neighbouring_boards_edge() {
+  const patchy::Rect top_rect{20, 40, 200, 150};
+  const patchy::Rect below_rect{20, 198, 200, 120};  // an 8 px gap, narrower than the label
+  for (const auto preference : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer scheme_restorer(preference);
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto seed = board_document(520, 420);
+    add_board(seed, "Hanging Name", below_rect, patchy::ArtboardBackground::White, QColor());
+    add_board(seed, "Top Board", top_rect, patchy::ArtboardBackground::White, QColor());
+    window.add_document_session(std::move(seed), QStringLiteral("Straddle"));
+    auto* canvas = require_canvas(window);
+    canvas->set_zoom(1.0);
+    require_hotkey_action(window, QStringLiteral("tools.move"))->trigger();
+    QApplication::processEvents();
+    const auto& palette = patchy::ui::theme();
+    const auto image = canvas->grab().toImage();
+    save_widget_artifact(std::string("ui_issue_260_straddle_") + scheme_label(preference), window);
+
+    const auto label = label_region(*canvas, below_rect);
+    const int paper_bottom = canvas->widget_position_for_document_point(QPoint(20, 190)).y();  // first gap row
+    // Over the paper: the dark ink.
+    const QRect on_paper(label.left(), label.top(), label.width(), paper_bottom - 1 - label.top());
+    CHECK(ink_pixels(image, on_paper, palette.canvas_artboard_label_on_light) > 6);
+    // Over the gap: something readable, not dark ink lost on a dark pasteboard.
+    const QRect in_gap(label.left(), paper_bottom, label.width(), 4);
+    CHECK(stand_out_pixels(image, in_gap) > 4);
+    // The upper board's bottom outline runs through the name and the name wins.
+    const QRect outline_row(label.left(), paper_bottom - 1, label.width(), 1);
+    CHECK(count_pixels_close(image, outline_row, palette.canvas_artboard_label_on_light, 36) > 2);
+  }
+}
+
+// GitHub issue 260 on the reporter's file (ag-psd's artboards sample): "custom board" sits
+// right under "white board", so its name is drawn on white paper and takes the dark ink,
+// while the names over the pasteboard keep the pasteboard ink; and with the Move tool
+// (GitHub issue 259) hovering the custom board's empty area frames it.
+void ui_artboard_ag_psd_sample_labels_read_on_their_backing_if_available() {
+  const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "ag-psd" / "artboards" / "src.psd";
+  patchy::test::skip_unless_exists(path);
+  SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  for (const auto preference : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer scheme_restorer(preference);
+    patchy::ui::MainWindow window;
+    show_window(window);
+    MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(path));
+    QApplication::processEvents();
+    auto* canvas = require_canvas(window);
+    canvas->fit_to_view();
+    require_hotkey_action(window, QStringLiteral("tools.move"))->trigger();
+    canvas->set_auto_select_layer(true);
+    canvas->set_show_transform_controls(false);
+    QApplication::processEvents();
+    const auto& document = MainWindowTestAccess::document(window);
+    const patchy::Layer* white_board = nullptr;
+    const patchy::Layer* custom_board = nullptr;
+    for (const auto* artboard : patchy::document_artboards(document)) {
+      if (artboard->name() == "white board") {
+        white_board = artboard;
+      } else if (artboard->name() == "custom board") {
+        custom_board = artboard;
+      }
+    }
+    CHECK(white_board != nullptr && custom_board != nullptr);
+    if (white_board == nullptr || custom_board == nullptr) {
+      return;
+    }
+    const auto& palette = patchy::ui::theme();
+    const auto pasteboard_ink = preference == patchy::ui::ColorSchemePreference::Light
+                                    ? palette.canvas_artboard_label_on_light
+                                    : palette.canvas_artboard_label;
+    // Fitted, the label sits in the pasteboard gap below "white board" and keeps the
+    // pasteboard ink; at the reporter's zoom the gap is narrower than the label, which
+    // then sits on the white paper and takes the dark ink.
+    auto image = canvas->grab().toImage();
+    CHECK(ink_pixels(image, label_region(*canvas, custom_board->artboard()->rect), pasteboard_ink) > 6);
+    CHECK(ink_pixels(image, label_region(*canvas, white_board->artboard()->rect), pasteboard_ink) > 6);
+    canvas->set_zoom_centered(0.1);
+    QApplication::processEvents();
+    image = canvas->grab().toImage();
+    save_widget_artifact(std::string("ui_issue_260_ag_psd_") + scheme_label(preference), window);
+    CHECK(canvas_content_rect(*canvas).contains(label_region(*canvas, custom_board->artboard()->rect)));
+    CHECK(ink_pixels(image, label_region(*canvas, custom_board->artboard()->rect), palette.canvas_artboard_label_on_light) > 6);
+    CHECK(ink_pixels(image, label_region(*canvas, white_board->artboard()->rect), pasteboard_ink) > 6);
+    // The name hangs over the white board's bottom edge: its part in the pasteboard gap
+    // still reads, and the white board's outline does not cross it.
+    {
+      const auto& white_rect = white_board->artboard()->rect;
+      const auto& custom_rect = custom_board->artboard()->rect;
+      const auto custom_label = label_region(*canvas, custom_rect);
+      const int paper_bottom = canvas->widget_position_for_document_point(QPoint(white_rect.x, white_rect.y + white_rect.height)).y();
+      const int custom_top = canvas->widget_position_for_document_point(QPoint(custom_rect.x, custom_rect.y)).y();
+      CHECK(custom_label.top() < paper_bottom && paper_bottom < custom_top - 4);
+      const QRect in_gap(custom_label.left(), paper_bottom, custom_label.width(), std::max(1, custom_top - 4 - paper_bottom));
+      CHECK(stand_out_pixels(image, in_gap) > 4);
+      const QRect outline_row(custom_label.left(), paper_bottom - 1, custom_label.width(), 1);
+      CHECK(count_pixels_close(image, outline_row, palette.canvas_artboard_label_on_light, 36) > 2);
+    }
+    canvas->fit_to_view();
+    QApplication::processEvents();
+
+    const auto& rect = custom_board->artboard()->rect;
+    send_mouse(*canvas, QEvent::MouseMove,
+               canvas->widget_position_for_document_point(QPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)),
+               Qt::NoButton, Qt::NoButton);
+    image = canvas->grab().toImage();
+    save_widget_artifact(std::string("ui_issue_259_ag_psd_hover_") + scheme_label(preference), window);
+    CHECK(outline_pixels_on_bottom_edge(image, *canvas, rect) > 20);
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> artboard_ui_tests() {
@@ -1118,7 +1667,10 @@ std::vector<patchy::test::TestCase> artboard_ui_tests() {
       {"ui_artboard_move_tool_moves_artboards_and_auto_nests", ui_artboard_move_tool_moves_artboards_and_auto_nests},
       {"ui_artboard_prevent_auto_nesting_keeps_layer_in_place", ui_artboard_prevent_auto_nesting_keeps_layer_in_place},
       {"ui_artboard_layers_panel_rows_and_properties_panel", ui_artboard_layers_panel_rows_and_properties_panel},
+      {"ui_artboard_properties_fields_scrub_as_one_undo_step", ui_artboard_properties_fields_scrub_as_one_undo_step},
       {"ui_artboard_new_document_option", ui_artboard_new_document_option},
+      {"ui_new_document_auto_accept_ignores_remembered_artboards",
+       ui_new_document_auto_accept_ignores_remembered_artboards},
       {"ui_artboard_exports_to_files_and_print_pages", ui_artboard_exports_to_files_and_print_pages},
       {"ui_artboard_multipage_pdf_source", ui_artboard_multipage_pdf_source},
       {"ui_artboard_commands_and_hotkeys_registered", ui_artboard_commands_and_hotkeys_registered},
@@ -1131,5 +1683,12 @@ std::vector<patchy::test::TestCase> artboard_ui_tests() {
       {"ui_save_as_pdf_uses_the_pdf_options_dialog", ui_save_as_pdf_uses_the_pdf_options_dialog},
       {"ui_save_shows_progress_with_artboard_names", ui_save_shows_progress_with_artboard_names},
       {"ui_artboard_feature_interactions_match_photoshop", ui_artboard_feature_interactions_match_photoshop},
+      {"ui_artboard_move_tool_hover_frames_artboard_and_click_selects_it",
+       ui_artboard_move_tool_hover_frames_artboard_and_click_selects_it},
+      {"ui_artboard_label_ink_follows_what_it_sits_on", ui_artboard_label_ink_follows_what_it_sits_on},
+      {"ui_artboard_label_reads_across_a_neighbouring_boards_edge",
+       ui_artboard_label_reads_across_a_neighbouring_boards_edge},
+      {"ui_artboard_ag_psd_sample_labels_read_on_their_backing_if_available",
+       ui_artboard_ag_psd_sample_labels_read_on_their_backing_if_available},
   };
 }

@@ -4407,6 +4407,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 
   startup_trace::Scope actions_phase("mw.actions");
   create_actions();
+  restore_startup_tool_selection();
   actions_phase.end();
   startup_trace::Scope recent_phase("mw.view_recent");
   load_view_settings();

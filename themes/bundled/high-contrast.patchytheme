@@ -187,6 +187,7 @@
     "canvas_snap_guide": "#ff46b4",
     "canvas_artboard_outline": "#c2c2c2",
     "canvas_artboard_label": "#e9e9e9",
+    "canvas_artboard_label_on_light": "#101010",
     "canvas_artboard_selected": "#ffd95f",
     "canvas_artboard_handle": "#fcfbf5",
     "canvas_scrollbar_track": "#0a0a0a",

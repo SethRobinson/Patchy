@@ -351,6 +351,9 @@ int main(int argc, char* argv[]) {
     // interactive open of them. The tests that cover it turn it on themselves.
     settings.setValue(QStringLiteral("imports/showMissingFontsDialog"), false);
     settings.setValue(QStringLiteral("text/warnMissingFontsOnTransform"), false);
+    // Linked fixtures saved elsewhere would raise the Missing Linked Files dialog the same way;
+    // ui_smart_object_missing_linked_files_dialog_lists_and_relinks turns it on.
+    settings.setValue(QStringLiteral("imports/showMissingLinksDialog"), false);
     // The CMYK Proof notice would block every interactive open of a CMYK fixture the same way;
     // ui_cmyk_open_explains_cmyk_proof_emulation turns it on.
     settings.setValue(QStringLiteral("imports/cmykProofOpenNotice"), false);
@@ -378,6 +381,7 @@ int main(int argc, char* argv[]) {
            layer_context_lifecycle_tests,
            brush_pattern_palette_tests,
            layer_panel_organization_tests,
+           layer_effect_rows_tests,
            move_tool_processing_overlay_tests,
            move_transform_zones_tests,
            free_transform_distort_tests,

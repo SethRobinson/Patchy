@@ -15,6 +15,7 @@
 #include "core/smart_filter.hpp"
 #include "core/smart_filter_effects.hpp"
 #include "ui/canvas_widget.hpp"
+#include "ui/layer_style_dialog.hpp"
 #include "ui/filter_workflows.hpp"
 #include "ui/ui_profile.hpp"
 
@@ -52,6 +53,11 @@ namespace patchy::ui {
 class CanvasWidget;
 enum class CanvasTool;
 struct BrushPreset;
+
+// The tool's hotkey command id ("tools.brush"): a permanent identifier that also
+// names the active tool in the settings store (`tools/activeTool`, GitHub issue
+// 254). Never reuse or rename one; new tools append (docs/tool-options.md).
+[[nodiscard]] QString tool_hotkey_id(CanvasTool tool);
 
 // Recursive content checks shared by the split MainWindow translation units.
 // These deliberately inspect groups as well as the selected root because a
@@ -147,6 +153,21 @@ void configure_automatic_selection_models();
 // from import. Must be called whenever code replaces layer_style(), or the next
 // PSD save would resurrect the imported effects over the new ones.
 void clear_layer_psd_style_source(Layer& layer);
+
+// The Layers panel's effect rows (GitHub issue 256): every instance of `style`, shown or
+// hidden, in the Layer Style dialog's category order, with its position in that kind's list.
+struct LayerEffectRow {
+  LayerStyleEffect effect{LayerStyleEffect::DropShadow};
+  std::size_t index{0};
+  bool enabled{true};
+};
+[[nodiscard]] std::vector<LayerEffectRow> layer_effect_rows(const LayerStyle& style);
+// The instance's `enabled` flag, or null when `index` is past that kind's list.
+[[nodiscard]] bool* layer_effect_enabled_flag(LayerStyle& style, LayerStyleEffect effect, std::size_t index);
+// The effect's name as the Layer Style dialog lists it ("Drop Shadow").
+[[nodiscard]] QString layer_effect_display_name(LayerStyleEffect effect);
+// Erases that instance from its kind's list; false when `index` is past it.
+bool remove_layer_effect_instance(LayerStyle& style, LayerStyleEffect effect, std::size_t index);
 
 // Text sizes are shown in points but rendered in document pixels through the
 // document's print PPI (default 300 when unset).

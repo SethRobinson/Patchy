@@ -774,7 +774,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     std::function<void(const QString& name, const PixelBuffer& tile)> open_pattern_as_image,
     GradientLibrary *gradient_library, RgbColor foreground,
     RgbColor background, const AppearanceDialogContext<LayerStyleSettings>* batch, BitDepth document_depth,
-    std::optional<LayerStyleEffect> start_effect) {
+    std::optional<LayerStyleEffect> start_effect, std::size_t start_effect_index, bool enable_start_effect) {
   const auto request_started = std::chrono::steady_clock::now();
   const LayerStyleSettings original_settings{
       static_cast<int>(std::round(layer.opacity() * 100.0F)),
@@ -827,10 +827,15 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
   // the original custom curve and only a deliberate preset pick replaces it.
   StyleContour custom_gloss_contour = bevel.gloss_contour;
   StyleContour custom_bevel_sub_contour = bevel.contour.contour;
-  if (gradient.gradient.color_stops.empty()) {
+  // A Noise gradient has no stops by design: keep its seed and ranges and let
+  // the controls show the Noise page (a Photoshop file's noise overlay opened as
+  // the default white-to-black ramp, GitHub issue 262). Only a stop gradient
+  // with no stops falls back to the default ramp.
+  if (gradient.gradient.form == GradientDefinitionForm::Solid && gradient.gradient.color_stops.empty()) {
     gradient.gradient = default_layer_style_gradient();
   }
-  if (stroke.uses_gradient && stroke.gradient.color_stops.empty()) {
+  if (stroke.uses_gradient && stroke.gradient.form == GradientDefinitionForm::Solid &&
+      stroke.gradient.color_stops.empty()) {
     stroke.gradient = default_layer_style_gradient();
   }
 
@@ -2161,7 +2166,7 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
         auto value = style.gradient_fills.size() > static_cast<std::size_t>(index)
                          ? style.gradient_fills[static_cast<std::size_t>(index)]
                          : default_gradient_fill();
-        if (value.gradient.color_stops.empty()) {
+        if (value.gradient.form == GradientDefinitionForm::Solid && value.gradient.color_stops.empty()) {
           value.gradient = default_layer_style_gradient();
         }
         set_combo_data(gradient_blend, static_cast<int>(value.blend_mode));
@@ -3452,11 +3457,11 @@ std::optional<LayerStyleSettings> request_layer_style_settings(
     }();
     for (int row = 0; row < categories->count(); ++row) {
       auto* item = categories->item(row);
-      if (item_kind(item) != start_kind || item_effect_index(item) != 0) {
+      if (item_kind(item) != start_kind || item_effect_index(item) != static_cast<int>(start_effect_index)) {
         continue;
       }
       categories->setCurrentItem(item);
-      if (item->checkState() != Qt::Checked) {
+      if (enable_start_effect && item->checkState() != Qt::Checked) {
         item->setCheckState(Qt::Checked);
       }
       break;

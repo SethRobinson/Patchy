@@ -107,10 +107,10 @@ when the user has not set one. Qt loads that bundled theme by itself only inside
 and Snap. It wraps the theme Qt would otherwise pick (`gnome`, `kde`, `generic`: fonts,
 the color scheme and the global menu bar are unchanged) and adds the portal's file
 dialogs, GNOME's or KDE's own, as in the Flatpak. Where no FileChooser portal answers
-the startup version query, dialogs stay Qt's widget dialog. The headless GNOME rig
-D-Bus-activates its portals without `WAYLAND_DISPLAY`: run
-`dbus-update-activation-environment` on the rig bus before the first dialog, or the
-portal dialog never appears and Patchy waits on it.
+the startup version query, dialogs stay Qt's widget dialog. On the headless GNOME rig the
+portals must get `WAYLAND_DISPLAY` from the bus's activation environment before the shell
+starts (`gnome-rig.sh start-shell` does this), or the portal dialog never appears and
+Patchy waits on it ([wayland.md](wayland.md), "Reproducing on a headless GNOME Shell").
 
 ## Running from a mount: app behavior
 

@@ -247,6 +247,23 @@ Manual check: on GNOME or KDE Wayland open the color picker, press Pick Screen C
 pick over another application's window; the swatch takes that color. Cancelling with
 Escape leaves the color unchanged.
 
+## The portal Open dialog's type list (GitHub issue 270)
+
+Inside the Flatpak, and in the AppImage through `QT_QPA_PLATFORMTHEME=xdgdesktopportal`,
+File > Open is the desktop's portal dialog. On GNOME that is xdg-desktop-portal-gnome's
+GTK 4 dialog, whose type dropdown is a popover capped at 400 px (GTK's `gtkdropdown.ui`,
+`max-content-height`): about ten rows, scrolled by wheel or touchpad, with an overlay
+scrollbar visible only while the pointer moves over the list. Every row Patchy sends is
+there (rig captures `build/issue-shots/270`); the GTK 3 backend (xdg-desktop-portal-gtk),
+KDE's dialog and Qt's widget dialog list all of them. Qt's portal helper
+(`qxdgdesktopportalfiledialog.cpp`) sends every row whose spec matches
+`QPlatformFileDialogHelper::filterRegExp` and xdg-desktop-portal validates the list whole,
+so nothing drops rows. Before the hint cap the Camera Raw row's 27 patterns made the
+popover as wide as the screen, with the scrollbar at the far screen edge. Patchy keeps
+the popover narrow by capping each row's visible pattern hint
+([file-formats.md](file-formats.md), "Open-dialog filter contract"); it cannot change the
+cap or the scrollbar.
+
 ## Reproducing on a headless GNOME Shell
 
 `scripts/dev/wayland-gnome/gnome-rig.sh` runs the installed Flatpak on a headless mutter
@@ -262,6 +279,18 @@ The pointer is `org.gnome.Mutter.RemoteDesktop` relative motion anchored at the 
 corner, because the top-left one is the Activities hot corner and opens the overview; if
 the overview is up anyway, `gdbus call ... org.gnome.Shell.Eval 'Main.overview.hide()'`.
 `stop` kills Patchy by Flatpak id and the shell by the pids it recorded; never by name.
+
+Portals on the rig bus: the shell D-Bus-activates xdg-desktop-portal while it starts, so
+`start-shell` publishes `WAYLAND_DISPLAY` and `XDG_CURRENT_DESKTOP` to the bus's
+activation environment before the shell runs; a portal activated without them never
+shows a dialog and Patchy waits on it forever (`flatpak kill` it, then `stop` and start
+over). `RIG_DESKTOP` sets the desktop name: `GNOME` (default) selects the GTK 4
+xdg-desktop-portal-gnome backend through the host's `gnome-portals.conf`; for the GTK 3
+backend write `~/.config/xdg-desktop-portal/<name>-portals.conf` holding
+`[preferred]` / `default=gtk;` and start with `RIG_DESKTOP=<name>`. The rig bus has no
+working document portal (the live session owns `/run/user/<uid>/doc`), so `flatpak run`
+prints "Can't get document portal" and goes on. `drive` also takes `wheel N` (discrete
+wheel steps, positive scrolls down) for lists such as that dropdown.
 
 The sway rig is faster for anything that needs no GNOME specifics: `run.sh` with `KEEP=1`
 leaves the container up and `scripts/dev/wayland-popups/run-patchy.sh` launches, scripts,

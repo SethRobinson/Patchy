@@ -1474,6 +1474,156 @@ void stroke_on_semi_transparent_content_matches_photoshop_probes_if_available() 
   CHECK(compared > 0);
 }
 
+// Soft-edged strokes (GitHub issue 261): Photoshop 2026 authored and rendered
+// local-test-fixtures/stroke-soft-probes/probes.psd (make_probes.jsx): 40 px squares
+// filled through a selection feathered 0, 1, 2, 4 and 8 px, one per column, with
+// Outside 2, 5 and 10 px, Inside 5 px and Center 6 px solid strokes, one per row.
+// probes-flat.bmp is its merge over white. They pin the band model in
+// stroke_alpha_mask: the outer band measures from the first pixel with any alpha and
+// its last ring reads that pixel's alpha, the inner band from the first pixel below
+// full alpha with its last ring reading the missing alpha, and every partial pixel
+// carries the two paints. Before this model the band sat about a pixel inside
+// Photoshop's on every feathered square (the reporter's "1 px smaller" stroke).
+void stroke_soft_edge_probes_match_photoshop_if_available() {
+  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "stroke-soft-probes";
+  patchy::test::skip_unless_exists(dir / "probes.psd");
+  patchy::test::skip_unless_exists(dir / "probes-flat.bmp");
+  const auto document = patchy::psd::DocumentIo::read_file(dir / "probes.psd");
+  const auto reference = patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(dir / "probes-flat.bmp"));
+  std::vector<std::uint8_t> coverage;
+  const auto flat = patchy::Compositor{}.flatten_rgb8(document, &coverage);
+  CHECK(reference.width() == flat.width() && reference.height() == flat.height());
+  constexpr int kCell = 96;
+  const char* feathers[] = {"f0", "f1", "f2", "f4", "f8"};
+  const char* strokes[] = {"out2", "out5", "in5", "ctr6", "out10"};
+  double worst_cell_mean = 0.0;
+  std::uint64_t total_off = 0;
+  std::uint64_t total_pixels = 0;
+  for (int row = 0; row < 5; ++row) {
+    for (int column = 0; column < 5; ++column) {
+      double total = 0.0;
+      int worst = 0;
+      std::uint64_t off = 0;
+      for (std::int32_t y = row * kCell; y < (row + 1) * kCell; ++y) {
+        for (std::int32_t x = column * kCell; x < (column + 1) * kCell; ++x) {
+          const auto* a = reference.pixel(x, y);
+          const auto* b = flat.pixel(x, y);
+          const auto alpha = static_cast<double>(coverage[static_cast<std::size_t>(y) * flat.width() + x]) / 255.0;
+          int delta = 0;
+          for (int channel = 0; channel < 3; ++channel) {
+            const int over_white = static_cast<int>(std::lround(b[channel] * alpha + 255.0 * (1.0 - alpha)));
+            delta = std::max(delta, std::abs(a[channel] - over_white));
+          }
+          total += delta;
+          worst = std::max(worst, delta);
+          if (delta > 8) {
+            ++off;
+          }
+        }
+      }
+      const double mean = total / (static_cast<double>(kCell) * kCell);
+      std::cout << "  " << feathers[column] << "_" << strokes[row] << ": mean " << mean << ", worst " << worst
+                << ", " << off << " pixels off by more than 8\n";
+      worst_cell_mean = std::max(worst_cell_mean, mean);
+      total_off += off;
+      total_pixels += static_cast<std::uint64_t>(kCell) * kCell;
+    }
+  }
+  const double share = static_cast<double>(total_off) / static_cast<double>(total_pixels);
+  std::cout << "  soft stroke probes: worst cell mean " << worst_cell_mean << ", " << share * 100.0
+            << "% of pixels off by more than 8\n";
+  CHECK(worst_cell_mean <= 1.5);
+  CHECK(share <= 0.01);
+}
+
+// Several Stroke instances on one layer (GitHub issue 265): Photoshop paints the first
+// listed instance on top and, with Overprint off, its band knocks out the strokes listed
+// after it as it knocks out the content, so a Multiply stroke listed first multiplies the
+// BACKDROP inside its band, never the wider Normal stroke listed second. Patchy painted
+// the instances in list order, so the wider second stroke covered the first entirely.
+void compositor_multiple_strokes_stack_first_on_top_with_knockout() {
+  using namespace patchy;
+  Document document(40, 40, PixelFormat::rgb8());
+  document.add_pixel_layer("Backdrop", solid_rgb(40, 40, 200, 100, 50));
+  Layer styled(document.allocate_layer_id(), "Styled", solid_rgba(12, 12, 20, 220, 20, 255));
+  auto& layer = document.add_layer(std::move(styled));
+  layer.set_bounds(Rect{14, 14, 12, 12});
+  LayerStroke first;
+  first.enabled = true;
+  first.size = 3.0F;
+  first.position = LayerStrokePosition::Outside;
+  first.blend_mode = BlendMode::Multiply;
+  first.color = RgbColor{255, 255, 0};
+  LayerStroke second;
+  second.enabled = true;
+  second.size = 8.0F;
+  second.position = LayerStrokePosition::Outside;
+  second.color = RgbColor{0, 0, 255};
+  layer.layer_style().strokes = {first, second};
+  const auto flat = Compositor{}.flatten_rgb8(document);
+  // Inside the first stroke's 3 px band: yellow multiplied with the backdrop.
+  const auto* inner = flat.pixel(12, 20);
+  CHECK(inner[0] == 200 && inner[1] == 100 && inner[2] == 0);
+  // Past it, within the second stroke's band: plain blue.
+  const auto* outer = flat.pixel(8, 20);
+  CHECK(outer[0] == 0 && outer[1] == 0 && outer[2] == 255);
+  // Swapping the list order puts the blue stroke on top and covers the yellow band.
+  layer.layer_style().strokes = {second, first};
+  const auto swapped = Compositor{}.flatten_rgb8(document);
+  const auto* covered = swapped.pixel(12, 20);
+  CHECK(covered[0] == 0 && covered[1] == 0 && covered[2] == 255);
+}
+
+// ag-psd's strokes/src.psd (GitHub issue 265): a layer with two Stroke instances in an
+// 'lmfx' block, a 7 px Multiply stroke listed first and an 18 px Normal stroke second,
+// over a scribbled backdrop. ps-flat.bmp is Photoshop's flatten.
+void ag_psd_strokes_two_instances_match_photoshop_if_available() {
+  const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "ag-psd" / "strokes";
+  patchy::test::skip_unless_exists(dir / "src.psd");
+  patchy::test::skip_unless_exists(dir / "ps-flat.bmp");
+  const auto document = patchy::psd::DocumentIo::read_file(dir / "src.psd");
+  const patchy::Layer* layer = nullptr;
+  for (const auto& candidate : document.layers()) {
+    if (candidate.name() == "Layer 1") {
+      layer = &candidate;
+    }
+  }
+  CHECK(layer != nullptr);
+  const auto& strokes = layer->layer_style().strokes;
+  CHECK(strokes.size() == 2);
+  CHECK(strokes[0].blend_mode == patchy::BlendMode::Multiply);
+  CHECK(std::abs(strokes[0].size - 7.0F) < 0.01F);
+  CHECK(strokes[1].blend_mode == patchy::BlendMode::Normal);
+  CHECK(std::abs(strokes[1].size - 18.0F) < 0.01F);
+  const auto reference = patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(dir / "ps-flat.bmp"));
+  const auto flat = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(reference.width() == flat.width() && reference.height() == flat.height());
+  write_rgb8_bmp_artifact("ag_psd_strokes_patchy", flat);
+  write_rgb8_bmp_artifact("ag_psd_strokes_photoshop", reference);
+  double total = 0.0;
+  std::uint64_t off = 0;
+  std::uint64_t count = 0;
+  for (std::int32_t y = 110; y < 275; ++y) {
+    for (std::int32_t x = 30; x < 372; ++x) {
+      const auto* a = reference.pixel(x, y);
+      const auto* b = flat.pixel(x, y);
+      const int delta = std::max({std::abs(a[0] - b[0]), std::abs(a[1] - b[1]), std::abs(a[2] - b[2])});
+      total += delta;
+      if (delta > 12) {
+        ++off;
+      }
+      ++count;
+    }
+  }
+  const double mean = total / static_cast<double>(count);
+  const double share = static_cast<double>(off) / static_cast<double>(count);
+  std::cout << "  strokes fixture vs Photoshop: mean " << mean << ", " << off << " pixels off by more than 12 ("
+            << share * 100.0 << "%)\n";
+  // Before the stacking fix the yellow band was missing: mean 6.8, 14% of the pixels off.
+  CHECK(mean <= 1.5);
+  CHECK(share <= 0.02);
+}
+
 }  // namespace
 
 
@@ -1547,6 +1697,12 @@ std::vector<patchy::test::TestCase> compositor_layer_styles_tests() {
        shape_effect_silhouette_matches_photoshop_probes_if_available},
       {"stroke_on_semi_transparent_content_matches_photoshop_probes_if_available",
        stroke_on_semi_transparent_content_matches_photoshop_probes_if_available},
+      {"stroke_soft_edge_probes_match_photoshop_if_available",
+       stroke_soft_edge_probes_match_photoshop_if_available},
+      {"compositor_multiple_strokes_stack_first_on_top_with_knockout",
+       compositor_multiple_strokes_stack_first_on_top_with_knockout},
+      {"ag_psd_strokes_two_instances_match_photoshop_if_available",
+       ag_psd_strokes_two_instances_match_photoshop_if_available},
       {"compositor_burn_dodge_effects_preserve_transparent_coverage", compositor_burn_dodge_effects_preserve_transparent_coverage},
   };
 }

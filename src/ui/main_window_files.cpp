@@ -474,6 +474,14 @@ const QList<FileFormatEntry>& file_format_entries() {
        {QStringLiteral("lbm"), QStringLiteral("iff")},
        true,
        true},
+      // Netpbm's portable anymaps (PBM bitmap, PGM graymap, PPM pixmap, and .pnm for any
+      // of them) read through Qt's built-in PPM handler, which also sniffs the P1-P6
+      // magic when the suffix is .pnm. Read-only: nothing writes them (GitHub issue 270).
+      {QT_TRANSLATE_NOOP("QObject", "Portable Anymap Image"),
+       {QStringLiteral("pbm"), QStringLiteral("pgm"), QStringLiteral("ppm"), QStringLiteral("pnm")},
+       {},
+       false,
+       false},
       // SVG opens as editable shape layers and saves/exports with vectors
       // preserved (the layered svg writer, not write_flat_image_file). It
       // stays OUT of save_extension_preserves_layers on purpose: masks,
@@ -609,6 +617,21 @@ QString format_filter_entry(const FileFormatEntry& entry, const QStringList& ext
                                        extension_patterns(extensions));
 }
 
+// At most this many patterns appear in an Open-dialog row's visible name; a longer list
+// ends in "and more" like the all-formats row. The Camera Raw row names 27 extensions,
+// which made GNOME's type dropdown as wide as the screen with its scrollbar at the far
+// screen edge, so the rows below the tenth looked absent (GitHub issue 270). The
+// machine-read pattern spec after the visible name still carries every extension.
+constexpr qsizetype kMaxVisibleFilterPatterns = 6;
+
+QString visible_pattern_hint(const QStringList& extensions) {
+  if (extensions.size() <= kMaxVisibleFilterPatterns) {
+    return extension_patterns(extensions);
+  }
+  //: Open-dialog file type row: %1 is a short list of *.ext patterns
+  return QObject::tr("%1 and more").arg(extension_patterns(extensions.mid(0, kMaxVisibleFilterPatterns)));
+}
+
 QString open_file_filter() {
   QStringList all_extensions;
   for (const auto& entry : file_format_entries()) {
@@ -619,12 +642,13 @@ QString open_file_filter() {
   // One dropdown row per format so every supported filetype is readable in the dialog.
   // The open dialogs run with HideNameFilterDetails: Qt displays only the text left of
   // the LAST "(" and filters with the parenthesized list after it, so each row is
-  // written as "Name (patterns) (patterns)". The duplication is deliberate: the first
+  // written as "Name (hint) (patterns)". The duplication is deliberate: the first
   // copy is the visible name, the second is the machine-read pattern spec. A "*."
   // token must stay in the visible name because the Windows 11 dialog re-appends the
   // whole semicolon-joined spec to any filter name without one (verified empirically,
   // July 2026); that is also why the all-formats row shows a short hint instead of its
-  // ~50 patterns, which would run off screen.
+  // ~50 patterns, which would run off screen. Per-format rows cap their hint the same
+  // way (visible_pattern_hint) so no row is wider than the dialog's dropdown.
   const auto supported_name =
       QObject::tr("Supported Files (%1 and more)").arg(QStringLiteral("*.psd *.png *.jpg"));
   QStringList filters;
@@ -633,8 +657,9 @@ QString open_file_filter() {
     if (entry.open_extensions.isEmpty()) {
       continue;
     }
-    filters.push_back(QStringLiteral("%1 (%2) (%2)").arg(
-        translate_data_text(entry.display_name), extension_patterns(entry.open_extensions)));
+    filters.push_back(QStringLiteral("%1 (%2) (%3)").arg(translate_data_text(entry.display_name),
+                                                        visible_pattern_hint(entry.open_extensions),
+                                                        extension_patterns(entry.open_extensions)));
   }
   filters.push_back(QStringLiteral("%1 (*.*)").arg(QObject::tr("All Files (*.*)")));
   return filters.join(QStringLiteral(";;"));
@@ -2654,6 +2679,8 @@ void MainWindow::open_document_path(QString path) {
     if (cmyk_proof_opened) {
       show_cmyk_proof_open_notice();
     }
+    // Linked smart objects whose files are missing (GitHub issue 257; off in Preferences).
+    show_missing_linked_files_dialog(true);
     // Photoshop's Missing Fonts dialog on open (GitHub issue 169; off in Preferences). Last, so
     // its own status message is not overwritten by the "Opened" one.
     show_resolve_missing_fonts_dialog(true);

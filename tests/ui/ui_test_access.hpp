@@ -20,6 +20,7 @@
 #include <cstddef>
 #include <functional>
 #include <optional>
+#include <string>
 #include <utility>
 
 namespace patchy::ui {
@@ -206,6 +207,12 @@ public:
     return window.custom_shape_library();
   }
 
+  // Holds back the pattern preload of windows constructed while set (released when the
+  // window asks for its library, is destroyed, or the hold is cleared), so a test can drive
+  // a window before the startup worker lands (docs/startup-performance.md).
+  static void hold_pattern_preload(bool hold) { MainWindow::hold_pattern_preload_for_tests(hold); }
+  static bool pattern_library_adopted(const MainWindow& window) { return window.pattern_library_ != nullptr; }
+
   static ImageSaveOptions image_save_defaults(MainWindow& window) {
     return window.image_save_defaults_for_document();
   }
@@ -282,6 +289,19 @@ public:
 
   static void relink_smart_object_contents_with_path(MainWindow& window, const QString& path) {
     window.relink_smart_object_contents_with_path(path);
+  }
+
+  static std::optional<QString> relink_missing_smart_object_source(MainWindow& window, const std::string& uuid,
+                                                                   const QString& path) {
+    return window.relink_missing_smart_object_source(uuid, path);
+  }
+
+  static void show_missing_linked_files_dialog(MainWindow& window) {
+    window.show_missing_linked_files_dialog(false);
+  }
+
+  static QString relink_dialog_initial_path(const MainWindow& window) {
+    return window.relink_dialog_initial_path();
   }
 
   static void show_layer_context_menu(MainWindow& window, QPoint position) {

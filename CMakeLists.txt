@@ -1327,6 +1327,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/multipage_pdf_export_dialog.cpp
       src/ui/missing_fonts_dialog.hpp
       src/ui/missing_fonts_dialog.cpp
+      src/ui/missing_links_dialog.hpp
+      src/ui/missing_links_dialog.cpp
       src/ui/text_layer_painter.hpp
       src/ui/pdf_import.hpp
       src/ui/photo_pattern_presets.hpp
@@ -2162,6 +2164,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/layer_panel_organization_tests_animation.cpp
       tests/ui/layer_panel_organization_tests_cross_document.cpp
       tests/ui/layer_panel_organization_tests_files_as_layers.cpp
+      tests/ui/layer_effect_rows_tests.cpp
       tests/ui/move_tool_processing_overlay_tests.cpp
       tests/ui/move_transform_zones_tests.cpp
       tests/ui/free_transform_distort_tests.cpp

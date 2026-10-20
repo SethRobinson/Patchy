@@ -11402,17 +11402,104 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation> (量 %1、ズーム、画質: %2)</translation>
     </message>
     <message>
+        <source>Effect visible. Click to hide.</source>
+        <translation>エフェクトは表示中です。クリックで非表示にします。</translation>
+    </message>
+    <message>
+        <source>Effect hidden. Click to show.</source>
+        <translation>エフェクトは非表示です。クリックで表示します。</translation>
+    </message>
+    <message>
+        <source>Edit this effect in the Layer Style dialog</source>
+        <translation>レイヤースタイルダイアログでこのエフェクトを編集</translation>
+    </message>
+    <message>
+        <source>Missing Linked Files</source>
+        <translation>見つからないリンクファイル</translation>
+    </message>
+    <message>
+        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
+        <translation>これらのリンクされたスマートオブジェクトは、Patchy が見つけられないファイルを参照しています。今すぐそれぞれをファイルに再リンクするか、保存されたプレビューのまま続行して、後でレイヤー &gt; スマートオブジェクト &gt; ファイルに再リンク... を使用してください。</translation>
+    </message>
+    <message>
+        <source>Relink...</source>
+        <translation>再リンク...</translation>
+    </message>
+    <message>
+        <source>Used by layer &quot;%1&quot;</source>
+        <translation>レイヤー「%1」で使用</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used by %n layers: %1</source>
+        <translation>
+            <numerusform>%n 個のレイヤーで使用: %1</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Relinked to %1</source>
+        <translation>%1 に再リンクしました</translation>
+    </message>
+    <message>
+        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
+        <translation>見つからないファイルは引き続きステータスバーに表示されます。環境設定で、開いたドキュメントに対してこのダイアログを再び有効にできます。</translation>
+    </message>
+    <message>
+        <source>Portable Anymap Image</source>
+        <translation>Portable Anymap 画像</translation>
+    </message>
+    <message>
+        <source>%1 and more</source>
+        <extracomment>Open-dialog file type row: %1 is a short list of *.ext patterns</extracomment>
+        <translation>%1 など</translation>
+    </message>
+    <message>
+        <source>The layer is locked, so its layer styles cannot be changed here.</source>
+        <translation>レイヤーがロックされているため、ここでレイヤースタイルを変更できません。</translation>
+    </message>
+    <message>
+        <source>Collapse the layer style rows</source>
+        <translation>レイヤースタイルの行を折りたたむ</translation>
+    </message>
+    <message>
+        <source>Expand the layer style rows</source>
+        <translation>レイヤースタイルの行を展開</translation>
+    </message>
+    <message>
+        <source>Layer styles visible. Click to hide them all.</source>
+        <translation>レイヤースタイルは表示中です。クリックですべて非表示にします。</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden. Click to show them.</source>
+        <translation>レイヤースタイルは非表示です。クリックで表示します。</translation>
+    </message>
+    <message>
+        <source>Layer Styles</source>
+        <translation>レイヤースタイル</translation>
+    </message>
+    <message>
+        <source>Effect on, but the layer styles are hidden. Click to turn it off.</source>
+        <translation>エフェクトはオンですが、レイヤースタイルは非表示です。クリックでオフにします。</translation>
+    </message>
+    <message>
+        <source>Effect off, and the layer styles are hidden. Click to turn it on.</source>
+        <translation>エフェクトはオフで、レイヤースタイルも非表示です。クリックでオンにします。</translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog; right-click for its menu.</source>
+        <translation>ダブルクリックでレイヤースタイルダイアログでこのエフェクトを編集、右クリックでメニューを表示します。</translation>
+    </message>
+    <message>
+        <source>Sharpen Edges</source>
+        <comment>Smart Filter</comment>
+        <translation>輪郭のシャープ</translation>
+    </message>
+    <message>
         <source>Smart Sharpen</source>
         <translation>スマートシャープ</translation>
     </message>
     <message>
         <source> (Amount %1%, Radius %2 px, Legacy)</source>
         <translation> (量 %1%、半径 %2 px、従来)</translation>
-    </message>
-    <message>
-        <source>Sharpen Edges</source>
-        <comment>Smart Filter</comment>
-        <translation>輪郭のシャープ</translation>
     </message>
 </context>
 <context>
@@ -23128,6 +23215,76 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Vibrance</source>
         <translation>自然な彩度をキャンセルしました</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool to add, resize or duplicate artboards</source>
+        <translation>アートボードの追加、サイズ変更、複製にはアートボードツールに切り替えてください</translation>
+    </message>
+    <message>
+        <source>Switch to the Artboard tool (%1) to add, resize or duplicate artboards</source>
+        <translation>アートボードの追加、サイズ変更、複製にはアートボードツール (%1) に切り替えてください</translation>
+    </message>
+    <message>
+        <source>Show %1</source>
+        <translation>%1 を表示</translation>
+    </message>
+    <message>
+        <source>Hide %1</source>
+        <translation>%1 を非表示</translation>
+    </message>
+    <message>
+        <source>%1 shown</source>
+        <translation>%1 を表示しました</translation>
+    </message>
+    <message>
+        <source>%1 hidden</source>
+        <translation>%1 を非表示にしました</translation>
+    </message>
+    <message>
+        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
+        <translation>リンクファイルが見つからないドキュメントを開くときに「見つからないリンクファイル」ダイアログを表示する</translation>
+    </message>
+    <message>
+        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
+        <translation>レイヤー &gt; スマートオブジェクト &gt; ファイルに再リンク... でいつでもリンクを修復できます。</translation>
+    </message>
+    <message>
+        <source>This document has no missing linked files</source>
+        <translation>このドキュメントに見つからないリンクファイルはありません</translation>
+    </message>
+    <message numerus="yes">
+        <source>Relinked %n smart object file(s)</source>
+        <translation>
+            <numerusform>%n 個のスマートオブジェクトファイルを再リンクしました</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Show Layer Styles</source>
+        <translation>レイヤースタイルを表示</translation>
+    </message>
+    <message>
+        <source>Hide Layer Styles</source>
+        <translation>レイヤースタイルを非表示</translation>
+    </message>
+    <message>
+        <source>Layer styles shown</source>
+        <translation>レイヤースタイルを表示しました</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden</source>
+        <translation>レイヤースタイルを非表示にしました</translation>
+    </message>
+    <message>
+        <source>Delete %1</source>
+        <translation>%1 を削除</translation>
+    </message>
+    <message>
+        <source>%1 deleted</source>
+        <translation>%1 を削除しました</translation>
+    </message>
+    <message>
+        <source>Edit %1...</source>
+        <translation>%1 を編集...</translation>
     </message>
     <message>
         <source>Smart Sharpen</source>
