@@ -586,6 +586,10 @@ void set_curve_points_for_channel(CurvesAdjustment& curves, CurvesChannel channe
 // threshold operates on the (30r + 59g + 11b) / 100 luminance rounded half up.
 [[nodiscard]] std::uint8_t posterize_channel_value(std::uint8_t value, int levels);
 [[nodiscard]] int threshold_luminance(std::uint8_t red, std::uint8_t green, std::uint8_t blue);
+// The deep (16/32-bit, 0..255 scale) form: true where the rounded luminance reaches
+// `level`, i.e. 30R + 59G + 11B >= 100 * level - 50. On 8-bit-exact values it agrees
+// with threshold_luminance(...) >= level exactly (the sum is an exact integer).
+[[nodiscard]] bool threshold_reached(double red, double green, double blue, int level) noexcept;
 // Photoshop Brightness/Contrast, both algorithms calibrated against PS 2026
 // ramp captures (July 2026). DELIBERATELY different from the destructive
 // patchy.filters.brightness_contrast formula (which is byte-pinned and keeps

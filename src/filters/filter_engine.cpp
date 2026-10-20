@@ -1517,12 +1517,13 @@ void execute_deep_builtin_filter(const FilterRegistry &registry,
     deep_blend_with_original(image, original,
                              filter_value(invocation, "amount", 100));
   } else if (identifier == "patchy.filters.threshold") {
-    const auto threshold = static_cast<float>(
-        std::clamp(filter_value(invocation, "threshold", 128), 0, 255));
+    const auto threshold =
+        std::clamp(filter_value(invocation, "threshold", 128), 0, 255);
     for_each_pixel(kFiltering, [&](std::int32_t, std::int32_t, float *px) {
-      // The 8-bit filter floors the integer luminance, which compares the
-      // same against a whole-number threshold.
-      const auto value = luminance(px) >= threshold ? 255.0F : 0.0F;
+      // The 8-bit filter's rounded luminance (threshold_luminance), so
+      // 8-bit-exact values threshold identically at every depth.
+      const auto value =
+          threshold_reached(px[0], px[1], px[2], threshold) ? 255.0F : 0.0F;
       px[0] = value;
       px[1] = value;
       px[2] = value;

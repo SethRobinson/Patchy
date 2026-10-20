@@ -1980,6 +1980,10 @@ int threshold_luminance(std::uint8_t red, std::uint8_t green, std::uint8_t blue)
   return (static_cast<int>(red) * 30 + static_cast<int>(green) * 59 + static_cast<int>(blue) * 11 + 50) / 100;
 }
 
+bool threshold_reached(double red, double green, double blue, int level) noexcept {
+  return red * 30.0 + green * 59.0 + blue * 11.0 >= static_cast<double>(level) * 100.0 - 50.0;
+}
+
 namespace {
 
 // Photoshop 2026 modern-mode Brightness/Contrast, the full closed form
