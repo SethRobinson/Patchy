@@ -295,6 +295,39 @@ void ui_file_info_strip_and_export_policies() {
   CHECK(MainWindowTestAccess::document(window).file_info().has_metadata());
 }
 
+
+// Issue 219: a PSD save records its dates and Patchy as the creator in the XMP (docs/file-info.md,
+// "Save stamp"); a second save keeps the creation date and moves the modify date.
+void ui_psd_save_stamps_dates_and_creator() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::Document document(16, 16, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", patchy::PixelBuffer(16, 16, patchy::PixelFormat::rgb8()));
+  window.add_document_session(std::move(document), QStringLiteral("Stamp"));
+  const auto path = artifact_dir() + QStringLiteral("/stamped.psd");
+  QFile::remove(path);
+  CHECK(MainWindowTestAccess::save_document_to_path(window, path));
+  const auto first = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(path));
+  CHECK(first.file_info().xmp != nullptr);
+  if (first.file_info().xmp == nullptr) {
+    return;
+  }
+  const auto packet = md::parse_xmp(*first.file_info().xmp).value_or(md::XmpPacket{});
+  const auto creator = packet.text(md::xmp_ns::kXmp, "CreatorTool");
+  const auto created = packet.text(md::xmp_ns::kXmp, "CreateDate");
+  CHECK(creator.rfind("Patchy ", 0) == 0U && creator.size() > 7U);
+  CHECK(created.size() == 25U && created[10] == 'T');
+  CHECK(packet.text(md::xmp_ns::kXmp, "ModifyDate") == created);
+
+  CHECK(MainWindowTestAccess::save_document_to_path(window, path));
+  const auto second = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(path));
+  const auto again = md::parse_xmp(*second.file_info().xmp).value_or(md::XmpPacket{});
+  CHECK(again.text(md::xmp_ns::kXmp, "CreateDate") == created);
+  CHECK(again.text(md::xmp_ns::kXmp, "ModifyDate") >= created);
+  const auto* history = again.find(md::xmp_ns::kXmpMM, "History");
+  CHECK(history != nullptr && history->value.items.size() == 2U);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> file_info_tests() {
@@ -302,5 +335,6 @@ std::vector<patchy::test::TestCase> file_info_tests() {
       {"ui_file_info_opens_views_edits_and_undoes", ui_file_info_opens_views_edits_and_undoes},
       {"ui_file_info_saves_metadata_in_every_carrier", ui_file_info_saves_metadata_in_every_carrier},
       {"ui_file_info_strip_and_export_policies", ui_file_info_strip_and_export_policies},
+      {"ui_psd_save_stamps_dates_and_creator", ui_psd_save_stamps_dates_and_creator},
   };
 }

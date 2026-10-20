@@ -17,6 +17,7 @@
 #include "psd/psd_document_io.hpp"
 #include "test_groups.hpp"
 #include "test_harness.hpp"
+#include "local_psd_fixtures.hpp"
 #include "unicode_path_names.hpp"
 #include <algorithm>
 #include <array>
@@ -1212,10 +1213,136 @@ void inject_round_trips_through_every_container() {
   }
 }
 
+
+// Save stamp (GitHub issue 219, docs/file-info.md "Save stamp"): PSD saves record their
+// dates and creator in the XMP the way Photoshop does, from a fixed clock here.
+md::XmpPacket stamped_packet(const patchy::DocumentFileInfo& info) {
+  CHECK(info.xmp != nullptr);
+  if (info.xmp == nullptr) {
+    return {};
+  }
+  return md::parse_xmp(*info.xmp).value_or(md::XmpPacket{});
+}
+
+std::vector<std::string> history_field(const md::XmpPacket& packet, std::string_view field) {
+  std::vector<std::string> values;
+  if (const auto* history = packet.find(md::xmp_ns::kXmpMM, "History")) {
+    for (const auto& item : history->value.items) {
+      for (const auto& entry : item.fields) {
+        if (entry.name == field) {
+          values.push_back(entry.value.text);
+        }
+      }
+    }
+  }
+  return values;
+}
+
+void metadata_xmp_date_is_iso_8601_with_the_offset() {
+  CHECK(md::xmp_date(0, 0) == "1970-01-01T00:00:00+00:00");
+  CHECK(md::xmp_date(1792478465, 540) == "2026-10-20T15:41:05+09:00");
+  CHECK(md::xmp_date(1709208000, -300) == "2024-02-29T07:00:00-05:00");
+  CHECK(md::xmp_date(951782400, 330) == "2000-02-29T05:30:00+05:30");
+}
+
+void metadata_save_stamp_records_creation_and_each_save() {
+  patchy::DocumentFileInfo info;
+  md::stamp_xmp_for_save(info, {"2026-10-20T15:41:05+09:00", "Patchy 9.9"});
+  auto packet = stamped_packet(info);
+  CHECK(packet.text(md::xmp_ns::kXmp, "CreatorTool") == "Patchy 9.9");
+  CHECK(packet.text(md::xmp_ns::kXmp, "CreateDate") == "2026-10-20T15:41:05+09:00");
+  CHECK(packet.text(md::xmp_ns::kXmp, "ModifyDate") == "2026-10-20T15:41:05+09:00");
+  CHECK(packet.text(md::xmp_ns::kXmp, "MetadataDate") == "2026-10-20T15:41:05+09:00");
+  CHECK(history_field(packet, "action") == std::vector<std::string>{"created"});
+
+  // The next save moves the modify date and adds a history entry; creation stays.
+  md::stamp_xmp_for_save(info, {"2026-10-21T08:00:00+09:00", "Patchy 9.9"});
+  packet = stamped_packet(info);
+  CHECK(packet.text(md::xmp_ns::kXmp, "CreateDate") == "2026-10-20T15:41:05+09:00");
+  CHECK(packet.text(md::xmp_ns::kXmp, "ModifyDate") == "2026-10-21T08:00:00+09:00");
+  CHECK((history_field(packet, "action") == std::vector<std::string>{"created", "saved"}));
+  CHECK((history_field(packet, "when") ==
+         std::vector<std::string>{"2026-10-20T15:41:05+09:00", "2026-10-21T08:00:00+09:00"}));
+
+  // Through the PSD writer and reader: resource 1060 carries it.
+  patchy::Document document(8, 8, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", patchy::PixelBuffer(8, 8, patchy::PixelFormat::rgb8()));
+  document.file_info() = info;
+  const auto read = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto reread = stamped_packet(read.file_info());
+  CHECK(reread.text(md::xmp_ns::kXmp, "CreatorTool") == "Patchy 9.9");
+  CHECK(reread.text(md::xmp_ns::kXmp, "CreateDate") == "2026-10-20T15:41:05+09:00");
+  CHECK(history_field(reread, "softwareAgent").size() == 2U);
+}
+
+// A file another application wrote keeps its creator, creation date, history and every
+// other field; only the modify dates and a new "saved" entry change, as when Photoshop
+// saves a file it did not create (pinball_from_photoshop.psd keeps "Adobe Photoshop 21.1"
+// as its creator after a Photoshop 23.4 save, which went to xmpMM:History).
+void metadata_save_stamp_keeps_another_applications_record() {
+  const std::string source =
+      R"x(<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">)x"
+      R"x(<rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/")x"
+      R"x( xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/" xmlns:stEvt="http://ns.adobe.com/xap/1.0/sType/ResourceEvent#")x"
+      R"x( xmp:CreatorTool="Adobe Photoshop 27.0 (Windows)" xmp:CreateDate="2025-01-02T03:04:05-08:00")x"
+      R"x( xmp:ModifyDate="2025-01-02T03:04:05-08:00" xmpMM:DocumentID="xmp.did:1234">)x"
+      R"x(<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Poster</rdf:li></rdf:Alt></dc:title>)x"
+      R"x(<xmpMM:History><rdf:Seq><rdf:li rdf:parseType="Resource"><stEvt:action>created</stEvt:action>)x"
+      R"x(<stEvt:when>2025-01-02T03:04:05-08:00</stEvt:when><stEvt:softwareAgent>Adobe Photoshop 27.0 (Windows)</stEvt:softwareAgent>)x"
+      R"x(</rdf:li></rdf:Seq></xmpMM:History></rdf:Description></rdf:RDF></x:xmpmeta>)x";
+  patchy::DocumentFileInfo info;
+  info.xmp = patchy::make_metadata_bytes(Bytes(source.begin(), source.end()));
+  md::stamp_xmp_for_save(info, {"2026-10-20T15:41:05+09:00", "Patchy 9.9"});
+  const auto packet = stamped_packet(info);
+  CHECK(packet.text(md::xmp_ns::kXmp, "CreatorTool") == "Adobe Photoshop 27.0 (Windows)");
+  CHECK(packet.text(md::xmp_ns::kXmp, "CreateDate") == "2025-01-02T03:04:05-08:00");
+  CHECK(packet.text(md::xmp_ns::kXmp, "ModifyDate") == "2026-10-20T15:41:05+09:00");
+  CHECK(packet.text(md::xmp_ns::kXmp, "MetadataDate") == "2026-10-20T15:41:05+09:00");
+  CHECK(packet.text(md::xmp_ns::kXmpMM, "DocumentID") == "xmp.did:1234");
+  CHECK(packet.text(md::xmp_ns::kDc, "title") == "Poster");
+  CHECK((history_field(packet, "action") == std::vector<std::string>{"created", "saved"}));
+  CHECK((history_field(packet, "softwareAgent") ==
+         std::vector<std::string>{"Adobe Photoshop 27.0 (Windows)", "Patchy 9.9"}));
+
+  // A packet that does not parse is left alone rather than replaced.
+  patchy::DocumentFileInfo broken;
+  broken.xmp = patchy::make_metadata_bytes(Bytes{'n', 'o', 't', ' ', 'x', 'm', 'l'});
+  const auto before = broken.xmp;
+  md::stamp_xmp_for_save(broken, {"2026-10-20T15:41:05+09:00", "Patchy 9.9"});
+  CHECK(broken.xmp == before);
+}
+
+// Photoshop acceptance inputs (File Info should show the dates and the application):
+// a new document's first save and a Photoshop file's resave, in
+// test-artifacts/psd-xmp-dates for scripts/dev/photoshop-open-check.ps1.
+void metadata_save_stamp_acceptance_files() {
+  const auto out = std::filesystem::path("test-artifacts") / "psd-xmp-dates";
+  std::filesystem::create_directories(out);
+  const auto write = [](const std::filesystem::path& path, const std::vector<std::uint8_t>& bytes) {
+    std::ofstream file(path, std::ios::binary);
+    file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+  };
+  patchy::Document fresh(64, 48, patchy::PixelFormat::rgb8());
+  fresh.add_pixel_layer("Background", patchy::PixelBuffer(64, 48, patchy::PixelFormat::rgb8()));
+  md::stamp_xmp_for_save(fresh.file_info(), {"2026-10-20T15:41:05+09:00", "Patchy 9.9"});
+  write(out / "new-document.psd", patchy::psd::DocumentIo::write_layered_rgb8(fresh));
+
+  const auto source = patchy::test::local_psd_fixture_path("checkbox.psd");
+  if (std::filesystem::exists(source)) {
+    auto resaved = patchy::psd::DocumentIo::read_file(source);
+    md::stamp_xmp_for_save(resaved.file_info(), {"2026-10-20T15:41:05+09:00", "Patchy 9.9"});
+    write(out / "photoshop-resave.psd", patchy::psd::DocumentIo::write_layered_rgb8(resaved));
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> file_info_metadata_tests() {
   return {
+      {"metadata_xmp_date_is_iso_8601_with_the_offset", metadata_xmp_date_is_iso_8601_with_the_offset},
+      {"metadata_save_stamp_records_creation_and_each_save", metadata_save_stamp_records_creation_and_each_save},
+      {"metadata_save_stamp_keeps_another_applications_record", metadata_save_stamp_keeps_another_applications_record},
+      {"metadata_save_stamp_acceptance_files", metadata_save_stamp_acceptance_files},
       {"metadata_tiff_ifd_round_trips_both_byte_orders", tiff_ifd_round_trips_both_byte_orders},
       {"metadata_tiff_ifd_survives_hostile_offsets", tiff_ifd_survives_hostile_offsets},
       {"metadata_xmp_reads_every_rdf_form_and_round_trips", xmp_reads_every_rdf_form_and_round_trips},
