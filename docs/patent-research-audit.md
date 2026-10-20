@@ -92,3 +92,60 @@ USPTO fee and assignment records for every status above; the application number 
 patent 12731259; continuations of US 8380005 / US 9058699 filed after 2013; prosecution history
 that could narrow "composite image" or "resolution"; any Adobe filing on proxy previews under
 other titles; the allowed claims of US 2023/0129341 A1.
+## 2. US 7768525 B2 (Microsoft, "Dynamic paint pickup"): the Mixer Brush
+
+Status: Active, adjusted expiry 2028-03-07 (application 11/419,074, filed 2006-05-18, granted
+2010-08-03; Microsoft Technology Licensing).
+
+**Claims read.** Claim 1 (method): determine an injection color and store it in an injection data
+store; copy pixels from a pickup surface of a different graphics type than the target surface into
+a pickup data store; contaminate the paint data store's color attributes with the pickup pixels
+and inject the injection color into it, both at a plurality of stamps after the first stamp;
+determine a stamp location; paint pixels there from the contaminated and injected paint data
+store. Claim 16 (media): claim 1 without the graphics-type element, with the mixing based on an
+indicated percentage mixture value. Claim 14 (system): a data store, memory and a processor that
+(i) copies pixels from the target surface, (ii) contaminates "a paint data store containing an
+injection color attribute" with those pixels based on a mixture value that is an indicated
+percentage, (iii) injects the injection color attribute into the paint data store, "wherein the
+contaminating and the injecting are achieved together", and (iv) paints a stamp based on the paint
+data store. Claim 15 adds repeating the functions during the stroke. Claim 14 alone has no
+plurality-of-stamps or persistence element; the specification says the paint data store "may be
+static over one or more stamps or may change from one stamp to the next" and may be any buffer.
+
+**The 2026-08-14 record answered the wrong store.** It tested the persistent pickup average ("never
+seeded from or blended with the foreground") and concluded the injection-into-store element is
+missed. Against claim 14 the better candidate for the "paint data store" is the per-dab deposit
+temporary in `mixer_brush_dab_color` (src/core/pixel_tools.cpp): it starts as the foreground color
+(a store containing the injection color), is moved toward the pickup average by `ratio` (a product
+of the Wet and Mix percentages, so a mixture value that is an indicated percentage), and is painted
+as the stamp. Element by element: (i) copying pixels from the target surface: the 9x9 disc sampled
+from the stroke-start snapshot of the target layer; present. (ii) contaminating a store containing
+the injection color with those pixels by a percentage mixture: present in substance (the
+contamination uses a decayed average of the copied pixels rather than the pixels themselves, a small
+difference). (iii) injecting the injection color into the store, together with the contaminating:
+not performed as a separate act. The foreground is only the initial value of a temporary that is
+consumed and discarded; nothing is added to any store afterwards, and no store survives the dab to
+receive an injection. Reading "containing" (ii) and "injecting" (iii) as the same thing would give
+one of them no effect. (iv) painting a stamp from the store: present.
+
+**Comparison.** Claim 14 does not require persistence, and the earlier record's reasoning does not
+reach it. The design differs from claim 14 in the injection act (medium confidence); the open
+question is whether re-creating the deposit from the foreground every dab is the same way of
+keeping the foreground present as re-injecting it into a contaminated store. The term ends
+2028-03-07.
+
+**Alternative design recorded (not made).** Deposit the two colors as two
+ordinary stamps instead of one mixed color: stamp the foreground at alpha a1 = a(1 - r)/(1 - ar),
+then the pickup color at alpha a2 = ar, each through the normal stroke compositor (a = the dab
+alpha after dry-out, r = the deposit ratio). Over(Over(canvas, fg, a1), pickup, a2) expands to
+canvas(1 - a) + a(1 - r) fg + ar pickup, exactly the current lerp-then-over, so output is unchanged
+up to rounding. No variable ever holds a mixture of foreground and pickup: there is no paint data
+store containing the injection color to contaminate (ii) and nothing to inject (iii); the
+persistent average stays canvas-only as before. Effort: small to medium (the dab callback in
+canvas_widget_brush.cpp returns two stamps; mixer dabs cost two composites; the stroke compositor
+must composite the second stamp over the first inside the stroke buffer, which already takes
+per-dab colors). Test to pin it: a core test that the mixer dab API yields a foreground stamp and
+a pickup stamp and no mixed color, plus a pixel comparison of a calibrated stroke against the
+current reference within 1/255 (`mixer_brush_pickup_average_follows_canvas_and_dries_only_at_wet_zero`
+stays as the model test). Alternative: no change, with a re-check at 2028-03-07.
+
