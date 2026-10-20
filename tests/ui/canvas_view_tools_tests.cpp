@@ -3375,6 +3375,100 @@ void ui_filled_shape_preview_clears_after_commit() {
 
 // Fill tool options: Tol and Contiguous live beside Opacity/Soft, persist, and follow the
 // current_* mirror onto new documents (GitHub issue 30).
+// Issue 253 (Seth: "fix that too"): the Fill tool's Opacity runs 0..100 like the Brush bar's
+// (Photoshop's Paint Bucket stops at 1%). The popup slider and the inline slider reach 0, and
+// at 0% neither the Fill tool's flood nor the Fill command touches the layer or the history;
+// 100% still fills.
+void ui_fill_opacity_accepts_zero_and_fills_nothing() {
+  {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    require_action_by_text(window, QStringLiteral("Fill"))->trigger();
+    QApplication::processEvents();
+    auto* canvas = require_canvas(window);
+    CHECK(canvas->tool() == patchy::ui::CanvasTool::Fill);
+    auto* spin = window.findChild<QSpinBox*>(QStringLiteral("fillOpacitySpin"));
+    auto* inline_slider = window.findChild<QSlider*>(QStringLiteral("fillOpacitySlider"));
+    auto* softness = window.findChild<QSpinBox*>(QStringLiteral("fillSoftnessSpin"));
+    CHECK(spin != nullptr && inline_slider != nullptr && softness != nullptr);
+    spin->setValue(50);
+    CHECK(canvas->fill_opacity() == 50);
+
+    auto* action = window.findChild<QAction*>(QStringLiteral("fillOpacityPopupAction"));
+    CHECK(action != nullptr);
+    action->trigger();
+    QApplication::processEvents();
+    auto* popup = window.findChild<QFrame*>(QStringLiteral("fillOpacityPopup"));
+    auto* slider = window.findChild<QSlider*>(QStringLiteral("fillOpacityPopupSlider"));
+    CHECK(popup != nullptr && popup->isVisible());
+    CHECK(slider != nullptr);
+    patchy::ui::set_slider_to_value(*slider, slider->minimum());
+    QApplication::processEvents();
+    save_window_popup_artifact("issue_253_fill_opacity_popup_minimum", window, *spin, *popup);
+    CHECK(slider->minimum() == 0);
+    CHECK(spin->value() == 0);
+    CHECK(inline_slider->minimum() == 0);
+    CHECK(inline_slider->value() == 0);
+    CHECK(canvas->fill_opacity() == 0);
+    popup->close();
+    QApplication::processEvents();
+    CHECK(spin->minimum() == softness->minimum());
+    CHECK(spin->maximum() == softness->maximum());
+    CHECK(spin->singleStep() == softness->singleStep());
+
+    // The Fill command (Alt+Backspace) at 0% leaves the pixels and the history alone.
+    require_action_by_text(window, QStringLiteral("Marquee"))->trigger();
+    QApplication::processEvents();
+    canvas->set_primary_color(QColor(20, 140, 230));
+    drag(*canvas, canvas->widget_position_for_document_point(QPoint(80, 70)),
+         canvas->widget_position_for_document_point(QPoint(180, 150)));
+    QApplication::processEvents();
+    CHECK(canvas->has_selection());
+    const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+    require_action(window, "layerFillForegroundAction")->trigger();
+    QApplication::processEvents();
+    CHECK(color_close(canvas_pixel(*canvas, QPoint(120, 100)), Qt::white, 2));
+    CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before);
+    spin->setValue(100);
+    require_action(window, "layerFillForegroundAction")->trigger();
+    QApplication::processEvents();
+    CHECK(color_close(canvas_pixel(*canvas, QPoint(120, 100)), QColor(20, 140, 230), 12));
+  }
+
+  // The Fill tool's flood at 0% leaves the layer byte for byte untouched; 100% fills.
+  patchy::Document document(48, 48, patchy::PixelFormat::rgba8());
+  const auto layer_id = document.add_pixel_layer(
+      "Background", solid_pixels(48, 48, patchy::PixelFormat::rgba8(), Qt::white)).id();
+  document.set_active_layer(layer_id);
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(192, 192);
+  canvas.set_document(&document);
+  canvas.set_zoom(4.0);
+  canvas.set_tool(patchy::ui::CanvasTool::Fill);
+  canvas.set_primary_color(QColor(0, 180, 210));
+  canvas.set_fill_tolerance(0);
+  canvas.set_fill_softness(0);
+  canvas.show();
+  QApplication::processEvents();
+  const auto click = [&](int x, int y) {
+    const auto position = canvas.widget_position_for_document_point(QPoint(x, y));
+    send_mouse(canvas, QEvent::MouseButtonPress, position, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(canvas, QEvent::MouseButtonRelease, position, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+  };
+  canvas.set_fill_opacity(0);
+  CHECK(canvas.fill_opacity() == 0);
+  const auto before_bytes = std::as_const(document).find_layer(layer_id)->pixels().data();
+  const std::vector<std::uint8_t> before(before_bytes.begin(), before_bytes.end());
+  click(10, 10);
+  const auto after = std::as_const(document).find_layer(layer_id)->pixels().data();
+  CHECK(after.size() == before.size() && std::equal(after.begin(), after.end(), before.begin()));
+  canvas.set_fill_opacity(100);
+  click(10, 10);
+  const auto* filled = std::as_const(document).find_layer(layer_id)->pixels().pixel(10, 10);
+  CHECK(filled[0] == 0 && filled[1] == 180 && filled[2] == 210);
+}
+
 void ui_fill_tool_tolerance_and_contiguous_persist_across_documents() {
   SettingsValueRestorer saved_tolerance(QStringLiteral("tools/fillTolerance"));
   SettingsValueRestorer saved_contiguous(QStringLiteral("tools/fillContiguous"));
@@ -6120,6 +6214,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_options_bar_tracks_active_tool", ui_options_bar_tracks_active_tool},
       {"ui_fill_tool_tolerance_and_contiguous_persist_across_documents",
        ui_fill_tool_tolerance_and_contiguous_persist_across_documents},
+      {"ui_fill_opacity_accepts_zero_and_fills_nothing", ui_fill_opacity_accepts_zero_and_fills_nothing},
       {"ui_fill_tool_click_honors_tolerance_contiguous_and_opacity",
        ui_fill_tool_click_honors_tolerance_contiguous_and_opacity},
       {"ui_fill_of_wand_selection_with_many_spans_is_fast", ui_fill_of_wand_selection_with_many_spans_is_fast},
