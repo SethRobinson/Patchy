@@ -2151,11 +2151,17 @@ private:
   void draw_artboard_overlay(QPainter& painter) const;
   [[nodiscard]] std::optional<LayerId> selected_artboard_id() const;
   [[nodiscard]] QRectF artboard_label_widget_rect(const Layer& artboard) const;
-  // Whether what the rendered frame shows under a label reads as light, so the label
-  // takes the dark ink (GitHub issue 260): a bounded grid of samples over the pasteboard,
-  // another artboard's paper or its content, never work proportional to the document.
-  [[nodiscard]] bool artboard_label_sits_on_light_backing(const std::vector<const Layer*>& artboards,
-                                                          const QRectF& label_widget_rect) const;
+  // What the rendered frame shows under a label (GitHub issue 260): a bounded grid of
+  // samples over the pasteboard, another artboard's paper or its content, never work
+  // proportional to the document. `light` picks the dark ink; `mixed` says the label
+  // straddles light and dark (a label hanging over a neighbouring board's edge), so the
+  // ink gets a halo in the other ink to read on both.
+  struct ArtboardLabelBacking {
+    bool light{false};
+    bool mixed{false};
+  };
+  [[nodiscard]] ArtboardLabelBacking artboard_label_backing(const std::vector<const Layer*>& artboards,
+                                                            const QRectF& label_widget_rect) const;
   // The artboard a Move-tool press at `widget_position` selects (and a drag moves), or
   // none (GitHub issue 259): its name label with any setting, and with Auto-Select or
   // Ctrl held its area where no layer is under the pointer. Hover, press and cursor
