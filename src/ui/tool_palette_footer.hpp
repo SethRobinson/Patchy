@@ -79,9 +79,10 @@ protected:
   bool eventFilter(QObject* watched, QEvent* event) override;
 
 private:
-  // Centers the Quick Mask button under the well in the footer's real width,
-  // which can be a pixel or two narrower than kWidth (GitHub issue 224).
-  void place_quick_mask();
+  // Places the controls measured from the palette's right border: the swap glyph
+  // 2 px clear of it (GitHub issue 251) and the Quick Mask button centered under
+  // the well (224).
+  void place_controls();
 
   ColorWellSwatch* foreground_{nullptr};
   ColorWellSwatch* background_{nullptr};
