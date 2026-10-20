@@ -5,6 +5,11 @@
 // over a distortion. docs/free-transform.md.
 #include "ui/canvas_widget.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/smart_object.hpp"
+#include "psd/psd_document_io.hpp"
+#include "ui/edit_conversions.hpp"
+#include "ui/smart_object_render.hpp"
+#include "local_psd_fixtures.hpp"
 #include "core/vector_live_shapes.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
@@ -16,12 +21,17 @@
 #include <QImage>
 #include <QList>
 #include <QMenu>
+#include <QPainter>
 #include <QPoint>
 #include <QRect>
 #include <QStatusBar>
 #include <QTextEdit>
 #include <optional>
+#include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <cstdio>
+#include <fstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -292,6 +302,180 @@ void ui_free_transform_distort_shape_layer_maps_path() {
   CHECK(is_white(*canvas, 120, 195));
 }
 
+// A smart object distorts as a perspective placement: nonAffineTransform holds the
+// corners, Trnf their bounding box (Photoshop's rule), the content re-renders onto
+// the quad, and both quads survive a PSD round trip. The written file is the
+// Photoshop acceptance artifact (scripts\dev\photoshop-open-check.ps1).
+void ui_free_transform_distort_smart_object_writes_perspective_placement() {
+  patchy::ui::MainWindow window;
+  const QRect bounds(100, 70, 160, 110);
+  prepare_distort_scene(window, bounds);
+  auto* canvas = require_canvas(window);
+  require_action(window, "layerConvertSmartObjectAction")->trigger();
+  QApplication::processEvents();
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto id = document.active_layer_id();
+  CHECK(id.has_value());
+  const auto* converted = id.has_value() ? document.find_layer(*id) : nullptr;
+  CHECK(converted != nullptr && patchy::layer_is_smart_object(*converted));
+
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  drag(*canvas, widget_at(*canvas, 260, 180), widget_at(*canvas, 300, 210), Qt::ControlModifier);
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  save_image_artifact("ui_free_transform_distort_smart_object", canvas_crop(*canvas, QRect(40, 30, 320, 220)));
+
+  const auto* layer = document.find_layer(*id);
+  CHECK(layer != nullptr);
+  const auto placement = patchy::smart_object_placement_from_layer(*layer);
+  CHECK(placement.has_value() && placement->non_affine_transform.has_value());
+  if (!placement.has_value() || !placement->non_affine_transform.has_value()) {
+    return;
+  }
+  const std::array<double, 8> expected_quad{100.0, 70.0, 260.0, 70.0, 300.0, 210.0, 100.0, 180.0};
+  for (std::size_t i = 0; i < 8U; ++i) {
+    CHECK(std::abs((*placement->non_affine_transform)[i] - expected_quad[i]) < 0.01);
+  }
+  const std::array<double, 8> expected_bounds{100.0, 70.0, 300.0, 70.0, 300.0, 210.0, 100.0, 210.0};
+  for (std::size_t i = 0; i < 8U; ++i) {
+    CHECK(std::abs(placement->transform[i] - expected_bounds[i]) < 0.01);
+  }
+  CHECK(patchy::smart_object_lock_reason(*layer).empty());
+  CHECK(is_box(*canvas, 295, 205));
+  CHECK(is_white(*canvas, 120, 195));
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  ensure_artifact_dir();
+  {
+    std::ofstream out("test-artifacts/free_transform_perspective_smart_object.psd", std::ios::binary);
+    out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+  }
+  const auto reread = patchy::psd::DocumentIo::read(bytes);
+  const patchy::Layer* reread_layer = nullptr;
+  for (const auto& candidate : reread.layers()) {
+    if (patchy::layer_is_smart_object(candidate)) {
+      reread_layer = &candidate;
+    }
+  }
+  CHECK(reread_layer != nullptr);
+  if (reread_layer == nullptr) {
+    return;
+  }
+  const auto reread_placement = patchy::smart_object_placement_from_layer(*reread_layer);
+  CHECK(reread_placement.has_value() && reread_placement->non_affine_transform.has_value());
+  if (reread_placement.has_value() && reread_placement->non_affine_transform.has_value()) {
+    for (std::size_t i = 0; i < 8U; ++i) {
+      CHECK(std::abs((*reread_placement->non_affine_transform)[i] - expected_quad[i]) < 0.01);
+      CHECK(std::abs(reread_placement->transform[i] - expected_bounds[i]) < 0.01);
+    }
+  }
+  CHECK(patchy::smart_object_lock_reason(*reread_layer).empty());
+}
+
+// Photoshop-authored perspective smart objects import editable. Their first
+// Patchy render must match Photoshop's stored raster closely, and an
+// open-and-save without edits keeps that raster byte for byte.
+void ui_pinball_perspective_smart_objects_render_like_photoshop_if_available() {
+  const auto path = patchy::test::local_psd_fixture_path("pinball_retronight_poster_a3.psd");
+  patchy::test::skip_unless_exists(path);
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  std::vector<const patchy::Layer*> perspective;
+  const auto collect = [&perspective](auto&& self, const std::vector<patchy::Layer>& layers) -> void {
+    for (const auto& layer : layers) {
+      if (layer.kind() == patchy::LayerKind::Group) {
+        self(self, layer.children());
+        continue;
+      }
+      if (const auto placement = patchy::smart_object_placement_from_layer(layer);
+          placement.has_value() && placement->non_affine_transform.has_value()) {
+        perspective.push_back(&layer);
+      }
+    }
+  };
+  collect(collect, document.layers());
+  CHECK(perspective.size() >= 2U);
+
+  const auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  for (const auto* layer : perspective) {
+    CHECK(patchy::smart_object_lock_reason(*layer).empty());
+    const auto rendered =
+        patchy::ui::render_smart_object_unfiltered_layer_preview(document, *layer,
+                                                                  patchy::ui::CanvasWidget::TransformInterpolation::Bicubic);
+    CHECK(rendered.has_value());
+    if (!rendered.has_value()) {
+      continue;
+    }
+    // Compare what a viewer sees: both rasters placed on the canvas and reduced 4x
+    // (thin antialiased grid lines make a per-pixel test measure edge antialiasing,
+    // not the picture). Geometry first: the render must cover where Photoshop's does.
+    const auto stored_bounds = layer->bounds();
+    const auto render_bounds = rendered->bounds;
+    const QRect canvas(0, 0, document.width(), document.height());
+    const auto stored_rect =
+        QRect(stored_bounds.x, stored_bounds.y, stored_bounds.width, stored_bounds.height).intersected(canvas);
+    const auto render_rect =
+        QRect(render_bounds.x, render_bounds.y, render_bounds.width, render_bounds.height).intersected(canvas);
+    CHECK(!stored_rect.isEmpty());
+    CHECK(render_rect.contains(stored_rect.adjusted(2, 2, -2, -2)));
+    const auto on_canvas = [&](const QImage& source, patchy::Rect bounds) {
+      QImage canvas_image(document.width(), document.height(), QImage::Format_RGBA8888_Premultiplied);
+      canvas_image.fill(Qt::transparent);
+      QPainter painter(&canvas_image);
+      painter.drawImage(QPoint(bounds.x, bounds.y), source);
+      painter.end();
+      return canvas_image.copy(stored_rect).scaled(stored_rect.size() / 4, Qt::IgnoreAspectRatio,
+                                                    Qt::SmoothTransformation);
+    };
+    const auto photoshop = on_canvas(patchy::ui::qimage_from_pixel_buffer(layer->pixels()), stored_bounds);
+    const auto patchy_render = on_canvas(patchy::ui::qimage_from_pixel_buffer(rendered->pixels), render_bounds);
+    save_image_artifact("pinball_perspective_photoshop_" + std::to_string(layer->id()), photoshop);
+    save_image_artifact("pinball_perspective_patchy_" + std::to_string(layer->id()), patchy_render);
+    double total = 0.0;
+    int worst = 0;
+    std::int64_t samples = 0;
+    // Premultiplied bytes, so fully transparent pixels compare equal whatever color
+    // they would have had.
+    for (int y = 0; y < photoshop.height(); ++y) {
+      const auto* a = photoshop.constScanLine(y);
+      const auto* b = patchy_render.constScanLine(y);
+      for (int x = 0; x < photoshop.width() * 4; x += 4) {
+        int delta = 0;
+        for (int channel = 0; channel < 4; ++channel) {
+          delta = std::max(delta, std::abs(static_cast<int>(a[x + channel]) - static_cast<int>(b[x + channel])));
+        }
+        total += delta;
+        worst = std::max(worst, delta);
+        ++samples;
+      }
+    }
+    CHECK(samples > 0);
+    const double mean = samples > 0 ? total / static_cast<double>(samples) : 255.0;
+    std::printf("perspective SO '%s' (%d): 4x-reduced mean delta %.2f, worst %d over %lld pixels\n",
+                layer->name().c_str(), static_cast<int>(layer->id()), mean, worst, static_cast<long long>(samples));
+    CHECK(mean < 4.0);
+    CHECK(worst < 128);
+
+    // Open and save without edits keeps Photoshop's raster.
+    const patchy::Layer* saved = nullptr;
+    const auto find = [&saved, id = layer->id()](auto&& self, const std::vector<patchy::Layer>& layers) -> void {
+      for (const auto& candidate : layers) {
+        if (candidate.id() == id) {
+          saved = &candidate;
+        }
+        self(self, candidate.children());
+      }
+    };
+    find(find, reread.layers());
+    CHECK(saved != nullptr);
+    if (saved != nullptr) {
+      CHECK(saved->bounds() == layer->bounds());
+      CHECK(saved->pixels().byte_size() == layer->pixels().byte_size());
+      CHECK(std::equal(saved->pixels().data().begin(), saved->pixels().data().end(), layer->pixels().data().begin()));
+    }
+  }
+}
+
 // The three entries live under Edit > Transform with permanent hotkey ids, no
 // default keys, and NoRole (macOS menu merging).
 void ui_free_transform_mode_menu_entries() {
@@ -323,6 +507,10 @@ std::vector<patchy::test::TestCase> free_transform_distort_tests() {
       {"ui_free_transform_distort_refuses_type_layer", ui_free_transform_distort_refuses_type_layer},
       {"ui_free_transform_distort_is_a_session_step", ui_free_transform_distort_is_a_session_step},
       {"ui_free_transform_mode_menu_entries", ui_free_transform_mode_menu_entries},
+      {"ui_free_transform_distort_smart_object_writes_perspective_placement",
+       ui_free_transform_distort_smart_object_writes_perspective_placement},
+      {"ui_pinball_perspective_smart_objects_render_like_photoshop_if_available",
+       ui_pinball_perspective_smart_objects_render_like_photoshop_if_available},
       {"ui_free_transform_distort_shape_layer_maps_path", ui_free_transform_distort_shape_layer_maps_path},
   };
 }

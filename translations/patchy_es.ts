@@ -12533,6 +12533,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Rasterize the layer to distort it</source>
         <translation>Rasterice la capa para distorsionarla</translation>
     </message>
+    <message>
+        <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
+        <translation>Un objeto inteligente en perspectiva no se puede deformar. Rasterice primero la capa.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>

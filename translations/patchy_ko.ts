@@ -12499,6 +12499,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Rasterize the layer to distort it</source>
         <translation>왜곡하려면 레이어를 래스터화하세요</translation>
     </message>
+    <message>
+        <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
+        <translation>원근이 적용된 고급 개체는 뒤틀 수 없습니다. 먼저 레이어를 래스터화하세요.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>

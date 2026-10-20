@@ -12499,6 +12499,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Rasterize the layer to distort it</source>
         <translation>請先點陣化圖層再進行扭曲</translation>
     </message>
+    <message>
+        <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
+        <translation>透視狀態的智慧型物件無法彎曲。請先點陣化圖層。</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>

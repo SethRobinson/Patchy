@@ -3269,10 +3269,9 @@ bool CanvasWidget::free_transform_accepts_non_affine() const {
   }
   const auto& document = std::as_const(*document_);
   // Type stays editable only under affine maps; vector paths and smart object
-  // placements take a perspective quad. Pixels and masks resample through it.
-  const auto accepts = [](const Layer& layer) {
-    return !layer_is_text(layer) && !layer_is_smart_object(layer);
-  };
+  // placements (nonAffineTransform) take a perspective quad. Pixels and masks
+  // resample through it.
+  const auto accepts = [](const Layer& layer) { return !layer_is_text(layer); };
   if (!transform_targets_.empty()) {
     for (const auto& target : transform_targets_) {
       if (const auto* layer = document.find_layer(target.id); layer != nullptr && !accepts(*layer)) {
@@ -4162,13 +4161,10 @@ void CanvasWidget::commit_free_transform() {
       // placement quad, then re-render crisply from the embedded source (the
       // resampled pixels committed above stay as the fallback).
       if (const auto placement = smart_object_placement_from_layer(*layer); placement.has_value()) {
-        const auto delta = transform_session_delta();
-        auto updated = *placement;
-        for (std::size_t i = 0; i < 8U; i += 2U) {
-          const auto mapped = delta.map(QPointF(placement->transform[i], placement->transform[i + 1U]));
-          updated.transform[i] = mapped.x();
-          updated.transform[i + 1U] = mapped.y();
-        }
+        // A Distort/Perspective quad (or a perspective placement) follows
+        // Photoshop's rule: nonAffineTransform = the corners, Trnf = their bounds.
+        const auto updated =
+            map_smart_object_placement(*placement, homography_from_qtransform(transform_session_delta()));
         store_smart_object_placement(*layer, updated);
         mark_layer_smart_object_block_dirty(*layer);
         layer->metadata()[kLayerMetadataSmartObjectRasterStatus] = kSmartObjectRasterStatusPatchy;
@@ -4332,23 +4328,10 @@ void CanvasWidget::commit_free_transform_multi() {
         transform_vector_data(*layer);
       } else if (layer_is_smart_object(std::as_const(*layer))) {
         if (const auto placement = smart_object_placement_from_layer(*layer); placement.has_value()) {
-          auto updated = *placement;
-          for (std::size_t i = 0; i < 8U; i += 2U) {
-            const auto mapped = delta.map(QPointF(placement->transform[i], placement->transform[i + 1U]));
-            updated.transform[i] = mapped.x();
-            updated.transform[i + 1U] = mapped.y();
-          }
-          if (placement->non_affine_transform.has_value()) {
-            // Perspective placements map their real quad per corner too; the
-            // additive writer fallback is only exact for translations.
-            auto mapped_quad = *placement->non_affine_transform;
-            for (std::size_t i = 0; i < 8U; i += 2U) {
-              const auto mapped = delta.map(QPointF(mapped_quad[i], mapped_quad[i + 1U]));
-              mapped_quad[i] = mapped.x();
-              mapped_quad[i + 1U] = mapped.y();
-            }
-            updated.non_affine_transform = mapped_quad;
-          }
+          // Perspective placements map their real quad; Trnf becomes its bounds
+          // (map_smart_object_placement), the additive writer fallback being
+          // exact only for translations.
+          const auto updated = map_smart_object_placement(*placement, homography_from_qtransform(delta));
           store_smart_object_placement(*layer, updated);
           mark_layer_smart_object_block_dirty(*layer);
           layer->metadata()[kLayerMetadataSmartObjectRasterStatus] = kSmartObjectRasterStatusPatchy;
@@ -4549,6 +4532,17 @@ bool CanvasWidget::begin_warp_transform() {
   if (layer_is_vector_shape(*layer) || layer_has_enabled_vector_mask(*layer)) {
     report_status_error(tr("Shape layers and vector masks can't be warped. Convert to a smart object or rasterize first."));
     return false;
+  }
+  // Photoshop's warped placements keep Trnf == nonAffineTransform (the hull box);
+  // a cage over a perspective placement has no file form here yet.
+  if (layer_is_smart_object(*layer)) {
+    const auto placement = smart_object_placement_from_layer(*layer);
+    const bool perspective_placement = placement.has_value() && placement->non_affine_transform.has_value() &&
+                                       placement->non_affine_transform != placement->transform;
+    if (perspective_placement || (transforming_layer_ && transform_has_perspective(transform_session_delta()))) {
+      report_status_error(tr("A smart object in perspective can't be warped. Rasterize the layer first."));
+      return false;
+    }
   }
 
   WarpMeshGrid start_mesh;
