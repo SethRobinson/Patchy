@@ -11463,6 +11463,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
         <translation>누락된 파일은 상태 표시줄에 계속 표시됩니다. 환경 설정에서 열린 문서에 대해 이 대화 상자를 다시 켤 수 있습니다.</translation>
     </message>
+    <message>
+        <source>Portable Anymap Image</source>
+        <translation>Portable Anymap 이미지</translation>
+    </message>
+    <message>
+        <source>%1 and more</source>
+        <extracomment>Open-dialog file type row: %1 is a short list of *.ext patterns</extracomment>
+        <translation>%1 외</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
