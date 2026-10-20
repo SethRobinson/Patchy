@@ -1175,7 +1175,10 @@ std::vector<std::uint8_t> photoshop_color_lookup_payload(const ColorLookupAdjust
   unicode(payload, "");
   key(payload, "null");
   const bool has_table = settings.table != nullptr && settings.table->valid();
-  append_u32(payload, has_table ? 4U : 3U);
+  // A table loaded from a LUT file also embeds the file, as Photoshop does for a loaded LUT.
+  const bool has_source = has_table && !settings.table->source.empty() &&
+                          (settings.table->source_format == "cube" || settings.table->source_format == "3dl");
+  append_u32(payload, has_source ? 9U : has_table ? 4U : 3U);
   key(payload, "lookupType");
   append_text(payload, "enum");
   key(payload, "colorLookupType");
@@ -1193,7 +1196,89 @@ std::vector<std::uint8_t> photoshop_color_lookup_payload(const ColorLookupAdjust
     append_u32(payload, static_cast<std::uint32_t>(profile.size()));
     payload.insert(payload.end(), profile.begin(), profile.end());
   }
+  if (has_source) {
+    const auto enumeration = [&key, &payload](std::string_view id, std::string_view type, std::string_view value) {
+      key(payload, id);
+      append_text(payload, "enum");
+      key(payload, type);
+      key(payload, value);
+    };
+    enumeration("LUTFormat", "LUTFormatType", settings.table->source_format == "3dl" ? "LUTFormat3DL" : "LUTFormatCUBE");
+    enumeration("dataOrder", "colorLookupOrder", "rgbOrder");
+    enumeration("tableOrder", "colorLookupOrder", "bgrOrder");
+    key(payload, "LUT3DFileData");
+    append_text(payload, "tdta");
+    append_u32(payload, static_cast<std::uint32_t>(settings.table->source.size()));
+    payload.insert(payload.end(), settings.table->source.begin(), settings.table->source.end());
+    key(payload, "LUT3DFileName");
+    append_text(payload, "TEXT");
+    unicode(payload, settings.name);
+  }
   pad_to_four(payload);
+  return payload;
+}
+
+// 'selc' (docs/adjustment-kinds.md, "Selective Color"): u16 version 1, u16 method (0
+// Relative, 1 Absolute), then ten records of four int16 percentages (cyan, magenta, yellow,
+// black): an unused first record, then reds, yellows, greens, cyans, blues, magentas, whites,
+// neutrals, blacks. 84 bytes; the layout is pinned by the #250 probe.
+constexpr std::size_t kSelectiveColorPayloadBytes = 84;
+
+std::optional<AdjustmentSettings> parse_photoshop_selective_color_adjustment(std::span<const std::uint8_t> payload) {
+  if (payload.size() < kSelectiveColorPayloadBytes) {
+    return std::nullopt;
+  }
+  BigEndianReader reader(payload);
+  if (reader.read_u16() != 1U) {
+    return std::nullopt;
+  }
+  const auto method = reader.read_u16();
+  if (method > 1U) {
+    return std::nullopt;
+  }
+  AdjustmentSettings settings;
+  settings.kind = AdjustmentKind::SelectiveColor;
+  auto& selective = settings.selective_color;
+  selective.absolute = method == 1U;
+  reader.skip(8);
+  for (auto& range : selective.ranges) {
+    range.cyan = static_cast<std::int16_t>(reader.read_u16());
+    range.magenta = static_cast<std::int16_t>(reader.read_u16());
+    range.yellow = static_cast<std::int16_t>(reader.read_u16());
+    range.black = static_cast<std::int16_t>(reader.read_u16());
+  }
+  selective = clamp_selective_color(selective);
+  return settings;
+}
+
+std::vector<std::uint8_t> photoshop_selective_color_payload(const SelectiveColorAdjustment& settings,
+                                                            const UnknownPsdBlock* original) {
+  std::vector<std::uint8_t> payload;
+  if (original != nullptr && original->payload.size() >= kSelectiveColorPayloadBytes) {
+    if (const auto parsed = parse_photoshop_selective_color_adjustment(original->payload);
+        parsed.has_value() && parsed->selective_color == clamp_selective_color(settings)) {
+      return original->payload;
+    }
+    payload = original->payload;
+  } else {
+    payload.assign(kSelectiveColorPayloadBytes, 0U);  // Photoshop's new layer: all zero, Relative
+  }
+  const auto clamped = clamp_selective_color(settings);
+  const auto put = [&payload](std::size_t offset, int value) {
+    const auto encoded = static_cast<std::uint16_t>(static_cast<std::int16_t>(value));
+    payload[offset] = static_cast<std::uint8_t>(encoded >> 8U);
+    payload[offset + 1] = static_cast<std::uint8_t>(encoded & 0xFFU);
+  };
+  put(0, 1);
+  put(2, clamped.absolute ? 1 : 0);
+  for (std::size_t index = 0; index < clamped.ranges.size(); ++index) {
+    const auto offset = 12U + index * 8U;
+    const auto& range = clamped.ranges[index];
+    put(offset, range.cyan);
+    put(offset + 2U, range.magenta);
+    put(offset + 4U, range.yellow);
+    put(offset + 6U, range.black);
+  }
   return payload;
 }
 

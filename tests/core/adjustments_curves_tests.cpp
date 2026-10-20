@@ -3881,6 +3881,226 @@ void psd_color_lookup_renders_and_round_trips_clrL() {
   artifact.write(reinterpret_cast<const char*>(resaved.data()), static_cast<std::streamsize>(resaved.size()));
 }
 
+// LUT files a user picks (#250): a .cube (red fastest, comments and TITLE allowed, the
+// default domain only) and a .3dl (input row, then integer rows with blue fastest, scaled by
+// the implied output depth) both land in Patchy's red-fastest table, keep their bytes, and
+// embed them in a Patchy-made 'clrL' the way Photoshop does. Anything else is refused.
+void color_lookup_files_parse_and_embed() {
+  const std::string cube =
+      "# Patchy two-point probe\nTITLE \"two\"\nLUT_3D_SIZE 2\nDOMAIN_MIN 0 0 0\nDOMAIN_MAX 1.0 1.0 1.0\n"
+      "0 0 0\n1 0 0\n0 1 0\n1 1 0\n0 0 1\n1 0 1\n0 1 1\n.5 0.25 1e-1\n";
+  const auto bytes = [](const std::string& text) {
+    return std::vector<std::uint8_t>(text.begin(), text.end());
+  };
+  const auto cube_bytes = bytes(cube);
+  const auto parsed = patchy::parse_color_lookup_file(cube_bytes, ".CUBE");
+  CHECK(parsed.table != nullptr);
+  if (parsed.table == nullptr) {
+    return;
+  }
+  CHECK(parsed.table->size == 2);
+  CHECK(parsed.table->source_format == "cube");
+  CHECK(parsed.table->source == cube_bytes);
+  // The last row (red, green and blue all 1) holds 0.5, 0.25, 0.1.
+  CHECK(parsed.table->values[21] == 32768 && parsed.table->values[22] == 16384 && parsed.table->values[23] == 6554);
+  CHECK(parsed.table->values[3] == 65535 && parsed.table->values[4] == 0);  // red 1 maps to red
+  // Photoshop 2026 interpolates a two-point grid trilinearly: gray 128 through this look.
+  patchy::AdjustmentSettings two;
+  two.kind = patchy::AdjustmentKind::ColorLookup;
+  two.color_lookup.table = parsed.table;
+  CHECK((patchy::apply_adjustment_to_color(patchy::RgbColor{128, 128, 128}, two) == patchy::RgbColor{112, 104, 99}));
+
+  // A .3dl of the same look: 12-bit outputs, blue fastest.
+  const std::string three_dl = "0 1023\n0 0 0\n0 0 4095\n0 4095 0\n0 4095 4095\n"
+                               "4095 0 0\n4095 0 4095\n4095 4095 0\n2048 1024 410\n";
+  const auto from_3dl = patchy::parse_color_lookup_file(bytes(three_dl), "3dl");
+  CHECK(from_3dl.table != nullptr);
+  if (from_3dl.table != nullptr) {
+    CHECK(from_3dl.table->size == 2);
+    CHECK(from_3dl.table->source_format == "3dl");
+    // Red-fastest index 1 is red 1, green 0, blue 0: the .3dl row for (1, 0, 0) is 4095 0 0.
+    CHECK(from_3dl.table->values[3] == 65535 && from_3dl.table->values[4] == 0 && from_3dl.table->values[5] == 0);
+    CHECK(std::abs(static_cast<int>(from_3dl.table->values[21]) - 32776) <= 1);
+  }
+
+  for (const auto& [text, extension] : std::vector<std::pair<std::string, std::string>>{
+           {"LUT_1D_SIZE 2\n0 0 0\n1 1 1\n", "cube"},
+           {"LUT_3D_SIZE 2\n0 0 0\n", "cube"},
+           {"LUT_3D_SIZE 2\nDOMAIN_MAX 2 2 2\n", "cube"},
+           {"LUT_3D_SIZE 2\n0 0 zero\n", "cube"},
+           {cube, "look"},
+       }) {
+    const auto refused = patchy::parse_color_lookup_file(bytes(text), extension);
+    CHECK(refused.table == nullptr);
+    CHECK(!refused.error.empty());
+  }
+
+  // A Patchy-made lookup embeds the file: format, orders, data and name follow the profile.
+  patchy::ColorLookupAdjustment look;
+  look.table = parsed.table;
+  look.name = "two.cube";
+  const auto payload = patchy::psd::photoshop_color_lookup_payload(look, nullptr);
+  patchy::psd::BigEndianReader reader(payload);
+  CHECK(reader.read_u16() == 1U);
+  CHECK(reader.read_u32() == 16U);
+  const auto descriptor = patchy::psd::read_descriptor(reader);
+  const auto* format = patchy::psd::descriptor_value(descriptor, "LUTFormat");
+  CHECK(format != nullptr && format->enum_value == "LUTFormatCUBE");
+  const auto* data = patchy::psd::descriptor_value(descriptor, "LUT3DFileData");
+  CHECK(data != nullptr && data->raw_value == cube_bytes);
+  const auto* name = patchy::psd::descriptor_value(descriptor, "LUT3DFileName");
+  CHECK(name != nullptr && name->string_value == "two.cube");
+  CHECK(patchy::psd::descriptor_value(descriptor, "profile") != nullptr);
+  const auto reread = patchy::adjustment_settings_from_layer(
+      patchy::psd::DocumentIo::read(single_adjustment_layer_psd({{{'c', 'l', 'r', 'L'}, payload}})).layers().front());
+  CHECK(reread.has_value() && reread->color_lookup.table != nullptr && reread->color_lookup.name == "two.cube");
+
+  // The block, for the Photoshop open and render check (docs/photoshop-com.md).
+  std::filesystem::create_directories("test-artifacts");
+  std::ofstream artifact("test-artifacts/color-lookup-cube-patchy.clrL", std::ios::binary);
+  artifact.write(reinterpret_cast<const char*>(payload.data()), static_cast<std::streamsize>(payload.size()));
+}
+
+// Selective Color reads and writes Photoshop's 'selc' block (#250): the method and nine
+// corrections. An unedited block re-emits byte for byte, an edit rewrites only the modeled
+// fields, a fresh layer writes Photoshop's all-zero Relative block, and a block the parser
+// does not read stays a placeholder.
+void psd_selective_color_reads_and_writes_selc() {
+  // Photoshop 2026's block: Absolute, with reds, yellows, neutrals and blacks corrected.
+  const std::vector<std::uint8_t> payload{
+      0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x11,
+      0xFF, 0xDF, 0x00, 0x29, 0xFF, 0xF7, 0xFF, 0xCE, 0x00, 0x14, 0x00, 0x00, 0x00, 0x0D,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05,
+      0x00, 0x0A, 0xFF, 0xF1, 0x00, 0x14, 0xFF, 0xE2, 0x00, 0x00, 0x00, 0x19, 0x00, 0x00};
+  CHECK(payload.size() == 84U);
+  const auto read_settings = [](const std::vector<std::uint8_t>& bytes) {
+    return patchy::adjustment_settings_from_layer(
+        patchy::psd::DocumentIo::read(single_adjustment_layer_psd({{{'s', 'e', 'l', 'c'}, bytes}})).layers().front());
+  };
+  const auto settings = read_settings(payload);
+  CHECK(settings.has_value());
+  if (!settings.has_value()) {
+    return;
+  }
+  CHECK(settings->kind == patchy::AdjustmentKind::SelectiveColor);
+  const auto& selective = settings->selective_color;
+  CHECK(selective.absolute);
+  CHECK((selective.ranges[0] == patchy::SelectiveColorCorrection{17, -33, 41, -9}));  // reds
+  CHECK((selective.ranges[1] == patchy::SelectiveColorCorrection{-50, 20, 0, 13}));   // yellows
+  CHECK((selective.ranges[7] == patchy::SelectiveColorCorrection{5, 10, -15, 20}));   // neutrals
+  CHECK((selective.ranges[8] == patchy::SelectiveColorCorrection{-30, 0, 25, 0}));    // blacks
+
+  auto document = patchy::psd::DocumentIo::read(single_adjustment_layer_psd({{{'s', 'e', 'l', 'c'}, payload}}));
+  CHECK(psd_layer_block_payload(psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(document), 0),
+                                "selc") == payload);
+
+  auto edited = *settings;
+  edited.selective_color.absolute = false;
+  edited.selective_color.ranges[6] = patchy::SelectiveColorCorrection{0, 0, -40, 0};  // whites
+  patchy::configure_adjustment_layer(document.layers().front(), edited);
+  const auto rewritten = psd_layer_block_payload(
+      psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(document), 0), "selc");
+  CHECK(rewritten.has_value() && rewritten->size() == 84U);
+  if (rewritten.has_value()) {
+    CHECK((*rewritten)[3] == 0U);  // Relative
+    const auto reread = read_settings(*rewritten);
+    CHECK(reread.has_value() && reread->selective_color == edited.selective_color);
+  }
+
+  // A fresh layer with no corrections is Photoshop's own new-layer block.
+  patchy::AdjustmentSettings fresh;
+  fresh.kind = patchy::AdjustmentKind::SelectiveColor;
+  patchy::Document created(4, 4, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(created.allocate_layer_id(), "Selective Color", patchy::LayerKind::Adjustment);
+  layer.set_bounds(patchy::Rect::from_size(4, 4));
+  patchy::configure_adjustment_layer(layer, fresh);
+  created.add_layer(std::move(layer));
+  std::vector<std::uint8_t> zero_block(84, 0U);
+  zero_block[1] = 1U;
+  CHECK(psd_layer_block_payload(psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(created), 0),
+                                "selc") == zero_block);
+
+  // Version 2 is not read: a Selective Color placeholder with its block kept.
+  auto version2 = payload;
+  version2[1] = 2U;
+  const auto placeholder =
+      patchy::psd::DocumentIo::read(single_adjustment_layer_psd({{{'s', 'e', 'l', 'c'}, version2}}));
+  CHECK(patchy::adjustment_placeholder_kind(placeholder.layers().front()) == "selective_color");
+
+  // Layer metadata keeps every range and the method.
+  patchy::Layer metadata_layer(1, "Selective Color", patchy::LayerKind::Adjustment);
+  patchy::configure_adjustment_layer(metadata_layer, edited);
+  const auto from_metadata = patchy::adjustment_settings_from_layer(metadata_layer);
+  CHECK(from_metadata.has_value() && from_metadata->selective_color == edited.selective_color);
+}
+
+// Selective Color output pinned to Photoshop 2026 (#250), in both methods: each range
+// weighs the color by its max, middle and min channels, and every ink shifts its channel
+// by ((-1 - ink) * black - ink), scaled by 1 - value in Relative, clipped to the channel's
+// room and weighted. Within two levels of Photoshop on these inputs.
+void selective_color_matches_photoshop_2026_calibration() {
+  using Triple = std::array<int, 3>;
+  using Correction = std::array<int, 4>;
+  struct Row {
+    bool absolute;
+    std::array<Correction, 9> ranges;
+    std::array<Triple, 8> expected;
+  };
+  const std::array<Triple, 8> inputs{{{17, 68, 204}, {136, 136, 136}, {51, 170, 238}, {204, 102, 34}, {255, 0, 0},
+                                      {238, 204, 170}, {37, 37, 37}, {221, 221, 221}}};
+  const std::array<Row, 8> rows{{
+      {false, {{{17, -33, 41, -9}, {-50, 20, 0, 13}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {5, 10, -15, 20}, {-30, 0, 25, 0}}},
+       {{{12, 52, 204}, {107, 101, 134}, {37, 163, 238}, {204, 95, 12}, {255, 99, 0}, {237, 198, 165}, {72, 26, 10}, {219, 218, 221}}}},  // mixed_rel
+      {true, {{{17, -33, 41, -9}, {-50, 20, 0, 13}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {5, 10, -15, 20}, {-30, 0, 25, 0}}},
+       {{{12, 50, 203}, {74, 59, 131}, {37, 148, 237}, {190, 90, 10}, {240, 99, 0}, {212, 166, 154}, {81, 26, 9}, {203, 199, 220}}}},  // mixed_abs
+      {true, {{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 30}, {0, 0, 0, 0}}},
+       {{{12, 50, 183}, {64, 64, 64}, {37, 149, 217}, {178, 76, 23}, {255, 0, 0}, {207, 173, 139}, {26, 26, 26}, {200, 200, 200}}}},  // ntrl_k30_abs
+      {true, {{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, -40, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}}},
+       {{{17, 68, 204}, {136, 136, 143}, {51, 170, 238}, {204, 102, 34}, {255, 0, 0}, {238, 204, 198}, {37, 37, 37}, {221, 221, 246}}}},  // whts_y-40_abs
+      {false, {{{0, 0, 0, 50}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}}},
+       {{{17, 68, 204}, {136, 136, 136}, {51, 170, 238}, {194, 72, 20}, {255, 0, 0}, {237, 201, 164}, {37, 37, 37}, {221, 221, 221}}}},  // reds_k50_rel
+      {false, {{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, -40}}},
+       {{{17, 68, 204}, {136, 136, 136}, {51, 170, 238}, {204, 102, 34}, {255, 0, 0}, {238, 204, 170}, {99, 99, 99}, {221, 221, 221}}}},  // blks_k-40_rel
+      {true, {{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, -70, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}}},
+       {{{17, 163, 204}, {136, 136, 136}, {51, 193, 238}, {204, 102, 34}, {255, 0, 0}, {238, 204, 170}, {37, 37, 37}, {221, 221, 221}}}},  // bls_m-70_abs
+      {true, {{{0, 0, 0, 0}, {0, 50, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}}},
+       {{{17, 68, 204}, {136, 136, 136}, {51, 170, 238}, {204, 75, 34}, {255, 0, 0}, {238, 187, 170}, {37, 37, 37}, {221, 221, 221}}}},  // ylws_m50_abs
+  }};
+  int exact = 0;
+  int total = 0;
+  for (const auto& row : rows) {
+    patchy::AdjustmentSettings settings;
+    settings.kind = patchy::AdjustmentKind::SelectiveColor;
+    settings.selective_color.absolute = row.absolute;
+    for (std::size_t index = 0; index < row.ranges.size(); ++index) {
+      const auto& value = row.ranges[index];
+      settings.selective_color.ranges[index] = patchy::SelectiveColorCorrection{value[0], value[1], value[2], value[3]};
+    }
+    CHECK(!patchy::build_adjustment_lut(settings).has_value());  // ranges mix channels
+    const patchy::DeepAdjuster deep(settings, patchy::DeepDomain::Encoded);
+    for (std::size_t index = 0; index < inputs.size(); ++index) {
+      const auto& in = inputs[index];
+      const patchy::RgbColor color{static_cast<std::uint8_t>(in[0]), static_cast<std::uint8_t>(in[1]),
+                                   static_cast<std::uint8_t>(in[2])};
+      const auto adjusted = patchy::apply_adjustment_to_color(color, settings);
+      const std::array<int, 3> got{adjusted.red, adjusted.green, adjusted.blue};
+      const auto deep_out = deep.apply({static_cast<float>(in[0]), static_cast<float>(in[1]),
+                                        static_cast<float>(in[2])});
+      for (std::size_t c = 0; c < 3U; ++c) {
+        CHECK(std::abs(got[c] - row.expected[index][c]) <= 2);
+        exact += got[c] == row.expected[index][c] ? 1 : 0;
+        ++total;
+        CHECK(std::abs(static_cast<double>(deep_out[c]) - row.expected[index][c]) <= 2.5);
+      }
+    }
+  }
+  std::cout << "[INFO] Selective Color calibration: " << exact << " of " << total << " channel values exact" << '\n';
+  // 171 of these 192 values are exact; the rest differ by one level (two in the Absolute mix).
+  CHECK(exact >= 171);
+}
+
 // Channel Mixer reads and writes Photoshop's 'mixr' block: the rows land on the right
 // outputs, monochrome keeps its gray mix, an unedited block re-emits byte for byte, and
 // the preset-name 'CgEd' goes once the mix is edited (#250).
@@ -4090,5 +4310,8 @@ std::vector<patchy::test::TestCase> adjustments_curves_tests() {
       {"psd_black_white_reads_and_writes_blwh", psd_black_white_reads_and_writes_blwh},
       {"black_white_matches_photoshop_2026_calibration", black_white_matches_photoshop_2026_calibration},
       {"psd_color_lookup_renders_and_round_trips_clrL", psd_color_lookup_renders_and_round_trips_clrL},
+      {"color_lookup_files_parse_and_embed", color_lookup_files_parse_and_embed},
+      {"psd_selective_color_reads_and_writes_selc", psd_selective_color_reads_and_writes_selc},
+      {"selective_color_matches_photoshop_2026_calibration", selective_color_matches_photoshop_2026_calibration},
   };
 }

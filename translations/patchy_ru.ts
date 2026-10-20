@@ -11093,6 +11093,76 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Черно-белое: %1 / %2 / %3 / %4 / %5 / %6</translation>
     </message>
     <message>
+        <source>Load LUT...</source>
+        <translation>Загрузить LUT...</translation>
+    </message>
+    <message>
+        <source>3D LUT:</source>
+        <translation>3D LUT:</translation>
+    </message>
+    <message>
+        <source>Load 3D LUT</source>
+        <translation>Загрузить 3D LUT</translation>
+    </message>
+    <message>
+        <source>3D LUT files (*.cube *.3dl)</source>
+        <translation>Файлы 3D LUT (*.cube *.3dl)</translation>
+    </message>
+    <message>
+        <source>%1 is not a 3D LUT Patchy can read.</source>
+        <translation>%1 не является 3D LUT, которую может прочитать Patchy.</translation>
+    </message>
+    <message>
+        <source>Cyan</source>
+        <translation>Голубой</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>Пурпурный</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>Желтый</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <comment>ink</comment>
+        <translation>Черный</translation>
+    </message>
+    <message>
+        <source>Whites</source>
+        <translation>Белые</translation>
+    </message>
+    <message>
+        <source>Neutrals</source>
+        <translation>Нейтральные</translation>
+    </message>
+    <message>
+        <source>Blacks</source>
+        <translation>Черные</translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <comment>selective color range</comment>
+        <translation>Цвета:</translation>
+    </message>
+    <message>
+        <source>Relative</source>
+        <translation>Относительно</translation>
+    </message>
+    <message>
+        <source>Absolute</source>
+        <translation>Абсолютно</translation>
+    </message>
+    <message>
+        <source>Selective Color: absolute</source>
+        <translation>Выборочная коррекция цвета: абсолютно</translation>
+    </message>
+    <message>
+        <source>Selective Color: relative</source>
+        <translation>Выборочная коррекция цвета: относительно</translation>
+    </message>
+    <message>
         <source>Squareness</source>
         <translation>Прямоугольность</translation>
     </message>
@@ -11119,19 +11189,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Matrix</source>
         <translation>Матрица</translation>
-    </message>
-    <message>
-        <source>Fragment</source>
-        <translation>Фрагмент</translation>
-    </message>
-    <message>
-        <source>On</source>
-        <translation>Вкл.</translation>
-    </message>
-    <message>
-        <source>%1 %2</source>
-        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
-        <translation>%1 %2</translation>
     </message>
     <message>
         <source>Crystallize</source>
@@ -11192,6 +11249,19 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Variance</source>
         <translation>Дисперсия</translation>
+    </message>
+    <message>
+        <source>Fragment</source>
+        <translation>Фрагмент</translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation>Вкл.</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
+        <translation>%1 %2</translation>
     </message>
 </context>
 <context>
@@ -22866,7 +22936,7 @@ Patchy можно будет запускать из меню, а на пане�
     </message>
     <message>
         <source>&amp;Gradient Map...</source>
-        <translation>&amp;Карта градиента...</translation>
+        <translation>К&amp;арта градиента...</translation>
     </message>
     <message>
         <source>Photo Filter</source>
@@ -22897,8 +22967,28 @@ Patchy можно будет запускать из меню, а на пане�
         <translation>Черно-белое отменено</translation>
     </message>
     <message>
-        <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
-        <translation>Поиск цвета «%1» применяется так, как он сохранён в файле.</translation>
+        <source>Color L&amp;ookup...</source>
+        <translation>П&amp;оиск цвета...</translation>
+    </message>
+    <message>
+        <source>Color Lookup</source>
+        <translation>Поиск цвета</translation>
+    </message>
+    <message>
+        <source>Cancelled Color Lookup</source>
+        <translation>Поиск цвета отменён</translation>
+    </message>
+    <message>
+        <source>&amp;Selective Color...</source>
+        <translation>&amp;Выборочная коррекция цвета...</translation>
+    </message>
+    <message>
+        <source>Selective Color</source>
+        <translation>Выборочная коррекция цвета</translation>
+    </message>
+    <message>
+        <source>Cancelled Selective Color</source>
+        <translation>Выборочная коррекция цвета отменена</translation>
     </message>
     <message>
         <source>Add %1 Smart Filter</source>

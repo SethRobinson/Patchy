@@ -11059,6 +11059,76 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Schwarzweiß: %1 / %2 / %3 / %4 / %5 / %6</translation>
     </message>
     <message>
+        <source>Load LUT...</source>
+        <translation>LUT laden...</translation>
+    </message>
+    <message>
+        <source>3D LUT:</source>
+        <translation>3D-LUT:</translation>
+    </message>
+    <message>
+        <source>Load 3D LUT</source>
+        <translation>3D-LUT laden</translation>
+    </message>
+    <message>
+        <source>3D LUT files (*.cube *.3dl)</source>
+        <translation>3D-LUT-Dateien (*.cube *.3dl)</translation>
+    </message>
+    <message>
+        <source>%1 is not a 3D LUT Patchy can read.</source>
+        <translation>%1 ist keine 3D-LUT, die Patchy lesen kann.</translation>
+    </message>
+    <message>
+        <source>Cyan</source>
+        <translation>Cyan</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>Magenta</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>Gelb</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <comment>ink</comment>
+        <translation>Schwarz</translation>
+    </message>
+    <message>
+        <source>Whites</source>
+        <translation>Weißtöne</translation>
+    </message>
+    <message>
+        <source>Neutrals</source>
+        <translation>Neutrale Töne</translation>
+    </message>
+    <message>
+        <source>Blacks</source>
+        <translation>Schwarztöne</translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <comment>selective color range</comment>
+        <translation>Farben:</translation>
+    </message>
+    <message>
+        <source>Relative</source>
+        <translation>Relativ</translation>
+    </message>
+    <message>
+        <source>Absolute</source>
+        <translation>Absolut</translation>
+    </message>
+    <message>
+        <source>Selective Color: absolute</source>
+        <translation>Selektive Farbkorrektur: absolut</translation>
+    </message>
+    <message>
+        <source>Selective Color: relative</source>
+        <translation>Selektive Farbkorrektur: relativ</translation>
+    </message>
+    <message>
         <source>Squareness</source>
         <translation>Rechteckigkeit</translation>
     </message>
@@ -11085,19 +11155,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Matrix</source>
         <translation>Matrix</translation>
-    </message>
-    <message>
-        <source>Fragment</source>
-        <translation>Verwackelungseffekt</translation>
-    </message>
-    <message>
-        <source>On</source>
-        <translation>Ein</translation>
-    </message>
-    <message>
-        <source>%1 %2</source>
-        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
-        <translation>%1 %2</translation>
     </message>
     <message>
         <source>Crystallize</source>
@@ -11158,6 +11215,19 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Variance</source>
         <translation>Varianz</translation>
+    </message>
+    <message>
+        <source>Fragment</source>
+        <translation>Verwackelungseffekt</translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation>Ein</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
+        <translation>%1 %2</translation>
     </message>
 </context>
 <context>
@@ -22792,7 +22862,7 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
     </message>
     <message>
         <source>Photo &amp;Filter...</source>
-        <translation>&amp;Fotofilter...</translation>
+        <translation>F&amp;otofilter...</translation>
     </message>
     <message>
         <source>&amp;Gradient Map...</source>
@@ -22827,8 +22897,28 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
         <translation>Schwarzweiß abgebrochen</translation>
     </message>
     <message>
-        <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
-        <translation>Die Farbtabelle „%1“ wird so angewendet, wie sie in der Datei gespeichert ist.</translation>
+        <source>Color L&amp;ookup...</source>
+        <translation>F&amp;arbtabelle...</translation>
+    </message>
+    <message>
+        <source>Color Lookup</source>
+        <translation>Farbtabelle</translation>
+    </message>
+    <message>
+        <source>Cancelled Color Lookup</source>
+        <translation>Farbtabelle abgebrochen</translation>
+    </message>
+    <message>
+        <source>&amp;Selective Color...</source>
+        <translation>S&amp;elektive Farbkorrektur...</translation>
+    </message>
+    <message>
+        <source>Selective Color</source>
+        <translation>Selektive Farbkorrektur</translation>
+    </message>
+    <message>
+        <source>Cancelled Selective Color</source>
+        <translation>Selektive Farbkorrektur abgebrochen</translation>
     </message>
     <message>
         <source>Add %1 Smart Filter</source>

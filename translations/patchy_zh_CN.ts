@@ -11025,6 +11025,76 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>黑白: %1 / %2 / %3 / %4 / %5 / %6</translation>
     </message>
     <message>
+        <source>Load LUT...</source>
+        <translation>载入 LUT...</translation>
+    </message>
+    <message>
+        <source>3D LUT:</source>
+        <translation>3D LUT:</translation>
+    </message>
+    <message>
+        <source>Load 3D LUT</source>
+        <translation>载入 3D LUT</translation>
+    </message>
+    <message>
+        <source>3D LUT files (*.cube *.3dl)</source>
+        <translation>3D LUT 文件 (*.cube *.3dl)</translation>
+    </message>
+    <message>
+        <source>%1 is not a 3D LUT Patchy can read.</source>
+        <translation>%1 不是 Patchy 可读取的 3D LUT。</translation>
+    </message>
+    <message>
+        <source>Cyan</source>
+        <translation>青色</translation>
+    </message>
+    <message>
+        <source>Magenta</source>
+        <translation>洋红</translation>
+    </message>
+    <message>
+        <source>Yellow</source>
+        <translation>黄色</translation>
+    </message>
+    <message>
+        <source>Black</source>
+        <comment>ink</comment>
+        <translation>黑色</translation>
+    </message>
+    <message>
+        <source>Whites</source>
+        <translation>白色</translation>
+    </message>
+    <message>
+        <source>Neutrals</source>
+        <translation>中性色</translation>
+    </message>
+    <message>
+        <source>Blacks</source>
+        <translation>黑色</translation>
+    </message>
+    <message>
+        <source>Colors:</source>
+        <comment>selective color range</comment>
+        <translation>颜色:</translation>
+    </message>
+    <message>
+        <source>Relative</source>
+        <translation>相对</translation>
+    </message>
+    <message>
+        <source>Absolute</source>
+        <translation>绝对</translation>
+    </message>
+    <message>
+        <source>Selective Color: absolute</source>
+        <translation>可选颜色: 绝对</translation>
+    </message>
+    <message>
+        <source>Selective Color: relative</source>
+        <translation>可选颜色: 相对</translation>
+    </message>
+    <message>
         <source>Squareness</source>
         <translation>方形</translation>
     </message>
@@ -11051,19 +11121,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Matrix</source>
         <translation>矩阵</translation>
-    </message>
-    <message>
-        <source>Fragment</source>
-        <translation>碎片</translation>
-    </message>
-    <message>
-        <source>On</source>
-        <translation>开</translation>
-    </message>
-    <message>
-        <source>%1 %2</source>
-        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
-        <translation>%1 %2</translation>
     </message>
     <message>
         <source>Crystallize</source>
@@ -11124,6 +11181,19 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Variance</source>
         <translation>差异</translation>
+    </message>
+    <message>
+        <source>Fragment</source>
+        <translation>碎片</translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation>开</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
+        <translation>%1 %2</translation>
     </message>
 </context>
 <context>
@@ -22757,8 +22827,28 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>已取消黑白</translation>
     </message>
     <message>
-        <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
-        <translation>颜色查找“%1”按文件中保存的方式应用。</translation>
+        <source>Color L&amp;ookup...</source>
+        <translation>颜色查找(&amp;O)...</translation>
+    </message>
+    <message>
+        <source>Color Lookup</source>
+        <translation>颜色查找</translation>
+    </message>
+    <message>
+        <source>Cancelled Color Lookup</source>
+        <translation>已取消颜色查找</translation>
+    </message>
+    <message>
+        <source>&amp;Selective Color...</source>
+        <translation>可选颜色(&amp;S)...</translation>
+    </message>
+    <message>
+        <source>Selective Color</source>
+        <translation>可选颜色</translation>
+    </message>
+    <message>
+        <source>Cancelled Selective Color</source>
+        <translation>已取消可选颜色</translation>
     </message>
     <message>
         <source>Add %1 Smart Filter</source>

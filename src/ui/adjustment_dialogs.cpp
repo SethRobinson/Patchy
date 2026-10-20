@@ -27,7 +27,9 @@
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
 #include <QFormLayout>
+#include <QFile>
 #include <QFileInfo>
+#include <QMessageBox>
 #include <QHBoxLayout>
 #include <QIcon>
 #include <QLabel>
@@ -41,6 +43,7 @@
 #include <QPointer>
 #include <QPolygonF>
 #include <QPushButton>
+#include <QRadioButton>
 #include <QRect>
 #include <QSignalBlocker>
 #include <QSlider>
@@ -1683,6 +1686,144 @@ std::optional<PhotoFilterSettings> request_photo_filter_settings(
             show();
             flush_preview();
           }
+        });
+      });
+}
+
+std::optional<SelectiveColorSettings> request_selective_color_settings(
+    QWidget* parent, std::function<void(bool, const SelectiveColorSettings&)> preview_changed,
+    SelectiveColorSettings initial) {
+  struct State {
+    SelectiveColorSettings settings;
+    int range{0};  // SelectiveColorRange index the sliders show
+  };
+  auto state = std::make_shared<State>(State{clamp_selective_color(initial)});
+  const auto capture = [](State& value, const std::vector<QSpinBox*>& spins) {
+    auto& range = value.settings.ranges[static_cast<std::size_t>(value.range)];
+    range = SelectiveColorCorrection{spins[0]->value(), spins[1]->value(), spins[2]->value(), spins[3]->value()};
+  };
+  const auto build_settings = [state, capture](const std::vector<QSpinBox*>& spins) {
+    auto copy = *state;
+    capture(copy, spins);
+    return copy.settings;
+  };
+  const auto show_range = [](QDialog& dialog, State& value, const std::vector<QSpinBox*>& spins) {
+    const auto& range = value.settings.ranges[static_cast<std::size_t>(value.range)];
+    const std::array<int, 4> values{range.cyan, range.magenta, range.yellow, range.black};
+    const std::array<QString, 4> prefixes{QStringLiteral("selectiveColorCyan"), QStringLiteral("selectiveColorMagenta"),
+                                          QStringLiteral("selectiveColorYellow"), QStringLiteral("selectiveColorBlack")};
+    for (std::size_t index = 0; index < spins.size() && index < values.size(); ++index) {
+      if (auto* slider = dialog.findChild<QSlider*>(prefixes[index] + QStringLiteral("Slider"))) {
+        const QSignalBlocker block_slider(slider);
+        slider->setValue(values[index]);
+      }
+      const QSignalBlocker block_spin(spins[index]);
+      spins[index]->setValue(values[index]);
+    }
+  };
+  const auto& reds = state->settings.ranges[0];
+  const auto percent = QStringLiteral(" %");
+  return request_adjustment_settings_dialog<SelectiveColorSettings>(
+      parent, QStringLiteral("patchySelectiveColorDialog"), QObject::tr("Selective Color"),
+      QStringLiteral("selectiveColorPreviewCheck"),
+      {{QObject::tr("Cyan"), QStringLiteral("selectiveColorCyan"), -100, 100, reds.cyan, percent},
+       {QObject::tr("Magenta"), QStringLiteral("selectiveColorMagenta"), -100, 100, reds.magenta, percent},
+       {QObject::tr("Yellow"), QStringLiteral("selectiveColorYellow"), -100, 100, reds.yellow, percent},
+       {QObject::tr("Black", "ink"), QStringLiteral("selectiveColorBlack"), -100, 100, reds.black, percent}},
+      build_settings, std::move(preview_changed), {},
+      [state, capture, show_range](QDialog& dialog, QFormLayout* form, const std::vector<QSpinBox*>& spins,
+                                   const std::function<void()>& flush_preview) {
+        auto* colors = new QComboBox(&dialog);
+        colors->setObjectName(QStringLiteral("selectiveColorRangeCombo"));
+        colors->addItems({QObject::tr("Reds"), QObject::tr("Yellows"), QObject::tr("Greens"), QObject::tr("Cyans"),
+                          QObject::tr("Blues"), QObject::tr("Magentas"), QObject::tr("Whites"),
+                          QObject::tr("Neutrals"), QObject::tr("Blacks")});
+        form->insertRow(0, QObject::tr("Colors:", "selective color range"), colors);
+
+        auto* methods = new QWidget(&dialog);
+        auto* method_layout = new QHBoxLayout(methods);
+        method_layout->setContentsMargins(0, 0, 0, 0);
+        auto* relative = new QRadioButton(QObject::tr("Relative"), methods);
+        relative->setObjectName(QStringLiteral("selectiveColorRelativeRadio"));
+        auto* absolute = new QRadioButton(QObject::tr("Absolute"), methods);
+        absolute->setObjectName(QStringLiteral("selectiveColorAbsoluteRadio"));
+        (state->settings.absolute ? absolute : relative)->setChecked(true);
+        method_layout->addWidget(relative);
+        method_layout->addWidget(absolute);
+        method_layout->addStretch(1);
+        form->addRow(QObject::tr("Method:"), methods);
+
+        QObject::connect(colors, &QComboBox::currentIndexChanged, &dialog,
+                         [&dialog, state, spins, capture, show_range, flush_preview](int index) {
+                           capture(*state, spins);
+                           state->range = std::clamp(index, 0, 8);
+                           show_range(dialog, *state, spins);
+                           flush_preview();
+                         });
+        QObject::connect(absolute, &QRadioButton::toggled, &dialog, [state, flush_preview](bool checked) {
+          state->settings.absolute = checked;
+          flush_preview();
+        });
+      });
+}
+
+std::optional<ColorLookupSettings> request_color_lookup_settings(
+    QWidget* parent, std::function<void(bool, const ColorLookupSettings&)> preview_changed,
+    ColorLookupSettings initial) {
+  auto state = std::make_shared<ColorLookupSettings>(std::move(initial));
+  const auto build_settings = [state](const std::vector<QSpinBox*>&) { return *state; };
+  return request_adjustment_settings_dialog<ColorLookupSettings>(
+      parent, QStringLiteral("patchyColorLookupDialog"), QObject::tr("Color Lookup"),
+      QStringLiteral("colorLookupPreviewCheck"), {}, build_settings, std::move(preview_changed), {},
+      [state](QDialog& dialog, QFormLayout* form, const std::vector<QSpinBox*>&,
+              const std::function<void()>& flush_preview) {
+        auto* row = new QWidget(&dialog);
+        auto* row_layout = new QHBoxLayout(row);
+        row_layout->setContentsMargins(0, 0, 0, 0);
+        auto* name = new QLabel(&dialog);
+        name->setObjectName(QStringLiteral("colorLookupNameLabel"));
+        name->setMinimumWidth(240);
+        auto* load = new QPushButton(QObject::tr("Load LUT..."), &dialog);
+        load->setObjectName(QStringLiteral("colorLookupLoadButton"));
+        row_layout->addWidget(name, 1);
+        row_layout->addWidget(load);
+        form->insertRow(0, QObject::tr("3D LUT:"), row);
+        // Without a table the lookup is identity, as an empty Photoshop Color Lookup is.
+        // Long file names elide in the middle (keeping the extension); the tooltip has the whole name.
+        const auto show = [state, name] {
+          const auto full = state->table != nullptr ? QString::fromStdString(state->name) : QObject::tr("None");
+          name->setText(name->fontMetrics().elidedText(full, Qt::ElideMiddle, name->minimumWidth()));
+          name->setToolTip(full);
+        };
+        show();
+        QObject::connect(load, &QPushButton::clicked, &dialog, [&dialog, state, show, flush_preview] {
+          const auto path = get_open_file_name(&dialog, QObject::tr("Load 3D LUT"), QString(),
+                                               QObject::tr("3D LUT files (*.cube *.3dl)"), nullptr,
+                                               QStringLiteral("colorLookupFileDialog"));
+          if (path.isEmpty()) {
+            return;
+          }
+          QFile file(path);
+          QByteArray bytes;
+          if (file.open(QIODevice::ReadOnly)) {
+            bytes = file.readAll();
+          }
+          const QFileInfo info(path);
+          const auto parsed = parse_color_lookup_file(
+              std::span<const std::uint8_t>(reinterpret_cast<const std::uint8_t*>(bytes.constData()),
+                                            static_cast<std::size_t>(bytes.size())),
+              info.suffix().toStdString());
+          if (parsed.table == nullptr) {
+            (void)show_warning_message(&dialog, QObject::tr("Color Lookup"),
+                                       QObject::tr("%1 is not a 3D LUT Patchy can read.").arg(info.fileName()),
+                                       QMessageBox::Ok, QMessageBox::Ok, QStringLiteral("colorLookupLoadErrorBox"));
+            return;
+          }
+          register_color_lookup_table(parsed.table);
+          state->table = parsed.table;
+          state->name = info.fileName().toStdString();
+          show();
+          flush_preview();
         });
       });
 }
