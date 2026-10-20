@@ -2670,9 +2670,105 @@ render_canvas_average_effect(const FilterRenderResult &input,
   return floor_divide(2 * sum + divisor, 2 * divisor);
 }
 
+// Photoshop's Sharpen Edges, fitted from COM probes (October 2026): per
+// channel the Sharpen result blends in by a fixed edge weight from the 3x3
+// Sobel magnitude g of that channel, w = clamp(floor(g) - 64, 0, 191) / 191
+// quantized to 1/255, out = round((S * (255 - w) + Sharpen * w) / 255).
+// Within one level of Photoshop on 99.65% of probe samples; alpha follows
+// the same rule and transparent pixels borrow colours like Sharpen. Legal
+// boundary: the 64 and 191 stay fixed constants, never user-set, ranked or
+// derived from the image (docs/patent-research-smart-sharpen.md).
+[[nodiscard]] FilterRenderResult
+render_sharpen_edges_kernel(const FilterRenderResult &input,
+                            const FilterProgress *progress) {
+  const auto width = input.bounds.width;
+  const auto height = input.bounds.height;
+  if (width <= 0 || height <= 0) {
+    report_progress(progress, 1, 1, FilterProgressStage::Filtering);
+    return input;
+  }
+  const auto extension = extend_transparent_colors_columns_first(input);
+  if (extension.all_transparent) {
+    report_progress(progress, 1, 1, FilterProgressStage::Filtering);
+    return input;
+  }
+  const auto stride = static_cast<std::size_t>(width) * 4U;
+  std::vector<std::uint8_t> source(stride * static_cast<std::size_t>(height));
+  for (std::int32_t y = 0; y < height; ++y) {
+    auto *target = source.data() + static_cast<std::size_t>(y) * stride;
+    for (std::int32_t x = 0; x < width; ++x, target += 4) {
+      for (std::size_t channel = 0; channel < 3U; ++channel) {
+        target[channel] =
+            extended_straight_color_sample(input, extension, x, y, channel);
+      }
+      target[3] = input.pixels.pixel(x, y)[3];
+    }
+  }
+  constexpr std::array<std::int32_t, 9> kSharpen{0, -1, 0, -1, 8, -1, 0, -1, 0};
+  constexpr std::array<std::int32_t, 9> kSobelX{-1, 0, 1, -2, 0, 2, -1, 0, 1};
+  constexpr std::array<std::int32_t, 9> kSobelY{-1, -2, -1, 0, 0, 0, 1, 2, 1};
+  constexpr std::int64_t kEdgeThreshold = 64;
+  constexpr std::int64_t kEdgeSpan = 191;
+  PixelBuffer output(width, height, PixelFormat::rgba8());
+  auto *output_data = output.data().data();
+  const auto *source_data = source.data();
+  run_filter_blocks(
+      height, static_cast<std::uint64_t>(width) * 27U, progress,
+      FilterProgressStage::Filtering,
+      [&](std::int32_t begin, std::int32_t end) {
+        for (auto y = begin; y < end; ++y) {
+          const std::array<std::int32_t, 3> rows{std::max(0, y - 1), y,
+                                                 std::min(height - 1, y + 1)};
+          auto *row = output_data + static_cast<std::size_t>(y) * stride;
+          for (std::int32_t x = 0; x < width; ++x) {
+            const std::array<std::int32_t, 3> columns{
+                std::max(0, x - 1), x, std::min(width - 1, x + 1)};
+            for (std::size_t channel = 0; channel < 4U; ++channel) {
+              std::int64_t sharpen = 0;
+              std::int64_t gx = 0;
+              std::int64_t gy = 0;
+              for (std::size_t ky = 0; ky < 3U; ++ky) {
+                const auto *source_row =
+                    source_data + static_cast<std::size_t>(rows[ky]) * stride;
+                for (std::size_t kx = 0; kx < 3U; ++kx) {
+                  const auto sample = static_cast<std::int64_t>(
+                      source_row[static_cast<std::size_t>(columns[kx]) * 4U +
+                                 channel]);
+                  const auto tap = ky * 3U + kx;
+                  sharpen += kSharpen[tap] * sample;
+                  gx += kSobelX[tap] * sample;
+                  gy += kSobelY[tap] * sample;
+                }
+              }
+              const auto centre = static_cast<std::int64_t>(
+                  source_data[static_cast<std::size_t>(y) * stride +
+                              static_cast<std::size_t>(x) * 4U + channel]);
+              const auto sharpened = std::clamp<std::int64_t>(
+                  round_half_up_quotient(sharpen, 4), 0, 255);
+              const auto magnitude = static_cast<std::int64_t>(std::floor(
+                  std::sqrt(static_cast<double>(gx * gx + gy * gy))));
+              const auto edge =
+                  std::clamp<std::int64_t>(magnitude - kEdgeThreshold, 0,
+                                           kEdgeSpan);
+              const auto weight = round_half_up_quotient(edge * 255, kEdgeSpan);
+              row[static_cast<std::size_t>(x) * 4U + channel] =
+                  static_cast<std::uint8_t>(std::clamp<std::int64_t>(
+                      round_half_up_quotient(
+                          centre * (255 - weight) + sharpened * weight, 255),
+                      0, 255));
+            }
+          }
+        }
+      });
+  return FilterRenderResult{std::move(output), input.bounds};
+}
+
 [[nodiscard]] FilterRenderResult
 render_classic_kernel(const FilterRenderResult &input, SmartFilterKind kind,
                       const FilterProgress *progress) {
+  if (kind == SmartFilterKind::SharpenEdges) {
+    return render_sharpen_edges_kernel(input, progress);
+  }
   const auto kernel = classic_kernel(kind);
   const auto width = input.bounds.width;
   const auto height = input.bounds.height;
@@ -2940,6 +3036,16 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
                                               plastic->smoothness >= kMinimumPlasticWrapSmoothness &&
                                               plastic->smoothness <= kMaximumPlasticWrapSmoothness;
                                      });
+    } else if (entry.kind == SmartFilterKind::SmartSharpen) {
+      const auto *sharpen =
+          std::get_if<SmartSharpenSmartFilter>(&entry.parameters);
+      parameters_valid = sharpen != nullptr &&
+                         std::isfinite(sharpen->amount_percent) &&
+                         sharpen->amount_percent >= kMinimumUnsharpMaskAmount &&
+                         sharpen->amount_percent <= kMaximumUnsharpMaskAmount &&
+                         std::isfinite(sharpen->radius_pixels) &&
+                         sharpen->radius_pixels >= kMinimumGaussianRadius &&
+                         sharpen->radius_pixels <= kMaximumGaussianRadius;
     } else if (parameterless_smart_filter_native(entry.kind) != nullptr) {
       parameters_valid =
           std::holds_alternative<std::monostate>(entry.parameters);
@@ -2948,6 +3054,7 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
     }
     if (!parameters_valid ||
         (parameterless_smart_filter_native(entry.kind) == nullptr &&
+         entry.kind != SmartFilterKind::SmartSharpen &&
          entry.kind != SmartFilterKind::DustAndScratches &&
          entry.kind != SmartFilterKind::SurfaceBlur &&
          entry.kind != SmartFilterKind::UnsharpMask &&
@@ -3372,6 +3479,13 @@ FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
                                               plastic.detail, plastic.smoothness,
                                               &filter_progress);
       }
+    } else if (entry.kind == SmartFilterKind::SmartSharpen) {
+      // Legacy Gaussian Smart Sharpen is Photoshop's Unsharp Mask with
+      // threshold 0, byte for byte (October 2026 probes).
+      const auto &sharpen = std::get<SmartSharpenSmartFilter>(entry.parameters);
+      filtered = render_unsharp_mask(current, sharpen.amount_percent,
+                                     sharpen.radius_pixels, 0,
+                                     &filter_progress);
     } else if (entry.kind == SmartFilterKind::Invert) {
       filtered = render_invert_effect(current, &filter_progress);
     } else if (entry.kind == SmartFilterKind::Average) {
@@ -3424,7 +3538,8 @@ FilterRenderResult render_photoshop_classic_filter(
       pixels.width() != bounds.width || pixels.height() != bounds.height ||
       (kind != SmartFilterKind::Blur && kind != SmartFilterKind::BlurMore &&
        kind != SmartFilterKind::Sharpen &&
-       kind != SmartFilterKind::SharpenMore)) {
+       kind != SmartFilterKind::SharpenMore &&
+       kind != SmartFilterKind::SharpenEdges)) {
     throw std::invalid_argument(
         PATCHY_TRANSLATE_NOOP("QObject", "Unsupported Smart Filter entry"));
   }

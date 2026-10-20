@@ -11558,6 +11558,19 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Double-click to edit this effect in the Layer Style dialog; right-click for its menu.</source>
         <translation>Дважды нажмите, чтобы изменить этот эффект в диалоге «Стиль слоя»; правая кнопка открывает его меню.</translation>
     </message>
+    <message>
+        <source>Sharpen Edges</source>
+        <comment>Smart Filter</comment>
+        <translation>Резкость на краях</translation>
+    </message>
+    <message>
+        <source>Smart Sharpen</source>
+        <translation>Умная резкость</translation>
+    </message>
+    <message>
+        <source> (Amount %1%, Radius %2 px, Legacy)</source>
+        <translation> (Эффект %1%, Радиус %2 пикс., Прежний)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23416,6 +23429,10 @@ Patchy можно будет запускать из меню, а на пане�
     <message>
         <source>Edit %1...</source>
         <translation>Изменить %1...</translation>
+    </message>
+    <message>
+        <source>Smart Sharpen</source>
+        <translation>Умная резкость</translation>
     </message>
 </context>
 <context>

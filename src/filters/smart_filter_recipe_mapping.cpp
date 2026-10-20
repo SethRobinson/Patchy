@@ -60,6 +60,9 @@ std::optional<SmartFilterKind> native_smart_filter_kind_for(
   if (filter_id == "patchy.filters.average") {
     return SmartFilterKind::Average;
   }
+  if (filter_id == "patchy.filters.sharpen_edges") {
+    return SmartFilterKind::SharpenEdges;
+  }
   return std::nullopt;
 }
 
@@ -101,6 +104,9 @@ bool native_smart_filter_kind_supported(SmartFilterKind kind) {
     case SmartFilterKind::SharpenMore:
     case SmartFilterKind::Invert:
     case SmartFilterKind::Average:
+    case SmartFilterKind::SharpenEdges:
+    // Imported only: no Filter-menu command maps onto Smart Sharpen.
+    case SmartFilterKind::SmartSharpen:
       return true;
     case SmartFilterKind::Offset:
     case SmartFilterKind::Maximum:

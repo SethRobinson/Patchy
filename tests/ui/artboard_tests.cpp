@@ -35,6 +35,7 @@
 #include <QDialog>
 #include <QDir>
 #include <QElapsedTimer>
+#include <QPointer>
 #include <QProgressDialog>
 #include <QLabel>
 #include <QLineEdit>
@@ -649,6 +650,15 @@ void check_artboard_scrub_costs_a_handle_drag(patchy::ui::MainWindow& window, pa
   }
   scrub_step_ms /= kSteps;
   const int scrubbed_width = width->value();
+  // The commit keeps every layer in place, so the Layers panel keeps its row widgets and
+  // only restamps thumbnails: rebuilding the rows (widget construction, QSS polish) was
+  // most of each commit on Windows.
+  QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);  // rows an earlier rebuild retired
+  std::vector<QPointer<QWidget>> rows_before;
+  for (auto* row : window.findChildren<QWidget*>(QStringLiteral("layerRowWidget"))) {
+    rows_before.emplace_back(row);
+  }
+  CHECK(!rows_before.empty());
   timer.start();
   send_mouse(*w_label, QEvent::MouseButtonRelease, origin - QPoint(drag_start + 2 * kSteps, 0), Qt::LeftButton,
              Qt::NoButton);
@@ -658,6 +668,11 @@ void check_artboard_scrub_costs_a_handle_drag(patchy::ui::MainWindow& window, pa
   CHECK((rect_now() == patchy::Rect{start.x, start.y, scrubbed_width, start.height}));
   CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
   CHECK(!canvas->artboard_drag_active());
+  QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+  bool rows_kept = !rows_before.empty();
+  for (const auto& row : rows_before) {
+    rows_kept = rows_kept && !row.isNull();
+  }
 
   // Arrow steps and a typed value commit at once (one undo step per run).
   auto* editor = width->findChild<QLineEdit*>();
@@ -690,6 +705,7 @@ void check_artboard_scrub_costs_a_handle_drag(patchy::ui::MainWindow& window, pa
   std::fflush(stdout);
   CHECK(document_untouched);
   CHECK(previewed);
+  CHECK(rows_kept);
   // A scrub step costs about what a handle-drag step costs (both repaint a preview).
   CHECK(scrub_step_ms <= 3.0 * handle_step_ms + 20.0);
 }

@@ -11523,6 +11523,19 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Double-click to edit this effect in the Layer Style dialog; right-click for its menu.</source>
         <translation>Doppelklicken, um diesen Effekt im Dialog „Ebenenstil“ zu bearbeiten; Rechtsklick für sein Menü.</translation>
     </message>
+    <message>
+        <source>Sharpen Edges</source>
+        <comment>Smart Filter</comment>
+        <translation>Konturen scharfzeichnen</translation>
+    </message>
+    <message>
+        <source>Smart Sharpen</source>
+        <translation>Selektiver Scharfzeichner</translation>
+    </message>
+    <message>
+        <source> (Amount %1%, Radius %2 px, Legacy)</source>
+        <translation> (Stärke %1%, Radius %2 px, Herkömmlich)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23344,6 +23357,10 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
     <message>
         <source>Edit %1...</source>
         <translation>%1 bearbeiten...</translation>
+    </message>
+    <message>
+        <source>Smart Sharpen</source>
+        <translation>Selektiver Scharfzeichner</translation>
     </message>
 </context>
 <context>

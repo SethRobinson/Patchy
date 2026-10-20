@@ -43,7 +43,7 @@ lens_blur: radius=15.0 blades=6 blade_curvature=50 rotation=0
 iris_blur: blur=15.0 center_x=50.0 center_y=50.0 angle=0 iris_width=50.0 iris_height=40.0 focus=50.0
 tilt_shift_blur: blur=15.0 center_x=50.0 center_y=50.0 angle=0 focus_half_width=10.0 transition_width=20.0
 plastic_wrap: highlight_strength=9 detail=7 smoothness=5
-blur, blur_more, average, sharpen_more: none
+blur, blur_more, average, sharpen_more, sharpen_edges: none
 ```
 
 A `FilterInvocation` stores filter ID, schema version, named parameters, and captured foreground/background colors. Parameter keys are stable within a schema; unknown keys are ignored. An unknown filter ID or schema version makes the invocation and its containing recipe unsupported; never run the newest schema instead or fall back to another filter. Values normalize through the catalog before execution: declared types kept, numerics clamped to range; a wrong-typed known key or unknown option token is invalid, not coerced.
@@ -52,12 +52,12 @@ A `FilterInvocation` stores filter ID, schema version, named parameters, and cap
 
 Nine catalog filters carry `FilterCategory::Adjustment` and surface under Image > Adjustments: Invert, Brightness/Contrast, Grayscale (no direct action yet), Desaturate, Auto Tone, Auto Contrast, Auto Color, Threshold, Posterize. The four dialog adjustments (Levels, Curves, Hue/Saturation, Color Balance) are not catalog filters; see [adjustments-calibration.md](adjustments-calibration.md).
 
-The gallery exposes the other 36 effects in the fixed catalog and category order below (labels translated, never locale-sorted). An effect's ID suffix is its lowercased label with underscores ("&" becomes "and"), except where given in parentheses:
+The gallery exposes the other 37 effects in the fixed catalog and category order below (labels translated, never locale-sorted). An effect's ID suffix is its lowercased label with underscores ("&" becomes "and"), except where given in parentheses:
 
 ```text
 photo_looks: Soft Glow, Punchy Color, Noir, Cinematic Matte, Vintage Fade, Vintage Sepia (sepia), Lens Vignette (vignette)
 blur: Box Blur, Gaussian Blur, Motion Blur, Radial Blur, Surface Blur, Lens Blur, Iris Blur, Tilt-Shift Blur, Blur, Blur More, Average
-sharpen: Sharpen, Unsharp Mask, High Pass, Sharpen More
+sharpen: Sharpen, Unsharp Mask, High Pass, Sharpen More, Sharpen Edges
 distort: Twirl, Wave, Pinch/Bloat (pinch_bloat)
 noise: Analog Grain (film_grain), Add Noise, Median, Dust & Scratches
 pixelate: Pixel Mosaic (pixelate), Color Halftone
@@ -84,7 +84,7 @@ Liquify is a top-level Filter menu action under Filter Gallery, outside this cat
 
 ## Text and shape layer gate
 
-Text and shape layers re-create their pixels from source data, so a destructive edit would vanish on the next edit. Every destructive entry point calls `MainWindow::prompt_rasterize_procedural_layer` first: catalog filter actions (Image > Adjustments included), the Filter Gallery, Liquify, and the destructive Levels/Curves/Hue/Saturation/Color Balance dialogs. Legacy plug-ins keep their hard refusal; smart objects are untouched (docs/smart-objects.md).
+Text and shape layers regenerate their pixels, so a destructive edit would vanish. Every destructive entry point calls `MainWindow::prompt_rasterize_procedural_layer` first: catalog filter actions (Image > Adjustments included), the Filter Gallery, Liquify, and the destructive Levels/Curves/Hue/Saturation/Color Balance dialogs. Legacy plug-ins keep their hard refusal; smart objects are untouched (docs/smart-objects.md).
 
 The prompt (`rasterizeOrConvertMessageBox`) offers Convert To Smart Object (AcceptRole, the default when present), Rasterize (DestructiveRole), and Cancel. Convert appears only when the follow-on can succeed: a direct filter needs a native Smart Filter mapping (`native_smart_filter_kind_for`), the gallery always qualifies, and both need the document under the 64-megapixel editable-mask cap; Liquify and the adjustment dialogs never offer it. Rasterize commits its own "Rasterize layer" undo step, kept if the follow-on dialog is cancelled; Convert converts and re-enters the smart-object routing. The gate commits an active inline text edit first; CLI automation keeps the plug-in path's status refusal instead of a blocking prompt. Coverage: `ui_filter*_on_*_layer_*`, `ui_levels_on_text_layer_*`.
 
@@ -154,7 +154,7 @@ Ranges (`min..max`, practical slider limits in parentheses), growth, and transla
 ```text
 box_blur  radius int 1..2000 px (to 100); grows by radius; supp = radius
 gaussian_blur  radius 0.1..1000 px (to 100); grows/supp ceil(3*radius)
-sharpen, sharpen_more, edge_detect  supp 1 px
+sharpen, sharpen_more, sharpen_edges, edge_detect  supp 1 px
 blur, blur_more  grows 1 px; supp 1 px
 motion_blur  angle -360..360 deg (-180..180), distance 1..2000 px (1..64, PS max); grows by distance;
              supp distance+1 (+1 covers bilinear taps); kernels in smart-filters-native.md
@@ -177,9 +177,9 @@ clouds  fills_entire_canvas; no margin, no supp, never grown by the registry (UI
 Calibration notes:
 
 - Radial Blur: historical centered growth kept for default compatibility; an edited center grows from the sampled corner sweep, uncapped, failing through the registry's checked padding path rather than clipping. Amount 0: no growth. Native: [smart-filters-native.md](smart-filters-native.md).
-- Add Noise: deterministic position-hashed noise on RGB only, uniform or a sum-of-four-uniforms gaussian approximation with no transcendental calls. The seed feeds the hash so re-renders reproduce the same noise; amount does not scale for thumbnails (like Analog Grain).
+- Add Noise: deterministic position-hashed noise on RGB only, uniform or a sum-of-four-uniforms gaussian approximation with no transcendental calls. The seed feeds the hash; amount does not scale for thumbnails (like Analog Grain).
 - Box Blur: radii to 12 keep the direct double path (pins, Smart Filter parity); larger ones use an exact int64 running sum.
-- Blur, Blur More, Sharpen More: the native kernels (`render_photoshop_classic_filter`). Average: visible pixels' alpha-weighted mean (Photoshop also counts hidden colors). All four skip the dialog.
+- Blur, Blur More, Sharpen More, Sharpen Edges: the native kernels (`render_photoshop_classic_filter`). Average: visible pixels' alpha-weighted mean (Photoshop also counts hidden colors). All five skip the dialog.
 - Gaussian Blur, High Pass, Unsharp Mask, Median, Dust & Scratches, and Surface Blur share their kernels with the native Smart Filters (`render_photoshop_*` in `smart_filter_renderer.cpp`); the exact math is in [smart-filters-native.md](smart-filters-native.md) "Render semantics". Gaussian's `accepts_legacy_integer` widens pre-decimal integer radii; Median floors and Surface Blur rounds fractional radii for rendering without rewriting the stored value.
 - Median, Dust & Scratches, and Surface Blur give transparent pixels the straight RGB of the nearest visible source anywhere in the input, so these, the ellipse/band blurs, Plastic Wrap and Add Noise advertise no finite support and render selected applications with full-layer context. Surface Blur alpha-trims after padding.
 - Lens Blur: one deterministic supersampled aperture kernel on premultiplied RGBA (curvature blends the polygon toward a circle); radius 0 is an exact identity; large radii run fixed-point downsample/convolve/upsample stages on a grid anchored to the whole input, a factor-aligned margin alpha-trimmed after.

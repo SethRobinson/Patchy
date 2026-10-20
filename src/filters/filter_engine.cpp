@@ -2133,13 +2133,16 @@ void execute_builtin_filter(const FilterRegistry &registry,
 
   if (identifier == "patchy.filters.blur" ||
       identifier == "patchy.filters.blur_more" ||
-      identifier == "patchy.filters.sharpen_more") {
+      identifier == "patchy.filters.sharpen_more" ||
+      identifier == "patchy.filters.sharpen_edges") {
     // The native Smart Filter kernels (docs/smart-filters-native.md).
     const auto kind = identifier == "patchy.filters.blur"
                           ? SmartFilterKind::Blur
-                          : (identifier == "patchy.filters.blur_more"
-                                 ? SmartFilterKind::BlurMore
-                                 : SmartFilterKind::SharpenMore);
+                          : identifier == "patchy.filters.blur_more"
+                                ? SmartFilterKind::BlurMore
+                                : identifier == "patchy.filters.sharpen_edges"
+                                      ? SmartFilterKind::SharpenEdges
+                                      : SmartFilterKind::SharpenMore;
     stage_rgba_and_render(pixels, [&](const PixelBuffer &rgba) {
       return render_photoshop_classic_filter(
           rgba, Rect::from_size(rgba.width(), rgba.height()), kind, progress);
@@ -3034,7 +3037,8 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
              identifier == "patchy.filters.blur_more" ||
              identifier == "patchy.filters.average") {
     metadata = catalog_metadata(Category::Blur, false, {});
-  } else if (identifier == "patchy.filters.sharpen_more") {
+  } else if (identifier == "patchy.filters.sharpen_more" ||
+             identifier == "patchy.filters.sharpen_edges") {
     metadata = catalog_metadata(Category::Sharpen, false, {});
   } else if (identifier == "patchy.filters.sharpen") {
     metadata =
@@ -3414,7 +3418,8 @@ FilterCatalogMetadata builtin_filter_catalog(std::string_view identifier) {
     };
   } else if (identifier == "patchy.filters.sharpen" ||
              identifier == "patchy.filters.edge_detect" ||
-             identifier == "patchy.filters.sharpen_more") {
+             identifier == "patchy.filters.sharpen_more" ||
+             identifier == "patchy.filters.sharpen_edges") {
     metadata.translation_support =
         [](const FilterInvocation &) -> std::optional<int> { return 1; };
   } else if (identifier == "patchy.filters.blur" ||
