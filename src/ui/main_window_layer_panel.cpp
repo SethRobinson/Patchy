@@ -1575,7 +1575,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                std::function<void(LayerId, std::size_t)> delete_smart_filter = {},
                                std::function<void(LayerId)> delete_smart_filter_stack = {},
                                bool vector_mask_target_active = false, QSize document_size = {},
-                               const std::function<std::optional<Rect>(const Layer&)>& content_crop = {}) {
+                               const std::function<std::optional<Rect>(const Layer&)>& content_crop = {},
+                               bool background_row = false) {
   // One crop per row: the content, mask, vector-mask, and Smart Filter mask
   // previews share it so the row keeps a single tile shape.
   const auto thumbnail_crop = content_crop ? content_crop(layer) : std::optional<Rect>{};
@@ -1886,6 +1887,11 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   for (const auto flag : {kLayerLockTransparentPixels, kLayerLockImagePixels, kLayerLockPosition,
                           kLayerLockArtboardAutonest}) {
     if ((effective_lock_flags & flag) == kLayerLockNone) {
+      continue;
+    }
+    // Photoshop stores Prevent Auto-Nesting on its Background (lspf 0xd) but shows that
+    // layer one lock icon; the Background's own lock badges stand for it here too.
+    if (flag == kLayerLockArtboardAutonest && background_row) {
       continue;
     }
     const bool inherited = (ancestor_lock_flags & flag) != kLayerLockNone &&
@@ -3552,6 +3558,7 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
     bool group_expanded{true};
     LayerLockFlags ancestor_lock_flags{kLayerLockNone};
     bool row_clipped{false};
+    bool background_row{false};
   };
   std::vector<PendingLayerRow> pending_rows;
   std::function<void(const std::vector<Layer>&, int, bool, LayerLockFlags)> append_layers =
@@ -3608,8 +3615,12 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
         font.setBold(true);
         item->setFont(font);
       }
+      // A Background: the bottom top-level pixel layer named "Background" (the PSD reader's rule).
+      const auto background_row = depth == 0 && sibling_index == 0 && it->kind() == LayerKind::Pixel &&
+                                  QString::fromStdString(it->name()).compare(QStringLiteral("Background"),
+                                                                             Qt::CaseInsensitive) == 0;
       pending_rows.push_back(PendingLayerRow{item, &*it, depth, ancestors_visible, group_expanded,
-                                             ancestor_lock_flags, row_clipped});
+                                             ancestor_lock_flags, row_clipped, background_row});
       item_ms += phase_ms(item_started);
       if (is_group && group_expanded) {
         // Folders pass on their editing locks, not Prevent Auto-Nesting.
@@ -3741,7 +3752,8 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
                                       QSize(document().width(), document().height()),
                                       [this](const Layer& row_layer) {
                                         return layer_thumbnail_crop(row_layer);
-                                      });
+                                      },
+                                      pending.background_row);
     widget_ms += phase_ms(widget_started);
     if (session_layer == layer.id() && layer_is_text(layer)) {
       // The content tile above came without the badge; the tooltip has to agree.

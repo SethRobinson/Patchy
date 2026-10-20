@@ -36,6 +36,7 @@
 #include <QListWidget>
 #include <QContextMenuEvent>
 #include <QDir>
+#include <QFile>
 #include <QMenu>
 #include <QPainter>
 #include <QStackedWidget>
@@ -2495,6 +2496,78 @@ void ui_issue_246_sample_prevent_auto_nesting_if_available() {
         patchy::layer_lock_flags(*position) == (patchy::kLayerLockPosition | patchy::kLayerLockArtboardAutonest));
 }
 
+// Photoshop saves its Background with lspf 0xd (transparency, position and Prevent
+// Auto-Nesting) and shows it one lock icon: the row keeps its two lock badges and draws no
+// auto-nesting badge, though the lock is kept and the action shows it (GitHub issue 246).
+// Another layer with 0x8 still shows the badge.
+void ui_psd_background_hides_prevent_auto_nesting_badge() {
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const auto psd_path = temp.filePath(QStringLiteral("background-0xd.psd"));
+  {
+    patchy::Document document(64, 48, patchy::PixelFormat::rgb8());
+    auto& background = document.add_pixel_layer(
+        "Background", solid_pixels(64, 48, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
+    patchy::set_layer_lock_flags(background, patchy::kLayerLockTransparentPixels);
+    auto& nesting = document.add_pixel_layer("Nesting",
+                                             solid_pixels(64, 48, patchy::PixelFormat::rgba8(), QColor(40, 90, 200)));
+    patchy::set_layer_lock_flags(nesting, patchy::kLayerLockTransparentPixels);
+    auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+    // Records run bottom to top: the first lspf is the Background's, the last the top layer's.
+    const std::array<std::uint8_t, 8> tag{'8', 'B', 'I', 'M', 'l', 's', 'p', 'f'};
+    const auto first = std::search(bytes.begin(), bytes.end(), tag.begin(), tag.end());
+    const auto last = std::find_end(bytes.begin(), bytes.end(), tag.begin(), tag.end());
+    CHECK(first != bytes.end() && last != bytes.end() && first != last);
+    const auto write_value = [&bytes](std::vector<std::uint8_t>::iterator at, std::uint32_t value) {
+      const auto offset = static_cast<std::size_t>(std::distance(bytes.begin(), at)) + 12U;
+      for (std::size_t index = 0; index < 4U; ++index) {
+        bytes[offset + index] = static_cast<std::uint8_t>(value >> (24U - 8U * index));
+      }
+    };
+    write_value(first, 0xDU);
+    write_value(last, 0x8U);
+    QFile file(psd_path);
+    CHECK(file.open(QIODevice::WriteOnly));
+    CHECK(file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qint64>(bytes.size())) ==
+          static_cast<qint64>(bytes.size()));
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, psd_path);
+  QApplication::processEvents();
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr && layer_list->count() == 2);
+  const auto badge_tips = [layer_list](const char* name) {
+    auto* row = layer_list->itemWidget(require_layer_item(*layer_list, QLatin1String(name)));
+    QStringList tips;
+    if (row != nullptr) {
+      for (const auto* badge : row->findChildren<QLabel*>(QStringLiteral("layerLockBadge"))) {
+        tips << badge->toolTip();
+      }
+    }
+    return tips;
+  };
+  const auto background_tips = badge_tips("Background");
+  CHECK(background_tips.size() == 2);
+  CHECK(background_tips.contains(QStringLiteral("Transparent pixels locked")));
+  CHECK(background_tips.contains(QStringLiteral("Position locked")));
+  CHECK(badge_tips("Nesting") == QStringList{QStringLiteral("Auto-nesting into and out of artboards prevented")});
+
+  const auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* background = top_level_layer_named(document, "Background");
+  CHECK(background != nullptr && patchy::layer_prevents_auto_nesting(*background));
+  auto* item = require_layer_item(*layer_list, QStringLiteral("Background"));
+  layer_list->clearSelection();
+  layer_list->setCurrentItem(item);
+  item->setSelected(true);
+  QApplication::processEvents();
+  CHECK(require_action(window, "layerPreventAutoNestingAction")->isChecked());
+  if (auto* panel = window.findChild<QWidget*>(QStringLiteral("layersPanel")); panel != nullptr) {
+    save_widget_artifact("issue_246_background_badges", *panel);
+  }
+}
+
 void ui_layer_folders_expand_and_contract_children() {
   patchy::Document document(32, 32, patchy::PixelFormat::rgb8());
   document.add_pixel_layer("Background",
@@ -4803,6 +4876,7 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
        ui_issue_244_sample_layers_panel_shots_if_available},
       {"ui_issue_246_sample_prevent_auto_nesting_if_available",
        ui_issue_246_sample_prevent_auto_nesting_if_available},
+      {"ui_psd_background_hides_prevent_auto_nesting_badge", ui_psd_background_hides_prevent_auto_nesting_badge},
       {"ui_layer_folders_expand_and_contract_children", ui_layer_folders_expand_and_contract_children},
       {"ui_layer_folders_open_with_saved_expansion_state", ui_layer_folders_open_with_saved_expansion_state},
       {"ui_layer_folder_toggle_saves_without_marking_modified", ui_layer_folder_toggle_saves_without_marking_modified},
