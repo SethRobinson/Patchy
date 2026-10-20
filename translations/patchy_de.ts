@@ -12685,6 +12685,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Transform corners must form a convex shape</source>
         <translation>Die Transformationsecken müssen eine konvexe Form bilden</translation>
     </message>
+    <message>
+        <source>Drag to move the point. Drag the outline or fill to move the shape.</source>
+        <translation>Ziehen Sie, um den Punkt zu verschieben. Ziehen Sie die Kontur oder Füllung, um die Form zu verschieben.</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ChannelPanel</name>
