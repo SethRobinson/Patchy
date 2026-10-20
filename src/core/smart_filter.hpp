@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/layer.hpp"
+#include "core/smart_filter_table.hpp"
 
 #include <cstdint>
 #include <string>
@@ -27,6 +28,13 @@ enum class SmartFilterKind {
   BoxBlur,
   RadialBlur,
   AddNoise,
+  // Table-described filters (core/smart_filter_table.hpp); their settings are a
+  // TableSmartFilter.
+  Offset,
+  Maximum,
+  Minimum,
+  Custom,
+  Fragment,
 };
 
 struct GaussianBlurSmartFilter {
@@ -134,7 +142,8 @@ using SmartFilterParameters =
                  SurfaceBlurSmartFilter, UnsharpMaskSmartFilter,
                  MotionBlurSmartFilter, PlasticWrapSmartFilter,
                  MosaicSmartFilter, EmbossSmartFilter, BoxBlurSmartFilter,
-                 RadialBlurSmartFilter, AddNoiseSmartFilter>;
+                 RadialBlurSmartFilter, AddNoiseSmartFilter,
+                 TableSmartFilter>;
 
 struct SmartFilterEntry {
   SmartFilterKind kind{SmartFilterKind::Unsupported};

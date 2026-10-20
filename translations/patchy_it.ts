@@ -11038,6 +11038,47 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
         <translation>Le impostazioni di un documento recente: %1 x %2 px a %3 ppi</translation>
     </message>
+    <message>
+        <source>Squareness</source>
+        <translation>Squadratura</translation>
+    </message>
+    <message>
+        <source>Undefined Areas</source>
+        <translation>Aree non definite</translation>
+    </message>
+    <message>
+        <source>Set to Transparent</source>
+        <translation>Imposta come trasparente</translation>
+    </message>
+    <message>
+        <source>Repeat Edge Pixels</source>
+        <translation>Ripeti pixel del bordo</translation>
+    </message>
+    <message>
+        <source>Wrap Around</source>
+        <translation>Avvolgi</translation>
+    </message>
+    <message>
+        <source>Minimum</source>
+        <translation>Minima</translation>
+    </message>
+    <message>
+        <source>Matrix</source>
+        <translation>Matrice</translation>
+    </message>
+    <message>
+        <source>Fragment</source>
+        <translation>Frammento</translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation>Attivato</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
+        <translation>%1 %2</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22692,6 +22733,26 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
     <message>
         <source>Cancelled Gradient Map</source>
         <translation>Mappa sfumatura annullata</translation>
+    </message>
+    <message>
+        <source>Add %1 Smart Filter</source>
+        <translation>Aggiungi filtro avanzato %1</translation>
+    </message>
+    <message>
+        <source>Edit %1 Smart Filter</source>
+        <translation>Modifica filtro avanzato %1</translation>
+    </message>
+    <message>
+        <source>Added %1 as a Smart Filter</source>
+        <translation>%1 aggiunto come filtro avanzato</translation>
+    </message>
+    <message>
+        <source>Added another %1 Smart Filter</source>
+        <translation>Aggiunto un altro filtro avanzato %1</translation>
+    </message>
+    <message>
+        <source>Updated %1 Smart Filter</source>
+        <translation>Filtro avanzato %1 aggiornato</translation>
     </message>
 </context>
 <context>

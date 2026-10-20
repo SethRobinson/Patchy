@@ -43,6 +43,7 @@
 #include "ui/layer_list_widget.hpp"
 #include "ui/measurement_units.hpp"
 #include "ui/scanner_import.hpp"
+#include "ui/smart_filter_table_ui.hpp"
 #include "ui/text_font_service.hpp"
 #include "ui/tile_preview_window.hpp"
 #include "ui/ui_profile.hpp"
@@ -2287,6 +2288,15 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                .arg(noise->monochromatic
                                         ? QObject::tr(", Monochromatic")
                                         : QString());
+        }
+      } else if (const auto *table = smart_filter_table_spec(entry.kind);
+                 table != nullptr) {
+        entry_name = table_smart_filter_display_name(*table);
+        entry_tooltip = entry_name;
+        if (const auto *values =
+                std::get_if<TableSmartFilter>(&entry.parameters);
+            values != nullptr) {
+          entry_tooltip += table_smart_filter_tooltip_details(*table, *values);
         }
       } else if (!entry.native_name.empty()) {
         entry_name = QString::fromStdString(entry.native_name);

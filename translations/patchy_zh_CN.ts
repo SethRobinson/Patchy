@@ -11004,6 +11004,47 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
         <translation>最近文档的设置：%1 x %2 px，%3 ppi</translation>
     </message>
+    <message>
+        <source>Squareness</source>
+        <translation>方形</translation>
+    </message>
+    <message>
+        <source>Undefined Areas</source>
+        <translation>未定义区域</translation>
+    </message>
+    <message>
+        <source>Set to Transparent</source>
+        <translation>设置为透明</translation>
+    </message>
+    <message>
+        <source>Repeat Edge Pixels</source>
+        <translation>重复边缘像素</translation>
+    </message>
+    <message>
+        <source>Wrap Around</source>
+        <translation>折回</translation>
+    </message>
+    <message>
+        <source>Minimum</source>
+        <translation>最小值</translation>
+    </message>
+    <message>
+        <source>Matrix</source>
+        <translation>矩阵</translation>
+    </message>
+    <message>
+        <source>Fragment</source>
+        <translation>碎片</translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation>开</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
+        <translation>%1 %2</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22622,6 +22663,26 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Gradient Map</source>
         <translation>已取消渐变映射</translation>
+    </message>
+    <message>
+        <source>Add %1 Smart Filter</source>
+        <translation>添加%1智能滤镜</translation>
+    </message>
+    <message>
+        <source>Edit %1 Smart Filter</source>
+        <translation>编辑%1智能滤镜</translation>
+    </message>
+    <message>
+        <source>Added %1 as a Smart Filter</source>
+        <translation>已将%1添加为智能滤镜</translation>
+    </message>
+    <message>
+        <source>Added another %1 Smart Filter</source>
+        <translation>已添加另一个%1智能滤镜</translation>
+    </message>
+    <message>
+        <source>Updated %1 Smart Filter</source>
+        <translation>已更新%1智能滤镜</translation>
     </message>
 </context>
 <context>

@@ -10,9 +10,9 @@ extension, macOS ImageIO) and never in the AppImage.
 ## Read and write, everywhere native
 
 - Windows, macOS, Linux Flatpak and AppImage decode in-process through libavif 1.4.2 over
-  dav1d 1.5.4 and encode through libaom 3.15.2. Seth accepted the AV1 licensing position on
+  dav1d 1.5.4 and encode through libaom 3.15.2. The AV1 licensing position was accepted on
   October 16, 2026 (AOMedia's royalty-free patent grant versus the Sisvel pool; GIMP,
-  Firefox, Chrome and ImageMagick ship AV1 codecs) and asked for writing the same day
+  Firefox, Chrome and ImageMagick ship AV1 codecs), and writing was added the same day
   because GIMP writes AVIF. dav1d stays the decoder (faster than libaom's); libaom is
   built encoder-only, so `avifDecoder` never sees it.
 - The browser build (`EMSCRIPTEN`) compiles none of the three: `avif::is_available()` is

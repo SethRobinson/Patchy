@@ -11022,6 +11022,47 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Squareness</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Undefined Areas</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Set to Transparent</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Repeat Edge Pixels</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Wrap Around</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Minimum</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Matrix</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Fragment</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22614,6 +22655,26 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     </message>
     <message>
         <source>Cancelled Gradient Map</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add %1 Smart Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit %1 Smart Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Added %1 as a Smart Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Added another %1 Smart Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Updated %1 Smart Filter</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

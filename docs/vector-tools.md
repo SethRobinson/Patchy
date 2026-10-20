@@ -196,7 +196,7 @@ Geometry requires one modeled origination covering every subpath: rect
 bounds and radii, ellipse bounds, or line endpoints/weight. A radius makes a
 rect rounded. Chain buttons sit between labels and fields: `shapeGeometryLinkButton` keeps W/H in the ratio captured when
 switched on; `shapeGeometryRadiusLinkButton` edits all four radii together,
-on by default only when the corners agree. Dialogs are the patent-cleared route; no on-canvas gizmos. The dialog also edits layer Opacity and Fill opacity,
+on by default only when the corners agree. Dialogs are the reviewed route; no on-canvas gizmos. The dialog also edits layer Opacity and Fill opacity,
 the stroke's own opacity (vstk strokeStyleOpacity), and Feather / Density
 (Edge group); all PSD-native, one undo entry.
 
@@ -484,7 +484,7 @@ Resource-id constants live in src/core/document_path.hpp.
 Claim-level record: docs/patent-research.md. docs/legal-constraints.md binds
 this section.
 
-Cleared as expired prior art (reasoning, not legal advice): classic pen-tool
+Published earlier work, now expired: classic pen-tool
 bezier editing (Illustrator 88 era); shape layers with editable fill, vector
 clipping masks, combine ops, and vector masks (PS 6/7, patents expired
 ~2021-2024); boolean path combines, even-odd/nonzero fills, stroke dashing,
@@ -495,13 +495,13 @@ shipped in Photoshop 3, 1994).
 Excluded pending their own review (do NOT build without a new patent check):
 
 - Curvature Pen tool (2018+) and any auto-fitting curve-through-points UX.
-- Edge-magnetic vector snapping. (Image tracing itself is cleared with
+- Edge-magnetic vector snapping. (Image tracing itself is reviewed with
   boundaries: docs/image-trace.md and the "Vector tracing" bullet in
   docs/legal-constraints.md.)
 - Snap-to-pixel "align edges" automatic pixel-grid fitting of vector renders
   (plain user-invoked grid/guide snapping of anchors is fine).
 - On-canvas live-shape gizmo widgets (in-canvas radius handles etc.);
-  options-bar/dialog parameter editing is the cleared route (Apple
+  options-bar/dialog parameter editing is the reviewed route (Apple
   US 8971623; docs/patent-research.md).
 - Variable-width strokes / art brushes on paths (out of scope).
 

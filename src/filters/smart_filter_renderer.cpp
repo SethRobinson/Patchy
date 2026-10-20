@@ -5,6 +5,7 @@
 #include "core/worker_budget.hpp"
 #include "filters/filter_kernels.hpp"
 #include "filters/filter_support.hpp"
+#include "filters/smart_filter_table_render.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
@@ -2560,6 +2561,11 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
                          noise->amount_percent <= kMaximumAddNoiseAmount &&
                          noise->seed >= kMinimumAddNoiseSeed &&
                          noise->seed <= kMaximumAddNoiseSeed;
+    } else if (const auto *table = smart_filter_table_spec(entry.kind);
+               table != nullptr) {
+      const auto *values = std::get_if<TableSmartFilter>(&entry.parameters);
+      parameters_valid =
+          values != nullptr && table_smart_filter_valid(*table, *values);
     } else {
       throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "Unsupported Smart Filter entry"));
     }
@@ -2574,6 +2580,7 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
          entry.kind != SmartFilterKind::BoxBlur &&
          entry.kind != SmartFilterKind::RadialBlur &&
          entry.kind != SmartFilterKind::AddNoise &&
+         smart_filter_table_spec(entry.kind) == nullptr &&
          (!std::isfinite(radius) || radius < minimum_radius ||
           radius > maximum_radius)) ||
         !std::isfinite(entry.opacity) ||
@@ -2951,6 +2958,11 @@ FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
       filtered = render_add_noise_effect(current, noise.amount_percent,
                                          noise.gaussian, noise.monochromatic,
                                          noise.seed, &filter_progress);
+    } else if (smart_filter_table_spec(entry.kind) != nullptr) {
+      auto table_input = embed_in_filter_canvas(current.pixels, current.bounds,
+                                                filter_canvas_bounds);
+      filtered = trim_transparent_result(
+          render_table_smart_filter(table_input, entry, &filter_progress));
     } else {
       const auto &box = std::get<BoxBlurSmartFilter>(entry.parameters);
       auto box_input = embed_in_filter_canvas(current.pixels, current.bounds,

@@ -11004,6 +11004,47 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
         <translation>최근 문서의 설정: %3ppi에서 %1 x %2픽셀</translation>
     </message>
+    <message>
+        <source>Squareness</source>
+        <translation>정사각형</translation>
+    </message>
+    <message>
+        <source>Undefined Areas</source>
+        <translation>정의되지 않은 영역</translation>
+    </message>
+    <message>
+        <source>Set to Transparent</source>
+        <translation>투명하게 설정</translation>
+    </message>
+    <message>
+        <source>Repeat Edge Pixels</source>
+        <translation>가장자리 픽셀 반복</translation>
+    </message>
+    <message>
+        <source>Wrap Around</source>
+        <translation>감싸기</translation>
+    </message>
+    <message>
+        <source>Minimum</source>
+        <translation>최소</translation>
+    </message>
+    <message>
+        <source>Matrix</source>
+        <translation>행렬</translation>
+    </message>
+    <message>
+        <source>Fragment</source>
+        <translation>분열</translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation>켜기</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
+        <translation>%1 %2</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22622,6 +22663,26 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Gradient Map</source>
         <translation>그레이디언트 맵을 취소했습니다</translation>
+    </message>
+    <message>
+        <source>Add %1 Smart Filter</source>
+        <translation>%1 스마트 필터 추가</translation>
+    </message>
+    <message>
+        <source>Edit %1 Smart Filter</source>
+        <translation>%1 스마트 필터 편집</translation>
+    </message>
+    <message>
+        <source>Added %1 as a Smart Filter</source>
+        <translation>스마트 필터로 %1 추가</translation>
+    </message>
+    <message>
+        <source>Added another %1 Smart Filter</source>
+        <translation>또 다른 %1 스마트 필터를 추가했습니다.</translation>
+    </message>
+    <message>
+        <source>Updated %1 Smart Filter</source>
+        <translation>업데이트된 %1 스마트 필터</translation>
     </message>
 </context>
 <context>

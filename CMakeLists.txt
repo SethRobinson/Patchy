@@ -179,6 +179,7 @@ add_library(patchy_core
   src/core/quick_select.cpp
   src/core/rect_utils.cpp
   src/core/smart_filter_effects.cpp
+  src/core/smart_filter_table.cpp
   src/core/smart_object.cpp
   src/core/spot_heal.cpp
   src/core/exemplar_inpaint.cpp
@@ -386,6 +387,8 @@ add_library(patchy_psd
   src/psd/psd_little_endian.hpp
   src/psd/psd_patterns.cpp
   src/psd/psd_smart_objects.cpp
+  src/psd/psd_smart_filter_table.cpp
+  src/psd/psd_smart_filter_table.hpp
   src/psd/psd_text_engine_block.cpp
   src/psd/psd_text_engine_block.hpp
   src/psd/psd_text_engine_template.cpp
@@ -454,6 +457,8 @@ add_library(patchy_filters
   src/filters/rgba_filter_staging.hpp
   src/filters/smart_filter_recipe_mapping.cpp
   src/filters/smart_filter_renderer.cpp
+  src/filters/smart_filter_table_render.cpp
+  src/filters/smart_filter_table_render.hpp
 )
 target_link_libraries(patchy_filters PUBLIC patchy_core)
 patchy_configure_target(patchy_filters)
@@ -1223,6 +1228,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/main_window_destructive_adjustments.cpp
       src/ui/main_window_docks.cpp
       src/ui/main_window_filters.cpp
+      src/ui/smart_filter_table_ui.hpp
+      src/ui/smart_filter_table_ui.cpp
       src/ui/main_window_document_dialogs.cpp
       src/ui/main_window_files.cpp
       src/ui/tiff_jpeg_reader.cpp
@@ -2063,6 +2070,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/smart_filter_descriptors_tests_canonical.cpp
     tests/core/smart_filter_descriptors_tests_fixtures.cpp
     tests/core/smart_filter_pixels_tests.cpp
+    tests/core/smart_filter_table_tests.cpp
     tests/core/smart_objects_warp_tests.cpp
     tests/core/stroke_mask_effects_tests.cpp
     tests/core/pdf_tests.cpp
@@ -2174,6 +2182,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/smart_filter_tests_flows.cpp
       tests/ui/smart_filter_tests_guards.cpp
       tests/ui/smart_filter_tests_kinds.cpp
+      tests/ui/smart_filter_tests_table.cpp
       tests/ui/smart_object_tests.cpp
       tests/ui/warp_tests.cpp
       tests/ui/import_print_resolution_tests.cpp

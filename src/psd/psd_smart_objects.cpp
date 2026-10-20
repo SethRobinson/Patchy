@@ -5,6 +5,7 @@
 #include "psd/psd_descriptor.hpp"
 #include "psd/psd_io_internal.hpp"
 #include "psd/psd_layer_effects.hpp"
+#include "psd/psd_smart_filter_table.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
@@ -171,6 +172,10 @@ struct SmartFilterDescriptorSpec {
   std::optional<RadialBlurSmartFilter> radial_blur;
   // Add Noise emits Dstr, Nose, Mnch, FlRs in that order.
   std::optional<AddNoiseSmartFilter> add_noise;
+  // Table-described filters (core/smart_filter_table.hpp) emit their fields
+  // from the table, in its order.
+  const SmartFilterTableSpec* table{nullptr};
+  const TableSmartFilter* table_values{nullptr};
   const char* default_entry_name{nullptr};
   const char* filter_name{nullptr};
   const char* filter_class_id{nullptr};
@@ -357,6 +362,19 @@ smart_filter_descriptor_spec(const SmartFilterEntry &entry) {
     spec.filter_name = "Add Noise";
     spec.filter_class_id = "AdNs";
     spec.filter_id = 0x41644e73U;
+  } else if (const auto *table = smart_filter_table_spec(entry.kind);
+             table != nullptr) {
+    const auto *values = std::get_if<TableSmartFilter>(&entry.parameters);
+    if (values == nullptr || !table_smart_filter_valid(*table, *values)) {
+      return std::nullopt;
+    }
+    spec.table = table;
+    spec.table_values = values;
+    spec.default_entry_name = table->entry_name;
+    spec.filter_name = table->filter_name;
+    spec.filter_class_id = table->class_id;
+    spec.filter_class_id_long_form = table->class_id_long_form;
+    spec.filter_id = table->filter_id;
   } else {
     return std::nullopt;
   }
@@ -398,9 +416,10 @@ make_smart_filter_entry_descriptor(const SmartFilterEntry &entry) {
                          smart_filter_color(entry.foreground));
   add_smart_filter_value(*item.object_value, "BckC", false,
                          smart_filter_color(entry.background));
-  auto filter =
-      smart_filter_object(spec->filter_class_id,
-                          spec->filter_class_id_long_form, spec->filter_name);
+  auto filter = smart_filter_object(
+      spec->filter_class_id != nullptr ? spec->filter_class_id : "",
+      spec->filter_class_id_long_form,
+      spec->filter_name != nullptr ? spec->filter_name : "");
   if (spec->highlight_strength.has_value()) {
     add_smart_filter_value(
         *filter.object_value, "Hghl", false,
@@ -485,7 +504,15 @@ make_smart_filter_entry_descriptor(const SmartFilterEntry &entry) {
     add_smart_filter_value(*filter.object_value, "FlRs", false,
                            smart_filter_integer(spec->add_noise->seed));
   }
-  add_smart_filter_value(*item.object_value, "Fltr", false, std::move(filter));
+  if (spec->table != nullptr) {
+    append_table_smart_filter_fields(*filter.object_value, *spec->table,
+                                     *spec->table_values);
+  }
+  // A filter without settings (Clouds, Fragment, ...) has no Fltr object.
+  if (spec->filter_class_id != nullptr) {
+    add_smart_filter_value(*item.object_value, "Fltr", false,
+                           std::move(filter));
+  }
   add_smart_filter_value(
       *item.object_value, "filterID", true,
       smart_filter_integer(static_cast<std::int32_t>(spec->filter_id)));
@@ -685,8 +712,11 @@ bool patch_smart_filter_descriptor(
     auto* filter = const_cast<DescriptorObject*>(descriptor_object(item, "Fltr"));
     if (name == nullptr || name->type != DescriptorValue::Type::String ||
         filter_id == nullptr || filter_id->type != DescriptorValue::Type::Integer ||
-        blend == nullptr || blend->class_id != "blendOptions" || filter == nullptr ||
-        filter->class_id != spec->filter_class_id) {
+        blend == nullptr || blend->class_id != "blendOptions" ||
+        (spec->filter_class_id == nullptr
+             ? filter != nullptr
+             : (filter == nullptr ||
+                filter->class_id != spec->filter_class_id))) {
       return false;
     }
     if (!entry.native_name.empty()) {
@@ -846,6 +876,11 @@ bool patch_smart_filter_descriptor(
       amount->double_value = spec->add_noise->amount_percent;
       monochromatic->bool_value = spec->add_noise->monochromatic;
       seed->integer_value = spec->add_noise->seed;
+    }
+    if (spec->table != nullptr && filter != nullptr &&
+        !patch_table_smart_filter_fields(*filter, *spec->table,
+                                         *spec->table_values)) {
+      return false;
     }
   }
   return true;
@@ -1301,6 +1336,9 @@ std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
         } else {
           entry_supported = false;
         }
+      } else if (parse_table_smart_filter(filter, entry.native_filter_id,
+                                          entry, entry_supported)) {
+        // Table-described filter (core/smart_filter_table.hpp).
       } else {
         entry_supported = false;
       }

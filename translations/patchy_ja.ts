@@ -11004,6 +11004,47 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
         <translation>最近のドキュメントの設定: %1 x %2 px、%3 ppi</translation>
     </message>
+    <message>
+        <source>Squareness</source>
+        <translation>正方形</translation>
+    </message>
+    <message>
+        <source>Undefined Areas</source>
+        <translation>未定義領域</translation>
+    </message>
+    <message>
+        <source>Set to Transparent</source>
+        <translation>透明にする</translation>
+    </message>
+    <message>
+        <source>Repeat Edge Pixels</source>
+        <translation>端のピクセルを繰り返す</translation>
+    </message>
+    <message>
+        <source>Wrap Around</source>
+        <translation>折り返す</translation>
+    </message>
+    <message>
+        <source>Minimum</source>
+        <translation>最小</translation>
+    </message>
+    <message>
+        <source>Matrix</source>
+        <translation>マトリクス</translation>
+    </message>
+    <message>
+        <source>Fragment</source>
+        <translation>分割</translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation>オン</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
+        <translation>%1 %2</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22622,6 +22663,26 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Gradient Map</source>
         <translation>グラデーションマップをキャンセルしました</translation>
+    </message>
+    <message>
+        <source>Add %1 Smart Filter</source>
+        <translation>%1スマートフィルターを追加</translation>
+    </message>
+    <message>
+        <source>Edit %1 Smart Filter</source>
+        <translation>%1スマートフィルターを編集</translation>
+    </message>
+    <message>
+        <source>Added %1 as a Smart Filter</source>
+        <translation>%1をスマートフィルターとして追加しました</translation>
+    </message>
+    <message>
+        <source>Added another %1 Smart Filter</source>
+        <translation>%1スマートフィルターをもう1つ追加しました</translation>
+    </message>
+    <message>
+        <source>Updated %1 Smart Filter</source>
+        <translation>%1スマートフィルターを更新しました</translation>
     </message>
 </context>
 <context>

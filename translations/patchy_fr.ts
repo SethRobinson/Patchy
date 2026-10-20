@@ -11038,6 +11038,47 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>The settings of a recent document: %1 x %2 px at %3 ppi</source>
         <translation>Les paramètres d’un document récent : %1 x %2 px à %3 ppp</translation>
     </message>
+    <message>
+        <source>Squareness</source>
+        <translation>Forme carrée</translation>
+    </message>
+    <message>
+        <source>Undefined Areas</source>
+        <translation>Zones non définies</translation>
+    </message>
+    <message>
+        <source>Set to Transparent</source>
+        <translation>Rendre transparent</translation>
+    </message>
+    <message>
+        <source>Repeat Edge Pixels</source>
+        <translation>Répéter les pixels du bord</translation>
+    </message>
+    <message>
+        <source>Wrap Around</source>
+        <translation>Contourner</translation>
+    </message>
+    <message>
+        <source>Minimum</source>
+        <translation>Minimum</translation>
+    </message>
+    <message>
+        <source>Matrix</source>
+        <translation>Matrice</translation>
+    </message>
+    <message>
+        <source>Fragment</source>
+        <translation>Fragmentation</translation>
+    </message>
+    <message>
+        <source>On</source>
+        <translation>Activé</translation>
+    </message>
+    <message>
+        <source>%1 %2</source>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
+        <translation>%1 %2</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22692,6 +22733,26 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
     <message>
         <source>Cancelled Gradient Map</source>
         <translation>Courbe de transfert de dégradé annulée</translation>
+    </message>
+    <message>
+        <source>Add %1 Smart Filter</source>
+        <translation>Ajouter le filtre dynamique %1</translation>
+    </message>
+    <message>
+        <source>Edit %1 Smart Filter</source>
+        <translation>Modifier le filtre dynamique %1</translation>
+    </message>
+    <message>
+        <source>Added %1 as a Smart Filter</source>
+        <translation>%1 ajouté comme filtre dynamique</translation>
+    </message>
+    <message>
+        <source>Added another %1 Smart Filter</source>
+        <translation>Un autre filtre dynamique %1 a été ajouté</translation>
+    </message>
+    <message>
+        <source>Updated %1 Smart Filter</source>
+        <translation>Filtre dynamique %1 mis à jour</translation>
     </message>
 </context>
 <context>

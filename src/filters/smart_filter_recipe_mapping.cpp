@@ -67,6 +67,12 @@ bool native_smart_filter_kind_supported(SmartFilterKind kind) {
     case SmartFilterKind::RadialBlur:
     case SmartFilterKind::AddNoise:
       return true;
+    case SmartFilterKind::Offset:
+    case SmartFilterKind::Maximum:
+    case SmartFilterKind::Minimum:
+    case SmartFilterKind::Custom:
+    case SmartFilterKind::Fragment:
+      return smart_filter_table_spec(kind) != nullptr;
     case SmartFilterKind::Unsupported:
       return false;
   }
