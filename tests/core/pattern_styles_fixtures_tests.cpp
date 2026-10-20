@@ -841,7 +841,7 @@ void psd_lfx2_float_color_descriptor_reads_as_rgb() {
 // effect is a white Lighten outer glow (size 59, spread 18, Range 50) on a type layer,
 // the color stored as redFloat/greenFloat/blueFloat. Photoshop's flatten of the file
 // (ps-flat.bmp, COM capture) pins the render away from the glyphs; the lone Satin record
-// is disabled with AntA on and must raise no dialog notice.
+// is an unused class (enab and present both false) and must raise no dialog notice.
 void ag_psd_float_color_outer_glow_matches_photoshop_if_available() {
   const auto dir = patchy::test::source_root_path() / "local-test-fixtures" / "ag-psd" / "float-color";
   patchy::test::skip_unless_exists(dir / "src.psd");
@@ -858,11 +858,10 @@ void ag_psd_float_color_outer_glow_matches_photoshop_if_available() {
   CHECK(close_float(glow->spread, 18.0F));
   CHECK(close_float(glow->opacity, 0.35F));
   CHECK(close_float(glow->range, 50.0F));
-  CHECK(style.satins.size() == 1);
-  CHECK(!style.satins.front().enabled);
-  CHECK(!style.satins.front().unsupported_contour_options);
-  CHECK(std::none_of(style.satins.begin(), style.satins.end(),
-                     [](const patchy::LayerSatin& satin) { return satin.unsupported_contour_options; }));
+  // The lone Satin record is enab=false with present=false: an unused class, which the
+  // reader parses to nothing (GitHub issue 256), so no Satin reaches the dialog and no
+  // contour notice can show. The unit test above covers a disabled record that is kept.
+  CHECK(style.satins.empty());
 
   const auto reference = patchy::Compositor{}.flatten_rgb8(patchy::bmp::DocumentIo::read_file(dir / "ps-flat.bmp"));
   const auto actual = patchy::Compositor{}.flatten_rgb8(document);
