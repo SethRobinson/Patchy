@@ -11382,6 +11382,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Diffusione</translation>
     </message>
     <message>
+        <source>Auto-nesting into and out of artboards prevented</source>
+        <translation>Annidamento automatico dentro e fuori dalle tavole da disegno impedito</translation>
+    </message>
+    <message>
         <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Photoshop&apos;s Color and Vibrance). They have no effect here and are saved unchanged.</source>
         <translation>Alcuni livelli di regolazione usano tipi che Patchy non sa ancora applicare (come Colore e vividezza di Photoshop). Qui non hanno effetto e vengono salvati invariati.</translation>
     </message>
@@ -23123,6 +23127,18 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
     <message>
         <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
         <translation>Selezione tracciato: fai clic su una forma per selezionarla, trascina per spostarla, %ALT%+trascina per duplicarla. %CTRL%+T trasforma il tracciato, Delete rimuove la forma selezionata.</translation>
+    </message>
+    <message>
+        <source>Prevent Auto-Nesting</source>
+        <translation>Impedisci annidamento automatico</translation>
+    </message>
+    <message>
+        <source>Auto-nesting prevented</source>
+        <translation>Annidamento automatico impedito</translation>
+    </message>
+    <message>
+        <source>Auto-nesting allowed</source>
+        <translation>Annidamento automatico consentito</translation>
     </message>
     <message>
         <source>&amp;Vibrance...</source>

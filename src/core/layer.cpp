@@ -554,7 +554,7 @@ void Layer::set_blend_mode(BlendMode mode) noexcept {
 }
 
 void Layer::set_lock_flags(LayerLockFlags flags) noexcept {
-  lock_flags_ = flags & kLayerLockAll;
+  lock_flags_ = flags & kLayerLockStoredFlags;
   render_revision_ = next_layer_revision();
   content_revision_ = next_layer_revision();
 }

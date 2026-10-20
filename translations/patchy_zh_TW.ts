@@ -11348,6 +11348,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>擴散</translation>
     </message>
     <message>
+        <source>Auto-nesting into and out of artboards prevented</source>
+        <translation>已防止自動巢狀進出工作區域</translation>
+    </message>
+    <message>
         <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Photoshop&apos;s Color and Vibrance). They have no effect here and are saved unchanged.</source>
         <translation>部分調整圖層使用了 Patchy 尚無法套用的類型（例如 Photoshop 的顏色和自然飽和度）。它們在此處沒有作用，並會原樣儲存。</translation>
     </message>
@@ -23053,6 +23057,18 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
         <translation>路徑選取:按一下形狀即可選取,拖曳即可移動,%ALT%+拖曳即可複製。%CTRL%+T 可變形路徑,Delete 可刪除選取的形狀。</translation>
+    </message>
+    <message>
+        <source>Prevent Auto-Nesting</source>
+        <translation>防止自動巢狀</translation>
+    </message>
+    <message>
+        <source>Auto-nesting prevented</source>
+        <translation>已防止自動巢狀</translation>
+    </message>
+    <message>
+        <source>Auto-nesting allowed</source>
+        <translation>已允許自動巢狀</translation>
     </message>
     <message>
         <source>&amp;Vibrance...</source>

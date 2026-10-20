@@ -11416,6 +11416,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Rozproszenie</translation>
     </message>
     <message>
+        <source>Auto-nesting into and out of artboards prevented</source>
+        <translation>Automatyczne zagnieżdżanie w obszarach roboczych i poza nimi zablokowane</translation>
+    </message>
+    <message>
         <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Photoshop&apos;s Color and Vibrance). They have no effect here and are saved unchanged.</source>
         <translation>Niektóre warstwy dopasowania używają rodzajów, których Patchy nie potrafi jeszcze zastosować (np. Kolor i jaskrawość z Photoshopa). Nie działają tutaj i są zapisywane bez zmian.</translation>
     </message>
@@ -23193,6 +23197,18 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     <message>
         <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
         <translation>Zaznaczanie ścieżek: kliknij kształt, aby go zaznaczyć, przeciągnij, aby go przesunąć, lub %ALT%+przeciągnij, aby go powielić. %CTRL%+T przekształca ścieżkę, Delete usuwa zaznaczony kształt.</translation>
+    </message>
+    <message>
+        <source>Prevent Auto-Nesting</source>
+        <translation>Zapobiegaj automatycznemu zagnieżdżaniu</translation>
+    </message>
+    <message>
+        <source>Auto-nesting prevented</source>
+        <translation>Automatyczne zagnieżdżanie zablokowane</translation>
+    </message>
+    <message>
+        <source>Auto-nesting allowed</source>
+        <translation>Automatyczne zagnieżdżanie dozwolone</translation>
     </message>
     <message>
         <source>&amp;Vibrance...</source>

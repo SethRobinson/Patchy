@@ -2358,6 +2358,9 @@ private:
   // order); the Move tool's options-bar buttons wrap these same QActions.
   std::array<QAction*, 6> layer_align_actions_{};
   std::array<QAction*, 8> layer_distribute_actions_{};
+  // Prevent Auto-Nesting, checked when every selected layer has the lock
+  // (refresh_layer_controls); shared with the layer context menu's Lock submenu.
+  QAction* layer_prevent_auto_nesting_action_{nullptr};
   QAction* layer_align_to_selection_action_{nullptr};
   QAction* layer_align_to_canvas_action_{nullptr};
   // Align To: Canvas (true) or Selection (false). Not persisted: every launch

@@ -37,7 +37,7 @@ QJsonArray layer_state(const std::vector<Layer>& layers, const std::vector<Layer
                             {"renderRevision", QString::number(layer.render_revision())},
                             {"name", QString::fromStdString(layer.name())},
                             {"bounds", rect_json(to_qrect(layer.bounds()))},
-                            {"visible", layer.visible()}, {"locked", layer.lock_flags() != kLayerLockNone},
+                            {"visible", layer.visible()}, {"locked", (layer.lock_flags() & kLayerLockAll) != kLayerLockNone},
                             {"opacity", layer.opacity() * 100.0},
                             {"blendMode", script_blend_mode_id(layer.blend_mode())},
                             {"isGroup", layer.kind() == LayerKind::Group}, {"isText", layer_is_text(layer)},
@@ -46,7 +46,7 @@ QJsonArray layer_state(const std::vector<Layer>& layers, const std::vector<Layer
                                                           : QJsonValue(QJsonValue::Null)},
                             {"isShape", layer_has_vector_shape_marker(layer)},
                             {"vectorEditable", (layer.vector_shape() || layer.vector_mask()) &&
-                              vector_lock_reason(layer).empty() && layer.lock_flags() == kLayerLockNone &&
+                              vector_lock_reason(layer).empty() && (layer.lock_flags() & kLayerLockAll) == kLayerLockNone &&
                               !layer_effectively_locks_image_pixels(roots, layer.id()) && !layer_effectively_locks_position(roots, layer.id())},
                             {"vectorLockReason", QString::fromStdString(vector_lock_reason(layer))},
                             {"hasVectorMask", layer.vector_mask() != nullptr},

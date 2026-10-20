@@ -63,7 +63,7 @@ bool simple_group(const Layer& layer) {
 
 bool contains_locked_descendant(const Layer& group) {
   return std::any_of(group.children().begin(), group.children().end(), [](const Layer& child) {
-    return layer_lock_flags(child) != kLayerLockNone || contains_locked_descendant(child);
+    return (layer_lock_flags(child) & kLayerLockAll) != kLayerLockNone || contains_locked_descendant(child);
   });
 }
 
@@ -193,7 +193,7 @@ private:
     for (std::size_t i = 0; i < layers.size(); ++i) {
       const auto& layer = layers[i];
       const bool selected = all || selected_.contains(layer.id());
-      const auto locks = layer_lock_flags(layer);
+      const auto locks = layer_lock_flags(layer) & kLayerLockAll;
       // A transparency lock cannot be broken on a layer without alpha (the opaque
       // Background), so only an alpha layer's transparency lock blocks a raster merge.
       const bool alpha_less_bitmap = layer.kind() == LayerKind::Pixel && !layer_pixels_are_procedural(layer) &&
@@ -302,7 +302,7 @@ LayerMergePlan plan_single_vector_merge(const Document& document, const std::vec
       const auto& layer = layers[i];
       sources.emplace(layer.id(), &layer);
       const bool chosen = all || selected.contains(layer.id());
-      const bool layer_locked = locked || layer_lock_flags(layer) != kLayerLockNone;
+      const bool layer_locked = locked || (layer_lock_flags(layer) & kLayerLockAll) != kLayerLockNone;
       const bool layer_hidden = hidden || !layer.visible();
       const bool clipping = layer.clipped() || (i + 1 < layers.size() && layers[i + 1].clipped());
       if (clipping) { clipping_boundaries.insert(layer.id()); }

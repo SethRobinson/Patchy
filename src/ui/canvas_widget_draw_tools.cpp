@@ -115,7 +115,7 @@ void CanvasWidget::set_shape_appearance_requested_callback(std::function<void()>
 }
 
 void CanvasWidget::set_fill_opacity(int opacity) noexcept {
-  fill_opacity_ = std::clamp(opacity, 1, 100);
+  fill_opacity_ = std::clamp(opacity, 0, 100);  // 0 fills nothing (issue 253)
 }
 
 int CanvasWidget::fill_opacity() const noexcept {
@@ -1028,6 +1028,9 @@ QRect CanvasWidget::draw_line(QPoint from, QPoint to, bool erase) {
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
     return {};
   }
+  if (brush_opacity_ <= 0) {
+    return {};  // Opacity 0 draws nothing (issue 253); edit_options floors the core alpha at 1/255
+  }
 
   auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_,
                               fill_shapes_,
@@ -1072,6 +1075,9 @@ QRect CanvasWidget::draw_rectangle(QPoint from, QPoint to, bool erase) {
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
     return {};
   }
+  if (brush_opacity_ <= 0) {
+    return {};  // Opacity 0 draws nothing (issue 253)
+  }
 
   const auto rect = normalized_rect(from, to);
   auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_,
@@ -1096,6 +1102,9 @@ QRect CanvasWidget::draw_ellipse(QPoint from, QPoint to, bool erase) {
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
     return {};
   }
+  if (brush_opacity_ <= 0) {
+    return {};  // Opacity 0 draws nothing (issue 253)
+  }
 
   const auto rect = normalized_rect(from, to);
   auto options = edit_options(primary_color_, secondary_color_, brush_size_, brush_opacity_, brush_softness_,
@@ -1117,6 +1126,9 @@ QRect CanvasWidget::flood_fill(QPoint start) {
   }
   if (document_ == nullptr || !document_->active_layer_id().has_value()) {
     return {};
+  }
+  if (fill_opacity_ <= 0) {
+    return {};  // Opacity 0 fills nothing (issue 253); the core floors a written alpha at 1/255
   }
 
   // The Fill tool has its own Opacity/Soft/Tol/Contiguous (options bar), independent of the

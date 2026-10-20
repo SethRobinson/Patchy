@@ -52,14 +52,16 @@
 namespace patchy::psd {
 
 LayerLockFlags layer_locks_from_psd_protection(std::uint32_t protection) noexcept {
+  const LayerLockFlags autonest =
+      (protection & kPsdProtectArtboardAutonest) != 0U ? kLayerLockArtboardAutonest : kLayerLockNone;
   if ((protection & kPsdProtectAll) != 0U) {
-    return kLayerLockAll;
+    return kLayerLockAll | autonest;
   }
-  return protection & (kPsdProtectTransparency | kPsdProtectComposite | kPsdProtectPosition);
+  return (protection & (kPsdProtectTransparency | kPsdProtectComposite | kPsdProtectPosition)) | autonest;
 }
 
 std::uint32_t psd_protection_for_layer(const Layer& layer) {
-  const auto locks = layer_lock_flags(layer) & kLayerLockAll;
+  const auto locks = layer_lock_flags(layer) & kLayerLockStoredFlags;
   std::uint32_t stored = 0U;
   if (const auto found = layer.metadata().find(kLayerMetadataPsdProtectionFlags); found != layer.metadata().end()) {
     stored = static_cast<std::uint32_t>(std::strtoul(found->second.c_str(), nullptr, 10));
@@ -67,8 +69,9 @@ std::uint32_t psd_protection_for_layer(const Layer& layer) {
   if (stored != 0U && layer_locks_from_psd_protection(stored) == locks) {
     return stored;
   }
-  const std::uint32_t singles = locks == kLayerLockAll ? kPsdProtectAll : locks;
-  return singles | (stored & kPsdProtectArtboardAutonest);
+  const auto editing = locks & kLayerLockAll;
+  const std::uint32_t singles = editing == kLayerLockAll ? kPsdProtectAll : editing;
+  return singles | ((locks & kLayerLockArtboardAutonest) != kLayerLockNone ? kPsdProtectArtboardAutonest : 0U);
 }
 
 

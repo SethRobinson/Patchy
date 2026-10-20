@@ -1666,9 +1666,9 @@ const patchy::PathAnchor& group_anchor_at(patchy::Document& document, patchy::La
 }
 
 // Tool roles (GitHub issue 248): switching to Path Select turns carried-over
-// points into their whole shapes, and the Pen shows no handle knobs it cannot
-// grab (only its Ctrl latch, which is Direct Select, edits them).
-void ui_path_select_switch_expands_points_and_pen_shows_no_knobs() {
+// points into their whole shapes. The Pen keeps showing a selected point's knobs
+// (its Ctrl latch, which is Direct Select, grabs them); Path Select shows none.
+void ui_path_select_switch_expands_points_and_pen_keeps_selected_knobs() {
   VectorSettingsGuard settings_guard;
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1694,7 +1694,7 @@ void ui_path_select_switch_expands_points_and_pen_shows_no_knobs() {
   CHECK(accent_overlay_near(*canvas, QPoint(160, 30)));  // Direct Select draws the knob
   require_action(window, "toolPenAction")->trigger();
   QApplication::processEvents();
-  CHECK(!accent_overlay_near(*canvas, QPoint(160, 30)));  // the Pen does not
+  CHECK(accent_overlay_near(*canvas, QPoint(160, 30)));  // the Pen keeps the selected point's knob
   require_action(window, "toolDirectSelectAction")->trigger();
   QApplication::processEvents();
   pen_click(*canvas, QPoint(100, 100));
@@ -2148,6 +2148,64 @@ void ui_path_select_context_menu_names_shapes() {
   open_path_menu_at(*canvas, QPoint(600, 400));
 }
 
+// Pen Ctrl latch (Seth on GitHub issue 248): a point selected with Ctrl+click keeps
+// its handle knobs on screen after the mouse button comes up, Ctrl still held, and
+// after Ctrl comes up too, as long as it stays selected, so the user can see where
+// to Ctrl-drag; a Ctrl-drag on a knob then moves that handle. Without Ctrl the
+// knobs are only shown, never grabbed.
+void ui_pen_ctrl_selected_point_keeps_its_knobs() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
+  {
+    auto curved = *canvas->path_edit_target_path();
+    auto& anchor = curved.subpaths[0].anchors[0];
+    anchor.smooth = true;
+    anchor.out_x = 160.0;
+    anchor.out_y = 30.0;
+    anchor.in_x = 40.0;
+    anchor.in_y = 170.0;
+    set_target_path_through_edits(*canvas, std::move(curved));
+  }
+  canvas->set_view_zoom_centered(1.0);
+  require_action(window, "toolPenAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!accent_overlay_near(*canvas, QPoint(160, 30)));  // nothing selected: no knobs
+
+  const auto corner = canvas->widget_position_for_document_point(QPoint(100, 100));
+  send_mouse(*canvas, QEvent::MouseButtonPress, corner, Qt::LeftButton, Qt::LeftButton, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(canvas->path_edit_selected_anchor_count() == 1);
+  CHECK(accent_overlay_near(*canvas, QPoint(160, 30)));  // held: the knobs show
+  send_mouse(*canvas, QEvent::MouseButtonRelease, corner, Qt::LeftButton, Qt::NoButton, Qt::ControlModifier);
+  QApplication::processEvents();
+  save_widget_artifact("ui_pen_ctrl_point_after_button_release", *canvas);
+  CHECK(canvas->path_edit_selected_anchor_count() == 1);
+  CHECK(accent_overlay_near(*canvas, QPoint(160, 30)));  // button up, Ctrl held: still shown
+  CHECK(canvas->cursor().pixmap().toImage() == patchy::ui::direct_select_cursor().pixmap().toImage());
+  send_key_release(*canvas, Qt::Key_Control, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(accent_overlay_near(*canvas, QPoint(160, 30)));  // Ctrl up: still shown while selected
+
+  // A plain click on the knob is the Pen's own (it never grabs the handle).
+  const auto& before = anchor_at(document, layer_id, 0);
+  const QPointF out_before(before.out_x, before.out_y);
+  // Ctrl-drag on the knob moves the handle.
+  const auto knob = canvas->widget_position_for_document_point(QPoint(160, 30));
+  send_mouse(*canvas, QEvent::MouseButtonPress, knob, Qt::LeftButton, Qt::LeftButton, Qt::ControlModifier);
+  send_mouse(*canvas, QEvent::MouseMove, knob + QPoint(20, 0), Qt::NoButton, Qt::LeftButton, Qt::ControlModifier);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, knob + QPoint(20, 0), Qt::LeftButton, Qt::NoButton,
+             Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(std::abs(anchor_at(document, layer_id, 0).out_x - (out_before.x() + 20.0)) < 1.5);
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_x - 100.0) < 0.5);
+  CHECK(accent_overlay_near(*canvas, QPoint(180, 30)));  // the knob shows where it went
+  CHECK(!canvas->pen_session_active());
+}
+
 // Shift during an anchor drag constrains movement to the nearest horizontal,
 // vertical, or 45-degree axis, re-evaluated per move against the total delta
 // from the press point (Photoshop's vertex constraint, never latched).
@@ -2501,8 +2559,8 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
       {"ui_path_transform_distort_never_folds_the_quad", ui_path_transform_distort_never_folds_the_quad},
       {"ui_path_transform_modifiers_show_gesture_cursors", ui_path_transform_modifiers_show_gesture_cursors},
       {"ui_path_transform_fill_follows_the_box_live", ui_path_transform_fill_follows_the_box_live},
-      {"ui_path_select_switch_expands_points_and_pen_shows_no_knobs",
-       ui_path_select_switch_expands_points_and_pen_shows_no_knobs},
+      {"ui_path_select_switch_expands_points_and_pen_keeps_selected_knobs",
+       ui_path_select_switch_expands_points_and_pen_keeps_selected_knobs},
       {"ui_point_selection_drops_when_the_active_layer_changes", ui_point_selection_drops_when_the_active_layer_changes},
       {"ui_path_select_shift_click_adds_and_removes_shapes", ui_path_select_shift_click_adds_and_removes_shapes},
       {"ui_path_select_transform_moves_only_selected_shapes", ui_path_select_transform_moves_only_selected_shapes},
@@ -2517,6 +2575,7 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
       {"ui_path_select_tools_show_their_own_arrow_cursors", ui_path_select_tools_show_their_own_arrow_cursors},
       {"ui_direct_select_drags_redraw_the_fill_live", ui_direct_select_drags_redraw_the_fill_live},
       {"ui_path_select_context_menu_names_shapes", ui_path_select_context_menu_names_shapes},
+      {"ui_pen_ctrl_selected_point_keeps_its_knobs", ui_pen_ctrl_selected_point_keeps_its_knobs},
       {"ui_ctrl_h_hides_path_points_with_selection_edges",
        ui_ctrl_h_hides_path_points_with_selection_edges},
       {"ui_direct_select_drags_marquee_selection_by_segment",

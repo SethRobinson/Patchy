@@ -2748,12 +2748,15 @@ void CanvasWidget::draw_path_edit_overlay(QPainter& painter) {
     }
   }
 
-  // Handles of selected anchors: Direct Select's editing surface only (Path Select
-  // moves whole shapes, and the Pen grabs them through its Ctrl latch, which is
-  // Direct Select).
+  // Handles of selected anchors: Direct Select's editing surface, and the Pen
+  // family's while a point stays selected, so a Ctrl-drag (the latch, which is
+  // Direct Select) can find them after the button and Ctrl come up (Seth on GitHub
+  // issue 248). Path Select moves whole shapes and draws none.
   painter.setPen(QPen(accent, 1.0));
   static const std::set<std::pair<int, int>> kNoKnobs;
-  const auto& knob_anchors = path_edit_tool() == CanvasTool::DirectSelect ? path_selected_anchors_ : kNoKnobs;
+  const auto& knob_anchors = path_edit_tool() == CanvasTool::DirectSelect || pen_family_tool_active()
+                                 ? path_selected_anchors_
+                                 : kNoKnobs;
   for (const auto& key : knob_anchors) {
     const auto s = static_cast<std::size_t>(key.first);
     const auto a = static_cast<std::size_t>(key.second);

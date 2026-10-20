@@ -1283,6 +1283,19 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
           [this] { duplicate_layer_to_document(); });
   addAction(duplicate_layer_to_document_action_);
   register_document_action(duplicate_layer_to_document_action_);
+  // Prevent Auto-Nesting (GitHub issue 246): checkable, in the layer context menu's Lock
+  // submenu beside the other locks and on the window for its hotkey. Locks have no
+  // menu-bar entry (the Layer menu's row count is pinned).
+  layer_prevent_auto_nesting_action_ = new QAction(tr("Prevent Auto-Nesting"), this);
+  layer_prevent_auto_nesting_action_->setObjectName(QStringLiteral("layerPreventAutoNestingAction"));
+  bind_action_text(layer_prevent_auto_nesting_action_, QT_TR_NOOP("Prevent Auto-Nesting"));
+  layer_prevent_auto_nesting_action_->setMenuRole(QAction::NoRole);
+  layer_prevent_auto_nesting_action_->setCheckable(true);
+  register_hotkey(layer_prevent_auto_nesting_action_, "layer.prevent_auto_nesting");
+  connect(layer_prevent_auto_nesting_action_, &QAction::triggered, this,
+          [this](bool checked) { set_active_layer_lock_flag(kLayerLockArtboardAutonest, checked); });
+  addAction(layer_prevent_auto_nesting_action_);
+  register_document_action(layer_prevent_auto_nesting_action_);
   connect(merge_visible_action, &QAction::triggered, this, [this] { merge_visible_to_new_layer(); });
   connect(merge_down_action, &QAction::triggered, this, [this] { merge_down(); });
   connect(rename_layer_action, &QAction::triggered, this, [this] { rename_active_layer(); });

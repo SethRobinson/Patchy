@@ -189,6 +189,24 @@ void save_widget_artifact(const std::string& name, QWidget& widget) {
   CHECK(pixmap.save(path));
 }
 
+void save_window_popup_artifact(const std::string& name, QWidget& window, QWidget& field, QWidget& popup) {
+  ensure_artifact_dir();
+  auto shot = window.grab().toImage();
+  const auto window_origin = window.mapToGlobal(QPoint(0, 0));
+  const auto popup_position = popup.mapToGlobal(QPoint(0, 0)) - window_origin;
+  {
+    QPainter painter(&shot);
+    painter.drawPixmap(popup_position, popup.grab());
+  }
+  const auto field_position = field.mapToGlobal(QPoint(0, 0)) - window_origin;
+  const auto crop = QRect(field_position, field.size())
+                        .united(QRect(popup_position, popup.size()))
+                        .adjusted(-170, -14, 48, 14)
+                        .intersected(shot.rect());
+  const auto path = QString::fromStdString((std::filesystem::path("test-artifacts") / (name + ".png")).string());
+  CHECK(shot.copy(crop).save(path));
+}
+
 void save_stacked_artifact(const std::string& name, const QList<QImage>& strips) {
   ensure_artifact_dir();
   constexpr int kGap = 6;
