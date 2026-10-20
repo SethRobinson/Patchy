@@ -2012,6 +2012,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   pattern_stamp_pattern_combo_->setObjectName(QStringLiteral("patternStampPatternCombo"));
   pattern_stamp_pattern_combo_->setIconSize(QSize(18, 18));
   pattern_stamp_pattern_combo_->setMinimumWidth(150);
+  use_scrolling_list_popup(*pattern_stamp_pattern_combo_);
   register_retranslation([this] { refresh_pattern_stamp_pattern_combo(); });
   // The list fills when the startup pattern preload lands; using it before then loads it now.
   new FirstUseHook(pattern_stamp_pattern_combo_, [this] { (void)pattern_library(); });

@@ -14,6 +14,7 @@
 #include "ui/brush_tip_manager_dialog.hpp"
 #include "ui/brush_tip_picker.hpp"
 #include "ui/color_panel.hpp"
+#include "ui/dialog_utils.hpp"
 #include "formats/acv_curves_io.hpp"
 #include "formats/bmp_document_io.hpp"
 #include "formats/aseprite_document_io.hpp"
@@ -24,6 +25,7 @@
 #include "ui/main_window.hpp"
 #include "ui/app_settings.hpp"
 #include "psd/psd_document_io.hpp"
+#include "psd/psd_patterns.hpp"
 #include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
@@ -56,6 +58,8 @@
 #include <QSlider>
 #include <QStandardItemModel>
 #include <QStyle>
+#include <QStyleFactory>
+#include <QStyleOptionComboBox>
 #include <QStyleOptionSpinBox>
 #include <QTextEdit>
 #include <QTimer>
@@ -1725,6 +1729,42 @@ void ui_pattern_library_aggregates_parser_warnings() {
                         "Some pattern data was skipped or repaired because it is unsupported or damaged.")});
 }
 
+// GitHub issue 271: Photoshop's own .pat sets name each pattern with a localization key
+// ("$$$/Presets/Patterns/Patterns_pat/TieDye=Tie Dye"); the library lists its English
+// default instead of the key.
+void ui_pattern_library_import_reads_photoshop_preset_names() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  const patchy::PatternResource preset{"eeeeeeee-0000-0000-0000-000000000271",
+                                       "$$$/Presets/Patterns/Patterns_pat/TieDye=Tie Dye",
+                                       solid_pixels(4, 4, patchy::PixelFormat::rgba8(), QColor(200, 60, 160))};
+  // A standalone .pat is "8BPT", version 1, a count, then the records a Patt block
+  // stores behind a length prefix.
+  const auto block = patchy::psd::serialize_patterns_block(std::span(&preset, 1U));
+  CHECK(block.size() > 4U);
+  const auto record_length = (std::size_t{block[0]} << 24U) | (std::size_t{block[1]} << 16U) |
+                             (std::size_t{block[2]} << 8U) | std::size_t{block[3]};
+  CHECK(record_length + 4U <= block.size());
+  QByteArray bytes("8BPT\x00\x01\x00\x00\x00\x01", 10);
+  bytes.append(reinterpret_cast<const char*>(block.data()) + 4, static_cast<qsizetype>(record_length));
+  const auto path = directory.filePath(QStringLiteral("Patterns.pat"));
+  QFile file(path);
+  CHECK(file.open(QIODevice::WriteOnly));
+  CHECK(file.write(bytes) == bytes.size());
+  file.close();
+
+  patchy::ui::PatternLibrary library(directory.filePath(QStringLiteral("library")));
+  QString error;
+  QStringList warnings;
+  CHECK(!library.import_pat(path, error, warnings).isEmpty());
+  CHECK(error.isEmpty());
+  CHECK(warnings.isEmpty());
+  const auto* entry = library.find_entry_by_pattern_id(QString::fromStdString(preset.id));
+  CHECK(entry != nullptr);
+  CHECK(entry->name == QStringLiteral("Tie Dye"));
+  CHECK(patchy::ui::pattern_library_entry_display_name(*entry) == QStringLiteral("Tie Dye"));
+}
+
 void ui_pattern_library_reimport_deduplicates_remapped_source_id() {
   QTemporaryDir directory;
   CHECK(directory.isValid());
@@ -1915,6 +1955,27 @@ void ui_pattern_stamp_list_fills_on_language_switch_before_preload_lands() {
   CHECK(static_cast<std::size_t>(combo->count()) == entries.size());
   for (std::size_t index = 0; index < entries.size(); ++index) {
     CHECK(combo->itemText(static_cast<int>(index)) == patchy::ui::pattern_library_entry_display_name(entries[index]));
+  }
+}
+
+// GitHub issue 271: the Pattern Stamp list holds the whole library. It opens as a
+// scrolling list of at most kLongListPopupRows rows on every style, never Fusion's menu
+// sized to every row (which ran off a Wayland screen).
+void ui_pattern_stamp_list_popup_scrolls_on_every_style() {
+  patchy::ui::MainWindow window;
+  show_window_empty(window);
+  auto* combo = window.findChild<QComboBox*>(QStringLiteral("patternStampPatternCombo"));
+  CHECK(combo != nullptr);
+  CHECK(combo->maxVisibleItems() == patchy::ui::kLongListPopupRows);
+  std::unique_ptr<QStyle> fusion(QStyleFactory::create(QStringLiteral("Fusion")));
+  CHECK(fusion != nullptr);
+  const auto restore_style = qScopeGuard([combo] { combo->setStyle(nullptr); });
+  for (auto* style : {fusion.get(), static_cast<QStyle*>(nullptr)}) {
+    combo->setStyle(style);
+    QStyleOptionComboBox option;
+    option.initFrom(combo);
+    option.editable = false;
+    CHECK(combo->style()->styleHint(QStyle::SH_ComboBox_Popup, &option, combo) == 0);
   }
 }
 
@@ -2253,6 +2314,8 @@ std::vector<patchy::test::TestCase> brush_pattern_palette_tests_part1() {
        ui_pattern_library_imports_pat_and_persists_folders},
       {"ui_pattern_library_aggregates_parser_warnings",
        ui_pattern_library_aggregates_parser_warnings},
+      {"ui_pattern_library_import_reads_photoshop_preset_names",
+       ui_pattern_library_import_reads_photoshop_preset_names},
       {"ui_pattern_library_reimport_deduplicates_remapped_source_id",
        ui_pattern_library_reimport_deduplicates_remapped_source_id},
       {"ui_pattern_library_rejects_oversized_pat_before_read",
@@ -2263,6 +2326,8 @@ std::vector<patchy::test::TestCase> brush_pattern_palette_tests_part1() {
       {"ui_default_patterns_seed_once_and_restore", ui_default_patterns_seed_once_and_restore},
       {"ui_pattern_library_off_thread_load_matches_direct_load",
        ui_pattern_library_off_thread_load_matches_direct_load},
+      {"ui_pattern_stamp_list_popup_scrolls_on_every_style",
+       ui_pattern_stamp_list_popup_scrolls_on_every_style},
       {"ui_pattern_stamp_list_fills_on_language_switch_before_preload_lands",
        ui_pattern_stamp_list_fills_on_language_switch_before_preload_lands},
       {"ui_brush_tip_library_off_thread_load_matches_direct_load",

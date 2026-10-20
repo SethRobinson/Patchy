@@ -12,6 +12,7 @@
 #endif
 
 #include <QAbstractButton>
+#include <QAbstractItemView>
 #include <QAbstractScrollArea>
 #include <QAbstractSlider>
 #include <QAbstractSpinBox>
@@ -2060,6 +2061,16 @@ void position_popup_below(const QWidget& anchor, QWidget& popup) {
     }
   }
   popup.move(position);
+}
+
+void use_scrolling_list_popup(QComboBox& combo) {
+  combo.setMaxVisibleItems(kLongListPopupRows);
+  // The sheet's hint wins over the style's SH_ComboBox_Popup; it cascades with (never
+  // replaces) the theme sheet the window carries.
+  combo.setStyleSheet(combo.styleSheet() + QStringLiteral("\nQComboBox { combobox-popup: 0; }"));
+  // QComboBox turns the list's scroll bar off when it builds the view under a menu-style
+  // popup and never turns it back on, so the list scrolled with no bar to drag.
+  combo.view()->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 }
 
 ThemedQss dialog_spinbox_button_style() {

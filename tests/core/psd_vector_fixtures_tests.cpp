@@ -1393,6 +1393,43 @@ patchy::Layer make_pattern_shape_layer(patchy::Document& document, const char* f
   return shape;
 }
 
+// GitHub issue 271: a Photoshop preset pattern is named with its localization key. Patchy
+// shows the default text but must save the key itself, in the Patt record and in the shape
+// fill's Ptrn name, so Photoshop still localizes it. The written file is the issue's hand
+// test document (test-artifacts/issue271-tie-dye-pattern.psd).
+void psd_pattern_preset_key_name_survives_a_save() {
+  constexpr const char* kTieDyeId = "eeeeeeee-0000-0000-0000-000000000271";
+  const std::string key = "$$$/Presets/Patterns/Patterns_pat/TieDye=Tie Dye";
+  patchy::Document document(64, 64, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("bg", patchy::test::solid_rgba(64, 64, 255, 255, 255, 255));
+  patchy::PatternResource tie_dye;
+  tie_dye.id = kTieDyeId;
+  tie_dye.name = key;
+  tie_dye.tile = checker_tile(8, 210, 60, 170);
+  document.metadata().patterns.adopt(tie_dye);
+  auto shape = make_pattern_shape_layer(document, kTieDyeId, nullptr);
+  auto content = *shape.vector_shape();
+  content.fill.pattern_name = key;
+  shape.set_vector_shape(content);
+  document.add_layer(std::move(shape));
+
+  const auto written = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  std::filesystem::create_directories("test-artifacts");
+  {
+    std::ofstream out("test-artifacts/issue271-tie-dye-pattern.psd", std::ios::binary);
+    out.write(reinterpret_cast<const char*>(written.data()), static_cast<std::streamsize>(written.size()));
+    CHECK(out.good());
+  }
+  const auto reread = patchy::psd::DocumentIo::read(written, {});
+  const auto* resource = reread.metadata().patterns.find(kTieDyeId);
+  CHECK(resource != nullptr);
+  CHECK(resource->name == key);
+  const auto* roundtrip = reread.layers()[1].vector_shape();
+  CHECK(roundtrip != nullptr);
+  CHECK(roundtrip->fill.pattern_id == kTieDyeId);
+  CHECK(roundtrip->fill.pattern_name == key);
+}
+
 void psd_pattern_fill_shape_embeds_patt_block() {
   // The bug behind "Could not open ... because of a program error" (July
   // 2026): a shape layer's PtFl (and a vstk pattern stroke paint) referenced
@@ -2590,6 +2627,7 @@ std::vector<patchy::test::TestCase> psd_vector_fixtures_tests() {
       {"psd_open_path_strokes_group_opacity_without_fill", psd_open_path_strokes_group_opacity_without_fill},
       {"psd_authored_none_paints_preserve_rendering", psd_authored_none_paints_preserve_rendering},
       {"psd_pattern_fill_shape_embeds_patt_block", psd_pattern_fill_shape_embeds_patt_block},
+      {"psd_pattern_preset_key_name_survives_a_save", psd_pattern_preset_key_name_survives_a_save},
       {"psd_pattern_fill_missing_tile_writes_placeholder", psd_pattern_fill_missing_tile_writes_placeholder},
       {"psd_partial_vogk_is_omitted_full_vogk_kept", psd_partial_vogk_is_omitted_full_vogk_kept},
       {"psd_damaged_partial_vogk_import_heals_on_resave", psd_damaged_partial_vogk_import_heals_on_resave},

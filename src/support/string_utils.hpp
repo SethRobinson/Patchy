@@ -29,4 +29,21 @@ namespace patchy {
   return ascii_lower_copy(normalized);
 }
 
+// Photoshop names its own presets (patterns, styles, gradients) with a localization key and
+// the English default after the first '=': "$$$/Presets/Patterns/Patterns_pat/TieDye=Tie Dye".
+// Returns the text a user should see: that default, or the key's last segment when there is
+// none. Any other name comes back unchanged. Files keep the raw name (GitHub issue 271).
+[[nodiscard]] inline std::string photoshop_zstring_display_text(std::string_view name) {
+  if (!name.starts_with("$$$/")) {
+    return std::string(name);
+  }
+  const auto equals = name.find('=');
+  if (equals == std::string_view::npos || equals + 1U >= name.size()) {
+    const auto key = name.substr(0, equals);
+    const auto slash = key.rfind('/');
+    return std::string(key.substr(slash + 1U));
+  }
+  return std::string(name.substr(equals + 1U));
+}
+
 }  // namespace patchy

@@ -613,9 +613,10 @@ void MainWindow::fill_active_path() {
   auto* pattern_combo = new QComboBox(&dialog);
   pattern_combo->setObjectName(QStringLiteral("fillPathPatternCombo"));
   pattern_combo->setIconSize(QSize(24, 24));
+  use_scrolling_list_popup(*pattern_combo);
   for (const auto& resource : document().metadata().patterns.patterns) {
-    const auto name = resource.name.empty() ? tr("Embedded pattern")
-                                            : QString::fromStdString(resource.name);
+    const auto display = document_pattern_display_name(resource);
+    const auto name = display.isEmpty() ? tr("Embedded pattern") : display;
     pattern_combo->addItem(name, QString::fromStdString(resource.id));
   }
   for (const auto& entry : pattern_library().entries()) {

@@ -55,6 +55,10 @@ it on the 800 x 800 offscreen screen.
 
 Shape Appearance's Fill and Stroke dropdowns show thumbnails from the document's embedded tiles, followed by library-only entries. When both sources contain the same pattern id, the document entry and its pixels take precedence.
 
+Long pickers must fit the screen (GitHub issue 271). The plain combo-box pickers (Shape Appearance's fill and stroke pattern and gradient lists, Fill Path's pattern, the Pattern Stamp options-bar list) call `use_scrolling_list_popup` (`dialog_utils.hpp`): Fusion and the macOS style otherwise show a combo's list as a menu sized to every row with the current row over the box, which ran off the top of a Wayland screen. They open a scrolling list of at most `kLongListPopupRows` rows on every style. Layer Style's tree pickers and the gradient preset popup size and place their own popups (`position_popup_below`). Test: `ui_shape_pattern_list_popup_fits_the_screen`.
+
+Photoshop's own presets are named with a localization key, `$$$/Presets/Patterns/Patterns_pat/TieDye=Tie Dye`. Pickers show the English default (`photoshop_zstring_display_text`, `src/support/string_utils.hpp`; `document_pattern_display_name` for document patterns), while the resource and any paint that picks it keep the raw key, so Photoshop still localizes it after a save. `.pat` imports store the default as the library entry's name.
+
 ## Versioned defaults (patterns and styles)
 
 `kDefaultPatternsVersion`/`kDefaultStylesVersion` are 2. Both libraries filter restore/has-all by per-entry `introduced_version` (generated patterns and the Text/Basics styles are version 1; photo patterns and Materials styles are version 2), so a version-1 install's upgrade seeds ONLY the new entries and deliberate deletions of old defaults stay deleted (`ui_version_two_defaults_seed_only_new_entries` pins this). Photo patterns seed into the localized "Textures" folder (`photo_patterns_folder_name`), generated ones stay in "Patchy Defaults".
