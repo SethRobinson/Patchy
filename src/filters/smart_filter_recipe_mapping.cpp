@@ -66,6 +66,9 @@ bool native_smart_filter_kind_supported(SmartFilterKind kind) {
     case SmartFilterKind::BoxBlur:
     case SmartFilterKind::RadialBlur:
     case SmartFilterKind::AddNoise:
+    // Imported only: no Filter-menu action appends one, but its settings open the
+    // adjustment's own dialog (docs/smart-filters-adjustments.md).
+    case SmartFilterKind::Adjustment:
       return true;
     case SmartFilterKind::Unsupported:
       return false;

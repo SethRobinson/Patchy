@@ -1181,7 +1181,8 @@ void MainWindow::plastic_wrap_smart_filter_dialog(
 void MainWindow::editable_smart_filter_dialog(
     LayerId layer_id, SmartFilterKind kind,
     std::optional<std::size_t> execution_index) {
-  if (!native_smart_filter_kind_supported(kind)) {
+  // Adjustment entries open their adjustment's dialog (edit_adjustment_smart_filter).
+  if (!native_smart_filter_kind_supported(kind) || kind == SmartFilterKind::Adjustment) {
     return;
   }
   const auto high_pass = kind == SmartFilterKind::HighPass;
@@ -1739,7 +1740,9 @@ void MainWindow::edit_smart_filter(LayerId layer_id,
     return;
   }
   const auto kind = stack->entries[execution_index].kind;
-  if (native_smart_filter_kind_supported(kind)) {
+  if (kind == SmartFilterKind::Adjustment) {
+    edit_adjustment_smart_filter(layer_id, execution_index);
+  } else if (native_smart_filter_kind_supported(kind)) {
     editable_smart_filter_dialog(layer_id, kind, execution_index);
   } else {
     show_status_error(

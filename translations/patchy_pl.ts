@@ -22799,6 +22799,14 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
         <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
         <translation>Wyszukiwanie koloru „%1” jest stosowane tak, jak zapisano je w pliku.</translation>
     </message>
+    <message>
+        <source>Updated %1 Smart Filter</source>
+        <translation>Zaktualizowano filtr inteligentny: %1</translation>
+    </message>
+    <message>
+        <source>Edit %1 Smart Filter</source>
+        <translation>Edytuj filtr inteligentny: %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -22659,6 +22659,14 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
         <translation>색상 검색 &quot;%1&quot;은(는) 파일에 저장된 그대로 적용됩니다.</translation>
     </message>
+    <message>
+        <source>Updated %1 Smart Filter</source>
+        <translation>%1 스마트 필터를 업데이트했습니다</translation>
+    </message>
+    <message>
+        <source>Edit %1 Smart Filter</source>
+        <translation>%1 스마트 필터 편집</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

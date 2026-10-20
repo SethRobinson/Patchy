@@ -140,4 +140,4 @@ The threaded wasm app (`wasm-release`) runs Object Selection in Microsoft's onnx
 
 - WebAssembly: onnxruntime-web's WebGPU provider (the int8 MatMulInteger graph would need a float model there); Safari, Firefox and iOS memory headroom are untested.
 - Faster Select Subject: a BiRefNet re-export using ONNX `DeformConv` (about 60% of its time is the export's decomposed deformable convolution and Swin window shuffles). It would ship the same way as the int8 files: converted once, hosted on a new `ai-models-N` release.
-- Wispy hair and fur: SAM-family masks trace the hair mass and drop flyaway strands; that needs a matting model (Select Subject's open counsel item), never a refinement of Object Selection's result. SAM 2.1 and HQ-SAM have better edges but wait on the same counsel item (encoder skip connections).
+- Wispy hair and fur: SAM-family masks trace the hair mass and drop flyaway strands; that needs a matting model (Select Subject's open review item), never a refinement of Object Selection's result. SAM 2.1 and HQ-SAM have better edges but wait on the same review item (encoder skip connections).

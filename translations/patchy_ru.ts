@@ -22799,6 +22799,14 @@ Patchy можно будет запускать из меню, а на пане�
         <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
         <translation>Поиск цвета «%1» применяется так, как он сохранён в файле.</translation>
     </message>
+    <message>
+        <source>Updated %1 Smart Filter</source>
+        <translation>Обновлён смарт-фильтр «%1»</translation>
+    </message>
+    <message>
+        <source>Edit %1 Smart Filter</source>
+        <translation>Изменить смарт-фильтр «%1»</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -51,7 +51,7 @@ Photoshop adjustment kinds Patchy cannot apply yet (`vibA`, `selc`) import as em
 
 ## Vibrance (placeholder; findings for a later pass)
 
-`vibA` stays a placeholder (Seth, 2026-10-20). Its block is a version 16 descriptor with `vibrance` and `Strt` longs (-100..100). A Photoshop 2026 COM probe (#250; 14 settings in the scratch calibration, not committed) found:
+`vibA` stays a placeholder (decided 2026-10-20). Its block is a version 16 descriptor with `vibrance` and `Strt` longs (-100..100). A Photoshop 2026 COM probe (#250; 14 settings in the scratch calibration, not committed) found:
 
 - Saturation alone is exact in form: in sRGB linear light, every channel scales around a gray `0.287 R + 0.708 G` (blue weight zero: pure blue desaturates to black) by `1 + s/100`, then clips and re-encodes. Saturation -100 gives that gray (red 146, green 219, cyan 219, magenta 146); -50 on red gives (210, 106, 106).
 - The Vibrance slider has no public formula. It leaves fully saturated colors alone at +100 and keeps their largest channel at -100 (red becomes (255, 137, 137)), moves low-saturation colors much more, and treats hues differently (blues keep their maximum, skin-like oranges lose it), consistent with Adobe's documented skin-tone protection. Scaling around the Saturation gray, or toward the pixel maximum by a saturation-weighted factor, misses by 20+ levels on average.

@@ -78,6 +78,7 @@ ac08986158b2bf56 photoshop-shape-pattern.psd
 14911349c5e35d82 photoshop-size-zero-effects.psd
 89f51fd5a4313af5 photoshop-smart-filter-add-noise-gaussian.psd
 b24cbcd2a9f6f68a photoshop-smart-filter-add-noise.psd
+c091b67f8bf51a0c photoshop-smart-filter-adjustments.psd
 ec07eaf898b0a29d photoshop-smart-filter-box-blur.psd
 f2bf42dce8c3d975 photoshop-smart-filter-dust-and-scratches.psd
 87fd37f8d0bdb1c9 photoshop-smart-filter-emboss.psd

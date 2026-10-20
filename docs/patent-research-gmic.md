@@ -30,13 +30,13 @@ preview-split point, which is not a blur control.
 | US 8693776 | Adobe, bleed | 2012-03-02, 2032-08-20 | Selection region, variable bleed, per-pixel radius mask. |
 | US 8971623 | Apple, overlaid tools | 2012-03-06, 2032-12-26 | Two lines flanking a chosen location, each dividing the image; effect applied outside. |
 | US 12561768 (was 2025/0104196) | Adobe, synthetic lens blur | 2023-09-26, 2044-05-23 | Focal matte from a focus region and depth map, layered depth, splatting. |
-| US 9723204 | Adobe, motion path blur kernel | 2014-08-27, 2035-04-08 | Claim 1: user inputs describing a path for the blur trajectory and a curved kernel shape, applied in real time as inputs arrive. Claim 12: path plus a tapering of exposure. |
+| US 9723204 | Adobe, motion path blur kernel | 2014-08-27, 2035-04-08 | Claim 1: user inputs describing a path for the blur trajectory and a curved kernel shape, applied in real time as inputs arrive. Claim 12: path plus a taper of the light level along it. |
 | US 9955065 | Adobe, motion path blur UI | 2014-08-27, 2035-05-01 | Path of selectable points; moving one recalculates the blur in a mesh domain. |
 | US 9779484 | Adobe, motion path techniques | 2014-08-04, 2035-08-05 | A mesh or motion field with per-pixel kernels. |
 | US 9799103 | ASUSTeK | 2015-09-14, 2036-09-06 | A blur centre plus a drag track whose angle sets level and type. |
 | US 7970233, US 7031547 | Nik (U Point) | 2001-10-24, expired 2022 | On-image marks controlling localised effects. |
 
-Not found in web searches (an absence, not a clearance): an Adobe patent specific to Spin Blur,
+Not found in web searches (an absence, not a finding): an Adobe patent specific to Spin Blur,
 or any Corel, Skylum or Serif patent on a blur-centre control.
 
 ## Findings
@@ -55,10 +55,10 @@ or any Corel, Skylum or Serif patent on a blur-centre control.
   mask is functionally present; "uniform, linear, or complex gradient field" is doubtful (an
   elliptical falloff, which the same family treats as the separate iris pattern); "a blur
   kernel to each pixel" is arguable (G'MIC blurs whole-image copies and selects by mask).
-  Unresolved without the specification and prosecution history. The exposure is the same with
+  Unresolved without the specification and prosecution history. The comparison is the same with
   number fields; a marker adds only dependent claim 6.
-- **Blur [Motion].** US 9723204 claims 1 and 12 read plausibly on a point-defined curved
-  kernel with weight decay; "in real time as the inputs are received" is arguable against a
+- **Blur [Motion].** US 9723204 claims 1 and 12 describe a point-defined curved kernel with
+  weight decay, which this filter has; "in real time as the inputs are received" is arguable against a
   background re-render. US 9955065 and 9779484 are not met (no mesh, one global kernel).
 - **G'MIC's preview commands** (unused by Patchy) draw crosshair lines, isoline ellipses with
   a centre circle, and the motion spline. Running them would break the "nothing drawn but the

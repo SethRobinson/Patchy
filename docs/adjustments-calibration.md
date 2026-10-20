@@ -39,6 +39,7 @@ Fitted against Photoshop's renders of psd-tools' `adjustments/levels_rgb.psd` an
 
 - **Levels:** the component channel record runs FIRST, then Composite RGB (the Curves order), and the channel result reaches the composite stage unrounded. Within 2/255 everywhere on the render; composite-first is off by up to 52, and a byte-rounded intermediate has ten times the 2/255 misses. `apply_levels` (core) and `build_levels_luts` (ui/filter_workflows.cpp, the destructive command) both follow it. A master-only adjustment is unchanged.
 - **Posterize:** `floor(floor(value * levels / 256) * 255 / (levels - 1))`, byte-exact at 3, 7, 13 and 21 levels (3 levels give 0, 127, 255). Refuted: nearest-step rounding, and rounding the output step instead of truncating it. `posterize_channel_value` serves the adjustment layer and `patchy.filters.posterize` alike.
+- **Threshold:** white when `(30R + 59G + 11B + 50) / 100` (rounded half up) reaches the level. A Photoshop 2026 adjustment layer and Smart Filter over a 16-level cube at level 140 both match it exactly; the floored quotient missed 13 colors (October 2026, [smart-filters-adjustments.md](smart-filters-adjustments.md)). `threshold_luminance` serves the adjustment layer and `patchy.filters.threshold` alike.
 
 ## Color Balance
 

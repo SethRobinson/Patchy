@@ -2560,6 +2560,9 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
                          noise->amount_percent <= kMaximumAddNoiseAmount &&
                          noise->seed >= kMinimumAddNoiseSeed &&
                          noise->seed <= kMaximumAddNoiseSeed;
+    } else if (entry.kind == SmartFilterKind::Adjustment) {
+      parameters_valid =
+          std::get_if<AdjustmentSmartFilter>(&entry.parameters) != nullptr;
     } else {
       throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "Unsupported Smart Filter entry"));
     }
@@ -2574,6 +2577,7 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
          entry.kind != SmartFilterKind::BoxBlur &&
          entry.kind != SmartFilterKind::RadialBlur &&
          entry.kind != SmartFilterKind::AddNoise &&
+         entry.kind != SmartFilterKind::Adjustment &&
          (!std::isfinite(radius) || radius < minimum_radius ||
           radius > maximum_radius)) ||
         !std::isfinite(entry.opacity) ||
@@ -2951,6 +2955,16 @@ FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
       filtered = render_add_noise_effect(current, noise.amount_percent,
                                          noise.gaussian, noise.monochromatic,
                                          noise.seed, &filter_progress);
+    } else if (entry.kind == SmartFilterKind::Adjustment) {
+      // Image > Adjustments as a Smart Filter: the adjustment-layer math on the
+      // straight colors of every pixel, bounds and alpha unchanged
+      // (docs/smart-filters-adjustments.md).
+      const auto &adjustment =
+          std::get<AdjustmentSmartFilter>(entry.parameters);
+      report_progress(&filter_progress, 0, 1, FilterProgressStage::Filtering);
+      filtered = current;
+      apply_adjustment_to_pixels(filtered.pixels, adjustment.settings);
+      report_progress(&filter_progress, 1, 1, FilterProgressStage::Filtering);
     } else {
       const auto &box = std::get<BoxBlurSmartFilter>(entry.parameters);
       auto box_input = embed_in_filter_canvas(current.pixels, current.bounds,

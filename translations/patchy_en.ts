@@ -22652,6 +22652,14 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Updated %1 Smart Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit %1 Smart Filter</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

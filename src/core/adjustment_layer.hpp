@@ -540,7 +540,7 @@ void set_curve_points_for_channel(CurvesAdjustment& curves, CurvesChannel channe
 // The single shared formulas between the destructive catalog filters
 // (filter_engine.cpp delegates here) and the adjustment layers: rounding is
 // lround-based to match the historical filter_clamp_byte semantics, and
-// threshold operates on the (30r + 59g + 11b) / 100 integer luminance.
+// threshold operates on the (30r + 59g + 11b) / 100 luminance rounded half up.
 [[nodiscard]] std::uint8_t posterize_channel_value(std::uint8_t value, int levels);
 [[nodiscard]] int threshold_luminance(std::uint8_t red, std::uint8_t green, std::uint8_t blue);
 // Photoshop Brightness/Contrast, both algorithms calibrated against PS 2026

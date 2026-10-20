@@ -22729,6 +22729,14 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
         <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
         <translation>Die Farbtabelle „%1“ wird so angewendet, wie sie in der Datei gespeichert ist.</translation>
     </message>
+    <message>
+        <source>Updated %1 Smart Filter</source>
+        <translation>Smartfilter „%1“ aktualisiert</translation>
+    </message>
+    <message>
+        <source>Edit %1 Smart Filter</source>
+        <translation>Smartfilter „%1“ bearbeiten</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
