@@ -7,6 +7,8 @@
 #include "ui/curves_editor.hpp"
 #include "ui/gradient_stops_editor.hpp"
 #include "ui/layer_style_dialog.hpp"
+#include "ui/theme_manager.hpp"
+#include "ui/theme_palette.hpp"
 #include "ui/main_window.hpp"
 #include "synthetic_dng.hpp"
 #include "test_harness.hpp"
@@ -1130,6 +1132,72 @@ void ui_layer_style_gradient_page_controls_map_to_settings() {
 // opened as the default white-to-black ramp because the dialog replaced any gradient
 // without color stops (GitHub issue 262, ag-psd's effects/src.psd 'other' layer). The
 // dialog must show the Noise page with the file's settings and hand them back untouched.
+// Offscreen dialog shots must carry the active theme even when the dialog has no
+// themed ancestor (a nullptr parent, as request_layer_style_settings takes here):
+// the #262 shots were grabbed with Qt's default light list and buttons showing
+// through. capture_widget_artifact themes such a window before the grab; this
+// pins it in Dark and Light on the Layer Style dialog's category list and OK
+// button, which the app QSS paints with field_bg_large and button_bg.
+void ui_offscreen_dialog_capture_uses_active_theme() {
+  auto& manager = patchy::ui::ThemeManager::instance();
+  const auto saved_preference = manager.preference();
+  for (const auto scheme : {patchy::ui::ColorScheme::Dark, patchy::ui::ColorScheme::Light}) {
+    const bool light = scheme == patchy::ui::ColorScheme::Light;
+    manager.set_preference(light ? patchy::ui::ColorSchemePreference::Light
+                                 : patchy::ui::ColorSchemePreference::Dark,
+                           false);
+    QApplication::processEvents();
+    const auto& palette = patchy::ui::theme(scheme);
+    patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+    auto layer = make_gradient_fill_test_layer(document);
+    bool inspected = false;
+    QTimer::singleShot(0, [&] {
+      auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+      CHECK(dialog != nullptr);
+      select_layer_style_gradient_page(*dialog);
+      const auto shot = capture_widget_artifact(
+          std::string("ui_offscreen_dialog_capture_theme_") + (light ? "light" : "dark"), *dialog);
+      auto* list = dialog->findChild<QListWidget*>(QStringLiteral("layerStyleCategoryList"));
+      auto* buttons = dialog->findChild<QDialogButtonBox*>();
+      CHECK(list != nullptr && buttons != nullptr);
+      auto* ok = buttons != nullptr ? buttons->button(QDialogButtonBox::Ok) : nullptr;
+      CHECK(ok != nullptr);
+      const auto same = [](QColor actual, QColor expected) {
+        return std::abs(actual.red() - expected.red()) <= 1 && std::abs(actual.green() - expected.green()) <= 1 &&
+               std::abs(actual.blue() - expected.blue()) <= 1;
+      };
+      if (list != nullptr) {
+        // Empty viewport ground below the last category row.
+        const auto last = list->visualItemRect(list->item(list->count() - 1));
+        const auto probe = list->viewport()->mapTo(dialog, QPoint(list->viewport()->width() / 2,
+                                                                  std::min(last.bottom() + 8, list->viewport()->height() - 3)));
+        const auto color = QColor(shot.pixel(probe));
+        if (!same(color, palette.field_bg_large)) {
+          std::cout << "  category list ground " << color.name().toStdString() << " vs "
+                    << palette.field_bg_large.name().toStdString() << "\n";
+        }
+        CHECK(same(color, palette.field_bg_large));
+      }
+      if (ok != nullptr) {
+        // Inside the 1 px border, left of the label's padding.
+        const auto probe = ok->mapTo(dialog, QPoint(3, ok->height() / 2));
+        const auto color = QColor(shot.pixel(probe));
+        if (!same(color, palette.button_bg)) {
+          std::cout << "  OK button ground " << color.name().toStdString() << " vs "
+                    << palette.button_bg.name().toStdString() << "\n";
+        }
+        CHECK(same(color, palette.button_bg));
+      }
+      inspected = true;
+      QTimer::singleShot(0, dialog, [dialog] { dialog->reject(); });
+    });
+    (void)patchy::ui::request_layer_style_settings(nullptr, layer, {});
+    CHECK(inspected);
+  }
+  manager.set_preference(saved_preference, false);
+  QApplication::processEvents();
+}
+
 void ui_layer_style_noise_gradient_overlay_loads_into_dialog() {
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   patchy::Layer layer(document.allocate_layer_id(), "Noise Overlay",
@@ -1148,7 +1216,17 @@ void ui_layer_style_noise_gradient_overlay_loads_into_dialog() {
   fill.gradient.angle_degrees = 90.0F;
   layer.layer_style().gradient_fills.push_back(fill);
 
+  auto& manager = patchy::ui::ThemeManager::instance();
+  const auto saved_preference = manager.preference();
   bool inspected = false;
+  std::optional<patchy::ui::LayerStyleSettings> settings;
+  for (const auto scheme : {patchy::ui::ColorScheme::Dark, patchy::ui::ColorScheme::Light}) {
+    const bool light = scheme == patchy::ui::ColorScheme::Light;
+    manager.set_preference(light ? patchy::ui::ColorSchemePreference::Light
+                                 : patchy::ui::ColorSchemePreference::Dark,
+                           false);
+    QApplication::processEvents();
+    inspected = false;
   QTimer::singleShot(0, [&] {
     auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
     CHECK(dialog != nullptr);
@@ -1161,7 +1239,9 @@ void ui_layer_style_noise_gradient_overlay_loads_into_dialog() {
         dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleGradientNoiseRestrictColorsCheck"));
     CHECK(form != nullptr && seed != nullptr && roughness != nullptr && model != nullptr &&
           restrict_colors != nullptr);
-    save_widget_artifact("ui_layer_style_noise_gradient_overlay_loads_into_dialog", *dialog);
+    save_widget_artifact(std::string("ui_layer_style_noise_gradient_overlay_loads_into_dialog_") +
+                             (light ? "light" : "dark"),
+                         *dialog);
     CHECK(form->currentData().toInt() == static_cast<int>(patchy::GradientDefinitionForm::Noise));
     CHECK(seed->value() == 43487260);
     CHECK(roughness->value() == 50);
@@ -1172,8 +1252,11 @@ void ui_layer_style_noise_gradient_overlay_loads_into_dialog() {
     QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
   });
 
-  const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
+  settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
   CHECK(inspected);
+  }
+  manager.set_preference(saved_preference, false);
+  QApplication::processEvents();
   CHECK(settings.has_value());
   CHECK(settings->style.gradient_fills.size() == 1);
   const auto& result = settings->style.gradient_fills.front().gradient;
@@ -2368,6 +2451,7 @@ std::vector<patchy::test::TestCase> layer_style_gradient_tests_part1() {
        ui_layer_style_gradient_midpoints_edit_color_and_opacity_tracks},
       {"ui_layer_style_gradient_page_controls_map_to_settings",
        ui_layer_style_gradient_page_controls_map_to_settings},
+      {"ui_offscreen_dialog_capture_uses_active_theme", ui_offscreen_dialog_capture_uses_active_theme},
       {"ui_layer_style_noise_gradient_overlay_loads_into_dialog",
        ui_layer_style_noise_gradient_overlay_loads_into_dialog},
       {"ui_layer_style_preview_is_transient_and_show_effects_persists",

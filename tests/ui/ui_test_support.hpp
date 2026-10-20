@@ -325,6 +325,13 @@ private:
   bool recording_{true};
 };
 
+// Every offscreen shot goes through here. The app QSS lives on the MainWindow (and on
+// make_themed_dialog_parent()); a dialog opened with no themed ancestor would otherwise be
+// grabbed with Qt's default light widgets showing through its list, buttons and labels
+// (the #262 Layer Style shots, October 2026). ensure_capture_themed gives such a window
+// the active theme's sheet before the grab, in Dark and Light alike.
+void ensure_capture_themed(QWidget& widget);
+QImage capture_widget_artifact(const std::string& name, QWidget& widget);
 void save_widget_artifact(const std::string& name, QWidget& widget);
 // Saves several captures stacked top to bottom (a 6 px gap between them) as one artifact,
 // for before/after shots that cover more than one widget or state.
