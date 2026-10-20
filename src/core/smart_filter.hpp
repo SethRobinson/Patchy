@@ -50,6 +50,9 @@ enum class SmartFilterKind {
   Adjustment,
   Ripple,
   Shear,
+  // Photoshop's Filter Gallery entry (GEfc): one or more gallery effects in
+  // order; the settings are a FilterGallerySmartFilter.
+  FilterGallery,
 };
 
 struct GaussianBlurSmartFilter {
@@ -171,6 +174,24 @@ struct AdjustmentSmartFilter {
 [[nodiscard]] bool operator==(const AdjustmentSmartFilter& a,
                               const AdjustmentSmartFilter& b);
 
+// One effect of a Filter Gallery entry: Photoshop's GEft id ("PlsW") and its
+// settings. Only effects with a Patchy renderer are modeled.
+using FilterGalleryEffectSettings = std::variant<PlasticWrapSmartFilter>;
+struct FilterGalleryEffect {
+  std::string effect_id;
+  FilterGalleryEffectSettings settings;
+  bool operator==(const FilterGalleryEffect&) const = default;
+};
+
+// A Filter Gallery entry (GEfc): its effects in application order. Photoshop
+// writes one effect inline in the GEfc object and two or more as a GEfs list
+// of GEfc objects (October 2026 captures, docs/smart-filters-native.md).
+struct FilterGallerySmartFilter {
+  std::vector<FilterGalleryEffect> effects;
+  bool listed{false};  // the GEfs list form
+  bool operator==(const FilterGallerySmartFilter&) const = default;
+};
+
 using SmartFilterParameters =
     std::variant<std::monostate, GaussianBlurSmartFilter, HighPassSmartFilter,
                  MedianSmartFilter, DustAndScratchesSmartFilter,
@@ -178,8 +199,8 @@ using SmartFilterParameters =
                  MotionBlurSmartFilter, PlasticWrapSmartFilter,
                  MosaicSmartFilter, EmbossSmartFilter, BoxBlurSmartFilter,
                  RadialBlurSmartFilter, AddNoiseSmartFilter,
-                 SchemaSmartFilter, TableSmartFilter,
-                 AdjustmentSmartFilter>;
+                 SchemaSmartFilter, TableSmartFilter, AdjustmentSmartFilter,
+                 FilterGallerySmartFilter>;
 
 struct SmartFilterEntry {
   SmartFilterKind kind{SmartFilterKind::Unsupported};
@@ -194,6 +215,14 @@ struct SmartFilterEntry {
   RgbColor background{255, 255, 255};
   SmartFilterParameters parameters;
 };
+
+// The Plastic Wrap settings an entry's settings dialog edits: a Plastic Wrap entry's, or
+// the one effect of a single-effect Filter Gallery entry. Null for anything else.
+[[nodiscard]] const PlasticWrapSmartFilter* editable_plastic_wrap(const SmartFilterEntry& entry) noexcept;
+[[nodiscard]] PlasticWrapSmartFilter* editable_plastic_wrap(SmartFilterEntry& entry) noexcept;
+// The kind whose settings dialog edits `entry`: Plastic Wrap for a single-effect Plastic
+// Wrap gallery entry, the entry's own kind otherwise.
+[[nodiscard]] SmartFilterKind smart_filter_dialog_kind(const SmartFilterEntry& entry) noexcept;
 
 // Photoshop has one shared mask for an entire Smart Filter stack. An empty
 // pixel buffer means the native stack has no stored mask pixels; the descriptor

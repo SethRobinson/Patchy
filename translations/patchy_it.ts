@@ -23032,6 +23032,10 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
         <source>Updated %1 Smart Filter</source>
         <translation>Filtro avanzato %1 aggiornato</translation>
     </message>
+    <message>
+        <source>Patchy edits Filter Gallery entries that hold one effect</source>
+        <translation>Patchy modifica solo le voci della Galleria filtri che contengono un solo effetto</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

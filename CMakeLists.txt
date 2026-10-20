@@ -182,6 +182,7 @@ add_library(patchy_core
   src/core/smart_filter_adjustment.cpp
   src/core/smart_filter_effects.cpp
   src/core/smart_filter_table.cpp
+  src/core/smart_filter_gallery.cpp
   src/core/smart_object.cpp
   src/core/spot_heal.cpp
   src/core/exemplar_inpaint.cpp
@@ -389,6 +390,7 @@ add_library(patchy_psd
   src/psd/psd_little_endian.hpp
   src/psd/psd_patterns.cpp
   src/psd/psd_smart_filter_adjustments.cpp
+  src/psd/psd_smart_filter_gallery.cpp
   src/psd/psd_smart_objects.cpp
   src/psd/psd_smart_filter_table.cpp
   src/psd/psd_smart_filter_table.hpp
@@ -2078,6 +2080,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/smart_filter_pixels_tests.cpp
     tests/core/smart_filter_table_tests.cpp
     tests/core/smart_filter_adjustment_tests.cpp
+    tests/core/smart_filter_gallery_tests.cpp
     tests/core/smart_objects_warp_tests.cpp
     tests/core/stroke_mask_effects_tests.cpp
     tests/core/pdf_tests.cpp
@@ -2192,6 +2195,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/smart_filter_tests_schema.cpp
       tests/ui/smart_filter_tests_table.cpp
       tests/ui/smart_filter_tests_adjustments.cpp
+      tests/ui/smart_filter_tests_gallery.cpp
       tests/ui/smart_object_tests.cpp
       tests/ui/warp_tests.cpp
       tests/ui/import_print_resolution_tests.cpp

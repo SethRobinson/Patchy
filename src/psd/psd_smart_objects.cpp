@@ -8,6 +8,7 @@
 #include "psd/psd_layer_effects.hpp"
 #include "psd/psd_smart_filter_table.hpp"
 #include "psd/psd_smart_filter_adjustments.hpp"
+#include "psd/psd_smart_filter_gallery.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
@@ -350,6 +351,8 @@ struct SmartFilterDescriptorSpec {
   std::optional<AddNoiseSmartFilter> add_noise;
   // Adjustment commands (psd_smart_filter_adjustments.hpp) write their own Fltr keys.
   const AdjustmentSettings* adjustment{nullptr};
+  // Filter Gallery entries (psd_smart_filter_gallery.hpp) patch their effects in place.
+  const FilterGallerySmartFilter* gallery{nullptr};
   // Table-described filters author every schema field in schema order.
   const SmartFilterSchema* schema{nullptr};
   const SchemaSmartFilter* schema_settings{nullptr};
@@ -587,6 +590,17 @@ smart_filter_descriptor_spec(const SmartFilterEntry &entry) {
     spec.filter_class_id = ids->class_id;
     spec.filter_class_id_long_form = ids->class_id_long_form;
     spec.filter_id = filter_id;
+  } else if (entry.kind == SmartFilterKind::FilterGallery) {
+    const auto *gallery =
+        std::get_if<FilterGallerySmartFilter>(&entry.parameters);
+    if (gallery == nullptr || gallery->effects.empty()) {
+      return std::nullopt;
+    }
+    spec.gallery = gallery;
+    spec.default_entry_name = "Filter Gallery...";
+    spec.filter_name = "Filter Gallery";
+    spec.filter_class_id = "GEfc";
+    spec.filter_id = kFilterGalleryFilterId;
   } else {
     return std::nullopt;
   }
@@ -601,7 +615,8 @@ smart_filter_descriptor_spec(const SmartFilterEntry &entry) {
 std::optional<DescriptorValue>
 make_smart_filter_entry_descriptor(const SmartFilterEntry &entry) {
   const auto spec = smart_filter_descriptor_spec(entry);
-  if (!spec.has_value()) {
+  // Patchy never creates a Filter Gallery entry; it only edits imported ones in place.
+  if (!spec.has_value() || spec->gallery != nullptr) {
     return std::nullopt;
   }
   auto item = smart_filter_object("filterFX", true);
@@ -1133,6 +1148,10 @@ bool patch_smart_filter_descriptor(
         !write_adjustment_smart_filter(*filter, *spec->adjustment)) {
       return false;
     }
+    if (spec->gallery != nullptr &&
+        !write_filter_gallery_smart_filter(*filter, *spec->gallery)) {
+      return false;
+    }
   }
   return true;
 }
@@ -1606,6 +1625,8 @@ std::optional<SmartFilterStack> smart_filter_stack_from_descriptor(
         // Table-described filter (core/smart_filter_table.hpp).
       } else if (parse_adjustment_smart_filter(filter, entry, entry_supported)) {
         // An Image > Adjustments command (psd_smart_filter_adjustments.hpp).
+      } else if (parse_filter_gallery_smart_filter(filter, entry, entry_supported)) {
+        // A Filter Gallery entry (psd_smart_filter_gallery.hpp).
       } else {
         entry_supported = false;
       }

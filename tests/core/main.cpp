@@ -150,6 +150,7 @@ int main(int argc, char** argv) {
            smart_filter_distort_stylize_tests,
            smart_filter_table_tests,
            smart_filter_adjustment_tests,
+           smart_filter_gallery_tests,
            psd_writer_stability_tests,
            pattern_styles_fixtures_tests,
            adjustments_curves_tests,

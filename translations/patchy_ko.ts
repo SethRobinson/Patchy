@@ -22962,6 +22962,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <source>Updated %1 Smart Filter</source>
         <translation>%1 스마트 필터를 업데이트했습니다</translation>
     </message>
+    <message>
+        <source>Patchy edits Filter Gallery entries that hold one effect</source>
+        <translation>Patchy는 효과가 하나인 필터 갤러리 항목만 편집할 수 있습니다</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

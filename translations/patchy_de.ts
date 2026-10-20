@@ -23032,6 +23032,10 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
         <source>Updated %1 Smart Filter</source>
         <translation>Smartfilter „%1“ aktualisiert</translation>
     </message>
+    <message>
+        <source>Patchy edits Filter Gallery entries that hold one effect</source>
+        <translation>Patchy bearbeitet nur Filtergalerie-Einträge mit einem einzigen Effekt</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
