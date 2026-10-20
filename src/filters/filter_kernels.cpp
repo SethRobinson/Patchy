@@ -331,6 +331,28 @@ void radial_blur_kernel(PixelBuffer &pixels, const PixelBuffer &original, int am
   report_kernel_progress(progress, pixels.height(), pixels.height(), FilterProgressStage::Blurring);
 }
 
+void radial_zoom_kernel(PixelBuffer &pixels, const PixelBuffer &original, int amount, int samples, double center_x,
+                        double center_y, const FilterProgress *progress) {
+  amount = std::clamp(amount, 0, 100);
+  samples = std::clamp(samples, 4, 32);
+  const auto half_span = static_cast<double>(amount) / 400.0;
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    report_kernel_progress(progress, y, pixels.height(), FilterProgressStage::Blurring);
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto dx = static_cast<double>(x) - center_x;
+      const auto dy = static_cast<double>(y) - center_y;
+      PremultipliedAccum accum;
+      for (int sample = 0; sample < samples; ++sample) {
+        const auto t = static_cast<double>(sample) / static_cast<double>(samples - 1) - 0.5;
+        const auto scale = 1.0 + 2.0 * half_span * t;
+        accumulate_bilinear_sample(accum, original, center_x + dx * scale, center_y + dy * scale);
+      }
+      write_accumulated_pixel(pixels, x, y, accum);
+    }
+  }
+  report_kernel_progress(progress, pixels.height(), pixels.height(), FilterProgressStage::Blurring);
+}
+
 void emboss_kernel(PixelBuffer &pixels, const PixelBuffer &original, int angle_degrees, double distance,
                    int amount_percent, const FilterProgress *progress) {
   const auto angle = static_cast<double>(angle_degrees) * kKernelPi / 180.0;

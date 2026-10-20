@@ -680,12 +680,45 @@ SmartFilterEffectsBlock parse_filter_effects_block(
           }
           return value;
         };
-        const auto plausible_record_at = [&](std::size_t offset) {
-          if (offset + 8U > bytes.size()) {
-            return false;
+        // A boundary is plausible only when every following record walks to
+        // the payload end in that dialect. Checking just the next length
+        // misread Photoshop's aligned chains: after an odd-length record the
+        // unpadded read lands in the zero padding and still looks like a small
+        // valid length (two Smart Objects with filter caches, October 2026).
+        const auto plausible_record_at = [&](std::size_t offset,
+                                             bool aligned) {
+          bool first = true;
+          while (true) {
+            const auto remaining = bytes.size() - offset;
+            if (remaining == 0U) {
+              return !first;
+            }
+            if (remaining < 8U) {
+              return !first && remaining <= 3U &&
+                     std::all_of(bytes.begin() +
+                                     static_cast<std::ptrdiff_t>(offset),
+                                 bytes.end(),
+                                 [](std::uint8_t value) { return value == 0U; });
+            }
+            const auto length = read_length_at(offset);
+            if (length == 0U || length > remaining - 8U) {
+              return false;
+            }
+            first = false;
+            offset += 8U + static_cast<std::size_t>(length);
+            if (aligned) {
+              const auto pad = (4U - (offset % 4U)) % 4U;
+              if (pad > bytes.size() - offset ||
+                  !std::all_of(bytes.begin() +
+                                   static_cast<std::ptrdiff_t>(offset),
+                               bytes.begin() +
+                                   static_cast<std::ptrdiff_t>(offset + pad),
+                               [](std::uint8_t value) { return value == 0U; })) {
+                return false;
+              }
+              offset += pad;
+            }
           }
-          const auto length = read_length_at(offset);
-          return length != 0U && length <= bytes.size() - offset - 8U;
         };
         const auto padding_is_zero =
             padding <= reader.remaining() &&
@@ -693,9 +726,9 @@ SmartFilterEffectsBlock parse_filter_effects_block(
                         bytes.begin() +
                             static_cast<std::ptrdiff_t>(position + padding),
                         [](std::uint8_t value) { return value == 0U; });
-        const auto legacy_boundary = plausible_record_at(position);
+        const auto legacy_boundary = plausible_record_at(position, false);
         const auto aligned_boundary =
-            padding_is_zero && plausible_record_at(position + padding);
+            padding_is_zero && plausible_record_at(position + padding, true);
         const auto final_padding =
             padding_is_zero && reader.remaining() == padding;
         if ((aligned_boundary && legacy_boundary) ||

@@ -267,6 +267,10 @@ const std::vector<ExpectedFilterCatalogEntry>& expected_filter_catalog() {
          Unit::None},
         {"detail", "filterDetail", 1, 15, 7, Unit::None},
         {"smoothness", "filterSmoothness", 1, 15, 5, Unit::None}}},
+      {"patchy.filters.blur", Category::Blur, false, {}},
+      {"patchy.filters.blur_more", Category::Blur, false, {}},
+      {"patchy.filters.average", Category::Blur, false, {}},
+      {"patchy.filters.sharpen_more", Category::Sharpen, false, {}},
   };
   return expected;
 }
@@ -489,11 +493,15 @@ void ui_filter_catalog_and_menu_contracts_are_stable() {
         QStringLiteral("filterAction_patchy_filters_surface_blur"),
         QStringLiteral("filterAction_patchy_filters_lens_blur"),
         QStringLiteral("filterAction_patchy_filters_iris_blur"),
-        QStringLiteral("filterAction_patchy_filters_tilt_shift_blur")}},
+        QStringLiteral("filterAction_patchy_filters_tilt_shift_blur"),
+        QStringLiteral("filterAction_patchy_filters_blur"),
+        QStringLiteral("filterAction_patchy_filters_blur_more"),
+        QStringLiteral("filterAction_patchy_filters_average")}},
       {"filterSharpenMenu",
        {QStringLiteral("filterAction_patchy_filters_sharpen"),
         QStringLiteral("filterAction_patchy_filters_unsharp_mask"),
-        QStringLiteral("filterAction_patchy_filters_high_pass")}},
+        QStringLiteral("filterAction_patchy_filters_high_pass"),
+        QStringLiteral("filterAction_patchy_filters_sharpen_more")}},
       {"filterDistortMenu",
        {QStringLiteral("filterAction_patchy_filters_twirl"), QStringLiteral("filterAction_patchy_filters_wave"),
         QStringLiteral("filterAction_patchy_filters_pinch_bloat")}},

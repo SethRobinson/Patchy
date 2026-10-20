@@ -11419,6 +11419,44 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Diffuse</source>
         <translation>Диффузия</translation>
     </message>
+    <message>
+        <source>Invalid Average input</source>
+        <translation>Некорректные входные данные фильтра «Среднее»</translation>
+    </message>
+    <message>
+        <source>Blur</source>
+        <comment>Smart Filter</comment>
+        <translation>Размытие</translation>
+    </message>
+    <message>
+        <source>Blur More</source>
+        <comment>Smart Filter</comment>
+        <translation>Размытие+</translation>
+    </message>
+    <message>
+        <source>Sharpen</source>
+        <comment>Smart Filter</comment>
+        <translation>Резкость</translation>
+    </message>
+    <message>
+        <source>Sharpen More</source>
+        <comment>Smart Filter</comment>
+        <translation>Резкость+</translation>
+    </message>
+    <message>
+        <source>Invert</source>
+        <comment>Smart Filter</comment>
+        <translation>Инверсия</translation>
+    </message>
+    <message>
+        <source>Average</source>
+        <comment>Smart Filter</comment>
+        <translation>Среднее</translation>
+    </message>
+    <message>
+        <source> (Amount %1, Zoom, %2 quality)</source>
+        <translation> (Количество %1, Линейный, Качество %2)</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

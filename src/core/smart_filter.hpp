@@ -59,6 +59,13 @@ enum class SmartFilterKind {
   // Photoshop's Filter Gallery entry (GEfc): one or more gallery effects in
   // order; the settings are a FilterGallerySmartFilter.
   FilterGallery,
+  // Photoshop's parameterless classics (see parameterless_smart_filter_native).
+  Blur,
+  BlurMore,
+  Sharpen,
+  SharpenMore,
+  Invert,
+  Average,
 };
 
 struct GaussianBlurSmartFilter {
@@ -135,8 +142,9 @@ struct BoxBlurSmartFilter {
 
 // Photoshop stores Amnt as a plain integer 1..100 plus BlrM (Spn/Zm) and
 // BlrQ (Drft/Gd/Bst) enums; the blur CENTER is not stored in the descriptor
-// (July 2026 captures). Patchy models the Spin method only - a Zoom entry
-// stays Unsupported and preview-locks its stack.
+// (July 2026 captures). Spin replicates the destructive sweep; Zoom is
+// Patchy's own ray average calibrated to Photoshop's extent (October 2026,
+// docs/smart-filters-native.md).
 enum class RadialBlurQuality {
   Draft,
   Good,
@@ -146,6 +154,7 @@ enum class RadialBlurQuality {
 struct RadialBlurSmartFilter {
   std::int32_t amount{10};
   RadialBlurQuality quality{RadialBlurQuality::Good};
+  bool zoom{false};
   bool operator==(const RadialBlurSmartFilter&) const = default;
 };
 
@@ -179,6 +188,44 @@ struct AdjustmentSmartFilter {
 // every kind's settings side by side).
 [[nodiscard]] bool operator==(const AdjustmentSmartFilter& a,
                               const AdjustmentSmartFilter& b);
+// Photoshop's parameterless classic filters store no Fltr object: the entry
+// carries only its name, hasoptions (false from Photoshop 2026; older files
+// wrote true for Invert, kept as read) and a charID filterID (October 2026
+// captures). Their SmartFilterEntry::parameters stay std::monostate.
+struct ParameterlessSmartFilterNative {
+  SmartFilterKind kind;
+  const char* native_name;
+  std::uint32_t filter_id;
+};
+
+inline constexpr ParameterlessSmartFilterNative kParameterlessSmartFilters[] = {
+    {SmartFilterKind::Blur, "Blur", 0x426c7220U},              // 'Blr '
+    {SmartFilterKind::BlurMore, "Blur More", 0x426c724dU},     // 'BlrM'
+    {SmartFilterKind::Sharpen, "Sharpen", 0x53687270U},        // 'Shrp'
+    {SmartFilterKind::SharpenMore, "Sharpen More", 0x5368724dU},  // 'ShrM'
+    {SmartFilterKind::Invert, "Invert", 0x496e7672U},          // 'Invr'
+    {SmartFilterKind::Average, "Average", 0x41767267U},        // 'Avrg'
+};
+
+[[nodiscard]] inline const ParameterlessSmartFilterNative*
+parameterless_smart_filter_native(SmartFilterKind kind) noexcept {
+  for (const auto& native : kParameterlessSmartFilters) {
+    if (native.kind == kind) {
+      return &native;
+    }
+  }
+  return nullptr;
+}
+
+[[nodiscard]] inline const ParameterlessSmartFilterNative*
+parameterless_smart_filter_native_for_id(std::uint32_t filter_id) noexcept {
+  for (const auto& native : kParameterlessSmartFilters) {
+    if (native.filter_id == filter_id) {
+      return &native;
+    }
+  }
+  return nullptr;
+}
 
 // One effect of a Filter Gallery entry: Photoshop's GEft id ("PlsW") and its
 // settings. Only effects with a Patchy renderer are modeled.

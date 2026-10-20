@@ -2347,7 +2347,8 @@ apply_stack_mask(const FilterRenderResult &base,
 // amount * 3.6 degrees about the supplied center in buffer coordinates.
 [[nodiscard]] FilterRenderResult render_radial_blur_effect(
     const FilterRenderResult &input, std::int32_t amount, std::int32_t samples,
-    double center_x, double center_y, const FilterProgress *progress) {
+    double center_x, double center_y, const FilterProgress *progress,
+    bool zoom = false) {
   if (input.pixels.empty()) {
     report_progress(progress, 1, 1, FilterProgressStage::Blurring);
     return input;
@@ -2356,8 +2357,13 @@ apply_stack_mask(const FilterRenderResult &base,
       PixelBuffer(input.bounds.width, input.bounds.height,
                   PixelFormat::rgba8()),
       input.bounds};
-  radial_blur_kernel(result.pixels, input.pixels, amount, samples, center_x,
-                     center_y, progress);
+  if (zoom) {
+    radial_zoom_kernel(result.pixels, input.pixels, amount, samples, center_x,
+                       center_y, progress);
+  } else {
+    radial_blur_kernel(result.pixels, input.pixels, amount, samples, center_x,
+                       center_y, progress);
+  }
   return result;
 }
 
@@ -2421,6 +2427,349 @@ apply_stack_mask(const FilterRenderResult &base,
                 std::max<std::int32_t>(kMinimumMosaicCellSize, cell_size_pixels),
                 progress);
   return result;
+}
+
+// The nearest-visible extension behind the parameterless sharpens. Photoshop
+// breaks their equal-distance ties differently from Median's: the nearest
+// visible pixel in the same column first (below before above), then the
+// nearer column, then the right one (October 2026 probes; this rule leaves 18
+// of about 6700 visible channel samples off on a noise-with-holes probe and
+// none on the fixture). Same exact integer squared-Euclidean transform as
+// extend_transparent_colors with the passes swapped: down each column, then a
+// lower envelope along each row.
+[[nodiscard]] TransparentColorExtension
+extend_transparent_colors_columns_first(const FilterRenderResult &input) {
+  TransparentColorExtension extension;
+  const auto width = input.bounds.width;
+  const auto height = input.bounds.height;
+  const auto pixel_count = static_cast<std::uint64_t>(width) *
+                           static_cast<std::uint64_t>(height);
+  bool saw_visible = false;
+  bool saw_transparent = false;
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      const auto alpha = input.pixels.pixel(x, y)[3];
+      saw_visible = saw_visible || alpha != 0U;
+      saw_transparent = saw_transparent || alpha == 0U;
+    }
+  }
+  if (!saw_visible) {
+    extension.all_transparent = true;
+    return extension;
+  }
+  if (!saw_transparent) {
+    return extension;
+  }
+  if (pixel_count > std::numeric_limits<std::uint32_t>::max() ||
+      pixel_count > std::numeric_limits<std::size_t>::max() /
+                        sizeof(std::uint32_t)) {
+    throw std::overflow_error("Filter color-extension buffer overflow");
+  }
+  constexpr auto kNoSource = std::numeric_limits<std::uint32_t>::max();
+  // First pass: the nearest visible row in each column; a tie takes the row
+  // below.
+  std::vector<std::uint32_t> column_source(static_cast<std::size_t>(pixel_count),
+                                           kNoSource);
+  const auto index_of = [width](std::int32_t x, std::int32_t y) {
+    return static_cast<std::size_t>(y) * static_cast<std::size_t>(width) +
+           static_cast<std::size_t>(x);
+  };
+  for (std::int32_t x = 0; x < width; ++x) {
+    std::int32_t above = -1;
+    for (std::int32_t y = 0; y < height; ++y) {
+      if (input.pixels.pixel(x, y)[3] != 0U) {
+        above = y;
+      }
+      if (above >= 0) {
+        column_source[index_of(x, y)] = static_cast<std::uint32_t>(above);
+      }
+    }
+    std::int32_t below = -1;
+    for (std::int32_t y = height; y-- > 0;) {
+      if (input.pixels.pixel(x, y)[3] != 0U) {
+        below = y;
+      }
+      if (below < 0) {
+        continue;
+      }
+      auto &source = column_source[index_of(x, y)];
+      if (source == kNoSource ||
+          below - y <= y - static_cast<std::int32_t>(source)) {
+        source = static_cast<std::uint32_t>(below);
+      }
+    }
+  }
+
+  // Second pass: the lower envelope of each row's column parabolas. An exact
+  // tie goes to the nearer column, then to the right one.
+  extension.nearest_visible.assign(static_cast<std::size_t>(pixel_count),
+                                   kNoSource);
+  std::vector<std::int32_t> envelope_columns(static_cast<std::size_t>(width));
+  std::vector<std::int64_t> envelope_starts(static_cast<std::size_t>(width));
+  for (std::int32_t y = 0; y < height; ++y) {
+    const auto row_cost = [&](std::int32_t column) {
+      const auto dy = static_cast<std::int64_t>(
+                          column_source[index_of(column, y)]) -
+                      static_cast<std::int64_t>(y);
+      return dy * dy;
+    };
+    std::int32_t envelope_size = 0;
+    for (std::int32_t candidate = 0; candidate < width; ++candidate) {
+      if (column_source[index_of(candidate, y)] == kNoSource) {
+        continue;
+      }
+      std::int64_t start = std::numeric_limits<std::int64_t>::min();
+      while (envelope_size > 0) {
+        const auto previous =
+            envelope_columns[static_cast<std::size_t>(envelope_size - 1)];
+        const auto numerator =
+            static_cast<std::int64_t>(candidate) * candidate +
+            row_cost(candidate) -
+            static_cast<std::int64_t>(previous) * previous - row_cost(previous);
+        const auto denominator =
+            2LL * (static_cast<std::int64_t>(candidate) - previous);
+        start = ceil_divide(numerator, denominator);
+        if (numerator % denominator == 0 &&
+            2 * start < static_cast<std::int64_t>(previous) + candidate) {
+          ++start;  // the tie sits nearer the earlier column
+        }
+        if (start > envelope_starts[static_cast<std::size_t>(envelope_size -
+                                                              1)]) {
+          break;
+        }
+        --envelope_size;
+      }
+      if (envelope_size == 0) {
+        start = std::numeric_limits<std::int64_t>::min();
+      }
+      envelope_columns[static_cast<std::size_t>(envelope_size)] = candidate;
+      envelope_starts[static_cast<std::size_t>(envelope_size)] = start;
+      ++envelope_size;
+    }
+    if (envelope_size == 0) {
+      throw std::runtime_error(PATCHY_TRANSLATE_NOOP(
+          "QObject", "Filter color extension has no visible source"));
+    }
+    std::int32_t selected = 0;
+    for (std::int32_t x = 0; x < width; ++x) {
+      while (selected + 1 < envelope_size &&
+             envelope_starts[static_cast<std::size_t>(selected + 1)] <= x) {
+        ++selected;
+      }
+      const auto source_x =
+          envelope_columns[static_cast<std::size_t>(selected)];
+      const auto source_y = static_cast<std::int32_t>(
+          column_source[index_of(source_x, y)]);
+      extension.nearest_visible[index_of(x, y)] =
+          static_cast<std::uint32_t>(index_of(source_x, source_y));
+    }
+  }
+  return extension;
+}
+
+// Photoshop's parameterless 3x3 filters, byte-exact against Photoshop 27.x
+// (October 2026 COM captures over noise, a gray ramp, mixed alpha and an
+// opaque square on transparency). Blur weights the cross 1-4-1 over 8, Blur
+// More 1-2-1 / 2-2-2 / 1-2-1 over 14, Sharpen the cross -1 / 8 / -1 over 4,
+// Sharpen More every neighbour -1 around 12 over 4. Samples past the buffer
+// repeat its edge and every quotient rounds half up. Alpha takes the same
+// kernel. The blurs run on premultiplied bytes, round(c * a / 255), and
+// divide back with rounding; the sharpens run on straight RGB, transparent
+// pixels borrowing the nearest visible colour (columns-first ties, above).
+struct ClassicKernel {
+  std::array<std::int32_t, 9> weights{};
+  std::int32_t divisor{1};
+  bool premultiplied{false};
+};
+
+[[nodiscard]] ClassicKernel classic_kernel(SmartFilterKind kind) {
+  switch (kind) {
+  case SmartFilterKind::Blur:
+    return {{0, 1, 0, 1, 4, 1, 0, 1, 0}, 8, true};
+  case SmartFilterKind::BlurMore:
+    return {{1, 2, 1, 2, 2, 2, 1, 2, 1}, 14, true};
+  case SmartFilterKind::Sharpen:
+    return {{0, -1, 0, -1, 8, -1, 0, -1, 0}, 4, false};
+  case SmartFilterKind::SharpenMore:
+    return {{-1, -1, -1, -1, 12, -1, -1, -1, -1}, 4, false};
+  default:
+    throw std::invalid_argument(
+        PATCHY_TRANSLATE_NOOP("QObject", "Unsupported Smart Filter entry"));
+  }
+}
+
+// Invert: 255 - c on straight RGB, alpha and bounds unchanged; byte-exact
+// against Photoshop 27.x on noise with mixed alpha (October 2026).
+[[nodiscard]] FilterRenderResult
+render_invert_effect(const FilterRenderResult &input,
+                     const FilterProgress *progress) {
+  auto output = input.pixels;
+  auto bytes = output.data();
+  for (std::size_t index = 0; index + 3U < bytes.size(); index += 4U) {
+    bytes[index] = static_cast<std::uint8_t>(255U - bytes[index]);
+    bytes[index + 1U] = static_cast<std::uint8_t>(255U - bytes[index + 1U]);
+    bytes[index + 2U] = static_cast<std::uint8_t>(255U - bytes[index + 2U]);
+  }
+  report_progress(progress, 1, 1, FilterProgressStage::Filtering);
+  return FilterRenderResult{std::move(output), input.bounds};
+}
+
+// Average as Photoshop renders it in a Smart Filter: every visible pixel takes
+// the plain mean of the straight RGB over the whole filter canvas, where
+// fully transparent pixels and the canvas around the layer count as white
+// (Photoshop uses the layer's stored hidden colour there; white is what it
+// stores outside the placed content). Quotients round half up; alpha and
+// bounds are unchanged (October 2026 probes).
+[[nodiscard]] FilterRenderResult
+render_canvas_average_effect(const FilterRenderResult &input,
+                             Rect filter_canvas_bounds,
+                             const FilterProgress *progress) {
+  const auto canvas_area = static_cast<std::uint64_t>(
+                               std::max(0, filter_canvas_bounds.width)) *
+                           static_cast<std::uint64_t>(
+                               std::max(0, filter_canvas_bounds.height));
+  if (canvas_area == 0U || input.pixels.empty()) {
+    report_progress(progress, 1, 1, FilterProgressStage::Filtering);
+    return input;
+  }
+  const auto inside = intersect_rect(input.bounds, filter_canvas_bounds);
+  std::array<std::uint64_t, 3> sums{};
+  std::uint64_t counted = 0U;
+  for (std::int32_t y = inside.y; y < inside.y + inside.height; ++y) {
+    for (std::int32_t x = inside.x; x < inside.x + inside.width; ++x) {
+      const auto *pixel =
+          input.pixels.pixel(x - input.bounds.x, y - input.bounds.y);
+      for (std::size_t channel = 0; channel < 3U; ++channel) {
+        sums[channel] += pixel[3] == 0U ? 255U : pixel[channel];
+      }
+      ++counted;
+    }
+  }
+  const auto white = canvas_area - counted;
+  std::array<std::uint8_t, 3> mean{};
+  for (std::size_t channel = 0; channel < 3U; ++channel) {
+    const auto total = sums[channel] + white * 255U;
+    mean[channel] = static_cast<std::uint8_t>((2U * total + canvas_area) /
+                                              (2U * canvas_area));
+  }
+  auto output = input.pixels;
+  auto bytes = output.data();
+  for (std::size_t index = 0; index + 3U < bytes.size(); index += 4U) {
+    if (bytes[index + 3U] != 0U) {
+      bytes[index] = mean[0];
+      bytes[index + 1U] = mean[1];
+      bytes[index + 2U] = mean[2];
+    }
+  }
+  report_progress(progress, 1, 1, FilterProgressStage::Filtering);
+  return FilterRenderResult{std::move(output), input.bounds};
+}
+
+[[nodiscard]] std::int64_t round_half_up_quotient(std::int64_t sum,
+                                                  std::int64_t divisor) noexcept {
+  return floor_divide(2 * sum + divisor, 2 * divisor);
+}
+
+[[nodiscard]] FilterRenderResult
+render_classic_kernel(const FilterRenderResult &input, SmartFilterKind kind,
+                      const FilterProgress *progress) {
+  const auto kernel = classic_kernel(kind);
+  const auto width = input.bounds.width;
+  const auto height = input.bounds.height;
+  if (width <= 0 || height <= 0) {
+    report_progress(progress, 1, 1, FilterProgressStage::Filtering);
+    return input;
+  }
+  const auto pixel_count = static_cast<std::size_t>(width) *
+                           static_cast<std::size_t>(height);
+  const auto stride = static_cast<std::size_t>(width) * 4U;
+  // The working source: premultiplied bytes for the blurs, straight RGB with
+  // transparent pixels extended for the sharpens; alpha unchanged.
+  std::vector<std::uint8_t> source(pixel_count * 4U);
+  if (kernel.premultiplied) {
+    for (std::int32_t y = 0; y < height; ++y) {
+      auto *target = source.data() + static_cast<std::size_t>(y) * stride;
+      for (std::int32_t x = 0; x < width; ++x, target += 4) {
+        const auto *pixel = input.pixels.pixel(x, y);
+        const auto alpha = static_cast<std::uint32_t>(pixel[3]);
+        for (std::size_t channel = 0; channel < 3U; ++channel) {
+          target[channel] = static_cast<std::uint8_t>(
+              (2U * pixel[channel] * alpha + 255U) / 510U);
+        }
+        target[3] = pixel[3];
+      }
+    }
+  } else {
+    const auto extension = extend_transparent_colors_columns_first(input);
+    if (extension.all_transparent) {
+      report_progress(progress, 1, 1, FilterProgressStage::Filtering);
+      return input;
+    }
+    for (std::int32_t y = 0; y < height; ++y) {
+      auto *target = source.data() + static_cast<std::size_t>(y) * stride;
+      for (std::int32_t x = 0; x < width; ++x, target += 4) {
+        for (std::size_t channel = 0; channel < 3U; ++channel) {
+          target[channel] =
+              extended_straight_color_sample(input, extension, x, y, channel);
+        }
+        target[3] = input.pixels.pixel(x, y)[3];
+      }
+    }
+  }
+
+  PixelBuffer output(width, height, PixelFormat::rgba8());
+  auto *output_data = output.data().data();
+  const auto *source_data = source.data();
+  run_filter_blocks(
+      height, static_cast<std::uint64_t>(width) * 9U, progress,
+      FilterProgressStage::Filtering,
+      [&](std::int32_t begin, std::int32_t end) {
+        for (auto y = begin; y < end; ++y) {
+          const std::array<std::int32_t, 3> rows{std::max(0, y - 1), y,
+                                                 std::min(height - 1, y + 1)};
+          auto *row = output_data + static_cast<std::size_t>(y) * stride;
+          for (std::int32_t x = 0; x < width; ++x) {
+            const std::array<std::int32_t, 3> columns{
+                std::max(0, x - 1), x, std::min(width - 1, x + 1)};
+            std::array<std::int64_t, 4> sums{};
+            for (std::size_t ky = 0; ky < 3U; ++ky) {
+              const auto *source_row =
+                  source_data + static_cast<std::size_t>(rows[ky]) * stride;
+              for (std::size_t kx = 0; kx < 3U; ++kx) {
+                const auto weight = kernel.weights[ky * 3U + kx];
+                if (weight == 0) {
+                  continue;
+                }
+                const auto *sample =
+                    source_row + static_cast<std::size_t>(columns[kx]) * 4U;
+                for (std::size_t channel = 0; channel < 4U; ++channel) {
+                  sums[channel] += static_cast<std::int64_t>(weight) *
+                                   static_cast<std::int64_t>(sample[channel]);
+                }
+              }
+            }
+            auto *destination = row + static_cast<std::size_t>(x) * 4U;
+            const auto alpha = std::clamp<std::int64_t>(
+                round_half_up_quotient(sums[3], kernel.divisor), 0, 255);
+            destination[3] = static_cast<std::uint8_t>(alpha);
+            for (std::size_t channel = 0; channel < 3U; ++channel) {
+              const auto value = std::clamp<std::int64_t>(
+                  round_half_up_quotient(sums[channel], kernel.divisor), 0,
+                  255);
+              if (!kernel.premultiplied) {
+                destination[channel] = static_cast<std::uint8_t>(value);
+              } else if (alpha == 0) {
+                destination[channel] = 0U;
+              } else {
+                destination[channel] = static_cast<std::uint8_t>(
+                    std::min<std::int64_t>(255, (2 * value * 255 + alpha) /
+                                                    (2 * alpha)));
+              }
+            }
+          }
+        }
+      });
+  return FilterRenderResult{std::move(output), input.bounds};
 }
 
 void validate_stack(const PixelBuffer &pixels, Rect bounds,
@@ -2591,11 +2940,15 @@ void validate_stack(const PixelBuffer &pixels, Rect bounds,
                                               plastic->smoothness >= kMinimumPlasticWrapSmoothness &&
                                               plastic->smoothness <= kMaximumPlasticWrapSmoothness;
                                      });
+    } else if (parameterless_smart_filter_native(entry.kind) != nullptr) {
+      parameters_valid =
+          std::holds_alternative<std::monostate>(entry.parameters);
     } else {
       throw std::invalid_argument(PATCHY_TRANSLATE_NOOP("QObject", "Unsupported Smart Filter entry"));
     }
     if (!parameters_valid ||
-        (entry.kind != SmartFilterKind::DustAndScratches &&
+        (parameterless_smart_filter_native(entry.kind) == nullptr &&
+         entry.kind != SmartFilterKind::DustAndScratches &&
          entry.kind != SmartFilterKind::SurfaceBlur &&
          entry.kind != SmartFilterKind::UnsharpMask &&
          entry.kind != SmartFilterKind::MotionBlur &&
@@ -2980,7 +3333,8 @@ FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
                                       : 32);
       filtered = trim_transparent_result(
           render_radial_blur_effect(radial_input, radial.amount, samples,
-                                    center_x, center_y, &filter_progress));
+                                    center_x, center_y, &filter_progress,
+                                    radial.zoom));
     } else if (entry.kind == SmartFilterKind::AddNoise) {
       const auto &noise = std::get<AddNoiseSmartFilter>(entry.parameters);
       filtered = render_add_noise_effect(current, noise.amount_percent,
@@ -3016,6 +3370,25 @@ FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
                                               plastic.detail, plastic.smoothness,
                                               &filter_progress);
       }
+    } else if (entry.kind == SmartFilterKind::Invert) {
+      filtered = render_invert_effect(current, &filter_progress);
+    } else if (entry.kind == SmartFilterKind::Average) {
+      filtered = render_canvas_average_effect(current, filter_canvas_bounds,
+                                              &filter_progress);
+    } else if (parameterless_smart_filter_native(entry.kind) != nullptr) {
+      // A 3x3 kernel reads one pixel past the layer and the blurs grow by
+      // one: pad with one transparent pixel inside the FEid canvas, whose own
+      // edge repeats like Photoshop's.
+      const auto padded = intersect_rect(
+          Rect{current.bounds.x - 1, current.bounds.y - 1,
+               current.bounds.width + 2, current.bounds.height + 2},
+          filter_canvas_bounds);
+      filtered = padded.empty()
+                     ? current
+                     : trim_transparent_result(render_classic_kernel(
+                           embed_in_filter_canvas(current.pixels,
+                                                  current.bounds, padded),
+                           entry.kind, &filter_progress));
     } else {
       const auto &box = std::get<BoxBlurSmartFilter>(entry.parameters);
       auto box_input = embed_in_filter_canvas(current.pixels, current.bounds,
@@ -3040,6 +3413,60 @@ FilterRenderResult render_smart_filter_stack(const PixelBuffer &placed_pixels,
                                              const FilterProgress *progress) {
   return render_smart_filter_stack(placed_pixels, placed_bounds, placed_bounds,
                                    stack, progress);
+}
+
+FilterRenderResult render_photoshop_classic_filter(
+    const PixelBuffer &pixels, Rect bounds, SmartFilterKind kind,
+    const FilterProgress *progress) {
+  if (pixels.format() != PixelFormat::rgba8() ||
+      pixels.width() != bounds.width || pixels.height() != bounds.height ||
+      (kind != SmartFilterKind::Blur && kind != SmartFilterKind::BlurMore &&
+       kind != SmartFilterKind::Sharpen &&
+       kind != SmartFilterKind::SharpenMore)) {
+    throw std::invalid_argument(
+        PATCHY_TRANSLATE_NOOP("QObject", "Unsupported Smart Filter entry"));
+  }
+  return render_classic_kernel(FilterRenderResult{pixels, bounds}, kind,
+                               progress);
+}
+
+FilterRenderResult render_visible_average(const PixelBuffer &pixels,
+                                          Rect bounds,
+                                          const FilterProgress *progress) {
+  if (pixels.format() != PixelFormat::rgba8() ||
+      pixels.width() != bounds.width || pixels.height() != bounds.height) {
+    throw std::invalid_argument(
+        PATCHY_TRANSLATE_NOOP("QObject", "Invalid Average input"));
+  }
+  std::array<std::uint64_t, 3> sums{};
+  std::uint64_t alpha_total = 0U;
+  for (std::int32_t y = 0; y < bounds.height; ++y) {
+    for (std::int32_t x = 0; x < bounds.width; ++x) {
+      const auto *pixel = pixels.pixel(x, y);
+      for (std::size_t channel = 0; channel < 3U; ++channel) {
+        sums[channel] += static_cast<std::uint64_t>(pixel[channel]) * pixel[3];
+      }
+      alpha_total += pixel[3];
+    }
+  }
+  auto output = pixels;
+  if (alpha_total != 0U) {
+    std::array<std::uint8_t, 3> mean{};
+    for (std::size_t channel = 0; channel < 3U; ++channel) {
+      mean[channel] = static_cast<std::uint8_t>(
+          (2U * sums[channel] + alpha_total) / (2U * alpha_total));
+    }
+    auto bytes = output.data();
+    for (std::size_t index = 0; index + 3U < bytes.size(); index += 4U) {
+      if (bytes[index + 3U] != 0U) {
+        bytes[index] = mean[0];
+        bytes[index + 1U] = mean[1];
+        bytes[index + 2U] = mean[2];
+      }
+    }
+  }
+  report_progress(progress, 1, 1, FilterProgressStage::Filtering);
+  return FilterRenderResult{std::move(output), bounds};
 }
 
 FilterRenderResult render_radial_blur(const PixelBuffer &pixels, Rect bounds,

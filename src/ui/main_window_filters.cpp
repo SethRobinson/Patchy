@@ -373,6 +373,17 @@ FilterInvocation editable_smart_filter_invocation(SmartFilterKind kind) {
     put_schema_invocation_parameters(invocation, *schema, default_schema_settings(*schema));
     return invocation;
   }
+  if (parameterless_smart_filter_native(kind) != nullptr) {
+    // No parameters: the dialog shows only its Blending section.
+    invocation.filter_id =
+        kind == SmartFilterKind::Blur       ? "patchy.smart_filters.blur"
+        : kind == SmartFilterKind::BlurMore ? "patchy.smart_filters.blur_more"
+        : kind == SmartFilterKind::Sharpen  ? "patchy.smart_filters.sharpen"
+        : kind == SmartFilterKind::Invert   ? "patchy.smart_filters.invert"
+        : kind == SmartFilterKind::Average  ? "patchy.smart_filters.average"
+                                            : "patchy.smart_filters.sharpen_more";
+    return invocation;
+  }
   if (kind == SmartFilterKind::SurfaceBlur) {
     invocation.filter_id = "patchy.smart_filters.surface_blur";
     invocation.parameters["radius"] = 5.0;
@@ -451,6 +462,10 @@ FilterDialogSpec editable_smart_filter_dialog_spec(SmartFilterKind kind) {
   FilterDialogSpec spec;
   spec.identifier =
       QString::fromStdString(editable_smart_filter_invocation(kind).filter_id);
+  if (parameterless_smart_filter_native(kind) != nullptr) {
+    spec.display_name = parameterless_smart_filter_display_name(kind);
+    return spec;
+  }
   spec.display_name =
       radial   ? QObject::tr("Radial Blur")
       : noise    ? QObject::tr("Add Noise")
@@ -759,6 +774,9 @@ SmartFilterStack smart_filter_stack_with_invocation(
     entry.parameters = schema_settings_from_invocation(invocation, *schema, *current);
     return stack;
   }
+  if (parameterless_smart_filter_native(entry.kind) != nullptr) {
+    return stack;
+  }
   const auto radius = smart_filter_radius_from_invocation(invocation, 1.0);
   if (entry.kind == SmartFilterKind::GaussianBlur) {
     auto* gaussian =
@@ -907,6 +925,21 @@ SmartFilterEntry make_editable_smart_filter_entry(
     SmartFilterKind kind, const FilterInvocation& invocation,
     RgbColor foreground,
     RgbColor background) {
+  if (const auto *classic = parameterless_smart_filter_native(kind);
+      classic != nullptr) {
+    SmartFilterEntry entry;
+    entry.kind = kind;
+    entry.native_name = classic->native_name;
+    entry.native_filter_id = classic->filter_id;
+    entry.enabled = true;
+    entry.has_options = false;
+    entry.opacity = 1.0;
+    entry.blend_mode = BlendMode::Normal;
+    entry.foreground = foreground;
+    entry.background = background;
+    entry.parameters = std::monostate{};
+    return entry;
+  }
   if (const auto *table = smart_filter_table_spec(kind); table != nullptr) {
     SmartFilterEntry entry;
     entry.kind = kind;
@@ -1103,7 +1136,11 @@ std::optional<SmartFilterStack> smart_filter_stack_with_recipe(
 // short-circuit). The amount parameter stays in the catalog for recipes,
 // Saved Looks, and scripting.
 bool filter_applies_without_settings_dialog(const std::string& identifier) {
-  return identifier == "patchy.filters.auto_tone" ||
+  return identifier == "patchy.filters.blur" ||
+         identifier == "patchy.filters.blur_more" ||
+         identifier == "patchy.filters.sharpen_more" ||
+         identifier == "patchy.filters.average" ||
+         identifier == "patchy.filters.auto_tone" ||
          identifier == "patchy.filters.auto_contrast" ||
          identifier == "patchy.filters.auto_color";
 }
@@ -1380,6 +1417,8 @@ void MainWindow::editable_smart_filter_dialog(
   const auto box = kind == SmartFilterKind::BoxBlur;
   const auto radial = kind == SmartFilterKind::RadialBlur;
   const auto add_noise = kind == SmartFilterKind::AddNoise;
+  const auto classic_name = parameterless_smart_filter_display_name(kind);
+  const auto classic = !classic_name.isEmpty();
   if (!has_active_document() || canvas_ == nullptr) {
     return;
   }
@@ -1494,6 +1533,8 @@ void MainWindow::editable_smart_filter_dialog(
         return;
       }
       put_schema_invocation_parameters(initial_invocation, *schema, *settings);
+    } else if (parameterless_smart_filter_native(kind) != nullptr) {
+      // No parameters: only the Blending section edits this entry.
     } else if (kind == SmartFilterKind::GaussianBlur) {
       const auto* gaussian = std::get_if<GaussianBlurSmartFilter>(
           &stack.entries[filter_index].parameters);
@@ -1645,6 +1686,21 @@ void MainWindow::editable_smart_filter_dialog(
       initial_invocation.parameters["smoothness"] =
           static_cast<std::int64_t>(settings->smoothness);
     }
+  }
+
+  if (adding && classic) {
+    // Like Photoshop, a parameterless filter is added without a dialog; its
+    // Blending section stays editable from the entry row afterwards.
+    if (!commit_smart_filter_stack_edit(
+            layer_id, std::move(stack), std::move(entry_sources),
+            tr("Add %1 Smart Filter").arg(classic_name),
+            creating_stack ? tr("Added %1 as a Smart Filter").arg(classic_name)
+                           : tr("Added another %1 Smart Filter")
+                                 .arg(classic_name))) {
+      show_status_error(
+          tr("This Smart Filter descriptor cannot be edited safely"));
+    }
+    return;
   }
 
   // The dialog's Blending section edits the entry's blend mode and opacity
@@ -1822,7 +1878,8 @@ void MainWindow::editable_smart_filter_dialog(
                                 : QString();
   if (!settings.has_value()) {
     statusBar()->showMessage(
-        table_described ? tr("Cancelled %1").arg(table_name)
+        classic ? tr("Cancelled %1").arg(classic_name)
+        : table_described ? tr("Cancelled %1").arg(table_name)
         : radial   ? tr("Cancelled Radial Blur")
         : add_noise ? tr("Cancelled Add Noise")
         : box      ? tr("Cancelled Box Blur")
@@ -1846,7 +1903,9 @@ void MainWindow::editable_smart_filter_dialog(
   candidate.entries[filter_index].opacity =
       std::clamp(blending_settings.opacity, 0.0, 1.0);
   const auto undo_text =
-      table_described
+      classic ? (adding ? tr("Add %1 Smart Filter").arg(classic_name)
+                        : tr("Edit %1 Smart Filter").arg(classic_name))
+      : table_described
           ? (adding ? tr("Add %1 Smart Filter").arg(table_name)
                     : tr("Edit %1 Smart Filter").arg(table_name))
       : radial      ? (adding ? tr("Add Radial Blur Smart Filter")
@@ -1876,7 +1935,12 @@ void MainWindow::editable_smart_filter_dialog(
                   : (adding ? tr("Add Gaussian Blur Smart Filter")
                             : tr("Edit Gaussian Blur Smart Filter"));
   const auto status_text =
-      table_described
+      classic ? (adding ? (creating_stack
+                               ? tr("Added %1 as a Smart Filter").arg(classic_name)
+                               : tr("Added another %1 Smart Filter")
+                                     .arg(classic_name))
+                        : tr("Updated %1 Smart Filter").arg(classic_name))
+      : table_described
           ? (adding ? (creating_stack
                            ? tr("Added %1 as a Smart Filter").arg(table_name)
                            : tr("Added another %1 Smart Filter").arg(table_name))
