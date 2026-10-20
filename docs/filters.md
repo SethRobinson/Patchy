@@ -4,7 +4,7 @@ The contract for Patchy's built-in pixel filters, the shared catalog, and ordere
 
 ## Two execution contracts
 
-`FilterRegistry::apply(id, pixels)` is the legacy path (the original built-in functions and their historical pixels); `FilterRegistry::apply(invocation, pixels)` is the named-parameter path for dialogs, recipes and previews, absent parameters taking catalog defaults. They stay separate: defaults differ for some filters (Posterize, Gaussian Blur, Clouds, Glowing Edges, some rounding). Never route the legacy wrapper through `default_invocation()` or change either output to make them agree; tests pin both. Where both always produced the same bytes (Emboss, Pixel Mosaic, Radial Blur; the Smart Filter copies of those and of Box Blur), one kernel in `filter_kernels.cpp` serves every caller with its own arguments (the legacy wrapper: fixed ones, null progress). Never change a kernel body to make callers agree; `filter_legacy_and_named_defaults_share_kernels` and the `smart_filter_*_matches_destructive` tests pin the sharing.
+`FilterRegistry::apply(id, pixels)` is the legacy path (original built-ins, historical pixels); `FilterRegistry::apply(invocation, pixels)` the named-parameter path for dialogs, recipes and previews (absent parameters take catalog defaults). They stay separate: defaults differ for some filters (Posterize, Gaussian Blur, Clouds, Glowing Edges, some rounding). Never route the legacy wrapper through `default_invocation()` or change either output to make them agree; tests pin both. Where both always produced the same bytes (Emboss, Pixel Mosaic, Radial Blur; their Smart Filter copies and Box Blur's), one kernel in `filter_kernels.cpp` serves every caller with its own arguments (legacy: fixed ones, null progress). Never change a kernel body to make callers agree; `filter_legacy_and_named_defaults_share_kernels` and the `smart_filter_*_matches_destructive` tests pin the sharing.
 
 ## Stable identifiers and schemas
 
@@ -43,6 +43,7 @@ lens_blur: radius=15.0 blades=6 blade_curvature=50 rotation=0
 iris_blur: blur=15.0 center_x=50.0 center_y=50.0 angle=0 iris_width=50.0 iris_height=40.0 focus=50.0
 tilt_shift_blur: blur=15.0 center_x=50.0 center_y=50.0 angle=0 focus_half_width=10.0 transition_width=20.0
 plastic_wrap: highlight_strength=9 detail=7 smoothness=5
+blur, blur_more, average, sharpen_more: none
 ```
 
 A `FilterInvocation` stores filter ID, schema version, named parameters, and captured foreground/background colors. Parameter keys are stable within a schema; unknown keys are ignored. An unknown filter ID or schema version makes the invocation and its containing recipe unsupported; never run the newest schema instead or fall back to another filter. Values normalize through the catalog before execution: declared types kept, numerics clamped to range; a wrong-typed known key or unknown option token is invalid, not coerced.
@@ -51,12 +52,12 @@ A `FilterInvocation` stores filter ID, schema version, named parameters, and cap
 
 Nine catalog filters carry `FilterCategory::Adjustment` and surface under Image > Adjustments: Invert, Brightness/Contrast, Grayscale (no direct action yet), Desaturate, Auto Tone, Auto Contrast, Auto Color, Threshold, Posterize. The four dialog adjustments (Levels, Curves, Hue/Saturation, Color Balance) are not catalog filters; see [adjustments-calibration.md](adjustments-calibration.md).
 
-The gallery exposes the other 32 effects in the fixed catalog and category order below (labels translated, never locale-sorted). An effect's ID suffix is its lowercased label with underscores ("&" becomes "and"), except where given in parentheses:
+The gallery exposes the other 36 effects in the fixed catalog and category order below (labels translated, never locale-sorted). An effect's ID suffix is its lowercased label with underscores ("&" becomes "and"), except where given in parentheses:
 
 ```text
 photo_looks: Soft Glow, Punchy Color, Noir, Cinematic Matte, Vintage Fade, Vintage Sepia (sepia), Lens Vignette (vignette)
-blur: Box Blur, Gaussian Blur, Motion Blur, Radial Blur, Surface Blur, Lens Blur, Iris Blur, Tilt-Shift Blur
-sharpen: Sharpen, Unsharp Mask, High Pass
+blur: Box Blur, Gaussian Blur, Motion Blur, Radial Blur, Surface Blur, Lens Blur, Iris Blur, Tilt-Shift Blur, Blur, Blur More, Average
+sharpen: Sharpen, Unsharp Mask, High Pass, Sharpen More
 distort: Twirl, Wave, Pinch/Bloat (pinch_bloat)
 noise: Analog Grain (film_grain), Add Noise, Median, Dust & Scratches
 pixelate: Pixel Mosaic (pixelate), Color Halftone
@@ -85,7 +86,7 @@ Liquify is a top-level Filter menu action under Filter Gallery, outside this cat
 
 Text and shape layers re-create their pixels from source data, so a destructive edit would vanish on the next edit. Every destructive entry point calls `MainWindow::prompt_rasterize_procedural_layer` first: catalog filter actions (Image > Adjustments included), the Filter Gallery, Liquify, and the destructive Levels/Curves/Hue/Saturation/Color Balance dialogs. Legacy plug-ins keep their hard refusal; smart objects are untouched (docs/smart-objects.md).
 
-The prompt (`rasterizeOrConvertMessageBox`) offers Convert To Smart Object (AcceptRole, the default when present), Rasterize (DestructiveRole), and Cancel. Convert appears only when the follow-on can succeed: a direct filter needs a native Smart Filter mapping (`native_smart_filter_kind_for`), the gallery always qualifies, and both need the document under the 64-megapixel editable-mask cap; Liquify and the adjustment dialogs never offer it. Rasterize commits its own "Rasterize layer" undo step, kept when the follow-on dialog is cancelled (as Photoshop); Convert converts and re-enters the smart-object routing. The gate commits an active inline text edit first; CLI automation keeps the plug-in path's status refusal instead of a blocking prompt. Coverage: `ui_filter*_on_*_layer_*`, `ui_levels_on_text_layer_*`.
+The prompt (`rasterizeOrConvertMessageBox`) offers Convert To Smart Object (AcceptRole, the default when present), Rasterize (DestructiveRole), and Cancel. Convert appears only when the follow-on can succeed: a direct filter needs a native Smart Filter mapping (`native_smart_filter_kind_for`), the gallery always qualifies, and both need the document under the 64-megapixel editable-mask cap; Liquify and the adjustment dialogs never offer it. Rasterize commits its own "Rasterize layer" undo step, kept if the follow-on dialog is cancelled; Convert converts and re-enters the smart-object routing. The gate commits an active inline text edit first; CLI automation keeps the plug-in path's status refusal instead of a blocking prompt. Coverage: `ui_filter*_on_*_layer_*`, `ui_levels_on_text_layer_*`.
 
 ## Last Filter
 
@@ -116,7 +117,7 @@ The three autos share one Qt-free kernel, `src/filters/auto_levels_math.{hpp,cpp
 
 Widget object names are test contracts, prefixed `filterGallery` (list in the dialog source); catalog-generated controls keep their catalog roots. The center/radius overlay lives inside `filterGalleryPreview`, not a separate child widget.
 
-Outcome surfacing (before Apply): an unlocalized "SF" thumbnail chip marks filters with a native Smart Filter mapping (`native_smart_filter_kind_for`, the single decision point), explained in the row tooltip. `filterGalleryOutcomeLabel` states what Apply will do; for a Smart Object it mirrors the caller's whole-recipe predicate (`smart_filter_stack_with_recipe`, which adds the 64-entry native stack cap); an empty recipe keeps the positive text. Rows whose single entry fails the real mapper (parameter gates like Emboss Amount 0 included) get a warning icon and tooltip; mapping is all-or-nothing over disabled entries too, so disabling a blocking row clears nothing. A recipe rejected only by the entry cap flips the outcome line but marks no row.
+Outcome surfacing (before Apply): an unlocalized "SF" thumbnail chip, explained in the row tooltip, marks filters with a native mapping (`native_smart_filter_kind_for`). `filterGalleryOutcomeLabel` states what Apply will do; for a Smart Object it mirrors the caller's whole-recipe predicate (`smart_filter_stack_with_recipe`, which adds the 64-entry native stack cap); an empty recipe keeps the positive text. Rows whose single entry fails the real mapper (parameter gates like Emboss Amount 0 included) get a warning icon and tooltip; mapping is all-or-nothing, disabled entries included. A recipe rejected only by the entry cap flips the outcome line but marks no row.
 
 The angle dial syncs with the numeric controls; its hand wraps but Twirl keeps the full -720..720 value. The Wave graph drags amplitude (vertical) and phase (horizontal), wheel for wavelength. Both appear in the direct dialogs too (`filterAngleDial`, `filterWaveformControl`).
 
@@ -153,7 +154,8 @@ Ranges (`min..max`, practical slider limits in parentheses), growth, and transla
 ```text
 box_blur  radius int 1..2000 px (to 100); grows by radius; supp = radius
 gaussian_blur  radius 0.1..1000 px (to 100); grows/supp ceil(3*radius)
-sharpen, edge_detect  supp 1 px
+sharpen, sharpen_more, edge_detect  supp 1 px
+blur, blur_more  grows 1 px; supp 1 px
 motion_blur  angle -360..360 deg (-180..180), distance 1..2000 px (1..64, PS max); grows by distance;
              supp distance+1 (+1 covers bilinear taps); kernels in smart-filters-native.md
 radial_blur  amount 0..100, samples, center; growth notes below; supp none
@@ -174,9 +176,10 @@ clouds  fills_entire_canvas; no margin, no supp, never grown by the registry (UI
 
 Calibration notes:
 
-- Radial Blur: historical centered growth kept for default compatibility; an edited center grows from the sampled corner sweep, uncapped, failing through the registry's checked padding path rather than clipping. Amount 0: no growth. The native Smart Filter mapping (default center, amount 1..100, quality-tier samples, Spin only) is in [smart-filters-native.md](smart-filters-native.md).
+- Radial Blur: historical centered growth kept for default compatibility; an edited center grows from the sampled corner sweep, uncapped, failing through the registry's checked padding path rather than clipping. Amount 0: no growth. Native: [smart-filters-native.md](smart-filters-native.md).
 - Add Noise: deterministic position-hashed noise on RGB only, uniform or a sum-of-four-uniforms gaussian approximation with no transcendental calls. The seed feeds the hash so re-renders reproduce the same noise; amount does not scale for thumbnails (like Analog Grain).
 - Box Blur: radii to 12 keep the direct double path (pins, Smart Filter parity); larger ones use an exact int64 running sum.
+- Blur, Blur More, Sharpen More: the native kernels (`render_photoshop_classic_filter`). Average: visible pixels' alpha-weighted mean (Photoshop also counts hidden colors). All four skip the dialog.
 - Gaussian Blur, High Pass, Unsharp Mask, Median, Dust & Scratches, and Surface Blur share their kernels with the native Smart Filters (`render_photoshop_*` in `smart_filter_renderer.cpp`); the exact math is in [smart-filters-native.md](smart-filters-native.md) "Render semantics". Gaussian's `accepts_legacy_integer` widens pre-decimal integer radii; Median floors and Surface Blur rounds fractional radii for rendering without rewriting the stored value.
 - Median, Dust & Scratches, and Surface Blur give transparent pixels the straight RGB of the nearest visible source anywhere in the input, so these, the ellipse/band blurs, Plastic Wrap and Add Noise advertise no finite support and render selected applications with full-layer context. Surface Blur alpha-trims after padding.
 - Lens Blur: one deterministic supersampled aperture kernel on premultiplied RGBA (curvature blends the polygon toward a circle); radius 0 is an exact identity; large radii run fixed-point downsample/convolve/upsample stages on a grid anchored to the whole input, a factor-aligned margin alpha-trimmed after.
@@ -195,7 +198,7 @@ Selected by the center roles, default 50.0 centers included; never run a centere
 
 A soft selection (feather, Object Selection edge) blends each result pixel with the original by its coverage (`blend_by_selection_coverage`, `filter_workflows`), as in Photoshop; adjustments, Liquify, plug-ins and script `applyFilter`/`fill` do too, as do preview proxies (coverage box-averaged). The UI wrapper decides expansion: a selected operation stays inside the layer bounds; with no selection an RGBA layer may grow, then trims transparent borders. Preview, Cancel, Apply, Undo, and Redo restore pixels and document-space bounds.
 
-Canvas-filling filters are the one exception: the UI wrapper embeds the layer in a transparent buffer covering the union of layer bounds and canvas rectangle (never a canvas crop) and renders across it; with a selection, outside pixels restore as usual, so clouds can fill selected regions that had no layer content. The result is alpha-trimmed against the original bounds: a selected render grows the layer only to the union of old content and selection, and a fully transparent result returns to the original rectangle. No-alpha layers, effective transparent-pixel locks, and layers already covering the canvas skip the embed (content-rect render). Cancel restores pristine pixels and bounds, never the embedded buffer. Clouds has no native Smart Filter mapping: on a Smart Object the direct action and a Clouds recipe reach the rasterize prompt, then this path.
+Canvas-filling filters are the one exception: the UI wrapper embeds the layer in a transparent buffer covering the union of layer bounds and canvas (never a canvas crop) and renders across it; with a selection, outside pixels restore as usual, so clouds can fill selected regions without layer content. The result is alpha-trimmed against the original bounds: a selected render grows the layer only to the union of old content and selection, and a fully transparent result returns to the original rectangle. No-alpha layers, effective transparent-pixel locks, and layers already covering the canvas skip the embed. Cancel restores the pristine pixels and bounds. Clouds has no native Smart Filter mapping: on a Smart Object its direct action and recipes reach the rasterize prompt, then this path.
 
 ## Captured colors
 
@@ -207,7 +210,7 @@ Foreground and background colors are copied into every invocation at creation. C
 
 The applied-effects list shows the final effect at the top, opposite execution order, so a reordered list rebuilds the recipe from the bottom row up. Each dialog entry has a transient numeric identity (never persisted) so duplicates stay independent.
 
-Selecting a catalog filter creates the first entry or replaces the active entry's invocation, keeping its enabled state and blending. Duplicate inserts a copy after the active entry. Per-entry blend mode and opacity sit below the list; Saved Looks persist them and the Smart Filter mapping copies them into native entries. Reset returns the active entry to Normal at 100% and default parameters. Remove selects the nearest remaining row; Original clears the recipe. Only applied-stack operations mutate the recipe; category, search, and Favorites changes do not. Effect rows are drag sources, not drop targets: a drop inserts between rows and emits the canonical row-move signal.
+Selecting a catalog filter creates the first entry or replaces the active entry's invocation, keeping its enabled state and blending. Duplicate inserts a copy after the active entry. Per-entry blend mode and opacity sit below the list; Saved Looks persist them and the Smart Filter mapping copies them into native entries. Reset returns the active entry to Normal at 100% and default parameters. Remove selects the nearest remaining row; Original clears the recipe. Category, search, and Favorites changes never mutate the recipe. Effect rows are drag sources, not drop targets: a drop inserts between rows and emits the canonical row-move signal.
 
 Recipe scaling returns a normalized copy that keeps order, enable state, blending, and captured colors. Aggregate translation support is the checked sum over enabled nonzero-opacity entries; an executed entry with unknown support makes the aggregate unknown. Zero-opacity entries are validated for persistence but do not execute, expand bounds, report progress, or affect aggregate support.
 

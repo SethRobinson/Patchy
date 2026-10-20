@@ -80,6 +80,7 @@ d1ed7990ee556233 89f51fd5a4313af5 photoshop-smart-filter-add-noise-gaussian.psd
 77d30efc9669a292 b24cbcd2a9f6f68a photoshop-smart-filter-add-noise.psd
 5a777e8980d0c037 ffb23d8d6df6338d photoshop-smart-filter-adjustments.psd
 c34cf6d3a2b44849 ec07eaf898b0a29d photoshop-smart-filter-box-blur.psd
+f31957447a2eb9e5 63ee826fe901251a photoshop-smart-filter-classic.psd
 4818f5815be8c17b 0dc5354258b118ee photoshop-smart-filter-diffuse.psd
 a249d71db1be5e65 f2bf42dce8c3d975 photoshop-smart-filter-dust-and-scratches.psd
 31970fc31d4e215b 87fd37f8d0bdb1c9 photoshop-smart-filter-emboss.psd
@@ -91,10 +92,12 @@ caea8438f6880426 b44af26d8f18a3e3 photoshop-smart-filter-instances-base.psd
 ebd0046cc76da683 1d369cfd6b800f2d photoshop-smart-filter-instances-edit-contents.psd
 99c5eade80d142f9 5fdf05c6f623ed86 photoshop-smart-filter-instances-rasterized.psd
 3a2c58fdc61a4f2d d3397275fee447fe photoshop-smart-filter-instances-replace-contents.psd
+55340a5f20e9b538 97648a7ac8af242b photoshop-smart-filter-invert.psd
 5605f17686a751d5 42f4c9c09dda2a19 photoshop-smart-filter-median.psd
 a830b287b2ff7613 e3303a22a1955e77 photoshop-smart-filter-model.psd
 34e01fa71a249ac5 56d6a83a8e5b4ec9 photoshop-smart-filter-mosaic.psd
 0745acbcc5007b8a 3552d98fc3009829 photoshop-smart-filter-other.psd
+4c31a63c8a4dcab3 193a3b134d24a5ab photoshop-smart-filter-past-edge.psd
 5e90f51a65db429b 4c24d6a63abd69f6 photoshop-smart-filter-pinch.psd
 6115c33e0f57b0c0 4b98966ab184a18c photoshop-smart-filter-plastic-wrap.psd
 29ba713926bf5cbc 23809935de771847 photoshop-smart-filter-polar-coordinates.psd
@@ -113,6 +116,7 @@ ae6e870fc913a65d fbfcfae69773fc26 photoshop-smart-filter-trace-contour.psd
 e3330c6d08986f3e 554002ee9ac1fc0a photoshop-smart-filter-wave.psd
 eaae181ed02ec0fd 868ada3cb130324e photoshop-smart-filter-zigzag-around.psd
 53590f33a3b5a85e bc7a40ae546c955f photoshop-smart-filter-zigzag.psd
+d56d904272273a57 2ce6ac5740d2f862 photoshop-smart-filter-zoom.psd
 0584e4cdd7f5013c fae153247444d536 photoshop-stroke-aa-matte.psd
 389082952c00905d 1aef2000219e220d photoshop-stroke-masked.psd
 3088ab19ceb8e24d 4c0bca53d2ee9e75 photoshop-stroke-overprint.psd

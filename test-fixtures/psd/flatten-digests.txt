@@ -80,6 +80,7 @@ ac08986158b2bf56 photoshop-shape-pattern.psd
 b24cbcd2a9f6f68a photoshop-smart-filter-add-noise.psd
 c091b67f8bf51a0c photoshop-smart-filter-adjustments.psd
 ec07eaf898b0a29d photoshop-smart-filter-box-blur.psd
+a65d2997edbf6d08 photoshop-smart-filter-classic.psd
 1f2c60665bb3e012 photoshop-smart-filter-diffuse.psd
 f2bf42dce8c3d975 photoshop-smart-filter-dust-and-scratches.psd
 87fd37f8d0bdb1c9 photoshop-smart-filter-emboss.psd
@@ -91,10 +92,12 @@ a00cc59a421ed652 photoshop-smart-filter-fibers.psd
 615e5853026e2647 photoshop-smart-filter-instances-edit-contents.psd
 2ad58224d8a27c7b photoshop-smart-filter-instances-rasterized.psd
 c6596eafe117aad2 photoshop-smart-filter-instances-replace-contents.psd
+342fee3d522929d1 photoshop-smart-filter-invert.psd
 42f4c9c09dda2a19 photoshop-smart-filter-median.psd
 3184a48c2d26184d photoshop-smart-filter-model.psd
 56d6a83a8e5b4ec9 photoshop-smart-filter-mosaic.psd
 bf5fa6de87028ba8 photoshop-smart-filter-other.psd
+bdbe0a5b0f11a602 photoshop-smart-filter-past-edge.psd
 ce62608009bd5622 photoshop-smart-filter-pinch.psd
 4b98966ab184a18c photoshop-smart-filter-plastic-wrap.psd
 7ee9614414d54486 photoshop-smart-filter-polar-coordinates.psd
@@ -113,6 +116,7 @@ e9da7fae842c6b4d photoshop-smart-filter-trace-contour.psd
 7cd920bf4b64a737 photoshop-smart-filter-wave.psd
 83124c4815a60bfb photoshop-smart-filter-zigzag-around.psd
 b6058a877a8cd02e photoshop-smart-filter-zigzag.psd
+83f78cd4fa26795d photoshop-smart-filter-zoom.psd
 e1d3c595decc6ac4 photoshop-stroke-aa-matte.psd
 1aef2000219e220d photoshop-stroke-masked.psd
 7e5356278fda59d9 photoshop-stroke-overprint.psd

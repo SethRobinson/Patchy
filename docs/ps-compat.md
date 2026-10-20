@@ -6,28 +6,23 @@ Conventions: "PS" = Adobe Photoshop 2026 (version 27), the installed ground trut
 
 ## Required compatibility contract
 
-Every PSD/PSB Patchy writes must open in Adobe Photoshop without warnings or
-errors, including saves and exports from the UI, JavaScript, and MCP. A file
-that needs repair or raises unknown-data or data-discard prompts fails this
-requirement even if its preview looks correct.
+Every PSD/PSB Patchy writes (UI, JavaScript and MCP saves and exports) must open
+in Adobe Photoshop without warnings or errors. A file that needs repair or raises
+an unknown-data or data-discard prompt fails this even if its preview looks right.
 
-Optional Patchy metadata is permitted only in extension points Photoshop
-accepts without those problems. Use native PSD structures for editable content
-and the established image-resource mechanism for private document metadata.
-Never introduce unknown per-layer tagged keys (the write rules below explain
-that failure). Photoshop need not interpret Patchy-only metadata (palette
-color names) and may discard it when saving.
+Patchy-only metadata goes only in extension points Photoshop accepts without those
+prompts: native PSD structures for editable content, the image-resource mechanism
+for private document metadata, never unknown per-layer tagged keys (the write rules
+below). Photoshop need not interpret it (palette color names) and may drop it on save.
 
-A successful Patchy save/reopen or a structurally valid file is not evidence
-of warning-free Photoshop opening. Changes to PSD writing must keep this
-contract and report the verification actually performed; opening with dialogs
-suppressed cannot establish the absence of warnings. If Photoshop was not
-checked, say so. Driving Photoshop through COM is always authorized
-(AGENTS.md); desktop screenshots are not.
+A clean Patchy reopen or a structurally valid file is no evidence of a warning-free
+Photoshop open, and neither is an open with dialogs suppressed. PSD writing changes
+must keep this contract and report the verification actually performed; if Photoshop
+was not checked, say so. COM is always authorized (AGENTS.md); desktop screenshots are not.
 
 ## COM scripting techniques
 
-Lives in [photoshop-com.md](photoshop-com.md): the PowerShell entry point, dialog-mode caveats, the composite and saveAs workarounds, hygiene rules, and `scripts\dev\photoshop-open-check.ps1` (reports the "unknown data" prompt per file). Read it before any capture or acceptance run.
+See [photoshop-com.md](photoshop-com.md) (entry point, dialog-mode caveats, composite and saveAs workarounds, hygiene, `scripts\dev\photoshop-open-check.ps1` for the "unknown data" prompt); read it before any capture or acceptance run.
 
 ## Write rules pinned against PS (silent corruption otherwise)
 
@@ -148,9 +143,9 @@ Override-aware bounds preserve moves and effect geometry. Local `backglass-inver
 dragons and opaque text against PS's saved composite: `Invert 1` clips to the
 dragon folder only; fractional text edges have a separate blending mismatch.
 
-## Slices
+## Slices and annotations
 
-No slice tool. Resources 1050 (Slices) and 1054 (slice URLs) round-trip byte for byte while canvas geometry is unchanged; `forget_psd_slices` (core/document.hpp) drops both on any crop, resize, rotation, flip or canvas size change (GitHub issue 242).
+No slice tool. Resources 1050 (Slices) and 1054 (slice URLs) round-trip byte for byte while canvas geometry is unchanged; `forget_psd_slices` (core/document.hpp) drops both on any crop, resize, rotation, flip or canvas size change (GitHub issue 242). No Note tool either: Photoshop's notes (the document-global `Anno` block) survive every edit and save byte for byte through the generic unknown-global path and are never shown (GitHub issue 258, `psd_annotations_survive_save_if_available`).
 
 ## Liquify compatibility boundary
 

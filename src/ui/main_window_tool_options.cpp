@@ -28,6 +28,7 @@
 #include "ui/options_flow_layout.hpp"
 
 #include "core/blend_math.hpp"
+#include "core/artboard.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/smart_object.hpp"
 #include "core/layer_render_utils.hpp"
@@ -1113,6 +1114,11 @@ void MainWindow::set_active_layer_from_selection() {
     canvas_->set_selected_layer_ids(selected_ids);
   }
   report_layer_selection_count(selected_ids);
+  if (selected_ids.size() == 1U) {
+    if (const auto* layer = document().find_layer(selected_ids.front()); layer != nullptr && layer_is_artboard(*layer)) {
+      show_artboard_tool_hint_for_move_tool();
+    }
+  }
   // A pure multi-selection change (same active layer) still decides whether
   // Combine Shapes applies.
   refresh_combine_shapes_action_states();

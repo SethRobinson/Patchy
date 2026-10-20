@@ -680,12 +680,45 @@ SmartFilterEffectsBlock parse_filter_effects_block(
           }
           return value;
         };
-        const auto plausible_record_at = [&](std::size_t offset) {
-          if (offset + 8U > bytes.size()) {
-            return false;
+        // A boundary is plausible only when every following record walks to
+        // the payload end in that dialect. Checking just the next length
+        // misread Photoshop's aligned chains: after an odd-length record the
+        // unpadded read lands in the zero padding and still looks like a small
+        // valid length (two Smart Objects with filter caches, October 2026).
+        const auto plausible_record_at = [&](std::size_t offset,
+                                             bool aligned) {
+          bool first = true;
+          while (true) {
+            const auto remaining = bytes.size() - offset;
+            if (remaining == 0U) {
+              return !first;
+            }
+            if (remaining < 8U) {
+              return !first && remaining <= 3U &&
+                     std::all_of(bytes.begin() +
+                                     static_cast<std::ptrdiff_t>(offset),
+                                 bytes.end(),
+                                 [](std::uint8_t value) { return value == 0U; });
+            }
+            const auto length = read_length_at(offset);
+            if (length == 0U || length > remaining - 8U) {
+              return false;
+            }
+            first = false;
+            offset += 8U + static_cast<std::size_t>(length);
+            if (aligned) {
+              const auto pad = (4U - (offset % 4U)) % 4U;
+              if (pad > bytes.size() - offset ||
+                  !std::all_of(bytes.begin() +
+                                   static_cast<std::ptrdiff_t>(offset),
+                               bytes.begin() +
+                                   static_cast<std::ptrdiff_t>(offset + pad),
+                               [](std::uint8_t value) { return value == 0U; })) {
+                return false;
+              }
+              offset += pad;
+            }
           }
-          const auto length = read_length_at(offset);
-          return length != 0U && length <= bytes.size() - offset - 8U;
         };
         const auto padding_is_zero =
             padding <= reader.remaining() &&
@@ -693,9 +726,9 @@ SmartFilterEffectsBlock parse_filter_effects_block(
                         bytes.begin() +
                             static_cast<std::ptrdiff_t>(position + padding),
                         [](std::uint8_t value) { return value == 0U; });
-        const auto legacy_boundary = plausible_record_at(position);
+        const auto legacy_boundary = plausible_record_at(position, false);
         const auto aligned_boundary =
-            padding_is_zero && plausible_record_at(position + padding);
+            padding_is_zero && plausible_record_at(position + padding, true);
         const auto final_padding =
             padding_is_zero && reader.remaining() == padding;
         if ((aligned_boundary && legacy_boundary) ||
@@ -796,27 +829,25 @@ author_filter_effects_record(std::string_view placed_uuid,
       pixel_count > kMaximumEditableSmartFilterMaskPixels) {
     return std::nullopt;
   }
-  const auto encode_plane = [&](const std::function<std::uint8_t(
-                                     std::int32_t, std::int32_t)> &sample,
-                                 std::vector<std::uint8_t>* decoded = nullptr) {
+  const auto encode_plane_over = [&](Rect area,
+                                      const std::function<std::uint8_t(
+                                          std::int32_t, std::int32_t)> &sample,
+                                      std::vector<std::uint8_t>* decoded) {
     std::vector<std::vector<std::uint8_t>> rows;
-    rows.reserve(static_cast<std::size_t>(document_bounds.height));
-    std::vector<std::uint8_t> raw_row(
-        static_cast<std::size_t>(document_bounds.width));
+    rows.reserve(static_cast<std::size_t>(area.height));
+    std::vector<std::uint8_t> raw_row(static_cast<std::size_t>(area.width));
     if (decoded != nullptr) {
-      decoded->resize(static_cast<std::size_t>(pixel_count));
+      decoded->resize(static_cast<std::size_t>(area.width) *
+                      static_cast<std::size_t>(area.height));
     }
-    for (std::int32_t y = 0; y < document_bounds.height; ++y) {
-      const auto document_y = document_bounds.y + y;
-      for (std::int32_t x = 0; x < document_bounds.width; ++x) {
-        raw_row[static_cast<std::size_t>(x)] =
-            sample(document_bounds.x + x, document_y);
+    for (std::int32_t y = 0; y < area.height; ++y) {
+      const auto document_y = area.y + y;
+      for (std::int32_t x = 0; x < area.width; ++x) {
+        raw_row[static_cast<std::size_t>(x)] = sample(area.x + x, document_y);
       }
       if (decoded != nullptr) {
         std::copy(raw_row.begin(), raw_row.end(),
-                  decoded->begin() +
-                      static_cast<std::ptrdiff_t>(y) *
-                          document_bounds.width);
+                  decoded->begin() + static_cast<std::ptrdiff_t>(y) * area.width);
       }
       rows.push_back(encode_packbits_row(raw_row));
     }
@@ -831,6 +862,10 @@ author_filter_effects_record(std::string_view placed_uuid,
     }
     return plane.bytes();
   };
+  const auto encode_plane =
+      [&](const std::function<std::uint8_t(std::int32_t, std::int32_t)> &sample) {
+        return encode_plane_over(document_bounds, sample, nullptr);
+      };
 
   const auto source_sample = [&](std::int32_t document_x,
                                  std::int32_t document_y,
@@ -874,8 +909,17 @@ author_filter_effects_record(std::string_view placed_uuid,
           return source_sample(x, y, channel);
         });
   }
+  // The shared mask keeps its own rectangle (Patchy's editable masks are
+  // document-sized) while the cache covers the whole filter canvas.
+  const auto mask_bounds = mask.pixels.empty() ? document_bounds : mask.bounds;
+  const auto mask_right = checked_edge(mask_bounds.x, mask_bounds.width);
+  const auto mask_bottom = checked_edge(mask_bounds.y, mask_bounds.height);
+  if (mask_bounds.empty() || !mask_right.has_value() ||
+      !mask_bottom.has_value()) {
+    return std::nullopt;
+  }
   std::vector<std::uint8_t> decoded_mask;
-  const auto mask_plane = encode_plane(mask_sample, &decoded_mask);
+  const auto mask_plane = encode_plane_over(mask_bounds, mask_sample, &decoded_mask);
 
   BigEndianWriter cache;
   cache.write_u32(static_cast<std::uint32_t>(document_bounds.y));
@@ -908,10 +952,10 @@ author_filter_effects_record(std::string_view placed_uuid,
   body.write_u64(static_cast<std::uint64_t>(cache.bytes().size()));
   body.write_bytes(cache.bytes());
   body.write_u8(1U);
-  body.write_u32(static_cast<std::uint32_t>(document_bounds.y));
-  body.write_u32(static_cast<std::uint32_t>(document_bounds.x));
-  body.write_u32(static_cast<std::uint32_t>(*document_bottom));
-  body.write_u32(static_cast<std::uint32_t>(*document_right));
+  body.write_u32(static_cast<std::uint32_t>(mask_bounds.y));
+  body.write_u32(static_cast<std::uint32_t>(mask_bounds.x));
+  body.write_u32(static_cast<std::uint32_t>(*mask_bottom));
+  body.write_u32(static_cast<std::uint32_t>(*mask_right));
   body.write_u64(static_cast<std::uint64_t>(mask_plane.size()));
   body.write_bytes(mask_plane);
 
@@ -934,7 +978,7 @@ author_filter_effects_record(std::string_view placed_uuid,
   record.mask_present = true;
   record.mask_decoded = true;
   SmartFilterEffectsMask decoded;
-  decoded.bounds = document_bounds;
+  decoded.bounds = mask_bounds;
   decoded.samples = std::make_shared<const std::vector<std::uint8_t>>(
       std::move(decoded_mask));
   record.mask = std::move(decoded);

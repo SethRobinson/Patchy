@@ -15,6 +15,7 @@
 #include "ui/canvas_widget_shared.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/hotkey_registry.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/measurement_units.hpp"
 #include "ui/new_document_dialog.hpp"
@@ -147,6 +148,26 @@ void populate_artboard_size_presets(QComboBox* combo) {
   }
 }
 
+void MainWindow::show_artboard_tool_hint_for_move_tool() {
+  if (current_tool_ != CanvasTool::Move || !has_active_document()) {
+    return;
+  }
+  // The Artboard tool's own hotkey when it has one, else the Move flyout cycle (Shift+V
+  // by default); either way the registry's current binding, never a literal.
+  QString shortcut;
+  for (const char* id : {"tools.artboard", "tools.cycle.move"}) {
+    if (const auto* command = hotkey_registry_.find_command(QLatin1String(id)); command != nullptr) {
+      shortcut = action_shortcut_text(command->action);
+      if (!shortcut.isEmpty()) {
+        break;
+      }
+    }
+  }
+  statusBar()->showMessage(
+      shortcut.isEmpty() ? tr("Switch to the Artboard tool to add, resize or duplicate artboards")
+                         : tr("Switch to the Artboard tool (%1) to add, resize or duplicate artboards").arg(shortcut));
+}
+
 void MainWindow::handle_artboard_edit(const ArtboardEditRequest& request) {
   if (!has_active_document() || preview_dialog_edit_locked()) {
     return;
@@ -158,6 +179,7 @@ void MainWindow::handle_artboard_edit(const ArtboardEditRequest& request) {
         refresh_layer_controls();
         refresh_options_bar();
         refresh_document_info();
+        show_artboard_tool_hint_for_move_tool();
         if (canvas_ != nullptr) {
           canvas_->update();
         }

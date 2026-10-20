@@ -258,6 +258,7 @@ const ThemePalette& dark_palette() {
       .canvas_snap_guide = rgb(0xff46b4),
       .canvas_artboard_outline = rgb(0x8a919b),
       .canvas_artboard_label = rgb(0xc3c9d1),
+      .canvas_artboard_label_on_light = rgb(0x2b2f35),
       .canvas_artboard_selected = rgb(0x5faaff),
       .canvas_artboard_handle = rgb(0xf5f8fc),
 
@@ -535,9 +536,12 @@ const ThemePalette& light_palette() {
     // Alignment guides are drawn over artwork too: a flip would pull the
     // magenta toward a mid tone, so keep Photoshop's magenta, slightly deepened.
     light.canvas_snap_guide = rgb(0xe0289c);
-    // Artboard outlines and labels sit on the mid-gray pasteboard: darker, not flipped.
+    // Artboard outlines sit on the mid-gray pasteboard: darker, not flipped. The label
+    // inks are per backing, not per scheme: dark ink on the light pasteboard and on white
+    // paper, light ink on a black artboard or a user-chosen dark pasteboard.
     light.canvas_artboard_outline = rgb(0x5a6068);
-    light.canvas_artboard_label = rgb(0x2b2f35);
+    light.canvas_artboard_label = rgb(0xf0f3f7);
+    light.canvas_artboard_label_on_light = rgb(0x2b2f35);
     light.canvas_artboard_selected = rgb(0x246cb0);
     light.canvas_artboard_handle = rgb(0xffffff);
 
@@ -950,6 +954,7 @@ std::span<const ThemePaletteRole> theme_palette_roles() {
       PATCHY_THEME_ROLE(canvas_snap_guide),
       PATCHY_THEME_ROLE(canvas_artboard_outline),
       PATCHY_THEME_ROLE(canvas_artboard_label),
+      PATCHY_THEME_ROLE(canvas_artboard_label_on_light),
       PATCHY_THEME_ROLE(canvas_artboard_selected),
       PATCHY_THEME_ROLE(canvas_artboard_handle),
 

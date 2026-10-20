@@ -2,6 +2,7 @@
 
 #include "core/adjustment_layer.hpp"
 #include "core/layer.hpp"
+#include "core/smart_filter.hpp"
 #include "filters/filter_registry.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/curves_editor.hpp"
@@ -151,6 +152,9 @@ void blend_by_selection_coverage(PixelBuffer& result, const PixelBuffer& origina
 
 [[nodiscard]] QString filter_action_object_name(const QString& identifier);
 [[nodiscard]] QString filter_display_name(const FilterDefinition& filter);
+// The translated name of one of Photoshop's parameterless Smart Filters
+// (Blur, Sharpen, ...); empty for any other kind.
+[[nodiscard]] QString parameterless_smart_filter_display_name(SmartFilterKind kind);
 [[nodiscard]] QString filter_category_display_name(FilterCategory category);
 [[nodiscard]] QString filter_progress_stage_text(FilterProgressStage stage);
 [[nodiscard]] bool is_adjustment_only_filter(const FilterDefinition& filter);
