@@ -181,16 +181,40 @@ std::pair<int, int> max_edge_ramp(const QImage& image) {
   return std::pair<int, int>{best_opaque, max_ramp};
 }
 
-void save_widget_artifact(const std::string& name, QWidget& widget) {
+void ensure_capture_themed(QWidget& widget) {
+  const auto app_sheet = patchy::ui::photoshop_style();
+  // The MainWindow and make_themed_dialog_parent() carry exactly the app sheet;
+  // a dialog owned by either inherits it. Walk the owner chain across windows.
+  for (QWidget* ancestor = &widget; ancestor != nullptr; ancestor = ancestor->parentWidget()) {
+    if (ancestor->styleSheet().startsWith(app_sheet)) {
+      return;
+    }
+  }
+  auto* window = widget.window();
+  // Prepend, so the window's own appended chrome sheet keeps winning ties.
+  window->setStyleSheet(app_sheet + QStringLiteral("\n") + window->styleSheet());
+  window->ensurePolished();
+  QApplication::processEvents();
+}
+
+QImage capture_widget_artifact(const std::string& name, QWidget& widget) {
   ensure_artifact_dir();
+  ensure_capture_themed(widget);
   const auto path = QString::fromStdString((std::filesystem::path("test-artifacts") / (name + ".png")).string());
   const auto pixmap = widget.grab();
   CHECK(!pixmap.isNull());
   CHECK(pixmap.save(path));
+  return pixmap.toImage();
+}
+
+void save_widget_artifact(const std::string& name, QWidget& widget) {
+  (void)capture_widget_artifact(name, widget);
 }
 
 void save_window_popup_artifact(const std::string& name, QWidget& window, QWidget& field, QWidget& popup) {
   ensure_artifact_dir();
+  ensure_capture_themed(window);
+  ensure_capture_themed(popup);
   auto shot = window.grab().toImage();
   const auto window_origin = window.mapToGlobal(QPoint(0, 0));
   const auto popup_position = popup.mapToGlobal(QPoint(0, 0)) - window_origin;
