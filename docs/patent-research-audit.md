@@ -86,12 +86,6 @@ full-resolution live previews everywhere (large performance cost; not recommende
 (the gradient-domain field was not surveyed beyond these two patents and the PatchMatch trio), but
 it no longer cites US 9058699 as its source.
 
-## Not verified
-
-USPTO fee and assignment records for every status above; the application number and claims of
-patent 12731259; continuations of US 8380005 / US 9058699 filed after 2013; prosecution history
-that could narrow "composite image" or "resolution"; any Adobe filing on proxy previews under
-other titles; the allowed claims of US 2023/0129341 A1.
 ## 2. US 7768525 B2 (Microsoft, "Dynamic paint pickup"): the Mixer Brush
 
 Status: Active, adjusted expiry 2028-03-07 (application 11/419,074, filed 2006-05-18, granted
@@ -216,3 +210,9 @@ re-check at 2032-12-26.
 - **US 8427559 B2** (Buades, Coll, Morel non-local means; US application 11/579,380 filed
   2005-04-13): Expired - Fee Related. Used in item 4.
 
+## Not verified
+
+USPTO fee and assignment records for every status above; the application number and claims of
+patent 12731259; continuations of US 8380005 / US 9058699 filed after 2013; prosecution history
+that could narrow "composite image" or "resolution"; any Adobe filing on proxy previews under
+other titles; the allowed claims of US 2023/0129341 A1.
