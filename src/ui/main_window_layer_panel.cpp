@@ -3081,7 +3081,31 @@ QListWidgetItem* layer_row_item(QListWidget& list, LayerId id) {
 
 }  // namespace
 
-void MainWindow::reveal_layer_in_layer_list(LayerId id) {
+namespace {
+
+// Scrolls a layer row into view only when it is not already there. A row the user can
+// see keeps the panel's scroll position: scrolling an on-screen row to the center moved
+// the list out from under the pointer after a badge click (GitHub issue 266). A row that
+// is partly cut off stays put when the click came from inside the panel (the pointer is on
+// it) and is centered otherwise; an off-screen row is centered.
+void scroll_layer_row_into_view(QListWidget& list, QListWidgetItem* item, bool clicked_in_panel) {
+  if (item == nullptr) {
+    return;
+  }
+  const auto row_rect = list.visualItemRect(item);
+  const auto viewport_rect = list.viewport()->rect();
+  if (viewport_rect.contains(row_rect)) {
+    return;
+  }
+  if (clicked_in_panel && row_rect.intersects(viewport_rect)) {
+    return;
+  }
+  list.scrollToItem(item, QAbstractItemView::PositionAtCenter);
+}
+
+}  // namespace
+
+void MainWindow::reveal_layer_in_layer_list(LayerId id, bool clicked_in_panel) {
   if (layer_list_ == nullptr) {
     return;
   }
@@ -3120,7 +3144,7 @@ void MainWindow::reveal_layer_in_layer_list(LayerId id) {
     return;
   }
   layer_list_->setCurrentItem(item, QItemSelectionModel::ClearAndSelect);
-  layer_list_->scrollToItem(item, QAbstractItemView::PositionAtCenter);
+  scroll_layer_row_into_view(*layer_list_, item, clicked_in_panel);
   restyle_layer_rows(layer_list_);
   // The rebuild may have silently selected this row already, in which case
   // setCurrentItem emits no selection change to refresh the status count.
@@ -3175,7 +3199,8 @@ void MainWindow::select_only_layer_if_none_active() {
   }
 }
 
-void MainWindow::select_layers_in_layer_list(const std::vector<LayerId>& ids, LayerId active_id) {
+void MainWindow::select_layers_in_layer_list(const std::vector<LayerId>& ids, LayerId active_id,
+                                             bool clicked_in_panel) {
   if (layer_list_ == nullptr) {
     return;
   }
@@ -3262,9 +3287,7 @@ void MainWindow::select_layers_in_layer_list(const std::vector<LayerId>& ids, La
     // still needs the shared handler, including its selection-count message.
     set_active_layer_from_selection();
   }
-  if (active_item != nullptr) {
-    layer_list_->scrollToItem(active_item, QAbstractItemView::PositionAtCenter);
-  }
+  scroll_layer_row_into_view(*layer_list_, active_item, clicked_in_panel);
   restyle_layer_rows(layer_list_);
 }
 
@@ -3697,10 +3720,12 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
         if (document().find_layer(layer_id) == nullptr) {
           return;
         }
+        // Badge clicks: the row is under the pointer, so the list must not scroll
+        // (GitHub issue 266).
         const auto selected = selected_layer_ids();
         if (std::find(selected.begin(), selected.end(), layer_id) != selected.end())
-          select_layers_in_layer_list(selected, layer_id);
-        else reveal_layer_in_layer_list(layer_id);
+          select_layers_in_layer_list(selected, layer_id, true);
+        else reveal_layer_in_layer_list(layer_id, true);
         if (document().active_layer_id() != layer_id) document().set_active_layer(layer_id);
         edit_active_layer_style();
       },
@@ -3708,7 +3733,7 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
         if (!has_active_document() || document().find_layer(layer_id) == nullptr) {
           return;
         }
-        reveal_layer_in_layer_list(layer_id);
+        reveal_layer_in_layer_list(layer_id, true);
         if (document().active_layer_id() != layer_id) {
           document().set_active_layer(layer_id);
         }
@@ -3720,8 +3745,8 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
         }
         const auto selected = selected_layer_ids();
         if (std::find(selected.begin(), selected.end(), layer_id) != selected.end())
-          select_layers_in_layer_list(selected, layer_id);
-        else reveal_layer_in_layer_list(layer_id);
+          select_layers_in_layer_list(selected, layer_id, true);
+        else reveal_layer_in_layer_list(layer_id, true);
         if (document().active_layer_id() != layer_id) document().set_active_layer(layer_id);
         edit_active_shape_appearance();
       },
@@ -3730,7 +3755,7 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
         if (!has_active_document() || document().find_layer(layer_id) == nullptr) {
           return;
         }
-        reveal_layer_in_layer_list(layer_id);
+        reveal_layer_in_layer_list(layer_id, true);
         if (document().active_layer_id() != layer_id) {
           document().set_active_layer(layer_id);
         }
