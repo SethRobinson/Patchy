@@ -11402,32 +11402,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation> (量 %1、ズーム、画質: %2)</translation>
     </message>
     <message>
-        <source>The layer is locked, so its effects cannot be changed here.</source>
-        <translation>レイヤーがロックされているため、ここでエフェクトを変更できません。</translation>
-    </message>
-    <message>
-        <source>Effects visible. Click to hide them all.</source>
-        <translation>エフェクトは表示中です。クリックですべて非表示にします。</translation>
-    </message>
-    <message>
-        <source>Effects hidden. Click to show them.</source>
-        <translation>エフェクトは非表示です。クリックで表示します。</translation>
-    </message>
-    <message>
-        <source>Effects</source>
-        <translation>エフェクト</translation>
-    </message>
-    <message>
         <source>Effect visible. Click to hide.</source>
         <translation>エフェクトは表示中です。クリックで非表示にします。</translation>
     </message>
     <message>
         <source>Effect hidden. Click to show.</source>
         <translation>エフェクトは非表示です。クリックで表示します。</translation>
-    </message>
-    <message>
-        <source>Double-click to edit this effect in the Layer Style dialog.</source>
-        <translation>ダブルクリックでレイヤースタイルダイアログでこのエフェクトを編集します。</translation>
     </message>
     <message>
         <source>Edit this effect in the Layer Style dialog</source>
@@ -11471,6 +11451,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>%1 and more</source>
         <extracomment>Open-dialog file type row: %1 is a short list of *.ext patterns</extracomment>
         <translation>%1 など</translation>
+    </message>
+    <message>
+        <source>The layer is locked, so its layer styles cannot be changed here.</source>
+        <translation>レイヤーがロックされているため、ここでレイヤースタイルを変更できません。</translation>
+    </message>
+    <message>
+        <source>Collapse the layer style rows</source>
+        <translation>レイヤースタイルの行を折りたたむ</translation>
+    </message>
+    <message>
+        <source>Expand the layer style rows</source>
+        <translation>レイヤースタイルの行を展開</translation>
+    </message>
+    <message>
+        <source>Layer styles visible. Click to hide them all.</source>
+        <translation>レイヤースタイルは表示中です。クリックですべて非表示にします。</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden. Click to show them.</source>
+        <translation>レイヤースタイルは非表示です。クリックで表示します。</translation>
+    </message>
+    <message>
+        <source>Layer Styles</source>
+        <translation>レイヤースタイル</translation>
+    </message>
+    <message>
+        <source>Effect on, but the layer styles are hidden. Click to turn it off.</source>
+        <translation>エフェクトはオンですが、レイヤースタイルは非表示です。クリックでオフにします。</translation>
+    </message>
+    <message>
+        <source>Effect off, and the layer styles are hidden. Click to turn it on.</source>
+        <translation>エフェクトはオフで、レイヤースタイルも非表示です。クリックでオンにします。</translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog; right-click for its menu.</source>
+        <translation>ダブルクリックでレイヤースタイルダイアログでこのエフェクトを編集、右クリックでメニューを表示します。</translation>
     </message>
 </context>
 <context>
@@ -23196,22 +23212,6 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>アートボードの追加、サイズ変更、複製にはアートボードツール (%1) に切り替えてください</translation>
     </message>
     <message>
-        <source>Show Effects</source>
-        <translation>効果を表示</translation>
-    </message>
-    <message>
-        <source>Hide Effects</source>
-        <translation>エフェクトを非表示</translation>
-    </message>
-    <message>
-        <source>Effects shown</source>
-        <translation>エフェクトを表示しました</translation>
-    </message>
-    <message>
-        <source>Effects hidden</source>
-        <translation>エフェクトを非表示にしました</translation>
-    </message>
-    <message>
         <source>Show %1</source>
         <translation>%1 を表示</translation>
     </message>
@@ -23244,6 +23244,34 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>
             <numerusform>%n 個のスマートオブジェクトファイルを再リンクしました</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Show Layer Styles</source>
+        <translation>レイヤースタイルを表示</translation>
+    </message>
+    <message>
+        <source>Hide Layer Styles</source>
+        <translation>レイヤースタイルを非表示</translation>
+    </message>
+    <message>
+        <source>Layer styles shown</source>
+        <translation>レイヤースタイルを表示しました</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden</source>
+        <translation>レイヤースタイルを非表示にしました</translation>
+    </message>
+    <message>
+        <source>Delete %1</source>
+        <translation>%1 を削除</translation>
+    </message>
+    <message>
+        <source>%1 deleted</source>
+        <translation>%1 を削除しました</translation>
+    </message>
+    <message>
+        <source>Edit %1...</source>
+        <translation>%1 を編集...</translation>
     </message>
 </context>
 <context>

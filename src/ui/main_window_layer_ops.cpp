@@ -2711,6 +2711,12 @@ void MainWindow::edit_active_layer_style(std::optional<LayerStyleEffect> start_e
       push_undo_snapshot(tr("Layer style"));
       doc = std::move(prepared);
       changed = true;
+      // An effect added here opens the layer's effect rows so the new row is in view.
+      for (const auto& [index, next] : changes) {
+        if (next.style.effect_count() > context.originals[index].style.effect_count()) {
+          reveal_layer_effects(originals[index].id());
+        }
+      }
     }
   }
   cleanup.dismiss();
@@ -2766,8 +2772,9 @@ bool MainWindow::apply_layer_effect_row_edit(LayerId layer_id, const QString& un
 }
 
 void MainWindow::set_layer_effects_visible(LayerId layer_id, bool visible) {
-  apply_layer_effect_row_edit(layer_id, visible ? tr("Show Effects") : tr("Hide Effects"),
-                              visible ? tr("Effects shown") : tr("Effects hidden"), [visible](LayerStyle& style) {
+  apply_layer_effect_row_edit(layer_id, visible ? tr("Show Layer Styles") : tr("Hide Layer Styles"),
+                              visible ? tr("Layer styles shown") : tr("Layer styles hidden"),
+                              [visible](LayerStyle& style) {
     if (style.effects_visible == visible) {
       return false;
     }
@@ -2789,6 +2796,74 @@ void MainWindow::set_layer_effect_enabled(LayerId layer_id, LayerStyleEffect eff
     *flag = enabled;
     return true;
   });
+}
+
+void MainWindow::delete_layer_effect(LayerId layer_id, LayerStyleEffect effect, std::size_t index) {
+  const auto name = layer_effect_display_name(effect);
+  apply_layer_effect_row_edit(layer_id, tr("Delete %1").arg(name), tr("%1 deleted").arg(name),
+                              [effect, index](LayerStyle& style) {
+    return remove_layer_effect_instance(style, effect, index);
+  });
+}
+
+void MainWindow::toggle_layer_effects_expanded(LayerId layer_id) {
+  if (!has_active_document() || document().find_layer(layer_id) == nullptr) {
+    return;
+  }
+  auto& expanded = session().expanded_layer_effects;
+  if (!expanded.erase(layer_id)) {
+    expanded.insert(layer_id);
+  }
+  refresh_layer_list();  // a disclosure toggle is not an edit (the folder rule)
+}
+
+void MainWindow::reveal_layer_effects(LayerId layer_id) {
+  if (has_active_document()) {
+    session().expanded_layer_effects.insert(layer_id);
+  }
+}
+
+void MainWindow::show_layer_effect_context_menu(LayerId layer_id, LayerStyleEffect effect, std::size_t index,
+                                                QPoint global_position) {
+  if (!has_active_document()) {
+    return;
+  }
+  const auto* layer = std::as_const(document()).find_layer(layer_id);
+  if (layer == nullptr) {
+    return;
+  }
+  auto style = layer->layer_style();
+  const auto* flag = layer_effect_enabled_flag(style, effect, index);
+  if (flag == nullptr) {
+    return;
+  }
+  const bool enabled = *flag;
+  const bool locked = layer_is_effectively_locked(document().layers(), layer_id);
+  const auto name = layer_effect_display_name(effect);
+  QMenu menu(this);
+  menu.setObjectName(QStringLiteral("layerEffectContextMenu"));
+  auto* edit_action = menu.addAction(tr("Edit %1...").arg(name));
+  edit_action->setObjectName(QStringLiteral("layerEffectEditAction"));
+  auto* visibility_action = menu.addAction(enabled ? tr("Hide %1").arg(name) : tr("Show %1").arg(name));
+  visibility_action->setObjectName(QStringLiteral("layerEffectVisibilityAction"));
+  visibility_action->setEnabled(!locked);
+  menu.addSeparator();
+  auto* delete_action = menu.addAction(tr("Delete %1").arg(name));
+  delete_action->setObjectName(QStringLiteral("layerEffectDeleteAction"));
+  delete_action->setEnabled(!locked);
+  // Deferred like the row buttons: each command rebuilds the rows under the menu's caller.
+  connect(edit_action, &QAction::triggered, this, [this, layer_id, effect, index] {
+    QTimer::singleShot(0, this, [this, layer_id, effect, index] { edit_layer_effect(layer_id, effect, index); });
+  });
+  connect(visibility_action, &QAction::triggered, this, [this, layer_id, effect, index, enabled] {
+    QTimer::singleShot(0, this, [this, layer_id, effect, index, enabled] {
+      set_layer_effect_enabled(layer_id, effect, index, !enabled);
+    });
+  });
+  connect(delete_action, &QAction::triggered, this, [this, layer_id, effect, index] {
+    QTimer::singleShot(0, this, [this, layer_id, effect, index] { delete_layer_effect(layer_id, effect, index); });
+  });
+  menu.exec(global_position);
 }
 
 void MainWindow::edit_layer_effect(LayerId layer_id, LayerStyleEffect effect, std::size_t index) {
@@ -2889,6 +2964,9 @@ void MainWindow::paste_layer_style_to_selected_layers() {
     }
     affected = unite_rect(affected, layer_render_bounds(*layer));
     clear_layer_psd_style_source(*layer);
+    if (layer_style_clipboard_->style.effect_count() > layer->layer_style().effect_count()) {
+      reveal_layer_effects(id);
+    }
     layer->layer_style() = layer_style_clipboard_->style;
     if (layer_style_clipboard_->blend_if.has_value()) {
       (void)layer->set_blend_if(*layer_style_clipboard_->blend_if, true);
@@ -3232,6 +3310,25 @@ void MainWindow::show_layer_context_menu(QPoint position) {
     layer_list_->clearSelection();
     layer_list_->setCurrentItem(item);
     item->setSelected(true);
+  }
+  // A right-click inside an effect row opens that effect's own menu (GitHub issue 256).
+  if (item != nullptr) {
+    if (auto* row_widget = layer_list_->itemWidget(item); row_widget != nullptr) {
+      const auto global = layer_list_->viewport()->mapToGlobal(position);
+      for (auto* entry_row : row_widget->findChildren<QWidget*>(QStringLiteral("layerEffectEntryRow"))) {
+        if (!entry_row->isVisible() || !entry_row->rect().contains(entry_row->mapFromGlobal(global))) {
+          continue;
+        }
+        const auto kind = entry_row->property("layerEffectKind");
+        const auto index = entry_row->property("layerEffectIndex");
+        if (kind.isValid() && index.isValid()) {
+          show_layer_effect_context_menu(static_cast<LayerId>(item->data(kLayerIdRole).toULongLong()),
+                                         static_cast<LayerStyleEffect>(kind.toInt()),
+                                         static_cast<std::size_t>(index.toULongLong()), global);
+          return;
+        }
+      }
+    }
   }
 
   const auto ids = selected_or_active_layer_ids();

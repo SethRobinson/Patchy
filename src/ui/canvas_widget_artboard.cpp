@@ -752,10 +752,10 @@ double srgb_luma(const QColor& color) {
 
 }  // namespace
 
-bool CanvasWidget::artboard_label_sits_on_light_backing(const std::vector<const Layer*>& artboards,
-                                                        const QRectF& label_widget_rect) const {
+CanvasWidget::ArtboardLabelBacking CanvasWidget::artboard_label_backing(const std::vector<const Layer*>& artboards,
+                                                                        const QRectF& label_widget_rect) const {
   if (document_ == nullptr || label_widget_rect.isEmpty()) {
-    return false;
+    return {};
   }
   const auto& document = std::as_const(*document_);
   // The frame is sampled at document resolution when the cache holds one; a label
@@ -769,7 +769,9 @@ bool CanvasWidget::artboard_label_sits_on_light_backing(const std::vector<const 
   const auto pasteboard = backdrop_color();
   constexpr int kColumns = 6;
   constexpr int kRows = 3;
-  double luma_sum = 0.0;
+  // The crossover where the dark ink starts to contrast better than the light one.
+  constexpr double kLightBackingLuma = 118.0;
+  int light_samples = 0;
   int samples = 0;
   for (int row = 0; row < kRows; ++row) {
     for (int column = 0; column < kColumns; ++column) {
@@ -797,13 +799,16 @@ bool CanvasWidget::artboard_label_sits_on_light_backing(const std::vector<const 
                                  static_cast<float>(pixel.greenF() * alpha + under.greenF() * (1.0 - alpha)),
                                  static_cast<float>(pixel.blueF() * alpha + under.blueF() * (1.0 - alpha)));
       }
-      luma_sum += srgb_luma(shown);
+      if (srgb_luma(shown) > kLightBackingLuma) {
+        ++light_samples;
+      }
       ++samples;
     }
   }
-  // The crossover where the dark ink starts to contrast better than the light one.
-  constexpr double kLightBackingLuma = 118.0;
-  return samples > 0 && luma_sum / samples > kLightBackingLuma;
+  // Mixed from a sample row's worth of the minority on: a label hanging a few pixels
+  // over a neighbouring board's edge gets the halo, a stray dark stroke does not.
+  const int minority = std::min(light_samples, samples - light_samples);
+  return {light_samples * 2 > samples, minority >= kColumns};
 }
 
 void CanvasWidget::draw_artboard_overlay(QPainter& painter) const {
@@ -844,38 +849,32 @@ void CanvasWidget::draw_artboard_overlay(QPainter& painter) const {
     painter.drawImage(widget_rect_for_document_rect(QRectF(clipped.translated(offset))), artboard_drag_ghost_);
   }
 
+  // The rect an artboard is shown at: its own, or the drag rect while it is carried.
+  const auto shown_rect = [&](const Layer& artboard) {
+    const bool is_dragged = artboard_drag_active() && artboard_drag_moved_ && artboard_drag_id_ == artboard.id() &&
+                            artboard_drag_mode_ != ArtboardDragMode::Create;
+    if (is_dragged && !artboard_drag_duplicate_) {
+      return Rect{artboard_drag_rect_.x(), artboard_drag_rect_.y(), artboard_drag_rect_.width(),
+                  artboard_drag_rect_.height()};
+    }
+    return artboard.artboard()->rect;
+  };
+  // Every outline first, then every label: a label hanging over a neighbouring board
+  // (its name sits above its own top edge) must not be crossed by that board's outline.
   for (const auto* artboard : artboards) {
     if (!artboard->visible()) {
       continue;
     }
-    auto rect = artboard->artboard()->rect;
+    const auto rect = shown_rect(*artboard);
     const bool is_selected = selected.has_value() && *selected == artboard->id();
     const bool is_dragged = artboard_drag_active() && artboard_drag_moved_ && artboard_drag_id_ == artboard->id() &&
                             artboard_drag_mode_ != ArtboardDragMode::Create;
-    if (is_dragged && !artboard_drag_duplicate_) {
-      rect = Rect{artboard_drag_rect_.x(), artboard_drag_rect_.y(), artboard_drag_rect_.width(),
-                  artboard_drag_rect_.height()};
-    }
     const auto widget_rect = widget_rect_for_document_rect(QRectF(rect.x, rect.y, rect.width, rect.height));
     QPen outline(is_selected ? colors.canvas_artboard_selected : colors.canvas_artboard_outline, is_selected ? 2.0 : 1.0);
     outline.setCosmetic(true);
     painter.setPen(outline);
     painter.setBrush(Qt::NoBrush);
     painter.drawRect(widget_rect.adjusted(0.5, 0.5, -0.5, -0.5));
-    // The name, above the top-left corner and elided to the artboard's width.
-    const auto label = artboard_label_widget_rect(*artboard).translated(widget_rect.topLeft() -
-                                                                        widget_position_f(QPointF(artboard->artboard()->rect.x,
-                                                                                                  artboard->artboard()->rect.y)));
-    // The ink follows the backing (GitHub issue 260); a hovered label (GitHub issue 259)
-    // and a selected one take the selected color.
-    const bool is_hovered = tool_ == CanvasTool::Move && move_hover_artboard_id_.has_value() &&
-                            *move_hover_artboard_id_ == artboard->id();
-    const auto label_ink = artboard_label_sits_on_light_backing(artboards, label)
-                               ? colors.canvas_artboard_label_on_light
-                               : colors.canvas_artboard_label;
-    painter.setPen(is_selected || is_hovered ? colors.canvas_artboard_selected : label_ink);
-    painter.drawText(label, Qt::AlignLeft | Qt::AlignVCenter,
-                     metrics.elidedText(QString::fromStdString(artboard->name()), Qt::ElideRight, label.width()));
     if (is_dragged && artboard_drag_duplicate_) {
       // An Alt-drag copies: the copy's outline follows the pointer.
       QPen copy_pen(colors.canvas_artboard_selected, 1.0, Qt::DashLine);
@@ -883,6 +882,39 @@ void CanvasWidget::draw_artboard_overlay(QPainter& painter) const {
       painter.setPen(copy_pen);
       painter.drawRect(widget_rect_for_document_rect(QRectF(artboard_drag_rect_)).adjusted(0.5, 0.5, -0.5, -0.5));
     }
+  }
+  for (const auto* artboard : artboards) {
+    if (!artboard->visible()) {
+      continue;
+    }
+    const auto rect = shown_rect(*artboard);
+    const bool is_selected = selected.has_value() && *selected == artboard->id();
+    const auto widget_rect = widget_rect_for_document_rect(QRectF(rect.x, rect.y, rect.width, rect.height));
+    // The name, above the top-left corner and elided to the artboard's width.
+    const auto label = artboard_label_widget_rect(*artboard).translated(widget_rect.topLeft() -
+                                                                        widget_position_f(QPointF(artboard->artboard()->rect.x,
+                                                                                                  artboard->artboard()->rect.y)));
+    const auto text = metrics.elidedText(QString::fromStdString(artboard->name()), Qt::ElideRight, label.width());
+    // The ink follows the backing (GitHub issue 260); a hovered label (GitHub issue 259)
+    // and a selected one take the selected color. A label straddling light and dark (over
+    // a neighbouring board's edge) gets a one-pixel halo in the other ink, so the part on
+    // the pasteboard reads as well as the part on the paper.
+    const bool is_hovered = tool_ == CanvasTool::Move && move_hover_artboard_id_.has_value() &&
+                            *move_hover_artboard_id_ == artboard->id();
+    const auto backing = artboard_label_backing(artboards, label);
+    const auto label_ink = backing.light ? colors.canvas_artboard_label_on_light : colors.canvas_artboard_label;
+    if (backing.mixed) {
+      painter.setPen(backing.light ? colors.canvas_artboard_label : colors.canvas_artboard_label_on_light);
+      for (int dy = -1; dy <= 1; ++dy) {
+        for (int dx = -1; dx <= 1; ++dx) {
+          if (dx != 0 || dy != 0) {
+            painter.drawText(label.translated(dx, dy), Qt::AlignLeft | Qt::AlignVCenter, text);
+          }
+        }
+      }
+    }
+    painter.setPen(is_selected || is_hovered ? colors.canvas_artboard_selected : label_ink);
+    painter.drawText(label, Qt::AlignLeft | Qt::AlignVCenter, text);
   }
 
   if (tool_ == CanvasTool::Artboard) {
