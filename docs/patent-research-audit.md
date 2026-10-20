@@ -84,8 +84,12 @@ both outline modes exist; cost: no pixel preview when zoomed out past 50% or on 
 full-resolution live previews everywhere (large performance cost; not recommended). The
 "never composite source gradients" rule in legal-constraints.md stays as an engineering boundary
 (the gradient-domain field was not surveyed beyond these two patents and the PatchMatch trio), but
-it no longer cites US 9058699 as its source. Decision (2026-10-20): A, keep the previews as they
-are; re-check on the watch list below.
+it no longer cites US 9058699 as its source.
+
+A later note (2026-10-20): claim terms are read on their own words, so the specification's
+gradient-domain embodiments do not by themselves narrow "composite image"; the comparison above
+therefore rests on the design facts. The A or B decision was deferred until the prior-art element
+map was built; it is in [patent-research-preview.md](patent-research-preview.md).
 
 ## 2. US 7768525 B2 (Microsoft, "Dynamic paint pickup"): the Mixer Brush
 
@@ -117,17 +121,19 @@ as the stamp. Element by element: (i) copying pixels from the target surface: th
 from the stroke-start snapshot of the target layer; present. (ii) contaminating a store containing
 the injection color with those pixels by a percentage mixture: present in substance (the
 contamination uses a decayed average of the copied pixels rather than the pixels themselves, a small
-difference). (iii) injecting the injection color into the store, together with the contaminating:
-not performed as a separate act. The foreground is only the initial value of a temporary that is
-consumed and discarded; nothing is added to any store afterwards, and no store survives the dab to
-receive an injection. Reading "containing" (ii) and "injecting" (iii) as the same thing would give
-one of them no effect. (iv) painting a stamp from the store: present.
+difference). (iii) injecting the injection color into the store, "wherein the contaminating and the
+injecting are achieved together": the claim itself allows one operation to do both, so initializing
+the per-dab temporary from the foreground and then moving it toward the pickup color can be read as
+injection and contamination achieved together (the foreground share of the result is the injected
+color, the pickup share the contamination). The first reading of this record, that no injection act
+exists because the foreground is only an initial value that is consumed and discarded, is one
+reading and not the only one. Element (iii) therefore admits both readings. (iv) painting a stamp
+from the store: present.
 
-**Comparison.** Claim 14 does not require persistence, and the earlier record's reasoning does not
-reach it. The design differs from claim 14 in the injection act (medium confidence); the open
-question is whether re-creating the deposit from the foreground every dab is the same way of
-keeping the foreground present as re-injecting it into a contaminated store. The term ends
-2028-03-07.
+**Comparison.** Claim 14 does not require persistence, the earlier record's reasoning does not
+reach it, and element (iii) admits both readings; the related question (whether re-creating the
+deposit from the foreground every dab is the same way of keeping the foreground present as
+re-injecting it into a contaminated store) stays open as well. The term ends 2028-03-07.
 
 **Alternative design recorded (not made).** Deposit the two colors as two
 ordinary stamps instead of one mixed color: stamp the foreground at alpha a1 = a(1 - r)/(1 - ar),
@@ -142,8 +148,17 @@ must composite the second stamp over the first inside the stroke buffer, which a
 per-dab colors). Test to pin it: a core test that the mixer dab API yields a foreground stamp and
 a pickup stamp and no mixed color, plus a pixel comparison of a calibrated stroke against the
 current reference within 1/255 (`mixer_brush_pickup_average_follows_canvas_and_dries_only_at_wet_zero`
-stays as the model test). Alternative: no change, with a re-check at 2028-03-07. Decision
-(2026-10-20): A, the per-dab deposit stays as it is until the term ends.
+stays as the model test). Element comparison of the two-stamp design: stamp one (foreground at a1)
+copies nothing (i), contaminates no store since its color is the pure foreground (ii), injects
+nothing (iii), and paints a stamp (iv); stamp two (pickup at a2) uses a color copied from the target
+surface (i) and paints a stamp (iv), and the only place the two colors meet is the canvas pixel after
+stamp one, which could be read as "a paint data store containing an injection color attribute" that
+stamp two "contaminates" (ii, iii). Whether the paint data store of claim 14 is a buffer distinct
+from the target surface being painted (the claim names both) decides whether (ii) and (iii) are
+absent, and that reading is not settled. The algebraic identity would also have to be verified in
+the real stroke compositor across dab alpha, the Opacity cap, Flow accumulation, Wet-0 dry-out and
+every blend mode, where two sequential stamps need not equal one mixed stamp. Decision
+(2026-10-20): A, the per-dab deposit stays as it is.
 
 ## 3. US 8971623 B2 (Apple, "Overlaid user interface tools for applying effects to image"): Tilt-Shift grips
 
@@ -217,12 +232,16 @@ day: `draw_boundary` removed from
 
 ## Decisions (October 20, 2026) and watch list
 
-- Item 1: A, keep the reduced-resolution Move and Free Transform previews.
+- Item 1: deferred (later on 2026-10-20): A or B after the prior-art element map in
+  [patent-research-preview.md](patent-research-preview.md); the previews stay meanwhile.
 - Item 2: A, keep the Mixer Brush deposit as it is.
 - Item 3: B, the Tilt-Shift overlay draws no boundary marks (handle dots, rotation line and
   center crosshair only).
 - Item 4: no change (A).
-- Item 5: A, keep the Filter Foundry fixtures with the notices now beside them.
+- Item 5: B (revised later on 2026-10-20, after the reviewer's note on Corresponding Source):
+  the four binaries, the license texts and the `.afs` sources left git; `scripts/fetch-test-plugins`
+  downloads them by hash into `local-test-fixtures` and the tests skip without them. Record in
+  `test-fixtures/photoshop-plugins/README.md`; the binaries remain in the history before that date.
 - Watch list: re-check Microsoft US 7768525 at 2028-03-07 (Mixer Brush deposit), Adobe
   US 9058699 at 2029-02-02 and US 8380005 at 2031-12-23 (reduced-resolution composite
   previews), Apple US 8971623 at 2032-12-26 (any new on-image band control), and patent
