@@ -18,6 +18,9 @@
 #include "ui/gradient_manager_dialog.hpp"
 #include "ui/layer_style_dialog.hpp"
 #include "ui/main_window.hpp"
+#include "ui/theme_manager.hpp"
+#include "ui/color_panel.hpp"
+#include "ui/splash_dialog.hpp"
 #include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
@@ -1471,6 +1474,66 @@ void ui_style_browser_folder_selection_exports_asl() {
   CHECK(parsed->styles[1].name == "A Two");
 }
 
+// Every top-level dialog the capture tooling opens without a MainWindow, grabbed
+// offscreen in Dark and Light through capture_widget_artifact, whose theme guard
+// (capture_theme_mismatch) rejects an unthemed or wrong-scheme widget instead of
+// saving the picture. A new dialog joins this list; a theme regression fails here,
+// not on a shot someone has to look at.
+void ui_offscreen_dialog_sweep_is_themed_in_both_schemes() {
+  ColorSchemeRestorer restore_active;
+  QTemporaryDir directory;
+  patchy::ui::GradientLibrary gradients(directory.filePath(QStringLiteral("gradients")));
+  CHECK(gradients.restore_default_gradients() == 20);
+  patchy::ui::PatternLibrary patterns(directory.filePath(QStringLiteral("patterns")));
+  patchy::ui::StyleLibrary styles(directory.filePath(QStringLiteral("styles")));
+  const auto style_storage_id =
+      styles.add_style(QStringLiteral("Sweep Style"), style_test_shadow_recipe(), std::nullopt, {}, QStringLiteral("Folder"));
+  CHECK(styles.find_entry(style_storage_id) != nullptr);
+  int captured = 0;
+  for (const auto preference :
+       {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer::apply(preference);
+    const std::string scheme = preference == patchy::ui::ColorSchemePreference::Light ? "light" : "dark";
+    const auto grab_dialog = [&](const QString& object_name, const std::string& label) {
+      QTimer::singleShot(0, [&, object_name, label] {
+        auto* dialog = find_top_level_dialog(object_name);
+        CHECK(dialog != nullptr);
+        if (dialog == nullptr) {
+          return;
+        }
+        (void)capture_widget_artifact("ui_dialog_sweep_" + label + "_" + scheme, *dialog);
+        ++captured;
+        QTimer::singleShot(0, dialog, [dialog] { dialog->reject(); });
+      });
+    };
+    patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+    patchy::Layer layer(document.allocate_layer_id(), "Styled",
+                        solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+    layer.layer_style() = style_test_shadow_recipe();
+    grab_dialog(QStringLiteral("patchyLayerStyleDialog"), "layer_style");
+    (void)patchy::ui::request_layer_style_settings(nullptr, layer, {});
+    grab_dialog(QStringLiteral("gradientManagerDialog"), "gradient_manager");
+    (void)patchy::ui::request_gradient_manager(nullptr, gradients, gradients.entries().front().storage_id,
+                                               patchy::builtin_gradient_presets().front().definition);
+    grab_dialog(QStringLiteral("patternManagerDialog"), "pattern_manager");
+    (void)patchy::ui::request_pattern_manager(nullptr, patterns, {},
+                                              [](const QString&, const patchy::PixelBuffer&) {});
+    grab_dialog(QStringLiteral("styleManagerDialog"), "style_manager");
+    (void)patchy::ui::request_style_manager(nullptr, styles, styles.find_entry(style_storage_id)->id);
+    grab_dialog(QStringLiteral("patchySplashScreen"), "about");
+    patchy::ui::show_about_splash();
+    // The color picker is a top-level widget, not a dialog.
+    patchy::ui::PatchyColorPicker picker(QColor(120, 60, 30));
+    picker.show();
+    QApplication::processEvents();
+    (void)capture_widget_artifact("ui_dialog_sweep_color_picker_" + scheme, picker);
+    ++captured;
+    picker.close();
+    QApplication::processEvents();
+  }
+  CHECK(captured == 12);
+}
+
 void ui_style_manager_lists_renames_and_uses_styles() {
   QTemporaryDir directory;
   CHECK(directory.isValid());
@@ -1616,6 +1679,8 @@ std::vector<patchy::test::TestCase> layer_style_gradient_tests_part2() {
        ui_layer_style_new_style_saves_current_settings},
       {"ui_style_browser_folder_selection_exports_asl",
        ui_style_browser_folder_selection_exports_asl},
+      {"ui_offscreen_dialog_sweep_is_themed_in_both_schemes",
+       ui_offscreen_dialog_sweep_is_themed_in_both_schemes},
       {"ui_style_manager_lists_renames_and_uses_styles",
        ui_style_manager_lists_renames_and_uses_styles},
       {"ui_style_preset_pattern_apply_cancel_restores_document_store",
