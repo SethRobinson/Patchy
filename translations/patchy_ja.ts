@@ -11117,6 +11117,14 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Long Strokes</source>
         <translation>長いストローク</translation>
     </message>
+    <message>
+        <source>Fibers</source>
+        <translation>繊維</translation>
+    </message>
+    <message>
+        <source>Variance</source>
+        <translation>変化</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

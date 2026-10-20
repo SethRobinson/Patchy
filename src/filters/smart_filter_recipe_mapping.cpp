@@ -75,6 +75,7 @@ bool native_smart_filter_kind_supported(SmartFilterKind kind) {
     case SmartFilterKind::Crystallize:
     case SmartFilterKind::Pointillize:
     case SmartFilterKind::Mezzotint:
+    case SmartFilterKind::Fibers:
       return smart_filter_table_spec(kind) != nullptr;
     case SmartFilterKind::Unsupported:
       return false;

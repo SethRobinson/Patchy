@@ -186,6 +186,18 @@ std::vector<SmartFilterTableSpec> make_table() {
             {"LngS", false, "long_strokes",
              PATCHY_TRANSLATE_NOOP("QObject", "Long Strokes")}},
            "fine_dots")}});
+  // Fibers: integers Vrnc then Strg; fills the canvas from the entry's colors.
+  // Random in Photoshop too (no stored seed).
+  table.push_back(
+      {SmartFilterKind::Fibers, "Fibers...", "Fibers", "Fbrs", false,
+       0x46627273U, PATCHY_TRANSLATE_NOOP("QObject", "Fibers"),
+       "patchy.smart_filters.fibers", true,
+       {integer_field("Vrnc", "variance",
+                      PATCHY_TRANSLATE_NOOP("QObject", "Variance"), 1.0, 64.0,
+                      16.0, 1.0, 64.0),
+        integer_field("Strg", "strength",
+                      PATCHY_TRANSLATE_NOOP("QObject", "Strength"), 1.0, 64.0,
+                      4.0, 1.0, 64.0)}});
   // Fragment has no settings: Photoshop writes no Fltr object.
   table.push_back({SmartFilterKind::Fragment, "Fragment", "Fragment", nullptr,
                    false, 0x4672676dU,

@@ -81,6 +81,7 @@ b24cbcd2a9f6f68a photoshop-smart-filter-add-noise.psd
 ec07eaf898b0a29d photoshop-smart-filter-box-blur.psd
 f2bf42dce8c3d975 photoshop-smart-filter-dust-and-scratches.psd
 87fd37f8d0bdb1c9 photoshop-smart-filter-emboss.psd
+a00cc59a421ed652 photoshop-smart-filter-fibers.psd
 58b52438a77e88b5 photoshop-smart-filter-high-pass.psd
 6a93c278433e8c77 photoshop-smart-filter-instances-base.psd
 615e5853026e2647 photoshop-smart-filter-instances-edit-contents.psd

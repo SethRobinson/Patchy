@@ -32,6 +32,7 @@ using patchy::test::require_layer_named;
 
 constexpr const char *kFixture = "photoshop-smart-filter-other.psd";
 constexpr const char *kRandomFixture = "photoshop-smart-filter-random.psd";
+constexpr const char *kFibersFixture = "photoshop-smart-filter-fibers.psd";
 
 const patchy::UnknownPsdBlock &sold_block(const patchy::Layer &layer) {
   const auto &blocks = layer.unknown_psd_blocks();
@@ -396,6 +397,49 @@ void smart_filter_table_random_filters_round_trip_and_render_in_style() {
   }
 }
 
+// Fibers fills the whole canvas, opaque, from the entry's foreground to its
+// background color. Photoshop re-randomizes it on every render.
+void smart_filter_table_fibers_round_trip_and_fill_the_canvas() {
+  const auto document = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path(kFibersFixture));
+  const auto clean = patchy::psd::DocumentIo::read(
+      patchy::psd::DocumentIo::write_layered_rgb8(document));
+  const auto &source = require_layer_named(document, "Source");
+  const auto canvas = patchy::Rect::from_size(document.width(), document.height());
+  for (const char *name : {"Fibers 16 4", "Fibers 40 30"}) {
+    const auto &layer = require_layer_named(document, name);
+    const auto *stack = layer.smart_filter_stack();
+    CHECK(stack != nullptr &&
+          stack->support == patchy::SmartFilterStackSupport::Supported);
+    CHECK(stack->entries.front().kind == patchy::SmartFilterKind::Fibers);
+    CHECK(sold_block(require_layer_named(clean, name)).payload ==
+          sold_block(layer).payload);
+    check_authored_filter_matches_photoshop(layer);
+    const auto rendered = patchy::render_smart_filter_stack(
+        source.pixels(), source.bounds(), canvas, *stack);
+    CHECK(rendered.bounds.x == 0 && rendered.bounds.y == 0 &&
+          rendered.bounds.width == canvas.width &&
+          rendered.bounds.height == canvas.height);
+    // Photoshop's fill is opaque everywhere too, black (foreground) to white.
+    CHECK(layer.bounds().width == canvas.width &&
+          layer.bounds().height == canvas.height);
+    double ours = 0.0;
+    double theirs = 0.0;
+    for (std::int32_t y = 0; y < canvas.height; ++y) {
+      for (std::int32_t x = 0; x < canvas.width; ++x) {
+        const auto *pixel = rendered.pixels.pixel(x, y);
+        CHECK(pixel[3] == 255U && pixel[0] == pixel[1] && pixel[1] == pixel[2]);
+        ours += pixel[0];
+        theirs += layer.pixels().pixel(x, y)[0];
+      }
+    }
+    const auto count = static_cast<double>(canvas.width) * canvas.height;
+    std::cout << "[INFO] " << name << " mean level " << ours / count
+              << ", Photoshop " << theirs / count << "\n";
+    CHECK(std::abs(ours - theirs) / count < 48.0);
+  }
+}
+
 // Kernel contracts independent of the capture.
 void smart_filter_table_kernels_keep_their_contracts() {
   patchy::PixelBuffer pixels(9, 7, patchy::PixelFormat::rgba8());
@@ -496,6 +540,8 @@ std::vector<patchy::test::TestCase> smart_filter_table_tests() {
        smart_filter_table_authored_descriptors_match_photoshop},
       {"smart_filter_table_random_filters_round_trip_and_render_in_style",
        smart_filter_table_random_filters_round_trip_and_render_in_style},
+      {"smart_filter_table_fibers_round_trip_and_fill_the_canvas",
+       smart_filter_table_fibers_round_trip_and_fill_the_canvas},
       {"smart_filter_table_kernels_keep_their_contracts",
        smart_filter_table_kernels_keep_their_contracts},
   };

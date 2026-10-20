@@ -38,6 +38,7 @@ enum class SmartFilterKind {
   Crystallize,
   Pointillize,
   Mezzotint,
+  Fibers,
 };
 
 struct GaussianBlurSmartFilter {

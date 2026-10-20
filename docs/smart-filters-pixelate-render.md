@@ -89,6 +89,11 @@ the canvas origin), like Add Noise:
 - Mezzotint: each RGB channel becomes 0 or 255 against an independent random threshold screen:
   dots at grain 1, 2 or 3 px (grainy: fine noise pulled toward 3 px clumps), lines as horizontal
   runs of 4, 8 or 16 px, strokes as 2 px tall runs of 8, 16 or 32 px. Alpha unchanged.
+- Fibers `Fbrs`/0x46627273 (`Fibers...`, integers `Vrnc` then `Strg`, 1..64; two identical
+  captures differ, no seed): fills the WHOLE canvas opaque, like PS, from the entry's `FrgC` to
+  `BckC`: per-pixel noise averaged down a vertical run of max(2, 256 / Vrnc) px plus smooth 8 px
+  column bands weighted by Strength, raised to the 3/4 power toward the background (PS's fill
+  averages about 0.6 of the way to the background). Fixture `photoshop-smart-filter-fibers.psd`.
 
 `smart_filter_table_random_filters_round_trip_and_render_in_style` pins the descriptors
 (`photoshop-smart-filter-random.psd`), determinism, alpha, and Patchy's mean difference from PS's
@@ -101,8 +106,7 @@ Descriptor facts from the captures; these entries stay preview-locked:
 - Facet `Fct `, Despeckle `Dspc`, Clouds `Clds`, Difference Clouds `DfrC`: no `Fltr`, `hasoptions`
   false. Clouds re-rendered identically in two documents (deterministic in PS; uses `FrgC`/`BckC`).
 - Color Halftone `ClrH`: integers `Rds ` then `Ang1`..`Ang4`; anti-aliased dots on a grid not
-  yet derived. Fibers `Fbrs`: integers `Vrnc`, `Strg`; no seed stored and two captures differ.
-  Lens Flare `LnsF`: integer `Brgh`, `FlrC` point object (`Hrzn`, `Vrtc` #Pxl), enum `Lns `
+  yet derived. Lens Flare `LnsF`: integer `Brgh`, `FlrC` point object (`Hrzn`, `Vrtc` #Pxl), enum `Lns `
   (`Zm  ` zoom, `Nkn ` 35 mm, `Nkn1` 105 mm, `PnVs` movie prime).
 - HSB/HSL: event and class `HsbP`/0x48736250, entry `HSB/HSL`, enums `Inpt` and `Otpt` (`ClrS`:
   `RGBC`, `HSBl`, `HSLC`). RGB to HSB: alpha unchanged, B = max, H = hue * 256 / 360 (blue is

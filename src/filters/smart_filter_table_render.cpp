@@ -660,6 +660,68 @@ FilterRenderResult render_mezzotint(const FilterRenderResult &canvas,
   return FilterRenderResult{std::move(output), canvas.bounds};
 }
 
+// Fibers: fills the whole canvas, opaque, with vertical fibers blended from
+// the entry's foreground to its background color: per-pixel noise averaged
+// down a vertical run (shorter as Variance rises) plus smooth column bands
+// (stronger as Strength rises), weighted toward the background like PS's
+// output. Photoshop re-randomizes Fibers on every render (no stored seed).
+FilterRenderResult render_fibers(const FilterRenderResult &canvas,
+                                 const TableSmartFilter &values,
+                                 RgbColor foreground, RgbColor background,
+                                 const RowProgress &progress) {
+  const auto width = canvas.bounds.width;
+  const auto height = canvas.bounds.height;
+  const auto variance = static_cast<std::int64_t>(integer_at(values, 0));
+  const auto strength = static_cast<std::int64_t>(integer_at(values, 1));
+  constexpr std::uint64_t kSalt = 0x46627273ULL;
+  const auto run = std::max<std::int64_t>(2, 256 / variance);
+  constexpr std::int64_t kBandPeriod = 8;
+  // Weights in 1/256: fiber noise and band contrast (sum stays <= 256).
+  const auto band_weight = std::min<std::int64_t>(160, 32 + strength * 2);
+  const auto fiber_weight = 256 - band_weight;
+  PixelBuffer output(width, height, PixelFormat::rgba8());
+  std::vector<std::int64_t> column_sum(static_cast<std::size_t>(width), 0);
+  const auto noise = [](std::int64_t x, std::int64_t y) {
+    return static_cast<std::int64_t>(cell_random(x, y, kSalt) & 255U);
+  };
+  for (std::int32_t x = 0; x < width; ++x) {
+    for (std::int64_t k = 0; k < run; ++k) {
+      column_sum[static_cast<std::size_t>(x)] += noise(x, k);
+    }
+  }
+  const auto band = [](std::int64_t x) {
+    const auto cell = floor_divide(x, kBandPeriod);
+    const auto offset = x - cell * kBandPeriod;
+    const auto left =
+        static_cast<std::int64_t>(cell_random(cell, -7, kSalt) & 255U);
+    const auto right =
+        static_cast<std::int64_t>(cell_random(cell + 1, -7, kSalt) & 255U);
+    return (left * (kBandPeriod - offset) + right * offset) / kBandPeriod;
+  };
+  for (std::int32_t y = 0; y < height; ++y) {
+    progress.step(y);
+    for (std::int32_t x = 0; x < width; ++x) {
+      auto &sum = column_sum[static_cast<std::size_t>(x)];
+      const auto fiber = sum / run;
+      // Slide the vertical run down one row.
+      sum += noise(x, y + run) - noise(x, y);
+      const auto mixed = (fiber * fiber_weight + band(x) * band_weight) / 256;
+      // Lean toward the background: amount = mixed^(3/4) on 0..255.
+      const auto amount = std::clamp<std::int64_t>(
+          integer_sqrt(integer_sqrt(mixed * mixed * mixed * 255)), 0, 255);
+      auto *pixel = output.pixel(x, y);
+      pixel[0] = clamp_byte((foreground.red * (255 - amount) +
+                             background.red * amount + 127) / 255);
+      pixel[1] = clamp_byte((foreground.green * (255 - amount) +
+                             background.green * amount + 127) / 255);
+      pixel[2] = clamp_byte((foreground.blue * (255 - amount) +
+                             background.blue * amount + 127) / 255);
+      pixel[3] = 255;
+    }
+  }
+  return FilterRenderResult{std::move(output), canvas.bounds};
+}
+
 }  // namespace
 
 FilterRenderResult render_table_smart_filter(const FilterRenderResult &canvas,
@@ -705,6 +767,10 @@ FilterRenderResult render_table_smart_filter(const FilterRenderResult &canvas,
       break;
     case SmartFilterKind::Mezzotint:
       result = render_mezzotint(canvas, *values, rows);
+      break;
+    case SmartFilterKind::Fibers:
+      result = render_fibers(canvas, *values, entry.foreground,
+                             entry.background, rows);
       break;
     default:
       throw std::invalid_argument(
