@@ -32,13 +32,35 @@ std::string xmp_date(std::int64_t unix_seconds, int utc_offset_minutes) {
   const auto day = day_of_year - (153 * month_index + 2) / 5 + 1;
   const auto month = month_index < 10 ? month_index + 3 : month_index - 9;
   const auto year = year_of_era + era * 400 + (month <= 2 ? 1 : 0);
-  const auto offset = std::abs(utc_offset_minutes);
-  char buffer[40];
-  std::snprintf(buffer, sizeof(buffer), "%04lld-%02lld-%02lldT%02lld:%02lld:%02lld%c%02d:%02d",
-                static_cast<long long>(year), static_cast<long long>(month), static_cast<long long>(day),
-                static_cast<long long>(seconds / 3600), static_cast<long long>((seconds / 60) % 60),
-                static_cast<long long>(seconds % 60), utc_offset_minutes < 0 ? '-' : '+', offset / 60, offset % 60);
-  return buffer;
+  const auto offset = std::abs(static_cast<std::int64_t>(utc_offset_minutes));
+  // Zero-padded fields appended by hand: snprintf into a fixed buffer draws GCC's
+  // -Wformat-truncation for the 64-bit fields however large the buffer is.
+  std::string text;
+  const auto field = [&text](std::int64_t value, int width) {
+    auto digits = std::to_string(value < 0 ? -value : value);
+    if (value < 0) {
+      text.push_back('-');
+    }
+    text.append(digits.size() < static_cast<std::size_t>(width) ? static_cast<std::size_t>(width) - digits.size() : 0U,
+                '0');
+    text += digits;
+  };
+  field(year, 4);
+  text.push_back('-');
+  field(month, 2);
+  text.push_back('-');
+  field(day, 2);
+  text.push_back('T');
+  field(seconds / 3600, 2);
+  text.push_back(':');
+  field((seconds / 60) % 60, 2);
+  text.push_back(':');
+  field(seconds % 60, 2);
+  text.push_back(utc_offset_minutes < 0 ? '-' : '+');
+  field(offset / 60, 2);
+  text.push_back(':');
+  field(offset % 60, 2);
+  return text;
 }
 
 void stamp_xmp_for_save(DocumentFileInfo& info, const SaveStamp& stamp) {
