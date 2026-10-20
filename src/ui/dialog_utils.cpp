@@ -492,16 +492,6 @@ double scrub_value(const QAbstractSpinBox* spin) {
   return 0.0;
 }
 
-double scrub_step(const QAbstractSpinBox* spin) {
-  if (const auto* int_spin = qobject_cast<const QSpinBox*>(spin); int_spin != nullptr) {
-    return int_spin->singleStep();
-  }
-  if (const auto* double_spin = qobject_cast<const QDoubleSpinBox*>(spin); double_spin != nullptr) {
-    return double_spin->singleStep();
-  }
-  return 1.0;
-}
-
 // `steps` single steps away from `anchor`. Integer fields move only by whole steps,
 // truncated toward zero, so a fine (Alt) drag changes the value every ten pixels in
 // either direction.
