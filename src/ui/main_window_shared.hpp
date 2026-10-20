@@ -425,4 +425,12 @@ make_destructive_adjustment_preview_state(DestructiveAdjustmentPreviewHooks hook
                                                        const QString& title, const QString& label, int value,
                                                        int minimum, int maximum, int step);
 
+// Why a Smart Filter change is refused when Patchy cannot render the filters that would
+// then run (GitHub issue 243). The Layers panel tooltips and the status messages share them.
+[[nodiscard]] QString smart_filter_unmodeled_show_message();
+[[nodiscard]] QString smart_filter_unmodeled_left_running_message();
+[[nodiscard]] QString smart_filter_unmodeled_left_after_delete_message();
+[[nodiscard]] QString smart_filter_unmodeled_settings_message();
+[[nodiscard]] QString smart_filter_unmodeled_stack_settings_message();
+
 }  // namespace patchy::ui

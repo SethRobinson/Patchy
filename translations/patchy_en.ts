@@ -10889,6 +10889,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>&amp;Cancel</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Smart Filters actions</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete All Smart Filters</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t render every Smart Filter that would then run. Photoshop renders them when the file is opened there.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hiding this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or hide all Smart Filters.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Deleting this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or delete all Smart Filters.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t edit this filter&apos;s settings. It is preserved unchanged.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>This stack runs Smart Filters that Patchy can&apos;t render, so their settings can&apos;t change here. Hide or delete those filters first.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22377,6 +22405,14 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     </message>
     <message>
         <source>Don&apos;t Ask Again</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Delete All Smart Filters</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Deleted all Smart Filters</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

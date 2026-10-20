@@ -1367,6 +1367,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                                std::function<void(LayerId, std::size_t)> duplicate_smart_filter = {},
                                std::function<void(LayerId, std::size_t, int)> move_smart_filter = {},
                                std::function<void(LayerId, std::size_t)> delete_smart_filter = {},
+                               std::function<void(LayerId)> delete_smart_filter_stack = {},
                                bool vector_mask_target_active = false, QSize document_size = {},
                                const std::function<std::optional<Rect>(const Layer&)>& content_crop = {}) {
   // One crop per row: the content, mask, vector-mask, and Smart Filter mask
@@ -1689,6 +1690,15 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
         stack_supported &&
         (smart_object_lock.empty() || smart_object_lock == "external") &&
         !image_pixels_locked;
+    // Hiding, showing and deleting work on any stack whose native shape Patchy can rewrite,
+    // even one running a filter Patchy does not model, as long as Patchy renders what would
+    // then run (GitHub issue 243). Each control checks its own result.
+    const auto stack_changeable =
+        smart_filters->native_shape_supported &&
+        smart_object_lock_allows_smart_filter_edits(smart_object_lock) && !image_pixels_locked;
+    const auto renders = [](const SmartFilterStack& candidate) {
+      return smart_filter_stack_support(candidate) == SmartFilterStackSupport::Supported;
+    };
     const auto preservation_tooltip = image_pixels_locked
         ? QObject::tr("Layer pixels are locked.")
         : stack_supported
@@ -1704,7 +1714,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
         "QToolButton:disabled { background: transparent; border-color: transparent; }");
     const auto configure_visibility_button = [&](QToolButton* button, bool visible,
                                                   const QString& visible_tooltip,
-                                                  const QString& hidden_tooltip) {
+                                                  const QString& hidden_tooltip, bool allowed,
+                                                  const QString& blocked_tooltip) {
       button->setCheckable(true);
       button->setChecked(visible);
       button->setText(QString());
@@ -1714,10 +1725,8 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       button->setFixedSize(20, 20);
       button->setFocusPolicy(Qt::NoFocus);
       set_themed_style(*button, button_style);
-      button->setToolTip(controls_supported
-                             ? (visible ? visible_tooltip : hidden_tooltip)
-                             : preservation_tooltip);
-      button->setEnabled(controls_supported && ancestors_visible);
+      button->setToolTip(allowed ? (visible ? visible_tooltip : hidden_tooltip) : blocked_tooltip);
+      button->setEnabled(allowed && ancestors_visible);
       if (list_parent != nullptr) {
         button->installEventFilter(list_parent);
       }
@@ -1762,7 +1771,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       nested_row->setObjectName(object_name);
       nested_row->setFixedHeight(kSmartFilterRowHeight);
       nested_row->setAutoFillBackground(false);
-      if (!controls_supported) {
+      if (!stack_changeable) {
         nested_row->setToolTip(preservation_tooltip);
       }
       if (list_parent != nullptr) {
@@ -1782,22 +1791,22 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
         make_nested_row(QStringLiteral("layerSmartFiltersRow"), 0);
     auto* stack_visibility = new QToolButton(header);
     stack_visibility->setObjectName(QStringLiteral("layerSmartFiltersVisibilityButton"));
+    auto toggled_stack = *smart_filters;
+    toggled_stack.enabled = !toggled_stack.enabled;
     configure_visibility_button(
         stack_visibility, smart_filters->enabled,
         QObject::tr("Smart Filters visible. Click to hide."),
-        QObject::tr("Smart Filters hidden. Click to show."));
+        QObject::tr("Smart Filters hidden. Click to show."),
+        stack_changeable && renders(toggled_stack),
+        stack_changeable ? smart_filter_unmodeled_show_message() : preservation_tooltip);
     QObject::connect(
         stack_visibility, &QToolButton::toggled, row,
-        [parent, id = layer.id(), stack_visibility, controls_supported,
-         preservation_tooltip, set_smart_filter_stack_enabled](bool checked) {
+        [parent, id = layer.id(), stack_visibility, set_smart_filter_stack_enabled](bool checked) {
           stack_visibility->setIcon(simple_icon(
               checked ? QStringLiteral("eye") : QStringLiteral("eyeOff"),
               checked ? QColor(228, 236, 246) : QColor(118, 126, 136)));
-          stack_visibility->setToolTip(
-              controls_supported
-                  ? (checked ? QObject::tr("Smart Filters visible. Click to hide.")
-                             : QObject::tr("Smart Filters hidden. Click to show."))
-                  : preservation_tooltip);
+          stack_visibility->setToolTip(checked ? QObject::tr("Smart Filters visible. Click to hide.")
+                                               : QObject::tr("Smart Filters hidden. Click to show."));
           if (set_smart_filter_stack_enabled) {
             QTimer::singleShot(0, parent,
                                [id, checked, set_smart_filter_stack_enabled] {
@@ -1846,8 +1855,43 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       header_layout->addWidget(smart_filter_mask_thumbnail, 0, Qt::AlignVCenter);
     }
 
+    auto* stack_more_button = new QToolButton(header);
+    stack_more_button->setObjectName(QStringLiteral("layerSmartFiltersMoreButton"));
+    stack_more_button->setText(QString::fromUtf8("\xE2\x8B\xAF"));
+    {
+      auto stack_more_font = stack_more_button->font();
+      stack_more_font.setBold(true);
+      stack_more_font.setPointSize(std::max(11, stack_more_font.pointSize()));
+      stack_more_button->setFont(stack_more_font);
+    }
+    stack_more_button->setFixedSize(20, 20);
+    stack_more_button->setFocusPolicy(Qt::NoFocus);
+    set_themed_style(*stack_more_button,
+                     button_style +
+                         QStringLiteral(" QToolButton::menu-indicator { image: none; width: 0px; }"));
+    stack_more_button->setToolTip(stack_changeable ? QObject::tr("Smart Filters actions")
+                                                   : preservation_tooltip);
+    stack_more_button->setEnabled(stack_changeable && ancestors_visible);
+    stack_more_button->setPopupMode(QToolButton::InstantPopup);
+    if (list_parent != nullptr) {
+      stack_more_button->installEventFilter(list_parent);
+    }
+    auto* stack_menu = new QMenu(stack_more_button);
+    stack_more_button->setMenu(stack_menu);
+    auto* delete_stack_action = stack_menu->addAction(QObject::tr("Delete All Smart Filters"));
+    delete_stack_action->setObjectName(QStringLiteral("layerSmartFiltersDeleteAction"));
+    delete_stack_action->setEnabled(stack_changeable && ancestors_visible);
+    QObject::connect(delete_stack_action, &QAction::triggered, row,
+                     [parent, id = layer.id(), delete_smart_filter_stack] {
+      if (delete_smart_filter_stack) {
+        QTimer::singleShot(0, parent, [id, delete_smart_filter_stack] { delete_smart_filter_stack(id); });
+      }
+    });
+    header_layout->addWidget(stack_more_button, 0, Qt::AlignVCenter);
+
     for (std::size_t execution_index = smart_filters->entries.size(); execution_index-- > 0;) {
       const auto& entry = smart_filters->entries[execution_index];
+      const bool entry_modeled = entry.kind != SmartFilterKind::Unsupported;
       auto [entry_row, entry_layout] =
           make_nested_row(QStringLiteral("layerSmartFilterEntryRow"), 14);
       entry_row->setProperty("smartFilterExecutionIndex",
@@ -1859,23 +1903,25 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       entry_visibility->setProperty("smartFilterExecutionIndex",
                                     QVariant::fromValue<qulonglong>(
                                         static_cast<qulonglong>(execution_index)));
+      auto toggled_entry = *smart_filters;
+      toggled_entry.entries[execution_index].enabled = !entry.enabled;
       configure_visibility_button(
           entry_visibility, entry.enabled,
           QObject::tr("Smart Filter visible. Click to hide."),
-          QObject::tr("Smart Filter hidden. Click to show."));
+          QObject::tr("Smart Filter hidden. Click to show."),
+          stack_changeable && renders(toggled_entry),
+          !stack_changeable  ? preservation_tooltip
+          : entry.enabled    ? smart_filter_unmodeled_left_running_message()
+                             : smart_filter_unmodeled_show_message());
       QObject::connect(
           entry_visibility, &QToolButton::toggled, row,
           [parent, id = layer.id(), execution_index, entry_visibility,
-           controls_supported, preservation_tooltip,
            set_smart_filter_enabled](bool checked) {
             entry_visibility->setIcon(simple_icon(
                 checked ? QStringLiteral("eye") : QStringLiteral("eyeOff"),
                 checked ? QColor(228, 236, 246) : QColor(118, 126, 136)));
-            entry_visibility->setToolTip(
-                controls_supported
-                    ? (checked ? QObject::tr("Smart Filter visible. Click to hide.")
-                               : QObject::tr("Smart Filter hidden. Click to show."))
-                    : preservation_tooltip);
+            entry_visibility->setToolTip(checked ? QObject::tr("Smart Filter visible. Click to hide.")
+                                                 : QObject::tr("Smart Filter hidden. Click to show."));
             if (set_smart_filter_enabled) {
               QTimer::singleShot(0, parent,
                                  [id, execution_index, checked,
@@ -2089,8 +2135,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       entry_label->setStyleSheet(QStringLiteral("background: transparent;"));
       entry_label->setEnabled(ancestors_visible && layer.visible() && entry.enabled &&
                               smart_filters->enabled);
-      entry_label->setToolTip(controls_supported ? entry_tooltip
-                                                 : preservation_tooltip);
+      entry_label->setToolTip(stack_changeable ? entry_tooltip : preservation_tooltip);
       if (list_parent != nullptr) {
         entry_label->installEventFilter(list_parent);
       }
@@ -2106,9 +2151,11 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       edit_button->setFixedSize(20, 20);
       edit_button->setFocusPolicy(Qt::NoFocus);
       set_themed_style(*edit_button, button_style);
-      edit_button->setToolTip(controls_supported ? QObject::tr("Edit Smart Filter")
-                                                  : preservation_tooltip);
-      edit_button->setEnabled(controls_supported && ancestors_visible);
+      edit_button->setToolTip(controls_supported && entry_modeled ? QObject::tr("Edit Smart Filter")
+                              : !stack_changeable                 ? preservation_tooltip
+                              : !entry_modeled                    ? smart_filter_unmodeled_settings_message()
+                                                                  : smart_filter_unmodeled_stack_settings_message());
+      edit_button->setEnabled(controls_supported && entry_modeled && ancestors_visible);
       if (list_parent != nullptr) {
         edit_button->installEventFilter(list_parent);
       }
@@ -2138,16 +2185,24 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       set_themed_style(*more_button,
                        button_style +
                            QStringLiteral(" QToolButton::menu-indicator { image: none; width: 0px; }"));
-      more_button->setToolTip(controls_supported
+      // Deleting one filter is allowed when Patchy renders the rest (or it is the last one).
+      auto without_entry = *smart_filters;
+      without_entry.entries.erase(without_entry.entries.begin() +
+                                  static_cast<std::ptrdiff_t>(execution_index));
+      const bool delete_allowed =
+          stack_changeable && (without_entry.entries.empty() || renders(without_entry));
+      more_button->setToolTip(controls_supported || delete_allowed
                                   ? QObject::tr("Smart Filter actions")
-                                  : preservation_tooltip);
-      more_button->setEnabled(controls_supported && ancestors_visible);
+                                  : stack_changeable ? smart_filter_unmodeled_left_after_delete_message()
+                                                     : preservation_tooltip);
+      more_button->setEnabled((controls_supported || delete_allowed) && ancestors_visible);
       more_button->setPopupMode(QToolButton::InstantPopup);
       if (list_parent != nullptr) {
         more_button->installEventFilter(list_parent);
       }
 
       auto* action_menu = new QMenu(more_button);
+      action_menu->setToolTipsVisible(true);
       more_button->setMenu(action_menu);
       const auto configure_action = [&](QAction* action,
                                         const QString& object_name) {
@@ -2164,7 +2219,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
           action_menu->addAction(QObject::tr("Duplicate Smart Filter"));
       configure_action(duplicate_action,
                        QStringLiteral("layerSmartFilterDuplicateAction"));
-      duplicate_action->setEnabled(controls_supported && ancestors_visible);
+      duplicate_action->setEnabled(controls_supported && entry_modeled && ancestors_visible);
       QObject::connect(
           duplicate_action, &QAction::triggered, row,
           [parent, id = layer.id(), execution_index,
@@ -2218,7 +2273,10 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
           action_menu->addAction(QObject::tr("Delete Smart Filter"));
       configure_action(delete_action,
                        QStringLiteral("layerSmartFilterDeleteAction"));
-      delete_action->setEnabled(controls_supported && ancestors_visible);
+      delete_action->setEnabled(delete_allowed && ancestors_visible);
+      if (!delete_allowed && stack_changeable) {
+        delete_action->setToolTip(smart_filter_unmodeled_left_after_delete_message());
+      }
       QObject::connect(delete_action, &QAction::triggered, row,
                        [parent, id = layer.id(), execution_index,
                         delete_smart_filter] {
@@ -3394,6 +3452,7 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
                                       [this](LayerId layer_id, std::size_t execution_index) {
         delete_smart_filter(layer_id, execution_index);
       },
+                                      [this](LayerId layer_id) { delete_smart_filter_stack(layer_id); },
                                       active.has_value() && *active == layer.id() &&
                                           edit_target == CanvasWidget::LayerEditTarget::VectorMask,
                                       QSize(document().width(), document().height()),
