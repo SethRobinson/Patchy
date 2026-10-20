@@ -10,6 +10,7 @@
 #include "ui/edit_conversions.hpp"
 #include "ui/smart_object_render.hpp"
 #include "local_psd_fixtures.hpp"
+#include "scripting_test_support.hpp"
 #include "core/vector_live_shapes.hpp"
 #include "core/vector_raster.hpp"
 #include "core/vector_shape.hpp"
@@ -42,6 +43,7 @@
 namespace {
 
 using namespace patchy::test::ui;
+using patchy::test::ui::scripting_support::run_script;
 
 const QColor kBoxColor(60, 130, 230);
 
@@ -476,6 +478,81 @@ void ui_pinball_perspective_smart_objects_render_like_photoshop_if_available() {
   }
 }
 
+// layer.transform: a quad distorts like Ctrl+drag (the same commit), a matrix maps
+// the box, and the whole script is one undo step.
+void ui_script_layer_transform_quad_and_matrix() {
+  patchy::ui::MainWindow window;
+  const QRect bounds(100, 70, 160, 110);
+  prepare_distort_scene(window, bounds);
+  auto* canvas = require_canvas(window);
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    app.activeDocument.activeLayer.transform({ quad: [[100, 70], [260, 70], [300, 210], [100, 180]] });
+  )JS")));
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  CHECK(rect_near(canvas->active_layer_document_rect(), QRect(100, 70, 200, 140)));
+  CHECK(is_box(*canvas, 295, 205));
+  CHECK(is_white(*canvas, 120, 195));
+  require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->active_layer_document_rect() == bounds);
+
+  // A matrix: scale by 0.5 about the origin, then move by (20, 10), with nearest neighbor.
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    app.activeDocument.activeLayer.transform({ matrix: [0.5, 0, 0, 0.5, 20, 10], interpolation: "nearest" });
+  )JS")));
+  QApplication::processEvents();
+  CHECK(rect_near(canvas->active_layer_document_rect(), QRect(70, 45, 80, 55)));
+  CHECK(is_box(*canvas, 100, 70));
+  CHECK(is_white(*canvas, 200, 150));
+}
+
+// Refusals throw: both keys, neither, a malformed quad, an unknown interpolation, a
+// type layer under a non-parallelogram quad, and a pending interactive transform.
+void ui_script_layer_transform_refusals() {
+  patchy::ui::MainWindow window;
+  const QRect bounds(100, 70, 160, 110);
+  prepare_distort_scene(window, bounds);
+  auto* canvas = require_canvas(window);
+  CHECK(!run_script(window, QStringLiteral("app.activeDocument.activeLayer.transform({});")));
+  CHECK(!run_script(window, QStringLiteral(
+      "app.activeDocument.activeLayer.transform({ matrix: [1, 0, 0, 1, 0, 0], quad: [[0, 0], [1, 0], [1, 1], [0, 1]] });")));
+  CHECK(!run_script(window, QStringLiteral("app.activeDocument.activeLayer.transform({ quad: [[0, 0], [1, 0]] });")));
+  CHECK(!run_script(window, QStringLiteral(
+      "app.activeDocument.activeLayer.transform({ matrix: [1, 0, 0, 1, 0, 0], interpolation: \"smooth\" });")));
+  CHECK(!run_script(window, QStringLiteral(
+      "app.activeDocument.activeLayer.transform({ matrix: [1, 0, 0, 1, 0, 0], extra: 1 });")));
+  CHECK(canvas->active_layer_document_rect() == bounds);
+
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  CHECK(!run_script(window, QStringLiteral("app.activeDocument.activeLayer.transform({ matrix: [1, 0, 0, 1, 5, 5] });")));
+  CHECK(canvas->free_transform_active());
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+
+  // Type: a skew (parallelogram) works, perspective throws and leaves the layer alone.
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.activeDocument;
+    var text = doc.addTextLayer("Skew me", { size: 40, x: 60, y: 200 });
+    var b = text.bounds;
+    text.transform({ matrix: [1, 0, 0.25, 1, 0, 0] });
+  )JS")));
+  const auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto* text_layer = document.active_layer_id().has_value() ? document.find_layer(*document.active_layer_id()) : nullptr;
+  CHECK(text_layer != nullptr && patchy::layer_is_text(*text_layer));
+  const auto text_bounds = text_layer != nullptr ? std::optional<patchy::Rect>(text_layer->bounds()) : std::nullopt;
+  CHECK(!run_script(window, QStringLiteral(R"JS(
+    var layer = app.activeDocument.activeLayer;
+    var b = layer.bounds;
+    layer.transform({ quad: [[b.x, b.y], [b.x + b.width + 40, b.y], [b.x + b.width, b.y + b.height],
+                             [b.x, b.y + b.height]] });
+  )JS")));
+  const auto* text_after = document.active_layer_id().has_value() ? document.find_layer(*document.active_layer_id()) : nullptr;
+  CHECK(text_after != nullptr && text_bounds.has_value() && text_after->bounds() == *text_bounds);
+}
+
 // The three entries live under Edit > Transform with permanent hotkey ids, no
 // default keys, and NoRole (macOS menu merging).
 void ui_free_transform_mode_menu_entries() {
@@ -507,6 +584,8 @@ std::vector<patchy::test::TestCase> free_transform_distort_tests() {
       {"ui_free_transform_distort_refuses_type_layer", ui_free_transform_distort_refuses_type_layer},
       {"ui_free_transform_distort_is_a_session_step", ui_free_transform_distort_is_a_session_step},
       {"ui_free_transform_mode_menu_entries", ui_free_transform_mode_menu_entries},
+      {"ui_script_layer_transform_quad_and_matrix", ui_script_layer_transform_quad_and_matrix},
+      {"ui_script_layer_transform_refusals", ui_script_layer_transform_refusals},
       {"ui_free_transform_distort_smart_object_writes_perspective_placement",
        ui_free_transform_distort_smart_object_writes_perspective_placement},
       {"ui_pinball_perspective_smart_objects_render_like_photoshop_if_available",

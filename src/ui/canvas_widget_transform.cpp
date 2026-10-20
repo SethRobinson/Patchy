@@ -3289,6 +3289,51 @@ bool CanvasWidget::free_transform_accepts_non_affine() const {
   return layer != nullptr && accepts(*layer);
 }
 
+QString CanvasWidget::apply_scripted_free_transform(
+    LayerId layer_id, const std::function<std::array<QPointF, 4>(const std::array<QPointF, 4>& box)>& place,
+    std::optional<TransformInterpolation> interpolation) {
+  if (document_ == nullptr || transforming_layer_ || warping_layer_ || path_transform_active_) {
+    return tr("Select an editable pixel layer to transform");
+  }
+  // The interactive session, minus its side channels: refusals are collected for the
+  // script instead of the status bar, the run's own snapshot replaces the commit's
+  // history entry, and the missing-font prompt (a dialog) is skipped.
+  QString error;
+  const auto saved_error_callback = std::exchange(error_status_callback_, [&error](QString message) {
+    if (error.isEmpty()) {
+      error = std::move(message);
+    }
+  });
+  const auto saved_status_callback = std::exchange(status_callback_, nullptr);
+  const auto saved_before_edit = std::exchange(before_edit_callback_, nullptr);
+  const auto saved_missing_font = std::exchange(missing_font_transform_confirm_callback_, nullptr);
+  const auto saved_interpolation = transform_interpolation_;
+  const auto saved_selection = selected_layer_ids_;
+  if (interpolation.has_value()) {
+    transform_interpolation_ = *interpolation;
+  }
+  set_selected_layer_ids({layer_id});
+  bool committed = false;
+  if (begin_free_transform()) {
+    if (set_free_transform_quad(place(free_transform_quad()))) {
+      commit_free_transform();
+      committed = true;
+    } else {
+      cancel_free_transform();
+    }
+  }
+  set_selected_layer_ids(saved_selection);
+  transform_interpolation_ = saved_interpolation;
+  missing_font_transform_confirm_callback_ = saved_missing_font;
+  before_edit_callback_ = saved_before_edit;
+  status_callback_ = saved_status_callback;
+  error_status_callback_ = saved_error_callback;
+  if (!committed && error.isEmpty()) {
+    error = tr("Select an editable pixel layer to transform");
+  }
+  return error;
+}
+
 bool CanvasWidget::begin_free_transform_mode(TransformDistortMode mode) {
   if (!transforming_layer_ && !begin_free_transform()) {
     return false;

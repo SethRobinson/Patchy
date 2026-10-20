@@ -24292,6 +24292,26 @@ Patchy можно будет запускать из меню, а на пане�
         <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
         <translation>Неизвестная панель &quot;%1&quot;. Панели: %2.</translation>
     </message>
+    <message>
+        <source>layer.transform needs {matrix} or {quad}, not both.</source>
+        <translation>layer.transform ожидает {matrix} или {quad}, но не оба сразу.</translation>
+    </message>
+    <message>
+        <source>layer.transform: unknown option %1</source>
+        <translation>layer.transform: неизвестный параметр %1</translation>
+    </message>
+    <message>
+        <source>layer.transform: matrix must be six finite numbers.</source>
+        <translation>layer.transform: matrix должен содержать шесть конечных чисел.</translation>
+    </message>
+    <message>
+        <source>layer.transform: quad must be four [x, y] points.</source>
+        <translation>layer.transform: quad должен содержать четыре точки [x, y].</translation>
+    </message>
+    <message>
+        <source>layer.transform: unknown interpolation %1</source>
+        <translation>layer.transform: неизвестная интерполяция %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

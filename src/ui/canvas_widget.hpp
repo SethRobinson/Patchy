@@ -854,6 +854,15 @@ public:
   // False when a target layer can only take an affine (parallelogram) result: type
   // layers, which must be rasterized first.
   [[nodiscard]] bool free_transform_accepts_non_affine() const;
+  // Scripted Free Transform (layer.transform): one session on `layer_id` (a group
+  // transforms its contents), corners placed where `place` maps the session box (the
+  // layer's own TL, TR, BR, BL in document space), committed at once through the
+  // interactive commit's per-type rules but without its own history entry (the script
+  // run owns the undo snapshot) and without dialogs. Returns the refusal message, or an
+  // empty string once committed.
+  [[nodiscard]] QString apply_scripted_free_transform(
+      LayerId layer_id, const std::function<std::array<QPointF, 4>(const std::array<QPointF, 4>& box)>& place,
+      std::optional<TransformInterpolation> interpolation);
   // Options-bar preset: bakes a style (warpArc/.../warpRise, bend percent) into the
   // working cage; manual handle drags flip the reported style back to warpCustom.
   void apply_warp_style_preset(const QString& style, double value);

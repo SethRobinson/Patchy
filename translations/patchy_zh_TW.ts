@@ -24150,6 +24150,26 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
         <translation>未知的面板 &quot;%1&quot;。面板：%2。</translation>
     </message>
+    <message>
+        <source>layer.transform needs {matrix} or {quad}, not both.</source>
+        <translation>layer.transform 需要 {matrix} 或 {quad} 其中之一，不能同時提供。</translation>
+    </message>
+    <message>
+        <source>layer.transform: unknown option %1</source>
+        <translation>layer.transform：未知的選項 %1</translation>
+    </message>
+    <message>
+        <source>layer.transform: matrix must be six finite numbers.</source>
+        <translation>layer.transform：matrix 必須是六個有限數字。</translation>
+    </message>
+    <message>
+        <source>layer.transform: quad must be four [x, y] points.</source>
+        <translation>layer.transform：quad 必須是四個 [x, y] 點。</translation>
+    </message>
+    <message>
+        <source>layer.transform: unknown interpolation %1</source>
+        <translation>layer.transform：未知的內插方式 %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>

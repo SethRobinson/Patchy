@@ -24150,6 +24150,26 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
         <translation>不明なパネル &quot;%1&quot; です。パネル: %2。</translation>
     </message>
+    <message>
+        <source>layer.transform needs {matrix} or {quad}, not both.</source>
+        <translation>layer.transform には {matrix} か {quad} のどちらか一方を指定してください。</translation>
+    </message>
+    <message>
+        <source>layer.transform: unknown option %1</source>
+        <translation>layer.transform: 不明なオプション %1</translation>
+    </message>
+    <message>
+        <source>layer.transform: matrix must be six finite numbers.</source>
+        <translation>layer.transform: matrix は有限の数値 6 個で指定してください。</translation>
+    </message>
+    <message>
+        <source>layer.transform: quad must be four [x, y] points.</source>
+        <translation>layer.transform: quad は [x, y] の点 4 つで指定してください。</translation>
+    </message>
+    <message>
+        <source>layer.transform: unknown interpolation %1</source>
+        <translation>layer.transform: 不明な補間方法 %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>
