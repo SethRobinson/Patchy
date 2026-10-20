@@ -11431,6 +11431,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Color and Vibrance</source>
         <translation>Kolor i jaskrawość</translation>
     </message>
+    <message>
+        <source>Missing Linked Files</source>
+        <translation>Brakujące połączone pliki</translation>
+    </message>
+    <message>
+        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
+        <translation>Te połączone obiekty inteligentne wskazują pliki, których Patchy nie może znaleźć. Połącz każdy z nich ponownie z plikiem teraz lub kontynuuj z zapisanymi podglądami i użyj później Warstwa &gt; Obiekty inteligentne &gt; Połącz ponownie z plikiem...</translation>
+    </message>
+    <message>
+        <source>Relink...</source>
+        <translation>Połącz ponownie...</translation>
+    </message>
+    <message>
+        <source>Used by layer &quot;%1&quot;</source>
+        <translation>Używany przez warstwę „%1”</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used by %n layers: %1</source>
+        <translation>
+            <numerusform>Używany przez %n warstwę: %1</numerusform>
+            <numerusform>Używany przez %n warstwy: %1</numerusform>
+            <numerusform>Używany przez %n warstw: %1</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Relinked to %1</source>
+        <translation>Połączono ponownie z %1</translation>
+    </message>
+    <message>
+        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
+        <translation>Brakujące pliki nadal są pokazywane na pasku stanu. W preferencjach można ponownie włączyć to okno dla otwieranych dokumentów.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23217,6 +23249,26 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     <message>
         <source>Cancelled Vibrance</source>
         <translation>Anulowano jaskrawość</translation>
+    </message>
+    <message>
+        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
+        <translation>Pokazuj okno Brakujące połączone pliki przy otwieraniu dokumentu z brakującymi połączonymi plikami</translation>
+    </message>
+    <message>
+        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
+        <translation>Warstwa &gt; Obiekty inteligentne &gt; Połącz ponownie z plikiem... naprawia połączenie w dowolnej chwili.</translation>
+    </message>
+    <message>
+        <source>This document has no missing linked files</source>
+        <translation>W tym dokumencie nie brakuje połączonych plików</translation>
+    </message>
+    <message numerus="yes">
+        <source>Relinked %n smart object file(s)</source>
+        <translation>
+            <numerusform>Połączono ponownie %n plik obiektu inteligentnego</numerusform>
+            <numerusform>Połączono ponownie %n pliki obiektów inteligentnych</numerusform>
+            <numerusform>Połączono ponownie %n plików obiektów inteligentnych</numerusform>
+        </translation>
     </message>
 </context>
 <context>

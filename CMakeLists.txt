@@ -1327,6 +1327,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/multipage_pdf_export_dialog.cpp
       src/ui/missing_fonts_dialog.hpp
       src/ui/missing_fonts_dialog.cpp
+      src/ui/missing_links_dialog.hpp
+      src/ui/missing_links_dialog.cpp
       src/ui/text_layer_painter.hpp
       src/ui/pdf_import.hpp
       src/ui/photo_pattern_presets.hpp

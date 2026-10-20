@@ -11363,6 +11363,36 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Color and Vibrance</source>
         <translation>颜色和自然饱和度</translation>
     </message>
+    <message>
+        <source>Missing Linked Files</source>
+        <translation>缺少的链接文件</translation>
+    </message>
+    <message>
+        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
+        <translation>这些链接的智能对象指向 Patchy 找不到的文件。现在将每个对象重新链接到文件，或者先使用存储的预览继续，稍后再使用“图层 &gt; 智能对象 &gt; 重新链接到文件...”。</translation>
+    </message>
+    <message>
+        <source>Relink...</source>
+        <translation>重新链接...</translation>
+    </message>
+    <message>
+        <source>Used by layer &quot;%1&quot;</source>
+        <translation>由图层“%1”使用</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used by %n layers: %1</source>
+        <translation>
+            <numerusform>由 %n 个图层使用：%1</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Relinked to %1</source>
+        <translation>已重新链接到 %1</translation>
+    </message>
+    <message>
+        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
+        <translation>缺少的文件仍会显示在状态栏中。可以在首选项中为打开的文档重新启用此对话框。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23077,6 +23107,24 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Vibrance</source>
         <translation>已取消自然饱和度</translation>
+    </message>
+    <message>
+        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
+        <translation>打开缺少链接文件的文档时显示“缺少的链接文件”对话框</translation>
+    </message>
+    <message>
+        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
+        <translation>“图层 &gt; 智能对象 &gt; 重新链接到文件...”可随时修复链接。</translation>
+    </message>
+    <message>
+        <source>This document has no missing linked files</source>
+        <translation>此文档没有缺少的链接文件</translation>
+    </message>
+    <message numerus="yes">
+        <source>Relinked %n smart object file(s)</source>
+        <translation>
+            <numerusform>已重新链接 %n 个智能对象文件</numerusform>
+        </translation>
     </message>
 </context>
 <context>

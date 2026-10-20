@@ -1643,6 +1643,14 @@ private:
                                      const std::function<bool()>& before_mutation, QString* error);
   void relink_smart_object_contents();
   void relink_smart_object_contents_with_path(const QString& path);
+  // The Missing Linked Files dialog (GitHub issue 257): after an interactive open when
+  // imports/showMissingLinksDialog allows (`on_open`), one row per linked smart object file the
+  // document cannot find, each with Relink... (the Relink to File flow for a layer placed from
+  // it) and a Continue button that keeps the stored previews.
+  void show_missing_linked_files_dialog(bool on_open);
+  // Relinks every layer placed from the missing link element `source_uuid` to `path` through
+  // relink_smart_object_contents_with_path; the new file name on success.
+  std::optional<QString> relink_missing_smart_object_source(const std::string& source_uuid, const QString& path);
   void embed_linked_smart_object();
   // `vector_contents` (a source carrying the file bytes) lets each layer rasterize
   // vector artwork at its own placement scale instead of resampling `rendered_image`.

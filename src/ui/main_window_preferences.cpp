@@ -786,6 +786,12 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
       tr("Type > Resolve Missing Fonts opens the same dialog at any time."));
   missing_fonts_check->setChecked(settings.value(QStringLiteral("imports/showMissingFontsDialog"), true).toBool());
   application_form->addRow(missing_fonts_check);
+  auto* missing_links_check = new QCheckBox(
+      tr("Show the Missing Linked Files dialog when opening a document with missing linked files"), application_group);
+  missing_links_check->setObjectName(QStringLiteral("preferencesShowMissingLinksDialogCheck"));
+  missing_links_check->setToolTip(tr("Layer > Smart Objects > Relink to File... repairs a link at any time."));
+  missing_links_check->setChecked(settings.value(QStringLiteral("imports/showMissingLinksDialog"), true).toBool());
+  application_form->addRow(missing_links_check);
   auto* zoom_thumbnails_check =
       new QCheckBox(tr("Zoom layer thumbnails to the layer content"), application_group);
   zoom_thumbnails_check->setObjectName(QStringLiteral("preferencesZoomLayerThumbnailsCheck"));
@@ -1756,6 +1762,7 @@ void MainWindow::show_preferences(PreferencesPage page, const QString& hotkey_se
     settings.setValue(QStringLiteral("imports/showPsdWarningsAndInfo"), psd_import_warnings_check->isChecked());
     settings.setValue(QStringLiteral("imports/showRawDevelopDialog"), raw_develop_check->isChecked());
     settings.setValue(QStringLiteral("imports/showMissingFontsDialog"), missing_fonts_check->isChecked());
+    settings.setValue(QStringLiteral("imports/showMissingLinksDialog"), missing_links_check->isChecked());
     settings.setValue(QStringLiteral("imports/adoptIndexedPalette"), indexed_open_combo->currentData().toString());
     settings.setValue(QStringLiteral("imports/afImageLayers"), af_image_layers_combo->currentData().toString());
     settings.setValue(QStringLiteral("saveOptions/pdfLayerPolicy"), pdf_layers_combo->currentData().toString());

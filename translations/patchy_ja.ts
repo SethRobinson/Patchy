@@ -11363,6 +11363,36 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Color and Vibrance</source>
         <translation>カラーと自然な彩度</translation>
     </message>
+    <message>
+        <source>Missing Linked Files</source>
+        <translation>見つからないリンクファイル</translation>
+    </message>
+    <message>
+        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
+        <translation>これらのリンクされたスマートオブジェクトは、Patchy が見つけられないファイルを参照しています。今すぐそれぞれをファイルに再リンクするか、保存されたプレビューのまま続行して、後でレイヤー &gt; スマートオブジェクト &gt; ファイルに再リンク... を使用してください。</translation>
+    </message>
+    <message>
+        <source>Relink...</source>
+        <translation>再リンク...</translation>
+    </message>
+    <message>
+        <source>Used by layer &quot;%1&quot;</source>
+        <translation>レイヤー「%1」で使用</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used by %n layers: %1</source>
+        <translation>
+            <numerusform>%n 個のレイヤーで使用: %1</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Relinked to %1</source>
+        <translation>%1 に再リンクしました</translation>
+    </message>
+    <message>
+        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
+        <translation>見つからないファイルは引き続きステータスバーに表示されます。環境設定で、開いたドキュメントに対してこのダイアログを再び有効にできます。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23077,6 +23107,24 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Vibrance</source>
         <translation>自然な彩度をキャンセルしました</translation>
+    </message>
+    <message>
+        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
+        <translation>リンクファイルが見つからないドキュメントを開くときに「見つからないリンクファイル」ダイアログを表示する</translation>
+    </message>
+    <message>
+        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
+        <translation>レイヤー &gt; スマートオブジェクト &gt; ファイルに再リンク... でいつでもリンクを修復できます。</translation>
+    </message>
+    <message>
+        <source>This document has no missing linked files</source>
+        <translation>このドキュメントに見つからないリンクファイルはありません</translation>
+    </message>
+    <message numerus="yes">
+        <source>Relinked %n smart object file(s)</source>
+        <translation>
+            <numerusform>%n 個のスマートオブジェクトファイルを再リンクしました</numerusform>
+        </translation>
     </message>
 </context>
 <context>

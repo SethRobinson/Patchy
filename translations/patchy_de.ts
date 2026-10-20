@@ -11397,6 +11397,37 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Color and Vibrance</source>
         <translation>Farbe und Dynamik</translation>
     </message>
+    <message>
+        <source>Missing Linked Files</source>
+        <translation>Fehlende verknüpfte Dateien</translation>
+    </message>
+    <message>
+        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
+        <translation>Diese verknüpften Smartobjekte verweisen auf Dateien, die Patchy nicht finden kann. Verknüpfen Sie jedes jetzt mit einer Datei neu, oder fahren Sie mit den gespeicherten Vorschauen fort und verwenden Sie später Ebene &gt; Smartobjekte &gt; Mit Datei neu verknüpfen...</translation>
+    </message>
+    <message>
+        <source>Relink...</source>
+        <translation>Neu verknüpfen...</translation>
+    </message>
+    <message>
+        <source>Used by layer &quot;%1&quot;</source>
+        <translation>Verwendet von Ebene „%1“</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used by %n layers: %1</source>
+        <translation>
+            <numerusform>Verwendet von %n Ebene: %1</numerusform>
+            <numerusform>Verwendet von %n Ebenen: %1</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Relinked to %1</source>
+        <translation>Neu verknüpft mit %1</translation>
+    </message>
+    <message>
+        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
+        <translation>Fehlende Dateien werden weiterhin in der Statusleiste angezeigt. In den Einstellungen lässt sich dieser Dialog für geöffnete Dokumente wieder einschalten.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23147,6 +23178,25 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
     <message>
         <source>Cancelled Vibrance</source>
         <translation>Dynamik abgebrochen</translation>
+    </message>
+    <message>
+        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
+        <translation>Dialog „Fehlende verknüpfte Dateien“ beim Öffnen eines Dokuments mit fehlenden verknüpften Dateien anzeigen</translation>
+    </message>
+    <message>
+        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
+        <translation>Ebene &gt; Smartobjekte &gt; Mit Datei neu verknüpfen... repariert eine Verknüpfung jederzeit.</translation>
+    </message>
+    <message>
+        <source>This document has no missing linked files</source>
+        <translation>Dieses Dokument hat keine fehlenden verknüpften Dateien</translation>
+    </message>
+    <message numerus="yes">
+        <source>Relinked %n smart object file(s)</source>
+        <translation>
+            <numerusform>%n Smartobjekt-Datei neu verknüpft</numerusform>
+            <numerusform>%n Smartobjekt-Dateien neu verknüpft</numerusform>
+        </translation>
     </message>
 </context>
 <context>

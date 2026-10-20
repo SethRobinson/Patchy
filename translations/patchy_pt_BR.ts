@@ -11397,6 +11397,37 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Color and Vibrance</source>
         <translation>Cor e vibratilidade</translation>
     </message>
+    <message>
+        <source>Missing Linked Files</source>
+        <translation>Arquivos vinculados ausentes</translation>
+    </message>
+    <message>
+        <source>These linked smart objects point to files Patchy cannot find. Relink each one to a file now, or continue with the stored previews and use Layer &gt; Smart Objects &gt; Relink to File... later.</source>
+        <translation>Estes objetos inteligentes vinculados apontam para arquivos que o Patchy não encontra. Vincule cada um novamente a um arquivo agora, ou continue com as visualizações armazenadas e use depois Camada &gt; Objetos inteligentes &gt; Vincular novamente ao arquivo...</translation>
+    </message>
+    <message>
+        <source>Relink...</source>
+        <translation>Vincular novamente...</translation>
+    </message>
+    <message>
+        <source>Used by layer &quot;%1&quot;</source>
+        <translation>Usado pela camada &quot;%1&quot;</translation>
+    </message>
+    <message numerus="yes">
+        <source>Used by %n layers: %1</source>
+        <translation>
+            <numerusform>Usado por %n camada: %1</numerusform>
+            <numerusform>Usado por %n camadas: %1</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Relinked to %1</source>
+        <translation>Vinculado novamente a %1</translation>
+    </message>
+    <message>
+        <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
+        <translation>Os arquivos ausentes continuam aparecendo na barra de status. As Preferências podem reativar esta caixa de diálogo para documentos abertos.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23147,6 +23178,25 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
     <message>
         <source>Cancelled Vibrance</source>
         <translation>Vibratilidade cancelada</translation>
+    </message>
+    <message>
+        <source>Show the Missing Linked Files dialog when opening a document with missing linked files</source>
+        <translation>Mostrar a caixa de diálogo Arquivos vinculados ausentes ao abrir um documento com arquivos vinculados ausentes</translation>
+    </message>
+    <message>
+        <source>Layer &gt; Smart Objects &gt; Relink to File... repairs a link at any time.</source>
+        <translation>Camada &gt; Objetos inteligentes &gt; Vincular novamente ao arquivo... repara um vínculo a qualquer momento.</translation>
+    </message>
+    <message>
+        <source>This document has no missing linked files</source>
+        <translation>Este documento não tem arquivos vinculados ausentes</translation>
+    </message>
+    <message numerus="yes">
+        <source>Relinked %n smart object file(s)</source>
+        <translation>
+            <numerusform>%n arquivo de objeto inteligente vinculado novamente</numerusform>
+            <numerusform>%n arquivos de objetos inteligentes vinculados novamente</numerusform>
+        </translation>
     </message>
 </context>
 <context>
