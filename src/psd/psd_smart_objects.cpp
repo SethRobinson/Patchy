@@ -699,11 +699,27 @@ bool set_smart_filter_bool(DescriptorObject& object, std::string_view key,
   return true;
 }
 
+// Photoshop stores an entry's foreground and background colors in the color
+// model they were picked in: RGB usually, HSB or Lab when the picker was in that
+// model. Patchy models them as RGB.
+bool smart_filter_color_class_readable(std::string_view class_id) {
+  return class_id == "RGBC" || class_id == "HSBC" || class_id == "LbCl";
+}
+
 bool set_smart_filter_color(DescriptorObject& object, std::string_view key,
                             RgbColor color) {
   auto* value = const_cast<DescriptorObject*>(descriptor_object(object, key));
-  if (value == nullptr || value->class_id != "RGBC") {
+  if (value == nullptr) {
     return false;
+  }
+  if (value->class_id != "RGBC") {
+    // An HSB or Lab color stays verbatim while the model still holds its RGB
+    // reading; Patchy never authors a change to it.
+    if (!smart_filter_color_class_readable(value->class_id)) {
+      return false;
+    }
+    const auto stored = descriptor_rgb_color(object, key, CmykColorConverter{});
+    return stored.red == color.red && stored.green == color.green && stored.blue == color.blue;
   }
   const std::array<std::pair<const char*, std::uint8_t>, 3> channels{{
       {"Rd  ", color.red}, {"Grn ", color.green}, {"Bl  ", color.blue}}};
@@ -1063,8 +1079,11 @@ bool read_smart_filter_bool(const DescriptorObject& object, std::string_view key
 std::optional<RgbColor> smart_filter_rgb_color(const DescriptorObject& parent,
                                                std::string_view key) {
   const auto* color = descriptor_object(parent, key);
-  if (color == nullptr || color->class_id != "RGBC") {
+  if (color == nullptr || !smart_filter_color_class_readable(color->class_id)) {
     return std::nullopt;
+  }
+  if (color->class_id != "RGBC") {
+    return descriptor_rgb_color(parent, key, CmykColorConverter{});
   }
   const auto read_channel = [color](std::string_view key_text) -> std::optional<std::uint8_t> {
     const auto* value = descriptor_value(*color, key_text);
