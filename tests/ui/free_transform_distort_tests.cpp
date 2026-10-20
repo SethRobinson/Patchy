@@ -25,10 +25,15 @@
 #include <QPainter>
 #include <QPoint>
 #include <QRect>
+#include <QPointF>
+#include <QPolygonF>
+#include <QRegion>
 #include <QStatusBar>
 #include <QTextEdit>
 #include <optional>
 #include <algorithm>
+#include <array>
+#include <cstddef>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -47,15 +52,15 @@ using patchy::test::ui::scripting_support::run_script;
 
 const QColor kBoxColor(60, 130, 230);
 
-// A position-locked white Background plus one opaque blue layer at `bounds`, at
-// 100% with the Move tool and snapping off.
-void prepare_distort_scene(patchy::ui::MainWindow& window, QRect bounds) {
+// A position-locked white Background plus one opaque layer (blue unless `color`)
+// at `bounds`, at 100% with the Move tool and snapping off.
+void prepare_distort_scene(patchy::ui::MainWindow& window, QRect bounds, QColor color = kBoxColor) {
   patchy::Document document(400, 300, patchy::PixelFormat::rgba8());
   auto& background = document.add_pixel_layer(
       "Background", solid_pixels(400, 300, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
   patchy::set_layer_locks_position(background, true);
   patchy::Layer layer(document.allocate_layer_id(), "Box",
-                      solid_pixels(bounds.width(), bounds.height(), patchy::PixelFormat::rgba8(), kBoxColor));
+                      solid_pixels(bounds.width(), bounds.height(), patchy::PixelFormat::rgba8(), color));
   layer.set_bounds(patchy::Rect{bounds.x(), bounds.y(), bounds.width(), bounds.height()});
   document.add_layer(std::move(layer));
   window.add_document_session(std::move(document), QStringLiteral("Distort"));
@@ -93,6 +98,64 @@ QImage canvas_crop(patchy::ui::CanvasWidget& canvas, QRect document_rect) {
   QApplication::processEvents();
   return canvas.grab().toImage().copy(
       QRect(canvas.widget_position_for_document_point(document_rect.topLeft()), document_rect.size()));
+}
+
+// +1 or -1 for a strictly convex quad, 0 for a concave or self-crossing one.
+int quad_winding(const std::array<QPointF, 4>& quad) {
+  int winding = 0;
+  for (std::size_t i = 0; i < 4; ++i) {
+    const auto a = quad[i];
+    const auto b = quad[(i + 1) % 4];
+    const auto c = quad[(i + 2) % 4];
+    const auto cross = (b.x() - a.x()) * (c.y() - b.y()) - (b.y() - a.y()) * (c.x() - b.x());
+    const int sign = cross > 1e-6 ? 1 : (cross < -1e-6 ? -1 : 0);
+    if (sign == 0 || (winding != 0 && sign != winding)) {
+      return 0;
+    }
+    winding = sign;
+  }
+  return winding;
+}
+
+QRect quad_bounds(const std::array<QPointF, 4>& quad) {
+  QPolygonF polygon;
+  for (const auto& corner : quad) {
+    polygon << corner;
+  }
+  return polygon.boundingRect().toAlignedRect();
+}
+
+bool point_near(QPointF actual, QPointF expected) {
+  return std::abs(actual.x() - expected.x()) <= 0.51 && std::abs(actual.y() - expected.y()) <= 0.51;
+}
+
+// Pixels of the layer's `color` outside `keep` (sampled every other pixel,
+// skipping the document's 2 px rim, where the canvas frame is drawn): smeared
+// layer pixels. The color must differ from the session chrome's blue.
+int painted_outside(patchy::ui::CanvasWidget& canvas, QRect keep, QColor color) {
+  const QRect document_rect(0, 0, 400, 300);
+  const auto image = canvas_crop(canvas, document_rect);
+  int painted = 0;
+  for (int y = 2; y < document_rect.height() - 2; y += 2) {
+    for (int x = 2; x < document_rect.width() - 2; x += 2) {
+      if (!keep.contains(x, y) && color_close(image.pixelColor(x, y), color, 40)) {
+        if (painted == 0) {
+          std::printf("painted outside %d,%d %d x %d at %d,%d\n", keep.x(), keep.y(), keep.width(), keep.height(), x,
+                      y);
+        }
+        ++painted;
+      }
+    }
+  }
+  return painted;
+}
+
+void double_click_at(patchy::ui::CanvasWidget& canvas, QPoint widget_point) {
+  send_mouse(canvas, QEvent::MouseButtonPress, widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, widget_point, Qt::LeftButton, Qt::NoButton);
+  send_mouse(canvas, QEvent::MouseButtonDblClick, widget_point, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(canvas, QEvent::MouseButtonRelease, widget_point, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
 }
 
 // Ctrl+drag a corner moves that corner alone; the commit resamples the pixels
@@ -553,6 +616,224 @@ void ui_script_layer_transform_refusals() {
   CHECK(text_after != nullptr && text_bounds.has_value() && text_after->bounds() == *text_bounds);
 }
 
+// GitHub issue 225 (Seth: "skew a corner around with vigor"): a corner dragged
+// across the box would fold the quad, and its homography threw pixels far
+// outside the box and the repaint, leaving a smear until the commit. Every frame
+// of a wild Ctrl+drag through and past the opposite corner keeps a convex quad,
+// repaints the previous frame's box, and paints nothing outside the box.
+void ui_free_transform_wild_corner_drag_stays_convex_and_clean() {
+  patchy::ui::MainWindow window;
+  const QRect bounds(100, 70, 160, 110);
+  // Red, so the session's blue handles and rotate stem never count as smear.
+  const QColor box(220, 40, 40);
+  prepare_distort_scene(window, bounds, box);
+  auto* canvas = require_canvas(window);
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+
+  // Antialiased quad edges.
+  constexpr int kChromeMargin = 2;
+  const std::vector<QPoint> path = {{260, 180}, {200, 120}, {110, 80}, {60, 40},  {40, 150},
+                                    {150, 250}, {330, 60},  {120, 175}, {300, 220}};
+  PaintRegionRecorder recorder(canvas);
+  canvas->installEventFilter(&recorder);
+  send_mouse(*canvas, QEvent::MouseButtonPress, widget_at(*canvas, path.front().x(), path.front().y()),
+             Qt::LeftButton, Qt::LeftButton, Qt::ControlModifier);
+  QApplication::processEvents();
+  int folded_frames = 0;
+  int unrepainted_frames = 0;
+  int smeared_frames = 0;
+  QList<QImage> strips;
+  const auto view = QRect(20, 20, 360, 260);
+  for (std::size_t segment = 1; segment < path.size(); ++segment) {
+    for (int step = 1; step <= 6; ++step) {
+      const auto from = path[segment - 1];
+      const auto to = path[segment];
+      const QPoint point(from.x() + (to.x() - from.x()) * step / 6, from.y() + (to.y() - from.y()) * step / 6);
+      const auto before = canvas->free_transform_quad();
+      recorder.reset();
+      send_mouse(*canvas, QEvent::MouseMove, widget_at(*canvas, point.x(), point.y()), Qt::NoButton, Qt::LeftButton,
+                 Qt::ControlModifier);
+      QApplication::processEvents();
+      const auto after = canvas->free_transform_quad();
+      if (quad_winding(after) == 0) {
+        ++folded_frames;
+      }
+      if (before != after) {
+        const auto old_box = quad_bounds(before).adjusted(1, 1, -1, -1);
+        const QRect old_widget(canvas->widget_position_for_document_point(old_box.topLeft()),
+                               canvas->widget_position_for_document_point(old_box.bottomRight()));
+        if (!QRegion(old_widget).subtracted(recorder.region()).isEmpty()) {
+          ++unrepainted_frames;
+        }
+      }
+      if (painted_outside(*canvas, quad_bounds(after).adjusted(-kChromeMargin, -kChromeMargin, kChromeMargin,
+                                                               kChromeMargin),
+                          box) != 0) {
+        ++smeared_frames;
+      }
+      if (step == 6 && (segment == 3 || segment == 6)) {
+        strips.push_back(canvas_crop(*canvas, view));
+      }
+    }
+  }
+  canvas->removeEventFilter(&recorder);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, widget_at(*canvas, path.back().x(), path.back().y()),
+             Qt::LeftButton, Qt::NoButton, Qt::ControlModifier);
+  QApplication::processEvents();
+  std::printf("wild corner drag: %d folded, %d unrepainted, %d smeared frames\n", folded_frames, unrepainted_frames,
+              smeared_frames);
+  CHECK(folded_frames == 0);
+  CHECK(unrepainted_frames == 0);
+  CHECK(smeared_frames == 0);
+
+  // The last frame is a valid quad again: the corner follows the pointer.
+  const auto final_quad = canvas->free_transform_quad();
+  CHECK(point_near(final_quad[0], QPointF(100, 70)));
+  CHECK(point_near(final_quad[1], QPointF(260, 70)));
+  CHECK(point_near(final_quad[2], QPointF(300, 220)));
+  CHECK(point_near(final_quad[3], QPointF(100, 180)));
+  strips.push_back(canvas_crop(*canvas, view));
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  strips.push_back(canvas_crop(*canvas, view));
+  save_stacked_artifact("ui_free_transform_wild_corner_drag", strips);
+  CHECK(!canvas->free_transform_active());
+  CHECK(rect_near(canvas->active_layer_document_rect(), QRect(100, 70, 200, 150)));
+  CHECK(painted_outside(*canvas, QRect(100, 70, 200, 150).adjusted(-2, -2, 2, 2), box) == 0);
+}
+
+// Holding the skew, distort or perspective modifiers over a handle shows that
+// gesture's cursor before the press (GitHub issue 225), and releasing them
+// brings the resize cursor back.
+void ui_free_transform_modifier_keys_show_gesture_cursor() {
+  patchy::ui::MainWindow window;
+  const QRect bounds(100, 70, 160, 110);
+  prepare_distort_scene(window, bounds);
+  auto* canvas = require_canvas(window);
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  const auto cursor_image = [&] { return canvas->cursor().pixmap().toImage(); };
+
+  // Bottom-right corner: Ctrl distorts, Ctrl+Alt+Shift applies perspective.
+  send_mouse(*canvas, QEvent::MouseMove, widget_at(*canvas, 260, 180), Qt::NoButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->cursor().shape() == Qt::SizeFDiagCursor);
+  send_key_press(*canvas, Qt::Key_Control);
+  QApplication::processEvents();
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+  const auto distort = cursor_image();
+  send_key_press(*canvas, Qt::Key_Alt, Qt::ControlModifier);
+  send_key_press(*canvas, Qt::Key_Shift, Qt::ControlModifier | Qt::AltModifier);
+  QApplication::processEvents();
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+  const auto perspective = cursor_image();
+  CHECK(!distort.isNull() && !perspective.isNull() && distort != perspective);
+  send_key_release(*canvas, Qt::Key_Shift, Qt::ControlModifier | Qt::AltModifier | Qt::ShiftModifier);
+  send_key_release(*canvas, Qt::Key_Alt, Qt::ControlModifier | Qt::AltModifier);
+  send_key_release(*canvas, Qt::Key_Control, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(canvas->cursor().shape() == Qt::SizeFDiagCursor);
+
+  // Right side: Ctrl moves the side (distort), Ctrl+Shift slides it (skew).
+  send_mouse(*canvas, QEvent::MouseMove, widget_at(*canvas, 260, 125), Qt::NoButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(canvas->cursor().shape() == Qt::SizeHorCursor);
+  send_key_press(*canvas, Qt::Key_Control);
+  QApplication::processEvents();
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+  CHECK(cursor_image() == distort);
+  send_key_press(*canvas, Qt::Key_Shift, Qt::ControlModifier);
+  QApplication::processEvents();
+  const auto skew = cursor_image();
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+  CHECK(!skew.isNull() && skew != distort && skew != perspective);
+  // A hover with the keys still held keeps the hint.
+  send_mouse(*canvas, QEvent::MouseMove, widget_at(*canvas, 260, 126), Qt::NoButton, Qt::NoButton,
+             Qt::ControlModifier | Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(cursor_image() == skew);
+  send_key_release(*canvas, Qt::Key_Shift, Qt::ControlModifier | Qt::ShiftModifier);
+  send_key_release(*canvas, Qt::Key_Control, Qt::ControlModifier);
+  QApplication::processEvents();
+  CHECK(canvas->cursor().shape() == Qt::SizeHorCursor);
+  save_image_artifact("ui_free_transform_gesture_cursors", [&] {
+    QImage strip(3 * 40, 40, QImage::Format_ARGB32_Premultiplied);
+    strip.fill(QColor(128, 128, 128));
+    QPainter painter(&strip);
+    int x = 4;
+    for (const auto& image : {skew, distort, perspective}) {
+      painter.drawImage(x, 4, image);
+      x += 40;
+    }
+    painter.end();
+    return strip;
+  }());
+}
+
+// Ctrl+Alt+drag mirrors the gesture about the center (GitHub issue 225): a side
+// moves with the opposite side going the other way, a corner with the
+// diagonally opposite corner. A double-click inside the distorted box applies.
+void ui_free_transform_ctrl_alt_drag_is_symmetric() {
+  patchy::ui::MainWindow window;
+  const QRect bounds(100, 70, 160, 110);
+  prepare_distort_scene(window, bounds);
+  auto* canvas = require_canvas(window);
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+
+  drag(*canvas, widget_at(*canvas, 180, 70), widget_at(*canvas, 210, 70), Qt::ControlModifier | Qt::AltModifier);
+  auto quad = canvas->free_transform_quad();
+  CHECK(point_near(quad[0], QPointF(130, 70)));
+  CHECK(point_near(quad[1], QPointF(290, 70)));
+  CHECK(point_near(quad[2], QPointF(230, 180)));
+  CHECK(point_near(quad[3], QPointF(70, 180)));
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  drag(*canvas, widget_at(*canvas, 260, 180), widget_at(*canvas, 290, 200), Qt::ControlModifier | Qt::AltModifier);
+  quad = canvas->free_transform_quad();
+  CHECK(point_near(quad[0], QPointF(70, 50)));
+  CHECK(point_near(quad[1], QPointF(260, 70)));
+  CHECK(point_near(quad[2], QPointF(290, 200)));
+  CHECK(point_near(quad[3], QPointF(100, 180)));
+  const auto view = QRect(40, 30, 320, 220);
+  QList<QImage> strips{canvas_crop(*canvas, view)};
+
+  // Off the box a double-click keeps the session; inside it applies.
+  double_click_at(*canvas, widget_at(*canvas, 350, 260));
+  CHECK(canvas->free_transform_active());
+  double_click_at(*canvas, widget_at(*canvas, 180, 125));
+  CHECK(!canvas->free_transform_active());
+  strips.push_back(canvas_crop(*canvas, view));
+  save_stacked_artifact("ui_free_transform_ctrl_alt_symmetric", strips);
+  CHECK(rect_near(canvas->active_layer_document_rect(), QRect(70, 50, 220, 150)));
+  CHECK(is_box(*canvas, 75, 55));
+  CHECK(is_box(*canvas, 285, 195));
+  CHECK(is_white(*canvas, 280, 75));
+}
+
+// layer.transform refuses a quad whose corners cross or fold (it has no sensible
+// projective map) and leaves the layer alone.
+void ui_script_layer_transform_refuses_folded_quad() {
+  patchy::ui::MainWindow window;
+  const QRect bounds(100, 70, 160, 110);
+  prepare_distort_scene(window, bounds);
+  auto* canvas = require_canvas(window);
+  CHECK(!run_script(window, QStringLiteral(
+      "app.activeDocument.activeLayer.transform({ quad: [[100, 70], [260, 70], [100, 180], [260, 180]] });")));
+  CHECK(!run_script(window, QStringLiteral(
+      "app.activeDocument.activeLayer.transform({ quad: [[100, 70], [260, 70], [120, 90], [100, 180]] });")));
+  CHECK(!canvas->free_transform_active());
+  CHECK(canvas->active_layer_document_rect() == bounds);
+}
+
 // The three entries live under Edit > Transform with permanent hotkey ids, no
 // default keys, and NoRole (macOS menu merging).
 void ui_free_transform_mode_menu_entries() {
@@ -591,5 +872,10 @@ std::vector<patchy::test::TestCase> free_transform_distort_tests() {
       {"ui_pinball_perspective_smart_objects_render_like_photoshop_if_available",
        ui_pinball_perspective_smart_objects_render_like_photoshop_if_available},
       {"ui_free_transform_distort_shape_layer_maps_path", ui_free_transform_distort_shape_layer_maps_path},
+      {"ui_free_transform_wild_corner_drag_stays_convex_and_clean",
+       ui_free_transform_wild_corner_drag_stays_convex_and_clean},
+      {"ui_free_transform_modifier_keys_show_gesture_cursor", ui_free_transform_modifier_keys_show_gesture_cursor},
+      {"ui_free_transform_ctrl_alt_drag_is_symmetric", ui_free_transform_ctrl_alt_drag_is_symmetric},
+      {"ui_script_layer_transform_refuses_folded_quad", ui_script_layer_transform_refuses_folded_quad},
   };
 }

@@ -218,8 +218,8 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
     auto* key_event = static_cast<QKeyEvent*>(event);
     if (!key_event->isAutoRepeat() &&
         (key_event->key() == Qt::Key_Shift || key_event->key() == Qt::Key_Alt ||
-         (key_event->key() == Qt::Key_Control &&
-          (pen_family_tool_active() || tool_ == CanvasTool::Move || tool_ == CanvasTool::Text)))) {
+         (key_event->key() == Qt::Key_Control && (pen_family_tool_active() || tool_ == CanvasTool::Move ||
+                                                  tool_ == CanvasTool::Text || transforming_layer_)))) {
       // The event reports the modifier state before this key, so fold the
       // pressed/released key into the modifiers we evaluate.
       const auto bit = key_event->key() == Qt::Key_Shift   ? Qt::ShiftModifier
@@ -227,7 +227,11 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
                                                            : Qt::ControlModifier;
       const auto modifiers = event->type() == QEvent::KeyPress ? (key_event->modifiers() | bit)
                                                                : (key_event->modifiers() & ~bit);
-      if (tool_ == CanvasTool::Zoom) {
+      if (transforming_layer_ && !warping_layer_) {
+        // A pending Free Transform: Ctrl, Alt and Shift change what a handle drag
+        // does, so the cursor over a handle shows that gesture before the press.
+        apply_session_transform_cursor(last_mouse_position_, modifiers);
+      } else if (tool_ == CanvasTool::Zoom) {
         if (key_event->key() == Qt::Key_Alt) {
           // Idle: Alt flips the magnifier badge between + and -. Mid-drag: Alt
           // suppresses the marquee, so repaint to show/hide the preview.
@@ -1781,7 +1785,7 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
 
   if (transforming_layer_) {
     clear_move_hover_outline();
-    apply_session_transform_cursor(event->pos());
+    apply_session_transform_cursor(event->pos(), event->modifiers());
     last_mouse_position_ = event->pos();
     return;
   }
@@ -3297,10 +3301,17 @@ void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
       }
     }
     if (transforming_layer_) {
-      // A double-click during a session is just a second press (the base
-      // class replays it as one): it never commits, and it must not reach the
-      // text and shape editor branches below. Double-click commit was removed
-      // because a hand that slips between the clicks drags the box.
+      // A double-click inside the box (off its handles) applies the transform,
+      // like Enter (GitHub issue 225). Anywhere else it is just a second press
+      // (the base class replays it as one), and it must never reach the text
+      // and shape editor branches below. Warp keeps its own grid drags.
+      const auto session_hit = transform_handle_at(event->pos(), TransformHitZones::HandlesOnly);
+      if (!warping_layer_ && (session_hit == TransformHandle::None || session_hit == TransformHandle::Move) &&
+          transform_session_box_contains(event->pos())) {
+        finish_free_transform();
+        event->accept();
+        return;
+      }
       QWidget::mouseDoubleClickEvent(event);
       return;
     }

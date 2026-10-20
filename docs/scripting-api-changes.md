@@ -16,7 +16,8 @@ application-wide view preference for lines between pixels at 600% zoom and up (G
 Transform in one call through the interactive commit (GitHub issue 225): `matrix` maps the
 layer's transform box, `quad` places its corners (layer order TL, TR, BR, BL), so skew,
 distort and perspective are scriptable; smart objects keep a perspective placement, type
-layers throw for a non-parallelogram quad, a pending transform throws. `interpolation`
+layers throw for a non-parallelogram quad, a crossed or concave quad throws (pinned by
+`ui_script_layer_transform_refuses_folded_quad`), a pending transform throws. `interpolation`
 takes the existing resample method ids. Permanent identifiers: the method name and the
 keys `matrix`, `quad`, `interpolation`. Pinned by `ui_script_layer_transform_quad_and_matrix`
 and `ui_script_layer_transform_refusals`.
