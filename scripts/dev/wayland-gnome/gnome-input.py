@@ -3,6 +3,7 @@
 #   move X Y     absolute layout pixels (a big relative jump to the corner, then the offset)
 #   rel DX DY    relative motion only (for drags: move re-anchors at the corner first)
 #   press | release | click
+#   wheel N      N discrete vertical wheel steps (positive scrolls down)
 #   kdown SYM | kup SYM   X keysym number (0x.. accepted); hold modifiers with kdown, release with kup
 #   sleep MS
 #   shot NAME    writes <out>/NAME.png
@@ -51,6 +52,9 @@ for line in sys.stdin:
         button(False)
     elif parts[0] == "click":
         button(True); time.sleep(0.06); button(False)
+    elif parts[0] == "wheel":
+        session.call_sync("NotifyPointerAxisDiscrete", GLib.Variant("(ui)", (0, int(parts[1]))),
+                          Gio.DBusCallFlags.NONE, -1, None)
     elif parts[0] == "kdown":
         keysym(int(parts[1], 0), True)
     elif parts[0] == "kup":

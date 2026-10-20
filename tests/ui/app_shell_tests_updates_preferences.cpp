@@ -607,18 +607,19 @@ void ui_open_dialog_hides_name_filter_details() {
   // visible patterns in the display name ("TIFF Image (*.tif *.tiff)"): a "*." token
   // must survive stripping or the Windows 11 dialog re-appends the full pattern spec.
   bool saw_open_dialog = false;
+  QStringList filters;
+  QStringList displayed;
   QTimer::singleShot(0, [&] {
     auto* dialog = qobject_cast<QFileDialog*>(find_top_level_dialog(QStringLiteral("openFileDialog")));
     CHECK(dialog != nullptr);
     CHECK(dialog->testOption(QFileDialog::HideNameFilterDetails));
-    const auto filters = dialog->nameFilters();
+    filters = dialog->nameFilters();
     CHECK(!filters.isEmpty());
     CHECK(filters.first().contains(QStringLiteral("*.psd")));
     CHECK(filters.first().contains(QStringLiteral("*.tif")));
     CHECK(filters.first().contains(QStringLiteral("*.jxl")));
     auto* type_combo = dialog->findChild<QComboBox*>(QStringLiteral("fileTypeCombo"));
     CHECK(type_combo != nullptr);
-    QStringList displayed;
     for (int i = 0; i < type_combo->count(); ++i) {
       displayed.push_back(type_combo->itemText(i));
     }
@@ -635,6 +636,27 @@ void ui_open_dialog_hides_name_filter_details() {
   });
   require_action(window, "fileOpenAction")->trigger();
   CHECK(saw_open_dialog);
+  // Checked outside the dialog callback: a failing CHECK throws, and a throw inside the
+  // event loop crashes the suite instead of reporting.
+  CHECK(displayed.contains(QStringLiteral("Portable Anymap Image (*.pbm *.pgm *.ppm *.pnm)")));
+  // A row with many extensions shows a short hint, never the whole list: the Camera Raw
+  // row's 27 patterns made GNOME's type dropdown as wide as the screen and hid its
+  // scrollbar at the far edge, so the rows below the tenth looked absent (GitHub issue
+  // 270). The machine-read spec behind the hint still carries every extension.
+  int raw_rows = 0;
+  for (int i = 0; i < displayed.size(); ++i) {
+    CHECK(displayed[i].size() <= 72);
+    if (!displayed[i].startsWith(QStringLiteral("Camera Raw Image"))) {
+      continue;
+    }
+    ++raw_rows;
+    CHECK(displayed[i] == QStringLiteral("Camera Raw Image (*.dng *.cr2 *.cr3 *.crw *.nef *.nrw and more)"));
+    CHECK(i < filters.size());
+    CHECK(filters[i].startsWith(displayed[i]));
+    CHECK(filters[i].contains(QStringLiteral("*.x3f")));
+    CHECK(filters[i].endsWith(QStringLiteral("*.x3f)")));
+  }
+  CHECK(raw_rows == 1);
 
   // Save As filters are one short entry per format; their extension details stay visible.
   bool saw_save_dialog = false;

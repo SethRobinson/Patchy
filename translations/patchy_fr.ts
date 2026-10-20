@@ -11498,6 +11498,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
         <translation>Les fichiers manquants restent signalés dans la barre d&apos;état. Les préférences permettent de réactiver cette boîte de dialogue pour les documents ouverts.</translation>
     </message>
+    <message>
+        <source>Portable Anymap Image</source>
+        <translation>Image Portable Anymap</translation>
+    </message>
+    <message>
+        <source>%1 and more</source>
+        <extracomment>Open-dialog file type row: %1 is a short list of *.ext patterns</extracomment>
+        <translation>%1 et plus</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
