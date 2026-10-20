@@ -22626,6 +22626,10 @@ Patchy можно будет запускать из меню, а на пане�
         <source>Perspective</source>
         <translation>Перспектива</translation>
     </message>
+    <message>
+        <source>Pi&amp;xel Grid</source>
+        <translation>Пиксельная с&amp;етка</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -22486,6 +22486,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <source>Perspective</source>
         <translation>透视</translation>
     </message>
+    <message>
+        <source>Pi&amp;xel Grid</source>
+        <translation>像素网格(&amp;X)</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

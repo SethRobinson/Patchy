@@ -24,6 +24,7 @@
 #include <chrono>
 #include <cstdio>
 #include <optional>
+#include <span>
 #include <vector>
 
 namespace patchy::ui {
@@ -195,6 +196,20 @@ bool uses_deep_zoom_pixel_renderer(double zoom) noexcept;
 // Whether the canvas interpolates at this view zoom: the one display smoothing rule
 // (docs/view-navigation.md, "Display interpolation").
 bool uses_smooth_display_scaling(double zoom, bool deep_pixel_renderer) noexcept;
+// The pixel grid's line color for one pixel (premultiplied ARGB in, opaque out): the
+// pixel's own color pushed toward black or white, so the line reads over light and dark
+// pixels alike (GitHub issue 239). Document-view drawing, like the checkerboard.
+QRgb pixel_grid_line_color(QRgb pixel) noexcept;
+// The deep-zoom raster: `source` pixel (i, j) is document pixel document_origin + (i, j)
+// and covers device columns [qRound(edges_x[i] * ratio), qRound(edges_x[i + 1] * ratio)),
+// the cover an aliased fillRect of its logical widget rect gets; rows likewise. edges_x and
+// edges_y hold one more entry than the columns and rows drawn. With `pixel_grid`, each
+// cell's first device column and row take pixel_grid_line_color (none along document
+// column or row 0). Returns premultiplied ARGB at device resolution and stores the device
+// position of its top-left pixel in device_origin; cost is one write per device pixel.
+QImage deep_zoom_raster(const QImage& source, QPoint document_origin, std::span<const int> edges_x,
+                        std::span<const int> edges_y, double device_pixel_ratio, bool pixel_grid,
+                        QPoint& device_origin);
 int display_mip_level_for_zoom(double zoom) noexcept;
 // "Layer N", one past the top-level count and not taken anywhere in the tree (New Layer,
 // and the layer a paint press adds to an empty artboard).

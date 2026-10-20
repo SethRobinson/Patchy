@@ -22556,6 +22556,10 @@ Puedes hacerlo más tarde desde Ayuda &gt; Añadir Patchy al menú de aplicacion
         <source>Perspective</source>
         <translation>Perspectiva</translation>
     </message>
+    <message>
+        <source>Pi&amp;xel Grid</source>
+        <translation>Cuadrícula de pí&amp;xeles</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -238,6 +238,7 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
       {view_proof_colors_action_, QT_TR_NOOP("Proof Colors")},
       {view_gamut_warning_action_, QT_TR_NOOP("Gamut Warning")},
       {view_grid_action_, QT_TR_NOOP("&Grid")},
+      {view_pixel_grid_action_, QT_TR_NOOP("Pi&xel Grid")},
       {view_guides_action_, QT_TR_NOOP("&Guides")},
       {view_snap_action_, QT_TR_NOOP("&Snap")},
       {view_lock_guides_action_, QT_TR_NOOP("Lock Guides")},

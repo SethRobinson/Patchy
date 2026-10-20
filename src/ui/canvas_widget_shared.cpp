@@ -627,7 +627,10 @@ QImage feather_blur_mask(QImage mask, int feather_radius) {
 }
 
 constexpr double kPixelAlignedZoom = 1.0;
-constexpr double kDeepZoomPixelRendererZoom = 8.0;
+// The deep-zoom renderer, and with it the pixel grid (GitHub issue 239), starts at 600%:
+// there each document pixel spans at least six screen pixels, so a one-pixel line between
+// pixels separates them without hiding them.
+constexpr double kDeepZoomPixelRendererZoom = 6.0;
 
 double grid_cycle_pixels(std::int32_t cycle_32) noexcept {
   return static_cast<double>(std::max<std::int32_t>(1, cycle_32)) / 32.0;
@@ -666,6 +669,101 @@ bool uses_smooth_display_scaling(double zoom, bool deep_pixel_renderer) noexcept
     return false;
   }
   return std::abs(zoom - std::round(zoom)) > kWholeZoomTolerance;
+}
+
+QRgb pixel_grid_line_color(QRgb pixel) noexcept {
+  // The pixel as it shows over a light backdrop (the transparency checkerboard's tone),
+  // then pushed toward black when light or toward white when dark, which keeps its hue:
+  // white gets a 200 gray line, black a 63 gray one.
+  constexpr int kBackdrop = 224;
+  const int uncovered = 255 - qAlpha(pixel);
+  auto red = qRed(pixel) + uncovered * kBackdrop / 255;
+  auto green = qGreen(pixel) + uncovered * kBackdrop / 255;
+  auto blue = qBlue(pixel) + uncovered * kBackdrop / 255;
+  if ((54 * red + 183 * green + 19 * blue) >> 8 >= 128) {
+    red -= red * 56 / 256;
+    green -= green * 56 / 256;
+    blue -= blue * 56 / 256;
+  } else {
+    red += (255 - red) * 64 / 256;
+    green += (255 - green) * 64 / 256;
+    blue += (255 - blue) * 64 / 256;
+  }
+  return qRgb(red, green, blue);
+}
+
+QImage deep_zoom_raster(const QImage& source, QPoint document_origin, std::span<const int> edges_x,
+                        std::span<const int> edges_y, double device_pixel_ratio, bool pixel_grid,
+                        QPoint& device_origin) {
+  const auto columns = static_cast<int>(edges_x.size()) - 1;
+  const auto rows = static_cast<int>(edges_y.size()) - 1;
+  if (columns <= 0 || rows <= 0 || source.width() < columns || source.height() < rows ||
+      !(device_pixel_ratio > 0.0)) {
+    return {};
+  }
+  // qRound is the rounding an aliased fillRect of the logical rect gets, so every
+  // overlay drawn at widget_position lines up with these cells.
+  const auto to_device = [device_pixel_ratio](int logical) { return qRound(logical * device_pixel_ratio); };
+  const auto left = to_device(edges_x.front());
+  const auto top = to_device(edges_y.front());
+  const auto width = to_device(edges_x.back()) - left;
+  const auto height = to_device(edges_y.back()) - top;
+  if (width <= 0 || height <= 0) {
+    return {};
+  }
+  // Device column -> source column, and whether it is the first device column of its
+  // cell (a grid line; none along document column 0). Rows likewise.
+  const auto map_axis = [&](std::span<const int> edges, int start, int count, int document_start,
+                            std::vector<int>& cell_of, std::vector<char>& line) {
+    cell_of.assign(static_cast<std::size_t>(count), 0);
+    line.assign(static_cast<std::size_t>(count), 0);
+    for (std::size_t cell = 0; cell + 1 < edges.size(); ++cell) {
+      const auto from = std::clamp(to_device(edges[cell]) - start, 0, count);
+      const auto to = std::clamp(to_device(edges[cell + 1]) - start, 0, count);
+      for (auto device = from; device < to; ++device) {
+        cell_of[static_cast<std::size_t>(device)] = static_cast<int>(cell);
+      }
+      if (from < to && pixel_grid && document_start + static_cast<int>(cell) != 0) {
+        line[static_cast<std::size_t>(from)] = 1;
+      }
+    }
+  };
+  std::vector<int> column_of;
+  std::vector<char> column_line;
+  std::vector<int> row_of;
+  std::vector<char> row_line;
+  map_axis(edges_x, left, width, document_origin.x(), column_of, column_line);
+  map_axis(edges_y, top, height, document_origin.y(), row_of, row_line);
+
+  const auto pixels = source.format() == QImage::Format_ARGB32_Premultiplied
+                          ? source
+                          : source.convertToFormat(QImage::Format_ARGB32_Premultiplied);
+  QImage raster(width, height, QImage::Format_ARGB32_Premultiplied);
+  std::vector<QRgb> tones(static_cast<std::size_t>(columns));
+  int toned_row = -1;
+  for (int y = 0; y < height; ++y) {
+    const auto row = row_of[static_cast<std::size_t>(y)];
+    const auto* in = reinterpret_cast<const QRgb*>(pixels.constScanLine(row));
+    auto* out = reinterpret_cast<QRgb*>(raster.scanLine(y));
+    if (pixel_grid && toned_row != row) {
+      for (int column = 0; column < columns; ++column) {
+        tones[static_cast<std::size_t>(column)] = pixel_grid_line_color(in[column]);
+      }
+      toned_row = row;
+    }
+    if (row_line[static_cast<std::size_t>(y)] != 0) {
+      for (int x = 0; x < width; ++x) {
+        out[x] = tones[static_cast<std::size_t>(column_of[static_cast<std::size_t>(x)])];
+      }
+      continue;
+    }
+    for (int x = 0; x < width; ++x) {
+      const auto column = static_cast<std::size_t>(column_of[static_cast<std::size_t>(x)]);
+      out[x] = column_line[static_cast<std::size_t>(x)] != 0 ? tones[column] : in[column];
+    }
+  }
+  device_origin = QPoint(left, top);
+  return raster;
 }
 
 QString default_new_layer_name(const Document& document) {

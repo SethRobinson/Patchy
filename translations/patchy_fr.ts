@@ -22556,6 +22556,10 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
         <source>Perspective</source>
         <translation>Perspective</translation>
     </message>
+    <message>
+        <source>Pi&amp;xel Grid</source>
+        <translation>Grille de pi&amp;xels</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
