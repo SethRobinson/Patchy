@@ -19,6 +19,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "core_test_support.hpp"
@@ -229,7 +230,10 @@ void smart_filter_gallery_fails_closed_outside_the_model() {
 
   // The writer never changes which effects run.
   auto gallery = gallery_of(require_layer_named(original, "Gallery Plastic Wrap").smart_filter_stack()->entries.front());
-  gallery.effects.push_back(gallery.effects.front());
+  patchy::FilterGalleryEffect added;
+  added.effect_id = "PlsW";
+  added.settings = patchy::PlasticWrapSmartFilter{1, 1, 1};
+  gallery.effects.push_back(std::move(added));
   auto writable = single;
   CHECK(!patchy::psd::write_filter_gallery_smart_filter(writable, gallery));
 
