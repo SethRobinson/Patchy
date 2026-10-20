@@ -188,6 +188,20 @@ captures unless noted.
 - Patchy picks the neighbor from a splitmix64 hash of the document position: repeatable,
   same statistics, not PS's (unrepeatable) pattern. Opening a file keeps PS's pixels.
 
+## Not modeled (stacks stay preview-locked)
+
+- Wind (`Wnd `: `WndM` enum `WndM` `Wnd `/`Blst`/`Stgr`, `Drct` enum `Drct`
+  `Left`/`Rght`), Tiles (`Tls `: integers `TlNm`, `TlOf`, `FlCl` enum `FlCl`) and
+  Extrude (`Extr`: integers `ExtS`, `ExtD`, enums `ExtT` `Blks`/`Pyrm` and `ExtR`, booleans
+  `ExtF`, `ExtM`): every key above changes PS's output (no prompt with these keys), but the
+  filters are random and PS itself does not repeat them (two Wind renders of one document
+  differ). Wind streaks only some rows (a dot's tail halves per pixel, a bar's decays more
+  slowly); Stagger shifts rows. No model yet.
+- Oil Paint (`oilPaint`): held for legal review and not reproducible from probes
+  ([smart-filters-native.md](smart-filters-native.md)).
+- Displace: its map is an external file the descriptor references; not attempted.
+- Diffuse Anisotropic: no DOM method and the enum value is unverified.
+
 ## Fixtures
 
 `test-fixtures/psd/photoshop-smart-filter-<name>.psd`, self-authored through COM from a
