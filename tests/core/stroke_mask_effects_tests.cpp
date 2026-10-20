@@ -1186,9 +1186,7 @@ std::vector<float> stroke_mask_for_pixels(const patchy::PixelBuffer& pixels, pat
 }
 
 // Largest Euclidean distance from any half-or-more-covered stroke band pixel
-// to the nearest half-or-more-covered matte pixel. A legitimate band pixel
-// stays within band + ~1.6 px of the solid matte (subpixel anchor + 1px AA
-// ramp); a promoted-fringe nub blooms past band + 2.
+// to the nearest half-or-more-covered matte pixel.
 float max_stroke_distance_from_solid(const std::vector<float>& mask, const patchy::PixelBuffer& pixels,
                                      patchy::Rect bounds, patchy::Rect mask_bounds) {
   std::vector<float> solid(mask.size(), 0.0F);
@@ -1216,13 +1214,15 @@ float max_stroke_distance_from_solid(const std::vector<float>& mask, const patch
   return worst;
 }
 
-void layer_stroke_aa_fringe_lattice_phase_never_nubs() {
-  // The bad_stroke.psd regression (July 2026): smooth-AA text carries fringe
-  // pixels whose distance to the nearest half-covered pixel CENTER exceeds
-  // 2 px at unlucky lattice phases even though the half-coverage contour
-  // passes within a pixel of them. The flat-wash promotion must not turn such
-  // pixels into isolated solid islands - each one bloomed into a square
-  // size+1 blob ("nub") off the glyph outline.
+void layer_stroke_aa_fringe_tip_bands_like_photoshop() {
+  // The bad_stroke.psd layout (July 2026): smooth-AA text carries fringe
+  // pixels sitting sqrt(5) px from the nearest half-covered pixel center.
+  // Photoshop bands such a pixel like any painted pixel (October 2026 probes,
+  // local-test-fixtures/stroke-soft-probes/lattice-merged.png, the exact
+  // layout below with a 2 px Outside stroke): its 4-neighbours take the full
+  // band, the diagonals clamp(band + a - sqrt 2) and the ring at distance 2
+  // reads the pixel's own alpha, so the "nub" is a faint diamond, never a
+  // square size+1 block and never nothing.
   constexpr std::int32_t kSide = 48;
   auto pixels = solid_rgba(kSide, kSide, 0, 0, 255, 0);
   for (std::int32_t y = 0; y < kSide; ++y) {
@@ -1234,9 +1234,7 @@ void layer_stroke_aa_fringe_lattice_phase_never_nubs() {
       }
     }
   }
-  // Fringe tip: sqrt(5) ~ 2.24 px from the nearest solid center (15, 20) but
-  // only 1.67 px from the half-coverage sample between (15, 19) and (15, 20).
-  pixels.pixel(14, 18)[3] = 51;
+  pixels.pixel(14, 18)[3] = 51;  // the fringe tip (alpha 0.2)
   const auto bounds = patchy::Rect{0, 0, kSide, kSide};
   const auto mask_bounds = patchy::outset_rect(bounds, 3);
   const auto mask =
@@ -1245,19 +1243,23 @@ void layer_stroke_aa_fringe_lattice_phase_never_nubs() {
     return mask[static_cast<std::size_t>(y - mask_bounds.y) * static_cast<std::size_t>(mask_bounds.width) +
                 static_cast<std::size_t>(x - mask_bounds.x)];
   };
-  CHECK(at(14, 16) < 0.05F);  // the nub site: full-strength pre-fix
-  CHECK(at(25, 18) > 0.9F);   // the legitimate band above the solid edge
-  CHECK(max_stroke_distance_from_solid(mask, pixels, bounds, mask_bounds) <= 4.0F);
+  // Photoshop: (14,16) = 51, (13,17) = (15,17) = 201, (14,17) = 255, rows 18 and
+  // 19 full (the 125 fringe row carries the stroke under itself: 125 + 130).
+  CHECK(std::abs(at(14, 16) - 51.0F / 255.0F) < 0.02F);
+  CHECK(std::abs(at(13, 17) - 201.0F / 255.0F) < 0.02F);
+  CHECK(std::abs(at(15, 17) - 201.0F / 255.0F) < 0.02F);
+  CHECK(at(14, 17) > 0.99F);
+  CHECK(at(25, 18) > 0.99F);                                 // 1 px above the 125 fringe row
+  CHECK(std::abs(at(25, 17) - 125.0F / 255.0F) < 0.02F);    // the 2 px ring reads the fringe's 125
+  CHECK(at(25, 16) < 0.01F);                                 // 3 px: nothing
 }
 
 void layer_stroke_flat_wash_far_from_solid_still_strokes_in_full() {
-  // Guard rail for the refined promotion rule: painted regions that never
-  // reach half coverage still stroke as solid shapes (the pinned
-  // photoshop-stroke-partial-alpha semantics), both past the direct-promote
-  // bound and inside the near-solid annulus where the subpixel denial scan
-  // runs (the wash itself never crosses 0.5, so once the solid region's own
-  // crossing is out of reach the scan must keep promoting). Wash pixels
-  // within crossing reach of the solid square sit under its band anyway.
+  // Painted regions that never reach half coverage still stroke as solid
+  // shapes (the pinned photoshop-stroke-partial-alpha semantics): the band
+  // measures from every painted pixel, full inside the band and the last
+  // ring at the wash's own alpha (Photoshop 2026 probes of a flat 50% block,
+  // local-test-fixtures/stroke-soft-probes/lone-merged.png).
   constexpr std::int32_t kSide = 48;
   auto pixels = solid_rgba(kSide, kSide, 0, 0, 255, 0);
   for (std::int32_t y = 4; y < 20; ++y) {
@@ -1280,17 +1282,18 @@ void layer_stroke_flat_wash_far_from_solid_still_strokes_in_full() {
   };
   CHECK(at(32, 33) > 0.70F);  // wash interior: stroke fills the shape and the
   CHECK(at(32, 33) < 0.80F);  // 25% content covers it
-  CHECK(at(24, 46) > 0.9F);   // full band on clean ground below the wash
+  CHECK(at(24, 45) > 0.9F);   // full band on clean ground below the wash (2 px out)
+  CHECK(std::abs(at(24, 46) - 0.25F) < 0.02F);  // the 3 px ring reads the wash's 25%
   CHECK(at(16, 1) > 0.9F);    // solid square's own band unaffected
 }
 
-void layer_stroke_transformed_corner_tip_never_nubs() {
+void layer_stroke_transformed_corner_tip_bands_like_photoshop() {
   // Alpha block lifted verbatim from bad_stroke_transformed.psd around one of
-  // its 51 nubs: transform re-rasterization stretches glyph-corner ramps so
-  // the 1-6/255 tip sits sqrt(8) from every half-covered pixel center with
-  // the bilinear half-coverage crossing ~2.5-2.75 px away — past the 2 px
-  // solid gate AND past a 2 px crossing scan. The 3 px crossing reach must
-  // deny it.
+  // its glyph corners: transform re-rasterization stretches the corner ramp
+  // so a 6/255 tip sits sqrt(8) from every half-covered pixel center.
+  // Photoshop bands the tip like any painted pixel (lone-pixel probes,
+  // October 2026): full at 1 px, clamp(band + a - sqrt 2) diagonally and the
+  // tip's own alpha on the ring, a faint diamond past the glyph.
   constexpr std::int32_t kSide = 48;
   constexpr std::array<std::array<std::uint8_t, 9>, 5> kCornerRows{{
       {44, 44, 40, 21, 6, 0, 0, 0, 0},
@@ -1312,15 +1315,27 @@ void layer_stroke_transformed_corner_tip_never_nubs() {
   const auto mask_bounds = patchy::outset_rect(bounds, 3);
   const auto mask =
       stroke_mask_for_pixels(pixels, bounds, mask_bounds, 2.0F, patchy::LayerStrokePosition::Outside);
-  CHECK(max_stroke_distance_from_solid(mask, pixels, bounds, mask_bounds) <= 4.0F);
+  const auto at = [&](std::int32_t x, std::int32_t y) {
+    return mask[static_cast<std::size_t>(y - mask_bounds.y) * static_cast<std::size_t>(mask_bounds.width) +
+                static_cast<std::size_t>(x - mask_bounds.x)];
+  };
+  CHECK(at(kTipX, kTipY - 1) > 0.99F);                           // 1 px above the 6/255 tip
+  CHECK(std::abs(at(kTipX, kTipY - 2) - 6.0F / 255.0F) < 0.02F);  // the ring reads the tip
+  CHECK(at(kTipX + 2, kTipY) < 0.05F);                           // nothing 2 px right of it
+  CHECK(at(kTipX + 1, kTipY) > 0.99F);                           // 1 px right: full
+  // The whole band stays within band + sqrt(8) + sqrt(2) of the half-covered matte.
+  CHECK(max_stroke_distance_from_solid(mask, pixels, bounds, mask_bounds) <= 4.3F);
 }
 
 void psd_bad_stroke_text_has_no_stroke_nubs_if_available() {
   // The original report files: 119pt smooth-AA text with a 2px outside
-  // stroke, plain and free-transformed. Pre-fix, the flat-wash promotion
-  // turned lattice-phase fringe pixels (and, on the transformed raster,
-  // stretched glyph-corner ramp tips) into isolated solid islands and the
-  // band bloomed a square nub around each one.
+  // stroke, plain and free-transformed. The July 2026 promotion rule turned
+  // lattice-phase fringe pixels (and, on the transformed raster, stretched
+  // glyph-corner ramp tips) into isolated solid islands and the band bloomed a
+  // square size+1 nub around each one. Photoshop itself bands a faint tip only
+  // to its 4-neighbours at full strength (a diamond that fades with the tip's
+  // alpha), so the band stays within size + sqrt(8) + sqrt(2) of the
+  // half-covered matte.
   int checked = 0;
   for (const auto* name : {"bad_stroke.psd", "bad_stroke_transformed.psd"}) {
     const auto path = patchy::test::local_psd_fixture_path(name);
@@ -1352,8 +1367,8 @@ void psd_bad_stroke_text_has_no_stroke_nubs_if_available() {
         !stroked->layer_style().layer_mask_hides_effects, nullptr);
     const auto worst = max_stroke_distance_from_solid(mask, stroked->pixels(), bounds, mask_bounds);
     std::cout << name << " worst band distance from solid: " << worst << " (limit "
-              << stroke.size + 2.0F << ")\n";
-    CHECK(worst <= stroke.size + 2.0F);
+              << stroke.size + 2.3F << ")\n";
+    CHECK(worst <= stroke.size + 2.3F);
   }
   if (checked == 0) {
     patchy::test::skip("no optional fixture present (bad_stroke.psd, bad_stroke_transformed.psd)");
@@ -1414,12 +1429,12 @@ std::vector<patchy::test::TestCase> stroke_mask_effects_tests() {
       {"drop_shadow_conceals_composes_with_stroke_knockout",
        drop_shadow_conceals_composes_with_stroke_knockout},
       {"layer_stroke_knockout_blend_mode_uses_backdrop", layer_stroke_knockout_blend_mode_uses_backdrop},
-      {"layer_stroke_aa_fringe_lattice_phase_never_nubs",
-       layer_stroke_aa_fringe_lattice_phase_never_nubs},
+      {"layer_stroke_aa_fringe_tip_bands_like_photoshop",
+       layer_stroke_aa_fringe_tip_bands_like_photoshop},
       {"layer_stroke_flat_wash_far_from_solid_still_strokes_in_full",
        layer_stroke_flat_wash_far_from_solid_still_strokes_in_full},
-      {"layer_stroke_transformed_corner_tip_never_nubs",
-       layer_stroke_transformed_corner_tip_never_nubs},
+      {"layer_stroke_transformed_corner_tip_bands_like_photoshop",
+       layer_stroke_transformed_corner_tip_bands_like_photoshop},
       {"psd_bad_stroke_text_has_no_stroke_nubs_if_available",
        psd_bad_stroke_text_has_no_stroke_nubs_if_available},
       {"psd_photoshop_stroke_partial_alpha_fixture_matches",

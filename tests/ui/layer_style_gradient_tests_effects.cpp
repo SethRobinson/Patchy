@@ -1126,6 +1126,65 @@ void ui_layer_style_gradient_page_controls_map_to_settings() {
   CHECK(fill.gradient.color_stops.front().color.blue == 0);
 }
 
+// A Noise gradient overlay (Photoshop's ClNs form: a seed and channel ranges, no stops)
+// opened as the default white-to-black ramp because the dialog replaced any gradient
+// without color stops (GitHub issue 262, ag-psd's effects/src.psd 'other' layer). The
+// dialog must show the Noise page with the file's settings and hand them back untouched.
+void ui_layer_style_noise_gradient_overlay_loads_into_dialog() {
+  patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(document.allocate_layer_id(), "Noise Overlay",
+                      solid_pixels(48, 36, patchy::PixelFormat::rgba8(), QColor(80, 140, 220, 255)));
+  patchy::LayerGradientFill fill;
+  fill.enabled = true;
+  fill.gradient.name = "Custom";
+  fill.gradient.form = patchy::GradientDefinitionForm::Noise;
+  fill.gradient.noise.seed = 43487260U;
+  fill.gradient.noise.roughness = 2048;
+  fill.gradient.noise.color_model = patchy::GradientNoiseColorModel::Lab;
+  fill.gradient.noise.restrict_colors = true;
+  fill.gradient.noise.add_transparency = false;
+  fill.gradient.noise.minimum = {0, 0, 0, 0};
+  fill.gradient.noise.maximum = {100, 100, 100, 100};
+  fill.gradient.angle_degrees = 90.0F;
+  layer.layer_style().gradient_fills.push_back(fill);
+
+  bool inspected = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = qobject_cast<QDialog*>(find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog")));
+    CHECK(dialog != nullptr);
+    select_layer_style_gradient_page(*dialog);
+    auto* form = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleGradientFormCombo"));
+    auto* seed = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleGradientNoiseSeedSpin"));
+    auto* roughness = dialog->findChild<QSpinBox*>(QStringLiteral("layerStyleGradientNoiseRoughnessSpin"));
+    auto* model = dialog->findChild<QComboBox*>(QStringLiteral("layerStyleGradientNoiseColorModelCombo"));
+    auto* restrict_colors =
+        dialog->findChild<QCheckBox*>(QStringLiteral("layerStyleGradientNoiseRestrictColorsCheck"));
+    CHECK(form != nullptr && seed != nullptr && roughness != nullptr && model != nullptr &&
+          restrict_colors != nullptr);
+    save_widget_artifact("ui_layer_style_noise_gradient_overlay_loads_into_dialog", *dialog);
+    CHECK(form->currentData().toInt() == static_cast<int>(patchy::GradientDefinitionForm::Noise));
+    CHECK(seed->value() == 43487260);
+    CHECK(roughness->value() == 50);
+    CHECK(model->currentData().toInt() == static_cast<int>(patchy::GradientNoiseColorModel::Lab));
+    CHECK(restrict_colors->isChecked());
+    CHECK(seed->isVisibleTo(dialog));
+    inspected = true;
+    QTimer::singleShot(80, dialog, [dialog] { dialog->accept(); });
+  });
+
+  const auto settings = patchy::ui::request_layer_style_settings(nullptr, layer, {});
+  CHECK(inspected);
+  CHECK(settings.has_value());
+  CHECK(settings->style.gradient_fills.size() == 1);
+  const auto& result = settings->style.gradient_fills.front().gradient;
+  CHECK(result.form == patchy::GradientDefinitionForm::Noise);
+  CHECK(result.noise.seed == 43487260U);
+  CHECK(result.noise.roughness == 2048);
+  CHECK(result.noise.color_model == patchy::GradientNoiseColorModel::Lab);
+  CHECK(result.noise.restrict_colors);
+  CHECK(result.noise.maximum[0] == 100);
+}
+
 void ui_layer_style_preview_is_transient_and_show_effects_persists() {
   patchy::Document document(96, 72, patchy::PixelFormat::rgba8());
   patchy::Layer layer(document.allocate_layer_id(), "Preview State",
@@ -2309,6 +2368,8 @@ std::vector<patchy::test::TestCase> layer_style_gradient_tests_part1() {
        ui_layer_style_gradient_midpoints_edit_color_and_opacity_tracks},
       {"ui_layer_style_gradient_page_controls_map_to_settings",
        ui_layer_style_gradient_page_controls_map_to_settings},
+      {"ui_layer_style_noise_gradient_overlay_loads_into_dialog",
+       ui_layer_style_noise_gradient_overlay_loads_into_dialog},
       {"ui_layer_style_preview_is_transient_and_show_effects_persists",
        ui_layer_style_preview_is_transient_and_show_effects_persists},
       {"ui_layer_style_blending_options_round_trip_the_interior_group_flag",
