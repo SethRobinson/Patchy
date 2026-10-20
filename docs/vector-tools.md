@@ -53,21 +53,21 @@ layer; both share `handle_vector_shape_size_value_changed`
 ## Pen tool
 
 Pen (P): click adds a corner, drag pulls symmetric handles (Alt breaks the
-pair), clicking the first anchor closes and commits, Enter commits the open
-path (it fills its implied chord, the PS open-subpath rule), Backspace pops
+pair; Shift, ends: [more](vector-commands.md#pen-extending-and-ending-paths)), clicking the first anchor closes and commits, Enter commits the open
+path (it fills its implied chord, PS's open-subpath rule), Backspace pops
 the last anchor, Escape cancels; tool switches commit, document switches
 cancel. Shape mode turns the committed path into a shape layer (or extends
 the active one per Combine); other modes route to the work path. The overlay
-draws in canvas_widget_vector_tools.cpp (canvas_widget_pen.cpp is TABLET
-input, not this tool).
+draws in canvas_widget_vector_tools.cpp (canvas_widget_pen.cpp is tablet
+input).
 
 A badge cursor shows the click action; the hover classifier, Auto
 Add/Delete, and the anchor tools are in [vector-commands.md](vector-commands.md).
 Holding Ctrl acts as Direct
 Select: with no session it latches the gesture onto the path-edit handlers
 (one "Edit path" undo entry); mid-session it drags an in-progress anchor
-without adding one. Ctrl clicks never insert, delete, close, or extend;
-Delete removes a Ctrl-selected anchor.
+(Ctrl+click away ends the path); Ctrl never inserts, deletes, closes or
+extends. Delete removes a Ctrl-selected anchor.
 
 ## Polygon, Custom Shape, and line arrowheads
 
@@ -86,11 +86,11 @@ Custom Shape from Path adds a user entry.
 
 ## Path editing (Path Select / Direct Select)
 
-Path Select (A, black arrow) selects and drags whole shape groups only
-([tool roles](vector-commands.md#tool-roles)). Direct
-Select (white arrow; Shift+A cycles the A flyout) works per anchor: click or
-marquee selects, drag moves anchors or handle knobs (smooth pairs mirror; a
-collapsed handle on its corner anchor is not grabbable), Shift adds, arrows
+Path Select (A, black arrow) moves whole shape groups only
+([roles](vector-commands.md#tool-roles)). Direct Select (white arrow, Shift+A)
+works per anchor: click or marquee selects, drag moves
+anchors or knobs (smooth pairs stay colinear; a collapsed handle on its
+corner anchor is not grabbable), Shift adds, arrows
 nudge (1 px, Shift 10 px, coalesced per burst), Delete removes selected
 anchors (subpaths under two anchors disappear), Escape deselects. With a
 selection, the options-bar Combine box rewrites the selected shapes' op in

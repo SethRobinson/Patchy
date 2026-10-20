@@ -12645,10 +12645,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>A ferramenta Caneta desenha demarcadores no conteúdo da camada</translation>
     </message>
     <message>
-        <source>Click to add points, drag for curves. Click the first point to close; Enter commits an open path; Esc cancels.</source>
-        <translation>Clique para adicionar pontos, arraste para curvas. Clique no primeiro ponto para fechar; Enter confirma um demarcador aberto; Esc cancela.</translation>
-    </message>
-    <message>
         <source>Select a shape layer or draw a path first</source>
         <translation>Selecione uma camada de forma ou desenhe um demarcador primeiro</translation>
     </message>
@@ -12843,6 +12839,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Transform corners must form a convex shape</source>
         <translation>Os cantos da transformação devem formar uma forma convexa</translation>
+    </message>
+    <message>
+        <source>Extend path</source>
+        <translation>Estender demarcador</translation>
+    </message>
+    <message>
+        <source>Click to add points, drag for curves; Shift keeps 45 degrees. Click the first point to close; Enter or %CTRL%+click away ends an open path; Esc cancels.</source>
+        <translation>Clique para adicionar pontos, arraste para curvas; Shift mantém 45 graus. Clique no primeiro ponto para fechar; Enter ou %CTRL%+clique fora encerra um demarcador aberto; Esc cancela.</translation>
+    </message>
+    <message>
+        <source>Duplicate shape</source>
+        <translation>Duplicar forma</translation>
+    </message>
+    <message>
+        <source>Click to continue the path from this end point</source>
+        <translation>Clique para continuar o demarcador a partir deste ponto final</translation>
     </message>
 </context>
 <context>
@@ -15693,18 +15705,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Tool</source>
         <translation>Ferramenta</translation>
-    </message>
-    <message>
-        <source>Click to place points, drag for curves. On a path: click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL% moves points.</source>
-        <translation>Clique para posicionar pontos, arraste para curvas. Em um demarcador: clique em um segmento para adicionar um ponto, clique em um ponto para excluí-lo, %ALT%+clique converte-o, %CTRL% move pontos.</translation>
-    </message>
-    <message>
-        <source>Select and move whole shapes. %CTRL%+T transforms the path.</source>
-        <translation>Selecione e mova formas inteiras. %CTRL%+T transforma o demarcador.</translation>
-    </message>
-    <message>
-        <source>Select and drag points and handles. Delete removes the selected points.</source>
-        <translation>Selecione e arraste pontos e alças. Delete remove os pontos selecionados.</translation>
     </message>
     <message>
         <source>Click a path segment to insert a point.</source>
@@ -22912,8 +22912,20 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
         <translation>Filtro inteligente atualizado: %1</translation>
     </message>
     <message>
-        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
-        <translation>Seleção de demarcador: clique em uma forma para selecioná-la e arraste para movê-la. %CTRL%+T transforma o demarcador, Delete remove a forma selecionada.</translation>
+        <source>Click to place points, drag for curves, Shift keeps 45 degrees. On a path: click a segment to add a point, click a point to delete it or an open end to continue it, %ALT%+click converts it, %CTRL% moves points, %CTRL%+click away ends the path.</source>
+        <translation>Clique para posicionar pontos, arraste para curvas, Shift mantém 45 graus. Em um demarcador: clique em um segmento para adicionar um ponto, em um ponto para excluí-lo ou em uma extremidade aberta para continuá-lo, %ALT%+clique converte-o, %CTRL% move pontos, %CTRL%+clique fora encerra o demarcador.</translation>
+    </message>
+    <message>
+        <source>Select and move whole shapes. Shift+click adds or removes a shape, %ALT%+drag duplicates it, %CTRL% switches to Direct Select. %CTRL%+T transforms the selected shapes.</source>
+        <translation>Selecione e mova formas inteiras. Shift+clique adiciona ou remove uma forma, %ALT%+arrastar a duplica, %CTRL% alterna para Seleção direta. %CTRL%+T transforma as formas selecionadas.</translation>
+    </message>
+    <message>
+        <source>Select and drag points and handles. %ALT%+click selects a whole subpath, %ALT%+drag on a handle breaks the pair, %CTRL% switches to Path Select. Delete removes the selected points.</source>
+        <translation>Selecione e arraste pontos e alças. %ALT%+clique seleciona um subdemarcador inteiro, %ALT%+arrastar uma alça separa o par, %CTRL% alterna para Seleção de demarcador. Delete remove os pontos selecionados.</translation>
+    </message>
+    <message>
+        <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
+        <translation>Seleção de demarcador: clique em uma forma para selecioná-la, arraste para movê-la, %ALT%+arrastar para duplicá-la. %CTRL%+T transforma o demarcador, Delete remove a forma selecionada.</translation>
     </message>
 </context>
 <context>

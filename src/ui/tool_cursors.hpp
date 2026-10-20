@@ -31,6 +31,13 @@ namespace patchy::ui {
 // Built once and cached.
 [[nodiscard]] QCursor move_pointer_cursor();
 
+// The arrow tools' pointers (GitHub issue 248), drawn as Patchy's own art from the shared
+// pointer arrow, hotspot on its tip. Path Select: the arrow solid dark with a light edge
+// (it moves whole shapes). Direct Select: the arrow light with a dark edge and a small
+// hollow anchor square at its lower right (it edits points). Built once and cached.
+[[nodiscard]] QCursor path_select_cursor();
+[[nodiscard]] QCursor direct_select_cursor();
+
 // Free Transform gesture hints (GitHub issue 225): shown over a box handle or side while
 // the held modifiers (or the Edit > Transform mode) turn a drag into that gesture, before
 // it starts. The same arrow as move_pointer_cursor with a badge drawing the gesture's

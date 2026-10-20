@@ -501,6 +501,8 @@ void CanvasWidget::set_tool(CanvasTool tool) {
       expand_path_selection_to_groups();
     }
     pen_temp_direct_select_ = false;
+    arrow_swap_active_ = false;
+    path_selection_by_path_select_ = tool == CanvasTool::PathSelect;
     pen_session_drag_anchor_ = -1;
     path_hover_hint_action_ = PenHoverAction::Draw;
     path_hover_hint_target_ = PathHoverTarget::None;

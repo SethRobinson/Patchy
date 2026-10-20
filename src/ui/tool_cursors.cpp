@@ -202,6 +202,40 @@ void draw_pointer_arrow(QPainter& painter) {
   painter.drawPolygon(arrow);
 }
 
+// Path Select: the pointer arrow solid dark with a light edge.
+QCursor build_path_select_cursor() {
+  constexpr int kSize = 32;
+  QPixmap pixmap(kSize, kSize);
+  pixmap.fill(Qt::transparent);
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+  const QPolygonF arrow({QPointF(2.5, 2.5), QPointF(2.5, 18.5), QPointF(6.5, 14.8), QPointF(9.4, 21.2),
+                         QPointF(12.0, 20.0), QPointF(9.2, 13.8), QPointF(14.5, 13.8)});
+  painter.setPen(QPen(QColor(245, 248, 252), 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+  painter.setBrush(QColor(20, 23, 28));
+  painter.drawPolygon(arrow);
+  painter.end();
+  return QCursor(pixmap, 3, 3);
+}
+
+// Direct Select: the light pointer arrow with a hollow anchor square at its lower right.
+QCursor build_direct_select_cursor() {
+  constexpr int kSize = 32;
+  QPixmap pixmap(kSize, kSize);
+  pixmap.fill(Qt::transparent);
+  QPainter painter(&pixmap);
+  painter.setRenderHint(QPainter::Antialiasing);
+  draw_pointer_arrow(painter);
+  const QRectF anchor(17.5, 17.5, 6.0, 6.0);
+  painter.setBrush(Qt::NoBrush);
+  painter.setPen(QPen(QColor(20, 23, 28), 3.2, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin));
+  painter.drawRect(anchor);
+  painter.setPen(QPen(QColor(245, 248, 252), 1.2, Qt::SolidLine, Qt::SquareCap, Qt::MiterJoin));
+  painter.drawRect(anchor);
+  painter.end();
+  return QCursor(pixmap, 3, 3);
+}
+
 // The arrow plus a closed outline badge at the lower right (a halo pass, then ink).
 QCursor build_transform_gesture_cursor(const QPolygonF& badge) {
   constexpr int kSize = 32;
@@ -300,6 +334,16 @@ QCursor transform_gesture_cursor(TransformGestureCursor gesture) {
           QPolygonF({QPointF(20.5, 17.5), QPointF(25.5, 17.5), QPointF(29.5, 28.5), QPointF(16.5, 28.5)})),
   };
   return cursors[static_cast<std::size_t>(gesture)];
+}
+
+QCursor path_select_cursor() {
+  static const QCursor cursor = build_path_select_cursor();
+  return cursor;
+}
+
+QCursor direct_select_cursor() {
+  static const QCursor cursor = build_direct_select_cursor();
+  return cursor;
 }
 
 QCursor move_pointer_cursor() {

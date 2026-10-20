@@ -123,6 +123,48 @@ press never does another tool's.
 An anchor, outline or fill press under Path Select moves the whole group; the knob hit test
 (`path_handle_at`), knob drawing and the handle hover hint are Direct Select's only.
 
+Modifiers. Ctrl swaps the two arrows while held (`arrow_swap_active_`, read by
+`path_edit_tool()` like the Pen's `pen_temp_direct_select_` latch): set from the press
+for the whole gesture, from hover moves and from Ctrl key presses through the canvas key
+filter, never mid-drag, reset by `set_tool` and by Ctrl+T (whose Ctrl is the shortcut's;
+`begin_path_transform` reads the real `tool_`). The selection follows the tool that
+presses (`path_selection_by_path_select_`): a Direct Select press drops Path Select's
+whole-shape selection first, a Path Select press expands Direct Select's points. Path
+Select Alt-drag duplicates: the first drag move copies every selected group into new
+groups of the same path (`next_shape_group`) and drags the copies, one "Duplicate shape"
+undo entry with the drag (`path_drag_duplicate_pending_`). Direct Select Alt+click on a
+point or segment selects its whole subpath; Alt at a handle press breaks a smooth pair
+(`path_drag_break_pair_`, the anchor turns corner and only that handle moves). A plain
+handle drag on a smooth anchor keeps the pair colinear: the opposite handle turns with it
+and keeps its own length (it is not mirrored).
+
+Cursors (`tool_cursors.cpp`, Patchy's own art from the shared pointer arrow, hotspot on
+the tip, theme-exempt like the other tool cursors): `path_select_cursor()` is the arrow
+solid dark with a light edge, `direct_select_cursor()` the light arrow with a hollow
+anchor square badge; `apply_arrow_cursor` shows the one `path_edit_tool()` reports, so
+Ctrl flips it, and the Pen's Ctrl latch shows the Direct Select arrow. Coverage:
+`ui_direct_select_alt_click_selects_the_whole_subpath`,
+`ui_direct_select_handle_drag_keeps_the_pair_colinear_and_alt_breaks_it`,
+`ui_ctrl_swaps_the_arrow_tools`, `ui_path_select_alt_drag_duplicates_the_shape`,
+`ui_path_select_tools_show_their_own_arrow_cursors`.
+
+## Pen: extending and ending paths
+
+GitHub issue 248. Shift keeps a new point on a 45-degree line from the last one and a
+dragged handle on a 45-degree direction from its anchor (`constrain_drag_to_axes`, the
+Direct Select vertex constraint). A Pen click (no session, no Alt) on an end point of an
+open subpath of the target continues that subpath (`pen_open_endpoint_at`, before the
+Auto Add/Delete edit, so it never deletes the point): the session starts from its anchors,
+run backwards when continuing from the first one so it always grows at its last anchor
+(`PenContinuation`), and commit (Enter, Ctrl+click away, closing on the other end, a tool
+switch) replaces that subpath in place in its original direction, one "Extend path" undo
+entry; it is skipped when the target or that subpath changed under the session or nothing
+was added. The hover shows `PenHoverAction::Continue` (a solid square badge, hint "Click to
+continue the path from this end point"). Mid-session, Ctrl+click away from the session's
+points ends the path open (`handle_pen_ctrl_press`). Coverage:
+`ui_pen_shift_keeps_45_degrees_and_ctrl_click_ends_the_path`,
+`ui_pen_click_on_an_open_end_continues_the_path`.
+
 ## Pressing and picking with the arrows
 
 GitHub issue 248. `handle_path_edit_press` tries, in order: a drawn handle knob

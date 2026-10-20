@@ -258,12 +258,15 @@ const char* tool_tooltip_detail_source(CanvasTool tool) {
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "%CTRL%+click selects a layer, Shift+click toggles it. %CTRL%+drag selects layers in a "
              "rectangle; hold Shift before dragging to add. %ALT%+drag duplicates. Shift constrains layer movement.");
     case CanvasTool::Pen:
-      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Click to place points, drag for curves. On a path: click a segment to add a "
-             "point, click a point to delete it, %ALT%+click converts it, %CTRL% moves points.");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Click to place points, drag for curves, Shift keeps 45 degrees. On a path: click a "
+             "segment to add a point, click a point to delete it or an open end to continue it, %ALT%+click "
+             "converts it, %CTRL% moves points, %CTRL%+click away ends the path.");
     case CanvasTool::PathSelect:
-      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Select and move whole shapes. %CTRL%+T transforms the path.");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Select and move whole shapes. Shift+click adds or removes a shape, %ALT%+drag "
+             "duplicates it, %CTRL% switches to Direct Select. %CTRL%+T transforms the selected shapes.");
     case CanvasTool::DirectSelect:
-      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Select and drag points and handles. Delete removes the selected points.");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Select and drag points and handles. %ALT%+click selects a whole subpath, "
+             "%ALT%+drag on a handle breaks the pair, %CTRL% switches to Path Select. Delete removes the selected points.");
     case CanvasTool::AddAnchor:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Click a path segment to insert a point.");
     case CanvasTool::DeleteAnchor:
@@ -290,8 +293,8 @@ const char* tool_activation_hint_source(CanvasTool tool) {
              "point, click a point to delete it, %ALT%+click converts it, %CTRL%+drag selects or "
              "moves points.");
     case CanvasTool::PathSelect:
-      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the "
-             "path, Delete removes the selected shape.");
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate "
+             "it. %CTRL%+T transforms the path, Delete removes the selected shape.");
     case CanvasTool::DirectSelect:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Direct Select: click or marquee points, drag points or handles. Shift adds, "
              "arrows nudge, Delete removes, %CTRL%+T transforms the selected points.");

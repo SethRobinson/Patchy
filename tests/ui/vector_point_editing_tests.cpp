@@ -38,7 +38,9 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QEvent>
+#include <QImage>
 #include <QPaintEvent>
+#include <QPainter>
 #include <QRegion>
 #include <QKeyEvent>
 #include <QLabel>
@@ -48,6 +50,7 @@
 #include <QTimer>
 #include <QToolButton>
 #include <cmath>
+#include <cstdio>
 #include <iostream>
 #include <cstddef>
 
@@ -1385,7 +1388,7 @@ void ui_path_transform_shows_free_transform_cursors() {
   canvas->cancel_path_transform();
   QApplication::processEvents();
   CHECK(!canvas->path_transform_active());
-  CHECK(hover(*canvas, QPoint(200, 160)).shape() == Qt::ArrowCursor);
+  CHECK(hover(*canvas, QPoint(200, 160)).pixmap().toImage() == patchy::ui::path_select_cursor().pixmap().toImage());
 }
 
 // GitHub issue 248 follow-up: the path transform box takes Free Transform's
@@ -1771,6 +1774,270 @@ void ui_path_select_transform_moves_only_selected_shapes() {
   CHECK(std::abs(group_anchor_at(document, layer_id, 0, 0).anchor_y - 100.0) < 0.5);  // untouched
 }
 
+// Presses with modifiers on the canvas, document coordinates.
+void modified_drag(patchy::ui::CanvasWidget& canvas, QPoint from, QPoint to, Qt::KeyboardModifiers modifiers) {
+  const auto start = canvas.widget_position_for_document_point(from);
+  const auto end = canvas.widget_position_for_document_point(to);
+  send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton, modifiers);
+  send_mouse(canvas, QEvent::MouseMove, (start + end) / 2, Qt::NoButton, Qt::LeftButton, modifiers);
+  send_mouse(canvas, QEvent::MouseMove, end, Qt::NoButton, Qt::LeftButton, modifiers);
+  send_mouse(canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton, modifiers);
+  QApplication::processEvents();
+}
+
+// Direct Select (GitHub issue 248): Alt+click on a point or segment selects its
+// whole subpath (only that one, not the rest of the path).
+void ui_direct_select_alt_click_selects_the_whole_subpath() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_two_group_shape_layer(window, *canvas);
+  canvas->set_view_zoom_centered(1.0);
+  require_action(window, "toolDirectSelectAction")->trigger();
+  QApplication::processEvents();
+  modified_drag(*canvas, QPoint(200, 220), QPoint(200, 220), Qt::AltModifier);  // a segment of the first
+  CHECK(canvas->path_edit_selected_anchor_count() == 4);
+  modified_drag(*canvas, QPoint(550, 220), QPoint(570, 230), Qt::AltModifier);  // a corner of the second
+  CHECK(canvas->path_edit_selected_anchor_count() == 4);
+  CHECK(std::abs(group_anchor_at(document, layer_id, 1, 0).anchor_x - 370.0) < 1.0);  // its whole subpath moved
+  CHECK(std::abs(group_anchor_at(document, layer_id, 0, 0).anchor_x - 100.0) < 0.5);
+}
+
+// Direct Select handle drags (GitHub issue 248): a smooth pair stays colinear and
+// the opposite handle keeps its own length (no forced mirror); Alt at the press
+// breaks the pair and moves only the dragged handle.
+void ui_direct_select_handle_drag_keeps_the_pair_colinear_and_alt_breaks_it() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
+  {
+    auto* layer = document.find_layer(layer_id);
+    auto content = *layer->vector_shape();
+    auto& anchor = content.path.subpaths[0].anchors[0];
+    anchor.smooth = true;
+    anchor.out_x = 160.0;  // 60, -70 from the anchor
+    anchor.out_y = 30.0;
+    anchor.in_x = 70.0;  // a shorter opposite handle: -30, 35
+    anchor.in_y = 135.0;
+    layer->set_vector_shape(std::move(content));
+  }
+  canvas->set_view_zoom_centered(1.0);
+  require_action(window, "toolDirectSelectAction")->trigger();
+  QApplication::processEvents();
+  pen_click(*canvas, QPoint(100, 100));
+  shape_drag(*canvas, QPoint(160, 30), QPoint(200, 30));  // the out knob, 40 px right
+  {
+    const auto& anchor = anchor_at(document, layer_id, 0);
+    CHECK(std::abs(anchor.out_x - 200.0) < 1.0 && std::abs(anchor.out_y - 30.0) < 1.0);
+    const double in_length = std::hypot(anchor.in_x - 100.0, anchor.in_y - 100.0);
+    CHECK(std::abs(in_length - std::hypot(30.0, 35.0)) < 0.5);  // its own length, not mirrored
+    const double cross = (anchor.out_x - 100.0) * (anchor.in_y - 100.0) - (anchor.out_y - 100.0) * (anchor.in_x - 100.0);
+    CHECK(std::abs(cross) < 1.0);  // colinear
+    CHECK((anchor.out_x - 100.0) * (anchor.in_x - 100.0) + (anchor.out_y - 100.0) * (anchor.in_y - 100.0) < 0.0);
+    CHECK(anchor.smooth);
+  }
+  const QPointF in_before(anchor_at(document, layer_id, 0).in_x, anchor_at(document, layer_id, 0).in_y);
+  const QPointF out_before(anchor_at(document, layer_id, 0).out_x, anchor_at(document, layer_id, 0).out_y);
+  modified_drag(*canvas, in_before.toPoint(), in_before.toPoint() + QPoint(0, 30), Qt::AltModifier);
+  {
+    const auto& anchor = anchor_at(document, layer_id, 0);
+    CHECK(!anchor.smooth);
+    CHECK(std::abs(anchor.in_y - (in_before.y() + 30.0)) < 1.5);
+    CHECK(std::abs(anchor.out_x - out_before.x()) < 0.01 && std::abs(anchor.out_y - out_before.y()) < 0.01);
+  }
+}
+
+// Ctrl swaps the two arrows while held (GitHub issue 248): Path Select plus Ctrl
+// drags one point; Direct Select plus Ctrl moves the whole shape. The cursor
+// shows the arrow in effect.
+void ui_ctrl_swaps_the_arrow_tools() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
+  canvas->set_view_zoom_centered(1.0);
+  const auto image_of = [](const QCursor& cursor) { return cursor.pixmap().toImage(); };
+  require_action(window, "toolPathSelectAction")->trigger();
+  QApplication::processEvents();
+  CHECK(image_of(hover(*canvas, QPoint(500, 400))) == image_of(patchy::ui::path_select_cursor()));
+  CHECK(image_of(hover(*canvas, QPoint(500, 400), Qt::ControlModifier)) ==
+        image_of(patchy::ui::direct_select_cursor()));
+  pen_click(*canvas, QPoint(200, 100));  // Path Select: the whole shape
+  modified_drag(*canvas, QPoint(300, 220), QPoint(320, 230), Qt::ControlModifier);
+  CHECK(std::abs(anchor_at(document, layer_id, 2).anchor_x - 320.0) < 1.0);
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_x - 100.0) < 0.5);  // one point only
+  CHECK(image_of(hover(*canvas, QPoint(500, 400))) == image_of(patchy::ui::path_select_cursor()));
+
+  require_action(window, "toolDirectSelectAction")->trigger();
+  QApplication::processEvents();
+  CHECK(image_of(hover(*canvas, QPoint(500, 400))) == image_of(patchy::ui::direct_select_cursor()));
+  pen_click(*canvas, QPoint(100, 100));  // Direct Select: one point
+  CHECK(canvas->path_edit_selected_anchor_count() == 1);
+  modified_drag(*canvas, QPoint(200, 220), QPoint(210, 220), Qt::ControlModifier);  // Ctrl: Path Select
+  CHECK(std::abs(anchor_at(document, layer_id, 0).anchor_x - 110.0) < 1.0);
+  CHECK(std::abs(anchor_at(document, layer_id, 1).anchor_x - 310.0) < 1.0);
+  CHECK(std::abs(anchor_at(document, layer_id, 2).anchor_x - 330.0) < 1.0);  // the whole shape
+}
+
+// Path Select Alt-drag duplicates the shape (GitHub issue 248): the copy moves,
+// the original stays, and one Undo removes the copy.
+void ui_path_select_alt_drag_duplicates_the_shape() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto layer_id = make_rect_shape_layer(window, *canvas);  // (100,100)-(300,220)
+  canvas->set_view_zoom_centered(1.0);
+  require_action(window, "toolPathSelectAction")->trigger();
+  QApplication::processEvents();
+  modified_drag(*canvas, QPoint(200, 220), QPoint(260, 300), Qt::AltModifier);
+  const auto* layer = std::as_const(document).find_layer(layer_id);
+  CHECK(layer != nullptr && layer->vector_shape() != nullptr);
+  const auto& path = layer->vector_shape()->path;
+  CHECK(path.subpaths.size() == 2);
+  CHECK(path.subpaths[0].shape_group != path.subpaths[1].shape_group);
+  CHECK(std::abs(path.subpaths[0].anchors[0].anchor_x - 100.0) < 0.5);  // the original stays
+  CHECK(std::abs(path.subpaths[1].anchors[0].anchor_x - 160.0) < 1.0);  // the copy moved
+  CHECK(std::abs(path.subpaths[1].anchors[0].anchor_y - 180.0) < 1.0);
+  CHECK(canvas->path_edit_selected_anchor_count() == 4);  // the copy is selected
+  require_action_by_text(window, QStringLiteral("Undo"))->trigger();
+  QApplication::processEvents();
+  CHECK(std::as_const(document).find_layer(layer_id)->vector_shape()->path.subpaths.size() == 1);
+}
+
+// Pen (GitHub issue 248): Shift keeps a new point and a dragged handle on a
+// 45-degree line; Ctrl+click away ends the open path.
+void ui_pen_shift_keeps_45_degrees_and_ctrl_click_ends_the_path() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_view_zoom_centered(1.0);
+  require_action(window, "toolPenAction")->trigger();
+  QApplication::processEvents();
+  pen_click(*canvas, QPoint(100, 100));
+  modified_drag(*canvas, QPoint(200, 130), QPoint(200, 130), Qt::ShiftModifier);  // 17 degrees snaps to 0
+  // A new point dragged with Shift: the handle snaps to 45 degrees.
+  {
+    const auto start = canvas->widget_position_for_document_point(QPoint(300, 100));
+    send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(QPoint(350, 145)), Qt::NoButton,
+               Qt::LeftButton, Qt::ShiftModifier);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, canvas->widget_position_for_document_point(QPoint(350, 145)),
+               Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier);
+    QApplication::processEvents();
+  }
+  CHECK(canvas->pen_session_active());
+  modified_drag(*canvas, QPoint(500, 500), QPoint(500, 500), Qt::ControlModifier);  // Ctrl+click away
+  CHECK(!canvas->pen_session_active());
+  const auto* path = canvas->path_edit_target_path();
+  CHECK(path != nullptr && !path->subpaths.empty());
+  if (path == nullptr || path->subpaths.empty()) {
+    return;
+  }
+  const auto& subpath = path->subpaths.back();
+  CHECK(!subpath.closed && subpath.anchors.size() == 3);
+  CHECK(std::abs(subpath.anchors[1].anchor_x - 200.0) < 1.0 && std::abs(subpath.anchors[1].anchor_y - 100.0) < 1.0);
+  const auto& curve = subpath.anchors[2];
+  const double dx = curve.out_x - curve.anchor_x;
+  const double dy = curve.out_y - curve.anchor_y;
+  CHECK(std::abs(std::abs(dx) - std::abs(dy)) < 1.0);  // the 45-degree diagonal
+  CHECK(dx > 1.0);
+}
+
+// Pen (GitHub issue 248): a click on an open path's end point continues that path
+// (it is not deleted), from either end, as one more subpath edit; the hover badge
+// and hint say so.
+void ui_pen_click_on_an_open_end_continues_the_path() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_view_zoom_centered(1.0);
+  require_action(window, "toolPenAction")->trigger();
+  QApplication::processEvents();
+  pen_click(*canvas, QPoint(100, 300));
+  pen_click(*canvas, QPoint(200, 200));
+  pen_click(*canvas, QPoint(300, 300));
+  send_key(*canvas, Qt::Key_Return);  // commit the open path
+  QApplication::processEvents();
+  const auto subpath_of = [&]() -> const patchy::PathSubpath& {
+    const auto* path = canvas->path_edit_target_path();
+    CHECK(path != nullptr && path->subpaths.size() == 1);
+    return path->subpaths[0];
+  };
+  CHECK(subpath_of().anchors.size() == 3);
+  window.statusBar()->showMessage(QStringLiteral("marker"));
+  hover(*canvas, QPoint(500, 500));
+  hover(*canvas, QPoint(300, 300));
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Click to continue the path from this end point"));
+  pen_click(*canvas, QPoint(300, 300));  // the last end
+  CHECK(canvas->pen_session_active());
+  pen_click(*canvas, QPoint(400, 200));
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(subpath_of().anchors.size() == 4);
+  CHECK(std::abs(subpath_of().anchors[3].anchor_x - 400.0) < 1.0);
+  pen_click(*canvas, QPoint(100, 300));  // the first end
+  pen_click(*canvas, QPoint(0, 200));
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(subpath_of().anchors.size() == 5);
+  CHECK(std::abs(subpath_of().anchors[0].anchor_x - 0.0) < 1.0);  // grows at the front, same direction
+  CHECK(std::abs(subpath_of().anchors[1].anchor_x - 100.0) < 1.0);
+  CHECK(std::abs(subpath_of().anchors[4].anchor_x - 400.0) < 1.0);
+  CHECK(!subpath_of().closed);
+}
+
+// The arrow tools' own cursors (GitHub issue 248): a dark Path Select arrow and a
+// light Direct Select arrow with an anchor square, distinct from each other.
+void ui_path_select_tools_show_their_own_arrow_cursors() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_view_zoom_centered(1.0);
+  const auto image_of = [](const QCursor& cursor) { return cursor.pixmap().toImage(); };
+  const auto path_arrow = image_of(patchy::ui::path_select_cursor());
+  const auto direct_arrow = image_of(patchy::ui::direct_select_cursor());
+  CHECK(!path_arrow.isNull() && !direct_arrow.isNull());
+  CHECK(path_arrow != direct_arrow);
+  CHECK(patchy::ui::path_select_cursor().hotSpot() == QPoint(3, 3));
+  CHECK(patchy::ui::direct_select_cursor().hotSpot() == QPoint(3, 3));
+  QImage sheet(QSize(path_arrow.width() * 2 + 8, path_arrow.height()), QImage::Format_ARGB32_Premultiplied);
+  sheet.fill(QColor(128, 128, 128));
+  {
+    QPainter painter(&sheet);
+    painter.drawImage(0, 0, path_arrow);
+    painter.drawImage(path_arrow.width() + 8, 0, direct_arrow);
+  }
+  save_image_artifact("ui_path_roles_arrow_cursors", sheet.scaled(sheet.size() * 4));
+  // Inside the arrow's body: dark for Path Select, light for Direct Select (device
+  // pixels, so the probe scales with the cursor's pixel ratio).
+  const auto body = [](const QImage& image) {
+    const auto ratio = image.devicePixelRatio() > 0.0 ? image.devicePixelRatio() : 1.0;
+    return image.pixelColor(static_cast<int>(5.0 * ratio), static_cast<int>(11.0 * ratio));
+  };
+  fprintf(stderr, "  arrow bodies: path %d (alpha %d), direct %d (alpha %d)\n", body(path_arrow).lightness(),
+          body(path_arrow).alpha(), body(direct_arrow).lightness(), body(direct_arrow).alpha());
+  CHECK(body(path_arrow).alpha() > 200 && body(path_arrow).lightness() < 90);
+  CHECK(body(direct_arrow).alpha() > 200 && body(direct_arrow).lightness() > 200);
+  require_action(window, "toolPathSelectAction")->trigger();
+  QApplication::processEvents();
+  CHECK(image_of(hover(*canvas, QPoint(500, 400))) == path_arrow);
+  require_action(window, "toolDirectSelectAction")->trigger();
+  QApplication::processEvents();
+  CHECK(image_of(hover(*canvas, QPoint(500, 400))) == direct_arrow);
+}
+
 // Shift during an anchor drag constrains movement to the nearest horizontal,
 // vertical, or 45-degree axis, re-evaluated per move against the total delta
 // from the press point (Photoshop's vertex constraint, never latched).
@@ -2129,6 +2396,15 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
       {"ui_point_selection_drops_when_the_active_layer_changes", ui_point_selection_drops_when_the_active_layer_changes},
       {"ui_path_select_shift_click_adds_and_removes_shapes", ui_path_select_shift_click_adds_and_removes_shapes},
       {"ui_path_select_transform_moves_only_selected_shapes", ui_path_select_transform_moves_only_selected_shapes},
+      {"ui_direct_select_alt_click_selects_the_whole_subpath", ui_direct_select_alt_click_selects_the_whole_subpath},
+      {"ui_direct_select_handle_drag_keeps_the_pair_colinear_and_alt_breaks_it",
+       ui_direct_select_handle_drag_keeps_the_pair_colinear_and_alt_breaks_it},
+      {"ui_ctrl_swaps_the_arrow_tools", ui_ctrl_swaps_the_arrow_tools},
+      {"ui_path_select_alt_drag_duplicates_the_shape", ui_path_select_alt_drag_duplicates_the_shape},
+      {"ui_pen_shift_keeps_45_degrees_and_ctrl_click_ends_the_path",
+       ui_pen_shift_keeps_45_degrees_and_ctrl_click_ends_the_path},
+      {"ui_pen_click_on_an_open_end_continues_the_path", ui_pen_click_on_an_open_end_continues_the_path},
+      {"ui_path_select_tools_show_their_own_arrow_cursors", ui_path_select_tools_show_their_own_arrow_cursors},
       {"ui_ctrl_h_hides_path_points_with_selection_edges",
        ui_ctrl_h_hides_path_points_with_selection_edges},
       {"ui_direct_select_drags_marquee_selection_by_segment",

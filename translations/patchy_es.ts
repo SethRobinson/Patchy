@@ -12501,10 +12501,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>La herramienta Pluma dibuja trazados sobre el contenido de la capa</translation>
     </message>
     <message>
-        <source>Click to add points, drag for curves. Click the first point to close; Enter commits an open path; Esc cancels.</source>
-        <translation>Haga clic para añadir puntos y arrastre para crear curvas. Haga clic en el primer punto para cerrar; Enter confirma un trazado abierto; Esc cancela.</translation>
-    </message>
-    <message>
         <source>Select a shape layer or draw a path first</source>
         <translation>Seleccione primero una capa de forma o dibuje un trazado</translation>
     </message>
@@ -12843,6 +12839,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Transform corners must form a convex shape</source>
         <translation>Las esquinas de la transformación deben formar una figura convexa</translation>
+    </message>
+    <message>
+        <source>Extend path</source>
+        <translation>Continuar trazado</translation>
+    </message>
+    <message>
+        <source>Click to add points, drag for curves; Shift keeps 45 degrees. Click the first point to close; Enter or %CTRL%+click away ends an open path; Esc cancels.</source>
+        <translation>Haga clic para añadir puntos y arrastre para crear curvas; Shift mantiene 45 grados. Haga clic en el primer punto para cerrar; Enter o %CTRL%+clic fuera termina un trazado abierto; Esc cancela.</translation>
+    </message>
+    <message>
+        <source>Duplicate shape</source>
+        <translation>Duplicar forma</translation>
+    </message>
+    <message>
+        <source>Click to continue the path from this end point</source>
+        <translation>Haga clic para continuar el trazado desde este punto final</translation>
     </message>
 </context>
 <context>
@@ -15261,18 +15273,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Tool</source>
         <translation>Herramienta</translation>
-    </message>
-    <message>
-        <source>Click to place points, drag for curves. On a path: click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL% moves points.</source>
-        <translation>Haga clic para colocar puntos, arrastre para crear curvas. En un trazado: haga clic en un segmento para añadir un punto, haga clic en un punto para eliminarlo, %ALT%+clic lo convierte, %CTRL% mueve los puntos.</translation>
-    </message>
-    <message>
-        <source>Select and move whole shapes. %CTRL%+T transforms the path.</source>
-        <translation>Seleccione y mueva formas completas. %CTRL%+T transforma el trazado.</translation>
-    </message>
-    <message>
-        <source>Select and drag points and handles. Delete removes the selected points.</source>
-        <translation>Seleccione y arrastre puntos y manejadores. Delete elimina los puntos seleccionados.</translation>
     </message>
     <message>
         <source>Click a path segment to insert a point.</source>
@@ -22912,8 +22912,20 @@ Puedes hacerlo más tarde desde Ayuda &gt; Añadir Patchy al menú de aplicacion
         <translation>Filtro inteligente %1 actualizado</translation>
     </message>
     <message>
-        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
-        <translation>Selección de trazado: haga clic en una forma para seleccionarla, arrastre para moverla. %CTRL%+T transforma el trazado, Delete elimina la forma seleccionada.</translation>
+        <source>Click to place points, drag for curves, Shift keeps 45 degrees. On a path: click a segment to add a point, click a point to delete it or an open end to continue it, %ALT%+click converts it, %CTRL% moves points, %CTRL%+click away ends the path.</source>
+        <translation>Haga clic para colocar puntos, arrastre para crear curvas, Shift mantiene 45 grados. En un trazado: haga clic en un segmento para añadir un punto, en un punto para eliminarlo o en un extremo abierto para continuarlo, %ALT%+clic lo convierte, %CTRL% mueve los puntos, %CTRL%+clic fuera termina el trazado.</translation>
+    </message>
+    <message>
+        <source>Select and move whole shapes. Shift+click adds or removes a shape, %ALT%+drag duplicates it, %CTRL% switches to Direct Select. %CTRL%+T transforms the selected shapes.</source>
+        <translation>Seleccione y mueva formas completas. Shift+clic añade o quita una forma, %ALT%+arrastrar la duplica, %CTRL% cambia a Selección directa. %CTRL%+T transforma las formas seleccionadas.</translation>
+    </message>
+    <message>
+        <source>Select and drag points and handles. %ALT%+click selects a whole subpath, %ALT%+drag on a handle breaks the pair, %CTRL% switches to Path Select. Delete removes the selected points.</source>
+        <translation>Seleccione y arrastre puntos y manejadores. %ALT%+clic selecciona un subtrazado completo, %ALT%+arrastrar un manejador separa el par, %CTRL% cambia a Selección de trazado. Delete elimina los puntos seleccionados.</translation>
+    </message>
+    <message>
+        <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
+        <translation>Selección de trazado: haga clic en una forma para seleccionarla, arrastre para moverla, %ALT%+arrastrar para duplicarla. %CTRL%+T transforma el trazado, Delete elimina la forma seleccionada.</translation>
     </message>
 </context>
 <context>

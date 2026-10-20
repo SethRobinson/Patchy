@@ -12501,10 +12501,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Lo strumento Penna disegna tracciati sul contenuto del livello</translation>
     </message>
     <message>
-        <source>Click to add points, drag for curves. Click the first point to close; Enter commits an open path; Esc cancels.</source>
-        <translation>Fai clic per aggiungere punti, trascina per le curve. Fai clic sul primo punto per chiudere; Enter conferma un tracciato aperto; Esc annulla.</translation>
-    </message>
-    <message>
         <source>Select a shape layer or draw a path first</source>
         <translation>Seleziona prima un livello forma o disegna un tracciato</translation>
     </message>
@@ -12843,6 +12839,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Transform corners must form a convex shape</source>
         <translation>Gli angoli della trasformazione devono formare una forma convessa</translation>
+    </message>
+    <message>
+        <source>Extend path</source>
+        <translation>Prolunga tracciato</translation>
+    </message>
+    <message>
+        <source>Click to add points, drag for curves; Shift keeps 45 degrees. Click the first point to close; Enter or %CTRL%+click away ends an open path; Esc cancels.</source>
+        <translation>Fai clic per aggiungere punti, trascina per le curve; Shift mantiene i 45 gradi. Fai clic sul primo punto per chiudere; Enter o %CTRL%+clic altrove termina un tracciato aperto; Esc annulla.</translation>
+    </message>
+    <message>
+        <source>Duplicate shape</source>
+        <translation>Duplica forma</translation>
+    </message>
+    <message>
+        <source>Click to continue the path from this end point</source>
+        <translation>Fai clic per proseguire il tracciato da questo punto finale</translation>
     </message>
 </context>
 <context>
@@ -15261,18 +15273,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Tool</source>
         <translation>Strumento</translation>
-    </message>
-    <message>
-        <source>Click to place points, drag for curves. On a path: click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL% moves points.</source>
-        <translation>Fai clic per posizionare i punti, trascina per le curve. Su un tracciato: fai clic su un segmento per aggiungere un punto, fai clic su un punto per eliminarlo, %ALT%+clic lo converte, %CTRL% sposta i punti.</translation>
-    </message>
-    <message>
-        <source>Select and move whole shapes. %CTRL%+T transforms the path.</source>
-        <translation>Seleziona e sposta intere forme. %CTRL%+T trasforma il tracciato.</translation>
-    </message>
-    <message>
-        <source>Select and drag points and handles. Delete removes the selected points.</source>
-        <translation>Seleziona e trascina punti e maniglie. Delete rimuove i punti selezionati.</translation>
     </message>
     <message>
         <source>Click a path segment to insert a point.</source>
@@ -22912,8 +22912,20 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
         <translation>Filtro avanzato %1 aggiornato</translation>
     </message>
     <message>
-        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
-        <translation>Selezione tracciato: fai clic su una forma per selezionarla, trascina per spostarla. %CTRL%+T trasforma il tracciato, Delete rimuove la forma selezionata.</translation>
+        <source>Click to place points, drag for curves, Shift keeps 45 degrees. On a path: click a segment to add a point, click a point to delete it or an open end to continue it, %ALT%+click converts it, %CTRL% moves points, %CTRL%+click away ends the path.</source>
+        <translation>Fai clic per posizionare i punti, trascina per le curve, Shift mantiene i 45 gradi. Su un tracciato: fai clic su un segmento per aggiungere un punto, su un punto per eliminarlo o su un&apos;estremità aperta per proseguirlo, %ALT%+clic lo converte, %CTRL% sposta i punti, %CTRL%+clic altrove termina il tracciato.</translation>
+    </message>
+    <message>
+        <source>Select and move whole shapes. Shift+click adds or removes a shape, %ALT%+drag duplicates it, %CTRL% switches to Direct Select. %CTRL%+T transforms the selected shapes.</source>
+        <translation>Seleziona e sposta intere forme. Shift+clic aggiunge o rimuove una forma, %ALT%+trascina la duplica, %CTRL% passa a Selezione diretta. %CTRL%+T trasforma le forme selezionate.</translation>
+    </message>
+    <message>
+        <source>Select and drag points and handles. %ALT%+click selects a whole subpath, %ALT%+drag on a handle breaks the pair, %CTRL% switches to Path Select. Delete removes the selected points.</source>
+        <translation>Seleziona e trascina punti e maniglie. %ALT%+clic seleziona un intero sottotracciato, %ALT%+trascina su una maniglia separa la coppia, %CTRL% passa a Selezione tracciato. Delete rimuove i punti selezionati.</translation>
+    </message>
+    <message>
+        <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
+        <translation>Selezione tracciato: fai clic su una forma per selezionarla, trascina per spostarla, %ALT%+trascina per duplicarla. %CTRL%+T trasforma il tracciato, Delete rimuove la forma selezionata.</translation>
     </message>
 </context>
 <context>

@@ -12501,10 +12501,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>L&apos;outil Plume dessine des tracés sur le contenu du calque</translation>
     </message>
     <message>
-        <source>Click to add points, drag for curves. Click the first point to close; Enter commits an open path; Esc cancels.</source>
-        <translation>Cliquez pour ajouter des points, faites glisser pour tracer des courbes. Cliquez sur le premier point pour fermer ; Enter valide un tracé ouvert ; Esc annule.</translation>
-    </message>
-    <message>
         <source>Select a shape layer or draw a path first</source>
         <translation>Sélectionnez d&apos;abord un calque de forme ou dessinez un tracé</translation>
     </message>
@@ -12843,6 +12839,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Transform corners must form a convex shape</source>
         <translation>Les coins de la transformation doivent former une forme convexe</translation>
+    </message>
+    <message>
+        <source>Extend path</source>
+        <translation>Prolonger le tracé</translation>
+    </message>
+    <message>
+        <source>Click to add points, drag for curves; Shift keeps 45 degrees. Click the first point to close; Enter or %CTRL%+click away ends an open path; Esc cancels.</source>
+        <translation>Cliquez pour ajouter des points, faites glisser pour tracer des courbes ; Shift garde 45 degrés. Cliquez sur le premier point pour fermer ; Enter ou %CTRL%+clic à côté termine un tracé ouvert ; Esc annule.</translation>
+    </message>
+    <message>
+        <source>Duplicate shape</source>
+        <translation>Dupliquer la forme</translation>
+    </message>
+    <message>
+        <source>Click to continue the path from this end point</source>
+        <translation>Cliquez pour prolonger le tracé à partir de ce point d&apos;extrémité</translation>
     </message>
 </context>
 <context>
@@ -15261,18 +15273,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Tool</source>
         <translation>Outil</translation>
-    </message>
-    <message>
-        <source>Click to place points, drag for curves. On a path: click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL% moves points.</source>
-        <translation>Cliquez pour placer des points, faites glisser pour des courbes. Sur un tracé : cliquez sur un segment pour ajouter un point, cliquez sur un point pour le supprimer, %ALT%+clic le convertit, %CTRL% déplace les points.</translation>
-    </message>
-    <message>
-        <source>Select and move whole shapes. %CTRL%+T transforms the path.</source>
-        <translation>Sélectionner et déplacer des formes entières. %CTRL%+T transforme le tracé.</translation>
-    </message>
-    <message>
-        <source>Select and drag points and handles. Delete removes the selected points.</source>
-        <translation>Sélectionner et faire glisser des points et des poignées. Delete supprime les points sélectionnés.</translation>
     </message>
     <message>
         <source>Click a path segment to insert a point.</source>
@@ -22912,8 +22912,20 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
         <translation>Filtre dynamique %1 mis à jour</translation>
     </message>
     <message>
-        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
-        <translation>Sélection de tracé : cliquez sur une forme pour la sélectionner, faites-la glisser pour la déplacer. %CTRL%+T transforme le tracé, Delete supprime la forme sélectionnée.</translation>
+        <source>Click to place points, drag for curves, Shift keeps 45 degrees. On a path: click a segment to add a point, click a point to delete it or an open end to continue it, %ALT%+click converts it, %CTRL% moves points, %CTRL%+click away ends the path.</source>
+        <translation>Cliquez pour placer des points, faites glisser pour des courbes, Shift garde 45 degrés. Sur un tracé : cliquez sur un segment pour ajouter un point, sur un point pour le supprimer ou sur une extrémité ouverte pour le prolonger, %ALT%+clic le convertit, %CTRL% déplace les points, %CTRL%+clic à côté termine le tracé.</translation>
+    </message>
+    <message>
+        <source>Select and move whole shapes. Shift+click adds or removes a shape, %ALT%+drag duplicates it, %CTRL% switches to Direct Select. %CTRL%+T transforms the selected shapes.</source>
+        <translation>Sélectionner et déplacer des formes entières. Shift+clic ajoute ou retire une forme, %ALT%+glisser la duplique, %CTRL% passe à la Sélection directe. %CTRL%+T transforme les formes sélectionnées.</translation>
+    </message>
+    <message>
+        <source>Select and drag points and handles. %ALT%+click selects a whole subpath, %ALT%+drag on a handle breaks the pair, %CTRL% switches to Path Select. Delete removes the selected points.</source>
+        <translation>Sélectionner et faire glisser des points et des poignées. %ALT%+clic sélectionne un sous-tracé entier, %ALT%+glisser une poignée sépare la paire, %CTRL% passe à la Sélection de tracé. Delete supprime les points sélectionnés.</translation>
+    </message>
+    <message>
+        <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
+        <translation>Sélection de tracé : cliquez sur une forme pour la sélectionner, faites-la glisser pour la déplacer, %ALT%+glisser pour la dupliquer. %CTRL%+T transforme le tracé, Delete supprime la forme sélectionnée.</translation>
     </message>
 </context>
 <context>

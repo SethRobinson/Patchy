@@ -12611,10 +12611,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>펜 도구는 레이어 내용에 경로를 그립니다.</translation>
     </message>
     <message>
-        <source>Click to add points, drag for curves. Click the first point to close; Enter commits an open path; Esc cancels.</source>
-        <translation>클릭하여 점을 추가하고 드래그하여 곡선을 만듭니다. 첫 점을 클릭하면 패스가 닫힙니다. Enter로 열린 패스를 확정하고 Esc로 취소합니다.</translation>
-    </message>
-    <message>
         <source>Select a shape layer or draw a path first</source>
         <translation>모양 레이어를 선택하거나 먼저 패스를 그립니다.</translation>
     </message>
@@ -12809,6 +12805,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Transform corners must form a convex shape</source>
         <translation>변형 모서리는 볼록한 모양을 이루어야 합니다</translation>
+    </message>
+    <message>
+        <source>Extend path</source>
+        <translation>패스 연장</translation>
+    </message>
+    <message>
+        <source>Click to add points, drag for curves; Shift keeps 45 degrees. Click the first point to close; Enter or %CTRL%+click away ends an open path; Esc cancels.</source>
+        <translation>클릭하여 점을 추가하고 드래그하여 곡선을 만듭니다. Shift로 45도를 유지합니다. 첫 점을 클릭하면 패스가 닫힙니다. Enter 또는 빈 곳을 %CTRL%+클릭하면 열린 패스를 끝내고 Esc로 취소합니다.</translation>
+    </message>
+    <message>
+        <source>Duplicate shape</source>
+        <translation>모양 복제</translation>
+    </message>
+    <message>
+        <source>Click to continue the path from this end point</source>
+        <translation>이 끝점에서 패스를 이어 그리려면 클릭하세요</translation>
     </message>
 </context>
 <context>
@@ -15658,18 +15670,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Tool</source>
         <translation>도구</translation>
-    </message>
-    <message>
-        <source>Click to place points, drag for curves. On a path: click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL% moves points.</source>
-        <translation>클릭하여 점을 놓고 드래그하여 곡선을 만듭니다. 패스에서 선분을 클릭하면 점이 추가되고, 점을 클릭하면 삭제됩니다. %ALT%+클릭으로 점을 변환하고, %CTRL%로 점을 이동합니다.</translation>
-    </message>
-    <message>
-        <source>Select and move whole shapes. %CTRL%+T transforms the path.</source>
-        <translation>모양 전체를 선택하고 이동합니다. %CTRL%+T로 패스를 변형합니다.</translation>
-    </message>
-    <message>
-        <source>Select and drag points and handles. Delete removes the selected points.</source>
-        <translation>점과 핸들을 선택하고 드래그합니다. Delete로 선택한 점을 삭제합니다.</translation>
     </message>
     <message>
         <source>Click a path segment to insert a point.</source>
@@ -22842,8 +22842,20 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>%1 스마트 필터를 업데이트했습니다</translation>
     </message>
     <message>
-        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
-        <translation>패스 선택: 모양을 클릭하여 선택하고 드래그하여 이동합니다. %CTRL%+T로 패스를 변형하고, Delete로 선택한 모양을 삭제합니다.</translation>
+        <source>Click to place points, drag for curves, Shift keeps 45 degrees. On a path: click a segment to add a point, click a point to delete it or an open end to continue it, %ALT%+click converts it, %CTRL% moves points, %CTRL%+click away ends the path.</source>
+        <translation>클릭하여 점을 놓고 드래그하여 곡선을 만들며, Shift로 45도를 유지합니다. 패스에서 선분을 클릭하면 점이 추가되고, 점을 클릭하면 삭제되며, 열린 끝점을 클릭하면 이어 그립니다. %ALT%+클릭으로 점을 변환하고, %CTRL%로 점을 이동하며, 빈 곳을 %CTRL%+클릭하면 패스를 끝냅니다.</translation>
+    </message>
+    <message>
+        <source>Select and move whole shapes. Shift+click adds or removes a shape, %ALT%+drag duplicates it, %CTRL% switches to Direct Select. %CTRL%+T transforms the selected shapes.</source>
+        <translation>모양 전체를 선택하고 이동합니다. Shift+클릭으로 모양을 추가하거나 제외하고, %ALT%+드래그로 복제하며, %CTRL%로 직접 선택으로 전환합니다. %CTRL%+T로 선택한 모양을 변형합니다.</translation>
+    </message>
+    <message>
+        <source>Select and drag points and handles. %ALT%+click selects a whole subpath, %ALT%+drag on a handle breaks the pair, %CTRL% switches to Path Select. Delete removes the selected points.</source>
+        <translation>점과 핸들을 선택하고 드래그합니다. %ALT%+클릭으로 하위 패스 전체를 선택하고, 핸들을 %ALT%+드래그하면 쌍이 분리되며, %CTRL%로 패스 선택으로 전환합니다. Delete로 선택한 점을 삭제합니다.</translation>
+    </message>
+    <message>
+        <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
+        <translation>패스 선택: 모양을 클릭하여 선택하고 드래그하여 이동하며, %ALT%+드래그로 복제합니다. %CTRL%+T로 패스를 변형하고, Delete로 선택한 모양을 삭제합니다.</translation>
     </message>
 </context>
 <context>

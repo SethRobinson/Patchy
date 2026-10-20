@@ -12343,10 +12343,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>ペンツールはレイヤーコンテンツにパスを描きます</translation>
     </message>
     <message>
-        <source>Click to add points, drag for curves. Click the first point to close; Enter commits an open path; Esc cancels.</source>
-        <translation>クリックでポイントを追加、ドラッグで曲線を描画。最初のポイントをクリックすると閉じ、Enter で開いたパスを確定、Esc でキャンセルします。</translation>
-    </message>
-    <message>
         <source>Select a shape layer or draw a path first</source>
         <translation>先にシェイプレイヤーを選択するかパスを描いてください</translation>
     </message>
@@ -12809,6 +12805,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Transform corners must form a convex shape</source>
         <translation>変形の四隅は凸形状になる必要があります</translation>
+    </message>
+    <message>
+        <source>Extend path</source>
+        <translation>パスを延長</translation>
+    </message>
+    <message>
+        <source>Click to add points, drag for curves; Shift keeps 45 degrees. Click the first point to close; Enter or %CTRL%+click away ends an open path; Esc cancels.</source>
+        <translation>クリックでポイントを追加、ドラッグで曲線を描画。Shiftで45度に固定します。最初のポイントをクリックすると閉じ、Enterまたは離れた場所で%CTRL%+クリックすると開いたパスを終了、Escでキャンセルします。</translation>
+    </message>
+    <message>
+        <source>Duplicate shape</source>
+        <translation>シェイプを複製</translation>
+    </message>
+    <message>
+        <source>Click to continue the path from this end point</source>
+        <translation>クリックでこの端点からパスを続けます</translation>
     </message>
 </context>
 <context>
@@ -19271,18 +19283,6 @@ Clipped to the layer below</source>
         <translation>ペンツール</translation>
     </message>
     <message>
-        <source>Click to place points, drag for curves. On a path: click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL% moves points.</source>
-        <translation>クリックでポイントを置き、ドラッグで曲線を描きます。パス上では: セグメントをクリックでポイント追加、ポイントをクリックで削除、%ALT%+クリックで切り替え、%CTRL%でポイントを移動。</translation>
-    </message>
-    <message>
-        <source>Select and move whole shapes. %CTRL%+T transforms the path.</source>
-        <translation>シェイプ全体を選択して移動します。%CTRL%+Tでパスを変形。</translation>
-    </message>
-    <message>
-        <source>Select and drag points and handles. Delete removes the selected points.</source>
-        <translation>ポイントとハンドルを選択してドラッグします。Deleteで選択したポイントを削除。</translation>
-    </message>
-    <message>
         <source>Click a path segment to insert a point.</source>
         <translation>パスのセグメントをクリックしてポイントを挿入します。</translation>
     </message>
@@ -22842,8 +22842,20 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>%1スマートフィルターを更新しました</translation>
     </message>
     <message>
-        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
-        <translation>パス選択: シェイプをクリックで選択、ドラッグで移動。%CTRL%+Tでパスを変形、Deleteで選択したシェイプを削除。</translation>
+        <source>Click to place points, drag for curves, Shift keeps 45 degrees. On a path: click a segment to add a point, click a point to delete it or an open end to continue it, %ALT%+click converts it, %CTRL% moves points, %CTRL%+click away ends the path.</source>
+        <translation>クリックでポイントを置き、ドラッグで曲線を描きます。Shiftで45度に固定。パス上では: セグメントをクリックでポイント追加、ポイントをクリックで削除、開いた端点をクリックで続きを描画、%ALT%+クリックで切り替え、%CTRL%でポイントを移動、離れた場所で%CTRL%+クリックでパスを終了。</translation>
+    </message>
+    <message>
+        <source>Select and move whole shapes. Shift+click adds or removes a shape, %ALT%+drag duplicates it, %CTRL% switches to Direct Select. %CTRL%+T transforms the selected shapes.</source>
+        <translation>シェイプ全体を選択して移動します。Shift+クリックでシェイプを追加または解除、%ALT%+ドラッグで複製、%CTRL%で直接選択に切り替え。%CTRL%+Tで選択したシェイプを変形。</translation>
+    </message>
+    <message>
+        <source>Select and drag points and handles. %ALT%+click selects a whole subpath, %ALT%+drag on a handle breaks the pair, %CTRL% switches to Path Select. Delete removes the selected points.</source>
+        <translation>ポイントとハンドルを選択してドラッグします。%ALT%+クリックでサブパス全体を選択、ハンドルを%ALT%+ドラッグでペアを分離、%CTRL%でパス選択に切り替え。Deleteで選択したポイントを削除。</translation>
+    </message>
+    <message>
+        <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
+        <translation>パス選択: シェイプをクリックで選択、ドラッグで移動、%ALT%+ドラッグで複製。%CTRL%+Tでパスを変形、Deleteで選択したシェイプを削除。</translation>
     </message>
 </context>
 <context>

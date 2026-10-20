@@ -1900,6 +1900,14 @@ private:
   // The topmost visible, editable shape layer whose anchor, outline or fill is
   // under the pointer: Path/Direct Select pick it as their target (GitHub issue 248).
   [[nodiscard]] patchy::Layer* topmost_path_pick_layer_at(QPointF widget_point) const;
+  // The open subpath end point under the pointer on the target path, if any: its
+  // subpath index and whether it is the subpath's first anchor (GitHub issue 248: a Pen
+  // click there continues the path).
+  [[nodiscard]] std::optional<std::pair<int, bool>> pen_open_endpoint_at(QPointF widget_point) const;
+  // Ctrl swaps Path Select and Direct Select while held (GitHub issue 248), the arrow
+  // tools' version of the Pen's Ctrl latch; the cursor follows (apply_arrow_cursor).
+  void set_arrow_swap(bool active);
+  void apply_arrow_cursor();
   // Path transform session hover cursor: Free Transform's resize, move and per-corner
   // rotate cursors for the zone a press would grab (GitHub issue 248).
   void apply_path_transform_cursor(QPoint widget_point, Qt::KeyboardModifiers modifiers);
@@ -2563,6 +2571,25 @@ private:
   std::set<std::pair<int, int>> path_selected_anchors_;
   // Set while a press that picked another shape layer replays on the new target.
   bool path_press_repicked_ = false;
+  // Ctrl held over an arrow tool: path_edit_tool() reports the other arrow.
+  bool arrow_swap_active_ = false;
+  // Whether the point selection was made by Path Select (whole groups): a Direct
+  // Select press starts fresh, a Path Select press expands Direct Select's points.
+  bool path_selection_by_path_select_ = false;
+  // Alt at a handle press: the drag breaks the smooth pair (Direct Select).
+  bool path_drag_break_pair_ = false;
+  // Alt at a Path Select press: the first drag move duplicates the selected shapes.
+  bool path_drag_duplicate_pending_ = false;
+  // A Pen session continuing an open subpath of the target from one of its ends: the
+  // subpath, the owner it lives in, its anchors at the start, and whether the session
+  // runs reversed (continuing from the first anchor).
+  struct PenContinuation {
+    int subpath{-1};
+    std::pair<int, std::uint64_t> owner{0, 0};
+    patchy::PathSubpath original;
+    bool reversed{false};
+  };
+  std::optional<PenContinuation> pen_continuation_;
   // The target owner the point selection was made on (path_edit_target_owner_key).
   std::optional<std::pair<int, std::uint64_t>> path_selection_owner_;
   // Selected anchors on OTHER panel-selected shape layers (never the primary

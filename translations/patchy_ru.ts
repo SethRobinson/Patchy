@@ -12679,10 +12679,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Инструмент «Перо» рисует контуры на содержимом слоя.</translation>
     </message>
     <message>
-        <source>Click to add points, drag for curves. Click the first point to close; Enter commits an open path; Esc cancels.</source>
-        <translation>Щёлкайте для добавления точек, перетаскивайте для создания кривых. Щёлкните первую точку для замыкания; Enter завершает открытый контур, Esc отменяет.</translation>
-    </message>
-    <message>
         <source>Select a shape layer or draw a path first</source>
         <translation>Выберите слой-фигуру или сначала нарисуйте контур</translation>
     </message>
@@ -12877,6 +12873,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Transform corners must form a convex shape</source>
         <translation>Углы трансформации должны образовывать выпуклую фигуру</translation>
+    </message>
+    <message>
+        <source>Extend path</source>
+        <translation>Продолжить контур</translation>
+    </message>
+    <message>
+        <source>Click to add points, drag for curves; Shift keeps 45 degrees. Click the first point to close; Enter or %CTRL%+click away ends an open path; Esc cancels.</source>
+        <translation>Щёлкайте для добавления точек, перетаскивайте для создания кривых; Shift держит 45 градусов. Щёлкните первую точку для замыкания; Enter или %CTRL%+щелчок в стороне завершает открытый контур, Esc отменяет.</translation>
+    </message>
+    <message>
+        <source>Duplicate shape</source>
+        <translation>Дублировать фигуру</translation>
+    </message>
+    <message>
+        <source>Click to continue the path from this end point</source>
+        <translation>Щёлкните, чтобы продолжить контур от этой конечной точки</translation>
     </message>
 </context>
 <context>
@@ -15728,18 +15740,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Tool</source>
         <translation>Инструмент</translation>
-    </message>
-    <message>
-        <source>Click to place points, drag for curves. On a path: click a segment to add a point, click a point to delete it, %ALT%+click converts it, %CTRL% moves points.</source>
-        <translation>Щёлкайте для добавления точек, перетаскивайте для создания кривых. На контуре: щелчок по сегменту добавляет точку, по точке удаляет её; %ALT%+щелчок преобразует точку, %CTRL% перемещает точки.</translation>
-    </message>
-    <message>
-        <source>Select and move whole shapes. %CTRL%+T transforms the path.</source>
-        <translation>Выделять и перемещать целые фигуры. %CTRL%+T трансформирует контур.</translation>
-    </message>
-    <message>
-        <source>Select and drag points and handles. Delete removes the selected points.</source>
-        <translation>Выделяйте и перетаскивайте точки и направляющие. Delete удаляет выделенные точки.</translation>
     </message>
     <message>
         <source>Click a path segment to insert a point.</source>
@@ -22982,8 +22982,20 @@ Patchy можно будет запускать из меню, а на пане�
         <translation>Обновлён смарт-фильтр «%1»</translation>
     </message>
     <message>
-        <source>Path Select: click a shape to select it, drag to move it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
-        <translation>Выделение контура: щёлкните фигуру для выделения, перетаскивайте для перемещения. %CTRL%+T трансформирует контур, Delete удаляет выделенную фигуру.</translation>
+        <source>Click to place points, drag for curves, Shift keeps 45 degrees. On a path: click a segment to add a point, click a point to delete it or an open end to continue it, %ALT%+click converts it, %CTRL% moves points, %CTRL%+click away ends the path.</source>
+        <translation>Щёлкайте для добавления точек, перетаскивайте для создания кривых, Shift держит 45 градусов. На контуре: щелчок по сегменту добавляет точку, по точке удаляет её, по открытому концу продолжает контур; %ALT%+щелчок преобразует точку, %CTRL% перемещает точки, %CTRL%+щелчок в стороне завершает контур.</translation>
+    </message>
+    <message>
+        <source>Select and move whole shapes. Shift+click adds or removes a shape, %ALT%+drag duplicates it, %CTRL% switches to Direct Select. %CTRL%+T transforms the selected shapes.</source>
+        <translation>Выделять и перемещать целые фигуры. Shift+щелчок добавляет или убирает фигуру, %ALT%+перетаскивание дублирует её, %CTRL% переключает на прямое выделение. %CTRL%+T трансформирует выделенные фигуры.</translation>
+    </message>
+    <message>
+        <source>Select and drag points and handles. %ALT%+click selects a whole subpath, %ALT%+drag on a handle breaks the pair, %CTRL% switches to Path Select. Delete removes the selected points.</source>
+        <translation>Выделяйте и перетаскивайте точки и направляющие. %ALT%+щелчок выделяет весь подконтур, %ALT%+перетаскивание направляющей разрывает пару, %CTRL% переключает на выделение контура. Delete удаляет выделенные точки.</translation>
+    </message>
+    <message>
+        <source>Path Select: click a shape to select it, drag to move it, %ALT%+drag to duplicate it. %CTRL%+T transforms the path, Delete removes the selected shape.</source>
+        <translation>Выделение контура: щёлкните фигуру для выделения, перетаскивайте для перемещения, %ALT%+перетаскивание для дублирования. %CTRL%+T трансформирует контур, Delete удаляет выделенную фигуру.</translation>
     </message>
 </context>
 <context>
