@@ -420,6 +420,35 @@ bool* layer_effect_enabled_flag(LayerStyle& style, LayerStyleEffect effect, std:
   return nullptr;
 }
 
+namespace {
+
+template <typename Vector>
+bool erase_effect_instance(Vector& instances, std::size_t index) {
+  if (index >= instances.size()) {
+    return false;
+  }
+  instances.erase(instances.begin() + static_cast<std::ptrdiff_t>(index));
+  return true;
+}
+
+}  // namespace
+
+bool remove_layer_effect_instance(LayerStyle& style, LayerStyleEffect effect, std::size_t index) {
+  switch (effect) {
+    case LayerStyleEffect::BevelEmboss: return erase_effect_instance(style.bevels, index);
+    case LayerStyleEffect::Stroke: return erase_effect_instance(style.strokes, index);
+    case LayerStyleEffect::InnerShadow: return erase_effect_instance(style.inner_shadows, index);
+    case LayerStyleEffect::InnerGlow: return erase_effect_instance(style.inner_glows, index);
+    case LayerStyleEffect::Satin: return erase_effect_instance(style.satins, index);
+    case LayerStyleEffect::ColorOverlay: return erase_effect_instance(style.color_overlays, index);
+    case LayerStyleEffect::GradientOverlay: return erase_effect_instance(style.gradient_fills, index);
+    case LayerStyleEffect::PatternOverlay: return erase_effect_instance(style.pattern_overlays, index);
+    case LayerStyleEffect::OuterGlow: return erase_effect_instance(style.outer_glows, index);
+    case LayerStyleEffect::DropShadow: return erase_effect_instance(style.drop_shadows, index);
+  }
+  return false;
+}
+
 QString layer_effect_display_name(LayerStyleEffect effect) {
   // The same texts as the Layer Style dialog's category rows.
   switch (effect) {

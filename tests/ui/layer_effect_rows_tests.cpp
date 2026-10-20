@@ -2,7 +2,10 @@
 // row like Smart Filters, with an eye per effect, a master eye, and an Edit pencil or
 // double-click that opens the Layer Style dialog on that effect.
 #include "core/layer.hpp"
+#include "core/layer_metadata.hpp"
+#include "psd/psd_document_io.hpp"
 #include "ui/canvas_widget.hpp"
+#include "ui/qt_paths.hpp"
 #include "ui/layer_list_widget.hpp"
 #include "ui/main_window.hpp"
 #include "ui/theme_manager.hpp"
@@ -19,11 +22,14 @@
 #include <QLabel>
 #include <QListWidget>
 #include <QListWidgetItem>
+#include <QMenu>
 #include <QMouseEvent>
 #include <QPointF>
 #include <QStringList>
 #include <QPoint>
 #include <QStackedWidget>
+#include <QDir>
+#include <QFileInfo>
 #include <QStatusBar>
 #include <QTimer>
 #include <QToolButton>
@@ -98,6 +104,24 @@ QWidget* effect_entry_row(QWidget& row, const QString& name) {
   return nullptr;
 }
 
+// The effect rows start closed: opens them through the header's disclosure arrow.
+void expand_effects(QListWidget& list) {
+  auto* row = badge_row(list);
+  CHECK(row != nullptr);
+  auto* disclosure = row->findChild<QToolButton*>(QStringLiteral("layerEffectsDisclosureButton"));
+  CHECK(disclosure != nullptr && !disclosure->isChecked());
+  const auto global = disclosure->mapToGlobal(disclosure->rect().center());
+  click_widget_like_a_user(*list.viewport(), list.viewport()->mapFromGlobal(global));
+  for (int pass = 0; pass < 4; ++pass) {
+    QApplication::processEvents();
+  }
+}
+
+int effect_entry_count(QListWidget& list) {
+  auto* row = badge_row(list);
+  return row == nullptr ? -1 : static_cast<int>(row->findChildren<QWidget*>(QStringLiteral("layerEffectEntryRow")).size());
+}
+
 // A user-style click on `child` through the list's viewport (the row event filter sees it).
 void click_row_child(QListWidget& list, QWidget& child) {
   const auto global = child.mapToGlobal(child.rect().center());
@@ -121,11 +145,13 @@ void ui_layer_effect_rows_toggle_effects_and_render() {
   const auto badge_id = *doc.active_layer_id();
   const auto style = [&]() -> const patchy::LayerStyle& { return std::as_const(doc).find_layer(badge_id)->layer_style(); };
 
-  // Rows: the Effects header, then Stroke and Color Overlay in the dialog's order, and the
-  // item is tall enough for them (the Smart Filter rule).
+  // Rows: the Layer Styles header, then (once opened) Stroke and Color Overlay in the dialog's
+  // order, and the item is tall enough for them (the Smart Filter rule).
+  expand_effects(*list);
   auto* row = badge_row(*list);
   CHECK(row != nullptr);
   CHECK(row->findChildren<QWidget*>(QStringLiteral("layerEffectsRow")).size() == 1);
+  CHECK(row->findChild<QLabel*>(QStringLiteral("layerEffectsLabel"))->text() == QStringLiteral("Layer Styles"));
   const auto entries = row->findChildren<QWidget*>(QStringLiteral("layerEffectEntryRow"));
   CHECK(entries.size() == 2);
   QStringList names;
@@ -209,6 +235,7 @@ void ui_layer_effect_row_double_click_and_pencil_open_dialog_on_effect() {
   QApplication::processEvents();
   auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
   CHECK(list != nullptr);
+  expand_effects(*list);
   auto& doc = patchy::ui::MainWindowTestAccess::document(window);
   const auto badge_id = *doc.active_layer_id();
 
@@ -270,10 +297,279 @@ void ui_layer_effect_row_double_click_and_pencil_open_dialog_on_effect() {
   CHECK(by_pencil.checked);
 }
 
+// The effect rows start closed and open through the header's disclosure arrow; the state
+// survives row rebuilds for the document's life (session memory, not the file), and an effect
+// added through the Layer Style dialog opens the list so the new row is in view.
+void ui_layer_effect_rows_start_collapsed_and_remember_state() {
+  ColorSchemeRestorer restore_scheme;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(styled_document(true), QStringLiteral("Effect Rows Collapsed"));
+  QApplication::processEvents();
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* layers_dock = window.findChild<QWidget*>(QStringLiteral("layersDock"));
+  CHECK(list != nullptr && layers_dock != nullptr);
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  const auto badge_id = *doc.active_layer_id();
+
+  auto* row = badge_row(*list);
+  CHECK(row != nullptr);
+  CHECK(row->findChildren<QWidget*>(QStringLiteral("layerEffectsRow")).size() == 1);
+  CHECK(effect_entry_count(*list) == 0);
+  auto* disclosure = row->findChild<QToolButton*>(QStringLiteral("layerEffectsDisclosureButton"));
+  CHECK(disclosure != nullptr && !disclosure->isChecked() && disclosure->arrowType() == Qt::RightArrow);
+  CHECK(require_layer_item(*list, QStringLiteral("Badge"))->sizeHint().height() == 44 + 26);
+  save_widget_artifact("ui_layer_effect_rows_collapsed_dark", *layers_dock);
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Light);
+  QApplication::processEvents();
+  save_widget_artifact("ui_layer_effect_rows_collapsed_light", *layers_dock);
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  QApplication::processEvents();
+
+  // Open: two rows, the item grows, the arrow turns down; not an edit.
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  expand_effects(*list);
+  CHECK(effect_entry_count(*list) == 2);
+  row = badge_row(*list);
+  disclosure = row->findChild<QToolButton*>(QStringLiteral("layerEffectsDisclosureButton"));
+  CHECK(disclosure != nullptr && disclosure->isChecked() && disclosure->arrowType() == Qt::DownArrow);
+  CHECK(require_layer_item(*list, QStringLiteral("Badge"))->sizeHint().height() == 44 + 26 * 3);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before);
+
+  // A rebuild (hiding another layer through its eye) keeps the list open.
+  auto* background_row = list->itemWidget(require_layer_item(*list, QStringLiteral("Background")));
+  CHECK(background_row != nullptr);
+  click_row_child(*list, *background_row->findChild<QToolButton*>(QStringLiteral("layerVisibilityCheck")));
+  CHECK(effect_entry_count(*list) == 2);
+
+  // Close again.
+  row = badge_row(*list);
+  click_row_child(*list, *row->findChild<QToolButton*>(QStringLiteral("layerEffectsDisclosureButton")));
+  CHECK(effect_entry_count(*list) == 0);
+
+  // The footer's Drop Shadow... adds an effect through the dialog; OK opens the list on it.
+  auto* styles_button = window.findChild<QToolButton*>(QStringLiteral("layerStylesButton"));
+  CHECK(styles_button != nullptr && styles_button->menu() != nullptr);
+  QAction* entry = nullptr;
+  for (auto* action : styles_button->menu()->actions()) {
+    if (action->objectName() == QLatin1String("layerStylesDropShadowAction")) {
+      entry = action;
+    }
+  }
+  CHECK(entry != nullptr);
+  bool accepted = false;
+  QTimer::singleShot(0, [&accepted] {
+    if (auto* dialog = find_top_level_dialog(QStringLiteral("patchyLayerStyleDialog"));
+        dialog != nullptr && dialog->isVisible()) {
+      accepted = true;
+      dialog->accept();
+    }
+  });
+  entry->trigger();
+  process_events_for(100);
+  CHECK(accepted);
+  CHECK(std::as_const(doc).find_layer(badge_id)->layer_style().drop_shadows.size() == 1);
+  CHECK(effect_entry_count(*list) == 3);
+  CHECK(effect_entry_row(*badge_row(*list), QStringLiteral("Drop Shadow")) != nullptr);
+}
+
+// With the master eye off, each effect's eye draws dimmed (not slashed) and still toggles
+// that effect's own flag; the composite stays unstyled until the master is back on.
+void ui_layer_effect_rows_grey_eyes_under_master_off() {
+  ColorSchemeRestorer restore_scheme;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(styled_document(true), QStringLiteral("Effect Rows Master"));
+  QApplication::processEvents();
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* layers_dock = window.findChild<QWidget*>(QStringLiteral("layersDock"));
+  CHECK(list != nullptr && layers_dock != nullptr);
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  const auto badge_id = *doc.active_layer_id();
+  const auto style = [&]() -> const patchy::LayerStyle& { return std::as_const(doc).find_layer(badge_id)->layer_style(); };
+  expand_effects(*list);
+
+  auto* row = badge_row(*list);
+  auto* stroke_entry = effect_entry_row(*row, QStringLiteral("Stroke"));
+  CHECK(stroke_entry != nullptr);
+  auto* stroke_eye = stroke_entry->findChild<QToolButton*>(QStringLiteral("layerEffectVisibilityButton"));
+  CHECK(stroke_eye != nullptr && !stroke_eye->property("layerEffectEyeDimmed").toBool());
+  const auto normal_icon = stroke_eye->icon().pixmap(QSize(15, 15)).toImage();
+
+  click_row_child(*list, *row->findChild<QToolButton*>(QStringLiteral("layerEffectsVisibilityButton")));
+  CHECK(!style().effects_visible);
+  CHECK(style().strokes.front().enabled);
+  row = badge_row(*list);
+  stroke_entry = effect_entry_row(*row, QStringLiteral("Stroke"));
+  CHECK(stroke_entry != nullptr);
+  stroke_eye = stroke_entry->findChild<QToolButton*>(QStringLiteral("layerEffectVisibilityButton"));
+  CHECK(stroke_eye != nullptr && stroke_eye->isChecked());  // its own state: still on
+  CHECK(stroke_eye->property("layerEffectEyeDimmed").toBool());
+  CHECK(stroke_eye->isEnabled());
+  const auto dimmed_icon = stroke_eye->icon().pixmap(QSize(15, 15)).toImage();
+  CHECK(dimmed_icon != normal_icon);
+  save_widget_artifact("ui_layer_effect_rows_master_off_dark", *layers_dock);
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Light);
+  QApplication::processEvents();
+  save_widget_artifact("ui_layer_effect_rows_master_off_light", *layers_dock);
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  QApplication::processEvents();
+
+  // Toggling under the master still flips the flag; the composite stays plain red.
+  row = badge_row(*list);
+  stroke_entry = effect_entry_row(*row, QStringLiteral("Stroke"));
+  click_row_child(*list, *stroke_entry->findChild<QToolButton*>(QStringLiteral("layerEffectVisibilityButton")));
+  CHECK(!style().strokes.front().enabled);
+  CHECK(!style().effects_visible);
+  const auto center = composite_pixel(window, 32, 24);
+  CHECK(center.red() > 150 && center.green() < 100);
+  const auto ring = composite_pixel(window, 20, 24);
+  CHECK(ring.red() > 240 && ring.green() > 240 && ring.blue() > 240);
+  row = badge_row(*list);
+  stroke_entry = effect_entry_row(*row, QStringLiteral("Stroke"));
+  stroke_eye = stroke_entry->findChild<QToolButton*>(QStringLiteral("layerEffectVisibilityButton"));
+  CHECK(stroke_eye != nullptr && !stroke_eye->isChecked() && stroke_eye->property("layerEffectEyeDimmed").toBool());
+
+  // Master back on: the overlay returns, the stroke stays off by its own flag.
+  click_row_child(*list, *row->findChild<QToolButton*>(QStringLiteral("layerEffectsVisibilityButton")));
+  CHECK(style().effects_visible && !style().strokes.front().enabled);
+  CHECK(composite_pixel(window, 32, 24).green() > 150);
+  const auto ring_after = composite_pixel(window, 20, 24);
+  CHECK(ring_after.red() > 240 && ring_after.green() > 240);  // white: no blue ring
+  row = badge_row(*list);
+  stroke_entry = effect_entry_row(*row, QStringLiteral("Stroke"));
+  CHECK(!stroke_entry->findChild<QToolButton*>(QStringLiteral("layerEffectVisibilityButton"))
+             ->property("layerEffectEyeDimmed")
+             .toBool());
+}
+
+// Polls for the effect row's context menu, hands it to `act`, then closes it.
+void handle_effect_context_menu(std::function<void(QMenu&)> act, std::shared_ptr<int> seen, int attempts = 100) {
+  QTimer::singleShot(10, [act = std::move(act), seen, attempts]() mutable {
+    for (auto* widget : QApplication::topLevelWidgets()) {
+      auto* menu = qobject_cast<QMenu*>(widget);
+      if (menu != nullptr && menu->objectName() == QStringLiteral("layerEffectContextMenu") && menu->isVisible()) {
+        ++*seen;
+        act(*menu);
+        menu->close();
+        return;
+      }
+    }
+    if (attempts > 0) {
+      handle_effect_context_menu(std::move(act), seen, attempts - 1);
+    }
+  });
+}
+
+QAction* menu_action(QMenu& menu, const char* name) {
+  for (auto* action : menu.actions()) {
+    if (action->objectName() == QLatin1String(name)) {
+      return action;
+    }
+  }
+  return nullptr;
+}
+
+// Right-clicking an effect row opens that effect's menu (not the layer menu): Edit, Hide/Show,
+// Delete. Delete removes the instance as one undo step, the row goes, and the saved PSD drops
+// it; a locked layer keeps Delete and Hide disabled.
+void ui_layer_effect_row_context_menu_edits_hides_and_deletes() {
+  ColorSchemeRestorer restore_scheme;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(styled_document(true), QStringLiteral("Effect Row Menu"));
+  QApplication::processEvents();
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(list != nullptr);
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  const auto badge_id = *doc.active_layer_id();
+  const auto style = [&]() -> const patchy::LayerStyle& { return std::as_const(doc).find_layer(badge_id)->layer_style(); };
+  expand_effects(*list);
+
+  const auto stroke_row_position = [&] {
+    auto* entry = effect_entry_row(*badge_row(*list), QStringLiteral("Stroke"));
+    CHECK(entry != nullptr);
+    auto* label = entry->findChild<QLabel*>(QStringLiteral("layerEffectEntryLabel"));
+    return list->viewport()->mapFromGlobal(label->mapToGlobal(label->rect().center()));
+  };
+
+  // The menu's shape, captured; nothing chosen.
+  auto seen = std::make_shared<int>(0);
+  handle_effect_context_menu(
+      [](QMenu& menu) {
+        CHECK(menu_action(menu, "layerEffectEditAction") != nullptr);
+        CHECK(menu_action(menu, "layerEffectVisibilityAction") != nullptr);
+        CHECK(menu_action(menu, "layerEffectVisibilityAction")->text().contains(QStringLiteral("Hide")));
+        CHECK(menu_action(menu, "layerEffectDeleteAction") != nullptr);
+        CHECK(menu_action(menu, "layerEffectDeleteAction")->isEnabled());
+        save_widget_artifact("ui_layer_effect_row_context_menu_dark", menu);
+      },
+      seen);
+  patchy::ui::MainWindowTestAccess::show_layer_context_menu(window, stroke_row_position());
+  process_events_for(100);
+  CHECK(*seen == 1);
+
+  // Hide through the menu flips the flag.
+  handle_effect_context_menu([](QMenu& menu) { menu_action(menu, "layerEffectVisibilityAction")->trigger(); }, seen);
+  patchy::ui::MainWindowTestAccess::show_layer_context_menu(window, stroke_row_position());
+  process_events_for(100);
+  CHECK(*seen == 2);
+  CHECK(!style().strokes.front().enabled);
+
+  // Delete removes the instance: one undo step, the row is gone, the PSD drops it.
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  handle_effect_context_menu([](QMenu& menu) { menu_action(menu, "layerEffectDeleteAction")->trigger(); }, seen);
+  patchy::ui::MainWindowTestAccess::show_layer_context_menu(window, stroke_row_position());
+  process_events_for(100);
+  CHECK(*seen == 3);
+  CHECK(style().strokes.empty());
+  CHECK(style().color_overlays.size() == 1);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before + 1);
+  CHECK(effect_entry_count(*list) == 1);
+  CHECK(effect_entry_row(*badge_row(*list), QStringLiteral("Stroke")) == nullptr);
+  ensure_artifact_dir();
+  const auto psd_path =
+      QFileInfo(QDir(QStringLiteral("test-artifacts")).filePath(QStringLiteral("effect-row-delete.psd"))).absoluteFilePath();
+  patchy::psd::DocumentIo::write_layered_rgb8_file(std::as_const(doc), patchy::ui::to_filesystem_path(psd_path));
+  const auto reread = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(psd_path));
+  CHECK(reread.layers().size() == 2);
+  CHECK(reread.layers().back().layer_style().strokes.empty());
+  CHECK(reread.layers().back().layer_style().color_overlays.size() == 1);
+  patchy::ui::MainWindowTestAccess::undo(window);
+  QApplication::processEvents();
+  CHECK(style().strokes.size() == 1 && !style().strokes.front().enabled);
+  CHECK(effect_entry_count(*list) == 2);
+
+  // A locked layer: the menu still opens, Delete and Hide/Show are disabled.
+  patchy::set_layer_lock_flags(*doc.find_layer(badge_id), patchy::kLayerLockAll);
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  QApplication::processEvents();
+  if (effect_entry_count(*list) == 0) {
+    expand_effects(*list);
+  }
+  handle_effect_context_menu(
+      [](QMenu& menu) {
+        CHECK(!menu_action(menu, "layerEffectDeleteAction")->isEnabled());
+        CHECK(!menu_action(menu, "layerEffectVisibilityAction")->isEnabled());
+        CHECK(menu_action(menu, "layerEffectEditAction")->isEnabled());
+      },
+      seen);
+  patchy::ui::MainWindowTestAccess::show_layer_context_menu(window, stroke_row_position());
+  process_events_for(100);
+  CHECK(*seen == 4);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_effect_rows_tests() {
   return {
+      {"ui_layer_effect_rows_start_collapsed_and_remember_state", ui_layer_effect_rows_start_collapsed_and_remember_state},
+      {"ui_layer_effect_rows_grey_eyes_under_master_off", ui_layer_effect_rows_grey_eyes_under_master_off},
+      {"ui_layer_effect_row_context_menu_edits_hides_and_deletes",
+       ui_layer_effect_row_context_menu_edits_hides_and_deletes},
       {"ui_layer_effect_rows_toggle_effects_and_render", ui_layer_effect_rows_toggle_effects_and_render},
       {"ui_layer_effect_row_double_click_and_pencil_open_dialog_on_effect",
        ui_layer_effect_row_double_click_and_pencil_open_dialog_on_effect},

@@ -1455,6 +1455,15 @@ private:
   void set_layer_effects_visible(LayerId layer_id, bool visible);
   void set_layer_effect_enabled(LayerId layer_id, LayerStyleEffect effect, std::size_t index, bool enabled);
   void edit_layer_effect(LayerId layer_id, LayerStyleEffect effect, std::size_t index);
+  // Removes that effect instance (one undo step; the saved PSD drops it).
+  void delete_layer_effect(LayerId layer_id, LayerStyleEffect effect, std::size_t index);
+  // The effect row's own right-click menu: Edit, Hide/Show, Delete.
+  void show_layer_effect_context_menu(LayerId layer_id, LayerStyleEffect effect, std::size_t index,
+                                      QPoint global_position);
+  // The effect rows' disclosure state (session only): closed by default; opening a layer's
+  // list, and `reveal_layer_effects` (an effect added this session) marks it open.
+  void toggle_layer_effects_expanded(LayerId layer_id);
+  void reveal_layer_effects(LayerId layer_id);
   bool apply_layer_effect_row_edit(LayerId layer_id, const QString& undo_text, const QString& status_text,
                                    const std::function<bool(LayerStyle&)>& edit);
   void copy_active_layer_style();

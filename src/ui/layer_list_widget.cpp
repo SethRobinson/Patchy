@@ -117,6 +117,7 @@ bool layer_row_button_owns_clicks(const QString& object_name) {
          object_name == QLatin1String("layerSmartFilterVisibilityButton") ||
          object_name == QLatin1String("layerSmartFilterEditButton") ||
          object_name == QLatin1String("layerSmartFilterMoreButton") ||
+         object_name == QLatin1String("layerEffectsDisclosureButton") ||
          object_name == QLatin1String("layerEffectsVisibilityButton") ||
          object_name == QLatin1String("layerEffectVisibilityButton") ||
          object_name == QLatin1String("layerEffectEditButton");
@@ -1839,6 +1840,7 @@ int LayerListWidget::wheel_scroll_row_height() const {
 void LayerListWidget::set_layer_row_buttons_drag_active(bool active) {
   for (auto* button : findChildren<QToolButton*>()) {
     if (button->objectName() != QStringLiteral("layerFolderDisclosureButton") &&
+        button->objectName() != QStringLiteral("layerEffectsDisclosureButton") &&
         button->objectName() != QStringLiteral("layerVisibilityCheck")) {
       continue;
     }

@@ -11436,32 +11436,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation> (Stärke %1, Strahlenförmig, Qualität %2)</translation>
     </message>
     <message>
-        <source>The layer is locked, so its effects cannot be changed here.</source>
-        <translation>Die Ebene ist gesperrt, daher können ihre Effekte hier nicht geändert werden.</translation>
-    </message>
-    <message>
-        <source>Effects visible. Click to hide them all.</source>
-        <translation>Effekte sichtbar. Klicken, um alle auszublenden.</translation>
-    </message>
-    <message>
-        <source>Effects hidden. Click to show them.</source>
-        <translation>Effekte ausgeblendet. Klicken zum Einblenden.</translation>
-    </message>
-    <message>
-        <source>Effects</source>
-        <translation>Effekte</translation>
-    </message>
-    <message>
         <source>Effect visible. Click to hide.</source>
         <translation>Effekt sichtbar. Klicken zum Ausblenden.</translation>
     </message>
     <message>
         <source>Effect hidden. Click to show.</source>
         <translation>Effekt ausgeblendet. Klicken zum Einblenden.</translation>
-    </message>
-    <message>
-        <source>Double-click to edit this effect in the Layer Style dialog.</source>
-        <translation>Doppelklicken, um diesen Effekt im Dialog „Ebenenstil“ zu bearbeiten.</translation>
     </message>
     <message>
         <source>Edit this effect in the Layer Style dialog</source>
@@ -11506,6 +11486,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>%1 and more</source>
         <extracomment>Open-dialog file type row: %1 is a short list of *.ext patterns</extracomment>
         <translation>%1 und mehr</translation>
+    </message>
+    <message>
+        <source>The layer is locked, so its layer styles cannot be changed here.</source>
+        <translation>Die Ebene ist gesperrt, daher können ihre Ebenenstile hier nicht geändert werden.</translation>
+    </message>
+    <message>
+        <source>Collapse the layer style rows</source>
+        <translation>Ebenenstil-Zeilen einklappen</translation>
+    </message>
+    <message>
+        <source>Expand the layer style rows</source>
+        <translation>Ebenenstil-Zeilen ausklappen</translation>
+    </message>
+    <message>
+        <source>Layer styles visible. Click to hide them all.</source>
+        <translation>Ebenenstile sichtbar. Klicken, um alle auszublenden.</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden. Click to show them.</source>
+        <translation>Ebenenstile ausgeblendet. Klicken zum Einblenden.</translation>
+    </message>
+    <message>
+        <source>Layer Styles</source>
+        <translation>Ebenenstile</translation>
+    </message>
+    <message>
+        <source>Effect on, but the layer styles are hidden. Click to turn it off.</source>
+        <translation>Effekt an, aber die Ebenenstile sind ausgeblendet. Klicken, um ihn auszuschalten.</translation>
+    </message>
+    <message>
+        <source>Effect off, and the layer styles are hidden. Click to turn it on.</source>
+        <translation>Effekt aus, und die Ebenenstile sind ausgeblendet. Klicken, um ihn einzuschalten.</translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog; right-click for its menu.</source>
+        <translation>Doppelklicken, um diesen Effekt im Dialog „Ebenenstil“ zu bearbeiten; Rechtsklick für sein Menü.</translation>
     </message>
 </context>
 <context>
@@ -23267,22 +23283,6 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
         <translation>Zum Zeichenflächen-Werkzeug (%1) wechseln, um Zeichenflächen hinzuzufügen, zu skalieren oder zu duplizieren</translation>
     </message>
     <message>
-        <source>Show Effects</source>
-        <translation>Effekte anzeigen</translation>
-    </message>
-    <message>
-        <source>Hide Effects</source>
-        <translation>Effekte ausblenden</translation>
-    </message>
-    <message>
-        <source>Effects shown</source>
-        <translation>Effekte eingeblendet</translation>
-    </message>
-    <message>
-        <source>Effects hidden</source>
-        <translation>Effekte ausgeblendet</translation>
-    </message>
-    <message>
         <source>Show %1</source>
         <translation>%1 einblenden</translation>
     </message>
@@ -23316,6 +23316,34 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
             <numerusform>%n Smartobjekt-Datei neu verknüpft</numerusform>
             <numerusform>%n Smartobjekt-Dateien neu verknüpft</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Show Layer Styles</source>
+        <translation>Ebenenstile einblenden</translation>
+    </message>
+    <message>
+        <source>Hide Layer Styles</source>
+        <translation>Ebenenstile ausblenden</translation>
+    </message>
+    <message>
+        <source>Layer styles shown</source>
+        <translation>Ebenenstile eingeblendet</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden</source>
+        <translation>Ebenenstile ausgeblendet</translation>
+    </message>
+    <message>
+        <source>Delete %1</source>
+        <translation>%1 löschen</translation>
+    </message>
+    <message>
+        <source>%1 deleted</source>
+        <translation>%1 gelöscht</translation>
+    </message>
+    <message>
+        <source>Edit %1...</source>
+        <translation>%1 bearbeiten...</translation>
     </message>
 </context>
 <context>

@@ -11470,32 +11470,12 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation> (Ilość %1, przybliżenie, jakość %2)</translation>
     </message>
     <message>
-        <source>The layer is locked, so its effects cannot be changed here.</source>
-        <translation>Warstwa jest zablokowana, więc jej efektów nie można tu zmienić.</translation>
-    </message>
-    <message>
-        <source>Effects visible. Click to hide them all.</source>
-        <translation>Efekty widoczne. Kliknij, aby ukryć wszystkie.</translation>
-    </message>
-    <message>
-        <source>Effects hidden. Click to show them.</source>
-        <translation>Efekty ukryte. Kliknij, aby pokazać.</translation>
-    </message>
-    <message>
-        <source>Effects</source>
-        <translation>Efekty</translation>
-    </message>
-    <message>
         <source>Effect visible. Click to hide.</source>
         <translation>Efekt widoczny. Kliknij, aby ukryć.</translation>
     </message>
     <message>
         <source>Effect hidden. Click to show.</source>
         <translation>Efekt ukryty. Kliknij, aby pokazać.</translation>
-    </message>
-    <message>
-        <source>Double-click to edit this effect in the Layer Style dialog.</source>
-        <translation>Kliknij dwukrotnie, aby edytować ten efekt w oknie Styl warstwy.</translation>
     </message>
     <message>
         <source>Edit this effect in the Layer Style dialog</source>
@@ -11541,6 +11521,42 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>%1 and more</source>
         <extracomment>Open-dialog file type row: %1 is a short list of *.ext patterns</extracomment>
         <translation>%1 i więcej</translation>
+    </message>
+    <message>
+        <source>The layer is locked, so its layer styles cannot be changed here.</source>
+        <translation>Warstwa jest zablokowana, więc jej stylów warstwy nie można tu zmienić.</translation>
+    </message>
+    <message>
+        <source>Collapse the layer style rows</source>
+        <translation>Zwiń wiersze stylów warstwy</translation>
+    </message>
+    <message>
+        <source>Expand the layer style rows</source>
+        <translation>Rozwiń wiersze stylów warstwy</translation>
+    </message>
+    <message>
+        <source>Layer styles visible. Click to hide them all.</source>
+        <translation>Style warstwy widoczne. Kliknij, aby ukryć wszystkie.</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden. Click to show them.</source>
+        <translation>Style warstwy ukryte. Kliknij, aby pokazać.</translation>
+    </message>
+    <message>
+        <source>Layer Styles</source>
+        <translation>Style warstwy</translation>
+    </message>
+    <message>
+        <source>Effect on, but the layer styles are hidden. Click to turn it off.</source>
+        <translation>Efekt włączony, ale style warstwy są ukryte. Kliknij, aby go wyłączyć.</translation>
+    </message>
+    <message>
+        <source>Effect off, and the layer styles are hidden. Click to turn it on.</source>
+        <translation>Efekt wyłączony, a style warstwy są ukryte. Kliknij, aby go włączyć.</translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog; right-click for its menu.</source>
+        <translation>Kliknij dwukrotnie, aby edytować ten efekt w oknie Styl warstwy; kliknij prawym przyciskiem, aby otworzyć jego menu.</translation>
     </message>
 </context>
 <context>
@@ -23338,22 +23354,6 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
         <translation>Przełącz na narzędzie Obszar roboczy (%1), aby dodawać, zmieniać rozmiar lub powielać obszary robocze</translation>
     </message>
     <message>
-        <source>Show Effects</source>
-        <translation>Pokaż efekty</translation>
-    </message>
-    <message>
-        <source>Hide Effects</source>
-        <translation>Ukryj efekty</translation>
-    </message>
-    <message>
-        <source>Effects shown</source>
-        <translation>Efekty pokazane</translation>
-    </message>
-    <message>
-        <source>Effects hidden</source>
-        <translation>Efekty ukryte</translation>
-    </message>
-    <message>
         <source>Show %1</source>
         <translation>Pokaż %1</translation>
     </message>
@@ -23388,6 +23388,34 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
             <numerusform>Połączono ponownie %n pliki obiektów inteligentnych</numerusform>
             <numerusform>Połączono ponownie %n plików obiektów inteligentnych</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Show Layer Styles</source>
+        <translation>Pokaż style warstwy</translation>
+    </message>
+    <message>
+        <source>Hide Layer Styles</source>
+        <translation>Ukryj style warstwy</translation>
+    </message>
+    <message>
+        <source>Layer styles shown</source>
+        <translation>Style warstwy pokazane</translation>
+    </message>
+    <message>
+        <source>Layer styles hidden</source>
+        <translation>Style warstwy ukryte</translation>
+    </message>
+    <message>
+        <source>Delete %1</source>
+        <translation>Usuń %1</translation>
+    </message>
+    <message>
+        <source>%1 deleted</source>
+        <translation>Usunięto %1</translation>
+    </message>
+    <message>
+        <source>Edit %1...</source>
+        <translation>Edytuj %1...</translation>
     </message>
 </context>
 <context>
