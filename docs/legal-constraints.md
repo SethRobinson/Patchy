@@ -113,7 +113,7 @@ Design: [gmic.md](gmic.md); record: [patent-research-gmic.md](patent-research-gm
   photographic or not to pick lossy versus lossless coding per region (Cloudinary US 12,243,274, to about 2043, outside Google's
   grant). (4) Never restructure the ANS decoder so symbol output is conditional on a state
   sufficiency test or the state update is deferred to the next iteration, and never add a
-  per-stream flush/re-initialize flag (Microsoft US 11,234,023 and its pending continuation).
+  per-stream flush/re-initialize flag (Microsoft US 11,234,023 and its pending continuation US 2022/0109891).
   (5) A libjxl upgrade that changes `PATENTS`, or a newly exposed encoder feature, needs a new
   review. Use "JPEG XL" only as the format name; no JPEG committee logos.
 - Shipping dependencies must allow commercial distribution. GPL tools may be used for development or fixture generation only when not linked into or shipped with Patchy.

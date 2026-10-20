@@ -193,3 +193,26 @@ marks" test; the README Tilt-Shift screenshot is re-shot). Usability cost: the b
 shown only by the handle dots and by the preview blur itself. Alternative: keep the bars, with a
 re-check at 2032-12-26.
 
+## 6. Status sweep of application-number and "pending" entries
+
+- **US 2022/0207115 A1** granted as **US 11914681 B2** on 2024-02-27 (Adobe, application
+  17/138,237, filed 2020-12-30, Active, adjusted expiry 2041-11-20). Independent claims 1, 9 and 16:
+  receive a request for a sequence of two editing operations, determine each operation's set of
+  supported features (claim 9: supported image file types with a file-type hierarchy), select a
+  commonly supported feature by comparing the sets, and execute the sequence with it. Nothing
+  about content-derived parameters. Patchy has no operation pipeline or feature negotiation, so
+  the auto-adjustment caveat that pointed at this application is closed; nothing to watch.
+- **US 2023/0129341 A1** (Adobe object-mask previews): Google Patents still shows it as pending.
+  USPTO full-text search lists patent **12731259** under its exact title; the grant's front page
+  could not be fetched (truncated downloads), so the application number and the allowed claims are
+  unconfirmed. Watch item kept in [patent-research-selection.md](patent-research-selection.md).
+- **US 2019/0130548 A1** (Adobe, propagating changes across similar shapes in artboards) granted as
+  **US 10402954 B2** on 2019-09-03 (Active, adjusted expiry 2037-12-22). Conclusion unchanged.
+- **US 2018/0059919 A1** (Adobe Responsive Design Controls): Abandoned.
+- **US 2024/0362825 A1** (Adobe transformer matting continuation, filed 2024-07-02): still pending.
+- **US 2025/0104196** granted as US 12561768 (already in the G'MIC record; the main record now
+  says so).
+- **Microsoft US 2022/0109891 A1** (application 17/552,295, the rANS continuation): still pending.
+- **US 8427559 B2** (Buades, Coll, Morel non-local means; US application 11/579,380 filed
+  2005-04-13): Expired - Fee Related. Used in item 4.
+
