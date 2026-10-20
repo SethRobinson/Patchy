@@ -776,12 +776,13 @@ void apply_layer_effects(LayerBuildContext& ctx, const af::AfClass& node, Layer&
         std::clamp(to_255(params->double_field(af::tag4("Thre"), 0.5)), 1, 255);
   } else if (tag == af::tag4("CBRA")) {
     // Shadows, midtones and highlights map onto Patchy's three tone ranges
-    // (approximate). Affinity's full-scale effect is roughly a tenth of
-    // Photoshop's -100..100 (pinned against the adjust-colourbalance render at
-    // three midtones probes, before the tone-range math), hence the 10x mapping.
+    // (approximate). Affinity's -1..1 maps to 40% of Photoshop's -100..100: on
+    // the adjust-colourbalance corpus file (midtones 0.35, -0.2, 0.15) scales
+    // 34 to 40 give the closest render to Affinity's own (mean 0.84/255, worst
+    // 4/255; the earlier 10x, fitted to the pre-#250 flat shift, is 3.0 and 10).
     settings.kind = AdjustmentKind::ColorBalance;
     const auto to_balance = [](double value) {
-      return static_cast<int>(std::lround(std::clamp(value, -1.0, 1.0) * 10.0));
+      return static_cast<int>(std::lround(std::clamp(value, -1.0, 1.0) * 40.0));
     };
     const auto tone = [&](const char* cyan_red, const char* magenta_green, const char* yellow_blue) {
       return ColorBalanceTone{to_balance(params->double_field(tag_of(cyan_red), 0.0)),

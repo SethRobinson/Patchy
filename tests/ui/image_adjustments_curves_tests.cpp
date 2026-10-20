@@ -19,6 +19,7 @@
 #include "synthetic_dng.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
+#include "formats/af_document_io.hpp"
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
@@ -3338,6 +3339,40 @@ void ui_curves_clipped_adjustment_reedit_disables_auto() {
   CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before);
 }
 
+// Affinity's Colour Balance imports onto Patchy's Photoshop-calibrated math at
+// 40% scale; the local corpus file then renders within about a level of
+// Affinity's own export (#250; skips where the corpus is absent).
+void ui_af_colour_balance_matches_affinity_render_if_available() {
+  const auto af_path = patchy::test::local_format_fixture_path("af-spike/corpus", "adjust-colourbalance.af");
+  const auto png_path = patchy::test::local_format_fixture_path("af-spike/corpus", "adjust-colourbalance.png");
+  patchy::test::skip_unless_exists(af_path);
+  patchy::test::skip_unless_exists(png_path);
+  const auto reference =
+      QImage(patchy::ui::to_qstring(png_path)).convertToFormat(QImage::Format_RGBA8888);
+  CHECK(!reference.isNull());
+  const auto flat = patchy::Compositor{}.flatten_rgb8(patchy::af::DocumentIo::read_file(af_path));
+  CHECK(flat.width() == reference.width());
+  CHECK(flat.height() == reference.height());
+  double sum = 0.0;
+  int worst = 0;
+  for (int y = 0; y < reference.height(); ++y) {
+    for (int x = 0; x < reference.width(); ++x) {
+      const auto* rendered = flat.pixel(x, y);
+      const auto expected = reference.pixelColor(x, y);
+      for (const auto [channel, value] : {std::pair{0, expected.red()}, std::pair{1, expected.green()},
+                                          std::pair{2, expected.blue()}}) {
+        const auto difference = std::abs(static_cast<int>(rendered[channel]) - value);
+        sum += difference;
+        worst = std::max(worst, difference);
+      }
+    }
+  }
+  const auto mean = sum / (3.0 * reference.width() * reference.height());
+  std::cout << "[INFO] Affinity Colour Balance render: mean " << mean << ", worst " << worst << '\n';
+  CHECK(mean < 1.0);
+  CHECK(worst <= 5);
+}
+
 // The Tone combo retargets the three sliders to Shadows, Midtones or
 // Highlights and keeps every range's values; Preserve Luminosity starts checked
 // for a new layer, as in Photoshop. All of it lands on the adjustment layer (#250).
@@ -3559,6 +3594,8 @@ std::vector<patchy::test::TestCase> image_adjustments_curves_tests() {
        ui_curves_clipped_adjustment_reedit_disables_auto},
       {"ui_color_balance_dialog_adjusts_selected_pixels", ui_color_balance_dialog_adjusts_selected_pixels},
       {"ui_color_balance_dialog_tone_selector_edits_each_range", ui_color_balance_dialog_tone_selector_edits_each_range},
+      {"ui_af_colour_balance_matches_affinity_render_if_available",
+       ui_af_colour_balance_matches_affinity_render_if_available},
       {"ui_levels_exception_restores_preview_pixels_and_unlocks_edits", ui_levels_exception_restores_preview_pixels_and_unlocks_edits},
   };
 }
