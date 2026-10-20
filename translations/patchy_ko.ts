@@ -11393,6 +11393,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
         <translation>누락된 파일은 상태 표시줄에 계속 표시됩니다. 환경 설정에서 열린 문서에 대해 이 대화 상자를 다시 켤 수 있습니다.</translation>
     </message>
+    <message>
+        <source>The layer is locked, so its effects cannot be changed here.</source>
+        <translation>레이어가 잠겨 있어 여기에서 효과를 변경할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>Effects visible. Click to hide them all.</source>
+        <translation>효과가 표시됩니다. 모두 숨기려면 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Effects hidden. Click to show them.</source>
+        <translation>효과가 숨겨졌습니다. 표시하려면 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Effects</source>
+        <translation>효과</translation>
+    </message>
+    <message>
+        <source>Effect visible. Click to hide.</source>
+        <translation>효과가 표시됩니다. 숨기려면 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Effect hidden. Click to show.</source>
+        <translation>효과가 숨겨졌습니다. 표시하려면 클릭하세요.</translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog.</source>
+        <translation>두 번 클릭하면 레이어 스타일 대화 상자에서 이 효과를 편집합니다.</translation>
+    </message>
+    <message>
+        <source>Edit this effect in the Layer Style dialog</source>
+        <translation>레이어 스타일 대화 상자에서 이 효과 편집</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23125,6 +23157,38 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>
             <numerusform>스마트 개체 파일 %n개를 다시 연결했습니다</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Show Effects</source>
+        <translation>효과 표시</translation>
+    </message>
+    <message>
+        <source>Hide Effects</source>
+        <translation>효과 숨기기</translation>
+    </message>
+    <message>
+        <source>Effects shown</source>
+        <translation>효과가 표시됨</translation>
+    </message>
+    <message>
+        <source>Effects hidden</source>
+        <translation>효과가 숨겨짐</translation>
+    </message>
+    <message>
+        <source>Show %1</source>
+        <translation>%1 표시</translation>
+    </message>
+    <message>
+        <source>Hide %1</source>
+        <translation>%1 숨기기</translation>
+    </message>
+    <message>
+        <source>%1 shown</source>
+        <translation>%1 표시됨</translation>
+    </message>
+    <message>
+        <source>%1 hidden</source>
+        <translation>%1 숨겨짐</translation>
     </message>
 </context>
 <context>

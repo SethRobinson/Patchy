@@ -11463,6 +11463,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
         <translation>Brakujące pliki nadal są pokazywane na pasku stanu. W preferencjach można ponownie włączyć to okno dla otwieranych dokumentów.</translation>
     </message>
+    <message>
+        <source>The layer is locked, so its effects cannot be changed here.</source>
+        <translation>Warstwa jest zablokowana, więc jej efektów nie można tu zmienić.</translation>
+    </message>
+    <message>
+        <source>Effects visible. Click to hide them all.</source>
+        <translation>Efekty widoczne. Kliknij, aby ukryć wszystkie.</translation>
+    </message>
+    <message>
+        <source>Effects hidden. Click to show them.</source>
+        <translation>Efekty ukryte. Kliknij, aby pokazać.</translation>
+    </message>
+    <message>
+        <source>Effects</source>
+        <translation>Efekty</translation>
+    </message>
+    <message>
+        <source>Effect visible. Click to hide.</source>
+        <translation>Efekt widoczny. Kliknij, aby ukryć.</translation>
+    </message>
+    <message>
+        <source>Effect hidden. Click to show.</source>
+        <translation>Efekt ukryty. Kliknij, aby pokazać.</translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog.</source>
+        <translation>Kliknij dwukrotnie, aby edytować ten efekt w oknie Styl warstwy.</translation>
+    </message>
+    <message>
+        <source>Edit this effect in the Layer Style dialog</source>
+        <translation>Edytuj ten efekt w oknie Styl warstwy</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23269,6 +23301,38 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
             <numerusform>Połączono ponownie %n pliki obiektów inteligentnych</numerusform>
             <numerusform>Połączono ponownie %n plików obiektów inteligentnych</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Show Effects</source>
+        <translation>Pokaż efekty</translation>
+    </message>
+    <message>
+        <source>Hide Effects</source>
+        <translation>Ukryj efekty</translation>
+    </message>
+    <message>
+        <source>Effects shown</source>
+        <translation>Efekty pokazane</translation>
+    </message>
+    <message>
+        <source>Effects hidden</source>
+        <translation>Efekty ukryte</translation>
+    </message>
+    <message>
+        <source>Show %1</source>
+        <translation>Pokaż %1</translation>
+    </message>
+    <message>
+        <source>Hide %1</source>
+        <translation>Ukryj %1</translation>
+    </message>
+    <message>
+        <source>%1 shown</source>
+        <translation>Pokazano %1</translation>
+    </message>
+    <message>
+        <source>%1 hidden</source>
+        <translation>Ukryto %1</translation>
     </message>
 </context>
 <context>

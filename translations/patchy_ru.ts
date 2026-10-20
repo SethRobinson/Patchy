@@ -11463,6 +11463,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
         <translation>Отсутствующие файлы по-прежнему показываются в строке состояния. В настройках этот диалог можно снова включить для открываемых документов.</translation>
     </message>
+    <message>
+        <source>The layer is locked, so its effects cannot be changed here.</source>
+        <translation>Слой заблокирован, поэтому его эффекты здесь изменить нельзя.</translation>
+    </message>
+    <message>
+        <source>Effects visible. Click to hide them all.</source>
+        <translation>Эффекты видны. Нажмите, чтобы скрыть все.</translation>
+    </message>
+    <message>
+        <source>Effects hidden. Click to show them.</source>
+        <translation>Эффекты скрыты. Нажмите, чтобы показать.</translation>
+    </message>
+    <message>
+        <source>Effects</source>
+        <translation>Эффекты</translation>
+    </message>
+    <message>
+        <source>Effect visible. Click to hide.</source>
+        <translation>Эффект виден. Нажмите, чтобы скрыть.</translation>
+    </message>
+    <message>
+        <source>Effect hidden. Click to show.</source>
+        <translation>Эффект скрыт. Нажмите, чтобы показать.</translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog.</source>
+        <translation>Дважды нажмите, чтобы изменить этот эффект в диалоге «Стиль слоя».</translation>
+    </message>
+    <message>
+        <source>Edit this effect in the Layer Style dialog</source>
+        <translation>Изменить этот эффект в диалоге «Стиль слоя»</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23269,6 +23301,38 @@ Patchy можно будет запускать из меню, а на пане�
             <numerusform>Связаны заново %n файла смарт-объектов</numerusform>
             <numerusform>Связано заново %n файлов смарт-объектов</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Show Effects</source>
+        <translation>Показать эффекты</translation>
+    </message>
+    <message>
+        <source>Hide Effects</source>
+        <translation>Скрыть эффекты</translation>
+    </message>
+    <message>
+        <source>Effects shown</source>
+        <translation>Эффекты показаны</translation>
+    </message>
+    <message>
+        <source>Effects hidden</source>
+        <translation>Эффекты скрыты</translation>
+    </message>
+    <message>
+        <source>Show %1</source>
+        <translation>Показать %1</translation>
+    </message>
+    <message>
+        <source>Hide %1</source>
+        <translation>Скрыть %1</translation>
+    </message>
+    <message>
+        <source>%1 shown</source>
+        <translation>%1: показано</translation>
+    </message>
+    <message>
+        <source>%1 hidden</source>
+        <translation>%1: скрыто</translation>
     </message>
 </context>
 <context>

@@ -116,7 +116,10 @@ bool layer_row_button_owns_clicks(const QString& object_name) {
          object_name == QLatin1String("layerSmartFiltersMoreButton") ||
          object_name == QLatin1String("layerSmartFilterVisibilityButton") ||
          object_name == QLatin1String("layerSmartFilterEditButton") ||
-         object_name == QLatin1String("layerSmartFilterMoreButton");
+         object_name == QLatin1String("layerSmartFilterMoreButton") ||
+         object_name == QLatin1String("layerEffectsVisibilityButton") ||
+         object_name == QLatin1String("layerEffectVisibilityButton") ||
+         object_name == QLatin1String("layerEffectEditButton");
 }
 
 }  // namespace
@@ -429,6 +432,11 @@ void LayerListWidget::set_content_thumbnail_double_click_callback(
 void LayerListWidget::set_smart_filter_double_click_callback(
     std::function<void(QListWidgetItem*, std::size_t)> callback) {
   smart_filter_double_click_callback_ = std::move(callback);
+}
+
+void LayerListWidget::set_layer_effect_double_click_callback(
+    std::function<void(QListWidgetItem*, int, std::size_t)> callback) {
+  layer_effect_double_click_callback_ = std::move(callback);
 }
 
 bool LayerListWidget::drop_in_progress() const noexcept {
@@ -1905,6 +1913,24 @@ bool LayerListWidget::handle_item_double_click(QListWidgetItem* item, QPoint vie
         if (execution_index.isValid()) {
           smart_filter_double_click_callback_(
               item, static_cast<std::size_t>(execution_index.toULongLong()));
+          return true;
+        }
+      }
+    }
+  }
+  // A double-click inside an effect row opens the Layer Style dialog on that
+  // effect (GitHub issue 256).
+  if (layer_effect_double_click_callback_) {
+    if (auto* row = itemWidget(item); row != nullptr) {
+      const auto global_pos = viewport()->mapToGlobal(viewport_pos);
+      for (auto* entry_row : row->findChildren<QWidget*>(QStringLiteral("layerEffectEntryRow"))) {
+        if (!entry_row->isVisible() || !entry_row->rect().contains(entry_row->mapFromGlobal(global_pos))) {
+          continue;
+        }
+        const auto kind = entry_row->property("layerEffectKind");
+        const auto index = entry_row->property("layerEffectIndex");
+        if (kind.isValid() && index.isValid()) {
+          layer_effect_double_click_callback_(item, kind.toInt(), static_cast<std::size_t>(index.toULongLong()));
           return true;
         }
       }

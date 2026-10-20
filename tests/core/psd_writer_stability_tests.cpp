@@ -1091,6 +1091,49 @@ void psd_photoshop_satin_fixture_preserves_native_lfx2() {
   CHECK(std::abs(reread_layer->layer_style().satins.front().size - 14.0F) < 1.0e-6F);
 }
 
+// GitHub issue 256: the Layers panel's effect eyes write Photoshop's own hidden-effect shape
+// (enab false; present true where the writer records presence) and read it back as a hidden
+// instance, so a hidden style survives a save; the master switch is masterFXSwitch. A
+// Photoshop file's unused classes (present false) still parse to nothing.
+void psd_layer_style_hidden_effects_round_trip() {
+  patchy::Document document(8, 8, patchy::PixelFormat::rgb8());
+  auto& layer = document.add_pixel_layer("Styled", solid_rgba(8, 8, 200, 40, 40, 255));
+  patchy::LayerDropShadow shadow;
+  shadow.enabled = false;  // hidden through the panel: no `present` key in Patchy's DrSh
+  shadow.distance = 7.0F;
+  shadow.size = 3.0F;
+  layer.layer_style().drop_shadows.push_back(shadow);
+  patchy::LayerStroke stroke;
+  stroke.enabled = false;  // hidden: FrFX carries present=true
+  stroke.size = 2.0F;
+  stroke.color = patchy::RgbColor{10, 20, 30};
+  layer.layer_style().strokes.push_back(stroke);
+  patchy::LayerColorOverlay overlay;
+  overlay.enabled = true;
+  overlay.color = patchy::RgbColor{0, 200, 0};
+  layer.layer_style().color_overlays.push_back(overlay);
+  layer.layer_style().effects_visible = false;
+  CHECK(layer.layer_style().effect_count() == 3);
+
+  const auto bytes = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  const auto reread = patchy::psd::DocumentIo::read(bytes);
+  const auto& style = reread.layers().front().layer_style();
+  CHECK(!style.effects_visible);
+  CHECK(style.effect_count() == 3);
+  CHECK(style.drop_shadows.size() == 1 && !style.drop_shadows.front().enabled);
+  CHECK(style.drop_shadows.size() == 1 && style.drop_shadows.front().distance == 7.0F);
+  CHECK(style.strokes.size() == 1 && !style.strokes.front().enabled && style.strokes.front().size == 2.0F);
+  CHECK(style.color_overlays.size() == 1 && style.color_overlays.front().enabled);
+
+  // Photoshop's satin capture: one enabled Satin, every other class present=false and dropped.
+  const auto fixture = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-satin-default.psd"));
+  const auto* fixture_layer = find_layer_named(fixture.layers(), "Satin default");
+  CHECK(fixture_layer != nullptr);
+  CHECK(fixture_layer != nullptr && fixture_layer->layer_style().effect_count() == 1);
+  CHECK(fixture_layer != nullptr && fixture_layer->layer_style().satins.size() == 1);
+}
+
 void psd_photoshop_layer_style_4a_round_trip_fixture_imports() {
   const auto path =
       patchy::test::committed_psd_fixture_path("photoshop-layer-style-4a-roundtrip.psd");
@@ -1540,6 +1583,7 @@ std::vector<patchy::test::TestCase> psd_writer_stability_tests() {
        psd_gradient_midpoints_write_mdpn_and_round_trip},
       {"psd_generated_satin_descriptor_matches_photoshop_shape",
        psd_generated_satin_descriptor_matches_photoshop_shape},
+      {"psd_layer_style_hidden_effects_round_trip", psd_layer_style_hidden_effects_round_trip},
       {"psd_photoshop_satin_fixture_preserves_native_lfx2",
        psd_photoshop_satin_fixture_preserves_native_lfx2},
       {"psd_photoshop_layer_style_4a_round_trip_fixture_imports",

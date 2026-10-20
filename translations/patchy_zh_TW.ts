@@ -11393,6 +11393,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
         <translation>遺失的檔案仍會顯示在狀態列中。可以在偏好設定中為開啟的文件重新啟用此對話方塊。</translation>
     </message>
+    <message>
+        <source>The layer is locked, so its effects cannot be changed here.</source>
+        <translation>圖層已鎖定，無法在此處變更其效果。</translation>
+    </message>
+    <message>
+        <source>Effects visible. Click to hide them all.</source>
+        <translation>效果顯示中。按一下可全部隱藏。</translation>
+    </message>
+    <message>
+        <source>Effects hidden. Click to show them.</source>
+        <translation>效果已隱藏。按一下可顯示。</translation>
+    </message>
+    <message>
+        <source>Effects</source>
+        <translation>效果</translation>
+    </message>
+    <message>
+        <source>Effect visible. Click to hide.</source>
+        <translation>效果顯示中。按一下可隱藏。</translation>
+    </message>
+    <message>
+        <source>Effect hidden. Click to show.</source>
+        <translation>效果已隱藏。按一下可顯示。</translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog.</source>
+        <translation>按兩下可在「圖層樣式」對話方塊中編輯此效果。</translation>
+    </message>
+    <message>
+        <source>Edit this effect in the Layer Style dialog</source>
+        <translation>在「圖層樣式」對話方塊中編輯此效果</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23125,6 +23157,38 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>
             <numerusform>已重新連結 %n 個智慧型物件檔案</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Show Effects</source>
+        <translation>顯示效果</translation>
+    </message>
+    <message>
+        <source>Hide Effects</source>
+        <translation>隱藏效果</translation>
+    </message>
+    <message>
+        <source>Effects shown</source>
+        <translation>已顯示效果</translation>
+    </message>
+    <message>
+        <source>Effects hidden</source>
+        <translation>已隱藏效果</translation>
+    </message>
+    <message>
+        <source>Show %1</source>
+        <translation>顯示%1</translation>
+    </message>
+    <message>
+        <source>Hide %1</source>
+        <translation>隱藏%1</translation>
+    </message>
+    <message>
+        <source>%1 shown</source>
+        <translation>已顯示%1</translation>
+    </message>
+    <message>
+        <source>%1 hidden</source>
+        <translation>已隱藏%1</translation>
     </message>
 </context>
 <context>

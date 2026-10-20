@@ -4,7 +4,7 @@ Read this before changing layer rows, thumbnails, click selection, the disclosur
 
 ## Row styling
 
-Layer rows use dynamic properties and application rules such as `QWidget#layerRowWidget[layerRowSelected="true"]`; repolish after property changes. The `layerTargetActive` pattern is the reference. `ui_layer_row_selected_highlight_paints` pins the rendered colors.
+Layer rows use dynamic properties and application rules such as `QWidget#layerRowWidget[layerRowSelected="true"]`; repolish after property changes (`layerTargetActive` is the reference). `ui_layer_row_selected_highlight_paints` pins the rendered colors.
 
 Hidden rows disable name, details, mask link and clip badge; fx, smart-object and vector badges stay clickable, drawn dimmed by `LayerRowBadgeButton` (`layerRowBadgeDimmed`, issue 230).
 
@@ -55,19 +55,15 @@ Layer-row click selection (`LayerListWidget::eventFilter` for row widgets, `view
 
 ### Move tool on the canvas
 
-Ctrl+click (Command on macOS) selects just the clicked layer and Shift+click toggles it, with Auto-Select on or off (#73, Ctrl too); a held Ctrl shows the hover outline with Auto-Select off. Alt-drag duplicates the dragged selection roots on the first drag frame and moves the copies, one "Duplicate layer" step, never on a bare Alt+click (#69). Auto-Select persists (`tools/moveAutoSelect`). With Auto-Select on, a plain click selects only the clicked leaf (a selected member or folder included); collapse waits for release so dragging a selected member still moves the whole set. Shift-drag adds an unselected target before moving the enlarged selection, keeps a selected one, and constrains movement to an axis. Ctrl-drag always draws a layer-selection rectangle, over artwork and with Auto-Select off. With Auto-Select on, dragging empty space also draws a rectangle, the pasteboard outside the selected transform box included; a position-locked Background is empty space. "Empty space" means outside every movable layer's Move rect (`move_layer_outline_bounds`: the opaque raster extent, or a text layer's frame): `CanvasWidget::topmost_move_layer_at` runs three passes (Photoshop parity): a visible pixel under the point, a selected layer whose rect contains it, the topmost such layer, so a press on a transparent pixel inside an outline grabs it. The hover outline and the lock status message share the lookup; the right-click layer menu lists only layers with real pixels under the pointer, and the pasteboard picks like the canvas: a layer outside the document is outlined, grabbed and listed there (`ui_move_tool_outlines_and_moves_off_canvas_layer`). Ctrl bypasses passive transform handles; rulers, guides, panning and transform sessions keep priority. Pinned by `ui_move_tool_grabs_transparent_pixel_inside_layer_rect`, `ui_move_tool_prefers_selected_layer_rect_over_topmost_rect`.
+The Move tool's canvas-side layer selection (Ctrl/Shift/Alt clicks, Auto-Select, the selection rectangle, off-canvas drags) is in [move-tool.md](move-tool.md#layer-selection-from-the-canvas); the panel-side rules follow.
 
-With Auto-Select off, a plain drag anywhere in the document workspace moves the selected movable layers, even when their pixels and transform box are entirely offscreen. Passive controls never consume the first drag outside their box. With Auto-Select on and Show Transform Controls enabled, the selected box's off-canvas interior moves the selected set, including folders and multiple layers, before the empty-space rectangle path. Its Move cursor and resize/rotate handles stay usable outside the document. Ctrl-drag, guide handling, panning, locks, and active transform sessions retain their existing priority. Manual moves preserve off-canvas coordinates. Tests: `ui_move_auto_select_off_recovers_offscreen_layer_from_anywhere`, `ui_move_auto_select_on_drags_off_canvas_box_interior`, `ui_move_off_canvas`.
-
-Rectangle intent and Shift-add mode latch at press; a plain rectangle replaces the selection, Shift adds. Matching (cached Move outline bounds, clipped to the document) previews while dragging and reruns on release ([move-tool.md](move-tool.md)). Any positive overlap selects an eligible leaf, occluded leaves and children of collapsed folders included; hidden, zero-opacity, position-locked and non-movable layers are skipped, group restrictions inherited. The active layer stays active if it remains selected; otherwise the topmost match does. Toggling the last selected layer keeps it. With Auto-Select on (or Ctrl held), a plain click on empty space or on the pasteboard that never becomes a rectangle, and an in-document rectangle that matches nothing, both deselect every layer (`CanvasWidget::request_layer_deselection`); Shift-clicks and Shift-rectangles keep the selection, and a position-locked Background counts as empty space, so clicking it deselects. A rectangle drawn entirely outside the document keeps the selection: matching is clipped to the document, so the box may enclose off-canvas artwork the matcher cannot see. Escape, focus loss, tool/document changes and edit locking discard pending gestures. Layer selection changes neither pixel selections nor history.
-
-The canvas requests panel selection changes through `CanvasWidget::set_layer_selection_requested_callback` -> `MainWindow::select_layers_in_layer_list` (the panel stays the source of truth and pushes the result back via `set_selected_layer_ids`); `activate_layer`'s single-id path still collapses to one row by design. The host reveals selected children of collapsed folders and clears a name filter that would hide selected layers. Rectangle drawing and pending modifier clicks live in `canvas_widget_move.cpp`; tests use the `ui_move_` filter.
+The canvas requests panel selection changes through `CanvasWidget::set_layer_selection_requested_callback` -> `MainWindow::select_layers_in_layer_list` (the panel stays the source of truth and pushes the result back via `set_selected_layer_ids`); `activate_layer`'s single-id path still collapses to one row by design. The host reveals selected children of collapsed folders and clears a name filter that would hide selected layers. Rectangle drawing and pending modifier clicks live in `canvas_widget_move.cpp` (tests: the `ui_move_` filter).
 
 ### Deselected state
 
-"No selected rows and no active layer" is a resting state. `MainWindow::deselect_all_layers` (Select > Deselect Layers, hotkey id `select.deselect_layers`, no default shortcut) clears the panel selection model under a `QSignalBlocker` (`QItemSelectionModel::clear()` emits `selectionChanged` before dropping the current index), calls `Document::clear_active_layer`, resets the canvas edit target to Content, and pushes an empty selection to the canvas; `refresh_layer_list` keeps the state because a null active layer selects no row. A plain Escape reaches it from the canvas (the last branch of `CanvasWidget::keyPressEvent`, so every cancel above it keeps priority and a live drag keeps the selection) and from the focused layer list (`LayerListWidget::set_escape_callback`). The canvas signals the host with an empty id list; `select_layers_in_layer_list` treats empty ids as deselect-all. Deselect writes no history entry; undo restores the earlier active layer (snapshots carry it). A blank-area click empties the list selection (Qt keeps the current row); `set_active_layer_from_selection` treats that as deselect-all too, so the active layer and the Move tool's transform box go with it. Tests: `ui_move_escape_deselects_layers_without_gesture`, `ui_move_empty_click_and_rectangle_deselect_layers`, `ui_move_deselect_layers_clears_panel_rows_and_active_layer`, `ui_layer_panel_blank_click_deselects_and_hides_transform_box`.
+"No selected rows and no active layer" is a resting state. `MainWindow::deselect_all_layers` (Select > Deselect Layers, hotkey id `select.deselect_layers`, no default shortcut) clears the panel selection model under a `QSignalBlocker` (`QItemSelectionModel::clear()` emits `selectionChanged` before dropping the current index), calls `Document::clear_active_layer`, resets the canvas edit target to Content and pushes an empty selection to the canvas; `refresh_layer_list` keeps the state since a null active layer selects no row. A plain Escape reaches it from the canvas (the last branch of `CanvasWidget::keyPressEvent`: every cancel above it keeps priority and a live drag keeps the selection) and from the focused layer list (`LayerListWidget::set_escape_callback`). The canvas signals the host with an empty id list, which `select_layers_in_layer_list` treats as deselect-all. Deselect writes no history entry; undo restores the earlier active layer (snapshots carry it). A blank-area click empties the list selection (Qt keeps the current row); `set_active_layer_from_selection` treats that as deselect-all too, so the active layer and the Move tool's transform box go with it. Tests: `ui_move_escape_deselects_layers_without_gesture`, `ui_move_empty_click_and_rectangle_deselect_layers`, `ui_move_deselect_layers_clears_panel_rows_and_active_layer`, `ui_layer_panel_blank_click_deselects_and_hides_transform_box`.
 
-One-layer documents: with no active layer, a command or tool that needs one selects the only layer (`only_layer_id`). Commands call `MainWindow::select_only_layer_if_none_active` right before reading their target (after any Quick Mask or channel-view refusal), new layer commands too; canvas tools get it from `begin_edit`, the reporting `can_begin_pixel_edit`, Magic Wand, Quick Select and the Auto-Select-off Move drag. Delete Layer and the panel's opacity, blend and lock controls are left alone on purpose. Test: `ui_move_deselected_only_layer_is_selected_on_demand`.
+One-layer documents: with no active layer, a command or tool that needs one selects the only layer (`only_layer_id`). Commands call `MainWindow::select_only_layer_if_none_active` right before reading their target (after any Quick Mask or channel-view refusal), new layer commands too; canvas tools get it from `begin_edit`, the reporting `can_begin_pixel_edit`, Magic Wand, Quick Select and the Auto-Select-off Move drag. Delete Layer and the panel's opacity, blend and lock controls are deliberately left alone. Test: `ui_move_deselected_only_layer_is_selected_on_demand`.
 
 ### Range selection and the selected count
 
@@ -90,16 +86,14 @@ merged content. The folder itself cannot be a clipped member.
 
 Every New Adjustment Layer entry inserts directly above the topmost selected row. A
 selected child keeps the adjustment in that child's folder; a selected folder places it
-above the folder. With no selected rows, the active layer is the anchor, falling back to
-the document top.
-Live previews use the same placement and preserve the original active layer.
-Accepting selects the new adjustment and records one undo step; cancelling
-removes the preview without changing the selection or history.
+above the folder. With no selected rows, the active layer is the anchor, else the document
+top. Live previews use the same placement and keep the original active layer. Accepting
+selects the new adjustment and records one undo step; cancelling removes the preview
+without changing the selection or history.
 
-New adjustments always carry an enabled raster mask. An active pixel selection
-supplies its coverage, with black outside the selection; otherwise the mask
-covers the canvas in white and defaults to white outside it. Previews and
-committed layers share it in `main_window_adjustments.cpp`.
+New adjustments always carry an enabled raster mask: an active pixel selection
+supplies its coverage (black outside), else the mask is white across the canvas and
+outside it. Previews and committed layers share it in `main_window_adjustments.cpp`.
 Tests: `ui_adjustment_layer_inserts_above_selection_with_white_mask`,
 `ui_adjustment_layer_preview_uses_topmost_selection_and_cancels_cleanly`, and
 `ui_hue_saturation_creates_masked_adjustment_layer` (selection masks).
@@ -112,13 +106,17 @@ A layer's color label (#244) is `Layer::color_label()`, Photoshop's `lclr` index
 
 The folder disclosure arrow (`layerFolderDisclosureButton`) toggles one folder, Alt-click also its nested folders, and Ctrl+Alt-click sets every folder to the clicked folder's new state (`MainWindow::toggle_all_layer_folders_expanded`). Empty folders toggle too (#229). A `ClickModifierRecorder` filter records the modifiers (`clicked` carries none); the handler defers (`QTimer::singleShot(0)`): the toggle rebuilds the rows. Runtime expand state is the session's `collapsed_layer_groups`: metadata seeds it at open; saves, recovery and smart-object commits write it back (`DocumentSession::document_for_write`). A toggle is not an edit (Photoshop parity).
 
-Double-clicking a row opens its editor (layer styles, or an adjustment's settings; shape rows open layer styles too; the vector badge opens Shape Appearance), except on the name label and the content thumbnail. Every row button (eye, mask link, the fx, smart-object, vector and clipping badges, the Smart Filter buttons) must be listed in `layer_row_button_owns_clicks` in `layer_list_widget.cpp`, or the list eats the press as a row drag start and routes the double-click to the row's editor (`ui_layer_vector_badge_double_click_opens_shape_appearance`). The name's text extent edits in place (Photoshop; empty space right of a short name opens the editor): `LayerListWidget::begin_inline_rename` swaps `layerRowName` for a `QLineEdit` (`layerRowNameEdit`) in the label's slot at its height and font. Return and focus loss commit, keyed by layer id so a click on another row still renames the edited one; Escape cancels before the list's Escape-to-deselect; the commit runs deferred through `MainWindow::apply_layer_rename` (one undo step; empty or unchanged names record nothing). `refresh_layer_list` cancels an open editor before clearing rows; a queued commit is dropped when the list's session stamp changed (ids restart per document). Rename Layer (menu, context menu, F2) enters the same editor when the active layer's row exists and is the only selected one, else the rename dialog (`ui_layer_row_name_double_click_renames_inline`, `ui_layer_rename_hotkey_enters_inline_edit`, `ui_layer_inline_rename_drops_commit_after_document_switch`; dialog-opening tests double-click `layerRowDetails`). The content thumbnail routes to `MainWindow::zoom_canvas_to_layer_content`, which fits the view to the layer's alpha-trimmed bounds (`move_layer_outline_bounds`, else `layer_render_bounds`, a folder's descendant union) via `CanvasWidget::zoom_to_document_rect`. Text thumbnails enter inline editing with all text selected, keeping zoom and pan (the callback defers past the thumbnail event and checks the session); adjustment thumbnails open their settings (`ui_layer_thumbnail_double_click_zooms_canvas_to_layer`).
+Double-clicking a row opens its editor (layer styles, or an adjustment's settings; shape rows open layer styles too; the vector badge opens Shape Appearance), except on the name label and the content thumbnail. Every row button (eye, mask link, the fx, smart-object, vector and clipping badges, the Smart Filter and effect-row buttons) must be listed in `layer_row_button_owns_clicks` in `layer_list_widget.cpp`, or the list eats the press as a row drag start and routes the double-click to the row's editor (`ui_layer_vector_badge_double_click_opens_shape_appearance`). The name's text extent edits in place (Photoshop; empty space right of a short name opens the editor): `LayerListWidget::begin_inline_rename` swaps `layerRowName` for a `QLineEdit` (`layerRowNameEdit`) in the label's slot at its height and font. Return and focus loss commit, keyed by layer id so a click on another row still renames the edited one; Escape cancels before the list's Escape-to-deselect; the commit runs deferred through `MainWindow::apply_layer_rename` (one undo step; empty or unchanged names record nothing). `refresh_layer_list` cancels an open editor before clearing rows; a queued commit is dropped when the list's session stamp changed (ids restart per document). Rename Layer (menu, context menu, F2) enters the same editor when the active layer's row exists and is the only selected one, else the rename dialog (`ui_layer_row_name_double_click_renames_inline`, `ui_layer_rename_hotkey_enters_inline_edit`, `ui_layer_inline_rename_drops_commit_after_document_switch`; dialog-opening tests double-click `layerRowDetails`). The content thumbnail routes to `MainWindow::zoom_canvas_to_layer_content`, which fits the view to the layer's alpha-trimmed bounds (`move_layer_outline_bounds`, else `layer_render_bounds`, a folder's descendant union) via `CanvasWidget::zoom_to_document_rect`. Text thumbnails enter inline editing with all text selected, keeping zoom and pan (the callback defers past the thumbnail event and checks the session); adjustment thumbnails open their settings (`ui_layer_thumbnail_double_click_zooms_canvas_to_layer`).
 
-The visibility eye (`layerVisibilityCheck`) does not toggle through its QToolButton on real mouse input: `LayerListWidget::eventFilter` eats the press first. A plain press toggles on press and starts a visibility sweep (dragging along the eye column paints the first toggle's state across crossed rows, skipping disabled eyes; `setSelection` is suppressed while sweeping so the drag cannot rubber-band the selection). The sweep grabs the mouse on the persistent viewport: toggling a folder rebuilds every row and destroys the pressed eye, losing Qt's implicit grab. Release (even outside the list) ends the grab; losing capture, hiding, disabling, or deactivating the viewport cancels the sweep. `ui_layer_eye_sweep_survives_folder_row_rebuild` must route input through Qt's window system (direct viewport moves miss the lost-capture bug). An Alt press calls `MainWindow::isolate_layer_visibility`, which hides every other layer and restores the per-session snapshot on the second Alt-click; any outside visibility change invalidates the snapshot and the next Alt-click isolates fresh. Both handlers defer through `QTimer::singleShot(0)` (folder toggles rebuild the rows); the button's `toggled` connection serves programmatic `click()`. Visibility stays non-undoable. The G'MIC preview leaves the list in `set_visibility_only` (eyes and scrolling only; [gmic.md](gmic.md)). Plain eye changes queue a coalesced immutable-snapshot render and keep the previous canvas frame visible, so rendering cannot interrupt the sweep. Inherited folder-control states rebuild through the normal row path. See [interactive-previews.md](interactive-previews.md#visibility-render-waits).
+The visibility eye (`layerVisibilityCheck`) does not toggle through its QToolButton on real mouse input: `LayerListWidget::eventFilter` eats the press first. A plain press toggles on press and starts a visibility sweep (dragging along the eye column paints the first toggle's state across crossed rows, skipping disabled eyes; `setSelection` is suppressed while sweeping so the drag cannot rubber-band the selection). The sweep grabs the mouse on the persistent viewport (toggling a folder rebuilds every row and destroys the pressed eye, losing Qt's implicit grab). Release, even outside the list, ends the grab; losing capture, hiding, disabling or deactivating the viewport cancels the sweep. `ui_layer_eye_sweep_survives_folder_row_rebuild` must route input through Qt's window system (direct viewport moves miss the lost-capture bug). An Alt press calls `MainWindow::isolate_layer_visibility`: every other layer hides, the second Alt-click restores the per-session snapshot, and any outside visibility change invalidates it so the next Alt-click isolates fresh. Both handlers defer through `QTimer::singleShot(0)` (folder toggles rebuild the rows); the button's `toggled` connection serves programmatic `click()`. Visibility stays non-undoable. The G'MIC preview leaves the list in `set_visibility_only` (eyes and scrolling only; [gmic.md](gmic.md)). Plain eye changes queue a coalesced immutable-snapshot render and keep the previous canvas frame visible, so rendering cannot interrupt the sweep. Inherited folder-control states rebuild through the normal row path. See [interactive-previews.md](interactive-previews.md#visibility-render-waits).
+
+## Effect rows
+
+A layer with any effect instance, hidden ones included, lists them under its row like Smart Filters (#256): a `layerEffectsRow` header whose eye (`layerEffectsVisibilityButton`) is `LayerStyle::effects_visible`, then one `layerEffectEntryRow` per instance in the dialog's category order (`layer_effect_rows`, main_window_shared.cpp) with its eye (`layerEffectVisibilityButton`, the instance's `enabled`), its name and an Edit pencil (`layerEffectEditButton`); a row double-click does the same, opening the Layer Style dialog on that instance without turning it on (`edit_layer_effect`). Each eye change is one undo step through `apply_layer_effect_row_edit`, which drops the preserved lfx2 bytes; a locked layer shows the rows read-only. Rows are 26 px; the item height is `44 + 26 * (Smart Filter rows + effect rows)`. Hidden instances keep the fx badge and survive a PSD save (the `present` rule in [layer-effects-render.md](layer-effects-render.md)). Tests: tests/ui/layer_effect_rows_tests.cpp, `psd_layer_style_hidden_effects_round_trip`.
 
 ## Add Layer Mask and Layer Styles buttons
 
-The footer's `layerAddMaskButton` runs `MainWindow::add_layer_mask` (reveal-all, or from the active selection). `layerStylesButton` (#94; the row badge's `badge-fx` art) pops up `layerStylesButtonMenu`: the shared Edit Layer Styles... action (`layerBlendingOptionsAction`), a separator, then one entry per effect in the dialog's category order. An effect entry calls `edit_active_layer_style(LayerStyleEffect)`: the one Layer Style dialog opens on that effect's first row and ticks it the way its checkbox does, so OK keeps it, Cancel restores, and a turned-off instance is turned on instead of duplicated. Neither button is a registered document widget. `refresh_add_layer_mask_button_state` owns the mask button from `can_add_layer_mask` (exactly one selected layer that is the active one, kind pixel/adjustment/group, no raster mask yet, image pixels unlocked, no preview-dialog lock); `refresh_layer_styles_button_state` owns the styles button from `can_edit_layer_styles` (a selected or active layer that is not effectively locked, the filter `edit_active_layer_style` applies, and no preview-dialog lock). Both run from `refresh_layer_controls` and `update_document_action_state`. Pinned by `ui_layer_add_mask_button_tracks_selection_and_adds_mask`, `ui_layer_styles_button_tracks_selection_and_lists_effects` and `ui_layer_styles_menu_entry_opens_dialog_on_effect`. The footer's one-row width (eight buttons) sets the column's opening width (`ui_layer_fx_and_smart_badges_stay_visible_in_narrow_panel`).
+The footer's `layerAddMaskButton` runs `MainWindow::add_layer_mask` (reveal-all, or from the active selection). `layerStylesButton` (#94; the row badge's `badge-fx` art) pops up `layerStylesButtonMenu`: the shared Edit Layer Styles... action (`layerBlendingOptionsAction`), a separator, then one entry per effect in the dialog's category order. An effect entry calls `edit_active_layer_style(LayerStyleEffect)`: the one Layer Style dialog opens on that effect's first row and ticks it the way its checkbox does, so OK keeps it, Cancel restores, and a turned-off instance is turned on instead of duplicated. Neither button is a registered document widget. `refresh_add_layer_mask_button_state` owns the mask button from `can_add_layer_mask` (exactly one selected layer, the active one, kind pixel/adjustment/group, no raster mask yet, image pixels unlocked, no preview-dialog lock); `refresh_layer_styles_button_state` owns the styles button from `can_edit_layer_styles` (a selected or active layer that is not effectively locked, `edit_active_layer_style`'s own filter, no preview-dialog lock). Both run from `refresh_layer_controls` and `update_document_action_state`. Pinned by `ui_layer_add_mask_button_tracks_selection_and_adds_mask`, `ui_layer_styles_button_tracks_selection_and_lists_effects` and `ui_layer_styles_menu_entry_opens_dialog_on_effect`. The footer's one-row width (eight buttons) sets the column's opening width (`ui_layer_fx_and_smart_badges_stay_visible_in_narrow_panel`).
 
 ## Footer menus
 
@@ -130,40 +128,36 @@ Dragging rows out of the panel onto another open document copies the layers ther
 drag's mime data carries the layer ids (`application/x-patchy-layer-ids`) plus the source session as `pid:session_id`
 (`application/x-patchy-layer-source-session`, from the id `refresh_layer_list` stamps on the list): layer ids
 restart per document, and a drag from another Patchy process never matches. `startDrag` offers `Copy | Move` so the
-cursor shows the copy badge over a foreign document; the panel's own reorder and the
-footer buttons keep forcing Move. Drop targets are every session canvas (a tab page or a
-float) and the document tabs, all handled by
-`MainWindow::handle_cross_document_layer_drag_event` from the app event filter, ahead of
-the tab-bar tear-off branch: the tab bar has `setAcceptDrops` so it becomes the DnD
-receiver, and non-layer mime stays unaccepted so file drops still propagate to the tab
-widget. A drag over its own document, a missing or foreign source token, a gap between
-tabs, or the preview-dialog edit lock refuses the drop (no drop cursor, and the file-drop
-handlers never see a layer drag); the hovered tab lights through the shared tab-strip
-highlight (`show_tab_strip_highlight`, the float-docking overlay).
+cursor shows the copy badge over a foreign document; the panel's own reorder and the footer buttons force Move. Drop targets are every session canvas (a tab page or a float) and the document tabs,
+all handled by `MainWindow::handle_cross_document_layer_drag_event` from the app event
+filter, ahead of the tab-bar tear-off branch: the tab bar has `setAcceptDrops` so it
+becomes the DnD receiver, and non-layer mime stays unaccepted so file drops still reach
+the tab widget. A drag over its own document, a missing or foreign source token, a gap
+between tabs, or the preview-dialog edit lock refuses the drop (no drop cursor; the
+file-drop handlers never see a layer drag); the hovered tab lights through the shared
+tab-strip highlight (`show_tab_strip_highlight`, the float-docking overlay).
 
 The drop returns before any document work: the payload is copied out and
 `duplicate_layers_to_session` runs from `QTimer::singleShot(0)` (the source panel's
 `QDrag::exec` is still on the stack and the copy rebuilds its rows).
 `copy_layers_between_sessions` (main_window_layer_ops.cpp; `copy_layers_between_documents`
 is its Document-level core, shared with Files as Layers) backs the dialog and scripts
-too: it builds the payload Edit > Copy builds (root ids, referenced
-smart-object sources, Smart Filter records, pattern tiles), validates the Smart Filter
-caches against the target, runs the caller's `before_mutation` hook (the UI pushes the
-target's "Duplicate layer" snapshot there), clones every root with
-`clone_layer_tree_with_document_ids` BEFORE inserting anything (there is no
-session-targeted undo to roll back a half-inserted stack), keeps the source names (a
-collision earns the copy suffix), applies one shared placement offset, re-bakes vector
-rasters against the target canvas, and inserts the stack directly above the target's
-active layer in source order, making the topmost copy active. Placement: a canvas drop
+too: it builds the payload Edit > Copy builds (root ids, referenced smart-object sources,
+Smart Filter records, pattern tiles), validates the Smart Filter caches against the
+target, runs the caller's `before_mutation` hook (the UI pushes the target's "Duplicate
+layer" snapshot there), clones every root with `clone_layer_tree_with_document_ids`
+BEFORE inserting anything (no session-targeted undo can roll back a half-inserted
+stack), keeps the source names (a collision earns the copy suffix), applies one shared
+placement offset, re-bakes vector rasters against the target canvas, and inserts the
+stack directly above the target's active layer in source order, topmost copy active. Placement: a canvas drop
 centers the copied set's movable extent on the drop point; Shift-drop, a tab drop, the
-dialog and scripts keep the source coordinates when the documents share dimensions and
-center on the target canvas otherwise. A root whose Smart Filters depend on position keeps
+dialog and scripts keep the source coordinates when the documents share dimensions, else
+center on the target canvas. A root whose Smart Filters depend on position keeps
 its coordinates (the adopted cache would go stale). Linked
 masks move inside `translate_moved_layer_metadata`; unlinked raster and vector masks shift
-explicitly so the copy stays one unit. The UI wrapper then refreshes the target
-canvas, activates the target session and selects the copies. `ui_layer_drag_*`
-(layer_panel_organization_tests_cross_document.cpp) and
-`ui_layer_drag_to_float_canvas_centers_at_drop_point` (float_window_tests.cpp) pin it;
+explicitly so the copy stays one unit. The UI wrapper then refreshes the target canvas, activates the target session and
+selects the copies. Pinned by `ui_layer_drag_*` (layer_panel_organization_tests_cross_document.cpp)
+and `ui_layer_drag_to_float_canvas_centers_at_drop_point` (float_window_tests.cpp);
 `send_layer_drop_to_widget` synthesizes the drag.
 
 Duplicate Layer (`layerDuplicateAction`, the footer button and its drop target) runs
@@ -173,19 +167,19 @@ selected root, in its parent and in source order (Photoshop), and become the sel
 Delete Layer (menu, footer button, Delete key, trash drop) runs `MainWindow::delete_layers`: it activates the sibling below the lowest deleted root, else the one above, else its group (issue 249).
 
 Inside the panel, an Alt-drop duplicates instead of moving (Photoshop's Alt-drag):
-`LayerListWidget::dropEvent` records `LayerDropRequest::copy` from the event's
-modifiers (the enter/move handlers report CopyAction so the cursor shows the badge), and
+`LayerListWidget::dropEvent` records `LayerDropRequest::copy` from the event's modifiers
+(the enter/move handlers report CopyAction so the cursor shows the badge), and
 `MainWindow::duplicate_layers_for_drop` clones each dragged root above its source, then
 runs `move_layers_for_drop` on the CLONES, so the originals never move; the copies become
 the selection under one snapshot. `ui_layer_alt_drag_duplicates_in_panel` pins it.
 
 The same core backs Duplicate Layer to Document... (`layerDuplicateToDocumentAction`, hotkey
-id `layer.duplicate_to_document`, in the layer context menu and added to the window itself
-because the Layer menu's row count is pinned): its dialog (`duplicateLayerToDocumentDialog`)
-takes a name for a lone copy (`duplicateLayerNameEdit`) and a destination
+id `layer.duplicate_to_document`, in the layer context menu and on the window itself since
+the Layer menu's row count is pinned): its dialog (`duplicateLayerToDocumentDialog`) takes
+a name for a lone copy (`duplicateLayerNameEdit`) and a destination
 (`duplicateLayerTargetCombo`: every other open document, then New Document, a fresh
-session the source's size and print resolution), always with keep-position placement.
-The scripting API's `layer.duplicate(targetDocument)` routes through
+session of the source's size and print resolution), always keep-position. The scripting
+API's `layer.duplicate(targetDocument)` routes through
 `ScriptEngineHost::duplicate_layers_to_session`, so the run's own snapshot covers the
 target and no activation happens. `ui_duplicate_layer_to_document_dialog_copies` and
 `ui_script_layer_duplicate_to_document` pin them.

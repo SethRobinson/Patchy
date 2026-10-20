@@ -11393,6 +11393,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
         <translation>見つからないファイルは引き続きステータスバーに表示されます。環境設定で、開いたドキュメントに対してこのダイアログを再び有効にできます。</translation>
     </message>
+    <message>
+        <source>The layer is locked, so its effects cannot be changed here.</source>
+        <translation>レイヤーがロックされているため、ここでエフェクトを変更できません。</translation>
+    </message>
+    <message>
+        <source>Effects visible. Click to hide them all.</source>
+        <translation>エフェクトは表示中です。クリックですべて非表示にします。</translation>
+    </message>
+    <message>
+        <source>Effects hidden. Click to show them.</source>
+        <translation>エフェクトは非表示です。クリックで表示します。</translation>
+    </message>
+    <message>
+        <source>Effects</source>
+        <translation>エフェクト</translation>
+    </message>
+    <message>
+        <source>Effect visible. Click to hide.</source>
+        <translation>エフェクトは表示中です。クリックで非表示にします。</translation>
+    </message>
+    <message>
+        <source>Effect hidden. Click to show.</source>
+        <translation>エフェクトは非表示です。クリックで表示します。</translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog.</source>
+        <translation>ダブルクリックでレイヤースタイルダイアログでこのエフェクトを編集します。</translation>
+    </message>
+    <message>
+        <source>Edit this effect in the Layer Style dialog</source>
+        <translation>レイヤースタイルダイアログでこのエフェクトを編集</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23125,6 +23157,38 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>
             <numerusform>%n 個のスマートオブジェクトファイルを再リンクしました</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Show Effects</source>
+        <translation>効果を表示</translation>
+    </message>
+    <message>
+        <source>Hide Effects</source>
+        <translation>エフェクトを非表示</translation>
+    </message>
+    <message>
+        <source>Effects shown</source>
+        <translation>エフェクトを表示しました</translation>
+    </message>
+    <message>
+        <source>Effects hidden</source>
+        <translation>エフェクトを非表示にしました</translation>
+    </message>
+    <message>
+        <source>Show %1</source>
+        <translation>%1 を表示</translation>
+    </message>
+    <message>
+        <source>Hide %1</source>
+        <translation>%1 を非表示</translation>
+    </message>
+    <message>
+        <source>%1 shown</source>
+        <translation>%1 を表示しました</translation>
+    </message>
+    <message>
+        <source>%1 hidden</source>
+        <translation>%1 を非表示にしました</translation>
     </message>
 </context>
 <context>

@@ -2163,6 +2163,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/layer_panel_organization_tests_animation.cpp
       tests/ui/layer_panel_organization_tests_cross_document.cpp
       tests/ui/layer_panel_organization_tests_files_as_layers.cpp
+      tests/ui/layer_effect_rows_tests.cpp
       tests/ui/move_tool_processing_overlay_tests.cpp
       tests/ui/move_transform_zones_tests.cpp
       tests/ui/free_transform_distort_tests.cpp

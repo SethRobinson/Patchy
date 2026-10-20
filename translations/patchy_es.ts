@@ -11428,6 +11428,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
         <translation>Los archivos que faltan se siguen mostrando en la barra de estado. En Preferencias puede volver a activar este diálogo para los documentos abiertos.</translation>
     </message>
+    <message>
+        <source>The layer is locked, so its effects cannot be changed here.</source>
+        <translation>La capa está bloqueada, por lo que sus efectos no se pueden cambiar aquí.</translation>
+    </message>
+    <message>
+        <source>Effects visible. Click to hide them all.</source>
+        <translation>Efectos visibles. Haga clic para ocultarlos todos.</translation>
+    </message>
+    <message>
+        <source>Effects hidden. Click to show them.</source>
+        <translation>Efectos ocultos. Haga clic para mostrarlos.</translation>
+    </message>
+    <message>
+        <source>Effects</source>
+        <translation>Efectos</translation>
+    </message>
+    <message>
+        <source>Effect visible. Click to hide.</source>
+        <translation>Efecto visible. Haga clic para ocultarlo.</translation>
+    </message>
+    <message>
+        <source>Effect hidden. Click to show.</source>
+        <translation>Efecto oculto. Haga clic para mostrarlo.</translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog.</source>
+        <translation>Haga doble clic para editar este efecto en el diálogo Estilo de capa.</translation>
+    </message>
+    <message>
+        <source>Edit this effect in the Layer Style dialog</source>
+        <translation>Editar este efecto en el diálogo Estilo de capa</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23197,6 +23229,38 @@ Puedes hacerlo más tarde desde Ayuda &gt; Añadir Patchy al menú de aplicacion
             <numerusform>Se volvió a vincular %n archivo de objeto inteligente</numerusform>
             <numerusform>Se volvieron a vincular %n archivos de objetos inteligentes</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Show Effects</source>
+        <translation>Mostrar efectos</translation>
+    </message>
+    <message>
+        <source>Hide Effects</source>
+        <translation>Ocultar efectos</translation>
+    </message>
+    <message>
+        <source>Effects shown</source>
+        <translation>Efectos mostrados</translation>
+    </message>
+    <message>
+        <source>Effects hidden</source>
+        <translation>Efectos ocultos</translation>
+    </message>
+    <message>
+        <source>Show %1</source>
+        <translation>Mostrar %1</translation>
+    </message>
+    <message>
+        <source>Hide %1</source>
+        <translation>Ocultar %1</translation>
+    </message>
+    <message>
+        <source>%1 shown</source>
+        <translation>%1 mostrado</translation>
+    </message>
+    <message>
+        <source>%1 hidden</source>
+        <translation>%1 oculto</translation>
     </message>
 </context>
 <context>

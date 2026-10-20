@@ -11412,6 +11412,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>The layer is locked, so its effects cannot be changed here.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Effects visible. Click to hide them all.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Effects hidden. Click to show them.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Effects</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Effect visible. Click to hide.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Effect hidden. Click to show.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Edit this effect in the Layer Style dialog</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23120,6 +23152,38 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
             <numerusform></numerusform>
             <numerusform></numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Show Effects</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hide Effects</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Effects shown</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Effects hidden</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Hide %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 shown</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 hidden</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

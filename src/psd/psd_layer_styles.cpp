@@ -283,13 +283,29 @@ LayerStyleGradient parse_layer_style_gradient(const DescriptorObject& effect, co
 
 namespace {
 
+// Photoshop writes every effect class into lfx2: `enab` is the Layers panel eye and
+// `present` says whether the layer uses the effect at all (a hidden effect is enab=false
+// with present=true; an unused class is present=false). A hidden effect stays modeled with
+// `enabled` false so the panel can show it again (GitHub issue 256); an unused class parses
+// to nothing. A record without `present` (Patchy's own shadow and glow writers, older files)
+// holds only instances the model had, so it is kept whatever its `enab` says.
+std::optional<bool> effect_instance_enabled(const DescriptorObject& effect) {
+  const bool enabled = descriptor_bool(effect, "enab", false);
+  const auto present = effect.values.find("present");
+  if (!enabled && present != effect.values.end() && !descriptor_bool(effect, "present", false)) {
+    return std::nullopt;
+  }
+  return enabled;
+}
+
 std::optional<LayerDropShadow> parse_drop_shadow(const DescriptorObject& effect,
                                                  const CmykColorConverter& cmyk) {
-  if (!descriptor_bool(effect, "enab", false)) {
+  const auto enabled = effect_instance_enabled(effect);
+  if (!enabled.has_value()) {
     return std::nullopt;
   }
   LayerDropShadow shadow;
-  shadow.enabled = true;
+  shadow.enabled = *enabled;
   shadow.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "mul "),
                                                       std::array<char, 4>{'m', 'u', 'l', ' '});
   shadow.color = descriptor_rgb_color(effect, "Clr ", cmyk, RgbColor{0, 0, 0});
@@ -305,11 +321,12 @@ std::optional<LayerDropShadow> parse_drop_shadow(const DescriptorObject& effect,
 
 std::optional<LayerInnerShadow> parse_inner_shadow(const DescriptorObject& effect,
                                                    const CmykColorConverter& cmyk) {
-  if (!descriptor_bool(effect, "enab", false)) {
+  const auto enabled = effect_instance_enabled(effect);
+  if (!enabled.has_value()) {
     return std::nullopt;
   }
   LayerInnerShadow shadow;
-  shadow.enabled = true;
+  shadow.enabled = *enabled;
   shadow.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "mul "),
                                                       std::array<char, 4>{'m', 'u', 'l', ' '});
   shadow.color = descriptor_rgb_color(effect, "Clr ", cmyk, RgbColor{0, 0, 0});
@@ -324,11 +341,12 @@ std::optional<LayerInnerShadow> parse_inner_shadow(const DescriptorObject& effec
 
 std::optional<LayerOuterGlow> parse_outer_glow(const DescriptorObject& effect,
                                                const CmykColorConverter& cmyk) {
-  if (!descriptor_bool(effect, "enab", false)) {
+  const auto enabled = effect_instance_enabled(effect);
+  if (!enabled.has_value()) {
     return std::nullopt;
   }
   LayerOuterGlow glow;
-  glow.enabled = true;
+  glow.enabled = *enabled;
   glow.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "scrn"),
                                                       std::array<char, 4>{'s', 'c', 'r', 'n'});
   glow.color = descriptor_rgb_color(effect, "Clr ", cmyk, RgbColor{255, 255, 190});
@@ -349,11 +367,12 @@ LayerInnerGlowSource inner_glow_source_from_descriptor(std::string_view value) {
 
 std::optional<LayerInnerGlow> parse_inner_glow(const DescriptorObject& effect,
                                                const CmykColorConverter& cmyk) {
-  if (!descriptor_bool(effect, "enab", false)) {
+  const auto enabled = effect_instance_enabled(effect);
+  if (!enabled.has_value()) {
     return std::nullopt;
   }
   LayerInnerGlow glow;
-  glow.enabled = true;
+  glow.enabled = *enabled;
   glow.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "scrn"),
                                                       std::array<char, 4>{'s', 'c', 'r', 'n'});
   glow.color = descriptor_rgb_color(effect, "Clr ", cmyk, RgbColor{255, 255, 190});
@@ -370,11 +389,12 @@ std::optional<LayerInnerGlow> parse_inner_glow(const DescriptorObject& effect,
 
 std::optional<LayerColorOverlay> parse_color_overlay(const DescriptorObject& effect,
                                                      const CmykColorConverter& cmyk) {
-  if (!descriptor_bool(effect, "enab", false)) {
+  const auto enabled = effect_instance_enabled(effect);
+  if (!enabled.has_value()) {
     return std::nullopt;
   }
   LayerColorOverlay overlay;
-  overlay.enabled = true;
+  overlay.enabled = *enabled;
   overlay.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "norm"),
                                                       std::array<char, 4>{'n', 'o', 'r', 'm'});
   overlay.color = descriptor_rgb_color(effect, "Clr ", cmyk, RgbColor{255, 0, 0});
@@ -416,11 +436,12 @@ StyleContour parse_shape_contour(const DescriptorObject& shape) {
 
 std::optional<LayerBevelEmboss> parse_bevel_emboss(const DescriptorObject& effect,
                                                    const CmykColorConverter& cmyk) {
-  if (!descriptor_bool(effect, "enab", false)) {
+  const auto enabled = effect_instance_enabled(effect);
+  if (!enabled.has_value()) {
     return std::nullopt;
   }
   LayerBevelEmboss bevel;
-  bevel.enabled = true;
+  bevel.enabled = *enabled;
   bevel.highlight_blend_mode =
       blend_mode_from_descriptor_enum(descriptor_enum(effect, "hglM", "scrn"),
                                       std::array<char, 4>{'s', 'c', 'r', 'n'});
@@ -490,11 +511,12 @@ std::optional<LayerBevelEmboss> parse_bevel_emboss(const DescriptorObject& effec
 
 std::optional<LayerGradientFill> parse_gradient_fill(const DescriptorObject& effect,
                                                      const CmykColorConverter& cmyk) {
-  if (!descriptor_bool(effect, "enab", false)) {
+  const auto enabled = effect_instance_enabled(effect);
+  if (!enabled.has_value()) {
     return std::nullopt;
   }
   LayerGradientFill fill;
-  fill.enabled = true;
+  fill.enabled = *enabled;
   fill.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "norm"),
                                                       std::array<char, 4>{'n', 'o', 'r', 'm'});
   fill.opacity = percent_to_unit(descriptor_number(effect, "Opct", 100.0));
@@ -504,10 +526,15 @@ std::optional<LayerGradientFill> parse_gradient_fill(const DescriptorObject& eff
 
 std::optional<LayerSatin> parse_satin(const DescriptorObject& effect,
                                       const CmykColorConverter& cmyk) {
+  // A hidden Satin record stays an editable style entry (it may carry contour
+  // options that must be warned about before lfx2 regeneration); Photoshop's unused
+  // present=false class parses to nothing like every other effect.
+  const auto enabled = effect_instance_enabled(effect);
+  if (!enabled.has_value()) {
+    return std::nullopt;
+  }
   LayerSatin satin;
-  // Disabled Satin records remain editable Photoshop style entries and may
-  // carry contour options that must be warned about before lfx2 regeneration.
-  satin.enabled = descriptor_bool(effect, "enab", false);
+  satin.enabled = *enabled;
   satin.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "mul "),
                                                       std::array<char, 4>{'m', 'u', 'l', ' '});
   satin.color = descriptor_rgb_color(effect, "Clr ", cmyk, RgbColor{0, 0, 0});
@@ -528,11 +555,12 @@ std::optional<LayerSatin> parse_satin(const DescriptorObject& effect,
 }
 
 std::optional<LayerPatternOverlay> parse_pattern_overlay(const DescriptorObject& effect) {
-  if (!descriptor_bool(effect, "enab", false)) {
+  const auto enabled = effect_instance_enabled(effect);
+  if (!enabled.has_value()) {
     return std::nullopt;
   }
   LayerPatternOverlay pattern;
-  pattern.enabled = true;
+  pattern.enabled = *enabled;
   pattern.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "norm"),
                                                       std::array<char, 4>{'n', 'o', 'r', 'm'});
   pattern.opacity = percent_to_unit(descriptor_number(effect, "Opct", 100.0));
@@ -562,11 +590,12 @@ LayerStrokePosition stroke_position_from_descriptor(std::string_view value) {
 
 std::optional<LayerStroke> parse_stroke(const DescriptorObject& effect,
                                         const CmykColorConverter& cmyk) {
-  if (!descriptor_bool(effect, "enab", false)) {
+  const auto enabled = effect_instance_enabled(effect);
+  if (!enabled.has_value()) {
     return std::nullopt;
   }
   LayerStroke stroke;
-  stroke.enabled = true;
+  stroke.enabled = *enabled;
   stroke.blend_mode = blend_mode_from_descriptor_enum(descriptor_enum(effect, "Md  ", "norm"),
                                                       std::array<char, 4>{'n', 'o', 'r', 'm'});
   stroke.opacity = percent_to_unit(descriptor_number(effect, "Opct", 100.0));

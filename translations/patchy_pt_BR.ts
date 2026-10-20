@@ -11428,6 +11428,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Missing files still show on the status bar. Preferences can turn this dialog back on for opened documents.</source>
         <translation>Os arquivos ausentes continuam aparecendo na barra de status. As Preferências podem reativar esta caixa de diálogo para documentos abertos.</translation>
     </message>
+    <message>
+        <source>The layer is locked, so its effects cannot be changed here.</source>
+        <translation>A camada está bloqueada, então seus efeitos não podem ser alterados aqui.</translation>
+    </message>
+    <message>
+        <source>Effects visible. Click to hide them all.</source>
+        <translation>Efeitos visíveis. Clique para ocultar todos.</translation>
+    </message>
+    <message>
+        <source>Effects hidden. Click to show them.</source>
+        <translation>Efeitos ocultos. Clique para mostrar.</translation>
+    </message>
+    <message>
+        <source>Effects</source>
+        <translation>Efeitos</translation>
+    </message>
+    <message>
+        <source>Effect visible. Click to hide.</source>
+        <translation>Efeito visível. Clique para ocultar.</translation>
+    </message>
+    <message>
+        <source>Effect hidden. Click to show.</source>
+        <translation>Efeito oculto. Clique para mostrar.</translation>
+    </message>
+    <message>
+        <source>Double-click to edit this effect in the Layer Style dialog.</source>
+        <translation>Clique duas vezes para editar este efeito na caixa de diálogo Estilo de camada.</translation>
+    </message>
+    <message>
+        <source>Edit this effect in the Layer Style dialog</source>
+        <translation>Editar este efeito na caixa de diálogo Estilo de camada</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23197,6 +23229,38 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
             <numerusform>%n arquivo de objeto inteligente vinculado novamente</numerusform>
             <numerusform>%n arquivos de objetos inteligentes vinculados novamente</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>Show Effects</source>
+        <translation>Mostrar efeitos</translation>
+    </message>
+    <message>
+        <source>Hide Effects</source>
+        <translation>Ocultar efeitos</translation>
+    </message>
+    <message>
+        <source>Effects shown</source>
+        <translation>Efeitos mostrados</translation>
+    </message>
+    <message>
+        <source>Effects hidden</source>
+        <translation>Efeitos ocultos</translation>
+    </message>
+    <message>
+        <source>Show %1</source>
+        <translation>Mostrar %1</translation>
+    </message>
+    <message>
+        <source>Hide %1</source>
+        <translation>Ocultar %1</translation>
+    </message>
+    <message>
+        <source>%1 shown</source>
+        <translation>%1 mostrado</translation>
+    </message>
+    <message>
+        <source>%1 hidden</source>
+        <translation>%1 oculto</translation>
     </message>
 </context>
 <context>
