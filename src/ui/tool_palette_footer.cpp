@@ -166,8 +166,9 @@ void ToolPaletteFooter::place_controls() {
   // right border.
   const int cell = std::min(width(), kWidth) - kPaletteBorder;
   // The swap glyph stays 2 px clear of that border (GitHub issue 251: its arrow
-  // ended in the column next to it and read as touching it).
-  swap_->move(cell - kGlyphSize - 2, 4);
+  // ended in the column next to it and read as touching it), and sits as far
+  // above the background swatch as it sits right of the foreground swatch.
+  swap_->move(cell - kGlyphSize - 2, 5);
   const auto size = quick_mask_->size();
   quick_mask_->move(std::max(0, (cell - size.width()) / 2),
                     kWellHeight + std::max(0, (kHeight - kWellHeight - size.height()) / 2));
