@@ -24,6 +24,11 @@ captures unless noted.
 - Ids are charIDs when four characters long and stringIDs otherwise.
 - Fields Photoshop stores without a dialog control (random seeds) are `hidden`:
   kept verbatim, never shown.
+- Opening a PSD never renders a stack: Patchy shows Photoshop's baked layer until the
+  user edits that stack (or something that rebuilds it: move, transform, Image Size,
+  source refresh). That matters for the approximate filters below (ZigZag, Shear,
+  Wave, Ripple); `ui_smart_filter_approximate_schema_stacks_keep_photoshop_pixels_on_open`
+  pins it.
 - These filters have no Filter menu entry in Patchy yet: Patchy renders and edits
   imported entries but cannot add new ones.
 
