@@ -407,17 +407,6 @@ not part of any release package.
   release binary, not distributed with Patchy) encoded the `texconv-*` BC4/BC7/BC6H files
   from the same self-authored art. No third-party content. Used by the DDS reader tests.
 
-- `test-fixtures/photoshop-plugins/*.8bf`: four standalone Photoshop filter plug-ins
-  (Greyscale and White to Transparent, 32- and 64-bit) by Daniel Marschall, built with
-  Filter Foundry 1.7.0.16 and 1.7.0.19 and downloaded from
-  https://misc.daniel-marschall.de/photoshop_filters/ . Each contains the Filter Foundry
-  program (GNU GPL version 2 or later; Copyright (C) 2003-2009 Toby Thain, Copyright (C)
-  2018-2022 Daniel Marschall, ViaThinkSoft; https://github.com/danielmarschall/filter_foundry)
-  plus the author's filter expressions ("Apache 2.0 License" per the embedded version
-  information; the `.afs` sources sit beside the files). The copies are conveyed under GPL
-  version 3; the license texts, SHA-256 hashes and Corresponding Source pointers are in
-  `test-fixtures/photoshop-plugins/README.md`. Used only by the plug-in host tests; never
-  linked into or shipped with Patchy.
 
 ## Built-in color palette presets
 
