@@ -10905,6 +10905,34 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>&amp;Cancel</source>
         <translation>&amp;Abbrechen</translation>
     </message>
+    <message>
+        <source>Smart Filters actions</source>
+        <translation>Smartfilter-Aktionen</translation>
+    </message>
+    <message>
+        <source>Delete All Smart Filters</source>
+        <translation>Alle Smartfilter löschen</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t render every Smart Filter that would then run. Photoshop renders them when the file is opened there.</source>
+        <translation>Patchy kann nicht alle Smartfilter rendern, die dann ausgeführt würden. Photoshop rendert sie, wenn die Datei dort geöffnet wird.</translation>
+    </message>
+    <message>
+        <source>Hiding this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or hide all Smart Filters.</source>
+        <translation>Wenn dieser Filter ausgeblendet wird, laufen weiterhin Smartfilter, die Patchy nicht rendern kann. Blende diese zuerst aus oder lösche sie, oder blende alle Smartfilter aus.</translation>
+    </message>
+    <message>
+        <source>Deleting this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or delete all Smart Filters.</source>
+        <translation>Wenn dieser Filter gelöscht wird, laufen weiterhin Smartfilter, die Patchy nicht rendern kann. Blende diese zuerst aus oder lösche sie, oder lösche alle Smartfilter.</translation>
+    </message>
+    <message>
+        <source>Patchy can&apos;t edit this filter&apos;s settings. It is preserved unchanged.</source>
+        <translation>Patchy kann die Einstellungen dieses Filters nicht bearbeiten. Er bleibt unverändert erhalten.</translation>
+    </message>
+    <message>
+        <source>This stack runs Smart Filters that Patchy can&apos;t render, so their settings can&apos;t change here. Hide or delete those filters first.</source>
+        <translation>Dieser Stapel führt Smartfilter aus, die Patchy nicht rendern kann, daher lassen sich die Einstellungen hier nicht ändern. Blende diese Filter zuerst aus oder lösche sie.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22455,6 +22483,14 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
     <message>
         <source>Don&apos;t Ask Again</source>
         <translation>Nicht mehr fragen</translation>
+    </message>
+    <message>
+        <source>Delete All Smart Filters</source>
+        <translation>Alle Smartfilter löschen</translation>
+    </message>
+    <message>
+        <source>Deleted all Smart Filters</source>
+        <translation>Alle Smartfilter gelöscht</translation>
     </message>
 </context>
 <context>

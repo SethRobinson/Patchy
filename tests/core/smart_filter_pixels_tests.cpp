@@ -78,6 +78,46 @@ void check_filter_result_equal(const patchy::FilterRenderResult& expected,
                    actual.pixels.data().begin()));
 }
 
+// GitHub issue 243: a stack holding a filter Patchy does not model renders once that
+// filter cannot run (hidden, or the whole stack hidden), and only then.
+void smart_filter_stack_support_skips_hidden_unmodeled_filters() {
+  auto stack = test_gaussian_smart_filter_stack(1.0);
+  patchy::SmartFilterEntry unmodeled;
+  unmodeled.kind = patchy::SmartFilterKind::Unsupported;
+  unmodeled.native_name = "Blur Gallery...";
+  unmodeled.native_class_id = "blurbTransform";
+  stack.entries.insert(stack.entries.begin(), unmodeled);
+  CHECK(patchy::smart_filter_stack_support(stack) == patchy::SmartFilterStackSupport::Unsupported);
+
+  stack.entries.front().enabled = false;
+  CHECK(patchy::smart_filter_stack_support(stack) == patchy::SmartFilterStackSupport::Supported);
+  stack.support = patchy::smart_filter_stack_support(stack);
+  auto source = solid_rgba(9, 9, 0, 0, 0, 0);
+  for (std::int32_t y = 2; y < 7; ++y) {
+    auto* pixel = source.pixel(4, y);
+    pixel[0] = 255;
+    pixel[1] = 255;
+    pixel[2] = 255;
+    pixel[3] = 255;
+  }
+  const patchy::Rect bounds{0, 0, 9, 9};
+  // The hidden filter is skipped; the result is the Gaussian alone.
+  const auto with_hidden = patchy::render_smart_filter_stack(source, bounds, stack);
+  const auto gaussian_only =
+      patchy::render_smart_filter_stack(source, bounds, test_gaussian_smart_filter_stack(1.0));
+  check_filter_result_equal(gaussian_only, with_hidden);
+
+  // Showing it again would run it.
+  stack.entries.front().enabled = true;
+  CHECK(patchy::smart_filter_stack_support(stack) == patchy::SmartFilterStackSupport::Unsupported);
+  // A hidden stack runs nothing, so it renders the source whatever its filters are.
+  stack.enabled = false;
+  CHECK(patchy::smart_filter_stack_support(stack) == patchy::SmartFilterStackSupport::Supported);
+  // A shape Patchy cannot rewrite never renders.
+  stack.native_shape_supported = false;
+  CHECK(patchy::smart_filter_stack_support(stack) == patchy::SmartFilterStackSupport::Unsupported);
+}
+
 void smart_filter_gaussian_matches_photoshop_calibrated_kernels() {
   struct KernelCase {
     double radius;
@@ -2476,6 +2516,8 @@ std::vector<patchy::test::TestCase> smart_filter_pixels_tests() {
        smart_filter_add_noise_matches_destructive_and_is_deterministic},
       {"smart_filter_layer_model_revisions_are_explicit",
        smart_filter_layer_model_revisions_are_explicit},
+      {"smart_filter_stack_support_skips_hidden_unmodeled_filters",
+       smart_filter_stack_support_skips_hidden_unmodeled_filters},
       {"smart_filter_gaussian_matches_photoshop_calibrated_kernels",
        smart_filter_gaussian_matches_photoshop_calibrated_kernels},
       {"smart_filter_gaussian_repeats_canvas_edges_and_blurs_premultiplied",

@@ -1056,6 +1056,91 @@ void psd_photoshop_tilt_shift_smart_filter_fixture_is_preserved_and_preview_lock
   CHECK(std::filesystem::exists(acceptance_path));
 }
 
+// GitHub issue 243: Photoshop's Tilt-Shift (a Blur Gallery filter Patchy does not model)
+// can be hidden, its stack hidden, or the stack deleted. The hidden states write only the
+// enable flags into the preserved descriptor and read back as stacks Patchy renders; the
+// deleted stack drops filterFX and its FEid record.
+void psd_unmodeled_smart_filter_hide_and_delete_round_trip() {
+  const auto original = patchy::psd::DocumentIo::read_file(
+      patchy::test::committed_psd_fixture_path("photoshop-smart-filter-tilt-shift.psd"));
+  const patchy::Layer* source_layer = nullptr;
+  for (const auto& layer : original.layers()) {
+    if (layer.smart_filter_stack() != nullptr) {
+      source_layer = &layer;
+    }
+  }
+  CHECK(source_layer != nullptr);
+  if (source_layer == nullptr) {
+    return;
+  }
+  const auto name = source_layer->name();
+  const auto* imported = source_layer->smart_filter_stack();
+  CHECK(imported->native_shape_supported);
+  CHECK(imported->support == patchy::SmartFilterStackSupport::Unsupported);
+  CHECK(patchy::smart_object_lock_reason(*source_layer) == "filters");
+  const auto original_sold = require_placed_layer_block(*source_layer).payload;
+  const auto placed_uuid = patchy::smart_object_placed_uuid(*source_layer);
+  CHECK(original.metadata().smart_filter_effects.find_unique(placed_uuid) != nullptr);
+
+  // What the Layers panel commits: the edited stack, the lock lifted, the block dirty.
+  const auto edited_round_trip = [&](const std::function<void(patchy::SmartFilterStack&)>& edit) {
+    auto document = original;
+    auto* layer = document.find_layer(source_layer->id());
+    auto stack = *layer->smart_filter_stack();
+    edit(stack);
+    stack.support = patchy::smart_filter_stack_support(stack);
+    CHECK(stack.support == patchy::SmartFilterStackSupport::Supported);
+    layer->set_smart_filter_stack(std::move(stack));
+    layer->metadata().erase(patchy::kLayerMetadataSmartObjectLock);
+    patchy::mark_layer_smart_object_block_dirty(*layer);
+    return patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  };
+
+  const auto hidden_filter = edited_round_trip(
+      [](patchy::SmartFilterStack& stack) { stack.entries.front().enabled = false; });
+  const auto& hidden_filter_layer = require_layer_named(hidden_filter, name);
+  const auto& hidden_filter_stack = require_smart_filter_stack(hidden_filter, name);
+  CHECK(hidden_filter_stack.support == patchy::SmartFilterStackSupport::Supported);
+  CHECK(hidden_filter_stack.enabled);
+  CHECK(hidden_filter_stack.entries.size() == 1U);
+  CHECK(!hidden_filter_stack.entries.front().enabled);
+  CHECK(hidden_filter_stack.entries.front().kind == patchy::SmartFilterKind::Unsupported);
+  CHECK(hidden_filter_stack.entries.front().native_class_id == "blurbTransform");
+  CHECK(hidden_filter_stack.entries.front().native_filter_id == 712U);
+  CHECK(patchy::smart_object_lock_reason(hidden_filter_layer).empty());
+  // A flag flips in place; the Blur Gallery descriptor around it is untouched.
+  const auto hidden_filter_sold = require_placed_layer_block(hidden_filter_layer).payload;
+  CHECK(hidden_filter_sold.size() == original_sold.size());
+  CHECK(hidden_filter_sold != original_sold);
+  CHECK(hidden_filter.metadata().smart_filter_effects.find_unique(placed_uuid) != nullptr);
+
+  const auto hidden_stack =
+      edited_round_trip([](patchy::SmartFilterStack& stack) { stack.enabled = false; });
+  const auto& hidden_stack_layer = require_layer_named(hidden_stack, name);
+  const auto& hidden_stack_stack = require_smart_filter_stack(hidden_stack, name);
+  CHECK(!hidden_stack_stack.enabled);
+  CHECK(hidden_stack_stack.entries.size() == 1U && hidden_stack_stack.entries.front().enabled);
+  CHECK(hidden_stack_stack.support == patchy::SmartFilterStackSupport::Supported);
+  CHECK(patchy::smart_object_lock_reason(hidden_stack_layer).empty());
+  CHECK(require_placed_layer_block(hidden_stack_layer).payload.size() == original_sold.size());
+
+  // Deleting the stack: no filterFX, no FEid record, and nothing left locked.
+  auto deleted = original;
+  auto* deleted_layer = deleted.find_layer(source_layer->id());
+  deleted_layer->clear_smart_filter_stack();
+  CHECK(deleted.metadata().smart_filter_effects.remove(placed_uuid));
+  deleted_layer->metadata().erase(patchy::kLayerMetadataSmartObjectLock);
+  patchy::mark_layer_smart_object_block_dirty(*deleted_layer);
+  const auto deleted_reread =
+      patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(deleted));
+  const auto& deleted_reread_layer = require_layer_named(deleted_reread, name);
+  CHECK(patchy::layer_is_smart_object(deleted_reread_layer));
+  CHECK(deleted_reread_layer.smart_filter_stack() == nullptr);
+  CHECK(patchy::smart_object_lock_reason(deleted_reread_layer).empty());
+  CHECK(deleted_reread.metadata().smart_filter_effects.find_unique(
+            patchy::smart_object_placed_uuid(deleted_reread_layer)) == nullptr);
+}
+
 void psd_smart_filter_descriptor_semantics_parse_if_available() {
   const auto document = patchy::psd::DocumentIo::read_file(
       patchy::test::committed_psd_fixture_path("photoshop-smart-filter-model.psd"));
@@ -1843,6 +1928,8 @@ std::vector<patchy::test::TestCase> smart_filter_descriptors_tests_part2() {
       {"psd_photoshop_tilt_shift_smart_filter_fixture_is_preserved_and_preview_"
        "locked",
        psd_photoshop_tilt_shift_smart_filter_fixture_is_preserved_and_preview_locked},
+      {"psd_unmodeled_smart_filter_hide_and_delete_round_trip",
+       psd_unmodeled_smart_filter_hide_and_delete_round_trip},
       {"psd_smart_filter_descriptor_semantics_parse_if_available",
        psd_smart_filter_descriptor_semantics_parse_if_available},
       {"psd_smart_filter_masks_decode_and_coexist_with_layer_mask",

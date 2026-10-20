@@ -360,6 +360,7 @@ void finalize_smart_filter_layers(std::vector<Layer>& layers,
     const auto placed_uuid = smart_object_placed_uuid(std::as_const(layer));
     const auto* record = store.find_unique(placed_uuid);
     if (record == nullptr || !record->semantic_supported()) {
+      stack.native_shape_supported = false;
       stack.support = SmartFilterStackSupport::Unsupported;
       layer.set_smart_filter_stack(std::move(stack));
       continue;
@@ -368,13 +369,13 @@ void finalize_smart_filter_layers(std::vector<Layer>& layers,
     if (record->mask_present) {
       if (!record->mask_decoded || !record->mask.has_value() ||
           record->mask->samples == nullptr) {
-        stack.support = SmartFilterStackSupport::Unsupported;
+        stack.native_shape_supported = false;
       } else {
         const auto& native_mask = *record->mask;
         const auto expected = static_cast<std::size_t>(native_mask.bounds.width) *
                               static_cast<std::size_t>(native_mask.bounds.height);
         if (native_mask.bounds.empty() || native_mask.samples->size() != expected) {
-          stack.support = SmartFilterStackSupport::Unsupported;
+          stack.native_shape_supported = false;
         } else {
           PixelBuffer mask_pixels(native_mask.bounds.width, native_mask.bounds.height,
                                   PixelFormat::gray8());
@@ -385,6 +386,7 @@ void finalize_smart_filter_layers(std::vector<Layer>& layers,
         }
       }
     }
+    stack.support = smart_filter_stack_support(stack);
     const bool executable =
         stack.support == SmartFilterStackSupport::Supported;
     layer.set_smart_filter_stack(std::move(stack));
