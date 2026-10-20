@@ -144,6 +144,17 @@
     <control>tablet</control>
   </supports>
   <releases>
+    <release version="1.15" date="2026-10-21">
+      <description>
+        <ul>
+          <li>Photoshop adjustment layers such as Channel Mixer, Black &amp; White, Color Lookup, Vibrance and Selective Color render and edit</li>
+          <li>Many more Photoshop Smart Filters render and edit, and unsupported ones can be hidden or deleted</li>
+          <li>Free Transform Skew, Distort and Perspective, and clearer Path Select and Direct Select roles</li>
+          <li>Layer styles listed in the Layers panel, plus CMYK PSD, lock, color label and metadata handling</li>
+          <li>A pixel grid at high zoom, and the last tool and its options remembered</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.14" date="2026-10-19">
       <description>
         <ul>
