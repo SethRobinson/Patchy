@@ -1753,6 +1753,9 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
   if (tool_ == CanvasTool::PathSelect || tool_ == CanvasTool::DirectSelect) {
     handle_path_edit_move(event, document_position_f(event->position()));
     last_mouse_position_ = event->pos();
+    if (path_transform_active_) {
+      apply_path_transform_cursor(event->pos());
+    }
     if ((event->buttons() & Qt::LeftButton) == 0 && !path_transform_active_) {
       update_path_select_hover_hint(path_hover_target_at(event->position()));
     }
@@ -3571,7 +3574,8 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
   // Shift pressed mid-anchor-drag arrives as a key event, not a mouse move;
   // replay the drag at the last raw pointer position so a stationary cursor
   // still snaps onto the constrained axis.
-  if (path_drag_mode_ == PathEditDrag::Anchors && event->key() == Qt::Key_Shift &&
+  if ((path_drag_mode_ == PathEditDrag::Anchors || path_drag_mode_ == PathEditDrag::SingleAnchor) &&
+      event->key() == Qt::Key_Shift &&
       !event->isAutoRepeat()) {
     update_path_edit_drag(path_drag_raw_document_, event->modifiers() | Qt::ShiftModifier);
     event->accept();
@@ -3994,7 +3998,8 @@ void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
   }
   // Shift released mid-anchor-drag: snap the selection back to the raw mouse
   // position without waiting for the next mouse move.
-  if (path_drag_mode_ == PathEditDrag::Anchors && event->key() == Qt::Key_Shift &&
+  if ((path_drag_mode_ == PathEditDrag::Anchors || path_drag_mode_ == PathEditDrag::SingleAnchor) &&
+      event->key() == Qt::Key_Shift &&
       !event->isAutoRepeat()) {
     update_path_edit_drag(path_drag_raw_document_, event->modifiers() & ~Qt::ShiftModifier);
     event->accept();

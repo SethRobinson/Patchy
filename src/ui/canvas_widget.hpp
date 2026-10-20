@@ -1888,6 +1888,9 @@ private:
   // The topmost visible, editable shape layer whose anchor, outline or fill is
   // under the pointer: Path/Direct Select pick it as their target (GitHub issue 248).
   [[nodiscard]] patchy::Layer* topmost_path_pick_layer_at(QPointF widget_point) const;
+  // Path transform session hover cursor: Free Transform's resize, move and per-corner
+  // rotate cursors for the zone a press would grab (GitHub issue 248).
+  void apply_path_transform_cursor(QPoint widget_point);
   mutable std::optional<patchy::VectorPath> text_area_path_cache_;
   mutable std::optional<patchy::LayerId> text_area_path_layer_;
   mutable std::uint64_t text_area_path_revision_{0};
@@ -2510,7 +2513,9 @@ private:
   int pen_session_drag_anchor_{-1};
   QPointF pen_session_drag_last_document_{};
   // Path-edit session state (selection keys are (subpath, anchor) indices).
-  enum class PathEditDrag { None, Anchors, HandleIn, HandleOut, Marquee };
+  // SingleAnchor: Path Select's press on a drawn anchor moves that one point (its
+  // handles with it) and keeps the shape selected (GitHub issue 248).
+  enum class PathEditDrag { None, Anchors, SingleAnchor, HandleIn, HandleOut, Marquee };
   std::set<std::pair<int, int>> path_selected_anchors_;
   // Set while a press that picked another shape layer replays on the new target.
   bool path_press_repicked_ = false;
