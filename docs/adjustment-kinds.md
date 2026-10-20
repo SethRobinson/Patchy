@@ -39,3 +39,12 @@ Photoshop adjustment kinds Patchy cannot apply yet (`vibA`, `clrL`, `selc`) impo
 - Gray: the smallest channel plus (middle - smallest) times the weight of the secondary color the two largest channels form (yellow, cyan or magenta) plus (largest - middle) times the weight of the largest channel's primary, in hundredths, rounded half up (integer arithmetic on the 8-bit path). Exact on every probe value except one mixed negative-weight set (49 of 4,352 pixels off by one level); no rounding or weight quantization explains those.
 - Tint: PDF SetLum of the tint color to the gray, luma `(30R + 59G + 11B) / 100` rounded to a whole level, then ClipColor. Within one level everywhere (about a third of the tinted values differ by one).
 - Channels mix, so there is no LUT; 16/32-bit documents run the same math without the rounding. Patchy offers no Auto weights (docs/legal-constraints.md).
+
+## Vibrance (placeholder; findings for a later pass)
+
+`vibA` stays a placeholder (Seth, 2026-10-20). Its block is a version 16 descriptor with `vibrance` and `Strt` longs (-100..100). A Photoshop 2026 COM probe (#250; 14 settings in the scratch calibration, not committed) found:
+
+- Saturation alone is exact in form: in sRGB linear light, every channel scales around a gray `0.287 R + 0.708 G` (blue weight zero: pure blue desaturates to black) by `1 + s/100`, then clips and re-encodes. Saturation -100 gives that gray (red 146, green 219, cyan 219, magenta 146); -50 on red gives (210, 106, 106).
+- The Vibrance slider has no public formula. It leaves fully saturated colors alone at +100 and keeps their largest channel at -100 (red becomes (255, 137, 137)), moves low-saturation colors much more, and treats hues differently (blues keep their maximum, skin-like oranges lose it), consistent with Adobe's documented skin-tone protection. Scaling around the Saturation gray, or toward the pixel maximum by a saturation-weighted factor, misses by 20+ levels on average.
+- Photoshop has since added a newer Color & Vibrance adjustment with a "Use Legacy" toggle for documents made with the old Vibrance and Saturation, so the newer algorithm and its block form need their own probe before Patchy writes either.
+- Patent notes are in [patent-research-adjustments.md](patent-research-adjustments.md): skin-tone detection as content needs a claim-level read first.
