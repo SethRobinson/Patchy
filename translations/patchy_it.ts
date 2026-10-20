@@ -11321,6 +11321,70 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Fragment</source>
         <translation>Frammento</translation>
     </message>
+    <message>
+        <source>Horizontal Only</source>
+        <translation>Solo orizzontale</translation>
+    </message>
+    <message>
+        <source>Vertical Only</source>
+        <translation>Solo verticale</translation>
+    </message>
+    <message>
+        <source>Mode</source>
+        <translation>Modalità</translation>
+    </message>
+    <message>
+        <source>Rectangular to Polar</source>
+        <translation>Da rettangolari a polari</translation>
+    </message>
+    <message>
+        <source>Polar to Rectangular</source>
+        <translation>Da polari a rettangolari</translation>
+    </message>
+    <message>
+        <source>Conversion</source>
+        <translation>Conversione</translation>
+    </message>
+    <message>
+        <source>Lower</source>
+        <translation>Inferiore</translation>
+    </message>
+    <message>
+        <source>Upper</source>
+        <translation>Superiore</translation>
+    </message>
+    <message>
+        <source>Level</source>
+        <translation>Livello</translation>
+    </message>
+    <message>
+        <source>Darken Only</source>
+        <translation>Solo scurisci</translation>
+    </message>
+    <message>
+        <source>Lighten Only</source>
+        <translation>Solo schiarisci</translation>
+    </message>
+    <message>
+        <source>Pinch</source>
+        <translation>Pizzico</translation>
+    </message>
+    <message>
+        <source>Spherize</source>
+        <translation>Effetto sfera</translation>
+    </message>
+    <message>
+        <source>Polar Coordinates</source>
+        <translation>Coordinate polari</translation>
+    </message>
+    <message>
+        <source>Trace Contour</source>
+        <translation>Traccia contorno</translation>
+    </message>
+    <message>
+        <source>Diffuse</source>
+        <translation>Diffusione</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

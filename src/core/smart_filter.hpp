@@ -50,6 +50,12 @@ enum class SmartFilterKind {
   Adjustment,
   Ripple,
   Shear,
+  Twirl,
+  Pinch,
+  Spherize,
+  PolarCoordinates,
+  TraceContour,
+  Diffuse,
   // Photoshop's Filter Gallery entry (GEfc): one or more gallery effects in
   // order; the settings are a FilterGallerySmartFilter.
   FilterGallery,

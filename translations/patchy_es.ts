@@ -11321,6 +11321,70 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Fragment</source>
         <translation>Fragmento</translation>
     </message>
+    <message>
+        <source>Horizontal Only</source>
+        <translation>Solo horizontal</translation>
+    </message>
+    <message>
+        <source>Vertical Only</source>
+        <translation>Solo vertical</translation>
+    </message>
+    <message>
+        <source>Mode</source>
+        <translation>Modo</translation>
+    </message>
+    <message>
+        <source>Rectangular to Polar</source>
+        <translation>Rectangulares a polares</translation>
+    </message>
+    <message>
+        <source>Polar to Rectangular</source>
+        <translation>Polares a rectangulares</translation>
+    </message>
+    <message>
+        <source>Conversion</source>
+        <translation>Conversión</translation>
+    </message>
+    <message>
+        <source>Lower</source>
+        <translation>Inferior</translation>
+    </message>
+    <message>
+        <source>Upper</source>
+        <translation>Superior</translation>
+    </message>
+    <message>
+        <source>Level</source>
+        <translation>Nivel</translation>
+    </message>
+    <message>
+        <source>Darken Only</source>
+        <translation>Solo oscurecer</translation>
+    </message>
+    <message>
+        <source>Lighten Only</source>
+        <translation>Solo aclarar</translation>
+    </message>
+    <message>
+        <source>Pinch</source>
+        <translation>Pellizcar</translation>
+    </message>
+    <message>
+        <source>Spherize</source>
+        <translation>Esferizar</translation>
+    </message>
+    <message>
+        <source>Polar Coordinates</source>
+        <translation>Coordenadas polares</translation>
+    </message>
+    <message>
+        <source>Trace Contour</source>
+        <translation>Trazar contorno</translation>
+    </message>
+    <message>
+        <source>Diffuse</source>
+        <translation>Difusión</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

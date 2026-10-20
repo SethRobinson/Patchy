@@ -11355,6 +11355,70 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Fragment</source>
         <translation>Фрагмент</translation>
     </message>
+    <message>
+        <source>Horizontal Only</source>
+        <translation>Только по горизонтали</translation>
+    </message>
+    <message>
+        <source>Vertical Only</source>
+        <translation>Только по вертикали</translation>
+    </message>
+    <message>
+        <source>Mode</source>
+        <translation>Режим</translation>
+    </message>
+    <message>
+        <source>Rectangular to Polar</source>
+        <translation>Прямоугольные в полярные</translation>
+    </message>
+    <message>
+        <source>Polar to Rectangular</source>
+        <translation>Полярные в прямоугольные</translation>
+    </message>
+    <message>
+        <source>Conversion</source>
+        <translation>Преобразование</translation>
+    </message>
+    <message>
+        <source>Lower</source>
+        <translation>Нижний</translation>
+    </message>
+    <message>
+        <source>Upper</source>
+        <translation>Верхний</translation>
+    </message>
+    <message>
+        <source>Level</source>
+        <translation>Уровень</translation>
+    </message>
+    <message>
+        <source>Darken Only</source>
+        <translation>Только замена темным</translation>
+    </message>
+    <message>
+        <source>Lighten Only</source>
+        <translation>Только замена светлым</translation>
+    </message>
+    <message>
+        <source>Pinch</source>
+        <translation>Дисторсия</translation>
+    </message>
+    <message>
+        <source>Spherize</source>
+        <translation>Сферизация</translation>
+    </message>
+    <message>
+        <source>Polar Coordinates</source>
+        <translation>Полярные координаты</translation>
+    </message>
+    <message>
+        <source>Trace Contour</source>
+        <translation>Трассировка контура</translation>
+    </message>
+    <message>
+        <source>Diffuse</source>
+        <translation>Диффузия</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

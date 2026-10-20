@@ -11287,6 +11287,70 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Fragment</source>
         <translation>分割</translation>
     </message>
+    <message>
+        <source>Horizontal Only</source>
+        <translation>水平方向のみ</translation>
+    </message>
+    <message>
+        <source>Vertical Only</source>
+        <translation>垂直方向のみ</translation>
+    </message>
+    <message>
+        <source>Mode</source>
+        <translation>モード</translation>
+    </message>
+    <message>
+        <source>Rectangular to Polar</source>
+        <translation>直交座標を極座標に</translation>
+    </message>
+    <message>
+        <source>Polar to Rectangular</source>
+        <translation>極座標を直交座標に</translation>
+    </message>
+    <message>
+        <source>Conversion</source>
+        <translation>変換</translation>
+    </message>
+    <message>
+        <source>Lower</source>
+        <translation>下</translation>
+    </message>
+    <message>
+        <source>Upper</source>
+        <translation>上</translation>
+    </message>
+    <message>
+        <source>Level</source>
+        <translation>レベル</translation>
+    </message>
+    <message>
+        <source>Darken Only</source>
+        <translation>比較（暗）のみ</translation>
+    </message>
+    <message>
+        <source>Lighten Only</source>
+        <translation>比較（明）のみ</translation>
+    </message>
+    <message>
+        <source>Pinch</source>
+        <translation>つまむ</translation>
+    </message>
+    <message>
+        <source>Spherize</source>
+        <translation>球面</translation>
+    </message>
+    <message>
+        <source>Polar Coordinates</source>
+        <translation>極座標</translation>
+    </message>
+    <message>
+        <source>Trace Contour</source>
+        <translation>輪郭のトレース</translation>
+    </message>
+    <message>
+        <source>Diffuse</source>
+        <translation>拡散</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

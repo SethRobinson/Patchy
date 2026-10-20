@@ -6,6 +6,8 @@
 #include "core/smart_filter.hpp"
 #include "core/smart_filter_schema.hpp"
 #include "core/smart_object.hpp"
+#include "filters/smart_filter_renderer.hpp"
+#include "psd/psd_document_io.hpp"
 #include "local_psd_fixtures.hpp"
 #include "test_harness.hpp"
 #include "ui/app_settings.hpp"
@@ -176,6 +178,51 @@ void ui_smart_filter_imported_zigzag_dialog_edits_schema_settings() {
                       "smart_filter_zigzag_patchy_around_center");
 }
 
+// Wave, Ripple, ZigZag and Shear render only approximately (Patchy's own
+// pattern or a documented tolerance), so opening a PSD must show Photoshop's
+// baked layer until the user edits the stack: no render on open.
+void ui_smart_filter_approximate_schema_stacks_keep_photoshop_pixels_on_open() {
+  SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  for (const char* file : {"photoshop-smart-filter-wave.psd", "photoshop-smart-filter-ripple.psd",
+                           "photoshop-smart-filter-zigzag.psd", "photoshop-smart-filter-shear.psd",
+                           "photoshop-smart-filter-diffuse.psd"}) {
+    const auto fixture = patchy::test::committed_psd_fixture_path(file);
+    const auto baked = patchy::psd::DocumentIo::read_file(fixture);
+    const patchy::Layer* baked_layer = nullptr;
+    const patchy::Layer* source_layer = nullptr;
+    for (const auto& layer : baked.layers()) {
+      if (layer.name() == "Layer 1") {
+        baked_layer = &layer;
+      } else if (layer.name() == "_source") {
+        source_layer = &layer;
+      }
+    }
+    CHECK(baked_layer != nullptr && source_layer != nullptr &&
+          baked_layer->smart_filter_stack() != nullptr);
+
+    // The check can fail: Patchy's own render of this stack differs from the baked layer.
+    const auto own = patchy::render_smart_filter_stack(
+        source_layer->pixels(), source_layer->bounds(),
+        patchy::Rect{0, 0, baked.width(), baked.height()}, *baked_layer->smart_filter_stack());
+    CHECK(!patchy::ui::pixel_buffers_equal(own.pixels, baked_layer->pixels()));
+
+    patchy::ui::MainWindow window;
+    show_window(window);
+    patchy::ui::MainWindowTestAccess::open_document_path(
+        window, QString::fromStdWString(fixture.wstring()));
+    QApplication::processEvents();
+    const auto layer_id = select_named_layer(window, QStringLiteral("Layer 1"));
+    const auto* opened = std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(layer_id);
+    CHECK(opened != nullptr && opened->smart_filter_stack() != nullptr);
+    CHECK(opened->smart_filter_stack()->support == patchy::SmartFilterStackSupport::Supported);
+    CHECK(opened->bounds().x == baked_layer->bounds().x && opened->bounds().y == baked_layer->bounds().y &&
+          opened->bounds().width == baked_layer->bounds().width &&
+          opened->bounds().height == baked_layer->bounds().height);
+    CHECK(patchy::ui::pixel_buffers_equal(opened->pixels(), baked_layer->pixels()));
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> smart_filter_tests_part4() {
@@ -184,5 +231,7 @@ std::vector<patchy::test::TestCase> smart_filter_tests_part4() {
        ui_smart_filter_imported_find_edges_renders_edits_and_undoes},
       {"ui_smart_filter_imported_zigzag_dialog_edits_schema_settings",
        ui_smart_filter_imported_zigzag_dialog_edits_schema_settings},
+      {"ui_smart_filter_approximate_schema_stacks_keep_photoshop_pixels_on_open",
+       ui_smart_filter_approximate_schema_stacks_keep_photoshop_pixels_on_open},
   };
 }

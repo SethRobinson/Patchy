@@ -11305,6 +11305,70 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Shear</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Horizontal Only</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Vertical Only</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mode</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rectangular to Polar</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Polar to Rectangular</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Conversion</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pinch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Spherize</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Polar Coordinates</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lower</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Upper</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Level</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Trace Contour</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Darken Only</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lighten Only</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Diffuse</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
