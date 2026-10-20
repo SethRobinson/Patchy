@@ -39,4 +39,15 @@ inline std::filesystem::path local_format_fixture_path(std::string_view format_d
   return source_root_path() / "local-test-fixtures" / std::string(format_dir) / std::string(file_name);
 }
 
+// The Filter Foundry test plug-ins (docs/plugins.md): GPL binaries the repository does
+// not carry. scripts/fetch-test-plugins.{ps1,sh} downloads them, hash-checked, into
+// this untracked folder; tests that need them skip while it is missing.
+inline std::filesystem::path filter_foundry_fixture_dir() {
+  return source_root_path() / "local-test-fixtures" / "photoshop-plugins" / "filter-foundry";
+}
+
+inline std::filesystem::path filter_foundry_fixture_path(std::string_view file_name) {
+  return filter_foundry_fixture_dir() / std::string(file_name);
+}
+
 }  // namespace patchy::test

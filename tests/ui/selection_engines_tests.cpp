@@ -1334,6 +1334,7 @@ void ui_bundled_legacy_plugin_action_applies_filter() {
   // (legacy 8BF support is Windows-only), so no legacyPluginAction exists to trigger.
   patchy::test::skip("bundled legacy 8BF plug-ins are Windows-only");
 #else
+  require_filter_foundry_fixtures();
   patchy::ui::MainWindow window;
   show_window(window);
   auto* canvas = require_canvas(window);
@@ -1362,8 +1363,7 @@ void ui_bundled_legacy_plugin_action_applies_filter() {
   const auto menu_dir = QDir::current().filePath(QStringLiteral("test-artifacts/legacy-plugins/menu32-bundled"));
   remove_test_scratch_dir(menu_dir);
   CHECK(QDir().mkpath(menu_dir));
-  CHECK(QFile::copy(patchy::ui::to_qstring(patchy::test::source_root_path() / "test-fixtures" / "photoshop-plugins" /
-                                            "Greyscale.8bf"),
+  CHECK(QFile::copy(patchy::ui::to_qstring(patchy::test::filter_foundry_fixture_path("Greyscale.8bf")),
                     menu_dir + QStringLiteral("/Bundled Grey32.8bf")));
   {
     auto& host = window.script_engine_host();

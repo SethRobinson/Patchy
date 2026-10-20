@@ -499,8 +499,8 @@ void ui_unicode_recent_history_merges_unattended_work_and_refreshes() {
 
 void ui_unicode_legacy_plugin_probe_from_unicode_dir() {
   const auto dir = unicode_dir(QStringLiteral("plugins"));
-  const auto source = patchy::test::source_root_path() / "test-fixtures" / "photoshop-plugins" / "Greyscale64.8bf";
-  CHECK(std::filesystem::exists(source));
+  const auto source = patchy::test::filter_foundry_fixture_path("Greyscale64.8bf");
+  patchy::test::skip_unless_exists(source);
   const auto name = combined_name("8bf");
   const auto path = dir + QLatin1Char('/') + name;
   CHECK(QFile::copy(patchy::ui::to_qstring(source), path));

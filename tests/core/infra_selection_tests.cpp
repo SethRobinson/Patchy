@@ -12,6 +12,7 @@
 #include "support/cli_flags.hpp"
 #include "support/startup_trace.hpp"
 #include "test_harness.hpp"
+#include "local_psd_fixtures.hpp"
 #include "remove_object_fixture.hpp"
 #include "synthetic_dng.hpp"
 #include <algorithm>
@@ -89,14 +90,15 @@ void plugin_host_and_legacy_probe_work() {
   CHECK(!probe.architecture.empty());
   std::filesystem::remove(fixture);
 
-#ifdef PATCHY_SOURCE_DIR
-  const auto real_plugin =
-      std::filesystem::path(PATCHY_SOURCE_DIR) / "test-fixtures" / "photoshop-plugins" / "Greyscale64.8bf";
-  CHECK(std::filesystem::exists(real_plugin));
-  const auto real_probe = adapter.probe(real_plugin);
-  CHECK(real_probe.kind == patchy::LegacyPhotoshopPluginKind::Filter8bf);
-  CHECK(real_probe.architecture == "x64");
-#endif
+  // The real Filter Foundry plug-in is a fetched local fixture (scripts/fetch-test-plugins);
+  // legacy_probe_reports_names_and_bitness in pipl_tests covers it, so this is a bonus
+  // probe that runs only when the fixture is present.
+  const auto real_plugin = patchy::test::filter_foundry_fixture_path("Greyscale64.8bf");
+  if (std::filesystem::exists(real_plugin)) {
+    const auto real_probe = adapter.probe(real_plugin);
+    CHECK(real_probe.kind == patchy::LegacyPhotoshopPluginKind::Filter8bf);
+    CHECK(real_probe.architecture == "x64");
+  }
 }
 
 void tile_cache_stores_and_invalidates() {

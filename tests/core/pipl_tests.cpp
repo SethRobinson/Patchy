@@ -21,7 +21,8 @@
 // Legacy Photoshop plug-in support (docs/plugins.md): the PiPL property-list
 // reader (a pure file read, no plug-in is loaded), the probe's names and
 // bitness, and, on Windows, the out-of-process host executables driven through
-// their --self-test mode over the committed Filter Foundry fixtures.
+// their --self-test mode over the fetched Filter Foundry fixtures
+// (scripts/fetch-test-plugins; the tests that need them skip without them).
 #include "plugins/legacy_photoshop_adapter.hpp"
 #include "plugins/pipl.hpp"
 #include "core_test_support.hpp"
@@ -49,7 +50,7 @@ namespace {
 using patchy::pipl::fourcc;
 
 std::filesystem::path plugin_fixture(const char* name) {
-  return patchy::test::source_root_path() / "test-fixtures" / "photoshop-plugins" / name;
+  return patchy::test::filter_foundry_fixture_path(name);
 }
 
 std::vector<std::uint8_t> pascal_bytes(const std::string& text) {
@@ -111,6 +112,7 @@ void pipl_blob_round_trips_properties() {
 }
 
 void pipl_reads_bundled_fixture_property_lists() {
+  patchy::test::skip_unless_exists(plugin_fixture("Greyscale.8bf"));
   struct Expected {
     const char* file;
     const char* name;
@@ -141,6 +143,7 @@ void pipl_reads_bundled_fixture_property_lists() {
 // The file reader loads only the headers and the resource section; the result
 // must match a parse of the whole image.
 void pipl_partial_read_matches_full_read() {
+  patchy::test::skip_unless_exists(plugin_fixture("Greyscale.8bf"));
   for (const char* name : {"Greyscale.8bf", "Greyscale64.8bf", "White to Transparent.8bf",
                            "White to Transparent64.8bf"}) {
     const auto path = plugin_fixture(name);
@@ -162,6 +165,7 @@ void pipl_partial_read_matches_full_read() {
 }
 
 void legacy_probe_reports_names_and_bitness() {
+  patchy::test::skip_unless_exists(plugin_fixture("Greyscale.8bf"));
   patchy::LegacyPhotoshopAdapter adapter;
   const auto x86 = adapter.probe(plugin_fixture("Greyscale.8bf"));
   CHECK(x86.kind == patchy::LegacyPhotoshopPluginKind::Filter8bf);
@@ -226,6 +230,7 @@ long run_helper(const std::wstring& command_line) {
 std::wstring quoted(const std::filesystem::path& path) { return L"\"" + path.wstring() + L"\""; }
 
 void legacy_host_self_test_filters_fixtures_in_both_bitnesses() {
+  patchy::test::skip_unless_exists(plugin_fixture("Greyscale.8bf"));
   const auto bin = test_binary_directory();
   const auto out_dir = std::filesystem::path("test-artifacts") / "legacy-plugins";
   std::filesystem::create_directories(out_dir);

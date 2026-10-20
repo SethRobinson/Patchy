@@ -285,9 +285,18 @@ void unicode_path_read_only_formats_and_plugin_probe() {
   CHECK(af_document.width() > 0);
   CHECK(!af_document.layers().empty());
 
+  CHECK(directory_holds_only(dir, written));
+}
+
+// The legacy plug-in probe through a Unicode path. The Filter Foundry fixture is fetched,
+// not committed (scripts/fetch-test-plugins), so this test skips without it.
+void unicode_path_plugin_probe() {
+  const auto source = patchy::test::filter_foundry_fixture_path("Greyscale64.8bf");
+  patchy::test::skip_unless_exists(source);
+  const auto dir = unicode_artifact_dir(u8"plugin-probe");
+  std::vector<std::filesystem::path> written;
   const auto plugin_path = named(dir, kUnicodeCombinedStem, ".8bf");
-  copy_fixture_into(patchy::test::source_root_path() / "test-fixtures" / "photoshop-plugins" / "Greyscale64.8bf",
-                    plugin_path);
+  copy_fixture_into(source, plugin_path);
   written.push_back(plugin_path);
   patchy::LegacyPhotoshopAdapter adapter;
   const auto probe = adapter.probe(plugin_path);
@@ -296,7 +305,6 @@ void unicode_path_read_only_formats_and_plugin_probe() {
   // "not found" instead of the PE kind and architecture. `supported` also depends on
   // the host platform and architecture, so only kind and architecture are pinned.
   CHECK(probe.architecture == "x64");
-
   CHECK(directory_holds_only(dir, written));
 }
 
@@ -334,6 +342,7 @@ std::vector<patchy::test::TestCase> unicode_path_tests() {
       {"unicode_path_layered_psd_psb_round_trip", unicode_path_layered_psd_psb_round_trip},
       {"unicode_path_flat_format_file_io_round_trips", unicode_path_flat_format_file_io_round_trips},
       {"unicode_path_read_only_formats_and_plugin_probe", unicode_path_read_only_formats_and_plugin_probe},
+      {"unicode_path_plugin_probe", unicode_path_plugin_probe},
       {"unicode_path_stem_names_first_layer_utf8", unicode_path_stem_names_first_layer_utf8},
   };
 }

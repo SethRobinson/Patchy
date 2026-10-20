@@ -259,7 +259,7 @@ if (-not $dumpbin) {
 #    no console to print to).
 $selfTestScript = Join-Path $repo "packaging\package-selftest.js"
 $selfTestOutput = Join-Path $selfTestDir "output.txt"
-$fixturePlugins = Join-Path $repo "test-fixtures\photoshop-plugins"
+$fixturePlugins = Join-Path $repo "local-test-fixtures\photoshop-plugins\filter-foundry"
 $savedEnv = @{}
 foreach ($name in "PATH", "PATCHY_SETTINGS_DIR", "PATCHY_NO_SOUND", "QT_COMMAND_LINE_PARSER_NO_GUI_MESSAGE_BOXES") {
     $savedEnv[$name] = [Environment]::GetEnvironmentVariable($name, "Process")

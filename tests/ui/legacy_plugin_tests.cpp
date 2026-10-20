@@ -92,12 +92,13 @@ using namespace patchy::test::ui;
 using patchy::ui::MainWindowTestAccess;
 
 QString fixture_path(const char* name) {
-  return patchy::ui::to_qstring(patchy::test::source_root_path() / "test-fixtures" / "photoshop-plugins" / name);
+  return patchy::ui::to_qstring(patchy::test::filter_foundry_fixture_path(name));
 }
 
 // A fresh folder under test-artifacts holding renamed copies of the fixtures
 // (renamed so their identifiers never collide with the auto-scanned fixtures).
 QString make_plugin_folder(const QString& leaf, const std::vector<std::pair<const char*, QString>>& copies) {
+  require_filter_foundry_fixtures();
   ensure_artifact_dir();
   const auto dir = QDir::current().filePath(QStringLiteral("test-artifacts/legacy-plugins/") + leaf);
   remove_test_scratch_dir(dir);
@@ -235,8 +236,8 @@ void ui_legacy_plugin_non_filter_files_are_listed_not_offered() {
 }
 
 #ifdef Q_OS_WIN
-// The auto-scanned fixture next to the binary (developer builds copy
-// test-fixtures there).
+// The auto-scanned fixtures next to the binary: require_filter_foundry_fixtures()
+// stages the fetched Filter Foundry plug-ins there (docs/plugins.md).
 constexpr const char* kGreyscale64Id = "legacy.photoshop.Greyscale64";
 constexpr const char* kGreyscale32Id = "legacy.photoshop.Greyscale";
 
@@ -255,6 +256,7 @@ QColor layer_pixel(patchy::ui::MainWindow& window, int x, int y) {
 }
 
 void ui_legacy_plugin_run_respects_selection_and_undoes() {
+  require_filter_foundry_fixtures();
   patchy::ui::MainWindow window;
   show_window(window);
   wait_for_legacy_plugin_scan(window);
@@ -448,6 +450,7 @@ void ui_legacy_plugin_mehdi_dialog_capture_if_available() {
 // repeating it on the active layer with its own undo step; gone with the
 // plug-in's folder.
 void ui_legacy_plugin_repeat_last_commands() {
+  require_filter_foundry_fixtures();
   patchy::ui::MainWindow window;
   show_window(window);
   wait_for_legacy_plugin_scan(window);
@@ -514,6 +517,7 @@ void ui_legacy_plugin_repeat_last_commands() {
 // Plugins menu: the folder command creates the folder with its README, the
 // rescan command rebuilds the submenu on a worker and reports in the status bar.
 void ui_legacy_plugin_menu_opens_folder_and_rescans() {
+  require_filter_foundry_fixtures();
   patchy::ui::MainWindow window;
   show_window(window);
   wait_for_legacy_plugin_scan(window);
@@ -598,6 +602,7 @@ void ui_legacy_plugin_ui_absent_off_windows() {
 // With nothing selected, a one-layer document still has an obvious target: the
 // plug-in runs on it instead of asking for a layer.
 void ui_legacy_plugin_runs_on_only_layer_when_none_selected() {
+  require_filter_foundry_fixtures();
   patchy::ui::MainWindow window;
   show_window(window);
   wait_for_legacy_plugin_scan(window);
@@ -628,6 +633,7 @@ void ui_legacy_plugin_runs_on_only_layer_when_none_selected() {
 // ever sees pixels); Rasterize runs the plug-in on the pixels, Cancel leaves
 // the text layer alone.
 void ui_legacy_plugin_offers_to_rasterize_text_layer() {
+  require_filter_foundry_fixtures();
   patchy::ui::MainWindow window;
   show_window(window);
   wait_for_legacy_plugin_scan(window);

@@ -151,8 +151,9 @@ QStringList MainWindow::legacy_plugin_scan_roots() {
   }
 #endif
   roots << stored_legacy_plugin_folders();
-  // Developer builds keep the committed test plug-ins next to the binary; the
-  // packaged application does not ship them.
+  // The UI tests stage the fetched Filter Foundry test plug-ins next to the
+  // binary (require_filter_foundry_fixtures); the packaged application never
+  // ships them.
   const auto fixtures = QDir(app_dir).filePath(QStringLiteral("test-fixtures/photoshop-plugins"));
   if (QDir(fixtures).exists()) {
     roots << fixtures;

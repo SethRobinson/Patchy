@@ -1451,6 +1451,25 @@ void skip_without_psd_text_face(const patchy::Layer& layer, const QString& expec
   }
 }
 
+QString require_filter_foundry_fixtures() {
+  const auto source_dir = patchy::test::filter_foundry_fixture_dir();
+  patchy::test::skip_unless_exists(source_dir / "Greyscale64.8bf");
+  const auto staged = QDir(QCoreApplication::applicationDirPath()).filePath(
+      QStringLiteral("test-fixtures/photoshop-plugins"));
+  CHECK(QDir().mkpath(staged));
+  for (const char* name : {"Greyscale.8bf", "Greyscale64.8bf", "White to Transparent.8bf",
+                           "White to Transparent64.8bf"}) {
+    const auto source = patchy::ui::to_qstring(source_dir / name);
+    const auto target = staged + QLatin1Char('/') + QString::fromLatin1(name);
+    if (QFileInfo::exists(target) && QFileInfo(target).size() == QFileInfo(source).size()) {
+      continue;
+    }
+    QFile::remove(target);
+    CHECK(QFile::copy(source, target));
+  }
+  return staged;
+}
+
 void wait_for_legacy_plugin_scan(patchy::ui::MainWindow& window) {
   // Startup schedules the scan from a zero-delay timer; deliver that first.
   QCoreApplication::processEvents(QEventLoop::AllEvents, 20);

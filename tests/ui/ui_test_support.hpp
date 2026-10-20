@@ -591,6 +591,12 @@ QAction* require_legacy_plugin_action(QWidget& root, const QString& text);
 // Blocks (pumping events) until the window's startup plug-in scan has applied
 // its result; the scan runs on a worker and the menu fills in afterwards.
 void wait_for_legacy_plugin_scan(patchy::ui::MainWindow& window);
+// The Filter Foundry test plug-ins are fetched into local-test-fixtures (scripts/
+// fetch-test-plugins), never committed. Skips the test when they are missing; otherwise
+// stages copies in test-fixtures/photoshop-plugins next to the test binary, the developer
+// scan root MainWindow::legacy_plugin_scan_roots adds, so a fresh window's startup scan
+// offers them. Returns the staged folder. Call it before creating the window.
+QString require_filter_foundry_fixtures();
 
 QListWidgetItem* find_layer_item(QListWidget& list, const QString& text);
 
