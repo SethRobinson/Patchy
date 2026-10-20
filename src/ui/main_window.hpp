@@ -1710,8 +1710,13 @@ private:
   void reorder_layers_from_list();
   void toggle_layer_folder_expanded(LayerId id, bool include_nested = false);
   void toggle_all_layer_folders_expanded(LayerId reference_id);
-  void reveal_layer_in_layer_list(LayerId id);
-  void select_layers_in_layer_list(const std::vector<LayerId>& ids, LayerId active_id);
+  // Selects the layer's row, rebuilding the rows only when a collapsed ancestor or the
+  // name filter hides it. The list scrolls only when the row is off screen; `clicked_in_panel`
+  // (the row's own badge buttons) also keeps a partly visible row where the pointer found it
+  // (GitHub issue 266).
+  void reveal_layer_in_layer_list(LayerId id, bool clicked_in_panel = false);
+  void select_layers_in_layer_list(const std::vector<LayerId>& ids, LayerId active_id,
+                                   bool clicked_in_panel = false);
   // Select > Deselect Layers: no selected rows and no active layer.
   void deselect_all_layers();
   // For a command that needs a layer: with no active layer, a one-layer
@@ -2525,6 +2530,11 @@ private:
   std::shared_ptr<StartupLibraryPreloads> library_preloads_;
   void start_library_preloads();
   void adopt_preloaded_pattern_library();
+  // Test seam: while held, the pattern preload worker of every window constructed afterwards
+  // keeps its result back until that window asks for the library (pattern_library()), the
+  // window is destroyed, or the hold is released, so a test can drive a window whose
+  // preload has not landed yet (docs/startup-performance.md).
+  static void hold_pattern_preload_for_tests(bool hold);
   GradientLibrary* gradient_library_{nullptr};
   CustomShapeLibrary* custom_shape_library_{nullptr};
   StyleLibrary* style_library_{nullptr};

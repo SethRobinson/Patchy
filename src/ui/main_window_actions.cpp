@@ -411,6 +411,11 @@ void MainWindow::retranslate_brush_preset_combo() {
 }
 
 void MainWindow::retranslate_ui() {
+  // The Pattern Stamp list is rebuilt below with translated names, so a language change
+  // adopts the startup preload first (waiting for the worker when it is still running);
+  // otherwise a switch made before the preload lands leaves the list empty until then
+  // (docs/startup-performance.md, "Preloaded libraries").
+  (void)pattern_library();
   retranslate_bound_children();
   if (menuBar() != nullptr) {
     for (auto* action : menuBar()->actions()) {

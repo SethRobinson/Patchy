@@ -1,4 +1,4 @@
-6f50c979881371c1 arrows.psd
+f168245df8d24c42 arrows.psd
 7b0b17b25ffc630d patchy-compound-group.psd
 82b3b2f76a478139 patchy-gradient-empty-transparency.psd
 d416c48ba5c4bc3d patchy-open-path-strokes.psd
@@ -117,10 +117,10 @@ e9da7fae842c6b4d photoshop-smart-filter-trace-contour.psd
 83124c4815a60bfb photoshop-smart-filter-zigzag-around.psd
 b6058a877a8cd02e photoshop-smart-filter-zigzag.psd
 83f78cd4fa26795d photoshop-smart-filter-zoom.psd
-fae153247444d536 photoshop-stroke-aa-matte.psd
+e1d3c595decc6ac4 photoshop-stroke-aa-matte.psd
 1aef2000219e220d photoshop-stroke-masked.psd
-700fc0a254417579 photoshop-stroke-overprint.psd
-342ed7cddef82515 photoshop-stroke-partial-alpha.psd
+7e5356278fda59d9 photoshop-stroke-overprint.psd
+3f93f7c6bb41c9d9 photoshop-stroke-partial-alpha.psd
 16835e195f6491ed photoshop-stroke-positions.psd
 17f41a2d949ef82e photoshop-stroke-shapeburst.psd
 9d6ce1e6cb3c5e8b photoshop-text-anchor-center-third.psd
