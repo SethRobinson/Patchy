@@ -199,6 +199,13 @@ void MainWindow::undo() {
   // through the session's drags. With no step left, an unchanged session cancels;
   // one still holding a stage from before a mode switch stays, so Undo never
   // reaches the document history behind an open transform.
+  if (canvas_->path_transform_active()) {
+    // The path transform box writes its live fill un-armed: Undo cancels the
+    // session (restoring the path) instead of reaching the history behind it.
+    canvas_->cancel_path_transform();
+    update_undo_redo_actions();
+    return;
+  }
   if (canvas_->free_transform_active() || canvas_->warp_transform_active()) {
     if (!canvas_->undo_transform_session_step() && !canvas_->transform_session_has_changes()) {
       if (canvas_->warp_transform_active()) {
@@ -228,6 +235,9 @@ void MainWindow::undo() {
 void MainWindow::redo() {
   if (canvas_ == nullptr || canvas_->pointer_gesture_active()) {
     return;
+  }
+  if (canvas_->path_transform_active()) {
+    return;  // nothing to redo inside a path transform session
   }
   if (canvas_->free_transform_active() || canvas_->warp_transform_active()) {
     canvas_->redo_transform_session_step();

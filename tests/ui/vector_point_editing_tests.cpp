@@ -1507,6 +1507,83 @@ void ui_path_transform_distort_never_folds_the_quad() {
   CHECK(corners_near(corners, {QPointF(150, 130), QPointF(300, 100), QPointF(300, 220), QPointF(100, 220)}));
 }
 
+// The alpha of the shape layer's rendered fill at a document point (0 outside it).
+int layer_fill_alpha_at(patchy::Document& document, patchy::LayerId id, QPoint document_point) {
+  const auto* layer = std::as_const(document).find_layer(id);
+  CHECK(layer != nullptr);
+  if (layer == nullptr) {
+    return -1;
+  }
+  const auto bounds = layer->bounds();
+  const QPoint local(document_point.x() - bounds.x, document_point.y() - bounds.y);
+  const auto& pixels = layer->pixels();
+  if (local.x() < 0 || local.y() < 0 || local.x() >= pixels.width() || local.y() >= pixels.height() ||
+      pixels.format().channels < 4) {
+    return 0;
+  }
+  return pixels.pixel(local.x(), local.y())[3];
+}
+
+// GitHub issue 248 follow-up: the shape's fill follows the path transform box
+// live (every drag frame re-rasterizes the one layer), not only on Enter: a
+// pixel the new outline left is empty mid-drag, after release and after Enter.
+// Esc restores the fill, and Undo during the session cancels it rather than
+// reaching the history behind it. Plain scale drags follow too.
+void ui_path_transform_fill_follows_the_box_live() {
+  {
+    PathTransformGestureScene scene;
+    auto& document = patchy::ui::MainWindowTestAccess::document(scene.window);
+    CHECK(layer_fill_alpha_at(document, scene.layer_id, QPoint(105, 105)) > 200);
+    scene.press_and_move(QPoint(100, 100), {QPoint(130, 120), QPoint(160, 140)}, Qt::ControlModifier);
+    save_widget_artifact("ui_path_transform_fill_mid_drag", *scene.canvas);
+    CHECK(layer_fill_alpha_at(document, scene.layer_id, QPoint(105, 105)) == 0);  // left by the new outline
+    CHECK(layer_fill_alpha_at(document, scene.layer_id, QPoint(200, 170)) > 200);  // still inside
+    send_mouse(*scene.canvas, QEvent::MouseButtonRelease, scene.canvas->widget_position_for_document_point(QPoint(160, 140)),
+               Qt::LeftButton, Qt::NoButton, Qt::ControlModifier);
+    QApplication::processEvents();
+    CHECK(layer_fill_alpha_at(document, scene.layer_id, QPoint(105, 105)) == 0);
+    send_key(*scene.canvas, Qt::Key_Return);
+    QApplication::processEvents();
+    CHECK(!scene.canvas->path_transform_active());
+    save_widget_artifact("ui_path_transform_fill_after_enter", *scene.canvas);
+    CHECK(layer_fill_alpha_at(document, scene.layer_id, QPoint(105, 105)) == 0);
+    CHECK(std::abs(anchor_at(document, scene.layer_id, 0).anchor_x - 160.0) < 0.6);
+    // One undo entry brings the whole rectangle back.
+    require_action_by_text(scene.window, QStringLiteral("Undo"))->trigger();
+    QApplication::processEvents();
+    CHECK(layer_fill_alpha_at(document, scene.layer_id, QPoint(105, 105)) > 200);
+    CHECK(std::abs(anchor_at(document, scene.layer_id, 0).anchor_x - 100.0) < 0.5);
+  }
+  {
+    PathTransformGestureScene scene;
+    auto& document = patchy::ui::MainWindowTestAccess::document(scene.window);
+    scene.press_and_move(QPoint(300, 160), {QPoint(270, 160), QPoint(250, 160)}, Qt::NoModifier);
+    CHECK(layer_fill_alpha_at(document, scene.layer_id, QPoint(280, 160)) == 0);  // a plain scale follows too
+    send_mouse(*scene.canvas, QEvent::MouseButtonRelease, scene.canvas->widget_position_for_document_point(QPoint(250, 160)),
+               Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    send_key(*scene.canvas, Qt::Key_Escape);
+    QApplication::processEvents();
+    CHECK(!scene.canvas->path_transform_active());
+    CHECK(layer_fill_alpha_at(document, scene.layer_id, QPoint(280, 160)) > 200);  // Esc restores the fill
+    CHECK(std::abs(anchor_at(document, scene.layer_id, 2).anchor_x - 300.0) < 0.5);
+  }
+  {
+    PathTransformGestureScene scene;
+    auto& document = patchy::ui::MainWindowTestAccess::document(scene.window);
+    scene.press_and_move(QPoint(300, 160), {QPoint(250, 160)}, Qt::NoModifier);
+    send_mouse(*scene.canvas, QEvent::MouseButtonRelease, scene.canvas->widget_position_for_document_point(QPoint(250, 160)),
+               Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    require_action_by_text(scene.window, QStringLiteral("Undo"))->trigger();
+    QApplication::processEvents();
+    CHECK(!scene.canvas->path_transform_active());
+    CHECK(document.find_layer(scene.layer_id) != nullptr);  // the history behind the session is untouched
+    CHECK(layer_fill_alpha_at(document, scene.layer_id, QPoint(280, 160)) > 200);
+    CHECK(std::abs(anchor_at(document, scene.layer_id, 2).anchor_x - 300.0) < 0.5);
+  }
+}
+
 // The held modifiers show Free Transform's gesture cursors over the box handles.
 void ui_path_transform_modifiers_show_gesture_cursors() {
   PathTransformGestureScene scene;
@@ -1888,6 +1965,7 @@ std::vector<patchy::test::TestCase> vector_point_editing_tests() {
       {"ui_path_transform_ctrl_alt_shift_drag_is_perspective", ui_path_transform_ctrl_alt_shift_drag_is_perspective},
       {"ui_path_transform_distort_never_folds_the_quad", ui_path_transform_distort_never_folds_the_quad},
       {"ui_path_transform_modifiers_show_gesture_cursors", ui_path_transform_modifiers_show_gesture_cursors},
+      {"ui_path_transform_fill_follows_the_box_live", ui_path_transform_fill_follows_the_box_live},
       {"ui_ctrl_h_hides_path_points_with_selection_edges",
        ui_ctrl_h_hides_path_points_with_selection_edges},
       {"ui_direct_select_drags_marquee_selection_by_segment",
