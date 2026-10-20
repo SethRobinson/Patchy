@@ -11162,11 +11162,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Wavelength Min</source>
-        <translation>Longueur d'onde min.</translation>
+        <translation>Longueur d&apos;onde min.</translation>
     </message>
     <message>
         <source>Wavelength Max</source>
-        <translation>Longueur d'onde max.</translation>
+        <translation>Longueur d&apos;onde max.</translation>
     </message>
     <message>
         <source>Amplitude Min</source>
@@ -11207,6 +11207,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>%1 %2</source>
         <translation>%1 %2</translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <translation>Petite</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>Moyenne</translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <translation>Grande</translation>
+    </message>
+    <message>
+        <source>Ripple</source>
+        <translation>Ondulation</translation>
     </message>
 </context>
 <context>

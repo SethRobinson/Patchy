@@ -70,6 +70,7 @@ bool native_smart_filter_kind_supported(SmartFilterKind kind) {
     case SmartFilterKind::FindEdges:
     case SmartFilterKind::ZigZag:
     case SmartFilterKind::Wave:
+    case SmartFilterKind::Ripple:
       return true;
     case SmartFilterKind::Unsupported:
       return false;

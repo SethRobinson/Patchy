@@ -351,6 +351,58 @@ FilterRenderResult render_wave(const FilterRenderResult& input, Rect canvas,
   });
 }
 
+// One lattice value in [-1, 1] for value noise, hashed from its integer
+// position and a salt with splitmix64 (deterministic on every toolchain).
+double lattice_value(std::int64_t x, std::int64_t y, std::uint64_t salt) noexcept {
+  SplitMix64 hash{static_cast<std::uint64_t>(x) * 0x9e3779b97f4a7c15ULL ^
+                  static_cast<std::uint64_t>(y) * 0xc2b2ae3d27d4eb4fULL ^ salt};
+  return hash.uniform() * 2.0 - 1.0;
+}
+
+// Smooth value noise: lattice values every cell_x by cell_y pixels,
+// smoothstep-interpolated.
+double value_noise(double x, double y, double cell_x, double cell_y, std::uint64_t salt) noexcept {
+  const auto gx = x / cell_x;
+  const auto gy = y / cell_y;
+  const auto ix = static_cast<std::int64_t>(std::floor(gx));
+  const auto iy = static_cast<std::int64_t>(std::floor(gy));
+  const auto smooth = [](double t) { return t * t * (3.0 - 2.0 * t); };
+  const auto tx = smooth(gx - static_cast<double>(ix));
+  const auto ty = smooth(gy - static_cast<double>(iy));
+  const auto top = lattice_value(ix, iy, salt) * (1.0 - tx) + lattice_value(ix + 1, iy, salt) * tx;
+  const auto bottom =
+      lattice_value(ix, iy + 1, salt) * (1.0 - tx) + lattice_value(ix + 1, iy + 1, salt) * tx;
+  return top * (1.0 - ty) + bottom * ty;
+}
+
+// Ripple (docs/smart-filters-distort-stylize.md). Photoshop's displacement is
+// one fixed noise field per size scaled linearly by Amount / 100; the field
+// itself comes from Photoshop's own generator and cannot be reproduced. Patchy
+// uses its own smooth value noise with the measured statistics: each axis's
+// shift varies fast along that axis and slowly across it (cells below, in
+// pixels) with the measured spread (standard deviation in pixels at Amount 100).
+FilterRenderResult render_ripple(const FilterRenderResult& input, Rect canvas, std::int32_t amount,
+                                 std::int32_t size, const FilterProgress* progress) {
+  struct RippleSize {
+    double along;
+    double across;
+    double spread;
+  };
+  // Small, Medium, Large.
+  constexpr RippleSize kSizes[]{{3.5, 10.5, 0.57}, {9.0, 10.5, 0.83}, {20.0, 10.5, 2.46}};
+  // Standard deviation of smoothstep value noise with uniform [-1, 1] lattice values.
+  constexpr double kValueNoiseSpread = 0.43;
+  const auto& ripple = kSizes[static_cast<std::size_t>(std::clamp(size, 0, 2))];
+  const auto scale = static_cast<double>(amount) / 100.0 * ripple.spread / kValueNoiseSpread;
+  return render_inverse_mapped(input, canvas, progress, [&](double x, double y) {
+    const auto doc_x = x + static_cast<double>(canvas.x);
+    const auto doc_y = y + static_cast<double>(canvas.y);
+    const auto shift_x = scale * value_noise(doc_x, doc_y, ripple.along, ripple.across, 0x52706c65ULL);
+    const auto shift_y = scale * value_noise(doc_x, doc_y, ripple.across, ripple.along, 0x58706c66ULL);
+    return std::pair{x + shift_x, y + shift_y};
+  });
+}
+
 }  // namespace
 
 FilterRenderResult render_schema_smart_filter(const FilterRenderResult& current,
@@ -374,6 +426,9 @@ FilterRenderResult render_schema_smart_filter(const FilterRenderResult& current,
                            settings.values[2], progress);
     case SmartFilterKind::Wave:
       return render_wave(current, filter_canvas_bounds, settings, progress);
+    case SmartFilterKind::Ripple:
+      return render_ripple(current, filter_canvas_bounds, settings.values[0], settings.values[1],
+                           progress);
     default:
       break;
   }

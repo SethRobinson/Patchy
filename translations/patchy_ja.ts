@@ -11104,7 +11104,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Pond Ripples</source>
-        <translation>波紋</translation>
+        <translation>池の波紋</translation>
     </message>
     <message>
         <source>Ridges</source>
@@ -11173,6 +11173,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>%1 %2</source>
         <translation>%1 %2</translation>
+    </message>
+    <message>
+        <source>Small</source>
+        <translation>小</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>中</translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <translation>大</translation>
+    </message>
+    <message>
+        <source>Ripple</source>
+        <translation>波紋</translation>
     </message>
 </context>
 <context>

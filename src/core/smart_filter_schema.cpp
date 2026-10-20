@@ -64,6 +64,20 @@ constexpr SmartFilterField kWaveFields[]{
      {}, INT32_MIN, INT32_MAX, 1, 0, 1, nullptr, false, true},
 };
 
+constexpr SmartFilterFieldOption kRippleSizes[]{
+    {"Sml ", "small", PATCHY_TRANSLATE_NOOP("QObject", "Small")},
+    {"Mdm ", "medium", PATCHY_TRANSLATE_NOOP("QObject", "Medium")},
+    {"Lrg ", "large", PATCHY_TRANSLATE_NOOP("QObject", "Large")},
+};
+
+// Photoshop's recorded Ripple action (shipped Frames and Text Effects sets): Amnt, RplS.
+constexpr SmartFilterField kRippleFields[]{
+    {"Amnt", "amount", PATCHY_TRANSLATE_NOOP("QObject", "Amount"), SmartFilterFieldType::Integer,
+     nullptr, {}, -999, 999, 100, -999, 999, PATCHY_TRANSLATE_NOOP("QObject", "%")},
+    {"RplS", "size", PATCHY_TRANSLATE_NOOP("QObject", "Size"), SmartFilterFieldType::Enum, "RplS",
+     kRippleSizes, 0, 0, 1},
+};
+
 constexpr std::array kSchemas{
     // Neither stores a Fltr object; the entry name has no ellipsis.
     SmartFilterSchema{SmartFilterKind::Solarize, "Slrz", false, 0x536c727aU, "Solarize",
@@ -78,6 +92,9 @@ constexpr std::array kSchemas{
     SmartFilterSchema{SmartFilterKind::Wave, "Wave", false, 0x57617665U, "Wave", "Wave...",
                       PATCHY_TRANSLATE_NOOP("QObject", "Wave"), "patchy.smart_filters.wave",
                       kWaveFields},
+    SmartFilterSchema{SmartFilterKind::Ripple, "Rple", false, 0x52706c65U, "Ripple", "Ripple...",
+                      PATCHY_TRANSLATE_NOOP("QObject", "Ripple"), "patchy.smart_filters.ripple",
+                      kRippleFields},
 };
 
 }  // namespace

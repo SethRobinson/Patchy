@@ -32,6 +32,7 @@ enum class SmartFilterKind {
   FindEdges,
   ZigZag,
   Wave,
+  Ripple,
 };
 
 struct GaussianBlurSmartFilter {

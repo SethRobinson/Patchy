@@ -219,6 +219,34 @@ void smart_filter_wave_keeps_photoshop_units() {
   }
 }
 
+// Ripple's shift is linear in Amount, so Amount 0 leaves every pixel in place.
+void smart_filter_ripple_amount_zero_is_identity() {
+  const auto* schema = patchy::find_smart_filter_schema(patchy::SmartFilterKind::Ripple);
+  CHECK(schema != nullptr);
+  patchy::PixelBuffer pixels(40, 30, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < 30; ++y) {
+    for (std::int32_t x = 0; x < 40; ++x) {
+      auto* px = pixels.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(x * 6);
+      px[1] = static_cast<std::uint8_t>(y * 8);
+      px[2] = static_cast<std::uint8_t>((x * y) & 255);
+      px[3] = 255;
+    }
+  }
+  const patchy::Rect bounds{0, 0, 40, 30};
+  for (std::int32_t size = 0; size < 3; ++size) {
+    const auto still = patchy::render_smart_filter_stack(
+        pixels, bounds, bounds, single_entry_stack(*schema, patchy::SchemaSmartFilter{{0, size}}));
+    CHECK(still.bounds.width == 40 && still.bounds.height == 30);
+    CHECK(std::equal(still.pixels.data().begin(), still.pixels.data().end(),
+                     pixels.data().begin()));
+    const auto moved = patchy::render_smart_filter_stack(
+        pixels, bounds, bounds, single_entry_stack(*schema, patchy::SchemaSmartFilter{{300, size}}));
+    CHECK(!std::equal(moved.pixels.data().begin(), moved.pixels.data().end(),
+                      pixels.data().begin()));
+  }
+}
+
 const patchy::UnknownPsdBlock& require_sold_block(const patchy::Layer& layer) {
   const auto& blocks = layer.unknown_psd_blocks();
   const auto found = std::find_if(blocks.begin(), blocks.end(), [](const auto& block) {
@@ -428,6 +456,9 @@ void psd_photoshop_distort_stylize_smart_filter_fixtures_round_trip_and_render()
       // Sine, 3 generators, wavelength 10..60, amplitude 2..8, 100 %, Repeat Edge Pixels.
       {"photoshop-smart-filter-wave.psd", patchy::SmartFilterKind::Wave,
        {0, 3, 10, 60, 2, 8, 100, 100, 1, 4242}, 0.0, 0.0, true},
+      // Amount 150, Medium. Photoshop stored this entry's foreground color as HSB.
+      {"photoshop-smart-filter-ripple.psd", patchy::SmartFilterKind::Ripple, {150, 1}, 0.0, 0.0,
+       true},
   };
   for (const auto& fixture : fixtures) {
     check_schema_fixture(fixture);
@@ -442,6 +473,7 @@ std::vector<patchy::test::TestCase> smart_filter_distort_stylize_tests() {
       {"smart_filter_schema_descriptors_author_parse_and_patch",
        smart_filter_schema_descriptors_author_parse_and_patch},
       {"smart_filter_wave_keeps_photoshop_units", smart_filter_wave_keeps_photoshop_units},
+      {"smart_filter_ripple_amount_zero_is_identity", smart_filter_ripple_amount_zero_is_identity},
       {"psd_photoshop_distort_stylize_smart_filter_fixtures_round_trip_and_render",
        psd_photoshop_distort_stylize_smart_filter_fixtures_round_trip_and_render},
   };

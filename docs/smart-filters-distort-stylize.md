@@ -94,6 +94,22 @@ captures unless noted.
   pins the units. Wrap Around wraps sample positions over the filter canvas; Repeat Edge
   Pixels clamps them to it.
 
+### Ripple (`Rple`, filterID `Rple`)
+
+- Keys from PS's recorded actions: `Amnt` integer (-999..999), `RplS` enum `RplS`
+  (`Sml `, `Mdm `, `Lrg `). Entry `Ripple...`. Deterministic: two runs match exactly.
+- Measured on 16-bit coordinate ramps: the shift is one fixed noise-like field per size
+  times `Amnt / 100` exactly (50, 100, 200 and -100 at Medium project onto one field
+  within 0.025 px). Each axis's shift varies fast along that axis and slowly across it:
+  zero crossings every 3.5 (Small), 9-11 (Medium) and 20 (Large) px along the axis and
+  about 10.5 px across; spread (standard deviation at Amount 100) 0.57, 0.83 and
+  2.46 px. The field is broadband and not periodic within 256 px, so it cannot be
+  reproduced from probes.
+- Patchy renders its own smooth value noise (splitmix64 lattice hashed from document
+  coordinates, smoothstep interpolation) with those cells and spreads, linear in
+  Amount: PS's character, not PS's pattern. `smart_filter_ripple_amount_zero_is_identity`
+  pins the linear scale at 0.
+
 ## Fixtures
 
 `test-fixtures/psd/photoshop-smart-filter-<name>.psd`, self-authored through COM from a
@@ -101,6 +117,6 @@ captures unless noted.
 is the filtered Smart Object; "_source" is a hidden copy of its unfiltered pixels, so
 `psd_photoshop_distort_stylize_smart_filter_fixtures_round_trip_and_render` renders the
 stack from `_source` and compares Photoshop's baked layer (byte-exact for Solarize and
-Find Edges, a documented mean tolerance for ZigZag, repeatability only for the seeded
-Wave). Capture scripts write an empty descriptor only for filters without settings;
+Find Edges, a documented mean tolerance for ZigZag, repeatability only for Wave and Ripple,
+whose patterns are Patchy's own). Capture scripts write an empty descriptor only for filters without settings;
 every other filter passes PS's full recorded key list ([photoshop-com.md](photoshop-com.md)).
