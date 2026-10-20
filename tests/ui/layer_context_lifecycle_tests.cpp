@@ -2921,6 +2921,81 @@ void ui_new_document_reopens_on_the_last_picked_group() {
   CHECK(run_dialog([](QDialog& dialog) { dialog.reject(); }) == QStringLiteral("newDocumentScreenChip"));
 }
 
+// Review captures of the New Document groups, search and remembered group (GitHub issue
+// 222), each checked for what it is meant to show: Print picked, "x" matching names and
+// groups only, "1080" matching sizes, and a reopen on the group picked before a cancel.
+void ui_new_document_review_captures() {
+  using new_document_templates::card_ids;
+  SettingsValueRestorer last_category(QStringLiteral("newDocument/lastCategory"));
+  QApplication::clipboard()->clear();
+  new_document_templates::clear_remembered_settings();
+  patchy::ui::MainWindow window;
+  show_window(window);
+
+  bool first_done = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyNewDocumentDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* presets = dialog->findChild<QListWidget*>(QStringLiteral("newDocumentPresetList"));
+    auto* search = dialog->findChild<QLineEdit*>(QStringLiteral("newDocumentSearchEdit"));
+    auto* print_chip = dialog->findChild<QToolButton*>(QStringLiteral("newDocumentPrintChip"));
+    auto* web_chip = dialog->findChild<QToolButton*>(QStringLiteral("newDocumentWebChip"));
+    CHECK(presets != nullptr && search != nullptr && print_chip != nullptr && web_chip != nullptr);
+    if (presets == nullptr || search == nullptr || print_chip == nullptr || web_chip == nullptr) {
+      dialog->reject();
+      return;
+    }
+    print_chip->click();
+    QApplication::processEvents();
+    CHECK(print_chip->isChecked());
+    CHECK(card_ids(*presets).contains(QStringLiteral("print-a4")));
+    save_widget_artifact("issue_222_after_groups", *dialog);
+
+    search->setText(QStringLiteral("x"));
+    QApplication::processEvents();
+    const auto x_matches = card_ids(*presets);
+    CHECK(x_matches.contains(QStringLiteral("social-x-header")));
+    CHECK(!x_matches.contains(QStringLiteral("screen-1080p")));
+    save_widget_artifact("issue_222_after_search_x", *dialog);
+
+    search->setText(QStringLiteral("1080"));
+    QApplication::processEvents();
+    CHECK(card_ids(*presets).contains(QStringLiteral("screen-1080p")));
+    CHECK(card_ids(*presets).contains(QStringLiteral("phone-story-1080x1920")));
+    save_widget_artifact("issue_222_after_search_1080", *dialog);
+
+    search->clear();
+    QApplication::processEvents();
+    web_chip->click();
+    QApplication::processEvents();
+    first_done = true;
+    dialog->reject();
+  });
+  require_action_by_text(window, QStringLiteral("New"))->trigger();
+  QApplication::processEvents();
+  CHECK(first_done);
+
+  bool reopened = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyNewDocumentDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    auto* web_chip = dialog->findChild<QToolButton*>(QStringLiteral("newDocumentWebChip"));
+    CHECK(web_chip != nullptr && web_chip->isChecked());
+    save_widget_artifact("issue_222_after_last_category", *dialog);
+    reopened = true;
+    dialog->reject();
+  });
+  require_action_by_text(window, QStringLiteral("New"))->trigger();
+  QApplication::processEvents();
+  CHECK(reopened);
+}
+
 void ui_new_document_dialog_remembers_unit() {
   QApplication::clipboard()->clear();
   SettingsValueRestorer restore_units(QStringLiteral("view/rulerUnits"));
@@ -3371,6 +3446,7 @@ std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
       {"ui_new_document_template_groups_hold_every_template", ui_new_document_template_groups_hold_every_template},
       {"ui_new_document_search_filters_every_group", ui_new_document_search_filters_every_group},
       {"ui_new_document_reopens_on_the_last_picked_group", ui_new_document_reopens_on_the_last_picked_group},
+      {"ui_new_document_review_captures", ui_new_document_review_captures},
       {"ui_new_document_dialog_remembers_unit", ui_new_document_dialog_remembers_unit},
       {"ui_new_document_opens_fit_to_view", ui_new_document_opens_fit_to_view},
       {"ui_new_document_background_starts_locked", ui_new_document_background_starts_locked},
