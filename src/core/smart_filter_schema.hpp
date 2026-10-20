@@ -18,6 +18,9 @@ enum class SmartFilterFieldType : std::uint8_t {
   Integer,   // plain descriptor integer
   Enum,      // enumerated value; the integer is the option index
   Boolean,   // descriptor boolean; the integer is 0 or 1
+  // A list of `Pnt ` objects with double `Hrzn`/`Vrtc` (Shear's curve); the
+  // integer is the point count and SchemaSmartFilter::points holds the pairs.
+  PointList,
 };
 
 struct SmartFilterFieldOption {

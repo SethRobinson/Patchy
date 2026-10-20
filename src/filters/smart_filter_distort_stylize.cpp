@@ -351,6 +351,141 @@ FilterRenderResult render_wave(const FilterRenderResult& input, Rect canvas,
   });
 }
 
+// One lattice value in [-1, 1] for value noise, hashed from its integer
+// position and a salt with splitmix64 (deterministic on every toolchain).
+double lattice_value(std::int64_t x, std::int64_t y, std::uint64_t salt) noexcept {
+  SplitMix64 hash{static_cast<std::uint64_t>(x) * 0x9e3779b97f4a7c15ULL ^
+                  static_cast<std::uint64_t>(y) * 0xc2b2ae3d27d4eb4fULL ^ salt};
+  return hash.uniform() * 2.0 - 1.0;
+}
+
+// Smooth value noise: lattice values every cell_x by cell_y pixels,
+// smoothstep-interpolated.
+double value_noise(double x, double y, double cell_x, double cell_y, std::uint64_t salt) noexcept {
+  const auto gx = x / cell_x;
+  const auto gy = y / cell_y;
+  const auto ix = static_cast<std::int64_t>(std::floor(gx));
+  const auto iy = static_cast<std::int64_t>(std::floor(gy));
+  const auto smooth = [](double t) { return t * t * (3.0 - 2.0 * t); };
+  const auto tx = smooth(gx - static_cast<double>(ix));
+  const auto ty = smooth(gy - static_cast<double>(iy));
+  const auto top = lattice_value(ix, iy, salt) * (1.0 - tx) + lattice_value(ix + 1, iy, salt) * tx;
+  const auto bottom =
+      lattice_value(ix, iy + 1, salt) * (1.0 - tx) + lattice_value(ix + 1, iy + 1, salt) * tx;
+  return top * (1.0 - ty) + bottom * ty;
+}
+
+// Ripple (docs/smart-filters-distort-stylize.md). Photoshop's displacement is
+// one fixed noise field per size scaled linearly by Amount / 100; the field
+// itself comes from Photoshop's own generator and cannot be reproduced. Patchy
+// uses its own smooth value noise with the measured statistics: each axis's
+// shift varies fast along that axis and slowly across it (cells below, in
+// pixels) with the measured spread (standard deviation in pixels at Amount 100).
+FilterRenderResult render_ripple(const FilterRenderResult& input, Rect canvas, std::int32_t amount,
+                                 std::int32_t size, const FilterProgress* progress) {
+  struct RippleSize {
+    double along;
+    double across;
+    double spread;
+  };
+  // Small, Medium, Large.
+  constexpr RippleSize kSizes[]{{3.5, 10.5, 0.57}, {9.0, 10.5, 0.83}, {20.0, 10.5, 2.46}};
+  // Standard deviation of smoothstep value noise with uniform [-1, 1] lattice values.
+  constexpr double kValueNoiseSpread = 0.43;
+  const auto& ripple = kSizes[static_cast<std::size_t>(std::clamp(size, 0, 2))];
+  const auto scale = static_cast<double>(amount) / 100.0 * ripple.spread / kValueNoiseSpread;
+  return render_inverse_mapped(input, canvas, progress, [&](double x, double y) {
+    const auto doc_x = x + static_cast<double>(canvas.x);
+    const auto doc_y = y + static_cast<double>(canvas.y);
+    const auto shift_x = scale * value_noise(doc_x, doc_y, ripple.along, ripple.across, 0x52706c65ULL);
+    const auto shift_y = scale * value_noise(doc_x, doc_y, ripple.across, ripple.along, 0x58706c66ULL);
+    return std::pair{x + shift_x, y + shift_y};
+  });
+}
+
+// Shear (docs/smart-filters-distort-stylize.md): the curve's points are
+// (horizontal, vertical) in a 128-unit grid; a natural cubic spline through
+// them, as a function of the vertical coordinate, gives each row's shift. Row y
+// reads the spline at y * 128 / (H - 1); the shift in pixels is the spline
+// value * H / 128 (Photoshop scales both axes by the height), and content moves
+// right by it. Outside the first and last point the curve holds their values.
+FilterRenderResult render_shear(const FilterRenderResult& input, Rect canvas,
+                                const SchemaSmartFilter& settings,
+                                const FilterProgress* progress) {
+  struct Knot {
+    double vertical;
+    double horizontal;
+  };
+  std::vector<Knot> knots;
+  for (std::size_t index = 0; index + 1U < settings.points.size(); index += 2U) {
+    knots.push_back({settings.points[index + 1U], settings.points[index]});
+  }
+  std::stable_sort(knots.begin(), knots.end(),
+                   [](const Knot& left, const Knot& right) { return left.vertical < right.vertical; });
+  knots.erase(std::unique(knots.begin(), knots.end(),
+                          [](const Knot& left, const Knot& right) {
+                            return left.vertical == right.vertical;
+                          }),
+              knots.end());
+  const auto count = knots.size();
+  // Natural cubic: zero second derivative at both ends (the Curves solver).
+  std::vector<double> second(count, 0.0);
+  std::vector<double> work(count, 0.0);
+  for (std::size_t index = 1U; index + 1U < count; ++index) {
+    const auto previous_span = knots[index].vertical - knots[index - 1U].vertical;
+    const auto next_span = knots[index + 1U].vertical - knots[index].vertical;
+    const auto sigma = previous_span / (previous_span + next_span);
+    const auto pivot = sigma * second[index - 1U] + 2.0;
+    second[index] = (sigma - 1.0) / pivot;
+    const auto previous_slope = (knots[index].horizontal - knots[index - 1U].horizontal) / previous_span;
+    const auto next_slope = (knots[index + 1U].horizontal - knots[index].horizontal) / next_span;
+    work[index] = (6.0 * (next_slope - previous_slope) / (previous_span + next_span) -
+                   sigma * work[index - 1U]) /
+                  pivot;
+  }
+  for (std::size_t upper = count; upper-- > 1U;) {
+    second[upper - 1U] = second[upper - 1U] * second[upper] + work[upper - 1U];
+  }
+  const auto curve = [&](double vertical) {
+    if (count == 0U) {
+      return 0.0;
+    }
+    if (count == 1U || vertical <= knots.front().vertical) {
+      return knots.front().horizontal;
+    }
+    if (vertical >= knots.back().vertical) {
+      return knots.back().horizontal;
+    }
+    std::size_t upper = 1U;
+    while (upper + 1U < count && vertical > knots[upper].vertical) {
+      ++upper;
+    }
+    const auto span = knots[upper].vertical - knots[upper - 1U].vertical;
+    const auto left = (knots[upper].vertical - vertical) / span;
+    const auto right = (vertical - knots[upper - 1U].vertical) / span;
+    return left * knots[upper - 1U].horizontal + right * knots[upper].horizontal +
+           ((left * left * left - left) * second[upper - 1U] +
+            (right * right * right - right) * second[upper]) *
+               span * span / 6.0;
+  };
+  const auto height = static_cast<double>(canvas.height);
+  const auto width = static_cast<double>(canvas.width);
+  std::vector<double> shifts(static_cast<std::size_t>(canvas.height));
+  for (std::int32_t y = 0; y < canvas.height; ++y) {
+    const auto vertical =
+        canvas.height > 1 ? static_cast<double>(y) * 128.0 / (height - 1.0) : 0.0;
+    shifts[static_cast<std::size_t>(y)] = curve(vertical) * height / 128.0;
+  }
+  const auto wrap = settings.values[1] == 0;
+  return render_inverse_mapped(input, canvas, progress, [&](double x, double y) {
+    auto source_x = x - shifts[static_cast<std::size_t>(y)];
+    if (wrap) {
+      source_x -= width * std::floor(source_x / width);
+    }
+    return std::pair{source_x, y};
+  });
+}
+
 }  // namespace
 
 FilterRenderResult render_schema_smart_filter(const FilterRenderResult& current,
@@ -374,6 +509,11 @@ FilterRenderResult render_schema_smart_filter(const FilterRenderResult& current,
                            settings.values[2], progress);
     case SmartFilterKind::Wave:
       return render_wave(current, filter_canvas_bounds, settings, progress);
+    case SmartFilterKind::Ripple:
+      return render_ripple(current, filter_canvas_bounds, settings.values[0], settings.values[1],
+                           progress);
+    case SmartFilterKind::Shear:
+      return render_shear(current, filter_canvas_bounds, settings, progress);
     default:
       break;
   }
