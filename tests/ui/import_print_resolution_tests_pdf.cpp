@@ -1988,13 +1988,16 @@ void ui_pdf_import_dialog_opens_pages_as_documents() {
   CHECK(second_canvas != first_canvas);
   CHECK(patchy::ui::MainWindowTestAccess::document_for_canvas(window, second_canvas) == &second);
   CHECK(&patchy::ui::MainWindowTestAccess::document(window) == &second);
-  // Fitted to the size it actually has: fitting again changes nothing.
+  // Fitted to the size it actually has, with the same no-enlarging fit every open uses
+  // (a document never opens above 100%): fitting again changes nothing. Comparing with
+  // the enlarging fit_to_view() only held where the offscreen screen was small enough
+  // that both fits agreed (macOS, Linux), and failed on Windows.
   const double fitted_zoom = second_canvas->zoom();
-  second_canvas->fit_to_view();
+  second_canvas->fit_to_view_without_enlarging();
   CHECK(std::abs(second_canvas->zoom() - fitted_zoom) < 1e-9);
-  // A 72 x 144 px page in a window-sized canvas fits well above 100%: the 640 x 480
-  // default size of a never-shown widget would not have produced this zoom.
-  CHECK(fitted_zoom > 1.0);
+  // The view was fitted at all (a 72 x 144 px page is smaller than any window-sized
+  // canvas, so the capped fit lands on 100%).
+  CHECK(std::abs(second_canvas->view_zoom() - 1.0) < 1e-9);
   // Going back and forth does not refit a view the user may have changed.
   second_canvas->set_zoom(0.5);
   tabs->setCurrentIndex(static_cast<int>(sessions_before));
