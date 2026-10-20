@@ -25,8 +25,8 @@ dbe44fcc955c8025 241f758e61704165 photoshop-channel-restrictions.psd
 9750c045d9803085 3ea89ceacb80d1b5 photoshop-clip-base-effects.psd
 1d70dd256c3b0325 745dac33488e4c25 photoshop-clipping-mask.psd
 f980a29156bff7cf 5eb6a1308b31a4eb photoshop-cmyk-style-colors.psd
-cf8b789d734b2b2d 3a35db9013be5915 photoshop-color-balance-full.psd
-cf8b789d734b2b2d 3a35db9013be5915 photoshop-color-balance.psd
+cb2879fe8cd38e8d 5e137c1ade87f2ad photoshop-color-balance-full.psd
+3ce5d58cad71f825 c2a611d6a8894a45 photoshop-color-balance.psd
 432be6fb3533c8d8 c6dfa66168a0e490 photoshop-compound-text.psd
 9566d90f9991a025 48484118f51d9c65 photoshop-curves-clipped.psd
 eed6fe7f2ba81d25 60373566b39eefe5 photoshop-curves-masked.psd
