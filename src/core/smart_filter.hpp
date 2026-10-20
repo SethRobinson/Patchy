@@ -36,6 +36,8 @@ enum class SmartFilterKind {
   // Image > Adjustments applied to a Smart Object (Levels, Curves, ...); the
   // settings are an AdjustmentSmartFilter (docs/smart-filters-adjustments.md).
   Adjustment,
+  Ripple,
+  Shear,
 };
 
 struct GaussianBlurSmartFilter {
@@ -141,6 +143,8 @@ struct AddNoiseSmartFilter {
 // Photoshop's descriptor key order (core/smart_filter_schema.hpp).
 struct SchemaSmartFilter {
   std::vector<std::int32_t> values;
+  // Horizontal, vertical pairs of a point-list field (Shear's curve), in order.
+  std::vector<double> points;
   bool operator==(const SchemaSmartFilter&) const = default;
 };
 // An Image > Adjustments command stored as a Smart Filter. Photoshop keeps the

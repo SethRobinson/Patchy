@@ -11174,6 +11174,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>%1 %2</source>
         <translation>%1 %2</translation>
     </message>
+    <message>
+        <source>Small</source>
+        <translation>작게</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>중간</translation>
+    </message>
+    <message>
+        <source>Large</source>
+        <translation>크게</translation>
+    </message>
+    <message>
+        <source>Ripple</source>
+        <translation>잔물결</translation>
+    </message>
+    <message>
+        <source>Curve</source>
+        <translation>곡선</translation>
+    </message>
+    <message>
+        <source>Curve Start</source>
+        <translation>곡선 시작</translation>
+    </message>
+    <message>
+        <source>Curve End</source>
+        <translation>곡선 끝</translation>
+    </message>
+    <message>
+        <source>Shear</source>
+        <translation>기울임</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

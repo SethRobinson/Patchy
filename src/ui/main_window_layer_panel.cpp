@@ -154,6 +154,8 @@ QString smart_filter_schema_summary(const SmartFilterSchema& schema,
         text = QString::number(value) +
                (field.suffix != nullptr ? translate_data_text(field.suffix) : QString());
         break;
+      case SmartFilterFieldType::PointList:
+        break;
       case SmartFilterFieldType::Boolean:
         text = value != 0 ? QObject::tr("On") : QObject::tr("Off");
         break;
