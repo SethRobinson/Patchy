@@ -26,6 +26,7 @@
 #include "psd/psd_filter_effects.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
+#include <map>
 #include <QAction>
 #include <QApplication>
 #include <QDialog>
@@ -40,6 +41,7 @@
 #include <QSpinBox>
 #include <QTimer>
 #include <QMenu>
+#include <QTest>
 #include <QToolButton>
 #include <QWidget>
 #include <algorithm>
@@ -1100,6 +1102,95 @@ void ui_unmodeled_smart_filter_controls_follow_what_patchy_renders() {
 // GitHub issue 243 with a real Photoshop filter Patchy does not model (Tilt-Shift): the
 // hidden filter, the hidden stack and the deleted stack each save and read back. The
 // saved files are the Photoshop acceptance inputs (docs/smart-objects.md).
+// GitHub issue 243 follow-up: every "..." button on a Smart Filter row opens its menu from a
+// real click. The header's button was missing from the list's own-click buttons, so the list
+// took the press as a row click and no menu opened. Clicks go through the list's event
+// filter like a user's; the menu that pops up reports which entries are enabled.
+void ui_smart_filter_row_menus_open_from_clicks() {
+  SettingsValueRestorer notes_setting(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  patchy::ui::app_settings().remove(QStringLiteral("imports/showPsdWarningsAndInfo"));
+  // The popped-up menu's entries by object name, enabled or not; empty when none opened.
+  const auto click_for_menu = [](QToolButton* button) {
+    std::map<QString, bool> entries;
+    bool saw_menu = false;
+    QTimer::singleShot(50, [&] {
+      if (auto* menu = qobject_cast<QMenu*>(QApplication::activePopupWidget()); menu != nullptr) {
+        saw_menu = true;
+        for (auto* action : menu->actions()) {
+          if (!action->isSeparator()) {
+            entries[action->objectName()] = action->isEnabled();
+          }
+        }
+        menu->hide();
+      }
+    });
+    QTest::mouseClick(button, Qt::LeftButton, Qt::NoModifier, button->rect().center());
+    process_events_for(100);
+    if (!saw_menu) {
+      entries.clear();
+    }
+    return std::pair{saw_menu, entries};
+  };
+
+  const auto check_layer = [&](const std::filesystem::path& file, const QString& layer_name, bool modeled) {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    patchy::ui::MainWindowTestAccess::open_document_path(window, QString::fromStdWString(file.wstring()));
+    QApplication::processEvents();
+    select_named_layer(window, layer_name);
+    auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+    CHECK(list != nullptr);
+    patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+    QApplication::processEvents();
+    auto* row = list->itemWidget(require_layer_item(*list, layer_name));
+    CHECK(row != nullptr);
+
+    auto* header_more = row->findChild<QToolButton*>(QStringLiteral("layerSmartFiltersMoreButton"));
+    CHECK(header_more != nullptr && header_more->isEnabled());
+    const auto [header_opened, header_entries] = click_for_menu(header_more);
+    CHECK(header_opened);
+    CHECK(header_entries.size() == 2U);
+    CHECK(header_entries.count(QStringLiteral("layerSmartFiltersVisibilityAction")) == 1U &&
+          header_entries.at(QStringLiteral("layerSmartFiltersVisibilityAction")));
+    CHECK(header_entries.count(QStringLiteral("layerSmartFiltersDeleteAction")) == 1U &&
+          header_entries.at(QStringLiteral("layerSmartFiltersDeleteAction")));
+
+    // Index 0 runs first (the lower row): Median, or the filter Patchy cannot render;
+    // index 1 is the Gaussian above it.
+    auto* first_more =
+        smart_filter_control<QToolButton>(row, QStringLiteral("layerSmartFilterMoreButton"), 0U);
+    auto* second_more =
+        smart_filter_control<QToolButton>(row, QStringLiteral("layerSmartFilterMoreButton"), 1U);
+    CHECK(first_more != nullptr && second_more != nullptr);
+    const auto [first_opened, first_entries] = click_for_menu(first_more);
+    CHECK(first_opened);
+    CHECK(first_entries.size() == 4U);
+    CHECK(first_entries.at(QStringLiteral("layerSmartFilterDeleteAction")));
+    CHECK(first_entries.at(QStringLiteral("layerSmartFilterDuplicateAction")) == modeled);
+    CHECK(first_entries.at(QStringLiteral("layerSmartFilterMoveUpAction")) == modeled);
+    CHECK(!first_entries.at(QStringLiteral("layerSmartFilterMoveDownAction")));  // already last to run
+    if (modeled) {
+      const auto [second_opened, second_entries] = click_for_menu(second_more);
+      CHECK(second_opened);
+      CHECK(second_entries.size() == 4U);
+      CHECK(second_entries.at(QStringLiteral("layerSmartFilterDeleteAction")));
+      CHECK(second_entries.at(QStringLiteral("layerSmartFilterDuplicateAction")));
+      CHECK(!second_entries.at(QStringLiteral("layerSmartFilterMoveUpAction")));
+      CHECK(second_entries.at(QStringLiteral("layerSmartFilterMoveDownAction")));
+    } else {
+      // Nothing in the Gaussian's menu can change while the other filter runs.
+      CHECK(!second_more->isEnabled());
+      CHECK(!click_for_menu(second_more).first);
+    }
+  };
+
+  // A stack Patchy renders, and the preview-locked one running a filter it cannot.
+  check_layer(patchy::test::committed_psd_fixture_path("photoshop-smart-filter-model.psd"),
+              QStringLiteral("Applied Median then Gaussian"), true);
+  check_layer(write_unmodeled_median_then_gaussian_fixture(), QStringLiteral("Applied Median then Gaussian"),
+              false);
+}
+
 void ui_photoshop_tilt_shift_smart_filter_hides_and_deletes() {
   SettingsValueRestorer notes_setting(
       QStringLiteral("imports/showPsdWarningsAndInfo"));
@@ -1728,6 +1819,7 @@ std::vector<patchy::test::TestCase> smart_filter_tests_part2() {
        ui_unmodeled_smart_filter_controls_follow_what_patchy_renders},
       {"ui_photoshop_tilt_shift_smart_filter_hides_and_deletes",
        ui_photoshop_tilt_shift_smart_filter_hides_and_deletes},
+      {"ui_smart_filter_row_menus_open_from_clicks", ui_smart_filter_row_menus_open_from_clicks},
       {"ui_pixel_mosaic_direct_action_appends_editable_smart_filter",
        ui_pixel_mosaic_direct_action_appends_editable_smart_filter},
       {"ui_emboss_direct_action_appends_editable_smart_filter",
