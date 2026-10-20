@@ -11083,6 +11083,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
         <translation>Черно-белое: %1 / %2 / %3 / %4 / %5 / %6</translation>
     </message>
+    <message>
+        <source>Color Lookup: %1</source>
+        <translation>Поиск цвета: %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22785,6 +22789,10 @@ Patchy можно будет запускать из меню, а на пане�
     <message>
         <source>Cancelled Black &amp; White</source>
         <translation>Черно-белое отменено</translation>
+    </message>
+    <message>
+        <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
+        <translation>Поиск цвета «%1» применяется так, как он сохранён в файле.</translation>
     </message>
 </context>
 <context>

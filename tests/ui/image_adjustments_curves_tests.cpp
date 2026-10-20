@@ -3425,8 +3425,8 @@ void ui_adjustment_placeholders_name_their_kind_in_layers_panel() {
         static_cast<qint64>(resaved.size()));
   resave_file.close();
   const auto tooltips = placeholder_tooltips(window);
-  CHECK(tooltips.size() == 3);
-  for (const auto* kind : {"Vibrance", "Color Lookup", "Selective Color"}) {
+  CHECK(tooltips.size() == 2);
+  for (const auto* kind : {"Vibrance", "Selective Color"}) {
     CHECK(std::any_of(tooltips.begin(), tooltips.end(), [kind](const QString& tooltip) {
       return tooltip.startsWith(QString::fromUtf8(kind) + QStringLiteral(" adjustment"));
     }));

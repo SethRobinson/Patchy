@@ -880,6 +880,12 @@ void MainWindow::edit_active_adjustment_layer() {
       }
       break;
     }
+    case AdjustmentKind::ColorLookup:
+      // Imported lookups render and save unchanged; choosing another table is not offered yet.
+      statusBar()->showMessage(
+          tr("Color Lookup \"%1\" is applied as stored in the file.")
+              .arg(QString::fromStdString(original_settings->color_lookup.name)));
+      break;
     case AdjustmentKind::BlackWhite: {
       const auto preview_changed = [apply_settings, restore_original_layer, original_settings](
                                        bool enabled, const BlackWhiteSettings& bw) {

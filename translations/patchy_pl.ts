@@ -11083,6 +11083,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
         <translation>Czarno-białe: %1 / %2 / %3 / %4 / %5 / %6</translation>
     </message>
+    <message>
+        <source>Color Lookup: %1</source>
+        <translation>Wyszukiwanie koloru: %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22785,6 +22789,10 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     <message>
         <source>Cancelled Black &amp; White</source>
         <translation>Anulowano czarno-białe</translation>
+    </message>
+    <message>
+        <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
+        <translation>Wyszukiwanie koloru „%1” jest stosowane tak, jak zapisano je w pliku.</translation>
     </message>
 </context>
 <context>

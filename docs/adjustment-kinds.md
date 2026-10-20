@@ -4,7 +4,7 @@ Codec and calibration record for the Photoshop adjustment kinds added under #250
 
 ## Placeholders
 
-Photoshop adjustment kinds Patchy cannot apply yet (`vibA`, `clrL`, `selc`) import as empty pixel layers marked `patchy.adjustment.placeholder_kind` (`photoshop_placeholder_adjustment_kind`): the Layers panel draws the kind's symbol on a muted frame and a tooltip says it is kept but not applied, one import notice covers the file, and the native block is written back byte for byte. A kind leaves this list when it gets a real `AdjustmentKind`; `mixr`, `phfl`, `grdm` and `blwh` blocks their parsers do not read still import as placeholders.
+Photoshop adjustment kinds Patchy cannot apply yet (`vibA`, `selc`) import as empty pixel layers marked `patchy.adjustment.placeholder_kind` (`photoshop_placeholder_adjustment_kind`): the Layers panel draws the kind's symbol on a muted frame and a tooltip says it is kept but not applied, one import notice covers the file, and the native block is written back byte for byte. A kind leaves this list when it gets a real `AdjustmentKind`; `mixr`, `phfl`, `grdm`, `blwh` and `clrL` blocks their parsers do not read still import as placeholders.
 
 ## Channel Mixer
 
@@ -39,6 +39,15 @@ Photoshop adjustment kinds Patchy cannot apply yet (`vibA`, `clrL`, `selc`) impo
 - Gray: the smallest channel plus (middle - smallest) times the weight of the secondary color the two largest channels form (yellow, cyan or magenta) plus (largest - middle) times the weight of the largest channel's primary, in hundredths, rounded half up (integer arithmetic on the 8-bit path). Exact on every probe value except one mixed negative-weight set (49 of 4,352 pixels off by one level); no rounding or weight quantization explains those.
 - Tint: PDF SetLum of the tint color to the gray, luma `(30R + 59G + 11B) / 100` rounded to a whole level, then ClipColor. Within one level everywhere (about a third of the tinted values differ by one).
 - Channels mix, so there is no LUT; 16/32-bit documents run the same math without the rounding. Patchy offers no Auto weights (docs/legal-constraints.md).
+
+## Color Lookup
+
+`AdjustmentKind::ColorLookup`, Photoshop's `clrL` block: u16 version 1, u32 descriptor version 16 and a descriptor with `lookupType` (`3DLUT`, `abstractProfile` or `deviceLinkProfile`), `Nm  ` (Photoshop stores the LUT's full path; Patchy shows the file name), `Dthr`, and `profile`, the ICC profile Photoshop renders through. A `3DLUT` also keeps the LUT file: `LUTFormat`, `dataOrder`, `tableOrder`, `LUT3DFileData` (the file text) and `LUT3DFileName`. Probed on Photoshop 2026 (#250) with Patchy's own 5- and 17-point `.cube` looks:
+
+- Photoshop renders only the `profile`: a block with the LUT text but no profile opens without warning and renders as identity, so Patchy treats it as identity too. For a loaded `.cube`, Photoshop writes an ICC v4 RGB device link whose A2B0 `mAB ` has identity B and M curves, an identity matrix, the cube as a 16-bit CLUT (red slowest, the cube's own grid) and identity parametric A curves; `photoshop_color_lookup_profile` writes that shape (Patchy's own copyright text, profile ID zero); Photoshop opens it without warning and renders it within one level of its own profile (32 of 4,352 probe pixels differ by one).
+- Render: the reader samples the profile with Little CMS at its CLUT grid (`color_lookup_profile_grid`, else 33; abstract profiles run between sRGB ends), with no optimization or white fix-up, into a 16-bit `ColorLookupTable`; the table is applied by tetrahedral interpolation. Against Photoshop's render of the 17-point probe through its profile, 25 of 13,056 values differ, each by one level (trilinear interpolation: 145).
+- Tables are registered by content id (`register_color_lookup_table`), like ink spaces; layer metadata keeps the id and the name. An unedited block is written back byte for byte; a Patchy-made lookup writes `lookupType`, the name, `Dthr` and the generated profile. Loading a LUT file the user picks (`.cube`, `.3dl`, `.look`) is the next step; the binding rules are in [legal-constraints.md](legal-constraints.md).
+- The probes use Patchy's own looks only; the ag-psd sample embeds a look Photoshop bundles, which stays in `local-test-fixtures/` and never enters a committed test.
 
 ## Vibrance (placeholder; findings for a later pass)
 

@@ -564,6 +564,8 @@ QColor adjustment_thumbnail_accent(const Layer& layer) {
       return QColor(200, 120, 200);
     case AdjustmentKind::BlackWhite:
       return QColor(190, 190, 190);
+    case AdjustmentKind::ColorLookup:
+      return QColor(110, 190, 220);
   }
   return QColor(145, 175, 215);
 }
@@ -722,6 +724,8 @@ QString adjustment_settings_summary(const Layer& layer) {
       return QObject::tr("Channel Mixer");
     case AdjustmentKind::PhotoFilter:
       return QObject::tr("Photo Filter: density %1%").arg(clamp_photo_filter(settings->photo_filter).density);
+    case AdjustmentKind::ColorLookup:
+      return QObject::tr("Color Lookup: %1").arg(QString::fromStdString(settings->color_lookup.name));
     case AdjustmentKind::BlackWhite: {
       const auto& bw = settings->black_white;
       return QObject::tr("Black & White: %1 / %2 / %3 / %4 / %5 / %6")
@@ -1380,6 +1384,9 @@ QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int docu
           break;
         case AdjustmentKind::BlackWhite:
           draw_placeholder_adjustment_thumbnail_symbol(painter, "black_white");
+          break;
+        case AdjustmentKind::ColorLookup:
+          draw_placeholder_adjustment_thumbnail_symbol(painter, "color_lookup");
           break;
       }
     }

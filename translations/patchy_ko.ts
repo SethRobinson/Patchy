@@ -11015,6 +11015,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
         <translation>흑백: %1 / %2 / %3 / %4 / %5 / %6</translation>
     </message>
+    <message>
+        <source>Color Lookup: %1</source>
+        <translation>색상 검색: %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22645,6 +22649,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Black &amp; White</source>
         <translation>흑백을 취소했습니다</translation>
+    </message>
+    <message>
+        <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
+        <translation>색상 검색 &quot;%1&quot;은(는) 파일에 저장된 그대로 적용됩니다.</translation>
     </message>
 </context>
 <context>

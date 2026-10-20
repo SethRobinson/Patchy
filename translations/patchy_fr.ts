@@ -11049,6 +11049,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
         <translation>Noir et blanc : %1 / %2 / %3 / %4 / %5 / %6</translation>
     </message>
+    <message>
+        <source>Color Lookup: %1</source>
+        <translation>Correspondance de la couleur : %1</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22715,6 +22719,10 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
     <message>
         <source>Cancelled Black &amp; White</source>
         <translation>Noir et blanc annulé</translation>
+    </message>
+    <message>
+        <source>Color Lookup &quot;%1&quot; is applied as stored in the file.</source>
+        <translation>La correspondance de la couleur « %1 » est appliquée telle qu&apos;elle est enregistrée dans le fichier.</translation>
     </message>
 </context>
 <context>

@@ -128,6 +128,9 @@ inline constexpr const char* kLayerMetadataAdjustmentGradientMapName = "patchy.a
 inline constexpr const char* kLayerMetadataAdjustmentBlackWhiteWeights = "patchy.adjustment.black_white.weights";
 inline constexpr const char* kLayerMetadataAdjustmentBlackWhiteTint = "patchy.adjustment.black_white.tint";
 inline constexpr const char* kLayerMetadataAdjustmentBlackWhiteTintColor = "patchy.adjustment.black_white.tint_color";
+// Color Lookup: the registered table's id (empty means identity) and the look's name.
+inline constexpr const char* kLayerMetadataAdjustmentColorLookupTable = "patchy.adjustment.color_lookup.table";
+inline constexpr const char* kLayerMetadataAdjustmentColorLookupName = "patchy.adjustment.color_lookup.name";
 inline constexpr const char* kLayerMetadataAdjustmentThresholdLevel = "patchy.adjustment.threshold.level";
 inline constexpr const char* kLayerMetadataAdjustmentExposureValue = "patchy.adjustment.exposure.value";
 inline constexpr const char* kLayerMetadataAdjustmentExposureOffset = "patchy.adjustment.exposure.offset";
@@ -154,7 +157,8 @@ enum class AdjustmentKind {
   ChannelMixer,
   PhotoFilter,
   GradientMap,
-  BlackWhite
+  BlackWhite,
+  ColorLookup
 };
 
 enum class LevelsChannel {
@@ -418,6 +422,37 @@ struct BlackWhiteAdjustment {
 [[nodiscard]] std::array<double, 3> black_white_transfer(const BlackWhiteAdjustment& settings, double red,
                                                          double green, double blue, bool byte_stages);
 
+// A sampled RGB-to-RGB 3D table, as Photoshop renders a Color Lookup ('clrL'): the layer's
+// ICC profile sampled at its own grid, 16-bit nodes, tetrahedral interpolation
+// (docs/adjustment-kinds.md, "Color Lookup"). Tables are applied exactly as stored, never
+// edited (docs/legal-constraints.md, "Adjustment layers").
+struct ColorLookupTable {
+  std::string id;  // content hash; layer metadata carries only this
+  int size{0};     // grid points per axis, 2..256
+  // (r + g * size + b * size * size) * 3 + channel, 0..65535.
+  std::vector<std::uint16_t> values;
+  [[nodiscard]] bool valid() const noexcept;
+  // One color on the 0..255 scale, unrounded.
+  [[nodiscard]] std::array<double, 3> apply(double red, double green, double blue) const noexcept;
+};
+// Builds a table and its content id; null when the grid is unusable.
+[[nodiscard]] std::shared_ptr<const ColorLookupTable> make_color_lookup_table(int size,
+                                                                              std::vector<std::uint16_t> values);
+// The tables of the documents opened in this process, by id (as for ink spaces). A table
+// that is not registered leaves the adjustment as identity.
+void register_color_lookup_table(std::shared_ptr<const ColorLookupTable> table);
+[[nodiscard]] std::shared_ptr<const ColorLookupTable> find_color_lookup_table(std::string_view id);
+// Photoshop's Color Lookup: a table and the look's display name. No table is identity,
+// which is also how Photoshop renders a 'clrL' block without a profile.
+struct ColorLookupAdjustment {
+  std::shared_ptr<const ColorLookupTable> table;
+  std::string name;
+  friend bool operator==(const ColorLookupAdjustment& a, const ColorLookupAdjustment& b) {
+    return (a.table == nullptr ? std::string() : a.table->id) == (b.table == nullptr ? std::string() : b.table->id) &&
+           a.name == b.name;
+  }
+};
+
 // Both Photoshop algorithms are modeled. Modern mode (Photoshop's default,
 // use_legacy false) takes brightness -150..150 and contrast -50..100; legacy
 // mode takes -100..100 for both. Old Patchy documents and 'brit'-only PSDs
@@ -448,6 +483,7 @@ struct AdjustmentSettings {
   PhotoFilterAdjustment photo_filter{};
   GradientMapAdjustment gradient_map{};
   BlackWhiteAdjustment black_white{};
+  ColorLookupAdjustment color_lookup{};
   // Set for an adjustment layer that came from a CMYK document whose profile could be
   // read: the channel-wise kinds (Levels, Curves, Invert, Posterize, Brightness/Contrast,
   // Exposure) then run on the four inks instead of on RGB. See core/ink_space.hpp.

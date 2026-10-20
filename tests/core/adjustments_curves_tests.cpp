@@ -16,6 +16,7 @@
 #include "psd/psd_binary.hpp"
 #include "psd/psd_descriptor.hpp"
 #include "psd/psd_document_io.hpp"
+#include "psd/psd_io_internal.hpp"
 #include "render/compositor.hpp"
 #include "test_harness.hpp"
 #include "local_psd_fixtures.hpp"
@@ -3758,6 +3759,128 @@ void black_white_matches_photoshop_2026_calibration() {
   CHECK(exact >= total - 13);
 }
 
+// The probe look the Color Lookup tests use (#250): Patchy's own non-separable test LUT, so
+// no third-party look enters the repository. Nodes are its 17-point table as a .cube file
+// prints them (six decimals), red fastest.
+std::shared_ptr<const patchy::ColorLookupTable> probe_color_lookup_table() {
+  constexpr int size = 17;
+  std::vector<std::uint16_t> values;
+  values.reserve(size * size * size * 3);
+  const auto node = [](double value) {
+    const double printed = std::round(std::min(1.0, value) * 1.0e6) / 1.0e6;
+    return static_cast<std::uint16_t>(std::lround(printed * 65535.0));
+  };
+  for (int b = 0; b < size; ++b) {
+    for (int g = 0; g < size; ++g) {
+      for (int r = 0; r < size; ++r) {
+        const double red = r / 16.0;
+        const double green = g / 16.0;
+        const double blue = b / 16.0;
+        values.push_back(node(0.7 * green + 0.3 * red * red));
+        values.push_back(node(std::pow(blue, 0.7)));
+        values.push_back(node(0.6 * red + 0.4 * (1.0 - green) * blue));
+      }
+    }
+  }
+  return patchy::make_color_lookup_table(size, std::move(values));
+}
+
+// Color Lookup reads Photoshop's 'clrL' block through its ICC profile, as Photoshop renders
+// it, and writes an unedited block back byte for byte (#250). Photoshop 2026 renders the
+// probe look, carried in a device link of the shape Patchy generates, to these values; the
+// tetrahedral render matches within a level. A block without a profile is identity.
+void psd_color_lookup_renders_and_round_trips_clrL() {
+  const auto table = probe_color_lookup_table();
+  CHECK(table != nullptr);
+  if (table == nullptr) {
+    return;
+  }
+  patchy::ColorLookupAdjustment look;
+  look.table = table;
+  look.name = "probe17.cube";
+  const auto payload = patchy::psd::photoshop_color_lookup_payload(look, nullptr);
+  auto document = patchy::psd::DocumentIo::read(single_adjustment_layer_psd({{{'c', 'l', 'r', 'L'}, payload}}));
+  CHECK(document.layers().size() == 1);
+  CHECK(document.layers().front().kind() == patchy::LayerKind::Adjustment);
+  const auto settings = patchy::adjustment_settings_from_layer(document.layers().front());
+  CHECK(settings.has_value());
+  if (!settings.has_value()) {
+    return;
+  }
+  CHECK(settings->kind == patchy::AdjustmentKind::ColorLookup);
+  CHECK(settings->color_lookup.name == "probe17.cube");
+  const auto read_table = settings->color_lookup.table;
+  CHECK(read_table != nullptr);
+  if (read_table == nullptr) {
+    return;
+  }
+  // The generated profile carries the grid, and sampling it at the nodes returns the nodes.
+  CHECK(read_table->size == 17);
+  int worst_node = 0;
+  for (std::size_t index = 0; index < table->values.size() && index < read_table->values.size(); ++index) {
+    worst_node = std::max(worst_node, std::abs(static_cast<int>(table->values[index]) -
+                                               static_cast<int>(read_table->values[index])));
+  }
+  CHECK(worst_node <= 2);
+
+  using Triple = std::array<int, 3>;
+  const std::array<Triple, 11> inputs{{{0, 0, 0}, {255, 255, 255}, {128, 128, 128}, {17, 68, 204}, {204, 102, 34},
+                                       {51, 170, 238}, {255, 0, 0}, {0, 255, 0}, {0, 0, 255}, {238, 34, 255},
+                                       {37, 37, 37}}};
+  const std::array<Triple, 11> photoshop{{{0, 0, 0}, {255, 255, 153}, {109, 157, 102}, {48, 218, 70}, {120, 62, 131},
+                                          {122, 243, 62}, {76, 0, 153}, {178, 0, 0}, {0, 255, 102}, {90, 255, 231},
+                                          {28, 66, 35}}};
+  CHECK(!patchy::build_adjustment_lut(*settings).has_value());  // channels mix
+  const patchy::DeepAdjuster deep(*settings, patchy::DeepDomain::Encoded);
+  for (std::size_t index = 0; index < inputs.size(); ++index) {
+    const auto& in = inputs[index];
+    const patchy::RgbColor color{static_cast<std::uint8_t>(in[0]), static_cast<std::uint8_t>(in[1]),
+                                 static_cast<std::uint8_t>(in[2])};
+    const auto adjusted = patchy::apply_adjustment_to_color(color, *settings);
+    const std::array<int, 3> got{adjusted.red, adjusted.green, adjusted.blue};
+    const auto deep_out = deep.apply({static_cast<float>(in[0]), static_cast<float>(in[1]),
+                                      static_cast<float>(in[2])});
+    for (std::size_t c = 0; c < 3U; ++c) {
+      CHECK(std::abs(got[c] - photoshop[index][c]) <= 1);
+      CHECK(std::abs(static_cast<double>(deep_out[c]) - photoshop[index][c]) <= 1.5);
+    }
+  }
+
+  // Unedited: the block comes back unchanged.
+  const auto resaved = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  CHECK(psd_layer_block_payload(psd_layer_extra_data(resaved, 0), "clrL") == payload);
+
+  // Photoshop renders a lookup without a profile as identity; so does Patchy.
+  patchy::ColorLookupAdjustment empty;
+  empty.name = "none.cube";
+  const auto bare = patchy::adjustment_settings_from_layer(
+      patchy::psd::DocumentIo::read(
+          single_adjustment_layer_psd({{{'c', 'l', 'r', 'L'}, patchy::psd::photoshop_color_lookup_payload(empty, nullptr)}}))
+          .layers()
+          .front());
+  CHECK(bare.has_value());
+  CHECK(bare.has_value() && bare->kind == patchy::AdjustmentKind::ColorLookup && bare->color_lookup.table == nullptr);
+  if (bare.has_value()) {
+    const auto same = patchy::apply_adjustment_to_color(patchy::RgbColor{17, 68, 204}, *bare);
+    CHECK((same == patchy::RgbColor{17, 68, 204}));
+  }
+
+  // Layer metadata keeps the table through its registered id.
+  patchy::AdjustmentSettings metadata_settings;
+  metadata_settings.kind = patchy::AdjustmentKind::ColorLookup;
+  metadata_settings.color_lookup = look;
+  patchy::Layer layer(1, "Color Lookup", patchy::LayerKind::Adjustment);
+  patchy::configure_adjustment_layer(layer, metadata_settings);
+  const auto from_metadata = patchy::adjustment_settings_from_layer(layer);
+  CHECK(from_metadata.has_value());
+  CHECK(from_metadata.has_value() && from_metadata->color_lookup == look);
+
+  // The generated document opens in Photoshop (docs/photoshop-com.md); keep it for the check.
+  std::filesystem::create_directories("test-artifacts");
+  std::ofstream artifact("test-artifacts/color-lookup-probe-patchy.psd", std::ios::binary);
+  artifact.write(reinterpret_cast<const char*>(resaved.data()), static_cast<std::streamsize>(resaved.size()));
+}
+
 // Channel Mixer reads and writes Photoshop's 'mixr' block: the rows land on the right
 // outputs, monochrome keeps its gray mix, an unedited block re-emits byte for byte, and
 // the preset-name 'CgEd' goes once the mix is edited (#250).
@@ -3966,5 +4089,6 @@ std::vector<patchy::test::TestCase> adjustments_curves_tests() {
       {"gradient_map_matches_photoshop_2026_calibration", gradient_map_matches_photoshop_2026_calibration},
       {"psd_black_white_reads_and_writes_blwh", psd_black_white_reads_and_writes_blwh},
       {"black_white_matches_photoshop_2026_calibration", black_white_matches_photoshop_2026_calibration},
+      {"psd_color_lookup_renders_and_round_trips_clrL", psd_color_lookup_renders_and_round_trips_clrL},
   };
 }

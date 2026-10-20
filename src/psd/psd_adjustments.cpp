@@ -942,6 +942,261 @@ std::vector<std::uint8_t> photoshop_black_white_payload(const BlackWhiteAdjustme
   return payload;
 }
 
+// 'clrL' (docs/adjustment-kinds.md, "Color Lookup"): u16 version 1, u32 descriptor version
+// 16 and a descriptor whose lookupType is 3DLUT, abstractProfile or deviceLinkProfile, with
+// the look's name (Nm), Dthr, and the ICC 'profile' Photoshop renders through; a 3DLUT also
+// keeps the LUT file (LUTFormat, dataOrder, tableOrder, LUT3DFileData, LUT3DFileName).
+// Without a profile Photoshop renders identity, and so does Patchy.
+std::optional<AdjustmentSettings> parse_photoshop_color_lookup_adjustment(std::span<const std::uint8_t> payload) {
+  DescriptorObject descriptor;
+  try {
+    BigEndianReader reader(payload);
+    if (reader.read_u16() != 1U || reader.read_u32() != 16U) {
+      return std::nullopt;
+    }
+    descriptor = read_descriptor(reader);
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
+  AdjustmentSettings settings;
+  settings.kind = AdjustmentKind::ColorLookup;
+  if (const auto* name = descriptor_value(descriptor, "Nm  ");
+      name != nullptr && name->type == DescriptorValue::Type::String) {
+    // Photoshop stores the LUT's full path; the file name is the look's name.
+    const auto& text = name->string_value;
+    const auto slash = text.find_last_of("/\\");
+    settings.color_lookup.name = slash == std::string::npos ? text : text.substr(slash + 1U);
+  }
+  if (const auto* profile = descriptor_value(descriptor, "profile");
+      profile != nullptr && profile->type == DescriptorValue::Type::Raw && !profile->raw_value.empty()) {
+    const int stored_grid = color_lookup_profile_grid(profile->raw_value);
+    const int grid = stored_grid != 0 ? std::min(stored_grid, 65) : 33;
+    if (auto nodes = sample_color_lookup_profile(profile->raw_value, grid); nodes.has_value()) {
+      settings.color_lookup.table = make_color_lookup_table(grid, std::move(*nodes));
+      register_color_lookup_table(settings.color_lookup.table);
+    }
+  }
+  return settings;
+}
+
+namespace {
+
+void append_u16(std::vector<std::uint8_t>& out, std::uint32_t value) {
+  out.push_back(static_cast<std::uint8_t>((value >> 8U) & 0xFFU));
+  out.push_back(static_cast<std::uint8_t>(value & 0xFFU));
+}
+
+void append_u32(std::vector<std::uint8_t>& out, std::uint32_t value) {
+  for (int shift = 24; shift >= 0; shift -= 8) {
+    out.push_back(static_cast<std::uint8_t>((value >> static_cast<unsigned>(shift)) & 0xFFU));
+  }
+}
+
+void append_text(std::vector<std::uint8_t>& out, std::string_view text) {
+  out.insert(out.end(), text.begin(), text.end());
+}
+
+void pad_to_four(std::vector<std::uint8_t>& out) {
+  while (out.size() % 4U != 0U) {
+    out.push_back(0);
+  }
+}
+
+// An ICC 'mluc' with one en-US record (UTF-16 with a trailing null, as Photoshop writes).
+std::vector<std::uint8_t> icc_mluc(std::string_view text) {
+  auto units = utf8_to_utf16(text);
+  units.push_back(0);
+  std::vector<std::uint8_t> out;
+  append_text(out, "mluc");
+  append_u32(out, 0);
+  append_u32(out, 1);
+  append_u32(out, 12);
+  append_text(out, "enUS");
+  append_u32(out, static_cast<std::uint32_t>(units.size() * 2U));
+  append_u32(out, 28);
+  for (const auto unit : units) {
+    append_u16(out, unit);
+  }
+  return out;
+}
+
+}  // namespace
+
+std::vector<std::uint8_t> photoshop_color_lookup_profile(const ColorLookupTable& table, std::string_view name) {
+  // The shape Photoshop 2026 writes for a loaded LUT: an ICC v4 RGB device link whose A2B0
+  // lutAtoB has identity B and M curves and matrix, the LUT as a 16-bit CLUT (red slowest),
+  // and identity parametric A curves. The copyright text is Patchy's own.
+  std::vector<std::uint8_t> clut;
+  const auto size = static_cast<std::size_t>(table.size);
+  for (std::size_t r = 0; r < size; ++r) {
+    for (std::size_t g = 0; g < size; ++g) {
+      for (std::size_t b = 0; b < size; ++b) {
+        const auto index = (r + g * size + b * size * size) * 3U;
+        for (std::size_t c = 0; c < 3U; ++c) {
+          append_u16(clut, table.values[index + c]);
+        }
+      }
+    }
+  }
+  std::vector<std::uint8_t> curves;  // three empty 'curv' (identity)
+  for (int channel = 0; channel < 3; ++channel) {
+    append_text(curves, "curv");
+    append_u32(curves, 0);
+    append_u32(curves, 0);
+  }
+  std::vector<std::uint8_t> lut;
+  append_text(lut, "mAB ");
+  append_u32(lut, 0);
+  lut.push_back(3);
+  lut.push_back(3);
+  append_u16(lut, 0);
+  const std::uint32_t b_offset = 32;
+  const std::uint32_t matrix_offset = b_offset + static_cast<std::uint32_t>(curves.size());
+  const std::uint32_t m_offset = matrix_offset + 48U;
+  const std::uint32_t clut_offset = m_offset + static_cast<std::uint32_t>(curves.size());
+  const std::uint32_t clut_bytes = 20U + static_cast<std::uint32_t>(clut.size());
+  const std::uint32_t a_offset = clut_offset + ((clut_bytes + 3U) & ~3U);
+  for (const auto offset : {b_offset, matrix_offset, m_offset, clut_offset, a_offset}) {
+    append_u32(lut, offset);
+  }
+  lut.insert(lut.end(), curves.begin(), curves.end());
+  for (int row = 0; row < 3; ++row) {
+    for (int column = 0; column < 3; ++column) {
+      append_u32(lut, row == column ? 0x00010000U : 0U);
+    }
+  }
+  for (int row = 0; row < 3; ++row) {
+    append_u32(lut, 0);
+  }
+  lut.insert(lut.end(), curves.begin(), curves.end());
+  for (int dimension = 0; dimension < 16; ++dimension) {
+    lut.push_back(dimension < 3 ? static_cast<std::uint8_t>(table.size) : 0U);
+  }
+  lut.push_back(2);
+  lut.push_back(0);
+  lut.push_back(0);
+  lut.push_back(0);
+  lut.insert(lut.end(), clut.begin(), clut.end());
+  pad_to_four(lut);
+  for (int channel = 0; channel < 3; ++channel) {
+    append_text(lut, "para");
+    append_u32(lut, 0);
+    append_u16(lut, 3);
+    append_u16(lut, 0);
+    for (const std::uint32_t parameter : {0x00010000U, 0x00010000U, 0U, 0U, 0U}) {
+      append_u32(lut, parameter);
+    }
+  }
+  // An empty two-entry profile sequence, as Photoshop writes.
+  std::vector<std::uint8_t> sequence;
+  append_text(sequence, "pseq");
+  append_u32(sequence, 0);
+  append_u32(sequence, 2);
+  for (int entry = 0; entry < 2; ++entry) {
+    for (int zero = 0; zero < 5; ++zero) {
+      append_u32(sequence, 0);
+    }
+    for (int text = 0; text < 2; ++text) {
+      append_text(sequence, "mluc");
+      append_u32(sequence, 0);
+      append_u32(sequence, 0);
+      append_u32(sequence, 12);
+    }
+  }
+  const std::array<std::pair<const char*, std::vector<std::uint8_t>>, 4> tags{{
+      {"desc", icc_mluc(name)},
+      {"cprt", icc_mluc("No copyright, use freely")},
+      {"pseq", sequence},
+      {"A2B0", lut},
+  }};
+  std::vector<std::uint8_t> body;
+  std::vector<std::uint8_t> table_entries;
+  std::uint32_t offset = 128U + 4U + 12U * static_cast<std::uint32_t>(tags.size());
+  for (const auto& [signature, data] : tags) {
+    append_text(table_entries, signature);
+    append_u32(table_entries, offset + static_cast<std::uint32_t>(body.size()));
+    append_u32(table_entries, static_cast<std::uint32_t>(data.size()));
+    body.insert(body.end(), data.begin(), data.end());
+    pad_to_four(body);
+  }
+  std::vector<std::uint8_t> profile;
+  append_u32(profile, 0);  // size, patched below
+  append_text(profile, "ptch");
+  append_u32(profile, 0x04000000U);
+  append_text(profile, "linkRGB RGB ");
+  for (const std::uint32_t field : {2026U, 1U, 1U, 0U, 0U, 0U}) {
+    append_u16(profile, field);
+  }
+  append_text(profile, "acsp");
+  for (int zero = 0; zero < 6; ++zero) {
+    append_u32(profile, 0);  // platform, flags, manufacturer, model, attributes
+  }
+  append_u32(profile, 0);  // rendering intent
+  for (const std::uint32_t d50 : {0x0000F6D6U, 0x00010000U, 0x0000D32DU}) {
+    append_u32(profile, d50);
+  }
+  append_text(profile, "ptch");
+  profile.resize(128, 0);  // profile ID left zero (not computed), reserved
+  append_u32(profile, static_cast<std::uint32_t>(tags.size()));
+  profile.insert(profile.end(), table_entries.begin(), table_entries.end());
+  profile.insert(profile.end(), body.begin(), body.end());
+  const auto total = static_cast<std::uint32_t>(profile.size());
+  for (int index = 0; index < 4; ++index) {
+    profile[static_cast<std::size_t>(index)] = static_cast<std::uint8_t>(total >> (24 - 8 * index));
+  }
+  return profile;
+}
+
+std::vector<std::uint8_t> photoshop_color_lookup_payload(const ColorLookupAdjustment& settings,
+                                                         const UnknownPsdBlock* original) {
+  if (original != nullptr) {
+    if (const auto parsed = parse_photoshop_color_lookup_adjustment(original->payload);
+        parsed.has_value() && parsed->color_lookup == settings) {
+      return original->payload;
+    }
+  }
+  // A Patchy-made lookup: lookupType 3DLUT, the name, no dither, and the profile Photoshop
+  // renders through. A layer without a table writes an empty lookup.
+  const auto key = [](std::vector<std::uint8_t>& out, std::string_view id) {
+    append_u32(out, id.size() == 4U ? 0U : static_cast<std::uint32_t>(id.size()));
+    append_text(out, id);
+  };
+  const auto unicode = [](std::vector<std::uint8_t>& out, std::string_view text) {
+    auto units = utf8_to_utf16(text);
+    units.push_back(0);
+    append_u32(out, static_cast<std::uint32_t>(units.size()));
+    for (const auto unit : units) {
+      append_u16(out, unit);
+    }
+  };
+  std::vector<std::uint8_t> payload;
+  append_u16(payload, 1);
+  append_u32(payload, 16);
+  unicode(payload, "");
+  key(payload, "null");
+  const bool has_table = settings.table != nullptr && settings.table->valid();
+  append_u32(payload, has_table ? 4U : 3U);
+  key(payload, "lookupType");
+  append_text(payload, "enum");
+  key(payload, "colorLookupType");
+  key(payload, "3DLUT");
+  key(payload, "Nm  ");
+  append_text(payload, "TEXT");
+  unicode(payload, settings.name);
+  key(payload, "Dthr");
+  append_text(payload, "bool");
+  payload.push_back(0);
+  if (has_table) {
+    const auto profile = photoshop_color_lookup_profile(*settings.table, settings.name);
+    key(payload, "profile");
+    append_text(payload, "tdta");
+    append_u32(payload, static_cast<std::uint32_t>(profile.size()));
+    payload.insert(payload.end(), profile.begin(), profile.end());
+  }
+  pad_to_four(payload);
+  return payload;
+}
+
 std::optional<AdjustmentSettings> parse_photoshop_posterize_adjustment(std::span<const std::uint8_t> payload) {
   if (payload.size() < 2) {
     return std::nullopt;
