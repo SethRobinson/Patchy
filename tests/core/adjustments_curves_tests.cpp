@@ -3577,6 +3577,187 @@ void gradient_map_matches_photoshop_2026_calibration() {
   CHECK(worst_overall <= 1);
 }
 
+// Black & White reads and writes Photoshop's 'blwh' descriptor block (#250): the six
+// weights, the tint flag and the tint color. An unedited block re-emits byte for byte, an
+// edit rewrites only the modeled values, and a fresh layer starts from Photoshop's own block.
+void psd_black_white_reads_and_writes_blwh() {
+  // Photoshop 2026's blocks: the default weights without a tint, and with a (40, 90, 220) tint.
+  const std::vector<std::uint8_t> default_block {0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+       0x6E, 0x75, 0x6C, 0x6C, 0x00, 0x00, 0x00, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x52, 0x64,
+       0x20, 0x20, 0x6C, 0x6F, 0x6E, 0x67, 0x00, 0x00, 0x00, 0x28, 0x00, 0x00, 0x00, 0x00,
+       0x59, 0x6C, 0x6C, 0x77, 0x6C, 0x6F, 0x6E, 0x67, 0x00, 0x00, 0x00, 0x3C, 0x00, 0x00,
+       0x00, 0x00, 0x47, 0x72, 0x6E, 0x20, 0x6C, 0x6F, 0x6E, 0x67, 0x00, 0x00, 0x00, 0x28,
+       0x00, 0x00, 0x00, 0x00, 0x43, 0x79, 0x6E, 0x20, 0x6C, 0x6F, 0x6E, 0x67, 0x00, 0x00,
+       0x00, 0x3C, 0x00, 0x00, 0x00, 0x00, 0x42, 0x6C, 0x20, 0x20, 0x6C, 0x6F, 0x6E, 0x67,
+       0x00, 0x00, 0x00, 0x14, 0x00, 0x00, 0x00, 0x00, 0x4D, 0x67, 0x6E, 0x74, 0x6C, 0x6F,
+       0x6E, 0x67, 0x00, 0x00, 0x00, 0x50, 0x00, 0x00, 0x00, 0x07, 0x75, 0x73, 0x65, 0x54,
+       0x69, 0x6E, 0x74, 0x62, 0x6F, 0x6F, 0x6C, 0x00, 0x00, 0x00, 0x00, 0x09, 0x74, 0x69,
+       0x6E, 0x74, 0x43, 0x6F, 0x6C, 0x6F, 0x72, 0x4F, 0x62, 0x6A, 0x63, 0x00, 0x00, 0x00,
+       0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x52, 0x47, 0x42, 0x43, 0x00, 0x00, 0x00,
+       0x03, 0x00, 0x00, 0x00, 0x00, 0x52, 0x64, 0x20, 0x20, 0x64, 0x6F, 0x75, 0x62, 0x00,
+       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x47, 0x72, 0x6E,
+       0x20, 0x64, 0x6F, 0x75, 0x62, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+       0x00, 0x00, 0x00, 0x42, 0x6C, 0x20, 0x20, 0x64, 0x6F, 0x75, 0x62, 0x00, 0x00, 0x00,
+       0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0C, 0x62, 0x77, 0x50, 0x72, 0x65,
+       0x73, 0x65, 0x74, 0x4B, 0x69, 0x6E, 0x64, 0x6C, 0x6F, 0x6E, 0x67, 0x00, 0x00, 0x00,
+       0x04, 0x00, 0x00, 0x00, 0x1B, 0x62, 0x6C, 0x61, 0x63, 0x6B, 0x41, 0x6E, 0x64, 0x57,
+       0x68, 0x69, 0x74, 0x65, 0x50, 0x72, 0x65, 0x73, 0x65, 0x74, 0x46, 0x69, 0x6C, 0x65,
+       0x4E, 0x61, 0x6D, 0x65, 0x54, 0x45, 0x58, 0x54, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
+       0x00, 0x00};
+  const std::vector<std::uint8_t> tint_block {0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+       0x6E, 0x75, 0x6C, 0x6C, 0x00, 0x00, 0x00, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x52, 0x64,
+       0x20, 0x20, 0x6C, 0x6F, 0x6E, 0x67, 0x00, 0x00, 0x00, 0x28, 0x00, 0x00, 0x00, 0x00,
+       0x59, 0x6C, 0x6C, 0x77, 0x6C, 0x6F, 0x6E, 0x67, 0x00, 0x00, 0x00, 0x3C, 0x00, 0x00,
+       0x00, 0x00, 0x47, 0x72, 0x6E, 0x20, 0x6C, 0x6F, 0x6E, 0x67, 0x00, 0x00, 0x00, 0x28,
+       0x00, 0x00, 0x00, 0x00, 0x43, 0x79, 0x6E, 0x20, 0x6C, 0x6F, 0x6E, 0x67, 0x00, 0x00,
+       0x00, 0x3C, 0x00, 0x00, 0x00, 0x00, 0x42, 0x6C, 0x20, 0x20, 0x6C, 0x6F, 0x6E, 0x67,
+       0x00, 0x00, 0x00, 0x14, 0x00, 0x00, 0x00, 0x00, 0x4D, 0x67, 0x6E, 0x74, 0x6C, 0x6F,
+       0x6E, 0x67, 0x00, 0x00, 0x00, 0x50, 0x00, 0x00, 0x00, 0x07, 0x75, 0x73, 0x65, 0x54,
+       0x69, 0x6E, 0x74, 0x62, 0x6F, 0x6F, 0x6C, 0x01, 0x00, 0x00, 0x00, 0x09, 0x74, 0x69,
+       0x6E, 0x74, 0x43, 0x6F, 0x6C, 0x6F, 0x72, 0x4F, 0x62, 0x6A, 0x63, 0x00, 0x00, 0x00,
+       0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x52, 0x47, 0x42, 0x43, 0x00, 0x00, 0x00,
+       0x03, 0x00, 0x00, 0x00, 0x00, 0x52, 0x64, 0x20, 0x20, 0x64, 0x6F, 0x75, 0x62, 0x40,
+       0x44, 0x00, 0x00, 0x0B, 0xE0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x47, 0x72, 0x6E,
+       0x20, 0x64, 0x6F, 0x75, 0x62, 0x40, 0x56, 0x80, 0x00, 0x09, 0x60, 0x00, 0x00, 0x00,
+       0x00, 0x00, 0x00, 0x42, 0x6C, 0x20, 0x20, 0x64, 0x6F, 0x75, 0x62, 0x40, 0x6B, 0x80,
+       0x00, 0x04, 0x60, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0C, 0x62, 0x77, 0x50, 0x72, 0x65,
+       0x73, 0x65, 0x74, 0x4B, 0x69, 0x6E, 0x64, 0x6C, 0x6F, 0x6E, 0x67, 0x00, 0x00, 0x00,
+       0x04, 0x00, 0x00, 0x00, 0x1B, 0x62, 0x6C, 0x61, 0x63, 0x6B, 0x41, 0x6E, 0x64, 0x57,
+       0x68, 0x69, 0x74, 0x65, 0x50, 0x72, 0x65, 0x73, 0x65, 0x74, 0x46, 0x69, 0x6C, 0x65,
+       0x4E, 0x61, 0x6D, 0x65, 0x54, 0x45, 0x58, 0x54, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
+       0x00, 0x00};
+  const auto read_settings = [](const std::vector<std::uint8_t>& payload) {
+    return patchy::adjustment_settings_from_layer(
+        patchy::psd::DocumentIo::read(single_adjustment_layer_psd({{{'b', 'l', 'w', 'h'}, payload}})).layers().front());
+  };
+  const auto plain = read_settings(default_block);
+  CHECK(plain.has_value());
+  CHECK(plain->kind == patchy::AdjustmentKind::BlackWhite);
+  const auto& bw = plain->black_white;
+  CHECK(bw.reds == 40 && bw.yellows == 60 && bw.greens == 40 && bw.cyans == 60 && bw.blues == 20 &&
+        bw.magentas == 80);
+  CHECK(!bw.tint);
+  const auto tinted = read_settings(tint_block);
+  CHECK(tinted.has_value());
+  CHECK(tinted->black_white.tint);
+  // Photoshop stores 40.0000027 for 40; the byte color reads back exact.
+  CHECK((tinted->black_white.tint_color == patchy::RgbColor{40, 90, 220}));
+
+  for (const auto* payload : {&default_block, &tint_block}) {
+    const auto document =
+        patchy::psd::DocumentIo::read(single_adjustment_layer_psd({{{'b', 'l', 'w', 'h'}, *payload}}));
+    CHECK(psd_layer_block_payload(psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(document), 0),
+                                  "blwh") == *payload);
+  }
+
+  // Edited: the new weights and tint read back; the block keeps Photoshop's size and keys.
+  auto document = patchy::psd::DocumentIo::read(single_adjustment_layer_psd({{{'b', 'l', 'w', 'h'}, default_block}}));
+  auto edited = *plain;
+  edited.black_white.reds = 17;
+  edited.black_white.yellows = -45;
+  edited.black_white.magentas = 260;
+  edited.black_white.tint = true;
+  edited.black_white.tint_color = patchy::RgbColor{200, 30, 120};
+  patchy::configure_adjustment_layer(document.layers().front(), edited);
+  const auto rewritten = psd_layer_block_payload(
+      psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(document), 0), "blwh");
+  CHECK(rewritten.has_value());
+  CHECK(rewritten->size() == default_block.size());
+  const auto reread = read_settings(*rewritten);
+  CHECK(reread.has_value());
+  CHECK(reread->black_white == edited.black_white);
+
+  // A fresh layer with Photoshop's weights and no tint writes Photoshop's block except the
+  // tint color doubles (Patchy's default tint color is kept for when the tint is turned on).
+  patchy::AdjustmentSettings fresh;
+  fresh.kind = patchy::AdjustmentKind::BlackWhite;
+  fresh.black_white.tint_color = patchy::RgbColor{0, 0, 0};
+  patchy::Document created(4, 4, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(created.allocate_layer_id(), "Black & White", patchy::LayerKind::Adjustment);
+  layer.set_bounds(patchy::Rect::from_size(4, 4));
+  patchy::configure_adjustment_layer(layer, fresh);
+  created.add_layer(std::move(layer));
+  CHECK(psd_layer_block_payload(psd_layer_extra_data(patchy::psd::DocumentIo::write_layered_rgb8(created), 0),
+                                "blwh") == default_block);
+
+  // A block that is not a version 16 descriptor stays a placeholder.
+  auto broken = default_block;
+  broken[3] = 0x11;
+  const auto placeholder =
+      patchy::psd::DocumentIo::read(single_adjustment_layer_psd({{{'b', 'l', 'w', 'h'}, broken}}));
+  CHECK(patchy::adjustment_placeholder_kind(placeholder.layers().front()) == "black_white");
+}
+
+// Black & White output pinned to Photoshop 2026 (#250). The gray is exact on every probe
+// value for the default, extreme and single-color weights; mixed negative weights round a
+// few values one level differently, and the tint (PDF SetLum) is within one level.
+void black_white_matches_photoshop_2026_calibration() {
+  using Triple = std::array<int, 3>;
+  struct Row {
+    std::array<int, 6> weights;
+    bool tint;
+    Triple tint_color;
+    std::array<Triple, 8> expected;
+  };
+  const std::array<Triple, 8> inputs{{{17, 68, 204}, {136, 136, 136}, {51, 170, 238}, {204, 102, 34}, {0, 136, 17},
+                                      {255, 0, 0}, {238, 34, 255}, {16, 16, 16}}};
+  const std::array<Row, 6> rows{{
+      {{40, 60, 40, 60, 20, 80}, false, {225, 211, 179},
+       {{{75, 75, 75}, {136, 136, 136}, {136, 136, 136}, {116, 116, 116}, {58, 58, 58}, {102, 102, 102}, {201, 201, 201}, {16, 16, 16}}}},
+      {{17, -45, 133, 72, -150, 260}, false, {225, 211, 179},
+       {{{0, 0, 0}, {136, 136, 136}, {35, 35, 35}, {21, 21, 21}, {170, 170, 170}, {43, 43, 43}, {255, 255, 255}, {16, 16, 16}}}},
+      {{300, -200, 300, -200, 300, -200}, false, {225, 211, 179},
+       {{{255, 255, 255}, {136, 136, 136}, {17, 17, 17}, {204, 204, 204}, {255, 255, 255}, {255, 255, 255}, {0, 0, 0}, {16, 16, 16}}}},
+      {{40, 60, 40, 60, 20, 80}, true, {225, 211, 179},
+       {{{88, 74, 42}, {149, 135, 103}, {149, 135, 103}, {129, 115, 83}, {71, 57, 25}, {115, 101, 69}, {214, 200, 168}, {22, 16, 1}}}},
+      {{40, 60, 40, 60, 20, 80}, true, {40, 90, 220},
+       {{{26, 76, 206}, {92, 137, 255}, {92, 137, 255}, {67, 117, 247}, {9, 59, 189}, {53, 103, 233}, {182, 201, 255}, {1, 16, 59}}}},
+      {{17, -45, 133, 72, -150, 260}, true, {200, 30, 120},
+       {{{0, 0, 0}, {245, 75, 165}, {98, 1, 52}, {59, 1, 31}, {255, 123, 193}, {120, 1, 63}, {255, 255, 255}, {45, 1, 24}}}},
+  }};
+  int exact = 0;
+  int total = 0;
+  for (const auto& row : rows) {
+    patchy::AdjustmentSettings settings;
+    settings.kind = patchy::AdjustmentKind::BlackWhite;
+    auto& bw = settings.black_white;
+    bw.reds = row.weights[0];
+    bw.yellows = row.weights[1];
+    bw.greens = row.weights[2];
+    bw.cyans = row.weights[3];
+    bw.blues = row.weights[4];
+    bw.magentas = row.weights[5];
+    bw.tint = row.tint;
+    bw.tint_color = patchy::RgbColor{static_cast<std::uint8_t>(row.tint_color[0]),
+                                     static_cast<std::uint8_t>(row.tint_color[1]),
+                                     static_cast<std::uint8_t>(row.tint_color[2])};
+    CHECK(!patchy::build_adjustment_lut(settings).has_value());  // channels mix
+    const patchy::DeepAdjuster deep(settings, patchy::DeepDomain::Encoded);
+    for (std::size_t index = 0; index < inputs.size(); ++index) {
+      const auto& in = inputs[index];
+      const patchy::RgbColor color{static_cast<std::uint8_t>(in[0]), static_cast<std::uint8_t>(in[1]),
+                                   static_cast<std::uint8_t>(in[2])};
+      const auto adjusted = patchy::apply_adjustment_to_color(color, settings);
+      const std::array<int, 3> got{adjusted.red, adjusted.green, adjusted.blue};
+      const auto deep_out = deep.apply({static_cast<float>(in[0]), static_cast<float>(in[1]),
+                                        static_cast<float>(in[2])});
+      for (std::size_t c = 0; c < 3U; ++c) {
+        CHECK(std::abs(got[c] - row.expected[index][c]) <= 1);
+        exact += got[c] == row.expected[index][c] ? 1 : 0;
+        ++total;
+        // The deep path skips the byte rounding of the gray and the luma, which can move a
+        // tinted value by up to two levels.
+        CHECK(std::abs(static_cast<double>(deep_out[c]) - row.expected[index][c]) <= 2.5);
+      }
+      if (!row.tint) {
+        CHECK(got[0] == got[1] && got[1] == got[2]);
+      }
+    }
+  }
+  std::cout << "[INFO] Black & White calibration: " << exact << " of " << total << " channel values exact" << '\n';
+  CHECK(exact >= total - 13);
+}
+
 // Channel Mixer reads and writes Photoshop's 'mixr' block: the rows land on the right
 // outputs, monochrome keeps its gray mix, an unedited block re-emits byte for byte, and
 // the preset-name 'CgEd' goes once the mix is edited (#250).
@@ -3783,5 +3964,7 @@ std::vector<patchy::test::TestCase> adjustments_curves_tests() {
       {"photo_filter_matches_photoshop_2026_calibration", photo_filter_matches_photoshop_2026_calibration},
       {"psd_gradient_map_reads_and_writes_grdm", psd_gradient_map_reads_and_writes_grdm},
       {"gradient_map_matches_photoshop_2026_calibration", gradient_map_matches_photoshop_2026_calibration},
+      {"psd_black_white_reads_and_writes_blwh", psd_black_white_reads_and_writes_blwh},
+      {"black_white_matches_photoshop_2026_calibration", black_white_matches_photoshop_2026_calibration},
   };
 }

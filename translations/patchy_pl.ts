@@ -11067,6 +11067,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Gradient Map: %1</source>
         <translation>Mapa gradientu: %1</translation>
     </message>
+    <message>
+        <source>Tint</source>
+        <translation>Zabarwienie</translation>
+    </message>
+    <message>
+        <source>Tint color</source>
+        <translation>Kolor zabarwienia</translation>
+    </message>
+    <message>
+        <source>Tint Color</source>
+        <translation>Kolor zabarwienia</translation>
+    </message>
+    <message>
+        <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
+        <translation>Czarno-białe: %1 / %2 / %3 / %4 / %5 / %6</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22753,6 +22769,18 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     <message>
         <source>Cancelled Gradient Map</source>
         <translation>Anulowano mapę gradientu</translation>
+    </message>
+    <message>
+        <source>Blac&amp;k &amp;&amp; White...</source>
+        <translation>Czarno-&amp;białe...</translation>
+    </message>
+    <message>
+        <source>Black &amp; White</source>
+        <translation>Czarno-białe</translation>
+    </message>
+    <message>
+        <source>Cancelled Black &amp; White</source>
+        <translation>Anulowano czarno-białe</translation>
     </message>
 </context>
 <context>

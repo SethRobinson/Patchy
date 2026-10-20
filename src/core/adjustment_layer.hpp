@@ -123,6 +123,11 @@ inline constexpr const char* kLayerMetadataAdjustmentPhotoFilterPreserveLuminosi
 // with locations, midpoints and opacities in Photoshop's integer units (0..4096, 0..100, 0..255).
 inline constexpr const char* kLayerMetadataAdjustmentGradientMapGradient = "patchy.adjustment.gradient_map.gradient";
 inline constexpr const char* kLayerMetadataAdjustmentGradientMapName = "patchy.adjustment.gradient_map.name";
+// Black & White weights as "reds;yellows;greens;cyans;blues;magentas", the tint flag and the
+// tint color as "r;g;b".
+inline constexpr const char* kLayerMetadataAdjustmentBlackWhiteWeights = "patchy.adjustment.black_white.weights";
+inline constexpr const char* kLayerMetadataAdjustmentBlackWhiteTint = "patchy.adjustment.black_white.tint";
+inline constexpr const char* kLayerMetadataAdjustmentBlackWhiteTintColor = "patchy.adjustment.black_white.tint_color";
 inline constexpr const char* kLayerMetadataAdjustmentThresholdLevel = "patchy.adjustment.threshold.level";
 inline constexpr const char* kLayerMetadataAdjustmentExposureValue = "patchy.adjustment.exposure.value";
 inline constexpr const char* kLayerMetadataAdjustmentExposureOffset = "patchy.adjustment.exposure.offset";
@@ -148,7 +153,8 @@ enum class AdjustmentKind {
   Exposure,
   ChannelMixer,
   PhotoFilter,
-  GradientMap
+  GradientMap,
+  BlackWhite
 };
 
 enum class LevelsChannel {
@@ -388,6 +394,30 @@ struct GradientMapAdjustment {
 [[nodiscard]] std::array<double, 3> gradient_map_transfer(const GradientMapAdjustment& settings, double red,
                                                           double green, double blue);
 
+// Photoshop's Black & White ('blwh'): six weights, -200..300 %, for the reds, yellows,
+// greens, cyans, blues and magentas, and an optional tint. Each pixel's gray is its smallest
+// channel plus (middle - smallest) times the weight of the secondary color its two largest
+// channels make and (largest - middle) times the weight of its largest channel's primary.
+// The tint takes the tint color to that gray's luma (PDF SetLum). Defaults are Photoshop's.
+// The weights come from the user only: no Auto weights or single-control weight path
+// (docs/legal-constraints.md, "Adjustment layers").
+struct BlackWhiteAdjustment {
+  int reds{40};
+  int yellows{60};
+  int greens{40};
+  int cyans{60};
+  int blues{20};
+  int magentas{80};
+  bool tint{false};
+  RgbColor tint_color{225, 211, 179};
+  friend bool operator==(const BlackWhiteAdjustment&, const BlackWhiteAdjustment&) = default;
+};
+[[nodiscard]] BlackWhiteAdjustment clamp_black_white(BlackWhiteAdjustment settings) noexcept;
+// One color on the 0..255 scale; byte_stages rounds the gray and the luma as Photoshop's
+// 8-bit path does, the deep path passes false. Unclamped final rounding.
+[[nodiscard]] std::array<double, 3> black_white_transfer(const BlackWhiteAdjustment& settings, double red,
+                                                         double green, double blue, bool byte_stages);
+
 // Both Photoshop algorithms are modeled. Modern mode (Photoshop's default,
 // use_legacy false) takes brightness -150..150 and contrast -50..100; legacy
 // mode takes -100..100 for both. Old Patchy documents and 'brit'-only PSDs
@@ -417,6 +447,7 @@ struct AdjustmentSettings {
   ChannelMixerAdjustment channel_mixer{};
   PhotoFilterAdjustment photo_filter{};
   GradientMapAdjustment gradient_map{};
+  BlackWhiteAdjustment black_white{};
   // Set for an adjustment layer that came from a CMYK document whose profile could be
   // read: the channel-wise kinds (Levels, Curves, Invert, Posterize, Brightness/Contrast,
   // Exposure) then run on the four inks instead of on RGB. See core/ink_space.hpp.

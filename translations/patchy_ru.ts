@@ -11067,6 +11067,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Gradient Map: %1</source>
         <translation>Карта градиента: %1</translation>
     </message>
+    <message>
+        <source>Tint</source>
+        <translation>Оттенок</translation>
+    </message>
+    <message>
+        <source>Tint color</source>
+        <translation>Цвет оттенка</translation>
+    </message>
+    <message>
+        <source>Tint Color</source>
+        <translation>Цвет оттенка</translation>
+    </message>
+    <message>
+        <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
+        <translation>Черно-белое: %1 / %2 / %3 / %4 / %5 / %6</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22753,6 +22769,18 @@ Patchy можно будет запускать из меню, а на пане�
     <message>
         <source>Cancelled Gradient Map</source>
         <translation>Карта градиента отменена</translation>
+    </message>
+    <message>
+        <source>Blac&amp;k &amp;&amp; White...</source>
+        <translation>Черно-&amp;белое...</translation>
+    </message>
+    <message>
+        <source>Black &amp; White</source>
+        <translation>Черно-белое</translation>
+    </message>
+    <message>
+        <source>Cancelled Black &amp; White</source>
+        <translation>Черно-белое отменено</translation>
     </message>
 </context>
 <context>

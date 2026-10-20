@@ -156,6 +156,8 @@ void MainWindow::populate_new_adjustment_layer_menu(QMenu* menu, const QString& 
                  [this] { new_photo_filter_adjustment_layer(); });
   add_adjustment(QT_TR_NOOP("&Gradient Map..."), QStringLiteral("GradientMapAdjustment"), QStringLiteral("GRM"),
                  [this] { new_gradient_map_adjustment_layer(); });
+  add_adjustment(QT_TR_NOOP("Blac&k && White..."), QStringLiteral("BlackWhiteAdjustment"), QStringLiteral("BW"),
+                 [this] { new_black_white_adjustment_layer(); });
 }
 
 void MainWindow::new_levels_adjustment_layer() {
@@ -489,6 +491,31 @@ void MainWindow::new_gradient_map_adjustment_layer() {
   adjustment.kind = AdjustmentKind::GradientMap;
   adjustment.gradient_map = *settings;
   create_adjustment_layer(tr("Gradient Map"), adjustment);
+}
+
+void MainWindow::new_black_white_adjustment_layer() {
+  std::optional<LayerId> preview_id;
+  const auto restore_active_layer = document().active_layer_id();
+  const auto preview_changed = [this, &preview_id, restore_active_layer](bool enabled,
+                                                                         const BlackWhiteSettings& bw) {
+    AdjustmentSettings settings;
+    settings.kind = AdjustmentKind::BlackWhite;
+    settings.black_white = bw;
+    update_adjustment_layer_preview(tr("Black & White"), settings, enabled, preview_id, restore_active_layer);
+  };
+
+  auto preview_edit_lock = lock_preview_dialog_edits();
+  const auto settings = request_black_white_settings(this, preview_changed);
+  remove_adjustment_layer_preview(preview_id, restore_active_layer);
+  preview_edit_lock.release();
+  if (!settings.has_value()) {
+    statusBar()->showMessage(tr("Cancelled Black & White"));
+    return;
+  }
+  AdjustmentSettings adjustment;
+  adjustment.kind = AdjustmentKind::BlackWhite;
+  adjustment.black_white = *settings;
+  create_adjustment_layer(tr("Black & White"), adjustment);
 }
 
 void MainWindow::new_brightness_contrast_adjustment_layer() {
@@ -850,6 +877,24 @@ void MainWindow::edit_active_adjustment_layer() {
       if (result.has_value()) {
         accepted_settings = *original_settings;
         accepted_settings->photo_filter = *result;
+      }
+      break;
+    }
+    case AdjustmentKind::BlackWhite: {
+      const auto preview_changed = [apply_settings, restore_original_layer, original_settings](
+                                       bool enabled, const BlackWhiteSettings& bw) {
+        if (!enabled) {
+          restore_original_layer();
+          return;
+        }
+        auto settings = *original_settings;
+        settings.black_white = bw;
+        apply_settings(settings);
+      };
+      const auto result = request_black_white_settings(this, preview_changed, original_settings->black_white);
+      if (result.has_value()) {
+        accepted_settings = *original_settings;
+        accepted_settings->black_white = *result;
       }
       break;
     }

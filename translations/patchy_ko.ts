@@ -10999,6 +10999,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Gradient Map: %1</source>
         <translation>그레이디언트 맵: %1</translation>
     </message>
+    <message>
+        <source>Tint</source>
+        <translation>색조</translation>
+    </message>
+    <message>
+        <source>Tint color</source>
+        <translation>색조 색상</translation>
+    </message>
+    <message>
+        <source>Tint Color</source>
+        <translation>색조 색상</translation>
+    </message>
+    <message>
+        <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
+        <translation>흑백: %1 / %2 / %3 / %4 / %5 / %6</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22613,6 +22629,18 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Gradient Map</source>
         <translation>그레이디언트 맵을 취소했습니다</translation>
+    </message>
+    <message>
+        <source>Blac&amp;k &amp;&amp; White...</source>
+        <translation>흑백(&amp;K)...</translation>
+    </message>
+    <message>
+        <source>Black &amp; White</source>
+        <translation>흑백</translation>
+    </message>
+    <message>
+        <source>Cancelled Black &amp; White</source>
+        <translation>흑백을 취소했습니다</translation>
     </message>
 </context>
 <context>

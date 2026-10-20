@@ -803,6 +803,145 @@ std::vector<std::uint8_t> photoshop_gradient_map_payload(const GradientMapAdjust
   return std::move(writer.bytes());
 }
 
+// 'blwh' (docs/adjustment-kinds.md, "Black & White"): u32 descriptor version 16 and a
+// descriptor of six weight longs (Rd, Yllw, Grn, Cyn, Bl, Mgnt), the useTint bool, a
+// tintColor RGBC object of doubles, bwPresetKind and blackAndWhitePresetFileName.
+constexpr std::array<const char*, 6> kBlackWhiteWeightKeys{"Rd  ", "Yllw", "Grn ", "Cyn ", "Bl  ", "Mgnt"};
+
+std::array<int*, 6> black_white_weights(BlackWhiteAdjustment& settings) {
+  return {&settings.reds, &settings.yellows, &settings.greens, &settings.cyans, &settings.blues, &settings.magentas};
+}
+
+std::optional<DescriptorObject> read_black_white_descriptor(std::span<const std::uint8_t> payload) {
+  try {
+    BigEndianReader reader(payload);
+    if (reader.read_u32() != 16U) {
+      return std::nullopt;
+    }
+    return read_descriptor(reader);
+  } catch (const std::exception&) {
+    return std::nullopt;
+  }
+}
+
+std::optional<AdjustmentSettings> parse_photoshop_black_white_adjustment(std::span<const std::uint8_t> payload) {
+  const auto descriptor = read_black_white_descriptor(payload);
+  if (!descriptor.has_value()) {
+    return std::nullopt;
+  }
+  AdjustmentSettings settings;
+  settings.kind = AdjustmentKind::BlackWhite;
+  auto& bw = settings.black_white;
+  const auto weights = black_white_weights(bw);
+  for (std::size_t index = 0; index < weights.size(); ++index) {
+    const auto* value = descriptor_value(*descriptor, kBlackWhiteWeightKeys[index]);
+    if (value == nullptr || value->type != DescriptorValue::Type::Integer) {
+      return std::nullopt;
+    }
+    *weights[index] = value->integer_value;
+  }
+  bw.tint = descriptor_bool(*descriptor, "useTint");
+  if (const auto* tint = descriptor_object(*descriptor, "tintColor"); tint != nullptr) {
+    const auto channel = [tint](const char* key) {
+      return static_cast<std::uint8_t>(std::clamp(std::lround(descriptor_number(*tint, key, 0.0)), 0L, 255L));
+    };
+    bw.tint_color = RgbColor{channel("Rd  "), channel("Grn "), channel("Bl  ")};
+  }
+  bw = clamp_black_white(bw);
+  return settings;
+}
+
+std::vector<std::uint8_t> photoshop_black_white_payload(const BlackWhiteAdjustment& settings,
+                                                        const UnknownPsdBlock* original) {
+  // Photoshop 2026's block for a new layer without a tint, the base for fresh layers.
+  static const std::vector<std::uint8_t> kFreshBlock{
+      0x00, 0x00, 0x00, 0x10, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x6E, 0x75, 0x6C, 0x6C, 0x00, 0x00, 0x00, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x52, 0x64,
+      0x20, 0x20, 0x6C, 0x6F, 0x6E, 0x67, 0x00, 0x00, 0x00, 0x28, 0x00, 0x00, 0x00, 0x00,
+      0x59, 0x6C, 0x6C, 0x77, 0x6C, 0x6F, 0x6E, 0x67, 0x00, 0x00, 0x00, 0x3C, 0x00, 0x00,
+      0x00, 0x00, 0x47, 0x72, 0x6E, 0x20, 0x6C, 0x6F, 0x6E, 0x67, 0x00, 0x00, 0x00, 0x28,
+      0x00, 0x00, 0x00, 0x00, 0x43, 0x79, 0x6E, 0x20, 0x6C, 0x6F, 0x6E, 0x67, 0x00, 0x00,
+      0x00, 0x3C, 0x00, 0x00, 0x00, 0x00, 0x42, 0x6C, 0x20, 0x20, 0x6C, 0x6F, 0x6E, 0x67,
+      0x00, 0x00, 0x00, 0x14, 0x00, 0x00, 0x00, 0x00, 0x4D, 0x67, 0x6E, 0x74, 0x6C, 0x6F,
+      0x6E, 0x67, 0x00, 0x00, 0x00, 0x50, 0x00, 0x00, 0x00, 0x07, 0x75, 0x73, 0x65, 0x54,
+      0x69, 0x6E, 0x74, 0x62, 0x6F, 0x6F, 0x6C, 0x00, 0x00, 0x00, 0x00, 0x09, 0x74, 0x69,
+      0x6E, 0x74, 0x43, 0x6F, 0x6C, 0x6F, 0x72, 0x4F, 0x62, 0x6A, 0x63, 0x00, 0x00, 0x00,
+      0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x52, 0x47, 0x42, 0x43, 0x00, 0x00, 0x00,
+      0x03, 0x00, 0x00, 0x00, 0x00, 0x52, 0x64, 0x20, 0x20, 0x64, 0x6F, 0x75, 0x62, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x47, 0x72, 0x6E,
+      0x20, 0x64, 0x6F, 0x75, 0x62, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x42, 0x6C, 0x20, 0x20, 0x64, 0x6F, 0x75, 0x62, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0C, 0x62, 0x77, 0x50, 0x72, 0x65,
+      0x73, 0x65, 0x74, 0x4B, 0x69, 0x6E, 0x64, 0x6C, 0x6F, 0x6E, 0x67, 0x00, 0x00, 0x00,
+      0x04, 0x00, 0x00, 0x00, 0x1B, 0x62, 0x6C, 0x61, 0x63, 0x6B, 0x41, 0x6E, 0x64, 0x57,
+      0x68, 0x69, 0x74, 0x65, 0x50, 0x72, 0x65, 0x73, 0x65, 0x74, 0x46, 0x69, 0x6C, 0x65,
+      0x4E, 0x61, 0x6D, 0x65, 0x54, 0x45, 0x58, 0x54, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00,
+      0x00, 0x00};
+  if (original != nullptr) {
+    if (const auto parsed = parse_photoshop_black_white_adjustment(original->payload);
+        parsed.has_value() && parsed->black_white == clamp_black_white(settings)) {
+      return original->payload;
+    }
+  }
+  // Every modeled value has a fixed width, so it is patched in place: Patchy's descriptor
+  // writer does not reproduce Photoshop's one-character null name, and the original's
+  // other keys stay exactly as they were.
+  std::vector<std::uint8_t> payload =
+      original != nullptr && read_black_white_descriptor(original->payload).has_value() ? original->payload
+                                                                                        : kFreshBlock;
+  if (!read_black_white_descriptor(payload).has_value() || payload.size() < 16U) {
+    payload = kFreshBlock;
+  }
+  // The value after a charID key ("\0\0\0\0" + key + type) or a stringID key (length + id + type).
+  const auto value_offset = [&payload](std::string_view key, std::string_view type, bool string_id,
+                                       std::size_t from) -> std::optional<std::size_t> {
+    std::vector<std::uint8_t> pattern;
+    const auto length = static_cast<std::uint32_t>(string_id ? key.size() : 0U);
+    for (int shift = 24; shift >= 0; shift -= 8) {
+      pattern.push_back(static_cast<std::uint8_t>((length >> shift) & 0xFFU));
+    }
+    pattern.insert(pattern.end(), key.begin(), key.end());
+    pattern.insert(pattern.end(), type.begin(), type.end());
+    const auto found = std::search(payload.begin() + static_cast<std::ptrdiff_t>(from), payload.end(),
+                                   pattern.begin(), pattern.end());
+    if (found == payload.end()) {
+      return std::nullopt;
+    }
+    return static_cast<std::size_t>(found - payload.begin()) + pattern.size();
+  };
+  const auto put_u32 = [&payload](std::size_t offset, std::uint32_t value) {
+    for (int index = 0; index < 4; ++index) {
+      payload[offset + static_cast<std::size_t>(index)] = static_cast<std::uint8_t>(value >> (24 - 8 * index));
+    }
+  };
+  const auto put_f64 = [&payload](std::size_t offset, double value) {
+    const auto bits = std::bit_cast<std::uint64_t>(value);
+    for (int index = 0; index < 8; ++index) {
+      payload[offset + static_cast<std::size_t>(index)] = static_cast<std::uint8_t>(bits >> (56 - 8 * index));
+    }
+  };
+  auto bw = clamp_black_white(settings);
+  const auto weights = black_white_weights(bw);
+  for (std::size_t index = 0; index < weights.size(); ++index) {
+    if (const auto offset = value_offset(kBlackWhiteWeightKeys[index], "long", false, 4); offset.has_value()) {
+      put_u32(*offset, static_cast<std::uint32_t>(*weights[index]));
+    }
+  }
+  if (const auto offset = value_offset("useTint", "bool", true, 4); offset.has_value()) {
+    payload[*offset] = bw.tint ? 1U : 0U;
+  }
+  if (const auto color = value_offset("tintColor", "Objc", true, 4); color.has_value()) {
+    const std::array<std::pair<const char*, std::uint8_t>, 3> channels{
+        {{"Rd  ", bw.tint_color.red}, {"Grn ", bw.tint_color.green}, {"Bl  ", bw.tint_color.blue}}};
+    for (const auto& [key, value] : channels) {
+      if (const auto offset = value_offset(key, "doub", false, *color); offset.has_value()) {
+        put_f64(*offset, static_cast<double>(value));
+      }
+    }
+  }
+  return payload;
+}
+
 std::optional<AdjustmentSettings> parse_photoshop_posterize_adjustment(std::span<const std::uint8_t> payload) {
   if (payload.size() < 2) {
     return std::nullopt;

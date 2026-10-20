@@ -4,7 +4,7 @@ Codec and calibration record for the Photoshop adjustment kinds added under #250
 
 ## Placeholders
 
-Photoshop adjustment kinds Patchy cannot apply yet (`vibA`, `blwh`, `clrL`, `selc`) import as empty pixel layers marked `patchy.adjustment.placeholder_kind` (`photoshop_placeholder_adjustment_kind`): the Layers panel draws the kind's symbol on a muted frame and a tooltip says it is kept but not applied, one import notice covers the file, and the native block is written back byte for byte. A kind leaves this list when it gets a real `AdjustmentKind`; `mixr`, `phfl` and `grdm` blocks their parsers do not read still import as placeholders.
+Photoshop adjustment kinds Patchy cannot apply yet (`vibA`, `clrL`, `selc`) import as empty pixel layers marked `patchy.adjustment.placeholder_kind` (`photoshop_placeholder_adjustment_kind`): the Layers panel draws the kind's symbol on a muted frame and a tooltip says it is kept but not applied, one import notice covers the file, and the native block is written back byte for byte. A kind leaves this list when it gets a real `AdjustmentKind`; `mixr`, `phfl`, `grdm` and `blwh` blocks their parsers do not read still import as placeholders.
 
 ## Channel Mixer
 
@@ -31,3 +31,11 @@ Photoshop adjustment kinds Patchy cannot apply yet (`vibA`, `blwh`, `clrL`, `sel
 - Classic maps follow `gradient_color` with the two-stop endpoint ease of gradient fills. Perceptual and Linear apply the same smoothness ease to the segment position first (`ease_every_method`; fills and layer effects do not), then interpolate in OKLab or linear light. Every probe value is within one level. The ease is verified on two-stop gradients only.
 - Opacity stops are kept for the file and ignored, as in Photoshop; Dither is kept but not rendered. 16/32-bit documents use `gradient_color_precise` on the continuous luma. Photoshop's localization-key names (`$$$/DefaultGradient/...=Name`) show only the display part in the Layers panel.
 - Refuted: Linear and Perceptual without the ease (15 to 17 levels off at mid grays).
+
+## Black & White
+
+`AdjustmentKind::BlackWhite`, Photoshop's `blwh` block: u32 descriptor version 16 and a descriptor of six weight longs (`Rd  `, `Yllw`, `Grn `, `Cyn `, `Bl  `, `Mgnt`, -200..300), `useTint`, `tintColor` (an `RGBC` object of doubles; Photoshop stores 40.0000027 for 40), `bwPresetKind` and an empty `blackAndWhitePresetFileName`. An unedited block is written back byte for byte; an edit rewrites the modeled values in the original descriptor, and a fresh layer starts from Photoshop 2026's own block (pinned byte for byte). Fitted on a Photoshop 2026 COM probe (#250): 10 settings (defaults, zeros, all 100, single colors, mixed negative weights, extremes, three tints).
+
+- Gray: the smallest channel plus (middle - smallest) times the weight of the secondary color the two largest channels form (yellow, cyan or magenta) plus (largest - middle) times the weight of the largest channel's primary, in hundredths, rounded half up (integer arithmetic on the 8-bit path). Exact on every probe value except one mixed negative-weight set (49 of 4,352 pixels off by one level); no rounding or weight quantization explains those.
+- Tint: PDF SetLum of the tint color to the gray, luma `(30R + 59G + 11B) / 100` rounded to a whole level, then ClipColor. Within one level everywhere (about a third of the tinted values differ by one).
+- Channels mix, so there is no LUT; 16/32-bit documents run the same math without the rounding. Patchy offers no Auto weights (docs/legal-constraints.md).

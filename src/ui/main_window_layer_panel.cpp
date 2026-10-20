@@ -562,6 +562,8 @@ QColor adjustment_thumbnail_accent(const Layer& layer) {
       return QColor(240, 160, 90);
     case AdjustmentKind::GradientMap:
       return QColor(200, 120, 200);
+    case AdjustmentKind::BlackWhite:
+      return QColor(190, 190, 190);
   }
   return QColor(145, 175, 215);
 }
@@ -720,6 +722,16 @@ QString adjustment_settings_summary(const Layer& layer) {
       return QObject::tr("Channel Mixer");
     case AdjustmentKind::PhotoFilter:
       return QObject::tr("Photo Filter: density %1%").arg(clamp_photo_filter(settings->photo_filter).density);
+    case AdjustmentKind::BlackWhite: {
+      const auto& bw = settings->black_white;
+      return QObject::tr("Black & White: %1 / %2 / %3 / %4 / %5 / %6")
+          .arg(bw.reds)
+          .arg(bw.yellows)
+          .arg(bw.greens)
+          .arg(bw.cyans)
+          .arg(bw.blues)
+          .arg(bw.magentas);
+    }
     case AdjustmentKind::GradientMap: {
       // Photoshop's built-in gradients carry a "$$$/key=Display Name" localization key.
       auto name = QString::fromStdString(settings->gradient_map.gradient.name);
@@ -1365,6 +1377,9 @@ QPixmap layer_content_thumbnail(const Layer& layer, int document_width, int docu
           break;
         case AdjustmentKind::GradientMap:
           draw_placeholder_adjustment_thumbnail_symbol(painter, "gradient_map");
+          break;
+        case AdjustmentKind::BlackWhite:
+          draw_placeholder_adjustment_thumbnail_symbol(painter, "black_white");
           break;
       }
     }

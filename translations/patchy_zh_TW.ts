@@ -10999,6 +10999,22 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Gradient Map: %1</source>
         <translation>漸層對應: %1</translation>
     </message>
+    <message>
+        <source>Tint</source>
+        <translation>色調</translation>
+    </message>
+    <message>
+        <source>Tint color</source>
+        <translation>色調顏色</translation>
+    </message>
+    <message>
+        <source>Tint Color</source>
+        <translation>色調顏色</translation>
+    </message>
+    <message>
+        <source>Black &amp; White: %1 / %2 / %3 / %4 / %5 / %6</source>
+        <translation>黑白: %1 / %2 / %3 / %4 / %5 / %6</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -22613,6 +22629,18 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Cancelled Gradient Map</source>
         <translation>已取消漸層對應</translation>
+    </message>
+    <message>
+        <source>Blac&amp;k &amp;&amp; White...</source>
+        <translation>黑白(&amp;K)...</translation>
+    </message>
+    <message>
+        <source>Black &amp; White</source>
+        <translation>黑白</translation>
+    </message>
+    <message>
+        <source>Cancelled Black &amp; White</source>
+        <translation>已取消黑白</translation>
     </message>
 </context>
 <context>
