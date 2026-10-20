@@ -468,6 +468,47 @@ void ui_artboard_new_document_option() {
   CHECK(patchy::ui::app_settings().value(QStringLiteral("newDocument/artboards")).toBool());
 }
 
+// The plain-document helper the suite uses (accept_new_document_dialog) must not inherit
+// Artboards from the Last Used card of an artboard document created just before: the
+// checkerboard test found no Background row after one in a full run.
+void ui_new_document_auto_accept_ignores_remembered_artboards() {
+  SettingsValueRestorer option_restorer(QStringLiteral("newDocument/artboards"));
+  QGuiApplication::clipboard()->clear();
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto done = std::make_shared<bool>(false);
+  auto step = std::make_shared<std::function<bool()>>();
+  *step = [done] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyNewDocumentDialog"));
+    if (dialog == nullptr) {
+      return false;
+    }
+    auto* artboards = dialog->findChild<QCheckBox*>(QStringLiteral("newDocumentArtboardsCheck"));
+    auto* create = dialog->findChild<QPushButton*>(QStringLiteral("newDocumentCreateButton"));
+    if (artboards == nullptr || create == nullptr) {
+      return false;
+    }
+    artboards->setChecked(true);
+    create->click();
+    *done = true;
+    return true;
+  };
+  drive_modal(step);
+  require_hotkey_action(window, QStringLiteral("file.new"))->trigger();
+  CHECK(*done);
+  CHECK(patchy::document_artboards(std::as_const(MainWindowTestAccess::document(window))).size() == 1);
+
+  accept_new_document_dialog(220, 180);
+  require_hotkey_action(window, QStringLiteral("file.new"))->trigger();
+  QApplication::processEvents();
+  const auto& plain = std::as_const(MainWindowTestAccess::document(window));
+  CHECK(plain.width() == 220 && plain.height() == 180);
+  CHECK(patchy::document_artboards(plain).empty());
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  CHECK(layer_list != nullptr && find_layer_item(*layer_list, QStringLiteral("Background")) != nullptr);
+}
+
 // File > Export > Artboards to Files writes one file per artboard named for it, at the
 // artboard's size, never overwriting in Add mode; Print's artboard pages write one sheet
 // per artboard, each its own size when the paper matches.
@@ -1428,6 +1469,8 @@ std::vector<patchy::test::TestCase> artboard_ui_tests() {
       {"ui_artboard_prevent_auto_nesting_keeps_layer_in_place", ui_artboard_prevent_auto_nesting_keeps_layer_in_place},
       {"ui_artboard_layers_panel_rows_and_properties_panel", ui_artboard_layers_panel_rows_and_properties_panel},
       {"ui_artboard_new_document_option", ui_artboard_new_document_option},
+      {"ui_new_document_auto_accept_ignores_remembered_artboards",
+       ui_new_document_auto_accept_ignores_remembered_artboards},
       {"ui_artboard_exports_to_files_and_print_pages", ui_artboard_exports_to_files_and_print_pages},
       {"ui_artboard_multipage_pdf_source", ui_artboard_multipage_pdf_source},
       {"ui_artboard_commands_and_hotkeys_registered", ui_artboard_commands_and_hotkeys_registered},
