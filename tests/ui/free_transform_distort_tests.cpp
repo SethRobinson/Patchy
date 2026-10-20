@@ -5,6 +5,9 @@
 // over a distortion. docs/free-transform.md.
 #include "ui/canvas_widget.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/vector_live_shapes.hpp"
+#include "core/vector_raster.hpp"
+#include "core/vector_shape.hpp"
 #include "ui/main_window.hpp"
 #include "test_harness.hpp"
 #include <QAction>
@@ -223,6 +226,72 @@ void ui_free_transform_distort_is_a_session_step() {
   CHECK(is_white(*canvas, 280, 200));
 }
 
+// A shape layer distorts through its path: the moved corner's anchor lands on
+// the dragged point, the live rectangle annotation drops, and the re-rendered
+// ink follows the quad.
+void ui_free_transform_distort_shape_layer_maps_path() {
+  patchy::ui::MainWindow window;
+  patchy::Document document(400, 300, patchy::PixelFormat::rgba8());
+  auto& background = document.add_pixel_layer(
+      "Background", solid_pixels(400, 300, patchy::PixelFormat::rgba8(), QColor(Qt::white)));
+  patchy::set_layer_locks_position(background, true);
+  patchy::Layer layer(document.allocate_layer_id(), "Shape", patchy::PixelBuffer());
+  patchy::LiveShapeParams params;
+  params.kind = patchy::LiveShapeKind::Rectangle;
+  params.left = 100;
+  params.top = 70;
+  params.right = 260;
+  params.bottom = 180;
+  patchy::populate_live_shape_box_corners(params);
+  patchy::VectorShapeContent content;
+  content.path.subpaths = patchy::generate_live_shape_subpaths(params);
+  content.origination.push_back(params);
+  content.fill.kind = patchy::VectorFillKind::Solid;
+  content.fill.color = patchy::RgbColor{60, 130, 230};
+  layer.set_vector_shape(std::move(content));
+  layer.metadata()[patchy::kLayerMetadataVectorShape] = "1";
+  patchy::update_vector_shape_raster(layer, patchy::Rect::from_size(400, 300), nullptr);
+  const auto id = layer.id();
+  document.add_layer(std::move(layer));
+  window.add_document_session(std::move(document), QStringLiteral("Shape"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  canvas->set_zoom(1.0);
+  canvas->center_document_in_view();
+  canvas->set_snap_enabled(false);
+  canvas->set_show_transform_controls(false);
+  QApplication::processEvents();
+
+  require_action(window, "editFreeTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  drag(*canvas, widget_at(*canvas, 260, 180), widget_at(*canvas, 300, 210), Qt::ControlModifier);
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+
+  const auto* shape_layer = patchy::ui::MainWindowTestAccess::document(window).find_layer(id);
+  CHECK(shape_layer != nullptr);
+  const auto* shape = shape_layer != nullptr ? shape_layer->vector_shape() : nullptr;
+  CHECK(shape != nullptr);
+  if (shape == nullptr) {
+    return;
+  }
+  CHECK(shape->origination.empty());
+  bool moved_corner = false;
+  bool kept_corner = false;
+  for (const auto& subpath : shape->path.subpaths) {
+    for (const auto& anchor : subpath.anchors) {
+      moved_corner = moved_corner || (std::abs(anchor.anchor_x - 300.0) < 0.6 && std::abs(anchor.anchor_y - 210.0) < 0.6);
+      kept_corner = kept_corner || (std::abs(anchor.anchor_x - 100.0) < 0.6 && std::abs(anchor.anchor_y - 70.0) < 0.6);
+    }
+  }
+  CHECK(moved_corner);
+  CHECK(kept_corner);
+  CHECK(is_box(*canvas, 295, 205));
+  CHECK(is_white(*canvas, 120, 195));
+}
+
 // The three entries live under Edit > Transform with permanent hotkey ids, no
 // default keys, and NoRole (macOS menu merging).
 void ui_free_transform_mode_menu_entries() {
@@ -254,5 +323,6 @@ std::vector<patchy::test::TestCase> free_transform_distort_tests() {
       {"ui_free_transform_distort_refuses_type_layer", ui_free_transform_distort_refuses_type_layer},
       {"ui_free_transform_distort_is_a_session_step", ui_free_transform_distort_is_a_session_step},
       {"ui_free_transform_mode_menu_entries", ui_free_transform_mode_menu_entries},
+      {"ui_free_transform_distort_shape_layer_maps_path", ui_free_transform_distort_shape_layer_maps_path},
   };
 }

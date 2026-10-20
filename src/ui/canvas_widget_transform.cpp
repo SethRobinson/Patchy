@@ -456,6 +456,17 @@ QTransform shape_free_transform_delta(QRectF original_rect, QRectF current_rect,
   return transform;
 }
 
+// A Distort/Perspective session delta (QTransform's m13/m23 are the projective row).
+bool transform_has_perspective(const QTransform& transform) {
+  return std::abs(transform.m13()) > 1e-12 || std::abs(transform.m23()) > 1e-12;
+}
+
+// QTransform is row-vector; the core homographies are column-vector row-major.
+std::array<double, 9> homography_from_qtransform(const QTransform& transform) {
+  return {transform.m11(), transform.m21(), transform.m31(), transform.m12(), transform.m22(),
+          transform.m32(), transform.m13(), transform.m23(), transform.m33()};
+}
+
 bool transform_delta_is_identity(const QTransform& transform) {
   return std::abs(transform.m11() - 1.0) < 1e-9 && std::abs(transform.m22() - 1.0) < 1e-9 &&
          std::abs(transform.m12()) < 1e-9 && std::abs(transform.m21()) < 1e-9 &&
@@ -3260,8 +3271,7 @@ bool CanvasWidget::free_transform_accepts_non_affine() const {
   // Type stays editable only under affine maps; vector paths and smart object
   // placements take a perspective quad. Pixels and masks resample through it.
   const auto accepts = [](const Layer& layer) {
-    return !layer_is_text(layer) && !layer_is_vector_shape(layer) && layer.vector_mask() == nullptr &&
-           !layer_is_smart_object(layer);
+    return !layer_is_text(layer) && !layer_is_smart_object(layer);
   };
   if (!transform_targets_.empty()) {
     for (const auto& target : transform_targets_) {
@@ -4138,9 +4148,14 @@ void CanvasWidget::commit_free_transform() {
               : transform_session_delta();
       const std::array<double, 6> matrix{delta.m11(), delta.m12(), delta.m21(),
                                          delta.m22(), delta.dx(),  delta.dy()};
-      patchy::transform_layer_vector_data(
-          *document_, *layer, matrix,
-          Rect::from_size(document_->width(), document_->height()));
+      if (transform_has_perspective(delta)) {
+        patchy::transform_layer_vector_data_projective(*document_, *layer, homography_from_qtransform(delta),
+                                                       Rect::from_size(document_->width(), document_->height()));
+      } else {
+        patchy::transform_layer_vector_data(
+            *document_, *layer, matrix,
+            Rect::from_size(document_->width(), document_->height()));
+      }
       new_bounds = layer->bounds();
     } else if (layer_is_smart_object(*layer) && smart_object_lock_reason(*layer).empty()) {
       // The text-layer pattern for placed content: compose the delta into the
@@ -4241,6 +4256,16 @@ void CanvasWidget::commit_free_transform_multi() {
       dirty_rect = dirty_rect.united(to_qrect(with_effects));
     }
   };
+  // Shape paths and vector masks: the affine path, or the projective one for a
+  // Distort/Perspective quad.
+  const auto transform_vector_data = [this, &delta, &matrix](Layer& layer) {
+    const auto canvas = Rect::from_size(document_->width(), document_->height());
+    if (transform_has_perspective(delta)) {
+      patchy::transform_layer_vector_data_projective(*document_, layer, homography_from_qtransform(delta), canvas);
+    } else {
+      patchy::transform_layer_vector_data(*document_, layer, matrix, canvas);
+    }
+  };
   const auto transform_linked_raster_mask = [this, &delta, &dirty_rect](Layer& layer) {
     auto updated = transformed_linked_raster_mask(std::as_const(layer), delta, transform_interpolation_);
     if (!updated.has_value()) {
@@ -4304,8 +4329,7 @@ void CanvasWidget::commit_free_transform_multi() {
           text_layer_transform_render_callback_(target.id);
         }
       } else if (layer_is_vector_shape(std::as_const(*layer)) || layer->vector_mask() != nullptr) {
-        patchy::transform_layer_vector_data(*document_, *layer, matrix,
-                                            Rect::from_size(document_->width(), document_->height()));
+        transform_vector_data(*layer);
       } else if (layer_is_smart_object(std::as_const(*layer))) {
         if (const auto placement = smart_object_placement_from_layer(*layer); placement.has_value()) {
           auto updated = *placement;
@@ -4364,8 +4388,7 @@ void CanvasWidget::commit_free_transform_multi() {
         }
         transform_linked_raster_mask(*layer);
         if (layer->vector_mask() != nullptr) {
-          patchy::transform_layer_vector_data(*document_, *layer, matrix,
-                                              Rect::from_size(document_->width(), document_->height()));
+          transform_vector_data(*layer);
           accumulate_effect_rect(*layer, std::as_const(*layer).bounds(), 0);
         }
       }
