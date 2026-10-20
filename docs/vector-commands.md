@@ -112,7 +112,10 @@ selection.
 ## Pressing and picking with the arrows
 
 GitHub issue 248. `handle_path_edit_press` tries, in order: a drawn handle knob
-of the target (both arrows), a target anchor, Direct Select's panel-selected
+of the target (both arrows), a target anchor (under Path Select a drawn one, an
+anchor of the selected shape, drags alone as `PathEditDrag::SingleAnchor` and
+keeps the shape selected; an undrawn one counts as outline and selects and
+moves the shape), Direct Select's panel-selected
 extra layers' anchors, a target segment, the extras' segments, then the pick:
 `topmost_path_pick_layer_at` walks visible, editable shape layers top-down
 (pixel layers never count) and takes the first whose anchor, outline or fill
@@ -131,13 +134,20 @@ marquee does not pick shapes on other layers.
 Path Select draws anchor squares only for the selected shape: an unselected
 target (and an unselected panel-selected extra) shows just its outline, so a
 blank click visibly deselects. Direct Select keeps hollow anchors on the
-active path. Hover: a fill, or another layer's shape, is `PathHoverTarget::Fill`
-(Path Select's select-and-move hint; no Direct Select hint). Tests:
+active path. Switching from Path Select to Direct Select clears the point
+selection (`set_tool`): Path Select selects whole shapes, so its selection would
+make Direct Select's first press drag every point. Hover: a fill, or another
+layer's shape, is `PathHoverTarget::Fill` (Path Select's select-and-move hint;
+no Direct Select hint); under Path Select only a drawn anchor is
+`PathHoverTarget::Anchor`, with its own drag-the-point hint. Tests:
 `ui_path_select_blank_click_deselects_shape`,
 `ui_path_select_click_picks_shape_under_pointer`,
 `ui_path_select_marquee_touching_shape_selects_it`,
 `ui_path_select_drag_inside_fill_moves_shape`,
-`ui_direct_select_drags_points_of_unselected_shapes`.
+`ui_direct_select_drags_points_of_unselected_shapes`,
+`ui_path_select_drags_drawn_anchor_alone`,
+`ui_direct_select_after_path_select_drags_one_point`,
+`ui_path_select_tools_drag_open_path_anchor`.
 
 ## Moving a selection
 
@@ -301,4 +311,9 @@ before the layer transform; the layer position lock does not apply to path
 geometry) and the path context menu. Never call it from
 `begin_free_transform`, whose internal callers stay layer-only. Corner-handle
 aspect locking and Shift share the pixel session's rules and predicate
-([tools.md](tools.md)).
+([tools.md](tools.md)). Hover cursors are Free Transform's own
+(`apply_path_transform_cursor` over `set_transform_cursor_for_handle` and
+`transform_rotate_cursor_at`: resize turned with the box, move inside, each
+corner's rotate cursor off the box; no stem handle), and a drag keeps the
+grabbed zone's cursor (`ui_path_transform_shows_free_transform_cursors`). The
+session has no skew, distort or perspective, so it shows no gesture cursors.
