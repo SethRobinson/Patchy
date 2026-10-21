@@ -40,6 +40,9 @@ public:
   [[nodiscard]] int columns() const noexcept;
   [[nodiscard]] int rows() const noexcept;
   [[nodiscard]] bool is_identity() const noexcept;
+  // True when any node carries freeze protection (the workspace skips its blue
+  // overlay pass otherwise).
+  [[nodiscard]] bool has_frozen_nodes() const noexcept;
 
   // Applies one sampled gesture. Size is a DIAMETER in mesh pixels; pressure
   // and density use the familiar 1..100 percent brush ranges.
