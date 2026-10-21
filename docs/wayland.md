@@ -240,7 +240,13 @@ calls `org.freedesktop.portal.Screenshot.PickColor` through
 fallback when the bus is unreachable). The portal runs the compositor's own picker
 (GNOME's magnifier) and answers on `org.freedesktop.portal.Request.Response` at the path
 `portal_request_path` derives from the bus name and `handle_token`; the subscription is
-made before the call so an early answer is not lost. The result is sRGB `(ddd)`. The
+made before the call so an early answer is not lost. The result is sRGB `(ddd)`, read
+only when the variant's signature is exactly `(ddd)` and only through a const
+`QDBusArgument`: on a non-const one `beginStructure()` is the marshalling overload, a no-op
+on a received argument, so the next read hit the struct and libdbus aborted the process
+on every successful pick (1.13 to 1.15, AppImage and Flatpak alike). Any libdbus misuse
+is fatal there, not a warning. `ui_portal_color_pick_reads_a_delivered_response` sends
+real Responses over a `QDBusServer` peer connection, no bus daemon needed. The
 canvas eyedropper's off-document sample (`screen_color_at_global_position`) still reads
 nothing on Wayland: that is a drag, and the portal picker is a one-shot modal flow.
 Manual check: on GNOME or KDE Wayland open the color picker, press Pick Screen Color,

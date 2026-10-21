@@ -79,7 +79,6 @@ public:
                        int original_width, int original_height,
                        QWidget* parent = nullptr)
       : QWidget(parent), source_(std::move(source)),
-        original_image_(std::move(original_image)),
         selection_mask_(proxy_selection_mask(selection, original_bounds,
                                              QSize(original_width, original_height),
                                              QSize(source_.width(), source_.height()))),
@@ -89,6 +88,16 @@ public:
     setMouseTracking(true);
     setFocusPolicy(Qt::StrongFocus);
     setMinimumSize(500, 380);
+    if (!selection_mask_.isNull()) {
+      // Unselected pixels always show the original: convert it to the preview's format
+      // once (the same per-pixel conversion as before), then copy rows per render.
+      unselected_image_ = QImage(original_image.size(), QImage::Format_RGBA8888);
+      for (int y = 0; y < original_image.height(); ++y) {
+        for (int x = 0; x < original_image.width(); ++x) {
+          unselected_image_.setPixelColor(x, y, original_image.pixelColor(x, y));
+        }
+      }
+    }
     render_preview();
   }
 
@@ -103,15 +112,21 @@ public:
   void set_density(int density) { density_ = density; }
   void set_show_mask(bool show) {
     show_mask_ = show;
-    render_preview();
+    invalidate_preview();
   }
   void restore_all() {
     mesh_.reset();
-    render_preview();
+    invalidate_preview();
   }
 
 protected:
   void paintEvent(QPaintEvent*) override {
+    // Brush moves only update the mesh; the proxy renders here, once per painted
+    // frame, so a burst of pointer events (high-rate mice, tablets, compositors that
+    // deliver every motion event) never queues one render per event (GitHub #296).
+    if (preview_stale_) {
+      render_preview();
+    }
     QPainter painter(this);
     painter.fillRect(rect(), QColor(35, 35, 35));
     const auto target = displayed_rect();
@@ -122,11 +137,7 @@ protected:
     painter.drawRect(target.adjusted(0, 0, -1, -1));
 
     if (cursor_inside_ && target.contains(cursor_position_)) {
-      const double scale = target.width() / std::max(1, source_.width());
-      const double proxy_size =
-          size_ * static_cast<double>(source_.width()) /
-          std::max(1, original_width_);
-      const double radius = std::max(2.0, proxy_size * scale * 0.5);
+      const double radius = cursor_radius();
       painter.setRenderHint(QPainter::Antialiasing, true);
       painter.setBrush(Qt::NoBrush);
       painter.setPen(QPen(QColor(0, 0, 0, 190), 3));
@@ -151,6 +162,7 @@ protected:
   }
 
   void mouseMoveEvent(QMouseEvent* event) override {
+    const auto previous_cursor = cursor_rect();
     cursor_position_ = event->position();
     cursor_inside_ = true;
     if (dragging_) {
@@ -160,7 +172,11 @@ protected:
         last_point_ = *point;
       }
     }
-    update();
+    if (!preview_stale_) {
+      // Hovering repaints only the brush outline's old and new places.
+      update(previous_cursor);
+      update(cursor_rect());
+    }
   }
 
   void mouseReleaseEvent(QMouseEvent* event) override {
@@ -177,6 +193,24 @@ protected:
   }
 
 private:
+  [[nodiscard]] double cursor_radius() const {
+    const double scale = displayed_rect().width() / std::max(1, source_.width());
+    const double proxy_size = size_ * static_cast<double>(source_.width()) / std::max(1, original_width_);
+    return std::max(2.0, proxy_size * scale * 0.5);
+  }
+
+  // The brush outline's paint area: the circle, its 3 px dark pen and a margin.
+  [[nodiscard]] QRect cursor_rect() const {
+    const double reach = cursor_radius() + 4.0;
+    return QRectF(cursor_position_ - QPointF(reach, reach), QSizeF(2.0 * reach, 2.0 * reach))
+        .toAlignedRect();
+  }
+
+  void invalidate_preview() {
+    preview_stale_ = true;
+    update();
+  }
+
   [[nodiscard]] QRectF displayed_rect() const {
     if (preview_image_.isNull()) {
       return {};
@@ -215,42 +249,48 @@ private:
             : tool_;
     mesh_.apply_stroke(gesture_tool, from.x(), from.y(), to.x(), to.y(),
                        std::max(1.0, proxy_size), pressure_, density_);
-    render_preview();
+    invalidate_preview();
   }
 
   void render_preview() {
+    preview_stale_ = false;
     const auto rendered = mesh_.render(source_);
     if (!rendered.has_value()) {
       return;
     }
     preview_image_ = qimage_from_pixel_buffer(*rendered);
+    const bool tint = show_mask_ && mesh_.has_frozen_nodes();
+    if (selection_mask_.isNull() && !tint) {
+      return;
+    }
+    // RGBA8888 rows hold R, G, B, A bytes: edit them in place rather than through
+    // per-pixel QColor round trips.
     for (int y = 0; y < preview_image_.height(); ++y) {
       const auto* selected = selection_mask_.isNull() ? nullptr : selection_mask_.constScanLine(y);
+      const auto* original = selected == nullptr ? nullptr : unselected_image_.constScanLine(y);
+      auto* row = preview_image_.scanLine(y);
       for (int x = 0; x < preview_image_.width(); ++x) {
+        auto* pixel = row + static_cast<std::ptrdiff_t>(x) * 4;
         if (selected != nullptr && selected[x] == 0U) {
-          preview_image_.setPixelColor(x, y, original_image_.pixelColor(x, y));
+          std::copy_n(original + static_cast<std::ptrdiff_t>(x) * 4, 4, pixel);
           continue;
         }
-        if (show_mask_) {
+        if (tint) {
           const double frozen = mesh_.freeze_strength_at(x, y);
           if (frozen > 0.0) {
-            const auto color = preview_image_.pixelColor(x, y);
-            preview_image_.setPixelColor(
-                x, y,
-                QColor(static_cast<int>(color.red() * (1.0 - 0.45 * frozen)),
-                       static_cast<int>(color.green() * (1.0 - 0.2 * frozen)),
-                       static_cast<int>(color.blue() * (1.0 - 0.05 * frozen) +
-                                        255.0 * 0.45 * frozen),
-                       color.alpha()));
+            // The blue overlay; bright blues clamp at 255.
+            pixel[0] = static_cast<uchar>(static_cast<int>(pixel[0] * (1.0 - 0.45 * frozen)));
+            pixel[1] = static_cast<uchar>(static_cast<int>(pixel[1] * (1.0 - 0.2 * frozen)));
+            pixel[2] = static_cast<uchar>(
+                std::min(255, static_cast<int>(pixel[2] * (1.0 - 0.05 * frozen) + 255.0 * 0.45 * frozen)));
           }
         }
       }
     }
-    update();
   }
 
   PixelBuffer source_;
-  QImage original_image_;
+  QImage unselected_image_;
   QImage selection_mask_;
   int original_width_{0};
   LiquifyMesh mesh_;
@@ -262,6 +302,7 @@ private:
   int pressure_{50};
   int density_{50};
   bool show_mask_{true};
+  bool preview_stale_{false};
   bool cursor_inside_{false};
   bool dragging_{false};
 };

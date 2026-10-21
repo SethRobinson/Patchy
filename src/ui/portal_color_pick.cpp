@@ -49,7 +49,16 @@ void PortalColorPickRequest::response(uint code, const QVariantMap& results) {
     finish(std::nullopt);
     return;
   }
-  auto argument = color_value.value<QDBusArgument>();
+  // Const: on a non-const QDBusArgument beginStructure() is the marshalling
+  // overload, which does nothing on this received (read-only) argument. The
+  // first read then landed on the struct itself and libdbus aborted the
+  // process (GitHub issue 128 follow-up). Anything but (ddd) is reported as no
+  // color: reading past a shorter struct is just as fatal.
+  const auto argument = color_value.value<QDBusArgument>();
+  if (argument.currentSignature() != QLatin1String("(ddd)")) {
+    finish(std::nullopt);
+    return;
+  }
   double red = 0.0;
   double green = 0.0;
   double blue = 0.0;

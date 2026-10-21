@@ -273,7 +273,7 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
       {primary_color_button_, QT_TR_NOOP("FG")},
       {secondary_color_button_, QT_TR_NOOP("BG")},
       {move_auto_select_check_, QT_TR_NOOP("Auto-Select")},
-      {move_show_transform_controls_check_, QT_TR_NOOP("Show Transform Controls")},
+      {move_show_transform_controls_check_, QT_TR_NOOP("Transform Controls")},
       {move_snap_check_, QT_TR_NOOP("Snap")},
       {clone_aligned_check_, QT_TR_NOOP("Aligned")},
       {crop_delete_pixels_check_, QT_TR_NOOP("Delete Cropped Pixels")},
