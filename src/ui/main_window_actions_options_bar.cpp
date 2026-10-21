@@ -1008,9 +1008,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   add_option_widget(feather, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
                               CanvasTool::PolygonLasso, CanvasTool::MagneticLasso, CanvasTool::MagicWand,
                               CanvasTool::QuickSelect, CanvasTool::ObjectSelect});
-  // Quick Select has no Anti-alias; Object Selection sets Feather apart from it too
-  // (GitHub issues 291, 292).
-  add_option_separator({CanvasTool::QuickSelect, CanvasTool::ObjectSelect});
+  // Quick Select has no Anti-alias, so its checkboxes stand apart from Feather (GitHub
+  // issue 291); everywhere else Anti-alias stays beside Feather.
+  add_option_separator({CanvasTool::QuickSelect});
   auto* anti_alias = new CheckGlyphBox(tr("Anti-alias"), toolbar);
   bind_widget_text(anti_alias, QT_TR_NOOP("Anti-alias"));
   anti_alias->setObjectName(QStringLiteral("selectionAntiAliasCheck"));
@@ -1019,8 +1019,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
                     {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::PolygonLasso,
                      CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::ObjectSelect});
   // Feather and Anti-alias are one group. The Lassos and the Magic Wand get their separator
-  // after the marquee fields below, which they do not show. Object Selection runs Anti-alias
-  // straight into Sample All Layers: its checkboxes form one group (GitHub issue 292).
+  // after the marquee fields below, which they do not show. Object Selection runs Feather,
+  // Anti-alias and Sample All Layers together up to Model (GitHub issue 292).
   add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee});
   const auto apply_selection_edge_settings = [this, feather, anti_alias] {
     current_selection_feather_radius_ = feather->value();

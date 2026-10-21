@@ -593,13 +593,12 @@ void ui_selection_options_bars_group_their_controls() {
       shot("issue_291_quick_select_options_bar");
     }
 
-    // Object Selection: Feather | Anti-alias, Sample All Layers | Model: the checkboxes are one
-    // group.
+    // Object Selection: Feather, Anti-alias, Sample All Layers | Model: Anti-alias stays beside
+    // Feather as on the other selection bars, and the checkboxes stay together.
     if (patchy::ai::segmentation_available()) {
       require_action(window, "toolObjectSelectionAction")->trigger();
       const auto tokens = row("toolObjectSelectionAction");
-      CHECK(next_to(tokens, QStringLiteral("selectionFeatherSpin"), separator));
-      CHECK(separated_before(tokens, QStringLiteral("selectionAntiAliasCheck")));
+      CHECK(next_to(tokens, QStringLiteral("selectionFeatherSpin"), QStringLiteral("selectionAntiAliasCheck")));
       CHECK(next_to(tokens, QStringLiteral("selectionAntiAliasCheck"), QStringLiteral("objectSelectSampleAllLayersCheck")));
 #if !defined(Q_OS_WASM)
       CHECK(separated_before(tokens, QStringLiteral("Model")));
