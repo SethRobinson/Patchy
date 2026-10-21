@@ -257,6 +257,18 @@ bool CanvasWidget::apply_selection_cursor_for_mode(SelectionMode mode) {
       // No Intersect mode (like Quick Select): Shift+Alt shows the Add badge.
       setCursor(selection_tool_cursor(mode == SelectionMode::Intersect ? SelectionMode::Add : mode));
       return true;
+    case CanvasTool::QuickSelect:
+      if (brush_outline_uses_overlay()) {
+        // Too big for an OS cursor: the circle follows the pointer as a canvas overlay.
+        setCursor(Qt::CrossCursor);
+        if (brush_hover_position_valid_) {
+          update(brush_hover_outline_rect().adjusted(-2, -2, 2, 2));
+        }
+        return true;
+      }
+      // Quick Select clamps Intersect to Add.
+      setCursor(quick_select_cursor(mode == SelectionMode::Intersect ? SelectionMode::Add : mode));
+      return true;
     default:
       return false;
   }
@@ -382,22 +394,6 @@ void CanvasWidget::update_tool_cursor() {
   }
   if (alt_held && tool_uses_alt_left_for_color_pick(tool_)) {
     setCursor(eyedropper_cursor());
-    return;
-  }
-  if (tool_ == CanvasTool::QuickSelect) {
-    if (brush_outline_uses_overlay()) {
-      // Too big for an OS cursor: the circle follows the pointer as a canvas overlay.
-      setCursor(Qt::CrossCursor);
-      if (brush_hover_position_valid_) {
-        update(brush_hover_outline_rect().adjusted(-2, -2, 2, 2));
-      }
-      return;
-    }
-    auto mode = selection_operation(QApplication::keyboardModifiers());
-    if (mode == SelectionMode::Intersect) {
-      mode = SelectionMode::Add;  // Quick Select clamps Intersect to Add
-    }
-    setCursor(quick_select_cursor(mode));
     return;
   }
   // Over a marquee resize handle the resize cursor wins whatever modifier is
