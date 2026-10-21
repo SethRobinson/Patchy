@@ -746,6 +746,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   draw_canvas_backdrop(painter, target_rect, exposed_rect);
 
   prepare_vector_preview();
+  transform_vector_preview_drawn_ = false;
 
   if (!processing_render_wait_active_) {
     if (async_render_cache_explicit_hold_) {
@@ -919,6 +920,9 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
     for (const auto& patch : transform_preview_patches_) {
       draw_document_patch(patch, false);
     }
+    // A shape layer's session shows its transformed path sharp between drags when
+    // Dynamic Vector Preview is on (the frame renders the document as committed).
+    transform_vector_preview_drawn_ = draw_vector_preview(painter, exposed_rect);
   } else if (draw_warp_overlay) {
     // Base (layer hidden) plus the warped layer's bounded patches: the
     // full-document warp preview composite this replaced was the warp drag's
@@ -1018,7 +1022,7 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
       draw_scaled_image(curves_clipping_mode_.has_value() && !curves_clipping_preview_image_.isNull()
                             ? curves_clipping_preview_image_
                             : render_cache_);
-      draw_vector_preview(painter, exposed_rect);
+      transform_vector_preview_drawn_ = draw_vector_preview(painter, exposed_rect) && transforming_layer_;
     }
   }
   if (!curves_clipping_mode_.has_value()) {

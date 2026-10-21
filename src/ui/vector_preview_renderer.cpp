@@ -63,6 +63,7 @@ Layer copy_render_properties(const Layer& source) {
   set_layer_effects_reference_point(layer, reference[0], reference[1]);
   if (source.mask()) { layer.set_mask(*source.mask()); }
   if (const auto* mask = source.vector_mask()) { layer.set_vector_mask(*mask); }
+  if (source.kind() == LayerKind::Group && source.artboard().has_value()) { layer.set_artboard(*source.artboard()); }
   return layer;
 }
 
@@ -322,6 +323,19 @@ int transform_nodes(std::vector<VectorPreviewNode>& nodes, const VectorPreviewVi
       node.layer.set_visible(false);
       continue;
     }
+    if (const auto& artboard = source.artboard(); artboard.has_value()) {
+      // The artboard's rect maps with its content, so the compositor clips the children
+      // and paints the paper at view resolution, edges rounded like the canvas outline.
+      auto mapped = *artboard;
+      const auto rect = mapped_rect(artboard->rect, view);
+      if (!safe_number(rect.left()) || !safe_number(rect.top()) || !safe_number(rect.right()) ||
+          !safe_number(rect.bottom())) { throw VectorPreviewFallback::Coordinates; }
+      const auto left = static_cast<std::int32_t>(std::lround(rect.left()));
+      const auto top = static_cast<std::int32_t>(std::lround(rect.top()));
+      mapped.rect = Rect{left, top, std::max<std::int32_t>(1, static_cast<std::int32_t>(std::lround(rect.right())) - left),
+                         std::max<std::int32_t>(1, static_cast<std::int32_t>(std::lround(rect.bottom())) - top)};
+      node.layer.set_artboard(std::move(mapped));
+    }
     const auto full = checked_rect(mapped_rect(node.source_bounds, view));
     const auto visible = checked_rect(mapped_rect(native_visible, view));
     context.appearance.emplace(source.id(), render_detail::RasterViewAppearance{
@@ -500,10 +514,10 @@ QString vector_preview_fallback_text(VectorPreviewFallback reason) {
 VectorPreviewScene build_vector_preview_scene(const Document& document) {
   VectorPreviewScene scene;
   scene.canvas = {document.width(), document.height()};
-  // Artboards clip and paint their paper in the CPU compositor only (docs/artboards.md),
-  // so an artboard document keeps the normal view.
+  // Artboards keep their rect and paper on the copied group (transform_nodes maps the
+  // rect), and the CPU compositor clips and paints them as in the document render.
   if (document.palette_editing() || document.format().color_mode != ColorMode::RGB ||
-      document.format().bit_depth != BitDepth::UInt8 || document_has_artboards(document)) {
+      document.format().bit_depth != BitDepth::UInt8) {
     scene.fallback = VectorPreviewFallback::Content;
   } else {
     scene.patterns = document.metadata().patterns;

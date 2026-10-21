@@ -28,9 +28,24 @@ checks the document format).
 
 Above one physical screen pixel per document pixel, vector geometry uses zoom
 times device pixel ratio. Lower scales keep the existing display mips. Editing
-gestures, transform/warp sessions, channel/mask inspection, Quick Mask, curves
-clipping views and seamless tiling temporarily use the existing pixel previews.
-The sharp view resumes afterward. Explicit grids, guides and editing overlays
+gestures, warp sessions, channel/mask inspection, Quick Mask, curves clipping
+views and seamless tiling temporarily use the existing pixel previews. The sharp
+view resumes afterward.
+
+Artboard documents render too: the scene keeps each artboard on its group copy
+with the rect mapped to the view (edges rounded), so the compositor clips and
+paints the paper as the document render does, and the frame's backdrop is
+`draw_canvas_backdrop` (pasteboard between artboards, checkerboard inside).
+
+A Free Transform session on a single shape layer (no pending warp, no raster
+mask, not text or a smart object: `free_transform_vector_preview_possible`)
+stays sharp between drags. The scene renders `free_transform_vector_preview_document`,
+the document with the shape's vector data through the delta the commit applies
+(`shape_layer_commit_delta`), whatever the interpolation setting; the key (layer
+and delta) rebuilds it whenever the session changes, starts or ends. A drag shows
+the pixel preview, and other sessions keep it throughout. Pinned by
+`ui_vector_preview_stays_sharp_through_free_transform` (plain and artboard
+documents) and `ui_vector_preview_renders_artboards`. Explicit grids, guides and editing overlays
 remain on top (next section).
 
 ## Overlay order
