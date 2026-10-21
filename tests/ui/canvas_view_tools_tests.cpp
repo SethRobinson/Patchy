@@ -117,6 +117,12 @@
 #include "scripting_test_support.hpp"
 #if PATCHY_HAVE_QT_DBUS
 #include "ui/portal_color_pick.hpp"
+#include <QDBusArgument>
+#include <QDBusConnection>
+#include <QDBusMessage>
+#include <QDBusServer>
+#include <QDir>
+#include <initializer_list>
 #endif
 
 namespace {
@@ -812,6 +818,68 @@ void ui_portal_color_pick_request_path_follows_the_portal_convention() {
   CHECK(reports == 1);
   CHECK(!reported.has_value());
   QApplication::processEvents();  // the request deletes itself
+}
+
+// GitHub issue 128 follow-up: a real PickColor answer arrives demarshalled, the color
+// a read-only QDBusArgument holding a (ddd) struct. Reading it through the non-const
+// (marshalling) beginStructure left the iterator on the struct, and libdbus aborted the
+// whole process on the next read (the AppImage and the Flatpak both died on the pick).
+// A peer-to-peer connection delivers the Response the way the session bus does, with
+// no bus daemon or portal.
+void ui_portal_color_pick_reads_a_delivered_response() {
+  QDBusServer server(QStringLiteral("unix:tmpdir=%1").arg(QDir::tempPath()));
+  CHECK(server.isConnected());
+  std::optional<QDBusConnection> portal_side;
+  QObject::connect(&server, &QDBusServer::newConnection,
+                   [&portal_side](const QDBusConnection& connection) { portal_side = connection; });
+  const auto client_name = QStringLiteral("patchy_portal_color_pick_test");
+  auto client = QDBusConnection::connectToPeer(server.address(), client_name);
+  CHECK(client.isConnected());
+  CHECK(process_events_until([&portal_side] { return portal_side.has_value(); }));
+
+  const auto request_path = QStringLiteral("/org/freedesktop/portal/desktop/request/1_1/patchy_pick_test");
+  const auto request_interface = QStringLiteral("org.freedesktop.portal.Request");
+  const auto deliver = [&](const QVariant& color) -> std::optional<QColor> {
+    QObject context;
+    int reports = 0;
+    std::optional<QColor> reported;
+    auto* request = new patchy::ui::PortalColorPickRequest(&context, [&](std::optional<QColor> picked) {
+      ++reports;
+      reported = picked;
+    });
+    CHECK(client.connect(QString(), request_path, request_interface, QStringLiteral("Response"), request,
+                         SLOT(response(uint, QVariantMap))));
+    QVariantMap results;
+    results.insert(QStringLiteral("color"), color);
+    auto signal = QDBusMessage::createSignal(request_path, request_interface, QStringLiteral("Response"));
+    signal << 0U << results;
+    CHECK(portal_side->send(signal));
+    CHECK(process_events_until([&reports] { return reports > 0; }));
+    CHECK(reports == 1);
+    return reported;
+  };
+  const auto structure = [](std::initializer_list<double> components) {
+    QDBusArgument argument;
+    argument.beginStructure();
+    for (const double component : components) {
+      argument << component;
+    }
+    argument.endStructure();
+    return QVariant::fromValue(argument);
+  };
+
+  // GNOME's and KDE's answer: sRGB components in 0..1.
+  const auto picked = deliver(structure({1.0, 0.5, 0.25}));
+  CHECK(picked.has_value());
+  CHECK(picked.has_value() && picked->rgb() == QColor::fromRgbF(1.0F, 0.5F, 0.25F).rgb());
+  // Out-of-range components clamp.
+  const auto clamped = deliver(structure({1.5, -0.25, 0.0}));
+  CHECK(clamped.has_value() && clamped->rgb() == qRgb(255, 0, 0));
+  // A malformed answer reports no color instead of reading past the struct.
+  CHECK(!deliver(structure({0.5, 0.5})).has_value());
+  CHECK(!deliver(QVariant(QStringLiteral("#ff8000"))).has_value());
+
+  QDBusConnection::disconnectFromPeer(client_name);
 }
 #endif
 
@@ -6345,6 +6413,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
 #if PATCHY_HAVE_QT_DBUS
       {"ui_portal_color_pick_request_path_follows_the_portal_convention",
        ui_portal_color_pick_request_path_follows_the_portal_convention},
+      {"ui_portal_color_pick_reads_a_delivered_response", ui_portal_color_pick_reads_a_delivered_response},
 #endif
       {"ui_own_window_color_sample_reads_widget_without_screen_grab",
        ui_own_window_color_sample_reads_widget_without_screen_grab},
