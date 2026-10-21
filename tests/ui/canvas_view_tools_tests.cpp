@@ -12,6 +12,7 @@
 #include "ui/curved_slider.hpp"
 #include "ui/gradient_library.hpp"
 #include "ui/main_window.hpp"
+#include "ui/new_document_dialog.hpp"
 #include "ui/options_flow_layout.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/zoomable_image_preview.hpp"
@@ -591,10 +592,12 @@ void ui_selection_options_bars_group_their_controls() {
       shot("issue_291_quick_select_options_bar");
     }
 
-    // Object Selection: Feather and Anti-alias | Sample All Layers | Model.
+    // Object Selection: Feather | Anti-alias | Sample All Layers | Model.
     if (patchy::ai::segmentation_available()) {
       require_action(window, "toolObjectSelectionAction")->trigger();
       const auto tokens = row("toolObjectSelectionAction");
+      CHECK(next_to(tokens, QStringLiteral("selectionFeatherSpin"), separator));
+      CHECK(separated_before(tokens, QStringLiteral("selectionAntiAliasCheck")));
       CHECK(next_to(tokens, QStringLiteral("selectionAntiAliasCheck"), separator));
 #if !defined(Q_OS_WASM)
       CHECK(separated_before(tokens, QStringLiteral("Model")));
@@ -689,6 +692,29 @@ void ui_swap_dimension_buttons_show_a_themed_full_size_glyph() {
       expect(disabled != normal, swap.button, "does not dim when disabled");
     }
     style->setCurrentIndex(0);
+
+    // The New Document dialog's swap button shows the same glyph.
+    auto* bar_swap = window.findChild<QAbstractButton*>(QStringLiteral("artboardSwapSizeButton"));
+    bool inspected = false;
+    QTimer::singleShot(0, [&] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("patchyNewDocumentDialog"));
+      auto* swap = dialog != nullptr
+                       ? dialog->findChild<QToolButton*>(QStringLiteral("newDocumentSwapDimensionsButton"))
+                       : nullptr;
+      if (dialog != nullptr && swap != nullptr) {
+        inspected = true;
+        save_window_popup_artifact("issue_286_swap_new_document" + suffix, *dialog, *swap, *swap);
+        const QSize size(18, 18);
+        expect(bar_swap != nullptr &&
+                   swap->icon().pixmap(size, 1.0).toImage() == bar_swap->icon().pixmap(size, 1.0).toImage(),
+               "newDocumentSwapDimensionsButton", "not the options bar's swap glyph");
+      }
+      if (dialog != nullptr) {
+        dialog->reject();
+      }
+    });
+    static_cast<void>(patchy::ui::request_new_document_settings(&window));
+    expect(inspected, "newDocumentSwapDimensionsButton", "New Document dialog not found");
   }
   for (const auto& problem : problems) {
     std::fprintf(stderr, "  %s\n", problem.c_str());

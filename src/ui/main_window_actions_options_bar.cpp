@@ -1004,7 +1004,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   add_option_widget(feather, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
                               CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::QuickSelect,
                               CanvasTool::ObjectSelect});
-  add_option_separator({CanvasTool::QuickSelect});
+  // Quick Select has no Anti-alias; Object Selection sets Feather apart from it too
+  // (GitHub issues 291, 292).
+  add_option_separator({CanvasTool::QuickSelect, CanvasTool::ObjectSelect});
   auto* anti_alias = new CheckGlyphBox(tr("Anti-alias"), toolbar);
   bind_widget_text(anti_alias, QT_TR_NOOP("Anti-alias"));
   anti_alias->setObjectName(QStringLiteral("selectionAntiAliasCheck"));
