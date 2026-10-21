@@ -7,6 +7,7 @@
 #include "ui/filter_workflows.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/liquify_dialog.hpp"
+#include "ui/main_window_shared.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/main_window.hpp"
 #include "ui/zoomable_image_preview.hpp"
@@ -21,6 +22,7 @@
 #include <QDoubleSpinBox>
 #include <QElapsedTimer>
 #include <QImage>
+#include <QKeySequence>
 #include <QList>
 #include <QMenu>
 #include <QPainter>
@@ -841,6 +843,94 @@ void ui_liquify_undo_redo_steps_strokes_and_restore() {
     }
     CHECK(!liquify_push_button(dialog, "liquifyUndoButton")->isEnabled());
   }), first_five));
+}
+
+// Single letters choose the tools (shown in each tooltip) and [ ] change the brush size,
+// Shift for a larger step; none of these keys, nor Ctrl+Z, reaches the main window while
+// the dialog is open.
+void ui_liquify_keys_choose_tools_and_size_without_reaching_the_main_window() {
+  patchy::Document built(120, 90, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(built.allocate_layer_id(), "Liquify Keys", liquify_test_source(120, 90));
+  const auto layer_id = layer.id();
+  built.add_layer(std::move(layer));
+  built.set_active_layer(layer_id);
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(built), QStringLiteral("Liquify Keys"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* brush_size = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
+  CHECK(brush_size != nullptr);
+  const auto tool_before = canvas->tool();
+  const auto brush_size_before = brush_size->value();
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  bool ran = false;
+  std::exception_ptr driver_error;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("liquifyDialog"));
+    try {
+      CHECK(dialog != nullptr);
+      auto* preview = dialog->findChild<QWidget*>(QStringLiteral("liquifyPreview"));
+      auto* size = dialog->findChild<QSpinBox*>(QStringLiteral("liquifySizeSpin"));
+      CHECK(preview != nullptr && size != nullptr);
+      dialog->activateWindow();
+      preview->setFocus();
+      QApplication::processEvents();
+      const std::array<std::pair<Qt::Key, const char*>, 8> letters{{
+          {Qt::Key_R, "liquifyReconstructTool"},
+          {Qt::Key_E, "liquifySmoothTool"},
+          {Qt::Key_C, "liquifyTwirlTool"},
+          {Qt::Key_S, "liquifyPuckerTool"},
+          {Qt::Key_B, "liquifyBloatTool"},
+          {Qt::Key_F, "liquifyFreezeTool"},
+          {Qt::Key_D, "liquifyThawTool"},
+          {Qt::Key_W, "liquifyWarpTool"},
+      }};
+      for (const auto& [key, name] : letters) {
+        auto* button = liquify_tool_button(*dialog, name);
+        const auto letter = QKeySequence(key).toString(QKeySequence::NativeText);
+        CHECK(button->toolTip().contains(QStringLiteral("(%1)").arg(letter)));
+        liquify_key(*preview, key);
+        CHECK(button->isChecked());
+        CHECK(canvas->tool() == tool_before);
+      }
+      const int start = size->value();
+      liquify_key(*preview, Qt::Key_BracketRight);
+      CHECK(size->value() == start + patchy::ui::proportional_brush_step(start, 1, false));
+      const int grown = size->value();
+      liquify_key(*preview, Qt::Key_BracketLeft);
+      CHECK(size->value() == grown - patchy::ui::proportional_brush_step(grown, -1, false));
+      const int base = size->value();
+      liquify_key(*preview, Qt::Key_BracketRight, Qt::ShiftModifier);
+      CHECK(size->value() == base + patchy::ui::proportional_brush_step(base, 1, true));
+      size->setValue(2000);
+      liquify_key(*preview, Qt::Key_BracketRight, Qt::ShiftModifier);
+      CHECK(size->value() == 2000);
+      size->setValue(5);
+      liquify_key(*preview, Qt::Key_BracketLeft);
+      CHECK(size->value() == 5);
+      CHECK(brush_size->value() == brush_size_before);
+      liquify_drag(*preview, QPointF(30.0, 30.0), QPointF(50.0, 40.0));
+      liquify_key(*preview, Qt::Key_Z, Qt::ControlModifier);
+      CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before);
+      ran = true;
+      dialog->reject();
+    } catch (...) {
+      driver_error = std::current_exception();
+      if (dialog != nullptr) {
+        dialog->reject();
+      }
+    }
+  });
+  require_action(window, "filterLiquifyAction")->trigger();
+  QApplication::processEvents();
+  if (driver_error) {
+    std::rethrow_exception(driver_error);
+  }
+  CHECK(ran);
+  CHECK(canvas->tool() == tool_before);
+  CHECK(brush_size->value() == brush_size_before);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before);
 }
 
 void ui_liquify_preview_selection_preserves_sample_mapping() {
@@ -1771,5 +1861,7 @@ std::vector<patchy::test::TestCase> filter_catalog_dialog_tests() {
       {"ui_liquify_fragmented_selection_preview_and_apply", ui_liquify_fragmented_selection_preview_and_apply},
       {"ui_liquify_preview_selection_preserves_sample_mapping", ui_liquify_preview_selection_preserves_sample_mapping},
       {"ui_liquify_undo_redo_steps_strokes_and_restore", ui_liquify_undo_redo_steps_strokes_and_restore},
+      {"ui_liquify_keys_choose_tools_and_size_without_reaching_the_main_window",
+       ui_liquify_keys_choose_tools_and_size_without_reaching_the_main_window},
   };
 }

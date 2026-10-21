@@ -8,6 +8,7 @@
 #include "ui/qt_geometry.hpp"
 #include "ui/theme_qss.hpp"
 #include "ui/localization.hpp"
+#include "ui/main_window_shared.hpp"
 
 #include <QButtonGroup>
 #include <QCheckBox>
@@ -44,6 +45,11 @@ namespace {
 constexpr int kMaximumProxyEdge = 720;
 // Undo steps the workspace keeps: one mesh each (about 55 KB at the 720 px proxy).
 constexpr std::size_t kHistoryLimit = 100;
+
+// "Warp (W)": a control's tooltip naming the key that reaches it.
+QString with_key_hint(const QString& text, const QKeySequence& keys) {
+  return QStringLiteral("%1 (%2)").arg(text, keys.toString(QKeySequence::NativeText));
+}
 
 QImage proxy_selection_mask(const QRegion& selection, Rect bounds,
                             QSize original_size, QSize proxy_size) {
@@ -359,25 +365,26 @@ struct ToolEntry {
   const char* name;
   const char* object_name;
   LiquifyTool tool;
+  Qt::Key key;  // Photoshop's Liquify letters
 };
 
 constexpr std::array<ToolEntry, 8> kTools{{
     {QT_TRANSLATE_NOOP("QObject", "Warp"), "liquifyWarpTool",
-     LiquifyTool::ForwardWarp},
+     LiquifyTool::ForwardWarp, Qt::Key_W},
     {QT_TRANSLATE_NOOP("QObject", "Reconstruct"),
-     "liquifyReconstructTool", LiquifyTool::Reconstruct},
+     "liquifyReconstructTool", LiquifyTool::Reconstruct, Qt::Key_R},
     {QT_TRANSLATE_NOOP("QObject", "Smooth"), "liquifySmoothTool",
-     LiquifyTool::Smooth},
+     LiquifyTool::Smooth, Qt::Key_E},
     {QT_TRANSLATE_NOOP("QObject", "Twirl"), "liquifyTwirlTool",
-     LiquifyTool::TwirlClockwise},
+     LiquifyTool::TwirlClockwise, Qt::Key_C},
     {QT_TRANSLATE_NOOP("QObject", "Pucker"), "liquifyPuckerTool",
-     LiquifyTool::Pucker},
+     LiquifyTool::Pucker, Qt::Key_S},
     {QT_TRANSLATE_NOOP("QObject", "Bloat"), "liquifyBloatTool",
-     LiquifyTool::Bloat},
+     LiquifyTool::Bloat, Qt::Key_B},
     {QT_TRANSLATE_NOOP("QObject", "Freeze"), "liquifyFreezeTool",
-     LiquifyTool::FreezeMask},
+     LiquifyTool::FreezeMask, Qt::Key_F},
     {QT_TRANSLATE_NOOP("QObject", "Thaw"), "liquifyThawTool",
-     LiquifyTool::ThawMask},
+     LiquifyTool::ThawMask, Qt::Key_D},
 }};
 
 }  // namespace
@@ -428,16 +435,17 @@ std::optional<LiquifyMesh> request_liquify(QWidget* parent,
         tools->fontMetrics().horizontalAdvance(translate_data_text(entry.name)) + 24);
   }
   tools->setFixedWidth(tool_width);
+  std::vector<QToolButton*> tool_buttons;
   for (std::size_t index = 0; index < kTools.size(); ++index) {
     const auto& entry = kTools[index];
     auto* button = new QToolButton(&dialog);
     button->setObjectName(QLatin1String(entry.object_name));
     button->setText(translate_data_text(entry.name));
-    button->setToolTip(translate_data_text(entry.name));
-    if (entry.tool == LiquifyTool::TwirlClockwise) {
-      button->setToolTip(
-          resolve_modifier_names(QObject::tr("Twirl clockwise; hold %ALT% to reverse")));
-    }
+    const auto tip = entry.tool == LiquifyTool::TwirlClockwise
+                         ? resolve_modifier_names(QObject::tr("Twirl clockwise; hold %ALT% to reverse"))
+                         : translate_data_text(entry.name);
+    button->setToolTip(with_key_hint(tip, QKeySequence(entry.key)));
+    tool_buttons.push_back(button);
     button->setCheckable(true);
     button->setFixedWidth(tool_width);
     tool_group->addButton(button, static_cast<int>(index));
@@ -493,14 +501,10 @@ std::optional<LiquifyMesh> request_liquify(QWidget* parent,
   auto* history_row = new QHBoxLayout();
   auto* undo = new QPushButton(QObject::tr("Undo"), &dialog);
   undo->setObjectName(QStringLiteral("liquifyUndoButton"));
-  // Tooltips name the button and its key, as the tool buttons do.
-  const auto with_key = [](const QString& text, const QKeySequence& keys) {
-    return QStringLiteral("%1 (%2)").arg(text, keys.toString(QKeySequence::NativeText));
-  };
-  undo->setToolTip(with_key(undo->text(), QKeySequence(QKeySequence::Undo)));
+  undo->setToolTip(with_key_hint(undo->text(), QKeySequence(QKeySequence::Undo)));
   auto* redo = new QPushButton(QObject::tr("Redo"), &dialog);
   redo->setObjectName(QStringLiteral("liquifyRedoButton"));
-  redo->setToolTip(with_key(redo->text(), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Z)));
+  redo->setToolTip(with_key_hint(redo->text(), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Z)));
   history_row->addWidget(undo);
   history_row->addWidget(redo);
   controls->addLayout(history_row);
@@ -556,6 +560,21 @@ std::optional<LiquifyMesh> request_liquify(QWidget* parent,
   for (const auto& keys : {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Z), QKeySequence(Qt::CTRL | Qt::Key_Y)}) {
     add_shortcut(keys, [preview] { preview->redo(); });
   }
+  for (std::size_t index = 0; index < kTools.size(); ++index) {
+    add_shortcut(QKeySequence(kTools[index].key), [button = tool_buttons[index]] { button->click(); });
+  }
+  // [ and ] step the brush size like the canvas brush keys (Shift for a larger step).
+  const auto add_size_step = [&add_shortcut, size](const QKeySequence& keys, int direction, bool coarse) {
+    add_shortcut(keys, [size, direction, coarse] {
+      const int value = size->value();
+      size->setValue(std::clamp(value + direction * proportional_brush_step(value, direction, coarse),
+                                size->minimum(), size->maximum()));
+    });
+  };
+  add_size_step(QKeySequence(Qt::Key_BracketLeft), -1, false);
+  add_size_step(QKeySequence(Qt::Key_BracketRight), 1, false);
+  add_size_step(QKeySequence(Qt::SHIFT | Qt::Key_BracketLeft), -1, true);
+  add_size_step(QKeySequence(Qt::SHIFT | Qt::Key_BracketRight), 1, true);
   preview->set_size(default_size);
 
   append_themed_style(dialog, dialog_spinbox_button_style());
