@@ -68,9 +68,9 @@ nits / 203; HLG codes go through the inverse OETF, then the BT.2100 reference OO
 75% signal on 203 nits. A 3x3 matrix built from the source chromaticities (Bradford-adapted
 when the white differs) takes the result to sRGB primaries; colors outside sRGB stay
 negative. `signal_rgba16_to_linear_srgb` runs the transfer through a 65536-entry table, so a
-frame costs one table lookup per sample plus the matrix. Users: the AVIF reader
-([avif.md](avif.md)); macOS HEIF lets CoreGraphics do the same conversion and was measured to
-agree ([heif.md](heif.md)). `hdr_transfer_decodes_pq_and_hlg_reference_points` pins the
+frame costs one table lookup per sample plus the matrix. Users: the AVIF and Linux HEIF readers
+([avif.md](avif.md), [heif.md](heif.md)); macOS HEIF lets CoreGraphics do the same
+conversion and was measured to agree, Windows HEIF receives scRGB from WIC. `hdr_transfer_decodes_pq_and_hlg_reference_points` pins the
 reference points and matrices. Licensing record: [patent-research-formats.md](patent-research-formats.md)
 ("PQ and HLG decoding").
 

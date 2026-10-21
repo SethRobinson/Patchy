@@ -51,7 +51,7 @@ double pq_signal_for_nits(double nits) {
   return std::pow((c1 + c2 * y) / (1.0 + c3 * y), m2);
 }
 
-bool near(double value, double expected, double tolerance) {
+bool within(double value, double expected, double tolerance) {
   if (std::abs(value - expected) <= tolerance) {
     return true;
   }
@@ -60,32 +60,32 @@ bool near(double value, double expected, double tolerance) {
 }
 
 void hdr_transfer_decodes_pq_and_hlg_reference_points() {
-  CHECK(near(hdr::pq_signal_to_nits(0.0), 0.0, 1e-9));
-  CHECK(near(hdr::pq_signal_to_nits(1.0), 10000.0, 1e-6));
-  CHECK(near(hdr::pq_signal_to_nits(pq_signal_for_nits(203.0)), 203.0, 1e-6));
-  CHECK(near(hdr::pq_signal_to_nits(pq_signal_for_nits(1000.0)), 1000.0, 1e-6));
+  CHECK(within(hdr::pq_signal_to_nits(0.0), 0.0, 1e-9));
+  CHECK(within(hdr::pq_signal_to_nits(1.0), 10000.0, 1e-6));
+  CHECK(within(hdr::pq_signal_to_nits(pq_signal_for_nits(203.0)), 203.0, 1e-6));
+  CHECK(within(hdr::pq_signal_to_nits(pq_signal_for_nits(1000.0)), 1000.0, 1e-6));
   // ST 2084's published anchor: signal 0.5081 is about 100 nits.
-  CHECK(near(hdr::pq_signal_to_nits(0.5081), 100.0, 0.5));
-  CHECK(near(hdr::hlg_signal_to_scene(0.0), 0.0, 1e-12));
-  CHECK(near(hdr::hlg_signal_to_scene(0.5), 1.0 / 12.0, 1e-9));
-  CHECK(near(hdr::hlg_signal_to_scene(1.0), 1.0, 1e-6));
+  CHECK(within(hdr::pq_signal_to_nits(0.5081), 100.0, 0.5));
+  CHECK(within(hdr::hlg_signal_to_scene(0.0), 0.0, 1e-12));
+  CHECK(within(hdr::hlg_signal_to_scene(0.5), 1.0 / 12.0, 1e-9));
+  CHECK(within(hdr::hlg_signal_to_scene(1.0), 1.0, 1e-6));
 
   // Primaries: sRGB to itself is the identity, BT.2020 and Display P3 match the published
   // conversion matrices.
   const auto same = hdr::linear_to_srgb_matrix(hdr::kBt709Primaries);
   const std::array<double, 9> identity{1, 0, 0, 0, 1, 0, 0, 0, 1};
   for (std::size_t i = 0; i < 9; ++i) {
-    CHECK(near(same[i], identity[i], 1e-9));
+    CHECK(within(same[i], identity[i], 1e-9));
   }
   const auto bt2020 = hdr::linear_to_srgb_matrix(hdr::kBt2020Primaries);
-  CHECK(near(bt2020[0], 1.6605, 1e-3));
-  CHECK(near(bt2020[1], -0.5876, 1e-3));
-  CHECK(near(bt2020[2], -0.0728, 1e-3));
-  CHECK(near(bt2020[4], 1.1329, 1e-3));
+  CHECK(within(bt2020[0], 1.6605, 1e-3));
+  CHECK(within(bt2020[1], -0.5876, 1e-3));
+  CHECK(within(bt2020[2], -0.0728, 1e-3));
+  CHECK(within(bt2020[4], 1.1329, 1e-3));
   const auto p3 = hdr::linear_to_srgb_matrix(hdr::kDisplayP3Primaries);
-  CHECK(near(p3[0], 1.2249, 1e-3));
-  CHECK(near(p3[1], -0.2247, 1e-3));
-  CHECK(near(p3[8], 1.0979, 1e-3));
+  CHECK(within(p3[0], 1.2249, 1e-3));
+  CHECK(within(p3[1], -0.2247, 1e-3));
+  CHECK(within(p3[8], 1.0979, 1e-3));
 
   // The converter: PQ reference white and the BT.2408 HLG point (75% signal) both land on
   // 1.0; a 1000 nit PQ highlight on 1000/203; alpha scales to 0..1.
@@ -95,14 +95,14 @@ void hdr_transfer_decodes_pq_and_hlg_reference_points() {
   const std::vector<std::uint16_t> pq{pq_white, pq_white, pq_white, 65535, pq_peak, pq_peak, pq_peak, 32768};
   std::vector<float> out(8);
   hdr::signal_rgba16_to_linear_srgb(pq.data(), 2, hdr::Transfer::Pq, hdr::kBt709Primaries, out.data());
-  CHECK(near(out[0], 1.0, 1e-3) && near(out[1], 1.0, 1e-3) && near(out[2], 1.0, 1e-3));
-  CHECK(near(out[3], 1.0, 1e-6));
-  CHECK(near(out[4], 1000.0 / 203.0, 5e-3));
-  CHECK(near(out[7], 32768.0 / 65535.0, 1e-6));
+  CHECK(within(out[0], 1.0, 1e-3) && within(out[1], 1.0, 1e-3) && within(out[2], 1.0, 1e-3));
+  CHECK(within(out[3], 1.0, 1e-6));
+  CHECK(within(out[4], 1000.0 / 203.0, 5e-3));
+  CHECK(within(out[7], 32768.0 / 65535.0, 1e-6));
   const auto hlg_ref = code(0.75);
   const std::vector<std::uint16_t> hlg{hlg_ref, hlg_ref, hlg_ref, 65535};
   hdr::signal_rgba16_to_linear_srgb(hlg.data(), 1, hdr::Transfer::Hlg, hdr::kBt2020Primaries, out.data());
-  CHECK(near(out[0], 1.0, 5e-3) && near(out[1], 1.0, 5e-3) && near(out[2], 1.0, 5e-3));
+  CHECK(within(out[0], 1.0, 5e-3) && within(out[1], 1.0, 5e-3) && within(out[2], 1.0, 5e-3));
 }
 
 #if defined(PATCHY_TEST_LIBAVIF)
@@ -166,12 +166,12 @@ void avif_pq_and_hlg_open_as_linear_32_bit() {
     if (std::as_const(document).color_state().bit_depth == BitDepth::Float32) {
       const float* px = float_pixels(document);
       // 12-bit samples quantize the signal by 1/4095: about 0.3% at these levels.
-      CHECK(near(px[0], 1.0, 0.01) && near(px[1], 1.0, 0.01) && near(px[2], 1.0, 0.01));
-      CHECK(near(px[3], 1.0, 1e-6));
-      CHECK(near(px[4], 1000.0 / 203.0, 0.05));
-      CHECK(near(px[8], 0.0, 1e-4));
+      CHECK(within(px[0], 1.0, 0.01) && within(px[1], 1.0, 0.01) && within(px[2], 1.0, 0.01));
+      CHECK(within(px[3], 1.0, 1e-6));
+      CHECK(within(px[4], 1000.0 / 203.0, 0.05));
+      CHECK(within(px[8], 0.0, 1e-4));
       // BT.2020 red is outside sRGB: red above 1, green below 0 (kept, not clipped).
-      CHECK(near(px[12], 1.6605, 0.02));
+      CHECK(within(px[12], 1.6605, 0.02));
       CHECK(px[13] < -0.1F);
     }
   }
@@ -183,7 +183,7 @@ void avif_pq_and_hlg_open_as_linear_32_bit() {
     const auto& document = read.read.document;
     CHECK(std::as_const(document).color_state().bit_depth == BitDepth::UInt8);
     const auto& pixels = std::as_const(document).layers().front().pixels();
-    CHECK(near(pixels.pixel(0, 0)[0], 225.0, 6.0));
+    CHECK(within(pixels.pixel(0, 0)[0], 225.0, 6.0));
     CHECK(pixels.pixel(1, 0)[0] > pixels.pixel(0, 0)[0] + 10);
     CHECK(read.read.notices.size() == 1 && read.read.notices.front().find("tone mapped") != std::string::npos);
   }
@@ -194,7 +194,7 @@ void avif_pq_and_hlg_open_as_linear_32_bit() {
   CHECK(std::as_const(read.read.document).color_state().bit_depth == BitDepth::Float32);
   if (std::as_const(read.read.document).color_state().bit_depth == BitDepth::Float32) {
     const float* px = float_pixels(read.read.document);
-    CHECK(near(px[0], 1.0, 0.01) && near(px[1], 1.0, 0.01) && near(px[2], 1.0, 0.01));
+    CHECK(within(px[0], 1.0, 0.01) && within(px[1], 1.0, 0.01) && within(px[2], 1.0, 0.01));
   }
 }
 
@@ -225,48 +225,87 @@ void heif_orientation_moves_whole_deep_pixels() {
 }
 
 // The committed HEIC fixtures were written by macOS ImageIO from self-authored 16-bit values
-// (NOTICE-THIRD-PARTY.md): 5x4 pixels, columns as in the probe that made them.
+// (NOTICE-THIRD-PARTY.md): 80x48 pixels, five 16-pixel columns (the Windows codec refuses
+// tiny frames), left to right:
 //   hdr-pq-10bit.heic:  PQ, BT.2020: 203 nits white, 1000 nits, 100 nits, black, red at 203 nits
 //   hdr-hlg-10bit.heic: HLG, BT.2020: 0.75, 0.5, 1.0, black, red at 0.75
 //   p3-10bit.heic:      10-bit Display P3 SDR: (0.5 0.25 1), (0.25 0.5 0.75), white, black, gray
-void heif_high_bit_depth_opens_at_full_depth_on_macos() {
-#if defined(__APPLE__)
+template <typename Sample>
+const Sample* heif_column(const patchy::Document& document, int column) {
+  const auto& pixels = std::as_const(document).layers().front().pixels();
+  const auto channels = static_cast<std::size_t>(pixels.format().channels);
+  return reinterpret_cast<const Sample*>(pixels.row(24).data()) + static_cast<std::size_t>(8 + 16 * column) * channels;
+}
+
+void heif_nclx_transfer_is_read_from_the_meta_box() {
+  const auto transfer = [](const char* name) {
+    return patchy::heif::nclx_transfer_characteristics(
+        patchy::test::read_binary_file(patchy::test::committed_format_fixture_path("heif", name)));
+  };
+  constexpr std::uint16_t kPq = 16;
+  constexpr std::uint16_t kHlg = 18;
+  CHECK(transfer("hdr-pq-10bit.heic") == kPq);
+  CHECK(transfer("hdr-hlg-10bit.heic") == kHlg);
+  const auto p3 = transfer("p3-10bit.heic");
+  CHECK(p3 != kPq && p3 != kHlg);
+  // No meta box, or a truncated one: nothing.
+  CHECK(!patchy::heif::nclx_transfer_characteristics(std::vector<std::uint8_t>{0, 0, 0, 8, 'f', 't', 'y', 'p'}));
+  CHECK(!patchy::heif::nclx_transfer_characteristics(std::vector<std::uint8_t>{0, 0, 0, 64, 'm', 'e', 't', 'a'}));
+}
+
+// Where the platform decoder exposes them, PQ and HLG HEIF open as 32-bit linear sRGB with
+// deep editing on: ImageIO on macOS, WIC on Windows, the host libheif on Linux.
+void heif_high_bit_depth_opens_at_full_depth() {
   const auto read = [](const char* name) {
     return patchy::heif::read_heif(
         patchy::test::read_binary_file(patchy::test::committed_format_fixture_path("heif", name)));
   };
+  // The decoder may be missing (no Store extension, no libheif plug-in, the Flatpak).
+  try {
+    const DeepEditing deep(true);
+    (void)read("hdr-pq-10bit.heic");
+  } catch (const std::runtime_error& error) {
+    patchy::test::skip(std::string("HEIC decoder unavailable here: ") + error.what());
+  }
   {
     const DeepEditing deep(true);
     const auto pq = read("hdr-pq-10bit.heic");
     CHECK(std::as_const(pq.document).color_state().bit_depth == BitDepth::Float32);
-    CHECK(pq.document.width() == 5 && pq.document.height() == 4);
+    CHECK(pq.document.width() == 80 && pq.document.height() == 48);
     if (std::as_const(pq.document).color_state().bit_depth == BitDepth::Float32) {
-      const auto& pixels = std::as_const(pq.document).layers().front().pixels();
-      const auto channels = static_cast<std::size_t>(pixels.format().channels);
-      const auto* px = reinterpret_cast<const float*>(pixels.row(1).data());
       // Lossy 10-bit HEVC: a few percent.
-      CHECK(near(px[0], 1.0, 0.03));
-      CHECK(near(px[channels], 1000.0 / 203.0, 0.15));
-      CHECK(near(px[2 * channels], 100.0 / 203.0, 0.02));
-      CHECK(near(px[4 * channels], 1.6605, 0.06));
-      CHECK(px[4 * channels + 1] < -0.05F);
+      CHECK(within(heif_column<float>(pq.document, 0)[0], 1.0, 0.03));
+      CHECK(within(heif_column<float>(pq.document, 1)[0], 1000.0 / 203.0, 0.15));
+      CHECK(within(heif_column<float>(pq.document, 2)[0], 100.0 / 203.0, 0.02));
+      CHECK(within(heif_column<float>(pq.document, 3)[0], 0.0, 0.01));
+      CHECK(within(heif_column<float>(pq.document, 4)[0], 1.6605, 0.06));
+      CHECK(heif_column<float>(pq.document, 4)[1] < -0.05F);
     }
     const auto hlg = read("hdr-hlg-10bit.heic");
+#if defined(_WIN32)
+    // WIC maps HLG to a 10,000-nit peak with its own system gamma: kept on the 8-bit path.
+    CHECK(std::as_const(hlg.document).color_state().bit_depth == BitDepth::UInt8);
+#else
     CHECK(std::as_const(hlg.document).color_state().bit_depth == BitDepth::Float32);
+#endif
     if (std::as_const(hlg.document).color_state().bit_depth == BitDepth::Float32) {
-      const auto* px = reinterpret_cast<const float*>(std::as_const(hlg.document).layers().front().pixels().row(1).data());
-      CHECK(near(px[0], 1.0, 0.03));
+      CHECK(within(heif_column<float>(hlg.document, 0)[0], 1.0, 0.03));
+      CHECK(within(heif_column<float>(hlg.document, 2)[0], 1000.0 / 203.0, 0.15));
     }
+#if defined(_WIN32)
+    // WIC hands 10-bit SDR HEIC over as 8 bits.
+    const auto p3_depth = BitDepth::UInt8;
+#else
+    const auto p3_depth = BitDepth::UInt16;
+#endif
     const auto p3 = read("p3-10bit.heic");
-    CHECK(std::as_const(p3.document).color_state().bit_depth == BitDepth::UInt16);
+    CHECK(std::as_const(p3.document).color_state().bit_depth == p3_depth);
     if (std::as_const(p3.document).color_state().bit_depth == BitDepth::UInt16) {
-      const auto& pixels = std::as_const(p3.document).layers().front().pixels();
-      const auto channels = static_cast<std::size_t>(pixels.format().channels);
-      const auto* px = reinterpret_cast<const std::uint16_t*>(pixels.row(1).data());
-      CHECK(px[2 * channels] > 64000);  // white
-      CHECK(px[3 * channels] < 1000);   // black
+      CHECK(heif_column<std::uint16_t>(p3.document, 2)[0] > 64000);  // white
+      CHECK(heif_column<std::uint16_t>(p3.document, 3)[0] < 1000);   // black
     }
-    // An ordinary 8-bit HEIC is not this reader's: it defers to the Qt route as before.
+#if defined(__APPLE__)
+    // An ordinary 8-bit HEIC is not the macOS reader's: it defers to the Qt route as before.
     bool deferred = false;
     try {
       (void)read("quadrants.heic");
@@ -274,9 +313,11 @@ void heif_high_bit_depth_opens_at_full_depth_on_macos() {
       deferred = true;
     }
     CHECK(deferred);
+#endif
   }
-  // Without deep editing every HEIC takes the 8-bit Qt route.
+  // Without deep editing nothing changes: 8 bits everywhere (macOS defers to the Qt route).
   const DeepEditing off(false);
+#if defined(__APPLE__)
   bool deferred = false;
   try {
     (void)read("hdr-pq-10bit.heic");
@@ -285,7 +326,8 @@ void heif_high_bit_depth_opens_at_full_depth_on_macos() {
   }
   CHECK(deferred);
 #else
-  patchy::test::skip("full-depth HEIF decoding is macOS-only for now (ImageIO)");
+  const auto eight_bit = read("hdr-pq-10bit.heic");
+  CHECK(std::as_const(eight_bit.document).color_state().bit_depth == BitDepth::UInt8);
 #endif
 }
 
@@ -308,8 +350,8 @@ void check_chart_patches(const patchy::Document& document) {
     // Lossy 10-bit coding: within 5% of the value.
     const auto* top = reinterpret_cast<const float*>(pixels.row(150).data()) + x * channels;
     const auto* second = reinterpret_cast<const float*>(pixels.row(410).data()) + x * channels;
-    CHECK(near(top[1], coarse[i], coarse[i] * 0.05));
-    CHECK(near(second[1], fine[i], fine[i] * 0.05));
+    CHECK(within(top[1], coarse[i], coarse[i] * 0.05));
+    CHECK(within(second[1], fine[i], fine[i] * 0.05));
   }
 }
 
@@ -335,7 +377,8 @@ std::vector<patchy::test::TestCase> hdr_import_tests() {
   return {
       {"hdr_transfer_decodes_pq_and_hlg_reference_points", hdr_transfer_decodes_pq_and_hlg_reference_points},
       {"heif_orientation_moves_whole_deep_pixels", heif_orientation_moves_whole_deep_pixels},
-      {"heif_high_bit_depth_opens_at_full_depth_on_macos", heif_high_bit_depth_opens_at_full_depth_on_macos},
+      {"heif_nclx_transfer_is_read_from_the_meta_box", heif_nclx_transfer_is_read_from_the_meta_box},
+      {"heif_high_bit_depth_opens_at_full_depth", heif_high_bit_depth_opens_at_full_depth},
       {"hdr_chart_from_another_encoder_opens_with_its_patch_values_if_available",
        hdr_chart_from_another_encoder_opens_with_its_patch_values_if_available},
 #if defined(PATCHY_TEST_LIBAVIF)

@@ -20,6 +20,7 @@
 #include <tuple>
 #include <unordered_set>
 #include "core/document.hpp"
+#include "core/pixel_depth.hpp"
 #include "formats/format_registry.hpp"
 #include "formats/jxr_document_io.hpp"
 #include "support/srgb_transfer.hpp"
@@ -296,6 +297,36 @@ void jxr_hdr_fixture_tone_maps_instead_of_clipping() {
   CHECK(pixel_at(result.document, 3, 0)[0] > 150);
 }
 
+void jxr_hdr_fixture_opens_as_linear_32_bit_with_deep_editing() {
+  const auto bytes = patchy::test::read_binary_file(
+      patchy::test::committed_format_fixture_path("jxr", "hdr-ramp.jxr"));
+  if (const auto reason = codec_missing_reason()) {
+    patchy::test::skip(*reason);
+  }
+  // With deep editing on, the float capture keeps its scRGB values: row 0 walks 0..1 and row
+  // 1 walks 1..12.5 in seven equal steps, as authored, with no tone map and no notice.
+  patchy::set_deep_editing_override(true);
+  const auto result = patchy::jxr::read_jxr(bytes);
+  patchy::set_deep_editing_override(std::nullopt);
+  const auto& document = result.document;
+  CHECK(std::as_const(document).color_state().bit_depth == patchy::BitDepth::Float32);
+  CHECK(result.notices.empty());
+  if (std::as_const(document).color_state().bit_depth != patchy::BitDepth::Float32) {
+    return;
+  }
+  const auto& pixels = std::as_const(document).layers().front().pixels();
+  CHECK(pixels.format().bit_depth == patchy::BitDepth::Float32);
+  const auto channels = static_cast<std::size_t>(pixels.format().channels);
+  for (std::int32_t x = 0; x < 8; ++x) {
+    const auto* sdr = reinterpret_cast<const float*>(pixels.row(0).data()) + static_cast<std::size_t>(x) * channels;
+    const auto* hdr = reinterpret_cast<const float*>(pixels.row(1).data()) + static_cast<std::size_t>(x) * channels;
+    const float expected_sdr = static_cast<float>(x) / 7.0F;
+    const float expected_hdr = 1.0F + static_cast<float>(x) * 11.5F / 7.0F;
+    CHECK(std::abs(sdr[0] - expected_sdr) <= 0.002F + expected_sdr * 0.002F);
+    CHECK(std::abs(hdr[0] - expected_hdr) <= 0.002F + expected_hdr * 0.002F);
+  }
+}
+
 void jxr_reads_real_captures_if_available() {
   // Untracked real-world samples (drop an NVIDIA HDR capture into local-test-fixtures/jxr/).
   const auto dir = patchy::test::local_format_fixture_path("jxr", "").parent_path();
@@ -362,6 +393,8 @@ std::vector<patchy::test::TestCase> jxr_tests() {
       {"jxr_rejects_garbage_and_empty_documents", jxr_rejects_garbage_and_empty_documents},
       {"jxr_unicode_path_round_trips_if_available", jxr_unicode_path_round_trips_if_available},
       {"jxr_hdr_fixture_tone_maps_instead_of_clipping", jxr_hdr_fixture_tone_maps_instead_of_clipping},
+      {"jxr_hdr_fixture_opens_as_linear_32_bit_with_deep_editing",
+       jxr_hdr_fixture_opens_as_linear_32_bit_with_deep_editing},
       {"jxr_reads_real_captures_if_available", jxr_reads_real_captures_if_available},
   };
 }

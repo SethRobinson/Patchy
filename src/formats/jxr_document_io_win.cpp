@@ -5,19 +5,22 @@
 //
 // One thing drives the structure: JPEG XR channels may be float, and NVIDIA's in-game
 // capture uses exactly that (32-bit float scRGB, or 16-bit half from the Windows Game Bar).
-// Patchy's pipeline is 8-bit, so the reader splits on the frame's numeric representation:
+// The reader splits on the frame's numeric representation:
 //   - integer sources take the same path as HEIF (converter to 32bppBGRA, then the file's
 //     ICC profile to sRGB), and
-//   - float sources convert to 128bppRGBAFloat and go through the platform-neutral
-//     scRGB tone map, with NO color transform: scRGB is implied by the pixel format rather
-//     than an embedded profile, so a transform would double-correct.
+//   - float sources convert to 128bppRGBAFloat with NO color transform (scRGB is implied by
+//     the pixel format rather than an embedded profile, so a transform would double-correct).
+//     With deep editing on they open as a 32-bit linear document holding the scRGB values
+//     as stored; otherwise they go through the platform-neutral scRGB tone map to 8 bits.
 
 #include "formats/jxr_document_io.hpp"
 
+#include "core/pixel_depth.hpp"
 #include "formats/wic_com.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <limits>
 #include <stdexcept>
@@ -53,45 +56,6 @@ constexpr std::uint64_t kMaxPixels = 268'435'456;
 
 [[noreturn]] void throw_encode_error(HRESULT hr) {
   throw std::runtime_error("Unable to write this JPEG XR image (Windows error " + hresult_text(hr) + ")");
-}
-
-// Splits the decode into its tone-mapped and straight-conversion halves. WIC exposes the
-// frame's numeric representation through the pixel format's component info, which is more
-// robust than matching a list of float GUIDs and keeps working if the codec grows a format.
-struct SourceKind {
-  bool is_float{false};
-  UINT bits_per_channel{8};
-};
-
-[[nodiscard]] SourceKind classify_pixel_format(IWICImagingFactory& factory, IWICBitmapFrameDecode& frame) {
-  SourceKind kind;
-  WICPixelFormatGUID format{};
-  if (FAILED(frame.GetPixelFormat(&format))) {
-    return kind;
-  }
-
-  ComPtr<IWICComponentInfo> component;
-  if (FAILED(factory.CreateComponentInfo(format, component.put())) || !component) {
-    return kind;
-  }
-  ComPtr<IWICPixelFormatInfo2> info;
-  if (FAILED(component->QueryInterface(IID_IWICPixelFormatInfo2, info.put_void())) || !info) {
-    return kind;
-  }
-
-  WICPixelFormatNumericRepresentation representation = WICPixelFormatNumericRepresentationUnspecified;
-  if (SUCCEEDED(info->GetNumericRepresentation(&representation))) {
-    kind.is_float = representation == WICPixelFormatNumericRepresentationFloat ||
-                    representation == WICPixelFormatNumericRepresentationFixed;
-  }
-
-  UINT bits_per_pixel = 0;
-  UINT channel_count = 0;
-  if (SUCCEEDED(info->GetBitsPerPixel(&bits_per_pixel)) && SUCCEEDED(info->GetChannelCount(&channel_count)) &&
-      channel_count > 0) {
-    kind.bits_per_channel = bits_per_pixel / channel_count;
-  }
-  return kind;
 }
 
 // The HEIF reader's 96x96-means-untagged rule: WIC reports exactly 96 DPI when a file
@@ -153,40 +117,46 @@ void apply_resolution(Document& document, IWICBitmapFrameDecode& frame) {
   return bgra;
 }
 
-// HDR path: convert to straight-alpha 128bppRGBAFloat (which also unpremultiplies a
-// 128bppPRGBAFloat source) and hand the linear scRGB samples to the shared tone map.
-[[nodiscard]] std::vector<std::uint8_t> decode_float_rgba(IWICImagingFactory& factory, IWICBitmapFrameDecode& frame,
-                                                          UINT width, UINT height) {
-  ComPtr<IWICFormatConverter> converter;
-  HRESULT hr = factory.CreateFormatConverter(converter.put());
-  if (SUCCEEDED(hr)) {
-    hr = converter->Initialize(&frame, GUID_WICPixelFormat128bppRGBAFloat, WICBitmapDitherTypeNone, nullptr, 0.0,
-                               WICBitmapPaletteTypeCustom);
-  }
-  if (FAILED(hr)) {
-    throw_decode_error(hr);
-  }
-
-  const std::size_t stride = static_cast<std::size_t>(width) * 4U * sizeof(float);
-  std::vector<float> samples(static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4U);
-  // CopyPixels accepts a UINT byte count. A full 16384-square float image
-  // occupies 4 GiB, so deliver bounded row batches without narrowing that size.
-  if (stride > (std::numeric_limits<UINT>::max)()) {
+// HDR path: the linear scRGB samples as straight-alpha floats.
+[[nodiscard]] std::vector<float> decode_float_samples(IWICImagingFactory& factory, IWICBitmapFrameDecode& frame,
+                                                      UINT width, UINT height) {
+  if (static_cast<std::size_t>(width) * 4U * sizeof(float) > (std::numeric_limits<UINT>::max)()) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "JPEG XR float row exceeds the codec buffer limit"));
   }
-  const auto rows_per_copy = static_cast<UINT>(
-      std::min<std::size_t>(64U, (std::numeric_limits<UINT>::max)() / stride));
-  for (UINT y = 0; y < height; y += rows_per_copy) {
-    const auto rows = (std::min)(rows_per_copy, height - y);
-    WICRect rect{0, static_cast<INT>(y), static_cast<INT>(width), static_cast<INT>(rows)};
-    auto* destination = reinterpret_cast<BYTE*>(samples.data()) + static_cast<std::size_t>(y) * stride;
-    hr = converter->CopyPixels(&rect, static_cast<UINT>(stride),
-                               static_cast<UINT>(stride * rows), destination);
-    if (FAILED(hr)) {
-      throw_decode_error(hr);
+  std::vector<float> samples;
+  if (const HRESULT hr = wic::copy_rgba_float(factory, frame, width, height, samples); FAILED(hr)) {
+    throw_decode_error(hr);
+  }
+  return samples;
+}
+
+// A 32-bit linear layer from scRGB samples, kept as stored: values above 1.0 and the
+// negative components of out-of-gamut colors survive. Non-finite colors become 0; alpha is
+// coverage, clamped to 0..1 with NaN as opaque (the tone map's rules).
+[[nodiscard]] PixelBuffer float_pixels(const std::vector<float>& samples, UINT width, UINT height) {
+  bool has_alpha = false;
+  for (std::size_t offset = 3; offset < samples.size(); offset += 4) {
+    if (samples[offset] < 1.0F) {
+      has_alpha = true;
+      break;
     }
   }
-  return tone_map_scrgb_to_rgba8(samples, static_cast<std::int32_t>(width), static_cast<std::int32_t>(height));
+  const std::size_t channels = has_alpha ? 4U : 3U;
+  PixelBuffer pixels(static_cast<std::int32_t>(width), static_cast<std::int32_t>(height),
+                     with_bit_depth(has_alpha ? PixelFormat::rgba8() : PixelFormat::rgb8(), BitDepth::Float32));
+  auto* out = reinterpret_cast<float*>(pixels.data().data());
+  const auto pixel_count = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+  for (std::size_t i = 0; i < pixel_count; ++i) {
+    const float* in = samples.data() + i * 4U;
+    float* dst = out + i * channels;
+    for (std::size_t c = 0; c < 3U; ++c) {
+      dst[c] = std::isfinite(in[c]) ? in[c] : 0.0F;
+    }
+    if (has_alpha) {
+      dst[3] = std::isnan(in[3]) ? 1.0F : std::clamp(in[3], 0.0F, 1.0F);
+    }
+  }
+  return pixels;
 }
 
 // Sets one IPropertyBag2 encoder option by name.
@@ -242,9 +212,24 @@ FormatReadResult read_jxr(std::span<const std::uint8_t> bytes) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "This JPEG XR image's dimensions are not supported"));
   }
 
-  const auto kind = classify_pixel_format(*factory.get(), *frame.get());
-  const auto rgba = kind.is_float ? decode_float_rgba(*factory.get(), *frame.get(), width, height)
-                                  : decode_integer_rgba(*factory.get(), *frame.get(), width, height);
+  const auto kind = wic::classify_pixel_format(*factory.get(), *frame.get());
+  if (kind.is_float && deep_editing_enabled()) {
+    auto pixels = float_pixels(decode_float_samples(*factory.get(), *frame.get(), width, height), width, height);
+    FormatReadResult result;
+    result.document = Document(static_cast<std::int32_t>(width), static_cast<std::int32_t>(height), pixels.format());
+    result.document.color_state().bit_depth = BitDepth::Float32;
+    apply_resolution(result.document, *frame.get());
+    result.document.add_pixel_layer("Background", std::move(pixels));
+    if (frame_count > 1) {
+      result.notices.push_back("Opened the primary image only (" + std::to_string(frame_count) +
+                               " images in the file)");
+    }
+    return result;
+  }
+  const auto rgba = kind.is_float
+                        ? tone_map_scrgb_to_rgba8(decode_float_samples(*factory.get(), *frame.get(), width, height),
+                                                  static_cast<std::int32_t>(width), static_cast<std::int32_t>(height))
+                        : decode_integer_rgba(*factory.get(), *frame.get(), width, height);
 
   bool has_alpha = false;
   for (std::size_t offset = 3; offset < rgba.size(); offset += 4) {

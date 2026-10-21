@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -46,6 +47,11 @@ namespace patchy::heif {
 // flat-reader convention). Throws std::runtime_error with a user-facing message on
 // failure; on macOS/Linux and the node-only wasm-core build it always throws (see above).
 [[nodiscard]] FormatReadResult read_heif(std::span<const std::uint8_t> bytes);
+
+// The transfer_characteristics code (ISO/IEC 23091-2: 16 = PQ, 18 = HLG) of the first nclx
+// colour box inside the file's top-level meta box, or nothing when there is none. Windows
+// needs it because WIC reports HDR frames only as float and maps HLG its own way.
+[[nodiscard]] std::optional<std::uint16_t> nclx_transfer_characteristics(std::span<const std::uint8_t> bytes);
 
 // Remaps tightly packed pixels (RGBA8 by default, any `bytes_per_pixel` for deeper ones) by
 // an EXIF/TIFF orientation value (1-8; orientations 5-8 swap the output dimensions,

@@ -1,4 +1,4 @@
-# JPEG XR (.jxr/.wdp/.hdp): WIC codec, HDR tone map
+# JPEG XR (.jxr/.wdp/.hdp): WIC codec, 32-bit HDR, tone map
 
 Full record for the JPEG XR reader and writer. Read this before touching `jxr_document_io.*`
 or the tone-map constants. Registry and filter-table wiring rules live in
@@ -38,8 +38,8 @@ Files:
   and the non-Windows throwing stubs. Qt-free and platform-neutral, so the tone map is
   pinned by tests on every platform.
 - `jxr_document_io_win.cpp`: WIC decode and encode.
-- `wic_com.hpp`: `ComPtr`, `CoInitGuard`, `hresult_text`, `create_srgb_transform`, shared
-  with `heif_document_io_win.cpp`. Windows-only, included only from sources guarded by
+- `wic_com.hpp`: `ComPtr`, `CoInitGuard`, `hresult_text`, `create_srgb_transform`,
+  `classify_pixel_format` and `copy_rgba_float`, shared with `heif_document_io_win.cpp`. Windows-only, included only from sources guarded by
   `WIN32` in CMakeLists.txt.
 
 `jxr::jxr_extensions()` is the single source of truth for the registry, the dialog table
@@ -68,14 +68,13 @@ Encoder details:
   ordinary screenshot does not grow a pointless alpha plane.
 - `SetPixelFormat` negotiates: WIC may not honor the request, so pixels are packed to
   whatever it returns, not to what was asked for.
-- Output is always 8-bit, so a file opened from an HDR capture is written back as the tone
-  mapped image, which the dialog's `jxrSaveNote` says.
+- Output is always 8-bit, so an HDR capture is written back through the 8-bit flatten (a
+  32-bit document narrows like every 8-bit writer, a tone-mapped one as it is), which the
+  dialog's `jxrSaveNote` says.
 
-## The HDR tone map
+## Float frames: 32-bit with deep editing, tone map without
 
-Every JPEG XR opens as an 8-bit document, also with deep editing on (native float JXR is
-open work in [high-bit-depth.md](high-bit-depth.md) Phase 8). The reader splits on the
-frame's numeric representation, read through
+The reader splits on the frame's numeric representation, read through
 `IWICPixelFormatInfo2::GetNumericRepresentation`. That is deliberately not a match against a
 list of float GUIDs: the query keeps working if the codec grows a format.
 
@@ -83,16 +82,23 @@ list of float GUIDs: the query keeps working if the codec grows a format.
   file's ICC profile to sRGB through `IWICColorTransform`, then BGRA to RGBA. A notice
   reports the reduction when the source was deeper than 8 bits per channel.
 - **Float and fixed** frames convert to 128bppRGBAFloat, which also unpremultiplies a
-  `128bppPRGBAFloat` source, and go through `tone_map_scrgb_to_rgba8`. **No color transform
-  runs on this path**: scRGB is implied by the pixel format rather than by an embedded
-  profile, so a transform would double-correct. A notice reports the tone map.
+  `128bppPRGBAFloat` source. **No color transform runs on this path**: scRGB is implied by
+  the pixel format rather than by an embedded profile, so a transform would double-correct.
+  With deep editing on (the default) they open as a 32-bit linear document holding the
+  scRGB values as stored ([high-bit-depth.md](high-bit-depth.md)): scRGB is linear sRGB, so
+  values above 1.0 and the negative components of out-of-gamut colors carry over unchanged;
+  non-finite colors become 0, alpha clamps to 0..1 with NaN as opaque, and alpha is kept
+  only when some pixel is translucent. scRGB 1.0 (80 nits) is taken as SDR white, the same
+  reading as the tone map; the 32-bit preview exposure brings highlights into view. With
+  deep editing off they go through `tone_map_scrgb_to_rgba8` to an 8-bit document and a
+  notice reports the tone map. Integer frames stay 8-bit either way.
 
 Density follows the HEIF reader's rule exactly: WIC reports 96 DPI when a file records no
 density, so that reading means untagged and takes Photoshop's 72 PPI convention. A file
 genuinely tagged 96 is indistinguishable and gets the same treatment. `jxr` therefore must
 NOT join `kDensitylessFormats` in `main_window_files.cpp`.
 
-### Why the curve has the shape it has
+### Why the tone curve has the shape it has
 
 scRGB is linear-light with sRGB primaries where 1.0 is the 80 nit reference white. An HDR
 capture legitimately carries values far above 1.0, about 12.5 for a 1000 nit highlight, and
@@ -127,7 +133,9 @@ Nothing else should hard-code them. DDS float sources reuse this curve ([dds.md]
 is the regression guard for the entire float path at once: pixel-format classification, WIC
 preserving values above 1.0 through the float conversion, and the curve. A decoder that
 clamped at 1.0 would flatten row 1 to a single value and move the expectations by 30 or
-more, far outside the tolerance.
+more, far outside the tolerance. `jxr_hdr_fixture_tone_maps_instead_of_clipping` reads it
+with deep editing off (the test default); `jxr_hdr_fixture_opens_as_linear_32_bit_with_deep_editing`
+reads it with deep editing on and checks the stored float values.
 
 Conventions this format follows:
 

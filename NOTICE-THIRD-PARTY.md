@@ -392,7 +392,7 @@ not part of any release package.
 - `test-fixtures/heif/quadrants.heic`: encoded from a self-authored
   quadrant-color PNG with Apple's `sips` tool on macOS (self-authored art; no
   third-party content).
-- `test-fixtures/heif/hdr-pq-10bit.heic`, `hdr-hlg-10bit.heic` and `p3-10bit.heic`: 5x4
+- `test-fixtures/heif/hdr-pq-10bit.heic`, `hdr-hlg-10bit.heic` and `p3-10bit.heic`: 80x48
   10-bit HEIC images written by macOS ImageIO from self-authored 16-bit values (PQ and HLG
   test patches in BT.2020, and Display P3 SDR colors); synthetic values only, no
   third-party content. Used by the full-depth HEIF tests.

@@ -9,13 +9,20 @@
 //   - The decoder returns UNROTATED pixels; the container rotation (irot/imir) is
 //     surfaced as an EXIF-style value at /heifProps/Orientation, applied here via
 //     apply_exif_orientation.
+// PQ frames arrive as float scRGB (the codec does the transfer and the BT.2020 matrix);
+// with deep editing on they open as 32-bit linear sRGB documents (docs/heif.md). HLG frames
+// arrive as float too, but on a 10,000-nit peak with the codec's own system gamma rather
+// than BT.2408's reference reading, so they keep the 8-bit path, as do 10-bit SDR frames,
+// which the codec hands over as 8 bits.
 
 #include "formats/heif_document_io.hpp"
 
+#include "core/pixel_depth.hpp"
 #include "formats/wic_com.hpp"
 #include "support/translate_noop.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <stdexcept>
 #include <string>
@@ -88,6 +95,61 @@ constexpr HRESULT kMfTopoCodecNotFound = static_cast<HRESULT>(0xC00D5212);
   return orientation >= 1 && orientation <= 8 ? orientation : 1;
 }
 
+// scRGB counts 1.0 as 80 nits; Patchy's 32-bit documents put 1.0 at SDR reference white,
+// 203 nits (ITU-R BT.2408, formats/hdr_transfer.hpp).
+constexpr float kScrgbToSdrWhite = 80.0F / 203.0F;
+
+void apply_resolution(Document& document, double dpi_x, double dpi_y) {
+  if (dpi_x > 1.0 && dpi_y > 1.0 && !(dpi_x == 96.0 && dpi_y == 96.0)) {
+    document.print_settings().horizontal_ppi = dpi_x;
+    document.print_settings().vertical_ppi = dpi_y;
+  } else {
+    // WIC reports exactly 96x96 when the file records no density (its documented
+    // default), so that reading means "untagged" and follows Photoshop's 72 PPI
+    // convention. A HEIC genuinely tagged 96x96 is indistinguishable and gets the
+    // same treatment; iPhone files carry EXIF 72 and are unaffected.
+    document.print_settings().horizontal_ppi = 72.0;
+    document.print_settings().vertical_ppi = 72.0;
+  }
+}
+
+// An HDR frame as a 32-bit linear sRGB document: scRGB floats rescaled to SDR white,
+// non-finite colors 0, alpha clamped to 0..1 (NaN opaque) and kept only when translucent.
+FormatReadResult read_float_frame(IWICImagingFactory& factory, IWICBitmapFrameDecode& frame, UINT width, UINT height,
+                                  int orientation, double dpi_x, double dpi_y) {
+  std::vector<float> samples;
+  if (const HRESULT hr = wic::copy_rgba_float(factory, frame, width, height, samples); FAILED(hr)) {
+    throw_decode_error(hr, /*container_opened*/ true);
+  }
+  bool has_alpha = false;
+  for (std::size_t i = 0; i < samples.size(); i += 4) {
+    for (std::size_t c = 0; c < 3; ++c) {
+      samples[i + c] = std::isfinite(samples[i + c]) ? samples[i + c] * kScrgbToSdrWhite : 0.0F;
+    }
+    samples[i + 3] = std::isnan(samples[i + 3]) ? 1.0F : std::clamp(samples[i + 3], 0.0F, 1.0F);
+    has_alpha = has_alpha || samples[i + 3] < 1.0F;
+  }
+  const std::span<const std::uint8_t> bytes(reinterpret_cast<const std::uint8_t*>(samples.data()),
+                                            samples.size() * sizeof(float));
+  const auto oriented = apply_exif_orientation(bytes, static_cast<std::int32_t>(width),
+                                               static_cast<std::int32_t>(height), orientation, 4U * sizeof(float));
+  const auto format = with_bit_depth(has_alpha ? PixelFormat::rgba8() : PixelFormat::rgb8(), BitDepth::Float32);
+  PixelBuffer pixels(oriented.width, oriented.height, format);
+  const std::size_t channels = has_alpha ? 4U : 3U;
+  const auto* in = reinterpret_cast<const float*>(oriented.rgba.data());
+  auto* out = reinterpret_cast<float*>(pixels.data().data());
+  const auto pixel_count = static_cast<std::size_t>(oriented.width) * static_cast<std::size_t>(oriented.height);
+  for (std::size_t i = 0; i < pixel_count; ++i) {
+    std::copy_n(in + i * 4U, channels, out + i * channels);
+  }
+  FormatReadResult result;
+  result.document = Document(oriented.width, oriented.height, format);
+  result.document.color_state().bit_depth = BitDepth::Float32;
+  apply_resolution(result.document, dpi_x, dpi_y);
+  result.document.add_pixel_layer("Background", std::move(pixels));
+  return result;
+}
+
 }  // namespace
 
 FormatReadResult read_heif(std::span<const std::uint8_t> bytes) {
@@ -146,6 +208,17 @@ FormatReadResult read_heif(std::span<const std::uint8_t> bytes) {
   if (FAILED(frame->GetResolution(&dpi_x, &dpi_y))) {
     dpi_x = 0.0;
     dpi_y = 0.0;
+  }
+
+  constexpr std::uint16_t kTransferHlg = 18;
+  if (deep_editing_enabled() && wic::classify_pixel_format(*factory.get(), *frame.get()).is_float &&
+      nclx_transfer_characteristics(bytes) != kTransferHlg) {
+    auto result = read_float_frame(*factory.get(), *frame.get(), width, height, orientation, dpi_x, dpi_y);
+    if (frame_count > 1) {
+      result.notices.push_back("Opened the primary image only (" + std::to_string(frame_count) +
+                               " images in the file)");
+    }
+    return result;
   }
 
   // Normalize to straight-alpha BGRA first (the converter accepts every native HEIF
@@ -219,17 +292,7 @@ FormatReadResult read_heif(std::span<const std::uint8_t> bytes) {
 
   FormatReadResult result;
   result.document = Document(oriented.width, oriented.height, has_alpha ? PixelFormat::rgba8() : PixelFormat::rgb8());
-  if (dpi_x > 1.0 && dpi_y > 1.0 && !(dpi_x == 96.0 && dpi_y == 96.0)) {
-    result.document.print_settings().horizontal_ppi = dpi_x;
-    result.document.print_settings().vertical_ppi = dpi_y;
-  } else {
-    // WIC reports exactly 96x96 when the file records no density (its documented
-    // default), so that reading means "untagged" and follows Photoshop's 72 PPI
-    // convention. A HEIC genuinely tagged 96x96 is indistinguishable and gets the
-    // same treatment; iPhone files carry EXIF 72 and are unaffected.
-    result.document.print_settings().horizontal_ppi = 72.0;
-    result.document.print_settings().vertical_ppi = 72.0;
-  }
+  apply_resolution(result.document, dpi_x, dpi_y);
   result.document.add_pixel_layer("Background", std::move(pixels));
   if (frame_count > 1) {
     result.notices.push_back("Opened the primary image only (" + std::to_string(frame_count) +
