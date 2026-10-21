@@ -317,6 +317,37 @@
     </message>
 </context>
 <context>
+    <name>NewLayerDialog</name>
+    <message>
+        <source>New Layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use Previous Layer to Create Clipping Mask</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clip the new layer to the layer below it</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Patchy raster image editor.</source>
@@ -23347,6 +23378,38 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     </message>
     <message>
         <source>The Background layer cannot have layer styles</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New &amp;Layer...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add a layer, choosing its name, color, mode and opacity first</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Merge Visible</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Merge every visible layer into one, keeping the hidden layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Merge Visible</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Merge Visible needs at least two visible layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Merge visible</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Merged the visible layers</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

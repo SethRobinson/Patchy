@@ -317,6 +317,37 @@
     </message>
 </context>
 <context>
+    <name>NewLayerDialog</name>
+    <message>
+        <source>New Layer</source>
+        <translation>Nouveau calque</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>Nom :</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>Couleur :</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>Mode :</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Opacité :</translation>
+    </message>
+    <message>
+        <source>Use Previous Layer to Create Clipping Mask</source>
+        <translation>Utiliser le calque précédent pour créer un masque d&apos;écrêtage</translation>
+    </message>
+    <message>
+        <source>Clip the new layer to the layer below it</source>
+        <translation>Écrêter le nouveau calque sur le calque inférieur</translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Patchy raster image editor.</source>
@@ -23425,6 +23456,38 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
     <message>
         <source>The Background layer cannot have layer styles</source>
         <translation>Le calque d&apos;arrière-plan ne peut pas avoir de styles de calque</translation>
+    </message>
+    <message>
+        <source>New &amp;Layer...</source>
+        <translation>Nouveau &amp;calque...</translation>
+    </message>
+    <message>
+        <source>Add a layer, choosing its name, color, mode and opacity first</source>
+        <translation>Ajouter un calque en choisissant d&apos;abord son nom, sa couleur, son mode et son opacité</translation>
+    </message>
+    <message>
+        <source>&amp;Merge Visible</source>
+        <translation>Fusionner les calques visi&amp;bles</translation>
+    </message>
+    <message>
+        <source>Merge every visible layer into one, keeping the hidden layers</source>
+        <translation>Fusionner tous les calques visibles en un seul, en gardant les calques masqués</translation>
+    </message>
+    <message>
+        <source>Merge Visible</source>
+        <translation>Fusionner les calques visibles</translation>
+    </message>
+    <message>
+        <source>Merge Visible needs at least two visible layers</source>
+        <translation>Fusionner les calques visibles demande au moins deux calques visibles</translation>
+    </message>
+    <message>
+        <source>Merge visible</source>
+        <translation>Fusionner les calques visibles</translation>
+    </message>
+    <message>
+        <source>Merged the visible layers</source>
+        <translation>Calques visibles fusionnés</translation>
     </message>
 </context>
 <context>

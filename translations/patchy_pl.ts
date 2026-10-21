@@ -317,6 +317,37 @@
     </message>
 </context>
 <context>
+    <name>NewLayerDialog</name>
+    <message>
+        <source>New Layer</source>
+        <translation>Nowa warstwa</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>Nazwa:</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>Kolor:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>Tryb:</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Krycie:</translation>
+    </message>
+    <message>
+        <source>Use Previous Layer to Create Clipping Mask</source>
+        <translation>Użyj poprzedniej warstwy do utworzenia maski przycinającej</translation>
+    </message>
+    <message>
+        <source>Clip the new layer to the layer below it</source>
+        <translation>Przytnij nową warstwę do warstwy pod nią</translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Patchy raster image editor.</source>
@@ -23497,6 +23528,38 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     <message>
         <source>The Background layer cannot have layer styles</source>
         <translation>Warstwa tła nie może mieć stylów warstwy</translation>
+    </message>
+    <message>
+        <source>New &amp;Layer...</source>
+        <translation>Nowa &amp;warstwa...</translation>
+    </message>
+    <message>
+        <source>Add a layer, choosing its name, color, mode and opacity first</source>
+        <translation>Dodaj warstwę, najpierw wybierając jej nazwę, kolor, tryb i krycie</translation>
+    </message>
+    <message>
+        <source>&amp;Merge Visible</source>
+        <translation>Scal wido&amp;czne</translation>
+    </message>
+    <message>
+        <source>Merge every visible layer into one, keeping the hidden layers</source>
+        <translation>Scal wszystkie widoczne warstwy w jedną, zachowując ukryte</translation>
+    </message>
+    <message>
+        <source>Merge Visible</source>
+        <translation>Scal widoczne</translation>
+    </message>
+    <message>
+        <source>Merge Visible needs at least two visible layers</source>
+        <translation>Scal widoczne wymaga co najmniej dwóch widocznych warstw</translation>
+    </message>
+    <message>
+        <source>Merge visible</source>
+        <translation>Scal widoczne</translation>
+    </message>
+    <message>
+        <source>Merged the visible layers</source>
+        <translation>Scalono widoczne warstwy</translation>
     </message>
 </context>
 <context>

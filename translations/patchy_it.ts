@@ -317,6 +317,37 @@
     </message>
 </context>
 <context>
+    <name>NewLayerDialog</name>
+    <message>
+        <source>New Layer</source>
+        <translation>Nuovo livello</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>Nome:</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>Colore:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>Metodo:</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Opacità:</translation>
+    </message>
+    <message>
+        <source>Use Previous Layer to Create Clipping Mask</source>
+        <translation>Usa livello precedente per creare maschera di ritaglio</translation>
+    </message>
+    <message>
+        <source>Clip the new layer to the layer below it</source>
+        <translation>Ritaglia il nuovo livello sul livello sottostante</translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Patchy raster image editor.</source>
@@ -23425,6 +23456,38 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
     <message>
         <source>The Background layer cannot have layer styles</source>
         <translation>Il livello di sfondo non può avere stili di livello</translation>
+    </message>
+    <message>
+        <source>New &amp;Layer...</source>
+        <translation>Nuovo &amp;livello...</translation>
+    </message>
+    <message>
+        <source>Add a layer, choosing its name, color, mode and opacity first</source>
+        <translation>Aggiungi un livello scegliendo prima nome, colore, metodo e opacità</translation>
+    </message>
+    <message>
+        <source>&amp;Merge Visible</source>
+        <translation>Unisci visi&amp;bili</translation>
+    </message>
+    <message>
+        <source>Merge every visible layer into one, keeping the hidden layers</source>
+        <translation>Unisci tutti i livelli visibili in uno, mantenendo quelli nascosti</translation>
+    </message>
+    <message>
+        <source>Merge Visible</source>
+        <translation>Unisci visibili</translation>
+    </message>
+    <message>
+        <source>Merge Visible needs at least two visible layers</source>
+        <translation>Unisci visibili richiede almeno due livelli visibili</translation>
+    </message>
+    <message>
+        <source>Merge visible</source>
+        <translation>Unisci visibili</translation>
+    </message>
+    <message>
+        <source>Merged the visible layers</source>
+        <translation>Livelli visibili uniti</translation>
     </message>
 </context>
 <context>

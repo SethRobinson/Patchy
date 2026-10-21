@@ -317,6 +317,37 @@
     </message>
 </context>
 <context>
+    <name>NewLayerDialog</name>
+    <message>
+        <source>New Layer</source>
+        <translation>新規レイヤー</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>名前:</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>カラー:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>描画モード:</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>不透明度:</translation>
+    </message>
+    <message>
+        <source>Use Previous Layer to Create Clipping Mask</source>
+        <translation>下のレイヤーでクリッピングマスクを作成</translation>
+    </message>
+    <message>
+        <source>Clip the new layer to the layer below it</source>
+        <translation>新しいレイヤーを下のレイヤーでクリップします</translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Rotate Canvas</source>
@@ -23353,6 +23384,38 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>The Background layer cannot have layer styles</source>
         <translation>背景レイヤーにはレイヤースタイルを適用できません</translation>
+    </message>
+    <message>
+        <source>New &amp;Layer...</source>
+        <translation>新規レイヤー(&amp;L)...</translation>
+    </message>
+    <message>
+        <source>Add a layer, choosing its name, color, mode and opacity first</source>
+        <translation>名前、カラー、描画モード、不透明度を決めてからレイヤーを追加</translation>
+    </message>
+    <message>
+        <source>&amp;Merge Visible</source>
+        <translation>表示レイヤーを結合(&amp;M)</translation>
+    </message>
+    <message>
+        <source>Merge every visible layer into one, keeping the hidden layers</source>
+        <translation>表示中のレイヤーをすべて 1 つに結合し、非表示のレイヤーは残します</translation>
+    </message>
+    <message>
+        <source>Merge Visible</source>
+        <translation>表示レイヤーを結合</translation>
+    </message>
+    <message>
+        <source>Merge Visible needs at least two visible layers</source>
+        <translation>表示レイヤーを結合するには表示中のレイヤーが 2 つ以上必要です</translation>
+    </message>
+    <message>
+        <source>Merge visible</source>
+        <translation>表示レイヤーを結合</translation>
+    </message>
+    <message>
+        <source>Merged the visible layers</source>
+        <translation>表示レイヤーを結合しました</translation>
     </message>
 </context>
 <context>

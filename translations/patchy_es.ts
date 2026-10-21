@@ -317,6 +317,37 @@
     </message>
 </context>
 <context>
+    <name>NewLayerDialog</name>
+    <message>
+        <source>New Layer</source>
+        <translation>Nueva capa</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>Nombre:</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>Color:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>Modo:</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Opacidad:</translation>
+    </message>
+    <message>
+        <source>Use Previous Layer to Create Clipping Mask</source>
+        <translation>Usar la capa anterior para crear una máscara de recorte</translation>
+    </message>
+    <message>
+        <source>Clip the new layer to the layer below it</source>
+        <translation>Recortar la nueva capa con la capa inferior</translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Patchy raster image editor.</source>
@@ -23425,6 +23456,38 @@ Puedes hacerlo más tarde desde Ayuda &gt; Añadir Patchy al menú de aplicacion
     <message>
         <source>The Background layer cannot have layer styles</source>
         <translation>La capa de fondo no puede tener estilos de capa</translation>
+    </message>
+    <message>
+        <source>New &amp;Layer...</source>
+        <translation>Nueva &amp;capa...</translation>
+    </message>
+    <message>
+        <source>Add a layer, choosing its name, color, mode and opacity first</source>
+        <translation>Añadir una capa eligiendo antes su nombre, color, modo y opacidad</translation>
+    </message>
+    <message>
+        <source>&amp;Merge Visible</source>
+        <translation>Co&amp;mbinar visibles</translation>
+    </message>
+    <message>
+        <source>Merge every visible layer into one, keeping the hidden layers</source>
+        <translation>Combinar todas las capas visibles en una y conservar las ocultas</translation>
+    </message>
+    <message>
+        <source>Merge Visible</source>
+        <translation>Combinar visibles</translation>
+    </message>
+    <message>
+        <source>Merge Visible needs at least two visible layers</source>
+        <translation>Combinar visibles necesita al menos dos capas visibles</translation>
+    </message>
+    <message>
+        <source>Merge visible</source>
+        <translation>Combinar visibles</translation>
+    </message>
+    <message>
+        <source>Merged the visible layers</source>
+        <translation>Capas visibles combinadas</translation>
     </message>
 </context>
 <context>

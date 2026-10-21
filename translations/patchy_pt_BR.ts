@@ -317,6 +317,37 @@
     </message>
 </context>
 <context>
+    <name>NewLayerDialog</name>
+    <message>
+        <source>New Layer</source>
+        <translation>Nova camada</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>Nome:</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>Cor:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>Modo:</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Opacidade:</translation>
+    </message>
+    <message>
+        <source>Use Previous Layer to Create Clipping Mask</source>
+        <translation>Usar camada anterior para criar máscara de recorte</translation>
+    </message>
+    <message>
+        <source>Clip the new layer to the layer below it</source>
+        <translation>Recortar a nova camada na camada abaixo</translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Patchy raster image editor.</source>
@@ -23425,6 +23456,38 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
     <message>
         <source>The Background layer cannot have layer styles</source>
         <translation>A camada de plano de fundo não pode ter estilos de camada</translation>
+    </message>
+    <message>
+        <source>New &amp;Layer...</source>
+        <translation>Nova &amp;camada...</translation>
+    </message>
+    <message>
+        <source>Add a layer, choosing its name, color, mode and opacity first</source>
+        <translation>Adicionar uma camada escolhendo antes nome, cor, modo e opacidade</translation>
+    </message>
+    <message>
+        <source>&amp;Merge Visible</source>
+        <translation>Mesclar visí&amp;veis</translation>
+    </message>
+    <message>
+        <source>Merge every visible layer into one, keeping the hidden layers</source>
+        <translation>Mesclar todas as camadas visíveis em uma, mantendo as ocultas</translation>
+    </message>
+    <message>
+        <source>Merge Visible</source>
+        <translation>Mesclar visíveis</translation>
+    </message>
+    <message>
+        <source>Merge Visible needs at least two visible layers</source>
+        <translation>Mesclar visíveis precisa de pelo menos duas camadas visíveis</translation>
+    </message>
+    <message>
+        <source>Merge visible</source>
+        <translation>Mesclar visíveis</translation>
+    </message>
+    <message>
+        <source>Merged the visible layers</source>
+        <translation>Camadas visíveis mescladas</translation>
     </message>
 </context>
 <context>

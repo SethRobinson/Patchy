@@ -317,6 +317,37 @@
     </message>
 </context>
 <context>
+    <name>NewLayerDialog</name>
+    <message>
+        <source>New Layer</source>
+        <translation>새 레이어</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>이름:</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>색상:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>모드:</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>불투명도:</translation>
+    </message>
+    <message>
+        <source>Use Previous Layer to Create Clipping Mask</source>
+        <translation>이전 레이어를 사용하여 클리핑 마스크 만들기</translation>
+    </message>
+    <message>
+        <source>Clip the new layer to the layer below it</source>
+        <translation>새 레이어를 아래 레이어에 클리핑합니다</translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Patchy raster image editor.</source>
@@ -23353,6 +23384,38 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>The Background layer cannot have layer styles</source>
         <translation>배경 레이어에는 레이어 스타일을 적용할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>New &amp;Layer...</source>
+        <translation>새 레이어(&amp;L)...</translation>
+    </message>
+    <message>
+        <source>Add a layer, choosing its name, color, mode and opacity first</source>
+        <translation>이름, 색상, 모드, 불투명도를 먼저 정하고 레이어 추가</translation>
+    </message>
+    <message>
+        <source>&amp;Merge Visible</source>
+        <translation>보이는 레이어 병합(&amp;M)</translation>
+    </message>
+    <message>
+        <source>Merge every visible layer into one, keeping the hidden layers</source>
+        <translation>보이는 레이어를 모두 하나로 병합하고 숨긴 레이어는 남깁니다</translation>
+    </message>
+    <message>
+        <source>Merge Visible</source>
+        <translation>보이는 레이어 병합</translation>
+    </message>
+    <message>
+        <source>Merge Visible needs at least two visible layers</source>
+        <translation>보이는 레이어 병합에는 보이는 레이어가 두 개 이상 필요합니다</translation>
+    </message>
+    <message>
+        <source>Merge visible</source>
+        <translation>보이는 레이어 병합</translation>
+    </message>
+    <message>
+        <source>Merged the visible layers</source>
+        <translation>보이는 레이어를 병합했습니다</translation>
     </message>
 </context>
 <context>

@@ -317,6 +317,37 @@
     </message>
 </context>
 <context>
+    <name>NewLayerDialog</name>
+    <message>
+        <source>New Layer</source>
+        <translation>新增圖層</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>名稱:</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>顏色:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>模式:</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>不透明度:</translation>
+    </message>
+    <message>
+        <source>Use Previous Layer to Create Clipping Mask</source>
+        <translation>使用上一個圖層建立剪裁遮色片</translation>
+    </message>
+    <message>
+        <source>Clip the new layer to the layer below it</source>
+        <translation>將新圖層剪裁至下方圖層</translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Patchy raster image editor.</source>
@@ -23353,6 +23384,38 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>The Background layer cannot have layer styles</source>
         <translation>背景圖層不能使用圖層樣式</translation>
+    </message>
+    <message>
+        <source>New &amp;Layer...</source>
+        <translation>新增圖層(&amp;L)...</translation>
+    </message>
+    <message>
+        <source>Add a layer, choosing its name, color, mode and opacity first</source>
+        <translation>先選擇名稱、顏色、模式和不透明度，再新增圖層</translation>
+    </message>
+    <message>
+        <source>&amp;Merge Visible</source>
+        <translation>合併可見圖層(&amp;M)</translation>
+    </message>
+    <message>
+        <source>Merge every visible layer into one, keeping the hidden layers</source>
+        <translation>將所有可見圖層合併為一個，保留隱藏的圖層</translation>
+    </message>
+    <message>
+        <source>Merge Visible</source>
+        <translation>合併可見圖層</translation>
+    </message>
+    <message>
+        <source>Merge Visible needs at least two visible layers</source>
+        <translation>合併可見圖層需要至少兩個可見圖層</translation>
+    </message>
+    <message>
+        <source>Merge visible</source>
+        <translation>合併可見圖層</translation>
+    </message>
+    <message>
+        <source>Merged the visible layers</source>
+        <translation>已合併可見圖層</translation>
     </message>
 </context>
 <context>
