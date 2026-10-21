@@ -331,6 +331,7 @@ void heif_high_bit_depth_opens_at_full_depth() {
 #endif
 }
 
+#if defined(PATCHY_TEST_LIBAVIF) || defined(__APPLE__)
 // Checks the gray patch rows of Patchy's HDR test chart (local-test-fixtures/hdr-display,
 // README.txt there) in a 32-bit document: row y=150 holds 0.18 .. 16, row y=410 1.0 .. 2.0.
 void check_chart_patches(const patchy::Document& document) {
@@ -354,6 +355,7 @@ void check_chart_patches(const patchy::Document& document) {
     CHECK(within(second[1], fine[i], fine[i] * 0.05));
   }
 }
+#endif
 
 void hdr_chart_from_another_encoder_opens_with_its_patch_values_if_available() {
   // The chart encoded as 10-bit PQ AVIF and HEIC by macOS ImageIO (nclx PQ, BT.2020): a
