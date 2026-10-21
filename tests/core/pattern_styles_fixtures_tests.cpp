@@ -1524,7 +1524,7 @@ void psd_photoshop_stroke_aa_matte_fixture_matches_render() {
       static_cast<double>(reference.width()) * static_cast<double>(reference.height());
   // Per-layer picture: the ellipse spans x < 180, the diamond 180..340, the
   // Shape Burst ellipse the rest.
-  for (const auto [name, left, right] : {std::tuple{"ellipse", 0, 180}, std::tuple{"diamond", 180, 340},
+  for (const auto& [name, left, right] : {std::tuple{"ellipse", 0, 180}, std::tuple{"diamond", 180, 340},
                                          std::tuple{"sbellipse", 340, 560}}) {
     std::uint64_t over = 0;
     double total = 0.0;
