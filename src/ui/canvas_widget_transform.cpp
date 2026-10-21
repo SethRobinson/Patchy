@@ -3135,7 +3135,7 @@ void CanvasWidget::apply_session_transform_cursor(QPoint widget_point, Qt::Keybo
                             transform_angle_);
     return;
   }
-  const auto handle = distorted_transform_handle_at(widget_point);
+  const auto handle = transform_handle_for_session_mode(distorted_transform_handle_at(widget_point));
   if (handle == TransformHandle::Rotate) {
     const auto stem = distorted_transform_handle_position(TransformHandle::Rotate);
     if (std::abs(widget_point.x() - stem.x()) <= 7.0 && std::abs(widget_point.y() - stem.y()) <= 7.0) {
@@ -3191,6 +3191,8 @@ CanvasWidget::TransformDragKind CanvasWidget::transform_drag_kind_for_mode(Trans
       case TransformDistortMode::Skew:
         return TransformDragKind::SkewCorner;
       case TransformDistortMode::None:
+      case TransformDistortMode::Scale:
+      case TransformDistortMode::Rotate:
         break;
     }
     return TransformDragKind::Scale;
@@ -3206,6 +3208,8 @@ CanvasWidget::TransformDragKind CanvasWidget::transform_drag_kind_for_mode(Trans
       case TransformDistortMode::Perspective:
         return TransformDragKind::SlideEdge;
       case TransformDistortMode::None:
+      case TransformDistortMode::Scale:
+      case TransformDistortMode::Rotate:
         break;
     }
   }
@@ -3810,9 +3814,28 @@ CanvasWidget::TransformHandle CanvasWidget::transform_handle_at(QPoint widget_po
     return TransformHandle::None;
   }
   if (transform_is_distorted()) {
-    return distorted_transform_handle_at(widget_point);
+    return transform_handle_for_session_mode(distorted_transform_handle_at(widget_point));
   }
-  return transform_handle_at(widget_point, transform_current_rect_, transform_angle_, zones);
+  return transform_handle_for_session_mode(
+      transform_handle_at(widget_point, transform_current_rect_, transform_angle_, zones));
+}
+
+CanvasWidget::TransformHandle CanvasWidget::transform_handle_for_session_mode(TransformHandle handle) const noexcept {
+  switch (transform_distort_mode_) {
+    case TransformDistortMode::Rotate:
+      // Grabbing a corner or side swings the box about the reference point; the
+      // inside still moves it.
+      return transform_handle_is_corner(handle) || transform_handle_is_edge(handle) ? TransformHandle::Rotate
+                                                                                     : handle;
+    case TransformDistortMode::Scale:
+      return handle == TransformHandle::Rotate ? TransformHandle::None : handle;
+    case TransformDistortMode::None:
+    case TransformDistortMode::Skew:
+    case TransformDistortMode::Distort:
+    case TransformDistortMode::Perspective:
+      break;
+  }
+  return handle;
 }
 
 CanvasWidget::TransformHandle CanvasWidget::transform_handle_at(QPoint widget_point, QRectF document_rect,

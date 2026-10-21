@@ -15539,10 +15539,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Wygięcie wypaczenia</translation>
     </message>
     <message>
-        <source>Switch between free transform and warp</source>
-        <translation>Przełącz między przekształcaniem swobodnym a wypaczeniem</translation>
-    </message>
-    <message>
         <source>Apply transform</source>
         <translation>Zastosuj transformację</translation>
     </message>
@@ -23821,6 +23817,18 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
     <message>
         <source>Add Patchy to your applications menu? It then starts from the menu and shows its own icon in the taskbar. This writes a menu entry and icons to your home folder. You can also do it later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>Dodać Patchy do menu aplikacji? Patchy będzie można wtedy uruchamiać z menu, a na pasku zadań pojawi się jego własna ikona. W folderze domowym zostanie zapisany wpis menu i ikony. Możesz to zrobić także później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</translation>
+    </message>
+    <message>
+        <source>Warp</source>
+        <translation>Wypaczenie</translation>
+    </message>
+    <message>
+        <source>Scale</source>
+        <translation>Skaluj</translation>
+    </message>
+    <message>
+        <source>Rotate</source>
+        <translation>Obróć</translation>
     </message>
 </context>
 <context>

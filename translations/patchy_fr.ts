@@ -15179,10 +15179,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Inflexion de la déformation</translation>
     </message>
     <message>
-        <source>Switch between free transform and warp</source>
-        <translation>Basculer entre la transformation manuelle et la déformation</translation>
-    </message>
-    <message>
         <source>Apply transform</source>
         <translation>Appliquer la transformation</translation>
     </message>
@@ -23749,6 +23745,18 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     <message>
         <source>Add Patchy to your applications menu? It then starts from the menu and shows its own icon in the taskbar. This writes a menu entry and icons to your home folder. You can also do it later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>Ajouter Patchy au menu des applications ? Patchy pourra alors être lancé depuis le menu et affichera sa propre icône dans la barre des tâches. Une entrée de menu et des icônes sont écrites dans votre dossier personnel. Vous pourrez aussi le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des applications.</translation>
+    </message>
+    <message>
+        <source>Warp</source>
+        <translation>Déformation</translation>
+    </message>
+    <message>
+        <source>Scale</source>
+        <translation>Échelle</translation>
+    </message>
+    <message>
+        <source>Rotate</source>
+        <translation>Rotation</translation>
     </message>
 </context>
 <context>

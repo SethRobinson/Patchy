@@ -1182,6 +1182,8 @@ private:
   void warp_transform_active_layer();
   // Edit > Transform > Skew/Distort/Perspective (GitHub issue 225).
   void transform_active_layer_mode(TransformDistortMode mode);
+  // Checks the session bar's button for the open session's transform type.
+  void sync_transform_type_buttons();
   void add_text_at(QPoint document_point, QRect requested_text_box = {}, bool show_editor = true,
                    std::optional<patchy::VectorPath> requested_area = std::nullopt,
                    std::optional<LayerId> target_text_layer = std::nullopt);
@@ -2517,6 +2519,9 @@ private:
   // Shared session trio: warp-mode toggle + apply + cancel, shown for BOTH the
   // free-transform and warp sessions (Photoshop's options-bar layout).
   QPushButton* transform_warp_mode_button_{nullptr};
+  // The session bar's Skew, Distort and Perspective buttons (GitHub issue 299);
+  // Warp is transform_warp_mode_button_.
+  std::vector<QPushButton*> transform_type_buttons_;
   QPushButton* transform_apply_button_{nullptr};
   QPushButton* transform_cancel_button_{nullptr};
   QComboBox* warp_style_combo_{nullptr};

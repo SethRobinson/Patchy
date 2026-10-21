@@ -2658,6 +2658,12 @@ void MainWindow::sync_transform_controls_from_canvas() {
                          !(button == transform_warp_mode_button_ && multi_target_transform));
     }
   }
+  for (auto* button : transform_type_buttons_) {
+    if (button != nullptr) {
+      button->setEnabled(session_active);
+    }
+  }
+  sync_transform_type_buttons();
   if (!state.has_value()) {
     return;
   }
@@ -3050,6 +3056,7 @@ void MainWindow::refresh_options_bar() {
       transform_warp_mode_button_->setEnabled(false);
     }
   }
+  sync_transform_type_buttons();
   // The text session's apply/cancel pair rides next to the text controls while an
   // inline editor is open.  The finished-property check matters: commit teardown
   // has a window between marking the editor finished and reparenting it away in

@@ -196,6 +196,36 @@ const std::array<MixerCombination, 12>& mixer_useful_combinations() {
 
 namespace {
 
+// The transform types on the Move bar and the transform session bar (GitHub issue
+// 299), in Edit > Transform's order. Scale and Rotate stay in the menu: the plain box
+// does both, and the session row must keep one line in a 1180 px window.
+struct TransformTypeButton {
+  const char* tooltip;
+  const char* icon;
+  const char* move_object_name;
+  const char* session_object_name;
+  TransformDistortMode mode;
+  bool warp;
+};
+
+constexpr std::array<TransformTypeButton, 4> kTransformTypeButtons{{
+    {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Skew"), "transform-skew", "moveTransformSkewButton",
+     "transformSkewModeButton", TransformDistortMode::Skew, false},
+    {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Distort"), "transform-distort", "moveTransformDistortButton",
+     "transformDistortModeButton", TransformDistortMode::Distort, false},
+    {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Perspective"), "transform-perspective",
+     "moveTransformPerspectiveButton", "transformPerspectiveModeButton", TransformDistortMode::Perspective, false},
+    {QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Warp Transform"), "warp", "moveWarpButton",
+     "transformWarpModeButton", TransformDistortMode::None, true},
+}};
+
+// The session button's TransformDistortMode, read by sync_transform_type_buttons.
+constexpr const char* kTransformTypeModeProperty = "patchy.transformTypeMode";
+
+}  // namespace
+
+namespace {
+
 // The closed combo is deliberately compact (the Options bar must keep the
 // mixer row on one line), so the popup list needs its own width or every
 // entry truncates to "Dry...oad".
@@ -413,22 +443,30 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       canvas_->set_show_transform_controls(checked);
     }
   });
-  // Warp straight from the Move bar (GitHub issue 225): the same entry as Edit >
-  // Warp Transform, so the cage is one click away before any transform starts.
-  // During a session the bar swaps to the transform row, whose own toggle switches
-  // between free transform and warp.
-  {
-    auto* move_warp_button = new QToolButton(toolbar);
-    move_warp_button->setObjectName(QStringLiteral("moveWarpButton"));
-    move_warp_button->setToolButtonStyle(Qt::ToolButtonIconOnly);
-    move_warp_button->setIcon(simple_icon(QStringLiteral("warp")));
-    move_warp_button->setIconSize(QSize(18, 18));
-    move_warp_button->setAutoRaise(true);
-    move_warp_button->setFocusPolicy(Qt::NoFocus);
-    move_warp_button->setProperty("optionsBarButton", true);
-    bind_tooltip(move_warp_button, QT_TR_NOOP("Warp Transform"));
-    add_option_widget(move_warp_button, {CanvasTool::Move});
-    connect(move_warp_button, &QToolButton::clicked, this, [this] { warp_transform_active_layer(); });
+  // Transform types straight from the Move bar (GitHub issues 225 and 299): the
+  // same entries as Edit > Free Transform and Edit > Transform, so any type is one
+  // click away before a transform starts. During a session the bar swaps to the
+  // transform row, which leads with the same group as checkable buttons.
+  for (const auto& type : kTransformTypeButtons) {
+    auto* button = new QToolButton(toolbar);
+    button->setObjectName(QLatin1String(type.move_object_name));
+    button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    button->setIcon(simple_icon(QLatin1String(type.icon)));
+    button->setIconSize(QSize(18, 18));
+    button->setAutoRaise(true);
+    button->setFocusPolicy(Qt::NoFocus);
+    button->setProperty("optionsBarButton", true);
+    bind_tooltip(button, type.tooltip);
+    add_option_widget(button, {CanvasTool::Move});
+    connect(button, &QToolButton::clicked, this, [this, type] {
+      if (type.warp) {
+        warp_transform_active_layer();
+      } else if (type.mode == TransformDistortMode::None) {
+        transform_active_layer_dialog();
+      } else {
+        transform_active_layer_mode(type.mode);
+      }
+    });
   }
   // Snap mirrors View > Snap: one persisted setting (view/snapEnabled), two
   // surfaces. The action owns the state; the checkbox follows its toggled signal.
@@ -534,6 +572,41 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   }
   add_option_widget(move_align_more_button_, {CanvasTool::Move});
 
+  // Transform session types (GitHub issue 299): tool modes lead the row (options
+  // bar grouping rule 1), shown with both the free transform and the warp controls.
+  // Each is a toggle: a click on the checked type (Warp included) goes back to plain
+  // Free Transform. sync_transform_type_buttons checks the session's type.
+  transform_type_buttons_.clear();
+  for (const auto& type : kTransformTypeButtons) {
+    auto* button = new QPushButton(toolbar);
+    button->setObjectName(QLatin1String(type.session_object_name));
+    button->setCheckable(true);
+    button->setIcon(simple_icon(QLatin1String(type.icon)));
+    bind_tooltip(button, type.tooltip);
+    button->setFixedWidth(30);
+    // Session buttons render their icons at 20px (the QPushButton default of 16px
+    // reads tiny on the bar); optionsSessionButton relaxes the QSS side padding so
+    // the larger icon is not clipped.
+    button->setIconSize(QSize(20, 20));
+    button->setProperty("optionsSessionButton", true);
+    options_flow->addWidget(button);
+    transform_session_actions_.push_back(button);
+    if (type.warp) {
+      transform_warp_mode_button_ = button;
+      continue;
+    }
+    button->setProperty(kTransformTypeModeProperty, static_cast<int>(type.mode));
+    transform_type_buttons_.push_back(button);
+    connect(button, &QPushButton::clicked, this, [this, mode = type.mode] {
+      // Like the Warp toggle, a click on the checked type goes back to Free Transform.
+      const bool checked_type = canvas_ != nullptr && canvas_->free_transform_active() &&
+                                canvas_->free_transform_distort_mode() == mode;
+      transform_active_layer_mode(checked_type ? TransformDistortMode::None : mode);
+      // Re-sync the checks (a refused switch leaves the type unchanged).
+      sync_transform_type_buttons();
+    });
+  }
+  transform_session_actions_.push_back(make_option_separator());
   {
     auto* pivot_label = new QLabel(QCoreApplication::translate(kMainWindowTranslationContext, "Pivot:"), toolbar);
     pivot_label->setObjectName(QStringLiteral("freeTransformPivotLabel"));
@@ -839,18 +912,6 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     transform_session_actions_.push_back(widget);
     return widget;
   };
-  transform_warp_mode_button_ = new QPushButton(toolbar);
-  transform_warp_mode_button_->setObjectName(QStringLiteral("transformWarpModeButton"));
-  transform_warp_mode_button_->setCheckable(true);
-  transform_warp_mode_button_->setIcon(simple_icon(QStringLiteral("warp")));
-  bind_tooltip(transform_warp_mode_button_, QT_TR_NOOP("Switch between free transform and warp"));
-  transform_warp_mode_button_->setFixedWidth(30);
-  // Session buttons render their icons at 20px (the QPushButton default of 16px
-  // reads tiny on the bar); optionsSessionButton relaxes the QSS side padding so
-  // the larger icon is not clipped.
-  transform_warp_mode_button_->setIconSize(QSize(20, 20));
-  transform_warp_mode_button_->setProperty("optionsSessionButton", true);
-  add_session_option_widget(transform_warp_mode_button_);
   transform_session_actions_.push_back(make_option_separator());
   // Apply/Cancel are the same pair on the Transform, Crop and Type bars: the
   // authored apply and cancel SVGs take their green and red from icon_success and
@@ -883,6 +944,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
     // Re-sync the checked state (a refused switch leaves the mode unchanged).
     refresh_options_bar();
+    sync_transform_type_buttons();
   });
   connect(transform_apply_button_, &QPushButton::clicked, this, [this] {
     if (canvas_ == nullptr) {
@@ -3634,6 +3696,16 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   ctx.brush_much_smaller_action = brush_much_smaller_action;
   ctx.brush_much_larger_action = brush_much_larger_action;
   ctx.fill_shapes = fill_shapes;
+}
+
+void MainWindow::sync_transform_type_buttons() {
+  const bool free_transform = canvas_ != nullptr && canvas_->free_transform_active();
+  const auto mode = canvas_ != nullptr ? canvas_->free_transform_distort_mode() : TransformDistortMode::None;
+  for (auto* button : transform_type_buttons_) {
+    if (button != nullptr) {
+      button->setChecked(free_transform && button->property(kTransformTypeModeProperty).toInt() == static_cast<int>(mode));
+    }
+  }
 }
 
 }  // namespace patchy::ui

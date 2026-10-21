@@ -15163,10 +15163,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Switch between free transform and warp</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Apply transform</source>
         <translation type="unfinished"></translation>
     </message>
@@ -23675,6 +23671,18 @@ Patchy can download the update, replace this AppImage, and start again. You will
     </message>
     <message>
         <source>Add Patchy to your applications menu? It then starts from the menu and shows its own icon in the taskbar. This writes a menu entry and icons to your home folder. You can also do it later from Help &gt; Add Patchy to Applications Menu.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Warp</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Scale</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rotate</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

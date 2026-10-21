@@ -15621,10 +15621,6 @@ Either way Patchy writes a copy; the open document keeps its layers and unsaved 
         <translation>ワープのカーブ</translation>
     </message>
     <message>
-        <source>Switch between free transform and warp</source>
-        <translation>自由変形とワープを切り替え</translation>
-    </message>
-    <message>
         <source>New Selection</source>
         <translation>新規選択</translation>
     </message>
@@ -23677,6 +23673,18 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
     <message>
         <source>Add Patchy to your applications menu? It then starts from the menu and shows its own icon in the taskbar. This writes a menu entry and icons to your home folder. You can also do it later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>Patchy をアプリケーションメニューに追加しますか？メニューから Patchy を起動できるようになり、タスクバーに Patchy のアイコンが表示されます。メニュー項目とアイコンをホームフォルダーに書き込みます。後から [ヘルプ] &gt; [Patchy をアプリケーションメニューに追加] で行うこともできます。</translation>
+    </message>
+    <message>
+        <source>Warp</source>
+        <translation>ワープ</translation>
+    </message>
+    <message>
+        <source>Scale</source>
+        <translation>拡大・縮小</translation>
+    </message>
+    <message>
+        <source>Rotate</source>
+        <translation>回転</translation>
     </message>
 </context>
 <context>

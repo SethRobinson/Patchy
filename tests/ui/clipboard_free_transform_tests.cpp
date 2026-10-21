@@ -1323,8 +1323,9 @@ void ui_transform_numeric_controls_apply_values() {
   CHECK(canvas->free_transform_active());
   CHECK(x->isVisible());
   {
-    // Separators group the row (GitHub issue 181): pivot | X Y | W H | Angle |
-    // interpolation and warp toggle | apply and cancel. Wide enough for one row.
+    // Separators group the row (GitHub issues 181 and 299): type buttons ending in
+    // the warp toggle | pivot | X Y | W H | Angle | interpolation | apply and cancel.
+    // Wide enough for one row.
     window.resize(1800, 900);
     QApplication::processEvents();
     auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
@@ -1339,7 +1340,7 @@ void ui_transform_numeric_controls_apply_values() {
         }
       }
     }
-    CHECK(separators.size() == 5);
+    CHECK(separators.size() == 6);
     const auto separated = [&](const QWidget* left, const QWidget* right) {
       return std::any_of(separators.begin(), separators.end(), [&](const QFrame* frame) {
         return frame->geometry().left() > left->geometry().right() &&
@@ -1348,14 +1349,14 @@ void ui_transform_numeric_controls_apply_values() {
       });
     };
     if (pivot != nullptr && warp_mode != nullptr) {
+      CHECK(separated(warp_mode, pivot));
       CHECK(separated(pivot, x));
       CHECK(!separated(x, y));
       CHECK(separated(y, scale_x));
       CHECK(!separated(scale_x, scale_y));
       CHECK(separated(scale_y, rotation));
       CHECK(separated(rotation, interpolation));
-      CHECK(!separated(interpolation, warp_mode));
-      CHECK(separated(warp_mode, apply));
+      CHECK(apply != nullptr && separated(interpolation, apply));
     }
     if (options != nullptr) {
       auto* cancel = window.findChild<QPushButton*>(QStringLiteral("freeTransformCancelButton"));

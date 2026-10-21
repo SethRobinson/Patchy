@@ -2417,6 +2417,9 @@ private:
   [[nodiscard]] const QImage& transform_base_display_image_for_zoom();
   [[nodiscard]] TransformHandle transform_handle_at(
       QPoint widget_point, TransformHitZones zones = TransformHitZones::EdgesAndCorners) const;
+  // The session's Scale and Rotate modes (GitHub issue 299): Rotate turns every
+  // corner and side into a rotate grip, Scale drops the rotate reach outside the box.
+  [[nodiscard]] TransformHandle transform_handle_for_session_mode(TransformHandle handle) const noexcept;
   [[nodiscard]] TransformHandle transform_handle_at(QPoint widget_point, QRectF document_rect, double angle_degrees,
                                                     TransformHitZones zones = TransformHitZones::HandlesOnly) const;
   // Document offset that, added to the pointer, keeps the grabbed side exactly
