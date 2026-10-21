@@ -132,7 +132,10 @@ installed by CMake's `UNIX AND NOT APPLE` rules (binary in `bin/`, resources und
 scalable SVG share the folded source artwork; regenerate with
 `scripts/dev/generate-branding.py` (see [branding](../branding/README.md)). Each version
 bump adds a metainfo `<release>` with a short `<description>` (docs/release-process.md).
-The metainfo screenshots are raw GitHub URLs at a release tag, so they keep resolving.
+The metainfo screenshots are raw GitHub URLs at a release tag, so they keep resolving. They
+are the README captures in `docs/images/screenshots/` (`scripts/make-readme-screenshots.ps1`);
+when they are regenerated, point the URLs at the next release's tag so the listing (Flathub,
+the AppImage catalog) shows the shipping UI once that tag exists.
 `make-flatpak.sh` fails when the exported desktop file or the metainfo does not pass the
 host's `desktop-file-validate` or `appstreamcli validate --no-net` (each skipped with a note
 when not installed). The AppImage ships a copy of the desktop file without the Desktop
