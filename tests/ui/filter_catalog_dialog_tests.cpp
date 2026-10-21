@@ -664,6 +664,185 @@ void ui_liquify_dialog_exposes_manual_tools_and_brush_controls() {
   CHECK(!result->is_identity());
 }
 
+// GitHub #296 follow-ups (in-dialog Undo/Redo, keys, Rate, pen pressure, Show Mesh, the
+// Preview toggle and Reconstruct by an amount) drive the workspace on a 160x120 layer,
+// below the proxy cap, with the preview fixed at 1:1: proxy point p is widget point
+// p + (12, 12). The dialog's default brush there is 50 px with Pressure and Density 50.
+patchy::PixelBuffer liquify_test_source(int width = 160, int height = 120) {
+  patchy::PixelBuffer source(width, height, patchy::PixelFormat::rgba8());
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      auto* pixel = source.pixel(x, y);
+      const bool check = ((x / 16) + (y / 16)) % 2 == 0;
+      pixel[0] = static_cast<std::uint8_t>(check ? 230 : 40 + (x * 150) / std::max(1, width - 1));
+      pixel[1] = static_cast<std::uint8_t>(check ? 200 : 60 + (y * 150) / std::max(1, height - 1));
+      pixel[2] = static_cast<std::uint8_t>(check ? 90 : 210);
+      pixel[3] = 255;
+    }
+  }
+  return source;
+}
+
+using LiquifyDriver = std::function<void(QDialog&, QWidget&)>;
+
+std::optional<patchy::LiquifyMesh> drive_liquify(const LiquifyDriver& driver, bool fixed_preview = true,
+                                                 const patchy::PixelBuffer& source = liquify_test_source()) {
+  std::exception_ptr driver_error;
+  bool ran = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("liquifyDialog"));
+    try {
+      CHECK(dialog != nullptr);
+      auto* preview = dialog->findChild<QWidget*>(QStringLiteral("liquifyPreview"));
+      CHECK(preview != nullptr);
+      if (fixed_preview) {
+        preview->setFixedSize(source.width() + 24, source.height() + 24);
+      }
+      dialog->activateWindow();
+      preview->setFocus();
+      QApplication::processEvents();
+      driver(*dialog, *preview);
+      ran = true;
+      if (dialog->isVisible()) {
+        dialog->accept();
+      }
+    } catch (...) {
+      driver_error = std::current_exception();
+      if (dialog != nullptr) {
+        dialog->reject();
+      }
+    }
+  });
+  auto mesh = patchy::ui::request_liquify(nullptr, source, patchy::Rect{0, 0, source.width(), source.height()},
+                                          QRegion());
+  if (driver_error) {
+    std::rethrow_exception(driver_error);
+  }
+  CHECK(ran);
+  return mesh;
+}
+
+QPoint liquify_widget_point(QPointF proxy_point) {
+  return (proxy_point + QPointF(12.0, 12.0)).toPoint();
+}
+
+void liquify_drag(QWidget& preview, QPointF from, QPointF to) {
+  drag(preview, liquify_widget_point(from), liquify_widget_point(to));
+}
+
+// The mesh the same drag makes: the press dab, then the move segment.
+void expect_drag(patchy::LiquifyMesh& mesh, QPointF from, QPointF to,
+                 patchy::LiquifyTool tool = patchy::LiquifyTool::ForwardWarp, double pressure = 50.0) {
+  mesh.apply_stroke(tool, from.x(), from.y(), from.x(), from.y(), 50.0, pressure, 50.0);
+  mesh.apply_stroke(tool, from.x(), from.y(), to.x(), to.y(), 50.0, pressure, 50.0);
+}
+
+std::vector<double> liquify_mesh_samples(const patchy::LiquifyMesh& mesh) {
+  std::vector<double> samples;
+  for (int y = 0; y < mesh.height(); y += 4) {
+    for (int x = 0; x < mesh.width(); x += 4) {
+      const auto [dx, dy] = mesh.displacement_at(x, y);
+      samples.push_back(dx);
+      samples.push_back(dy);
+      samples.push_back(mesh.freeze_strength_at(x, y));
+    }
+  }
+  return samples;
+}
+
+bool liquify_meshes_equal(const std::optional<patchy::LiquifyMesh>& actual, const patchy::LiquifyMesh& expected) {
+  return actual.has_value() && liquify_mesh_samples(*actual) == liquify_mesh_samples(expected);
+}
+
+QToolButton* liquify_tool_button(QDialog& dialog, const char* name) {
+  auto* button = dialog.findChild<QToolButton*>(QLatin1String(name));
+  CHECK(button != nullptr);
+  return button;
+}
+
+QPushButton* liquify_push_button(QDialog& dialog, const char* name) {
+  auto* button = dialog.findChild<QPushButton*>(QLatin1String(name));
+  CHECK(button != nullptr);
+  return button;
+}
+
+void liquify_key(QWidget& preview, Qt::Key key, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+  QTest::keyClick(&preview, key, modifiers);
+  QApplication::processEvents();
+}
+
+// Every stroke, Restore All and Freeze/Thaw stroke is one step of the dialog's own
+// history: Ctrl+Z (Command on macOS), Ctrl+Shift+Z and Ctrl+Y, and the Undo and Redo
+// buttons, which enable only while a step is there. The history keeps 100 steps.
+void ui_liquify_undo_redo_steps_strokes_and_restore() {
+  const QPointF a_from(40.0, 60.0), a_to(70.0, 60.0);
+  const QPointF b_from(110.0, 40.0), b_to(115.0, 80.0);
+  patchy::LiquifyMesh only_a(160, 120);
+  expect_drag(only_a, a_from, a_to);
+  auto a_and_b = only_a;
+  expect_drag(a_and_b, b_from, b_to);
+
+  // Ctrl+Z undoes the last stroke; Ctrl+Shift+Z and Ctrl+Y redo it.
+  CHECK(liquify_meshes_equal(drive_liquify([&](QDialog&, QWidget& preview) {
+    liquify_drag(preview, a_from, a_to);
+    liquify_drag(preview, b_from, b_to);
+    liquify_key(preview, Qt::Key_Z, Qt::ControlModifier);
+  }), only_a));
+  for (const auto redo : {Qt::Key_Z, Qt::Key_Y}) {
+    CHECK(liquify_meshes_equal(drive_liquify([&](QDialog&, QWidget& preview) {
+      liquify_drag(preview, a_from, a_to);
+      liquify_drag(preview, b_from, b_to);
+      liquify_key(preview, Qt::Key_Z, Qt::ControlModifier);
+      liquify_key(preview, redo, redo == Qt::Key_Z ? Qt::ControlModifier | Qt::ShiftModifier : Qt::ControlModifier);
+    }), a_and_b));
+  }
+
+  // Restore All is a step; the buttons follow the history.
+  CHECK(liquify_meshes_equal(drive_liquify([&](QDialog& dialog, QWidget& preview) {
+    auto* undo = liquify_push_button(dialog, "liquifyUndoButton");
+    auto* redo = liquify_push_button(dialog, "liquifyRedoButton");
+    CHECK(!undo->isEnabled() && !redo->isEnabled());
+    liquify_drag(preview, a_from, a_to);
+    CHECK(undo->isEnabled() && !redo->isEnabled());
+    QTest::mouseClick(liquify_push_button(dialog, "liquifyRestoreAllButton"), Qt::LeftButton);
+    QTest::mouseClick(undo, Qt::LeftButton);
+    CHECK(redo->isEnabled());
+    QTest::mouseClick(redo, Qt::LeftButton);
+    QTest::mouseClick(undo, Qt::LeftButton);
+    // A new stroke after an undo drops the redo step.
+    liquify_drag(preview, b_from, b_to);
+    CHECK(!redo->isEnabled());
+    QTest::mouseClick(undo, Qt::LeftButton);
+  }), only_a));
+
+  // A Freeze stroke is a step of its own.
+  CHECK(liquify_meshes_equal(drive_liquify([&](QDialog& dialog, QWidget& preview) {
+    liquify_drag(preview, a_from, a_to);
+    QTest::mouseClick(liquify_tool_button(dialog, "liquifyFreezeTool"), Qt::LeftButton);
+    liquify_drag(preview, QPointF(60.0, 60.0), QPointF(62.0, 60.0));
+    QTest::mouseClick(liquify_tool_button(dialog, "liquifyWarpTool"), Qt::LeftButton);
+    liquify_drag(preview, b_from, b_to);
+    liquify_key(preview, Qt::Key_Z, Qt::ControlModifier);
+    liquify_key(preview, Qt::Key_Z, Qt::ControlModifier);
+  }), only_a));
+
+  // 105 strokes: the oldest five fall out of the 100-step history.
+  patchy::LiquifyMesh first_five(160, 120);
+  const auto click_point = [](int index) { return QPointF(20.0 + (index % 12) * 10.0, 20.0 + (index / 12) * 9.0); };
+  for (int index = 0; index < 5; ++index) {
+    expect_drag(first_five, click_point(index), click_point(index) + QPointF(3.0, 1.0));
+  }
+  CHECK(liquify_meshes_equal(drive_liquify([&](QDialog& dialog, QWidget& preview) {
+    for (int index = 0; index < 105; ++index) {
+      liquify_drag(preview, click_point(index), click_point(index) + QPointF(3.0, 1.0));
+    }
+    for (int undo = 0; undo < 110; ++undo) {
+      liquify_key(preview, Qt::Key_Z, Qt::ControlModifier);
+    }
+    CHECK(!liquify_push_button(dialog, "liquifyUndoButton")->isEnabled());
+  }), first_five));
+}
+
 void ui_liquify_preview_selection_preserves_sample_mapping() {
   for (const auto size : {QSize(83, 61), QSize(1001, 773), QSize(1024, 1), QSize(1, 1024)}) {
     auto proxy_size = size;
@@ -1591,5 +1770,6 @@ std::vector<patchy::test::TestCase> filter_catalog_dialog_tests() {
        ui_liquify_action_applies_selection_as_one_undo_step},
       {"ui_liquify_fragmented_selection_preview_and_apply", ui_liquify_fragmented_selection_preview_and_apply},
       {"ui_liquify_preview_selection_preserves_sample_mapping", ui_liquify_preview_selection_preserves_sample_mapping},
+      {"ui_liquify_undo_redo_steps_strokes_and_restore", ui_liquify_undo_redo_steps_strokes_and_restore},
   };
 }

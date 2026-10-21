@@ -15,12 +15,14 @@
 #include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QHBoxLayout>
+#include <QKeySequence>
 #include <QLabel>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPushButton>
 #include <QResizeEvent>
+#include <QShortcut>
 #include <QSlider>
 #include <QSpinBox>
 #include <QToolButton>
@@ -29,6 +31,8 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <deque>
+#include <functional>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -38,6 +42,8 @@ namespace patchy::ui {
 namespace {
 
 constexpr int kMaximumProxyEdge = 720;
+// Undo steps the workspace keeps: one mesh each (about 55 KB at the 720 px proxy).
+constexpr std::size_t kHistoryLimit = 100;
 
 QImage proxy_selection_mask(const QRegion& selection, Rect bounds,
                             QSize original_size, QSize proxy_size) {
@@ -114,10 +120,23 @@ public:
     show_mask_ = show;
     invalidate_preview();
   }
+  // Restore All is an undo step of its own; it does nothing on an untouched mesh.
   void restore_all() {
+    if (mesh_.is_identity() && !mesh_.has_frozen_nodes()) {
+      return;
+    }
+    push_history(mesh_);
     mesh_.reset();
     invalidate_preview();
   }
+
+  // The workspace's own history (GitHub #296): every stroke, Freeze and Thaw included,
+  // and Restore All is one step. The document's undo stack sees only Apply.
+  void set_history_changed(std::function<void()> callback) { history_changed_ = std::move(callback); }
+  [[nodiscard]] bool can_undo() const noexcept { return !undo_history_.empty(); }
+  [[nodiscard]] bool can_redo() const noexcept { return !redo_history_.empty(); }
+  void undo() { step_history(undo_history_, redo_history_); }
+  void redo() { step_history(redo_history_, undo_history_); }
 
 protected:
   void paintEvent(QPaintEvent*) override {
@@ -157,6 +176,7 @@ protected:
     }
     dragging_ = true;
     last_point_ = *point;
+    push_history(mesh_);
     apply_gesture(*point, *point, event->modifiers());
     event->accept();
   }
@@ -209,6 +229,31 @@ private:
   void invalidate_preview() {
     preview_stale_ = true;
     update();
+  }
+
+  // Records `before`, the mesh as it was, as one undo step; a new step drops the redo steps.
+  void push_history(LiquifyMesh before) {
+    undo_history_.push_back(std::move(before));
+    if (undo_history_.size() > kHistoryLimit) {
+      undo_history_.pop_front();
+    }
+    redo_history_.clear();
+    if (history_changed_) {
+      history_changed_();
+    }
+  }
+
+  void step_history(std::deque<LiquifyMesh>& from, std::deque<LiquifyMesh>& to) {
+    if (dragging_ || from.empty()) {
+      return;
+    }
+    to.push_back(std::move(mesh_));
+    mesh_ = std::move(from.back());
+    from.pop_back();
+    if (history_changed_) {
+      history_changed_();
+    }
+    invalidate_preview();
   }
 
   [[nodiscard]] QRectF displayed_rect() const {
@@ -294,6 +339,9 @@ private:
   QImage selection_mask_;
   int original_width_{0};
   LiquifyMesh mesh_;
+  std::deque<LiquifyMesh> undo_history_;
+  std::deque<LiquifyMesh> redo_history_;
+  std::function<void()> history_changed_;
   LiquifyTool tool_{LiquifyTool::ForwardWarp};
   QImage preview_image_;
   QPointF cursor_position_;
@@ -442,6 +490,20 @@ std::optional<LiquifyMesh> request_liquify(QWidget* parent,
   auto* restore = new QPushButton(QObject::tr("Restore All"), &dialog);
   restore->setObjectName(QStringLiteral("liquifyRestoreAllButton"));
   controls->addWidget(restore);
+  auto* history_row = new QHBoxLayout();
+  auto* undo = new QPushButton(QObject::tr("Undo"), &dialog);
+  undo->setObjectName(QStringLiteral("liquifyUndoButton"));
+  // Tooltips name the button and its key, as the tool buttons do.
+  const auto with_key = [](const QString& text, const QKeySequence& keys) {
+    return QStringLiteral("%1 (%2)").arg(text, keys.toString(QKeySequence::NativeText));
+  };
+  undo->setToolTip(with_key(undo->text(), QKeySequence(QKeySequence::Undo)));
+  auto* redo = new QPushButton(QObject::tr("Redo"), &dialog);
+  redo->setObjectName(QStringLiteral("liquifyRedoButton"));
+  redo->setToolTip(with_key(redo->text(), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Z)));
+  history_row->addWidget(undo);
+  history_row->addWidget(redo);
+  controls->addLayout(history_row);
   auto* note = new QLabel(
       QObject::tr("Liquify edits pixels directly. Rasterize a Smart Object before using it."),
       &dialog);
@@ -476,6 +538,24 @@ std::optional<LiquifyMesh> request_liquify(QWidget* parent,
                    [preview](bool checked) { preview->set_show_mask(checked); });
   QObject::connect(restore, &QPushButton::clicked, &dialog,
                    [preview] { preview->restore_all(); });
+  const auto refresh_history = [preview, undo, redo] {
+    undo->setEnabled(preview->can_undo());
+    redo->setEnabled(preview->can_redo());
+  };
+  preview->set_history_changed(refresh_history);
+  refresh_history();
+  QObject::connect(undo, &QPushButton::clicked, &dialog, [preview] { preview->undo(); });
+  QObject::connect(redo, &QPushButton::clicked, &dialog, [preview] { preview->redo(); });
+  // Window shortcuts on the modal dialog: the main window's application shortcuts are
+  // blocked while it is open, so these keys never reach the document.
+  const auto add_shortcut = [&dialog](const QKeySequence& keys, auto&& slot) {
+    auto* shortcut = new QShortcut(keys, &dialog);
+    QObject::connect(shortcut, &QShortcut::activated, &dialog, std::forward<decltype(slot)>(slot));
+  };
+  add_shortcut(QKeySequence(QKeySequence::Undo), [preview] { preview->undo(); });
+  for (const auto& keys : {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Z), QKeySequence(Qt::CTRL | Qt::Key_Y)}) {
+    add_shortcut(keys, [preview] { preview->redo(); });
+  }
   preview->set_size(default_size);
 
   append_themed_style(dialog, dialog_spinbox_button_style());
