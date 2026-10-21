@@ -9,6 +9,11 @@ How the Options bar keeps one height and fits narrow windows (GitHub issue 91). 
 - `MainWindow::refresh_options_bar_rows` hands `FlowLayout` (`src/ui/options_flow_layout.hpp`) every tool's row: the widgets `refresh_options_bar` would show for that tool under the current vector mode, live shape layer and crop style. It rebuilds the rows only when that key changes. The rows drive the slider collapse below, which stays global so the bar looks the same from tool to tool.
 - Hidden widgets are measured the way `QWidgetItem` would measure them shown, after `ensurePolished`. A widget added to the flow outside `register_option_action` is invisible to the measure and can still grow the bar.
 
+## Selection tool rows
+
+- Separators group the selection bars (GitHub issues 286, 290, 291, 292): mode buttons | Feather and Anti-alias | the tool's own fields. Quick Select leads with Size (it has no Anti-alias, like Photoshop's Quick Selection bar), the Magic Wand sets Tolerance apart from its checkboxes, Object Selection sets Model apart, and the marquees set Radius and Style apart from the Width/Height pair. Order is construction order in `build_options_bar`, so a tool-specific control that must precede a shared one is built before it.
+- Fixed Ratio and Fixed Size each have a swap button between Width and Height (`selectionRatioSwapButton`, `selectionFixedSizeSwapButton`); `marquee_fixed_size_option_widgets_` hides the pixel pair's button under Normal, whose fields are greyed. The marquee style is part of `refresh_options_bar_rows`' key. Coverage: `ui_selection_options_bars_group_their_controls`, `ui_marquee_swap_button_swaps_width_and_height`.
+
 ## Duplicate sliders drop first
 
 - An inline slider that repeats the spin box beside it (the spin box already has the popup slider and the scrub label) carries `kOptionsBarCollapsibleProperty`. Today: Brush Size, Gradient Opacity, Quick Select Size, Fill Opacity and Soft. The brush family's Opacity and Soft have no inline slider at all (October 2026), like Flow and Smooth: the popup slider, a drag on the label or inside the field, and the number keys reach them.
