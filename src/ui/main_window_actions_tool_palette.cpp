@@ -430,11 +430,16 @@ private:
   std::function<void()> open_menu_;
 };
 
-// The flyout rows' marker column: the tool the button shows gets a small accent square
-// there, before its icon (GitHub issue 284 follow-up). Every row keeps the column, so
-// icons and names line up whether marked or not.
-constexpr int kFlyoutMarkerColumn = 14;
+// Flyout row layout (GitHub issue 284). Qt draws a menu icon at the item's left edge plus
+// the sheet's icon offset and starts the name after the item's left padding plus the icon
+// column it reserves (icon + 4 px), so an offset of half of padding + 4 centers the icon
+// between the menu edge and the names. The tool the button shows gets a small accent
+// square in that left margin, just before its icon (issue 284 follow-up); every row keeps
+// the same geometry, so icons and names line up whether marked or not.
+constexpr int kFlyoutItemLeftPadding = 24;
+constexpr int kFlyoutIconLeft = (kFlyoutItemLeftPadding + 4) / 2;
 constexpr int kFlyoutMarkerSize = 6;
+constexpr int kFlyoutMarkerGap = 3;
 
 // Paints the marker over the menu: the menu paints itself first (the event is resent to
 // it), then the square goes on the current tool's row, in the text color of a highlighted
@@ -459,7 +464,7 @@ protected:
     if (row.isValid()) {
       const auto& colors = theme();
       QPainter painter(menu);
-      painter.fillRect(QRect(row.left() + (kFlyoutMarkerColumn - kFlyoutMarkerSize) / 2,
+      painter.fillRect(QRect(row.left() + kFlyoutIconLeft - kFlyoutMarkerGap - kFlyoutMarkerSize,
                              row.top() + (row.height() - kFlyoutMarkerSize) / 2, kFlyoutMarkerSize, kFlyoutMarkerSize),
                        menu->activeAction() == current ? colors.text_on_accent : colors.accent);
     }
@@ -1000,17 +1005,14 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     button->installEventFilter(new ToolFlyoutEventFilter([button] { button->showMenu(); }, button));
     new ToolFlyoutMenuPlacement(button, menu);
     new ToolFlyoutCurrentMarker(button, menu);
-    // Tool icons at the palette's own size, centered between the marker column and the
-    // names (GitHub issue 284). Qt draws a menu icon at the item's left edge and starts the
-    // name after the item's left padding plus the icon column it reserves (icon + 4 px), so
-    // the icon shifts past the marker column by half of what is left of padding + 4. The
-    // padding is set here so the centering does not depend on the app sheet's QMenu::item.
-    constexpr int kFlyoutItemLeftPadding = 34;
+    // Tool icons at the palette's own size, centered between the menu edge and the names
+    // (kFlyoutIconLeft). The padding is set here so the centering does not depend on the
+    // app sheet's QMenu::item.
     menu->setStyleSheet(QStringLiteral("QMenu { icon-size: %1px; } QMenu::item { padding-left: %2px; } "
                                        "QMenu::icon { left: %3px; }")
                             .arg(palette->iconSize().width())
                             .arg(kFlyoutItemLeftPadding)
-                            .arg(kFlyoutMarkerColumn + (kFlyoutItemLeftPadding + 4 - kFlyoutMarkerColumn) / 2));
+                            .arg(kFlyoutIconLeft));
     for (auto* action : actions) {
       QObject::connect(action, &QAction::triggered, button, [button, menu, action] {
         button->setDefaultAction(action);
