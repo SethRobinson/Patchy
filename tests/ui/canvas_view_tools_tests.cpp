@@ -722,6 +722,110 @@ void ui_swap_dimension_buttons_show_a_themed_full_size_glyph() {
   CHECK(problems.empty());
 }
 
+// GitHub issue 286 follow-up: a swap button sits evenly between the Width field and the
+// Height label, so the space from the field's edge to the glyph matches the space from the
+// glyph to the label's text (within 1 px), on the Artboard bar and both marquee pairs.
+void ui_swap_dimension_buttons_sit_evenly_between_width_and_height() {
+  struct SwapCase {
+    const char* tool;
+    int marquee_style;  // -1: not a marquee
+    const char* button;
+  };
+  const std::array<SwapCase, 3> cases{{
+      {"toolArtboardAction", -1, "artboardSwapSizeButton"},
+      {"toolMarqueeAction", 1, "selectionRatioSwapButton"},
+      {"toolMarqueeAction", 2, "selectionFixedSizeSwapButton"},
+  }};
+  std::vector<std::string> problems;
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.resize(1366, 738);
+    auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+    auto* style = window.findChild<QComboBox*>(QStringLiteral("selectionStyleCombo"));
+    CHECK(options != nullptr && style != nullptr);
+    if (options == nullptr || style == nullptr) {
+      return;
+    }
+    for (const auto& swap : cases) {
+      require_action(window, swap.tool)->trigger();
+      if (swap.marquee_style >= 0) {
+        style->setCurrentIndex(swap.marquee_style);
+      }
+      QApplication::processEvents();
+      process_events_for(20);
+      std::vector<QWidget*> row;
+      for (auto* child : options->findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+        if (child->isVisible()) {
+          row.push_back(child);
+        }
+      }
+      std::sort(row.begin(), row.end(), [](const QWidget* a, const QWidget* b) { return a->x() < b->x(); });
+      const auto found = std::find_if(row.begin(), row.end(), [&swap](const QWidget* widget) {
+        return widget->objectName() == QLatin1String(swap.button);
+      });
+      if (found == row.end() || found == row.begin() || found + 1 == row.end() ||
+          qobject_cast<QLabel*>(*(found + 1)) == nullptr) {
+        problems.push_back(std::string(swap.button) + suffix + ": not between a field and a label");
+        continue;
+      }
+      const QRect field = (*(found - 1))->geometry();
+      const QRect button = (*found)->geometry();
+      const QRect label = (*(found + 1))->geometry();
+      const QImage image = options->grab().toImage();
+      if (image.devicePixelRatio() != 1.0) {
+        problems.push_back(std::string(swap.button) + suffix + ": grab is not at 1x");
+        continue;
+      }
+      // The bar's own color, between the field and the button.
+      const QColor background = image.pixelColor(field.right() + 2, button.center().y());
+      const auto ink_column = [&image, &background, &button](int x) {
+        for (int y = button.top(); y <= button.bottom(); ++y) {
+          const QColor color = image.pixelColor(x, y);
+          if (std::abs(color.red() - background.red()) + std::abs(color.green() - background.green()) +
+                  std::abs(color.blue() - background.blue()) > 90) {
+            return true;
+          }
+        }
+        return false;
+      };
+      int glyph_left = -1;
+      int glyph_right = -1;
+      for (int x = button.left(); x <= button.right(); ++x) {
+        if (ink_column(x)) {
+          glyph_left = glyph_left < 0 ? x : glyph_left;
+          glyph_right = x;
+        }
+      }
+      int text_left = -1;
+      for (int x = label.left(); x <= label.right() && text_left < 0; ++x) {
+        if (ink_column(x)) {
+          text_left = x;
+        }
+      }
+      if (glyph_left < 0 || text_left < 0) {
+        problems.push_back(std::string(swap.button) + suffix + ": glyph or label text not found");
+        continue;
+      }
+      const int left_gap = glyph_left - (field.right() + 1);
+      const int right_gap = text_left - (glyph_right + 1);
+      std::printf("  %s%s: field to glyph %d px, glyph to label text %d px\n", swap.button, suffix.c_str(), left_gap,
+                  right_gap);
+      if (std::abs(left_gap - right_gap) > 1) {
+        problems.push_back(std::string(swap.button) + suffix + ": uneven gaps " + std::to_string(left_gap) + " and " +
+                           std::to_string(right_gap));
+      }
+    }
+    style->setCurrentIndex(0);
+  }
+  for (const auto& problem : problems) {
+    std::fprintf(stderr, "  %s\n", problem.c_str());
+  }
+  CHECK(problems.empty());
+}
+
 void ui_options_bar_drops_duplicate_sliders_before_wrapping() {
   // GitHub issue 91: the inline Size slider repeats the spin box beside it (popup slider
   // and scrub handles), so it is the first thing a narrow bar drops. Opacity and Soft
@@ -6881,6 +6985,8 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_selection_options_bars_group_their_controls", ui_selection_options_bars_group_their_controls},
       {"ui_swap_dimension_buttons_show_a_themed_full_size_glyph",
        ui_swap_dimension_buttons_show_a_themed_full_size_glyph},
+      {"ui_swap_dimension_buttons_sit_evenly_between_width_and_height",
+       ui_swap_dimension_buttons_sit_evenly_between_width_and_height},
       {"ui_options_bar_drops_duplicate_sliders_before_wrapping",
        ui_options_bar_drops_duplicate_sliders_before_wrapping},
       {"ui_options_bar_checkboxes_paint_without_a_frame", ui_options_bar_checkboxes_paint_without_a_frame},

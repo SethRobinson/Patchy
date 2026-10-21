@@ -1099,13 +1099,21 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     button->setFocusPolicy(Qt::NoFocus);
     button->setProperty("optionsBarButton", true);
     bind_tooltip(button, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Swap width and height (portrait or landscape)"));
+    // Even space on both sides (GitHub issue 286): the Height label after the button drops
+    // its text padding (label_after_swap_button) and the button adds 2 px on its left, so the
+    // glyph sits as far from the Width field's edge as from the label's text (11 px each).
+    button->setStyleSheet(QStringLiteral("QToolButton { margin-left: 2px; }"));
     return button;
+  };
+  const auto label_after_swap_button = [](QWidget* label) {
+    label->setStyleSheet(QStringLiteral("QLabel { padding-left: 0; }"));
+    return label;
   };
   auto* ratio_swap = make_swap_dimensions_button("selectionRatioSwapButton");
   marquee_ratio_option_widgets_.push_back(
       add_option_widget(ratio_swap, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee}));
-  marquee_ratio_option_widgets_.push_back(
-      add_option_label(QT_TR_NOOP("Height:"), {CanvasTool::Marquee, CanvasTool::EllipticalMarquee}));
+  marquee_ratio_option_widgets_.push_back(label_after_swap_button(
+      add_option_label(QT_TR_NOOP("Height:"), {CanvasTool::Marquee, CanvasTool::EllipticalMarquee})));
   auto* ratio_height = new TrimmedDoubleSpinBox(toolbar);
   ratio_height->setObjectName(QStringLiteral("selectionRatioHeightSpin"));
   ratio_height->setRange(0.01, 1000.0);
@@ -1128,8 +1136,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   auto* size_swap = make_swap_dimensions_button("selectionFixedSizeSwapButton");
   marquee_fixed_size_option_widgets_.push_back(
       add_option_widget(size_swap, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee}));
-  marquee_size_option_widgets_.push_back(
-      add_option_label(QT_TR_NOOP("Height:"), {CanvasTool::Marquee, CanvasTool::EllipticalMarquee}));
+  marquee_size_option_widgets_.push_back(label_after_swap_button(
+      add_option_label(QT_TR_NOOP("Height:"), {CanvasTool::Marquee, CanvasTool::EllipticalMarquee})));
   auto* fixed_height = new UnitIntSpinBox(SpinUnit::Pixels, toolbar);
   fixed_height->set_context_provider(document_axis_context(false));
   fixed_height->setObjectName(QStringLiteral("selectionFixedHeightSpin"));
@@ -1377,7 +1385,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   add_option_widget(artboard_width_spin_, {CanvasTool::Artboard});
   auto* artboard_swap = make_swap_dimensions_button("artboardSwapSizeButton");
   add_option_widget(artboard_swap, {CanvasTool::Artboard});
-  add_option_label(QT_TR_NOOP("Height:"), {CanvasTool::Artboard});
+  label_after_swap_button(add_option_label(QT_TR_NOOP("Height:"), {CanvasTool::Artboard}));
   artboard_height_spin_ = make_artboard_size_spin(
       "artboardHeightSpin", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Height of the selected artboard, or of new artboards"));
   add_option_widget(artboard_height_spin_, {CanvasTool::Artboard});
