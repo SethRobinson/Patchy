@@ -9098,6 +9098,71 @@ void MainWindow::render_pending_pdf_text_layers(Document& target) {
   process(process, target.layers());
 }
 
+// Writer-made PSDs (ag-psd's test files, GitHub issue 272) can carry a type layer whose raster is
+// empty, and the reader stands its bitmap placeholder in. Photoshop lays such a layer out from
+// its engine data when it updates it, the first baseline on the TySh anchor at the first line's
+// justification point (docs/text-render-calibration.md), so do the same at open: the
+// Photoshop-layout plan pinned there and drawn through the file's transform. The result is the
+// layer's preview (psd_raster_preview), so the transform and a save's type block stay the
+// file's and an edit re-lays out from the same anchor. Vertical and warped type, and a layout
+// that draws nothing, keep the placeholder.
+void MainWindow::lay_out_raster_less_imported_text(Document& target) {
+  const auto plan_transform = [](const Layer& layer) -> std::optional<QTransform> {
+    const auto canonical = canonical_text_affine_transform_for_layer(layer);
+    const auto inputs = text_render_inputs_from_layer(layer);
+    if (!canonical.has_value() || !inputs.has_value()) {
+      return std::nullopt;
+    }
+    if (inputs->settings.boxed) {
+      // The plan's local origin is the box's top-left corner (imported_preview_text_plan_transform).
+      const auto box = psd_text_metadata_local_rect(layer, kLayerMetadataPsdTextBoxBounds);
+      return qtransform_from_affine(box.has_value() ? affine_with_local_translation(*canonical, box->topLeft())
+                                                    : *canonical);
+    }
+    const auto plan = build_text_render_plan(inputs->settings, inputs->color, inputs->max_width,
+                                             inputs->paragraph_runs, inputs->rich_text_runs, std::nullopt, 1.0,
+                                             QTransform(), 1.0);
+    if (plan.line_render_items.empty()) {
+      return std::nullopt;
+    }
+    const auto& first = plan.line_render_items.front();
+    const auto line_rect = first.line.naturalTextRect().translated(first.block_origin);
+    const double baseline = first.block_origin.y() + first.line.y() + first.line.ascent();
+    const QPointF anchor(line_rect.left() + layer_anchor_alignment_factor(layer) * line_rect.width(), baseline);
+    if (!std::isfinite(anchor.x()) || !std::isfinite(anchor.y())) {
+      return std::nullopt;
+    }
+    return qtransform_from_affine(affine_with_local_translation(*canonical, -anchor));
+  };
+  const auto process = [&](auto&& self, std::vector<Layer>& layers) -> void {
+    for (auto& layer : layers) {
+      if (!layer.children().empty()) {
+        self(self, layer.children());
+      }
+      auto& metadata = layer.metadata();
+      const auto status = metadata.find(kLayerMetadataTextRasterStatus);
+      if (!layer_is_text(layer) || status == metadata.end() || status->second != "placeholder" ||
+          !metadata.contains(kLayerMetadataPsdTextTransform) || layer_text_is_vertical(layer) ||
+          layer_has_active_text_warp(layer)) {
+        continue;
+      }
+      const auto transform = plan_transform(std::as_const(layer));
+      if (!transform.has_value()) {
+        continue;
+      }
+      auto rendered = render_text_layer_pixels_through_transform(layer, *transform, /*allow_boxed*/ true);
+      if (!rendered.has_value() || !visible_alpha_local_bounds(rendered->pixels).has_value()) {
+        continue;
+      }
+      layer.set_pixels(convert_pixel_buffer_depth(rendered->pixels, std::as_const(layer).pixels().format().bit_depth,
+                                                  SampleKind::Color));
+      layer.set_bounds(rendered->bounds);
+      metadata[kLayerMetadataTextRasterStatus] = "psd_raster_preview";
+    }
+  };
+  process(process, target.layers());
+}
+
 // A Patchy PSD written before the layout metrics existed reopens with its raster kept and no
 // metrics, so a re-save would fall back to the writer's raster heuristics (box top, ink bottom).
 // Patchy's layout is deterministic, so laying the layer's text out again reproduces the kept

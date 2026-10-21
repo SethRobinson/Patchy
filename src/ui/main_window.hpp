@@ -866,6 +866,7 @@ private:
   void render_pending_pdf_image_layers(Document& target);
   // Reopened Patchy PSDs: layout metrics for the kept text rasters (docs/text-render-calibration.md).
   void record_text_layout_metrics_for_reopened_text(Document& target);
+  void lay_out_raster_less_imported_text(Document& target);
   // The Import PDF dialog's Mode and Bit Depth for one finished page document (pending
   // text and images rendered): Palette converts to Indexed editing (8-bit), otherwise the
   // depth converts. CMYK is session state, applied where the sessions open. Notes about

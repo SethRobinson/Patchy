@@ -1961,6 +1961,7 @@ int MainWindow::open_folder_path(const QString& directory) {
       render_pending_af_text_layers(loaded->document);
       render_pending_pdf_text_layers(loaded->document);
       render_pending_pdf_image_layers(loaded->document);
+      lay_out_raster_less_imported_text(loaded->document);
       record_text_layout_metrics_for_reopened_text(loaded->document);
       add_document_session(std::move(loaded->document), loaded->file_name, path, tr("Open"),
                            SessionActivation::Background);
@@ -2066,6 +2067,7 @@ MainWindow::AddFilesAsLayersResult MainWindow::add_files_as_layers(
       render_pending_af_text_layers(document);
       render_pending_pdf_text_layers(document);
       render_pending_pdf_image_layers(document);
+      lay_out_raster_less_imported_text(document);
       record_text_layout_metrics_for_reopened_text(document);
       if (document.layers().empty()) {
         note_failure(path, tr("the file holds no layers"));
@@ -2603,6 +2605,7 @@ void MainWindow::open_document_path(QString path) {
       finish_imported_pdf_document(loaded->document, loaded->pdf_color_mode, *loaded->pdf_bit_depth,
                                    loaded->import_notices);
     }
+    lay_out_raster_less_imported_text(loaded->document);
     record_text_layout_metrics_for_reopened_text(loaded->document);
     if (!unattended_automation() && is_affinity_document_extension(loaded->extension)) {
       maybe_convert_af_image_layers(loaded->document);
@@ -2937,6 +2940,7 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
       finish_imported_pdf_document(loaded->document, loaded->pdf_color_mode, *loaded->pdf_bit_depth,
                                    loaded->import_notices);
     }
+    lay_out_raster_less_imported_text(loaded->document);
     record_text_layout_metrics_for_reopened_text(loaded->document);
     if (!unattended_automation() &&
         is_affinity_document_extension(QFileInfo(path).suffix().toLower())) {
@@ -3971,6 +3975,7 @@ bool MainWindow::open_recovered_document(const QString& psb_path, const QString&
     if (!loaded.has_value()) {
       return false;
     }
+    lay_out_raster_less_imported_text(loaded->document);
     record_text_layout_metrics_for_reopened_text(loaded->document);
     add_document_session(std::move(loaded->document), title, original_path, tr("Recover"));
     auto& recovered = session();
