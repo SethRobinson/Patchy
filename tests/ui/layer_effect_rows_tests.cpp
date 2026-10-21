@@ -374,6 +374,62 @@ void ui_layer_effect_rows_start_collapsed_and_remember_state() {
   CHECK(effect_entry_row(*badge_row(*list), QStringLiteral("Drop Shadow")) != nullptr);
 }
 
+// Each effect row's eye sits under the Layer Styles eye and its name under "Layer Styles"
+// (issue 256 follow-up), in Dark and Light and at the panel's narrowest width, where the
+// Edit pencil still fits.
+void ui_layer_effect_rows_align_under_the_layer_styles_eye() {
+  ColorSchemeRestorer restore_scheme;
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(styled_document(true), QStringLiteral("Effect Rows Align"));
+  QApplication::processEvents();
+  auto* list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  auto* layers_dock = window.findChild<QWidget*>(QStringLiteral("layersDock"));
+  CHECK(list != nullptr && layers_dock != nullptr);
+  expand_effects(*list);
+
+  // Alignment is read in each state and checked at the end, so every state's image is saved.
+  const auto aligned = [&] {
+    auto* row = badge_row(*list);
+    auto* viewport = list->viewport();
+    if (row == nullptr) {
+      return false;
+    }
+    const auto left_of = [viewport](QWidget* widget) {
+      return widget == nullptr ? -1 : widget->mapTo(viewport, QPoint()).x();
+    };
+    const auto header_eye = left_of(row->findChild<QToolButton*>(QStringLiteral("layerEffectsVisibilityButton")));
+    const auto header_label = left_of(row->findChild<QLabel*>(QStringLiteral("layerEffectsLabel")));
+    const auto entries = row->findChildren<QWidget*>(QStringLiteral("layerEffectEntryRow"));
+    bool ok = entries.size() == 2 && header_eye >= 0 && header_label >= 0;
+    for (auto* entry : entries) {
+      auto* edit = entry->findChild<QToolButton*>(QStringLiteral("layerEffectEditButton"));
+      ok = ok && left_of(entry->findChild<QToolButton*>(QStringLiteral("layerEffectVisibilityButton"))) == header_eye &&
+           left_of(entry->findChild<QLabel*>(QStringLiteral("layerEffectEntryLabel"))) == header_label &&
+           edit != nullptr && viewport->rect().contains(QRect(edit->mapTo(viewport, QPoint()), edit->size()));
+    }
+    return ok;
+  };
+  save_widget_artifact("issue256_effect_rows_dark", *layers_dock);
+  const bool dark_aligned = aligned();
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Light);
+  QApplication::processEvents();
+  save_widget_artifact("issue256_effect_rows_light", *layers_dock);
+  const bool light_aligned = aligned();
+  ColorSchemeRestorer::apply(patchy::ui::ColorSchemePreference::Dark);
+  QApplication::processEvents();
+
+  const int narrow_width = patchy::ui::MainWindowTestAccess::right_dock_content_minimum_width(window);
+  patchy::ui::MainWindowTestAccess::set_right_dock_stack_width(window, narrow_width);
+  patchy::ui::MainWindowTestAccess::refresh_layer_ui(window);
+  QApplication::processEvents();
+  save_widget_artifact("issue256_effect_rows_compact_dark", *layers_dock);
+  CHECK(dark_aligned);
+  CHECK(light_aligned);
+  CHECK(aligned());
+}
+
 // With the master eye off, each effect's eye draws dimmed (not slashed) and still toggles
 // that effect's own flag; the composite stays unstyled until the master is back on.
 void ui_layer_effect_rows_grey_eyes_under_master_off() {
@@ -568,6 +624,7 @@ std::vector<patchy::test::TestCase> layer_effect_rows_tests() {
   return {
       {"ui_layer_effect_rows_start_collapsed_and_remember_state", ui_layer_effect_rows_start_collapsed_and_remember_state},
       {"ui_layer_effect_rows_grey_eyes_under_master_off", ui_layer_effect_rows_grey_eyes_under_master_off},
+      {"ui_layer_effect_rows_align_under_the_layer_styles_eye", ui_layer_effect_rows_align_under_the_layer_styles_eye},
       {"ui_layer_effect_row_context_menu_edits_hides_and_deletes",
        ui_layer_effect_row_context_menu_edits_hides_and_deletes},
       {"ui_layer_effect_rows_toggle_effects_and_render", ui_layer_effect_rows_toggle_effects_and_render},

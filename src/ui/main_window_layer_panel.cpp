@@ -1927,6 +1927,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   // Nested rows under the main row: the Smart Filter stack and the layer's effects share
   // the height, indent, eye button style and tooltip plumbing.
   constexpr int kNestedRowHeight = 26;
+  constexpr int kNestedRowSpacing = 5;
   const auto nested_button_style = QStringLiteral(
       "QToolButton { background: transparent; border: 1px solid transparent; border-radius: 3px; padding: 0; "
       "min-width: 20px; max-width: 20px; min-height: 20px; max-height: 20px; } "
@@ -1968,7 +1969,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                         layer_tree_indent_width(depth) + kLayerFolderDisclosureWidth +
                         kLayerRowHorizontalSpacing + extra_indent;
     nested_layout->setContentsMargins(indent, 1, 8, 1);
-    nested_layout->setSpacing(5);
+    nested_layout->setSpacing(kNestedRowSpacing);
     row_layout->addWidget(nested_row);
     return std::pair{nested_row, nested_layout};
   };
@@ -2702,8 +2703,13 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       }
       return on ? QObject::tr("Effect visible. Click to hide.") : QObject::tr("Effect hidden. Click to show.");
     };
+    // Each effect's eye sits under the header's eye (past its disclosure arrow, whose QSS adds
+    // a 1 px border on each side of its 18 px), so the effect names line up with "Layer Styles"
+    // (issue 256 follow-up).
+    constexpr int kEffectEntryIndent = kLayerFolderDisclosureWidth + 2 + kNestedRowSpacing;
     for (const auto& effect_row : effects_expanded ? effect_rows : std::vector<LayerEffectRow>{}) {
-      auto [entry_row, entry_layout] = make_nested_row(QStringLiteral("layerEffectEntryRow"), 14, row_tooltip);
+      auto [entry_row, entry_layout] =
+          make_nested_row(QStringLiteral("layerEffectEntryRow"), kEffectEntryIndent, row_tooltip);
       entry_row->setProperty("layerEffectKind", static_cast<int>(effect_row.effect));
       entry_row->setProperty("layerEffectIndex",
                              QVariant::fromValue<qulonglong>(static_cast<qulonglong>(effect_row.index)));
