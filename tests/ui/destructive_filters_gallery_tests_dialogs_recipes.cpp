@@ -1,8 +1,11 @@
 #include <QStatusBar>
 
+#include "filters/builtin_filter_looks.hpp"
 #include "filters/filter_registry.hpp"
 #include "ui/canvas_widget.hpp"
+#include "core/document_depth.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/pixel_depth.hpp"
 #include "core/smart_object.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/filter_workflows.hpp"
@@ -27,6 +30,7 @@
 #include <QDropEvent>
 #include <QFile>
 #include <QFileInfo>
+#include <QImage>
 #include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
@@ -2212,8 +2216,13 @@ void ui_filter_gallery_saved_looks_persist_after_cancel_and_support_crud() {
     CHECK(looks != nullptr && applied != nullptr && duplicate != nullptr &&
           combo != nullptr && save != nullptr && rename != nullptr &&
           remove != nullptr);
-    CHECK(combo->count() == 1);
+    // Custom, the Built-in Looks heading and every built-in Look; no user
+    // Looks yet, so no My Looks heading.
+    const auto builtin_count =
+        static_cast<int>(patchy::builtin_filter_looks().size());
+    CHECK(combo->count() == 2 + builtin_count);
     CHECK(combo->itemText(0) == QStringLiteral("Custom"));
+    CHECK(combo->itemText(1) == QStringLiteral("Built-in Looks"));
     CHECK(!save->isEnabled() && !rename->isEnabled() && !remove->isEnabled());
 
     looks->setCurrentItem(require_gallery_filter_item(
@@ -2293,7 +2302,10 @@ void ui_filter_gallery_saved_looks_persist_after_cancel_and_support_crud() {
     auto* remove = dialog->findChild<QPushButton*>(
         QStringLiteral("filterGalleryDeleteLookButton"));
     CHECK(combo != nullptr && applied != nullptr && remove != nullptr);
-    CHECK(combo->count() == 3);
+    CHECK(combo->count() ==
+          5 + static_cast<int>(patchy::builtin_filter_looks().size()));
+    CHECK(combo->findText(QStringLiteral("My Looks")) >
+          combo->findData(QStringLiteral("patchy.looks.miniature")));
     const auto future_index = combo->findData(future_id);
     const auto saved_index = combo->findData(saved_id);
     CHECK(future_index > 0 && saved_index > 0);
@@ -2689,6 +2701,209 @@ void ui_levels_on_text_layer_prompt_has_no_convert_choice() {
   CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth_before);
 }
 
+// Built-in Looks (docs/builtin-looks.md) are read-only: the user
+// library never lists, renames or deletes them, and a record file named after a
+// built-in id is rejected instead of shadowing it.
+void ui_filter_gallery_builtin_looks_cannot_be_renamed_deleted_or_shadowed() {
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  const auto storage = directory.filePath(QStringLiteral("looks"));
+  CHECK(QDir().mkpath(storage));
+  const auto& builtin = patchy::builtin_filter_looks().front();
+  const auto builtin_id = QString::fromLatin1(
+      builtin.id.data(), static_cast<qsizetype>(builtin.id.size()));
+  {
+    QFile shadow(QDir(storage).filePath(builtin_id + QStringLiteral(".json")));
+    CHECK(shadow.open(QIODevice::WriteOnly));
+    shadow.write(QStringLiteral(
+                     "{\"version\": 1, \"id\": \"%1\", \"name\": \"Shadow\", "
+                     "\"recipe\": {\"entries\": []}}")
+                     .arg(builtin_id)
+                     .toUtf8());
+  }
+  patchy::ui::FilterLookLibrary library(storage);
+  CHECK(library.entries().empty());
+  CHECK(library.find_entry(builtin_id) == nullptr);
+  auto error = patchy::ui::FilterLookLibraryError::None;
+  CHECK(!library.rename_look(builtin_id, QStringLiteral("Mine"), &error));
+  CHECK(error == patchy::ui::FilterLookLibraryError::NotFound);
+  CHECK(!library.remove_look(builtin_id, &error));
+  CHECK(error == patchy::ui::FilterLookLibraryError::NotFound);
+  CHECK(patchy::find_builtin_filter_look(builtin.id) == &builtin);
+
+  // Saving while a built-in Look is loaded makes a new user Look; the
+  // built-in entry stays as shipped.
+  const auto copy_id =
+      library.add_look(QStringLiteral("My Warm Film"), builtin.recipe, &error);
+  CHECK(!copy_id.isEmpty() && copy_id != builtin_id);
+  CHECK(library.entries().size() == 1);
+  CHECK(patchy::builtin_filter_looks().front().id == builtin.id);
+}
+
+// Every built-in Look loads from the Saved Looks combo, renders its preview
+// and applies as one undo step on 8-bit and 16-bit layers; Rename and Delete
+// stay disabled for it.
+void ui_filter_gallery_builtin_looks_load_preview_and_apply_at_8_and_16_bit() {
+  GallerySettingsRestorer gallery_settings;
+  patchy::set_deep_editing_override(true);
+  for (const auto depth : {patchy::BitDepth::UInt8, patchy::BitDepth::UInt16}) {
+    patchy::LayerId layer_id{};
+    patchy::Rect bounds;
+    patchy::PixelBuffer original_pixels;
+    auto document = make_filter_gallery_document(layer_id, bounds, original_pixels);
+    if (depth == patchy::BitDepth::UInt16) {
+      patchy::convert_document_depth(document, patchy::BitDepth::UInt16);
+    }
+    const auto source = std::as_const(document).find_layer(layer_id)->pixels();
+    CHECK(source.format().bit_depth == depth);
+    patchy::ui::MainWindow window;
+    window.add_document_session(std::move(document), QStringLiteral("Built-in Looks"));
+    show_window(window);
+    for (const auto& look : patchy::builtin_filter_looks()) {
+      const auto id = QString::fromLatin1(look.id.data(),
+                                          static_cast<qsizetype>(look.id.size()));
+      bool accepted = false;
+      QTimer::singleShot(0, [&] {
+        auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+        CHECK(dialog != nullptr);
+        if (dialog == nullptr) {
+          return;
+        }
+        auto* combo = dialog->findChild<QComboBox*>(
+            QStringLiteral("filterGallerySavedLooksCombo"));
+        auto* applied = dialog->findChild<QListWidget*>(
+            QStringLiteral("filterGalleryAppliedEffectsList"));
+        auto* rename = dialog->findChild<QPushButton*>(
+            QStringLiteral("filterGalleryRenameLookButton"));
+        auto* remove = dialog->findChild<QPushButton*>(
+            QStringLiteral("filterGalleryDeleteLookButton"));
+        auto* preview = dialog->findChild<QWidget*>(QStringLiteral("filterGalleryPreview"));
+        auto* buttons = dialog->findChild<QDialogButtonBox*>(
+            QStringLiteral("filterGalleryButtonBox"));
+        CHECK(combo != nullptr && applied != nullptr && rename != nullptr &&
+              remove != nullptr && preview != nullptr && buttons != nullptr);
+        if (combo == nullptr || applied == nullptr || rename == nullptr ||
+            remove == nullptr || preview == nullptr || buttons == nullptr) {
+          dialog->reject();
+          return;
+        }
+        const auto index = combo->findData(id);
+        CHECK(index > 1);
+        CHECK(combo->itemText(index) == QString::fromUtf8(look.name));
+        CHECK(combo->itemData(index, Qt::ToolTipRole).toString() ==
+              QString::fromUtf8(look.description));
+        combo->setCurrentIndex(index);
+        QApplication::processEvents();
+        CHECK(combo->currentData().toString() == id);
+        CHECK(applied->count() == static_cast<int>(look.recipe.entries.size()));
+        CHECK(!rename->isEnabled() && !remove->isEnabled());
+        const auto expected_filter =
+            QString::fromStdString(look.recipe.entries.back().invocation.filter_id);
+        for (int wait = 0;
+             wait < 300 &&
+             preview->property("filterGalleryRenderedFilterId").toString() != expected_filter;
+             ++wait) {
+          process_events_for(10);
+        }
+        CHECK(preview->property("filterGalleryRenderedFilterId").toString() == expected_filter);
+        accepted = true;
+        buttons->button(QDialogButtonBox::Ok)->click();
+      });
+      const auto undo_before =
+          patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+      require_action(window, "filterGalleryAction")->trigger();
+      CHECK(accepted);
+      const auto* layer =
+          std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(layer_id);
+      CHECK(layer != nullptr);
+      if (layer == nullptr) {
+        continue;
+      }
+      CHECK(layer->pixels().format().bit_depth == depth);
+      CHECK(!patchy::ui::pixel_buffers_equal(layer->pixels(), source) ||
+            !filter_rect_equal(layer->bounds(), bounds));
+      CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) ==
+            undo_before + 1);
+      require_hotkey_action(window, QStringLiteral("edit.undo"))->trigger();
+      QApplication::processEvents();
+      const auto* undone =
+          std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(layer_id);
+      CHECK(undone != nullptr && patchy::ui::pixel_buffers_equal(undone->pixels(), source));
+      CHECK(undone != nullptr && filter_rect_equal(undone->bounds(), bounds));
+    }
+  }
+  patchy::set_deep_editing_override(std::nullopt);
+}
+
+// Review captures of the gallery with built-in Looks loaded on a real photo.
+// The photo is a local fixture (local-test-fixtures/looks/sample-photo.png), so
+// the test skips without it. One "before" capture, then one per Look.
+void ui_filter_gallery_builtin_look_shots_if_available() {
+  const std::filesystem::path photo_path =
+      std::filesystem::path(PATCHY_SOURCE_DIR) / "local-test-fixtures" / "looks" / "sample-photo.png";
+  patchy::test::skip_unless_exists(photo_path);
+  const QImage photo =
+      QImage(QString::fromStdWString(photo_path.wstring())).convertToFormat(QImage::Format_RGBA8888);
+  CHECK(!photo.isNull());
+  patchy::PixelBuffer source(photo.width(), photo.height(), patchy::PixelFormat::rgba8());
+  for (int y = 0; y < photo.height(); ++y) {
+    std::memcpy(source.row(y).data(), photo.constScanLine(y),
+                static_cast<std::size_t>(photo.width()) * 4U);
+  }
+  GallerySettingsRestorer gallery_settings;
+  QTemporaryDir directory;
+  CHECK(directory.isValid());
+  patchy::ui::FilterLookLibrary library(directory.filePath(QStringLiteral("looks")));
+  patchy::FilterRegistry registry;
+  patchy::register_builtin_filters(registry);
+  const QStringList shot_ids = {
+      QStringLiteral("patchy.looks.warm_film"),   QStringLiteral("patchy.looks.cool_cinema"),
+      QStringLiteral("patchy.looks.bold_black_and_white"), QStringLiteral("patchy.looks.cyanotype"),
+      QStringLiteral("patchy.looks.watercolor"),  QStringLiteral("patchy.looks.ink_sketch"),
+      QStringLiteral("patchy.looks.comic"),       QStringLiteral("patchy.looks.halftone_print"),
+  };
+  bool captured = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("filterGalleryDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    dialog->resize(1280, 820);
+    auto* combo = dialog->findChild<QComboBox*>(QStringLiteral("filterGallerySavedLooksCombo"));
+    auto* preview = dialog->findChild<QWidget*>(QStringLiteral("filterGalleryPreview"));
+    CHECK(combo != nullptr && preview != nullptr);
+    if (combo == nullptr || preview == nullptr) {
+      dialog->reject();
+      return;
+    }
+    process_events_for(300);
+    save_widget_artifact("filter_gallery_builtin_look_before", *dialog);
+    for (const auto& id : shot_ids) {
+      const auto* look = patchy::find_builtin_filter_look(id.toStdString());
+      CHECK(look != nullptr);
+      combo->setCurrentIndex(combo->findData(id));
+      const auto expected_filter =
+          QString::fromStdString(look->recipe.entries.back().invocation.filter_id);
+      for (int wait = 0;
+           wait < 1500 &&
+           preview->property("filterGalleryRenderedFilterId").toString() != expected_filter;
+           ++wait) {
+        process_events_for(10);
+      }
+      process_events_for(200);
+      auto name = id.mid(QStringLiteral("patchy.looks.").size()).toStdString();
+      save_widget_artifact("filter_gallery_builtin_look_" + name, *dialog);
+    }
+    captured = true;
+    dialog->reject();
+  });
+  (void)patchy::ui::request_visual_filter_gallery(
+      nullptr, source, patchy::Rect{0, 0, source.width(), source.height()}, QRegion(), registry,
+      patchy::RgbColor{}, patchy::RgbColor{255, 255, 255}, {}, &library);
+  CHECK(captured);
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> destructive_filters_gallery_tests_part1() {
@@ -2738,6 +2953,12 @@ std::vector<patchy::test::TestCase> destructive_filters_gallery_tests_part1() {
        ui_filter_gallery_stack_cancel_and_apply_are_one_transaction},
       {"ui_filter_gallery_saved_looks_persist_after_cancel_and_support_crud",
        ui_filter_gallery_saved_looks_persist_after_cancel_and_support_crud},
+      {"ui_filter_gallery_builtin_looks_cannot_be_renamed_deleted_or_shadowed",
+       ui_filter_gallery_builtin_looks_cannot_be_renamed_deleted_or_shadowed},
+      {"ui_filter_gallery_builtin_looks_load_preview_and_apply_at_8_and_16_bit",
+       ui_filter_gallery_builtin_looks_load_preview_and_apply_at_8_and_16_bit},
+      {"ui_filter_gallery_builtin_look_shots_if_available",
+       ui_filter_gallery_builtin_look_shots_if_available},
       {"ui_filter_on_text_layer_prompts_and_rasterizes",
        ui_filter_on_text_layer_prompts_and_rasterizes},
       {"ui_filter_on_text_layer_convert_choice_opens_smart_filter_dialog",

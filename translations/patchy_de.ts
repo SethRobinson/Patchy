@@ -11568,6 +11568,170 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Amount:</source>
         <translation>Stärke:</translation>
     </message>
+    <message>
+        <source>Warm Film</source>
+        <translation>Warmer Film</translation>
+    </message>
+    <message>
+        <source>Golden tones, softened contrast and fine grain.</source>
+        <translation>Goldene Töne, weicherer Kontrast und feines Korn.</translation>
+    </message>
+    <message>
+        <source>Cool Cinema</source>
+        <translation>Kühles Kino</translation>
+    </message>
+    <message>
+        <source>Blue-teal grade with deeper contrast and a light vignette.</source>
+        <translation>Blaugrüne Farbgebung mit tieferem Kontrast und leichter Vignette.</translation>
+    </message>
+    <message>
+        <source>Faded Matte</source>
+        <translation>Verblasst matt</translation>
+    </message>
+    <message>
+        <source>Lifted blacks and muted color for a soft, flat print.</source>
+        <translation>Angehobene Schwarztöne und gedämpfte Farben für einen weichen, flachen Abzug.</translation>
+    </message>
+    <message>
+        <source>Bold Black and White</source>
+        <translation>Kräftiges Schwarzweiß</translation>
+    </message>
+    <message>
+        <source>High-contrast monochrome with punchy local detail.</source>
+        <translation>Kontrastreiches Schwarzweiß mit kräftigen lokalen Details.</translation>
+    </message>
+    <message>
+        <source>Sepia Print</source>
+        <translation>Sepia-Abzug</translation>
+    </message>
+    <message>
+        <source>Warm brown monochrome with grain and darkened corners.</source>
+        <translation>Warmes braunes Schwarzweiß mit Korn und abgedunkelten Ecken.</translation>
+    </message>
+    <message>
+        <source>Cross Process</source>
+        <translation>Crossentwicklung</translation>
+    </message>
+    <message>
+        <source>Shifted, saturated colors with yellow highlights and cool shadows.</source>
+        <translation>Verschobene, gesättigte Farben mit gelben Lichtern und kühlen Schatten.</translation>
+    </message>
+    <message>
+        <source>Silver Contrast</source>
+        <translation>Silberkontrast</translation>
+    </message>
+    <message>
+        <source>Gritty, silvery contrast with low saturation.</source>
+        <translation>Rauer, silbriger Kontrast mit geringer Sättigung.</translation>
+    </message>
+    <message>
+        <source>Vintage Print</source>
+        <translation>Vintage-Abzug</translation>
+    </message>
+    <message>
+        <source>An aged, faded photo with a warm cast and vignette.</source>
+        <translation>Ein gealtertes, verblasstes Foto mit warmem Farbstich und Vignette.</translation>
+    </message>
+    <message>
+        <source>Deep blue monochrome in the style of an early photographic print.</source>
+        <translation>Tiefblaues Schwarzweiß im Stil eines frühen fotografischen Abzugs.</translation>
+    </message>
+    <message>
+        <source>Dreamy Glow</source>
+        <translation>Verträumtes Leuchten</translation>
+    </message>
+    <message>
+        <source>A soft halo around highlights for portraits and backlit scenes.</source>
+        <translation>Ein weicher Schein um die Lichter für Porträts und Gegenlichtszenen.</translation>
+    </message>
+    <message>
+        <source>Crisp Detail</source>
+        <translation>Klare Details</translation>
+    </message>
+    <message>
+        <source>Adds local contrast and fine sharpening without changing color.</source>
+        <translation>Fügt lokalen Kontrast und feine Schärfung hinzu, ohne die Farben zu ändern.</translation>
+    </message>
+    <message>
+        <source>Watercolor</source>
+        <translation>Aquarell</translation>
+    </message>
+    <message>
+        <source>Soft washes of color with darker pigment edges on light paper.</source>
+        <translation>Weiche Farblasuren mit dunkleren Pigmenträndern auf hellem Papier.</translation>
+    </message>
+    <message>
+        <source>Ink Sketch</source>
+        <translation>Tuscheskizze</translation>
+    </message>
+    <message>
+        <source>Clean black ink lines on white.</source>
+        <translation>Saubere schwarze Tuschelinien auf Weiß.</translation>
+    </message>
+    <message>
+        <source>Pencil Drawing</source>
+        <translation>Bleistiftzeichnung</translation>
+    </message>
+    <message>
+        <source>Graphite strokes and shading on white paper.</source>
+        <translation>Graphitstriche und Schattierung auf weißem Papier.</translation>
+    </message>
+    <message>
+        <source>Comic</source>
+        <translation>Comic</translation>
+    </message>
+    <message>
+        <source>Bold outlines and flat, vivid color areas.</source>
+        <translation>Kräftige Umrisse und flache, leuchtende Farbflächen.</translation>
+    </message>
+    <message>
+        <source>Oil Paint</source>
+        <translation>Ölgemälde</translation>
+    </message>
+    <message>
+        <source>Smoothed color with visible diagonal brush texture.</source>
+        <translation>Geglättete Farbe mit sichtbarer diagonaler Pinselstruktur.</translation>
+    </message>
+    <message>
+        <source>Halftone Print</source>
+        <translation>Rasterdruck</translation>
+    </message>
+    <message>
+        <source>Bright color printed as large halftone dots.</source>
+        <translation>Leuchtende Farben, gedruckt als große Rasterpunkte.</translation>
+    </message>
+    <message>
+        <source>Film Grain</source>
+        <translation>Filmkorn</translation>
+    </message>
+    <message>
+        <source>Even monochrome grain with a touch of contrast.</source>
+        <translation>Gleichmäßiges monochromes Korn mit etwas Kontrast.</translation>
+    </message>
+    <message>
+        <source>Toy Camera</source>
+        <translation>Spielzeugkamera</translation>
+    </message>
+    <message>
+        <source>Saturated color and heavy dark corners, like a plastic-lens camera.</source>
+        <translation>Gesättigte Farben und stark abgedunkelte Ecken wie bei einer Kamera mit Kunststofflinse.</translation>
+    </message>
+    <message>
+        <source>Miniature</source>
+        <translation>Miniatur</translation>
+    </message>
+    <message>
+        <source>A narrow band of focus and bright color that makes scenes look like models.</source>
+        <translation>Ein schmaler Schärfebereich und kräftige Farben lassen Szenen wie Modelle wirken.</translation>
+    </message>
+    <message>
+        <source>Built-in Looks</source>
+        <translation>Integrierte Looks</translation>
+    </message>
+    <message>
+        <source>My Looks</source>
+        <translation>Meine Looks</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

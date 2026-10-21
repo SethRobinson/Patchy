@@ -451,6 +451,8 @@ endif()
 add_library(patchy_filters
   src/filters/auto_levels_math.cpp
   src/filters/auto_levels_math.hpp
+  src/filters/builtin_filter_looks.cpp
+  src/filters/builtin_filter_looks.hpp
   src/filters/builtin_filters.cpp
   src/filters/deep_filters.cpp
   src/filters/deep_filters.hpp
@@ -2043,6 +2045,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/deep_filter_tests.cpp
     tests/core/document_model_tests.cpp
     tests/core/document_ops_filters_tests.cpp
+    tests/core/builtin_filter_looks_tests.cpp
     tests/core/flat_formats_bmp_tests.cpp
     tests/core/flat_formats_misc_tests.cpp
     tests/core/unicode_path_tests.cpp

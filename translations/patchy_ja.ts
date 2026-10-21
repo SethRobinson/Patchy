@@ -11533,6 +11533,170 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Amount:</source>
         <translation>量:</translation>
     </message>
+    <message>
+        <source>Warm Film</source>
+        <translation>ウォームフィルム</translation>
+    </message>
+    <message>
+        <source>Golden tones, softened contrast and fine grain.</source>
+        <translation>金色がかった色調、やわらかなコントラスト、細かな粒子。</translation>
+    </message>
+    <message>
+        <source>Cool Cinema</source>
+        <translation>クールシネマ</translation>
+    </message>
+    <message>
+        <source>Blue-teal grade with deeper contrast and a light vignette.</source>
+        <translation>青緑系のグレーディング、深めのコントラストと軽い周辺減光。</translation>
+    </message>
+    <message>
+        <source>Faded Matte</source>
+        <translation>フェードマット</translation>
+    </message>
+    <message>
+        <source>Lifted blacks and muted color for a soft, flat print.</source>
+        <translation>黒を持ち上げ色を抑えた、やわらかく平坦なプリント調。</translation>
+    </message>
+    <message>
+        <source>Bold Black and White</source>
+        <translation>力強いモノクロ</translation>
+    </message>
+    <message>
+        <source>High-contrast monochrome with punchy local detail.</source>
+        <translation>局所的なディテールを強調した高コントラストのモノクロ。</translation>
+    </message>
+    <message>
+        <source>Sepia Print</source>
+        <translation>セピアプリント</translation>
+    </message>
+    <message>
+        <source>Warm brown monochrome with grain and darkened corners.</source>
+        <translation>粒子と暗い四隅を備えた温かみのある茶色のモノクロ。</translation>
+    </message>
+    <message>
+        <source>Cross Process</source>
+        <translation>クロスプロセス</translation>
+    </message>
+    <message>
+        <source>Shifted, saturated colors with yellow highlights and cool shadows.</source>
+        <translation>ハイライトは黄色、シャドウは寒色に寄せた、ずれた鮮やかな色。</translation>
+    </message>
+    <message>
+        <source>Silver Contrast</source>
+        <translation>シルバーコントラスト</translation>
+    </message>
+    <message>
+        <source>Gritty, silvery contrast with low saturation.</source>
+        <translation>彩度を抑えた、ざらついた銀色のコントラスト。</translation>
+    </message>
+    <message>
+        <source>Vintage Print</source>
+        <translation>ビンテージプリント</translation>
+    </message>
+    <message>
+        <source>An aged, faded photo with a warm cast and vignette.</source>
+        <translation>温かみのある色かぶりと周辺減光を伴う、古びて色あせた写真。</translation>
+    </message>
+    <message>
+        <source>Deep blue monochrome in the style of an early photographic print.</source>
+        <translation>初期の写真プリントを思わせる深い青のモノクロ。</translation>
+    </message>
+    <message>
+        <source>Dreamy Glow</source>
+        <translation>ドリーミーグロー</translation>
+    </message>
+    <message>
+        <source>A soft halo around highlights for portraits and backlit scenes.</source>
+        <translation>ポートレートや逆光シーン向けに、ハイライトのまわりにやわらかな光のにじみ。</translation>
+    </message>
+    <message>
+        <source>Crisp Detail</source>
+        <translation>くっきりディテール</translation>
+    </message>
+    <message>
+        <source>Adds local contrast and fine sharpening without changing color.</source>
+        <translation>色を変えずに局所コントラストと細かなシャープネスを加えます。</translation>
+    </message>
+    <message>
+        <source>Watercolor</source>
+        <translation>水彩</translation>
+    </message>
+    <message>
+        <source>Soft washes of color with darker pigment edges on light paper.</source>
+        <translation>明るい紙の上に、輪郭がやや濃い顔料のやわらかな色のにじみ。</translation>
+    </message>
+    <message>
+        <source>Ink Sketch</source>
+        <translation>インクスケッチ</translation>
+    </message>
+    <message>
+        <source>Clean black ink lines on white.</source>
+        <translation>白地にくっきりとした黒インクの線。</translation>
+    </message>
+    <message>
+        <source>Pencil Drawing</source>
+        <translation>鉛筆画</translation>
+    </message>
+    <message>
+        <source>Graphite strokes and shading on white paper.</source>
+        <translation>白い紙に描いた鉛筆の線と陰影。</translation>
+    </message>
+    <message>
+        <source>Comic</source>
+        <translation>コミック</translation>
+    </message>
+    <message>
+        <source>Bold outlines and flat, vivid color areas.</source>
+        <translation>太い輪郭線と平坦で鮮やかな色面。</translation>
+    </message>
+    <message>
+        <source>Oil Paint</source>
+        <translation>油絵</translation>
+    </message>
+    <message>
+        <source>Smoothed color with visible diagonal brush texture.</source>
+        <translation>なめらかな色に、斜めの筆のテクスチャーが見える仕上がり。</translation>
+    </message>
+    <message>
+        <source>Halftone Print</source>
+        <translation>ハーフトーン印刷</translation>
+    </message>
+    <message>
+        <source>Bright color printed as large halftone dots.</source>
+        <translation>鮮やかな色を大きなハーフトーンの網点で印刷。</translation>
+    </message>
+    <message>
+        <source>Film Grain</source>
+        <translation>フィルム粒子</translation>
+    </message>
+    <message>
+        <source>Even monochrome grain with a touch of contrast.</source>
+        <translation>均一なモノクロの粒子に、わずかなコントラストを加えます。</translation>
+    </message>
+    <message>
+        <source>Toy Camera</source>
+        <translation>トイカメラ</translation>
+    </message>
+    <message>
+        <source>Saturated color and heavy dark corners, like a plastic-lens camera.</source>
+        <translation>プラスチックレンズのカメラのような、鮮やかな色と濃い四隅の暗さ。</translation>
+    </message>
+    <message>
+        <source>Miniature</source>
+        <translation>ミニチュア</translation>
+    </message>
+    <message>
+        <source>A narrow band of focus and bright color that makes scenes look like models.</source>
+        <translation>狭いピント帯と鮮やかな色で、風景を模型のように見せます。</translation>
+    </message>
+    <message>
+        <source>Built-in Looks</source>
+        <translation>組み込みルック</translation>
+    </message>
+    <message>
+        <source>My Looks</source>
+        <translation>マイルック</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
