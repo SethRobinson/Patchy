@@ -543,8 +543,8 @@ void ui_selection_options_bars_group_their_controls() {
         const bool rectangular = std::string_view(tool) == "toolMarqueeAction";
         CHECK(separated_before(tokens, rectangular ? QStringLiteral("Radius") : QStringLiteral("Style")));
         CHECK(separated_before(tokens, QStringLiteral("Width")));
-        auto* ratio_swap = window.findChild<QPushButton*>(QStringLiteral("selectionRatioSwapButton"));
-        auto* size_swap = window.findChild<QPushButton*>(QStringLiteral("selectionFixedSizeSwapButton"));
+        auto* ratio_swap = window.findChild<QAbstractButton*>(QStringLiteral("selectionRatioSwapButton"));
+        auto* size_swap = window.findChild<QAbstractButton*>(QStringLiteral("selectionFixedSizeSwapButton"));
         CHECK(ratio_swap != nullptr && size_swap != nullptr);
         CHECK((at(tokens, QStringLiteral("selectionRatioSwapButton")) >= 0) == (index == 1));
         CHECK((at(tokens, QStringLiteral("selectionFixedSizeSwapButton")) >= 0) == (index == 2));
@@ -602,6 +602,98 @@ void ui_selection_options_bars_group_their_controls() {
       shot("issue_292_object_selection_options_bar");
     }
   }
+}
+
+// GitHub issue 286 follow-up: the swap width/height buttons on the Artboard and marquee bars
+// show one monochrome glyph in the theme's icon ink, at the bar's icon size, filling its box,
+// and dim when disabled. The bars still fit one row at 1366 px. Each bar is captured before
+// the checks, so these artifacts are the issue shots in both schemes.
+void ui_swap_dimension_buttons_show_a_themed_full_size_glyph() {
+  struct SwapCase {
+    const char* tool;
+    int marquee_style;  // -1: not a marquee
+    const char* button;
+    const char* shot;
+  };
+  const std::array<SwapCase, 4> cases{{
+      {"toolArtboardAction", -1, "artboardSwapSizeButton", "artboard"},
+      {"toolMarqueeAction", 1, "selectionRatioSwapButton", "marquee_fixed_ratio"},
+      {"toolMarqueeAction", 2, "selectionFixedSizeSwapButton", "marquee_fixed_size"},
+      {"toolEllipticalMarqueeAction", 2, "selectionFixedSizeSwapButton", "elliptical_marquee_fixed_size"},
+  }};
+  std::vector<std::string> problems;
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.resize(1366, 738);
+    auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+    auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+    auto* style = window.findChild<QComboBox*>(QStringLiteral("selectionStyleCombo"));
+    CHECK(options_bar != nullptr && options != nullptr && style != nullptr);
+    if (options_bar == nullptr || options == nullptr || style == nullptr) {
+      return;
+    }
+    const QColor ink = patchy::ui::theme().icon_ink;
+    const auto expect = [&problems, &suffix](bool ok, const char* button, const char* what) {
+      if (!ok) {
+        problems.push_back(std::string(button) + suffix + ": " + what);
+      }
+    };
+    for (const auto& swap : cases) {
+      require_action(window, swap.tool)->trigger();
+      if (swap.marquee_style >= 0) {
+        style->setCurrentIndex(swap.marquee_style);
+      }
+      QApplication::processEvents();
+      process_events_for(20);
+      save_widget_artifact(std::string("issue_286_swap_") + swap.shot + suffix, *options_bar);
+      const auto [right, lines] = options_row_extent(*options);
+      expect(lines == 1, swap.button, "the bar wraps at 1366 px");
+
+      auto* widget = window.findChild<QWidget*>(QLatin1String(swap.button));
+      expect(widget != nullptr && widget->isVisible(), swap.button, "not shown");
+      expect(qobject_cast<QToolButton*>(widget) != nullptr, swap.button,
+             "not an options-bar icon button (QToolButton)");
+      auto* button = qobject_cast<QAbstractButton*>(widget);
+      if (button == nullptr) {
+        continue;
+      }
+      expect(button->toolTip().contains(QStringLiteral("Swap width and height")), swap.button, "tooltip");
+      const QSize size = button->iconSize();
+      expect(size == options_bar->iconSize(), swap.button, "icon size differs from the bar's");
+      const QImage normal = button->icon().pixmap(size, 1.0).toImage().convertToFormat(QImage::Format_ARGB32);
+      const QImage disabled =
+          button->icon().pixmap(size, 1.0, QIcon::Disabled).toImage().convertToFormat(QImage::Format_ARGB32);
+      QRect ink_box;
+      int foreign = 0;
+      for (int y = 0; y < normal.height(); ++y) {
+        for (int x = 0; x < normal.width(); ++x) {
+          const QColor pixel = normal.pixelColor(x, y);
+          if (pixel.alpha() > 64) {
+            ink_box = ink_box.united(QRect(x, y, 1, 1));
+          }
+          // Solid pixels carry the scheme's icon ink and nothing else.
+          if (pixel.alpha() > 200 && std::abs(pixel.red() - ink.red()) + std::abs(pixel.green() - ink.green()) +
+                                             std::abs(pixel.blue() - ink.blue()) > 30) {
+            ++foreign;
+          }
+        }
+      }
+      std::printf("  %s%s: icon %dx%d, ink %dx%d, %d pixels off the icon ink\n", swap.button, suffix.c_str(),
+                  size.width(), size.height(), ink_box.width(), ink_box.height(), foreign);
+      expect(foreign == 0, swap.button, "colors other than the icon ink");
+      expect(ink_box.width() >= size.width() * 3 / 4 && ink_box.height() >= size.height() / 2, swap.button,
+             "glyph does not fill its box");
+      expect(disabled != normal, swap.button, "does not dim when disabled");
+    }
+    style->setCurrentIndex(0);
+  }
+  for (const auto& problem : problems) {
+    std::fprintf(stderr, "  %s\n", problem.c_str());
+  }
+  CHECK(problems.empty());
 }
 
 void ui_options_bar_drops_duplicate_sliders_before_wrapping() {
@@ -6761,6 +6853,8 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_options_bar_spinboxes_fit_widest_value", ui_options_bar_spinboxes_fit_widest_value},
       {"ui_options_bar_keeps_one_height_across_tools", ui_options_bar_keeps_one_height_across_tools},
       {"ui_selection_options_bars_group_their_controls", ui_selection_options_bars_group_their_controls},
+      {"ui_swap_dimension_buttons_show_a_themed_full_size_glyph",
+       ui_swap_dimension_buttons_show_a_themed_full_size_glyph},
       {"ui_options_bar_drops_duplicate_sliders_before_wrapping",
        ui_options_bar_drops_duplicate_sliders_before_wrapping},
       {"ui_options_bar_checkboxes_paint_without_a_frame", ui_options_bar_checkboxes_paint_without_a_frame},

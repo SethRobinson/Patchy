@@ -1084,17 +1084,22 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   configure_toolbar_spinbox(ratio_width, 56);
   marquee_ratio_option_widgets_.push_back(
       add_option_widget(ratio_width, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee}));
-  // Width and Height trade places with one click, as on the Artboard bar (GitHub issue 286).
-  // Each pair has its own button; Normal, whose fields are greyed, shows neither.
-  const auto make_marquee_swap_button = [this, toolbar](const char* object_name) {
-    auto* button = new QPushButton(toolbar);
+  // Width and Height trade places with one click (GitHub issue 286), here and on the Artboard
+  // bar: two opposed arrows in the icon ink, an icon button sized like the bar's others.
+  // Each marquee pair has its own button; Normal, whose fields are greyed, shows neither.
+  const auto make_swap_dimensions_button = [this, toolbar](const char* object_name) {
+    auto* button = new QToolButton(toolbar);
     button->setObjectName(QLatin1String(object_name));
-    button->setIcon(simple_icon(QStringLiteral("swap")));
-    button->setFixedWidth(28);
+    button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    button->setIcon(simple_icon(QStringLiteral("swap-dimensions")));
+    button->setIconSize(QSize(18, 18));
+    button->setAutoRaise(true);
+    button->setFocusPolicy(Qt::NoFocus);
+    button->setProperty("optionsBarButton", true);
     bind_tooltip(button, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Swap width and height (portrait or landscape)"));
     return button;
   };
-  auto* ratio_swap = make_marquee_swap_button("selectionRatioSwapButton");
+  auto* ratio_swap = make_swap_dimensions_button("selectionRatioSwapButton");
   marquee_ratio_option_widgets_.push_back(
       add_option_widget(ratio_swap, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee}));
   marquee_ratio_option_widgets_.push_back(
@@ -1118,7 +1123,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   configure_toolbar_spinbox(fixed_width, 78);
   marquee_size_option_widgets_.push_back(
       add_option_widget(fixed_width, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee}));
-  auto* size_swap = make_marquee_swap_button("selectionFixedSizeSwapButton");
+  auto* size_swap = make_swap_dimensions_button("selectionFixedSizeSwapButton");
   marquee_fixed_size_option_widgets_.push_back(
       add_option_widget(size_swap, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee}));
   marquee_size_option_widgets_.push_back(
@@ -1173,12 +1178,12 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   connect(fixed_height, &QSpinBox::valueChanged, this, [apply_marquee_settings](int) {
     apply_marquee_settings();
   });
-  connect(ratio_swap, &QPushButton::clicked, this, [ratio_width, ratio_height] {
+  connect(ratio_swap, &QToolButton::clicked, this, [ratio_width, ratio_height] {
     const double width = ratio_width->value();
     ratio_width->setValue(ratio_height->value());
     ratio_height->setValue(width);
   });
-  connect(size_swap, &QPushButton::clicked, this, [fixed_width, fixed_height] {
+  connect(size_swap, &QToolButton::clicked, this, [fixed_width, fixed_height] {
     const int width = fixed_width->value();
     fixed_width->setValue(fixed_height->value());
     fixed_height->setValue(width);
@@ -1368,11 +1373,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   artboard_width_spin_ = make_artboard_size_spin(
       "artboardWidthSpin", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Width of the selected artboard, or of new artboards"));
   add_option_widget(artboard_width_spin_, {CanvasTool::Artboard});
-  auto* artboard_swap = new QPushButton(toolbar);
-  artboard_swap->setObjectName(QStringLiteral("artboardSwapSizeButton"));
-  artboard_swap->setIcon(simple_icon(QStringLiteral("swap")));
-  artboard_swap->setFixedWidth(28);
-  bind_tooltip(artboard_swap, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Swap width and height (portrait or landscape)"));
+  auto* artboard_swap = make_swap_dimensions_button("artboardSwapSizeButton");
   add_option_widget(artboard_swap, {CanvasTool::Artboard});
   add_option_label(QT_TR_NOOP("Height:"), {CanvasTool::Artboard});
   artboard_height_spin_ = make_artboard_size_spin(
@@ -1437,7 +1438,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       artboard_field_edit_run_ = ArtboardNudgeRun{};
     });
   }
-  connect(artboard_swap, &QPushButton::clicked, this, [this] {
+  connect(artboard_swap, &QToolButton::clicked, this, [this] {
     apply_artboard_size_option(QSize(artboard_height_spin_->value(), artboard_width_spin_->value()));
   });
   connect(artboard_background_combo_, &QComboBox::activated, this, [this](int index) {
