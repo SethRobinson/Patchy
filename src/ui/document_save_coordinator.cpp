@@ -18,6 +18,7 @@
 #include "patchy_version.hpp"
 #include <QDateTime>
 #include <QFileInfo>
+#include <QUuid>
 #include <utility>
 
 namespace patchy::ui {
@@ -25,7 +26,8 @@ namespace patchy::ui {
 metadata::SaveStamp save_stamp_now() {
   const auto now = QDateTime::currentDateTime();
   return metadata::SaveStamp{metadata::xmp_date(now.toSecsSinceEpoch(), now.offsetFromUtc() / 60),
-                             std::string("Patchy ") + PATCHY_VERSION};
+                             std::string("Patchy ") + PATCHY_VERSION,
+                             QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString()};
 }
 
 bool is_photoshop_document_extension(const QString& extension) {
@@ -173,9 +175,10 @@ std::optional<DocumentSaveResult> DocumentSaveCoordinator::write_prepared(
         target->document.metadata().smart_objects,
         target->path.isEmpty() ? QString() : QFileInfo(target->path).absolutePath(),
         QFileInfo(path).absolutePath());
-    // Photoshop's save record in the XMP: the modify and metadata dates, and on the first
-    // save the creation date and Patchy as the creator (docs/file-info.md, "Save stamp").
-    metadata::stamp_xmp_for_save(target->document.file_info(), save_stamp_now());
+    // Photoshop's save record in the XMP and EXIF: the modify and metadata dates, a new
+    // instance, and on the first save the creation date and Patchy as the creator
+    // (docs/file-info.md, "Save stamp").
+    metadata::stamp_file_info_for_save(target->document.file_info(), save_stamp_now());
     // The writer reads a copy-on-write snapshot on a worker, so the window keeps painting
     // the Saving dialog through the composite (recovery writes the same way).
     const Document snapshot = std::as_const(*target).document_for_write();
