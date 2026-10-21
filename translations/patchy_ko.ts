@@ -11501,6 +11501,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source> (Amount %1%, Radius %2 px, Legacy)</source>
         <translation> (양 %1%, 반경 %2 px, 레거시)</translation>
     </message>
+    <message>
+        <source>Undo</source>
+        <translation>실행 취소</translation>
+    </message>
+    <message>
+        <source>Redo</source>
+        <translation>다시 실행</translation>
+    </message>
+    <message>
+        <source>Rate:</source>
+        <translation>속도:</translation>
+    </message>
+    <message>
+        <source>How fast the brush keeps working while it is held still</source>
+        <translation>브러시를 멈추고 있는 동안 효과가 계속되는 속도</translation>
+    </message>
+    <message>
+        <source>Stylus Pressure</source>
+        <translation>스타일러스 압력</translation>
+    </message>
+    <message>
+        <source>Show Mesh</source>
+        <translation>메시 표시</translation>
+    </message>
+    <message>
+        <source>Reconstruct...</source>
+        <translation>재구성...</translation>
+    </message>
+    <message>
+        <source>Amount:</source>
+        <translation>양:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

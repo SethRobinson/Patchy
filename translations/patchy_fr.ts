@@ -11536,6 +11536,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source> (Amount %1%, Radius %2 px, Legacy)</source>
         <translation> (Gain %1 %, Rayon %2 px, Ancien)</translation>
     </message>
+    <message>
+        <source>Undo</source>
+        <translation>Annuler</translation>
+    </message>
+    <message>
+        <source>Redo</source>
+        <translation>Rétablir</translation>
+    </message>
+    <message>
+        <source>Rate:</source>
+        <translation>Vitesse :</translation>
+    </message>
+    <message>
+        <source>How fast the brush keeps working while it is held still</source>
+        <translation>Vitesse à laquelle le pinceau continue d&apos;agir lorsqu&apos;il reste immobile</translation>
+    </message>
+    <message>
+        <source>Stylus Pressure</source>
+        <translation>Pression du stylet</translation>
+    </message>
+    <message>
+        <source>Show Mesh</source>
+        <translation>Afficher le maillage</translation>
+    </message>
+    <message>
+        <source>Reconstruct...</source>
+        <translation>Reconstruction...</translation>
+    </message>
+    <message>
+        <source>Amount:</source>
+        <translation>Quantité :</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
