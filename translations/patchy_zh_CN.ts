@@ -15487,10 +15487,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>描摹时放置锚点的频率</translation>
     </message>
     <message>
-        <source>Tol:</source>
-        <translation>容差:</translation>
-    </message>
-    <message>
         <source>Limit Magic Wand selection to connected pixels</source>
         <translation>将魔棒选区限制为相连的像素</translation>
     </message>

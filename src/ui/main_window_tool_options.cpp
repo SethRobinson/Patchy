@@ -2820,6 +2820,39 @@ void MainWindow::register_option_action(QWidget* widget, std::initializer_list<C
   option_actions_.emplace_back(widget, std::vector<CanvasTool>(tools.begin(), tools.end()));
 }
 
+namespace {
+
+// The options-bar separator rules (docs/options-bar.md, "Grouping rules"): a separator
+// shows only between two visible controls, so a group that a tool, mode or style hides
+// never leaves one first, last or right after another. `visible` is the bar's own
+// visibility decision; the widgets come in layout (registration) order.
+template <typename Visible>
+QSet<QWidget*> stray_option_separators(const std::vector<std::pair<QWidget*, std::vector<CanvasTool>>>& widgets,
+                                       const Visible& visible) {
+  QSet<QWidget*> stray;
+  QWidget* last_separator = nullptr;
+  bool control_since_separator = false;
+  for (const auto& [widget, tools] : widgets) {
+    if (widget == nullptr || !visible(widget, tools)) {
+      continue;
+    }
+    if (widget->objectName() != QLatin1String("optionSeparator")) {
+      control_since_separator = true;
+    } else if (!control_since_separator) {
+      stray.insert(widget);
+    } else {
+      last_separator = widget;
+      control_since_separator = false;
+    }
+  }
+  if (last_separator != nullptr && !control_since_separator) {
+    stray.insert(last_separator);
+  }
+  return stray;
+}
+
+}  // namespace
+
 void MainWindow::refresh_options_bar_rows(bool live_shape) {
   if (options_flow_container_ == nullptr) {
     return;
@@ -2845,12 +2878,16 @@ void MainWindow::refresh_options_bar_rows(bool live_shape) {
   std::vector<QSet<QWidget*>> rows;
   for (const auto tool : tools) {
     const auto rules = vector_option_mode_rules(tool, live_shape);
-    QSet<QWidget*> row;
-    for (const auto& [widget, widget_tools] : option_actions_) {
+    const auto in_row = [&](QWidget* widget, const std::vector<CanvasTool>& widget_tools) {
       const bool tool_matches =
           widget_tools.empty() || std::find(widget_tools.begin(), widget_tools.end(), tool) != widget_tools.end();
-      if (widget != nullptr && tool_matches && vector_option_widget_visible(rules, widget, tool) &&
-          crop_option_widget_visible(widget) && marquee_option_widget_visible(widget)) {
+      return tool_matches && vector_option_widget_visible(rules, widget, tool) && crop_option_widget_visible(widget) &&
+             marquee_option_widget_visible(widget);
+    };
+    const auto stray = stray_option_separators(option_actions_, in_row);
+    QSet<QWidget*> row;
+    for (const auto& [widget, widget_tools] : option_actions_) {
+      if (widget != nullptr && in_row(widget, widget_tools) && !stray.contains(widget)) {
         row.insert(widget);
       }
     }
@@ -2911,7 +2948,7 @@ void MainWindow::refresh_options_bar() {
     collapse_sliders = options_flow_container_->wants_collapse();
     options_flow_container_->set_collapse_applied(collapse_sliders);
   }
-  const auto final_visibility = [&](QWidget* widget, const std::vector<CanvasTool>& tools) {
+  const auto tool_visibility = [&](QWidget* widget, const std::vector<CanvasTool>& tools) {
     // A transform/warp session owns the options bar (Photoshop behavior): the
     // tool's own controls are unusable while one runs (the canvas consumes every
     // click), so they hide instead of stacking next to the session controls and
@@ -2920,6 +2957,10 @@ void MainWindow::refresh_options_bar() {
     return tool_matches && !transform_session_active && vector_option_widget_visible(mode_rules, widget) &&
            crop_option_widget_visible(widget) && marquee_option_widget_visible(widget) &&
            !(collapse_sliders && widget->property(kOptionsBarCollapsibleProperty).toBool());
+  };
+  const auto stray_separators = stray_option_separators(option_actions_, tool_visibility);
+  const auto final_visibility = [&](QWidget* widget, const std::vector<CanvasTool>& tools) {
+    return tool_visibility(widget, tools) && !stray_separators.contains(widget);
   };
   for (const auto& [widget, tools] : option_actions_) {
     if (widget != nullptr && !final_visibility(widget, tools) && !widget->isHidden()) {

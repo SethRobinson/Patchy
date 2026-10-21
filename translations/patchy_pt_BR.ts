@@ -15891,10 +15891,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Com que frequência os pontos de ancoragem são colocados durante o rastreamento</translation>
     </message>
     <message>
-        <source>Tol:</source>
-        <translation>Tol:</translation>
-    </message>
-    <message>
         <source>Limit Magic Wand selection to connected pixels</source>
         <translation>Limitar a seleção da Varinha Mágica aos pixels conectados</translation>
     </message>

@@ -15507,10 +15507,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Tol:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Limit Magic Wand selection to connected pixels</source>
         <translation type="unfinished"></translation>
     </message>

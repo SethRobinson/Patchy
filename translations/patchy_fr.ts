@@ -15523,10 +15523,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Fréquence de placement des points d&apos;ancrage pendant le tracé</translation>
     </message>
     <message>
-        <source>Tol:</source>
-        <translation>Tol. :</translation>
-    </message>
-    <message>
         <source>Limit Magic Wand selection to connected pixels</source>
         <translation>Limiter la sélection de la Baguette magique aux pixels contigus</translation>
     </message>

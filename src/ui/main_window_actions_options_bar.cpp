@@ -964,7 +964,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
           [set_selection_mode] { set_selection_mode(CanvasWidget::SelectionMode::Intersect); });
   add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::PolygonLasso,
                         CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::QuickSelect,
-                        CanvasTool::ObjectSelect});
+                        CanvasTool::ObjectSelect, CanvasTool::PatchTool});
 
   // Quick Select leads with its brush Size, set apart from Feather (GitHub issue 291).
   add_option_label(QT_TR_NOOP("Size:"), {CanvasTool::QuickSelect});
@@ -1226,6 +1226,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   });
   bind_tooltip(crop_style_combo_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Ratio constrains the crop box; Size shows its exact width and height and sets them"));
   add_option_widget(crop_style_combo_, {CanvasTool::Crop});
+  add_option_separator({CanvasTool::Crop});
   crop_ratio_option_widgets_.push_back(add_option_label(QT_TR_NOOP("Ratio:"), {CanvasTool::Crop}));
   crop_ratio_preset_combo_ = new QComboBox(toolbar);
   crop_ratio_preset_combo_->setObjectName(QStringLiteral("cropRatioPresetCombo"));
@@ -1316,6 +1317,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   crop_delete_pixels_check_->setChecked(current_crop_delete_pixels_);
   bind_tooltip(crop_delete_pixels_check_,
                QT_TR_NOOP("Crop every layer to the new canvas; off, layers keep their pixels beyond it"));
+  add_option_separator({CanvasTool::Crop});
   add_option_widget(crop_delete_pixels_check_, {CanvasTool::Crop});
   connect(crop_delete_pixels_check_, &QCheckBox::toggled, this, [this](bool checked) {
     current_crop_delete_pixels_ = checked;
@@ -1338,6 +1340,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   crop_apply_button_->setFixedWidth(30);
   crop_apply_button_->setIconSize(QSize(20, 20));
   crop_apply_button_->setProperty("optionsSessionButton", true);
+  add_option_separator({CanvasTool::Crop});
   add_option_widget(crop_apply_button_, {CanvasTool::Crop});
   crop_cancel_button_ = new QPushButton(toolbar);
   crop_cancel_button_->setObjectName(QStringLiteral("cropCancelButton"));
@@ -1541,6 +1544,10 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       brush_preset_combo_,
       {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::Clone, CanvasTool::Healing, CanvasTool::Smudge,
        CanvasTool::Eraser});
+  // Separators follow the grouping rules in docs/options-bar.md; a group a tool or mode hides
+  // drops its separator by itself (stray_option_separators).
+  add_option_separator({CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::Clone, CanvasTool::Healing,
+                        CanvasTool::Smudge, CanvasTool::Eraser});
 
   // Mode sits FIRST for the shape tools so it never moves when the Pixels-mode
   // brush controls below appear (Seth, September 2026).
@@ -1581,6 +1588,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     refresh_options_bar();
   });
 
+  add_option_separator({CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
+                        CanvasTool::Polygon, CanvasTool::CustomShape});
+
   // The raster brush controls double as the shape tools' Pixels-mode options;
   // refresh_vector_tool_options_visibility hides them in the vector modes.
   vector_pixel_only_option_widgets_.push_back(add_option_label(
@@ -1616,6 +1626,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
                      CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
                      CanvasTool::BlurBrush, CanvasTool::SharpenBrush,
                      CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse});
+  add_option_separator({CanvasTool::Brush, CanvasTool::PatternStamp, CanvasTool::Clone, CanvasTool::Healing,
+                        CanvasTool::Smudge, CanvasTool::Eraser, CanvasTool::Line, CanvasTool::Rectangle,
+                        CanvasTool::Ellipse});
   // Brush Mode (core/paint_mode.hpp), Brush only: the Eraser's Mode would mean its tip
   // shape (Round/Square already cover that) and the retouch tools paint by their own math.
   add_option_label(QT_TR_NOOP("Mode:"), {CanvasTool::Brush});
@@ -1832,6 +1845,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   mixer_combination_combo_->setMinimumContentsLength(7);
   widen_combo_popup_to_items(mixer_combination_combo_);
   bind_tooltip(mixer_combination_combo_, QT_TR_NOOP("Useful mixer brush combinations"));
+  add_option_separator({CanvasTool::MixerBrush});
   add_option_widget(mixer_combination_combo_, {CanvasTool::MixerBrush});
 
   const auto add_mixer_percentage = [this, toolbar, add_option_label, add_option_widget](
@@ -1922,6 +1936,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   mixer_sample_all_layers_check_->setObjectName(QStringLiteral("mixerSampleAllLayersCheck"));
   mixer_sample_all_layers_check_->setChecked(canvas_defaults->mixer_sample_all_layers());
   bind_tooltip(mixer_sample_all_layers_check_, QT_TR_NOOP("Sample the merged document instead of the active layer"));
+  add_option_separator({CanvasTool::MixerBrush});
   add_option_widget(mixer_sample_all_layers_check_, {CanvasTool::MixerBrush});
   connect(mixer_sample_all_layers_check_, &QCheckBox::toggled, this, [this](bool checked) {
     if (canvas_ != nullptr) {
@@ -1932,6 +1947,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
 
   // Smoothing lands after the mixer cluster so every row that shows it reads
   // Photoshop-style: ..., Flow, (Sample All Layers,) Smooth, gear.
+  add_option_separator(smoothing_tools);
   auto* brush_smoothing_label = add_option_label(QT_TR_NOOP("Smooth:"), smoothing_tools);
   bind_widget_text(brush_smoothing_label, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Smooth:"));
   add_option_widget(brush_smoothing, smoothing_tools);
@@ -2000,6 +2016,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     statusBar()->showMessage(tr("Brush preset: %1").arg(brush_preset_display_name(*preset)));
   });
 
+  add_option_separator({CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp, CanvasTool::Eraser});
   add_option_label(QT_TR_NOOP("Tip:"),
                    {CanvasTool::Brush, CanvasTool::MixerBrush, CanvasTool::PatternStamp,
                    CanvasTool::Eraser});
@@ -2075,6 +2092,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   });
 
+  add_option_separator({CanvasTool::PatternStamp});
   auto* pattern_label = add_option_label(QT_TR_NOOP("Pattern:"), {CanvasTool::PatternStamp});
   bind_widget_text(pattern_label, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Pattern:"));
   pattern_stamp_pattern_combo_ = new QComboBox(toolbar);
@@ -2121,6 +2139,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   pattern_stamp_aligned_check_->setObjectName(QStringLiteral("patternStampAlignedCheck"));
   pattern_stamp_aligned_check_->setChecked(current_pattern_stamp_aligned_);
   bind_tooltip(pattern_stamp_aligned_check_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Keep pattern alignment continuous across strokes"));
+  add_option_separator({CanvasTool::PatternStamp});
   add_option_widget(pattern_stamp_aligned_check_, {CanvasTool::PatternStamp});
   connect(pattern_stamp_aligned_check_, &QCheckBox::toggled, this, [this](bool checked) {
     current_pattern_stamp_aligned_ = checked;
@@ -2135,6 +2154,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   gradient_method_combo_->addItem(tr("Radial"), static_cast<int>(GradientMethod::Radial));
   gradient_method_combo_->setFixedWidth(86);
   add_option_widget(gradient_method_combo_, {CanvasTool::Gradient});
+  add_option_separator({CanvasTool::Gradient});
   QPointer<QComboBox> gradient_method_combo(gradient_method_combo_);
   register_retranslation([gradient_method_combo] {
     if (gradient_method_combo == nullptr || gradient_method_combo->count() < 2) {
@@ -2164,10 +2184,12 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   gradient_reverse_check_ = new CheckGlyphBox(tr("Reverse"), toolbar);
   gradient_reverse_check_->setObjectName(QStringLiteral("gradientReverseCheck"));
   gradient_reverse_check_->setChecked(canvas_defaults->gradient_reverse());
+  add_option_separator({CanvasTool::Gradient});
   add_option_widget(gradient_reverse_check_, {CanvasTool::Gradient});
   gradient_preview_button_ = new QPushButton(toolbar);
   gradient_preview_button_->setObjectName(QStringLiteral("gradientPreviewButton"));
   bind_tooltip(gradient_preview_button_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Gradient preview"));
+  add_option_separator({CanvasTool::Gradient});
   add_option_widget(gradient_preview_button_, {CanvasTool::Gradient});
   gradient_presets_button_ = new QPushButton(toolbar);
   gradient_presets_button_->setObjectName(QStringLiteral("gradientPresetsButton"));
@@ -2209,18 +2231,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   connect(gradient_presets_button_, &QPushButton::clicked, this, [this] { choose_gradient_preset(); });
   connect(gradient_edit_stops_button_, &QPushButton::clicked, this, [this] { edit_gradient_stops(); });
 
-  clone_aligned_check_ = new CheckGlyphBox(tr("Aligned"), toolbar);
-  clone_aligned_check_->setObjectName(QStringLiteral("cloneAlignedCheck"));
-  clone_aligned_check_->setChecked(canvas_defaults->clone_aligned());
-  bind_tooltip(clone_aligned_check_, QT_TR_NOOP("Keep sample source offset aligned across strokes"));
-  add_option_widget(clone_aligned_check_, {CanvasTool::Clone, CanvasTool::Healing});
-  connect(clone_aligned_check_, &QCheckBox::toggled, this, [this](bool checked) {
-    if (canvas_ != nullptr) {
-      canvas_->set_clone_aligned(checked);
-      save_tool_settings();
-    }
-  });
-
+  add_option_separator({CanvasTool::Healing});
   add_option_label(QT_TR_NOOP("Diffusion:"), {CanvasTool::Healing});
   auto* healing_diffusion = new QSpinBox(toolbar);
   healing_diffusion->setObjectName(QStringLiteral("healingDiffusionSpin"));
@@ -2233,6 +2244,19 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     current_healing_diffusion_ = value;
     if (canvas_ != nullptr) {
       canvas_->set_healing_diffusion(value);
+      save_tool_settings();
+    }
+  });
+
+  add_option_separator({CanvasTool::Clone, CanvasTool::Healing});
+  clone_aligned_check_ = new CheckGlyphBox(tr("Aligned"), toolbar);
+  clone_aligned_check_->setObjectName(QStringLiteral("cloneAlignedCheck"));
+  clone_aligned_check_->setChecked(canvas_defaults->clone_aligned());
+  bind_tooltip(clone_aligned_check_, QT_TR_NOOP("Keep sample source offset aligned across strokes"));
+  add_option_widget(clone_aligned_check_, {CanvasTool::Clone, CanvasTool::Healing});
+  connect(clone_aligned_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    if (canvas_ != nullptr) {
+      canvas_->set_clone_aligned(checked);
       save_tool_settings();
     }
   });
@@ -2274,6 +2298,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   patch_transparent_check_->setChecked(canvas_defaults->patch_tool_transparent());
   bind_tooltip(patch_transparent_check_, QT_TR_NOOP("Keep the region and add only the sampled texture instead of replacing it; clearest when the "
          "source has distinct marks over a plain background"));
+  add_option_separator({CanvasTool::PatchTool});
   add_option_widget(patch_transparent_check_, {CanvasTool::PatchTool});
   connect(patch_transparent_check_, &QCheckBox::toggled, this, [this](bool checked) {
     if (canvas_ != nullptr) {
@@ -2282,6 +2307,21 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   });
 
+  retouch_sample_all_layers_check_ = new CheckGlyphBox(tr("Sample All Layers"), toolbar);
+  retouch_sample_all_layers_check_->setObjectName(QStringLiteral("retouchSampleAllLayersCheck"));
+  retouch_sample_all_layers_check_->setChecked(canvas_defaults->retouch_sample_all_layers());
+  bind_tooltip(retouch_sample_all_layers_check_, QT_TR_NOOP("Sample the merged document instead of the active layer"));
+  add_option_separator({CanvasTool::SpotHealing});
+  add_option_widget(retouch_sample_all_layers_check_,
+                    {CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::PatchTool});
+  connect(retouch_sample_all_layers_check_, &QCheckBox::toggled, this, [this](bool checked) {
+    if (canvas_ != nullptr) {
+      canvas_->set_retouch_sample_all_layers(checked);
+      save_tool_settings();
+    }
+  });
+
+  add_option_separator({CanvasTool::PatchTool});
   // Patch tool: Remove Object heals the drawn selection automatically, the
   // same command as Edit > Remove Object and the Enter key.
   patch_remove_object_button_ = new QPushButton(tr("Remove Object"), toolbar);
@@ -2297,19 +2337,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     }
   });
 
-  retouch_sample_all_layers_check_ = new CheckGlyphBox(tr("Sample All Layers"), toolbar);
-  retouch_sample_all_layers_check_->setObjectName(QStringLiteral("retouchSampleAllLayersCheck"));
-  retouch_sample_all_layers_check_->setChecked(canvas_defaults->retouch_sample_all_layers());
-  bind_tooltip(retouch_sample_all_layers_check_, QT_TR_NOOP("Sample the merged document instead of the active layer"));
-  add_option_widget(retouch_sample_all_layers_check_,
-                    {CanvasTool::Clone, CanvasTool::Healing, CanvasTool::SpotHealing, CanvasTool::PatchTool});
-  connect(retouch_sample_all_layers_check_, &QCheckBox::toggled, this, [this](bool checked) {
-    if (canvas_ != nullptr) {
-      canvas_->set_retouch_sample_all_layers(checked);
-      save_tool_settings();
-    }
-  });
-
+  add_option_separator({CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge, CanvasTool::BlurBrush,
+                        CanvasTool::SharpenBrush});
   add_option_label(QT_TR_NOOP("Strength:"), {CanvasTool::Dodge, CanvasTool::Burn, CanvasTool::Sponge,
                                       CanvasTool::BlurBrush, CanvasTool::SharpenBrush});
   local_adjustment_strength_spin_ = new QSpinBox(toolbar);
@@ -2372,6 +2401,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   local_protect_tones_check_->setChecked(current_local_protect_tones_);
   bind_tooltip(local_protect_tones_check_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Preserve local color differences while lightening or darkening"));
   bind_widget_text(local_protect_tones_check_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Protect Tones"));
+  add_option_separator({CanvasTool::Dodge, CanvasTool::Burn});
   add_option_widget(local_protect_tones_check_, {CanvasTool::Dodge, CanvasTool::Burn});
   connect(local_protect_tones_check_, &QCheckBox::toggled, this, [this](bool checked) {
     current_local_protect_tones_ = checked;
@@ -2421,6 +2451,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   bind_tooltip(sponge_vibrance_check_,
                QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Reduce the adjustment on colors that are already strongly saturated"));
   bind_widget_text(sponge_vibrance_check_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Vibrance"));
+  add_option_separator({CanvasTool::Sponge});
   add_option_widget(sponge_vibrance_check_, {CanvasTool::Sponge});
   connect(sponge_vibrance_check_, &QCheckBox::toggled, this, [this](bool checked) {
     current_sponge_vibrance_ = checked;
@@ -2727,6 +2758,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // Sets (GitHub issue 151): which color a click sets, a two-way choice like
   // GIMP's Pick Target. Alt inverts it for one click, and the cursor badge says
   // which color the click will set.
+  add_option_separator({CanvasTool::Eyedropper});
   add_option_label(QT_TR_NOOP("Sets:"), {CanvasTool::Eyedropper});
   auto* eyedropper_sets_group = new QButtonGroup(toolbar);
   eyedropper_sets_group->setExclusive(true);
@@ -2885,6 +2917,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     vector_shape_size_option_widgets_.push_back(spin);
     return spin;
   };
+  add_option_separator({CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
+                        CanvasTool::Polygon, CanvasTool::CustomShape});
   vector_shape_size_option_widgets_.push_back(
       add_option_label(QT_TR_NOOP("W:"), vector_shape_size_tools));
   vector_shape_width_spin_ =
@@ -2921,6 +2955,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     handle_vector_shape_size_value_changed(false, value);
   });
 
+  add_option_separator({CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
+                        CanvasTool::Polygon, CanvasTool::CustomShape});
   vector_vector_mode_option_widgets_.push_back(
       add_option_label(QT_TR_NOOP("Weight:"), {CanvasTool::Line}));
   // Fractional so a 0.5 mm hairline survives a ruler unit of mm; the shape
@@ -3199,6 +3235,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   vector_appearance_button_->setProperty("optionsBarButton", true);
   vector_appearance_button_->setMinimumHeight(24);
   vector_appearance_button_->setMaximumHeight(26);
+  add_option_separator({CanvasTool::Line, CanvasTool::Rectangle, CanvasTool::Ellipse, CanvasTool::Pen,
+                        CanvasTool::Polygon, CanvasTool::CustomShape});
   add_option_widget(vector_appearance_button_, vector_appearance_tools);
   vector_shape_mode_option_widgets_.push_back(vector_appearance_button_);
   connect(vector_appearance_button_, &QPushButton::clicked, this, [this] { edit_active_shape_appearance(); });
@@ -3254,7 +3292,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   });
   // Tolerance and Contiguous belong to the Fill tool's flood only (the Fill command fills the
   // whole selection). Same metric and range as the Magic Wand's Tol.
-  add_option_label(QT_TR_NOOP("Tol:"), {CanvasTool::Fill});
+  add_option_separator({CanvasTool::Fill});
+  add_option_label(QT_TR_NOOP("Tolerance:"), {CanvasTool::Fill});
   auto* fill_tolerance = new QSpinBox(toolbar);
   fill_tolerance->setObjectName(QStringLiteral("fillToleranceSpin"));
   fill_tolerance->setRange(0, 255);
@@ -3273,6 +3312,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   fill_contiguous_check_->setObjectName(QStringLiteral("fillContiguousCheck"));
   fill_contiguous_check_->setChecked(canvas_defaults->fill_contiguous());
   bind_tooltip(fill_contiguous_check_, QT_TR_NOOP("Limit the fill to pixels connected to the click"));
+  add_option_separator({CanvasTool::Fill});
   add_option_widget(fill_contiguous_check_, {CanvasTool::Fill});
   connect(fill_contiguous_check_, &QCheckBox::toggled, this, [this](bool checked) {
     if (canvas_ != nullptr) {
@@ -3441,6 +3481,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // after a color pick replaces the selected "Type" placeholder (GitHub issue 175). The
   // alignment buttons follow the same rule.
   text_color_button_->setFocusPolicy(Qt::NoFocus);
+  add_option_separator({CanvasTool::Text});
   add_option_widget(text_color_button_, {CanvasTool::Text});
   // Ragged-lines glyphs instead of L / C / R letters, which needed an "Align:" label to
   // read; sync_text_orientation_controls_from_editor swaps in the column glyphs for
@@ -3456,6 +3497,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   text_align_left_button_->setFixedSize(30, 26);
   text_align_left_button_->setFocusPolicy(Qt::NoFocus);
   text_alignment_group->addButton(text_align_left_button_);
+  add_option_separator({CanvasTool::Text});
   add_option_widget(text_align_left_button_, {CanvasTool::Text});
   text_align_center_button_ = new QPushButton(toolbar);
   text_align_center_button_->setIcon(text_alignment_icon(Qt::AlignHCenter, false));
@@ -3484,6 +3526,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   text_orientation_button_->setChecked(false);
   bind_tooltip(text_orientation_button_, QT_TR_NOOP("Vertical text: columns read top to bottom, right to left"));
   text_orientation_button_->setFocusPolicy(Qt::NoFocus);
+  add_option_separator({CanvasTool::Text});
   add_option_widget(text_orientation_button_, {CanvasTool::Text});
   text_warp_button_ = new QPushButton(tr("Warp..."), toolbar);
   bind_widget_text(text_warp_button_, QT_TR_NOOP("Warp..."));
@@ -3501,6 +3544,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   text_character_button_->setObjectName(QStringLiteral("textCharacterButton"));
   bind_tooltip(text_character_button_, QT_TR_NOOP("Character panel (leading, tracking, glyph scales)"));
   text_character_button_->setFocusPolicy(Qt::NoFocus);
+  add_option_separator({CanvasTool::Text});
   add_option_widget(text_character_button_, {CanvasTool::Text});
   connect(text_character_button_, &QPushButton::clicked, this, [this] { open_text_character_dialog(); });
   // Paragraph panel: same live-session rules as the Character panel (Qt::NoFocus).

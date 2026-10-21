@@ -15797,10 +15797,6 @@ Either way Patchy writes a copy; the open document keeps its layers and unsaved 
         <translation>ブラシを大幅に大きく</translation>
     </message>
     <message>
-        <source>Tol:</source>
-        <translation>許容値:</translation>
-    </message>
-    <message>
         <source>Contiguous</source>
         <translation>隣接</translation>
     </message>

@@ -15523,10 +15523,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Wie oft beim Verfolgen Ankerpunkte gesetzt werden</translation>
     </message>
     <message>
-        <source>Tol:</source>
-        <translation>Tol.:</translation>
-    </message>
-    <message>
         <source>Limit Magic Wand selection to connected pixels</source>
         <translation>Zauberstab-Auswahl auf benachbarte Pixel beschränken</translation>
     </message>
