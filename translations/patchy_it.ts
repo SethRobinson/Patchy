@@ -11572,6 +11572,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
         <translation>Sfondo: resta in fondo alla pila, senza trasparenza né stili di livello. Fai clic con il pulsante destro e scegli Livello da sfondo per renderlo un livello normale.</translation>
     </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>Lazo poligonale</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13227,6 +13231,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Deselect Shapes</source>
         <translation>Deseleziona forme</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>Lazo poligonale</translation>
     </message>
 </context>
 <context>
@@ -22964,10 +22972,6 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
         <translation>Selezione ellittica: trascina per selezionare. Maiusc+trascina aggiunge, %ALT%+trascina sottrae, Maiusc+%ALT%+trascina interseca. Senza selezione, Maiusc disegna un cerchio e %ALT% disegna dal centro.</translation>
     </message>
     <message>
-        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects.</source>
-        <translation>Lazo: trascina intorno all&apos;area per selezionarla. Maiusc+trascina aggiunge, %ALT%+trascina sottrae, Maiusc+%ALT%+trascina interseca.</translation>
-    </message>
-    <message>
         <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
         <translation>Lazo magnetico: fai clic su un bordo e seguilo; fai clic per fissare un punto. Inizia con Maiusc+clic per aggiungere, %ALT%+clic per sottrarre, Maiusc+%ALT%+clic per intersecare. Backspace rimuove l&apos;ultimo punto, Invio chiude, Esc annulla.</translation>
     </message>
@@ -23425,6 +23429,22 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
     <message>
         <source>The Background layer cannot have layer styles</source>
         <translation>Il livello di sfondo non può avere stili di livello</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>Lazo poligonale</translation>
+    </message>
+    <message>
+        <source>Click to place points, Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close.</source>
+        <translation>Fai clic per posizionare i punti, Maiusc mantiene i 45 gradi, %ALT%+trascina disegna a mano libera. Per chiudere fai clic sul punto iniziale, fai doppio clic o premi Invio.</translation>
+    </message>
+    <message>
+        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
+        <translation>Lazo: trascina intorno all&apos;area per selezionarla. Maiusc+trascina aggiunge, %ALT%+trascina sottrae, Maiusc+%ALT%+trascina interseca. Premi %ALT% durante il trascinamento e rilascia il pulsante per tracciare segmenti dritti con i clic finché non rilasci %ALT%.</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
+        <translation>Lazo poligonale: fai clic per posizionare i punti. Inizia con Maiusc+clic per aggiungere, %ALT%+clic per sottrarre, Maiusc+%ALT%+clic per intersecare. Maiusc mantiene i 45 gradi, %ALT%+trascina disegna a mano libera. Per chiudere fai clic sul punto iniziale, fai doppio clic o premi Invio; Backspace rimuove l&apos;ultimo punto, Esc annulla.</translation>
     </message>
 </context>
 <context>

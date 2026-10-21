@@ -769,6 +769,8 @@ QString tool_name(CanvasTool tool) {
       return QObject::tr("Elliptical Marquee");
     case CanvasTool::Lasso:
       return QObject::tr("Lasso");
+    case CanvasTool::PolygonLasso:
+      return QObject::tr("Polygonal Lasso");
     case CanvasTool::MagneticLasso:
       return QObject::tr("Magnetic Lasso");
     case CanvasTool::MagicWand:

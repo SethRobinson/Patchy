@@ -11693,6 +11693,7 @@ void MainWindow::update_document_action_state() {
                QStringLiteral("tools.marquee"),
                QStringLiteral("tools.elliptical_marquee"),
                QStringLiteral("tools.lasso"),
+               QStringLiteral("tools.polygonal_lasso"),
                QStringLiteral("tools.magnetic_lasso"),
                QStringLiteral("tools.magic_wand"),
                QStringLiteral("tools.quick_select"),
