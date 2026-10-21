@@ -317,6 +317,37 @@
     </message>
 </context>
 <context>
+    <name>NewLayerDialog</name>
+    <message>
+        <source>New Layer</source>
+        <translation>新建图层</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>名称:</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>颜色:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>模式:</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>不透明度:</translation>
+    </message>
+    <message>
+        <source>Use Previous Layer to Create Clipping Mask</source>
+        <translation>使用前一图层创建剪贴蒙版</translation>
+    </message>
+    <message>
+        <source>Clip the new layer to the layer below it</source>
+        <translation>将新图层剪贴到下方图层</translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Patchy raster image editor.</source>
@@ -23373,6 +23404,38 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
         <translation>多边形套索：单击放置点。以 Shift+单击开始为添加，以 %ALT%+单击开始为减去，以 Shift+%ALT%+单击开始为取交集。按住 Shift 保持 45 度，%ALT%+拖动可徒手绘制。单击起点、双击或按 Enter 闭合；Backspace 删除最后一个点，Esc 取消。</translation>
+    </message>
+    <message>
+        <source>New &amp;Layer...</source>
+        <translation>新建图层(&amp;L)...</translation>
+    </message>
+    <message>
+        <source>Add a layer, choosing its name, color, mode and opacity first</source>
+        <translation>先选择名称、颜色、模式和不透明度，再添加图层</translation>
+    </message>
+    <message>
+        <source>&amp;Merge Visible</source>
+        <translation>合并可见图层(&amp;M)</translation>
+    </message>
+    <message>
+        <source>Merge every visible layer into one, keeping the hidden layers</source>
+        <translation>将所有可见图层合并为一个，保留隐藏的图层</translation>
+    </message>
+    <message>
+        <source>Merge Visible</source>
+        <translation>合并可见图层</translation>
+    </message>
+    <message>
+        <source>Merge Visible needs at least two visible layers</source>
+        <translation>合并可见图层需要至少两个可见图层</translation>
+    </message>
+    <message>
+        <source>Merge visible</source>
+        <translation>合并可见图层</translation>
+    </message>
+    <message>
+        <source>Merged the visible layers</source>
+        <translation>已合并可见图层</translation>
     </message>
 </context>
 <context>

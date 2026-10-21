@@ -757,6 +757,20 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   // Layer Mask submenu mirrors the layer context menu's order and separators.
   auto* layer_new_menu = layer_menu->addMenu(tr("&New"));
   layer_new_menu->setObjectName(QStringLiteral("layerNewMenu"));
+  // New Layer... asks for the name, clipping, color, mode and opacity first (GitHub issue 275);
+  // New Layer adds one at once.
+  auto* add_layer_dialog_action = layer_new_menu->addAction(tr("New &Layer..."));
+  add_layer_dialog_action->setObjectName(QStringLiteral("layerNewWithDialogAction"));
+  add_layer_dialog_action->setMenuRole(QAction::NoRole);
+  add_layer_dialog_action->setIcon(simple_icon(QStringLiteral("new")));
+  bind_action_text(add_layer_dialog_action, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "New &Layer..."));
+  bind_translated_status_tip(add_layer_dialog_action,
+                             QT_TRANSLATE_NOOP("patchy::ui::MainWindow",
+                                               "Add a layer, choosing its name, color, mode and opacity first"));
+  apply_bound_translation(add_layer_dialog_action);
+  register_hotkey(add_layer_dialog_action, "layer.new_with_dialog", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N));
+  connect(add_layer_dialog_action, &QAction::triggered, this, [this] { add_layer_with_dialog(); });
+  register_document_action(add_layer_dialog_action);
   auto* add_layer_action = layer_new_menu->addAction(tr("&New Layer"));
   auto* add_folder_action = layer_new_menu->addAction(tr("New &Folder"));
   auto* ungroup_action = layer_new_menu->addAction(tr("Ungroup Layers"));
@@ -950,10 +964,26 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
     action->setEnabled(false);
     layer_combine_actions_[i] = action;
   }
-  layer_menu->addSeparator();
+  // (No separator before the duplicate and merge group: the Layer menu's 23-row bound paid
+  // for Merge Visible with it.)
   auto* duplicate_layer_action = layer_menu->addAction(tr("&Duplicate Layer"));
   auto* merge_visible_action = layer_menu->addAction(tr("Merge &Visible to New Layer (Copy)"));
   merge_visible_action->setObjectName(QStringLiteral("layerMergeVisibleAction"));
+  // Photoshop's Merge Visible, in place (GitHub issue 294), above Merge Down.
+  layer_merge_visible_layers_action_ = layer_menu->addAction(tr("&Merge Visible"));
+  layer_merge_visible_layers_action_->setObjectName(QStringLiteral("layerMergeVisibleLayersAction"));
+  layer_merge_visible_layers_action_->setMenuRole(QAction::NoRole);
+  layer_merge_visible_layers_action_->setIcon(simple_icon(QStringLiteral("merge"), QColor(160, 220, 255)));
+  bind_action_text(layer_merge_visible_layers_action_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "&Merge Visible"));
+  bind_translated_status_tip(layer_merge_visible_layers_action_,
+                             QT_TRANSLATE_NOOP("patchy::ui::MainWindow",
+                                               "Merge every visible layer into one, keeping the hidden layers"));
+  apply_bound_translation(layer_merge_visible_layers_action_);
+  register_hotkey(layer_merge_visible_layers_action_, "layer.merge_visible_in_place",
+                  QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
+  connect(layer_merge_visible_layers_action_, &QAction::triggered, this, [this] { merge_visible_layers(); });
+  register_document_action(layer_merge_visible_layers_action_);
+  connect(layer_menu, &QMenu::aboutToShow, this, [this] { refresh_merge_visible_action_state(); });
   auto* merge_down_action = layer_menu->addAction(tr("Merge &Down"));
   merge_down_action->setObjectName(QStringLiteral("layerMergeDownAction"));
   auto* rename_layer_action = layer_menu->addAction(tr("&Rename Layer..."));
@@ -1186,10 +1216,13 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   flip_v_action->setIcon(simple_icon(QStringLiteral("FV")));
   layer_up_action->setIcon(style()->standardIcon(QStyle::SP_ArrowUp));
   layer_down_action->setIcon(style()->standardIcon(QStyle::SP_ArrowDown));
-  register_hotkey(add_layer_action, "layer.new", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N));
+  // Ctrl+Shift+N opens New Layer... since issue 275 (the ids never change, only defaults);
+  // Photoshop's Ctrl+Alt+Shift+N stays Open from Clipboard's (Seth, October 21, 2026).
+  register_hotkey(add_layer_action, "layer.new");
   register_hotkey(layer_via_copy_action, "layer.via_copy", QKeySequence(Qt::CTRL | Qt::Key_J));
   register_hotkey(layer_via_cut_action, "layer.via_cut", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_J));
-  register_hotkey(merge_visible_action, "layer.merge_visible", QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
+  // Ctrl+Shift+E is Merge Visible in place since issue 294 (Photoshop's keys for both).
+  register_hotkey(merge_visible_action, "layer.merge_visible", QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_E));
   register_hotkey(merge_down_action, "layer.merge_down", QKeySequence(Qt::CTRL | Qt::Key_E));
   register_hotkey(edit_layer_mask_action_, "layer.edit_mask", QKeySequence(Qt::CTRL | Qt::Key_Backslash));
   register_hotkey(mask_overlay_action_, "layer.mask_overlay", QKeySequence(Qt::Key_Backslash));

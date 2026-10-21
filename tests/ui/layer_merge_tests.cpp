@@ -20,6 +20,7 @@
 #include <QItemSelectionModel>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMenu>
 #include <QMessageBox>
 #include <QToolButton>
 #include <QWidget>
@@ -1503,6 +1504,229 @@ void ui_flatten_image_composites_onto_white_discards_hidden_and_undoes() {
   CHECK(window.statusBar()->currentMessage() == QStringLiteral("The image is already flat"));
 }
 
+std::vector<std::string> layer_names(const std::vector<Layer>& layers) {
+  std::vector<std::string> names;
+  for (const auto& layer : layers) { names.push_back(layer.name()); }
+  return names;
+}
+
+Layer named(Layer layer, const char* name) {
+  layer.set_name(name);
+  return layer;
+}
+
+// GitHub issue 294: Merge Visible merges every layer that draws into one pixel layer in the
+// active layer's slot, as one undo step. Hidden layers stay, a visible group's hidden members
+// come out of it, and the composite does not change (Photoshop 2026 over COM, October 2026).
+void ui_merge_visible_merges_in_place_keeps_hidden_layers_and_undoes() {
+  MainWindow window;
+  show_window(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  doc = Document(48, 40, PixelFormat::rgba8());
+  doc.add_layer(named(pixel_layer(doc, 2, 2, {180, 30, 60}), "Bottom"));
+  auto hidden = named(pixel_layer(doc, 20, 4, {0, 255, 0}), "Hidden");
+  hidden.set_visible(false);
+  const auto hidden_id = hidden.id();
+  doc.add_layer(std::move(hidden));
+  Layer group(doc.allocate_layer_id(), "Group", LayerKind::Group);
+  group.set_blend_mode(BlendMode::Normal);
+  group.set_opacity(0.75F);
+  auto inside = named(pixel_layer(doc, 10, 10, {20, 150, 90}), "Inside");
+  const auto inside_id = inside.id();
+  inside.set_color_label(kLayerColorBlue);
+  group.add_child(std::move(inside));
+  auto hidden_inside = named(pixel_layer(doc, 26, 20, {0, 0, 255}), "Hidden inside");
+  hidden_inside.set_visible(false);
+  group.add_child(std::move(hidden_inside));
+  doc.add_layer(std::move(group));
+  doc.add_layer(named(vector_layer(doc, rectangle(24, 20, 16, 12)), "Shape"));
+  auto top = named(pixel_layer(doc, 6, 14, {250, 200, 40}), "Top");
+  top.set_opacity(0.5F);
+  top.set_blend_mode(BlendMode::Multiply);
+  set_layer_locks_all(top, true);  // locks do not block Merge Visible (Photoshop)
+  doc.add_layer(std::move(top));
+  doc.set_active_layer(inside_id);
+  const Document original = doc;
+  const auto expected = qimage_from_document(original, true);
+  CHECK(merge_visible_layer_count(original) == 4U);
+  CHECK(merge_visible_target(original) == inside_id);
+  auto* canvas = require_canvas(window);
+  canvas->set_document(&doc);
+  MainWindowTestAccess::refresh_layer_ui(window);
+  auto* action = require_action(window, "layerMergeVisibleLayersAction");
+  CHECK(action->isEnabled());
+  const auto history = MainWindowTestAccess::active_session_undo_depth(window);
+
+  action->trigger();
+  CHECK(!canvas->processing_operation_active());
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == history + 1);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Merged the visible layers"));
+  const auto& layers = std::as_const(doc).layers();
+  CHECK((layer_names(layers) == std::vector<std::string>{"Hidden", "Inside", "Hidden inside"}));
+  CHECK(layers[0].id() == hidden_id && !layers[0].visible());
+  CHECK(!layers[2].visible());
+  const auto& merged = layers[1];
+  CHECK(merged.id() == inside_id && doc.active_layer_id() == inside_id);
+  CHECK(merged.kind() == LayerKind::Pixel && merged.visible() && !merged.clipped());
+  CHECK(merged.opacity() == 1.0F && merged.blend_mode() == BlendMode::Normal);
+  CHECK(merged.lock_flags() == kLayerLockNone && merged.color_label() == kLayerColorBlue);
+  CHECK(merged.pixels().format() == PixelFormat::rgba8());
+  CHECK(merged.bounds().x == 0 && merged.bounds().y == 0);
+  CHECK(merged.bounds().width == doc.width() && merged.bounds().height == doc.height());
+  check_close_images(expected, render_layer_isolated(doc, merged), 0);
+  check_close_images(expected, qimage_from_document(doc, true), 0);
+  // One visible layer is left: nothing more to merge.
+  CHECK(!action->isEnabled());
+
+  MainWindowTestAccess::undo(window);
+  CHECK(layer_names(std::as_const(doc).layers()) == layer_names(original.layers()));
+  check_close_images(expected, qimage_from_document(doc, true), 0);
+  CHECK(action->isEnabled());
+  MainWindowTestAccess::redo(window);
+  CHECK((layer_names(std::as_const(doc).layers()) == std::vector<std::string>{"Hidden", "Inside", "Hidden inside"}));
+
+  // A hidden active layer (Photoshop refuses the command) hands the slot to the topmost
+  // layer that draws.
+  MainWindowTestAccess::undo(window);
+  doc.set_active_layer(hidden_id);
+  CHECK(merge_visible_target(std::as_const(doc)) == std::as_const(doc).layers().back().id());
+}
+
+// GitHub issue 294: a visible Background takes the merge and stays the Background; a clipped
+// layer over a hidden base stays clipped to it, and one left with nothing below is released.
+// Fewer than two visible layers disable the command (Photoshop: "not currently available").
+void ui_merge_visible_background_clipping_and_disabled_state() {
+  MainWindow window;
+  show_window(window);
+  auto& doc = MainWindowTestAccess::document(window);
+  doc = Document(40, 32, PixelFormat::rgb8());
+  PixelBuffer white(40, 32, PixelFormat::rgb8());
+  white.clear(255);
+  auto& background = doc.add_pixel_layer("Background", std::move(white));
+  set_layer_locks_position(background, true);
+  set_layer_locks_transparent_pixels(background, true);
+  const auto background_id = background.id();
+  doc.add_layer(named(pixel_layer(doc, 2, 2, {180, 30, 60}), "Paint"));
+  auto base = named(pixel_layer(doc, 12, 8, {0, 255, 0}), "Hidden base");
+  base.set_visible(false);
+  doc.add_layer(std::move(base));
+  auto clip = named(pixel_layer(doc, 14, 10, {0, 0, 255}), "Clipped");
+  clip.set_clipped(true);
+  doc.add_layer(std::move(clip));
+  doc.add_layer(named(pixel_layer(doc, 20, 16, {250, 200, 40}), "Top"));
+  doc.set_active_layer(std::as_const(doc).layers().back().id());
+  const Document original = doc;
+  const auto expected = qimage_from_document(original, true);
+  CHECK(merge_visible_layer_count(original) == 3U);  // the clipped layer over a hidden base draws nothing
+  CHECK(merge_visible_target(original) == background_id);
+  auto* canvas = require_canvas(window);
+  canvas->set_document(&doc);
+  MainWindowTestAccess::refresh_layer_ui(window);
+  require_action(window, "layerMergeVisibleLayersAction")->trigger();
+  const auto& layers = std::as_const(doc).layers();
+  CHECK((layer_names(layers) == std::vector<std::string>{"Background", "Hidden base", "Clipped"}));
+  CHECK(layers[0].id() == background_id && doc.active_layer_id() == background_id);
+  CHECK(background_layer(layers, doc.width(), doc.height()) == &layers[0]);
+  CHECK(layers[0].pixels().format() == PixelFormat::rgb8());
+  CHECK(layer_locks_position(layers[0]) && layer_locks_transparent_pixels(layers[0]));
+  CHECK(layers[2].clipped());
+  check_close_images(expected, qimage_from_document(doc, true), 0);
+
+  // Background plus one hidden layer: off, and the shortcut path refuses too.
+  auto* action = require_action(window, "layerMergeVisibleLayersAction");
+  CHECK(!action->isEnabled());
+  const auto history = MainWindowTestAccess::active_session_undo_depth(window);
+  action->trigger();
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == history);
+  doc.find_layer(std::as_const(doc).layers()[1].id())->set_visible(true);
+  MainWindowTestAccess::refresh_layer_ui(window);
+  CHECK(action->isEnabled());
+
+  // Hidden clipped layer over a visible base: the base merges into Top and the clipped layer,
+  // now at the bottom, is released.
+  Document clipping(24, 20, PixelFormat::rgba8());
+  clipping.add_layer(named(pixel_layer(clipping, 2, 2, {180, 30, 60}), "Base"));
+  auto hidden_clip = named(pixel_layer(clipping, 4, 4, {0, 0, 255}), "Clip");
+  hidden_clip.set_clipped(true);
+  hidden_clip.set_visible(false);
+  clipping.add_layer(std::move(hidden_clip));
+  clipping.add_layer(named(pixel_layer(clipping, 6, 6, {250, 200, 40}), "Top"));
+  clipping.set_active_layer(clipping.layers().back().id());
+  const auto target = merge_visible_target(clipping);
+  CHECK(target == clipping.layers().back().id());
+  const auto stack = merge_visible_layer_stack(clipping, target, Layer(target, "Top", PixelBuffer(24, 20, PixelFormat::rgba8())));
+  CHECK((layer_names(stack) == std::vector<std::string>{"Clip", "Top"}));
+  CHECK(!stack[0].clipped() && !stack[0].visible());
+}
+
+Layer square_layer(Document& doc, const char* name, QRect rect, RgbColor color) {
+  PixelBuffer pixels(rect.width(), rect.height(), PixelFormat::rgba8());
+  for (int y = 0; y < rect.height(); ++y) {
+    for (int x = 0; x < rect.width(); ++x) {
+      auto* p = pixels.pixel(x, y);
+      p[0] = color.red; p[1] = color.green; p[2] = color.blue; p[3] = 255;
+    }
+  }
+  Layer layer(doc.allocate_layer_id(), name, std::move(pixels));
+  layer.set_bounds({rect.x(), rect.y(), rect.width(), rect.height()});
+  return layer;
+}
+
+// GitHub issue 294: Layer > Merge Visible sits right above Merge Down (the menu keeps its
+// 23-row bound), and the issue's before/after captures in both schemes.
+void ui_merge_visible_menu_placement_and_captures() {
+  MainWindow window;
+  show_window(window);
+  auto* layer_menu = window.findChild<QMenu*>(QStringLiteral("layerMenu"));
+  CHECK(layer_menu != nullptr);
+  const auto actions = layer_menu->actions();
+  const auto merge_visible = actions.indexOf(require_action(window, "layerMergeVisibleLayersAction"));
+  CHECK(merge_visible > 0);
+  CHECK(actions.indexOf(require_action(window, "layerMergeVisibleAction")) == merge_visible - 1);
+  CHECK(actions.indexOf(require_action(window, "layerMergeDownAction")) == merge_visible + 1);
+  CHECK(actions.size() <= 23);
+
+  auto& doc = MainWindowTestAccess::document(window);
+  doc = Document(240, 160, PixelFormat::rgb8());
+  PixelBuffer white(240, 160, PixelFormat::rgb8());
+  white.clear(255);
+  auto& background = doc.add_pixel_layer("Background", std::move(white));
+  set_layer_locks_position(background, true);
+  set_layer_locks_transparent_pixels(background, true);
+  doc.add_layer(square_layer(doc, "Red", QRect(30, 30, 80, 70), {220, 40, 50}));
+  auto hidden = square_layer(doc, "Green (hidden)", QRect(80, 50, 80, 70), {40, 180, 80});
+  hidden.set_visible(false);
+  doc.add_layer(std::move(hidden));
+  auto blue = square_layer(doc, "Blue", QRect(130, 60, 80, 70), {40, 90, 220});
+  blue.set_opacity(0.7F);
+  doc.add_layer(std::move(blue));
+  doc.set_active_layer(std::as_const(doc).layers().back().id());
+  require_canvas(window)->set_document(&doc);
+  MainWindowTestAccess::refresh_layer_ui(window);
+  QApplication::processEvents();
+  const auto capture_window = [&](const char* dark, const char* light) {
+    for (const auto scheme : {ColorSchemePreference::Dark, ColorSchemePreference::Light}) {
+      ColorSchemeRestorer restore(scheme);
+      QApplication::processEvents();
+      save_widget_artifact(scheme == ColorSchemePreference::Dark ? dark : light, window);
+    }
+  };
+  for (const auto scheme : {ColorSchemePreference::Dark, ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore(scheme);
+    layer_menu->popup(window.mapToGlobal(QPoint(120, 40)));
+    QApplication::processEvents();
+    save_widget_artifact(scheme == ColorSchemePreference::Dark ? "issue294_layer_menu_dark" : "issue294_layer_menu_light",
+                         *layer_menu);
+    layer_menu->hide();
+    QApplication::processEvents();
+  }
+  capture_window("issue294_before_dark", "issue294_before_light");
+  require_action(window, "layerMergeVisibleLayersAction")->trigger();
+  QApplication::processEvents();
+  CHECK((layer_names(std::as_const(doc).layers()) == std::vector<std::string>{"Background", "Green (hidden)"}));
+  capture_window("issue294_after_dark", "issue294_after_light");
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> layer_merge_tests() {
@@ -1517,6 +1741,10 @@ std::vector<patchy::test::TestCase> layer_merge_tests() {
       {"ui_merge_visible_copy_little_everywhere_if_available", ui_merge_visible_copy_little_everywhere_if_available},
       {"ui_flatten_image_composites_onto_white_discards_hidden_and_undoes",
        ui_flatten_image_composites_onto_white_discards_hidden_and_undoes},
+      {"ui_merge_visible_merges_in_place_keeps_hidden_layers_and_undoes",
+       ui_merge_visible_merges_in_place_keeps_hidden_layers_and_undoes},
+      {"ui_merge_visible_background_clipping_and_disabled_state", ui_merge_visible_background_clipping_and_disabled_state},
+      {"ui_merge_visible_menu_placement_and_captures", ui_merge_visible_menu_placement_and_captures},
       {"ui_layer_merge_compound_geometry_and_processing", ui_layer_merge_compound_geometry_and_processing},
       {"ui_layer_selection_little_everywhere_shift_range_if_available", ui_layer_selection_little_everywhere_shift_range_if_available},
       {"ui_layer_merge_mixed_group_keeps_vectors_order_opacity_and_psd", ui_layer_merge_mixed_group_keeps_vectors_order_opacity_and_psd},

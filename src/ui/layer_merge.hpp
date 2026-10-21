@@ -67,6 +67,18 @@ struct LayerMergePlan {
 [[nodiscard]] LayerMergePlan plan_layer_merge(const Document& document, const std::vector<LayerId>& ids,
                                              LayerMergeOptions options = {}, bool copy = false);
 [[nodiscard]] Document visible_document_for_merge_copy(const Document& document);
+// Merge Visible in place (docs/layer-merging.md, "Merge Visible"). A layer draws when it and
+// every ancestor are visible and it is not clipped to a hidden base.
+// Layers other than groups that draw; Merge Visible needs two, like Photoshop.
+[[nodiscard]] std::size_t merge_visible_layer_count(const Document& document);
+// The layer whose id, name and stack slot the merged result takes: a visible Background,
+// else the active layer when it draws, else the topmost layer that draws (0 when none does).
+[[nodiscard]] LayerId merge_visible_target(const Document& document);
+// The layer stack after Merge Visible: every layer that draws is gone and `merged` sits in
+// `target`'s slot. Visible groups dissolve, so the layers that stay (hidden ones with their
+// subtrees, clipped layers over a hidden base) keep their order at the top level, as in
+// Photoshop; a kept clipped layer left with nothing below it is released.
+[[nodiscard]] std::vector<Layer> merge_visible_layer_stack(const Document& document, LayerId target, Layer merged);
 // Prepare before arming undo. A failed bake leaves the source and history intact.
 [[nodiscard]] Document render_layer_merge(
     const Document& document, const LayerMergePlan& plan,

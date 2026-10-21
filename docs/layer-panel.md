@@ -80,6 +80,10 @@ descendant (nested folders and hidden, locked, collapsed, or filtered-out layers
 included), a selected parent and child never count a layer twice, and expanding a
 folder cannot change it (`ui_layer_selection_count`).
 
+## New Layer dialog
+
+Layer > New > New Layer... (`layerNewWithDialogAction`, id `layer.new_with_dialog`, Ctrl+Shift+N; #275) runs `request_new_layer_settings` (`src/ui/new_layer_dialog.cpp`): Name, Color (the color-label actions' names and swatches), Mode, Opacity, and Use Previous Layer to Create Clipping Mask, enabled only when the new layer would have a clip base (`effective_clip_base`). `add_layer(settings)` applies them in one undo step. New Layer (`layer.new`, no default key since #275: Photoshop's Ctrl+Alt+Shift+N stays Open from Clipboard's) and the footer button still add a layer at once. Tests: `ui_new_layer_dialog_*`.
+
 ## New adjustment layers
 
 Clipping controls and row badges use `effective_clip_base`: pixel layers and

@@ -317,6 +317,37 @@
     </message>
 </context>
 <context>
+    <name>NewLayerDialog</name>
+    <message>
+        <source>New Layer</source>
+        <translation>Neue Ebene</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>Name:</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>Farbe:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>Modus:</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Deckkraft:</translation>
+    </message>
+    <message>
+        <source>Use Previous Layer to Create Clipping Mask</source>
+        <translation>Vorherige Ebene als Schnittmaske verwenden</translation>
+    </message>
+    <message>
+        <source>Clip the new layer to the layer below it</source>
+        <translation>Die neue Ebene an der Ebene darunter beschneiden</translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Patchy raster image editor.</source>
@@ -23445,6 +23476,38 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
     <message>
         <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
         <translation>Polygon-Lasso: Klicken, um Punkte zu setzen. Mit Umschalt+Klick beginnen, um hinzuzufügen, mit %ALT%+Klick, um abzuziehen, mit Umschalt+%ALT%+Klick für die Schnittmenge. Umschalt hält 45 Grad ein, %ALT%+Ziehen zeichnet freihand. Zum Schließen auf den Startpunkt klicken, doppelklicken oder Eingabe drücken; Rücktaste entfernt den letzten Punkt, Esc bricht ab.</translation>
+    </message>
+    <message>
+        <source>New &amp;Layer...</source>
+        <translation>Neue &amp;Ebene...</translation>
+    </message>
+    <message>
+        <source>Add a layer, choosing its name, color, mode and opacity first</source>
+        <translation>Eine Ebene hinzufügen und vorher Name, Farbe, Modus und Deckkraft wählen</translation>
+    </message>
+    <message>
+        <source>&amp;Merge Visible</source>
+        <translation>Sichtbare auf eine Ebene &amp;reduzieren</translation>
+    </message>
+    <message>
+        <source>Merge every visible layer into one, keeping the hidden layers</source>
+        <translation>Alle sichtbaren Ebenen zu einer zusammenfügen, ausgeblendete Ebenen bleiben erhalten</translation>
+    </message>
+    <message>
+        <source>Merge Visible</source>
+        <translation>Sichtbare auf eine Ebene reduzieren</translation>
+    </message>
+    <message>
+        <source>Merge Visible needs at least two visible layers</source>
+        <translation>Sichtbare auf eine Ebene reduzieren braucht mindestens zwei sichtbare Ebenen</translation>
+    </message>
+    <message>
+        <source>Merge visible</source>
+        <translation>Sichtbare reduzieren</translation>
+    </message>
+    <message>
+        <source>Merged the visible layers</source>
+        <translation>Sichtbare Ebenen reduziert</translation>
     </message>
 </context>
 <context>
