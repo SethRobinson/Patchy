@@ -8,6 +8,7 @@
 #include "core/pattern_presets.hpp"
 #include "ui/theme_manager.hpp"
 #include "ui/main_window.hpp"
+#include "ui/panel_column.hpp"
 #include "ui/app_settings.hpp"
 #include "synthetic_dng.hpp"
 #include "test_harness.hpp"
@@ -4898,6 +4899,55 @@ void ui_shape_appearance_entry_points_open_the_dialog() {
   CHECK(properties_button->isHidden());
 }
 
+// GitHub issue 273: the Properties panel's Edit Appearance button stayed up after the shape
+// layer was deselected (a blank click in the Layers panel, Select > Deselect Layers).
+void ui_properties_edit_appearance_hides_when_layers_are_deselected() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  make_rect_shape_layer(window, *canvas);
+  patchy::ui::MainWindowTestAccess::show_panel(window, QStringLiteral("propertiesDock"));
+  QApplication::processEvents();
+  auto* properties_button = window.findChild<QPushButton*>(QStringLiteral("propertiesEditAppearanceButton"));
+  auto* properties = window.findChild<QWidget*>(QStringLiteral("propertiesScrollArea"));
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(properties_button != nullptr && properties != nullptr && layer_list != nullptr);
+  CHECK(!properties_button->isHidden());
+  save_widget_artifact("issue273_properties_shape_selected", *properties);
+
+  auto& doc = patchy::ui::MainWindowTestAccess::document(window);
+  const auto shape_id = doc.active_layer_id();
+  CHECK(shape_id.has_value());
+  require_action(window, "selectDeselectLayersAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!doc.active_layer_id().has_value());
+  save_widget_artifact("issue273_properties_after_deselect", *properties);
+  CHECK(properties_button->isHidden());
+
+  // Selecting the shape again brings the button back; a click on the Layers panel's blank
+  // area (Properties collapsed, so the list has room below its rows) hides it again.
+  patchy::ui::MainWindowTestAccess::panel_column(window)->set_panel_expanded(QStringLiteral("propertiesDock"), false);
+  QApplication::processEvents();
+  for (int row = 0; row < layer_list->count(); ++row) {
+    if (static_cast<patchy::LayerId>(layer_list->item(row)->data(Qt::UserRole).toULongLong()) == *shape_id) {
+      layer_list->setCurrentRow(row);
+    }
+  }
+  QApplication::processEvents();
+  CHECK(doc.active_layer_id() == shape_id);
+  CHECK(!properties_button->isHidden());
+  auto* viewport = layer_list->viewport();
+  const auto last_row = layer_list->visualItemRect(layer_list->item(layer_list->count() - 1));
+  const QPoint blank(viewport->width() / 2, std::min(viewport->height() - 4, last_row.bottom() + 30));
+  CHECK(layer_list->itemAt(blank) == nullptr);
+  send_mouse(*viewport, QEvent::MouseButtonPress, blank, Qt::LeftButton, Qt::LeftButton);
+  send_mouse(*viewport, QEvent::MouseButtonRelease, blank, Qt::LeftButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(!doc.active_layer_id().has_value());
+  CHECK(properties_button->isHidden());
+}
+
 
 // The active-shape W / H readouts belong to Shape mode: Path and Pixels have
 // no shape layer to size, and Pixels already carries the fixed-size Width /
@@ -5294,5 +5344,7 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_options_bar_mode_combo_stays_first_for_shape_tools},
       {"ui_shape_appearance_entry_points_open_the_dialog",
        ui_shape_appearance_entry_points_open_the_dialog},
+      {"ui_properties_edit_appearance_hides_when_layers_are_deselected",
+       ui_properties_edit_appearance_hides_when_layers_are_deselected},
   };
 }

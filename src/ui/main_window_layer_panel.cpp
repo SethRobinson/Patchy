@@ -1935,6 +1935,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   // Nested rows under the main row: the Smart Filter stack and the layer's effects share
   // the height, indent, eye button style and tooltip plumbing.
   constexpr int kNestedRowHeight = 26;
+  constexpr int kNestedRowSpacing = 5;
   const auto nested_button_style = QStringLiteral(
       "QToolButton { background: transparent; border: 1px solid transparent; border-radius: 3px; padding: 0; "
       "min-width: 20px; max-width: 20px; min-height: 20px; max-height: 20px; } "
@@ -1976,7 +1977,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                         layer_tree_indent_width(depth) + kLayerFolderDisclosureWidth +
                         kLayerRowHorizontalSpacing + extra_indent;
     nested_layout->setContentsMargins(indent, 1, 8, 1);
-    nested_layout->setSpacing(5);
+    nested_layout->setSpacing(kNestedRowSpacing);
     row_layout->addWidget(nested_row);
     return std::pair{nested_row, nested_layout};
   };
@@ -2710,8 +2711,13 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       }
       return on ? QObject::tr("Effect visible. Click to hide.") : QObject::tr("Effect hidden. Click to show.");
     };
+    // Each effect's eye sits under the header's eye (past its disclosure arrow, whose QSS adds
+    // a 1 px border on each side of its 18 px), so the effect names line up with "Layer Styles"
+    // (issue 256 follow-up).
+    constexpr int kEffectEntryIndent = kLayerFolderDisclosureWidth + 2 + kNestedRowSpacing;
     for (const auto& effect_row : effects_expanded ? effect_rows : std::vector<LayerEffectRow>{}) {
-      auto [entry_row, entry_layout] = make_nested_row(QStringLiteral("layerEffectEntryRow"), 14, row_tooltip);
+      auto [entry_row, entry_layout] =
+          make_nested_row(QStringLiteral("layerEffectEntryRow"), kEffectEntryIndent, row_tooltip);
       entry_row->setProperty("layerEffectKind", static_cast<int>(effect_row.effect));
       entry_row->setProperty("layerEffectIndex",
                              QVariant::fromValue<qulonglong>(static_cast<qulonglong>(effect_row.index)));
@@ -4548,8 +4554,16 @@ void MainWindow::refresh_document_info() {
   if (document_info_label_ == nullptr) {
     return;
   }
+  // The shape section's button follows the active layer on every refresh, deselection and
+  // closed documents included (GitHub issue 273).
+  const auto hide_shape_section = [this] {
+    if (properties_edit_appearance_button_ != nullptr) {
+      properties_edit_appearance_button_->setVisible(false);
+    }
+  };
 
   if (!has_active_document()) {
+    hide_shape_section();
     set_property_label_text(document_info_label_, tr("No document"));
     set_property_label_text(active_layer_info_label_, tr("Layer: No active layer"));
     for (auto* label : {active_layer_geometry_label_, active_layer_mask_label_, active_layer_adjustment_label_,
@@ -4588,6 +4602,7 @@ void MainWindow::refresh_document_info() {
   const auto active = doc.active_layer_id();
   const auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
   if (layer == nullptr) {
+    hide_shape_section();
     set_property_label_text(active_layer_info_label_, tr("Layer: No active layer"));
     for (auto* label : {active_layer_geometry_label_, active_layer_mask_label_, active_layer_adjustment_label_,
                         active_layer_text_label_, active_layer_shape_label_}) {

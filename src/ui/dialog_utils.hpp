@@ -186,6 +186,13 @@ UnitIntSpinBox* add_dialog_slider_spin_row(QFormLayout* form, QWidget* parent, c
 // clamps it inside the screen's available horizontal range and flips it above
 // the anchor when it would run past the bottom. Call before show().
 void position_popup_below(const QWidget& anchor, QWidget& popup);
+// Gives the window under the pointer the cursor of the widget there, the way Qt sets it when
+// the pointer enters that widget. A widget that changes its cursor while the pointer is in
+// another window (a popup) has Qt apply that cursor to its whole window, which then shows it
+// over every widget until the pointer crosses into another one (GitHub issue 293: the brush
+// cursor over the options bar after a quick value in a slider popup). MainWindow calls this
+// once a popup closes. Test: ui_slider_popup_close_restores_cursor_under_pointer.
+void refresh_cursor_under_pointer();
 // Pattern and gradient pickers can list hundreds of entries (a document's embedded patterns
 // ahead of the library). Fusion (the Linux desktop style) and the macOS style show a
 // non-editable combo box's list as a menu as tall as every row, placed so the current row

@@ -2063,6 +2063,33 @@ void position_popup_below(const QWidget& anchor, QWidget& popup) {
   popup.move(position);
 }
 
+void refresh_cursor_under_pointer() {
+  auto* widget = QApplication::widgetAt(QCursor::pos());
+  if (widget == nullptr) {
+    return;
+  }
+  // Qt's own rule on entering a widget: a disabled widget shows its parent's cursor, and
+  // the cursor comes from the nearest ancestor that set one, else the window's.
+  while (!widget->isWindow() && !widget->isEnabled() && widget->parentWidget() != nullptr) {
+    widget = widget->parentWidget();
+  }
+  auto* owner = widget;
+  while (!owner->isWindow() && !owner->testAttribute(Qt::WA_SetCursor) && owner->internalWinId() == 0 &&
+         owner->parentWidget() != nullptr) {
+    owner = owner->parentWidget();
+  }
+  auto* native = owner->internalWinId() != 0 ? owner : owner->nativeParentWidget();
+  auto* handle = native != nullptr ? native->windowHandle() : nullptr;
+  if (handle == nullptr) {
+    return;
+  }
+  if (owner->isWindow() || owner->testAttribute(Qt::WA_SetCursor)) {
+    handle->setCursor(owner->cursor());
+  } else {
+    handle->unsetCursor();
+  }
+}
+
 void use_scrolling_list_popup(QComboBox& combo) {
   combo.setMaxVisibleItems(kLongListPopupRows);
   // The sheet's hint wins over the style's SH_ComboBox_Popup; it cascades with (never
