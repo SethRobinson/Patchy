@@ -335,6 +335,13 @@ AppImageMenuEntryState appimage_menu_entry_state(const AppImageMenuEntryPaths& p
   return QFileInfo::exists(paths.desktop_file()) ? AppImageMenuEntryState::Added : AppImageMenuEntryState::NotAdded;
 }
 
+bool appimage_menu_entry_offer_session_allowed() {
+  if (!qEnvironmentVariableIsEmpty("CI")) {
+    return false;
+  }
+  return !qEnvironmentVariableIsEmpty("XDG_CURRENT_DESKTOP") || !qEnvironmentVariableIsEmpty("DESKTOP_SESSION");
+}
+
 QString desktop_entry_exec_argument(const QString& path) {
   // Inside double quotes the specification reserves `"`, `` ` ``, `$` and `\`, each
   // escaped with a backslash; a literal percent sign is `%%`. The value is then a

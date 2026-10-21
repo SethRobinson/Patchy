@@ -7,23 +7,27 @@
 #include "ui/appimage_menu_entry.hpp"
 #include "ui/dialog_utils.hpp"
 #include "ui/hotkey_registry.hpp"
+#include "ui/main_window_shared.hpp"
+#include "ui/theme_qss.hpp"
 
 #include <QAction>
 #include <QApplication>
-#include <QMessageBox>
+#include <QFrame>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QPointer>
 #include <QPushButton>
+#include <QSplitter>
 #include <QStatusBar>
 #include <QTimer>
+#include <QVBoxLayout>
 
 namespace patchy::ui {
 
 namespace {
 
-// Startup waits this long before offering, so the window is up and the update check's
-// answer (a modal prompt of its own) usually came first.
+// Startup waits this long before offering, so the window is up and settled first.
 constexpr int kOfferDelayMs = 2000;
-// Retried this often while another dialog is up.
-constexpr int kOfferRetryMs = 3000;
 
 AppImageMenuEntryPaths menu_entry_paths(const QString& bundled_share_override) {
   auto paths = resolve_appimage_menu_entry_paths();
@@ -40,6 +44,10 @@ void MainWindow::refresh_appimage_menu_entry_action() {
     return;
   }
   const auto state = appimage_menu_entry_state(menu_entry_paths(appimage_bundled_share_for_tests_));
+  if (state != AppImageMenuEntryState::NotAdded) {
+    // Help (or another tool) answered the question the open bar asks.
+    close_appimage_menu_entry_offer();
+  }
   appimage_menu_entry_action_->setVisible(state != AppImageMenuEntryState::Unavailable);
   appimage_menu_entry_action_->setEnabled(state == AppImageMenuEntryState::NotAdded ||
                                           state == AppImageMenuEntryState::Added);
@@ -82,47 +90,100 @@ void MainWindow::set_appimage_menu_entry(bool adding) {
 
 bool MainWindow::offer_appimage_menu_entry() {
   if (unattended_automation() || stored_appimage_menu_entry_prompt_declined() ||
+      appimage_menu_entry_offer_bar_ != nullptr || workspace_splitter_ == nullptr ||
+      centralWidget() != workspace_splitter_ ||
       appimage_menu_entry_state(menu_entry_paths(appimage_bundled_share_for_tests_)) !=
           AppImageMenuEntryState::NotAdded) {
     return false;
   }
-  QMessageBox dialog(QMessageBox::Question, tr("Applications Menu"),
-                     tr("Add Patchy to your applications menu?\n\n"
-                        "Patchy then starts from the menu and shows its own icon in the taskbar. "
-                        "This writes a menu entry and icons to your home folder.\n\n"
-                        "You can do this later from Help > Add Patchy to Applications Menu."),
-                     QMessageBox::NoButton, this);
-  dialog.setObjectName(QStringLiteral("appImageMenuEntryOfferMessageBox"));
-  dialog.setTextFormat(Qt::PlainText);
-  auto* add_button = dialog.addButton(tr("Add"), QMessageBox::AcceptRole);
-  add_button->setObjectName(QStringLiteral("appImageMenuEntryAddButton"));
-  auto* not_now_button = dialog.addButton(tr("Not Now"), QMessageBox::RejectRole);
-  not_now_button->setObjectName(QStringLiteral("appImageMenuEntryNotNowButton"));
-  auto* never_button = dialog.addButton(tr("Don't Ask Again"), QMessageBox::DestructiveRole);
-  never_button->setObjectName(QStringLiteral("appImageMenuEntryDontAskButton"));
-  dialog.setDefaultButton(add_button);
-  dialog.setEscapeButton(not_now_button);
-  run_non_modal_dialog(dialog);
-  // The offer stays open while the user works: Help may have added the entry meanwhile.
-  if (dialog.clickedButton() == add_button &&
-      appimage_menu_entry_state(menu_entry_paths(appimage_bundled_share_for_tests_)) ==
-          AppImageMenuEntryState::NotAdded) {
-    set_appimage_menu_entry(true);
-  } else if (dialog.clickedButton() == never_button) {
+  // A bar across the top of the workspace, not a dialog: nothing covers the window, and
+  // the first window a screenshot or the AppImage catalog's test captures is the main
+  // window (GitHub issue 208).
+  auto* bar = new QFrame;
+  bar->setObjectName(QStringLiteral("appImageMenuEntryOfferBar"));
+  set_themed_style(*bar, QStringLiteral("QFrame#appImageMenuEntryOfferBar { background: @info_banner_bg; border: none; "
+                                        "border-bottom: 1px solid @info_banner_border; }"
+                                        "QFrame#appImageMenuEntryOfferBar QLabel { background: transparent; "
+                                        "color: @info_banner_text; }"));
+  auto* layout = new QHBoxLayout(bar);
+  layout->setContentsMargins(10, 6, 8, 6);
+  layout->setSpacing(8);
+  auto* message = new QLabel(bar);
+  message->setObjectName(QStringLiteral("appImageMenuEntryOfferText"));
+  message->setTextFormat(Qt::PlainText);
+  message->setWordWrap(true);
+  bind_widget_text(message, QT_TR_NOOP("Add Patchy to your applications menu? It then starts from the menu and shows "
+                                       "its own icon in the taskbar. This writes a menu entry and icons to your home "
+                                       "folder. You can also do it later from Help > Add Patchy to Applications Menu."));
+  layout->addWidget(message, 1);
+  const auto add_answer = [bar, layout](const char* name, const char* text) {
+    auto* button = new QPushButton(bar);
+    button->setObjectName(QString::fromLatin1(name));
+    bind_widget_text(button, text);
+    layout->addWidget(button, 0, Qt::AlignVCenter);
+    return button;
+  };
+  auto* add_button = add_answer("appImageMenuEntryAddButton", QT_TR_NOOP("Add"));
+  auto* not_now_button = add_answer("appImageMenuEntryNotNowButton", QT_TR_NOOP("Not Now"));
+  auto* never_button = add_answer("appImageMenuEntryDontAskButton", QT_TR_NOOP("Don't Ask Again"));
+  connect(add_button, &QPushButton::clicked, this, [this] {
+    close_appimage_menu_entry_offer();
+    // The bar stays up while the user works: Help may have added the entry meanwhile.
+    if (appimage_menu_entry_state(menu_entry_paths(appimage_bundled_share_for_tests_)) ==
+        AppImageMenuEntryState::NotAdded) {
+      set_appimage_menu_entry(true);
+    }
+  });
+  connect(not_now_button, &QPushButton::clicked, this, [this] { close_appimage_menu_entry_offer(); });
+  connect(never_button, &QPushButton::clicked, this, [this] {
+    close_appimage_menu_entry_offer();
     set_stored_appimage_menu_entry_prompt_declined(true);
+  });
+
+  auto* holder = new QWidget(this);
+  holder->setObjectName(QStringLiteral("appImageMenuEntryOfferHolder"));
+  auto* holder_layout = new QVBoxLayout(holder);
+  holder_layout->setContentsMargins(0, 0, 0, 0);
+  holder_layout->setSpacing(0);
+  // Moving the workspace into the holder drops keyboard focus; give it back.
+  const QPointer<QWidget> focus = QApplication::focusWidget();
+  (void)takeCentralWidget();
+  holder_layout->addWidget(bar);
+  holder_layout->addWidget(workspace_splitter_, 1);
+  setCentralWidget(holder);
+  workspace_splitter_->show();
+  if (focus != nullptr) {
+    focus->setFocus();
   }
+  appimage_menu_entry_offer_bar_ = bar;
   return true;
 }
 
+void MainWindow::close_appimage_menu_entry_offer() {
+  if (appimage_menu_entry_offer_bar_ == nullptr) {
+    return;
+  }
+  appimage_menu_entry_offer_bar_ = nullptr;
+  auto* holder = centralWidget();
+  if (holder == nullptr || holder == workspace_splitter_) {
+    return;
+  }
+  // Called from the bar's own buttons: the holder (and the bar in it) goes later.
+  const QPointer<QWidget> focus = QApplication::focusWidget();
+  (void)takeCentralWidget();
+  setCentralWidget(workspace_splitter_);
+  workspace_splitter_->show();
+  if (focus != nullptr && workspace_splitter_->isAncestorOf(focus)) {
+    focus->setFocus();
+  }
+  holder->hide();
+  holder->deleteLater();
+}
+
 void MainWindow::schedule_appimage_menu_entry_offer(int delay_ms) {
-  QTimer::singleShot(delay_ms, this, [this] {
-    // Another dialog (the update prompt, a recovery notice) finishes first.
-    if (QApplication::activeModalWidget() != nullptr || QApplication::activePopupWidget() != nullptr) {
-      schedule_appimage_menu_entry_offer(kOfferRetryMs);
-      return;
-    }
-    (void)offer_appimage_menu_entry();
-  });
+  // The bar covers nothing, so it needs no wait for another dialog (the update prompt, a
+  // recovery notice) to finish.
+  QTimer::singleShot(delay_ms, this, [this] { (void)offer_appimage_menu_entry(); });
 }
 
 void MainWindow::begin_appimage_menu_entry_startup() {
@@ -134,7 +195,8 @@ void MainWindow::begin_appimage_menu_entry_startup() {
     } else if (result.changed && appimage_bundled_share_for_tests_.isEmpty()) {
       refresh_desktop_menu_caches(paths);
     }
-  } else if (state == AppImageMenuEntryState::NotAdded && !stored_appimage_menu_entry_prompt_declined()) {
+  } else if (state == AppImageMenuEntryState::NotAdded && !stored_appimage_menu_entry_prompt_declined() &&
+             appimage_menu_entry_offer_session_allowed()) {
     schedule_appimage_menu_entry_offer(kOfferDelayMs);
   }
   refresh_appimage_menu_entry_action();

@@ -58,6 +58,12 @@ enum class AppImageMenuEntryState {
 
 [[nodiscard]] AppImageMenuEntryState appimage_menu_entry_state(const AppImageMenuEntryPaths& paths);
 
+// True when the startup offer may appear: a desktop session (XDG_CURRENT_DESKTOP or
+// DESKTOP_SESSION set) that is not a CI run (CI unset). A bare X server, like the AppImage
+// catalog's test that captures the first window, gets no offer (GitHub issue 208).
+// Help > Add Patchy to Applications Menu does not depend on it.
+[[nodiscard]] bool appimage_menu_entry_offer_session_allowed();
+
 // The desktop file another tool wrote for a Patchy AppImage (AppImageLauncher's
 // appimagekit_*.desktop, a Gear Lever entry, any desktop file in the user's applications
 // folder whose Exec starts a Patchy .AppImage), or a com.rtsoft.patchy.desktop that
