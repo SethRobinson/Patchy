@@ -8,6 +8,13 @@ Remove Object, Align/Distribute and smart objects) are in
 [scripting-api-changes-through-2026-09-30.md](scripting-api-changes-through-2026-09-30.md).
 Every entry below is API 1.
 
+2026-10-21 (behavioral): `layer.drawStrokes` and `layer.strokePath` accept 16 and 32-bit pixel
+layers (they refused anything but 8 bits); the strokes run through the canvas brush, which paints
+at the layer's depth. The refusal now reads "Strokes require an unlocked pixel layer."
+`doc.flatten()` flattens 16 and 32-bit documents at their depth (it threw). `doc.renderPreview`
+and the connector's previews render 16 and 32-bit documents (the RGBA8 flatten threw on deep
+layers). Pinned by `ui_deep_documents_match_8_bit_after_every_operation`.
+
 2026-10-21 (additive): `patchy.ui.previewExposure` reads and sets the active 32-bit
 document's preview exposure in stops (the status bar's Exposure box, docs/high-bit-depth.md
 Phase 7), so automation can bring HDR highlights into view before a window capture.

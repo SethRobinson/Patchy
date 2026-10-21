@@ -24887,10 +24887,6 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>プレビューのオプションはオブジェクトで指定してください。</translation>
     </message>
     <message>
-        <source>Strokes require an unlocked 8-bit pixel layer.</source>
-        <translation>ストロークにはロックされていない8ビットのピクセルレイヤーが必要です。</translation>
-    </message>
-    <message>
         <source>The preview rectangle is outside the canvas.</source>
         <translation>プレビューの範囲がキャンバスの外にあります。</translation>
     </message>
@@ -25461,6 +25457,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>The preview exposure applies only to an open 32-bit document.</source>
         <translation>プレビューの露光量は開いている 32 ビットドキュメントにのみ適用されます。</translation>
+    </message>
+    <message>
+        <source>Strokes require an unlocked pixel layer.</source>
+        <translation>ストロークにはロックされていないピクセルレイヤーが必要です。</translation>
     </message>
 </context>
 <context>

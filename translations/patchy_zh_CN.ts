@@ -24751,10 +24751,6 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation>无法分配预览图像。</translation>
     </message>
     <message>
-        <source>Strokes require an unlocked 8-bit pixel layer.</source>
-        <translation>笔触需要一个未锁定的 8 位像素图层。</translation>
-    </message>
-    <message>
         <source>The stroke target changed while paused. Inspect the document before continuing.</source>
         <translation>暂停期间笔触目标已更改。请先检查文档再继续。</translation>
     </message>
@@ -25461,6 +25457,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>The preview exposure applies only to an open 32-bit document.</source>
         <translation>预览曝光度仅适用于已打开的 32 位文档。</translation>
+    </message>
+    <message>
+        <source>Strokes require an unlocked pixel layer.</source>
+        <translation>笔触需要一个未锁定的像素图层。</translation>
     </message>
 </context>
 <context>

@@ -24747,10 +24747,6 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Strokes require an unlocked 8-bit pixel layer.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>The stroke target changed while paused. Inspect the document before continuing.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -25456,6 +25452,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     </message>
     <message>
         <source>The preview exposure applies only to an open 32-bit document.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Strokes require an unlocked pixel layer.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

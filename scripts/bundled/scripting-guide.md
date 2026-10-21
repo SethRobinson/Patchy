@@ -222,7 +222,8 @@ Selection operations include replace/add/subtract/intersect. `toPath` fits the
 existing selection outline and returns geometry without storing it. Quick Mask
 must be exited before path-to-selection conversion.
 
-To paint on pixels, explicitly target an unlocked 8-bit pixel layer and call
+To paint on pixels, explicitly target an unlocked pixel layer (8-bit for `fillPath`;
+strokes paint 16 and 32-bit layers at their depth) and call
 `layer.fillPath(path,{paint:'#ffaa77',opacity:1})` or
 `layer.strokePath(path,{color:'#733f32',size:4,seed:0})`. Fill accepts all native
 paints, and stroke uses the documented native Brush/Eraser options plus pressure.
