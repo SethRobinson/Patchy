@@ -5005,6 +5005,13 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
       watched->objectName() == QStringLiteral("textSizePopup")) {
     QTimer::singleShot(0, this, [this] { return_keyboard_to_text_editor(); });
   }
+  // A canvas cursor change made while a popup had the pointer (a slider popup's quick value,
+  // a brush tip pick) lands on the whole main window; put back the cursor of what is under
+  // the pointer once the popup is gone (GitHub issue 293).
+  if (event->type() == QEvent::Hide && watched->isWidgetType() &&
+      static_cast<QWidget*>(watched)->windowType() == Qt::Popup) {
+    QTimer::singleShot(0, this, [] { refresh_cursor_under_pointer(); });
+  }
   if (handle_spacebar_canvas_pan_event(watched, event)) {
     return true;
   }

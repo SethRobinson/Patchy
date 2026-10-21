@@ -30,6 +30,7 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QCursor>
 #include <QDialog>
 #include <QDoubleSpinBox>
 #include <QFileInfo>
@@ -53,6 +54,7 @@
 #include <QVariant>
 #include <QWheelEvent>
 #include <QWidget>
+#include <QWindow>
 #include <algorithm>
 #include <atomic>
 #include <array>
@@ -2456,6 +2458,77 @@ void ui_slider_popup_dismissing_press_paints() {
     CHECK(reopened == nullptr || !reopened->isVisible());
   }
 }
+// GitHub issue 293: a quick value picked in a slider popup redraws the canvas cursor while
+// the pointer is in the popup, and Qt hands that cursor to the whole main window (Qt's
+// qt_qpa_set_cursor applies a widget's cursor to its window when the last widget the pointer
+// entered is in another window). Closing the popup gives the window back the cursor of the
+// widget under the pointer. On Windows nothing else does: the pointer already crossed back
+// over the bar while the popup held the grab, so no enter event follows the closing click.
+// The offscreen platform does send the main window an Enter when a popup hides, which would
+// reset the cursor by itself, so the test drops that one platform event to behave like Windows.
+void ui_slider_popup_close_restores_cursor_under_pointer() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  auto* canvas = require_canvas(window);
+  canvas->set_brush_size(20);  // a drawn brush cursor, not the large-brush crosshair
+  QApplication::processEvents();
+  auto* handle = window.windowHandle();
+  CHECK(handle != nullptr);
+  if (handle == nullptr) {
+    return;
+  }
+  struct DropWindowEnter final : QObject {
+    QWindow* window{nullptr};
+    bool eventFilter(QObject* watched, QEvent* event) override {
+      return watched == window && event->type() == QEvent::Enter;
+    }
+  };
+  for (const auto* base_name : {"brushSoftness", "brushSize"}) {
+    auto* spin = window.findChild<QSpinBox*>(QLatin1String(base_name) + QStringLiteral("Spin"));
+    CHECK(spin != nullptr);
+    if (spin == nullptr) {
+      continue;
+    }
+    // The pointer rests on the field, left of its chevron.
+    const auto on_field = spin->mapToGlobal(QPoint(6, spin->height() / 2));
+    QCursor::setPos(on_field);
+    QApplication::processEvents();
+    auto* action = window.findChild<QAction*>(QLatin1String(base_name) + QStringLiteral("PopupAction"));
+    CHECK(action != nullptr);
+    action->trigger();
+    QApplication::processEvents();
+    auto* popup = window.findChild<QFrame*>(QLatin1String(base_name) + QStringLiteral("Popup"));
+    CHECK(popup != nullptr && popup->isVisible());
+    QPushButton* quick = nullptr;
+    for (auto* button : popup->findChildren<QPushButton*>()) {
+      if (button->objectName().startsWith(QLatin1String(base_name) + QStringLiteral("Quick")) &&
+          button->text() != spin->text()) {
+        quick = button;
+        break;
+      }
+    }
+    CHECK(quick != nullptr && popup->windowHandle() != nullptr);
+    // Through the popup's window, as a real pointer: Qt sees it enter the button.
+    const auto quick_point = quick->mapTo(popup, quick->rect().center());
+    QTest::mouseMove(popup->windowHandle(), quick_point);
+    QTest::mouseClick(popup->windowHandle(), Qt::LeftButton, Qt::NoModifier, quick_point);
+    QApplication::processEvents();
+    CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+    CHECK(handle->cursor().shape() == Qt::BitmapCursor);  // the leak itself
+    CHECK(QApplication::widgetAt(QCursor::pos()) != nullptr &&
+          QApplication::widgetAt(QCursor::pos())->window() == &window);
+
+    DropWindowEnter drop_enter;
+    drop_enter.window = handle;
+    qApp->installEventFilter(&drop_enter);
+    popup->close();
+    QApplication::processEvents();
+    qApp->removeEventFilter(&drop_enter);
+    CHECK(window.findChild<QFrame*>(QLatin1String(base_name) + QStringLiteral("Popup")) == nullptr);
+    CHECK(handle->cursor().shape() != Qt::BitmapCursor);
+  }
+}
 // Esc while typing in an options-bar field puts back the value from before the edit, and
 // the tool follows it back (GitHub issue 186); Enter keeps the typed value, after which Esc
 // has nothing to undo.
@@ -3372,6 +3445,7 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_brush_flow_popup_slider_updates_canvas",
        ui_brush_flow_popup_slider_updates_canvas},
       {"ui_slider_popup_dismissing_press_paints", ui_slider_popup_dismissing_press_paints},
+      {"ui_slider_popup_close_restores_cursor_under_pointer", ui_slider_popup_close_restores_cursor_under_pointer},
       {"ui_options_bar_field_escape_reverts_the_edit", ui_options_bar_field_escape_reverts_the_edit},
       {"ui_size_sliders_give_the_low_end_most_of_the_track",
        ui_size_sliders_give_the_low_end_most_of_the_track},
