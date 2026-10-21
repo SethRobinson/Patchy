@@ -1,0 +1,11 @@
+# Background layer
+
+Read this before changing the Background layer's rules, its Layers panel row or menu, or how PSD files mark one. Layer row conventions stay in [layer-panel.md](layer-panel.md); the Background's locks and the Eraser under them are in [tools.md](tools.md).
+
+Photoshop's Background (#274) is `background_layer` (core/layer_metadata.hpp): the bottom top-level pixel layer with no alpha, bounds exactly the canvas, position locked. File > New and Flatten Image make one; the PSD reader adopts Photoshop's (`adopt_photoshop_background`: a bottom record with no transparency channel is expanded to the canvas over white whatever the background color and given position and transparency locks; Photoshop also renames it "Background", Patchy keeps the record's name, Photoshop 2026 over COM on ag-psd's float-size sample), and the writer emits it without a transparency channel, so it round-trips. Opened flat images stay unlocked, ordinary layers (issue 97).
+
+Every stack change goes through `refuse_background_stack_change` / `layer_stack_keeps_background` (panel drops and Alt-drop copies, the list reorder, Move Layer Up/Down; grouping it is refused), and it takes no layer styles (`can_edit_layer_styles`, `edit_active_layer_style`, Paste Layer Style).
+
+Its row shows one padlock badge (property `layerBackgroundBadge`, tooltip "Background: ...") in place of the transparency, position and auto-nest badges (Seth declined Photoshop's italic name). A right-click on it alone opens `show_background_context_menu`: Layer from Background (`layer_from_background`: clears those locks, names it "Layer 0", one undo step), Duplicate, Delete (only with another layer), Convert to Smart Object, Merge Visible and Merge Visible to New Layer (Copy) (both only with another visible layer), Flatten Image. Merge Visible with the Background visible merges into it and keeps it the Background ([layer-merging.md](layer-merging.md#merge-visible)).
+
+Tests: `layer_background_rule_matches_photoshop_background`, `psd_bottom_record_without_transparency_reads_as_background`, `psd_ag_psd_float_size_background_fills_the_canvas_if_available`, `ui_background_layer_stays_at_bottom_and_takes_no_styles`, `ui_background_layer_marker_and_short_menu`.

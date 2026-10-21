@@ -317,6 +317,37 @@
     </message>
 </context>
 <context>
+    <name>NewLayerDialog</name>
+    <message>
+        <source>New Layer</source>
+        <translation>新規レイヤー</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>名前:</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>カラー:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>描画モード:</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>不透明度:</translation>
+    </message>
+    <message>
+        <source>Use Previous Layer to Create Clipping Mask</source>
+        <translation>下のレイヤーでクリッピングマスクを作成</translation>
+    </message>
+    <message>
+        <source>Clip the new layer to the layer below it</source>
+        <translation>新しいレイヤーを下のレイヤーでクリップします</translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Rotate Canvas</source>
@@ -11501,6 +11532,46 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source> (Amount %1%, Radius %2 px, Legacy)</source>
         <translation> (量 %1%、半径 %2 px、従来)</translation>
     </message>
+    <message>
+        <source>Undo</source>
+        <translation>元に戻す</translation>
+    </message>
+    <message>
+        <source>Redo</source>
+        <translation>やり直し</translation>
+    </message>
+    <message>
+        <source>Rate:</source>
+        <translation>レート:</translation>
+    </message>
+    <message>
+        <source>How fast the brush keeps working while it is held still</source>
+        <translation>ブラシを止めている間に効果が続く速さ</translation>
+    </message>
+    <message>
+        <source>Stylus Pressure</source>
+        <translation>筆圧</translation>
+    </message>
+    <message>
+        <source>Show Mesh</source>
+        <translation>メッシュを表示</translation>
+    </message>
+    <message>
+        <source>Reconstruct...</source>
+        <translation>再構築...</translation>
+    </message>
+    <message>
+        <source>Amount:</source>
+        <translation>量:</translation>
+    </message>
+    <message>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
+        <translation>背景: スタックの一番下にとどまり、透明部分もレイヤースタイルも持てません。右クリックして「背景からレイヤーへ」を選ぶと通常のレイヤーになります。</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>多角形選択</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13156,6 +13227,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Deselect Shapes</source>
         <translation>シェイプの選択を解除</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>多角形選択</translation>
     </message>
 </context>
 <context>
@@ -22857,10 +22932,6 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <translation>楕円形選択: ドラッグして選択します。Shift+ドラッグで追加、%ALT%+ドラッグで削除、Shift+%ALT%+ドラッグで共通範囲を選択します。選択範囲がないときは、Shiftで正円、%ALT%で中心から描きます。</translation>
     </message>
     <message>
-        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects.</source>
-        <translation>なげなわ: 範囲を囲むようにドラッグして選択します。Shift+ドラッグで追加、%ALT%+ドラッグで削除、Shift+%ALT%+ドラッグで共通範囲を選択します。</translation>
-    </message>
-    <message>
         <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
         <translation>マグネット選択: エッジをクリックしてなぞり、クリックでポイントを固定します。開始時にShift+クリックで追加、%ALT%+クリックで削除、Shift+%ALT%+クリックで共通範囲になります。Backspaceで最後のポイントを削除、Enterで閉じ、Escでキャンセルします。</translation>
     </message>
@@ -23289,6 +23360,82 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Transform Controls</source>
         <translation>変形コントロール</translation>
+    </message>
+    <message>
+        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
+        <translation>アートボードは消去できません。選択を解除してから Delete キーでアートボードを削除してください。</translation>
+    </message>
+    <message>
+        <source>Deleted artboard</source>
+        <translation>アートボードを削除しました</translation>
+    </message>
+    <message>
+        <source>Deleted %1 artboards</source>
+        <translation>%1 個のアートボードを削除しました</translation>
+    </message>
+    <message>
+        <source>The Background layer cannot go inside a folder</source>
+        <translation>背景レイヤーはフォルダーに入れられません</translation>
+    </message>
+    <message>
+        <source>The Background layer stays at the bottom of the stack</source>
+        <translation>背景レイヤーはスタックの一番下にとどまります</translation>
+    </message>
+    <message>
+        <source>Layer from Background</source>
+        <translation>背景からレイヤーへ</translation>
+    </message>
+    <message>
+        <source>The Background layer cannot have layer styles</source>
+        <translation>背景レイヤーにはレイヤースタイルを適用できません</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>多角形選択</translation>
+    </message>
+    <message>
+        <source>Click to place points, Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close.</source>
+        <translation>クリックでポイントを置きます。Shiftで45度に固定、%ALT%+ドラッグでフリーハンドで描きます。開始点をクリック、ダブルクリック、またはEnterで閉じます。</translation>
+    </message>
+    <message>
+        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
+        <translation>なげなわ: 範囲を囲むようにドラッグして選択します。Shift+ドラッグで追加、%ALT%+ドラッグで削除、Shift+%ALT%+ドラッグで共通範囲を選択します。ドラッグ中に%ALT%を押してボタンを離すと、%ALT%を離すまでクリックで直線を描けます。</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
+        <translation>多角形選択: クリックでポイントを置きます。開始時にShift+クリックで追加、%ALT%+クリックで削除、Shift+%ALT%+クリックで共通範囲になります。Shiftで45度に固定、%ALT%+ドラッグでフリーハンドで描きます。開始点をクリック、ダブルクリック、またはEnterで閉じ、Backspaceで最後のポイントを削除、Escでキャンセルします。</translation>
+    </message>
+    <message>
+        <source>New &amp;Layer...</source>
+        <translation>新規レイヤー(&amp;L)...</translation>
+    </message>
+    <message>
+        <source>Add a layer, choosing its name, color, mode and opacity first</source>
+        <translation>名前、カラー、描画モード、不透明度を決めてからレイヤーを追加</translation>
+    </message>
+    <message>
+        <source>&amp;Merge Visible</source>
+        <translation>表示レイヤーを結合(&amp;M)</translation>
+    </message>
+    <message>
+        <source>Merge every visible layer into one, keeping the hidden layers</source>
+        <translation>表示中のレイヤーをすべて 1 つに結合し、非表示のレイヤーは残します</translation>
+    </message>
+    <message>
+        <source>Merge Visible</source>
+        <translation>表示レイヤーを結合</translation>
+    </message>
+    <message>
+        <source>Merge Visible needs at least two visible layers</source>
+        <translation>表示レイヤーを結合するには表示中のレイヤーが 2 つ以上必要です</translation>
+    </message>
+    <message>
+        <source>Merge visible</source>
+        <translation>表示レイヤーを結合</translation>
+    </message>
+    <message>
+        <source>Merged the visible layers</source>
+        <translation>表示レイヤーを結合しました</translation>
     </message>
 </context>
 <context>

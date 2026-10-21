@@ -30,6 +30,7 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QCursor>
 #include <QDialog>
 #include <QDoubleSpinBox>
 #include <QFileInfo>
@@ -53,6 +54,7 @@
 #include <QVariant>
 #include <QWheelEvent>
 #include <QWidget>
+#include <QWindow>
 #include <algorithm>
 #include <atomic>
 #include <array>
@@ -2109,7 +2111,10 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(require_action(window, "selectGrowAction") != nullptr);
   CHECK(require_action(window, "selectSimilarAction") != nullptr);
   CHECK(require_action(window, "layerEditAdjustmentAction") != nullptr);
-  CHECK(require_action_by_text(window, QStringLiteral("New Layer"))->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N));
+  // GitHub issues 275, 294: the dialog on Ctrl+Shift+N; New Layer without it has no default key.
+  CHECK(require_action_by_text(window, QStringLiteral("New Layer..."))->shortcut() ==
+        QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N));
+  CHECK(require_action_by_text(window, QStringLiteral("New Layer"))->shortcut().isEmpty());
   CHECK(require_action_by_text(window, QStringLiteral("Layer Via Copy"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_J));
   CHECK(require_action_by_text(window, QStringLiteral("Layer Via Cut"))->shortcut() ==
         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_J));
@@ -2117,8 +2122,10 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(require_action(window, "layerFillForegroundAction")->shortcut() == QKeySequence(Qt::ALT | Qt::Key_Backspace));
   CHECK(require_action(window, "layerFillBackgroundAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_Backspace));
   CHECK(require_action_by_text(window, QStringLiteral("Merge Down"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_E));
-  CHECK(require_action_by_text(window, QStringLiteral("Merge Visible to New Layer (Copy)"))->shortcut() ==
+  CHECK(require_action_by_text(window, QStringLiteral("Merge Visible"))->shortcut() ==
         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
+  CHECK(require_action_by_text(window, QStringLiteral("Merge Visible to New Layer (Copy)"))->shortcut() ==
+        QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_E));
   CHECK(require_action(window, "imageSizeAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_I));
   CHECK(require_action_by_text(window, QStringLiteral("Canvas Size..."))->shortcut() ==
         QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_C));
@@ -2456,6 +2463,77 @@ void ui_slider_popup_dismissing_press_paints() {
     CHECK(reopened == nullptr || !reopened->isVisible());
   }
 }
+// GitHub issue 293: a quick value picked in a slider popup redraws the canvas cursor while
+// the pointer is in the popup, and Qt hands that cursor to the whole main window (Qt's
+// qt_qpa_set_cursor applies a widget's cursor to its window when the last widget the pointer
+// entered is in another window). Closing the popup gives the window back the cursor of the
+// widget under the pointer. On Windows nothing else does: the pointer already crossed back
+// over the bar while the popup held the grab, so no enter event follows the closing click.
+// The offscreen platform does send the main window an Enter when a popup hides, which would
+// reset the cursor by itself, so the test drops that one platform event to behave like Windows.
+void ui_slider_popup_close_restores_cursor_under_pointer() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  auto* canvas = require_canvas(window);
+  canvas->set_brush_size(20);  // a drawn brush cursor, not the large-brush crosshair
+  QApplication::processEvents();
+  auto* handle = window.windowHandle();
+  CHECK(handle != nullptr);
+  if (handle == nullptr) {
+    return;
+  }
+  struct DropWindowEnter final : QObject {
+    QWindow* window{nullptr};
+    bool eventFilter(QObject* watched, QEvent* event) override {
+      return watched == window && event->type() == QEvent::Enter;
+    }
+  };
+  for (const auto* base_name : {"brushSoftness", "brushSize"}) {
+    auto* spin = window.findChild<QSpinBox*>(QLatin1String(base_name) + QStringLiteral("Spin"));
+    CHECK(spin != nullptr);
+    if (spin == nullptr) {
+      continue;
+    }
+    // The pointer rests on the field, left of its chevron.
+    const auto on_field = spin->mapToGlobal(QPoint(6, spin->height() / 2));
+    QCursor::setPos(on_field);
+    QApplication::processEvents();
+    auto* action = window.findChild<QAction*>(QLatin1String(base_name) + QStringLiteral("PopupAction"));
+    CHECK(action != nullptr);
+    action->trigger();
+    QApplication::processEvents();
+    auto* popup = window.findChild<QFrame*>(QLatin1String(base_name) + QStringLiteral("Popup"));
+    CHECK(popup != nullptr && popup->isVisible());
+    QPushButton* quick = nullptr;
+    for (auto* button : popup->findChildren<QPushButton*>()) {
+      if (button->objectName().startsWith(QLatin1String(base_name) + QStringLiteral("Quick")) &&
+          button->text() != spin->text()) {
+        quick = button;
+        break;
+      }
+    }
+    CHECK(quick != nullptr && popup->windowHandle() != nullptr);
+    // Through the popup's window, as a real pointer: Qt sees it enter the button.
+    const auto quick_point = quick->mapTo(popup, quick->rect().center());
+    QTest::mouseMove(popup->windowHandle(), quick_point);
+    QTest::mouseClick(popup->windowHandle(), Qt::LeftButton, Qt::NoModifier, quick_point);
+    QApplication::processEvents();
+    CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+    CHECK(handle->cursor().shape() == Qt::BitmapCursor);  // the leak itself
+    CHECK(QApplication::widgetAt(QCursor::pos()) != nullptr &&
+          QApplication::widgetAt(QCursor::pos())->window() == &window);
+
+    DropWindowEnter drop_enter;
+    drop_enter.window = handle;
+    qApp->installEventFilter(&drop_enter);
+    popup->close();
+    QApplication::processEvents();
+    qApp->removeEventFilter(&drop_enter);
+    CHECK(window.findChild<QFrame*>(QLatin1String(base_name) + QStringLiteral("Popup")) == nullptr);
+    CHECK(handle->cursor().shape() != Qt::BitmapCursor);
+  }
+}
 // Esc while typing in an options-bar field puts back the value from before the edit, and
 // the tool follows it back (GitHub issue 186); Enter keeps the typed value, after which Esc
 // has nothing to undo.
@@ -2751,6 +2829,50 @@ void ui_hotkey_override_applies_at_startup() {
     CHECK(undo_command->action != nullptr);
     CHECK(undo_command->action->shortcuts().size() == 2);
   }
+}
+// GitHub issues 275 and 294 moved defaults, never ids: New Layer (layer.new) lost Ctrl+Shift+N
+// and has no default key, Merge Visible to New Layer (layer.merge_visible) took Ctrl+Alt+Shift+E,
+// and their old keys went to the new layer.new_with_dialog and layer.merge_visible_in_place. A user who saved the old key back
+// on an old command keeps it; the new command's default yields instead of colliding.
+void ui_new_layer_and_merge_visible_keys_moved_defaults_only() {
+  HotkeySettingsGroupRestorer restore_hotkeys;
+  clear_hotkey_overrides();
+  {
+    patchy::ui::MainWindow window;
+    const auto& registry = window.hotkey_registry();
+    const auto default_of = [&registry](const char* id) {
+      const auto* command = registry.find_command(QLatin1String(id));
+      return command != nullptr && !command->default_shortcuts.isEmpty() ? command->default_shortcuts.front()
+                                                                         : QKeySequence();
+    };
+    CHECK(require_hotkey_action(window, QStringLiteral("layer.new")) == require_action(window, "layerNewAction"));
+    CHECK(require_hotkey_action(window, QStringLiteral("layer.merge_visible")) ==
+          require_action(window, "layerMergeVisibleAction"));
+    CHECK(default_of("layer.new").isEmpty());
+    CHECK(default_of("layer.new_with_dialog") == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N));
+    CHECK(default_of("layer.merge_visible") == QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_E));
+    CHECK(default_of("layer.merge_visible_in_place") == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
+    CHECK(default_of("file.open_clipboard") == QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_N));
+  }
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("hotkeys/layer.new"), QStringLiteral("Ctrl+Shift+N"));
+    settings.setValue(QStringLiteral("hotkeys/layer.merge_visible"), QStringLiteral("Ctrl+Shift+E"));
+    settings.sync();
+  }
+  patchy::ui::MainWindow window;
+  CHECK(require_action(window, "layerNewAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N));
+  CHECK(require_action(window, "layerNewWithDialogAction")->shortcut().isEmpty());
+  CHECK(require_action(window, "layerMergeVisibleAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
+  CHECK(require_action(window, "layerMergeVisibleLayersAction")->shortcut().isEmpty());
+  int yielded = 0;
+  for (const auto& suppression : window.hotkey_registry().resolution().suppressions) {
+    yielded += (suppression.id == QStringLiteral("layer.new_with_dialog") &&
+                suppression.winner_id == QStringLiteral("layer.new")) ||
+               (suppression.id == QStringLiteral("layer.merge_visible_in_place") &&
+                suppression.winner_id == QStringLiteral("layer.merge_visible"));
+  }
+  CHECK(yielded == 2);
 }
 // The Hotkeys page is not the last Preferences tab everywhere (Windows appends
 // Plug-ins after it), and its editor panel is built on the first visit, so
@@ -3372,11 +3494,13 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_brush_flow_popup_slider_updates_canvas",
        ui_brush_flow_popup_slider_updates_canvas},
       {"ui_slider_popup_dismissing_press_paints", ui_slider_popup_dismissing_press_paints},
+      {"ui_slider_popup_close_restores_cursor_under_pointer", ui_slider_popup_close_restores_cursor_under_pointer},
       {"ui_options_bar_field_escape_reverts_the_edit", ui_options_bar_field_escape_reverts_the_edit},
       {"ui_size_sliders_give_the_low_end_most_of_the_track",
        ui_size_sliders_give_the_low_end_most_of_the_track},
       {"ui_hotkey_resolution_rules", ui_hotkey_resolution_rules},
       {"ui_hotkey_defaults_have_no_conflicts", ui_hotkey_defaults_have_no_conflicts},
+      {"ui_new_layer_and_merge_visible_keys_moved_defaults_only", ui_new_layer_and_merge_visible_keys_moved_defaults_only},
       {"ui_tool_cycle_yields_to_member_override", ui_tool_cycle_yields_to_member_override},
       {"ui_hotkey_override_applies_at_startup", ui_hotkey_override_applies_at_startup},
       {"ui_preferences_builds_hotkey_editor_on_first_visit", ui_preferences_builds_hotkey_editor_on_first_visit},

@@ -12,6 +12,7 @@
 #include "ui/curved_slider.hpp"
 #include "ui/gradient_library.hpp"
 #include "ui/main_window.hpp"
+#include "ui/new_document_dialog.hpp"
 #include "ui/options_flow_layout.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/zoomable_image_preview.hpp"
@@ -447,6 +448,278 @@ void ui_options_bar_keeps_one_height_across_tools() {
       CHECK(common_height == single_row_height);
     }
   }
+}
+
+// The active tool's controls left to right, one token each: "|" for a separator, a
+// label's text, a mode button's action name, otherwise the widget's object name.
+std::vector<QString> options_row_tokens(QWidget& options) {
+  std::vector<QWidget*> visible;
+  for (auto* child : options.findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+    if (child->isVisible()) {
+      visible.push_back(child);
+    }
+  }
+  std::sort(visible.begin(), visible.end(), [](QWidget* a, QWidget* b) {
+    const auto key = [](QWidget* widget) { return std::make_pair(widget->geometry().center().y() / 20, widget->x()); };
+    return key(a) < key(b);
+  });
+  std::vector<QString> tokens;
+  for (auto* child : visible) {
+    const auto* label = qobject_cast<QLabel*>(child);
+    const auto* button = qobject_cast<QToolButton*>(child);
+    if (child->objectName() == QLatin1String("optionSeparator")) {
+      tokens.push_back(QStringLiteral("|"));
+    } else if (!child->objectName().isEmpty()) {
+      tokens.push_back(child->objectName());
+    } else if (label != nullptr) {
+      tokens.push_back(label->text());
+    } else if (button != nullptr && button->defaultAction() != nullptr) {
+      tokens.push_back(button->defaultAction()->objectName());
+    } else {
+      tokens.push_back(QString::fromLatin1(child->metaObject()->className()));
+    }
+  }
+  return tokens;
+}
+
+// GitHub issues 286, 290, 291 and 292: separators group the selection tools' options, the
+// Magic Wand spells out Tolerance, Quick Select's Size comes first, and the marquee pairs get
+// a swap button for Fixed Ratio and Fixed Size. Every one of these bars still fits one row at
+// 1366 px. The artifacts are the issue shots, in both schemes.
+void ui_selection_options_bars_group_their_controls() {
+  patchy::ai::set_downloaded_model_directory(std::filesystem::current_path() / "ai-models-none");
+  patchy::ui::configure_automatic_selection_models();
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.resize(1366, 738);
+    auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+    auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+    auto* style = window.findChild<QComboBox*>(QStringLiteral("selectionStyleCombo"));
+    CHECK(options_bar != nullptr && options != nullptr && style != nullptr);
+    if (options_bar == nullptr || options == nullptr || style == nullptr) {
+      return;
+    }
+    const QString separator = QStringLiteral("|");
+    const auto row = [&](const char* what) {
+      QApplication::processEvents();
+      process_events_for(20);
+      auto tokens = options_row_tokens(*options);
+      std::printf("  %-34s", what);
+      for (const auto& token : tokens) {
+        std::printf(" %s", qPrintable(token));
+      }
+      std::printf("\n");
+      const auto [right, lines] = options_row_extent(*options);
+      if (lines != 1) {
+        std::fprintf(stderr, "  %s takes %d lines at 1366 px (row %d px)\n", what, lines, right);
+      }
+      CHECK(lines == 1);
+      return tokens;
+    };
+    const auto at = [](const std::vector<QString>& tokens, const QString& token) {
+      const auto found = std::find(tokens.begin(), tokens.end(), token);
+      return found == tokens.end() ? -1 : static_cast<int>(found - tokens.begin());
+    };
+    const auto next_to = [&at](const std::vector<QString>& tokens, const QString& left, const QString& right) {
+      const int index = at(tokens, left);
+      return index >= 0 && index + 1 < static_cast<int>(tokens.size()) && tokens[index + 1] == right;
+    };
+    const auto separated_before = [&at, &separator](const std::vector<QString>& tokens, const QString& token) {
+      const int index = at(tokens, token);
+      return index > 0 && tokens[index - 1] == separator;
+    };
+    const auto shot = [&](const std::string& name) { save_widget_artifact(name + suffix, *options_bar); };
+
+    // Marquee and Elliptical Marquee: Feather and Anti-alias | Radius and Style | the pair.
+    const std::array<const char*, 3> style_names{"normal", "fixed_ratio", "fixed_size"};
+    for (const char* tool : {"toolMarqueeAction", "toolEllipticalMarqueeAction"}) {
+      require_action(window, tool)->trigger();
+      for (int index = 0; index < 3; ++index) {
+        style->setCurrentIndex(index);
+        const auto tokens = row(tool);
+        CHECK(next_to(tokens, QStringLiteral("selectionAntiAliasCheck"), separator));
+        const bool rectangular = std::string_view(tool) == "toolMarqueeAction";
+        CHECK(separated_before(tokens, rectangular ? QStringLiteral("Radius") : QStringLiteral("Style")));
+        CHECK(separated_before(tokens, QStringLiteral("Width")));
+        auto* ratio_swap = window.findChild<QAbstractButton*>(QStringLiteral("selectionRatioSwapButton"));
+        auto* size_swap = window.findChild<QAbstractButton*>(QStringLiteral("selectionFixedSizeSwapButton"));
+        CHECK(ratio_swap != nullptr && size_swap != nullptr);
+        CHECK((at(tokens, QStringLiteral("selectionRatioSwapButton")) >= 0) == (index == 1));
+        CHECK((at(tokens, QStringLiteral("selectionFixedSizeSwapButton")) >= 0) == (index == 2));
+        if (index == 1) {
+          CHECK(next_to(tokens, QStringLiteral("selectionRatioWidthSpin"), QStringLiteral("selectionRatioSwapButton")));
+          CHECK(next_to(tokens, QStringLiteral("selectionRatioSwapButton"), QStringLiteral("Height")));
+        }
+        if (index == 2) {
+          CHECK(next_to(tokens, QStringLiteral("selectionFixedWidthSpin"),
+                        QStringLiteral("selectionFixedSizeSwapButton")));
+          CHECK(next_to(tokens, QStringLiteral("selectionFixedSizeSwapButton"), QStringLiteral("Height")));
+        }
+        if (rectangular) {
+          shot(std::string("issue_286_marquee_options_bar_") + style_names[static_cast<std::size_t>(index)]);
+        } else if (index == 2) {
+          shot("issue_286_elliptical_marquee_options_bar_fixed_size");
+        }
+      }
+    }
+    style->setCurrentIndex(0);
+
+    // Magic Wand: Tolerance spelled out and set apart; Contiguous keeps its name.
+    require_action(window, "toolMagicWandAction")->trigger();
+    {
+      const auto tokens = row("toolMagicWandAction");
+      CHECK(next_to(tokens, QStringLiteral("Tolerance"), QStringLiteral("wandToleranceSpin")));
+      CHECK(next_to(tokens, QStringLiteral("wandToleranceSpin"), separator));
+      auto* contiguous = window.findChild<QCheckBox*>(QStringLiteral("wandContiguousCheck"));
+      CHECK(contiguous != nullptr && contiguous->text() == QStringLiteral("Contiguous"));
+      shot("issue_290_magic_wand_options_bar");
+    }
+
+    // Quick Select: Size | Feather | the checkboxes (no Anti-alias, as in Photoshop).
+    require_action(window, "toolQuickSelectAction")->trigger();
+    {
+      const auto tokens = row("toolQuickSelectAction");
+      const int size = at(tokens, QStringLiteral("Size"));
+      const int feather = at(tokens, QStringLiteral("selectionFeatherLabel"));
+      CHECK(size >= 0 && feather > size);
+      CHECK(next_to(tokens, QStringLiteral("Size"), QStringLiteral("quickSelectSizeSpin")));
+      CHECK(separated_before(tokens, QStringLiteral("selectionFeatherLabel")));
+      CHECK(next_to(tokens, QStringLiteral("selectionFeatherSpin"), separator));
+      CHECK(at(tokens, QStringLiteral("selectionAntiAliasCheck")) < 0);
+      shot("issue_291_quick_select_options_bar");
+    }
+
+    // Object Selection: Feather | Anti-alias | Sample All Layers | Model.
+    if (patchy::ai::segmentation_available()) {
+      require_action(window, "toolObjectSelectionAction")->trigger();
+      const auto tokens = row("toolObjectSelectionAction");
+      CHECK(next_to(tokens, QStringLiteral("selectionFeatherSpin"), separator));
+      CHECK(separated_before(tokens, QStringLiteral("selectionAntiAliasCheck")));
+      CHECK(next_to(tokens, QStringLiteral("selectionAntiAliasCheck"), separator));
+#if !defined(Q_OS_WASM)
+      CHECK(separated_before(tokens, QStringLiteral("Model")));
+#endif
+      shot("issue_292_object_selection_options_bar");
+    }
+  }
+}
+
+// GitHub issue 286 follow-up: the swap width/height buttons on the Artboard and marquee bars
+// show one monochrome glyph in the theme's icon ink, at the bar's icon size, filling its box,
+// and dim when disabled. The bars still fit one row at 1366 px. Each bar is captured before
+// the checks, so these artifacts are the issue shots in both schemes.
+void ui_swap_dimension_buttons_show_a_themed_full_size_glyph() {
+  struct SwapCase {
+    const char* tool;
+    int marquee_style;  // -1: not a marquee
+    const char* button;
+    const char* shot;
+  };
+  const std::array<SwapCase, 4> cases{{
+      {"toolArtboardAction", -1, "artboardSwapSizeButton", "artboard"},
+      {"toolMarqueeAction", 1, "selectionRatioSwapButton", "marquee_fixed_ratio"},
+      {"toolMarqueeAction", 2, "selectionFixedSizeSwapButton", "marquee_fixed_size"},
+      {"toolEllipticalMarqueeAction", 2, "selectionFixedSizeSwapButton", "elliptical_marquee_fixed_size"},
+  }};
+  std::vector<std::string> problems;
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.resize(1366, 738);
+    auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+    auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+    auto* style = window.findChild<QComboBox*>(QStringLiteral("selectionStyleCombo"));
+    CHECK(options_bar != nullptr && options != nullptr && style != nullptr);
+    if (options_bar == nullptr || options == nullptr || style == nullptr) {
+      return;
+    }
+    const QColor ink = patchy::ui::theme().icon_ink;
+    const auto expect = [&problems, &suffix](bool ok, const char* button, const char* what) {
+      if (!ok) {
+        problems.push_back(std::string(button) + suffix + ": " + what);
+      }
+    };
+    for (const auto& swap : cases) {
+      require_action(window, swap.tool)->trigger();
+      if (swap.marquee_style >= 0) {
+        style->setCurrentIndex(swap.marquee_style);
+      }
+      QApplication::processEvents();
+      process_events_for(20);
+      save_widget_artifact(std::string("issue_286_swap_") + swap.shot + suffix, *options_bar);
+      const auto [right, lines] = options_row_extent(*options);
+      expect(lines == 1, swap.button, "the bar wraps at 1366 px");
+
+      auto* widget = window.findChild<QWidget*>(QLatin1String(swap.button));
+      expect(widget != nullptr && widget->isVisible(), swap.button, "not shown");
+      expect(qobject_cast<QToolButton*>(widget) != nullptr, swap.button,
+             "not an options-bar icon button (QToolButton)");
+      auto* button = qobject_cast<QAbstractButton*>(widget);
+      if (button == nullptr) {
+        continue;
+      }
+      expect(button->toolTip().contains(QStringLiteral("Swap width and height")), swap.button, "tooltip");
+      const QSize size = button->iconSize();
+      expect(size == options_bar->iconSize(), swap.button, "icon size differs from the bar's");
+      const QImage normal = button->icon().pixmap(size, 1.0).toImage().convertToFormat(QImage::Format_ARGB32);
+      const QImage disabled =
+          button->icon().pixmap(size, 1.0, QIcon::Disabled).toImage().convertToFormat(QImage::Format_ARGB32);
+      QRect ink_box;
+      int foreign = 0;
+      for (int y = 0; y < normal.height(); ++y) {
+        for (int x = 0; x < normal.width(); ++x) {
+          const QColor pixel = normal.pixelColor(x, y);
+          if (pixel.alpha() > 64) {
+            ink_box = ink_box.united(QRect(x, y, 1, 1));
+          }
+          // Solid pixels carry the scheme's icon ink and nothing else.
+          if (pixel.alpha() > 200 && std::abs(pixel.red() - ink.red()) + std::abs(pixel.green() - ink.green()) +
+                                             std::abs(pixel.blue() - ink.blue()) > 30) {
+            ++foreign;
+          }
+        }
+      }
+      std::printf("  %s%s: icon %dx%d, ink %dx%d, %d pixels off the icon ink\n", swap.button, suffix.c_str(),
+                  size.width(), size.height(), ink_box.width(), ink_box.height(), foreign);
+      expect(foreign == 0, swap.button, "colors other than the icon ink");
+      expect(ink_box.width() >= size.width() * 3 / 4 && ink_box.height() >= size.height() / 2, swap.button,
+             "glyph does not fill its box");
+      expect(disabled != normal, swap.button, "does not dim when disabled");
+    }
+    style->setCurrentIndex(0);
+
+    // The New Document dialog's swap button shows the same glyph.
+    auto* bar_swap = window.findChild<QAbstractButton*>(QStringLiteral("artboardSwapSizeButton"));
+    bool inspected = false;
+    QTimer::singleShot(0, [&] {
+      auto* dialog = find_top_level_dialog(QStringLiteral("patchyNewDocumentDialog"));
+      auto* swap = dialog != nullptr
+                       ? dialog->findChild<QToolButton*>(QStringLiteral("newDocumentSwapDimensionsButton"))
+                       : nullptr;
+      if (dialog != nullptr && swap != nullptr) {
+        inspected = true;
+        save_window_popup_artifact("issue_286_swap_new_document" + suffix, *dialog, *swap, *swap);
+        const QSize size(18, 18);
+        expect(bar_swap != nullptr &&
+                   swap->icon().pixmap(size, 1.0).toImage() == bar_swap->icon().pixmap(size, 1.0).toImage(),
+               "newDocumentSwapDimensionsButton", "not the options bar's swap glyph");
+      }
+      if (dialog != nullptr) {
+        dialog->reject();
+      }
+    });
+    static_cast<void>(patchy::ui::request_new_document_settings(&window));
+    expect(inspected, "newDocumentSwapDimensionsButton", "New Document dialog not found");
+  }
+  for (const auto& problem : problems) {
+    std::fprintf(stderr, "  %s\n", problem.c_str());
+  }
+  CHECK(problems.empty());
 }
 
 void ui_options_bar_drops_duplicate_sliders_before_wrapping() {
@@ -2840,6 +3113,32 @@ void ui_tool_cycle_hotkeys_walk_each_flyout() {
   QApplication::processEvents();
   CHECK(canvas->tool() == patchy::ui::CanvasTool::Fill);
 
+  // Shift+L walks Lasso, Polygonal Lasso, Magnetic Lasso (GitHub issue 287). The new member
+  // keeps its own persistent id and ships unbound, like every member past the first.
+  auto* lasso_button = window.findChild<QToolButton*>(QStringLiteral("lassoToolButton"));
+  CHECK(lasso_button != nullptr);
+  auto* polygon_lasso = require_action(window, "toolPolygonalLassoAction");
+  CHECK(lasso_button->menu()->actions().indexOf(polygon_lasso) ==
+        lasso_button->menu()->actions().indexOf(require_action(window, "toolLassoAction")) + 1);
+  QTest::keyClick(canvas, Qt::Key_L, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(patchy::ui::tool_hotkey_id(canvas->tool()) == QStringLiteral("tools.polygonal_lasso"));
+  CHECK(lasso_button->defaultAction() == polygon_lasso);
+  QTest::keyClick(canvas, Qt::Key_L, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::MagneticLasso);
+  QTest::keyClick(canvas, Qt::Key_L, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Lasso);
+  QTest::keyClick(canvas, Qt::Key_L, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(lasso_button->defaultAction() == polygon_lasso);
+  const auto* polygon_command = window.hotkey_registry().find_command(QStringLiteral("tools.polygonal_lasso"));
+  CHECK(polygon_command != nullptr);
+  CHECK(polygon_command->action == polygon_lasso);
+  CHECK(polygon_command->category == QStringLiteral("tools"));
+  CHECK(polygon_lasso->shortcut().isEmpty());
+
   // Every flyout owns one, in the tools category, listed after a separator.
   const auto& registry = window.hotkey_registry();
   const std::pair<const char*, const char*> cycles[] = {
@@ -2909,6 +3208,116 @@ void ui_tool_flyout_right_click_opens_menu() {
   QApplication::processEvents();
   CHECK(shown);
   CHECK(!menu->isVisible());
+}
+
+// GitHub issue 284: a flyout opens beside its button rather than over its right edge, and
+// draws each tool's icon at the palette's own size, centered between the menu's left edge
+// and the tool names. The artifacts are the issue shots, in both schemes.
+void ui_tool_flyout_opens_beside_its_button_with_palette_size_icons() {
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* palette = window.findChild<QToolBar*>(QStringLiteral("toolPalette"));
+    auto* button = window.findChild<QToolButton*>(QStringLiteral("marqueeToolButton"));
+    CHECK(palette != nullptr && button != nullptr && button->menu() != nullptr);
+    if (palette == nullptr || button == nullptr || button->menu() == nullptr) {
+      return;
+    }
+    auto* menu = button->menu();
+    const int icon_extent = palette->iconSize().width();
+    CHECK(menu->style()->pixelMetric(QStyle::PM_SmallIconSize, nullptr, menu) == icon_extent);
+
+    QRect menu_geometry;
+    QImage menu_image;
+    QTimer::singleShot(0, [&] {
+      menu_geometry = menu->geometry();
+      menu_image = menu->grab().toImage();
+      save_window_popup_artifact("issue_284_marquee_flyout" + suffix, window, *button, *menu);
+      menu->close();
+    });
+    button->showMenu();
+    QApplication::processEvents();
+    CHECK(!menu->isVisible());
+
+    // Beside the button, covering none of it, with at most a small gap.
+    const QPoint beside = button->mapToGlobal(QPoint(button->width(), 0));
+    std::printf("  button right edge %d, top %d; menu at %d, %d\n", beside.x(), beside.y(), menu_geometry.left(),
+                menu_geometry.top());
+    CHECK(menu_geometry.left() >= beside.x());
+    CHECK(menu_geometry.left() <= beside.x() + 4);
+    CHECK(std::abs(menu_geometry.top() - beside.y()) <= 1);
+
+    CHECK(!menu_image.isNull() && menu_image.devicePixelRatio() == 1.0);
+    if (menu_image.isNull() || menu_image.devicePixelRatio() != 1.0) {
+      return;
+    }
+    // Ink columns of a row: pixels that differ clearly from the row's background.
+    const auto ink_columns = [&menu_image](const QRect& row) {
+      const QColor background = menu_image.pixelColor(row.left() + 1, row.top() + 1);
+      std::vector<bool> ink(static_cast<std::size_t>(row.width()), false);
+      for (int x = row.left(); x <= row.right(); ++x) {
+        for (int y = row.top(); y <= row.bottom(); ++y) {
+          const QColor color = menu_image.pixelColor(x, y);
+          const int delta = std::abs(color.red() - background.red()) + std::abs(color.green() - background.green()) +
+                            std::abs(color.blue() - background.blue());
+          if (delta > 60) {
+            ink[static_cast<std::size_t>(x - row.left())] = true;
+            break;
+          }
+        }
+      }
+      return ink;
+    };
+    for (const char* name : {"toolMarqueeAction", "toolEllipticalMarqueeAction"}) {
+      auto* action = require_action(window, name);
+      const QRect row = menu->actionGeometry(action);
+      CHECK(row.isValid() && menu_image.rect().contains(row));
+      if (!row.isValid() || !menu_image.rect().contains(row)) {
+        continue;
+      }
+      // The same icon at the palette's size: its ink extent and where the ink sits in its box.
+      const QImage reference = action->icon().pixmap(QSize(icon_extent, icon_extent), 1.0).toImage();
+      int reference_left = reference.width();
+      int reference_right = -1;
+      for (int y = 0; y < reference.height(); ++y) {
+        for (int x = 0; x < reference.width(); ++x) {
+          if (qAlpha(reference.pixel(x, y)) > 28) {
+            reference_left = std::min(reference_left, x);
+            reference_right = std::max(reference_right, x);
+          }
+        }
+      }
+      CHECK(reference_right >= reference_left);
+      const auto ink = ink_columns(row);
+      int icon_left = -1;
+      int icon_right = -1;
+      int text_left = -1;
+      for (int x = 0; x < static_cast<int>(ink.size()); ++x) {
+        if (!ink[static_cast<std::size_t>(x)]) {
+          continue;
+        }
+        if (icon_left < 0) {
+          icon_left = x;
+          icon_right = x;
+        } else if (text_left < 0 && x - icon_right <= 3) {
+          icon_right = x;
+        } else if (text_left < 0) {
+          text_left = x;
+        }
+      }
+      CHECK(icon_left >= 0 && text_left > icon_right);
+      const int measured = icon_right - icon_left + 1;
+      const int expected = reference_right - reference_left + 1;
+      const int box_left = icon_left - reference_left;
+      const int box_right = box_left + icon_extent;
+      std::printf("  %s: icon ink %d px (palette %d px), %d px from the row's left edge, %d px before the name\n",
+                  name, measured, expected, box_left, text_left - box_right);
+      CHECK(std::abs(measured - expected) <= 1);
+      CHECK(std::abs(box_left - (text_left - box_right)) <= 2);
+    }
+  }
 }
 
 void ui_shape_flyout_and_zoom_tool_work() {
@@ -3267,6 +3676,7 @@ void ui_tool_palette_icons_render_sheet() {
       {"toolMarqueeAction", "Marquee"},
       {"toolEllipticalMarqueeAction", "Elliptical Marquee"},
       {"toolLassoAction", "Lasso"},
+      {"toolPolygonalLassoAction", "Polygonal Lasso"},
       {"toolMagneticLassoAction", "Magnetic Lasso"},
       {"toolMagicWandAction", "Magic Wand"},
       {"toolQuickSelectAction", "Quick Select"},
@@ -6477,6 +6887,8 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_tool_cycle_hotkeys_walk_each_flyout", ui_tool_cycle_hotkeys_walk_each_flyout},
       {"ui_tool_flyout_double_click_opens_menu", ui_tool_flyout_double_click_opens_menu},
       {"ui_tool_flyout_right_click_opens_menu", ui_tool_flyout_right_click_opens_menu},
+      {"ui_tool_flyout_opens_beside_its_button_with_palette_size_icons",
+       ui_tool_flyout_opens_beside_its_button_with_palette_size_icons},
       {"ui_tool_palette_icons_render_sheet", ui_tool_palette_icons_render_sheet},
       {"ui_filled_shape_preview_clears_after_commit", ui_filled_shape_preview_clears_after_commit},
       {"ui_toolbar_spin_boxes_select_all_on_focus", ui_toolbar_spin_boxes_select_all_on_focus},
@@ -6493,6 +6905,9 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_gradient_toolbar_preset_popup_applies_stops", ui_gradient_toolbar_preset_popup_applies_stops},
       {"ui_options_bar_spinboxes_fit_widest_value", ui_options_bar_spinboxes_fit_widest_value},
       {"ui_options_bar_keeps_one_height_across_tools", ui_options_bar_keeps_one_height_across_tools},
+      {"ui_selection_options_bars_group_their_controls", ui_selection_options_bars_group_their_controls},
+      {"ui_swap_dimension_buttons_show_a_themed_full_size_glyph",
+       ui_swap_dimension_buttons_show_a_themed_full_size_glyph},
       {"ui_options_bar_drops_duplicate_sliders_before_wrapping",
        ui_options_bar_drops_duplicate_sliders_before_wrapping},
       {"ui_options_bar_checkboxes_paint_without_a_frame", ui_options_bar_checkboxes_paint_without_a_frame},

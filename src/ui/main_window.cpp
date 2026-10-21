@@ -5005,6 +5005,13 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event) {
       watched->objectName() == QStringLiteral("textSizePopup")) {
     QTimer::singleShot(0, this, [this] { return_keyboard_to_text_editor(); });
   }
+  // A canvas cursor change made while a popup had the pointer (a slider popup's quick value,
+  // a brush tip pick) lands on the whole main window; put back the cursor of what is under
+  // the pointer once the popup is gone (GitHub issue 293).
+  if (event->type() == QEvent::Hide && watched->isWidgetType() &&
+      static_cast<QWidget*>(watched)->windowType() == Qt::Popup) {
+    QTimer::singleShot(0, this, [] { refresh_cursor_under_pointer(); });
+  }
   if (handle_spacebar_canvas_pan_event(watched, event)) {
     return true;
   }
@@ -5973,6 +5980,8 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
       pending_layer_thumbnail_refresh_ = false;
     }
     refresh_layer_thumbnails();
+    // Visibility changes come from many places (eyes, Alt-click solo, undo, scripts).
+    refresh_merge_visible_action_state();
   });
   canvas->set_view_changed_callback([this, canvas] { handle_canvas_view_changed(canvas); });
   canvas->set_transform_controls_changed_callback([this, canvas] {
@@ -9744,6 +9753,12 @@ void MainWindow::merge_down() {
   auto merged_pixels = pixels_from_image_at_depth(image, merge_depth);
 
   merge_edit_lock.release();
+  // A merge into the Background keeps it one (Photoshop; GitHub issue 274): opaque RGB over the
+  // whole canvas, which an opaque full-canvas target already is.
+  const auto canvas_rect = Rect::from_size(doc.width(), doc.height());
+  if (layer_is_document_background(target_id) && merge_bounds == canvas_rect) {
+    merged_pixels = composite_onto_white(merged_pixels);
+  }
   push_undo_snapshot(tr("Merge down"));
   const auto target_location = find_layer_location(doc.layers(), target_id);
   if (!target_location.has_value()) {
@@ -11745,6 +11760,7 @@ void MainWindow::update_document_action_state() {
                QStringLiteral("tools.marquee"),
                QStringLiteral("tools.elliptical_marquee"),
                QStringLiteral("tools.lasso"),
+               QStringLiteral("tools.polygonal_lasso"),
                QStringLiteral("tools.magnetic_lasso"),
                QStringLiteral("tools.magic_wand"),
                QStringLiteral("tools.quick_select"),
@@ -11807,6 +11823,7 @@ void MainWindow::update_document_action_state() {
   // reapply the layer-count rule (Distribute needs three units). The Windows plug-in scan
   // rebuilds its menu after startup and lands here with a one-layer document open.
   refresh_layer_alignment_action_states();
+  refresh_merge_visible_action_state();  // two visible layers, the same way
 }
 
 void MainWindow::refresh_convert_for_smart_filters_action_state() {

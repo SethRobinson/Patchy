@@ -437,6 +437,9 @@ make_destructive_adjustment_preview_state(DestructiveAdjustmentPreviewHooks hook
 [[nodiscard]] PixelBuffer coverage_at_document_depth(const Document& document, PixelBuffer coverage);
 [[nodiscard]] PixelBuffer make_solid_pixels(std::int32_t width, std::int32_t height, QColor color,
                                             PixelFormat format);
+// Straight-alpha RGBA over white, opaque RGB at the same depth out: Flatten Image and a Merge
+// Down into the Background (defined in main_window_layer_ops.cpp).
+[[nodiscard]] PixelBuffer composite_onto_white(const PixelBuffer& rgba);
 
 // Small modal input dialogs (single text line / single integer spin box).
 [[nodiscard]] std::optional<QString> request_text_input(QWidget* parent, const QString& object_name,

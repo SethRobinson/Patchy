@@ -906,23 +906,26 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
 
   auto* selection_new = add_option_action(
       simple_icon(QStringLiteral("N")), QT_TR_NOOP("New Selection"),
-      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagneticLasso,
-       CanvasTool::MagicWand, CanvasTool::QuickSelect, CanvasTool::PatchTool, CanvasTool::ObjectSelect});
+      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::PolygonLasso,
+       CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::QuickSelect, CanvasTool::PatchTool,
+       CanvasTool::ObjectSelect});
   selection_new->setObjectName(QStringLiteral("selectionNewModeAction"));
   auto* selection_add = add_option_action(
       simple_icon(QStringLiteral("+")), QT_TR_NOOP("Add to Selection"),
-      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagneticLasso,
-       CanvasTool::MagicWand, CanvasTool::QuickSelect, CanvasTool::PatchTool, CanvasTool::ObjectSelect});
+      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::PolygonLasso,
+       CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::QuickSelect, CanvasTool::PatchTool,
+       CanvasTool::ObjectSelect});
   selection_add->setObjectName(QStringLiteral("selectionAddModeAction"));
   auto* selection_subtract = add_option_action(
       simple_icon(QStringLiteral("-")), QT_TR_NOOP("Subtract from Selection"),
-      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagneticLasso,
-       CanvasTool::MagicWand, CanvasTool::QuickSelect, CanvasTool::PatchTool, CanvasTool::ObjectSelect});
+      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::PolygonLasso,
+       CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::QuickSelect, CanvasTool::PatchTool,
+       CanvasTool::ObjectSelect});
   selection_subtract->setObjectName(QStringLiteral("selectionSubtractModeAction"));
   auto* selection_intersect = add_option_action(simple_icon(QStringLiteral("Ix")), QT_TR_NOOP("Intersect Selection"),
                                                 {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
-                                                 CanvasTool::MagneticLasso, CanvasTool::MagicWand,
-                                                 CanvasTool::PatchTool});
+                                                 CanvasTool::PolygonLasso, CanvasTool::MagneticLasso,
+                                                 CanvasTool::MagicWand, CanvasTool::PatchTool});
   selection_intersect->setObjectName(QStringLiteral("selectionIntersectModeAction"));
   selection_new_mode_action_ = selection_new;
   selection_add_mode_action_ = selection_add;
@@ -958,16 +961,41 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
           [set_selection_mode] { set_selection_mode(CanvasWidget::SelectionMode::Subtract); });
   connect(selection_intersect, &QAction::triggered, this,
           [set_selection_mode] { set_selection_mode(CanvasWidget::SelectionMode::Intersect); });
-  add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
+  add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::PolygonLasso,
                         CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::QuickSelect,
                         CanvasTool::ObjectSelect});
+
+  // Quick Select leads with its brush Size, set apart from Feather (GitHub issue 291).
+  add_option_label(QT_TR_NOOP("Size:"), {CanvasTool::QuickSelect});
+  auto* quick_select_size = new QSpinBox(toolbar);
+  quick_select_size->setObjectName(QStringLiteral("quickSelectSizeSpin"));
+  quick_select_size->setRange(1, 512);
+  quick_select_size->setValue(canvas_defaults->quick_select_size());
+  configure_toolbar_spinbox(quick_select_size, 46);
+  add_option_widget(quick_select_size, {CanvasTool::QuickSelect});
+  auto* quick_select_size_slider = new QSlider(Qt::Horizontal, toolbar);
+  quick_select_size_slider->setObjectName(QStringLiteral("quickSelectSizeSlider"));
+  quick_select_size_slider->setProperty(kOptionsBarCollapsibleProperty, true);
+  bind_curved_slider(*quick_select_size_slider, *quick_select_size);
+  quick_select_size_slider->setFixedWidth(150);
+  bind_tooltip(quick_select_size_slider, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Quick Select brush size: press [ or ]"));
+  add_option_widget(quick_select_size_slider, {CanvasTool::QuickSelect});
+  connect(quick_select_size, &QSpinBox::valueChanged, this, [this](int value) {
+    if (canvas_ != nullptr) {
+      canvas_->set_quick_select_size(value);
+      canvas_->refresh_tool_cursor();
+      schedule_save_tool_settings();
+      refresh_document_info();
+    }
+  });
+  add_option_separator({CanvasTool::QuickSelect});
 
   // A plain label and field like every other option. Feather used to share one
   // nested group widget, whose height clipped the field's bottom edge on some
   // desktops (GitHub issue 160).
   add_option_label(QT_TR_NOOP("Feather:"), {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
-                                            CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::QuickSelect,
-                                            CanvasTool::ObjectSelect})
+                                            CanvasTool::PolygonLasso, CanvasTool::MagneticLasso, CanvasTool::MagicWand,
+                                            CanvasTool::QuickSelect, CanvasTool::ObjectSelect})
       ->setObjectName(QStringLiteral("selectionFeatherLabel"));
   auto* feather = new UnitIntSpinBox(SpinUnit::Pixels, options_content);
   feather->setObjectName(QStringLiteral("selectionFeatherSpin"));
@@ -977,15 +1005,21 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   feather->setProperty(kToolbarSpinboxSliderCurvedProperty, true);
   configure_toolbar_spinbox(feather, 64);
   add_option_widget(feather, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
-                              CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::QuickSelect,
-                              CanvasTool::ObjectSelect});
+                              CanvasTool::PolygonLasso, CanvasTool::MagneticLasso, CanvasTool::MagicWand,
+                              CanvasTool::QuickSelect, CanvasTool::ObjectSelect});
+  // Quick Select has no Anti-alias; Object Selection sets Feather apart from it too
+  // (GitHub issues 291, 292).
+  add_option_separator({CanvasTool::QuickSelect, CanvasTool::ObjectSelect});
   auto* anti_alias = new CheckGlyphBox(tr("Anti-alias"), toolbar);
   bind_widget_text(anti_alias, QT_TR_NOOP("Anti-alias"));
   anti_alias->setObjectName(QStringLiteral("selectionAntiAliasCheck"));
   anti_alias->setChecked(current_selection_antialias_);
   add_option_widget(anti_alias,
-                    {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
+                    {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::PolygonLasso,
                      CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::ObjectSelect});
+  // Feather and Anti-alias are one group. The Lassos and the Magic Wand get their separator
+  // after the marquee fields below, which they do not show.
+  add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::ObjectSelect});
   const auto apply_selection_edge_settings = [this, feather, anti_alias] {
     current_selection_feather_radius_ = feather->value();
     current_selection_antialias_ = anti_alias->isChecked();
@@ -1040,6 +1074,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     selection_style_combo->setItemText(2, QObject::tr("Fixed Size"));
   });
   add_option_widget(style_combo, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee});
+  add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee});
   // Fixed Ratio has its own unitless pair (1 : 1 by default, as Photoshop); Normal and
   // Fixed Size show the pixel fields (GitHub issue 201). marquee_option_widget_visible
   // swaps the two sets.
@@ -1054,6 +1089,24 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   configure_toolbar_spinbox(ratio_width, 56);
   marquee_ratio_option_widgets_.push_back(
       add_option_widget(ratio_width, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee}));
+  // Width and Height trade places with one click (GitHub issue 286), here and on the Artboard
+  // bar: two opposed arrows in the icon ink, an icon button sized like the bar's others.
+  // Each marquee pair has its own button; Normal, whose fields are greyed, shows neither.
+  const auto make_swap_dimensions_button = [toolbar](const char* object_name) {
+    auto* button = new QToolButton(toolbar);
+    button->setObjectName(QLatin1String(object_name));
+    button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+    button->setIcon(simple_icon(QStringLiteral("swap-dimensions")));
+    button->setIconSize(QSize(18, 18));
+    button->setAutoRaise(true);
+    button->setFocusPolicy(Qt::NoFocus);
+    button->setProperty("optionsBarButton", true);
+    bind_tooltip(button, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Swap width and height (portrait or landscape)"));
+    return button;
+  };
+  auto* ratio_swap = make_swap_dimensions_button("selectionRatioSwapButton");
+  marquee_ratio_option_widgets_.push_back(
+      add_option_widget(ratio_swap, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee}));
   marquee_ratio_option_widgets_.push_back(
       add_option_label(QT_TR_NOOP("Height:"), {CanvasTool::Marquee, CanvasTool::EllipticalMarquee}));
   auto* ratio_height = new TrimmedDoubleSpinBox(toolbar);
@@ -1075,6 +1128,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   configure_toolbar_spinbox(fixed_width, 78);
   marquee_size_option_widgets_.push_back(
       add_option_widget(fixed_width, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee}));
+  auto* size_swap = make_swap_dimensions_button("selectionFixedSizeSwapButton");
+  marquee_fixed_size_option_widgets_.push_back(
+      add_option_widget(size_swap, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee}));
   marquee_size_option_widgets_.push_back(
       add_option_label(QT_TR_NOOP("Height:"), {CanvasTool::Marquee, CanvasTool::EllipticalMarquee}));
   auto* fixed_height = new UnitIntSpinBox(SpinUnit::Pixels, toolbar);
@@ -1127,8 +1183,18 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   connect(fixed_height, &QSpinBox::valueChanged, this, [apply_marquee_settings](int) {
     apply_marquee_settings();
   });
+  connect(ratio_swap, &QToolButton::clicked, this, [ratio_width, ratio_height] {
+    const double width = ratio_width->value();
+    ratio_width->setValue(ratio_height->value());
+    ratio_height->setValue(width);
+  });
+  connect(size_swap, &QToolButton::clicked, this, [fixed_width, fixed_height] {
+    const int width = fixed_width->value();
+    fixed_width->setValue(fixed_height->value());
+    fixed_height->setValue(width);
+  });
   apply_marquee_settings();
-  add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
+  add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::PolygonLasso,
                         CanvasTool::MagneticLasso, CanvasTool::MagicWand});
 
   // Crop: Style picks what the fields mean, like the marquee's Style combo.
@@ -1306,20 +1372,19 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     configure_toolbar_spinbox(spin, 84);
     return spin;
   };
-  add_option_label(QT_TR_NOOP("W:"), {CanvasTool::Artboard});
+  // Separators set the size fields, the background and Add Artboard apart (GitHub issue 285).
+  add_option_separator({CanvasTool::Artboard});
+  add_option_label(QT_TR_NOOP("Width:"), {CanvasTool::Artboard});
   artboard_width_spin_ = make_artboard_size_spin(
       "artboardWidthSpin", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Width of the selected artboard, or of new artboards"));
   add_option_widget(artboard_width_spin_, {CanvasTool::Artboard});
-  auto* artboard_swap = new QPushButton(toolbar);
-  artboard_swap->setObjectName(QStringLiteral("artboardSwapSizeButton"));
-  artboard_swap->setIcon(simple_icon(QStringLiteral("swap")));
-  artboard_swap->setFixedWidth(28);
-  bind_tooltip(artboard_swap, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Swap width and height (portrait or landscape)"));
+  auto* artboard_swap = make_swap_dimensions_button("artboardSwapSizeButton");
   add_option_widget(artboard_swap, {CanvasTool::Artboard});
-  add_option_label(QT_TR_NOOP("H:"), {CanvasTool::Artboard});
+  add_option_label(QT_TR_NOOP("Height:"), {CanvasTool::Artboard});
   artboard_height_spin_ = make_artboard_size_spin(
       "artboardHeightSpin", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Height of the selected artboard, or of new artboards"));
   add_option_widget(artboard_height_spin_, {CanvasTool::Artboard});
+  add_option_separator({CanvasTool::Artboard});
   add_option_label(QT_TR_NOOP("Background:"), {CanvasTool::Artboard});
   artboard_background_combo_ = new QComboBox(toolbar);
   artboard_background_combo_->setObjectName(QStringLiteral("artboardBackgroundCombo"));
@@ -1335,6 +1400,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   });
   bind_tooltip(artboard_background_combo_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Background of the selected artboard, or of new artboards"));
   add_option_widget(artboard_background_combo_, {CanvasTool::Artboard});
+  add_option_separator({CanvasTool::Artboard});
   auto* artboard_add = new QPushButton(tr("Add Artboard"), toolbar);
   artboard_add->setObjectName(QStringLiteral("artboardAddButton"));
   bind_widget_text(artboard_add, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Add Artboard"));
@@ -1377,7 +1443,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       artboard_field_edit_run_ = ArtboardNudgeRun{};
     });
   }
-  connect(artboard_swap, &QPushButton::clicked, this, [this] {
+  connect(artboard_swap, &QToolButton::clicked, this, [this] {
     apply_artboard_size_option(QSize(artboard_height_spin_->value(), artboard_width_spin_->value()));
   });
   connect(artboard_background_combo_, &QComboBox::activated, this, [this](int index) {
@@ -2361,29 +2427,6 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     save_tool_settings();
   });
 
-  add_option_label(QT_TR_NOOP("Size:"), {CanvasTool::QuickSelect});
-  auto* quick_select_size = new QSpinBox(toolbar);
-  quick_select_size->setObjectName(QStringLiteral("quickSelectSizeSpin"));
-  quick_select_size->setRange(1, 512);
-  quick_select_size->setValue(canvas_defaults->quick_select_size());
-  configure_toolbar_spinbox(quick_select_size, 46);
-  add_option_widget(quick_select_size, {CanvasTool::QuickSelect});
-  auto* quick_select_size_slider = new QSlider(Qt::Horizontal, toolbar);
-  quick_select_size_slider->setObjectName(QStringLiteral("quickSelectSizeSlider"));
-  quick_select_size_slider->setProperty(kOptionsBarCollapsibleProperty, true);
-  bind_curved_slider(*quick_select_size_slider, *quick_select_size);
-  quick_select_size_slider->setFixedWidth(150);
-  bind_tooltip(quick_select_size_slider, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Quick Select brush size: press [ or ]"));
-  add_option_widget(quick_select_size_slider, {CanvasTool::QuickSelect});
-  connect(quick_select_size, &QSpinBox::valueChanged, this, [this](int value) {
-    if (canvas_ != nullptr) {
-      canvas_->set_quick_select_size(value);
-      canvas_->refresh_tool_cursor();
-      schedule_save_tool_settings();
-      refresh_document_info();
-    }
-  });
-
   quick_select_sample_all_layers_check_ = new CheckGlyphBox(tr("Sample All Layers"), toolbar);
   quick_select_sample_all_layers_check_->setObjectName(QStringLiteral("quickSelectSampleAllLayersCheck"));
   quick_select_sample_all_layers_check_->setChecked(canvas_defaults->quick_select_sample_all_layers());
@@ -2430,6 +2473,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // the High Quality model once downloaded. Choosing High Quality offers the download.
   configure_automatic_selection_models();
   if (patchy::ai::segmentation_available()) {
+    add_option_separator({CanvasTool::ObjectSelect});  // GitHub issue 292
     add_option_label(QT_TR_NOOP("Model:"), {CanvasTool::ObjectSelect});
     object_select_model_combo_ = new QComboBox(toolbar);
     object_select_model_combo_->setObjectName(QStringLiteral("objectSelectModelCombo"));
@@ -2581,13 +2625,15 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     register_document_action(action);
   }
 
-  add_option_label(QT_TR_NOOP("Tol:"), {CanvasTool::MagicWand});
+  // Spelled out and set apart from the checkboxes (GitHub issue 290).
+  add_option_label(QT_TR_NOOP("Tolerance:"), {CanvasTool::MagicWand});
   auto* wand_tolerance = new QSpinBox(toolbar);
   wand_tolerance->setObjectName(QStringLiteral("wandToleranceSpin"));
   wand_tolerance->setRange(0, 255);
   wand_tolerance->setValue(canvas_defaults->wand_tolerance());
   configure_toolbar_spinbox(wand_tolerance, 46);
   add_option_widget(wand_tolerance, {CanvasTool::MagicWand});
+  add_option_separator({CanvasTool::MagicWand});
   connect(wand_tolerance, &QSpinBox::valueChanged, this, [this](int value) {
     if (canvas_ != nullptr) {
       canvas_->set_wand_tolerance(value);

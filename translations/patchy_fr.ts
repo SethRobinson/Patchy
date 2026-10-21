@@ -317,6 +317,37 @@
     </message>
 </context>
 <context>
+    <name>NewLayerDialog</name>
+    <message>
+        <source>New Layer</source>
+        <translation>Nouveau calque</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>Nom :</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>Couleur :</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>Mode :</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Opacité :</translation>
+    </message>
+    <message>
+        <source>Use Previous Layer to Create Clipping Mask</source>
+        <translation>Utiliser le calque précédent pour créer un masque d&apos;écrêtage</translation>
+    </message>
+    <message>
+        <source>Clip the new layer to the layer below it</source>
+        <translation>Écrêter le nouveau calque sur le calque inférieur</translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Patchy raster image editor.</source>
@@ -11536,6 +11567,46 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source> (Amount %1%, Radius %2 px, Legacy)</source>
         <translation> (Gain %1 %, Rayon %2 px, Ancien)</translation>
     </message>
+    <message>
+        <source>Undo</source>
+        <translation>Annuler</translation>
+    </message>
+    <message>
+        <source>Redo</source>
+        <translation>Rétablir</translation>
+    </message>
+    <message>
+        <source>Rate:</source>
+        <translation>Vitesse :</translation>
+    </message>
+    <message>
+        <source>How fast the brush keeps working while it is held still</source>
+        <translation>Vitesse à laquelle le pinceau continue d&apos;agir lorsqu&apos;il reste immobile</translation>
+    </message>
+    <message>
+        <source>Stylus Pressure</source>
+        <translation>Pression du stylet</translation>
+    </message>
+    <message>
+        <source>Show Mesh</source>
+        <translation>Afficher le maillage</translation>
+    </message>
+    <message>
+        <source>Reconstruct...</source>
+        <translation>Reconstruction...</translation>
+    </message>
+    <message>
+        <source>Amount:</source>
+        <translation>Quantité :</translation>
+    </message>
+    <message>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
+        <translation>Arrière-plan : il reste tout en bas de la pile, sans transparence ni styles de calque. Faites un clic droit dessus et choisissez Calque d&apos;après l&apos;arrière-plan pour en faire un calque ordinaire.</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>Lasso polygonal</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13191,6 +13262,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Deselect Shapes</source>
         <translation>Désélectionner les formes</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>Lasso polygonal</translation>
     </message>
 </context>
 <context>
@@ -22928,10 +23003,6 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Ellipse de sélection : faites glisser pour sélectionner. Maj+glisser ajoute, %ALT%+glisser soustrait, Maj+%ALT%+glisser crée une intersection. Sans sélection, Maj trace un cercle et %ALT% trace depuis le centre.</translation>
     </message>
     <message>
-        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects.</source>
-        <translation>Lasso : faites glisser autour de la zone pour la sélectionner. Maj+glisser ajoute, %ALT%+glisser soustrait, Maj+%ALT%+glisser crée une intersection.</translation>
-    </message>
-    <message>
         <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
         <translation>Lasso magnétique : cliquez sur un bord et suivez-le ; cliquez pour fixer un point. Commencez par Maj+clic pour ajouter, %ALT%+clic pour soustraire, Maj+%ALT%+clic pour une intersection. Retour arrière retire le dernier point, Entrée ferme, Échap annule.</translation>
     </message>
@@ -23361,6 +23432,82 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
     <message>
         <source>Transform Controls</source>
         <translation>Options de transformation</translation>
+    </message>
+    <message>
+        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
+        <translation>Les plans de travail ne peuvent pas être effacés. Désélectionnez d&apos;abord, puis Delete supprime le plan de travail.</translation>
+    </message>
+    <message>
+        <source>Deleted artboard</source>
+        <translation>Plan de travail supprimé</translation>
+    </message>
+    <message>
+        <source>Deleted %1 artboards</source>
+        <translation>%1 plans de travail supprimés</translation>
+    </message>
+    <message>
+        <source>The Background layer cannot go inside a folder</source>
+        <translation>Le calque d&apos;arrière-plan ne peut pas aller dans un dossier</translation>
+    </message>
+    <message>
+        <source>The Background layer stays at the bottom of the stack</source>
+        <translation>Le calque d&apos;arrière-plan reste tout en bas de la pile</translation>
+    </message>
+    <message>
+        <source>Layer from Background</source>
+        <translation>Calque d&apos;après l&apos;arrière-plan</translation>
+    </message>
+    <message>
+        <source>The Background layer cannot have layer styles</source>
+        <translation>Le calque d&apos;arrière-plan ne peut pas avoir de styles de calque</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>Lasso polygonal</translation>
+    </message>
+    <message>
+        <source>Click to place points, Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close.</source>
+        <translation>Cliquez pour placer des points, Maj garde 45 degrés, %ALT%+glisser trace à main levée. Cliquez sur le point de départ, double-cliquez ou appuyez sur Entrée pour fermer.</translation>
+    </message>
+    <message>
+        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
+        <translation>Lasso : faites glisser autour de la zone pour la sélectionner. Maj+glisser ajoute, %ALT%+glisser soustrait, Maj+%ALT%+glisser crée une intersection. Appuyez sur %ALT% pendant le glissement et relâchez le bouton pour cliquer des segments droits jusqu’au relâchement de %ALT%.</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
+        <translation>Lasso polygonal : cliquez pour placer des points. Commencez par Maj+clic pour ajouter, %ALT%+clic pour soustraire, Maj+%ALT%+clic pour une intersection. Maj garde 45 degrés, %ALT%+glisser trace à main levée. Cliquez sur le point de départ, double-cliquez ou appuyez sur Entrée pour fermer ; Retour arrière retire le dernier point, Échap annule.</translation>
+    </message>
+    <message>
+        <source>New &amp;Layer...</source>
+        <translation>Nouveau &amp;calque...</translation>
+    </message>
+    <message>
+        <source>Add a layer, choosing its name, color, mode and opacity first</source>
+        <translation>Ajouter un calque en choisissant d&apos;abord son nom, sa couleur, son mode et son opacité</translation>
+    </message>
+    <message>
+        <source>&amp;Merge Visible</source>
+        <translation>Fusionner les calques visi&amp;bles</translation>
+    </message>
+    <message>
+        <source>Merge every visible layer into one, keeping the hidden layers</source>
+        <translation>Fusionner tous les calques visibles en un seul, en gardant les calques masqués</translation>
+    </message>
+    <message>
+        <source>Merge Visible</source>
+        <translation>Fusionner les calques visibles</translation>
+    </message>
+    <message>
+        <source>Merge Visible needs at least two visible layers</source>
+        <translation>Fusionner les calques visibles demande au moins deux calques visibles</translation>
+    </message>
+    <message>
+        <source>Merge visible</source>
+        <translation>Fusionner les calques visibles</translation>
+    </message>
+    <message>
+        <source>Merged the visible layers</source>
+        <translation>Calques visibles fusionnés</translation>
     </message>
 </context>
 <context>

@@ -183,6 +183,54 @@ bool is_full_canvas_background(const Layer& layer, std::int32_t canvas_width, st
   return bounds.x == 0 && bounds.y == 0 && bounds.width >= canvas_width && bounds.height >= canvas_height;
 }
 
+// Photoshop reads a bottom pixel record with no transparency channel as its Background layer
+// (GitHub issue 274): opaque over the whole canvas, white outside the record whatever the
+// background color is, and locked (Photoshop 2026 over COM, on ag-psd's float-size sample: a
+// 300x200 record on a 2000x2000 canvas). Patchy makes it the same Background (core
+// background_layer), so it renders like Photoshop and saves back as one. Photoshop also
+// renames it "Background"; Patchy keeps the record's name, which is the user's.
+void adopt_photoshop_background(Document& document) {
+  auto& layers = document.layers();
+  if (layers.empty()) {
+    return;
+  }
+  auto& bottom = layers.front();
+  const auto& source = std::as_const(bottom);
+  const auto format = source.pixels().format();
+  if (source.kind() != LayerKind::Pixel || layer_is_text(source) || layer_is_smart_object(source) ||
+      layer_is_vector_shape(source) || format.channels != 3U || format.color_mode != ColorMode::RGB) {
+    return;
+  }
+  const Rect canvas{0, 0, document.width(), document.height()};
+  if (source.bounds() != canvas) {
+    // White fill is all-ones bytes at 8 and 16 bits; other depths and native-color planes
+    // sized to the record keep the record as it is.
+    if ((format.bit_depth != BitDepth::UInt8 && format.bit_depth != BitDepth::UInt16) ||
+        source.psd_native_colors() != nullptr || source.mask().has_value()) {
+      return;
+    }
+    PixelBuffer expanded(canvas.width, canvas.height, format);
+    expanded.clear(255);
+    const auto record = source.bounds();
+    const auto pixel_bytes = bytes_per_pixel(format);
+    const auto left = std::max(0, record.x);
+    const auto right = std::min(canvas.width, record.x + source.pixels().width());
+    for (std::int32_t y = std::max(0, record.y); y < std::min(canvas.height, record.y + source.pixels().height());
+         ++y) {
+      if (right <= left) {
+        break;
+      }
+      const auto from = source.pixels().row(y - record.y);
+      auto to = expanded.row(y);
+      std::copy_n(from.begin() + static_cast<std::ptrdiff_t>(static_cast<std::size_t>(left - record.x) * pixel_bytes),
+                  static_cast<std::size_t>(right - left) * pixel_bytes,
+                  to.begin() + static_cast<std::ptrdiff_t>(static_cast<std::size_t>(left) * pixel_bytes));
+    }
+    bottom.set_pixels(std::move(expanded));
+  }
+  set_layer_lock_flags(bottom, layer_lock_flags(source) | kLayerLockPosition | kLayerLockTransparentPixels);
+}
+
 bool records_look_like_legacy_top_to_bottom(const std::vector<Layer>& layers, std::int32_t canvas_width,
                                             std::int32_t canvas_height) {
   return !layers.empty() && is_full_canvas_background(layers.back(), canvas_width, canvas_height);
@@ -1777,6 +1825,7 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
         add_layer(source);
       }
     }
+    adopt_photoshop_background(document);
 
     // Preserve what follows the layer info: the global layer mask info and the
     // document-global tagged blocks. Dropping these orphans smart-object layers —

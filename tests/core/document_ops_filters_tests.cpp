@@ -2980,6 +2980,40 @@ void liquify_strokes_and_render_are_pinned() {
   CHECK(all_match);
 }
 
+// Reconstruct by an amount (GitHub #296 follow-up): every node's displacement moves that
+// share of the way back to identity, frozen nodes keep their share of protection, and
+// 0 and 100 percent are no change and a full reconstruction of unfrozen nodes.
+void liquify_reconstruct_by_amount_respects_freeze() {
+  patchy::LiquifyMesh mesh(96, 72);
+  mesh.apply_stroke(patchy::LiquifyTool::ForwardWarp, 10.0, 36.0, 86.0, 36.0, 60.0, 100.0, 100.0);
+  for (int pass = 0; pass < 5; ++pass) {
+    // Repeated dabs saturate the freeze mask for every node within 20 px of x = 70.
+    mesh.apply_stroke(patchy::LiquifyTool::FreezeMask, 70.0, 36.0, 70.0, 36.0, 60.0, 100.0, 100.0);
+  }
+  const auto [free_x, free_y] = mesh.displacement_at(30.0, 36.0);
+  const auto [frozen_x, frozen_y] = mesh.displacement_at(70.0, 36.0);
+  CHECK(std::abs(free_x) > 1.0 && std::abs(frozen_x) > 1.0);
+  CHECK(mesh.freeze_strength_at(70.0, 36.0) == 1.0);
+
+  auto none = mesh;
+  none.reconstruct(0.0);
+  CHECK(none.displacement_at(30.0, 36.0) == mesh.displacement_at(30.0, 36.0));
+
+  auto half = mesh;
+  half.reconstruct(50.0);
+  const auto halved = half.displacement_at(30.0, 36.0)[0];
+  CHECK(std::abs(halved - free_x * 0.5) <= 2.0 / 256.0);
+  CHECK(half.displacement_at(70.0, 36.0)[0] == frozen_x);
+
+  auto full = mesh;
+  full.reconstruct(100.0);
+  CHECK(full.displacement_at(30.0, 36.0)[0] == 0.0 && full.displacement_at(30.0, 36.0)[1] == 0.0);
+  CHECK(full.displacement_at(70.0, 36.0)[0] == frozen_x);
+  CHECK(full.freeze_strength_at(70.0, 36.0) == 1.0);
+  (void)free_y;
+  (void)frozen_y;
+}
+
 // Box Blur radii above the historical 12 px range run an exact integer
 // running-sum path, so a 2000 px radius costs the same per pixel as a 13 px
 // one. It must equal a brute-force edge-clamped, alpha-weighted box average,
@@ -3210,6 +3244,7 @@ std::vector<patchy::test::TestCase> document_ops_filters_tests() {
       {"liquify_render_preserves_identity_and_scales_the_field",
        liquify_render_preserves_identity_and_scales_the_field},
       {"liquify_strokes_and_render_are_pinned", liquify_strokes_and_render_are_pinned},
+      {"liquify_reconstruct_by_amount_respects_freeze", liquify_reconstruct_by_amount_respects_freeze},
       {"document_rotate_arbitrary_quarter_turn_matches_rotate_right",
        document_rotate_arbitrary_quarter_turn_matches_rotate_right},
       {"document_rotate_arbitrary_expands_canvas_to_fit", document_rotate_arbitrary_expands_canvas_to_fit},

@@ -4,6 +4,7 @@
 #include "ui/main_window.hpp"
 #include "ui/app_settings.hpp"
 #include "test_harness.hpp"
+#include <QAbstractButton>
 #include <QAbstractSpinBox>
 #include <QApplication>
 #include <QCheckBox>
@@ -668,6 +669,70 @@ void ui_marquee_fixed_size_and_ratio_options_work() {
   }
   ratio_height->setValue(0.25);
   CHECK(ratio_height->text() == QStringLiteral("0.25"));
+}
+
+// GitHub issue 286: Fixed Ratio and Fixed Size each carry a swap button between Width and
+// Height, as the Artboard bar does; Normal, whose fields are greyed, shows neither.
+void ui_marquee_swap_button_swaps_width_and_height() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action(window, "toolMarqueeAction")->trigger();
+  QApplication::processEvents();
+  auto* style = window.findChild<QComboBox*>(QStringLiteral("selectionStyleCombo"));
+  auto* width = window.findChild<QSpinBox*>(QStringLiteral("selectionFixedWidthSpin"));
+  auto* height = window.findChild<QSpinBox*>(QStringLiteral("selectionFixedHeightSpin"));
+  auto* ratio_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("selectionRatioWidthSpin"));
+  auto* ratio_height = window.findChild<QDoubleSpinBox*>(QStringLiteral("selectionRatioHeightSpin"));
+  auto* size_swap = window.findChild<QAbstractButton*>(QStringLiteral("selectionFixedSizeSwapButton"));
+  auto* ratio_swap = window.findChild<QAbstractButton*>(QStringLiteral("selectionRatioSwapButton"));
+  CHECK(style != nullptr && width != nullptr && height != nullptr);
+  CHECK(ratio_width != nullptr && ratio_height != nullptr);
+  CHECK(size_swap != nullptr && ratio_swap != nullptr);
+  if (style == nullptr || width == nullptr || height == nullptr || ratio_width == nullptr ||
+      ratio_height == nullptr || size_swap == nullptr || ratio_swap == nullptr) {
+    return;
+  }
+
+  style->setCurrentText(QStringLiteral("Normal"));
+  QApplication::processEvents();
+  CHECK(!size_swap->isVisible() && !ratio_swap->isVisible());
+
+  style->setCurrentText(QStringLiteral("Fixed Size"));
+  width->setValue(80);
+  height->setValue(50);
+  QApplication::processEvents();
+  CHECK(size_swap->isVisible() && !ratio_swap->isVisible());
+  CHECK(!size_swap->toolTip().isEmpty());
+  QTest::mouseClick(size_swap, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(width->value() == 50 && height->value() == 80);
+  CHECK(canvas->marquee_fixed_size() == QSize(50, 80));
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(30, 30)),
+       canvas->widget_position_for_document_point(QPoint(40, 40)));
+  auto selection = canvas->selected_document_rect();
+  CHECK(selection.has_value());
+  CHECK(selection.has_value() && selection->size() == QSize(50, 80));
+
+  style->setCurrentText(QStringLiteral("Fixed Ratio"));
+  ratio_width->setValue(2);
+  ratio_height->setValue(1);
+  QApplication::processEvents();
+  CHECK(ratio_swap->isVisible() && !size_swap->isVisible());
+  QTest::mouseClick(ratio_swap, Qt::LeftButton);
+  QApplication::processEvents();
+  CHECK(ratio_width->value() == 1.0 && ratio_height->value() == 2.0);
+  // The pixel pair keeps its own values.
+  CHECK(width->value() == 50 && height->value() == 80);
+  canvas->clear_selection();
+  drag(*canvas, canvas->widget_position_for_document_point(QPoint(180, 40)),
+       canvas->widget_position_for_document_point(QPoint(300, 140)));
+  selection = canvas->selected_document_rect();
+  CHECK(selection.has_value());
+  if (selection.has_value()) {
+    const auto ratio = static_cast<double>(selection->width()) / static_cast<double>(selection->height());
+    CHECK(ratio > 0.45 && ratio < 0.55);
+  }
 }
 
 // Style: Normal greys out the marquee's Width and Height, and a click on a greyed field's
@@ -2463,6 +2528,7 @@ std::vector<patchy::test::TestCase> selection_marquee_lasso_tests_part1() {
        ui_feathered_selection_add_keeps_existing_selection},
       {"ui_marquee_corner_radius_rounds_selection", ui_marquee_corner_radius_rounds_selection},
       {"ui_marquee_fixed_size_and_ratio_options_work", ui_marquee_fixed_size_and_ratio_options_work},
+      {"ui_marquee_swap_button_swaps_width_and_height", ui_marquee_swap_button_swaps_width_and_height},
       {"ui_marquee_disabled_size_fields_open_no_value_popup", ui_marquee_disabled_size_fields_open_no_value_popup},
       {"ui_shape_fill_and_corner_radius_apply_to_new_documents",
        ui_shape_fill_and_corner_radius_apply_to_new_documents},

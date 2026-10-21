@@ -352,14 +352,57 @@ std::string ifd0_text(const patchy::DocumentFileInfo& info, std::uint16_t tag) {
   return entry != nullptr ? stream->string_value(*entry) : std::string{};
 }
 
-// Issue 219 follow-up: a PSD save of a camera JPEG writes Patchy and the save time into
-// its EXIF (IFD0 Software and DateTime), and every save gets a new xmpMM:InstanceID that
-// matches its History entry, as Photoshop does. Saves after-exif-software.png (File Info,
-// All Metadata) into test-artifacts/file-info.
+// A camera JPEG another application edited in 2019: EXIF Software and DateTime, and an
+// XMP packet with its creator, its dates, its ids and one History entry.
+QString write_dated_jpeg() {
+  QImage image(16, 8, QImage::Format_RGB32);
+  image.fill(QColor(40, 120, 200));
+  QBuffer buffer;
+  buffer.open(QIODevice::WriteOnly);
+  QImageWriter writer(&buffer, "jpg");
+  CHECK(writer.write(image));
+  const auto& encoded = buffer.data();
+  std::vector<std::uint8_t> bytes(reinterpret_cast<const std::uint8_t*>(encoded.constData()),
+                                  reinterpret_cast<const std::uint8_t*>(encoded.constData()) + encoded.size());
+  md::TiffStream exif;
+  exif.set_ascii(md::IfdKind::Ifd0, md::exif_tag::kMake, "PatchyCam");
+  exif.set_ascii(md::IfdKind::Ifd0, md::exif_tag::kModel, "Model X");
+  exif.set_ascii(md::IfdKind::Ifd0, md::exif_tag::kSoftware, "OtherApp 1.0");
+  exif.set_ascii(md::IfdKind::Ifd0, md::exif_tag::kDateTime, "2019:05:04 12:00:00");
+  md::SaveMetadata metadata;
+  metadata.exif = md::write_tiff(exif);
+  metadata.xmp =
+      R"x(<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">)x"
+      R"x(<rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/")x"
+      R"x( xmlns:stEvt="http://ns.adobe.com/xap/1.0/sType/ResourceEvent#" xmp:CreatorTool="OtherApp 1.0")x"
+      R"x( xmp:CreateDate="2019-05-04T12:00:00+09:00" xmp:ModifyDate="2019-05-04T12:00:00+09:00")x"
+      R"x( xmp:MetadataDate="2019-05-04T12:00:00+09:00" xmpMM:DocumentID="xmp.did:0a1b2c3d-2019-4000-8000-000000000001")x"
+      R"x( xmpMM:OriginalDocumentID="xmp.did:0a1b2c3d-2019-4000-8000-000000000001")x"
+      R"x( xmpMM:InstanceID="xmp.iid:0a1b2c3d-2019-4000-8000-000000000001">)x"
+      R"x(<xmpMM:History><rdf:Seq><rdf:li rdf:parseType="Resource"><stEvt:action>created</stEvt:action>)x"
+      R"x(<stEvt:instanceID>xmp.iid:0a1b2c3d-2019-4000-8000-000000000001</stEvt:instanceID>)x"
+      R"x(<stEvt:when>2019-05-04T12:00:00+09:00</stEvt:when><stEvt:softwareAgent>OtherApp 1.0</stEvt:softwareAgent>)x"
+      R"x(</rdf:li></rdf:Seq></xmpMM:History></rdf:Description></rdf:RDF></x:xmpmeta>)x";
+  bytes = md::inject_metadata(std::move(bytes), "jpg", metadata);
+  const auto path = artifact_dir() + QStringLiteral("/dated.jpg");
+  QFile file(path);
+  CHECK(file.open(QIODevice::WriteOnly));
+  file.write(reinterpret_cast<const char*>(bytes.data()), static_cast<qint64>(bytes.size()));
+  file.close();
+  return path;
+}
+
+// Issue 219 follow-up: a PSD save of a file another application wrote in 2019 keeps its
+// creator and creation date, and writes Patchy and the save time into EXIF (IFD0 Software
+// and DateTime) and XMP (ModifyDate, MetadataDate); every save gets a new
+// xmpMM:InstanceID that matches its new History entry, as Photoshop does. Saves
+// after-exif-software.png (File Info > All Metadata, cut to the EXIF IFD0, XMP xmp and
+// XMP xmpMM groups) into test-artifacts/file-info.
 void ui_psd_save_updates_exif_and_instance_id() {
+  constexpr auto kOldInstance = "xmp.iid:0a1b2c3d-2019-4000-8000-000000000001";
   patchy::ui::MainWindow window;
   show_window(window);
-  MainWindowTestAccess::open_document_path(window, write_tagged_jpeg());
+  MainWindowTestAccess::open_document_path(window, write_dated_jpeg());
   QApplication::processEvents();
   const auto path = artifact_dir() + QStringLiteral("/exif-stamped.psd");
   QFile::remove(path);
@@ -368,25 +411,34 @@ void ui_psd_save_updates_exif_and_instance_id() {
   const auto software = ifd0_text(first.file_info(), md::exif_tag::kSoftware);
   const auto date_time = ifd0_text(first.file_info(), md::exif_tag::kDateTime);
   CHECK(software.rfind("Patchy ", 0) == 0U && software.size() > 7U);
-  CHECK(date_time.size() == 19U && date_time[4] == ':' && date_time[10] == ' ');
+  CHECK(date_time.size() == 19U && date_time[4] == ':' && date_time[10] == ' ' && date_time != "2019:05:04 12:00:00");
   CHECK(ifd0_text(first.file_info(), md::exif_tag::kMake) == "PatchyCam");
   CHECK(first.file_info().xmp != nullptr);
   if (first.file_info().xmp == nullptr) {
     return;
   }
   const auto packet = md::parse_xmp(*first.file_info().xmp).value_or(md::XmpPacket{});
+  // The other application stays the creator, with its creation date; the save is recorded.
+  CHECK(packet.text(md::xmp_ns::kXmp, "CreatorTool") == "OtherApp 1.0");
+  CHECK(packet.text(md::xmp_ns::kXmp, "CreateDate") == "2019-05-04T12:00:00+09:00");
+  const auto modified = packet.text(md::xmp_ns::kXmp, "ModifyDate");
+  CHECK(modified.size() == 25U && modified.rfind("2019-", 0) != 0U);
+  CHECK(packet.text(md::xmp_ns::kXmp, "MetadataDate") == modified);
+  // EXIF DateTime is the same local time as xmp:ModifyDate.
+  CHECK(date_time.substr(0, 4) == modified.substr(0, 4) && date_time.substr(11, 8) == modified.substr(11, 8));
+  CHECK(packet.text(md::xmp_ns::kXmpMM, "DocumentID") == "xmp.did:0a1b2c3d-2019-4000-8000-000000000001");
   const auto instance = packet.text(md::xmp_ns::kXmpMM, "InstanceID");
-  CHECK(instance.rfind("xmp.iid:", 0) == 0U && instance.size() == 44U);
-  CHECK(history_instance_ids(packet) == std::vector<std::string>{instance});
-  // The JPEG's creator stays the creator; EXIF Software names the latest save.
-  CHECK(packet.text(md::xmp_ns::kXmp, "CreatorTool") == "Adobe Photoshop CC 2017 (Macintosh)");
+  CHECK(instance.rfind("xmp.iid:", 0) == 0U && instance.size() == 44U && instance != kOldInstance);
+  CHECK((history_instance_ids(packet) == std::vector<std::string>{kOldInstance, instance}));
 
   CHECK(MainWindowTestAccess::save_document_to_path(window, path));
   const auto second = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(path));
   const auto again = md::parse_xmp(*second.file_info().xmp).value_or(md::XmpPacket{});
   const auto next = again.text(md::xmp_ns::kXmpMM, "InstanceID");
   CHECK(next.rfind("xmp.iid:", 0) == 0U && next != instance);
-  CHECK((history_instance_ids(again) == std::vector<std::string>{instance, next}));
+  CHECK((history_instance_ids(again) == std::vector<std::string>{kOldInstance, instance, next}));
+  CHECK(again.text(md::xmp_ns::kXmp, "CreateDate") == "2019-05-04T12:00:00+09:00");
+  CHECK(again.text(md::xmp_ns::kXmp, "ModifyDate") >= modified);
 
   // The driver runs inside Qt's event dispatch: failures are recorded, never thrown.
   const auto expect = [](bool ok, const char* what) {
@@ -400,7 +452,7 @@ void ui_psd_save_updates_exif_and_instance_id() {
     if (dialog == nullptr) {
       return;
     }
-    dialog->resize(dialog->width(), std::max(dialog->height(), 760));
+    dialog->resize(std::max(dialog->width(), 1180), std::max(dialog->height(), 980));
     auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("fileInfoCategoryList"));
     for (int row = 0; categories != nullptr && row < categories->count(); ++row) {
       if (categories->item(row)->data(Qt::UserRole).toString() == QStringLiteral("fileInfoAllMetadataPage")) {
@@ -410,17 +462,29 @@ void ui_psd_save_updates_exif_and_instance_id() {
     QApplication::processEvents();
     auto* tree = dialog->findChild<QTreeWidget*>(QStringLiteral("fileInfoAllMetadataTree"));
     expect(tree != nullptr, "no All Metadata tree");
-    if (tree != nullptr) {
-      const auto matches = tree->findItems(QStringLiteral("Software"), Qt::MatchExactly | Qt::MatchRecursive);
-      expect(!matches.isEmpty(), "no EXIF Software row");
-      if (!matches.isEmpty()) {
-        expect(matches.front()->text(1).startsWith(QStringLiteral("Patchy ")), "EXIF Software does not name Patchy");
-        tree->scrollToItem(matches.front(), QAbstractItemView::PositionAtCenter);
-        tree->setCurrentItem(matches.front());
-      }
+    if (tree == nullptr) {
+      dialog->reject();
+      return;
     }
+    const auto software_rows = tree->findItems(QStringLiteral("Software"), Qt::MatchExactly | Qt::MatchRecursive);
+    expect(!software_rows.isEmpty() && software_rows.front()->text(1).startsWith(QStringLiteral("Patchy ")),
+           "EXIF Software does not name Patchy");
+    // Only the groups the save changes, fully expanded, with the value column wide
+    // enough for the ids.
+    for (int index = 0; index < tree->topLevelItemCount(); ++index) {
+      auto* group = tree->topLevelItem(index);
+      const auto name = group->text(0);
+      group->setHidden(name != QStringLiteral("EXIF IFD0") && name != QStringLiteral("XMP xmp") &&
+                       name != QStringLiteral("XMP xmpMM"));
+      group->setExpanded(true);
+    }
+    tree->resizeColumnToContents(0);
+    tree->resizeColumnToContents(1);
+    tree->clearSelection();
+    tree->setCurrentItem(nullptr);
+    tree->scrollToTop();
     QApplication::processEvents();
-    save_widget_artifact("file-info/after-exif-software", *dialog);
+    save_widget_artifact("file-info/after-exif-software", *tree);
     dialog->reject();
   });
   require_action(window, "fileInfoAction")->trigger();

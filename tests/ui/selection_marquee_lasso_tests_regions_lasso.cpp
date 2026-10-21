@@ -1965,10 +1965,11 @@ void ui_selection_tool_hints_name_modifier_combinations() {
     const char* prefix;
     bool intersects;
   };
-  const std::array<ToolHint, 7> tools{{
+  const std::array<ToolHint, 8> tools{{
       {"toolMarqueeAction", "Rectangular Marquee: drag to select.", true},
       {"toolEllipticalMarqueeAction", "Elliptical Marquee: drag to select.", true},
       {"toolLassoAction", "Lasso: drag around the area to select.", true},
+      {"toolPolygonalLassoAction", "Polygonal Lasso: click to place points.", true},
       {"toolMagneticLassoAction", "Magnetic Lasso: click an edge", true},
       {"toolMagicWandAction", "Magic Wand: click a color to select it.", true},
       {"toolQuickSelectAction", "Quick Select: paint over the area to select", false},
@@ -2236,6 +2237,53 @@ void ui_selection_cursor_shows_combine_mode_badge() {
   send_key_release(window, Qt::Key_Alt, Qt::AltModifier);
 }
 
+// GitHub issue 289: Quick Select kept its cursor until the pointer moved. Every
+// selection tool with a combine-mode cursor swaps it on the Alt or Shift key event
+// itself, from the event's folded modifiers.
+void ui_selection_tools_alt_and_shift_swap_cursor_without_motion() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  canvas->set_quick_select_size(10);  // a real OS cursor, not the large-brush overlay
+  canvas->select_all();
+  canvas->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+  send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(QPoint(40, 40)),
+             Qt::NoButton, Qt::NoButton);
+
+  const auto check_badges_swap = [&window, canvas] {
+    canvas->set_selection_mode(patchy::ui::CanvasWidget::SelectionMode::Replace);
+    QApplication::processEvents();
+    // An Alt-up with nothing held sets the plain cursor from the folded state, whatever
+    // synthetic modifier an earlier test left in the offscreen global state.
+    send_key_release(window, Qt::Key_Alt, Qt::AltModifier);
+    const auto plain_image = canvas->cursor().pixmap().toImage();
+    CHECK(!plain_image.isNull());
+
+    send_key_press(window, Qt::Key_Alt, Qt::NoModifier);
+    const auto subtract_image = canvas->cursor().pixmap().toImage();
+    CHECK(subtract_image != plain_image);
+    send_key_release(window, Qt::Key_Alt, Qt::AltModifier);
+    CHECK(canvas->cursor().pixmap().toImage() == plain_image);
+
+    send_key_press(window, Qt::Key_Shift, Qt::NoModifier);
+    const auto add_image = canvas->cursor().pixmap().toImage();
+    CHECK(add_image != plain_image);
+    CHECK(add_image != subtract_image);
+    send_key_release(window, Qt::Key_Shift, Qt::ShiftModifier);
+    CHECK(canvas->cursor().pixmap().toImage() == plain_image);
+  };
+  for (const auto tool : {patchy::ui::CanvasTool::QuickSelect, patchy::ui::CanvasTool::MagicWand,
+                          patchy::ui::CanvasTool::ObjectSelect, patchy::ui::CanvasTool::Lasso,
+                          patchy::ui::CanvasTool::MagneticLasso, patchy::ui::CanvasTool::Marquee}) {
+    canvas->set_tool(tool);
+    check_badges_swap();
+  }
+  // The Polygonal Lasso (GitHub issue 287), picked through its palette action.
+  require_action(window, "toolPolygonalLassoAction")->trigger();
+  check_badges_swap();
+}
+
 void ui_brush_alt_shows_eyedropper_cursor() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -2347,6 +2395,8 @@ std::vector<patchy::test::TestCase> selection_marquee_lasso_tests_part2() {
       {"ui_selection_arrow_keys_nudge", ui_selection_arrow_keys_nudge},
       {"ui_selection_moves_coalesce_into_one_undo_step", ui_selection_moves_coalesce_into_one_undo_step},
       {"ui_selection_cursor_shows_combine_mode_badge", ui_selection_cursor_shows_combine_mode_badge},
+      {"ui_selection_tools_alt_and_shift_swap_cursor_without_motion",
+       ui_selection_tools_alt_and_shift_swap_cursor_without_motion},
       {"ui_brush_alt_shows_eyedropper_cursor", ui_brush_alt_shows_eyedropper_cursor},
   };
 }

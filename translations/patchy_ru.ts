@@ -317,6 +317,37 @@
     </message>
 </context>
 <context>
+    <name>NewLayerDialog</name>
+    <message>
+        <source>New Layer</source>
+        <translation>Новый слой</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>Имя:</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>Цвет:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>Режим:</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Непрозрачность:</translation>
+    </message>
+    <message>
+        <source>Use Previous Layer to Create Clipping Mask</source>
+        <translation>Использовать предыдущий слой для создания обтравочной маски</translation>
+    </message>
+    <message>
+        <source>Clip the new layer to the layer below it</source>
+        <translation>Обтравить новый слой по слою под ним</translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Patchy raster image editor.</source>
@@ -11571,6 +11602,46 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source> (Amount %1%, Radius %2 px, Legacy)</source>
         <translation> (Эффект %1%, Радиус %2 пикс., Прежний)</translation>
     </message>
+    <message>
+        <source>Undo</source>
+        <translation>Отменить</translation>
+    </message>
+    <message>
+        <source>Redo</source>
+        <translation>Повторить</translation>
+    </message>
+    <message>
+        <source>Rate:</source>
+        <translation>Скорость:</translation>
+    </message>
+    <message>
+        <source>How fast the brush keeps working while it is held still</source>
+        <translation>Скорость действия кисти, пока она удерживается на месте</translation>
+    </message>
+    <message>
+        <source>Stylus Pressure</source>
+        <translation>Нажим пера</translation>
+    </message>
+    <message>
+        <source>Show Mesh</source>
+        <translation>Показать сетку</translation>
+    </message>
+    <message>
+        <source>Reconstruct...</source>
+        <translation>Реконструкция...</translation>
+    </message>
+    <message>
+        <source>Amount:</source>
+        <translation>Величина:</translation>
+    </message>
+    <message>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
+        <translation>Фон: остается в самом низу стека, без прозрачности и стилей слоя. Щелкните его правой кнопкой мыши и выберите «Слой из фона», чтобы сделать его обычным слоем.</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>Многоугольное лассо</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13226,6 +13297,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Deselect Shapes</source>
         <translation>Отменить выбор фигур</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>Многоугольное лассо</translation>
     </message>
 </context>
 <context>
@@ -22999,10 +23074,6 @@ Patchy может скачать обновление, заменить этот
         <translation>Овальная область: протяните указатель для выделения. Shift+перетаскивание добавляет, %ALT%+перетаскивание вычитает, Shift+%ALT%+перетаскивание оставляет пересечение. Без выделения Shift рисует круг, а %ALT% рисует от центра.</translation>
     </message>
     <message>
-        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects.</source>
-        <translation>Лассо: обведите область, чтобы выделить её. Shift+перетаскивание добавляет, %ALT%+перетаскивание вычитает, Shift+%ALT%+перетаскивание оставляет пересечение.</translation>
-    </message>
-    <message>
         <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
         <translation>Магнитное лассо: щёлкните по краю и ведите вдоль него; щелчок закрепляет точку. Начните с Shift+щелчка, чтобы добавить, %ALT%+щелчка, чтобы вычесть, или Shift+%ALT%+щелчка для пересечения. Backspace удаляет последнюю точку, Enter замыкает контур, Esc отменяет.</translation>
     </message>
@@ -23433,6 +23504,82 @@ Patchy можно будет запускать из меню, а на пане�
     <message>
         <source>Transform Controls</source>
         <translation>Элементы управления преобразованием</translation>
+    </message>
+    <message>
+        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
+        <translation>Монтажные области нельзя очистить. Снимите выделение, затем нажмите Delete для удаления монтажной области.</translation>
+    </message>
+    <message>
+        <source>Deleted artboard</source>
+        <translation>Монтажная область удалена</translation>
+    </message>
+    <message>
+        <source>Deleted %1 artboards</source>
+        <translation>Удалено монтажных областей: %1</translation>
+    </message>
+    <message>
+        <source>The Background layer cannot go inside a folder</source>
+        <translation>Фоновый слой нельзя поместить в папку</translation>
+    </message>
+    <message>
+        <source>The Background layer stays at the bottom of the stack</source>
+        <translation>Фоновый слой остается в самом низу стека</translation>
+    </message>
+    <message>
+        <source>Layer from Background</source>
+        <translation>Слой из фона</translation>
+    </message>
+    <message>
+        <source>The Background layer cannot have layer styles</source>
+        <translation>Фоновый слой не может иметь стилей слоя</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>Многоугольное лассо</translation>
+    </message>
+    <message>
+        <source>Click to place points, Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close.</source>
+        <translation>Щёлкайте, чтобы ставить точки; Shift держит 45 градусов, %ALT%+перетаскивание рисует от руки. Чтобы замкнуть контур, щёлкните по начальной точке, дважды щёлкните или нажмите Enter.</translation>
+    </message>
+    <message>
+        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
+        <translation>Лассо: обведите область, чтобы выделить её. Shift+перетаскивание добавляет, %ALT%+перетаскивание вычитает, Shift+%ALT%+перетаскивание оставляет пересечение. Нажмите %ALT% во время перетаскивания и отпустите кнопку, чтобы щелчками ставить прямые отрезки, пока %ALT% не будет отпущена.</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
+        <translation>Многоугольное лассо: щёлкайте, чтобы ставить точки. Начните с Shift+щелчка, чтобы добавить, %ALT%+щелчка, чтобы вычесть, или Shift+%ALT%+щелчка для пересечения. Shift держит 45 градусов, %ALT%+перетаскивание рисует от руки. Чтобы замкнуть контур, щёлкните по начальной точке, дважды щёлкните или нажмите Enter; Backspace удаляет последнюю точку, Esc отменяет.</translation>
+    </message>
+    <message>
+        <source>New &amp;Layer...</source>
+        <translation>Новый &amp;слой...</translation>
+    </message>
+    <message>
+        <source>Add a layer, choosing its name, color, mode and opacity first</source>
+        <translation>Добавить слой, сначала выбрав имя, цвет, режим и непрозрачность</translation>
+    </message>
+    <message>
+        <source>&amp;Merge Visible</source>
+        <translation>Объединить в&amp;идимые</translation>
+    </message>
+    <message>
+        <source>Merge every visible layer into one, keeping the hidden layers</source>
+        <translation>Объединить все видимые слои в один, сохранив скрытые</translation>
+    </message>
+    <message>
+        <source>Merge Visible</source>
+        <translation>Объединить видимые</translation>
+    </message>
+    <message>
+        <source>Merge Visible needs at least two visible layers</source>
+        <translation>Для объединения видимых нужно не менее двух видимых слоев</translation>
+    </message>
+    <message>
+        <source>Merge visible</source>
+        <translation>Объединить видимые</translation>
+    </message>
+    <message>
+        <source>Merged the visible layers</source>
+        <translation>Видимые слои объединены</translation>
     </message>
 </context>
 <context>

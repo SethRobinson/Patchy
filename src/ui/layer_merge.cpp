@@ -484,6 +484,76 @@ Document visible_document_for_merge_copy(const Document& document) {
   return result;
 }
 
+namespace {
+
+// Calls visit(layer, draws) for every layer bottom to top, entering only groups that draw.
+// A clipped layer follows the visibility of its base, as in visible_document_for_merge_copy.
+template <typename Visit>
+void visit_merge_visible_layers(const std::vector<Layer>& siblings, const Visit& visit) {
+  bool base_visible = true;
+  for (const auto& layer : siblings) {
+    if (!layer.clipped()) { base_visible = layer.visible(); }
+    const bool draws = layer.visible() && (!layer.clipped() || base_visible);
+    visit(layer, draws);
+    if (draws && layer.kind() == LayerKind::Group) { visit_merge_visible_layers(layer.children(), visit); }
+  }
+}
+
+void collect_merge_visible_stack(const std::vector<Layer>& siblings, LayerId target, Layer& merged, bool& placed,
+                                 std::vector<Layer>& stack) {
+  bool base_visible = true;
+  for (const auto& layer : siblings) {
+    if (!layer.clipped()) { base_visible = layer.visible(); }
+    if (!layer.visible() || (layer.clipped() && !base_visible)) {
+      stack.push_back(layer);
+      continue;
+    }
+    if (layer.kind() == LayerKind::Group) { collect_merge_visible_stack(layer.children(), target, merged, placed, stack); }
+    if (layer.id() == target && !placed) {
+      stack.push_back(std::move(merged));
+      placed = true;
+    }
+  }
+}
+
+}  // namespace
+
+std::size_t merge_visible_layer_count(const Document& document) {
+  std::size_t count = 0;
+  visit_merge_visible_layers(document.layers(), [&count](const Layer& layer, bool draws) {
+    if (draws && layer.kind() != LayerKind::Group) { ++count; }
+  });
+  return count;
+}
+
+LayerId merge_visible_target(const Document& document) {
+  if (const auto* background = background_layer(document.layers(), document.width(), document.height());
+      background != nullptr && background->visible()) {
+    return background->id();
+  }
+  const auto active = document.active_layer_id();
+  bool active_draws = false;
+  LayerId topmost = 0;
+  visit_merge_visible_layers(document.layers(), [&](const Layer& layer, bool draws) {
+    if (!draws) { return; }
+    if (active.has_value() && layer.id() == *active) { active_draws = true; }
+    if (layer.kind() != LayerKind::Group) { topmost = layer.id(); }
+  });
+  return active_draws ? *active : topmost;
+}
+
+std::vector<Layer> merge_visible_layer_stack(const Document& document, LayerId target, Layer merged) {
+  std::vector<Layer> stack;
+  bool placed = false;
+  collect_merge_visible_stack(document.layers(), target, merged, placed, stack);
+  if (!placed) { stack.push_back(std::move(merged)); }
+  for (auto& layer : stack) {
+    if (!layer.clipped()) { break; }
+    layer.set_clipped(false);
+  }
+  return stack;
+}
+
 Document render_layer_merge(const Document& document, const LayerMergePlan& plan,
                            const std::function<std::optional<Layer>(const Layer&)>& raster_source) {
   if (!plan.blockers.empty()) { throw std::runtime_error("Cannot merge protected vector layers"); }

@@ -19,7 +19,7 @@
 
 namespace patchy::ui {
 
-inline constexpr std::size_t kSelectionToolCount = 8;
+inline constexpr std::size_t kSelectionToolCount = 9;
 
 inline constexpr int kMaxBrushSize = 1024;
 
@@ -75,7 +75,9 @@ enum class CanvasTool {
   // October 2026 Object Selection (append-only: values ride persisted settings).
   ObjectSelect,
   // October 2026 Artboard tool (append-only: values ride persisted settings).
-  Artboard
+  Artboard,
+  // October 2026 Polygonal Lasso (append-only: values ride persisted settings).
+  PolygonLasso
 };
 
 // What the Artboard tool (and the artboard labels any tool can click) asks MainWindow to do;

@@ -1901,14 +1901,22 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   auto* lock_badges = new QHBoxLayout();
   lock_badges->setContentsMargins(0, 0, 0, 0);
   lock_badges->setSpacing(2);
+  if (background_row) {
+    // The Background's mark (GitHub issue 274): one padlock, like Photoshop's, that names the
+    // layer; its transparency, position and auto-nest locks (lspf 0xd) need no badges of their own.
+    auto* badge = make_layer_lock_badge(kLayerLockNone, false, row, list_parent);
+    badge->setProperty("layerBackgroundBadge", true);
+    badge->setToolTip(QObject::tr("Background: it stays at the bottom of the stack, with no transparency or "
+                                  "layer styles. Right-click it and choose Layer from Background to make it an "
+                                  "ordinary layer."));
+    lock_badges->addWidget(badge, 0, Qt::AlignVCenter);
+  }
   for (const auto flag : {kLayerLockTransparentPixels, kLayerLockImagePixels, kLayerLockPosition,
                           kLayerLockArtboardAutonest}) {
     if ((effective_lock_flags & flag) == kLayerLockNone) {
       continue;
     }
-    // Photoshop stores Prevent Auto-Nesting on its Background (lspf 0xd) but shows that
-    // layer one lock icon; the Background's own lock badges stand for it here too.
-    if (flag == kLayerLockArtboardAutonest && background_row) {
+    if (background_row && flag != kLayerLockImagePixels) {
       continue;
     }
     const bool inherited = (ancestor_lock_flags & flag) != kLayerLockNone &&
@@ -1927,6 +1935,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   // Nested rows under the main row: the Smart Filter stack and the layer's effects share
   // the height, indent, eye button style and tooltip plumbing.
   constexpr int kNestedRowHeight = 26;
+  constexpr int kNestedRowSpacing = 5;
   const auto nested_button_style = QStringLiteral(
       "QToolButton { background: transparent; border: 1px solid transparent; border-radius: 3px; padding: 0; "
       "min-width: 20px; max-width: 20px; min-height: 20px; max-height: 20px; } "
@@ -1968,7 +1977,7 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
                         layer_tree_indent_width(depth) + kLayerFolderDisclosureWidth +
                         kLayerRowHorizontalSpacing + extra_indent;
     nested_layout->setContentsMargins(indent, 1, 8, 1);
-    nested_layout->setSpacing(5);
+    nested_layout->setSpacing(kNestedRowSpacing);
     row_layout->addWidget(nested_row);
     return std::pair{nested_row, nested_layout};
   };
@@ -2702,8 +2711,13 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
       }
       return on ? QObject::tr("Effect visible. Click to hide.") : QObject::tr("Effect hidden. Click to show.");
     };
+    // Each effect's eye sits under the header's eye (past its disclosure arrow, whose QSS adds
+    // a 1 px border on each side of its 18 px), so the effect names line up with "Layer Styles"
+    // (issue 256 follow-up).
+    constexpr int kEffectEntryIndent = kLayerFolderDisclosureWidth + 2 + kNestedRowSpacing;
     for (const auto& effect_row : effects_expanded ? effect_rows : std::vector<LayerEffectRow>{}) {
-      auto [entry_row, entry_layout] = make_nested_row(QStringLiteral("layerEffectEntryRow"), 14, row_tooltip);
+      auto [entry_row, entry_layout] =
+          make_nested_row(QStringLiteral("layerEffectEntryRow"), kEffectEntryIndent, row_tooltip);
       entry_row->setProperty("layerEffectKind", static_cast<int>(effect_row.effect));
       entry_row->setProperty("layerEffectIndex",
                              QVariant::fromValue<qulonglong>(static_cast<qulonglong>(effect_row.index)));
@@ -3006,7 +3020,8 @@ void MainWindow::handle_layer_drop() {
   }
   auto trial_layers = doc.layers();
   const auto before_signature = layer_tree_signature(doc.layers());
-  if (!move_layers_for_drop(trial_layers, *request) || layer_tree_signature(trial_layers) == before_signature) {
+  if (!move_layers_for_drop(trial_layers, *request) || layer_tree_signature(trial_layers) == before_signature ||
+      refuse_background_stack_change(trial_layers)) {
     refresh_layer_list();
     return;
   }
@@ -3080,7 +3095,8 @@ void MainWindow::duplicate_layers_for_drop(const LayerDropRequest& request) {
   LayerDropRequest clone_request = request;
   clone_request.layer_ids_top_to_bottom = clone_ids_top_to_bottom;
   clone_request.copy = false;
-  if (clone_ids_top_to_bottom.empty() || !move_layers_for_drop(trial_layers, clone_request)) {
+  if (clone_ids_top_to_bottom.empty() || !move_layers_for_drop(trial_layers, clone_request) ||
+      refuse_background_stack_change(trial_layers)) {
     undo();
     refresh_layer_list();
     return;
@@ -3145,6 +3161,12 @@ void MainWindow::reorder_layers_from_list() {
     }
   }
 
+  if (const auto* background = document_background_layer();
+      background != nullptr && top_to_bottom.back() != background->id()) {
+    show_status_error(tr("The Background layer stays at the bottom of the stack"));
+    refresh_layer_list();
+    return;
+  }
   push_undo_snapshot(tr("Reorder layers"));
   auto old_layers = std::move(layers);
   std::vector<Layer> reordered;
@@ -3772,6 +3794,10 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
     bool row_clipped{false};
     bool background_row{false};
   };
+  std::optional<LayerId> background_id;
+  if (const auto* background = document_background_layer(); background != nullptr) {
+    background_id = background->id();
+  }
   std::vector<PendingLayerRow> pending_rows;
   std::function<void(const std::vector<Layer>&, int, bool, LayerLockFlags)> append_layers =
       [&](const std::vector<Layer>& layers, int depth, bool ancestors_visible, LayerLockFlags ancestor_lock_flags) {
@@ -3831,10 +3857,8 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
         font.setBold(true);
         item->setFont(font);
       }
-      // A Background: the bottom top-level pixel layer named "Background" (the PSD reader's rule).
-      const auto background_row = depth == 0 && sibling_index == 0 && it->kind() == LayerKind::Pixel &&
-                                  QString::fromStdString(it->name()).compare(QStringLiteral("Background"),
-                                                                             Qt::CaseInsensitive) == 0;
+      // The Background (core background_layer, GitHub issue 274) shows one lock badge.
+      const auto background_row = depth == 0 && background_id.has_value() && it->id() == *background_id;
       pending_rows.push_back(PendingLayerRow{item, &*it, depth, ancestors_visible, group_expanded,
                                              ancestor_lock_flags, row_clipped, background_row});
       item_ms += phase_ms(item_started);
@@ -4170,6 +4194,7 @@ void MainWindow::refresh_layer_thumbnails() {
 
 void MainWindow::refresh_layer_controls() {
   const UiProfileScope profile_scope("refresh_layer_controls");
+  refresh_merge_visible_action_state();
   sync_text_character_dialog_from_editor();
   sync_text_options_from_active_layer();
   sync_text_alignment_buttons_from_editor();
@@ -4530,8 +4555,16 @@ void MainWindow::refresh_document_info() {
   if (document_info_label_ == nullptr) {
     return;
   }
+  // The shape section's button follows the active layer on every refresh, deselection and
+  // closed documents included (GitHub issue 273).
+  const auto hide_shape_section = [this] {
+    if (properties_edit_appearance_button_ != nullptr) {
+      properties_edit_appearance_button_->setVisible(false);
+    }
+  };
 
   if (!has_active_document()) {
+    hide_shape_section();
     set_property_label_text(document_info_label_, tr("No document"));
     set_property_label_text(active_layer_info_label_, tr("Layer: No active layer"));
     for (auto* label : {active_layer_geometry_label_, active_layer_mask_label_, active_layer_adjustment_label_,
@@ -4570,6 +4603,7 @@ void MainWindow::refresh_document_info() {
   const auto active = doc.active_layer_id();
   const auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
   if (layer == nullptr) {
+    hide_shape_section();
     set_property_label_text(active_layer_info_label_, tr("Layer: No active layer"));
     for (auto* label : {active_layer_geometry_label_, active_layer_mask_label_, active_layer_adjustment_label_,
                         active_layer_text_label_, active_layer_shape_label_}) {
@@ -4757,7 +4791,7 @@ void MainWindow::refresh_document_info() {
                    .arg(current_selection_feather_radius_)
                    .arg(current_selection_antialias_ ? tr("anti-aliased") : tr("hard edge"));
     } else if (current_tool_ == CanvasTool::Marquee || current_tool_ == CanvasTool::EllipticalMarquee ||
-               current_tool_ == CanvasTool::Lasso) {
+               current_tool_ == CanvasTool::Lasso || current_tool_ == CanvasTool::PolygonLasso) {
       lines << tr("Selection: feather %1 px, %2")
                    .arg(current_selection_feather_radius_)
                    .arg(current_selection_antialias_ ? tr("anti-aliased") : tr("hard edge"));

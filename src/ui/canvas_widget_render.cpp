@@ -10,6 +10,7 @@
 #include "ui/canvas_widget.hpp"
 
 #include "color/color_management.hpp"
+#include "core/artboard.hpp"
 #include "core/document.hpp"
 #include "core/document_channel.hpp"
 #include "core/layer.hpp"
@@ -1060,9 +1061,11 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   draw_guides_overlay(painter);
   draw_artboard_overlay(painter);
   draw_move_snap_guides(painter);
-  painter.setPen(theme().canvas_document_border);
+  // With artboards the canvas has no fixed size of its own, so only the artboards are
+  // outlined (GitHub issue 278).
   const auto border_rect = target_rect.adjusted(0.5, 0.5, -0.5, -0.5);
-  if (!border_rect.isEmpty()) {
+  if (!border_rect.isEmpty() && (document_ == nullptr || !document_has_artboards(std::as_const(*document_)))) {
+    painter.setPen(theme().canvas_document_border);
     painter.drawRect(border_rect);
   }
   draw_selection_overlay(painter);

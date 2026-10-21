@@ -807,7 +807,8 @@ std::optional<NewDocumentSettings> request_new_document_settings(QWidget* parent
 
   auto* swap_dimensions = new QToolButton(&dialog);
   swap_dimensions->setObjectName(QStringLiteral("newDocumentSwapDimensionsButton"));
-  swap_dimensions->setIcon(themed_svg_icon(QStringLiteral("rotate")));
+  // The options bars' swap glyph (GitHub issue 286): one icon for every width/height swap.
+  swap_dimensions->setIcon(themed_svg_icon(QStringLiteral("swap-dimensions")));
   swap_dimensions->setIconSize(QSize(18, 18));
   swap_dimensions->setToolTip(QObject::tr("Swap width and height"));
   swap_dimensions->setFixedWidth(28);

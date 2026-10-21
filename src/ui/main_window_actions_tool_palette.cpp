@@ -45,8 +45,11 @@
 #include <QMenu>
 #include <QMouseEvent>
 #include <QObject>
+#include <QPoint>
 #include <QPointer>
 #include <QPushButton>
+#include <QRect>
+#include <QScreen>
 #include <QSize>
 #include <QString>
 #include <QStringLiteral>
@@ -82,6 +85,8 @@ const char* tool_action_source(CanvasTool tool) {
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Elliptical Marquee");
     case CanvasTool::Lasso:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Lasso");
+    case CanvasTool::PolygonLasso:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Polygonal Lasso");
     case CanvasTool::MagneticLasso:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Magnetic Lasso");
     case CanvasTool::MagicWand:
@@ -172,6 +177,8 @@ QString tool_hotkey_id(CanvasTool tool) {
       return QStringLiteral("tools.elliptical_marquee");
     case CanvasTool::Lasso:
       return QStringLiteral("tools.lasso");
+    case CanvasTool::PolygonLasso:
+      return QStringLiteral("tools.polygonal_lasso");
     case CanvasTool::MagneticLasso:
       return QStringLiteral("tools.magnetic_lasso");
     case CanvasTool::MagicWand:
@@ -280,6 +287,9 @@ const char* tool_tooltip_detail_source(CanvasTool tool) {
     case CanvasTool::Artboard:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Drag on empty space to add an artboard, drag an artboard to move it with its "
              "content (%ALT% copies it), drag a handle to resize it, click + to add one beside it.");
+    case CanvasTool::PolygonLasso:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Click to place points, Shift keeps 45 degrees, %ALT%+drag draws freehand. "
+             "Click the start point, double-click or press Enter to close.");
     default:
       return nullptr;
   }
@@ -331,7 +341,13 @@ const char* tool_activation_hint_source(CanvasTool tool) {
              "center.");
     case CanvasTool::Lasso:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, "
-             "Shift+%ALT%+drag intersects.");
+             "Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight "
+             "segments until %ALT% is released.");
+    case CanvasTool::PolygonLasso:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Polygonal Lasso: click to place points. Start with Shift+click to add, "
+             "%ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws "
+             "freehand. Click the start point, double-click or press Enter to close; Backspace removes the last "
+             "point, Esc cancels.");
     case CanvasTool::MagneticLasso:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Magnetic Lasso: click an edge and follow it; click to pin a point. Start "
              "with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace "
@@ -409,6 +425,40 @@ protected:
 
 private:
   std::function<void()> open_menu_;
+};
+
+// Opens a flyout beside its button (GitHub issue 284). QToolButton puts a vertical bar's
+// menu at the button's last pixel column, over its edge, one pixel low. Every way in (the
+// hold timer, a double-click, a right-click) shows the menu, so the move happens on Show,
+// before the window maps. Qt's placement stays when the menu would not fit on the right.
+class ToolFlyoutMenuPlacement final : public QObject {
+public:
+  ToolFlyoutMenuPlacement(QToolButton* button, QMenu* menu) : QObject(menu), button_(button) {
+    menu->installEventFilter(this);
+  }
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() == QEvent::Show && button_ != nullptr && button_->isVisible()) {
+      auto* menu = static_cast<QWidget*>(watched);
+      constexpr int kGap = 2;
+      QPoint target = button_->mapToGlobal(QPoint(button_->width() + kGap, 0));
+      const auto* screen = button_->screen();
+      const QRect available = screen != nullptr ? screen->availableGeometry() : QRect();
+      if (!menu->isRightToLeft() &&
+          (!available.isValid() || target.x() + menu->width() - 1 <= available.right())) {
+        if (available.isValid()) {
+          target.setY(std::clamp(target.y(), available.top(),
+                                 std::max(available.top(), available.bottom() - menu->height() + 1)));
+        }
+        menu->move(target);
+      }
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+private:
+  QPointer<QToolButton> button_;
 };
 
 // Stock QToolBar collapses an expanded overflow bar half a second after the
@@ -718,6 +768,9 @@ QIcon tool_icon(CanvasTool tool) {
     case CanvasTool::Lasso:
       name = "tool-lasso";
       break;
+    case CanvasTool::PolygonLasso:
+      name = "tool-polygon-lasso";
+      break;
     case CanvasTool::MagneticLasso:
       name = "tool-magnetic-lasso";
       break;
@@ -901,6 +954,18 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     // menu through the same showMenu() path the timer uses. The first click
     // of the pair still selects the default tool, as in Photoshop.
     button->installEventFilter(new ToolFlyoutEventFilter([button] { button->showMenu(); }, button));
+    new ToolFlyoutMenuPlacement(button, menu);
+    // Tool icons at the palette's own size, centered between the menu's left edge and the
+    // names (GitHub issue 284). Qt draws a menu icon at the item's left edge and starts the
+    // name after the item's left padding plus the icon column it reserves (icon + 4 px), so
+    // shifting the icon by half of padding + 4 centers it. The padding is restated here
+    // (the app sheet's QMenu::item value) so the centering does not depend on that sheet.
+    constexpr int kFlyoutItemLeftPadding = 24;
+    menu->setStyleSheet(QStringLiteral("QMenu { icon-size: %1px; } QMenu::item { padding-left: %2px; } "
+                                       "QMenu::icon { left: %3px; }")
+                            .arg(palette->iconSize().width())
+                            .arg(kFlyoutItemLeftPadding)
+                            .arg((kFlyoutItemLeftPadding + 4) / 2));
     for (auto* action : actions) {
       QObject::connect(action, &QAction::triggered, button, [button, menu, action] {
         button->setDefaultAction(action);
@@ -962,12 +1027,14 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   lasso_menu->setObjectName(QStringLiteral("lassoToolMenu"));
   bind_widget_text(lasso_menu, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Lasso Tools"));
   auto* lasso_action = create_flyout_tool_action(lasso_menu, tr("Lasso"), CanvasTool::Lasso, QKeySequence(Qt::Key_L));
+  auto* polygon_lasso_action =
+      create_flyout_tool_action(lasso_menu, tr("Polygonal Lasso"), CanvasTool::PolygonLasso, QKeySequence());
   auto* magnetic_lasso_action = create_flyout_tool_action(lasso_menu, tr("Magnetic Lasso"), CanvasTool::MagneticLasso,
                                                           QKeySequence());
   auto* lasso_tool_button = new QToolButton(tool_palette);
   lasso_tool_button->setObjectName(QStringLiteral("lassoToolButton"));
   configure_tool_flyout(tool_palette, lasso_menu, lasso_tool_button, lasso_action,
-                        {lasso_action, magnetic_lasso_action},
+                        {lasso_action, polygon_lasso_action, magnetic_lasso_action},
                         QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Cycle Lasso Tools"),
                         "toolCycleLassoAction", "tools.cycle.lasso", QKeySequence(Qt::SHIFT | Qt::Key_L));
   auto* wand_menu = new QMenu(tr("Wand Tools"), tool_palette);
