@@ -23344,22 +23344,6 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
         <translation>Patchy è stato rimosso dal menu delle applicazioni</translation>
     </message>
     <message>
-        <source>Applications Menu</source>
-        <translation>Menu delle applicazioni</translation>
-    </message>
-    <message>
-        <source>Add Patchy to your applications menu?
-
-Patchy then starts from the menu and shows its own icon in the taskbar. This writes a menu entry and icons to your home folder.
-
-You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
-        <translation>Aggiungere Patchy al menu delle applicazioni?
-
-Patchy si potrà avviare dal menu e mostrerà la propria icona nella barra delle applicazioni. Vengono scritte una voce di menu e alcune icone nella tua cartella home.
-
-Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicazioni.</translation>
-    </message>
-    <message>
         <source>Don&apos;t Ask Again</source>
         <translation>Non chiedere più</translation>
     </message>
@@ -23761,6 +23745,10 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
     <message>
         <source>Rename File...</source>
         <translation>Rinomina file...</translation>
+    </message>
+    <message>
+        <source>Add Patchy to your applications menu? It then starts from the menu and shows its own icon in the taskbar. This writes a menu entry and icons to your home folder. You can also do it later from Help &gt; Add Patchy to Applications Menu.</source>
+        <translation>Aggiungere Patchy al menu delle applicazioni? Patchy si potrà avviare dal menu e mostrerà la propria icona nella barra delle applicazioni. Vengono scritte una voce di menu e alcune icone nella tua cartella home. Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicazioni.</translation>
     </message>
 </context>
 <context>
