@@ -390,6 +390,7 @@ int main(int argc, char* argv[]) {
            crop_tool_tests,
            unit_spin_box_tests,
            clipboard_free_transform_tests,
+           deep_operation_audit_tests,
            group_transform_tests,
            channels_panel_tests,
            camera_raw_heif_tests,
