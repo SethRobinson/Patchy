@@ -3766,6 +3766,26 @@ void ScriptEngineHost::set_view_gamut_warning(bool enabled) {
   window_.view_gamut_warning_action_->setChecked(enabled);
 }
 
+double ScriptEngineHost::view_preview_exposure() const {
+  const auto* document = session_document_const(active_session_id());
+  if (document == nullptr || document->color_state().bit_depth != BitDepth::Float32) {
+    return 0.0;
+  }
+  return document->color_state().view_exposure_stops;
+}
+
+void ScriptEngineHost::set_view_preview_exposure(double stops) {
+  pump_progress_indicator();
+  const auto* document = session_document_const(active_session_id());
+  if (document == nullptr || document->color_state().bit_depth != BitDepth::Float32 ||
+      window_.hdr_exposure_spin_ == nullptr) {
+    throw_js_error(tr("The preview exposure applies only to an open 32-bit document."));
+    return;
+  }
+  // The spin box clamps to its -20..20 range, stores the value on the document and repaints.
+  window_.hdr_exposure_spin_->setValue(std::clamp(stops, -20.0, 20.0));
+}
+
 void ScriptEngineHost::set_view_zoom_percent(double percent) {
   pump_progress_indicator();
   auto* canvas = session_canvas(active_session_id());

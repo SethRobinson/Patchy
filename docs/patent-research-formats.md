@@ -68,3 +68,20 @@ Research record for Patchy's PSD format and copyright position, the HEIF codec b
     AV1) encodes stills. Writing was added the same day on the GIMP precedent (GIMP encodes
     AVIF through libheif with libaom or rav1e). libavif's gain-map and sample-transform code
     compiles but nothing calls it. No AV2 (avm) code.
+- **PQ and HLG decoding read 2026-10-21** (HDR Track A: `formats/hdr_transfer`, the AVIF
+  reader, the macOS HEIF reader), an engineering read, not a claim-level review.
+  - *What Patchy does*: decode only. It converts samples a decoder already produced (libavif,
+    ImageIO) from the PQ or HLG signal to linear light with the published formulas, plus a
+    primaries matrix. Nothing encodes PQ or HLG, nothing maps HDR to a display, and nothing
+    reads dynamic HDR metadata (HDR10+, Dolby Vision) or applies gain maps.
+  - *PQ*: SMPTE ST 2084 (2014), originated at Dolby, also ITU-R BT.2100 (2016). The SMPTE and
+    ITU patent declarations were not fetched in this read, so PQ's patent status is
+    unverified. Precedent relied on: the same decode already ships inside Patchy through
+    libjxl (JPEG XL PQ files) and Qt 6.8's QtGui (`QColorSpace::TransferFunction::St2084`),
+    and ships in Chrome and Skia (skcms), Firefox, ffmpeg/zimg, libplacebo, Krita and darktable,
+    and in the macOS and Windows color pipelines; no assertion against a decoder was found.
+  - *HLG*: ARIB STD-B67 (2015) and BT.2100, developed by the BBC and NHK, which describe it as
+    royalty-free.
+  - *Gain maps* (ISO 21496-1, Apple's HEIC gain map, Ultra HDR JPEG, libavif's gain-map code):
+    not applied anywhere; adding them needs its own review first.
+  - Binding rule in [legal-constraints.md](legal-constraints.md).

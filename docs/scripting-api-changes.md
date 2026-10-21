@@ -8,6 +8,10 @@ Remove Object, Align/Distribute and smart objects) are in
 [scripting-api-changes-through-2026-09-30.md](scripting-api-changes-through-2026-09-30.md).
 Every entry below is API 1.
 
+2026-10-21 (additive): `patchy.ui.previewExposure` reads and sets the active 32-bit
+document's preview exposure in stops (the status bar's Exposure box, docs/high-bit-depth.md
+Phase 7), so automation can bring HDR highlights into view before a window capture.
+Permanent identifier: the property. Pinned by `ui_script_preview_exposure_drives_the_32_bit_view`.
 2026-10-20 (behavioral): `drawStrokes` strokes and `patchy.brushes` settings accept `opacity`
 and `flow` of 0 (was 1..100): a 0% stroke paints nothing, the options bar's new minimum for
 Opacity and Flow (GitHub issue 253; Photoshop stops both at 1%). Pinned by

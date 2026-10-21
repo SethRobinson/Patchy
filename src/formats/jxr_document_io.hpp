@@ -21,9 +21,10 @@ namespace patchy::jxr {
 //
 // The format's distinguishing feature is float channels, which is why NVIDIA's in-game
 // capture (GeForce Experience / NVIDIA App) writes HDR screenshots as .jxr: 32-bit float
-// scRGB, or 16-bit half from the Windows Game Bar. Patchy's pipeline is 8-bit, so those
-// tone map on import (see tone_map_scrgb_to_rgba8 below); integer files convert straight
-// down like every other deep format.
+// scRGB, or 16-bit half from the Windows Game Bar. With deep editing on those open as 32-bit
+// linear documents holding the scRGB values as stored (1.0 = SDR white); with it off they
+// tone map to 8 bits (see tone_map_scrgb_to_rgba8 below). Integer files convert straight
+// down to 8 bits.
 
 // Lowercase extensions (no dot) routed to the JPEG XR reader; single source of truth for
 // the registry, the file dialog filter and the writer branch, like heif::heif_extensions().
@@ -40,9 +41,10 @@ namespace patchy::jxr {
 // which shares the "II" byte order mark but carries 0x2A 0x00 instead.
 [[nodiscard]] bool sniff(std::span<const std::uint8_t> bytes);
 
-// Decodes the primary image into a single "Background" pixel-layer sRGB document (the
-// flat-reader convention). Throws std::runtime_error with a user-facing message on failure,
-// which on non-Windows platforms is always.
+// Decodes the primary image into a single "Background" pixel-layer document (the flat-reader
+// convention): 32-bit linear for float frames with deep editing on, 8-bit sRGB otherwise.
+// Throws std::runtime_error with a user-facing message on failure, which on non-Windows
+// platforms is always.
 [[nodiscard]] FormatReadResult read_jxr(std::span<const std::uint8_t> bytes);
 
 struct WriteOptions {

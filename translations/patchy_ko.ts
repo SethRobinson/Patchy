@@ -10160,10 +10160,6 @@ RGB: %2, %3, %4</translation>
         <translation>AVIF: 이미지 시퀀스의 프레임을 디코딩할 수 없어 그 앞의 프레임만 가져왔습니다</translation>
     </message>
     <message>
-        <source>AVIF: HDR (PQ or HLG) color was imported as stored, without tone mapping</source>
-        <translation>AVIF: HDR(PQ 또는 HLG) 색상을 톤 매핑 없이 저장된 그대로 가져왔습니다</translation>
-    </message>
-    <message>
         <source>AVIF images cannot be opened in the browser build of Patchy</source>
         <translation>AVIF 이미지는 Patchy의 브라우저 버전에서 열 수 없습니다</translation>
     </message>
@@ -25297,6 +25293,14 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>layer.transform: unknown interpolation %1</source>
         <translation>layer.transform: 알 수 없는 보간 %1</translation>
+    </message>
+    <message>
+        <source>previewExposure needs a number of stops.</source>
+        <translation>previewExposure에는 스톱 수를 숫자로 지정해야 합니다.</translation>
+    </message>
+    <message>
+        <source>The preview exposure applies only to an open 32-bit document.</source>
+        <translation>미리 보기 노출은 열려 있는 32비트 문서에만 적용됩니다.</translation>
     </message>
 </context>
 <context>

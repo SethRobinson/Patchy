@@ -12,6 +12,8 @@
 #include <ocidl.h>
 #include <wincodec.h>
 
+#include <algorithm>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <utility>
@@ -133,6 +135,76 @@ private:
     return false;
   }
   return true;
+}
+
+// Whether a frame's samples are float or fixed point (HDR: JPEG XR captures, PQ and HLG
+// HEIF), read from the pixel format's numeric representation rather than a list of GUIDs so
+// it keeps working if a codec grows a format, plus its bits per channel.
+struct PixelFormatKind {
+  bool is_float{false};
+  UINT bits_per_channel{8};
+};
+
+[[nodiscard]] inline PixelFormatKind classify_pixel_format(IWICImagingFactory& factory, IWICBitmapFrameDecode& frame) {
+  PixelFormatKind kind;
+  WICPixelFormatGUID format{};
+  if (FAILED(frame.GetPixelFormat(&format))) {
+    return kind;
+  }
+  ComPtr<IWICComponentInfo> component;
+  if (FAILED(factory.CreateComponentInfo(format, component.put())) || !component) {
+    return kind;
+  }
+  ComPtr<IWICPixelFormatInfo2> info;
+  if (FAILED(component->QueryInterface(IID_IWICPixelFormatInfo2, info.put_void())) || !info) {
+    return kind;
+  }
+  WICPixelFormatNumericRepresentation representation = WICPixelFormatNumericRepresentationUnspecified;
+  if (SUCCEEDED(info->GetNumericRepresentation(&representation))) {
+    kind.is_float = representation == WICPixelFormatNumericRepresentationFloat ||
+                    representation == WICPixelFormatNumericRepresentationFixed;
+  }
+  UINT bits_per_pixel = 0;
+  UINT channel_count = 0;
+  if (SUCCEEDED(info->GetBitsPerPixel(&bits_per_pixel)) && SUCCEEDED(info->GetChannelCount(&channel_count)) &&
+      channel_count > 0) {
+    kind.bits_per_channel = bits_per_pixel / channel_count;
+  }
+  return kind;
+}
+
+// Converts `source` to straight-alpha 128bppRGBAFloat (which also unpremultiplies a
+// premultiplied float source) into `samples`, tightly packed RGBA. CopyPixels takes a UINT
+// byte count and a full 16384-square float image is 4 GiB, so rows go over in bounded
+// batches; a single row too wide for a UINT fails with E_INVALIDARG.
+[[nodiscard]] inline HRESULT copy_rgba_float(IWICImagingFactory& factory, IWICBitmapSource& source, UINT width,
+                                             UINT height, std::vector<float>& samples) {
+  ComPtr<IWICFormatConverter> converter;
+  HRESULT hr = factory.CreateFormatConverter(converter.put());
+  if (SUCCEEDED(hr)) {
+    hr = converter->Initialize(&source, GUID_WICPixelFormat128bppRGBAFloat, WICBitmapDitherTypeNone, nullptr, 0.0,
+                               WICBitmapPaletteTypeCustom);
+  }
+  if (FAILED(hr)) {
+    return hr;
+  }
+  const std::size_t stride = static_cast<std::size_t>(width) * 4U * sizeof(float);
+  if (stride > (std::numeric_limits<UINT>::max)()) {
+    return E_INVALIDARG;
+  }
+  samples.assign(static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4U, 0.0F);
+  const auto rows_per_copy =
+      static_cast<UINT>(std::min<std::size_t>(64U, (std::numeric_limits<UINT>::max)() / stride));
+  for (UINT y = 0; y < height; y += rows_per_copy) {
+    const auto rows = (std::min)(rows_per_copy, height - y);
+    WICRect rect{0, static_cast<INT>(y), static_cast<INT>(width), static_cast<INT>(rows)};
+    auto* destination = reinterpret_cast<BYTE*>(samples.data()) + static_cast<std::size_t>(y) * stride;
+    hr = converter->CopyPixels(&rect, static_cast<UINT>(stride), static_cast<UINT>(stride * rows), destination);
+    if (FAILED(hr)) {
+      return hr;
+    }
+  }
+  return S_OK;
 }
 
 }  // namespace patchy::wic

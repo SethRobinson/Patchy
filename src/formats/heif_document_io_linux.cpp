@@ -11,9 +11,15 @@
 // 22.04): enum values, the error struct and the version-tagged decoding options are
 // append-only in libheif. Nothing from the vendored 1.23 headers is included because the
 // host library may be older than them.
+//
+// With deep editing on, files deeper than 8 bits decode at their own depth instead of
+// through convert_hdr_to_8bit: PQ and HLG (nclx, no ICC profile) become 32-bit linear sRGB
+// through formats/hdr_transfer, other high-bit-depth files 16-bit sRGB (docs/heif.md).
 
 #include "formats/heif_document_io.hpp"
 
+#include "core/pixel_depth.hpp"
+#include "formats/hdr_transfer.hpp"
 #include "formats/image_density_probe.hpp"
 #include "support/translate_noop.hpp"
 
@@ -22,6 +28,7 @@
 
 #include <dlfcn.h>
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -84,7 +91,30 @@ constexpr int kSuberrorNoMatchingDecoderInstalled = 6003;
 constexpr int kCompressionHevc = 1;
 constexpr int kColorspaceRgb = 1;
 constexpr int kChromaInterleavedRgba = 11;
+constexpr int kChromaInterleavedRrggbbaaLe = 15;
 constexpr int kChannelInterleaved = 10;
+constexpr int kPrimariesBt709 = 1;
+constexpr int kPrimariesBt2020 = 9;
+constexpr int kPrimariesDisplayP3 = 12;  // SMPTE EG 432-1, P3 with the D65 white
+constexpr int kTransferPq = 16;
+constexpr int kTransferHlg = 18;
+
+// libheif's heif_color_profile_nclx (version 1 layout; C enums are int-sized).
+struct HeifNclx {
+  std::uint8_t version;
+  int color_primaries;
+  int transfer_characteristics;
+  int matrix_coefficients;
+  std::uint8_t full_range_flag;
+  float red_x;
+  float red_y;
+  float green_x;
+  float green_y;
+  float blue_x;
+  float blue_y;
+  float white_x;
+  float white_y;
+};
 
 struct Library {
   void* handle{nullptr};
@@ -117,6 +147,11 @@ struct Library {
   // Optional (newer libheif): null when the host library predates them.
   int (*image_handle_is_premultiplied_alpha)(const heif_image_handle*){nullptr};
   int (*have_decoder_for_format)(int){nullptr};
+  // Optional, for decoding at full depth; without them every file comes down to 8 bits.
+  int (*image_handle_get_luma_bits_per_pixel)(const heif_image_handle*){nullptr};
+  int (*image_get_bits_per_pixel_range)(const heif_image*, int){nullptr};
+  HeifError (*image_handle_get_nclx_color_profile)(const heif_image_handle*, HeifNclx**){nullptr};
+  void (*nclx_color_profile_free)(HeifNclx*){nullptr};
 };
 
 // Both package messages end with the exact install command per distribution, the way the
@@ -201,6 +236,10 @@ Library load_library(const std::string& override_name) {
   }
   resolve(handle, "heif_image_handle_is_premultiplied_alpha", library.image_handle_is_premultiplied_alpha);
   resolve(handle, "heif_have_decoder_for_format", library.have_decoder_for_format);
+  resolve(handle, "heif_image_handle_get_luma_bits_per_pixel", library.image_handle_get_luma_bits_per_pixel);
+  resolve(handle, "heif_image_get_bits_per_pixel_range", library.image_get_bits_per_pixel_range);
+  resolve(handle, "heif_image_handle_get_nclx_color_profile", library.image_handle_get_nclx_color_profile);
+  resolve(handle, "heif_nclx_color_profile_free", library.nclx_color_profile_free);
   return library;
 }
 
@@ -276,7 +315,9 @@ void ignore_lcms_error(cmsContext /*context*/, cmsUInt32Number /*code*/, const c
 // fallback produce too, so a HEIC opens with identical colors on every platform.
 class RgbIccToSrgbTransform {
 public:
-  static std::optional<RgbIccToSrgbTransform> create(std::span<const std::uint8_t> profile_bytes) {
+  // `sixteen_bit` converts RGBA16 rows (deep decodes) instead of RGBA8.
+  static std::optional<RgbIccToSrgbTransform> create(std::span<const std::uint8_t> profile_bytes,
+                                                     bool sixteen_bit = false) {
     if (profile_bytes.empty() || profile_bytes.size() > kMaximumIccProfileBytes ||
         profile_bytes.size() > std::numeric_limits<cmsUInt32Number>::max()) {
       return std::nullopt;
@@ -297,7 +338,8 @@ public:
       destination = cmsCreate_sRGBProfileTHR(result.context_);
     }
     if (destination != nullptr) {
-      result.transform_ = cmsCreateTransformTHR(result.context_, source, TYPE_RGBA_8, destination, TYPE_RGBA_8,
+      const cmsUInt32Number type = sixteen_bit ? TYPE_RGBA_16 : TYPE_RGBA_8;
+      result.transform_ = cmsCreateTransformTHR(result.context_, source, type, destination, type,
                                                 INTENT_RELATIVE_COLORIMETRIC,
                                                 cmsFLAGS_BLACKPOINTCOMPENSATION | cmsFLAGS_COPY_ALPHA | cmsFLAGS_NOCACHE);
       cmsCloseProfile(destination);
@@ -324,7 +366,7 @@ public:
   }
   ~RgbIccToSrgbTransform() { reset(); }
 
-  void convert(const std::uint8_t* source, std::uint8_t* destination, std::size_t pixel_count) const {
+  void convert(const void* source, void* destination, std::size_t pixel_count) const {
     cmsDoTransform(transform_, source, destination, static_cast<cmsUInt32Number>(pixel_count));
   }
 
@@ -407,6 +449,140 @@ void unpremultiply_row(std::uint8_t* rgba, std::int32_t width) {
   }
 }
 
+// How a high-bit-depth file decodes with deep editing on; unset `depth` keeps 8 bits.
+struct DeepPlan {
+  std::optional<BitDepth> depth;
+  std::optional<hdr::Transfer> transfer;
+  hdr::Chromaticities primaries{hdr::kBt2020Primaries};
+};
+
+[[nodiscard]] DeepPlan deep_plan_for(const Library& lib, const heif_image_handle& handle, bool has_icc_profile) {
+  DeepPlan plan;
+  if (!deep_editing_enabled() || lib.image_handle_get_luma_bits_per_pixel == nullptr ||
+      lib.image_get_bits_per_pixel_range == nullptr) {
+    return plan;
+  }
+  if (!has_icc_profile && lib.image_handle_get_nclx_color_profile != nullptr && lib.nclx_color_profile_free != nullptr) {
+    HeifNclx* nclx = nullptr;
+    if (lib.image_handle_get_nclx_color_profile(&handle, &nclx).code == kErrorOk && nclx != nullptr) {
+      if (nclx->transfer_characteristics == kTransferPq) {
+        plan.transfer = hdr::Transfer::Pq;
+      } else if (nclx->transfer_characteristics == kTransferHlg) {
+        plan.transfer = hdr::Transfer::Hlg;
+      }
+      if (nclx->color_primaries == kPrimariesBt709) {
+        plan.primaries = hdr::kBt709Primaries;
+      } else if (nclx->color_primaries == kPrimariesDisplayP3) {
+        plan.primaries = hdr::kDisplayP3Primaries;
+      } else if (nclx->color_primaries != kPrimariesBt2020 && nclx->red_x > 0.0F && nclx->white_y > 0.0F) {
+        plan.primaries = {nclx->red_x, nclx->red_y, nclx->green_x, nclx->green_y,
+                          nclx->blue_x, nclx->blue_y, nclx->white_x, nclx->white_y};
+      }
+      lib.nclx_color_profile_free(nclx);
+    }
+  }
+  if (plan.transfer) {
+    plan.depth = BitDepth::Float32;
+  } else if (lib.image_handle_get_luma_bits_per_pixel(&handle) > 8) {
+    plan.depth = BitDepth::UInt16;
+  }
+  return plan;
+}
+
+// The interleaved little-endian 16-bit plane of a deep decode, rescaled from the file's
+// bit depth to full-range 16 bits, premultiplied alpha divided out.
+[[nodiscard]] std::vector<std::uint16_t> full_range_rgba16(const std::uint8_t* plane, int stride, std::int32_t width,
+                                                           std::int32_t height, int bits, bool premultiplied) {
+  const auto pixel_count = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+  std::vector<std::uint16_t> rgba(pixel_count * 4U);
+  const std::uint32_t maximum = bits >= 16 ? 65535U : (1U << static_cast<unsigned>(bits)) - 1U;
+  for (std::int32_t y = 0; y < height; ++y) {
+    const auto* row = plane + static_cast<std::size_t>(y) * static_cast<std::size_t>(stride);
+    auto* out = rgba.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(width) * 4U;
+    for (std::size_t i = 0; i < static_cast<std::size_t>(width) * 4U; ++i) {
+      const std::uint32_t value =
+          static_cast<std::uint32_t>(row[i * 2U]) | (static_cast<std::uint32_t>(row[i * 2U + 1U]) << 8U);
+      out[i] = static_cast<std::uint16_t>((std::min(value, maximum) * 65535U + maximum / 2U) / maximum);
+    }
+    if (premultiplied) {
+      for (std::int32_t x = 0; x < width; ++x) {
+        auto* px = out + static_cast<std::size_t>(x) * 4U;
+        const std::uint32_t alpha = px[3];
+        if (alpha != 0U && alpha != 65535U) {
+          for (int c = 0; c < 3; ++c) {
+            px[c] = static_cast<std::uint16_t>(
+                std::min<std::uint32_t>(65535U, (static_cast<std::uint32_t>(px[c]) * 65535U + alpha / 2U) / alpha));
+          }
+        }
+      }
+    }
+  }
+  return rgba;
+}
+
+// A deep decode as a document: PQ/HLG to 32-bit linear sRGB, anything else to 16-bit sRGB
+// (an RGB ICC profile baked by Little CMS at 16 bits, as the 8-bit path bakes it).
+FormatReadResult read_deep_pixels(const Library& lib, const heif_image& image, const DeepPlan& plan,
+                                  const std::vector<std::uint8_t>& icc_profile, bool premultiplied,
+                                  const std::optional<formats::ImageDensity>& density, int image_count) {
+  const int width_value = lib.image_get_width(&image, kChannelInterleaved);
+  const int height_value = lib.image_get_height(&image, kChannelInterleaved);
+  if (width_value <= 0 || height_value <= 0 ||
+      static_cast<std::uint64_t>(width_value) * static_cast<std::uint64_t>(height_value) > kMaximumPixels) {
+    throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "This HEIF image's dimensions are not supported"));
+  }
+  const auto width = static_cast<std::int32_t>(width_value);
+  const auto height = static_cast<std::int32_t>(height_value);
+  const int bits = lib.image_get_bits_per_pixel_range(&image, kChannelInterleaved);
+  int stride = 0;
+  const auto* plane = lib.image_get_plane_readonly(&image, kChannelInterleaved, &stride);
+  if (plane == nullptr || bits <= 8 || bits > 16 || stride < 0 ||
+      static_cast<std::size_t>(stride) < static_cast<std::size_t>(width) * 8U) {
+    throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "libheif returned an invalid HEIF pixel buffer"));
+  }
+  auto rgba16 = full_range_rgba16(plane, stride, width, height, bits, premultiplied);
+  const auto pixel_count = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+  bool has_alpha = false;
+  for (std::size_t i = 3; i < rgba16.size(); i += 4) {
+    if (rgba16[i] != 65535U) {
+      has_alpha = true;
+      break;
+    }
+  }
+  const auto depth = *plan.depth;
+  const auto format = with_bit_depth(has_alpha ? PixelFormat::rgba8() : PixelFormat::rgb8(), depth);
+  PixelBuffer pixels(width, height, format);
+  const std::size_t channels = has_alpha ? 4U : 3U;
+  if (depth == BitDepth::Float32) {
+    std::vector<float> linear(pixel_count * 4U);
+    hdr::signal_rgba16_to_linear_srgb(rgba16.data(), pixel_count, *plan.transfer, plan.primaries, linear.data());
+    auto* out = reinterpret_cast<float*>(pixels.data().data());
+    for (std::size_t i = 0; i < pixel_count; ++i) {
+      std::copy_n(linear.data() + i * 4U, channels, out + i * channels);
+    }
+  } else {
+    if (!icc_profile.empty()) {
+      if (const auto transform = RgbIccToSrgbTransform::create(icc_profile, true)) {
+        transform->convert(rgba16.data(), rgba16.data(), pixel_count);
+      }
+    }
+    auto* out = reinterpret_cast<std::uint16_t*>(pixels.data().data());
+    for (std::size_t i = 0; i < pixel_count; ++i) {
+      std::copy_n(rgba16.data() + i * 4U, channels, out + i * channels);
+    }
+  }
+  FormatReadResult result;
+  result.document = Document(width, height, format);
+  result.document.color_state().bit_depth = depth;
+  result.document.print_settings().horizontal_ppi = density.has_value() ? density->horizontal_ppi : 72.0;
+  result.document.print_settings().vertical_ppi = density.has_value() ? density->vertical_ppi : 72.0;
+  result.document.add_pixel_layer("Background", std::move(pixels));
+  if (image_count > 1) {
+    result.notices.push_back("Opened the primary image only (" + std::to_string(image_count) + " images in the file)");
+  }
+  return result;
+}
+
 }  // namespace
 
 bool host_libheif_available() {
@@ -469,16 +645,22 @@ FormatReadResult read_heif(std::span<const std::uint8_t> bytes) {
   if (!options) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Unable to initialize HEIF decoding options"));
   }
-  // Defaults apply the container's rotation, mirroring and clean-aperture crop. 10-bit
-  // files (iPhone HDR captures) come down to 8 bits inside libheif.
+  // Defaults apply the container's rotation, mirroring and clean-aperture crop. Without
+  // deep editing, 10-bit files (iPhone HDR captures) come down to 8 bits inside libheif.
+  const auto plan = deep_plan_for(lib, *handle, !icc_profile.empty());
   if (options->version >= 2) {
-    options->convert_hdr_to_8bit = 1;
+    options->convert_hdr_to_8bit = plan.depth ? 0 : 1;
   }
 
   heif_image* raw_image = nullptr;
   require_ok("Unable to decode this HEIC image",
-             lib.decode_image(handle.get(), &raw_image, kColorspaceRgb, kChromaInterleavedRgba, options.get()));
+             lib.decode_image(handle.get(), &raw_image, kColorspaceRgb,
+                              plan.depth ? kChromaInterleavedRrggbbaaLe : kChromaInterleavedRgba, options.get()));
   std::unique_ptr<heif_image, ImageDeleter> image(raw_image, ImageDeleter{&lib});
+  if (plan.depth) {
+    return read_deep_pixels(lib, *image, plan, icc_profile, premultiplied, density,
+                            lib.context_get_number_of_top_level_images(context.get()));
+  }
 
   const int width_value = lib.image_get_width(image.get(), kChannelInterleaved);
   const int height_value = lib.image_get_height(image.get(), kChannelInterleaved);
