@@ -24824,10 +24824,6 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Impossible d&apos;allouer l&apos;image d&apos;aperçu.</translation>
     </message>
     <message>
-        <source>Strokes require an unlocked 8-bit pixel layer.</source>
-        <translation>Les traits nécessitent un calque de pixels 8 bits non verrouillé.</translation>
-    </message>
-    <message>
         <source>The stroke target changed while paused. Inspect the document before continuing.</source>
         <translation>La cible du trait a changé pendant la pause. Examinez le document avant de continuer.</translation>
     </message>
@@ -25534,6 +25530,10 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
     <message>
         <source>The preview exposure applies only to an open 32-bit document.</source>
         <translation>L&apos;exposition d&apos;aperçu ne s&apos;applique qu&apos;à un document 32 bits ouvert.</translation>
+    </message>
+    <message>
+        <source>Strokes require an unlocked pixel layer.</source>
+        <translation>Les traits nécessitent un calque de pixels non verrouillé.</translation>
     </message>
 </context>
 <context>

@@ -241,10 +241,12 @@ void ScriptEngineHost::draw_strokes(std::int64_t session_id, LayerId layer_id, c
       return layer && layer->kind() != LayerKind::Group &&
         !layer_effectively_locks_image_pixels(doc->layers(), layer_id) && !layer_is_text(*layer) &&
         !layer_is_smart_object(*layer) && !layer_is_vector_shape(*layer) &&
-        layer->pixels().format().bit_depth == BitDepth::UInt8 && layer->pixels().format().channels >= 3;
+        layer->pixels().format().channels >= 3;
     };
+    // Any depth: the canvas brush the strokes run through paints 16 and 32-bit layers at
+    // their depth (docs/high-bit-depth.md, Phase 5).
     if (!valid_target()) {
-      throw_js_error(tr("Strokes require an unlocked 8-bit pixel layer."));
+      throw_js_error(tr("Strokes require an unlocked pixel layer."));
       return;
     }
     std::size_t stroke_index = 0;

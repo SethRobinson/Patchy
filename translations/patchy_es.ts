@@ -24824,10 +24824,6 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
         <translation>No se pudo asignar memoria para la imagen de previsualización.</translation>
     </message>
     <message>
-        <source>Strokes require an unlocked 8-bit pixel layer.</source>
-        <translation>Los trazos requieren una capa de píxeles de 8 bits desbloqueada.</translation>
-    </message>
-    <message>
         <source>The stroke target changed while paused. Inspect the document before continuing.</source>
         <translation>El destino del trazo cambió durante la pausa. Inspeccione el documento antes de continuar.</translation>
     </message>
@@ -25534,6 +25530,10 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
     <message>
         <source>The preview exposure applies only to an open 32-bit document.</source>
         <translation>La exposición de previsualización solo se aplica a un documento abierto de 32 bits.</translation>
+    </message>
+    <message>
+        <source>Strokes require an unlocked pixel layer.</source>
+        <translation>Los trazos requieren una capa de píxeles desbloqueada.</translation>
     </message>
 </context>
 <context>

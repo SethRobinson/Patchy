@@ -24879,10 +24879,6 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <translation>미리 보기 이미지를 할당할 수 없습니다.</translation>
     </message>
     <message>
-        <source>Strokes require an unlocked 8-bit pixel layer.</source>
-        <translation>스트로크에는 잠금 해제된 8비트 픽셀 레이어가 필요합니다.</translation>
-    </message>
-    <message>
         <source>The stroke target changed while paused. Inspect the document before continuing.</source>
         <translation>일시정지 중에 스트로크 대상이 변경되었습니다. 계속하기 전에 문서를 검사하세요.</translation>
     </message>
@@ -25461,6 +25457,10 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
     <message>
         <source>The preview exposure applies only to an open 32-bit document.</source>
         <translation>미리 보기 노출은 열려 있는 32비트 문서에만 적용됩니다.</translation>
+    </message>
+    <message>
+        <source>Strokes require an unlocked pixel layer.</source>
+        <translation>스트로크에는 잠금 해제된 픽셀 레이어가 필요합니다.</translation>
     </message>
 </context>
 <context>

@@ -30,6 +30,7 @@ std::vector<patchy::test::TestCase> selection_marquee_lasso_tests();
 std::vector<patchy::test::TestCase> crop_tool_tests();
 std::vector<patchy::test::TestCase> unit_spin_box_tests();
 std::vector<patchy::test::TestCase> clipboard_free_transform_tests();
+std::vector<patchy::test::TestCase> deep_operation_audit_tests();
 std::vector<patchy::test::TestCase> group_transform_tests();
 std::vector<patchy::test::TestCase> channels_panel_tests();
 std::vector<patchy::test::TestCase> camera_raw_heif_tests();

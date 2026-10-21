@@ -607,12 +607,12 @@ QImage MainWindow::render_layers_for_system_clipboard(const std::vector<Layer>& 
   if (crop.empty()) {
     return {};
   }
-  QImage image;
-  {
-    const ScopedDocumentDepthRender depth_render;
-    image = qimage_from_document_rect(scratch, QRect(crop.x, crop.y, crop.width, crop.height), true)
-                .convertToFormat(QImage::Format_ARGB32);
-  }
+  // A display render (16 and 32-bit composites narrow to sRGB bytes, 32-bit through the
+  // preview exposure): other programs read 8-bit display colors. A render at depth handed
+  // 32-bit linear floats to the ARGB32 conversion as if they were display values.
+  const QImage image =
+      qimage_from_document_rect(scratch, QRect(crop.x, crop.y, crop.width, crop.height), true)
+          .convertToFormat(QImage::Format_ARGB32);
   // Trim the fully transparent margins (a text layer's bounds include its line box, a
   // masked layer's its hidden part).
   int left = image.width();

@@ -25025,10 +25025,6 @@ Patchy может скачать обновление, заменить этот
         <translation>Не удалось разместить изображение для предварительного просмотра.</translation>
     </message>
     <message>
-        <source>Strokes require an unlocked 8-bit pixel layer.</source>
-        <translation>Мазки требуют разблокированный 8-битный растровый слой.</translation>
-    </message>
-    <message>
         <source>The stroke target changed while paused. Inspect the document before continuing.</source>
         <translation>Во время паузы изменился объект рисования. Проверьте документ перед продолжением.</translation>
     </message>
@@ -25607,6 +25603,10 @@ Patchy может скачать обновление, заменить этот
     <message>
         <source>The preview exposure applies only to an open 32-bit document.</source>
         <translation>Экспозиция просмотра применяется только к открытому 32-битному документу.</translation>
+    </message>
+    <message>
+        <source>Strokes require an unlocked pixel layer.</source>
+        <translation>Мазки требуют разблокированный растровый слой.</translation>
     </message>
 </context>
 <context>

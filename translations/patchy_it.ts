@@ -24824,10 +24824,6 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
         <translation>Impossibile allocare l&apos;immagine di anteprima.</translation>
     </message>
     <message>
-        <source>Strokes require an unlocked 8-bit pixel layer.</source>
-        <translation>I tratti richiedono un livello pixel a 8 bit non bloccato.</translation>
-    </message>
-    <message>
         <source>The stroke target changed while paused. Inspect the document before continuing.</source>
         <translation>La destinazione del tratto è cambiata durante la pausa. Controlla il documento prima di continuare.</translation>
     </message>
@@ -25534,6 +25530,10 @@ Patchy può scaricare l&apos;aggiornamento, sostituire questo AppImage e riavvia
     <message>
         <source>The preview exposure applies only to an open 32-bit document.</source>
         <translation>L&apos;esposizione di anteprima si applica solo a un documento aperto a 32 bit.</translation>
+    </message>
+    <message>
+        <source>Strokes require an unlocked pixel layer.</source>
+        <translation>I tratti richiedono un livello pixel non bloccato.</translation>
     </message>
 </context>
 <context>

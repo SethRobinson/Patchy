@@ -24824,10 +24824,6 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <translation>Das Vorschaubild konnte nicht angelegt werden.</translation>
     </message>
     <message>
-        <source>Strokes require an unlocked 8-bit pixel layer.</source>
-        <translation>Malstriche erfordern eine nicht gesperrte 8-Bit-Pixelebene.</translation>
-    </message>
-    <message>
         <source>The stroke target changed while paused. Inspect the document before continuing.</source>
         <translation>Das Ziel des Malstrichs hat sich während der Pause geändert. Prüfen Sie das Dokument, bevor Sie fortfahren.</translation>
     </message>
@@ -25534,6 +25530,10 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
     <message>
         <source>The preview exposure applies only to an open 32-bit document.</source>
         <translation>Die Vorschaubelichtung gilt nur für ein geöffnetes 32-Bit-Dokument.</translation>
+    </message>
+    <message>
+        <source>Strokes require an unlocked pixel layer.</source>
+        <translation>Malstriche erfordern eine nicht gesperrte Pixelebene.</translation>
     </message>
 </context>
 <context>

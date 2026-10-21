@@ -2205,6 +2205,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/crop_tool_tests.cpp
       tests/ui/unit_spin_box_tests.cpp
       tests/ui/clipboard_free_transform_tests.cpp
+      tests/ui/deep_operation_audit_tests.cpp
       tests/ui/group_transform_tests.cpp
       tests/ui/channels_panel_tests.cpp
       tests/ui/camera_raw_heif_tests.cpp

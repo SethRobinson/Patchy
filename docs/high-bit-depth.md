@@ -342,7 +342,20 @@ slip through (`writable_layer_blend_mode`). Pinned by
    operation: run it on an 8-bit document, and on the same document converted to 16
    (and 32) bits; convert back and require agreement within 1/255 unless a documented
    exception says otherwise (with the reason). Drive it through `patchy.*` scripting
-   where possible so the same test runs against the real build.
+   where possible so the same test runs against the real build. The standing form is
+   `tests/ui/deep_operation_audit_tests.cpp` (October 2026): about 45 user-level
+   operations (transforms, resampling, rotate/flip, crop, copy/paste, merges, flatten,
+   masks, fills, strokes, fill layers, save and reopen in every deep format) and every
+   built-in filter, each run through scripting at 8, 16 and 32 bits on a picture of flat
+   color blocks, comparing display composites: 16 bits everywhere within 3 levels, 32
+   bits on flat interiors (linear-light blurs, resampling, blends and gradients differ at
+   edges by design; opacity, blend modes, gradients and Radial Blur compare 16 bits only).
+   Interactive previews, which scripting cannot reach, have their own canvas tests
+   (`ui_move_scaled_preview_matches_settled_render_at_every_depth`,
+   `ui_free_transform_preview_and_commit_keep_colors_at_every_depth`). The rule they
+   enforce: a 32-bit image is linear floats, so nothing may hand it to QPainter or a Qt
+   8-bit conversion without sRGB-encoding it first (`display_image_from_deep_qimage`,
+   `display_qimage_from_pixel_buffer`, or a display render).
 2. **Photoshop ground truth** on the deep fixture corpus via COM.
 3. **8-bit canaries stay pinned** (composite corpus digests, PSD writer bytes, tool
    write paths, filter contact sheet, all `*_matches_photoshop` fixtures).

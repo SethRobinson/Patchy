@@ -54,8 +54,10 @@ void convert_layer(Layer& layer, BitDepth depth) {
 
 void collect_layer_problems(const Layer& layer, BitDepth depth, std::vector<std::string>& problems) {
   const auto& pixels = layer.pixels();
-  // Pixel layers own their pixels; other kinds hold derived rasters.
-  if (layer.kind() == LayerKind::Pixel && !pixels.empty() && pixels.format().bit_depth != depth) {
+  // Pixel layers own their pixels; other kinds, and shape and fill layers (whose pixels are
+  // an 8-bit cache re-baked from the shape), hold derived rasters.
+  if (layer.kind() == LayerKind::Pixel && layer.vector_shape() == nullptr && !pixels.empty() &&
+      pixels.format().bit_depth != depth) {
     problems.push_back("layer '" + layer.name() + "' is " + depth_label(pixels.format().bit_depth));
   }
   if (layer.mask().has_value() && !layer.mask()->pixels.empty() &&

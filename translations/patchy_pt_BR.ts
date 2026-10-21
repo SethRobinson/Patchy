@@ -24952,10 +24952,6 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
         <translation>Não foi possível alocar a imagem de visualização.</translation>
     </message>
     <message>
-        <source>Strokes require an unlocked 8-bit pixel layer.</source>
-        <translation>Os traços requerem uma camada de pixels desbloqueada de 8 bits.</translation>
-    </message>
-    <message>
         <source>The stroke target changed while paused. Inspect the document before continuing.</source>
         <translation>O alvo da pincelada mudou durante a pausa. Inspecione o documento antes de continuar.</translation>
     </message>
@@ -25534,6 +25530,10 @@ O Patchy pode baixar a atualização, substituir este AppImage e iniciar novamen
     <message>
         <source>The preview exposure applies only to an open 32-bit document.</source>
         <translation>A exposição da visualização só se aplica a um documento de 32 bits aberto.</translation>
+    </message>
+    <message>
+        <source>Strokes require an unlocked pixel layer.</source>
+        <translation>Os traços requerem uma camada de pixels desbloqueada.</translation>
     </message>
 </context>
 <context>

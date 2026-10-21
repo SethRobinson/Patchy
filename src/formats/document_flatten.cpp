@@ -4,11 +4,14 @@
 #include "core/blend_math.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/palette.hpp"
+#include "core/pixel_depth.hpp"
+#include "render/compositor.hpp"
 #include "render/layer_compositor.hpp"
 #include "render/native_cmyk.hpp"
 #include "support/translate_noop.hpp"
 
 #include <array>
+#include <cstring>
 #include <stdexcept>
 #include <unordered_map>
 #include <utility>
@@ -128,9 +131,20 @@ private:
 
 }  // namespace
 
+// 16 and 32-bit documents: the deep flatten narrowed to display RGBA8 (16-bit values to
+// 8, 32-bit linear values sRGB-encoded), the values flatten_rgb8 and the canvas show. The
+// 8-bit walk refuses deep layers, so every caller (previews, script flatten, writers)
+// would otherwise throw.
+[[nodiscard]] PixelBuffer deep_flatten_display_rgba8(const Document& document) {
+  return convert_pixel_buffer_depth(Compositor{}.flatten_rgba_deep(document), BitDepth::UInt8, SampleKind::Color);
+}
+
 PixelBuffer flatten_document_rgba8(const Document& document) {
   if (document.width() <= 0 || document.height() <= 0) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Cannot flatten an empty document"));
+  }
+  if (document.color_state().bit_depth != BitDepth::UInt8) {
+    return deep_flatten_display_rgba8(document);
   }
   if (auto native = render_native_cmyk8(document, Rect::from_size(document.width(), document.height()))) {
     return std::move(*native);
@@ -157,6 +171,15 @@ PixelBuffer flatten_document_rgba8_rect(const Document& document, Rect rect) {
   }
   if (rect == canvas) {
     return flatten_document_rgba8(document);
+  }
+  if (document.color_state().bit_depth != BitDepth::UInt8) {
+    const auto full = deep_flatten_display_rgba8(document);
+    PixelBuffer cropped(rect.width, rect.height, PixelFormat::rgba8());
+    for (std::int32_t y = 0; y < rect.height; ++y) {
+      std::memcpy(cropped.row(y).data(), full.row(rect.y + y).data() + static_cast<std::size_t>(rect.x) * 4U,
+                  static_cast<std::size_t>(rect.width) * 4U);
+    }
+    return cropped;
   }
   PixelBuffer output(rect.width, rect.height, PixelFormat::rgba8());
   output.clear(0);

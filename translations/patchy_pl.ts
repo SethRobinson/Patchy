@@ -25025,10 +25025,6 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <translation>Nie można przydzielić obrazu podglądu.</translation>
     </message>
     <message>
-        <source>Strokes require an unlocked 8-bit pixel layer.</source>
-        <translation>Pociągnięcia wymagają odblokowanej 8-bitowej warstwy pikseli.</translation>
-    </message>
-    <message>
         <source>The stroke target changed while paused. Inspect the document before continuing.</source>
         <translation>Cel pociągnięcia zmienił się podczas pauzy. Przed kontynuowaniem sprawdź dokument.</translation>
     </message>
@@ -25607,6 +25603,10 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
     <message>
         <source>The preview exposure applies only to an open 32-bit document.</source>
         <translation>Ekspozycja podglądu dotyczy tylko otwartego dokumentu 32-bitowego.</translation>
+    </message>
+    <message>
+        <source>Strokes require an unlocked pixel layer.</source>
+        <translation>Pociągnięcia wymagają odblokowanej warstwy pikseli.</translation>
     </message>
 </context>
 <context>

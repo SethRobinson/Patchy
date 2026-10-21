@@ -32,6 +32,7 @@
 #include "core/pixel_grid.hpp"
 #include "core/smart_object.hpp"
 #include "formats/document_flatten.hpp"
+#include "render/compositor.hpp"
 #include "formats/palette_io.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/pixel_tools.hpp"
@@ -2700,7 +2701,11 @@ void ScriptDocumentObject::flatten() {
   if (document == nullptr) {
     return;
   }
-  auto flattened = flatten_document_rgba8(*document);
+  // 16 and 32-bit documents flatten at their depth, as Image > Flatten Image does; the
+  // 8-bit flatten refuses deep layers.
+  auto flattened = std::as_const(*document).color_state().bit_depth == BitDepth::UInt8
+                       ? flatten_document_rgba8(*document)
+                       : Compositor{}.flatten_rgba_deep(*document);
   document->clear_active_layer();
   document->layers().clear();
   document->add_pixel_layer(ScriptEngineHost::tr("Background").toStdString(),

@@ -1,3 +1,6 @@
+#include "scripting_test_support.hpp"
+#include "core/pixel_depth.hpp"
+#include <QScopeGuard>
 #include <QClipboard>
 #include <QMenuBar>
 #include <QMessageBox>
@@ -3069,6 +3072,40 @@ void ui_whole_layer_copy_puts_its_pixels_on_the_system_clipboard() {
   CHECK(layer_list->count() == layers_before + 1);
 }
 
+// The same copy from 16 and 32-bit documents hands other programs display colors: the
+// 32-bit render reached the ARGB32 conversion as linear floats and came out dark.
+void ui_deep_layer_copy_puts_display_colors_on_the_system_clipboard() {
+  patchy::set_deep_editing_override(true);
+  const auto restore = qScopeGuard([] { patchy::set_deep_editing_override(std::nullopt); });
+  for (const int bits : {16, 32}) {
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* canvas = require_canvas(window);
+    canvas->fit_to_view();
+    require_action(window, "layerNewAction")->trigger();
+    QApplication::processEvents();
+    canvas->set_primary_color(QColor(20, 200, 90));
+    canvas->set_tool(patchy::ui::CanvasTool::Marquee);
+    drag(*canvas, canvas->widget_position_for_document_point(QPoint(100, 60)),
+         canvas->widget_position_for_document_point(QPoint(220, 140)));
+    require_action(window, "layerFillForegroundAction")->trigger();
+    require_action(window, "editDeselectAction")->trigger();
+    QApplication::processEvents();
+    CHECK(patchy::test::ui::scripting_support::run_script(
+        window, QStringLiteral("app.activeDocument.convertBitDepth(%1);").arg(bits)));
+    QApplication::clipboard()->clear();
+    require_action(window, "editCopyAction")->trigger();
+    QApplication::processEvents();
+    const auto image = QApplication::clipboard()->image().convertToFormat(QImage::Format_RGBA8888);
+    CHECK(!image.isNull());
+    const auto center = image.isNull() ? QColor() : image.pixelColor(image.width() / 2, image.height() / 2);
+    if (!color_close(center, QColor(20, 200, 90), 4)) {
+      std::cout << "  " << bits << "-bit clipboard color " << center.name().toStdString() << '\n';
+    }
+    CHECK(color_close(center, QColor(20, 200, 90), 4));
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> clipboard_free_transform_tests() {
@@ -3091,6 +3128,8 @@ std::vector<patchy::test::TestCase> clipboard_free_transform_tests() {
       {"ui_copy_paste_and_transform_pasted_layer_work", ui_copy_paste_and_transform_pasted_layer_work},
       {"ui_whole_layer_copy_puts_its_pixels_on_the_system_clipboard",
        ui_whole_layer_copy_puts_its_pixels_on_the_system_clipboard},
+      {"ui_deep_layer_copy_puts_display_colors_on_the_system_clipboard",
+       ui_deep_layer_copy_puts_display_colors_on_the_system_clipboard},
       {"ui_paste_clears_selection_and_undo_restores_it", ui_paste_clears_selection_and_undo_restores_it},
       {"ui_paste_returns_copied_pixels_to_their_place", ui_paste_returns_copied_pixels_to_their_place},
       {"ui_paste_file_urls_adds_layers", ui_paste_file_urls_adds_layers},
