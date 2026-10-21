@@ -14231,10 +14231,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>自動選取</translation>
     </message>
     <message>
-        <source>Show Transform Controls</source>
-        <translation>顯示變形控制項</translation>
-    </message>
-    <message>
         <source>Aligned</source>
         <translation>對齊</translation>
     </message>
@@ -23289,6 +23285,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Smart Sharpen</source>
         <translation>智慧銳利化</translation>
+    </message>
+    <message>
+        <source>Transform Controls</source>
+        <translation>變形控制項</translation>
     </message>
 </context>
 <context>

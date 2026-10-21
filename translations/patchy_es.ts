@@ -14267,10 +14267,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Selección automática</translation>
     </message>
     <message>
-        <source>Show Transform Controls</source>
-        <translation>Mostrar controles de transformación</translation>
-    </message>
-    <message>
         <source>Aligned</source>
         <translation>Alineado</translation>
     </message>
@@ -23361,6 +23357,10 @@ Puedes hacerlo más tarde desde Ayuda &gt; Añadir Patchy al menú de aplicacion
     <message>
         <source>Smart Sharpen</source>
         <translation>Enfoque inteligente</translation>
+    </message>
+    <message>
+        <source>Transform Controls</source>
+        <translation>Controles de transformación</translation>
     </message>
 </context>
 <context>
