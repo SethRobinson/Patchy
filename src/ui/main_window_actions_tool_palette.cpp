@@ -85,6 +85,8 @@ const char* tool_action_source(CanvasTool tool) {
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Elliptical Marquee");
     case CanvasTool::Lasso:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Lasso");
+    case CanvasTool::PolygonLasso:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Polygonal Lasso");
     case CanvasTool::MagneticLasso:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Magnetic Lasso");
     case CanvasTool::MagicWand:
@@ -175,6 +177,8 @@ QString tool_hotkey_id(CanvasTool tool) {
       return QStringLiteral("tools.elliptical_marquee");
     case CanvasTool::Lasso:
       return QStringLiteral("tools.lasso");
+    case CanvasTool::PolygonLasso:
+      return QStringLiteral("tools.polygonal_lasso");
     case CanvasTool::MagneticLasso:
       return QStringLiteral("tools.magnetic_lasso");
     case CanvasTool::MagicWand:
@@ -283,6 +287,9 @@ const char* tool_tooltip_detail_source(CanvasTool tool) {
     case CanvasTool::Artboard:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Drag on empty space to add an artboard, drag an artboard to move it with its "
              "content (%ALT% copies it), drag a handle to resize it, click + to add one beside it.");
+    case CanvasTool::PolygonLasso:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Click to place points, Shift keeps 45 degrees, %ALT%+drag draws freehand. "
+             "Click the start point, double-click or press Enter to close.");
     default:
       return nullptr;
   }
@@ -334,7 +341,13 @@ const char* tool_activation_hint_source(CanvasTool tool) {
              "center.");
     case CanvasTool::Lasso:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, "
-             "Shift+%ALT%+drag intersects.");
+             "Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight "
+             "segments until %ALT% is released.");
+    case CanvasTool::PolygonLasso:
+      return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Polygonal Lasso: click to place points. Start with Shift+click to add, "
+             "%ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws "
+             "freehand. Click the start point, double-click or press Enter to close; Backspace removes the last "
+             "point, Esc cancels.");
     case CanvasTool::MagneticLasso:
       return QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Magnetic Lasso: click an edge and follow it; click to pin a point. Start "
              "with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace "
@@ -755,6 +768,9 @@ QIcon tool_icon(CanvasTool tool) {
     case CanvasTool::Lasso:
       name = "tool-lasso";
       break;
+    case CanvasTool::PolygonLasso:
+      name = "tool-polygon-lasso";
+      break;
     case CanvasTool::MagneticLasso:
       name = "tool-magnetic-lasso";
       break;
@@ -1011,12 +1027,14 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   lasso_menu->setObjectName(QStringLiteral("lassoToolMenu"));
   bind_widget_text(lasso_menu, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Lasso Tools"));
   auto* lasso_action = create_flyout_tool_action(lasso_menu, tr("Lasso"), CanvasTool::Lasso, QKeySequence(Qt::Key_L));
+  auto* polygon_lasso_action =
+      create_flyout_tool_action(lasso_menu, tr("Polygonal Lasso"), CanvasTool::PolygonLasso, QKeySequence());
   auto* magnetic_lasso_action = create_flyout_tool_action(lasso_menu, tr("Magnetic Lasso"), CanvasTool::MagneticLasso,
                                                           QKeySequence());
   auto* lasso_tool_button = new QToolButton(tool_palette);
   lasso_tool_button->setObjectName(QStringLiteral("lassoToolButton"));
   configure_tool_flyout(tool_palette, lasso_menu, lasso_tool_button, lasso_action,
-                        {lasso_action, magnetic_lasso_action},
+                        {lasso_action, polygon_lasso_action, magnetic_lasso_action},
                         QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Cycle Lasso Tools"),
                         "toolCycleLassoAction", "tools.cycle.lasso", QKeySequence(Qt::SHIFT | Qt::Key_L));
   auto* wand_menu = new QMenu(tr("Wand Tools"), tool_palette);

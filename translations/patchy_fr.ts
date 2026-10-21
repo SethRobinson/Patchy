@@ -11572,6 +11572,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
         <translation>Arrière-plan : il reste tout en bas de la pile, sans transparence ni styles de calque. Faites un clic droit dessus et choisissez Calque d&apos;après l&apos;arrière-plan pour en faire un calque ordinaire.</translation>
     </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>Lasso polygonal</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13227,6 +13231,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Deselect Shapes</source>
         <translation>Désélectionner les formes</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>Lasso polygonal</translation>
     </message>
 </context>
 <context>
@@ -22964,10 +22972,6 @@ Patchy peut télécharger la mise à jour, remplacer cet AppImage et redémarrer
         <translation>Ellipse de sélection : faites glisser pour sélectionner. Maj+glisser ajoute, %ALT%+glisser soustrait, Maj+%ALT%+glisser crée une intersection. Sans sélection, Maj trace un cercle et %ALT% trace depuis le centre.</translation>
     </message>
     <message>
-        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects.</source>
-        <translation>Lasso : faites glisser autour de la zone pour la sélectionner. Maj+glisser ajoute, %ALT%+glisser soustrait, Maj+%ALT%+glisser crée une intersection.</translation>
-    </message>
-    <message>
         <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
         <translation>Lasso magnétique : cliquez sur un bord et suivez-le ; cliquez pour fixer un point. Commencez par Maj+clic pour ajouter, %ALT%+clic pour soustraire, Maj+%ALT%+clic pour une intersection. Retour arrière retire le dernier point, Entrée ferme, Échap annule.</translation>
     </message>
@@ -23425,6 +23429,22 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
     <message>
         <source>The Background layer cannot have layer styles</source>
         <translation>Le calque d&apos;arrière-plan ne peut pas avoir de styles de calque</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>Lasso polygonal</translation>
+    </message>
+    <message>
+        <source>Click to place points, Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close.</source>
+        <translation>Cliquez pour placer des points, Maj garde 45 degrés, %ALT%+glisser trace à main levée. Cliquez sur le point de départ, double-cliquez ou appuyez sur Entrée pour fermer.</translation>
+    </message>
+    <message>
+        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
+        <translation>Lasso : faites glisser autour de la zone pour la sélectionner. Maj+glisser ajoute, %ALT%+glisser soustrait, Maj+%ALT%+glisser crée une intersection. Appuyez sur %ALT% pendant le glissement et relâchez le bouton pour cliquer des segments droits jusqu’au relâchement de %ALT%.</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
+        <translation>Lasso polygonal : cliquez pour placer des points. Commencez par Maj+clic pour ajouter, %ALT%+clic pour soustraire, Maj+%ALT%+clic pour une intersection. Maj garde 45 degrés, %ALT%+glisser trace à main levée. Cliquez sur le point de départ, double-cliquez ou appuyez sur Entrée pour fermer ; Retour arrière retire le dernier point, Échap annule.</translation>
     </message>
 </context>
 <context>

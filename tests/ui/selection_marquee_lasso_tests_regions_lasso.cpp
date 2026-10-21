@@ -1965,10 +1965,11 @@ void ui_selection_tool_hints_name_modifier_combinations() {
     const char* prefix;
     bool intersects;
   };
-  const std::array<ToolHint, 7> tools{{
+  const std::array<ToolHint, 8> tools{{
       {"toolMarqueeAction", "Rectangular Marquee: drag to select.", true},
       {"toolEllipticalMarqueeAction", "Elliptical Marquee: drag to select.", true},
       {"toolLassoAction", "Lasso: drag around the area to select.", true},
+      {"toolPolygonalLassoAction", "Polygonal Lasso: click to place points.", true},
       {"toolMagneticLassoAction", "Magnetic Lasso: click an edge", true},
       {"toolMagicWandAction", "Magic Wand: click a color to select it.", true},
       {"toolQuickSelectAction", "Quick Select: paint over the area to select", false},
@@ -2250,10 +2251,7 @@ void ui_selection_tools_alt_and_shift_swap_cursor_without_motion() {
   send_mouse(*canvas, QEvent::MouseMove, canvas->widget_position_for_document_point(QPoint(40, 40)),
              Qt::NoButton, Qt::NoButton);
 
-  for (const auto tool : {patchy::ui::CanvasTool::QuickSelect, patchy::ui::CanvasTool::MagicWand,
-                          patchy::ui::CanvasTool::ObjectSelect, patchy::ui::CanvasTool::Lasso,
-                          patchy::ui::CanvasTool::MagneticLasso, patchy::ui::CanvasTool::Marquee}) {
-    canvas->set_tool(tool);
+  const auto check_badges_swap = [&window, canvas] {
     canvas->set_selection_mode(patchy::ui::CanvasWidget::SelectionMode::Replace);
     QApplication::processEvents();
     // An Alt-up with nothing held sets the plain cursor from the folded state, whatever
@@ -2274,7 +2272,16 @@ void ui_selection_tools_alt_and_shift_swap_cursor_without_motion() {
     CHECK(add_image != subtract_image);
     send_key_release(window, Qt::Key_Shift, Qt::ShiftModifier);
     CHECK(canvas->cursor().pixmap().toImage() == plain_image);
+  };
+  for (const auto tool : {patchy::ui::CanvasTool::QuickSelect, patchy::ui::CanvasTool::MagicWand,
+                          patchy::ui::CanvasTool::ObjectSelect, patchy::ui::CanvasTool::Lasso,
+                          patchy::ui::CanvasTool::MagneticLasso, patchy::ui::CanvasTool::Marquee}) {
+    canvas->set_tool(tool);
+    check_badges_swap();
   }
+  // The Polygonal Lasso (GitHub issue 287), picked through its palette action.
+  require_action(window, "toolPolygonalLassoAction")->trigger();
+  check_badges_swap();
 }
 
 void ui_brush_alt_shows_eyedropper_cursor() {
