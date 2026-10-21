@@ -4,7 +4,9 @@
 #include "ui/theme_palette.hpp"
 #include "ui/modifier_names.hpp"
 #include <QFocusEvent>
+#include "core/document_depth.hpp"
 #include "core/layer_metadata.hpp"
+#include "core/pixel_depth.hpp"
 #include "core/layer_tree.hpp"
 #include "local_psd_fixtures.hpp"
 #include "psd/psd_document_io.hpp"
@@ -36,6 +38,7 @@
 #include <QMouseEvent>
 #include <QThread>
 #include <QPaintEvent>
+#include <QScopeGuard>
 #include <QTabWidget>
 #include <QTextCursor>
 #include <QTextEdit>
@@ -51,6 +54,7 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <initializer_list>
 #include <iostream>
 #include <limits>
 #include <memory>
@@ -3698,6 +3702,122 @@ void ui_move_scaled_preview_composites_at_display_resolution() {
   save_widget_artifact("ui_move_scaled_preview", canvas);
 }
 
+// At zoom <= 50% the live move preview composites from the box-downscaled preview
+// document. Its halving walked deep pixels at one byte per channel, so on 16 and 32-bit
+// documents a dragged layer (a pasted selection on an HDR chart) showed shifted copies, a
+// black block and stripes until release. The mid-drag canvas must match the settled
+// full-resolution render after release at every depth.
+void ui_move_scaled_preview_matches_settled_render_at_every_depth() {
+  patchy::set_deep_editing_override(true);
+  const auto restore = qScopeGuard([] { patchy::set_deep_editing_override(std::nullopt); });
+  for (const auto depth : {patchy::BitDepth::UInt8, patchy::BitDepth::UInt16, patchy::BitDepth::Float32}) {
+    // A gradient background, so a shifted or squeezed base cannot match by accident.
+    patchy::PixelBuffer background(800, 600, patchy::PixelFormat::rgba8());
+    for (std::int32_t y = 0; y < 600; ++y) {
+      auto row = background.row(y);
+      for (std::int32_t x = 0; x < 800; ++x) {
+        auto* px = row.data() + static_cast<std::size_t>(x) * 4U;
+        px[0] = static_cast<std::uint8_t>(x * 255 / 799);
+        px[1] = static_cast<std::uint8_t>(y * 255 / 599);
+        px[2] = 128;
+        px[3] = 255;
+      }
+    }
+    patchy::Document document(800, 600, patchy::PixelFormat::rgba8());
+    document.add_pixel_layer("Background", std::move(background));
+    patchy::Layer layer(document.allocate_layer_id(), "Pasted Layer",
+                        solid_pixels(120, 100, patchy::PixelFormat::rgba8(), QColor(210, 40, 40)));
+    const auto layer_id = layer.id();
+    layer.set_bounds(patchy::Rect{100, 80, 120, 100});
+    document.add_layer(std::move(layer));
+    patchy::convert_document_depth(document, depth);
+
+    patchy::ui::CanvasWidget canvas;
+    canvas.resize(520, 380);
+    canvas.set_document(&document);
+    canvas.set_zoom(0.5);
+    canvas.set_tool(patchy::ui::CanvasTool::Move);
+    canvas.set_show_transform_controls(false);
+    canvas.set_auto_select_layer(false);
+    canvas.set_snap_enabled(false);
+    canvas.set_selected_layer_ids({layer_id});
+    canvas.show();
+    QApplication::processEvents();
+
+    // Drag +100 document px (widget +50 at 50%): the layer ends at 200..320 x 80..180.
+    const auto start = canvas.widget_position_for_document_point(QPoint(160, 130));
+    send_mouse(canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(canvas, QEvent::MouseMove, start + QPoint(30, 0), Qt::NoButton, Qt::LeftButton);
+    QApplication::processEvents();
+    send_mouse(canvas, QEvent::MouseMove, start + QPoint(50, 0), Qt::NoButton, Qt::LeftButton);
+    QApplication::processEvents();
+    CHECK(canvas.render_cache_diagnostics().move_scaled_previews > 0);
+
+    // Sample the visible part of the document on a grid, away from the layer's old and new
+    // edges (the preview's 2x2 box phase differs there by design).
+    const auto near_edge = [](int value, std::initializer_list<int> edges) {
+      for (const int edge : edges) {
+        if (std::abs(value - edge) <= 6) {
+          return true;
+        }
+      }
+      return false;
+    };
+    std::vector<QPoint> points;
+    for (int y = 10; y < 600; y += 30) {
+      for (int x = 10; x < 800; x += 30) {
+        const QPoint point(x, y);
+        if (!canvas.rect().contains(canvas.widget_position_for_document_point(point)) ||
+            near_edge(x, {100, 200, 220, 320}) || near_edge(y, {80, 180})) {
+          continue;
+        }
+        points.push_back(point);
+      }
+    }
+    CHECK(points.size() > 50);
+    // The drag readout panel beside the pointer covers part of the canvas mid-drag.
+    const auto readout = canvas.drag_readout_widget_rect().adjusted(-2, -2, 2, 2);
+    std::erase_if(points, [&](const QPoint& point) {
+      return readout.contains(canvas.widget_position_for_document_point(point));
+    });
+    std::vector<QColor> mid_drag;
+    mid_drag.reserve(points.size());
+    for (const auto& point : points) {
+      mid_drag.push_back(canvas_pixel(canvas, point));
+    }
+    const auto depth_name = std::to_string(static_cast<int>(depth));
+    save_widget_artifact("ui_move_scaled_preview_mid_drag_" + depth_name, canvas);
+
+    send_mouse(canvas, QEvent::MouseButtonRelease, start + QPoint(50, 0), Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    const auto settle_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    while (!canvas.render_settled() && std::chrono::steady_clock::now() < settle_deadline) {
+      QApplication::processEvents();
+    }
+    CHECK(canvas.render_settled());
+    CHECK(color_close(canvas_pixel(canvas, QPoint(260, 130)), QColor(210, 40, 40), 30));
+
+    int mismatches = 0;
+    for (std::size_t i = 0; i < points.size(); ++i) {
+      const auto settled = canvas_pixel(canvas, points[i]);
+      if (!color_close(mid_drag[i], settled, 24)) {
+        if (mismatches < 3) {
+          std::cout << "  depth " << static_cast<int>(depth) << " at (" << points[i].x() << "," << points[i].y()
+                    << ") mid-drag " << mid_drag[i].name().toStdString() << " settled "
+                    << settled.name().toStdString() << '\n';
+        }
+        ++mismatches;
+      }
+    }
+    if (mismatches != 0) {
+      std::cout << "  depth " << static_cast<int>(depth) << ": " << mismatches << " of " << points.size()
+                << " samples differ\n";
+    }
+    CHECK(mismatches == 0);
+    save_widget_artifact("ui_move_scaled_preview_settled_" + depth_name, canvas);
+  }
+}
+
 // A committed move whose release patches the render cache keeps the
 // preview-scaled document alive. Its copies of the moved layers must be
 // refitted to the committed positions: the next drag's proxy snapshot renders
@@ -5269,6 +5389,8 @@ std::vector<patchy::test::TestCase> move_tool_processing_overlay_tests() {
       {"ui_move_outline_repaints_on_pasteboard", ui_move_outline_repaints_on_pasteboard},
       {"ui_move_scaled_preview_composites_at_display_resolution",
        ui_move_scaled_preview_composites_at_display_resolution},
+      {"ui_move_scaled_preview_matches_settled_render_at_every_depth",
+       ui_move_scaled_preview_matches_settled_render_at_every_depth},
       {"ui_move_scaled_proxy_after_commit_shows_moved_content",
        ui_move_scaled_proxy_after_commit_shows_moved_content},
       {"ui_move_drag_with_dirty_render_cache_skips_sync_composite",
