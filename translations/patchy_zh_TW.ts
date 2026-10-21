@@ -15143,10 +15143,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>彎曲程度</translation>
     </message>
     <message>
-        <source>Switch between free transform and warp</source>
-        <translation>在任意變形和彎曲之間切換</translation>
-    </message>
-    <message>
         <source>Apply transform</source>
         <translation>套用變形</translation>
     </message>
@@ -23273,22 +23269,6 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>已從應用程式選單移除 Patchy</translation>
     </message>
     <message>
-        <source>Applications Menu</source>
-        <translation>應用程式選單</translation>
-    </message>
-    <message>
-        <source>Add Patchy to your applications menu?
-
-Patchy then starts from the menu and shows its own icon in the taskbar. This writes a menu entry and icons to your home folder.
-
-You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
-        <translation>要將 Patchy 加入應用程式選單嗎？
-
-之後即可從選單啟動 Patchy，工作列也會顯示 Patchy 自己的圖示。這會在你的家目錄中寫入一個選單項目和圖示。
-
-你也可以稍後透過「說明 &gt; 將 Patchy 加入應用程式選單」完成。</translation>
-    </message>
-    <message>
         <source>Don&apos;t Ask Again</source>
         <translation>不再詢問</translation>
     </message>
@@ -23689,6 +23669,22 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Rename File...</source>
         <translation>重新命名檔案...</translation>
+    </message>
+    <message>
+        <source>Add Patchy to your applications menu? It then starts from the menu and shows its own icon in the taskbar. This writes a menu entry and icons to your home folder. You can also do it later from Help &gt; Add Patchy to Applications Menu.</source>
+        <translation>要將 Patchy 加入應用程式選單嗎？之後即可從選單啟動 Patchy，工作列也會顯示 Patchy 自己的圖示。這會在你的家目錄中寫入一個選單項目和圖示。你也可以稍後透過「說明 &gt; 將 Patchy 加入應用程式選單」完成。</translation>
+    </message>
+    <message>
+        <source>Warp</source>
+        <translation>彎曲</translation>
+    </message>
+    <message>
+        <source>Scale</source>
+        <translation>縮放</translation>
+    </message>
+    <message>
+        <source>Rotate</source>
+        <translation>旋轉</translation>
     </message>
 </context>
 <context>

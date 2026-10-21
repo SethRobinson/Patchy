@@ -15143,10 +15143,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>变形弯曲度</translation>
     </message>
     <message>
-        <source>Switch between free transform and warp</source>
-        <translation>在自由变换和变形之间切换</translation>
-    </message>
-    <message>
         <source>Apply transform</source>
         <translation>应用变换</translation>
     </message>
@@ -23273,22 +23269,6 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <translation>已从应用程序菜单中移除 Patchy</translation>
     </message>
     <message>
-        <source>Applications Menu</source>
-        <translation>应用程序菜单</translation>
-    </message>
-    <message>
-        <source>Add Patchy to your applications menu?
-
-Patchy then starts from the menu and shows its own icon in the taskbar. This writes a menu entry and icons to your home folder.
-
-You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
-        <translation>将 Patchy 添加到应用程序菜单吗？
-
-之后即可从菜单启动 Patchy，任务栏也会显示 Patchy 自己的图标。这会在你的主文件夹中写入一个菜单项和图标。
-
-你也可以稍后通过“帮助 &gt; 将 Patchy 添加到应用程序菜单”完成。</translation>
-    </message>
-    <message>
         <source>Don&apos;t Ask Again</source>
         <translation>不再询问</translation>
     </message>
@@ -23689,6 +23669,22 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Rename File...</source>
         <translation>重命名文件...</translation>
+    </message>
+    <message>
+        <source>Add Patchy to your applications menu? It then starts from the menu and shows its own icon in the taskbar. This writes a menu entry and icons to your home folder. You can also do it later from Help &gt; Add Patchy to Applications Menu.</source>
+        <translation>将 Patchy 添加到应用程序菜单吗？之后即可从菜单启动 Patchy，任务栏也会显示 Patchy 自己的图标。这会在你的主文件夹中写入一个菜单项和图标。你也可以稍后通过“帮助 &gt; 将 Patchy 添加到应用程序菜单”完成。</translation>
+    </message>
+    <message>
+        <source>Warp</source>
+        <translation>变形</translation>
+    </message>
+    <message>
+        <source>Scale</source>
+        <translation>缩放</translation>
+    </message>
+    <message>
+        <source>Rotate</source>
+        <translation>旋转</translation>
     </message>
 </context>
 <context>

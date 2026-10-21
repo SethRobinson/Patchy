@@ -38,8 +38,10 @@
 #include "ui_test_access.hpp"
 #include "ui_test_support.hpp"
 #include "local_psd_fixtures.hpp"
+#include "core/artboard.hpp"
 #include "core/vector_live_shapes.hpp"
 #include "core/vector_raster.hpp"
+#include "core/vector_shape.hpp"
 #include "core/adjustment_layer.hpp"
 #include "ui/background_workers.hpp"
 #include "ui/dialog_utils.hpp"
@@ -796,6 +798,140 @@ void ui_vector_preview_keeps_pixel_grid_and_overlays_above() {
   CHECK(interior_grid_check(canvas, fill, true).other == 0);
 }
 
+// Dynamic Vector Preview in an artboard document: the scene keeps each artboard (its rect
+// mapped to the view), so the compositor clips the children and paints the paper exactly as
+// the document render does at that scale.
+void ui_vector_preview_renders_artboards() {
+  Document doc(60, 50, PixelFormat::rgba8());
+  auto board = make_artboard_group(doc.allocate_layer_id(), "Board", Rect{6, 5, 40, 30}, ArtboardBackground::White);
+  // The ellipse runs past the board's right edge, where the artboard clips it.
+  board.add_child(shape_layer(doc, ellipse(20.25, 9.5, 34.5, 21.75, {200, 40, 40})));
+  doc.layers().push_back(std::move(board));
+  doc.add_layer(shape_layer(doc, ellipse(48.5, 36.25, 10, 12, {40, 90, 200})));  // loose, off the board
+  doc.metadata().artboard_settings.emplace();
+  const auto scene = build_vector_preview_scene(doc);
+  CHECK(scene.fallback == VectorPreviewFallback::None);
+  CHECK(scene.has_vectors);
+  for (const int scale : {1, 4, 8}) {
+    auto enlarged = doc;
+    resize_image_and_layers(enlarged, doc.width() * scale, doc.height() * scale);
+    const auto expected = qimage_from_document(enlarged, true);
+    const auto result = render_vector_preview(scene, {expected.size(), static_cast<double>(scale), {}});
+    CHECK(result.fallback == VectorPreviewFallback::None);
+    CHECK(result.image == expected);
+  }
+}
+
+// Document cells (zoom x zoom widget squares) that hold both the shape's red and the white
+// behind it: a sharp vector edge splits cells, the document-pixel view never does (each
+// cell is one color, apart from overlay lines, which are neither color).
+int split_edge_cells(const QImage& image, const CanvasWidget& canvas, QSize document_size) {
+  int count = 0;
+  for (int y = 0; y < document_size.height(); ++y) {
+    for (int x = 0; x < document_size.width(); ++x) {
+      const auto top_left = canvas.widget_position_for_document_point(QPoint(x, y));
+      const auto bottom_right = canvas.widget_position_for_document_point(QPoint(x + 1, y + 1));
+      bool red = false;
+      bool white = false;
+      for (int py = top_left.y() + 2; py < bottom_right.y() - 2; ++py) {
+        for (int px = top_left.x() + 2; px < bottom_right.x() - 2; ++px) {
+          if (!image.rect().contains(px, py)) {
+            continue;
+          }
+          const auto color = image.pixelColor(px, py);
+          red = red || (std::abs(color.red() - 210) <= 30 && color.green() <= 70 && color.blue() <= 70);
+          white = white || (color.red() >= 235 && color.green() >= 235 && color.blue() >= 235);
+        }
+      }
+      count += red && white ? 1 : 0;
+    }
+  }
+  return count;
+}
+
+// Dynamic Vector Preview through a Free Transform session on a shape layer, in a plain
+// document or inside an artboard: the open session (rotated, under Nearest Neighbor too)
+// shows the transformed path at view resolution instead of the resampled document pixels,
+// and the committed result stays sharp.
+void check_free_transform_stays_sharp(bool on_artboard) {
+  PreviewPreferenceGuard preference_guard;
+  {
+    MainWindow window;
+    show_window(window);
+    Document doc(48, 36, PixelFormat::rgba8());
+    LayerId shape_id{};
+    auto shape = shape_layer(doc, ellipse(6, 8, 30, 16, {210, 30, 30}));
+    shape.metadata()[kLayerMetadataVectorShape] = "1";  // a shape layer, as the shape tools make
+    shape_id = shape.id();
+    if (on_artboard) {
+      auto board = make_artboard_group(doc.allocate_layer_id(), "Board", Rect{0, 0, 48, 36}, ArtboardBackground::White);
+      board.add_child(std::move(shape));
+      doc.layers().push_back(std::move(board));
+      doc.metadata().artboard_settings.emplace();
+    } else {
+      PixelBuffer white(48, 36, PixelFormat::rgba8());
+      white.clear(255);
+      doc.add_layer(Layer(doc.allocate_layer_id(), "Background", std::move(white)));
+      doc.add_layer(std::move(shape));
+    }
+    window.add_document_session(std::move(doc), on_artboard ? QStringLiteral("Board") : QStringLiteral("Plain"));
+    MainWindowTestAccess::select_layers(window, {shape_id}, shape_id);
+    auto* canvas = require_canvas(window);
+    auto* preview_action = require_hotkey_action(window, QStringLiteral("view.vector_preview"));
+    if (!preview_action->isChecked()) {
+      preview_action->trigger();
+    }
+    CHECK(canvas->vector_preview_enabled());
+    canvas->set_zoom(10.0);
+    settle(*canvas);
+    const QSize size(48, 36);
+    const std::string label = on_artboard ? "artboard" : "plain";
+    const auto widget_color = [&](QPoint document_point) {
+      return canvas->grab().toImage().pixelColor(canvas->widget_position_for_document_point(document_point) + QPoint(5, 5));
+    };
+    const auto is_red = [](QColor color) { return color.red() >= 180 && color.green() <= 70; };
+    const auto is_white = [](QColor color) { return color.red() >= 235 && color.green() >= 235 && color.blue() >= 235; };
+    save_widget_artifact("dynamic_vector_static_" + label, *canvas);
+    CHECK(split_edge_cells(canvas->grab().toImage(), *canvas, size) > 20);
+
+    require_hotkey_action(window, QStringLiteral("edit.free_transform"))->trigger();
+    CHECK(canvas->free_transform_active());
+    settle(*canvas);
+    save_widget_artifact("dynamic_vector_free_transform_" + label, *canvas);
+    CHECK(split_edge_cells(canvas->grab().toImage(), *canvas, size) > 20);
+
+    // A quarter turn about the shape's center: the frame shows the turned shape.
+    CHECK(canvas->set_transform_controls_state(QPointF(21, 16), 100.0, 100.0, 90.0));
+    settle(*canvas);
+    save_widget_artifact("dynamic_vector_free_transform_rotated_" + label, *canvas);
+    CHECK(split_edge_cells(canvas->grab().toImage(), *canvas, size) > 20);
+    CHECK(is_red(widget_color(QPoint(21, 3))));     // inside the turned shape only
+    CHECK(is_white(widget_color(QPoint(33, 16))));  // inside the original shape only
+    // The pixel grid over the frame takes its tones from the transformed document: no grid
+    // line still traces the shape where it was.
+    const auto rotated = canvas->grab().toImage();
+    const auto line_x = canvas->widget_position_for_document_point(QPoint(33, 16));
+    for (int dx = -1; dx <= 1; ++dx) {
+      const auto color = rotated.pixelColor(line_x + QPoint(dx, 5));
+      CHECK(color.red() - color.green() < 40);
+    }
+    canvas->set_transform_interpolation(TransformInterpolation::NearestNeighbor);
+    settle(*canvas);
+    CHECK(split_edge_cells(canvas->grab().toImage(), *canvas, size) > 20);
+
+    canvas->finish_free_transform();
+    CHECK(!canvas->free_transform_active());
+    settle(*canvas);
+    CHECK(split_edge_cells(canvas->grab().toImage(), *canvas, size) > 20);
+    CHECK(is_red(widget_color(QPoint(21, 3))));
+    CHECK(is_white(widget_color(QPoint(33, 16))));
+  }
+}
+
+void ui_vector_preview_stays_sharp_through_free_transform() { check_free_transform_stays_sharp(false); }
+
+void ui_vector_preview_stays_sharp_through_free_transform_on_artboard() { check_free_transform_stays_sharp(true); }
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> vector_preview_tests() {
@@ -810,5 +946,9 @@ std::vector<patchy::test::TestCase> vector_preview_tests() {
       {"ui_vector_preview_resource_notice_is_once_and_never_covers_other_status", ui_vector_preview_resource_notice_is_once_and_never_covers_other_status},
       {"ui_vector_preview_little_everywhere_if_available", ui_vector_preview_little_everywhere_if_available},
       {"ui_vector_preview_keeps_pixel_grid_and_overlays_above", ui_vector_preview_keeps_pixel_grid_and_overlays_above},
+      {"ui_vector_preview_renders_artboards", ui_vector_preview_renders_artboards},
+      {"ui_vector_preview_stays_sharp_through_free_transform", ui_vector_preview_stays_sharp_through_free_transform},
+      {"ui_vector_preview_stays_sharp_through_free_transform_on_artboard",
+       ui_vector_preview_stays_sharp_through_free_transform_on_artboard},
   };
 }

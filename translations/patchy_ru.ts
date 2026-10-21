@@ -15539,10 +15539,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Изгиб деформации</translation>
     </message>
     <message>
-        <source>Switch between free transform and warp</source>
-        <translation>Переключение между свободным преобразованием и деформацией</translation>
-    </message>
-    <message>
         <source>Apply transform</source>
         <translation>Применить преобразование</translation>
     </message>
@@ -23415,22 +23411,6 @@ Patchy может скачать обновление, заменить этот
         <translation>Patchy удалён из меню приложений</translation>
     </message>
     <message>
-        <source>Applications Menu</source>
-        <translation>Меню приложений</translation>
-    </message>
-    <message>
-        <source>Add Patchy to your applications menu?
-
-Patchy then starts from the menu and shows its own icon in the taskbar. This writes a menu entry and icons to your home folder.
-
-You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
-        <translation>Добавить Patchy в меню приложений?
-
-Patchy можно будет запускать из меню, а на панели задач появится его собственный значок. В домашнюю папку будут записаны пункт меню и значки.
-
-Это можно сделать и позже: Справка &gt; Добавить Patchy в меню приложений.</translation>
-    </message>
-    <message>
         <source>Don&apos;t Ask Again</source>
         <translation>Больше не спрашивать</translation>
     </message>
@@ -23833,6 +23813,22 @@ Patchy можно будет запускать из меню, а на пане�
     <message>
         <source>Rename File...</source>
         <translation>Переименовать файл...</translation>
+    </message>
+    <message>
+        <source>Add Patchy to your applications menu? It then starts from the menu and shows its own icon in the taskbar. This writes a menu entry and icons to your home folder. You can also do it later from Help &gt; Add Patchy to Applications Menu.</source>
+        <translation>Добавить Patchy в меню приложений? Patchy можно будет запускать из меню, а на панели задач появится его собственный значок. В домашнюю папку будут записаны пункт меню и значки. Это можно сделать и позже: Справка &gt; Добавить Patchy в меню приложений.</translation>
+    </message>
+    <message>
+        <source>Warp</source>
+        <translation>Деформация</translation>
+    </message>
+    <message>
+        <source>Scale</source>
+        <translation>Масштабирование</translation>
+    </message>
+    <message>
+        <source>Rotate</source>
+        <translation>Поворот</translation>
     </message>
 </context>
 <context>

@@ -27,9 +27,11 @@
 #include <QRect>
 #include <QPointF>
 #include <QPolygonF>
+#include <QPushButton>
 #include <QRegion>
 #include <QStatusBar>
 #include <QTextEdit>
+#include <QToolButton>
 #include <optional>
 #include <algorithm>
 #include <array>
@@ -834,24 +836,178 @@ void ui_script_layer_transform_refuses_folded_quad() {
   CHECK(canvas->active_layer_document_rect() == bounds);
 }
 
-// The three entries live under Edit > Transform with permanent hotkey ids, no
-// default keys, and NoRole (macOS menu merging).
+// Scale, Rotate, Skew, Distort, Perspective and Warp live under Edit > Transform
+// with permanent hotkey ids, no default keys, and NoRole (macOS menu merging); Free
+// Transform stays on the Edit menu itself with Ctrl+T (GitHub issues 225 and 299).
 void ui_free_transform_mode_menu_entries() {
   patchy::ui::MainWindow window;
   show_window(window);
   auto* menu = window.findChild<QMenu*>(QStringLiteral("editTransformMenu"));
   CHECK(menu != nullptr);
   CHECK(menu != nullptr && menu->menuAction()->menuRole() == QAction::NoRole);
+  auto* edit_menu = menu != nullptr ? qobject_cast<QMenu*>(menu->parent()) : nullptr;
+  CHECK(edit_menu != nullptr);
   for (const auto& [object_name, hotkey_id] :
-       std::vector<std::pair<const char*, const char*>>{{"editTransformSkewAction", "edit.transform_skew"},
+       std::vector<std::pair<const char*, const char*>>{{"editTransformScaleAction", "edit.transform_scale"},
+                                                        {"editTransformRotateAction", "edit.transform_rotate"},
+                                                        {"editTransformSkewAction", "edit.transform_skew"},
                                                         {"editTransformDistortAction", "edit.transform_distort"},
-                                                        {"editTransformPerspectiveAction", "edit.transform_perspective"}}) {
+                                                        {"editTransformPerspectiveAction", "edit.transform_perspective"},
+                                                        {"editWarpTransformAction", "edit.warp_transform"}}) {
     auto* action = require_action(window, object_name);
     CHECK(action->menuRole() == QAction::NoRole);
     CHECK(action->shortcut().isEmpty());
     CHECK(require_hotkey_action(window, QLatin1String(hotkey_id)) == action);
     CHECK(menu != nullptr && menu->actions().contains(action));
+    CHECK(edit_menu != nullptr && !edit_menu->actions().contains(action));
   }
+  auto* free_transform = require_action(window, "editFreeTransformAction");
+  CHECK(require_hotkey_action(window, QStringLiteral("edit.free_transform")) == free_transform);
+  CHECK(free_transform->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_T));
+  CHECK(edit_menu != nullptr && edit_menu->actions().contains(free_transform));
+}
+
+// The Move bar's type buttons start a session in that type, and the session bar's
+// group switches type, checks the open one (Warp included), and goes back to plain
+// Free Transform on a click of the checked one (GitHub issue 299).
+void ui_free_transform_type_buttons_switch_modes() {
+  using Mode = patchy::ui::CanvasWidget::TransformDistortMode;
+  patchy::ui::MainWindow window;
+  const QRect bounds(100, 70, 160, 110);
+  prepare_distort_scene(window, bounds);
+  auto* canvas = require_canvas(window);
+  const auto session_button = [&window](const char* name) {
+    auto* button = window.findChild<QPushButton*>(QLatin1String(name));
+    CHECK(button != nullptr);
+    return button;
+  };
+  const char* const session_names[] = {"transformSkewModeButton", "transformDistortModeButton",
+                                       "transformPerspectiveModeButton", "transformWarpModeButton"};
+  // `expected` null: plain Free Transform, nothing checked.
+  const auto only_checked = [&](const char* expected) {
+    bool ok = true;
+    for (const char* name : session_names) {
+      auto* button = session_button(name);
+      ok = ok && button != nullptr && button->isVisible() &&
+           button->isChecked() == (expected != nullptr && QLatin1String(name) == QLatin1String(expected));
+    }
+    return ok;
+  };
+
+  auto* move_skew = window.findChild<QToolButton*>(QStringLiteral("moveTransformSkewButton"));
+  CHECK(move_skew != nullptr && move_skew->isVisible());
+  for (const char* name : {"moveTransformDistortButton", "moveTransformPerspectiveButton", "moveWarpButton"}) {
+    auto* button = window.findChild<QToolButton*>(QLatin1String(name));
+    CHECK(button != nullptr && button->isVisible() && !button->toolTip().isEmpty());
+  }
+  if (move_skew == nullptr) {
+    return;
+  }
+  auto* options_content = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+  CHECK(options_content != nullptr);
+  if (options_content != nullptr) {
+    save_widget_artifact("issue299_move_bar", *options_content);
+  }
+  if (auto* menu = window.findChild<QMenu*>(QStringLiteral("editTransformMenu")); menu != nullptr) {
+    menu->popup(window.mapToGlobal(QPoint(120, 80)));
+    process_events_for(80);
+    save_widget_artifact("issue299_edit_transform_menu", *menu);
+    menu->hide();
+    QApplication::processEvents();
+  }
+  const auto options_height = options_content != nullptr ? options_content->height() : 0;
+  move_skew->click();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  CHECK(canvas->free_transform_distort_mode() == Mode::Skew);
+  CHECK(only_checked("transformSkewModeButton"));
+  // The session row, type buttons included, keeps one line in the suite's 1180 px
+  // window, so starting a transform never grows the bar and moves the canvas.
+  auto* cancel = window.findChild<QPushButton*>(QStringLiteral("freeTransformCancelButton"));
+  auto* session_skew = session_button("transformSkewModeButton");
+  CHECK(cancel != nullptr && session_skew != nullptr &&
+        std::abs(session_skew->geometry().center().y() - cancel->geometry().center().y()) <= 3);
+  CHECK(options_content != nullptr && options_content->height() == options_height);
+  if (options_content != nullptr) {
+    save_widget_artifact("issue299_session_bar", *options_content);
+  }
+
+  for (const auto& [name, mode] : std::vector<std::pair<const char*, Mode>>{
+           {"transformDistortModeButton", Mode::Distort},
+           {"transformPerspectiveModeButton", Mode::Perspective}}) {
+    if (auto* button = session_button(name); button != nullptr) {
+      button->click();
+    }
+    QApplication::processEvents();
+    CHECK(canvas->free_transform_active());
+    CHECK(canvas->free_transform_distort_mode() == mode);
+    CHECK(only_checked(name));
+  }
+  // A click on the checked type goes back to plain Free Transform.
+  if (auto* button = session_button("transformPerspectiveModeButton"); button != nullptr) {
+    button->click();
+  }
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_active());
+  CHECK(canvas->free_transform_distort_mode() == Mode::None);
+  CHECK(only_checked(nullptr));
+
+  if (auto* warp = session_button("transformWarpModeButton"); warp != nullptr) {
+    warp->click();
+  }
+  QApplication::processEvents();
+  CHECK(canvas->warp_transform_active());
+  CHECK(only_checked("transformWarpModeButton"));
+  // From Warp, a type button goes back to Free Transform in that type.
+  if (auto* distort = session_button("transformDistortModeButton"); distort != nullptr) {
+    distort->click();
+  }
+  QApplication::processEvents();
+  CHECK(!canvas->warp_transform_active());
+  CHECK(canvas->free_transform_active());
+  CHECK(canvas->free_transform_distort_mode() == Mode::Distort);
+  CHECK(only_checked("transformDistortModeButton"));
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+  CHECK(rect_near(canvas->active_layer_document_rect(), bounds));
+}
+
+// Rotate mode turns a corner drag into a rotation about the reference point (the
+// box keeps its size); Scale mode drops the rotate reach outside the box, so a drag
+// there does nothing, while a side drag still scales (GitHub issue 299).
+void ui_free_transform_scale_and_rotate_modes() {
+  using Mode = patchy::ui::CanvasWidget::TransformDistortMode;
+  patchy::ui::MainWindow window;
+  const QRect bounds(100, 70, 160, 110);
+  prepare_distort_scene(window, bounds);
+  auto* canvas = require_canvas(window);
+
+  require_action(window, "editTransformRotateAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_distort_mode() == Mode::Rotate);
+  // The bottom-right corner swings a quarter turn about the center (180, 125).
+  drag(*canvas, widget_at(*canvas, 260, 180), widget_at(*canvas, 125, 205));
+  auto state = canvas->transform_controls_state();
+  CHECK(state.has_value() && std::abs(state->rotation_degrees) > 45.0);
+  CHECK(state.has_value() && std::abs(state->scale_x_percent - 100.0) < 0.01 &&
+        std::abs(state->scale_y_percent - 100.0) < 0.01);
+  send_key(*canvas, Qt::Key_Escape);
+  QApplication::processEvents();
+  CHECK(!canvas->free_transform_active());
+
+  require_action(window, "editTransformScaleAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->free_transform_distort_mode() == Mode::Scale);
+  // Just outside the top-left corner is rotate reach in plain Free Transform.
+  drag(*canvas, widget_at(*canvas, 86, 56), widget_at(*canvas, 60, 140));
+  state = canvas->transform_controls_state();
+  CHECK(state.has_value() && std::abs(state->rotation_degrees) < 0.01);
+  CHECK(state.has_value() && std::abs(state->scale_x_percent - 100.0) < 0.01);
+  drag(*canvas, widget_at(*canvas, 260, 125), widget_at(*canvas, 300, 125));
+  send_key(*canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(rect_near(canvas->active_layer_document_rect(), QRect(100, 70, 200, 110)));
 }
 
 }  // namespace
@@ -865,6 +1021,8 @@ std::vector<patchy::test::TestCase> free_transform_distort_tests() {
       {"ui_free_transform_distort_refuses_type_layer", ui_free_transform_distort_refuses_type_layer},
       {"ui_free_transform_distort_is_a_session_step", ui_free_transform_distort_is_a_session_step},
       {"ui_free_transform_mode_menu_entries", ui_free_transform_mode_menu_entries},
+      {"ui_free_transform_type_buttons_switch_modes", ui_free_transform_type_buttons_switch_modes},
+      {"ui_free_transform_scale_and_rotate_modes", ui_free_transform_scale_and_rotate_modes},
       {"ui_script_layer_transform_quad_and_matrix", ui_script_layer_transform_quad_and_matrix},
       {"ui_script_layer_transform_refusals", ui_script_layer_transform_refusals},
       {"ui_free_transform_distort_smart_object_writes_perspective_placement",

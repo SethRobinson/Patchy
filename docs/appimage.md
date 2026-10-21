@@ -187,15 +187,23 @@ Code: `ui/appimage_menu_entry.{hpp,cpp}` (files), `main_window_appimage_menu_ent
   `appimage.menu_entry`; never `--headless`, `--run-script`, export, stress, screenshot or
   benchmark runs, and tests call the offer explicitly): an entry Patchy added is rewritten
   when the AppImage moved or a new release ships different files (consent was given). Else,
-  unless declined, a non-modal offer appears 2 s after startup (retrying while another dialog
-  is up): Add / Not Now (asks again next launch) / Don't Ask Again (`appimage/menuEntryPromptDeclined`,
-  a compatibility contract). It names the Help command for later. Its Add only adds: Help may
-  have added the entry while it was open.
+  unless declined, and only in a desktop session (`XDG_CURRENT_DESKTOP` or `DESKTOP_SESSION`
+  set, `CI` unset: `appimage_menu_entry_offer_session_allowed`), the offer appears 2 s after
+  startup as a bar across the top of the workspace (`appImageMenuEntryOfferBar`, `@info_banner_*`
+  roles), never a dialog: the AppImage catalog's test runs a bare X server and captures the
+  first window, which was the old modal box (GitHub issue 208). While it shows, the central
+  widget is a holder with the bar above `workspaceSplitter`; closing puts the splitter back.
+  Add / Not Now (asks again next launch) / Don't Ask Again (`appimage/menuEntryPromptDeclined`,
+  a compatibility contract). It names the Help command for later; Help changing the entry
+  closes it, and its Add only adds.
 - Tests (`appimage_menu_entry_tests.cpp`): a Unicode data folder and an AppImage name with
   every reserved Exec character; Add writes the expected entry and icons, Remove deletes only
   them; the moved-AppImage refresh; AppImageLauncher, Gear Lever, packaged and foreign entries;
-  the item's visibility and texts and the offer's buttons (Linux, faked `APPIMAGE`/`APPDIR`,
-  `MainWindowTestAccess::set_appimage_bundled_share`, which also skips the cache tools).
+  the item's visibility and texts, the offer bar's placement and buttons, and the session
+  rule at startup (`appimage_menu_entry_offer_needs_a_desktop_session`,
+  `ui_appimage_menu_entry_startup_offer_follows_the_session`) (Linux, faked
+  `APPIMAGE`/`APPDIR`, `MainWindowTestAccess::set_appimage_bundled_share`, which also skips
+  the cache tools).
 - GNOME check on the headless rig ([wayland.md](wayland.md)): give the shell and the AppImage the
   same scratch `XDG_DATA_HOME` and `XDG_DATA_DIRS=/usr/local/share:/usr/share` (a user Flatpak's
   export would otherwise provide the entry), add through a forwarded `--run-script` calling

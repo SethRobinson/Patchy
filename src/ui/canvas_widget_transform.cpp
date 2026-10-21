@@ -557,19 +557,37 @@ struct PremultipliedSample {
   double a{0.0};
 };
 
-PremultipliedSample premultiplied_pixel(const QImage& image, int x, int y) {
-  if (x < 0 || y < 0 || x >= image.width() || y >= image.height()) {
+// A resample's source, read once: the samplers below run per tap (16 taps a
+// bicubic pixel), and QImage's accessors are out-of-line calls (GitHub #298).
+struct SampleSource {
+  explicit SampleSource(const QImage& image)
+      : bits(image.constBits()),
+        stride(static_cast<std::ptrdiff_t>(image.bytesPerLine())),
+        width(image.width()),
+        height(image.height()),
+        float_pixels(image.format() == QImage::Format_RGBA32FPx4) {}
+  [[nodiscard]] const uchar* row(int y) const noexcept { return bits + static_cast<std::ptrdiff_t>(y) * stride; }
+
+  const uchar* bits;
+  std::ptrdiff_t stride;
+  int width;
+  int height;
+  bool float_pixels;
+};
+
+PremultipliedSample premultiplied_pixel(const SampleSource& image, int x, int y) {
+  if (x < 0 || y < 0 || x >= image.width || y >= image.height) {
     return {};
   }
-  if (image.format() == QImage::Format_RGBA32FPx4) {
+  if (image.float_pixels) {
     // 16/32-bit layers (docs/high-bit-depth.md): the same premultiplied sample on the
     // 0..255 scale, from straight float values (linear ones may exceed 1).
-    const auto* pixel = reinterpret_cast<const float*>(image.constScanLine(y)) + static_cast<std::size_t>(x) * 4U;
+    const auto* pixel = reinterpret_cast<const float*>(image.row(y)) + static_cast<std::size_t>(x) * 4U;
     const auto alpha = static_cast<double>(std::clamp(pixel[3], 0.0F, 1.0F)) * 255.0;
     return PremultipliedSample{static_cast<double>(pixel[0]) * alpha, static_cast<double>(pixel[1]) * alpha,
                                static_cast<double>(pixel[2]) * alpha, alpha};
   }
-  const auto* pixel = image.constScanLine(y) + x * 4;
+  const auto* pixel = image.row(y) + x * 4;
   const auto alpha = static_cast<double>(pixel[3]);
   return PremultipliedSample{static_cast<double>(pixel[0]) * alpha / 255.0,
                              static_cast<double>(pixel[1]) * alpha / 255.0,
@@ -585,16 +603,16 @@ PremultipliedSample add_weighted(PremultipliedSample total, PremultipliedSample 
   return total;
 }
 
-PremultipliedSample sample_nearest(const QImage& image, QPointF source_point) {
-  if (source_point.x() < 0.0 || source_point.y() < 0.0 || source_point.x() >= image.width() ||
-      source_point.y() >= image.height()) {
+PremultipliedSample sample_nearest(const SampleSource& image, QPointF source_point) {
+  if (source_point.x() < 0.0 || source_point.y() < 0.0 || source_point.x() >= image.width ||
+      source_point.y() >= image.height) {
     return {};
   }
   return premultiplied_pixel(image, static_cast<int>(std::floor(source_point.x())),
                              static_cast<int>(std::floor(source_point.y())));
 }
 
-PremultipliedSample sample_bilinear(const QImage& image, QPointF source_point) {
+PremultipliedSample sample_bilinear(const SampleSource& image, QPointF source_point) {
   const auto x = source_point.x() - 0.5;
   const auto y = source_point.y() - 0.5;
   const auto x0 = static_cast<int>(std::floor(x));
@@ -646,7 +664,7 @@ CanvasWidget::TransformInterpolation resolve_automatic_interpolation(
   return CanvasWidget::TransformInterpolation::Bicubic;
 }
 
-PremultipliedSample sample_bicubic(const QImage& image, QPointF source_point,
+PremultipliedSample sample_bicubic(const SampleSource& image, QPointF source_point,
                                    CanvasWidget::TransformInterpolation interpolation) {
   const auto x = source_point.x() - 0.5;
   const auto y = source_point.y() - 0.5;
@@ -720,7 +738,8 @@ TransformedImage resample_transformed_rgba8(const QImage& source, const QTransfo
   // scanLine() calls from workers would race on QImage's copy-on-write.
   auto* transformed_bits = transformed.bits();
   const auto transformed_stride = static_cast<std::size_t>(transformed.bytesPerLine());
-  const auto resample_rows = [&converted, &document_to_source, interpolation, transformed_bits, transformed_stride,
+  const SampleSource sampled(converted);
+  const auto resample_rows = [&sampled, &document_to_source, interpolation, transformed_bits, transformed_stride,
                               left, top, deep, width = transformed.width()](int row_begin, int row_end) {
     for (int y = row_begin; y < row_end; ++y) {
       auto* row = transformed_bits + static_cast<std::size_t>(y) * transformed_stride;
@@ -730,16 +749,16 @@ TransformedImage resample_transformed_rgba8(const QImage& source, const QTransfo
         PremultipliedSample sample;
         switch (interpolation) {
           case CanvasWidget::TransformInterpolation::NearestNeighbor:
-            sample = sample_nearest(converted, source_point);
+            sample = sample_nearest(sampled, source_point);
             break;
           case CanvasWidget::TransformInterpolation::Bilinear:
-            sample = sample_bilinear(converted, source_point);
+            sample = sample_bilinear(sampled, source_point);
             break;
           case CanvasWidget::TransformInterpolation::Bicubic:
           case CanvasWidget::TransformInterpolation::BicubicSmoother:
           case CanvasWidget::TransformInterpolation::BicubicSharper:
           case CanvasWidget::TransformInterpolation::Automatic:  // resolved above
-            sample = sample_bicubic(converted, source_point, interpolation);
+            sample = sample_bicubic(sampled, source_point, interpolation);
             break;
         }
 
@@ -841,14 +860,15 @@ TransformedImage resample_warped_rgba8(const QImage& source, const WarpSurfaceGr
   transformed.fill(Qt::transparent);
   std::vector<std::uint8_t> covered(static_cast<std::size_t>(transformed.width()) * transformed.height(), 0);
 
-  const auto sample_at = [&converted, interpolation](QPointF source_point) {
+  const SampleSource sampled(converted);
+  const auto sample_at = [&sampled, interpolation](QPointF source_point) {
     switch (interpolation) {
       case CanvasWidget::TransformInterpolation::NearestNeighbor:
-        return sample_nearest(converted, source_point);
+        return sample_nearest(sampled, source_point);
       case CanvasWidget::TransformInterpolation::Bilinear:
-        return sample_bilinear(converted, source_point);
+        return sample_bilinear(sampled, source_point);
       default:
-        return sample_bicubic(converted, source_point, interpolation);
+        return sample_bicubic(sampled, source_point, interpolation);
     }
   };
 
@@ -3135,7 +3155,7 @@ void CanvasWidget::apply_session_transform_cursor(QPoint widget_point, Qt::Keybo
                             transform_angle_);
     return;
   }
-  const auto handle = distorted_transform_handle_at(widget_point);
+  const auto handle = transform_handle_for_session_mode(distorted_transform_handle_at(widget_point));
   if (handle == TransformHandle::Rotate) {
     const auto stem = distorted_transform_handle_position(TransformHandle::Rotate);
     if (std::abs(widget_point.x() - stem.x()) <= 7.0 && std::abs(widget_point.y() - stem.y()) <= 7.0) {
@@ -3191,6 +3211,8 @@ CanvasWidget::TransformDragKind CanvasWidget::transform_drag_kind_for_mode(Trans
       case TransformDistortMode::Skew:
         return TransformDragKind::SkewCorner;
       case TransformDistortMode::None:
+      case TransformDistortMode::Scale:
+      case TransformDistortMode::Rotate:
         break;
     }
     return TransformDragKind::Scale;
@@ -3206,6 +3228,8 @@ CanvasWidget::TransformDragKind CanvasWidget::transform_drag_kind_for_mode(Trans
       case TransformDistortMode::Perspective:
         return TransformDragKind::SlideEdge;
       case TransformDistortMode::None:
+      case TransformDistortMode::Scale:
+      case TransformDistortMode::Rotate:
         break;
     }
   }
@@ -3660,7 +3684,10 @@ void CanvasWidget::draw_free_transform(QPainter& painter) const {
     return;
   }
 
-  if (!transform_targets_.empty()) {
+  if (transform_vector_preview_drawn_) {
+    // Dynamic Vector Preview drew the transformed shape sharp; a resampled blit would
+    // cover it with document pixels.
+  } else if (!transform_targets_.empty()) {
     if (!transform_multi_snapshot_.isNull() && !transform_multi_snapshot_rect_.isEmpty() &&
         transform_preview_patches_.empty()) {
       // Multi-target drag preview: the one subtree snapshot mapped through the
@@ -3807,9 +3834,28 @@ CanvasWidget::TransformHandle CanvasWidget::transform_handle_at(QPoint widget_po
     return TransformHandle::None;
   }
   if (transform_is_distorted()) {
-    return distorted_transform_handle_at(widget_point);
+    return transform_handle_for_session_mode(distorted_transform_handle_at(widget_point));
   }
-  return transform_handle_at(widget_point, transform_current_rect_, transform_angle_, zones);
+  return transform_handle_for_session_mode(
+      transform_handle_at(widget_point, transform_current_rect_, transform_angle_, zones));
+}
+
+CanvasWidget::TransformHandle CanvasWidget::transform_handle_for_session_mode(TransformHandle handle) const noexcept {
+  switch (transform_distort_mode_) {
+    case TransformDistortMode::Rotate:
+      // Grabbing a corner or side swings the box about the reference point; the
+      // inside still moves it.
+      return transform_handle_is_corner(handle) || transform_handle_is_edge(handle) ? TransformHandle::Rotate
+                                                                                     : handle;
+    case TransformDistortMode::Scale:
+      return handle == TransformHandle::Rotate ? TransformHandle::None : handle;
+    case TransformDistortMode::None:
+    case TransformDistortMode::Skew:
+    case TransformDistortMode::Distort:
+    case TransformDistortMode::Perspective:
+      break;
+  }
+  return handle;
 }
 
 CanvasWidget::TransformHandle CanvasWidget::transform_handle_at(QPoint widget_point, QRectF document_rect,
@@ -4324,13 +4370,7 @@ void CanvasWidget::commit_free_transform() {
       // The text-layer pattern for vectors: apply the affine to the path
       // model and re-rasterize crisply (replacing the resampled pixels). A
       // shape layer's own path maps so its unscaled stroke fills the box.
-      const auto* shape = layer_is_vector_shape(*layer) ? layer->vector_shape() : nullptr;
-      const auto path_bounds = shape != nullptr ? shape->path.bounds() : std::nullopt;
-      const auto delta =
-          path_bounds.has_value() && !transform_is_distorted()
-              ? shape_free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
-                                           transform_scale_x_sign_, transform_scale_y_sign_, *path_bounds)
-              : transform_session_delta();
+      const auto delta = shape_layer_commit_delta(*layer);
       const std::array<double, 6> matrix{delta.m11(), delta.m12(), delta.m21(),
                                          delta.m22(), delta.dx(),  delta.dy()};
       if (transform_has_perspective(delta)) {
@@ -4401,6 +4441,54 @@ void CanvasWidget::commit_free_transform() {
                              : tr("Free Transform cancelled"));
   }
   notify_transform_controls_changed();
+}
+
+bool CanvasWidget::free_transform_vector_preview_possible() const {
+  // The session's pixel source is built lazily (the first drag), so it is not required here.
+  if (!transforming_layer_ || document_ == nullptr || !transform_targets_.empty() || !transform_layer_id_.has_value() ||
+      transform_has_pending_warp_) {
+    return false;
+  }
+  // The commit's vector branch alone: text and smart objects re-render other content, and a
+  // linked raster mask resamples, so those sessions keep the pixel preview.
+  const auto* layer = std::as_const(*document_).find_layer(*transform_layer_id_);
+  return layer != nullptr && layer_is_vector_shape(*layer) && !layer_is_text(*layer) && !layer_is_smart_object(*layer) &&
+         !layer->mask().has_value();
+}
+
+std::optional<std::pair<LayerId, QTransform>> CanvasWidget::free_transform_vector_preview_key() const {
+  if (!free_transform_vector_preview_possible()) {
+    return std::nullopt;
+  }
+  const auto* layer = std::as_const(*document_).find_layer(*transform_layer_id_);
+  return std::pair<LayerId, QTransform>{layer->id(), shape_layer_commit_delta(*layer)};
+}
+
+Document CanvasWidget::free_transform_vector_preview_document(const std::pair<LayerId, QTransform>& key) const {
+  auto preview = *document_;  // copy-on-write pixels: only the transformed shape re-bakes
+  auto* layer = preview.find_layer(key.first);
+  if (layer == nullptr || key.second.isIdentity()) {
+    return preview;
+  }
+  const auto& delta = key.second;
+  const auto canvas = Rect::from_size(preview.width(), preview.height());
+  if (transform_has_perspective(delta)) {
+    patchy::transform_layer_vector_data_projective(preview, *layer, homography_from_qtransform(delta), canvas);
+  } else {
+    patchy::transform_layer_vector_data(preview, *layer,
+                                        {delta.m11(), delta.m12(), delta.m21(), delta.m22(), delta.dx(), delta.dy()},
+                                        canvas);
+  }
+  return preview;
+}
+
+QTransform CanvasWidget::shape_layer_commit_delta(const Layer& layer) const {
+  const auto* shape = layer_is_vector_shape(layer) ? layer.vector_shape() : nullptr;
+  const auto path_bounds = shape != nullptr ? shape->path.bounds() : std::nullopt;
+  return path_bounds.has_value() && !transform_is_distorted()
+             ? shape_free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
+                                          transform_scale_x_sign_, transform_scale_y_sign_, *path_bounds)
+             : transform_session_delta();
 }
 
 // Multi-target commit: one shared affine delta applied per leaf with the same
@@ -4929,8 +5017,22 @@ void CanvasWidget::set_warp_handle_document_position(int index, QPointF document
       apply_homography(warp_document_to_content_, document_point.x(), document_point.y());
   warp_mesh_.xs[static_cast<std::size_t>(index)] = content[0];
   warp_mesh_.ys[static_cast<std::size_t>(index)] = content[1];
+  const bool style_changed = warp_style_ != QStringLiteral("warpCustom") || warp_style_value_ != 0.0;
   warp_style_ = QStringLiteral("warpCustom");
   warp_style_value_ = 0.0;
+  if (dragging_warp_handle_) {
+    // Mouse moves can arrive faster than a preview renders (high-rate pointers,
+    // Wayland's uncompressed motion); rendering each one queued them up and the
+    // canvas fell seconds behind the pointer (GitHub #298). paintEvent renders
+    // the latest mesh once per frame, and the options bar refreshes only when the
+    // style flips to Custom (the release refreshes it again).
+    warp_drag_preview_pending_ = true;
+    update();
+    if (style_changed) {
+      notify_transform_controls_changed();
+    }
+    return;
+  }
   refresh_warp_preview_cache();
   update();
   notify_transform_controls_changed();
@@ -4995,6 +5097,7 @@ void CanvasWidget::clear_warp_preview_caches() {
   warp_preview_patches_scale_level_ = 0;
   warp_preview_covered_rect_ = QRect();
   warp_source_mips_.clear();
+  warp_drag_preview_pending_ = false;
 }
 
 const QImage& CanvasWidget::warp_source_for_level(int level) {
@@ -5104,6 +5207,7 @@ std::array<double, 8> CanvasWidget::warp_document_quad() const {
 }
 
 void CanvasWidget::refresh_warp_preview_cache() {
+  warp_drag_preview_pending_ = false;
   warp_preview_patches_.clear();
   warp_preview_patches_scale_level_ = 0;
   warp_preview_covered_rect_ = QRect();
@@ -5121,6 +5225,13 @@ void CanvasWidget::refresh_warp_preview_cache() {
   const bool interactive = dragging_warp_handle_;
   const QRect canvas_rect(0, 0, document_->width(), document_->height());
   int level = preview_composite_level_for_zoom(view_zoom());
+  if (interactive && level == 0 && view_zoom() < 1.0) {
+    // Between 50% and 100% the display level is full resolution, so a drag frame
+    // rendered up to twice the pixels on screen: the whole layer of a fit photo on
+    // a HiDPI screen (GitHub #298). Drag frames go one level down; the resting
+    // frame and the commit stay full resolution.
+    level = 1;
+  }
   Document* scaled_document = level >= 1 ? preview_scaled_document_for_level(level) : nullptr;
   const QImage* source = &warp_source_image_;
   if (scaled_document != nullptr) {
@@ -5203,6 +5314,7 @@ void CanvasWidget::refresh_warp_preview_cache() {
     }
   }
   warp_preview_patches_scale_level_ = level;
+  ++render_cache_diagnostics_.warp_preview_renders;
   if (level >= 1) {
     ++render_cache_diagnostics_.warp_scaled_previews;
   }

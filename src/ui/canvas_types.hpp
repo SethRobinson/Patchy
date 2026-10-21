@@ -24,8 +24,10 @@ inline constexpr std::size_t kSelectionToolCount = 9;
 inline constexpr int kMaxBrushSize = 1024;
 
 // Edit > Transform modes for a Free Transform session (GitHub issue 225): plain corner
-// and edge drags skew, distort, or apply perspective. docs/free-transform.md.
-enum class TransformDistortMode { None, Skew, Distort, Perspective };
+// and edge drags skew, distort, or apply perspective. Scale and Rotate (GitHub issue
+// 299) narrow the box to one kind of drag: handles only scale, or every handle
+// rotates. None is plain Free Transform. docs/free-transform.md.
+enum class TransformDistortMode { None, Skew, Distort, Perspective, Scale, Rotate };
 
 enum class CanvasTool {
   Move,
@@ -349,6 +351,9 @@ struct CanvasRenderCacheDiagnostics {
   // own level (GitHub #200: bounded by the view, never the whole layer).
   int warp_scaled_previews{0};
   std::uint64_t warp_preview_last_pixels{0};
+  // Every Warp Transform preview render. A drag renders once per painted frame,
+  // however many mouse moves queued up before it (GitHub #298).
+  int warp_preview_renders{0};
 };
 
 }  // namespace patchy::ui

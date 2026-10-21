@@ -15467,10 +15467,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>뒤틀기 굽힘</translation>
     </message>
     <message>
-        <source>Switch between free transform and warp</source>
-        <translation>자유 변형과 뒤틀기 간 전환</translation>
-    </message>
-    <message>
         <source>Apply transform</source>
         <translation>변환 적용</translation>
     </message>
@@ -23273,22 +23269,6 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <translation>애플리케이션 메뉴에서 Patchy를 제거했습니다</translation>
     </message>
     <message>
-        <source>Applications Menu</source>
-        <translation>애플리케이션 메뉴</translation>
-    </message>
-    <message>
-        <source>Add Patchy to your applications menu?
-
-Patchy then starts from the menu and shows its own icon in the taskbar. This writes a menu entry and icons to your home folder.
-
-You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
-        <translation>애플리케이션 메뉴에 Patchy를 추가할까요?
-
-메뉴에서 Patchy를 시작할 수 있고 작업 표시줄에 Patchy 아이콘이 표시됩니다. 메뉴 항목과 아이콘을 홈 폴더에 기록합니다.
-
-나중에 도움말 &gt; 애플리케이션 메뉴에 Patchy 추가에서 할 수도 있습니다.</translation>
-    </message>
-    <message>
         <source>Don&apos;t Ask Again</source>
         <translation>다시 묻지 않음</translation>
     </message>
@@ -23689,6 +23669,22 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Rename File...</source>
         <translation>파일 이름 바꾸기...</translation>
+    </message>
+    <message>
+        <source>Add Patchy to your applications menu? It then starts from the menu and shows its own icon in the taskbar. This writes a menu entry and icons to your home folder. You can also do it later from Help &gt; Add Patchy to Applications Menu.</source>
+        <translation>애플리케이션 메뉴에 Patchy를 추가할까요? 메뉴에서 Patchy를 시작할 수 있고 작업 표시줄에 Patchy 아이콘이 표시됩니다. 메뉴 항목과 아이콘을 홈 폴더에 기록합니다. 나중에 도움말 &gt; 애플리케이션 메뉴에 Patchy 추가에서 할 수도 있습니다.</translation>
+    </message>
+    <message>
+        <source>Warp</source>
+        <translation>뒤틀기</translation>
+    </message>
+    <message>
+        <source>Scale</source>
+        <translation>크기 조절</translation>
+    </message>
+    <message>
+        <source>Rotate</source>
+        <translation>회전</translation>
     </message>
 </context>
 <context>

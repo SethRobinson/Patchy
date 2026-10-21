@@ -478,8 +478,10 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   paste_in_place_action->setProperty("patchy.channelViewBlocked", true);
   bind_action_text(paste_in_place_action, QT_TR_NOOP("Paste in Place"));
   auto* transform_action = edit_menu->addAction(tr("Free &Transform..."));
-  auto* warp_transform_action = edit_menu->addAction(tr("Warp Transform"));
-  bind_action_text(warp_transform_action, QT_TR_NOOP("Warp Transform"));
+  // Warp lives in Edit > Transform with the other types (GitHub issue 299); its
+  // object name and hotkey id are unchanged.
+  auto* warp_transform_action = new QAction(tr("Warp"), this);
+  bind_action_text(warp_transform_action, QT_TR_NOOP("Warp"));
   cut_action->setObjectName(QStringLiteral("editCutAction"));
   copy_action->setObjectName(QStringLiteral("editCopyAction"));
   copy_merged_action->setObjectName(QStringLiteral("editCopyMergedAction"));
@@ -523,21 +525,26 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
                        warp_transform_action}) {
     register_document_action(action);
   }
-  // Edit > Transform (GitHub issue 225): each entry starts (or keeps) a Free
-  // Transform session in which plain corner and edge drags skew, distort, or
-  // apply perspective (docs/free-transform.md). The hotkey ids are permanent.
+  // Edit > Transform (GitHub issues 225 and 299): each entry starts (or keeps) a
+  // Free Transform session in which plain corner and edge drags scale, rotate,
+  // skew, distort, or apply perspective (docs/free-transform.md); Warp closes the
+  // list. The hotkey ids are permanent.
   {
     auto* transform_menu = new QMenu(tr("Transform"), edit_menu);
     bind_widget_text(transform_menu, QT_TR_NOOP("Transform"));
     transform_menu->setObjectName(QStringLiteral("editTransformMenu"));
-    edit_menu->insertMenu(warp_transform_action, transform_menu)->setMenuRole(QAction::NoRole);
+    edit_menu->addMenu(transform_menu)->setMenuRole(QAction::NoRole);
     struct ModeEntry {
       const char* text;
       const char* object_name;
       const char* hotkey_id;
       CanvasWidget::TransformDistortMode mode;
     };
-    for (const auto& entry : {ModeEntry{QT_TR_NOOP("Skew"), "editTransformSkewAction", "edit.transform_skew",
+    for (const auto& entry : {ModeEntry{QT_TR_NOOP("Scale"), "editTransformScaleAction", "edit.transform_scale",
+                                        CanvasWidget::TransformDistortMode::Scale},
+                              ModeEntry{QT_TR_NOOP("Rotate"), "editTransformRotateAction", "edit.transform_rotate",
+                                        CanvasWidget::TransformDistortMode::Rotate},
+                              ModeEntry{QT_TR_NOOP("Skew"), "editTransformSkewAction", "edit.transform_skew",
                                         CanvasWidget::TransformDistortMode::Skew},
                               ModeEntry{QT_TR_NOOP("Distort"), "editTransformDistortAction", "edit.transform_distort",
                                         CanvasWidget::TransformDistortMode::Distort},
@@ -551,6 +558,9 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
       connect(action, &QAction::triggered, this, [this, mode = entry.mode] { transform_active_layer_mode(mode); });
       register_document_action(action);
     }
+    transform_menu->addSeparator();
+    transform_menu->addAction(warp_transform_action);
+    warp_transform_action->setMenuRole(QAction::NoRole);
   }
   edit_menu->addSeparator();
   auto* select_all_action = edit_menu->addAction(tr("Select &All"));

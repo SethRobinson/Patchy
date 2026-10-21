@@ -15179,10 +15179,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Verkrümmungsbiegung</translation>
     </message>
     <message>
-        <source>Switch between free transform and warp</source>
-        <translation>Zwischen Frei transformieren und Verkrümmen wechseln</translation>
-    </message>
-    <message>
         <source>Apply transform</source>
         <translation>Transformation anwenden</translation>
     </message>
@@ -23344,22 +23340,6 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <translation>Patchy wurde aus dem Anwendungsmenü entfernt</translation>
     </message>
     <message>
-        <source>Applications Menu</source>
-        <translation>Anwendungsmenü</translation>
-    </message>
-    <message>
-        <source>Add Patchy to your applications menu?
-
-Patchy then starts from the menu and shows its own icon in the taskbar. This writes a menu entry and icons to your home folder.
-
-You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
-        <translation>Patchy zum Anwendungsmenü hinzufügen?
-
-Patchy lässt sich dann aus dem Menü starten und zeigt in der Taskleiste sein eigenes Symbol. Dazu werden ein Menüeintrag und Symbole in Ihren Home-Ordner geschrieben.
-
-Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzufügen erledigen.</translation>
-    </message>
-    <message>
         <source>Don&apos;t Ask Again</source>
         <translation>Nicht mehr fragen</translation>
     </message>
@@ -23761,6 +23741,22 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
     <message>
         <source>Rename File...</source>
         <translation>Datei umbenennen...</translation>
+    </message>
+    <message>
+        <source>Add Patchy to your applications menu? It then starts from the menu and shows its own icon in the taskbar. This writes a menu entry and icons to your home folder. You can also do it later from Help &gt; Add Patchy to Applications Menu.</source>
+        <translation>Patchy zum Anwendungsmenü hinzufügen? Patchy lässt sich dann aus dem Menü starten und zeigt in der Taskleiste sein eigenes Symbol. Dazu werden ein Menüeintrag und Symbole in Ihren Home-Ordner geschrieben. Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzufügen erledigen.</translation>
+    </message>
+    <message>
+        <source>Warp</source>
+        <translation>Verkrümmen</translation>
+    </message>
+    <message>
+        <source>Scale</source>
+        <translation>Skalieren</translation>
+    </message>
+    <message>
+        <source>Rotate</source>
+        <translation>Drehen</translation>
     </message>
 </context>
 <context>
