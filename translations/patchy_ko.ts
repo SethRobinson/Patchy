@@ -11502,6 +11502,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation> (양 %1%, 반경 %2 px, 레거시)</translation>
     </message>
     <message>
+        <source>Undo</source>
+        <translation>실행 취소</translation>
+    </message>
+    <message>
+        <source>Redo</source>
+        <translation>다시 실행</translation>
+    </message>
+    <message>
+        <source>Rate:</source>
+        <translation>속도:</translation>
+    </message>
+    <message>
+        <source>How fast the brush keeps working while it is held still</source>
+        <translation>브러시를 멈추고 있는 동안 효과가 계속되는 속도</translation>
+    </message>
+    <message>
+        <source>Stylus Pressure</source>
+        <translation>스타일러스 압력</translation>
+    </message>
+    <message>
+        <source>Show Mesh</source>
+        <translation>메시 표시</translation>
+    </message>
+    <message>
+        <source>Reconstruct...</source>
+        <translation>재구성...</translation>
+    </message>
+    <message>
+        <source>Amount:</source>
+        <translation>양:</translation>
+    </message>
+    <message>
         <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
         <translation>배경: 스택의 맨 아래에 머물며 투명도나 레이어 스타일을 가질 수 없습니다. 마우스 오른쪽 버튼으로 클릭하고 배경에서 레이어로를 선택하면 일반 레이어가 됩니다.</translation>
     </message>
@@ -23293,6 +23325,18 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Transform Controls</source>
         <translation>변환 컨트롤</translation>
+    </message>
+    <message>
+        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
+        <translation>대지는 지울 수 없습니다. 먼저 선택 영역을 해제한 뒤 Delete를 누르면 대지가 삭제됩니다.</translation>
+    </message>
+    <message>
+        <source>Deleted artboard</source>
+        <translation>대지를 삭제했습니다</translation>
+    </message>
+    <message>
+        <source>Deleted %1 artboards</source>
+        <translation>대지 %1개를 삭제했습니다</translation>
     </message>
     <message>
         <source>The Background layer cannot go inside a folder</source>

@@ -11521,6 +11521,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Undo</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Redo</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rate:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>How fast the brush keeps working while it is held still</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Stylus Pressure</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Show Mesh</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reconstruct...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Amount:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -23287,6 +23319,18 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     </message>
     <message>
         <source>Transform Controls</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Deleted artboard</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Deleted %1 artboards</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

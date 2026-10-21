@@ -11537,6 +11537,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation> (Fattore %1%, Raggio %2 px, Precedente)</translation>
     </message>
     <message>
+        <source>Undo</source>
+        <translation>Annulla</translation>
+    </message>
+    <message>
+        <source>Redo</source>
+        <translation>Ripeti</translation>
+    </message>
+    <message>
+        <source>Rate:</source>
+        <translation>Velocità:</translation>
+    </message>
+    <message>
+        <source>How fast the brush keeps working while it is held still</source>
+        <translation>Velocità con cui il pennello continua ad agire mentre resta fermo</translation>
+    </message>
+    <message>
+        <source>Stylus Pressure</source>
+        <translation>Pressione stilo</translation>
+    </message>
+    <message>
+        <source>Show Mesh</source>
+        <translation>Mostra mesh</translation>
+    </message>
+    <message>
+        <source>Reconstruct...</source>
+        <translation>Ricostruisci...</translation>
+    </message>
+    <message>
+        <source>Amount:</source>
+        <translation>Quantità:</translation>
+    </message>
+    <message>
         <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
         <translation>Sfondo: resta in fondo alla pila, senza trasparenza né stili di livello. Fai clic con il pulsante destro e scegli Livello da sfondo per renderlo un livello normale.</translation>
     </message>
@@ -23365,6 +23397,18 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
     <message>
         <source>Transform Controls</source>
         <translation>Controlli di trasformazione</translation>
+    </message>
+    <message>
+        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
+        <translation>Le tavole da disegno non possono essere cancellate. Deseleziona prima, poi Delete rimuove la tavola da disegno.</translation>
+    </message>
+    <message>
+        <source>Deleted artboard</source>
+        <translation>Tavola da disegno eliminata</translation>
+    </message>
+    <message>
+        <source>Deleted %1 artboards</source>
+        <translation>Eliminate %1 tavole da disegno</translation>
     </message>
     <message>
         <source>The Background layer cannot go inside a folder</source>

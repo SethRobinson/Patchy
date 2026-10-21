@@ -11537,6 +11537,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation> (Intensidade %1%, Raio %2 px, Legado)</translation>
     </message>
     <message>
+        <source>Undo</source>
+        <translation>Desfazer</translation>
+    </message>
+    <message>
+        <source>Redo</source>
+        <translation>Refazer</translation>
+    </message>
+    <message>
+        <source>Rate:</source>
+        <translation>Taxa:</translation>
+    </message>
+    <message>
+        <source>How fast the brush keeps working while it is held still</source>
+        <translation>A rapidez com que o pincel continua agindo enquanto fica parado</translation>
+    </message>
+    <message>
+        <source>Stylus Pressure</source>
+        <translation>Pressão da caneta</translation>
+    </message>
+    <message>
+        <source>Show Mesh</source>
+        <translation>Mostrar malha</translation>
+    </message>
+    <message>
+        <source>Reconstruct...</source>
+        <translation>Reconstruir...</translation>
+    </message>
+    <message>
+        <source>Amount:</source>
+        <translation>Quantidade:</translation>
+    </message>
+    <message>
         <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
         <translation>Plano de fundo: fica na base da pilha, sem transparência nem estilos de camada. Clique com o botão direito nele e escolha Camada do plano de fundo para torná-lo uma camada comum.</translation>
     </message>
@@ -23365,6 +23397,18 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
     <message>
         <source>Transform Controls</source>
         <translation>Controles de transformação</translation>
+    </message>
+    <message>
+        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
+        <translation>Não é possível apagar o conteúdo de pranchetas. Cancele a seleção primeiro; depois, Delete remove a prancheta.</translation>
+    </message>
+    <message>
+        <source>Deleted artboard</source>
+        <translation>Prancheta excluída</translation>
+    </message>
+    <message>
+        <source>Deleted %1 artboards</source>
+        <translation>Excluídas %1 pranchetas</translation>
     </message>
     <message>
         <source>The Background layer cannot go inside a folder</source>

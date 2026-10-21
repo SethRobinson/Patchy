@@ -11572,6 +11572,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation> (Эффект %1%, Радиус %2 пикс., Прежний)</translation>
     </message>
     <message>
+        <source>Undo</source>
+        <translation>Отменить</translation>
+    </message>
+    <message>
+        <source>Redo</source>
+        <translation>Повторить</translation>
+    </message>
+    <message>
+        <source>Rate:</source>
+        <translation>Скорость:</translation>
+    </message>
+    <message>
+        <source>How fast the brush keeps working while it is held still</source>
+        <translation>Скорость действия кисти, пока она удерживается на месте</translation>
+    </message>
+    <message>
+        <source>Stylus Pressure</source>
+        <translation>Нажим пера</translation>
+    </message>
+    <message>
+        <source>Show Mesh</source>
+        <translation>Показать сетку</translation>
+    </message>
+    <message>
+        <source>Reconstruct...</source>
+        <translation>Реконструкция...</translation>
+    </message>
+    <message>
+        <source>Amount:</source>
+        <translation>Величина:</translation>
+    </message>
+    <message>
         <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
         <translation>Фон: остается в самом низу стека, без прозрачности и стилей слоя. Щелкните его правой кнопкой мыши и выберите «Слой из фона», чтобы сделать его обычным слоем.</translation>
     </message>
@@ -23437,6 +23469,18 @@ Patchy можно будет запускать из меню, а на пане�
     <message>
         <source>Transform Controls</source>
         <translation>Элементы управления преобразованием</translation>
+    </message>
+    <message>
+        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
+        <translation>Монтажные области нельзя очистить. Снимите выделение, затем нажмите Delete для удаления монтажной области.</translation>
+    </message>
+    <message>
+        <source>Deleted artboard</source>
+        <translation>Монтажная область удалена</translation>
+    </message>
+    <message>
+        <source>Deleted %1 artboards</source>
+        <translation>Удалено монтажных областей: %1</translation>
     </message>
     <message>
         <source>The Background layer cannot go inside a folder</source>

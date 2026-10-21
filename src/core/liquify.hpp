@@ -50,6 +50,10 @@ public:
                     double to_x, double to_y, double size,
                     double pressure, double density);
   void reset();
+  // Moves every node's displacement `amount_percent` (0 to 100) of the way back to
+  // identity, scaled by its freeze protection: a fully frozen node keeps its displacement
+  // and the freeze mask itself is unchanged.
+  void reconstruct(double amount_percent);
 
   [[nodiscard]] std::array<double, 2> displacement_at(double x,
                                                        double y) const;

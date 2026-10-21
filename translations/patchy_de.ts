@@ -11537,6 +11537,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation> (Stärke %1%, Radius %2 px, Herkömmlich)</translation>
     </message>
     <message>
+        <source>Undo</source>
+        <translation>Rückgängig</translation>
+    </message>
+    <message>
+        <source>Redo</source>
+        <translation>Wiederholen</translation>
+    </message>
+    <message>
+        <source>Rate:</source>
+        <translation>Rate:</translation>
+    </message>
+    <message>
+        <source>How fast the brush keeps working while it is held still</source>
+        <translation>Wie schnell der Pinsel weiterwirkt, während er stillgehalten wird</translation>
+    </message>
+    <message>
+        <source>Stylus Pressure</source>
+        <translation>Stiftdruck</translation>
+    </message>
+    <message>
+        <source>Show Mesh</source>
+        <translation>Gitter einblenden</translation>
+    </message>
+    <message>
+        <source>Reconstruct...</source>
+        <translation>Rekonstruieren...</translation>
+    </message>
+    <message>
+        <source>Amount:</source>
+        <translation>Stärke:</translation>
+    </message>
+    <message>
         <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
         <translation>Hintergrund: Diese Ebene bleibt ganz unten im Stapel, ohne Transparenz und ohne Ebenenstile. Klicken Sie mit der rechten Maustaste darauf und wählen Sie Ebene aus Hintergrund, um sie zu einer normalen Ebene zu machen.</translation>
     </message>
@@ -23365,6 +23397,18 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
     <message>
         <source>Transform Controls</source>
         <translation>Transformationssteuerungen</translation>
+    </message>
+    <message>
+        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
+        <translation>Zeichenflächen können nicht geleert werden. Heben Sie zuerst die Auswahl auf, dann entfernt Delete die Zeichenfläche.</translation>
+    </message>
+    <message>
+        <source>Deleted artboard</source>
+        <translation>Zeichenfläche gelöscht</translation>
+    </message>
+    <message>
+        <source>Deleted %1 artboards</source>
+        <translation>%1 Zeichenflächen gelöscht</translation>
     </message>
     <message>
         <source>The Background layer cannot go inside a folder</source>

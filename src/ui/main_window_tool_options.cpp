@@ -2767,6 +2767,9 @@ bool MainWindow::marquee_option_widget_visible(QWidget* widget) const {
   if (in(marquee_size_option_widgets_)) {
     return !ratio;
   }
+  if (in(marquee_fixed_size_option_widgets_)) {
+    return current_marquee_style_ == CanvasWidget::MarqueeStyle::FixedSize;
+  }
   return true;
 }
 
@@ -2820,10 +2823,11 @@ void MainWindow::refresh_options_bar_rows(bool live_shape) {
   if (options_flow_container_ == nullptr) {
     return;
   }
-  // The rows depend on the vector mode, the live shape layer, the crop style and
-  // the registered widgets; the active tool does not change them.
+  // The rows depend on the vector mode, the live shape layer, the crop and marquee
+  // styles and the registered widgets; the active tool does not change them.
   const auto key = static_cast<qint64>(live_shape) | (static_cast<qint64>(current_vector_tool_mode_) << 1) |
                    (static_cast<qint64>(current_crop_style_) << 4) |
+                   (static_cast<qint64>(current_marquee_style_) << 6) |
                    (static_cast<qint64>(option_actions_.size()) << 8);
   if (key == options_bar_rows_key_) {
     return;

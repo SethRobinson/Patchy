@@ -11502,6 +11502,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation> (数量 %1%，半径 %2 px，旧版)</translation>
     </message>
     <message>
+        <source>Undo</source>
+        <translation>撤销</translation>
+    </message>
+    <message>
+        <source>Redo</source>
+        <translation>重做</translation>
+    </message>
+    <message>
+        <source>Rate:</source>
+        <translation>速率:</translation>
+    </message>
+    <message>
+        <source>How fast the brush keeps working while it is held still</source>
+        <translation>画笔静止按住时持续作用的速度</translation>
+    </message>
+    <message>
+        <source>Stylus Pressure</source>
+        <translation>光笔压力</translation>
+    </message>
+    <message>
+        <source>Show Mesh</source>
+        <translation>显示网格</translation>
+    </message>
+    <message>
+        <source>Reconstruct...</source>
+        <translation>重建...</translation>
+    </message>
+    <message>
+        <source>Amount:</source>
+        <translation>数量:</translation>
+    </message>
+    <message>
         <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
         <translation>背景：它始终位于堆栈底部，没有透明度，也没有图层样式。右键单击它并选择“从背景生成图层”即可将其变为普通图层。</translation>
     </message>
@@ -23293,6 +23325,18 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Transform Controls</source>
         <translation>变换控件</translation>
+    </message>
+    <message>
+        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
+        <translation>无法清除画板。请先取消选择，然后按 Delete 删除画板。</translation>
+    </message>
+    <message>
+        <source>Deleted artboard</source>
+        <translation>已删除画板</translation>
+    </message>
+    <message>
+        <source>Deleted %1 artboards</source>
+        <translation>已删除 %1 个画板</translation>
     </message>
     <message>
         <source>The Background layer cannot go inside a folder</source>

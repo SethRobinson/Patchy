@@ -446,6 +446,15 @@ void LiquifyMesh::apply_dab(LiquifyTool tool, double center_x,
   }
 }
 
+void LiquifyMesh::reconstruct(double amount_percent) {
+  const double amount = std::clamp(amount_percent, 0.0, 100.0) / 100.0;
+  for (std::size_t index = 0; index < freeze_mask_.size(); ++index) {
+    const double keep = 1.0 - amount * (1.0 - static_cast<double>(freeze_mask_[index]) / 255.0);
+    displacement_x_256_[index] = clamp_field_value(std::llround(displacement_x_256_[index] * keep));
+    displacement_y_256_[index] = clamp_field_value(std::llround(displacement_y_256_[index] * keep));
+  }
+}
+
 void LiquifyMesh::reset() {
   std::fill(displacement_x_256_.begin(), displacement_x_256_.end(), 0);
   std::fill(displacement_y_256_.begin(), displacement_y_256_.end(), 0);

@@ -11537,6 +11537,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation> (Gain %1 %, Rayon %2 px, Ancien)</translation>
     </message>
     <message>
+        <source>Undo</source>
+        <translation>Annuler</translation>
+    </message>
+    <message>
+        <source>Redo</source>
+        <translation>Rétablir</translation>
+    </message>
+    <message>
+        <source>Rate:</source>
+        <translation>Vitesse :</translation>
+    </message>
+    <message>
+        <source>How fast the brush keeps working while it is held still</source>
+        <translation>Vitesse à laquelle le pinceau continue d&apos;agir lorsqu&apos;il reste immobile</translation>
+    </message>
+    <message>
+        <source>Stylus Pressure</source>
+        <translation>Pression du stylet</translation>
+    </message>
+    <message>
+        <source>Show Mesh</source>
+        <translation>Afficher le maillage</translation>
+    </message>
+    <message>
+        <source>Reconstruct...</source>
+        <translation>Reconstruction...</translation>
+    </message>
+    <message>
+        <source>Amount:</source>
+        <translation>Quantité :</translation>
+    </message>
+    <message>
         <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
         <translation>Arrière-plan : il reste tout en bas de la pile, sans transparence ni styles de calque. Faites un clic droit dessus et choisissez Calque d&apos;après l&apos;arrière-plan pour en faire un calque ordinaire.</translation>
     </message>
@@ -23365,6 +23397,18 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
     <message>
         <source>Transform Controls</source>
         <translation>Options de transformation</translation>
+    </message>
+    <message>
+        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
+        <translation>Les plans de travail ne peuvent pas être effacés. Désélectionnez d&apos;abord, puis Delete supprime le plan de travail.</translation>
+    </message>
+    <message>
+        <source>Deleted artboard</source>
+        <translation>Plan de travail supprimé</translation>
+    </message>
+    <message>
+        <source>Deleted %1 artboards</source>
+        <translation>%1 plans de travail supprimés</translation>
     </message>
     <message>
         <source>The Background layer cannot go inside a folder</source>

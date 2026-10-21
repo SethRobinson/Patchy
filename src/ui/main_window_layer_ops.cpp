@@ -4254,18 +4254,28 @@ void MainWindow::clear_active_layer() {
   // so the "erased" content comes back the next time that data is used. Such
   // layers are left untouched while an inline text edit is in progress (Delete
   // belongs to typing) or while a selection is active (Photoshop refuses to
-  // Clear these layers).
+  // Clear these layers). A selected artboard goes the same way, with its layers,
+  // as a folder is deleted (GitHub issue 277): it has no pixels of its own to clear.
   std::vector<LayerId> object_layer_ids;
+  bool only_artboard_objects = true;
   for (const auto id : editable_ids) {
     if (const auto* layer = doc.find_layer(id);
-        layer != nullptr && layer_pixels_are_procedural(*layer)) {
+        layer != nullptr && (layer_pixels_are_procedural(*layer) || layer_is_artboard(*layer))) {
       object_layer_ids.push_back(id);
+      only_artboard_objects = only_artboard_objects && layer_is_artboard(*layer);
     }
   }
   const auto text_editing_active = canvas_->findChild<QTextEdit*>(QStringLiteral("inlineTextEditor")) != nullptr;
   std::vector<LayerId> object_delete_ids;
+  std::set<LayerId> deleted_artboard_ids;
   if (!text_editing_active && !canvas_->has_selection()) {
-    object_delete_ids = object_layer_ids;
+    // A layer inside a deleted artboard goes with it, so only the roots are removed.
+    object_delete_ids = root_drop_layer_ids(std::as_const(doc).layers(), object_layer_ids);
+    for (const auto id : object_delete_ids) {
+      if (const auto* layer = std::as_const(doc).find_layer(id); layer != nullptr && layer_is_artboard(*layer)) {
+        deleted_artboard_ids.insert(id);
+      }
+    }
   }
 
   canvas_->begin_processing_operation();
@@ -4291,6 +4301,10 @@ void MainWindow::clear_active_layer() {
     const auto* layer = doc.find_layer(id);
     if (layer == nullptr || layer->kind() != LayerKind::Pixel || layer_pixels_are_procedural(*layer)) {
       continue;
+    }
+    if (const auto* owner = artboard_owning_layer(std::as_const(doc), id);
+        owner != nullptr && deleted_artboard_ids.contains(owner->id())) {
+      continue;  // deleted with its artboard
     }
     options.lock_transparent_pixels = layer_locks_transparent_pixels(*layer);
     const auto pixels_to_scan = clear_scan_pixel_count(doc, *layer, layer->bounds(), options);
@@ -4337,6 +4351,8 @@ void MainWindow::clear_active_layer() {
   if (targets.empty() && object_delete_ids.empty()) {
     if (object_layer_ids.empty()) {
       statusBar()->showMessage(tr("Nothing to clear"));
+    } else if (!text_editing_active && only_artboard_objects) {
+      show_status_error(tr("Artboards can't be cleared. Deselect first, then Delete removes the artboard."));
     } else if (!text_editing_active) {
       show_status_error(
           tr("Text and smart object layers can't be cleared. Deselect first, then Delete removes the layer."));
@@ -4346,8 +4362,14 @@ void MainWindow::clear_active_layer() {
 
   if (targets.empty()) {
     const auto deleted_count = object_delete_ids.size();
+    const bool artboards_only = deleted_artboard_ids.size() == deleted_count;
     delete_layers(std::move(object_delete_ids));
-    statusBar()->showMessage(deleted_count == 1 ? tr("Deleted layer") : tr("Deleted %1 layers").arg(deleted_count));
+    if (artboards_only) {
+      statusBar()->showMessage(deleted_count == 1 ? tr("Deleted artboard")
+                                                  : tr("Deleted %1 artboards").arg(deleted_count));
+    } else {
+      statusBar()->showMessage(deleted_count == 1 ? tr("Deleted layer") : tr("Deleted %1 layers").arg(deleted_count));
+    }
     return;
   }
 

@@ -11502,6 +11502,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation> (量 %1%、半径 %2 px、従来)</translation>
     </message>
     <message>
+        <source>Undo</source>
+        <translation>元に戻す</translation>
+    </message>
+    <message>
+        <source>Redo</source>
+        <translation>やり直し</translation>
+    </message>
+    <message>
+        <source>Rate:</source>
+        <translation>レート:</translation>
+    </message>
+    <message>
+        <source>How fast the brush keeps working while it is held still</source>
+        <translation>ブラシを止めている間に効果が続く速さ</translation>
+    </message>
+    <message>
+        <source>Stylus Pressure</source>
+        <translation>筆圧</translation>
+    </message>
+    <message>
+        <source>Show Mesh</source>
+        <translation>メッシュを表示</translation>
+    </message>
+    <message>
+        <source>Reconstruct...</source>
+        <translation>再構築...</translation>
+    </message>
+    <message>
+        <source>Amount:</source>
+        <translation>量:</translation>
+    </message>
+    <message>
         <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
         <translation>背景: スタックの一番下にとどまり、透明部分もレイヤースタイルも持てません。右クリックして「背景からレイヤーへ」を選ぶと通常のレイヤーになります。</translation>
     </message>
@@ -23293,6 +23325,18 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Transform Controls</source>
         <translation>変形コントロール</translation>
+    </message>
+    <message>
+        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
+        <translation>アートボードは消去できません。選択を解除してから Delete キーでアートボードを削除してください。</translation>
+    </message>
+    <message>
+        <source>Deleted artboard</source>
+        <translation>アートボードを削除しました</translation>
+    </message>
+    <message>
+        <source>Deleted %1 artboards</source>
+        <translation>%1 個のアートボードを削除しました</translation>
     </message>
     <message>
         <source>The Background layer cannot go inside a folder</source>

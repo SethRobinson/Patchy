@@ -7,6 +7,7 @@
 #include "ui/filter_workflows.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/liquify_dialog.hpp"
+#include "ui/main_window_shared.hpp"
 #include "ui/edit_conversions.hpp"
 #include "ui/main_window.hpp"
 #include "ui/zoomable_image_preview.hpp"
@@ -21,6 +22,7 @@
 #include <QDoubleSpinBox>
 #include <QElapsedTimer>
 #include <QImage>
+#include <QKeySequence>
 #include <QList>
 #include <QMenu>
 #include <QPainter>
@@ -662,6 +664,441 @@ void ui_liquify_dialog_exposes_manual_tools_and_brush_controls() {
   CHECK(inspected);
   CHECK(result.has_value());
   CHECK(!result->is_identity());
+}
+
+// GitHub #296 follow-ups (in-dialog Undo/Redo, keys, Rate, pen pressure, Show Mesh, the
+// Preview toggle and Reconstruct by an amount) drive the workspace on a 160x120 layer,
+// below the proxy cap, with the preview fixed at 1:1: proxy point p is widget point
+// p + (12, 12). The dialog's default brush there is 50 px with Pressure and Density 50.
+patchy::PixelBuffer liquify_test_source(int width = 160, int height = 120) {
+  patchy::PixelBuffer source(width, height, patchy::PixelFormat::rgba8());
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      auto* pixel = source.pixel(x, y);
+      const bool check = ((x / 16) + (y / 16)) % 2 == 0;
+      pixel[0] = static_cast<std::uint8_t>(check ? 230 : 40 + (x * 150) / std::max(1, width - 1));
+      pixel[1] = static_cast<std::uint8_t>(check ? 200 : 60 + (y * 150) / std::max(1, height - 1));
+      pixel[2] = static_cast<std::uint8_t>(check ? 90 : 210);
+      pixel[3] = 255;
+    }
+  }
+  return source;
+}
+
+using LiquifyDriver = std::function<void(QDialog&, QWidget&)>;
+
+std::optional<patchy::LiquifyMesh> drive_liquify(const LiquifyDriver& driver, bool fixed_preview = true,
+                                                 const patchy::PixelBuffer& source = liquify_test_source()) {
+  std::exception_ptr driver_error;
+  bool ran = false;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("liquifyDialog"));
+    try {
+      CHECK(dialog != nullptr);
+      auto* preview = dialog->findChild<QWidget*>(QStringLiteral("liquifyPreview"));
+      CHECK(preview != nullptr);
+      if (fixed_preview) {
+        preview->setFixedSize(source.width() + 24, source.height() + 24);
+      }
+      dialog->activateWindow();
+      preview->setFocus();
+      QApplication::processEvents();
+      driver(*dialog, *preview);
+      ran = true;
+      if (dialog->isVisible()) {
+        dialog->accept();
+      }
+    } catch (...) {
+      driver_error = std::current_exception();
+      if (dialog != nullptr) {
+        dialog->reject();
+      }
+    }
+  });
+  auto mesh = patchy::ui::request_liquify(nullptr, source, patchy::Rect{0, 0, source.width(), source.height()},
+                                          QRegion());
+  if (driver_error) {
+    std::rethrow_exception(driver_error);
+  }
+  CHECK(ran);
+  return mesh;
+}
+
+QPoint liquify_widget_point(QPointF proxy_point) {
+  return (proxy_point + QPointF(12.0, 12.0)).toPoint();
+}
+
+void liquify_drag(QWidget& preview, QPointF from, QPointF to) {
+  drag(preview, liquify_widget_point(from), liquify_widget_point(to));
+}
+
+// The mesh the same drag makes: the press dab, then the move segment.
+void expect_drag(patchy::LiquifyMesh& mesh, QPointF from, QPointF to,
+                 patchy::LiquifyTool tool = patchy::LiquifyTool::ForwardWarp, double pressure = 50.0) {
+  mesh.apply_stroke(tool, from.x(), from.y(), from.x(), from.y(), 50.0, pressure, 50.0);
+  mesh.apply_stroke(tool, from.x(), from.y(), to.x(), to.y(), 50.0, pressure, 50.0);
+}
+
+std::vector<double> liquify_mesh_samples(const patchy::LiquifyMesh& mesh) {
+  std::vector<double> samples;
+  for (int y = 0; y < mesh.height(); y += 4) {
+    for (int x = 0; x < mesh.width(); x += 4) {
+      const auto [dx, dy] = mesh.displacement_at(x, y);
+      samples.push_back(dx);
+      samples.push_back(dy);
+      samples.push_back(mesh.freeze_strength_at(x, y));
+    }
+  }
+  return samples;
+}
+
+bool liquify_meshes_equal(const std::optional<patchy::LiquifyMesh>& actual, const patchy::LiquifyMesh& expected) {
+  return actual.has_value() && liquify_mesh_samples(*actual) == liquify_mesh_samples(expected);
+}
+
+QToolButton* liquify_tool_button(QDialog& dialog, const char* name) {
+  auto* button = dialog.findChild<QToolButton*>(QLatin1String(name));
+  CHECK(button != nullptr);
+  return button;
+}
+
+QPushButton* liquify_push_button(QDialog& dialog, const char* name) {
+  auto* button = dialog.findChild<QPushButton*>(QLatin1String(name));
+  CHECK(button != nullptr);
+  return button;
+}
+
+void liquify_key(QWidget& preview, Qt::Key key, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+  QTest::keyClick(&preview, key, modifiers);
+  QApplication::processEvents();
+}
+
+// Every stroke, Restore All and Freeze/Thaw stroke is one step of the dialog's own
+// history: Ctrl+Z (Command on macOS), Ctrl+Shift+Z and Ctrl+Y, and the Undo and Redo
+// buttons, which enable only while a step is there. The history keeps 100 steps.
+void ui_liquify_undo_redo_steps_strokes_and_restore() {
+  const QPointF a_from(40.0, 60.0), a_to(70.0, 60.0);
+  const QPointF b_from(110.0, 40.0), b_to(115.0, 80.0);
+  patchy::LiquifyMesh only_a(160, 120);
+  expect_drag(only_a, a_from, a_to);
+  auto a_and_b = only_a;
+  expect_drag(a_and_b, b_from, b_to);
+
+  // Ctrl+Z undoes the last stroke; Ctrl+Shift+Z and Ctrl+Y redo it.
+  CHECK(liquify_meshes_equal(drive_liquify([&](QDialog&, QWidget& preview) {
+    liquify_drag(preview, a_from, a_to);
+    liquify_drag(preview, b_from, b_to);
+    liquify_key(preview, Qt::Key_Z, Qt::ControlModifier);
+  }), only_a));
+  for (const auto redo : {Qt::Key_Z, Qt::Key_Y}) {
+    CHECK(liquify_meshes_equal(drive_liquify([&](QDialog&, QWidget& preview) {
+      liquify_drag(preview, a_from, a_to);
+      liquify_drag(preview, b_from, b_to);
+      liquify_key(preview, Qt::Key_Z, Qt::ControlModifier);
+      liquify_key(preview, redo, redo == Qt::Key_Z ? Qt::ControlModifier | Qt::ShiftModifier : Qt::ControlModifier);
+    }), a_and_b));
+  }
+
+  // Restore All is a step; the buttons follow the history.
+  CHECK(liquify_meshes_equal(drive_liquify([&](QDialog& dialog, QWidget& preview) {
+    auto* undo = liquify_push_button(dialog, "liquifyUndoButton");
+    auto* redo = liquify_push_button(dialog, "liquifyRedoButton");
+    CHECK(!undo->isEnabled() && !redo->isEnabled());
+    liquify_drag(preview, a_from, a_to);
+    CHECK(undo->isEnabled() && !redo->isEnabled());
+    QTest::mouseClick(liquify_push_button(dialog, "liquifyRestoreAllButton"), Qt::LeftButton);
+    QTest::mouseClick(undo, Qt::LeftButton);
+    CHECK(redo->isEnabled());
+    QTest::mouseClick(redo, Qt::LeftButton);
+    QTest::mouseClick(undo, Qt::LeftButton);
+    // A new stroke after an undo drops the redo step.
+    liquify_drag(preview, b_from, b_to);
+    CHECK(!redo->isEnabled());
+    QTest::mouseClick(undo, Qt::LeftButton);
+  }), only_a));
+
+  // A Freeze stroke is a step of its own.
+  CHECK(liquify_meshes_equal(drive_liquify([&](QDialog& dialog, QWidget& preview) {
+    liquify_drag(preview, a_from, a_to);
+    QTest::mouseClick(liquify_tool_button(dialog, "liquifyFreezeTool"), Qt::LeftButton);
+    liquify_drag(preview, QPointF(60.0, 60.0), QPointF(62.0, 60.0));
+    QTest::mouseClick(liquify_tool_button(dialog, "liquifyWarpTool"), Qt::LeftButton);
+    liquify_drag(preview, b_from, b_to);
+    liquify_key(preview, Qt::Key_Z, Qt::ControlModifier);
+    liquify_key(preview, Qt::Key_Z, Qt::ControlModifier);
+  }), only_a));
+
+  // 105 strokes: the oldest five fall out of the 100-step history.
+  patchy::LiquifyMesh first_five(160, 120);
+  const auto click_point = [](int index) { return QPointF(20.0 + (index % 12) * 10.0, 20.0 + (index / 12) * 9.0); };
+  for (int index = 0; index < 5; ++index) {
+    expect_drag(first_five, click_point(index), click_point(index) + QPointF(3.0, 1.0));
+  }
+  CHECK(liquify_meshes_equal(drive_liquify([&](QDialog& dialog, QWidget& preview) {
+    for (int index = 0; index < 105; ++index) {
+      liquify_drag(preview, click_point(index), click_point(index) + QPointF(3.0, 1.0));
+    }
+    for (int undo = 0; undo < 110; ++undo) {
+      liquify_key(preview, Qt::Key_Z, Qt::ControlModifier);
+    }
+    CHECK(!liquify_push_button(dialog, "liquifyUndoButton")->isEnabled());
+  }), first_five));
+}
+
+// Single letters choose the tools (shown in each tooltip) and [ ] change the brush size,
+// Shift for a larger step; none of these keys, nor Ctrl+Z, reaches the main window while
+// the dialog is open.
+void ui_liquify_keys_choose_tools_and_size_without_reaching_the_main_window() {
+  patchy::Document built(120, 90, patchy::PixelFormat::rgba8());
+  patchy::Layer layer(built.allocate_layer_id(), "Liquify Keys", liquify_test_source(120, 90));
+  const auto layer_id = layer.id();
+  built.add_layer(std::move(layer));
+  built.set_active_layer(layer_id);
+  patchy::ui::MainWindow window;
+  window.add_document_session(std::move(built), QStringLiteral("Liquify Keys"));
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* brush_size = window.findChild<QSpinBox*>(QStringLiteral("brushSizeSpin"));
+  CHECK(brush_size != nullptr);
+  const auto tool_before = canvas->tool();
+  const auto brush_size_before = brush_size->value();
+  const auto undo_before = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+
+  bool ran = false;
+  std::exception_ptr driver_error;
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("liquifyDialog"));
+    try {
+      CHECK(dialog != nullptr);
+      auto* preview = dialog->findChild<QWidget*>(QStringLiteral("liquifyPreview"));
+      auto* size = dialog->findChild<QSpinBox*>(QStringLiteral("liquifySizeSpin"));
+      CHECK(preview != nullptr && size != nullptr);
+      dialog->activateWindow();
+      preview->setFocus();
+      QApplication::processEvents();
+      const std::array<std::pair<Qt::Key, const char*>, 8> letters{{
+          {Qt::Key_R, "liquifyReconstructTool"},
+          {Qt::Key_E, "liquifySmoothTool"},
+          {Qt::Key_C, "liquifyTwirlTool"},
+          {Qt::Key_S, "liquifyPuckerTool"},
+          {Qt::Key_B, "liquifyBloatTool"},
+          {Qt::Key_F, "liquifyFreezeTool"},
+          {Qt::Key_D, "liquifyThawTool"},
+          {Qt::Key_W, "liquifyWarpTool"},
+      }};
+      for (const auto& [key, name] : letters) {
+        auto* button = liquify_tool_button(*dialog, name);
+        const auto letter = QKeySequence(key).toString(QKeySequence::NativeText);
+        CHECK(button->toolTip().contains(QStringLiteral("(%1)").arg(letter)));
+        liquify_key(*preview, key);
+        CHECK(button->isChecked());
+        CHECK(canvas->tool() == tool_before);
+      }
+      const int start = size->value();
+      liquify_key(*preview, Qt::Key_BracketRight);
+      CHECK(size->value() == start + patchy::ui::proportional_brush_step(start, 1, false));
+      const int grown = size->value();
+      liquify_key(*preview, Qt::Key_BracketLeft);
+      CHECK(size->value() == grown - patchy::ui::proportional_brush_step(grown, -1, false));
+      const int base = size->value();
+      liquify_key(*preview, Qt::Key_BracketRight, Qt::ShiftModifier);
+      CHECK(size->value() == base + patchy::ui::proportional_brush_step(base, 1, true));
+      size->setValue(2000);
+      liquify_key(*preview, Qt::Key_BracketRight, Qt::ShiftModifier);
+      CHECK(size->value() == 2000);
+      size->setValue(5);
+      liquify_key(*preview, Qt::Key_BracketLeft);
+      CHECK(size->value() == 5);
+      CHECK(brush_size->value() == brush_size_before);
+      liquify_drag(*preview, QPointF(30.0, 30.0), QPointF(50.0, 40.0));
+      liquify_key(*preview, Qt::Key_Z, Qt::ControlModifier);
+      CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before);
+      ran = true;
+      dialog->reject();
+    } catch (...) {
+      driver_error = std::current_exception();
+      if (dialog != nullptr) {
+        dialog->reject();
+      }
+    }
+  });
+  require_action(window, "filterLiquifyAction")->trigger();
+  QApplication::processEvents();
+  if (driver_error) {
+    std::rethrow_exception(driver_error);
+  }
+  CHECK(ran);
+  CHECK(canvas->tool() == tool_before);
+  CHECK(brush_size->value() == brush_size_before);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before);
+}
+
+// Twirl, Pucker, Bloat and Reconstruct keep working while the button is held still, at
+// the Rate; Warp does nothing without motion. With Stylus Pressure on, a pen's pressure
+// scales the Pressure setting.
+void ui_liquify_rate_and_pen_pressure() {
+  const QPointF center(80.0, 60.0);
+  patchy::LiquifyMesh one_dab(160, 120);
+  one_dab.apply_stroke(patchy::LiquifyTool::TwirlClockwise, center.x(), center.y(), center.x(), center.y(), 50.0,
+                       50.0, 50.0);
+  const auto magnitude = [](const patchy::LiquifyMesh& mesh) {
+    const auto [dx, dy] = mesh.displacement_at(95.0, 60.0);
+    return std::hypot(dx, dy);
+  };
+  const auto held = drive_liquify([&](QDialog& dialog, QWidget& preview) {
+    auto* rate = dialog.findChild<QSpinBox*>(QStringLiteral("liquifyRateSpin"));
+    CHECK(rate != nullptr && rate->minimum() == 1 && rate->maximum() == 100 && rate->value() == 80);
+    QTest::mouseClick(liquify_tool_button(dialog, "liquifyTwirlTool"), Qt::LeftButton);
+    send_mouse(preview, QEvent::MouseButtonPress, liquify_widget_point(center), Qt::LeftButton, Qt::LeftButton);
+    QTest::qWait(300);
+    send_mouse(preview, QEvent::MouseButtonRelease, liquify_widget_point(center), Qt::LeftButton, Qt::NoButton);
+  });
+  CHECK(held.has_value() && magnitude(*held) > 3.0 * magnitude(one_dab));
+  const auto still_warp = drive_liquify([&](QDialog&, QWidget& preview) {
+    send_mouse(preview, QEvent::MouseButtonPress, liquify_widget_point(center), Qt::LeftButton, Qt::LeftButton);
+    QTest::qWait(150);
+    send_mouse(preview, QEvent::MouseButtonRelease, liquify_widget_point(center), Qt::LeftButton, Qt::NoButton);
+  });
+  CHECK(still_warp.has_value() && still_warp->is_identity());
+
+  const QPointF from(40.0, 60.0), to(70.0, 62.0);
+  const auto pen_drag = [&](QWidget& preview) {
+    send_tablet(preview, QEvent::TabletPress, liquify_widget_point(from), 0.25);
+    send_mouse(preview, QEvent::MouseButtonPress, liquify_widget_point(from), Qt::LeftButton, Qt::LeftButton);
+    send_tablet(preview, QEvent::TabletMove, liquify_widget_point(to), 0.25);
+    send_mouse(preview, QEvent::MouseMove, liquify_widget_point(to), Qt::NoButton, Qt::LeftButton);
+    send_tablet(preview, QEvent::TabletRelease, liquify_widget_point(to), 0.0, Qt::LeftButton, Qt::NoButton);
+    send_mouse(preview, QEvent::MouseButtonRelease, liquify_widget_point(to), Qt::LeftButton, Qt::NoButton);
+  };
+  patchy::LiquifyMesh light(160, 120);
+  expect_drag(light, from, to, patchy::LiquifyTool::ForwardWarp, 12.5);
+  CHECK(liquify_meshes_equal(drive_liquify([&](QDialog& dialog, QWidget& preview) {
+    auto* stylus = dialog.findChild<QCheckBox*>(QStringLiteral("liquifyStylusPressureCheck"));
+    CHECK(stylus != nullptr && stylus->isChecked());
+    pen_drag(preview);
+  }), light));
+  patchy::LiquifyMesh full(160, 120);
+  expect_drag(full, from, to);
+  CHECK(liquify_meshes_equal(drive_liquify([&](QDialog& dialog, QWidget& preview) {
+    dialog.findChild<QCheckBox*>(QStringLiteral("liquifyStylusPressureCheck"))->setChecked(false);
+    pen_drag(preview);
+  }), full));
+}
+
+QImage liquify_preview_grab(QWidget& preview) {
+  QEvent leave(QEvent::Leave);
+  QApplication::sendEvent(&preview, &leave);
+  QApplication::processEvents();
+  return preview.grab().toImage();
+}
+
+// Show Mesh draws the deformed grid over the preview; unchecking Preview (or pressing P)
+// shows the original; Reconstruct... moves the whole field back by an amount, as one
+// history step, and its Cancel changes nothing.
+void ui_liquify_mesh_preview_toggle_and_reconstruct_amount() {
+  const QPointF from(40.0, 60.0), to(80.0, 60.0);
+  patchy::LiquifyMesh expected(160, 120);
+  expect_drag(expected, from, to);
+  const auto run_reconstruct = [](QDialog& dialog, int amount, bool accept) {
+    QTimer::singleShot(0, [amount, accept] {
+      auto* reconstruct = find_top_level_dialog(QStringLiteral("liquifyReconstructDialog"));
+      if (reconstruct == nullptr) {
+        patchy::test::report_failure("no Reconstruct dialog");
+        return;
+      }
+      auto* spin = reconstruct->findChild<QSpinBox*>(QStringLiteral("liquifyReconstructAmountSpin"));
+      if (spin == nullptr || spin->minimum() != 0 || spin->maximum() != 100) {
+        patchy::test::report_failure("no Reconstruct amount field");
+      } else {
+        spin->setValue(amount);
+      }
+      if (accept) {
+        reconstruct->accept();
+      } else {
+        reconstruct->reject();
+      }
+    });
+    QTest::mouseClick(liquify_push_button(dialog, "liquifyReconstructButton"), Qt::LeftButton);
+    QApplication::processEvents();
+  };
+
+  auto halfway = expected;
+  halfway.reconstruct(50.0);
+  CHECK(liquify_meshes_equal(drive_liquify([&](QDialog& dialog, QWidget& preview) {
+    auto* show_mesh = dialog.findChild<QCheckBox*>(QStringLiteral("liquifyShowMeshCheck"));
+    auto* show_preview = dialog.findChild<QCheckBox*>(QStringLiteral("liquifyPreviewCheck"));
+    CHECK(show_mesh != nullptr && show_preview != nullptr);
+    CHECK(!show_mesh->isChecked() && show_preview->isChecked());
+    const auto original = liquify_preview_grab(preview);
+    liquify_drag(preview, from, to);
+    const auto warped = liquify_preview_grab(preview);
+    CHECK(warped != original);
+    show_preview->setChecked(false);
+    CHECK(liquify_preview_grab(preview) == original);
+    liquify_key(preview, Qt::Key_P);
+    CHECK(show_preview->isChecked());
+    CHECK(liquify_preview_grab(preview) == warped);
+    show_mesh->setChecked(true);
+    const auto meshed = liquify_preview_grab(preview);
+    CHECK(meshed != warped);
+    show_mesh->setChecked(false);
+    CHECK(liquify_preview_grab(preview) == warped);
+    run_reconstruct(dialog, 30, false);
+    CHECK(liquify_preview_grab(preview) == warped);
+    run_reconstruct(dialog, 50, true);
+  }), halfway));
+
+  // Reconstruct is one step: Ctrl+Z brings the stroke back.
+  CHECK(liquify_meshes_equal(drive_liquify([&](QDialog& dialog, QWidget& preview) {
+    liquify_drag(preview, from, to);
+    run_reconstruct(dialog, 100, true);
+    liquify_key(preview, Qt::Key_Z, Qt::ControlModifier);
+  }), expected));
+}
+
+// A smooth sunset gradient with a pale disc, so the shot's mesh and warp read clearly.
+patchy::PixelBuffer liquify_shot_source(int width, int height) {
+  patchy::PixelBuffer source(width, height, patchy::PixelFormat::rgba8());
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      auto* pixel = source.pixel(x, y);
+      const double u = static_cast<double>(x) / std::max(1, width - 1);
+      const double v = static_cast<double>(y) / std::max(1, height - 1);
+      const double disc = std::hypot(u - 0.45, (v - 0.5) * 0.75) < 0.16 ? 1.0 : 0.0;
+      pixel[0] = static_cast<std::uint8_t>(std::lround(60 + 170 * v + 25 * disc));
+      pixel[1] = static_cast<std::uint8_t>(std::lround(50 + 80 * u * (1.0 - v) + 110 * disc));
+      pixel[2] = static_cast<std::uint8_t>(std::lround(170 - 110 * v + 60 * disc));
+      pixel[3] = 255;
+    }
+  }
+  return source;
+}
+
+// Issue 296 shots: the workspace with its new controls (Undo/Redo, Rate, Stylus Pressure,
+// Show Mesh, Preview, Reconstruct...) after a warp and a frozen area, in Dark and Light.
+void ui_liquify_dialog_captures_in_both_schemes() {
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restorer(scheme);
+    const auto name = std::string(scheme == patchy::ui::ColorSchemePreference::Dark ? "liquify/after-dialog-dark"
+                                                                                        : "liquify/after-dialog-light");
+    (void)drive_liquify(
+        [&](QDialog& dialog, QWidget& preview) {
+          const auto proxy = [&preview](double x, double y) {
+            return QPoint(static_cast<int>(preview.width() * x), static_cast<int>(preview.height() * y));
+          };
+          QTest::mouseClick(liquify_tool_button(dialog, "liquifyFreezeTool"), Qt::LeftButton);
+          drag(preview, proxy(0.62, 0.30), proxy(0.66, 0.36));
+          QTest::mouseClick(liquify_tool_button(dialog, "liquifyWarpTool"), Qt::LeftButton);
+          drag(preview, proxy(0.35, 0.55), proxy(0.55, 0.45));
+          dialog.findChild<QCheckBox*>(QStringLiteral("liquifyShowMeshCheck"))->setChecked(true);
+          send_mouse(preview, QEvent::MouseMove, proxy(0.45, 0.62), Qt::NoButton, Qt::NoButton);
+          QApplication::processEvents();
+          std::filesystem::create_directories("test-artifacts/liquify");
+          save_widget_artifact(name, dialog);
+          dialog.reject();
+        },
+        /*fixed_preview=*/false, liquify_shot_source(640, 480));
+  }
 }
 
 void ui_liquify_preview_selection_preserves_sample_mapping() {
@@ -1591,5 +2028,11 @@ std::vector<patchy::test::TestCase> filter_catalog_dialog_tests() {
        ui_liquify_action_applies_selection_as_one_undo_step},
       {"ui_liquify_fragmented_selection_preview_and_apply", ui_liquify_fragmented_selection_preview_and_apply},
       {"ui_liquify_preview_selection_preserves_sample_mapping", ui_liquify_preview_selection_preserves_sample_mapping},
+      {"ui_liquify_undo_redo_steps_strokes_and_restore", ui_liquify_undo_redo_steps_strokes_and_restore},
+      {"ui_liquify_keys_choose_tools_and_size_without_reaching_the_main_window",
+       ui_liquify_keys_choose_tools_and_size_without_reaching_the_main_window},
+      {"ui_liquify_rate_and_pen_pressure", ui_liquify_rate_and_pen_pressure},
+      {"ui_liquify_mesh_preview_toggle_and_reconstruct_amount", ui_liquify_mesh_preview_toggle_and_reconstruct_amount},
+      {"ui_liquify_dialog_captures_in_both_schemes", ui_liquify_dialog_captures_in_both_schemes},
   };
 }

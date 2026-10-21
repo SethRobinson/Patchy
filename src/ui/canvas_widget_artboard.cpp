@@ -648,7 +648,12 @@ void CanvasWidget::finish_artboard_drag(QMouseEvent* event) {
   const auto duplicate = artboard_drag_duplicate_;
   cancel_artboard_drag();
   if (!moved) {
-    return;  // a click: the press already selected what it hit
+    // A click: the press already selected what it hit. A plain click on empty space
+    // deselects, as the Move tool's blank click does (GitHub issue 279); Shift keeps it.
+    if (mode == ArtboardDragMode::Create && (event->modifiers() & Qt::ShiftModifier) == 0) {
+      request_layer_deselection();
+    }
+    return;
   }
   switch (mode) {
     case ArtboardDragMode::Create:

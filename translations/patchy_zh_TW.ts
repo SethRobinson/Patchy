@@ -11502,6 +11502,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation> （總量 %1%，半徑 %2 px，舊版）</translation>
     </message>
     <message>
+        <source>Undo</source>
+        <translation>復原</translation>
+    </message>
+    <message>
+        <source>Redo</source>
+        <translation>重做</translation>
+    </message>
+    <message>
+        <source>Rate:</source>
+        <translation>速率:</translation>
+    </message>
+    <message>
+        <source>How fast the brush keeps working while it is held still</source>
+        <translation>筆刷靜止按住時持續作用的速度</translation>
+    </message>
+    <message>
+        <source>Stylus Pressure</source>
+        <translation>光筆壓力</translation>
+    </message>
+    <message>
+        <source>Show Mesh</source>
+        <translation>顯示網格</translation>
+    </message>
+    <message>
+        <source>Reconstruct...</source>
+        <translation>重建...</translation>
+    </message>
+    <message>
+        <source>Amount:</source>
+        <translation>數量:</translation>
+    </message>
+    <message>
         <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
         <translation>背景：它一律位於堆疊底部，沒有透明度，也沒有圖層樣式。在它上面按一下滑鼠右鍵並選擇「從背景建立圖層」，即可將其變為一般圖層。</translation>
     </message>
@@ -23293,6 +23325,18 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Transform Controls</source>
         <translation>變形控制項</translation>
+    </message>
+    <message>
+        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
+        <translation>工作區域無法清除。請先取消選取，然後按 Delete 即可刪除該工作區域。</translation>
+    </message>
+    <message>
+        <source>Deleted artboard</source>
+        <translation>已刪除工作區域</translation>
+    </message>
+    <message>
+        <source>Deleted %1 artboards</source>
+        <translation>已刪除 %1 個工作區域</translation>
     </message>
     <message>
         <source>The Background layer cannot go inside a folder</source>

@@ -11572,6 +11572,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation> (Wartość %1%, promień %2 px, tryb starszy)</translation>
     </message>
     <message>
+        <source>Undo</source>
+        <translation>Cofnij</translation>
+    </message>
+    <message>
+        <source>Redo</source>
+        <translation>Ponów</translation>
+    </message>
+    <message>
+        <source>Rate:</source>
+        <translation>Szybkość:</translation>
+    </message>
+    <message>
+        <source>How fast the brush keeps working while it is held still</source>
+        <translation>Jak szybko pędzel działa, gdy jest przytrzymany w miejscu</translation>
+    </message>
+    <message>
+        <source>Stylus Pressure</source>
+        <translation>Nacisk pióra</translation>
+    </message>
+    <message>
+        <source>Show Mesh</source>
+        <translation>Pokaż siatkę</translation>
+    </message>
+    <message>
+        <source>Reconstruct...</source>
+        <translation>Rekonstrukcja...</translation>
+    </message>
+    <message>
+        <source>Amount:</source>
+        <translation>Wartość:</translation>
+    </message>
+    <message>
         <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
         <translation>Tło: pozostaje na samym dole stosu, bez przezroczystości i stylów warstwy. Kliknij je prawym przyciskiem myszy i wybierz Warstwa z tła, aby zmienić je w zwykłą warstwę.</translation>
     </message>
@@ -23437,6 +23469,18 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     <message>
         <source>Transform Controls</source>
         <translation>Elementy sterujące transformacją</translation>
+    </message>
+    <message>
+        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
+        <translation>Nie można wyczyścić obszarów roboczych. Najpierw usuń zaznaczenie, a następnie naciśnij Delete, aby usunąć obszar roboczy.</translation>
+    </message>
+    <message>
+        <source>Deleted artboard</source>
+        <translation>Usunięto obszar roboczy</translation>
+    </message>
+    <message>
+        <source>Deleted %1 artboards</source>
+        <translation>Usunięto obszary robocze: %1</translation>
     </message>
     <message>
         <source>The Background layer cannot go inside a folder</source>

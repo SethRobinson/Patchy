@@ -1624,6 +1624,122 @@ void ag_psd_strokes_two_instances_match_photoshop_if_available() {
   CHECK(share <= 0.02);
 }
 
+// The same fixture at the shape's anti-aliased edge (GitHub issue 265 follow-up): where
+// Photoshop shows only the first stroke (and the content), no pixel may carry the second,
+// blue stroke. The edge zone is every semi-transparent content pixel plus the ring of up
+// to 4 px outside the painted pixels, well inside the 7 px first band. The style renders
+// on the layer itself and, unchanged, on a pass-through group and an isolated group
+// holding the bare layer: a group's silhouette is the same matte.
+void ag_psd_strokes_shape_edge_shows_only_the_first_stroke_if_available() {
+  using namespace patchy;
+  const auto dir = test::source_root_path() / "local-test-fixtures" / "ag-psd" / "strokes";
+  test::skip_unless_exists(dir / "src.psd");
+  test::skip_unless_exists(dir / "ps-flat.bmp");
+  const auto source = psd::DocumentIo::read_file(dir / "src.psd");
+  const Layer* background = nullptr;
+  const Layer* shape = nullptr;
+  for (const auto& candidate : source.layers()) {
+    if (candidate.name() == "bg") {
+      background = &candidate;
+    } else if (candidate.name() == "Layer 1") {
+      shape = &candidate;
+    }
+  }
+  CHECK(background != nullptr && shape != nullptr);
+  const auto reference = Compositor{}.flatten_rgb8(bmp::DocumentIo::read_file(dir / "ps-flat.bmp"));
+  const auto width = source.width();
+  const auto height = source.height();
+
+  // Content alpha over the canvas, then the edge zone.
+  const auto bounds = shape->bounds();
+  const auto& pixels = std::as_const(*shape).pixels();
+  std::vector<std::uint8_t> alpha(static_cast<std::size_t>(width) * static_cast<std::size_t>(height), 0U);
+  for (std::int32_t y = 0; y < bounds.height; ++y) {
+    for (std::int32_t x = 0; x < bounds.width; ++x) {
+      const auto cx = bounds.x + x;
+      const auto cy = bounds.y + y;
+      if (cx >= 0 && cy >= 0 && cx < width && cy < height) {
+        alpha[static_cast<std::size_t>(cy) * static_cast<std::size_t>(width) + static_cast<std::size_t>(cx)] =
+            pixels.pixel(x, y)[3];
+      }
+    }
+  }
+  const auto alpha_at = [&](std::int32_t x, std::int32_t y) -> int {
+    if (x < 0 || y < 0 || x >= width || y >= height) {
+      return 0;
+    }
+    return alpha[static_cast<std::size_t>(y) * static_cast<std::size_t>(width) + static_cast<std::size_t>(x)];
+  };
+  std::vector<std::pair<std::int32_t, std::int32_t>> zone;
+  for (std::int32_t y = 0; y < height; ++y) {
+    for (std::int32_t x = 0; x < width; ++x) {
+      const auto a = alpha_at(x, y);
+      if (a == 255) {
+        continue;
+      }
+      bool in_zone = a > 0;
+      for (std::int32_t dy = -4; dy <= 4 && !in_zone; ++dy) {
+        for (std::int32_t dx = -4; dx <= 4 && !in_zone; ++dx) {
+          in_zone = dx * dx + dy * dy <= 16 && alpha_at(x + dx, y + dy) > 0;
+        }
+      }
+      if (in_zone) {
+        zone.emplace_back(x, y);
+      }
+    }
+  }
+  CHECK(zone.size() > 3000U);
+
+  const auto check_edge = [&](const Document& document, std::string_view label) {
+    const auto flat = Compositor{}.flatten_rgb8(document);
+    CHECK(flat.width() == reference.width() && flat.height() == reference.height());
+    write_rgb8_bmp_artifact(std::string("ag_psd_strokes_edge_") + std::string(label), flat);
+    int worst = 0;
+    std::uint64_t blue = 0;
+    for (const auto& [x, y] : zone) {
+      const auto* expected = reference.pixel(x, y);
+      const auto* actual = flat.pixel(x, y);
+      worst = std::max({worst, std::abs(expected[0] - actual[0]), std::abs(expected[1] - actual[1]),
+                        std::abs(expected[2] - actual[2])});
+      // The second stroke (131, 189, 234) is the only paint here bluer than red.
+      if (actual[2] > actual[0] + 24 && expected[2] <= expected[0] + 24) {
+        ++blue;
+      }
+    }
+    std::cout << "  " << label << " edge vs Photoshop: worst " << worst << ", " << blue << " blue pixels\n";
+    // Before the group fix a styled group left the backdrop on the soft edge: worst 153.
+    return blue == 0U && worst <= 4;
+  };
+
+  // Every path renders (and prints) before the verdict.
+  std::vector<bool> passed{check_edge(source, "layer")};
+  for (const auto mode : {BlendMode::PassThrough, BlendMode::Normal}) {
+    Document document(width, height, PixelFormat::rgb8());
+    Layer backdrop = *background;
+    document.add_layer(std::move(backdrop));
+    Layer group(document.allocate_layer_id(), "Group", LayerKind::Group);
+    group.set_blend_mode(mode);
+    group.layer_style() = shape->layer_style();
+    Layer child = *shape;
+    child.layer_style() = LayerStyle{};
+    group.add_child(std::move(child));
+    document.add_layer(std::move(group));
+    passed.push_back(check_edge(document, mode == BlendMode::PassThrough ? "pass_through_group" : "isolated_group"));
+  }
+  // ps-group.psd is Photoshop's own save of that pass-through group (the style copied
+  // onto the group, hidden on the layer); its flatten, ps-group-flat.bmp, is
+  // byte-identical to ps-flat.bmp.
+  if (std::filesystem::exists(dir / "ps-group.psd") && std::filesystem::exists(dir / "ps-group-flat.bmp")) {
+    const auto group_reference = Compositor{}.flatten_rgb8(bmp::DocumentIo::read_file(dir / "ps-group-flat.bmp"));
+    CHECK(std::equal(group_reference.data().begin(), group_reference.data().end(), reference.data().begin(),
+                     reference.data().end()));
+    passed.push_back(check_edge(psd::DocumentIo::read_file(dir / "ps-group.psd"), "photoshop_group"));
+  }
+  for (const auto ok : passed) {
+    CHECK(ok);
+  }
+}
+
 }  // namespace
 
 
@@ -1703,6 +1819,8 @@ std::vector<patchy::test::TestCase> compositor_layer_styles_tests() {
        compositor_multiple_strokes_stack_first_on_top_with_knockout},
       {"ag_psd_strokes_two_instances_match_photoshop_if_available",
        ag_psd_strokes_two_instances_match_photoshop_if_available},
+      {"ag_psd_strokes_shape_edge_shows_only_the_first_stroke_if_available",
+       ag_psd_strokes_shape_edge_shows_only_the_first_stroke_if_available},
       {"compositor_burn_dodge_effects_preserve_transparent_coverage", compositor_burn_dodge_effects_preserve_transparent_coverage},
   };
 }

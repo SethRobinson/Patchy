@@ -11537,6 +11537,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation> (Cantidad %1%, Radio %2 px, Heredado)</translation>
     </message>
     <message>
+        <source>Undo</source>
+        <translation>Deshacer</translation>
+    </message>
+    <message>
+        <source>Redo</source>
+        <translation>Rehacer</translation>
+    </message>
+    <message>
+        <source>Rate:</source>
+        <translation>Velocidad:</translation>
+    </message>
+    <message>
+        <source>How fast the brush keeps working while it is held still</source>
+        <translation>Rapidez con la que el pincel sigue actuando mientras se mantiene quieto</translation>
+    </message>
+    <message>
+        <source>Stylus Pressure</source>
+        <translation>Presión del lápiz</translation>
+    </message>
+    <message>
+        <source>Show Mesh</source>
+        <translation>Mostrar malla</translation>
+    </message>
+    <message>
+        <source>Reconstruct...</source>
+        <translation>Reconstruir...</translation>
+    </message>
+    <message>
+        <source>Amount:</source>
+        <translation>Cantidad:</translation>
+    </message>
+    <message>
         <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
         <translation>Fondo: se queda al final de la pila, sin transparencia ni estilos de capa. Haga clic con el botón derecho y elija Capa a partir de fondo para convertirlo en una capa normal.</translation>
     </message>
@@ -23365,6 +23397,18 @@ Puedes hacerlo más tarde desde Ayuda &gt; Añadir Patchy al menú de aplicacion
     <message>
         <source>Transform Controls</source>
         <translation>Controles de transformación</translation>
+    </message>
+    <message>
+        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
+        <translation>Las mesas de trabajo no se pueden borrar. Deseleccione primero; después, Delete elimina la mesa de trabajo.</translation>
+    </message>
+    <message>
+        <source>Deleted artboard</source>
+        <translation>Mesa de trabajo eliminada</translation>
+    </message>
+    <message>
+        <source>Deleted %1 artboards</source>
+        <translation>%1 mesas de trabajo eliminadas</translation>
     </message>
     <message>
         <source>The Background layer cannot go inside a folder</source>
