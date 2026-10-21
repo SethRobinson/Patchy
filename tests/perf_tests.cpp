@@ -1688,6 +1688,171 @@ void warp_drag_perf() {
   }
 }
 
+// GitHub #298: Warp Transform on the reporter's 2560x1440 JPEG (a single opened flat
+// layer, local-test-fixtures/issue-298/sample-1mb.jpg from samplelib.com). Times the
+// whole flow per case: entering Warp, a corner drag pulled deep into the image (one
+// move plus repaint per frame), a burst of 30 queued moves, the release, and the
+// commit, and prints a digest of the committed layer. PATCHY_PERF_WARPPHOTO_CASE
+// runs one case.
+void warp_photo_perf_if_available() {
+  const auto path = patchy::test::local_format_fixture_path("issue-298", "sample-1mb.jpg");
+  if (!std::filesystem::exists(path)) {
+    std::cout << "[SKIP] local-test-fixtures/issue-298/sample-1mb.jpg missing\n";
+    return;
+  }
+  ensure_artifact_dir();
+  struct Result {
+    std::string name;
+    double median_ms{0.0};
+    double burst_ms{0.0};
+    double release_ms{0.0};
+  };
+  std::vector<Result> results;
+  // view_zoom 0 = fit. 66% is a fit view on a 2x HiDPI screen: the whole layer on
+  // screen at a device zoom above 50%, so the preview composites at full resolution.
+  // The recording enters Warp from Free Transform's options-bar toggle.
+  struct Case {
+    std::string name;
+    QSize window_size;
+    double view_zoom{0.0};
+    bool from_free_transform{false};
+  };
+  for (const auto& [name, window_size, view_zoom, from_free_transform] :
+       {Case{"fit_large", QSize(1600, 1000), 0.0, false}, Case{"fit_small", QSize(1000, 640), 0.0, false},
+        Case{"zoom66", QSize(1900, 1150), 0.66, false}, Case{"fit_small_from_ft", QSize(1000, 640), 0.0, true}}) {
+    if (const auto only = qEnvironmentVariable("PATCHY_PERF_WARPPHOTO_CASE");
+        !only.isEmpty() && only != QString::fromStdString(name)) {
+      continue;
+    }
+    patchy::ui::MainWindow window;
+    window.resize(window_size);
+    window.show();
+    QApplication::processEvents();
+    patchy::ui::MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(path));
+    QApplication::processEvents();
+    auto* canvas = active_canvas(window);
+    CHECK(canvas != nullptr);
+    const auto settle = [canvas] {
+      const auto started = Clock::now();
+      while (!canvas->render_settled() && std::chrono::duration<double>(Clock::now() - started).count() < 60.0) {
+        canvas->repaint();
+        QApplication::processEvents();
+      }
+    };
+    canvas->fit_to_view();
+    if (view_zoom > 0.0) {
+      canvas->set_view_zoom_centered(view_zoom);
+    }
+    settle();
+    auto* warp_action = window.findChild<QAction*>(QStringLiteral("editWarpTransformAction"));
+    CHECK(warp_action != nullptr);
+    if (from_free_transform) {
+      auto* free_transform_action = window.findChild<QAction*>(QStringLiteral("editFreeTransformAction"));
+      CHECK(free_transform_action != nullptr);
+      free_transform_action->trigger();
+      QApplication::processEvents();
+      settle();
+      CHECK(canvas->free_transform_active());
+    }
+    auto* warp_toggle = window.findChild<QPushButton*>(QStringLiteral("transformWarpModeButton"));
+    CHECK(warp_toggle != nullptr);
+    const auto begin_ms = elapsed_ms([&] {
+      if (from_free_transform) {
+        warp_toggle->click();
+      } else {
+        warp_action->trigger();
+      }
+      QApplication::processEvents();
+      canvas->repaint();
+    });
+    CHECK(canvas->warp_transform_active());
+    // The top-left corner pulled toward the middle, as in the issue's recording.
+    const auto handle_widget = canvas->widget_position_f(canvas->warp_handle_document_position(0)).toPoint();
+    const QPoint step(12, 7);
+    send_mouse(*canvas, QEvent::MouseButtonPress, handle_widget, Qt::LeftButton, Qt::LeftButton);
+    canvas->repaint();
+    constexpr int kFrames = 30;
+    std::vector<double> frames;
+    frames.reserve(kFrames);
+    for (int frame = 1; frame <= kFrames; ++frame) {
+      frames.push_back(elapsed_ms([&] {
+        send_mouse(*canvas, QEvent::MouseMove, handle_widget + step * frame, Qt::NoButton, Qt::LeftButton);
+        canvas->repaint();
+      }));
+    }
+    // A burst: 30 moves queued at once, the way a fast pointer delivers them while a
+    // frame renders. It ends where the steady drag did (30 % 5 == 30 % 3 == 0), so
+    // the release and commit match the drag above.
+    const auto drag_end = handle_widget + step * kFrames;
+    const auto burst_ms = elapsed_ms([&] {
+      for (int move = 1; move <= 30; ++move) {
+        const auto position = drag_end + QPoint(move % 5, move % 3);
+        QApplication::postEvent(canvas, new QMouseEvent(QEvent::MouseMove, QPointF(position),
+                                                        QPointF(canvas->mapToGlobal(position)), Qt::NoButton,
+                                                        Qt::LeftButton, Qt::NoModifier));
+      }
+      QApplication::processEvents();
+      canvas->repaint();
+    });
+    CHECK(canvas->grab().save(QString::fromStdString("test-artifacts/warp_photo_" + name + "_drag.png")));
+    const auto release_ms = elapsed_ms([&] {
+      send_mouse(*canvas, QEvent::MouseButtonRelease, handle_widget + step * kFrames, Qt::LeftButton, Qt::NoButton);
+      canvas->repaint();
+    });
+    CHECK(canvas->grab().save(QString::fromStdString("test-artifacts/warp_photo_" + name + "_rest.png")));
+    const auto commit_ms = elapsed_ms([&] {
+      send_key(*canvas, Qt::Key_Return);
+      settle();
+    });
+    CHECK(!canvas->warp_transform_active());
+    CHECK(canvas->grab().save(QString::fromStdString("test-artifacts/warp_photo_" + name + "_commit.png")));
+    // FNV-1a over the committed layer: the commit must stay byte-identical across
+    // preview optimizations.
+    std::uint64_t digest = 0xCBF29CE484222325ULL;
+    {
+      const auto& document = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+      const auto active = document.active_layer_id();
+      CHECK(active.has_value());
+      const auto& pixels = document.find_layer(*active)->pixels();
+      for (std::int32_t y = 0; y < pixels.height(); ++y) {
+        for (const auto byte : pixels.row(y)) {
+          digest = (digest ^ byte) * 0x100000001B3ULL;
+        }
+      }
+    }
+    auto sorted = frames;
+    std::sort(sorted.begin(), sorted.end());
+    double total = 0.0;
+    for (const auto value : frames) {
+      total += value;
+    }
+    std::cout << std::fixed << std::setprecision(1) << "[PERF] warpphoto 2560x1440 case=" << name << " view_zoom="
+              << canvas->view_zoom() << " begin_ms=" << begin_ms << " first_frame_ms=" << frames.front()
+              << " frame_avg_ms=" << total / kFrames << " frame_median_ms=" << sorted[sorted.size() / 2]
+              << " frame_max_ms=" << sorted.back() << " burst30_ms=" << burst_ms << " release_ms=" << release_ms
+              << " commit_ms=" << commit_ms << " threads=" << patchy::hardware_worker_threads()
+              << " commit_digest=" << std::hex << digest
+              << std::dec << '\n';
+    results.push_back(Result{name, sorted[sorted.size() / 2], burst_ms, release_ms});
+  }
+  // Ceilings (16-thread laptop, October 2026: before the fix the 70% case took 75 ms
+  // a frame and 5.5 s to drain the burst, the fit cases 0.2 to 0.6 s; after, every
+  // frame is under 30 ms and every burst under 50 ms). A burst over its ceiling
+  // means each queued move renders again.
+  constexpr double kFrameCeilingMs = 100.0;
+  constexpr double kBurstCeilingMs = 250.0;
+  constexpr double kReleaseCeilingMs = 1000.0;
+  for (const auto& result : results) {
+    if (result.median_ms >= kFrameCeilingMs || result.burst_ms >= kBurstCeilingMs ||
+        result.release_ms >= kReleaseCeilingMs) {
+      std::cout << "[FAIL] warpphoto case=" << result.name << " over its ceiling\n";
+    }
+    CHECK(result.median_ms < kFrameCeilingMs);
+    CHECK(result.burst_ms < kBurstCeilingMs);
+    CHECK(result.release_ms < kReleaseCeilingMs);
+  }
+}
+
 // GitHub issue 296: Liquify drag latency on large layers. The workspace edits a proxy
 // whose longest edge is 720 px, so a drag frame should not grow with the layer; Apply
 // renders the full layer once. Drives the real dialog: the open time, each Warp brush
@@ -2059,6 +2224,10 @@ int main(int argc, char* argv[]) {
       warp_drag_perf();
       return 0;
     }
+    if (argc > 1 && std::string_view(argv[1]) == "warpphoto") {
+      warp_photo_perf_if_available();
+      return 0;
+    }
     if (argc > 1 && std::string_view(argv[1]) == "liquifydrag") {
       liquify_drag_perf();
       return 0;
@@ -2087,6 +2256,7 @@ int main(int argc, char* argv[]) {
     many_layers_select_and_move_perf_if_available();
     masked_layer_rotate_perf();
     warp_drag_perf();
+    warp_photo_perf_if_available();
     liquify_drag_perf();
   } catch (const std::exception& error) {
     std::cerr << "[FAIL] " << error.what() << '\n';
