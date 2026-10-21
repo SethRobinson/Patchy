@@ -17,5 +17,11 @@ namespace patchy::ui {
 // For showing or exporting pixels (clipboard, PDF, previews): always Format_RGBA8888,
 // a deep buffer narrowed and a 32-bit one sRGB-encoded.
 [[nodiscard]] QImage display_qimage_from_pixel_buffer(const PixelBuffer& pixels);
+// A deep image from qimage_from_pixel_buffer as something QPainter can draw for the screen:
+// 32-bit linear floats (Format_RGBA32FPx4) scaled by 2^exposure_stops (the 32-bit preview
+// exposure) and sRGB-encoded into straight RGBA8888, the way the canvas narrows a 32-bit
+// composite. QPainter would otherwise show the linear values as display values, too dark.
+// Every other format comes back unchanged (16-bit images are already display-encoded).
+[[nodiscard]] QImage display_image_from_deep_qimage(const QImage& image, float exposure_stops);
 
 }  // namespace patchy::ui

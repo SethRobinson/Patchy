@@ -3383,6 +3383,13 @@ private:
   std::vector<QImage> transform_base_display_mip_cache_{};
   qint64 transform_base_display_mip_source_key_{0};
   QImage transform_source_image_{};
+  // transform_source_image_ as display pixels for the preview blits and the proxy: a
+  // 32-bit layer's linear floats sRGB-encoded with the preview exposure. The commit keeps
+  // resampling the float source. Rebuilt when the source image or the exposure changes.
+  [[nodiscard]] const QImage& transform_preview_source_image() const;
+  mutable QImage transform_source_display_image_{};
+  mutable qint64 transform_source_display_key_{0};
+  mutable float transform_source_display_exposure_{0.0F};
   // Composited preview for layers whose blend/opacity/mask/styles the plain
   // rotated blit cannot represent: patches over the transformed bounds (plus
   // effects) drawn above transform_base_cache_, replacing the historical

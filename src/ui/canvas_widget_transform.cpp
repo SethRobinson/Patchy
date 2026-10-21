@@ -1480,7 +1480,7 @@ QImage CanvasWidget::compose_transform_commit_hold_image() const {
   } else {
     // The single-layer proxy/source blit in document units.
     painter.setRenderHint(QPainter::SmoothPixmapTransform, smooth);
-    const auto& source = proxy ? transform_proxy_image_ : transform_source_image_;
+    const auto& source = proxy ? transform_proxy_image_ : transform_preview_source_image();
     if (proxy) {
       painter.setOpacity(transform_proxy_layer_opacity_);
     }
@@ -1754,6 +1754,20 @@ bool CanvasWidget::prepare_free_transform_source() {
   rebuild_transform_base_cache();
   refresh_transform_composited_preview_cache();
   return !transform_source_image_.isNull();
+}
+
+const QImage& CanvasWidget::transform_preview_source_image() const {
+  if (transform_source_image_.format() != QImage::Format_RGBA32FPx4) {
+    return transform_source_image_;
+  }
+  const float exposure = document_ != nullptr ? std::as_const(*document_).color_state().view_exposure_stops : 0.0F;
+  if (transform_source_display_image_.isNull() || transform_source_display_key_ != transform_source_image_.cacheKey() ||
+      transform_source_display_exposure_ != exposure) {
+    transform_source_display_image_ = display_image_from_deep_qimage(transform_source_image_, exposure);
+    transform_source_display_key_ = transform_source_image_.cacheKey();
+    transform_source_display_exposure_ = exposure;
+  }
+  return transform_source_display_image_;
 }
 
 // Builds the with-the-layer-hidden backdrop for the transform session. Like
@@ -2298,7 +2312,7 @@ void CanvasWidget::ensure_transform_proxy_image() {
   if (!transform_proxy_image_.isNull() || transform_source_image_.isNull()) {
     return;
   }
-  QImage source = transform_source_image_;
+  QImage source = transform_preview_source_image();
   if (document_ != nullptr && transform_layer_id_.has_value()) {
     if (const auto* layer = std::as_const(*document_).find_layer(*transform_layer_id_); layer != nullptr) {
       source = source_image_with_mask_coverage(source, *layer, transform_original_rect_);
@@ -3698,11 +3712,11 @@ void CanvasWidget::draw_free_transform(QPainter& painter) const {
     clip_painter_to_transform_artboard(painter);
     painter.setRenderHint(QPainter::SmoothPixmapTransform,
                           transform_interpolation_ != TransformInterpolation::NearestNeighbor);
+    const auto& source = transform_preview_source_image();
     if (transform_is_distorted()) {
       const QTransform document_to_widget(zoom_, 0.0, 0.0, zoom_, pan_.x(), pan_.y());
-      painter.setTransform(transform_session_image_to_document(transform_source_image_) * document_to_widget, true);
-      painter.drawImage(QRectF(transform_source_image_.rect()), transform_source_image_,
-                        QRectF(transform_source_image_.rect()));
+      painter.setTransform(transform_session_image_to_document(source) * document_to_widget, true);
+      painter.drawImage(QRectF(source.rect()), source, QRectF(source.rect()));
     } else {
       painter.translate(rect.center());
       painter.rotate(transform_angle_);
@@ -3711,7 +3725,7 @@ void CanvasWidget::draw_free_transform(QPainter& painter) const {
       // mirror only appeared at commit.
       painter.scale(transform_scale_x_sign_, transform_scale_y_sign_);
       const QRectF local_rect(-rect.width() / 2.0, -rect.height() / 2.0, rect.width(), rect.height());
-      painter.drawImage(local_rect, transform_source_image_, QRectF(transform_source_image_.rect()));
+      painter.drawImage(local_rect, source, QRectF(source.rect()));
     }
     painter.restore();
   }
