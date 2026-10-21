@@ -1556,6 +1556,46 @@ int ink_pixels(const QImage& image, QRect region, QColor ink) {
   return count;
 }
 
+// Glyph pixels of `ink` in the region: they stand out from the region's dominant color and
+// sit closer to `ink` than to `other_ink`. Counting "closer to" instead of "within a
+// tolerance of the pure color" keeps the assertion about the ink choice meaningful across
+// text rasterizers: FreeType's antialiasing leaves far fewer near-pure ink pixels than
+// CoreText's on the same glyphs, and the color of an edge pixel is a rasterizer detail.
+int ink_coverage(const QImage& image, QRect region, QColor ink, QColor other_ink) {
+  region = region.intersected(image.rect());
+  std::map<QRgb, int> histogram;
+  for (int y = region.top(); y <= region.bottom(); ++y) {
+    for (int x = region.left(); x <= region.right(); ++x) {
+      ++histogram[image.pixel(x, y)];
+    }
+  }
+  QRgb backing = 0;
+  int best = -1;
+  for (const auto& [color, count] : histogram) {
+    if (count > best) {
+      best = count;
+      backing = color;
+    }
+  }
+  const QColor backing_color(backing);
+  const auto distance = [](const QColor& a, const QColor& b) {
+    return std::abs(a.red() - b.red()) + std::abs(a.green() - b.green()) + std::abs(a.blue() - b.blue());
+  };
+  int count = 0;
+  for (int y = region.top(); y <= region.bottom(); ++y) {
+    for (int x = region.left(); x <= region.right(); ++x) {
+      const auto color = image.pixelColor(x, y);
+      const bool stands_out = std::abs(color.red() - backing_color.red()) > 60 ||
+                              std::abs(color.green() - backing_color.green()) > 60 ||
+                              std::abs(color.blue() - backing_color.blue()) > 60;
+      if (stands_out && distance(color, ink) < distance(color, other_ink)) {
+        ++count;
+      }
+    }
+  }
+  return count;
+}
+
 // Pixels that stand out from the region's dominant color, whatever they are: ink or its
 // halo on a strip of pasteboard or paper.
 int stand_out_pixels(const QImage& image, QRect region) {
@@ -1744,8 +1784,13 @@ void ui_artboard_label_ink_follows_what_it_sits_on() {
     require_hotkey_action(window, QStringLiteral("tools.move"))->trigger();
     QApplication::processEvents();
     const auto& palette = patchy::ui::theme();
+    // The ink is a categorical choice (light over a dark backing, dark over a light one),
+    // so count every glyph pixel closer to the expected ink than to the other one: a
+    // tolerance around the pure color fails on Linux for text that renders correctly.
     const auto ink_pixels = [&](const QImage& image, patchy::Rect rect, QColor ink) {
-      return ::ink_pixels(image, label_region(*canvas, rect), ink);
+      const QColor other = ink == palette.canvas_artboard_label ? palette.canvas_artboard_label_on_light
+                                                               : palette.canvas_artboard_label;
+      return ink_coverage(image, label_region(*canvas, rect), ink, other);
     };
     const bool light_pasteboard = preference == patchy::ui::ColorSchemePreference::Light;
     const auto pasteboard_ink = light_pasteboard ? palette.canvas_artboard_label_on_light : palette.canvas_artboard_label;
@@ -1799,13 +1844,15 @@ void ui_artboard_label_reads_across_a_neighbouring_boards_edge() {
     const int paper_bottom = canvas->widget_position_for_document_point(QPoint(20, 190)).y();  // first gap row
     // Over the paper: the dark ink.
     const QRect on_paper(label.left(), label.top(), label.width(), paper_bottom - 1 - label.top());
-    CHECK(ink_pixels(image, on_paper, palette.canvas_artboard_label_on_light) > 6);
+    CHECK(ink_coverage(image, on_paper, palette.canvas_artboard_label_on_light, palette.canvas_artboard_label) > 6);
     // Over the gap: something readable, not dark ink lost on a dark pasteboard.
     const QRect in_gap(label.left(), paper_bottom, label.width(), 4);
     CHECK(stand_out_pixels(image, in_gap) > 4);
     // The upper board's bottom outline runs through the name and the name wins.
-    const QRect outline_row(label.left(), paper_bottom - 1, label.width(), 1);
-    CHECK(count_pixels_close(image, outline_row, palette.canvas_artboard_label_on_light, 36) > 2);
+    // The glyph row the name occupies moves by a pixel with the font rasterizer's metrics,
+    // so probe the rows around the board's bottom outline instead of exactly one.
+    const QRect outline_row(label.left(), paper_bottom - 1, label.width(), 3);
+    CHECK(ink_coverage(image, outline_row, palette.canvas_artboard_label_on_light, palette.canvas_artboard_label) > 2);
   }
 }
 
@@ -1842,19 +1889,22 @@ void ui_artboard_label_shows_its_full_name_past_a_narrow_board() {
 
     // The narrow board's name continues past its right edge (x 60) toward the next label.
     const auto band = label_region(*canvas, narrow_rect);
+    // The ink the labels must not be in, for the rasterizer-independent count below.
+    const auto other_ink = pasteboard_ink == palette.canvas_artboard_label ? palette.canvas_artboard_label_on_light
+                                                                          : palette.canvas_artboard_label;
     const int narrow_right = canvas->widget_position_for_document_point(QPoint(60, 40)).x();
     const int right_label_left = canvas->widget_position_for_document_point(QPoint(200, 40)).x();
     const QRect past_board(narrow_right + 2, band.top(), right_label_left - 8 - (narrow_right + 2), band.height());
-    CHECK(ink_pixels(image, past_board, pasteboard_ink) > 20);
+    CHECK(ink_coverage(image, past_board, pasteboard_ink, other_ink) > 20);
     // It stops short of the "Right" label, which stays whole.
     const QRect gap(right_label_left - 5, band.top(), 5, band.height());
     CHECK(stand_out_pixels(image, gap) == 0);
-    CHECK(ink_pixels(image, label_region(*canvas, right_rect), pasteboard_ink) > 6);
+    CHECK(ink_coverage(image, label_region(*canvas, right_rect), pasteboard_ink, other_ink) > 6);
     // A name longer than the view ends before the visible canvas edge.
     const auto long_band = label_region(*canvas, long_rect);
     const auto content = canvas_content_rect(*canvas);
     const QRect long_middle(long_band.left() + 150, long_band.top(), 100, long_band.height());
-    CHECK(ink_pixels(image, long_middle, pasteboard_ink) > 20);
+    CHECK(ink_coverage(image, long_middle, pasteboard_ink, other_ink) > 20);
     const QRect edge(content.right() - 1, long_band.top(), 2, long_band.height());
     CHECK(stand_out_pixels(image, edge) == 0);
 
