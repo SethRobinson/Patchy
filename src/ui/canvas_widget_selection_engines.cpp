@@ -4,7 +4,8 @@
 // release-time segmentation in finish_quick_select_stroke, the footprint
 // overlay and the brush cursor) with its size/sample/enhance-edge options, and
 // the Magnetic Lasso live-wire engine (anchor tracing and cooling, the
-// magnetic close, cancel, and its width/contrast/frequency options). The
+// magnetic close, cancel, and its width/contrast/frequency options), and the
+// Polygonal Lasso click-to-place session (also the Lasso's Alt switch). The
 // Quick Select patent-constraint comments (Adobe US 8050498: the stroke is
 // classified ONCE on mouse-release, never live during the drag) moved here
 // verbatim and remain binding - see docs/legal-constraints.md and
@@ -27,6 +28,7 @@
 #include <QPixmap>
 #include <QPoint>
 #include <QPointF>
+#include <QPolygon>
 #include <QPolygonF>
 #include <QRect>
 #include <QRegion>
@@ -39,6 +41,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <functional>
 #include <limits>
@@ -714,44 +717,35 @@ void CanvasWidget::finish_magnetic_lasso(bool magnetic_close) {
   // From here this is the Lasso commit path: the final gap closes implicitly
   // (QRegion/QPainterPath) and the result combines under the operation latched
   // at the starting click. The traced boundary is all diagonal staircase, so
-  // with Anti-alias on it must commit through the mask path for partial edge
-  // coverage - the QRegion path is hard-edged (same rule as the marquee's
-  // rounded corners).
+  // with Anti-alias on it commits through the mask path for partial edge
+  // coverage (combine_selection_from_lasso).
   capture_selection_before_edit();
-  if (selection_feather_radius_ > 0 || selection_antialias_) {
-    // The traced boundary is a dense integer pixel chain: nearly every segment
-    // is grid-aligned, so rasterizing it directly gives the anti-aliaser
-    // nothing to smooth and deletes cut hard stairs. A 1-2-1 neighbor average
-    // turns staircase runs into oblique fractional segments (axis-aligned runs
-    // are unchanged, so straight edges stay crisp) and the AA mask picks up
-    // Photoshop-like partial coverage along slopes.
-    auto smoothed = QPolygonF(polygon);
-    if (smoothed.size() >= 8) {
-      // Two closed-loop 1-2-1 passes (~a 1-4-6-4-1 kernel): shallow staircases
-      // gain fractional coordinates in nearly every column, so the whole slope
-      // anti-aliases instead of just the step corners. Support is +-2 chain
-      // pixels, so deliberate corners round by at most ~1 px.
-      for (int pass = 0; pass < 2; ++pass) {
-        const auto source = smoothed;
-        const auto count = source.size();
-        for (int i = 0; i < count; ++i) {
-          const auto& previous = source[(i + count - 1) % count];
-          const auto& current = source[i];
-          const auto& next = source[(i + 1) % count];
-          smoothed[i] = QPointF(previous.x() + 2.0 * current.x() + next.x(),
-                                previous.y() + 2.0 * current.y() + next.y()) /
-                        4.0;
-        }
+  // The traced boundary is a dense integer pixel chain: nearly every segment
+  // is grid-aligned, so rasterizing it directly gives the anti-aliaser
+  // nothing to smooth and deletes cut hard stairs. A 1-2-1 neighbor average
+  // turns staircase runs into oblique fractional segments (axis-aligned runs
+  // are unchanged, so straight edges stay crisp) and the AA mask picks up
+  // Photoshop-like partial coverage along slopes. Only the mask path reads it.
+  auto smoothed = QPolygonF(polygon);
+  if (smoothed.size() >= 8) {
+    // Two closed-loop 1-2-1 passes (~a 1-4-6-4-1 kernel): shallow staircases
+    // gain fractional coordinates in nearly every column, so the whole slope
+    // anti-aliases instead of just the step corners. Support is +-2 chain
+    // pixels, so deliberate corners round by at most ~1 px.
+    for (int pass = 0; pass < 2; ++pass) {
+      const auto source = smoothed;
+      const auto count = source.size();
+      for (int i = 0; i < count; ++i) {
+        const auto& previous = source[(i + count - 1) % count];
+        const auto& current = source[i];
+        const auto& next = source[(i + 1) % count];
+        smoothed[i] = QPointF(previous.x() + 2.0 * current.x() + next.x(),
+                              previous.y() + 2.0 * current.y() + next.y()) /
+                      4.0;
       }
     }
-    QRect mask_bounds;
-    auto mask = lasso_selection_mask(smoothed, mask_bounds);
-    combine_selection_from_mask(mask_bounds, std::move(mask));
-  } else {
-    auto region = QRegion(polygon, Qt::WindingFill);
-    region = region.intersected(QRegion(QRect(0, 0, document_->width(), document_->height())));
-    combine_selection_from_region(region);
   }
+  combine_selection_from_lasso(polygon, smoothed);
   record_selection_history(tr("Magnetic Lasso"), selection_snapshot_before_edit());
   clear_selection_before_edit();
   update();
@@ -813,6 +807,136 @@ bool CanvasWidget::magnetic_lasso_active() const noexcept {
 
 int CanvasWidget::magnetic_lasso_anchor_count() const noexcept {
   return magnetic_anchors_.size();
+}
+
+void CanvasWidget::start_polygon_lasso(QPolygon outline, bool from_lasso) {
+  if (outline.isEmpty()) {
+    return;
+  }
+  polygon_lassoing_ = true;
+  polygon_lasso_from_lasso_ = from_lasso;
+  polygon_lasso_button_down_ = false;
+  polygon_lasso_freehand_run_ = false;
+  selection_edges_visible_ = true;
+  polygon_lasso_points_ = std::move(outline);
+  // A freehand drag handed over by the Lasso is one run between two vertices,
+  // so Backspace drops it whole.
+  polygon_lasso_vertices_.clear();
+  polygon_lasso_vertices_ << 0;
+  if (polygon_lasso_points_.size() > 1) {
+    polygon_lasso_vertices_ << polygon_lasso_points_.size() - 1;
+  }
+  polygon_lasso_cursor_ = polygon_lasso_points_.last();
+}
+
+QPoint CanvasWidget::polygon_lasso_target(QPoint document_point, Qt::KeyboardModifiers modifiers) const {
+  if (!modifiers.testFlag(Qt::ShiftModifier) || polygon_lasso_points_.isEmpty()) {
+    return document_point;
+  }
+  // Shift keeps the segment at a multiple of 45 degrees: the nearest of the
+  // eight directions (split at 22.5 degrees, tan = 0.414), with the pointer
+  // projected onto it so a diagonal lands on whole pixels.
+  const auto origin = polygon_lasso_points_.last();
+  const auto dx = document_point.x() - origin.x();
+  const auto dy = document_point.y() - origin.y();
+  const auto ax = static_cast<qint64>(std::abs(dx));
+  const auto ay = static_cast<qint64>(std::abs(dy));
+  if (ay * 1000 <= ax * 414) {
+    return {document_point.x(), origin.y()};
+  }
+  if (ax * 1000 <= ay * 414) {
+    return {origin.x(), document_point.y()};
+  }
+  const auto run = static_cast<int>((ax + ay + 1) / 2);
+  return {origin.x() + (dx < 0 ? -run : run), origin.y() + (dy < 0 ? -run : run)};
+}
+
+void CanvasWidget::update_polygon_lasso_rubber_band(QPoint document_point, Qt::KeyboardModifiers modifiers) {
+  if (!polygon_lassoing_) {
+    return;
+  }
+  polygon_lasso_cursor_ = polygon_lasso_target(document_point, modifiers);
+  update();
+}
+
+void CanvasWidget::add_polygon_lasso_vertex(QPoint document_point) {
+  // A click on the last point (the press of a double-click, or a freehand run
+  // ending where it paused) marks it as a vertex instead of doubling it.
+  if (polygon_lasso_points_.isEmpty() || polygon_lasso_points_.last() != document_point) {
+    polygon_lasso_points_ << document_point;
+  }
+  if (polygon_lasso_vertices_.isEmpty() || polygon_lasso_vertices_.last() != polygon_lasso_points_.size() - 1) {
+    polygon_lasso_vertices_ << polygon_lasso_points_.size() - 1;
+  }
+  polygon_lasso_cursor_ = document_point;
+}
+
+void CanvasWidget::pop_polygon_lasso_vertex() {
+  if (!polygon_lassoing_) {
+    return;
+  }
+  if (polygon_lasso_vertices_.size() <= 1) {
+    cancel_polygon_lasso();
+    return;
+  }
+  polygon_lasso_vertices_.removeLast();
+  const auto keep = polygon_lasso_vertices_.last() + 1;
+  polygon_lasso_points_.remove(keep, polygon_lasso_points_.size() - keep);
+  polygon_lasso_cursor_ = document_position(last_mouse_position_);
+  update();
+}
+
+bool CanvasWidget::polygon_lasso_start_hit(QPoint widget_point) const {
+  return polygon_lassoing_ && polygon_lasso_points_.size() >= 3 &&
+         (widget_point - widget_position(polygon_lasso_points_.first())).manhattanLength() <= 9;
+}
+
+void CanvasWidget::finish_polygon_lasso() {
+  if (!polygon_lassoing_) {
+    return;
+  }
+  const auto outline = polygon_lasso_points_;
+  const bool from_lasso = polygon_lasso_from_lasso_;
+  cancel_polygon_lasso();
+  if (document_ == nullptr || outline.size() < 3) {
+    return;
+  }
+  // The rubber band is preview only: the outline closes from the last placed
+  // point straight back to the start, under the mode latched at the start.
+  capture_selection_before_edit();
+  combine_selection_from_lasso(outline);
+  record_selection_history(from_lasso ? tr("Lasso") : tr("Polygonal Lasso"), selection_snapshot_before_edit());
+  clear_selection_before_edit();
+  update();
+}
+
+void CanvasWidget::cancel_polygon_lasso() {
+  if (!polygon_lassoing_) {
+    return;
+  }
+  polygon_lassoing_ = false;
+  polygon_lasso_from_lasso_ = false;
+  polygon_lasso_button_down_ = false;
+  polygon_lasso_freehand_run_ = false;
+  polygon_lasso_points_.clear();
+  polygon_lasso_vertices_.clear();
+  update();
+}
+
+bool CanvasWidget::polygon_lasso_active() const noexcept {
+  return polygon_lassoing_;
+}
+
+int CanvasWidget::polygon_lasso_vertex_count() const noexcept {
+  return polygon_lasso_vertices_.size();
+}
+
+QPolygon CanvasWidget::polygon_lasso_outline() const {
+  return polygon_lasso_points_;
+}
+
+QPoint CanvasWidget::polygon_lasso_rubber_band_end() const noexcept {
+  return polygon_lasso_cursor_;
 }
 
 }  // namespace patchy::ui

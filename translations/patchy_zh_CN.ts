@@ -317,6 +317,37 @@
     </message>
 </context>
 <context>
+    <name>NewLayerDialog</name>
+    <message>
+        <source>New Layer</source>
+        <translation>新建图层</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>名称:</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>颜色:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>模式:</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>不透明度:</translation>
+    </message>
+    <message>
+        <source>Use Previous Layer to Create Clipping Mask</source>
+        <translation>使用前一图层创建剪贴蒙版</translation>
+    </message>
+    <message>
+        <source>Clip the new layer to the layer below it</source>
+        <translation>将新图层剪贴到下方图层</translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Patchy raster image editor.</source>
@@ -11537,6 +11568,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
         <translation>背景：它始终位于堆栈底部，没有透明度，也没有图层样式。右键单击它并选择“从背景生成图层”即可将其变为普通图层。</translation>
     </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>多边形套索</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13192,6 +13227,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Deselect Shapes</source>
         <translation>取消选择形状</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>多边形套索</translation>
     </message>
 </context>
 <context>
@@ -22893,10 +22932,6 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <translation>椭圆选框：拖动以选择。Shift+拖动添加，%ALT%+拖动减去，Shift+%ALT%+拖动取交集。没有选区时，Shift 绘制正圆，%ALT% 从中心绘制。</translation>
     </message>
     <message>
-        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects.</source>
-        <translation>套索：围绕区域拖动以选择。Shift+拖动添加，%ALT%+拖动减去，Shift+%ALT%+拖动取交集。</translation>
-    </message>
-    <message>
         <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
         <translation>磁性套索：单击边缘并沿其移动，单击可固定一个点。以 Shift+单击开始为添加，以 %ALT%+单击开始为减去，以 Shift+%ALT%+单击开始为取交集。Backspace 删除最后一个点，Enter 闭合，Esc 取消。</translation>
     </message>
@@ -23353,6 +23388,54 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>The Background layer cannot have layer styles</source>
         <translation>背景图层不能使用图层样式</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>多边形套索</translation>
+    </message>
+    <message>
+        <source>Click to place points, Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close.</source>
+        <translation>单击放置点，按住 Shift 保持 45 度，%ALT%+拖动可徒手绘制。单击起点、双击或按 Enter 闭合。</translation>
+    </message>
+    <message>
+        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
+        <translation>套索：围绕区域拖动以选择。Shift+拖动添加，%ALT%+拖动减去，Shift+%ALT%+拖动取交集。拖动时按下 %ALT% 并松开鼠标键，即可单击绘制直线段，直到松开 %ALT%。</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
+        <translation>多边形套索：单击放置点。以 Shift+单击开始为添加，以 %ALT%+单击开始为减去，以 Shift+%ALT%+单击开始为取交集。按住 Shift 保持 45 度，%ALT%+拖动可徒手绘制。单击起点、双击或按 Enter 闭合；Backspace 删除最后一个点，Esc 取消。</translation>
+    </message>
+    <message>
+        <source>New &amp;Layer...</source>
+        <translation>新建图层(&amp;L)...</translation>
+    </message>
+    <message>
+        <source>Add a layer, choosing its name, color, mode and opacity first</source>
+        <translation>先选择名称、颜色、模式和不透明度，再添加图层</translation>
+    </message>
+    <message>
+        <source>&amp;Merge Visible</source>
+        <translation>合并可见图层(&amp;M)</translation>
+    </message>
+    <message>
+        <source>Merge every visible layer into one, keeping the hidden layers</source>
+        <translation>将所有可见图层合并为一个，保留隐藏的图层</translation>
+    </message>
+    <message>
+        <source>Merge Visible</source>
+        <translation>合并可见图层</translation>
+    </message>
+    <message>
+        <source>Merge Visible needs at least two visible layers</source>
+        <translation>合并可见图层需要至少两个可见图层</translation>
+    </message>
+    <message>
+        <source>Merge visible</source>
+        <translation>合并可见图层</translation>
+    </message>
+    <message>
+        <source>Merged the visible layers</source>
+        <translation>已合并可见图层</translation>
     </message>
     <message>
         <source>The file is open in another program.</source>

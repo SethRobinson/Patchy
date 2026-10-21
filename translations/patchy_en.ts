@@ -317,6 +317,37 @@
     </message>
 </context>
 <context>
+    <name>NewLayerDialog</name>
+    <message>
+        <source>New Layer</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Use Previous Layer to Create Clipping Mask</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clip the new layer to the layer below it</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Patchy raster image editor.</source>
@@ -11556,6 +11587,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13210,6 +13245,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>Deselect Shapes</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -22891,10 +22930,6 @@ Patchy can download the update, replace this AppImage, and start again. You will
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -23347,6 +23382,54 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     </message>
     <message>
         <source>The Background layer cannot have layer styles</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Click to place points, Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>New &amp;Layer...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add a layer, choosing its name, color, mode and opacity first</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Merge Visible</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Merge every visible layer into one, keeping the hidden layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Merge Visible</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Merge Visible needs at least two visible layers</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Merge visible</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Merged the visible layers</source>
         <translation type="unfinished"></translation>
     </message>
     <message>

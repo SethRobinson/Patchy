@@ -19,8 +19,10 @@
 #include <QFile>
 #include <QImage>
 #include <QListWidget>
+#include <QMenu>
 #include <QSpinBox>
 #include <QTabWidget>
+#include <QTimer>
 #include <QTest>
 #include <QToolButton>
 #include <algorithm>
@@ -968,6 +970,430 @@ void ui_magnetic_lasso_click_near_start_closes() {
   CHECK(!region.contains(QPoint(115, 170)));
 }
 
+// Polygonal Lasso (GitHub issue 287). These drive the tool through its action, the mouse and
+// the keyboard only and read back the committed selection, so they need nothing the tool
+// itself adds to the canvas API.
+struct PolygonLassoFixture {
+  patchy::ui::MainWindow window;
+  patchy::ui::CanvasWidget* canvas{nullptr};
+
+  // tool_action picks the starting tool; the Lasso's own tests start there.
+  explicit PolygonLassoFixture(const char* tool_action = "toolPolygonalLassoAction") {
+    patchy::Document document(320, 280, patchy::PixelFormat::rgba8());
+    auto pixels = solid_pixels(320, 280, patchy::PixelFormat::rgba8(), QColor(Qt::white));
+    document.add_pixel_layer("Art", std::move(pixels));
+    show_window(window);
+    window.add_document_session(std::move(document), QStringLiteral("Polygonal Lasso"));
+    QApplication::processEvents();
+    canvas = require_canvas(window);
+    auto* action = require_action(window, tool_action);
+    action->trigger();
+    QApplication::processEvents();
+    CHECK(action->isChecked());
+    canvas->setFocus();
+  }
+
+  [[nodiscard]] QPoint at(QPoint document_point) const {
+    return canvas->widget_position_for_document_point(document_point);
+  }
+  void hover(QPoint document_point, Qt::KeyboardModifiers modifiers = Qt::NoModifier) const {
+    send_mouse(*canvas, QEvent::MouseMove, at(document_point), Qt::NoButton, Qt::NoButton, modifiers);
+  }
+  void click(QPoint document_point, Qt::KeyboardModifiers modifiers = Qt::NoModifier) const {
+    hover(document_point, modifiers);
+    send_mouse(*canvas, QEvent::MouseButtonPress, at(document_point), Qt::LeftButton, Qt::LeftButton, modifiers);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, at(document_point), Qt::LeftButton, Qt::NoButton, modifiers);
+  }
+  void double_click(QPoint document_point) const {
+    click(document_point);
+    send_mouse(*canvas, QEvent::MouseButtonDblClick, at(document_point), Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, at(document_point), Qt::LeftButton, Qt::NoButton);
+  }
+  void clicks(std::initializer_list<QPoint> points) const {
+    for (const auto& point : points) {
+      click(point);
+    }
+  }
+  [[nodiscard]] int alpha(QPoint document_point) const {
+    const auto mask = canvas->selection_as_grayscale();
+    const auto* pixel = mask.pixel(document_point.x(), document_point.y());
+    CHECK(pixel != nullptr);
+    return pixel[0];
+  }
+  [[nodiscard]] bool selected(QPoint document_point) const { return alpha(document_point) >= 128; }
+  [[nodiscard]] QString last_history_label() const {
+    auto* list = window.findChild<QListWidget*>(QStringLiteral("historyList"));
+    CHECK(list != nullptr);
+    CHECK(list->count() > 0);
+    return list->item(list->count() - 1)->text();
+  }
+};
+
+void ui_polygonal_lasso_places_points_and_closes() {
+  PolygonLassoFixture f;
+  // Clicks place straight segments; nothing is selected until the outline closes.
+  f.clicks({QPoint(60, 60), QPoint(200, 60), QPoint(200, 200), QPoint(60, 200)});
+  f.hover(QPoint(62, 61));
+  CHECK(!f.canvas->has_selection());
+  save_widget_artifact("ui_polygonal_lasso_in_progress", *f.canvas);
+  f.click(QPoint(61, 61));  // on the start point: closes
+  QApplication::processEvents();
+  CHECK(f.canvas->has_selection());
+  CHECK(f.selected(QPoint(130, 130)));
+  CHECK(f.selected(QPoint(63, 197)));
+  CHECK(!f.selected(QPoint(40, 130)));
+  CHECK(!f.selected(QPoint(220, 130)));
+  CHECK(!f.selected(QPoint(130, 220)));
+  CHECK(f.canvas->selection_mode() == patchy::ui::CanvasWidget::SelectionMode::Replace);
+  // A click after the close starts a new outline instead of extending the old one.
+  f.click(QPoint(240, 240));
+  CHECK(f.selected(QPoint(130, 130)));
+  send_key(*f.canvas, Qt::Key_Escape);
+
+  // Double-click closes: a triangle under its hypotenuse, nothing above it.
+  f.click(QPoint(100, 100));
+  f.click(QPoint(180, 100));
+  f.double_click(QPoint(180, 180));
+  QApplication::processEvents();
+  CHECK(f.selected(QPoint(170, 120)));
+  CHECK(!f.selected(QPoint(110, 170)));
+  CHECK(!f.selected(QPoint(70, 150)));  // the earlier square was replaced
+
+  // Enter closes too, straight back to the start; the rubber band is not a vertex.
+  f.clicks({QPoint(40, 40), QPoint(120, 40), QPoint(120, 120)});
+  f.hover(QPoint(300, 260));
+  send_key(*f.canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(f.selected(QPoint(110, 60)));
+  CHECK(!f.selected(QPoint(60, 110)));
+  CHECK(!f.selected(QPoint(200, 150)));
+}
+
+void ui_polygonal_lasso_shift_keeps_45_degrees() {
+  PolygonLassoFixture f;
+  f.click(QPoint(60, 60));
+  // Shift after the start click aims the segment at the nearest 45 degree step: the
+  // pointer 15 px low still places a horizontal edge, and one 62 x 80 px away a diagonal.
+  f.click(QPoint(200, 75), Qt::ShiftModifier);
+  f.click(QPoint(262, 140), Qt::ShiftModifier);
+  f.click(QPoint(60, 200));
+  send_key(*f.canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(f.canvas->has_selection());
+  // The top edge is y = 60 all the way (a free segment would pass y ~67 at x = 130).
+  CHECK(f.selected(QPoint(130, 63)));
+  CHECK(f.selected(QPoint(195, 63)));
+  CHECK(!f.selected(QPoint(130, 56)));
+  // The diagonal from (200, 60) runs at exactly 45 degrees, to (271, 131): at x = 240 the
+  // edge is y = 100 (a free segment to (262, 140) would pass y ~112).
+  CHECK(f.selected(QPoint(240, 106)));
+  CHECK(!f.selected(QPoint(240, 94)));
+  CHECK(f.selected(QPoint(262, 126)));
+}
+
+void ui_polygonal_lasso_backspace_delete_and_escape() {
+  PolygonLassoFixture f;
+  // Backspace drops the newest point, which a stray click placed.
+  f.clicks({QPoint(60, 60), QPoint(200, 60), QPoint(200, 200), QPoint(100, 260)});
+  send_key(*f.canvas, Qt::Key_Backspace);
+  f.click(QPoint(60, 200));
+  send_key(*f.canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(f.selected(QPoint(130, 130)));
+  CHECK(!f.selected(QPoint(100, 230)));
+
+  // Delete and Backspace reach the tool through the shortcut map (layer.clear binds Delete,
+  // and Backspace on macOS): the layer keeps its pixels.
+  f.canvas->clear_selection();
+  f.clicks({QPoint(60, 60), QPoint(200, 60), QPoint(200, 200), QPoint(130, 260), QPoint(90, 260)});
+  QTest::keyClick(f.canvas, Qt::Key_Delete);
+  QTest::keyClick(f.canvas, Qt::Key_Backspace);
+  QApplication::processEvents();
+  f.click(QPoint(60, 200));
+  send_key(*f.canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(f.selected(QPoint(130, 130)));
+  CHECK(!f.selected(QPoint(120, 225)));
+  auto& document = patchy::ui::MainWindowTestAccess::document(f.window);
+  const auto* pixel = document.layers().front().pixels().pixel(5, 5);
+  CHECK(pixel != nullptr);
+  CHECK(pixel[3] == 255);
+
+  // Esc drops the whole outline and keeps the selection as it was.
+  f.clicks({QPoint(220, 220), QPoint(300, 220), QPoint(300, 270)});
+  send_key(*f.canvas, Qt::Key_Escape);
+  send_key(*f.canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(f.selected(QPoint(130, 130)));
+  CHECK(!f.selected(QPoint(280, 230)));
+
+  // Backspace past the first point cancels too.
+  f.click(QPoint(220, 220));
+  send_key(*f.canvas, Qt::Key_Backspace);
+  f.clicks({QPoint(10, 10), QPoint(50, 10), QPoint(50, 50)});
+  send_key(*f.canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(f.selected(QPoint(45, 20)));
+  CHECK(!f.selected(QPoint(130, 130)));
+}
+
+void ui_polygonal_lasso_combine_modes() {
+  PolygonLassoFixture f;
+  const auto square = [&f](int left, int top, int size, Qt::KeyboardModifiers start_modifiers) {
+    f.click(QPoint(left, top), start_modifiers);
+    f.clicks({QPoint(left + size, top), QPoint(left + size, top + size), QPoint(left, top + size)});
+    send_key(*f.canvas, Qt::Key_Return);
+    QApplication::processEvents();
+  };
+  const auto reset = [&f, &square] {
+    f.canvas->clear_selection();
+    square(40, 40, 120, Qt::NoModifier);
+    CHECK(f.selected(QPoint(60, 60)));
+    CHECK(!f.selected(QPoint(220, 220)));
+  };
+
+  reset();  // Shift at the start click adds
+  square(120, 120, 120, Qt::ShiftModifier);
+  CHECK(f.selected(QPoint(60, 60)));
+  CHECK(f.selected(QPoint(140, 140)));
+  CHECK(f.selected(QPoint(220, 220)));
+
+  reset();  // Alt subtracts
+  square(120, 120, 120, Qt::AltModifier);
+  CHECK(f.selected(QPoint(60, 60)));
+  CHECK(!f.selected(QPoint(140, 140)));
+  CHECK(!f.selected(QPoint(220, 220)));
+
+  reset();  // Shift+Alt intersects
+  square(120, 120, 120, Qt::ShiftModifier | Qt::AltModifier);
+  CHECK(!f.selected(QPoint(60, 60)));
+  CHECK(f.selected(QPoint(140, 140)));
+  CHECK(!f.selected(QPoint(220, 220)));
+
+  // The options-bar mode applies without modifiers and is the tool's own.
+  reset();
+  require_action(f.window, "selectionSubtractModeAction")->trigger();
+  QApplication::processEvents();
+  square(120, 120, 120, Qt::NoModifier);
+  CHECK(f.selected(QPoint(60, 60)));
+  CHECK(!f.selected(QPoint(140, 140)));
+  require_action(f.window, "toolLassoAction")->trigger();
+  QApplication::processEvents();
+  CHECK(f.canvas->selection_mode() == patchy::ui::CanvasWidget::SelectionMode::Replace);
+  require_action(f.window, "toolPolygonalLassoAction")->trigger();
+  QApplication::processEvents();
+  CHECK(f.canvas->selection_mode() == patchy::ui::CanvasWidget::SelectionMode::Subtract);
+  require_action(f.window, "selectionNewModeAction")->trigger();
+  QApplication::processEvents();
+}
+
+void ui_polygonal_lasso_feather_and_antialias() {
+  SettingsValueRestorer saved_feather(QStringLiteral("tools/polygonalLassoFeather"));
+  SettingsValueRestorer saved_anti_alias(QStringLiteral("tools/polygonalLassoAntiAlias"));
+  PolygonLassoFixture f;
+  auto* feather = f.window.findChild<QSpinBox*>(QStringLiteral("selectionFeatherSpin"));
+  auto* anti_alias = f.window.findChild<QCheckBox*>(QStringLiteral("selectionAntiAliasCheck"));
+  CHECK(feather != nullptr);
+  CHECK(anti_alias != nullptr);
+  CHECK(feather->isVisible());
+  CHECK(anti_alias->isVisible());
+
+  // Feather softens the closed outline across the edge.
+  feather->setValue(8);
+  CHECK(f.canvas->selection_feather_radius() == 8);
+  f.clicks({QPoint(60, 60), QPoint(200, 60), QPoint(200, 200), QPoint(60, 200)});
+  send_key(*f.canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(f.canvas->selection_has_partial_alpha());
+  CHECK(f.alpha(QPoint(130, 130)) == 255);
+  const auto edge = f.alpha(QPoint(60, 130));
+  CHECK(edge > 40 && edge < 215);
+  CHECK(f.alpha(QPoint(130, 20)) == 0);
+  save_widget_artifact("ui_polygonal_lasso_feathered", *f.canvas);
+
+  // Feather and Anti-alias are the tool's own: the Lasso keeps its values.
+  require_action(f.window, "toolLassoAction")->trigger();
+  QApplication::processEvents();
+  CHECK(feather->value() == 0);
+  require_action(f.window, "toolPolygonalLassoAction")->trigger();
+  QApplication::processEvents();
+  CHECK(feather->value() == 8);
+
+  // With Anti-alias off and no feather a slanted edge stays hard.
+  feather->setValue(0);
+  anti_alias->setChecked(false);
+  f.clicks({QPoint(60, 60), QPoint(230, 90), QPoint(150, 220)});
+  send_key(*f.canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(f.canvas->has_selection());
+  CHECK(!f.canvas->selection_has_partial_alpha());
+  // Anti-alias on gives the same slant partial edge pixels.
+  anti_alias->setChecked(true);
+  f.clicks({QPoint(60, 60), QPoint(230, 90), QPoint(150, 220)});
+  send_key(*f.canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(f.canvas->selection_has_partial_alpha());
+}
+
+void ui_polygonal_lasso_is_one_undo_step() {
+  PolygonLassoFixture f;
+  const auto depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(f.window);
+  f.clicks({QPoint(60, 60), QPoint(200, 60), QPoint(200, 200)});
+  // Placing points is not history.
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(f.window) == depth);
+  send_key(*f.canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(f.window) == depth + 1);
+  CHECK(f.last_history_label() == QStringLiteral("Polygonal Lasso"));
+  CHECK(f.selected(QPoint(180, 100)));
+
+  patchy::ui::MainWindowTestAccess::undo(f.window);
+  QApplication::processEvents();
+  CHECK(!f.canvas->has_selection());
+  patchy::ui::MainWindowTestAccess::redo(f.window);
+  QApplication::processEvents();
+  CHECK(f.selected(QPoint(180, 100)));
+  CHECK(!patchy::ui::MainWindowTestAccess::active_session_is_modified(f.window));
+}
+
+void ui_polygonal_lasso_alt_drag_adds_a_freehand_run() {
+  PolygonLassoFixture f;
+  f.clicks({QPoint(60, 60), QPoint(200, 60)});
+  // Alt held while dragging from a new point traces freehand; the release ends the run.
+  send_mouse(*f.canvas, QEvent::MouseButtonPress, f.at(QPoint(200, 60)), Qt::LeftButton, Qt::LeftButton,
+             Qt::AltModifier);
+  for (const auto& point : {QPoint(220, 90), QPoint(240, 130), QPoint(220, 170), QPoint(200, 200)}) {
+    send_mouse(*f.canvas, QEvent::MouseMove, f.at(point), Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+  }
+  send_mouse(*f.canvas, QEvent::MouseButtonRelease, f.at(QPoint(200, 200)), Qt::LeftButton, Qt::NoButton,
+             Qt::AltModifier);
+  CHECK(!f.canvas->has_selection());
+  f.click(QPoint(60, 200));
+  send_key(*f.canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(f.selected(QPoint(130, 130)));
+  CHECK(f.selected(QPoint(225, 130)));  // the freehand bulge past x = 200
+  CHECK(!f.selected(QPoint(250, 130)));
+
+  // Backspace drops the run with its end point.
+  f.clicks({QPoint(60, 60), QPoint(200, 60)});
+  send_mouse(*f.canvas, QEvent::MouseButtonPress, f.at(QPoint(200, 60)), Qt::LeftButton, Qt::LeftButton,
+             Qt::AltModifier);
+  for (const auto& point : {QPoint(240, 130), QPoint(200, 200)}) {
+    send_mouse(*f.canvas, QEvent::MouseMove, f.at(point), Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+  }
+  send_mouse(*f.canvas, QEvent::MouseButtonRelease, f.at(QPoint(200, 200)), Qt::LeftButton, Qt::NoButton,
+             Qt::AltModifier);
+  send_key(*f.canvas, Qt::Key_Backspace);
+  f.clicks({QPoint(200, 200), QPoint(60, 200)});
+  send_key(*f.canvas, Qt::Key_Return);
+  QApplication::processEvents();
+  CHECK(f.selected(QPoint(130, 130)));
+  CHECK(!f.selected(QPoint(225, 130)));
+}
+
+void ui_lasso_alt_release_switches_to_straight_segments() {
+  PolygonLassoFixture f("toolLassoAction");
+  CHECK(f.canvas->tool() == patchy::ui::CanvasTool::Lasso);
+  // A freehand drag with Alt pressed partway and still held at the release keeps going as
+  // straight segments: clicks add points, and letting go of Alt closes the outline.
+  send_mouse(*f.canvas, QEvent::MouseButtonPress, f.at(QPoint(60, 60)), Qt::LeftButton, Qt::LeftButton);
+  for (const auto& point : {QPoint(120, 58), QPoint(200, 60)}) {
+    send_mouse(*f.canvas, QEvent::MouseMove, f.at(point), Qt::NoButton, Qt::LeftButton);
+  }
+  send_key_press(*f.canvas, Qt::Key_Alt, Qt::AltModifier);
+  send_mouse(*f.canvas, QEvent::MouseMove, f.at(QPoint(200, 120)), Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+  send_mouse(*f.canvas, QEvent::MouseButtonRelease, f.at(QPoint(200, 200)), Qt::LeftButton, Qt::NoButton,
+             Qt::AltModifier);
+  CHECK(!f.canvas->has_selection());
+  f.click(QPoint(60, 200), Qt::AltModifier);
+  CHECK(!f.canvas->has_selection());
+  send_key_release(*f.canvas, Qt::Key_Alt, Qt::NoModifier);
+  QApplication::processEvents();
+  CHECK(f.canvas->has_selection());
+  CHECK(f.selected(QPoint(130, 130)));
+  CHECK(f.selected(QPoint(70, 190)));  // the straight segment to (60, 200), not a chord to the start
+  CHECK(!f.selected(QPoint(130, 230)));
+  CHECK(f.last_history_label() == QStringLiteral("Lasso"));
+
+  // Alt held from the press is Subtract, committed on release as before.
+  send_mouse(*f.canvas, QEvent::MouseButtonPress, f.at(QPoint(100, 100)), Qt::LeftButton, Qt::LeftButton,
+             Qt::AltModifier);
+  for (const auto& point : {QPoint(160, 100), QPoint(160, 160), QPoint(100, 160)}) {
+    send_mouse(*f.canvas, QEvent::MouseMove, f.at(point), Qt::NoButton, Qt::LeftButton, Qt::AltModifier);
+  }
+  send_mouse(*f.canvas, QEvent::MouseButtonRelease, f.at(QPoint(100, 160)), Qt::LeftButton, Qt::NoButton,
+             Qt::AltModifier);
+  QApplication::processEvents();
+  CHECK(!f.selected(QPoint(130, 130)));
+  CHECK(f.selected(QPoint(70, 80)));
+}
+
+// GitHub issue 287's shots, in both schemes: the Lasso flyout with the new member, and a
+// polygon outline in progress around a shape (the rubber band runs to the pointer, which
+// rests near the start point, so the closing ring shows).
+void ui_polygonal_lasso_issue_shots() {
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.resize(1100, 720);
+    QApplication::processEvents();
+
+    auto* button = window.findChild<QToolButton*>(QStringLiteral("lassoToolButton"));
+    CHECK(button != nullptr && button->menu() != nullptr);
+    if (button == nullptr || button->menu() == nullptr) {
+      return;
+    }
+    auto* menu = button->menu();
+    bool captured = false;
+    std::exception_ptr capture_error;
+    QTimer::singleShot(0, [&] {
+      // Never throw across Qt's event dispatch (docs/testing.md): keep the failure for later.
+      try {
+        save_window_popup_artifact("issue_287_lasso_flyout" + suffix, window, *button, *menu);
+        captured = true;
+      } catch (...) {
+        capture_error = std::current_exception();
+      }
+      menu->close();
+    });
+    button->showMenu();
+    QApplication::processEvents();
+    if (capture_error) {
+      std::rethrow_exception(capture_error);
+    }
+    CHECK(captured);
+
+    patchy::Document document(480, 360, patchy::PixelFormat::rgba8());
+    auto pixels = solid_pixels(480, 360, patchy::PixelFormat::rgba8(), QColor(236, 232, 222));
+    fill_pixel_rect(pixels, QRect(120, 150, 240, 150), QColor(196, 92, 60));
+    fill_pixel_rect(pixels, QRect(150, 190, 50, 60), QColor(70, 110, 160));
+    fill_pixel_rect(pixels, QRect(260, 200, 60, 100), QColor(90, 60, 40));
+    document.add_pixel_layer("House", std::move(pixels));
+    window.add_document_session(std::move(document), QStringLiteral("Polygonal Lasso"));
+    QApplication::processEvents();
+    auto* canvas = require_canvas(window);
+    require_action(window, "toolPolygonalLassoAction")->trigger();
+    QApplication::processEvents();
+    const auto at = [canvas](QPoint point) { return canvas->widget_position_for_document_point(point); };
+    for (const auto& point : {QPoint(110, 145), QPoint(240, 60), QPoint(370, 145), QPoint(370, 310)}) {
+      send_mouse(*canvas, QEvent::MouseMove, at(point), Qt::NoButton, Qt::NoButton);
+      send_mouse(*canvas, QEvent::MouseButtonPress, at(point), Qt::LeftButton, Qt::LeftButton);
+      send_mouse(*canvas, QEvent::MouseButtonRelease, at(point), Qt::LeftButton, Qt::NoButton);
+    }
+    send_mouse(*canvas, QEvent::MouseMove, at(QPoint(108, 300)), Qt::NoButton, Qt::NoButton);
+    QApplication::processEvents();
+    CHECK(!canvas->has_selection());
+    save_widget_artifact("issue_287_polygon_in_progress" + suffix, window);
+    send_mouse(*canvas, QEvent::MouseMove, at(QPoint(112, 148)), Qt::NoButton, Qt::NoButton);
+    QApplication::processEvents();
+    save_widget_artifact("issue_287_polygon_closing" + suffix, *canvas);
+    send_key(*canvas, Qt::Key_Escape);
+  }
+}
+
 void ui_magnetic_lasso_options_apply_to_new_documents() {
   SettingsValueRestorer saved_width(QStringLiteral("tools/magneticLassoWidth"));
   SettingsValueRestorer saved_contrast(QStringLiteral("tools/magneticLassoEdgeContrast"));
@@ -1434,6 +1860,15 @@ std::vector<patchy::test::TestCase> selection_engines_tests() {
        ui_magnetic_lasso_antialias_clear_leaves_partial_edge_pixels},
       {"ui_magnetic_lasso_click_near_start_closes", ui_magnetic_lasso_click_near_start_closes},
       {"ui_magnetic_lasso_options_apply_to_new_documents", ui_magnetic_lasso_options_apply_to_new_documents},
+      {"ui_polygonal_lasso_places_points_and_closes", ui_polygonal_lasso_places_points_and_closes},
+      {"ui_polygonal_lasso_shift_keeps_45_degrees", ui_polygonal_lasso_shift_keeps_45_degrees},
+      {"ui_polygonal_lasso_backspace_delete_and_escape", ui_polygonal_lasso_backspace_delete_and_escape},
+      {"ui_polygonal_lasso_combine_modes", ui_polygonal_lasso_combine_modes},
+      {"ui_polygonal_lasso_feather_and_antialias", ui_polygonal_lasso_feather_and_antialias},
+      {"ui_polygonal_lasso_is_one_undo_step", ui_polygonal_lasso_is_one_undo_step},
+      {"ui_polygonal_lasso_alt_drag_adds_a_freehand_run", ui_polygonal_lasso_alt_drag_adds_a_freehand_run},
+      {"ui_lasso_alt_release_switches_to_straight_segments", ui_lasso_alt_release_switches_to_straight_segments},
+      {"ui_polygonal_lasso_issue_shots", ui_polygonal_lasso_issue_shots},
       {"ui_selection_feather_and_antialias_are_per_tool", ui_selection_feather_and_antialias_are_per_tool},
       {"ui_selection_edge_settings_persist_across_windows", ui_selection_edge_settings_persist_across_windows},
       {"ui_quick_select_photo_texture_selects_eye_not_face", ui_quick_select_photo_texture_selects_eye_not_face},

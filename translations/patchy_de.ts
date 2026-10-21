@@ -317,6 +317,37 @@
     </message>
 </context>
 <context>
+    <name>NewLayerDialog</name>
+    <message>
+        <source>New Layer</source>
+        <translation>Neue Ebene</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>Name:</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>Farbe:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>Modus:</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Deckkraft:</translation>
+    </message>
+    <message>
+        <source>Use Previous Layer to Create Clipping Mask</source>
+        <translation>Vorherige Ebene als Schnittmaske verwenden</translation>
+    </message>
+    <message>
+        <source>Clip the new layer to the layer below it</source>
+        <translation>Die neue Ebene an der Ebene darunter beschneiden</translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Patchy raster image editor.</source>
@@ -11572,6 +11603,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
         <translation>Hintergrund: Diese Ebene bleibt ganz unten im Stapel, ohne Transparenz und ohne Ebenenstile. Klicken Sie mit der rechten Maustaste darauf und wählen Sie Ebene aus Hintergrund, um sie zu einer normalen Ebene zu machen.</translation>
     </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>Polygon-Lasso</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13227,6 +13262,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Deselect Shapes</source>
         <translation>Formauswahl aufheben</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>Polygon-Lasso</translation>
     </message>
 </context>
 <context>
@@ -22964,10 +23003,6 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <translation>Auswahlellipse: Ziehen, um auszuwählen. Umschalt+Ziehen fügt hinzu, %ALT%+Ziehen zieht ab, Umschalt+%ALT%+Ziehen bildet die Schnittmenge. Ohne Auswahl zeichnet Umschalt einen Kreis und %ALT% vom Mittelpunkt aus.</translation>
     </message>
     <message>
-        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects.</source>
-        <translation>Lasso: Um den Bereich ziehen, um ihn auszuwählen. Umschalt+Ziehen fügt hinzu, %ALT%+Ziehen zieht ab, Umschalt+%ALT%+Ziehen bildet die Schnittmenge.</translation>
-    </message>
-    <message>
         <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
         <translation>Magnetisches Lasso: Auf eine Kante klicken und ihr folgen; ein Klick setzt einen Punkt. Mit Umschalt+Klick beginnen, um hinzuzufügen, mit %ALT%+Klick, um abzuziehen, mit Umschalt+%ALT%+Klick für die Schnittmenge. Rücktaste entfernt den letzten Punkt, Eingabe schließt, Esc bricht ab.</translation>
     </message>
@@ -23425,6 +23460,54 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
     <message>
         <source>The Background layer cannot have layer styles</source>
         <translation>Die Hintergrundebene kann keine Ebenenstile haben</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>Polygon-Lasso</translation>
+    </message>
+    <message>
+        <source>Click to place points, Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close.</source>
+        <translation>Klicken, um Punkte zu setzen, Umschalt hält 45 Grad ein, %ALT%+Ziehen zeichnet freihand. Zum Schließen auf den Startpunkt klicken, doppelklicken oder Eingabe drücken.</translation>
+    </message>
+    <message>
+        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
+        <translation>Lasso: Um den Bereich ziehen, um ihn auszuwählen. Umschalt+Ziehen fügt hinzu, %ALT%+Ziehen zieht ab, Umschalt+%ALT%+Ziehen bildet die Schnittmenge. Während des Ziehens %ALT% drücken und die Maustaste loslassen, um gerade Segmente zu klicken, bis %ALT% losgelassen wird.</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
+        <translation>Polygon-Lasso: Klicken, um Punkte zu setzen. Mit Umschalt+Klick beginnen, um hinzuzufügen, mit %ALT%+Klick, um abzuziehen, mit Umschalt+%ALT%+Klick für die Schnittmenge. Umschalt hält 45 Grad ein, %ALT%+Ziehen zeichnet freihand. Zum Schließen auf den Startpunkt klicken, doppelklicken oder Eingabe drücken; Rücktaste entfernt den letzten Punkt, Esc bricht ab.</translation>
+    </message>
+    <message>
+        <source>New &amp;Layer...</source>
+        <translation>Neue &amp;Ebene...</translation>
+    </message>
+    <message>
+        <source>Add a layer, choosing its name, color, mode and opacity first</source>
+        <translation>Eine Ebene hinzufügen und vorher Name, Farbe, Modus und Deckkraft wählen</translation>
+    </message>
+    <message>
+        <source>&amp;Merge Visible</source>
+        <translation>Sichtbare auf eine Ebene &amp;reduzieren</translation>
+    </message>
+    <message>
+        <source>Merge every visible layer into one, keeping the hidden layers</source>
+        <translation>Alle sichtbaren Ebenen zu einer zusammenfügen, ausgeblendete Ebenen bleiben erhalten</translation>
+    </message>
+    <message>
+        <source>Merge Visible</source>
+        <translation>Sichtbare auf eine Ebene reduzieren</translation>
+    </message>
+    <message>
+        <source>Merge Visible needs at least two visible layers</source>
+        <translation>Sichtbare auf eine Ebene reduzieren braucht mindestens zwei sichtbare Ebenen</translation>
+    </message>
+    <message>
+        <source>Merge visible</source>
+        <translation>Sichtbare reduzieren</translation>
+    </message>
+    <message>
+        <source>Merged the visible layers</source>
+        <translation>Sichtbare Ebenen reduziert</translation>
     </message>
     <message>
         <source>The file is open in another program.</source>

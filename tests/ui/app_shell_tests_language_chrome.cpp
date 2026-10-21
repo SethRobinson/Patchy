@@ -1309,6 +1309,28 @@ void ui_filter_gallery_action_retranslates() {
   CHECK(action->statusTip() == QStringLiteral("Preview and apply visual filters and photo looks"));
 }
 
+void ui_polygonal_lasso_tool_retranslates() {
+  // GitHub issue 287: the new palette entry, its flyout row and its tooltip follow a
+  // runtime language switch like the tools around it.
+  CHECK(patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("en"), false));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* action = require_action(window, "toolPolygonalLassoAction");
+  CHECK(action->text() == QStringLiteral("Polygonal Lasso"));
+  CHECK(action->toolTip().startsWith(QStringLiteral("Polygonal Lasso")));
+
+  CHECK(patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("ja"), false));
+  QApplication::processEvents();
+  CHECK(action->text() == QStringLiteral("多角形選択"));
+  CHECK(action->toolTip().startsWith(QStringLiteral("多角形選択")));
+  CHECK(!action->toolTip().contains(QStringLiteral("Click to place points")));
+
+  CHECK(patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("en"), false));
+  QApplication::processEvents();
+  CHECK(action->text() == QStringLiteral("Polygonal Lasso"));
+  CHECK(action->toolTip().contains(QStringLiteral("Click to place points")));
+}
+
 void ui_about_dialog_shows_labeled_external_links() {
   bool inspected = false;
   QTimer::singleShot(0, [&] {
@@ -2310,6 +2332,7 @@ std::vector<patchy::test::TestCase> app_shell_tests_part3() {
       {"ui_language_every_catalog_loads_and_translates", ui_language_every_catalog_loads_and_translates},
       {"ui_language_catalog_covers_dialog_status_and_properties", ui_language_catalog_covers_dialog_status_and_properties},
       {"ui_filter_gallery_action_retranslates", ui_filter_gallery_action_retranslates},
+      {"ui_polygonal_lasso_tool_retranslates", ui_polygonal_lasso_tool_retranslates},
       {"ui_about_dialog_shows_labeled_external_links", ui_about_dialog_shows_labeled_external_links},
       {"ui_about_dialog_shows_memory_row", ui_about_dialog_shows_memory_row},
       {"ui_app_data_migration_merges_legacy_folder", ui_app_data_migration_merges_legacy_folder},

@@ -5980,6 +5980,8 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
       pending_layer_thumbnail_refresh_ = false;
     }
     refresh_layer_thumbnails();
+    // Visibility changes come from many places (eyes, Alt-click solo, undo, scripts).
+    refresh_merge_visible_action_state();
   });
   canvas->set_view_changed_callback([this, canvas] { handle_canvas_view_changed(canvas); });
   canvas->set_transform_controls_changed_callback([this, canvas] {
@@ -11693,6 +11695,7 @@ void MainWindow::update_document_action_state() {
                QStringLiteral("tools.marquee"),
                QStringLiteral("tools.elliptical_marquee"),
                QStringLiteral("tools.lasso"),
+               QStringLiteral("tools.polygonal_lasso"),
                QStringLiteral("tools.magnetic_lasso"),
                QStringLiteral("tools.magic_wand"),
                QStringLiteral("tools.quick_select"),
@@ -11755,6 +11758,7 @@ void MainWindow::update_document_action_state() {
   // reapply the layer-count rule (Distribute needs three units). The Windows plug-in scan
   // rebuilds its menu after startup and lands here with a one-layer document open.
   refresh_layer_alignment_action_states();
+  refresh_merge_visible_action_state();  // two visible layers, the same way
 }
 
 void MainWindow::refresh_convert_for_smart_filters_action_state() {

@@ -468,6 +468,13 @@ public:
   [[nodiscard]] bool magnetic_lasso_active() const noexcept;
   [[nodiscard]] int magnetic_lasso_anchor_count() const noexcept;
   void cancel_magnetic_lasso();
+  // Polygonal Lasso session state (used by tests and the cancel sites). The Lasso's
+  // Alt-release switch runs the same session, so these report it too.
+  [[nodiscard]] bool polygon_lasso_active() const noexcept;
+  [[nodiscard]] int polygon_lasso_vertex_count() const noexcept;
+  [[nodiscard]] QPolygon polygon_lasso_outline() const;  // placed outline, no rubber band
+  [[nodiscard]] QPoint polygon_lasso_rubber_band_end() const noexcept;
+  void cancel_polygon_lasso();
   void set_show_transform_controls(bool enabled) noexcept;
   [[nodiscard]] bool show_transform_controls() const noexcept;
   // Live readout beside the pointer during Move and Free Transform drags
@@ -2241,6 +2248,25 @@ private:
   void draw_marquee_resize_handles(QPainter& painter) const;
   [[nodiscard]] QImage lasso_selection_mask(const QPolygon& polygon, QRect& bounds) const;
   [[nodiscard]] QImage lasso_selection_mask(const QPolygonF& polygon, QRect& bounds) const;
+  // The one lasso commit (freehand, polygonal and magnetic): with Feather or Anti-alias the
+  // outline rasterizes through lasso_selection_mask (mask_outline, which the Magnetic Lasso
+  // smooths first), otherwise through a hard winding-fill QRegion clipped to the canvas, and
+  // the result combines under selection_operation_. The caller owns the before-edit snapshot.
+  void combine_selection_from_lasso(const QPolygon& outline);
+  void combine_selection_from_lasso(const QPolygon& outline, const QPolygonF& mask_outline);
+  // Polygonal Lasso session (docs/selection-tools.md). Clicks place vertices with the button
+  // up between them and a rubber band follows the pointer; the region is built once, in
+  // finish_polygon_lasso(). Shift keeps a segment at 45 degree steps, an Alt drag adds a
+  // freehand run. from_lasso marks the Lasso's Alt-release switch, which closes on Alt up.
+  // outline: the start click, or a freehand Lasso drag's points for the Alt-release switch.
+  // The caller latches selection_operation_ first.
+  void start_polygon_lasso(QPolygon outline, bool from_lasso);
+  [[nodiscard]] QPoint polygon_lasso_target(QPoint document_point, Qt::KeyboardModifiers modifiers) const;
+  void update_polygon_lasso_rubber_band(QPoint document_point, Qt::KeyboardModifiers modifiers);
+  void add_polygon_lasso_vertex(QPoint document_point);
+  void pop_polygon_lasso_vertex();  // Backspace/Delete: back to the previous vertex
+  [[nodiscard]] bool polygon_lasso_start_hit(QPoint widget_point) const;
+  void finish_polygon_lasso();
   // Magnetic Lasso trace lifecycle. The hover trace only maintains a snapped path polyline
   // (committed segments + the live segment to the cursor); the selection region is built once
   // in finish_magnetic_lasso().
@@ -2788,7 +2814,8 @@ private:
   // entry. Indexed by selection_tool_index().
   std::array<SelectionMode, kSelectionToolCount> selection_modes_per_tool_{
       SelectionMode::Replace, SelectionMode::Replace, SelectionMode::Replace, SelectionMode::Replace,
-      SelectionMode::Replace, SelectionMode::Replace, SelectionMode::Replace, SelectionMode::Replace};
+      SelectionMode::Replace, SelectionMode::Replace, SelectionMode::Replace, SelectionMode::Replace,
+      SelectionMode::Replace};
   // Set when a marquee drag begins with Alt held and no existing selection: the
   // press point is the center and the rectangle grows symmetrically.
   bool marquee_from_center_{false};
@@ -3018,6 +3045,21 @@ private:
   int magnetic_lasso_width_{10};
   int magnetic_lasso_edge_contrast_{10};
   int magnetic_lasso_frequency_{57};
+  // Polygonal Lasso session (also the Lasso's Alt-release switch). polygon_lasso_points_ is
+  // the placed outline, vertices plus any Alt freehand runs; polygon_lasso_vertices_ indexes
+  // each placed vertex in it so Backspace drops a vertex with its run. The rubber band
+  // (last point to polygon_lasso_cursor_) is preview only.
+  bool polygon_lassoing_{false};
+  bool polygon_lasso_from_lasso_{false};
+  bool polygon_lasso_button_down_{false};
+  bool polygon_lasso_freehand_run_{false};  // the held button has added freehand points
+  QPolygon polygon_lasso_points_;
+  QVector<int> polygon_lasso_vertices_;
+  QPoint polygon_lasso_cursor_;
+  // Freehand Lasso: Alt counts as the polygon switch only once pressed after the drag began;
+  // Alt held from the press is Subtract (the marquee's Alt latch).
+  bool lasso_alt_at_press_{false};
+  bool lasso_alt_released_since_press_{false};
   QRegion selection_;
   QRegion selection_display_region_;
   QRect selection_mask_bounds_;

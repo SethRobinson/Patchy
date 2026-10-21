@@ -4194,6 +4194,7 @@ void MainWindow::refresh_layer_thumbnails() {
 
 void MainWindow::refresh_layer_controls() {
   const UiProfileScope profile_scope("refresh_layer_controls");
+  refresh_merge_visible_action_state();
   sync_text_character_dialog_from_editor();
   sync_text_options_from_active_layer();
   sync_text_alignment_buttons_from_editor();
@@ -4790,7 +4791,7 @@ void MainWindow::refresh_document_info() {
                    .arg(current_selection_feather_radius_)
                    .arg(current_selection_antialias_ ? tr("anti-aliased") : tr("hard edge"));
     } else if (current_tool_ == CanvasTool::Marquee || current_tool_ == CanvasTool::EllipticalMarquee ||
-               current_tool_ == CanvasTool::Lasso) {
+               current_tool_ == CanvasTool::Lasso || current_tool_ == CanvasTool::PolygonLasso) {
       lines << tr("Selection: feather %1 px, %2")
                    .arg(current_selection_feather_radius_)
                    .arg(current_selection_antialias_ ? tr("anti-aliased") : tr("hard edge"));

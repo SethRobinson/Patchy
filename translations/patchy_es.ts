@@ -317,6 +317,37 @@
     </message>
 </context>
 <context>
+    <name>NewLayerDialog</name>
+    <message>
+        <source>New Layer</source>
+        <translation>Nueva capa</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>Nombre:</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>Color:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>Modo:</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Opacidad:</translation>
+    </message>
+    <message>
+        <source>Use Previous Layer to Create Clipping Mask</source>
+        <translation>Usar la capa anterior para crear una máscara de recorte</translation>
+    </message>
+    <message>
+        <source>Clip the new layer to the layer below it</source>
+        <translation>Recortar la nueva capa con la capa inferior</translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Patchy raster image editor.</source>
@@ -11572,6 +11603,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
         <translation>Fondo: se queda al final de la pila, sin transparencia ni estilos de capa. Haga clic con el botón derecho y elija Capa a partir de fondo para convertirlo en una capa normal.</translation>
     </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>Lazo poligonal</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13227,6 +13262,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Deselect Shapes</source>
         <translation>Deseleccionar formas</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>Lazo poligonal</translation>
     </message>
 </context>
 <context>
@@ -22964,10 +23003,6 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
         <translation>Marco elíptico: arrastre para seleccionar. Mayús+arrastrar añade, %ALT%+arrastrar resta, Mayús+%ALT%+arrastrar interseca. Sin selección, Mayús dibuja un círculo y %ALT% dibuja desde el centro.</translation>
     </message>
     <message>
-        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects.</source>
-        <translation>Lazo: arrastre alrededor del área para seleccionarla. Mayús+arrastrar añade, %ALT%+arrastrar resta, Mayús+%ALT%+arrastrar interseca.</translation>
-    </message>
-    <message>
         <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
         <translation>Lazo magnético: haga clic en un borde y sígalo; haga clic para fijar un punto. Empiece con Mayús+clic para añadir, %ALT%+clic para restar, Mayús+%ALT%+clic para intersecar. Retroceso quita el último punto, Intro cierra, Esc cancela.</translation>
     </message>
@@ -23425,6 +23460,54 @@ Puedes hacerlo más tarde desde Ayuda &gt; Añadir Patchy al menú de aplicacion
     <message>
         <source>The Background layer cannot have layer styles</source>
         <translation>La capa de fondo no puede tener estilos de capa</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>Lazo poligonal</translation>
+    </message>
+    <message>
+        <source>Click to place points, Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close.</source>
+        <translation>Haga clic para colocar puntos, Mayús mantiene 45 grados, %ALT%+arrastrar dibuja a mano alzada. Para cerrar, haga clic en el punto inicial, haga doble clic o pulse Intro.</translation>
+    </message>
+    <message>
+        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
+        <translation>Lazo: arrastre alrededor del área para seleccionarla. Mayús+arrastrar añade, %ALT%+arrastrar resta, Mayús+%ALT%+arrastrar interseca. Pulse %ALT% durante el arrastre y suelte el botón para hacer clic en segmentos rectos hasta soltar %ALT%.</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
+        <translation>Lazo poligonal: haga clic para colocar puntos. Empiece con Mayús+clic para añadir, %ALT%+clic para restar, Mayús+%ALT%+clic para intersecar. Mayús mantiene 45 grados, %ALT%+arrastrar dibuja a mano alzada. Para cerrar, haga clic en el punto inicial, haga doble clic o pulse Intro; Retroceso quita el último punto, Esc cancela.</translation>
+    </message>
+    <message>
+        <source>New &amp;Layer...</source>
+        <translation>Nueva &amp;capa...</translation>
+    </message>
+    <message>
+        <source>Add a layer, choosing its name, color, mode and opacity first</source>
+        <translation>Añadir una capa eligiendo antes su nombre, color, modo y opacidad</translation>
+    </message>
+    <message>
+        <source>&amp;Merge Visible</source>
+        <translation>Co&amp;mbinar visibles</translation>
+    </message>
+    <message>
+        <source>Merge every visible layer into one, keeping the hidden layers</source>
+        <translation>Combinar todas las capas visibles en una y conservar las ocultas</translation>
+    </message>
+    <message>
+        <source>Merge Visible</source>
+        <translation>Combinar visibles</translation>
+    </message>
+    <message>
+        <source>Merge Visible needs at least two visible layers</source>
+        <translation>Combinar visibles necesita al menos dos capas visibles</translation>
+    </message>
+    <message>
+        <source>Merge visible</source>
+        <translation>Combinar visibles</translation>
+    </message>
+    <message>
+        <source>Merged the visible layers</source>
+        <translation>Capas visibles combinadas</translation>
     </message>
     <message>
         <source>The file is open in another program.</source>
