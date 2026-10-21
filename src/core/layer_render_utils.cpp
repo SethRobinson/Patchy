@@ -7,6 +7,7 @@
 #include "core/vector_shape.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <condition_variable>
 #include <cstdlib>
@@ -604,7 +605,57 @@ std::int32_t preview_scaled_dimension(std::int32_t value, int level) noexcept {
 
 namespace {
 
+// The 16 and 32-bit form of box_halve_pixel_buffer below: the same 2x2 average (alpha
+// weighted for color with alpha) on typed samples, read and written through load_pixel /
+// store_pixel so every depth keeps its own pixel size (docs/high-bit-depth.md, "Typed
+// access only"). 32-bit color averages linear values, HDR values above 1.0 included.
+[[nodiscard]] PixelBuffer box_halve_deep_pixel_buffer(const PixelBuffer& source) {
+  const auto width = source.width();
+  const auto height = source.height();
+  const auto out_width = std::max(1, (width + 1) / 2);
+  const auto out_height = std::max(1, (height + 1) / 2);
+  const auto format = source.format();
+  const auto pixel_bytes = bytes_per_pixel(format);
+  const bool has_alpha = format.channels == 4;
+  PixelBuffer output(out_width, out_height, format);
+  for (std::int32_t y = 0; y < out_height; ++y) {
+    const auto y0 = std::min(2 * y, height - 1);
+    const auto y1 = std::min(2 * y + 1, height - 1);
+    const auto row0 = source.row(y0);
+    const auto row1 = source.row(y1);
+    auto out_row = output.row(y);
+    for (std::int32_t x = 0; x < out_width; ++x) {
+      const auto x0 = static_cast<std::size_t>(std::min(2 * x, width - 1));
+      const auto x1 = static_cast<std::size_t>(std::min(2 * x + 1, width - 1));
+      const std::array<std::array<float, 4>, 4> samples = {
+          load_pixel(format, row0.data() + x0 * pixel_bytes), load_pixel(format, row0.data() + x1 * pixel_bytes),
+          load_pixel(format, row1.data() + x0 * pixel_bytes), load_pixel(format, row1.data() + x1 * pixel_bytes)};
+      std::array<float, 4> out{};
+      const float alpha_sum = samples[0][3] + samples[1][3] + samples[2][3] + samples[3][3];
+      if (has_alpha && alpha_sum > 0.0F) {
+        for (std::size_t channel = 0; channel < 3; ++channel) {
+          float weighted = 0.0F;
+          for (const auto& sample : samples) {
+            weighted += sample[channel] * sample[3];
+          }
+          out[channel] = weighted / alpha_sum;
+        }
+      } else {
+        for (std::size_t channel = 0; channel < 3; ++channel) {
+          out[channel] = (samples[0][channel] + samples[1][channel] + samples[2][channel] + samples[3][channel]) / 4.0F;
+        }
+      }
+      out[3] = alpha_sum / 4.0F;
+      store_pixel(format, out_row.data() + static_cast<std::size_t>(x) * pixel_bytes, out);
+    }
+  }
+  return output;
+}
+
 [[nodiscard]] PixelBuffer box_halve_pixel_buffer(const PixelBuffer& source) {
+  if (source.format().bit_depth != BitDepth::UInt8) {
+    return box_halve_deep_pixel_buffer(source);
+  }
   const auto width = source.width();
   const auto height = source.height();
   const auto out_width = std::max(1, (width + 1) / 2);

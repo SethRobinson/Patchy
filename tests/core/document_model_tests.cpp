@@ -3,6 +3,7 @@
 #include "core/document_memory.hpp"
 #include "core/stroke_patch.hpp"
 #include "core/layer_render_utils.hpp"
+#include "core/pixel_depth.hpp"
 #include "core/layer_metadata.hpp"
 #include "render/compositor.hpp"
 #include "core/layer_tree.hpp"
@@ -670,6 +671,56 @@ void preview_scaled_document_shrinks_layers_and_styles() {
   CHECK(static_cast<int>(*scaled_child->mask()->pixels.pixel(4, 3)) == 255);
 }
 
+// The move preview's box downscale halves deep buffers per typed sample (it once walked
+// them at one byte per channel, scattering 16 and 32-bit layers into shifted copies).
+void preview_downscale_halves_deep_buffers_per_sample() {
+  const auto float_format = patchy::with_bit_depth(patchy::PixelFormat::rgba8(), patchy::BitDepth::Float32);
+  patchy::PixelBuffer linear(4, 2, float_format);
+  auto* f = reinterpret_cast<float*>(linear.data().data());
+  for (int i = 0; i < 8; ++i) {
+    // Left 2x2 block: HDR red 4.0 opaque; right block: half-transparent blue at 0.5 alpha
+    // beside fully transparent black, so the alpha weighting shows.
+    const bool left = (i % 4) < 2;
+    const bool transparent = !left && (i % 2) == 1;
+    f[i * 4 + 0] = left ? 4.0F : 0.0F;
+    f[i * 4 + 1] = 0.0F;
+    f[i * 4 + 2] = left ? 0.0F : (transparent ? 0.0F : 0.8F);
+    f[i * 4 + 3] = left ? 1.0F : (transparent ? 0.0F : 0.5F);
+  }
+  const auto halved = patchy::downscale_pixel_buffer_by_level(linear, 1);
+  CHECK(halved.width() == 2 && halved.height() == 1);
+  CHECK(halved.format() == float_format);
+  const auto* h = reinterpret_cast<const float*>(std::as_const(halved).data().data());
+  CHECK(std::abs(h[0] - 4.0F) < 1e-5F && std::abs(h[3] - 1.0F) < 1e-5F);
+  // Alpha-weighted color keeps the blue at 0.8; alpha averages to 0.25.
+  CHECK(std::abs(h[6] - 0.8F) < 1e-5F && std::abs(h[7] - 0.25F) < 1e-5F);
+
+  const auto u16_format = patchy::with_bit_depth(patchy::PixelFormat::rgb8(), patchy::BitDepth::UInt16);
+  patchy::PixelBuffer encoded(2, 2, u16_format);
+  auto* u = reinterpret_cast<std::uint16_t*>(encoded.data().data());
+  const std::array<std::uint16_t, 4> greens = {1000, 2000, 3000, 4001};
+  for (int i = 0; i < 4; ++i) {
+    u[i * 3 + 0] = 65535;
+    u[i * 3 + 1] = greens[static_cast<std::size_t>(i)];
+    u[i * 3 + 2] = 0;
+  }
+  const auto halved16 = patchy::downscale_pixel_buffer_by_level(encoded, 1);
+  const auto* v = reinterpret_cast<const std::uint16_t*>(std::as_const(halved16).data().data());
+  CHECK(v[0] == 65535 && v[2] == 0);
+  CHECK(std::abs(static_cast<int>(v[1]) - 2500) <= 1);
+
+  const auto mask_format = patchy::with_bit_depth(patchy::PixelFormat::gray8(), patchy::BitDepth::UInt16);
+  patchy::PixelBuffer mask(2, 2, mask_format);
+  auto* m = reinterpret_cast<std::uint16_t*>(mask.data().data());
+  m[0] = 0;
+  m[1] = 65535;
+  m[2] = 65535;
+  m[3] = 65535;
+  const auto halved_mask = patchy::downscale_pixel_buffer_by_level(mask, 1);
+  CHECK(std::abs(static_cast<int>(*reinterpret_cast<const std::uint16_t*>(std::as_const(halved_mask).data().data())) -
+                 49151) <= 1);
+}
+
 void preview_scaled_document_reuses_only_unchanged_surfaces() {
   patchy::Document document(32, 24, patchy::PixelFormat::rgba8());
   patchy::PixelBuffer pixels(32, 24, patchy::PixelFormat::rgba8());
@@ -888,6 +939,7 @@ std::vector<patchy::test::TestCase> document_model_tests() {
       {"document_grid_guides_default_and_copy", document_grid_guides_default_and_copy},
       {"preview_scaled_document_shrinks_layers_and_styles", preview_scaled_document_shrinks_layers_and_styles},
       {"preview_scaled_document_reuses_only_unchanged_surfaces", preview_scaled_document_reuses_only_unchanged_surfaces},
+      {"preview_downscale_halves_deep_buffers_per_sample", preview_downscale_halves_deep_buffers_per_sample},
       {"preview_scaled_document_flatten_keeps_solid_regions", preview_scaled_document_flatten_keeps_solid_regions},
       {"ungroup_layer_releases_children_in_place_and_order", ungroup_layer_releases_children_in_place_and_order},
   };
