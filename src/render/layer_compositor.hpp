@@ -1929,6 +1929,115 @@ void render_stroke(Target& destination, const Layer& layer, const PixelBuffer& s
   render_prepared_stroke(destination, layer, *prepared, layer_mask_bounds);
 }
 
+// A styled group's strokes on its semi-transparent silhouette pixels (GitHub
+// issue 265). composite_pixel_layer folds each outer band's share UNDER such a
+// pixel into its base pass; a group's children are no single paint, and the
+// over-draw mask is zero there, so the edge showed the backdrop. This paints
+// that share behind the children instead, after the exterior effects, at the
+// band's coverage (the plane holds (1 - a) x coverage); the children then
+// cover it at their own alpha, which is the fold's result. The stack matches
+// the fold: the first listed instance takes its share first, and a Multiply
+// stroke blends against the backdrop.
+template <typename Target>
+void render_group_stroke_underlay(Target& destination, const Layer& layer, const PixelBuffer& silhouette,
+                                  Rect silhouette_rect, const std::vector<PreparedStroke>& strokes,
+                                  std::optional<Rect> layer_mask_bounds) {
+  Rect area{};
+  for (const auto& prepared : strokes) {
+    if (!prepared.entry->underlay.empty() && prepared.stroke->opacity > 0.0F) {
+      area = unite_rect(area, prepared.draw_rect);
+    }
+  }
+  area = intersect_rect(area, silhouette_rect);
+  for (std::int32_t y = area.y; y < area.y + area.height; ++y) {
+    for (std::int32_t x = area.x; x < area.x + area.width; ++x) {
+      auto content_alpha = pixel_alpha_at(silhouette, x - silhouette_rect.x, y - silhouette_rect.y);
+      if (content_alpha > 0.0F) {
+        content_alpha *= clamp_unit(effect_source_mask_alpha_for_render(layer, x, y, layer_mask_bounds));
+      }
+      if (content_alpha <= 0.0F || content_alpha >= 1.0F) {
+        continue;
+      }
+      auto remaining = 1.0F;
+      float underlay_alpha = 0.0F;
+      std::array<float, 3> underlay_sum{0.0F, 0.0F, 0.0F};
+      for (const auto& prepared : strokes) {
+        const auto& bounds = prepared.mask_bounds;
+        if (prepared.entry->underlay.empty() || prepared.stroke->opacity <= 0.0F || x < bounds.x ||
+            y < bounds.y || x >= bounds.x + bounds.width || y >= bounds.y + bounds.height) {
+          continue;
+        }
+        const auto mask_index = static_cast<std::size_t>((y - bounds.y) * bounds.width + (x - bounds.x));
+        auto plane = prepared.entry->underlay[mask_index];
+        if (prepared.clip_to_mask && plane > 0.0F) {
+          plane *= effect_output_mask_alpha_for_render(layer, x, y, layer_mask_bounds);
+        }
+        if (plane <= 0.0F) {
+          continue;
+        }
+        const auto& stroke = *prepared.stroke;
+        auto color = stroke.color;
+        auto strength = stroke.opacity;
+        if (stroke.uses_gradient) {
+          if (prepared.shape_burst) {
+            const auto band = prepared.entry->secondary[mask_index];
+            const auto span = shape_burst_ramp_span(stroke.size, stroke.position);
+            color = shape_burst_stroke_color(stroke.gradient, band, span, x, y);
+            strength *= shape_burst_stroke_opacity(stroke.gradient, band, span);
+          } else {
+            const auto position = gradient_position(stroke.gradient, prepared.gradient_bounds, x, y);
+            color = gradient_color_dithered(stroke.gradient, position, x, y);
+            strength *= gradient_stop_opacity(stroke.gradient, position);
+          }
+        }
+        // In the target's channel units: bytes, or the deep domain.
+        std::array<float, 3> rgb{static_cast<float>(color.red), static_cast<float>(color.green),
+                                 static_cast<float>(color.blue)};
+        if constexpr (is_deep_target_v<Target>) {
+          const auto domain = target_domain(destination);
+          rgb = deep_channels(deep_from_byte(color, domain));
+          if (stroke.blend_mode != BlendMode::Normal) {
+            const auto backdrop = destination.sample_color(x, y);
+            rgb = composite_blended_rgb_deep(rgb, deep_channels(backdrop.color), stroke.blend_mode, 1.0F,
+                                             backdrop.alpha, domain);
+          }
+        } else if (stroke.blend_mode != BlendMode::Normal) {
+          const auto backdrop = destination.sample_color(x, y);
+          const auto blended = composite_blended_rgb(
+              {color.red, color.green, color.blue},
+              {backdrop.color.red, backdrop.color.green, backdrop.color.blue}, stroke.blend_mode, 1.0F,
+              backdrop.alpha);
+          rgb = {static_cast<float>(blended[0]), static_cast<float>(blended[1]), static_cast<float>(blended[2])};
+        }
+        const auto take = plane * strength * remaining;
+        remaining *= 1.0F - strength;
+        underlay_alpha += take;
+        for (std::size_t channel = 0; channel < 3U; ++channel) {
+          underlay_sum[channel] += take * rgb[channel];
+        }
+      }
+      if (underlay_alpha <= 0.0F) {
+        continue;
+      }
+      const auto behind_alpha = clamp_unit(underlay_alpha / (1.0F - content_alpha)) * layer.opacity();
+      if constexpr (is_deep_target_v<Target>) {
+        destination.composite_color(
+            x, y,
+            deep_rgb({underlay_sum[0] / underlay_alpha, underlay_sum[1] / underlay_alpha,
+                      underlay_sum[2] / underlay_alpha}),
+            behind_alpha, BlendMode::Normal);
+      } else {
+        const auto channel_value = [&](std::size_t channel) {
+          return static_cast<std::uint8_t>(
+              std::clamp(std::lround(underlay_sum[channel] / underlay_alpha), 0L, 255L));
+        };
+        destination.composite_color(x, y, RgbColor{channel_value(0), channel_value(1), channel_value(2)},
+                                    behind_alpha, BlendMode::Normal);
+      }
+    }
+  }
+}
+
 // Applies Photoshop's Advanced Blending "Channels" restriction to everything a
 // layer (or group) composites through it: a restricted channel keeps the
 // backdrop's PREMULTIPLIED value while the other channels and alpha composite
@@ -4381,6 +4490,7 @@ void composite_pass_through_group(Target& destination, const Layer& layer, Rect 
   // BEHIND the children and interior effects above them.
   std::optional<PixelBuffer> silhouette;
   Rect silhouette_rect{};
+  std::vector<PreparedStroke> group_strokes;
   if (styled) {
     // Override-aware: the children composite below WITH overrides, so a
     // preview-moved child outside the historical bounds must still land
@@ -4401,6 +4511,13 @@ void composite_pass_through_group(Target& destination, const Layer& layer, Rect 
           render_outer_glow(destination, layer, *silhouette, clip, silhouette_rect,
                             style.outer_glows[index], mask_bounds, masks, index);
         }
+        for (std::uint32_t index = 0; index < style.strokes.size(); ++index) {
+          if (auto prepared = prepare_stroke_render(layer, *silhouette, clip, silhouette_rect, style.strokes[index],
+                                                    mask_bounds, masks, index)) {
+            group_strokes.push_back(std::move(*prepared));
+          }
+        }
+        render_group_stroke_underlay(destination, layer, *silhouette, silhouette_rect, group_strokes, mask_bounds);
       }
     }
   }
@@ -4491,14 +4608,8 @@ void composite_pass_through_group(Target& destination, const Layer& layer, Rect 
         render_inner_shadow(destination, layer, *silhouette, clip, silhouette_rect,
                             style.inner_shadows[index], mask_bounds, masks, index, nullptr);
       }
-      // Stroke instances stack first-on-top here too (render_prepared_stroke).
-      std::vector<PreparedStroke> group_strokes;
-      for (std::uint32_t index = 0; index < style.strokes.size(); ++index) {
-        if (auto prepared = prepare_stroke_render(layer, *silhouette, clip, silhouette_rect, style.strokes[index],
-                                                  mask_bounds, masks, index)) {
-          group_strokes.push_back(std::move(*prepared));
-        }
-      }
+      // Stroke instances stack first-on-top here too (render_prepared_stroke);
+      // their shares under the silhouette's soft pixels landed behind the children.
       for (auto it = group_strokes.rbegin(); it != group_strokes.rend(); ++it) {
         std::vector<const PreparedStroke*> above;
         for (const auto& candidate : group_strokes) {
