@@ -1691,6 +1691,12 @@ Document DocumentIo::read(std::span<const std::uint8_t> bytes, ReadOptions optio
     if (auto print_settings = print_settings_from_resolution_resource(*resolution); print_settings.has_value()) {
       document.print_settings() = *print_settings;
     }
+  } else {
+    // No ResolutionInfo (writer-made files): Photoshop opens these at 72 PPI, the
+    // untagged-import rule (docs/resolution-units.md); type sizes read in points from it
+    // (GitHub issue 272: 12 px text showed as 2.88 pt at the 300 PPI default).
+    document.print_settings().horizontal_ppi = 72.0;
+    document.print_settings().vertical_ppi = 72.0;
   }
   if (auto grid_guides = find_image_resource_payload(image_resources, kImageResourceGridAndGuidesInfo);
       grid_guides.has_value()) {
