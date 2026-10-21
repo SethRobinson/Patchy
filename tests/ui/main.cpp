@@ -426,6 +426,7 @@ int main(int argc, char* argv[]) {
            scripting_tests,
            script_move_tests,
            document_recovery_tests,
+           document_rename_tests,
            mcp_tests,
            unicode_path_tests,
            legacy_plugin_tests,

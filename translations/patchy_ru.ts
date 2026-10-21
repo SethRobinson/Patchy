@@ -23581,6 +23581,66 @@ Patchy можно будет запускать из меню, а на пане�
         <source>Merged the visible layers</source>
         <translation>Видимые слои объединены</translation>
     </message>
+    <message>
+        <source>The file is open in another program.</source>
+        <translation>Файл открыт в другой программе.</translation>
+    </message>
+    <message>
+        <source>Enter a file name.</source>
+        <translation>Введите имя файла.</translation>
+    </message>
+    <message>
+        <source>A file name cannot contain / or \.</source>
+        <translation>Имя файла не может содержать / или \.</translation>
+    </message>
+    <message>
+        <source>A file name cannot contain control characters.</source>
+        <translation>Имя файла не может содержать управляющие символы.</translation>
+    </message>
+    <message>
+        <source>A file name cannot contain any of these characters: %1</source>
+        <translation>Имя файла не может содержать эти символы: %1</translation>
+    </message>
+    <message>
+        <source>A file name cannot be only dots and spaces.</source>
+        <translation>Имя файла не может состоять только из точек и пробелов.</translation>
+    </message>
+    <message>
+        <source>A file name cannot end with a dot or a space.</source>
+        <translation>Имя файла не может заканчиваться точкой или пробелом.</translation>
+    </message>
+    <message>
+        <source>%1 is a reserved device name on Windows.</source>
+        <translation>Имя %1 зарезервировано в Windows для устройств.</translation>
+    </message>
+    <message>
+        <source>The file name is too long.</source>
+        <translation>Имя файла слишком длинное.</translation>
+    </message>
+    <message>
+        <source>Rename File</source>
+        <translation>Переименовать файл</translation>
+    </message>
+    <message>
+        <source>Renamed to %1</source>
+        <translation>Переименовано в %1</translation>
+    </message>
+    <message>
+        <source>A file named %1 already exists in this folder.</source>
+        <translation>Файл с именем %1 уже есть в этой папке.</translation>
+    </message>
+    <message>
+        <source>%1 is no longer on disk.</source>
+        <translation>Файла %1 больше нет на диске.</translation>
+    </message>
+    <message>
+        <source>Could not rename the file: %1</source>
+        <translation>Не удалось переименовать файл: %1</translation>
+    </message>
+    <message>
+        <source>Rename File...</source>
+        <translation>Переименовать файл...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

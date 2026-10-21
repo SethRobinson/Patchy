@@ -108,6 +108,11 @@ Both files are written through `write_file_bytes_atomically`.
 
 - `set_session_saved` (a successful save) and `close_document_session` (after the
   save-changes decision) call `discard_recovery_for_session`: the copy and its mark go.
+- Rename File ([document-tabs.md](document-tabs.md)) changes a session's path and title but
+  not its document: the copy and its mark stay, and `refresh_sidecar` rewrites the sidecar
+  with the new fields and the copy's own `savedAt` (through `RecoveryHost::session_recovery_entry`).
+  During a write in flight the rewrite waits for `finish_write`, since that write carries
+  the old fields.
 - An accepted `closeEvent` stops the timer. `~MainWindow` calls the coordinator's
   `discard_folder_on_release` (timer stopped, `RecoveryInstanceFolder::discard_on_release`):
   the folder is deleted by whichever owner releases the shared pointer last, the

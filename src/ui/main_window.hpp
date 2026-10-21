@@ -890,6 +890,13 @@ private:
   // Reloads the session's file from disk in place (tab position, float window,
   // and session identity survive; undo history and unsaved changes do not).
   void reopen_document_session(DocumentSession& target_session);
+  // Rename File on the document tab menu (docs/document-tabs.md): asks for a new name
+  // and renames the session's file on disk in its folder, never over another file.
+  // Unsaved edits stay unsaved; the next Save writes to the new name.
+  void rename_document_file(std::int64_t session_id);
+  // After the file at `old_path` became `new_path`: every session on that file takes
+  // the new path and title, plus recent files, the recovery sidecar and the titles.
+  void adopt_renamed_document_path(const QString& old_path, const QString& new_path);
   void import_from_scanner();
   void finish_scanner_import(ScannerAcquireResult result, bool delete_after);
   // File > Import > Photocopy: scan, then print at actual size via run_photocopy_dialog.
@@ -2206,6 +2213,8 @@ private:
   void refresh_recent_history();
   void schedule_recent_history_check(bool force);
   void add_recent_file(QString path);
+  // A renamed file: its entry takes the new path where it stands (no move to the top).
+  void replace_recent_file(const QString& old_path, const QString& new_path);
   void rebuild_recent_files_menu();
   // The filter row and scrolling list inside Open Recent File / Open Recent Folder.
   // Rebuilding a menu recreates them, so its filter state resets on every rebuild.
