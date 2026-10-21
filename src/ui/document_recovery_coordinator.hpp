@@ -65,6 +65,8 @@ public:
   // The session's current state while it is open and modified; nullopt once it was
   // closed or saved (its copy is then stale).
   [[nodiscard]] virtual std::optional<RecoveryMark> modified_session_mark(std::int64_t session_id) = 0;
+  // The sidecar fields (title, original path) of an open session; nullopt once closed.
+  [[nodiscard]] virtual std::optional<recovery::RecoveryEntry> session_recovery_entry(std::int64_t session_id) = 0;
   // Opens one recovery copy as a new modified session titled `title`, with its path
   // set to `original_path` when not empty. `session_id` receives the new session.
   virtual bool open_recovered_document(const QString& psb_path, const QString& title, const QString& original_path,
@@ -104,6 +106,10 @@ public:
   QStringList write_now(bool wait);
   // A save or a close: the copy and its mark go.
   void discard_for_session(std::int64_t session_id);
+  // The session's title or path changed (Rename File) while its document did not: its
+  // copy stays, the sidecar is rewritten so a crash reopens it under the new name. A
+  // write in flight carries the old fields, so the rewrite follows it.
+  void refresh_sidecar(std::int64_t session_id);
 
   // A normal quit: the folder is deleted by whichever owner releases it last, this
   // object or a background write still running.
@@ -127,6 +133,8 @@ private:
   bool write_in_flight_{false};
   // Per session id: the (revision, state id) pair its current recovery copy holds.
   std::unordered_map<std::int64_t, RecoveryMark> marks_;
+  // Sessions whose sidecar must be rewritten once the write in flight lands.
+  std::vector<std::int64_t> sidecars_after_write_;
 };
 
 }  // namespace patchy::ui

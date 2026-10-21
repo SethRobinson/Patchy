@@ -23354,6 +23354,66 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <source>The Background layer cannot have layer styles</source>
         <translation>背景圖層不能使用圖層樣式</translation>
     </message>
+    <message>
+        <source>The file is open in another program.</source>
+        <translation>檔案已在其他程式中開啟。</translation>
+    </message>
+    <message>
+        <source>Enter a file name.</source>
+        <translation>請輸入檔案名稱。</translation>
+    </message>
+    <message>
+        <source>A file name cannot contain / or \.</source>
+        <translation>檔案名稱不能包含 / 或 \。</translation>
+    </message>
+    <message>
+        <source>A file name cannot contain control characters.</source>
+        <translation>檔案名稱不能包含控制字元。</translation>
+    </message>
+    <message>
+        <source>A file name cannot contain any of these characters: %1</source>
+        <translation>檔案名稱不能包含下列任何字元：%1</translation>
+    </message>
+    <message>
+        <source>A file name cannot be only dots and spaces.</source>
+        <translation>檔案名稱不能只包含句點和空格。</translation>
+    </message>
+    <message>
+        <source>A file name cannot end with a dot or a space.</source>
+        <translation>檔案名稱不能以句點或空格結尾。</translation>
+    </message>
+    <message>
+        <source>%1 is a reserved device name on Windows.</source>
+        <translation>%1 是 Windows 保留的裝置名稱。</translation>
+    </message>
+    <message>
+        <source>The file name is too long.</source>
+        <translation>檔案名稱過長。</translation>
+    </message>
+    <message>
+        <source>Rename File</source>
+        <translation>重新命名檔案</translation>
+    </message>
+    <message>
+        <source>Renamed to %1</source>
+        <translation>已重新命名為 %1</translation>
+    </message>
+    <message>
+        <source>A file named %1 already exists in this folder.</source>
+        <translation>此資料夾中已有名為 %1 的檔案。</translation>
+    </message>
+    <message>
+        <source>%1 is no longer on disk.</source>
+        <translation>%1 已不在磁碟上。</translation>
+    </message>
+    <message>
+        <source>Could not rename the file: %1</source>
+        <translation>無法重新命名檔案：%1</translation>
+    </message>
+    <message>
+        <source>Rename File...</source>
+        <translation>重新命名檔案...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

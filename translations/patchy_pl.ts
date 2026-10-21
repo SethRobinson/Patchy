@@ -23498,6 +23498,66 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
         <source>The Background layer cannot have layer styles</source>
         <translation>Warstwa tła nie może mieć stylów warstwy</translation>
     </message>
+    <message>
+        <source>The file is open in another program.</source>
+        <translation>Plik jest otwarty w innym programie.</translation>
+    </message>
+    <message>
+        <source>Enter a file name.</source>
+        <translation>Wpisz nazwę pliku.</translation>
+    </message>
+    <message>
+        <source>A file name cannot contain / or \.</source>
+        <translation>Nazwa pliku nie może zawierać znaków / ani \.</translation>
+    </message>
+    <message>
+        <source>A file name cannot contain control characters.</source>
+        <translation>Nazwa pliku nie może zawierać znaków sterujących.</translation>
+    </message>
+    <message>
+        <source>A file name cannot contain any of these characters: %1</source>
+        <translation>Nazwa pliku nie może zawierać żadnego z tych znaków: %1</translation>
+    </message>
+    <message>
+        <source>A file name cannot be only dots and spaces.</source>
+        <translation>Nazwa pliku nie może składać się wyłącznie z kropek i spacji.</translation>
+    </message>
+    <message>
+        <source>A file name cannot end with a dot or a space.</source>
+        <translation>Nazwa pliku nie może kończyć się kropką ani spacją.</translation>
+    </message>
+    <message>
+        <source>%1 is a reserved device name on Windows.</source>
+        <translation>%1 to zarezerwowana nazwa urządzenia w systemie Windows.</translation>
+    </message>
+    <message>
+        <source>The file name is too long.</source>
+        <translation>Nazwa pliku jest za długa.</translation>
+    </message>
+    <message>
+        <source>Rename File</source>
+        <translation>Zmień nazwę pliku</translation>
+    </message>
+    <message>
+        <source>Renamed to %1</source>
+        <translation>Zmieniono nazwę na %1</translation>
+    </message>
+    <message>
+        <source>A file named %1 already exists in this folder.</source>
+        <translation>Plik o nazwie %1 już istnieje w tym folderze.</translation>
+    </message>
+    <message>
+        <source>%1 is no longer on disk.</source>
+        <translation>Pliku %1 nie ma już na dysku.</translation>
+    </message>
+    <message>
+        <source>Could not rename the file: %1</source>
+        <translation>Nie można zmienić nazwy pliku: %1</translation>
+    </message>
+    <message>
+        <source>Rename File...</source>
+        <translation>Zmień nazwę pliku...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

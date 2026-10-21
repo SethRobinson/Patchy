@@ -75,9 +75,7 @@ public:
       // A copy shares pixel storage with the live document until the user's next edit
       // detaches the live side; the worker only reads it (const Document&).
       job.snapshot = std::as_const(*target_session).document_for_write();
-      job.entry.title = target_session->title.toStdString();
-      job.entry.original_path =
-          target_session->path.isEmpty() ? std::string() : path_to_utf8(to_filesystem_path(target_session->path));
+      job.entry = entry_for(*target_session);
       jobs.push_back(std::move(job));
     }
     return jobs;
@@ -89,6 +87,14 @@ public:
       return std::nullopt;
     }
     return RecoveryMark{session_id, target_session->revision, target_session->history.current_state_id()};
+  }
+
+  [[nodiscard]] std::optional<recovery::RecoveryEntry> session_recovery_entry(std::int64_t session_id) override {
+    const auto* target_session = window_.session_with_id(session_id);
+    if (target_session == nullptr) {
+      return std::nullopt;
+    }
+    return entry_for(*target_session);
   }
 
   bool open_recovered_document(const QString& psb_path, const QString& title, const QString& original_path,
@@ -129,6 +135,14 @@ public:
   }
 
 private:
+  static recovery::RecoveryEntry entry_for(const DocumentSession& target_session) {
+    recovery::RecoveryEntry entry;
+    entry.title = target_session.title.toStdString();
+    entry.original_path =
+        target_session.path.isEmpty() ? std::string() : path_to_utf8(to_filesystem_path(target_session.path));
+    return entry;
+  }
+
   MainWindow& window_;
 };
 

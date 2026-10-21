@@ -151,6 +151,7 @@ Read the linked document before working on a feature; it owns the constraints.
 - **SVG import/export:** [docs/svg.md](docs/svg.md).
 - **Trace Image to Shapes (raster to vector):** [docs/image-trace.md](docs/image-trace.md) and the "Vector tracing" boundary in [docs/legal-constraints.md](docs/legal-constraints.md).
 - **Float windows and document activation:** [docs/float-windows.md](docs/float-windows.md).
+- **Document tab context menu and Rename File:** [docs/document-tabs.md](docs/document-tabs.md). A rename never replaces a file and never marks the document saved.
 - **Scanner, photocopy, Divide Scanned Photos, sprite-sheet, image-sequence, seamless-tiling import, and Files as Layers:** [docs/import.md](docs/import.md).
 - **Plug-ins and legacy 8BF support (Windows):** [docs/plugins.md](docs/plugins.md), with the clean-room ABI boundary in [docs/legal-constraints.md](docs/legal-constraints.md).
 - **G'MIC Filter Library:** [docs/gmic.md](docs/gmic.md).

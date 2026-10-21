@@ -23426,6 +23426,66 @@ Puedes hacerlo más tarde desde Ayuda &gt; Añadir Patchy al menú de aplicacion
         <source>The Background layer cannot have layer styles</source>
         <translation>La capa de fondo no puede tener estilos de capa</translation>
     </message>
+    <message>
+        <source>The file is open in another program.</source>
+        <translation>El archivo está abierto en otro programa.</translation>
+    </message>
+    <message>
+        <source>Enter a file name.</source>
+        <translation>Escriba un nombre de archivo.</translation>
+    </message>
+    <message>
+        <source>A file name cannot contain / or \.</source>
+        <translation>Un nombre de archivo no puede contener / ni \.</translation>
+    </message>
+    <message>
+        <source>A file name cannot contain control characters.</source>
+        <translation>Un nombre de archivo no puede contener caracteres de control.</translation>
+    </message>
+    <message>
+        <source>A file name cannot contain any of these characters: %1</source>
+        <translation>Un nombre de archivo no puede contener ninguno de estos caracteres: %1</translation>
+    </message>
+    <message>
+        <source>A file name cannot be only dots and spaces.</source>
+        <translation>Un nombre de archivo no puede tener solo puntos y espacios.</translation>
+    </message>
+    <message>
+        <source>A file name cannot end with a dot or a space.</source>
+        <translation>Un nombre de archivo no puede terminar en punto ni en espacio.</translation>
+    </message>
+    <message>
+        <source>%1 is a reserved device name on Windows.</source>
+        <translation>%1 es un nombre de dispositivo reservado en Windows.</translation>
+    </message>
+    <message>
+        <source>The file name is too long.</source>
+        <translation>El nombre de archivo es demasiado largo.</translation>
+    </message>
+    <message>
+        <source>Rename File</source>
+        <translation>Cambiar nombre de archivo</translation>
+    </message>
+    <message>
+        <source>Renamed to %1</source>
+        <translation>Nombre cambiado a %1</translation>
+    </message>
+    <message>
+        <source>A file named %1 already exists in this folder.</source>
+        <translation>Ya existe un archivo llamado %1 en esta carpeta.</translation>
+    </message>
+    <message>
+        <source>%1 is no longer on disk.</source>
+        <translation>%1 ya no está en el disco.</translation>
+    </message>
+    <message>
+        <source>Could not rename the file: %1</source>
+        <translation>No se pudo cambiar el nombre del archivo: %1</translation>
+    </message>
+    <message>
+        <source>Rename File...</source>
+        <translation>Cambiar nombre de archivo...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

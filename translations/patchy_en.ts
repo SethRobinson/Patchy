@@ -23349,6 +23349,66 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <source>The Background layer cannot have layer styles</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>The file is open in another program.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Enter a file name.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A file name cannot contain / or \.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A file name cannot contain control characters.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A file name cannot contain any of these characters: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A file name cannot be only dots and spaces.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A file name cannot end with a dot or a space.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 is a reserved device name on Windows.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The file name is too long.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rename File</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Renamed to %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A file named %1 already exists in this folder.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>%1 is no longer on disk.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Could not rename the file: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rename File...</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>
