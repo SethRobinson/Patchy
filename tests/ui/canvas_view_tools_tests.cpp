@@ -3407,9 +3407,13 @@ void ui_tool_flyout_right_click_opens_menu() {
   CHECK(!menu->isVisible());
 }
 
+// The flyout rows' marker column (the current tool's marker, GitHub issue 284 follow-up):
+// every row keeps it, so the icons center between it and the tool names.
+constexpr int kFlyoutMarkerColumn = 14;
+
 // GitHub issue 284: a flyout opens beside its button rather than over its right edge, and
-// draws each tool's icon at the palette's own size, centered between the menu's left edge
-// and the tool names. The artifacts are the issue shots, in both schemes.
+// draws each tool's icon at the palette's own size, centered between the marker column and
+// the tool names. The artifacts are the issue shots, in both schemes.
 void ui_tool_flyout_opens_beside_its_button_with_palette_size_icons() {
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
     ColorSchemeRestorer restore_scheme(scheme);
@@ -3491,7 +3495,7 @@ void ui_tool_flyout_opens_beside_its_button_with_palette_size_icons() {
       int icon_left = -1;
       int icon_right = -1;
       int text_left = -1;
-      for (int x = 0; x < static_cast<int>(ink.size()); ++x) {
+      for (int x = kFlyoutMarkerColumn; x < static_cast<int>(ink.size()); ++x) {
         if (!ink[static_cast<std::size_t>(x)]) {
           continue;
         }
@@ -3509,11 +3513,129 @@ void ui_tool_flyout_opens_beside_its_button_with_palette_size_icons() {
       const int expected = reference_right - reference_left + 1;
       const int box_left = icon_left - reference_left;
       const int box_right = box_left + icon_extent;
-      std::printf("  %s: icon ink %d px (palette %d px), %d px from the row's left edge, %d px before the name\n",
-                  name, measured, expected, box_left, text_left - box_right);
+      std::printf("  %s: icon ink %d px (palette %d px), %d px after the marker column, %d px before the name\n",
+                  name, measured, expected, box_left - kFlyoutMarkerColumn, text_left - box_right);
       CHECK(std::abs(measured - expected) <= 1);
-      CHECK(std::abs(box_left - (text_left - box_right)) <= 2);
+      CHECK(std::abs((box_left - kFlyoutMarkerColumn) - (text_left - box_right)) <= 2);
     }
+  }
+}
+
+// GitHub issue 284 follow-up: the flyout marks the tool its button shows with a small
+// accent square in the marker column before the icon, and the mark moves when another tool
+// is picked. Marked and unmarked rows keep their icons and names at the same place. The
+// artifacts are the issue shots, in both schemes.
+void ui_tool_flyout_marks_the_tool_its_button_shows() {
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* palette = window.findChild<QToolBar*>(QStringLiteral("toolPalette"));
+    auto* button = window.findChild<QToolButton*>(QStringLiteral("marqueeToolButton"));
+    CHECK(palette != nullptr && button != nullptr && button->menu() != nullptr);
+    if (palette == nullptr || button == nullptr || button->menu() == nullptr) {
+      return;
+    }
+    auto* menu = button->menu();
+    auto* marquee = require_action(window, "toolMarqueeAction");
+    auto* ellipse = require_action(window, "toolEllipticalMarqueeAction");
+    const int icon_extent = palette->iconSize().width();
+    const QColor accent = patchy::ui::theme().accent;
+    const auto open_flyout = [&](const std::string& shot) {
+      QImage image;
+      QTimer::singleShot(0, [&] {
+        image = menu->grab().toImage();
+        save_window_popup_artifact(shot + suffix, window, *button, *menu);
+        menu->close();
+      });
+      button->showMenu();
+      QApplication::processEvents();
+      return image;
+    };
+    // Accent pixels in a row's marker column.
+    const auto marker_pixels = [&](const QImage& image, QAction* action) {
+      const QRect row = menu->actionGeometry(action);
+      int count = 0;
+      for (int y = row.top(); y <= row.bottom(); ++y) {
+        for (int x = row.left(); x < row.left() + kFlyoutMarkerColumn; ++x) {
+          const QColor color = image.pixelColor(x, y);
+          count += std::abs(color.red() - accent.red()) + std::abs(color.green() - accent.green()) +
+                               std::abs(color.blue() - accent.blue()) < 40
+                       ? 1
+                       : 0;
+        }
+      }
+      return count;
+    };
+    // Where a row's icon box and name start, past the marker column.
+    const auto icon_and_name = [&](const QImage& image, QAction* action) {
+      const QRect row = menu->actionGeometry(action);
+      const QColor background = image.pixelColor(row.right() - 2, row.top() + 1);
+      const QImage reference = action->icon().pixmap(QSize(icon_extent, icon_extent), 1.0).toImage();
+      int reference_left = reference.width();
+      for (int y = 0; y < reference.height(); ++y) {
+        for (int x = 0; x < reference.width(); ++x) {
+          if (qAlpha(reference.pixel(x, y)) > 28) {
+            reference_left = std::min(reference_left, x);
+          }
+        }
+      }
+      int icon_left = -1;
+      int icon_right = -1;
+      int name_left = -1;
+      for (int x = row.left() + kFlyoutMarkerColumn; x <= row.right() && name_left < 0; ++x) {
+        bool ink = false;
+        for (int y = row.top(); y <= row.bottom() && !ink; ++y) {
+          const QColor color = image.pixelColor(x, y);
+          ink = std::abs(color.red() - background.red()) + std::abs(color.green() - background.green()) +
+                    std::abs(color.blue() - background.blue()) > 60;
+        }
+        if (!ink) {
+          continue;
+        }
+        if (icon_left < 0) {
+          icon_left = icon_right = x;
+        } else if (x - icon_right <= 3) {
+          icon_right = x;
+        } else {
+          name_left = x;
+        }
+      }
+      return std::make_pair(icon_left - reference_left - row.left(), name_left - row.left());
+    };
+
+    const QImage first = open_flyout("issue_284_flyout_marks_marquee");
+    CHECK(!first.isNull() && first.devicePixelRatio() == 1.0);
+    if (first.isNull() || first.devicePixelRatio() != 1.0) {
+      return;
+    }
+    CHECK(button->defaultAction() == marquee);
+    std::printf("  %s: marker pixels marquee %d, ellipse %d\n", suffix.c_str(), marker_pixels(first, marquee),
+                marker_pixels(first, ellipse));
+    CHECK(marker_pixels(first, marquee) >= 16);
+    CHECK(marker_pixels(first, ellipse) == 0);
+    const auto marquee_marked = icon_and_name(first, marquee);
+    const auto ellipse_plain = icon_and_name(first, ellipse);
+    CHECK(std::abs(marquee_marked.first - ellipse_plain.first) <= 1);
+    CHECK(std::abs(marquee_marked.second - ellipse_plain.second) <= 1);
+
+    ellipse->trigger();
+    QApplication::processEvents();
+    CHECK(button->defaultAction() == ellipse);
+    const QImage second = open_flyout("issue_284_flyout_marks_ellipse");
+    CHECK(!second.isNull());
+    if (second.isNull()) {
+      return;
+    }
+    CHECK(marker_pixels(second, ellipse) >= 16);
+    CHECK(marker_pixels(second, marquee) == 0);
+    const auto marquee_plain = icon_and_name(second, marquee);
+    const auto ellipse_marked = icon_and_name(second, ellipse);
+    CHECK(std::abs(marquee_plain.first - marquee_marked.first) <= 1);
+    CHECK(std::abs(marquee_plain.second - marquee_marked.second) <= 1);
+    CHECK(std::abs(ellipse_marked.first - ellipse_plain.first) <= 1);
+    CHECK(std::abs(ellipse_marked.second - ellipse_plain.second) <= 1);
   }
 }
 
@@ -7086,6 +7208,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_tool_flyout_right_click_opens_menu", ui_tool_flyout_right_click_opens_menu},
       {"ui_tool_flyout_opens_beside_its_button_with_palette_size_icons",
        ui_tool_flyout_opens_beside_its_button_with_palette_size_icons},
+      {"ui_tool_flyout_marks_the_tool_its_button_shows", ui_tool_flyout_marks_the_tool_its_button_shows},
       {"ui_tool_palette_icons_render_sheet", ui_tool_palette_icons_render_sheet},
       {"ui_filled_shape_preview_clears_after_commit", ui_filled_shape_preview_clears_after_commit},
       {"ui_toolbar_spin_boxes_select_all_on_focus", ui_toolbar_spin_boxes_select_all_on_focus},
