@@ -451,6 +451,8 @@ endif()
 add_library(patchy_filters
   src/filters/auto_levels_math.cpp
   src/filters/auto_levels_math.hpp
+  src/filters/builtin_filter_looks.cpp
+  src/filters/builtin_filter_looks.hpp
   src/filters/builtin_filters.cpp
   src/filters/deep_filters.cpp
   src/filters/deep_filters.hpp
@@ -468,6 +470,13 @@ add_library(patchy_filters
 )
 target_link_libraries(patchy_filters PUBLIC patchy_core)
 patchy_configure_target(patchy_filters)
+# The filter kernels run in float and double. arm64 has fused multiply-add and clang
+# contracts a*b+c into it by default, rounding once where MSVC and x86-64 GCC round
+# twice, so the same filter wrote different 8-bit pixels on macOS. Contraction is off so
+# every toolchain matches MSVC's /fp:precise (docs/platform.md).
+if(NOT MSVC)
+  target_compile_options(patchy_filters PRIVATE -ffp-contract=off)
+endif()
 
 include(cmake/patchy_gmic.cmake)
 
@@ -2057,6 +2066,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/deep_filter_tests.cpp
     tests/core/document_model_tests.cpp
     tests/core/document_ops_filters_tests.cpp
+    tests/core/builtin_filter_looks_tests.cpp
     tests/core/flat_formats_bmp_tests.cpp
     tests/core/flat_formats_misc_tests.cpp
     tests/core/unicode_path_tests.cpp

@@ -1945,6 +1945,31 @@ void psd_restaurant_menu_dishes_runs_parse_photoshop_layout_if_available() {
   CHECK(metadata.at(patchy::kLayerMetadataTextSize) == "12");
 }
 
+// ag-psd's write/auto-lead/expected.psd (GitHub issue 272): a writer-made type layer with no
+// raster, no ResolutionInfo, NaN TySh bounds, an identity transform and a style run that leaves
+// FontSize to the normal style sheet (12). Photoshop 2026 opens it at 72 PPI with the type
+// 12 pt (12 engine px), first baseline on y = 0; the reader used to keep the 300 PPI default,
+// so the Character panel showed 2.88 pt.
+void psd_ag_psd_auto_lead_text_without_raster_if_available() {
+  const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "ag-psd" / "auto-lead" / "expected.psd";
+  patchy::test::skip_unless_exists(path);
+  const auto read = patchy::psd::DocumentIo::read_file(path);
+  std::cout << "  ppi " << read.print_settings().horizontal_ppi << " x " << read.print_settings().vertical_ppi << "\n";
+  CHECK(read.layers().size() == 1U);
+  const auto& layer = read.layers().front();
+  const auto bounds = layer.bounds();
+  std::cout << "  bounds " << bounds.x << "," << bounds.y << " " << bounds.width << "x" << bounds.height << "\n";
+  for (const auto& [key, value] : layer.metadata()) {
+    if (key.rfind("patchy.text", 0) == 0 && key != patchy::kLayerMetadataTextSourceBlock) {
+      std::cout << "  " << key << " = " << value << "\n";
+    }
+  }
+  CHECK(layer.metadata().at(patchy::kLayerMetadataTextSize) == "12");
+  CHECK(layer.metadata().at(patchy::kLayerMetadataTextTransform) == "1 0 0 1 0 0");
+  CHECK(layer.metadata().at(patchy::kLayerMetadataTextLayoutMode) == patchy::kTextLayoutModePhotoshop);
+  CHECK(read.print_settings().horizontal_ppi == 72.0 && read.print_settings().vertical_ppi == 72.0);
+}
+
 void psd_restaurant_menu_dishes_leading_survives_save_round_trip_if_available() {
   // A converted (patchy_raster) layer regenerates its TySh on save; the fixed leadings,
   // tracking, and default-inherited sizes must survive Patchy's own write -> read cycle so a
@@ -2855,6 +2880,8 @@ std::vector<patchy::test::TestCase> psd_text_tests() {
        psd_restaurant_menu_dishes_runs_parse_photoshop_layout_if_available},
       {"psd_restaurant_menu_dishes_leading_survives_save_round_trip_if_available",
        psd_restaurant_menu_dishes_leading_survives_save_round_trip_if_available},
+      {"psd_ag_psd_auto_lead_text_without_raster_if_available",
+       psd_ag_psd_auto_lead_text_without_raster_if_available},
       {"psd_text_engine_data_humanizes_postscript_font_family_names",
        psd_text_engine_data_humanizes_postscript_font_family_names},
       {"psd_text_engine_data_resolves_hyphenated_font_family_names",

@@ -11664,6 +11664,170 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <comment>artboard size group</comment>
         <translation>Телефон</translation>
     </message>
+    <message>
+        <source>Warm Film</source>
+        <translation>Тёплая плёнка</translation>
+    </message>
+    <message>
+        <source>Golden tones, softened contrast and fine grain.</source>
+        <translation>Золотистые тона, смягчённый контраст и мелкое зерно.</translation>
+    </message>
+    <message>
+        <source>Cool Cinema</source>
+        <translation>Холодное кино</translation>
+    </message>
+    <message>
+        <source>Blue-teal grade with deeper contrast and a light vignette.</source>
+        <translation>Сине-бирюзовая цветокоррекция с более глубоким контрастом и лёгкой виньеткой.</translation>
+    </message>
+    <message>
+        <source>Faded Matte</source>
+        <translation>Выцветший мат</translation>
+    </message>
+    <message>
+        <source>Lifted blacks and muted color for a soft, flat print.</source>
+        <translation>Приподнятые тени и приглушённые цвета для мягкого, плоского отпечатка.</translation>
+    </message>
+    <message>
+        <source>Bold Black and White</source>
+        <translation>Контрастное чёрно-белое</translation>
+    </message>
+    <message>
+        <source>High-contrast monochrome with punchy local detail.</source>
+        <translation>Высококонтрастный монохром с выразительной локальной детализацией.</translation>
+    </message>
+    <message>
+        <source>Sepia Print</source>
+        <translation>Отпечаток в сепии</translation>
+    </message>
+    <message>
+        <source>Warm brown monochrome with grain and darkened corners.</source>
+        <translation>Тёплый коричневый монохром с зерном и затемнёнными углами.</translation>
+    </message>
+    <message>
+        <source>Cross Process</source>
+        <translation>Кросс-процесс</translation>
+    </message>
+    <message>
+        <source>Shifted, saturated colors with yellow highlights and cool shadows.</source>
+        <translation>Смещённые насыщенные цвета с жёлтыми светами и холодными тенями.</translation>
+    </message>
+    <message>
+        <source>Silver Contrast</source>
+        <translation>Серебристый контраст</translation>
+    </message>
+    <message>
+        <source>Gritty, silvery contrast with low saturation.</source>
+        <translation>Жёсткий серебристый контраст с низкой насыщенностью.</translation>
+    </message>
+    <message>
+        <source>Vintage Print</source>
+        <translation>Винтажный отпечаток</translation>
+    </message>
+    <message>
+        <source>An aged, faded photo with a warm cast and vignette.</source>
+        <translation>Состаренное выцветшее фото с тёплым оттенком и виньеткой.</translation>
+    </message>
+    <message>
+        <source>Deep blue monochrome in the style of an early photographic print.</source>
+        <translation>Глубокий синий монохром в стиле ранних фотоотпечатков.</translation>
+    </message>
+    <message>
+        <source>Dreamy Glow</source>
+        <translation>Мечтательное свечение</translation>
+    </message>
+    <message>
+        <source>A soft halo around highlights for portraits and backlit scenes.</source>
+        <translation>Мягкий ореол вокруг светов для портретов и контрового света.</translation>
+    </message>
+    <message>
+        <source>Crisp Detail</source>
+        <translation>Чёткая детализация</translation>
+    </message>
+    <message>
+        <source>Adds local contrast and fine sharpening without changing color.</source>
+        <translation>Добавляет локальный контраст и тонкую резкость, не меняя цвет.</translation>
+    </message>
+    <message>
+        <source>Watercolor</source>
+        <translation>Акварель</translation>
+    </message>
+    <message>
+        <source>Soft washes of color with darker pigment edges on light paper.</source>
+        <translation>Мягкие цветовые заливки с более тёмными краями пигмента на светлой бумаге.</translation>
+    </message>
+    <message>
+        <source>Ink Sketch</source>
+        <translation>Набросок тушью</translation>
+    </message>
+    <message>
+        <source>Clean black ink lines on white.</source>
+        <translation>Чистые чёрные линии туши на белом.</translation>
+    </message>
+    <message>
+        <source>Pencil Drawing</source>
+        <translation>Карандашный рисунок</translation>
+    </message>
+    <message>
+        <source>Graphite strokes and shading on white paper.</source>
+        <translation>Графитные штрихи и растушёвка на белой бумаге.</translation>
+    </message>
+    <message>
+        <source>Comic</source>
+        <translation>Комикс</translation>
+    </message>
+    <message>
+        <source>Bold outlines and flat, vivid color areas.</source>
+        <translation>Чёткие контуры и плоские яркие цветовые области.</translation>
+    </message>
+    <message>
+        <source>Oil Paint</source>
+        <translation>Масляная живопись</translation>
+    </message>
+    <message>
+        <source>Smoothed color with visible diagonal brush texture.</source>
+        <translation>Сглаженный цвет с заметной диагональной фактурой мазков.</translation>
+    </message>
+    <message>
+        <source>Halftone Print</source>
+        <translation>Растровая печать</translation>
+    </message>
+    <message>
+        <source>Bright color printed as large halftone dots.</source>
+        <translation>Яркие цвета, напечатанные крупными растровыми точками.</translation>
+    </message>
+    <message>
+        <source>Film Grain</source>
+        <translation>Плёночное зерно</translation>
+    </message>
+    <message>
+        <source>Even monochrome grain with a touch of contrast.</source>
+        <translation>Равномерное монохромное зерно с лёгким контрастом.</translation>
+    </message>
+    <message>
+        <source>Toy Camera</source>
+        <translation>Игрушечная камера</translation>
+    </message>
+    <message>
+        <source>Saturated color and heavy dark corners, like a plastic-lens camera.</source>
+        <translation>Насыщенные цвета и сильно затемнённые углы, как у камеры с пластиковым объективом.</translation>
+    </message>
+    <message>
+        <source>Miniature</source>
+        <translation>Миниатюра</translation>
+    </message>
+    <message>
+        <source>A narrow band of focus and bright color that makes scenes look like models.</source>
+        <translation>Узкая полоса резкости и яркие цвета делают сцены похожими на макеты.</translation>
+    </message>
+    <message>
+        <source>Built-in Looks</source>
+        <translation>Встроенные образы</translation>
+    </message>
+    <message>
+        <source>My Looks</source>
+        <translation>Мои образы</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

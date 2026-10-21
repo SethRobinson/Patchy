@@ -177,6 +177,10 @@ public:
   static void add_text_at(MainWindow& window, QPoint document_point) {
     window.add_text_at(document_point, QRect());
   }
+  static void lay_out_raster_less_imported_text(MainWindow& window, Document& document) {
+    window.lay_out_raster_less_imported_text(document);
+  }
+
   static void record_text_layout_metrics_for_reopened_text(MainWindow& window, Document& document) {
     window.record_text_layout_metrics_for_reopened_text(document);
   }

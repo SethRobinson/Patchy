@@ -31,6 +31,8 @@ logical DPI (96 on Windows, varies with scaling) and indistinguishable from a re
   default (`explicit_qimage_density_ppi`), else 72.
 - `smart_object_source_dpi` (smart_object_render.cpp) uses the same probe, so placing an
   untagged PNG scales like Photoshop (72), not like the screen (96).
+- PSD/PSB without ResolutionInfo (1005), as some writers (ag-psd) emit: 72, as Photoshop 2026
+  opens them (psd_document_io.cpp; GitHub issue 272, where 12 px type read as 2.88 pt at 300).
 - Registry formats: BMP maps zero pels-per-meter to 72 (bmp_document_io.cpp); the WIC HEIF
   reader treats WIC's exactly-96x96 "no density" default as untagged -> 72; formats whose
   containers have no density concept (ico/tga/aseprite/pcx/ilbm/rttex/dds,

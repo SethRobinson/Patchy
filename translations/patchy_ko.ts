@@ -11594,6 +11594,170 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <comment>artboard size group</comment>
         <translation>휴대폰</translation>
     </message>
+    <message>
+        <source>Warm Film</source>
+        <translation>따뜻한 필름</translation>
+    </message>
+    <message>
+        <source>Golden tones, softened contrast and fine grain.</source>
+        <translation>황금빛 색조, 부드러운 대비, 고운 그레인.</translation>
+    </message>
+    <message>
+        <source>Cool Cinema</source>
+        <translation>차가운 시네마</translation>
+    </message>
+    <message>
+        <source>Blue-teal grade with deeper contrast and a light vignette.</source>
+        <translation>청록색 그레이딩, 더 깊은 대비, 가벼운 비네트.</translation>
+    </message>
+    <message>
+        <source>Faded Matte</source>
+        <translation>바랜 매트</translation>
+    </message>
+    <message>
+        <source>Lifted blacks and muted color for a soft, flat print.</source>
+        <translation>검은색을 들어 올리고 색을 줄여 부드럽고 평평한 인화 느낌.</translation>
+    </message>
+    <message>
+        <source>Bold Black and White</source>
+        <translation>강렬한 흑백</translation>
+    </message>
+    <message>
+        <source>High-contrast monochrome with punchy local detail.</source>
+        <translation>국부 디테일이 살아 있는 고대비 흑백.</translation>
+    </message>
+    <message>
+        <source>Sepia Print</source>
+        <translation>세피아 인화</translation>
+    </message>
+    <message>
+        <source>Warm brown monochrome with grain and darkened corners.</source>
+        <translation>그레인과 어두운 모서리가 있는 따뜻한 갈색 단색.</translation>
+    </message>
+    <message>
+        <source>Cross Process</source>
+        <translation>크로스 프로세스</translation>
+    </message>
+    <message>
+        <source>Shifted, saturated colors with yellow highlights and cool shadows.</source>
+        <translation>노란 하이라이트와 차가운 그림자를 가진 틀어지고 진한 색.</translation>
+    </message>
+    <message>
+        <source>Silver Contrast</source>
+        <translation>실버 콘트라스트</translation>
+    </message>
+    <message>
+        <source>Gritty, silvery contrast with low saturation.</source>
+        <translation>채도가 낮은 거칠고 은빛 도는 대비.</translation>
+    </message>
+    <message>
+        <source>Vintage Print</source>
+        <translation>빈티지 인화</translation>
+    </message>
+    <message>
+        <source>An aged, faded photo with a warm cast and vignette.</source>
+        <translation>따뜻한 색조와 비네트가 있는 오래되고 바랜 사진.</translation>
+    </message>
+    <message>
+        <source>Deep blue monochrome in the style of an early photographic print.</source>
+        <translation>초기 사진 인화 방식을 닮은 짙은 파란색 단색.</translation>
+    </message>
+    <message>
+        <source>Dreamy Glow</source>
+        <translation>몽환적인 빛</translation>
+    </message>
+    <message>
+        <source>A soft halo around highlights for portraits and backlit scenes.</source>
+        <translation>인물과 역광 장면을 위해 하이라이트 주변에 부드러운 후광.</translation>
+    </message>
+    <message>
+        <source>Crisp Detail</source>
+        <translation>선명한 디테일</translation>
+    </message>
+    <message>
+        <source>Adds local contrast and fine sharpening without changing color.</source>
+        <translation>색을 바꾸지 않고 국부 대비와 미세한 선명도를 더합니다.</translation>
+    </message>
+    <message>
+        <source>Watercolor</source>
+        <translation>수채화</translation>
+    </message>
+    <message>
+        <source>Soft washes of color with darker pigment edges on light paper.</source>
+        <translation>밝은 종이 위에 가장자리가 더 짙은 안료로 번진 부드러운 색.</translation>
+    </message>
+    <message>
+        <source>Ink Sketch</source>
+        <translation>잉크 스케치</translation>
+    </message>
+    <message>
+        <source>Clean black ink lines on white.</source>
+        <translation>흰 바탕 위의 깔끔한 검은 잉크 선.</translation>
+    </message>
+    <message>
+        <source>Pencil Drawing</source>
+        <translation>연필 드로잉</translation>
+    </message>
+    <message>
+        <source>Graphite strokes and shading on white paper.</source>
+        <translation>흰 종이 위의 흑연 선과 음영.</translation>
+    </message>
+    <message>
+        <source>Comic</source>
+        <translation>만화</translation>
+    </message>
+    <message>
+        <source>Bold outlines and flat, vivid color areas.</source>
+        <translation>굵은 윤곽선과 평평하고 선명한 색 영역.</translation>
+    </message>
+    <message>
+        <source>Oil Paint</source>
+        <translation>유화</translation>
+    </message>
+    <message>
+        <source>Smoothed color with visible diagonal brush texture.</source>
+        <translation>부드러워진 색과 눈에 보이는 대각선 붓 질감.</translation>
+    </message>
+    <message>
+        <source>Halftone Print</source>
+        <translation>하프톤 인쇄</translation>
+    </message>
+    <message>
+        <source>Bright color printed as large halftone dots.</source>
+        <translation>밝은 색을 큰 하프톤 망점으로 인쇄.</translation>
+    </message>
+    <message>
+        <source>Film Grain</source>
+        <translation>필름 그레인</translation>
+    </message>
+    <message>
+        <source>Even monochrome grain with a touch of contrast.</source>
+        <translation>약간의 대비를 더한 고른 단색 그레인.</translation>
+    </message>
+    <message>
+        <source>Toy Camera</source>
+        <translation>토이 카메라</translation>
+    </message>
+    <message>
+        <source>Saturated color and heavy dark corners, like a plastic-lens camera.</source>
+        <translation>플라스틱 렌즈 카메라처럼 진한 색과 짙게 어두운 모서리.</translation>
+    </message>
+    <message>
+        <source>Miniature</source>
+        <translation>미니어처</translation>
+    </message>
+    <message>
+        <source>A narrow band of focus and bright color that makes scenes look like models.</source>
+        <translation>좁은 초점 영역과 밝은 색으로 장면을 모형처럼 보이게 합니다.</translation>
+    </message>
+    <message>
+        <source>Built-in Looks</source>
+        <translation>기본 제공 룩</translation>
+    </message>
+    <message>
+        <source>My Looks</source>
+        <translation>내 룩</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

@@ -1,6 +1,7 @@
 #include "ui/visual_filter_gallery_dialog.hpp"
 #include "ui/measurement_units.hpp"
 
+#include "filters/builtin_filter_looks.hpp"
 #include "filters/smart_filter_recipe_mapping.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/background_workers.hpp"
@@ -12,6 +13,7 @@
 #include "ui/filter_parameter_panel.hpp"
 #include "ui/filter_preview_proxy.hpp"
 #include "ui/filter_workflows.hpp"
+#include "ui/localization.hpp"
 #include "ui/zoomable_image_preview.hpp"
 #include "ui/theme_qss.hpp"
 
@@ -726,11 +728,42 @@ VisualFilterGalleryResult request_visual_filter_gallery(
     rename_look->setEnabled(has_saved_look);
     delete_look->setEnabled(has_saved_look);
   };
+  // Built-in Looks come first under their own disabled heading, then the
+  // user's Looks. Built-in ids are never UUIDs, so they cannot reach the
+  // library's rename or delete paths.
+  const auto add_saved_looks_heading = [saved_looks_combo](const QString& text) {
+    const auto index = saved_looks_combo->count();
+    saved_looks_combo->addItem(text, QString());
+    if (auto* model =
+            qobject_cast<QStandardItemModel*>(saved_looks_combo->model());
+        model != nullptr && model->item(index) != nullptr) {
+      auto* item = model->item(index);
+      item->setEnabled(false);
+      auto font = item->font();
+      font.setBold(true);
+      item->setFont(font);
+    }
+  };
   rebuild_saved_looks = [&](const QString& preferred_id) {
     const QSignalBlocker blocker(saved_looks_combo);
     saved_looks_combo->clear();
     saved_looks_combo->addItem(QObject::tr("Custom"), QString());
     int preferred_index = 0;
+    add_saved_looks_heading(QObject::tr("Built-in Looks"));
+    for (const auto& look : builtin_filter_looks()) {
+      const auto id = QString::fromLatin1(look.id.data(),
+                                          static_cast<qsizetype>(look.id.size()));
+      const auto index = saved_looks_combo->count();
+      saved_looks_combo->addItem(translate_data_text(look.name), id);
+      saved_looks_combo->setItemData(index, translate_data_text(look.description),
+                                     Qt::ToolTipRole);
+      if (id == preferred_id) {
+        preferred_index = index;
+      }
+    }
+    if (!saved_look_library.entries().empty()) {
+      add_saved_looks_heading(QObject::tr("My Looks"));
+    }
     for (const auto& entry : saved_look_library.entries()) {
       const auto supported = !entry.recipe.entries.empty() &&
                              registry.supports(entry.recipe);
@@ -1600,9 +1633,22 @@ VisualFilterGalleryResult request_visual_filter_gallery(
                        refresh_saved_look_controls();
                        return;
                      }
-                     const auto* entry = saved_look_library.find_entry(id);
-                     if (entry == nullptr || entry->recipe.entries.empty() ||
-                         !registry.supports(entry->recipe)) {
+                     std::optional<FilterRecipe> look_recipe;
+                     if (const auto* entry = saved_look_library.find_entry(id);
+                         entry != nullptr) {
+                       look_recipe = entry->recipe;
+                     } else if (const auto* builtin =
+                                    find_builtin_filter_look(id.toStdString());
+                                builtin != nullptr) {
+                       // Authored at a reference size; scale pixel
+                       // distances to this layer.
+                       look_recipe = builtin_look_recipe_for_size(
+                           registry, *builtin, immutable_original.width(),
+                           immutable_original.height());
+                     }
+                     if (!look_recipe.has_value() ||
+                         look_recipe->entries.empty() ||
+                         !registry.supports(*look_recipe)) {
                        const QSignalBlocker blocker(saved_looks_combo);
                        saved_looks_combo->setCurrentIndex(0);
                        status->setText(QObject::tr("Unsupported Look"));
@@ -1611,8 +1657,8 @@ VisualFilterGalleryResult request_visual_filter_gallery(
                      }
                      loading_saved_look = true;
                      recipe_entries.clear();
-                     recipe_entries.reserve(entry->recipe.entries.size());
-                     for (const auto& recipe_entry : entry->recipe.entries) {
+                     recipe_entries.reserve(look_recipe->entries.size());
+                     for (const auto& recipe_entry : look_recipe->entries) {
                        recipe_entries.push_back(GalleryRecipeEntry{
                            next_recipe_entry_id++, recipe_entry});
                      }
