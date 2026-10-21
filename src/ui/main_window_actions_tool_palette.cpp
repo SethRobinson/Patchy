@@ -1222,20 +1222,21 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
   auto* shape_menu = new QMenu(tr("Shape Tools"), tool_palette);
   shape_menu->setObjectName(QStringLiteral("shapeToolMenu"));
   bind_widget_text(shape_menu, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Shape Tools"));
-  auto* line_tool_action =
-      create_flyout_tool_action(shape_menu, tr("Line"), CanvasTool::Line, QKeySequence());  // Ctrl+Shift+U belongs to Desaturate
+  // The lettered default leads, as in every flyout; Line sits below Polygon (GitHub issue 308).
   auto* rect_tool_action = create_flyout_tool_action(shape_menu, tr("Rect"), CanvasTool::Rectangle, QKeySequence(Qt::Key_U));
   auto* ellipse_tool_action =
       create_flyout_tool_action(shape_menu, tr("Ellipse"), CanvasTool::Ellipse, QKeySequence());
   auto* polygon_tool_action =
       create_flyout_tool_action(shape_menu, tr("Polygon"), CanvasTool::Polygon, QKeySequence());
+  auto* line_tool_action =
+      create_flyout_tool_action(shape_menu, tr("Line"), CanvasTool::Line, QKeySequence());  // Ctrl+Shift+U belongs to Desaturate
   auto* custom_shape_tool_action = create_flyout_tool_action(
       shape_menu, tr("Custom Shape"), CanvasTool::CustomShape, QKeySequence());
   auto* shape_tool_button = new QToolButton(tool_palette);
   shape_tool_button->setObjectName(QStringLiteral("shapeToolButton"));
   configure_tool_flyout(tool_palette, shape_menu, shape_tool_button, rect_tool_action,
-                        {line_tool_action, rect_tool_action, ellipse_tool_action,
-                         polygon_tool_action, custom_shape_tool_action},
+                        {rect_tool_action, ellipse_tool_action, polygon_tool_action,
+                         line_tool_action, custom_shape_tool_action},
                         QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Cycle Shape Tools"),
                         "toolCycleShapeAction", "tools.cycle.shape", QKeySequence(Qt::SHIFT | Qt::Key_U));
   type_tool_action_ = add_tool_action(tool_palette, tool_group, tr("Type"), CanvasTool::Text, QKeySequence(Qt::Key_T));

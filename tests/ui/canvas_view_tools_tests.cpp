@@ -3477,6 +3477,60 @@ void ui_tool_cycle_hotkeys_walk_each_flyout() {
   }
 }
 
+// GitHub issue 308: the Shape flyout leads with its lettered default, Rect (U), and Line
+// sits below Polygon. Shift+U walks the same order; U still selects Rect. The artifact is
+// the open flyout, the issue's AFTER shot.
+void ui_shape_flyout_leads_with_rect_and_cycles_in_menu_order() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* button = window.findChild<QToolButton*>(QStringLiteral("shapeToolButton"));
+  CHECK(button != nullptr && button->menu() != nullptr);
+  if (button == nullptr || button->menu() == nullptr) {
+    return;
+  }
+  const std::pair<const char*, patchy::ui::CanvasTool> order[] = {
+      {"toolRectAction", patchy::ui::CanvasTool::Rectangle},
+      {"toolEllipseAction", patchy::ui::CanvasTool::Ellipse},
+      {"toolPolygonAction", patchy::ui::CanvasTool::Polygon},
+      {"toolLineAction", patchy::ui::CanvasTool::Line},
+      {"toolCustomShapeAction", patchy::ui::CanvasTool::CustomShape},
+  };
+  const auto entries = button->menu()->actions();
+  CHECK(entries.size() == 7);  // five tools, separator, Cycle Shape Tools
+  for (std::size_t i = 0; i < std::size(order); ++i) {
+    CHECK(entries.value(static_cast<int>(i)) == require_action(window, order[i].first));
+  }
+  CHECK(entries.value(5) != nullptr && entries.value(5)->isSeparator());
+  CHECK(entries.value(6) == require_action(window, "toolCycleShapeAction"));
+  CHECK(button->defaultAction() == require_action(window, "toolRectAction"));
+  CHECK(require_action(window, "toolRectAction")->shortcut() == QKeySequence(Qt::Key_U));
+
+  require_action_by_text(window, QStringLiteral("Brush"))->trigger();
+  QApplication::processEvents();
+  QTest::keyClick(canvas, Qt::Key_U);
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Rectangle);
+  for (std::size_t step = 1; step <= std::size(order); ++step) {
+    QTest::keyClick(canvas, Qt::Key_U, Qt::ShiftModifier);
+    QApplication::processEvents();
+    const auto& expected = order[step % std::size(order)];
+    CHECK(canvas->tool() == expected.second);
+    CHECK(button->defaultAction() == require_action(window, expected.first));
+  }
+
+  auto* menu = button->menu();
+  bool shown = false;
+  QTimer::singleShot(0, [&] {
+    shown = menu->isVisible();
+    save_window_popup_artifact("issue_308_shape_flyout", window, *button, *menu);
+    menu->close();
+  });
+  button->showMenu();
+  QApplication::processEvents();
+  CHECK(shown);
+}
+
 void ui_tool_flyout_double_click_opens_menu() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -7494,6 +7548,8 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_hand_tool_ctrl_alt_click_zooms_and_drag_pans", ui_hand_tool_ctrl_alt_click_zooms_and_drag_pans},
       {"ui_stamp_and_gradient_flyouts_swap_tools", ui_stamp_and_gradient_flyouts_swap_tools},
       {"ui_tool_cycle_hotkeys_walk_each_flyout", ui_tool_cycle_hotkeys_walk_each_flyout},
+      {"ui_shape_flyout_leads_with_rect_and_cycles_in_menu_order",
+       ui_shape_flyout_leads_with_rect_and_cycles_in_menu_order},
       {"ui_tool_flyout_double_click_opens_menu", ui_tool_flyout_double_click_opens_menu},
       {"ui_tool_flyout_right_click_opens_menu", ui_tool_flyout_right_click_opens_menu},
       {"ui_tool_flyout_opens_beside_its_button_with_palette_size_icons",
