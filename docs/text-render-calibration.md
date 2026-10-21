@@ -91,6 +91,10 @@ pixel (next section).
 
 - **Text renders UNHINTED**: PS never runs TrueType hinting; every antialiased `/AntiAlias` mode maps to `QFont::PreferNoHinting` (`configure_text_font_smoothing`); mode 0/None keeps `NoAntialias` + full hinting, which fattens stems on small-print-era fonts and shifts advances into collisions.
 - **Imported type layers keep Photoshop's raster until edited** (`should_regenerate_imported_text_preview`, psd_text_write.cpp): a missing font never changes appearance on open. Rasters are kept even under big effects; regenerate only when the stored preview is visibly NOT any run's declared fill color (baked-in effect pixels would corrupt the live outer-effect contour), or when the type block is Patchy-authored. Editing a kept raster warns before substituting fonts; `--append-text` substitutes silently. **Continuing past that warning really substitutes**: `substituted_text_family` (what `QFontInfo` resolves the missing family to, then the UI font, then the original when nothing installed can draw the text) moves the session's base family and `substitute_missing_document_font_families` every run, blank paragraphs' block char formats included. Otherwise the commit stores the missing name back over a raster drawn in the substitute and the layer stays badged. The editable PDF export is the one reader that re-lays-out a kept raster without an edit (real text placed on the raster's ink, missing fonts substituted unless asked for pixels; see [pdf.md](pdf.md)).
+- **A type layer with no raster** (writer-made: ag-psd's `auto-lead/expected.psd`, issue 272) lays out at open
+  (`lay_out_raster_less_imported_text`): line 1's baseline on ty, its justification point on tx, through the TySh
+  transform, kept as `psd_raster_preview` so a save writes it under the file's own type block. PS 2026 relays out
+  it and Patchy's re-save alike (ink x 0..50, y -8..0). Vertical, warped or empty layouts keep the placeholder.
 - **Black/Heavy faces (weight >= 800, DirectWrite or font database)** keep their face in the stored name (`family + " " + face`, "Arial Black"; rules in [font-resolution.md](font-resolution.md)) so the real face renders (family+bold renders Bold, ~15% narrower); the bold flag stays set for fallback. Never feed such a name raw to the font combo: `QFont("Arial Black")` resolves to Tahoma; use `text_font_combo_font_for_family`.
 - **Rotated point-text anchoring**: committed placement pins the TEXT-SPACE anchor (justification fraction along the reading axis, first-line side on the stack axis), never a fixed document corner; the CS-era document-bounds fallback pins the corresponding fractional point of the source ink box.
 - **Scaled BOX text**: runs and box dims (`patchy.text.box_width/height`, from `/BoxBounds`) are engine units, but a PSD-frame edit session works in DOCUMENT space; the render call's `layout_scale` folds the transform's vertical scale into glyph sizes WITHOUT scaling box dims, and commit stores frame dims divided back to raw units so runs, box and transform stay one coordinate system.
@@ -171,9 +175,8 @@ Photoshop 2026 captures: `local-test-fixtures/psd/ps2026_vtext/` (`capture_vtext
 `manifest.jsonl` with DOM bounds; `dump_tysh.py` prints a TySh). Four are committed as
 `test-fixtures/psd/photoshop-text-vertical-{point,box,rotated-roman}.psd` and
 `photoshop-text-rtl-hebrew.psd` (corpus digests pinned). Pinned by
-`ui_vertical_text_matches_photoshop_capture` (re-rendered ink lands within 1 px of PS's 67x92
-raster on the point capture; skips without MS Gothic, since entering an imported layer whose face
-is missing raises the modal substitution prompt) and `psd_vertical_*captures*` in tests/core.
+`ui_vertical_text_matches_photoshop_capture` (ink within 1 px of PS's 67x92 point raster; skips
+without MS Gothic) and `psd_vertical_*captures*` in tests/core.
 
 - **Every glyph is upright, Latin included, by default**: "Hello" stacks H, e, l, l, o. Photoshop's
   "Standard Vertical Roman Alignment" lies Roman glyphs on their side instead: per run,
@@ -205,8 +208,8 @@ is missing raises the modal substitution prompt) and `psd_vertical_*captures*` i
   tx = right - bleed - em/2, ty = top + bleed + fraction x (height - 2 x bleed).
 - **`/Tracking` is written as an integer.** Photoshop's engine re-lays out a layer with a
   negative float tracking (`-305.000000`) as "the result would be too big", every edit failing;
-  `-305` and positive floats work (COM bisect on a user file;
-  `psd_vertical_tracking_bug_file_resaves_with_integer_tracking_if_available`).
+  `-305` and positive floats work
+  (`psd_vertical_tracking_bug_file_resaves_with_integer_tracking_if_available`).
 
 ## Pixel grid and fractional anchors
 
@@ -271,10 +274,9 @@ PS 27.9 COM captures: "Hg", Arial 48 px, Sharp, placed at x or y 100.0 / 100.3 /
   `ui_point_text_render_keeps_glyph_overhang` (Arial Italic "jf": transform at the pen, re-entry
   byte-identical, TySh tx at the pen) and, with the reporter's file and font in the local
   fixtures, `ui_la_methode_psd_text_commit_keeps_glyph_overhang_if_available` (ink within 1 px of
-  Photoshop's, clear buffer margins, TySh at Photoshop's pen), with the same file pinning that
-  the commit is byte-identical across zooms (25%, 223.84%, 337.5%) and after an edit that
-  restores the text, and that the live preview sits on Photoshop's ink at 223.84%
-  (`..._is_zoom_and_edit_independent_if_available`, `..._preview_sits_on_photoshop_ink_if_available`). Known gap: box text keeps its 2 px `kHorizontalBleed` and still clips an
+  Photoshop's, clear buffer margins, TySh at Photoshop's pen), plus zoom and edit independence
+  and the live preview's placement (`..._is_zoom_and_edit_independent_if_available`,
+  `..._preview_sits_on_photoshop_ink_if_available`). Known gap: box text keeps its 2 px `kHorizontalBleed` and still clips an
   overhanging first or last glyph; its frame-origin contract differs and is untouched.
 - **Each glyph's x rounds too.** Photoshop rounds EACH glyph's absolute x position, not just the
   line start: at x 100.5 the "H" moved one column while the "g" (100.5 + 34.67 = 135.17 -> 135,
@@ -307,8 +309,7 @@ PS 27.9 COM captures: "Hg", Arial 48 px, Sharp, placed at x or y 100.0 / 100.3 /
   `ui_vertical_text_recommit_keeps_origin_and_round_trips_psd`, dialogs suppressed), read the
   layer back as `orientation:vertical` with bounds [-54.4, -32, 16, 32] (its own convention for
   centred two-column text), and a forced type re-render landed the two columns within 4 px of
-  Patchy's ink (`readback_patchy.jsx`). A warning-enabled open was not checked (it needs the
-  desktop); Photoshop's reading of an authored paragraph direction is unverified.
+  Patchy's ink. Photoshop's reading of an authored paragraph direction is unverified.
 
 ## Paragraph direction (right-to-left)
 
