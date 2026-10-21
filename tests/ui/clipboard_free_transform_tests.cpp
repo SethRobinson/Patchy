@@ -2267,7 +2267,7 @@ void ui_move_show_transform_controls_click_shows_passive_transform() {
   auto* canvas = require_canvas(window);
   auto* show_controls = window.findChild<QCheckBox*>(QStringLiteral("moveShowTransformControlsCheck"));
   CHECK(show_controls != nullptr);
-  CHECK(show_controls->text() == QStringLiteral("Show Transform Controls"));
+  CHECK(show_controls->text() == QStringLiteral("Transform Controls"));
   CHECK(show_controls->isChecked());
   CHECK(canvas->show_transform_controls());
 

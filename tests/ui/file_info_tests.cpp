@@ -331,6 +331,102 @@ void ui_psd_save_stamps_dates_and_creator() {
   CHECK(history != nullptr && history->value.items.size() == 2U);
 }
 
+std::vector<std::string> history_instance_ids(const md::XmpPacket& packet) {
+  std::vector<std::string> ids;
+  if (const auto* history = packet.find(md::xmp_ns::kXmpMM, "History")) {
+    for (const auto& item : history->value.items) {
+      for (const auto& field : item.fields) {
+        if (field.name == "instanceID") {
+          ids.push_back(field.value.text);
+        }
+      }
+    }
+  }
+  return ids;
+}
+
+std::string ifd0_text(const patchy::DocumentFileInfo& info, std::uint16_t tag) {
+  const auto stream = info.exif ? md::parse_tiff(*info.exif) : std::nullopt;
+  const auto* ifd = stream ? stream->find(md::IfdKind::Ifd0) : nullptr;
+  const auto* entry = ifd != nullptr ? ifd->find(tag) : nullptr;
+  return entry != nullptr ? stream->string_value(*entry) : std::string{};
+}
+
+// Issue 219 follow-up: a PSD save of a camera JPEG writes Patchy and the save time into
+// its EXIF (IFD0 Software and DateTime), and every save gets a new xmpMM:InstanceID that
+// matches its History entry, as Photoshop does. Saves after-exif-software.png (File Info,
+// All Metadata) into test-artifacts/file-info.
+void ui_psd_save_updates_exif_and_instance_id() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  MainWindowTestAccess::open_document_path(window, write_tagged_jpeg());
+  QApplication::processEvents();
+  const auto path = artifact_dir() + QStringLiteral("/exif-stamped.psd");
+  QFile::remove(path);
+  CHECK(MainWindowTestAccess::save_document_to_path(window, path));
+  const auto first = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(path));
+  const auto software = ifd0_text(first.file_info(), md::exif_tag::kSoftware);
+  const auto date_time = ifd0_text(first.file_info(), md::exif_tag::kDateTime);
+  CHECK(software.rfind("Patchy ", 0) == 0U && software.size() > 7U);
+  CHECK(date_time.size() == 19U && date_time[4] == ':' && date_time[10] == ' ');
+  CHECK(ifd0_text(first.file_info(), md::exif_tag::kMake) == "PatchyCam");
+  CHECK(first.file_info().xmp != nullptr);
+  if (first.file_info().xmp == nullptr) {
+    return;
+  }
+  const auto packet = md::parse_xmp(*first.file_info().xmp).value_or(md::XmpPacket{});
+  const auto instance = packet.text(md::xmp_ns::kXmpMM, "InstanceID");
+  CHECK(instance.rfind("xmp.iid:", 0) == 0U && instance.size() == 44U);
+  CHECK(history_instance_ids(packet) == std::vector<std::string>{instance});
+  // The JPEG's creator stays the creator; EXIF Software names the latest save.
+  CHECK(packet.text(md::xmp_ns::kXmp, "CreatorTool") == "Adobe Photoshop CC 2017 (Macintosh)");
+
+  CHECK(MainWindowTestAccess::save_document_to_path(window, path));
+  const auto second = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(path));
+  const auto again = md::parse_xmp(*second.file_info().xmp).value_or(md::XmpPacket{});
+  const auto next = again.text(md::xmp_ns::kXmpMM, "InstanceID");
+  CHECK(next.rfind("xmp.iid:", 0) == 0U && next != instance);
+  CHECK((history_instance_ids(again) == std::vector<std::string>{instance, next}));
+
+  // The driver runs inside Qt's event dispatch: failures are recorded, never thrown.
+  const auto expect = [](bool ok, const char* what) {
+    if (!ok) {
+      patchy::test::report_failure(std::string("after-exif-software: ") + what);
+    }
+  };
+  QTimer::singleShot(0, [&] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("patchyFileInfoDialog"));
+    expect(dialog != nullptr, "no File Info dialog");
+    if (dialog == nullptr) {
+      return;
+    }
+    dialog->resize(dialog->width(), std::max(dialog->height(), 760));
+    auto* categories = dialog->findChild<QListWidget*>(QStringLiteral("fileInfoCategoryList"));
+    for (int row = 0; categories != nullptr && row < categories->count(); ++row) {
+      if (categories->item(row)->data(Qt::UserRole).toString() == QStringLiteral("fileInfoAllMetadataPage")) {
+        categories->setCurrentRow(row);
+      }
+    }
+    QApplication::processEvents();
+    auto* tree = dialog->findChild<QTreeWidget*>(QStringLiteral("fileInfoAllMetadataTree"));
+    expect(tree != nullptr, "no All Metadata tree");
+    if (tree != nullptr) {
+      const auto matches = tree->findItems(QStringLiteral("Software"), Qt::MatchExactly | Qt::MatchRecursive);
+      expect(!matches.isEmpty(), "no EXIF Software row");
+      if (!matches.isEmpty()) {
+        expect(matches.front()->text(1).startsWith(QStringLiteral("Patchy ")), "EXIF Software does not name Patchy");
+        tree->scrollToItem(matches.front(), QAbstractItemView::PositionAtCenter);
+        tree->setCurrentItem(matches.front());
+      }
+    }
+    QApplication::processEvents();
+    save_widget_artifact("file-info/after-exif-software", *dialog);
+    dialog->reject();
+  });
+  require_action(window, "fileInfoAction")->trigger();
+  QApplication::processEvents();
+}
+
 
 // Issue 219 captures: File Info after a PSD save shows the created and modified dates and
 // the creating application; a Photoshop file resaved by Patchy keeps its application and
@@ -419,6 +515,7 @@ std::vector<patchy::test::TestCase> file_info_tests() {
       {"ui_file_info_saves_metadata_in_every_carrier", ui_file_info_saves_metadata_in_every_carrier},
       {"ui_file_info_strip_and_export_policies", ui_file_info_strip_and_export_policies},
       {"ui_psd_save_stamps_dates_and_creator", ui_psd_save_stamps_dates_and_creator},
+      {"ui_psd_save_updates_exif_and_instance_id", ui_psd_save_updates_exif_and_instance_id},
       {"ui_file_info_shows_the_psd_save_stamp", ui_file_info_shows_the_psd_save_stamp},
   };
 }

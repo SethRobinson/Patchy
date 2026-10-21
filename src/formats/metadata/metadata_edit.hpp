@@ -101,18 +101,22 @@ struct SaveMetadata {
   }
 };
 
-// A PSD/PSB save, recorded in the document's XMP (docs/file-info.md, "Save stamp").
+// A PSD/PSB save, recorded in the document's XMP and EXIF (docs/file-info.md, "Save stamp").
 struct SaveStamp {
-  std::string when;      // ISO 8601 local time with its offset (xmp_date)
-  std::string software;  // "Patchy 1.14"
+  std::string when;           // ISO 8601 local time with its offset (xmp_date)
+  std::string software;       // "Patchy 1.14"
+  std::string instance_guid;  // a fresh random GUID per save, lowercase with hyphens
 };
 
 // Records a save the way Photoshop does: xmp:ModifyDate and xmp:MetadataDate become
 // stamp.when; xmp:CreateDate and xmp:CreatorTool are set only when the packet has none (a
 // file another application created keeps its creator and creation date); xmpMM:History
-// gains a stEvt entry ("created" on the first save, else "saved") naming stamp.software.
-// Every other property stays. A packet that does not parse is left as it is.
-void stamp_xmp_for_save(DocumentFileInfo& info, const SaveStamp& stamp);
+// gains a stEvt entry ("created" on the first save, else "saved") naming stamp.software
+// and the new xmpMM:InstanceID ("xmp.iid:" + guid; the first save also sets DocumentID
+// and OriginalDocumentID when absent). An existing EXIF block gets IFD0 Software and
+// DateTime from the stamp. Every other property stays. A packet that does not parse is
+// left as it is.
+void stamp_file_info_for_save(DocumentFileInfo& info, const SaveStamp& stamp);
 
 // "2026-10-20T09:41:05+09:00": `unix_seconds` (UTC) shown at `utc_offset_minutes`.
 [[nodiscard]] std::string xmp_date(std::int64_t unix_seconds, int utc_offset_minutes);
