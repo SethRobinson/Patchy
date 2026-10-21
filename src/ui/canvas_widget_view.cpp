@@ -463,6 +463,23 @@ QPointF CanvasWidget::zoom_click_anchor(QPointF widget_pos) const {
                  std::clamp(widget_pos.y(), frame.top(), frame.bottom()));
 }
 
+void CanvasWidget::zoom_click_step(QPointF widget_position, bool zoom_out) {
+  if (document_ == nullptr) {
+    return;
+  }
+  // A click in the grey margin zooms toward the nearest point on the document
+  // frame rather than toward the empty space under the cursor. The step follows
+  // Photoshop's zoom ladder (GitHub issue 77): from a rung to its neighbour,
+  // from between rungs to the next one.
+  const auto current_view_zoom = view_zoom();
+  const auto next_view_zoom = next_zoom_ladder_step(current_view_zoom, !zoom_out);
+  zoom_at_widget_point(zoom_click_anchor(widget_position), next_view_zoom / current_view_zoom);
+}
+
+bool CanvasWidget::hand_click_zooms(Qt::KeyboardModifiers modifiers) noexcept {
+  return (modifiers & (Qt::ControlModifier | Qt::AltModifier)) != 0;
+}
+
 void CanvasWidget::draw_zoom_preview(QPainter& painter) const {
   // No marquee while the click would zoom out (Alt, or the Zoom Out mode: a
   // point zoom, not a rectangle) or while a Scrubby Zoom drag is zooming live.

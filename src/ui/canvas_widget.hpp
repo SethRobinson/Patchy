@@ -2533,6 +2533,12 @@ private:
   [[nodiscard]] QPointF zoom_click_anchor(QPointF widget_position) const;
   // The click direction after Alt inverts the Zoom In / Zoom Out mode.
   [[nodiscard]] bool zoom_tool_zoom_out_active(Qt::KeyboardModifiers modifiers) const noexcept;
+  // One Zoom-tool click: a step along the zoom ladder about zoom_click_anchor(widget_position).
+  void zoom_click_step(QPointF widget_position, bool zoom_out);
+  // Ctrl (Cmd on macOS) or Alt makes a Hand click zoom instead of pan (GitHub issue 304).
+  [[nodiscard]] static bool hand_click_zooms(Qt::KeyboardModifiers modifiers) noexcept;
+  // The open hand, or the Zoom tool's magnifier while hand_click_zooms (Alt shows the minus).
+  void apply_hand_cursor(Qt::KeyboardModifiers modifiers);
   void begin_brush_adjust_drag(QPoint widget_position, bool from_tablet = false);
   void update_brush_adjust_drag(QPoint widget_position);
   void end_brush_adjust_drag(bool commit);
@@ -3044,6 +3050,11 @@ private:
   // ZoomCanvas drag; the two gestures never overlap.
   bool zoom_scrubbing_{false};
   bool zoom_scrub_started_{false};
+  // A Ctrl or Alt left press with the Hand (the tool, or Space held over another
+  // tool): the release is one Zoom-tool click step, in for Ctrl, out for Alt,
+  // and the drag before it does not pan (GitHub issue 304).
+  bool hand_zoom_pending_{false};
+  bool hand_zoom_out_{false};
   static constexpr int kZoomClickSlopPx = 8;
   QPoint zoom_start_{};
   QPoint zoom_current_{};
