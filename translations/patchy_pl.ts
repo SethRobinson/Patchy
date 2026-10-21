@@ -11638,6 +11638,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
         <translation>Tło: pozostaje na samym dole stosu, bez przezroczystości i stylów warstwy. Kliknij je prawym przyciskiem myszy i wybierz Warstwa z tła, aby zmienić je w zwykłą warstwę.</translation>
     </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>Lasso wielokątne</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13293,6 +13297,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Deselect Shapes</source>
         <translation>Odznacz kształty</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>Lasso wielokątne</translation>
     </message>
 </context>
 <context>
@@ -23066,10 +23074,6 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <translation>Zaznaczenie eliptyczne: przeciągnij, aby wybrać. Shift+przeciąganie dodaje, %ALT%+przeciąganie odejmuje, Shift+%ALT%+przeciąganie tworzy część wspólną. Bez zaznaczenia Shift rysuje okrąg, a %ALT% rysuje od środka.</translation>
     </message>
     <message>
-        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects.</source>
-        <translation>Lasso: przeciągnij wokół obszaru, aby go zaznaczyć. Shift+przeciąganie dodaje, %ALT%+przeciąganie odejmuje, Shift+%ALT%+przeciąganie tworzy część wspólną.</translation>
-    </message>
-    <message>
         <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
         <translation>Lasso magnetyczne: kliknij krawędź i prowadź wzdłuż niej; kliknięcie przypina punkt. Zacznij od Shift+kliknięcia, aby dodać, %ALT%+kliknięcia, aby odjąć, lub Shift+%ALT%+kliknięcia, aby utworzyć część wspólną. Backspace usuwa ostatni punkt, Enter zamyka, Esc anuluje.</translation>
     </message>
@@ -23528,6 +23532,22 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     <message>
         <source>The Background layer cannot have layer styles</source>
         <translation>Warstwa tła nie może mieć stylów warstwy</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>Lasso wielokątne</translation>
+    </message>
+    <message>
+        <source>Click to place points, Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close.</source>
+        <translation>Kliknij, aby dodać punkty; Shift trzyma kąt 45 stopni, a %ALT%+przeciąganie rysuje odręcznie. Aby zamknąć, kliknij punkt początkowy, kliknij dwukrotnie lub naciśnij Enter.</translation>
+    </message>
+    <message>
+        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
+        <translation>Lasso: przeciągnij wokół obszaru, aby go zaznaczyć. Shift+przeciąganie dodaje, %ALT%+przeciąganie odejmuje, Shift+%ALT%+przeciąganie tworzy część wspólną. Naciśnij %ALT% w trakcie przeciągania i puść przycisk, aby klikać proste odcinki aż do puszczenia %ALT%.</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
+        <translation>Lasso wielokątne: kliknij, aby dodać punkty. Zacznij od Shift+kliknięcia, aby dodać, %ALT%+kliknięcia, aby odjąć, lub Shift+%ALT%+kliknięcia, aby utworzyć część wspólną. Shift trzyma kąt 45 stopni, %ALT%+przeciąganie rysuje odręcznie. Aby zamknąć, kliknij punkt początkowy, kliknij dwukrotnie lub naciśnij Enter; Backspace usuwa ostatni punkt, Esc anuluje.</translation>
     </message>
     <message>
         <source>New &amp;Layer...</source>

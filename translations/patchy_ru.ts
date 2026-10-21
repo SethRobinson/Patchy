@@ -11638,6 +11638,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
         <translation>Фон: остается в самом низу стека, без прозрачности и стилей слоя. Щелкните его правой кнопкой мыши и выберите «Слой из фона», чтобы сделать его обычным слоем.</translation>
     </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>Многоугольное лассо</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13293,6 +13297,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Deselect Shapes</source>
         <translation>Отменить выбор фигур</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>Многоугольное лассо</translation>
     </message>
 </context>
 <context>
@@ -23066,10 +23074,6 @@ Patchy может скачать обновление, заменить этот
         <translation>Овальная область: протяните указатель для выделения. Shift+перетаскивание добавляет, %ALT%+перетаскивание вычитает, Shift+%ALT%+перетаскивание оставляет пересечение. Без выделения Shift рисует круг, а %ALT% рисует от центра.</translation>
     </message>
     <message>
-        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects.</source>
-        <translation>Лассо: обведите область, чтобы выделить её. Shift+перетаскивание добавляет, %ALT%+перетаскивание вычитает, Shift+%ALT%+перетаскивание оставляет пересечение.</translation>
-    </message>
-    <message>
         <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
         <translation>Магнитное лассо: щёлкните по краю и ведите вдоль него; щелчок закрепляет точку. Начните с Shift+щелчка, чтобы добавить, %ALT%+щелчка, чтобы вычесть, или Shift+%ALT%+щелчка для пересечения. Backspace удаляет последнюю точку, Enter замыкает контур, Esc отменяет.</translation>
     </message>
@@ -23528,6 +23532,22 @@ Patchy можно будет запускать из меню, а на пане�
     <message>
         <source>The Background layer cannot have layer styles</source>
         <translation>Фоновый слой не может иметь стилей слоя</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>Многоугольное лассо</translation>
+    </message>
+    <message>
+        <source>Click to place points, Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close.</source>
+        <translation>Щёлкайте, чтобы ставить точки; Shift держит 45 градусов, %ALT%+перетаскивание рисует от руки. Чтобы замкнуть контур, щёлкните по начальной точке, дважды щёлкните или нажмите Enter.</translation>
+    </message>
+    <message>
+        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
+        <translation>Лассо: обведите область, чтобы выделить её. Shift+перетаскивание добавляет, %ALT%+перетаскивание вычитает, Shift+%ALT%+перетаскивание оставляет пересечение. Нажмите %ALT% во время перетаскивания и отпустите кнопку, чтобы щелчками ставить прямые отрезки, пока %ALT% не будет отпущена.</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
+        <translation>Многоугольное лассо: щёлкайте, чтобы ставить точки. Начните с Shift+щелчка, чтобы добавить, %ALT%+щелчка, чтобы вычесть, или Shift+%ALT%+щелчка для пересечения. Shift держит 45 градусов, %ALT%+перетаскивание рисует от руки. Чтобы замкнуть контур, щёлкните по начальной точке, дважды щёлкните или нажмите Enter; Backspace удаляет последнюю точку, Esc отменяет.</translation>
     </message>
     <message>
         <source>New &amp;Layer...</source>

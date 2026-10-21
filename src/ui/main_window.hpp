@@ -2971,7 +2971,8 @@ private:
       SelectionMode::Replace, SelectionMode::Replace,
       SelectionMode::Replace, SelectionMode::Replace,
       SelectionMode::Replace, SelectionMode::Replace,
-      SelectionMode::Replace, SelectionMode::Replace};
+      SelectionMode::Replace, SelectionMode::Replace,
+      SelectionMode::Replace};
   MarqueeStyle current_marquee_style_{MarqueeStyle::Normal};
   int current_marquee_width_{1024};
   int current_marquee_height_{768};
@@ -2987,8 +2988,8 @@ private:
   // persisted as tools/<tool>Feather and tools/<tool>AntiAlias. current_selection_* mirror
   // the active selection tool's slot, which is what the canvas and the options bar hold.
   std::array<int, kSelectionToolCount> selection_feather_by_tool_{};
-  std::array<bool, kSelectionToolCount> selection_antialias_by_tool_{true, true, true, true,
-                                                                                    true, true, true, true};
+  std::array<bool, kSelectionToolCount> selection_antialias_by_tool_{true, true, true, true, true,
+                                                                    true, true, true, true};
   int current_selection_feather_radius_{0};
   bool current_selection_antialias_{true};
   double current_crop_ratio_w_{0.0};

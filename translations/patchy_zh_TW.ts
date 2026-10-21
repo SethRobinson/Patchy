@@ -11568,6 +11568,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
         <translation>背景：它一律位於堆疊底部，沒有透明度，也沒有圖層樣式。在它上面按一下滑鼠右鍵並選擇「從背景建立圖層」，即可將其變為一般圖層。</translation>
     </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>多邊形套索</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13223,6 +13227,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Deselect Shapes</source>
         <translation>取消選取形狀</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>多邊形套索</translation>
     </message>
 </context>
 <context>
@@ -22924,10 +22932,6 @@ Patchy 可以下載更新、取代這個 AppImage 並重新啟動。在此之前
         <translation>橢圓選取畫面：拖曳以選取。Shift+拖曳加入，%ALT%+拖曳減去，Shift+%ALT%+拖曳取交集。沒有選取範圍時，Shift 繪製正圓，%ALT% 從中心繪製。</translation>
     </message>
     <message>
-        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects.</source>
-        <translation>套索：沿區域周圍拖曳以選取。Shift+拖曳加入，%ALT%+拖曳減去，Shift+%ALT%+拖曳取交集。</translation>
-    </message>
-    <message>
         <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
         <translation>磁性套索：按一下邊緣並沿著它移動，按一下可固定一個點。以 Shift+點按開始為加入，以 %ALT%+點按開始為減去，以 Shift+%ALT%+點按開始為取交集。Backspace 刪除最後一個點，Enter 封閉，Esc 取消。</translation>
     </message>
@@ -23384,6 +23388,22 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>The Background layer cannot have layer styles</source>
         <translation>背景圖層不能使用圖層樣式</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>多邊形套索</translation>
+    </message>
+    <message>
+        <source>Click to place points, Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close.</source>
+        <translation>按一下可放置點，按住 Shift 可保持 45 度，%ALT%+拖曳可徒手繪製。按一下起點、按兩下或按 Enter 即可封閉。</translation>
+    </message>
+    <message>
+        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
+        <translation>套索：沿區域周圍拖曳以選取。Shift+拖曳加入，%ALT%+拖曳減去，Shift+%ALT%+拖曳取交集。拖曳時按下 %ALT% 並放開滑鼠按鈕，即可按一下繪製直線段，直到放開 %ALT%。</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
+        <translation>多邊形套索：按一下可放置點。以 Shift+點按開始為加入，以 %ALT%+點按開始為減去，以 Shift+%ALT%+點按開始為取交集。按住 Shift 可保持 45 度，%ALT%+拖曳可徒手繪製。按一下起點、按兩下或按 Enter 即可封閉；Backspace 刪除最後一個點，Esc 取消。</translation>
     </message>
     <message>
         <source>New &amp;Layer...</source>

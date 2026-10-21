@@ -35,8 +35,8 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | Move | Align / Distribute buttons, Align To | commands; `alignTo` retired | no | no (session) |
 | Free Transform | Pivot, link, Apply/Cancel, Warp style/bend | none | no | no (session) |
 | Free Transform | Interpolation (`freeTransformInterpolationCombo`) | `transformInterpolation` | yes | yes |
-| Marquee, Lasso, Wand, Quick, Object | selection mode (`selection*ModeAction`) | none | no | no (session) |
-| Marquee, Elliptical, Lasso, Magnetic, Wand, Quick, Object | Feather (`selectionFeatherSpin`) | `<tool>Feather` per tool | yes | yes |
+| Marquee, Lasso, Polygonal, Wand, Quick, Object | selection mode (`selection*ModeAction`) | none | no | no (session) |
+| Marquee, Elliptical, Lasso, Polygonal, Magnetic, Wand, Quick, Object | Feather (`selectionFeatherSpin`) | `<tool>Feather` per tool | yes | yes |
 | same, Quick Select aside | Anti-alias (`selectionAntiAliasCheck`) | `<tool>AntiAlias` per tool | yes | yes |
 | Marquee | Radius (`selectionCornerRadiusSpin`) | `marqueeCornerRadius` | no | yes |
 | Marquee, Elliptical | Style, W, H (`selectionStyleCombo`, `selectionRatio*`, `selectionFixed*`) | none | no | no (session) |

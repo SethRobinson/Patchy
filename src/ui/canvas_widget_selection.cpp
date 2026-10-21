@@ -190,6 +190,8 @@ int CanvasWidget::selection_tool_index(CanvasTool tool) noexcept {
       return 6;
     case CanvasTool::ObjectSelect:
       return 7;
+    case CanvasTool::PolygonLasso:
+      return 8;
     default:
       return -1;
   }
@@ -1157,6 +1159,34 @@ void CanvasWidget::draw_selection_overlay(QPainter& painter) const {
     painter.restore();
   }
 
+  if (polygon_lassoing_ && !polygon_lasso_points_.isEmpty()) {
+    // The placed outline plus the rubber band to the pointer as one ant trail.
+    QPolygon preview;
+    preview.reserve(polygon_lasso_points_.size() + 1);
+    for (const auto& point : polygon_lasso_points_) {
+      preview << widget_position(point);
+    }
+    if (polygon_lasso_cursor_ != polygon_lasso_points_.last()) {
+      preview << widget_position(polygon_lasso_cursor_);
+    }
+    if (preview.size() > 1) {
+      stroke_marching_ants(painter, preview, selection_dash_offset_);
+    }
+    if (polygon_lasso_start_hit(widget_position(polygon_lasso_cursor_))) {
+      // A click here closes the outline: ring the start point (marching-ants
+      // ink, which reads on any artwork).
+      painter.save();
+      painter.setRenderHint(QPainter::Antialiasing, true);
+      const auto start = QPointF(widget_position(polygon_lasso_points_.first()));
+      painter.setBrush(Qt::NoBrush);
+      painter.setPen(QPen(QColor(20, 24, 28), 3.0));
+      painter.drawEllipse(start, 5.0, 5.0);
+      painter.setPen(QPen(QColor(245, 247, 250), 1.5));
+      painter.drawEllipse(start, 5.0, 5.0);
+      painter.restore();
+    }
+  }
+
   // Add/Subtract/Intersect defer the combine to release (like the Lasso), so the
   // existing selection stays put mid-drag and the candidate shape is shown as its
   // own marching-ants outline. (Replace shows it live as the selection edge.)
@@ -1521,6 +1551,28 @@ QImage CanvasWidget::lasso_selection_mask(const QPolygonF& polygon, QRect& bound
   path.addPolygon(polygon);
   path.closeSubpath();
   return shape_mask_from_path(path, bounds, feather, selection_antialias_ || feather > 0);
+}
+
+void CanvasWidget::combine_selection_from_lasso(const QPolygon& outline) {
+  combine_selection_from_lasso(outline, QPolygonF(outline));
+}
+
+void CanvasWidget::combine_selection_from_lasso(const QPolygon& outline, const QPolygonF& mask_outline) {
+  if (document_ == nullptr) {
+    return;
+  }
+  // A lasso outline is mostly diagonal edges: with Anti-alias on it commits
+  // through the mask path for partial edge coverage, like the marquee's rounded
+  // corners (the QRegion path is hard-edged).
+  if (selection_feather_radius_ > 0 || selection_antialias_) {
+    QRect mask_bounds;
+    auto mask = lasso_selection_mask(mask_outline, mask_bounds);
+    combine_selection_from_mask(mask_bounds, std::move(mask));
+  } else {
+    auto region = QRegion(outline, Qt::WindingFill);
+    region = region.intersected(QRegion(QRect(0, 0, document_->width(), document_->height())));
+    combine_selection_from_region(region);
+  }
 }
 
 CanvasWidget::SelectionMode CanvasWidget::selection_operation(Qt::KeyboardModifiers modifiers) const noexcept {

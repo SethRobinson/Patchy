@@ -11568,6 +11568,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
         <translation>배경: 스택의 맨 아래에 머물며 투명도나 레이어 스타일을 가질 수 없습니다. 마우스 오른쪽 버튼으로 클릭하고 배경에서 레이어로를 선택하면 일반 레이어가 됩니다.</translation>
     </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>다각형 올가미</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -13223,6 +13227,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Deselect Shapes</source>
         <translation>모양 선택 취소</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>다각형 올가미</translation>
     </message>
 </context>
 <context>
@@ -22924,10 +22932,6 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <translation>타원형 선택 윤곽: 드래그하여 선택합니다. Shift+드래그로 추가, %ALT%+드래그로 빼기, Shift+%ALT%+드래그로 교차 영역을 선택합니다. 선택 영역이 없으면 Shift는 정원을, %ALT%는 중심에서 그립니다.</translation>
     </message>
     <message>
-        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects.</source>
-        <translation>올가미: 영역 주위를 드래그하여 선택합니다. Shift+드래그로 추가, %ALT%+드래그로 빼기, Shift+%ALT%+드래그로 교차 영역을 선택합니다.</translation>
-    </message>
-    <message>
         <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
         <translation>자석 올가미: 가장자리를 클릭하고 따라가며, 클릭하면 점이 고정됩니다. 시작할 때 Shift+클릭은 추가, %ALT%+클릭은 빼기, Shift+%ALT%+클릭은 교차입니다. Backspace는 마지막 점을 지우고, Enter는 닫고, Esc는 취소합니다.</translation>
     </message>
@@ -23384,6 +23388,22 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>The Background layer cannot have layer styles</source>
         <translation>배경 레이어에는 레이어 스타일을 적용할 수 없습니다</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>다각형 올가미</translation>
+    </message>
+    <message>
+        <source>Click to place points, Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close.</source>
+        <translation>클릭하여 점을 놓습니다. Shift는 45도를 유지하고 %ALT%+드래그는 자유롭게 그립니다. 시작점을 클릭하거나 더블클릭하거나 Enter를 누르면 닫힙니다.</translation>
+    </message>
+    <message>
+        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
+        <translation>올가미: 영역 주위를 드래그하여 선택합니다. Shift+드래그로 추가, %ALT%+드래그로 빼기, Shift+%ALT%+드래그로 교차 영역을 선택합니다. 드래그 중에 %ALT%를 누르고 버튼을 놓으면 %ALT%를 뗄 때까지 클릭으로 직선 구간을 그립니다.</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
+        <translation>다각형 올가미: 클릭하여 점을 놓습니다. 시작할 때 Shift+클릭은 추가, %ALT%+클릭은 빼기, Shift+%ALT%+클릭은 교차입니다. Shift는 45도를 유지하고 %ALT%+드래그는 자유롭게 그립니다. 시작점을 클릭하거나 더블클릭하거나 Enter를 누르면 닫히고, Backspace는 마지막 점을 지우며, Esc는 취소합니다.</translation>
     </message>
     <message>
         <source>New &amp;Layer...</source>

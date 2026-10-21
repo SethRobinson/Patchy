@@ -247,6 +247,7 @@ bool CanvasWidget::apply_selection_cursor_for_mode(SelectionMode mode) {
     case CanvasTool::Marquee:
     case CanvasTool::EllipticalMarquee:
     case CanvasTool::Lasso:
+    case CanvasTool::PolygonLasso:
     case CanvasTool::MagneticLasso:
     case CanvasTool::PatchTool:
       // Same drawn crosshair in every mode (only the badge differs), so toggling
