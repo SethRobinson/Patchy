@@ -2258,6 +2258,11 @@ if(PATCHY_BUILD_TESTS)
     if(TARGET Qt6::Pdf)
       target_link_libraries(patchy_ui_visual_tests PRIVATE Qt6::Pdf)
     endif()
+    # The portal color pick test delivers a real D-Bus Response over a peer connection
+    # (QDBusServer); patchy_ui links Qt D-Bus privately.
+    if(UNIX AND NOT APPLE AND TARGET Qt6::DBus)
+      target_link_libraries(patchy_ui_visual_tests PRIVATE Qt6::DBus)
+    endif()
     patchy_configure_target(patchy_ui_visual_tests)
     target_compile_options(patchy_ui_visual_tests PRIVATE $<$<CXX_COMPILER_ID:MSVC>:/bigobj>)
     target_compile_definitions(patchy_ui_visual_tests PRIVATE
