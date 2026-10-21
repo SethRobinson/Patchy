@@ -608,6 +608,155 @@ void ui_selection_options_bars_group_their_controls() {
   }
 }
 
+// GitHub issue 311: the shape bars follow the grouping rules (docs/options-bar.md). In Shape
+// mode each reads mode | Fill | Stroke, its swatch and width | W/H | Combine | the tool's own
+// settings | Appearance, Line's Weight now follows Combine beside the arrowheads, the Fill and
+// Stroke swatches are framed buttons with a wide chip, and the keep-proportions toggle sits
+// evenly between the W field and the H label. Every bar fits one row at 1366 px. The
+// artifacts are the issue shots, in both schemes.
+void ui_shape_options_bars_group_their_controls() {
+  struct ShapeBar {
+    const char* tool;
+    const char* name;
+    const char* own;  // first control of the tool's own group, or nullptr
+  };
+  const std::array<ShapeBar, 5> bars{{
+      {"toolRectAction", "rectangle", "Radius"},
+      {"toolEllipseAction", "ellipse", nullptr},
+      {"toolPolygonAction", "polygon", "Sides"},
+      {"toolLineAction", "line", "Weight"},
+      {"toolCustomShapeAction", "custom_shape", "Shape"},
+  }};
+  std::vector<std::string> problems;
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.resize(1366, 738);
+    auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+    auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+    auto* mode = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+    CHECK(options_bar != nullptr && options != nullptr && mode != nullptr);
+    if (options_bar == nullptr || options == nullptr || mode == nullptr) {
+      return;
+    }
+    const QString separator = QStringLiteral("|");
+    const auto at = [](const std::vector<QString>& tokens, const QString& token) {
+      const auto found = std::find(tokens.begin(), tokens.end(), token);
+      return found == tokens.end() ? -1 : static_cast<int>(found - tokens.begin());
+    };
+    for (const auto& bar : bars) {
+      require_action(window, bar.tool)->trigger();
+      mode->setCurrentIndex(0);  // Shape
+      QApplication::processEvents();
+      process_events_for(20);
+      save_widget_artifact(std::string("issue_311_") + bar.name + "_options_bar" + suffix, *options_bar);
+      const auto tokens = options_row_tokens(*options);
+      std::printf("  %-22s", (bar.name + suffix).c_str());
+      for (const auto& token : tokens) {
+        std::printf(" %s", qPrintable(token));
+      }
+      std::printf("\n");
+      const auto problem = [&](const std::string& what) { problems.push_back(bar.name + suffix + ": " + what); };
+      const auto expect_separator_before = [&](const QString& token) {
+        const int index = at(tokens, token);
+        if (index <= 0 || tokens[static_cast<std::size_t>(index) - 1] != separator) {
+          problem("no separator before " + token.toStdString());
+        }
+      };
+      const auto expect_next_to = [&](const QString& left, const QString& right) {
+        const int index = at(tokens, left);
+        if (index < 0 || index + 1 >= static_cast<int>(tokens.size()) ||
+            tokens[static_cast<std::size_t>(index) + 1] != right) {
+          problem(left.toStdString() + " is not followed by " + right.toStdString());
+        }
+      };
+      for (const char* token : {"Fill", "vectorStrokeCheck", "W", "Combine", "vectorAppearanceButton"}) {
+        expect_separator_before(QLatin1String(token));
+      }
+      if (bar.own != nullptr) {
+        expect_separator_before(QLatin1String(bar.own));
+        if (at(tokens, QLatin1String(bar.own)) < at(tokens, QStringLiteral("vectorCombineCombo"))) {
+          problem(std::string(bar.own) + " comes before Combine");
+        }
+      } else {
+        expect_next_to(QStringLiteral("vectorCombineCombo"), separator);
+      }
+      // One group each: Fill and its swatch; the Stroke checkbox, swatch and width.
+      expect_next_to(QStringLiteral("Fill"), QStringLiteral("vectorFillSwatchButton"));
+      expect_next_to(QStringLiteral("vectorFillSwatchButton"), separator);
+      expect_next_to(QStringLiteral("vectorStrokeCheck"), QStringLiteral("vectorStrokeSwatchButton"));
+      expect_next_to(QStringLiteral("vectorStrokeSwatchButton"), QStringLiteral("vectorStrokeWidthLabel"));
+      if (std::string_view(bar.name) == "line") {
+        expect_next_to(QStringLiteral("Weight"), QStringLiteral("vectorLineWeightSpin"));
+        expect_next_to(QStringLiteral("vectorLineWeightSpin"), QStringLiteral("lineArrowStartButton"));
+        expect_next_to(QStringLiteral("lineArrowStartButton"), QStringLiteral("lineArrowEndButton"));
+        expect_next_to(QStringLiteral("lineArrowEndButton"), separator);
+      }
+      if (const auto [right, lines] = options_row_extent(*options); lines != 1) {
+        problem("takes " + std::to_string(lines) + " rows at 1366 px (row " + std::to_string(right) + " px)");
+      }
+
+      const QImage image = options->grab().toImage();
+      // The swatches are framed buttons with a wide chip: the frame differs from the bar beside it.
+      for (const char* name : {"vectorFillSwatchButton", "vectorStrokeSwatchButton"}) {
+        auto* swatch = window.findChild<QToolButton*>(QLatin1String(name));
+        if (swatch == nullptr || !swatch->isVisible()) {
+          problem(std::string(name) + " not shown");
+          continue;
+        }
+        const QRect box = swatch->geometry();
+        if (box.width() < 36 || box.height() < 22 || swatch->iconSize().width() < 28 ||
+            swatch->iconSize().height() < 14) {
+          problem(std::string(name) + " is too small to read as a button");
+        }
+        const QColor bar_color = image.pixelColor(box.left() - 2, box.center().y());
+        const QColor frame = image.pixelColor(box.left(), box.center().y() - 3);
+        const QColor face = image.pixelColor(box.left() + 2, box.center().y());
+        if (frame == bar_color && face == bar_color) {
+          problem(std::string(name) + " has no button frame");
+        }
+      }
+      // The keep-proportions toggle: as far from the W field as from the H label's text.
+      auto* width_spin = window.findChild<QWidget*>(QStringLiteral("vectorShapeWidthSpin"));
+      auto* link = window.findChild<QWidget*>(QStringLiteral("vectorShapeLinkSizeButton"));
+      auto* height_label = window.findChild<QWidget*>(QStringLiteral("vectorShapeHeightLabel"));
+      if (width_spin == nullptr || link == nullptr || height_label == nullptr || !link->isVisible()) {
+        problem("W/H pair not found");
+        continue;
+      }
+      const QRect field = width_spin->geometry();
+      const QRect button = link->geometry();
+      const QRect label = height_label->geometry();
+      const QColor background = image.pixelColor(field.right() + 2, button.center().y());
+      int text_left = -1;
+      for (int x = label.left(); x <= label.right() && text_left < 0; ++x) {
+        for (int y = label.top(); y <= label.bottom(); ++y) {
+          const QColor color = image.pixelColor(x, y);
+          if (std::abs(color.red() - background.red()) + std::abs(color.green() - background.green()) +
+                  std::abs(color.blue() - background.blue()) > 90) {
+            text_left = x;
+            break;
+          }
+        }
+      }
+      const int left_gap = button.left() - (field.right() + 1);
+      const int right_gap = text_left - (button.right() + 1);
+      std::printf("  %s%s: field to toggle %d px, toggle to H %d px\n", bar.name, suffix.c_str(), left_gap,
+                  right_gap);
+      if (text_left < 0 || std::abs(left_gap - right_gap) > 1) {
+        problem("uneven space around the keep-proportions toggle: " + std::to_string(left_gap) + " and " +
+                std::to_string(right_gap));
+      }
+    }
+  }
+  for (const auto& problem : problems) {
+    std::fprintf(stderr, "  %s\n", problem.c_str());
+  }
+  CHECK(problems.empty());
+}
+
 // GitHub issue 286 follow-up: the swap width/height buttons on the Artboard and marquee bars
 // show one monochrome glyph in the theme's icon ink, at the bar's icon size, filling its box,
 // and dim when disabled. The bars still fit one row at 1366 px. Each bar is captured before
@@ -7572,6 +7721,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_options_bar_spinboxes_fit_widest_value", ui_options_bar_spinboxes_fit_widest_value},
       {"ui_options_bar_keeps_one_height_across_tools", ui_options_bar_keeps_one_height_across_tools},
       {"ui_selection_options_bars_group_their_controls", ui_selection_options_bars_group_their_controls},
+      {"ui_shape_options_bars_group_their_controls", ui_shape_options_bars_group_their_controls},
       {"ui_options_bars_follow_the_separator_rules", ui_options_bars_follow_the_separator_rules},
       {"ui_swap_dimension_buttons_show_a_themed_full_size_glyph",
        ui_swap_dimension_buttons_show_a_themed_full_size_glyph},
