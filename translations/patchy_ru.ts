@@ -14443,10 +14443,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Автоматический выбор</translation>
     </message>
     <message>
-        <source>Show Transform Controls</source>
-        <translation>Показать элементы управления преобразованием</translation>
-    </message>
-    <message>
         <source>Snap</source>
         <translation>Привязка</translation>
     </message>
@@ -23433,6 +23429,10 @@ Patchy можно будет запускать из меню, а на пане�
     <message>
         <source>Smart Sharpen</source>
         <translation>Умная резкость</translation>
+    </message>
+    <message>
+        <source>Transform Controls</source>
+        <translation>Элементы управления преобразованием</translation>
     </message>
 </context>
 <context>
