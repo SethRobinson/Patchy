@@ -3660,7 +3660,10 @@ void CanvasWidget::draw_free_transform(QPainter& painter) const {
     return;
   }
 
-  if (!transform_targets_.empty()) {
+  if (transform_vector_preview_drawn_) {
+    // Dynamic Vector Preview drew the transformed shape sharp; a resampled blit would
+    // cover it with document pixels.
+  } else if (!transform_targets_.empty()) {
     if (!transform_multi_snapshot_.isNull() && !transform_multi_snapshot_rect_.isEmpty() &&
         transform_preview_patches_.empty()) {
       // Multi-target drag preview: the one subtree snapshot mapped through the
@@ -4324,13 +4327,7 @@ void CanvasWidget::commit_free_transform() {
       // The text-layer pattern for vectors: apply the affine to the path
       // model and re-rasterize crisply (replacing the resampled pixels). A
       // shape layer's own path maps so its unscaled stroke fills the box.
-      const auto* shape = layer_is_vector_shape(*layer) ? layer->vector_shape() : nullptr;
-      const auto path_bounds = shape != nullptr ? shape->path.bounds() : std::nullopt;
-      const auto delta =
-          path_bounds.has_value() && !transform_is_distorted()
-              ? shape_free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
-                                           transform_scale_x_sign_, transform_scale_y_sign_, *path_bounds)
-              : transform_session_delta();
+      const auto delta = shape_layer_commit_delta(*layer);
       const std::array<double, 6> matrix{delta.m11(), delta.m12(), delta.m21(),
                                          delta.m22(), delta.dx(),  delta.dy()};
       if (transform_has_perspective(delta)) {
@@ -4401,6 +4398,54 @@ void CanvasWidget::commit_free_transform() {
                              : tr("Free Transform cancelled"));
   }
   notify_transform_controls_changed();
+}
+
+bool CanvasWidget::free_transform_vector_preview_possible() const {
+  // The session's pixel source is built lazily (the first drag), so it is not required here.
+  if (!transforming_layer_ || document_ == nullptr || !transform_targets_.empty() || !transform_layer_id_.has_value() ||
+      transform_has_pending_warp_) {
+    return false;
+  }
+  // The commit's vector branch alone: text and smart objects re-render other content, and a
+  // linked raster mask resamples, so those sessions keep the pixel preview.
+  const auto* layer = std::as_const(*document_).find_layer(*transform_layer_id_);
+  return layer != nullptr && layer_is_vector_shape(*layer) && !layer_is_text(*layer) && !layer_is_smart_object(*layer) &&
+         !layer->mask().has_value();
+}
+
+std::optional<std::pair<LayerId, QTransform>> CanvasWidget::free_transform_vector_preview_key() const {
+  if (!free_transform_vector_preview_possible()) {
+    return std::nullopt;
+  }
+  const auto* layer = std::as_const(*document_).find_layer(*transform_layer_id_);
+  return std::pair<LayerId, QTransform>{layer->id(), shape_layer_commit_delta(*layer)};
+}
+
+Document CanvasWidget::free_transform_vector_preview_document(const std::pair<LayerId, QTransform>& key) const {
+  auto preview = *document_;  // copy-on-write pixels: only the transformed shape re-bakes
+  auto* layer = preview.find_layer(key.first);
+  if (layer == nullptr || key.second.isIdentity()) {
+    return preview;
+  }
+  const auto& delta = key.second;
+  const auto canvas = Rect::from_size(preview.width(), preview.height());
+  if (transform_has_perspective(delta)) {
+    patchy::transform_layer_vector_data_projective(preview, *layer, homography_from_qtransform(delta), canvas);
+  } else {
+    patchy::transform_layer_vector_data(preview, *layer,
+                                        {delta.m11(), delta.m12(), delta.m21(), delta.m22(), delta.dx(), delta.dy()},
+                                        canvas);
+  }
+  return preview;
+}
+
+QTransform CanvasWidget::shape_layer_commit_delta(const Layer& layer) const {
+  const auto* shape = layer_is_vector_shape(layer) ? layer.vector_shape() : nullptr;
+  const auto path_bounds = shape != nullptr ? shape->path.bounds() : std::nullopt;
+  return path_bounds.has_value() && !transform_is_distorted()
+             ? shape_free_transform_delta(transform_original_rect_, transform_current_rect_, transform_angle_,
+                                          transform_scale_x_sign_, transform_scale_y_sign_, *path_bounds)
+             : transform_session_delta();
 }
 
 // Multi-target commit: one shared affine delta applied per leaf with the same

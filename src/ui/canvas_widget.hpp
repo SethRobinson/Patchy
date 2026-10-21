@@ -1442,6 +1442,17 @@ private:
   // the composite's raster, grid included (docs/vector-preview.md, "Overlay order").
   bool draw_vector_preview(QPainter& painter, QRect exposed_rect);
   void report_vector_preview_status(QString status, bool notice = false);
+  // Dynamic Vector Preview through a Free Transform session (docs/vector-preview.md): a
+  // single shape layer's session, without a pending warp or a raster mask, previews its
+  // transformed path at view resolution between drags. The key (layer and the delta the
+  // commit would apply) changes whenever the session does, which rebuilds the scene.
+  [[nodiscard]] bool free_transform_vector_preview_possible() const;
+  [[nodiscard]] std::optional<std::pair<LayerId, QTransform>> free_transform_vector_preview_key() const;
+  // The document as the commit would leave it: the shape's vector data through the key's delta.
+  [[nodiscard]] Document free_transform_vector_preview_document(const std::pair<LayerId, QTransform>& key) const;
+  // The delta a commit applies to a shape layer's vector data (shape_free_transform_delta
+  // fits an undistorted box to the path; a distorted one takes the session homography).
+  [[nodiscard]] QTransform shape_layer_commit_delta(const Layer& layer) const;
   // True when a paint should keep showing the previous frame and let the async
   // refresh swap the new composite in, instead of blocking the paint on a full
   // recomposite: the cache is dirty, a same-size previous frame exists, no
@@ -3532,6 +3543,16 @@ private:
   std::function<QList<QAction*>()> shape_context_actions_callback_;
   std::function<QList<QAction*>()> layer_context_actions_callback_;
   bool vector_preview_enabled_{false};
+  std::optional<std::pair<LayerId, QTransform>> vector_preview_transform_key_;
+  // The transform scene's document, kept for the pixel grid's tones: the render cache still
+  // holds the layer where it was, so the grid over the frame samples this document instead
+  // (a composite of the view's document rect only, made on the preview worker).
+  std::shared_ptr<const Document> vector_preview_transform_document_;
+  QImage vector_preview_grid_image_;
+  QRect vector_preview_grid_rect_;
+  // Set by paintEvent when the sharp frame covered a Free Transform session's content, so
+  // draw_free_transform draws only the box, not the resampled pixels over the frame.
+  bool transform_vector_preview_drawn_{false};
   std::uint64_t vector_preview_generation_{1};
   std::uint64_t vector_preview_completed_generation_{0};
   std::shared_ptr<const VectorPreviewScene> vector_preview_scene_;
