@@ -20,7 +20,8 @@ class SaveProgress;
 [[nodiscard]] bool is_read_only_source_extension(const QString& extension);
 [[nodiscard]] bool flat_save_discards_layers(const Document& document);
 [[nodiscard]] bool save_discards_layers(const Document& document, const QString& extension);
-// The local save time and "Patchy <version>" for metadata::stamp_xmp_for_save.
+// The local save time, "Patchy <version>" and a new instance GUID for
+// metadata::stamp_file_info_for_save.
 [[nodiscard]] metadata::SaveStamp save_stamp_now();
 
 // Window effects only. User-facing messages and prompts retain the MainWindow context.

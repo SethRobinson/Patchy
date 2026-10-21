@@ -1247,7 +1247,7 @@ void metadata_xmp_date_is_iso_8601_with_the_offset() {
 
 void metadata_save_stamp_records_creation_and_each_save() {
   patchy::DocumentFileInfo info;
-  md::stamp_xmp_for_save(info, {"2026-10-20T15:41:05+09:00", "Patchy 9.9"});
+  md::stamp_file_info_for_save(info, {"2026-10-20T15:41:05+09:00", "Patchy 9.9", "00000000-0000-4000-8000-000000000000"});
   auto packet = stamped_packet(info);
   CHECK(packet.text(md::xmp_ns::kXmp, "CreatorTool") == "Patchy 9.9");
   CHECK(packet.text(md::xmp_ns::kXmp, "CreateDate") == "2026-10-20T15:41:05+09:00");
@@ -1256,7 +1256,7 @@ void metadata_save_stamp_records_creation_and_each_save() {
   CHECK(history_field(packet, "action") == std::vector<std::string>{"created"});
 
   // The next save moves the modify date and adds a history entry; creation stays.
-  md::stamp_xmp_for_save(info, {"2026-10-21T08:00:00+09:00", "Patchy 9.9"});
+  md::stamp_file_info_for_save(info, {"2026-10-21T08:00:00+09:00", "Patchy 9.9", "00000000-0000-4000-8000-000000000000"});
   packet = stamped_packet(info);
   CHECK(packet.text(md::xmp_ns::kXmp, "CreateDate") == "2026-10-20T15:41:05+09:00");
   CHECK(packet.text(md::xmp_ns::kXmp, "ModifyDate") == "2026-10-21T08:00:00+09:00");
@@ -1292,7 +1292,7 @@ void metadata_save_stamp_keeps_another_applications_record() {
       R"x(</rdf:li></rdf:Seq></xmpMM:History></rdf:Description></rdf:RDF></x:xmpmeta>)x";
   patchy::DocumentFileInfo info;
   info.xmp = patchy::make_metadata_bytes(Bytes(source.begin(), source.end()));
-  md::stamp_xmp_for_save(info, {"2026-10-20T15:41:05+09:00", "Patchy 9.9"});
+  md::stamp_file_info_for_save(info, {"2026-10-20T15:41:05+09:00", "Patchy 9.9", "00000000-0000-4000-8000-000000000000"});
   const auto packet = stamped_packet(info);
   CHECK(packet.text(md::xmp_ns::kXmp, "CreatorTool") == "Adobe Photoshop 27.0 (Windows)");
   CHECK(packet.text(md::xmp_ns::kXmp, "CreateDate") == "2025-01-02T03:04:05-08:00");
@@ -1308,13 +1308,94 @@ void metadata_save_stamp_keeps_another_applications_record() {
   patchy::DocumentFileInfo broken;
   broken.xmp = patchy::make_metadata_bytes(Bytes{'n', 'o', 't', ' ', 'x', 'm', 'l'});
   const auto before = broken.xmp;
-  md::stamp_xmp_for_save(broken, {"2026-10-20T15:41:05+09:00", "Patchy 9.9"});
+  md::stamp_file_info_for_save(broken, {"2026-10-20T15:41:05+09:00", "Patchy 9.9", "00000000-0000-4000-8000-000000000000"});
   CHECK(broken.xmp == before);
 }
 
+// Each save is a new instance (GitHub issue 219 follow-up): xmpMM:InstanceID matches the
+// instanceID of the History entry the save adds, as in a Photoshop 27.11 save. The first
+// save also names the document (DocumentID and OriginalDocumentID, from the same GUID as
+// the "created" entry); later saves keep those.
+void metadata_save_stamp_records_a_new_instance_per_save() {
+  patchy::DocumentFileInfo info;
+  md::stamp_file_info_for_save(info, {"2026-10-20T15:41:05+09:00", "Patchy 9.9", "6f1a0c2e-0000-4000-8000-000000000001"});
+  auto packet = stamped_packet(info);
+  CHECK(packet.text(md::xmp_ns::kXmpMM, "InstanceID") == "xmp.iid:6f1a0c2e-0000-4000-8000-000000000001");
+  CHECK(packet.text(md::xmp_ns::kXmpMM, "DocumentID") == "xmp.did:6f1a0c2e-0000-4000-8000-000000000001");
+  CHECK(packet.text(md::xmp_ns::kXmpMM, "OriginalDocumentID") == "xmp.did:6f1a0c2e-0000-4000-8000-000000000001");
+  CHECK(history_field(packet, "instanceID") ==
+        std::vector<std::string>{"xmp.iid:6f1a0c2e-0000-4000-8000-000000000001"});
+
+  md::stamp_file_info_for_save(info, {"2026-10-21T08:00:00+09:00", "Patchy 9.9", "6f1a0c2e-0000-4000-8000-000000000002"});
+  packet = stamped_packet(info);
+  CHECK(packet.text(md::xmp_ns::kXmpMM, "InstanceID") == "xmp.iid:6f1a0c2e-0000-4000-8000-000000000002");
+  CHECK(packet.text(md::xmp_ns::kXmpMM, "DocumentID") == "xmp.did:6f1a0c2e-0000-4000-8000-000000000001");
+  CHECK(packet.text(md::xmp_ns::kXmpMM, "OriginalDocumentID") == "xmp.did:6f1a0c2e-0000-4000-8000-000000000001");
+  CHECK((history_field(packet, "instanceID") ==
+         std::vector<std::string>{"xmp.iid:6f1a0c2e-0000-4000-8000-000000000001",
+                                  "xmp.iid:6f1a0c2e-0000-4000-8000-000000000002"}));
+
+  // Another application's document keeps its ids; only the instance moves.
+  const std::string source =
+      R"x(<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">)x"
+      R"x(<rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmlns:xmpMM="http://ns.adobe.com/xap/1.0/mm/")x"
+      R"x( xmp:CreateDate="2025-01-02T03:04:05-08:00" xmpMM:DocumentID="adobe:docid:photoshop:1234")x"
+      R"x( xmpMM:OriginalDocumentID="xmp.did:abcd" xmpMM:InstanceID="xmp.iid:old"/></rdf:RDF></x:xmpmeta>)x";
+  patchy::DocumentFileInfo other;
+  other.xmp = patchy::make_metadata_bytes(Bytes(source.begin(), source.end()));
+  md::stamp_file_info_for_save(other, {"2026-10-20T15:41:05+09:00", "Patchy 9.9", "6f1a0c2e-0000-4000-8000-000000000003"});
+  packet = stamped_packet(other);
+  CHECK(packet.text(md::xmp_ns::kXmpMM, "InstanceID") == "xmp.iid:6f1a0c2e-0000-4000-8000-000000000003");
+  CHECK(packet.text(md::xmp_ns::kXmpMM, "DocumentID") == "adobe:docid:photoshop:1234");
+  CHECK(packet.text(md::xmp_ns::kXmpMM, "OriginalDocumentID") == "xmp.did:abcd");
+  CHECK(history_field(packet, "instanceID") ==
+        std::vector<std::string>{"xmp.iid:6f1a0c2e-0000-4000-8000-000000000003"});
+}
+
+// EXIF IFD0 Software and DateTime name the saving application and time on every save, as
+// Photoshop writes them (even into a file another application created; xmp:CreatorTool
+// keeps the creator). Only an EXIF block the document already has is touched: a document
+// without one gets none.
+void metadata_save_stamp_updates_exif_software_and_date() {
+  auto stream = sample_exif_stream(false);
+  stream.set_ascii(md::IfdKind::Ifd0, md::exif_tag::kSoftware, "OtherApp 1.0");
+  stream.set_ascii(md::IfdKind::Ifd0, md::exif_tag::kDateTime, "2020:01:02 03:04:05");
+  patchy::DocumentFileInfo info;
+  info.exif = patchy::make_metadata_bytes(md::write_tiff(stream));
+  md::stamp_file_info_for_save(info, {"2026-10-20T15:41:05+09:00", "Patchy 9.9", "6f1a0c2e-0000-4000-8000-000000000001"});
+  CHECK(info.exif != nullptr);
+  const auto stamped = info.exif ? md::parse_tiff(*info.exif) : std::nullopt;
+  CHECK(stamped.has_value());
+  if (stamped) {
+    const auto text = [&stamped](std::uint16_t tag) {
+      const auto* ifd = stamped->find(md::IfdKind::Ifd0);
+      const auto* entry = ifd != nullptr ? ifd->find(tag) : nullptr;
+      return entry != nullptr ? stamped->string_value(*entry) : std::string{};
+    };
+    CHECK(text(md::exif_tag::kSoftware) == "Patchy 9.9");
+    CHECK(text(md::exif_tag::kDateTime) == "2026:10:20 15:41:05");
+    CHECK(text(md::exif_tag::kModel) == "Model X");
+    CHECK(stamped->find(md::IfdKind::Gps) != nullptr);
+  }
+  const auto fields = md::read_fields(info);
+  CHECK(fields.creator_tool == "Patchy 9.9");
+
+  // Through the PSD writer and reader: resource 1058 carries it.
+  patchy::Document document(8, 8, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Background", patchy::PixelBuffer(8, 8, patchy::PixelFormat::rgb8()));
+  document.file_info() = info;
+  const auto read = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  CHECK(read.file_info().exif != nullptr && *read.file_info().exif == *info.exif);
+
+  patchy::DocumentFileInfo fresh;
+  md::stamp_file_info_for_save(fresh, {"2026-10-20T15:41:05+09:00", "Patchy 9.9", "6f1a0c2e-0000-4000-8000-000000000001"});
+  CHECK(fresh.exif == nullptr);
+}
+
 // Photoshop acceptance inputs (File Info should show the dates and the application):
-// a new document's first save and a Photoshop file's resave, in
-// test-artifacts/psd-xmp-dates for scripts/dev/photoshop-open-check.ps1.
+// a new document's first save, a Photoshop file's resave and a resave of a file with
+// another application's EXIF, in test-artifacts/psd-xmp-dates for
+// scripts/dev/photoshop-open-check.ps1.
 void metadata_save_stamp_acceptance_files() {
   const auto out = std::filesystem::path("test-artifacts") / "psd-xmp-dates";
   std::filesystem::create_directories(out);
@@ -1324,13 +1405,20 @@ void metadata_save_stamp_acceptance_files() {
   };
   patchy::Document fresh(64, 48, patchy::PixelFormat::rgb8());
   fresh.add_pixel_layer("Background", patchy::PixelBuffer(64, 48, patchy::PixelFormat::rgb8()));
-  md::stamp_xmp_for_save(fresh.file_info(), {"2026-10-20T15:41:05+09:00", "Patchy 9.9"});
+  md::stamp_file_info_for_save(fresh.file_info(), {"2026-10-20T15:41:05+09:00", "Patchy 9.9", "6f1a0c2e-5d3b-4c8a-9e21-7b40d2f8a101"});
   write(out / "new-document.psd", patchy::psd::DocumentIo::write_layered_rgb8(fresh));
+
+  auto exif = sample_exif_stream(true);
+  exif.set_ascii(md::IfdKind::Ifd0, md::exif_tag::kSoftware, "OtherApp 1.0");
+  exif.set_ascii(md::IfdKind::Ifd0, md::exif_tag::kDateTime, "2020:01:02 03:04:05");
+  fresh.file_info().exif = patchy::make_metadata_bytes(md::write_tiff(exif));
+  md::stamp_file_info_for_save(fresh.file_info(), {"2026-10-21T08:00:00+09:00", "Patchy 9.9", "6f1a0c2e-5d3b-4c8a-9e21-7b40d2f8a102"});
+  write(out / "exif-resave.psd", patchy::psd::DocumentIo::write_layered_rgb8(fresh));
 
   const auto source = patchy::test::local_psd_fixture_path("checkbox.psd");
   if (std::filesystem::exists(source)) {
     auto resaved = patchy::psd::DocumentIo::read_file(source);
-    md::stamp_xmp_for_save(resaved.file_info(), {"2026-10-20T15:41:05+09:00", "Patchy 9.9"});
+    md::stamp_file_info_for_save(resaved.file_info(), {"2026-10-20T15:41:05+09:00", "Patchy 9.9", "6f1a0c2e-5d3b-4c8a-9e21-7b40d2f8a103"});
     write(out / "photoshop-resave.psd", patchy::psd::DocumentIo::write_layered_rgb8(resaved));
   }
 }
@@ -1342,6 +1430,8 @@ std::vector<patchy::test::TestCase> file_info_metadata_tests() {
       {"metadata_xmp_date_is_iso_8601_with_the_offset", metadata_xmp_date_is_iso_8601_with_the_offset},
       {"metadata_save_stamp_records_creation_and_each_save", metadata_save_stamp_records_creation_and_each_save},
       {"metadata_save_stamp_keeps_another_applications_record", metadata_save_stamp_keeps_another_applications_record},
+      {"metadata_save_stamp_records_a_new_instance_per_save", metadata_save_stamp_records_a_new_instance_per_save},
+      {"metadata_save_stamp_updates_exif_software_and_date", metadata_save_stamp_updates_exif_software_and_date},
       {"metadata_save_stamp_acceptance_files", metadata_save_stamp_acceptance_files},
       {"metadata_tiff_ifd_round_trips_both_byte_orders", tiff_ifd_round_trips_both_byte_orders},
       {"metadata_tiff_ifd_survives_hostile_offsets", tiff_ifd_survives_hostile_offsets},
