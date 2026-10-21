@@ -33,6 +33,7 @@
 #include <QItemSelectionModel>
 #include <QLabel>
 #include <QListWidget>
+#include <QMouseEvent>
 #include <QPainter>
 #include <QPushButton>
 #include <QRadioButton>
@@ -2537,6 +2538,89 @@ void ui_warp_drag_preview_renders_at_view_resolution() {
   CHECK(differing < static_cast<std::int64_t>(resting_rgb.width()) * resting_rgb.height() / 500);
 }
 
+// GitHub #298: a warp drag on a 2560x1440 photo lagged seconds behind the pointer.
+// Every mouse move rendered a preview (and refreshed the options bar), so moves that
+// arrived faster than a render queued up. A drag now renders once per painted frame
+// from the latest handle position, and between 50% and 100% device zoom its frames
+// render at half resolution instead of the whole on-screen layer at full resolution.
+void ui_warp_drag_renders_once_per_frame() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  constexpr int kWidth = 1600;
+  constexpr int kHeight = 1000;
+  patchy::Document built(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer art(kWidth, kHeight, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < kHeight; ++y) {
+    for (std::int32_t x = 0; x < kWidth; ++x) {
+      auto* px = art.pixel(x, y);
+      const bool band = ((x / 100) + (y / 100)) % 2 == 0;
+      px[0] = static_cast<std::uint8_t>(band ? 210 : 40);
+      px[1] = static_cast<std::uint8_t>(band ? 90 : 160);
+      px[2] = 50;
+      px[3] = 255;
+    }
+  }
+  patchy::Layer layer(built.allocate_layer_id(), "Photo", std::move(art));
+  const auto layer_id = layer.id();
+  built.add_layer(std::move(layer));
+  built.set_active_layer(layer_id);
+  window.add_document_session(std::move(built), QStringLiteral("Warp burst"));
+  QApplication::processEvents();
+  auto* canvas = patchy::ui::MainWindowTestAccess::canvas(window);
+  CHECK(canvas != nullptr);
+  canvas->set_view_zoom_centered(0.25);
+  QApplication::processEvents();
+  require_action(window, "editWarpTransformAction")->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->warp_transform_active());
+
+  // Moves queued faster than a frame (posted together, as a backed-up input queue
+  // delivers them) render once, at the latest handle position.
+  constexpr int kHandle = 0;
+  const auto start = canvas->widget_position_f(canvas->warp_handle_document_position(kHandle)).toPoint();
+  send_mouse(*canvas, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+  const auto renders_before = canvas->render_cache_diagnostics().warp_preview_renders;
+  QPoint end = start;
+  for (int move = 1; move <= 12; ++move) {
+    end = start + QPoint(9, 5) * move;
+    QApplication::postEvent(canvas, new QMouseEvent(QEvent::MouseMove, QPointF(end), QPointF(canvas->mapToGlobal(end)),
+                                                    Qt::NoButton, Qt::LeftButton, Qt::NoModifier));
+  }
+  QApplication::processEvents();
+  canvas->repaint();
+  CHECK(canvas->render_cache_diagnostics().warp_preview_renders == renders_before + 1);
+  const auto handle_widget = canvas->widget_position_f(canvas->warp_handle_document_position(kHandle));
+  CHECK(std::abs(handle_widget.x() - end.x()) <= 1.0 && std::abs(handle_widget.y() - end.y()) <= 1.0);
+  canvas->repaint();  // nothing moved: no second render
+  CHECK(canvas->render_cache_diagnostics().warp_preview_renders == renders_before + 1);
+  // The release renders the resting frame at once, without waiting for a paint.
+  send_mouse(*canvas, QEvent::MouseButtonRelease, end, Qt::LeftButton, Qt::NoButton);
+  CHECK(canvas->render_cache_diagnostics().warp_preview_renders == renders_before + 2);
+  QApplication::processEvents();
+
+  // 70% device zoom: the whole layer is on screen at the full-resolution display
+  // level. Drag frames render at half resolution; the resting frame at full.
+  canvas->set_view_zoom_centered(0.7);
+  QApplication::processEvents();
+  canvas->repaint();
+  const auto scaled_before = canvas->render_cache_diagnostics().warp_scaled_previews;
+  const auto start_70 = canvas->widget_position_f(canvas->warp_handle_document_position(kHandle)).toPoint();
+  send_mouse(*canvas, QEvent::MouseButtonPress, start_70, Qt::LeftButton, Qt::LeftButton);
+  const auto end_70 = start_70 + QPoint(-20, -12);
+  send_mouse(*canvas, QEvent::MouseMove, end_70, Qt::NoButton, Qt::LeftButton);
+  canvas->repaint();
+  const auto during = canvas->render_cache_diagnostics();
+  CHECK(during.warp_scaled_previews == scaled_before + 1);
+  CHECK(during.warp_preview_last_pixels <=
+        static_cast<std::uint64_t>(kWidth / 2 + 64) * static_cast<std::uint64_t>(kHeight / 2 + 64));
+  save_widget_artifact("warp_drag_half_resolution_70", *canvas);
+  send_mouse(*canvas, QEvent::MouseButtonRelease, end_70, Qt::LeftButton, Qt::NoButton);
+  const auto resting = canvas->render_cache_diagnostics();
+  CHECK(resting.warp_scaled_previews == during.warp_scaled_previews);
+  CHECK(resting.warp_preview_last_pixels > during.warp_preview_last_pixels * 2);
+  canvas->cancel_warp_transform();
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> warp_tests() {
@@ -2544,6 +2628,7 @@ std::vector<patchy::test::TestCase> warp_tests() {
       {"ui_warp_resample_parallel_and_clipped_match_sequential",
        ui_warp_resample_parallel_and_clipped_match_sequential},
       {"ui_warp_drag_preview_renders_at_view_resolution", ui_warp_drag_preview_renders_at_view_resolution},
+      {"ui_warp_drag_renders_once_per_frame", ui_warp_drag_renders_once_per_frame},
       {"ui_warp_render_matches_photoshop_preview_if_available",
        ui_warp_render_matches_photoshop_preview_if_available},
       {"ui_warped_smart_object_free_transform_rerenders", ui_warped_smart_object_free_transform_rerenders},
