@@ -80,6 +80,7 @@ class QPushButton;
 namespace patchy::ui {
 
 class SaveProgress;
+struct NewLayerSettings;
 class ColorWellSwatch;
 class PanelColumn;
 struct PanelSpec;
@@ -1321,7 +1322,10 @@ private:
       std::optional<LayerId> adjustment_layer_id = std::nullopt);
   // Opens the dialog of an adjustment Smart Filter entry (main_window_smart_filter_adjustments.cpp).
   void edit_adjustment_smart_filter(LayerId layer_id, std::size_t execution_index);
-  void add_layer();
+  // A new empty pixel layer above the selection. The settings come from the New Layer
+  // dialog (GitHub issue 275); without them the layer gets the next default name.
+  void add_layer(const NewLayerSettings* settings = nullptr);
+  void add_layer_with_dialog();
   void create_layer_folder();
   void create_layer_folder_from_layers(std::vector<LayerId> ids);
   // Artboards (main_window_artboards.cpp, docs/artboards.md). Every edit is one undo step
@@ -1787,6 +1791,10 @@ private:
   // floated, or a document tab): accepts it as a copy and defers the copy.
   bool handle_cross_document_layer_drag_event(QObject* watched, QEvent* event);
   void merge_visible_to_new_layer();
+  // Merge Visible in place (GitHub issue 294, docs/layer-merging.md): one undo step,
+  // hidden layers stay; off while fewer than two visible layers draw.
+  void merge_visible_layers();
+  void refresh_merge_visible_action_state();
   void flatten_image();
   void merge_down();
   void fill_active_layer();
@@ -2428,6 +2436,8 @@ private:
   // Prevent Auto-Nesting, checked when every selected layer has the lock
   // (refresh_layer_controls); shared with the layer context menu's Lock submenu.
   QAction* layer_prevent_auto_nesting_action_{nullptr};
+  // Layer > Merge Visible (refresh_merge_visible_action_state).
+  QAction* layer_merge_visible_layers_action_{nullptr};
   QAction* layer_align_to_selection_action_{nullptr};
   QAction* layer_align_to_canvas_action_{nullptr};
   // Align To: Canvas (true) or Selection (false). Not persisted: every launch

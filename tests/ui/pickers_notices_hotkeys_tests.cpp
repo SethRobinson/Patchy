@@ -2111,7 +2111,10 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(require_action(window, "selectGrowAction") != nullptr);
   CHECK(require_action(window, "selectSimilarAction") != nullptr);
   CHECK(require_action(window, "layerEditAdjustmentAction") != nullptr);
-  CHECK(require_action_by_text(window, QStringLiteral("New Layer"))->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N));
+  // GitHub issues 275, 294: the dialog on Ctrl+Shift+N; New Layer without it has no default key.
+  CHECK(require_action_by_text(window, QStringLiteral("New Layer..."))->shortcut() ==
+        QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N));
+  CHECK(require_action_by_text(window, QStringLiteral("New Layer"))->shortcut().isEmpty());
   CHECK(require_action_by_text(window, QStringLiteral("Layer Via Copy"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_J));
   CHECK(require_action_by_text(window, QStringLiteral("Layer Via Cut"))->shortcut() ==
         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_J));
@@ -2119,8 +2122,10 @@ void ui_photoshop_shortcuts_are_registered() {
   CHECK(require_action(window, "layerFillForegroundAction")->shortcut() == QKeySequence(Qt::ALT | Qt::Key_Backspace));
   CHECK(require_action(window, "layerFillBackgroundAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_Backspace));
   CHECK(require_action_by_text(window, QStringLiteral("Merge Down"))->shortcut() == QKeySequence(Qt::CTRL | Qt::Key_E));
-  CHECK(require_action_by_text(window, QStringLiteral("Merge Visible to New Layer (Copy)"))->shortcut() ==
+  CHECK(require_action_by_text(window, QStringLiteral("Merge Visible"))->shortcut() ==
         QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
+  CHECK(require_action_by_text(window, QStringLiteral("Merge Visible to New Layer (Copy)"))->shortcut() ==
+        QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_E));
   CHECK(require_action(window, "imageSizeAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_I));
   CHECK(require_action_by_text(window, QStringLiteral("Canvas Size..."))->shortcut() ==
         QKeySequence(Qt::CTRL | Qt::ALT | Qt::Key_C));
@@ -2825,6 +2830,50 @@ void ui_hotkey_override_applies_at_startup() {
     CHECK(undo_command->action->shortcuts().size() == 2);
   }
 }
+// GitHub issues 275 and 294 moved defaults, never ids: New Layer (layer.new) lost Ctrl+Shift+N
+// and has no default key, Merge Visible to New Layer (layer.merge_visible) took Ctrl+Alt+Shift+E,
+// and their old keys went to the new layer.new_with_dialog and layer.merge_visible_in_place. A user who saved the old key back
+// on an old command keeps it; the new command's default yields instead of colliding.
+void ui_new_layer_and_merge_visible_keys_moved_defaults_only() {
+  HotkeySettingsGroupRestorer restore_hotkeys;
+  clear_hotkey_overrides();
+  {
+    patchy::ui::MainWindow window;
+    const auto& registry = window.hotkey_registry();
+    const auto default_of = [&registry](const char* id) {
+      const auto* command = registry.find_command(QLatin1String(id));
+      return command != nullptr && !command->default_shortcuts.isEmpty() ? command->default_shortcuts.front()
+                                                                         : QKeySequence();
+    };
+    CHECK(require_hotkey_action(window, QStringLiteral("layer.new")) == require_action(window, "layerNewAction"));
+    CHECK(require_hotkey_action(window, QStringLiteral("layer.merge_visible")) ==
+          require_action(window, "layerMergeVisibleAction"));
+    CHECK(default_of("layer.new").isEmpty());
+    CHECK(default_of("layer.new_with_dialog") == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N));
+    CHECK(default_of("layer.merge_visible") == QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_E));
+    CHECK(default_of("layer.merge_visible_in_place") == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
+    CHECK(default_of("file.open_clipboard") == QKeySequence(Qt::CTRL | Qt::ALT | Qt::SHIFT | Qt::Key_N));
+  }
+  {
+    auto settings = patchy::ui::app_settings();
+    settings.setValue(QStringLiteral("hotkeys/layer.new"), QStringLiteral("Ctrl+Shift+N"));
+    settings.setValue(QStringLiteral("hotkeys/layer.merge_visible"), QStringLiteral("Ctrl+Shift+E"));
+    settings.sync();
+  }
+  patchy::ui::MainWindow window;
+  CHECK(require_action(window, "layerNewAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N));
+  CHECK(require_action(window, "layerNewWithDialogAction")->shortcut().isEmpty());
+  CHECK(require_action(window, "layerMergeVisibleAction")->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_E));
+  CHECK(require_action(window, "layerMergeVisibleLayersAction")->shortcut().isEmpty());
+  int yielded = 0;
+  for (const auto& suppression : window.hotkey_registry().resolution().suppressions) {
+    yielded += (suppression.id == QStringLiteral("layer.new_with_dialog") &&
+                suppression.winner_id == QStringLiteral("layer.new")) ||
+               (suppression.id == QStringLiteral("layer.merge_visible_in_place") &&
+                suppression.winner_id == QStringLiteral("layer.merge_visible"));
+  }
+  CHECK(yielded == 2);
+}
 // The Hotkeys page is not the last Preferences tab everywhere (Windows appends
 // Plug-ins after it), and its editor panel is built on the first visit, so
 // select the tab by its title and let the panel appear.
@@ -3451,6 +3500,7 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
        ui_size_sliders_give_the_low_end_most_of_the_track},
       {"ui_hotkey_resolution_rules", ui_hotkey_resolution_rules},
       {"ui_hotkey_defaults_have_no_conflicts", ui_hotkey_defaults_have_no_conflicts},
+      {"ui_new_layer_and_merge_visible_keys_moved_defaults_only", ui_new_layer_and_merge_visible_keys_moved_defaults_only},
       {"ui_tool_cycle_yields_to_member_override", ui_tool_cycle_yields_to_member_override},
       {"ui_hotkey_override_applies_at_startup", ui_hotkey_override_applies_at_startup},
       {"ui_preferences_builds_hotkey_editor_on_first_visit", ui_preferences_builds_hotkey_editor_on_first_visit},

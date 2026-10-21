@@ -3710,7 +3710,8 @@ void ui_background_layer_marker_and_short_menu() {
                              QStringLiteral("Duplicate Layer"), QStringLiteral("Duplicate Layer to Document..."),
                              QStringLiteral("Delete Layer"), QStringLiteral("-"),
                              QStringLiteral("Convert to Smart Object"), QStringLiteral("-"),
-                             QStringLiteral("Merge Visible to New Layer (Copy)"), QStringLiteral("Flatten Image")}));
+                             QStringLiteral("Merge Visible"), QStringLiteral("Merge Visible to New Layer (Copy)"),
+                             QStringLiteral("Flatten Image")}));
   const auto& bottom = std::as_const(doc).layers().front();
   CHECK(bottom.name() == "Layer 0");
   CHECK(patchy::background_layer(std::as_const(doc).layers(), doc.width(), doc.height()) == nullptr);
@@ -3735,7 +3736,189 @@ void ui_background_layer_marker_and_short_menu() {
   const auto lone_menu = right_click_background(nullptr);
   CHECK(lone_menu.contains(QStringLiteral("!Delete Layer")));
   CHECK(lone_menu.contains(QStringLiteral("!Merge Visible to New Layer (Copy)")));
+  CHECK(lone_menu.contains(QStringLiteral("!Merge Visible")));
 }
+
+// Drives the New Layer dialog once it is up (exec_dialog nests an event loop).
+void drive_new_layer_dialog(const std::function<void(QDialog&)>& driver, bool& seen) {
+  QTimer::singleShot(0, [driver, &seen] {
+    auto* dialog = find_top_level_dialog(QStringLiteral("newLayerDialog"));
+    CHECK(dialog != nullptr);
+    if (dialog == nullptr) {
+      return;
+    }
+    seen = true;
+    driver(*dialog);
+  });
+}
+
+void click_dialog_ok(QDialog& dialog) {
+  auto* buttons = dialog.findChild<QDialogButtonBox*>();
+  CHECK(buttons != nullptr);
+  if (buttons != nullptr) {
+    buttons->button(QDialogButtonBox::Ok)->click();
+  }
+}
+
+// GitHub issue 275: Layer > New > New Layer... (Ctrl+Shift+N) asks for the name, clipping,
+// color label, mode and opacity first; Cancel adds nothing. New Layer (no default key since
+// then) still adds one at once, no dialog.
+void ui_new_layer_dialog_applies_each_field_and_cancel_adds_nothing() {
+  using Access = patchy::ui::MainWindowTestAccess;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto& doc = Access::document(window);
+  doc = patchy::Document(64, 48, patchy::PixelFormat::rgba8());
+  const auto base_id =
+      doc.add_pixel_layer("Base", solid_pixels(64, 48, patchy::PixelFormat::rgba8(), QColor(200, 40, 40))).id();
+  doc.set_active_layer(base_id);
+  auto* canvas = require_canvas(window);
+  canvas->set_document(&doc);
+  Access::refresh_layer_ui(window);
+  const auto history = Access::active_session_undo_depth(window);
+  auto* dialog_action = require_action(window, "layerNewWithDialogAction");
+  auto* layer_new_menu = window.findChild<QMenu*>(QStringLiteral("layerNewMenu"));
+  CHECK(layer_new_menu != nullptr && layer_new_menu->actions().indexOf(dialog_action) == 0);
+  CHECK(layer_new_menu->actions().indexOf(require_action(window, "layerNewAction")) == 1);
+
+  bool seen = false;
+  drive_new_layer_dialog([](QDialog& dialog) { dialog.reject(); }, seen);
+  dialog_action->trigger();
+  CHECK(seen);
+  CHECK(std::as_const(doc).layers().size() == 1U);
+  CHECK(Access::active_session_undo_depth(window) == history);
+
+  seen = false;
+  drive_new_layer_dialog(
+      [](QDialog& dialog) {
+        auto* name = dialog.findChild<QLineEdit*>(QStringLiteral("newLayerNameEdit"));
+        auto* clip = dialog.findChild<QCheckBox*>(QStringLiteral("newLayerClipCheck"));
+        auto* color = dialog.findChild<QComboBox*>(QStringLiteral("newLayerColorCombo"));
+        auto* mode = dialog.findChild<QComboBox*>(QStringLiteral("newLayerModeCombo"));
+        auto* opacity = dialog.findChild<QSpinBox*>(QStringLiteral("newLayerOpacitySpin"));
+        CHECK(name != nullptr && clip != nullptr && color != nullptr && mode != nullptr && opacity != nullptr);
+        if (name == nullptr || clip == nullptr || color == nullptr || mode == nullptr || opacity == nullptr) {
+          dialog.reject();
+          return;
+        }
+        CHECK(name->text() == QStringLiteral("Layer 2"));  // default_new_layer_name: one layer so far
+        CHECK(clip->isEnabled() && !clip->isChecked());
+        CHECK(color->count() == 8 && color->currentIndex() == 0 && color->currentText() == QStringLiteral("None"));
+        CHECK(color->itemText(3) == QStringLiteral("Yellow") && !color->itemIcon(3).isNull());
+        CHECK(mode->currentData().toInt() == static_cast<int>(patchy::BlendMode::Normal));
+        CHECK(opacity->value() == 100 && opacity->minimum() == 0 && opacity->maximum() == 100);
+        name->setText(QStringLiteral("Glaze"));
+        clip->setChecked(true);
+        color->setCurrentIndex(static_cast<int>(patchy::kLayerColorYellow));
+        mode->setCurrentIndex(mode->findData(static_cast<int>(patchy::BlendMode::Multiply)));
+        opacity->setValue(40);
+        for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+          ColorSchemeRestorer restore(scheme);
+          QApplication::processEvents();
+          save_widget_artifact(scheme == patchy::ui::ColorSchemePreference::Dark ? "issue275_new_layer_dialog_dark"
+                                                                                 : "issue275_new_layer_dialog_light",
+                               dialog);
+        }
+        click_dialog_ok(dialog);
+      },
+      seen);
+  CHECK(dialog_action->shortcut() == QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_N));
+  dialog_action->trigger();
+  QApplication::processEvents();
+  CHECK(seen);
+  CHECK(std::as_const(doc).layers().size() == 2U);
+  CHECK(Access::active_session_undo_depth(window) == history + 1);
+  {
+    const auto& added = std::as_const(doc).layers().back();
+    CHECK(added.name() == "Glaze" && added.kind() == patchy::LayerKind::Pixel);
+    CHECK(added.clipped());
+    CHECK(added.color_label() == patchy::kLayerColorYellow);
+    CHECK(added.blend_mode() == patchy::BlendMode::Multiply);
+    CHECK(std::abs(added.opacity() - 0.4F) < 1e-6F);
+    CHECK(doc.active_layer_id() == added.id());
+  }
+  Access::undo(window);
+  CHECK(std::as_const(doc).layers().size() == 1U);
+
+  // New Layer: a default layer at once, no dialog.
+  bool unexpected_dialog = false;
+  QTimer::singleShot(0, [&unexpected_dialog] {
+    if (auto* dialog = find_top_level_dialog(QStringLiteral("newLayerDialog")); dialog != nullptr) {
+      unexpected_dialog = true;
+      dialog->reject();
+    }
+  });
+  require_action(window, "layerNewAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!unexpected_dialog);
+  CHECK(std::as_const(doc).layers().size() == 2U);
+  {
+    const auto& added = std::as_const(doc).layers().back();
+    CHECK(added.name() == "Layer 2" && !added.clipped() && added.color_label() == patchy::kLayerColorNone);
+    CHECK(added.blend_mode() == patchy::BlendMode::Normal && added.opacity() == 1.0F);
+  }
+
+  // No layer below to clip to: the option is off and never applies; an emptied name falls
+  // back to the default.
+  doc = patchy::Document(32, 24, patchy::PixelFormat::rgba8());
+  canvas->set_document(&doc);
+  Access::refresh_layer_ui(window);
+  seen = false;
+  drive_new_layer_dialog(
+      [](QDialog& dialog) {
+        auto* clip = dialog.findChild<QCheckBox*>(QStringLiteral("newLayerClipCheck"));
+        auto* name = dialog.findChild<QLineEdit*>(QStringLiteral("newLayerNameEdit"));
+        CHECK(clip != nullptr && !clip->isEnabled());
+        if (clip != nullptr) {
+          clip->setChecked(true);
+        }
+        if (name != nullptr) {
+          name->clear();
+        }
+        click_dialog_ok(dialog);
+      },
+      seen);
+  dialog_action->trigger();
+  CHECK(seen);
+  CHECK(std::as_const(doc).layers().size() == 1U);
+  CHECK(!std::as_const(doc).layers().front().clipped());
+  CHECK(std::as_const(doc).layers().front().name() == "Layer 1");
+}
+
+// GitHub issues 275 and 294: the new commands and the dialog follow a language switch.
+void ui_new_layer_dialog_and_merge_visible_retranslate() {
+  LanguageRestorer language;
+  CHECK(patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("en"), false));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* dialog_action = require_action(window, "layerNewWithDialogAction");
+  auto* merge_action = require_action(window, "layerMergeVisibleLayersAction");
+  CHECK(dialog_action->text() == QStringLiteral("New &Layer..."));
+  CHECK(merge_action->text() == QStringLiteral("&Merge Visible"));
+  CHECK(merge_action->statusTip() == QStringLiteral("Merge every visible layer into one, keeping the hidden layers"));
+
+  CHECK(patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("ja"), false));
+  QApplication::processEvents();
+  CHECK(dialog_action->text() == QStringLiteral("新規レイヤー(&L)..."));
+  CHECK(merge_action->text() == QStringLiteral("表示レイヤーを結合(&M)"));
+  bool seen = false;
+  drive_new_layer_dialog(
+      [](QDialog& dialog) {
+        CHECK(dialog.windowTitle() == QStringLiteral("新規レイヤー"));
+        auto* clip = dialog.findChild<QCheckBox*>(QStringLiteral("newLayerClipCheck"));
+        CHECK(clip != nullptr && clip->text() == QStringLiteral("下のレイヤーでクリッピングマスクを作成"));
+        dialog.reject();
+      },
+      seen);
+  dialog_action->trigger();
+  CHECK(seen);
+
+  CHECK(patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("en"), false));
+  QApplication::processEvents();
+  CHECK(dialog_action->text() == QStringLiteral("New &Layer..."));
+  CHECK(merge_action->text() == QStringLiteral("&Merge Visible"));
+}
+
 
 void ui_first_tab_still_draws_after_second_tab_created() {
   patchy::ui::MainWindow window;
@@ -4012,6 +4195,9 @@ std::vector<patchy::test::TestCase> layer_context_lifecycle_tests() {
       {"ui_background_layer_stays_at_bottom_and_takes_no_styles",
        ui_background_layer_stays_at_bottom_and_takes_no_styles},
       {"ui_background_layer_marker_and_short_menu", ui_background_layer_marker_and_short_menu},
+      {"ui_new_layer_dialog_applies_each_field_and_cancel_adds_nothing",
+       ui_new_layer_dialog_applies_each_field_and_cancel_adds_nothing},
+      {"ui_new_layer_dialog_and_merge_visible_retranslate", ui_new_layer_dialog_and_merge_visible_retranslate},
       {"ui_merge_down_into_position_locked_background_works",
        ui_merge_down_into_position_locked_background_works},
       {"ui_first_tab_still_draws_after_second_tab_created", ui_first_tab_still_draws_after_second_tab_created},

@@ -56,7 +56,7 @@ enclosing group's effects/isolation remain intact. Moving shapes across a group
 boundary requires an ordinary Pass Through group. Selected ordinary groups are
 released; unselected folders remain. No source is silently omitted or rasterized.
 
-**Merge Visible to New Layer (Copy)** (`layer.merge_visible`, Ctrl+Shift+E) copies
+**Merge Visible to New Layer (Copy)** (`layer.merge_visible`, Ctrl+Alt+Shift+E since #294) copies
 all effectively visible content, independent of selection. Visible vectors open
 the same dialog, including the explicit single-vector mode. Copy remains available even
 when its layers cannot be combined further. Multiple outputs form one new Normal
@@ -73,6 +73,36 @@ Copy rendering uses the same worker and delayed processing overlay as Merge Down
 preparation and resource duplication finish before undo and document mutation.
 In 16/32-bit documents raster merges and bitmap copies render at the document's
 depth (`ScopedDocumentDepthRender`; [high-bit-depth.md](high-bit-depth.md)).
+
+## Merge Visible
+
+**Layer > Merge Visible** (`layerMergeVisibleLayersAction`, hotkey id
+`layer.merge_visible_in_place`, Ctrl+Shift+E; #294) is Photoshop's Merge Visible, in place:
+`MainWindow::merge_visible_layers` renders the document composite on a worker at the document
+depth (the copy command's `qimage_from_document` path, no second compositor) and puts it in one
+full-canvas pixel layer, one undo step. It never opens the vector dialog: text, shapes, Smart
+Objects, adjustments, masks and styles rasterize, as in Photoshop. The planning lives in
+`layer_merge.cpp` and matches Photoshop 2026, probed over COM in October 2026:
+
+- A layer *draws* when it and its ancestors are visible and it is not clipped to a hidden base.
+  `merge_visible_layer_count` counts the non-group layers that draw; under two, the action is
+  off (`refresh_merge_visible_action_state`, on every layer refresh and document change) and the
+  command refuses. Photoshop calls it "not currently available" there.
+- `merge_visible_target`: a visible Background takes the merge and stays the Background (opaque
+  RGB via `composite_onto_white`, its position and transparency locks, its name). Otherwise the
+  active layer when it draws (group or layer, its id and name kept), else the topmost layer that
+  draws. Photoshop refuses a hidden active layer; Patchy uses the topmost visible one instead.
+- `merge_visible_layer_stack`: every layer that draws goes; the result takes the target's slot.
+  Visible groups and artboards dissolve, so their hidden members move out to the top level in
+  stack order; hidden layers and groups keep their subtrees, and a clipped layer over a hidden
+  base stays clipped to it. A kept clipped layer left at the bottom is released.
+- The result is Normal, 100%, unclipped and unlocked, and keeps the target's color label.
+  Locks never block it: Photoshop merges locked layers too, the active one included.
+
+Tests: `ui_merge_visible_merges_in_place_keeps_hidden_layers_and_undoes`,
+`ui_merge_visible_background_clipping_and_disabled_state`,
+`ui_merge_visible_menu_placement_and_captures`, and the hotkey move in
+`ui_new_layer_and_merge_visible_keys_moved_defaults_only`.
 
 ## Flatten Image
 

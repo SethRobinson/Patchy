@@ -652,7 +652,13 @@ bool MainWindow::edit_active_shape_appearance(bool record_undo,
     std::function<std::optional<ShapeAppearanceSettings>(const ShapeAppearanceSettings&,
         std::function<void(const ShapeAppearanceSettings&)>)> editor) {
   if (preview_dialog_edit_locked()) { show_preview_dialog_edit_lock_message(); return false; }
-  if (refuse_layer_dialog_during_transform() || canvas_ == nullptr) return false;
+  if (refuse_layer_dialog_during_transform()) return false;
+  // Every entry (Properties, options bar, menus, row badge) may arrive with no document or no
+  // shape selected; report it instead of reaching document() (GitHub issue 273 follow-up).
+  if (!has_active_document() || canvas_ == nullptr) {
+    show_status_error(tr("Select an unlocked, editable shape layer"));
+    return false;
+  }
   finish_pending_shape_appearance_edit();
   finish_pending_layer_opacity_edit();
   finish_pending_layer_fill_opacity_edit();
@@ -1523,7 +1529,8 @@ patchy::Layer* MainWindow::editable_active_vector_shape_layer() {
 }
 
 bool MainWindow::vector_shape_size_controls_live() {
-  return selected_or_active_layer_ids().size() == 1 && editable_active_vector_shape_layer() != nullptr;
+  return has_active_document() && selected_or_active_layer_ids().size() == 1 &&
+         editable_active_vector_shape_layer() != nullptr;
 }
 
 bool MainWindow::vector_appearance_controls_live() const {

@@ -317,6 +317,37 @@
     </message>
 </context>
 <context>
+    <name>NewLayerDialog</name>
+    <message>
+        <source>New Layer</source>
+        <translation>새 레이어</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>이름:</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>색상:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>모드:</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>불투명도:</translation>
+    </message>
+    <message>
+        <source>Use Previous Layer to Create Clipping Mask</source>
+        <translation>이전 레이어를 사용하여 클리핑 마스크 만들기</translation>
+    </message>
+    <message>
+        <source>Clip the new layer to the layer below it</source>
+        <translation>새 레이어를 아래 레이어에 클리핑합니다</translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Patchy raster image editor.</source>
@@ -23410,6 +23441,38 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
         <translation>다각형 올가미: 클릭하여 점을 놓습니다. 시작할 때 Shift+클릭은 추가, %ALT%+클릭은 빼기, Shift+%ALT%+클릭은 교차입니다. Shift는 45도를 유지하고 %ALT%+드래그는 자유롭게 그립니다. 시작점을 클릭하거나 더블클릭하거나 Enter를 누르면 닫히고, Backspace는 마지막 점을 지우며, Esc는 취소합니다.</translation>
+    </message>
+    <message>
+        <source>New &amp;Layer...</source>
+        <translation>새 레이어(&amp;L)...</translation>
+    </message>
+    <message>
+        <source>Add a layer, choosing its name, color, mode and opacity first</source>
+        <translation>이름, 색상, 모드, 불투명도를 먼저 정하고 레이어 추가</translation>
+    </message>
+    <message>
+        <source>&amp;Merge Visible</source>
+        <translation>보이는 레이어 병합(&amp;M)</translation>
+    </message>
+    <message>
+        <source>Merge every visible layer into one, keeping the hidden layers</source>
+        <translation>보이는 레이어를 모두 하나로 병합하고 숨긴 레이어는 남깁니다</translation>
+    </message>
+    <message>
+        <source>Merge Visible</source>
+        <translation>보이는 레이어 병합</translation>
+    </message>
+    <message>
+        <source>Merge Visible needs at least two visible layers</source>
+        <translation>보이는 레이어 병합에는 보이는 레이어가 두 개 이상 필요합니다</translation>
+    </message>
+    <message>
+        <source>Merge visible</source>
+        <translation>보이는 레이어 병합</translation>
+    </message>
+    <message>
+        <source>Merged the visible layers</source>
+        <translation>보이는 레이어를 병합했습니다</translation>
     </message>
 </context>
 <context>
