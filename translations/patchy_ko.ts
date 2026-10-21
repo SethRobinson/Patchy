@@ -15855,10 +15855,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>추적하는 동안 앵커 포인트가 배치되는 빈도</translation>
     </message>
     <message>
-        <source>Tol:</source>
-        <translation>허용치:</translation>
-    </message>
-    <message>
         <source>Limit Magic Wand selection to connected pixels</source>
         <translation>자동 선택을 연결된 픽셀로 제한</translation>
     </message>

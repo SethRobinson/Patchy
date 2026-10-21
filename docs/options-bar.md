@@ -2,6 +2,23 @@
 
 How the Options bar keeps one height and fits narrow windows (GitHub issue 91). Control conventions (row height, scrub labels, `configure_toolbar_spinbox`, unit fields) stay in [ui-conventions.md](ui-conventions.md).
 
+## Grouping rules
+
+Every tool's bar follows these rules; a new bar or control is placed by them (worked out on GitHub issues 284 to 292 with the reporter and Seth).
+
+1. **Groups, in this order**: tool modes or presets | size fields | blending, strength or edge (Feather, Opacity) | the tool's own settings | checkbox group | model or advanced options | action buttons. A bar uses only the groups it has.
+2. **One separator between neighboring groups**, never inside a group: a label and its field, a W/H pair with its swap or link button, and a value and the unit or slider beside it stay together.
+3. **Checkboxes form one group** next to each other, after the value fields (issue 292). A checkbox that belongs to one field's meaning stays with that field: Anti-alias sits right after Feather on every selection bar, and checkboxes that follow it with no field between join that group (Object Selection: Feather, Anti-alias, Sample All Layers | Model; issue 292).
+4. **Action buttons come last** (Remove Object, Apply/Cancel, Add Artboard).
+5. **Never a separator first, last, or right after another one.** Register separators with `add_option_separator` for the tools whose groups they divide, and let hidden groups take care of themselves: `stray_option_separators` drops a separator that a tool, mode or style would leave leading, trailing or doubled.
+6. **A label precedes its field** as one scrub zone ([ui-conventions.md](ui-conventions.md)), spelled out ("Tolerance", not "Tol"; issue 290). Short names only for paired size fields (W/H) and the swap or link between them.
+7. **Icon buttons between two fields sit evenly**: the glyph is as far from the field before as from the label after (the swap button: 11 px each side, issue 286 follow-up).
+8. **One row at 1366 px.** A separator costs 6 px (2 px line, 4 px spacing); when a row has no room, drop a separator before a control.
+
+Example, the Brush bar: `Preset [combo] | Size [spin][slider] | Mode [combo] Opacity [spin] Soft [spin] Flow [spin] [Airbrush] | Smooth [spin][gear] | Tip [picker][dynamics]`. Example, the Patch bar: `[modes] | Patch [combo] | [Transparent] [Sample All Layers] | [Remove Object]`.
+
+Coverage: `ui_options_bars_follow_the_separator_rules` walks every tool's bar (and the variants its style or mode combo switches to) in both schemes and fails on a leading, trailing or doubled separator or a wrapped row. Rules 1 to 4, 6 and 7 are review rules.
+
 ## One height per window width
 
 - The bar never shrinks on a tool switch, because a height change there moves the tool palette, the canvas and the docks. Nor does it grow before it has to: `OptionsFlowContainer` reports the visible controls' wrapped height, kept sticky per width (the tallest any tool needed since the last width change), so a tool that fits one row never shows an empty second row, a tool that needs two grows the bar once and later tools keep it, and a resize resets the reservation to the current tool. Reserving every tool's tallest row in advance was the first attempt and showed an empty second row at widths where only one tool wrapped (GitHub issue 91).
@@ -11,7 +28,7 @@ How the Options bar keeps one height and fits narrow windows (GitHub issue 91). 
 
 ## Selection tool rows
 
-- Separators group the selection bars (GitHub issues 286, 290, 291, 292): mode buttons | Feather and Anti-alias | the tool's own fields. Quick Select leads with Size (it has no Anti-alias, like Photoshop's Quick Selection bar), the Magic Wand sets Tolerance apart from its checkboxes, Object Selection reads Feather | Anti-alias and Sample All Layers | Model (its checkboxes are one group, as the reporter asked), and the marquees set Radius and Style apart from the Width/Height pair. Order is construction order in `build_options_bar`, so a tool-specific control that must precede a shared one is built before it.
+- Separators group the selection bars (GitHub issues 286, 290, 291, 292): mode buttons | Feather and Anti-alias | the tool's own fields. Quick Select leads with Size (it has no Anti-alias, like Photoshop's Quick Selection bar), the Magic Wand sets Tolerance apart from its checkboxes, Object Selection reads Feather, Anti-alias, Sample All Layers | Model (as the reporter asked), and the marquees set Radius and Style apart from the Width/Height pair. Order is construction order in `build_options_bar`, so a tool-specific control that must precede a shared one is built before it.
 - Fixed Ratio and Fixed Size each have a swap button between Width and Height (`selectionRatioSwapButton`, `selectionFixedSizeSwapButton`); `marquee_fixed_size_option_widgets_` hides the pixel pair's button under Normal, whose fields are greyed. The Artboard bar's `artboardSwapSizeButton` is the same button (`make_swap_dimensions_button`): an 18 px options-bar icon button showing `swap-dimensions.svg`, two opposed arrows in icon ink only; the New Document dialog's `newDocumentSwapDimensionsButton` shows the same glyph. The glyph sits evenly between the Width field's edge and the Height label's text (11 px each side): the button carries a 2 px left margin and the label after it drops its text padding (`label_after_swap_button`). The color well's `swap-colors` glyph carries swatches and is not for this. The marquee style is part of `refresh_options_bar_rows`' key. Coverage: `ui_selection_options_bars_group_their_controls`, `ui_marquee_swap_button_swaps_width_and_height`, `ui_swap_dimension_buttons_show_a_themed_full_size_glyph`, `ui_swap_dimension_buttons_sit_evenly_between_width_and_height`.
 
 ## Duplicate sliders drop first

@@ -15927,10 +15927,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Jak często punkty kontrolne są umieszczane podczas śledzenia</translation>
     </message>
     <message>
-        <source>Tol:</source>
-        <translation>Tol.:</translation>
-    </message>
-    <message>
         <source>Limit Magic Wand selection to connected pixels</source>
         <translation>Ogranicz zaznaczenie różdżką do przylegających pikseli</translation>
     </message>

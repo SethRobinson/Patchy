@@ -15927,10 +15927,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Как часто при трассировке размещаются опорные точки</translation>
     </message>
     <message>
-        <source>Tol:</source>
-        <translation>Тол:</translation>
-    </message>
-    <message>
         <source>Limit Magic Wand selection to connected pixels</source>
         <translation>Ограничить выделение «Волшебной палочкой» смежными пикселями</translation>
     </message>

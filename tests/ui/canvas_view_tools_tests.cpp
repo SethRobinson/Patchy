@@ -76,6 +76,7 @@
 #include <QSplitter>
 #include <QScrollBar>
 #include <QSlider>
+#include <QStandardItemModel>
 #include <QStyle>
 #include <QStyleOptionSlider>
 #include <QTabBar>
@@ -592,13 +593,12 @@ void ui_selection_options_bars_group_their_controls() {
       shot("issue_291_quick_select_options_bar");
     }
 
-    // Object Selection: Feather | Anti-alias, Sample All Layers | Model: the checkboxes are one
-    // group.
+    // Object Selection: Feather, Anti-alias, Sample All Layers | Model: Anti-alias stays beside
+    // Feather as on the other selection bars, and the checkboxes stay together.
     if (patchy::ai::segmentation_available()) {
       require_action(window, "toolObjectSelectionAction")->trigger();
       const auto tokens = row("toolObjectSelectionAction");
-      CHECK(next_to(tokens, QStringLiteral("selectionFeatherSpin"), separator));
-      CHECK(separated_before(tokens, QStringLiteral("selectionAntiAliasCheck")));
+      CHECK(next_to(tokens, QStringLiteral("selectionFeatherSpin"), QStringLiteral("selectionAntiAliasCheck")));
       CHECK(next_to(tokens, QStringLiteral("selectionAntiAliasCheck"), QStringLiteral("objectSelectSampleAllLayersCheck")));
 #if !defined(Q_OS_WASM)
       CHECK(separated_before(tokens, QStringLiteral("Model")));
@@ -820,6 +820,98 @@ void ui_swap_dimension_buttons_sit_evenly_between_width_and_height() {
       }
     }
     style->setCurrentIndex(0);
+  }
+  for (const auto& problem : problems) {
+    std::fprintf(stderr, "  %s\n", problem.c_str());
+  }
+  CHECK(problems.empty());
+}
+
+// The options-bar separator rules (docs/options-bar.md, "Grouping rules"): on every tool's
+// bar, and on the variants a style or mode combo switches to, no separator comes first or
+// last or right after another one, and the bar fits one row at 1366 px, in both schemes.
+// Every bar is captured (options_bar_guide_<tool>[_variant]_<scheme>) before the checks.
+void ui_options_bars_follow_the_separator_rules() {
+  patchy::ai::set_downloaded_model_directory(std::filesystem::current_path() / "ai-models-none");
+  patchy::ui::configure_automatic_selection_models();
+  std::vector<std::string> problems;
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.resize(1366, 738);
+    auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+    auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+    CHECK(options_bar != nullptr && options != nullptr);
+    if (options_bar == nullptr || options == nullptr) {
+      return;
+    }
+    const auto settle = [] {
+      QApplication::processEvents();
+      process_events_for(20);
+    };
+    const auto inspect = [&](const std::string& name) {
+      settle();
+      const auto tokens = options_row_tokens(*options);
+      std::printf("  %-44s", (name + suffix).c_str());
+      for (const auto& token : tokens) {
+        std::printf(" %s", qPrintable(token));
+      }
+      std::printf("\n");
+      save_widget_artifact("options_bar_guide_" + name + suffix, *options_bar);
+      const auto problem = [&](const std::string& what) { problems.push_back(name + suffix + ": " + what); };
+      if (!tokens.empty() && tokens.front() == QStringLiteral("|")) {
+        problem("starts with a separator");
+      }
+      if (!tokens.empty() && tokens.back() == QStringLiteral("|")) {
+        problem("ends with a separator");
+      }
+      for (std::size_t i = 1; i < tokens.size(); ++i) {
+        if (tokens[i] == QStringLiteral("|") && tokens[i - 1] == QStringLiteral("|")) {
+          problem("two separators with nothing between them");
+        }
+      }
+      if (const auto [right, lines] = options_row_extent(*options); lines > 1) {
+        problem("wraps onto " + std::to_string(lines) + " rows at 1366 px");
+      }
+    };
+    auto tools = options_bar_test_tool_actions(window);
+    if (patchy::ai::segmentation_available()) {
+      tools.push_back(require_action(window, "toolObjectSelectionAction"));
+    }
+    auto* marquee_style = window.findChild<QComboBox*>(QStringLiteral("selectionStyleCombo"));
+    auto* crop_style = window.findChild<QComboBox*>(QStringLiteral("cropStyleCombo"));
+    auto* vector_mode = window.findChild<QComboBox*>(QStringLiteral("vectorModeCombo"));
+    for (auto* action : tools) {
+      action->trigger();
+      const auto tool = static_cast<patchy::ui::CanvasTool>(action->data().toInt());
+      const auto name = action->objectName().toStdString();
+      // The variants a combo on the bar switches between change what the bar holds.
+      QComboBox* variants = nullptr;
+      if (tool == patchy::ui::CanvasTool::Marquee || tool == patchy::ui::CanvasTool::EllipticalMarquee) {
+        variants = marquee_style;
+      } else if (tool == patchy::ui::CanvasTool::Crop) {
+        variants = crop_style;
+      } else if (vector_mode != nullptr) {
+        settle();
+        variants = vector_mode->isVisible() ? vector_mode : nullptr;
+      }
+      if (variants == nullptr) {
+        inspect(name);
+        continue;
+      }
+      const int original = variants->currentIndex();
+      for (int index = 0; index < variants->count(); ++index) {
+        if (auto* model = qobject_cast<QStandardItemModel*>(variants->model());
+            model != nullptr && model->item(index) != nullptr && !model->item(index)->isEnabled()) {
+          continue;
+        }
+        variants->setCurrentIndex(index);
+        inspect(name + "_" + std::to_string(index));
+      }
+      variants->setCurrentIndex(original);
+    }
   }
   for (const auto& problem : problems) {
     std::fprintf(stderr, "  %s\n", problem.c_str());
@@ -7011,6 +7103,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_options_bar_spinboxes_fit_widest_value", ui_options_bar_spinboxes_fit_widest_value},
       {"ui_options_bar_keeps_one_height_across_tools", ui_options_bar_keeps_one_height_across_tools},
       {"ui_selection_options_bars_group_their_controls", ui_selection_options_bars_group_their_controls},
+      {"ui_options_bars_follow_the_separator_rules", ui_options_bars_follow_the_separator_rules},
       {"ui_swap_dimension_buttons_show_a_themed_full_size_glyph",
        ui_swap_dimension_buttons_show_a_themed_full_size_glyph},
       {"ui_swap_dimension_buttons_sit_evenly_between_width_and_height",

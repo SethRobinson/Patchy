@@ -15523,10 +15523,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Frequenza con cui vengono posizionati i punti di ancoraggio durante il tracciamento</translation>
     </message>
     <message>
-        <source>Tol:</source>
-        <translation>Toll.:</translation>
-    </message>
-    <message>
         <source>Limit Magic Wand selection to connected pixels</source>
         <translation>Limita la selezione della Bacchetta magica ai pixel contigui</translation>
     </message>

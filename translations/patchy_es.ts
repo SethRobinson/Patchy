@@ -15523,10 +15523,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Frecuencia con la que se colocan puntos de ancla al trazar</translation>
     </message>
     <message>
-        <source>Tol:</source>
-        <translation>Tol.:</translation>
-    </message>
-    <message>
         <source>Limit Magic Wand selection to connected pixels</source>
         <translation>Limitar la selección de la Varita mágica a los píxeles contiguos</translation>
     </message>
