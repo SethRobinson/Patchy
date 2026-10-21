@@ -30,7 +30,7 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | all | active tool (`tool*Action`, flyout member) | `activeTool` | no | yes |
 | Move | Auto-Select (`moveAutoSelectCheck`) | `moveAutoSelect` | yes | yes |
 | Move | Auto-Select target (`moveAutoSelectTargetCombo`) | `moveAutoSelectTarget` | yes | yes |
-| Move | Show Transform Controls (`moveShowTransformControlsCheck`) | `showTransformControls` | yes | yes |
+| Move | Transform Controls (`moveShowTransformControlsCheck`) | `showTransformControls` | yes | yes |
 | Move | Snap (`moveSnapCheck`) | `view/snapEnabled` (View > Snap) | yes | yes |
 | Move | Align / Distribute buttons, Align To | commands; `alignTo` retired | no | no (session) |
 | Free Transform | Pivot, link, Apply/Cancel, Warp style/bend | none | no | no (session) |

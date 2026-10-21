@@ -63,61 +63,6 @@ std::string xmp_date(std::int64_t unix_seconds, int utc_offset_minutes) {
   return text;
 }
 
-void stamp_xmp_for_save(DocumentFileInfo& info, const SaveStamp& stamp) {
-  XmpPacket packet;
-  if (info.xmp && !info.xmp->empty()) {
-    auto parsed = parse_xmp(*info.xmp);
-    if (!parsed.has_value()) {
-      return;
-    }
-    packet = std::move(*parsed);
-  }
-  const bool first_save = packet.text(xmp_ns::kXmp, "CreateDate").empty();
-  if (packet.text(xmp_ns::kXmp, "CreatorTool").empty()) {
-    packet.set_simple(xmp_ns::kXmp, "CreatorTool", stamp.software);
-  }
-  if (first_save) {
-    packet.set_simple(xmp_ns::kXmp, "CreateDate", stamp.when);
-  }
-  packet.set_simple(xmp_ns::kXmp, "ModifyDate", stamp.when);
-  packet.set_simple(xmp_ns::kXmp, "MetadataDate", stamp.when);
-
-  XmpValue event;
-  event.kind = XmpValue::Kind::Struct;
-  const auto field = [&event](std::string_view name, const std::string& value) {
-    XmpProperty property;
-    property.ns = std::string(xmp_ns::kStEvt);
-    property.name = std::string(name);
-    property.value.text = value;
-    event.fields.push_back(std::move(property));
-  };
-  // "created" only for a packet with no creation date and no history: a document's
-  // first save, not a file another application wrote without a CreateDate.
-  const bool created = first_save && packet.find(xmp_ns::kXmpMM, "History") == nullptr;
-  field("action", created ? "created" : "saved");
-  field("when", stamp.when);
-  field("softwareAgent", stamp.software);
-  if (!created) {
-    field("changed", "/");
-  }
-  auto* history = packet.find(xmp_ns::kXmpMM, "History");
-  if (history == nullptr || history->value.kind != XmpValue::Kind::Seq) {
-    if (history != nullptr) {
-      packet.erase(xmp_ns::kXmpMM, "History");
-    }
-    XmpProperty property;
-    property.ns = std::string(xmp_ns::kXmpMM);
-    property.name = "History";
-    property.value.kind = XmpValue::Kind::Seq;
-    packet.properties.push_back(std::move(property));
-    history = &packet.properties.back();
-  }
-  history->value.items.push_back(std::move(event));
-
-  const auto text = serialize_xmp(packet);
-  info.xmp = make_metadata_bytes(std::vector<std::uint8_t>(text.begin(), text.end()));
-}
-
 namespace {
 
 using Bytes = std::vector<std::uint8_t>;
@@ -178,6 +123,18 @@ std::string exif_date_to_xmp(std::string text) {
     text[10] = 'T';
   }
   return text;
+}
+
+// "YYYY-MM-DDTHH:MM:SS..." (XMP, local time) to "YYYY:MM:DD HH:MM:SS" (EXIF), or empty.
+std::string xmp_date_to_exif(const std::string& text) {
+  if (text.size() < 19 || text[4] != '-' || text[7] != '-' || text[10] != 'T') {
+    return {};
+  }
+  auto exif = text.substr(0, 19);
+  exif[4] = ':';
+  exif[7] = ':';
+  exif[10] = ' ';
+  return exif;
 }
 
 // IIM date "CCYYMMDD" to "CCYY-MM-DD" and back.
@@ -279,6 +236,84 @@ const std::vector<ContactField>& contact_fields() {
 }
 
 }  // namespace
+
+void stamp_file_info_for_save(DocumentFileInfo& info, const SaveStamp& stamp) {
+  // EXIF IFD0 names the application and time of the latest save, as Photoshop writes it
+  // even into a file another application created (xmp:CreatorTool keeps the creator).
+  // Only an EXIF block the document already has: a save never adds one.
+  if (auto stream = exif_of(info)) {
+    stream->set_ascii(IfdKind::Ifd0, exif_tag::kSoftware, stamp.software);
+    if (const auto when = xmp_date_to_exif(stamp.when); !when.empty()) {
+      stream->set_ascii(IfdKind::Ifd0, exif_tag::kDateTime, when);
+    }
+    info.exif = make_metadata_bytes(write_tiff(*stream));
+  }
+
+  XmpPacket packet;
+  if (info.xmp && !info.xmp->empty()) {
+    auto parsed = parse_xmp(*info.xmp);
+    if (!parsed.has_value()) {
+      return;
+    }
+    packet = std::move(*parsed);
+  }
+  const bool first_save = packet.text(xmp_ns::kXmp, "CreateDate").empty();
+  if (packet.text(xmp_ns::kXmp, "CreatorTool").empty()) {
+    packet.set_simple(xmp_ns::kXmp, "CreatorTool", stamp.software);
+  }
+  if (first_save) {
+    packet.set_simple(xmp_ns::kXmp, "CreateDate", stamp.when);
+  }
+  packet.set_simple(xmp_ns::kXmp, "ModifyDate", stamp.when);
+  packet.set_simple(xmp_ns::kXmp, "MetadataDate", stamp.when);
+
+  XmpValue event;
+  event.kind = XmpValue::Kind::Struct;
+  const auto field = [&event](std::string_view name, const std::string& value) {
+    XmpProperty property;
+    property.ns = std::string(xmp_ns::kStEvt);
+    property.name = std::string(name);
+    property.value.text = value;
+    event.fields.push_back(std::move(property));
+  };
+  // "created" only for a packet with no creation date and no history: a document's
+  // first save, not a file another application wrote without a CreateDate.
+  const bool created = first_save && packet.find(xmp_ns::kXmpMM, "History") == nullptr;
+  // Each save is a new instance: xmpMM:InstanceID names the entry this save adds. The
+  // first save also names the document, from the same GUID as Photoshop does.
+  const auto instance_id = "xmp.iid:" + stamp.instance_guid;
+  if (created) {
+    for (const auto* name : {"DocumentID", "OriginalDocumentID"}) {
+      if (packet.text(xmp_ns::kXmpMM, name).empty()) {
+        packet.set_simple(xmp_ns::kXmpMM, name, "xmp.did:" + stamp.instance_guid);
+      }
+    }
+  }
+  packet.set_simple(xmp_ns::kXmpMM, "InstanceID", instance_id);
+  field("action", created ? "created" : "saved");
+  field("instanceID", instance_id);
+  field("when", stamp.when);
+  field("softwareAgent", stamp.software);
+  if (!created) {
+    field("changed", "/");
+  }
+  auto* history = packet.find(xmp_ns::kXmpMM, "History");
+  if (history == nullptr || history->value.kind != XmpValue::Kind::Seq) {
+    if (history != nullptr) {
+      packet.erase(xmp_ns::kXmpMM, "History");
+    }
+    XmpProperty property;
+    property.ns = std::string(xmp_ns::kXmpMM);
+    property.name = "History";
+    property.value.kind = XmpValue::Kind::Seq;
+    packet.properties.push_back(std::move(property));
+    history = &packet.properties.back();
+  }
+  history->value.items.push_back(std::move(event));
+
+  const auto text = serialize_xmp(packet);
+  info.xmp = make_metadata_bytes(std::vector<std::uint8_t>(text.begin(), text.end()));
+}
 
 namespace {
 
