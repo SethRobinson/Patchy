@@ -4536,8 +4536,16 @@ void MainWindow::refresh_document_info() {
   if (document_info_label_ == nullptr) {
     return;
   }
+  // The shape section's button follows the active layer on every refresh, deselection and
+  // closed documents included (GitHub issue 273).
+  const auto hide_shape_section = [this] {
+    if (properties_edit_appearance_button_ != nullptr) {
+      properties_edit_appearance_button_->setVisible(false);
+    }
+  };
 
   if (!has_active_document()) {
+    hide_shape_section();
     set_property_label_text(document_info_label_, tr("No document"));
     set_property_label_text(active_layer_info_label_, tr("Layer: No active layer"));
     for (auto* label : {active_layer_geometry_label_, active_layer_mask_label_, active_layer_adjustment_label_,
@@ -4576,6 +4584,7 @@ void MainWindow::refresh_document_info() {
   const auto active = doc.active_layer_id();
   const auto* layer = active.has_value() ? doc.find_layer(*active) : nullptr;
   if (layer == nullptr) {
+    hide_shape_section();
     set_property_label_text(active_layer_info_label_, tr("Layer: No active layer"));
     for (auto* label : {active_layer_geometry_label_, active_layer_mask_label_, active_layer_adjustment_label_,
                         active_layer_text_label_, active_layer_shape_label_}) {
