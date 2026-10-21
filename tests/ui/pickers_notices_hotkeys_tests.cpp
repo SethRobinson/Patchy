@@ -27,6 +27,7 @@
 #include "test_harness.hpp"
 #include <QAbstractSpinBox>
 #include <QAction>
+#include <chrono>
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
@@ -1557,7 +1558,94 @@ void ui_free_transform_keeps_deep_layers_at_depth() {
                                                static_cast<int>(sixteen.second.data()[i])));
   }
   CHECK(mask_worst <= 1);
-  (void)free_transform_at_depth(patchy::BitDepth::Float32);
+  // 32 bits resamples linear light, so mixed edge pixels may differ a little from the
+  // 8-bit result; flat colors must not move (Seth saw a 32-bit transform darken).
+  const auto thirty_two = free_transform_at_depth(patchy::BitDepth::Float32);
+  CHECK(eight.first.width() == thirty_two.first.width() && eight.first.height() == thirty_two.first.height());
+  int interior_worst = 0;
+  for (std::int32_t y = 2; y + 2 < std::min(eight.first.height(), thirty_two.first.height()); ++y) {
+    for (std::int32_t x = 2; x + 2 < std::min(eight.first.width(), thirty_two.first.width()); ++x) {
+      const auto* a = eight.first.pixel(x, y);
+      const auto* b = thirty_two.first.pixel(x, y);
+      if (a[3] == 255 && b[3] == 255) {
+        for (int c = 0; c < 3; ++c) {
+          interior_worst = std::max(interior_worst, std::abs(static_cast<int>(a[c]) - static_cast<int>(b[c])));
+        }
+      }
+    }
+  }
+  CHECK(interior_worst <= 4);
+}
+
+// Free Transform on 16 and 32-bit documents shows and commits the layer's colors: the
+// preview blit drew a 32-bit layer's linear floats as display values (mid-gray came out
+// near-black, gradients darker). Checked during the transform and after Enter, at 100%
+// and 50% zoom, against the 8-bit document.
+void ui_free_transform_preview_and_commit_keep_colors_at_every_depth() {
+  for (const double zoom : {1.0, 0.5}) {
+    for (const auto depth : {patchy::BitDepth::UInt8, patchy::BitDepth::UInt16, patchy::BitDepth::Float32}) {
+      patchy::Document document(200, 150, patchy::PixelFormat::rgba8());
+      document.add_pixel_layer("Background", solid_pixels(200, 150, patchy::PixelFormat::rgba8(), QColor(80, 160, 220)));
+      patchy::PixelBuffer content(80, 60, patchy::PixelFormat::rgba8());
+      for (std::int32_t y = 0; y < 60; ++y) {
+        for (std::int32_t x = 0; x < 80; ++x) {
+          auto* px = content.pixel(x, y);
+          const bool left = x < 40;
+          px[0] = left ? 128 : 200;
+          px[1] = left ? 128 : 60;
+          px[2] = left ? 128 : 40;
+          px[3] = 255;
+        }
+      }
+      patchy::Layer layer(document.allocate_layer_id(), "Layer", std::move(content));
+      layer.set_bounds(patchy::Rect{40, 30, 80, 60});
+      const auto id = layer.id();
+      document.add_layer(std::move(layer));
+      patchy::convert_document_depth(document, depth);
+      document.set_active_layer(id);
+      patchy::ui::CanvasWidget canvas;
+      canvas.resize(420, 320);
+      canvas.set_document(&document);
+      canvas.set_zoom(zoom);
+      canvas.set_tool(patchy::ui::CanvasTool::Move);
+      canvas.show();
+      QApplication::processEvents();
+
+      // 150% around the center (80, 60): the layer spans 20..140 x 15..105.
+      CHECK(canvas.begin_free_transform());
+      const auto state = canvas.transform_controls_state();
+      CHECK(state.has_value());
+      CHECK(canvas.set_transform_controls_state(state->reference_position, 150.0, 150.0, 0.0));
+      QApplication::processEvents();
+      const auto check_colors = [&](const char* phase) {
+        const auto gray = canvas_pixel(canvas, QPoint(55, 60));
+        const auto red = canvas_pixel(canvas, QPoint(110, 60));
+        const auto backdrop = canvas_pixel(canvas, QPoint(10, 10));
+        const bool ok = color_close(gray, QColor(128, 128, 128), 6) && color_close(red, QColor(200, 60, 40), 6) &&
+                        color_close(backdrop, QColor(80, 160, 220), 6);
+        if (!ok) {
+          std::cout << "  zoom " << zoom << " depth " << static_cast<int>(depth) << " " << phase << ": gray "
+                    << gray.name().toStdString() << " red " << red.name().toStdString() << " backdrop "
+                    << backdrop.name().toStdString() << '\n';
+        }
+        CHECK(ok);
+      };
+      check_colors("preview");
+      if (depth == patchy::BitDepth::Float32 && zoom == 1.0) {
+        save_widget_artifact("ui_free_transform_preview_32_bit", canvas);
+      }
+      canvas.finish_free_transform();
+      QApplication::processEvents();
+      const auto settle_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+      while (!canvas.render_settled() && std::chrono::steady_clock::now() < settle_deadline) {
+        QApplication::processEvents();
+      }
+      CHECK(!canvas.free_transform_active());
+      check_colors("committed");
+      const auto& transformed = *std::as_const(document).find_layer(id);
+      CHECK(transformed.pixels().format().bit_depth == depth);
+    }
+  }
 }
 void ui_warp_transform_keeps_deep_layers_at_depth() {
   // A committed warp of a 16/32-bit layer writes the layer back at the document's
@@ -3478,6 +3566,8 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
        ui_deep_document_render_strips_match_the_sequential_render},
       {"ui_layer_operations_keep_deep_documents_at_depth", ui_layer_operations_keep_deep_documents_at_depth},
       {"ui_free_transform_keeps_deep_layers_at_depth", ui_free_transform_keeps_deep_layers_at_depth},
+      {"ui_free_transform_preview_and_commit_keep_colors_at_every_depth",
+       ui_free_transform_preview_and_commit_keep_colors_at_every_depth},
       {"ui_warp_transform_keeps_deep_layers_at_depth", ui_warp_transform_keeps_deep_layers_at_depth},
       {"ui_brush_paints_deep_layers_and_masks_at_depth", ui_brush_paints_deep_layers_and_masks_at_depth},
       {"ui_retouch_tools_edit_deep_layers_at_depth", ui_retouch_tools_edit_deep_layers_at_depth},

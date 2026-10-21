@@ -3,6 +3,7 @@
 #include "core/pixel_depth.hpp"
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
 #include <cstring>
 #include <vector>
@@ -85,6 +86,32 @@ QImage display_qimage_from_pixel_buffer(const PixelBuffer& pixels) {
     }
   }
   return image;
+}
+
+QImage display_image_from_deep_qimage(const QImage& image, float exposure_stops) {
+  if (image.isNull() || image.format() != QImage::Format_RGBA32FPx4) {
+    return image;
+  }
+  const float scale = std::isfinite(exposure_stops) && exposure_stops != 0.0F
+                          ? static_cast<float>(std::exp2(static_cast<double>(exposure_stops)))
+                          : 1.0F;
+  QImage display(image.width(), image.height(), QImage::Format_RGBA8888);
+  for (int y = 0; y < image.height(); ++y) {
+    const auto* src = reinterpret_cast<const float*>(image.constScanLine(y));
+    auto* dst = display.scanLine(y);
+    for (int x = 0; x < image.width(); ++x) {
+      const float* px = src + static_cast<std::size_t>(x) * 4U;
+      auto* out = dst + static_cast<std::size_t>(x) * 4U;
+      for (int c = 0; c < 3; ++c) {
+        const float linear = std::isfinite(px[c]) ? px[c] * scale : 0.0F;
+        out[c] = static_cast<std::uint8_t>(
+            std::clamp(static_cast<float>(srgb_encode(static_cast<double>(linear))) * 255.0F + 0.5F, 0.0F, 255.0F));
+      }
+      const float alpha = std::isfinite(px[3]) ? std::clamp(px[3], 0.0F, 1.0F) : 1.0F;
+      out[3] = static_cast<std::uint8_t>(alpha * 255.0F + 0.5F);
+    }
+  }
+  return display;
 }
 
 }  // namespace patchy::ui
