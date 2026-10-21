@@ -13,6 +13,7 @@
 #include "local_psd_fixtures.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/layer_list_widget.hpp"
+#include "ui/liquify_dialog.hpp"
 #include "ui/main_window.hpp"
 #include "ui/pdf_export.hpp"
 #include "ui/pdf_import.hpp"
@@ -39,6 +40,7 @@
 #include <QRegion>
 #include <QScopeGuard>
 #include <QSettings>
+#include <QSpinBox>
 #include <QTabWidget>
 #include <QTimer>
 
@@ -1686,6 +1688,134 @@ void warp_drag_perf() {
   }
 }
 
+// GitHub issue 296: Liquify drag latency on large layers. The workspace edits a proxy
+// whose longest edge is 720 px, so a drag frame should not grow with the layer; Apply
+// renders the full layer once. Drives the real dialog: the open time, each Warp brush
+// move plus its preview repaint at the default and the largest brush, and the Apply
+// render. Then a core breakdown on the proxy: one stroke segment and one proxy render.
+void liquify_drag_perf() {
+  struct Result {
+    std::string name;
+    double median_ms{0.0};
+    double apply_ms{0.0};
+  };
+  std::vector<Result> results;
+  for (const auto& [width, height] : {std::pair{4000, 3000}, std::pair{6000, 4000}}) {
+    patchy::PixelBuffer source(width, height, patchy::PixelFormat::rgba8());
+    std::uint64_t seed = 0x9E3779B97F4A7C15ULL;
+    for (int y = 0; y < height; ++y) {
+      auto row = source.row(y);
+      for (int x = 0; x < width; ++x) {
+        seed += 0x9E3779B97F4A7C15ULL;
+        auto z = seed;
+        z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+        z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
+        z ^= z >> 31;
+        const bool band = ((x / 400) + (y / 400)) % 2 == 0;
+        auto* pixel = row.data() + static_cast<std::size_t>(x) * 4U;
+        pixel[0] = static_cast<std::uint8_t>((band ? 200 : 40) + (z & 31U));
+        pixel[1] = static_cast<std::uint8_t>((band ? 90 : 150) + ((z >> 8) & 31U));
+        pixel[2] = static_cast<std::uint8_t>((band ? 40 : 200) + ((z >> 16) & 31U));
+        pixel[3] = 255;
+      }
+    }
+    const auto size_name = std::to_string(width) + "x" + std::to_string(height);
+    double open_ms = 0.0;
+    std::vector<std::pair<int, std::vector<double>>> brushes;
+    const auto opened = Clock::now();
+    QTimer::singleShot(0, [&] {
+      open_ms = std::chrono::duration<double, std::milli>(Clock::now() - opened).count();
+      QDialog* dialog = nullptr;
+      for (auto* widget : QApplication::topLevelWidgets()) {
+        if (widget->objectName() == QStringLiteral("liquifyDialog") && widget->isVisible()) {
+          dialog = qobject_cast<QDialog*>(widget);
+        }
+      }
+      auto* preview = dialog != nullptr ? dialog->findChild<QWidget*>(QStringLiteral("liquifyPreview")) : nullptr;
+      auto* size_spin = dialog != nullptr ? dialog->findChild<QSpinBox*>(QStringLiteral("liquifySizeSpin")) : nullptr;
+      if (preview == nullptr || size_spin == nullptr) {
+        std::cout << "[FAIL] liquifydrag: no Liquify dialog\n";
+        if (dialog != nullptr) {
+          dialog->reject();
+        }
+        return;
+      }
+      QApplication::processEvents();
+      for (const int brush : {size_spin->value(), 2000}) {
+        size_spin->setValue(brush);
+        const auto start = preview->rect().center() - QPoint(120, 60);
+        send_mouse(*preview, QEvent::MouseButtonPress, start, Qt::LeftButton, Qt::LeftButton);
+        preview->repaint();
+        std::vector<double> frames;
+        for (int frame = 1; frame <= 40; ++frame) {
+          frames.push_back(elapsed_ms([&] {
+            send_mouse(*preview, QEvent::MouseMove, start + QPoint(6, 3) * frame, Qt::NoButton, Qt::LeftButton);
+            preview->repaint();
+          }));
+        }
+        send_mouse(*preview, QEvent::MouseButtonRelease, start + QPoint(6, 3) * 40, Qt::LeftButton, Qt::NoButton);
+        brushes.emplace_back(brush, std::move(frames));
+      }
+      dialog->accept();
+    });
+    const auto mesh = patchy::ui::request_liquify(nullptr, source, patchy::Rect{0, 0, width, height}, QRegion{});
+    CHECK(mesh.has_value() && !mesh->is_identity());
+    if (!mesh.has_value()) {
+      continue;
+    }
+    std::optional<patchy::PixelBuffer> rendered;
+    const auto apply_ms = elapsed_ms([&] { rendered = mesh->render(source); });
+    CHECK(rendered.has_value());
+    for (const auto& [brush, frames] : brushes) {
+      auto sorted = frames;
+      std::sort(sorted.begin(), sorted.end());
+      double total = 0.0;
+      for (const auto value : frames) {
+        total += value;
+      }
+      std::cout << std::fixed << std::setprecision(1) << "[PERF] liquifydrag " << size_name << " brush=" << brush
+                << " open_ms=" << open_ms << " frame_avg_ms=" << total / static_cast<double>(frames.size())
+                << " frame_median_ms=" << sorted[sorted.size() / 2] << " frame_max_ms=" << sorted.back()
+                << " apply_ms=" << apply_ms << '\n';
+      results.push_back(Result{size_name + " brush=" + std::to_string(brush), sorted[sorted.size() / 2], apply_ms});
+    }
+  }
+
+  // Core breakdown on a 720x540 proxy: one Warp stroke segment (the mesh update for a
+  // 6 px move) and one proxy render, each the median of 40.
+  patchy::PixelBuffer proxy(720, 540, patchy::PixelFormat::rgba8());
+  proxy.clear(200);
+  for (const double size : {54.0, 360.0}) {
+    patchy::LiquifyMesh mesh(proxy.width(), proxy.height());
+    std::vector<double> strokes;
+    std::vector<double> renders;
+    for (int step = 0; step < 40; ++step) {
+      const double x = 200.0 + step * 6.0;
+      strokes.push_back(elapsed_ms(
+          [&] { mesh.apply_stroke(patchy::LiquifyTool::ForwardWarp, x, 200.0, x + 6.0, 203.0, size, 50, 50); }));
+      renders.push_back(elapsed_ms([&] { (void)mesh.render(proxy); }));
+    }
+    std::sort(strokes.begin(), strokes.end());
+    std::sort(renders.begin(), renders.end());
+    std::cout << std::fixed << std::setprecision(2) << "[PERF] liquifydrag core proxy=720x540 brush=" << size
+              << " stroke_median_ms=" << strokes[strokes.size() / 2]
+              << " render_median_ms=" << renders[renders.size() / 2] << '\n';
+  }
+
+  // Ceilings (M2 Ultra, October 2026: frames were 15 to 18 ms and Apply 0.5 to 1 s
+  // before #296, 2 to 4 ms and 14 to 20 ms after). A frame must leave room for a 60 Hz
+  // display on slower machines; Apply is one bounded pass.
+  constexpr double kFrameCeilingMs = 10.0;
+  constexpr double kApplyCeilingMs = 400.0;
+  for (const auto& result : results) {
+    if (result.median_ms >= kFrameCeilingMs || result.apply_ms >= kApplyCeilingMs) {
+      std::cout << "[FAIL] liquifydrag " << result.name << " over its ceiling\n";
+    }
+    CHECK(result.median_ms < kFrameCeilingMs);
+    CHECK(result.apply_ms < kApplyCeilingMs);
+  }
+}
+
 void big_brush_stroke_perf() {
   ensure_artifact_dir();
   const auto image_path = std::filesystem::absolute("test-artifacts/perf_brush_stroke_4872x6836.png");
@@ -1929,6 +2059,10 @@ int main(int argc, char* argv[]) {
       warp_drag_perf();
       return 0;
     }
+    if (argc > 1 && std::string_view(argv[1]) == "liquifydrag") {
+      liquify_drag_perf();
+      return 0;
+    }
     if (argc > 1 && std::string_view(argv[1]) == "manylayers") {
       many_layers_select_and_move_perf_if_available();
       return 0;
@@ -1953,6 +2087,7 @@ int main(int argc, char* argv[]) {
     many_layers_select_and_move_perf_if_available();
     masked_layer_rotate_perf();
     warp_drag_perf();
+    liquify_drag_perf();
   } catch (const std::exception& error) {
     std::cerr << "[FAIL] " << error.what() << '\n';
     return 1;
