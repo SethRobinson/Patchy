@@ -10,6 +10,8 @@ The tools are Warp, Reconstruct, Smooth, Twirl, Pucker, Bloat, Freeze, and Thaw.
 
 The workspace edits a bounded proxy whose longest edge is 720 px. `LiquifyMesh` stores inverse displacement in signed 24.8 fixed point on a grid capped at 129 nodes per axis. Rendering normalizes the grid to the target dimensions, so accepting the proxy applies the same relative deformation to the full-resolution layer. Final resampling uses deterministic fixed-point bilinear weights and premultiplied RGBA. Do not replace this with `std::uniform_*`, toolchain-specific interpolation, or a per-repaint full-layer render.
 
+Interactive cost (GitHub #296). A brush move only updates the mesh (about 0.03 ms); the proxy renders in the preview's `paintEvent`, once per painted frame, so a burst of pointer events (high-rate mice and tablets, Wayland compositors that deliver every motion frame) never queues one render per event. Hovering repaints only the brush outline's old and new rectangles. `LiquifyMesh::render` keeps the original integer arithmetic term for term but hoists repeated work: each field is interpolated along x once per grid row, a sample at a whole-pixel position copies that pixel, and four equal alphas skip the per-channel division (it cancels exactly). Outputs of 512 Kpx or more (the full-resolution Apply) render in parallel row strips, with progress and cancellation checked between bands on the calling thread. `liquify_strokes_and_render_are_pinned` holds digests recorded before the speedup; any change to them is a change to Liquify output. The preview's blue freeze overlay clamps a bright blue at 255 (it used to leave such pixels untinted).
+
 Freeze and Thaw modify only the protection field. Warp adds the inverse of the pointer motion. Reconstruct tends displacement toward identity. Smooth tends each protected node toward its four-neighbor displacement average. Twirl, Pucker, and Bloat add bounded inverse offsets around each brush dab. Completed displacement, not the gesture history, is the full-resolution render input.
 
 Selection clipping never searches a `QRegion` per pixel. The preview caches a
@@ -45,6 +47,8 @@ Relevant public records:
 - `liquify_mesh_is_deterministic_and_reconstructable`
 - `liquify_freeze_mask_protects_the_deformation_field`
 - `liquify_render_preserves_identity_and_scales_the_field`
+- `liquify_strokes_and_render_are_pinned` (every tool, RGBA with zero and partial alpha, RGB, scaled, capped-grid and one-pixel outputs)
+- `patchy_perf_tests liquifydrag`: dialog open, each Warp move plus its preview repaint at the default and the largest brush, and Apply on 4000x3000 and 6000x4000 layers, then the proxy's per-stroke and per-render cost. Ceilings: frame median under 10 ms, Apply under 400 ms. October 2026 on studiomac (M2 Ultra): frames 15 to 18 ms and Apply 0.47 s / 0.95 s before #296, 2 to 4 ms and 14 / 20 ms after.
 - `ui_filter_catalog_and_menu_contracts_are_stable`
 - `ui_liquify_dialog_exposes_manual_tools_and_brush_controls`
 - `ui_liquify_action_applies_selection_as_one_undo_step`
