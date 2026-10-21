@@ -907,23 +907,26 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
 
   auto* selection_new = add_option_action(
       simple_icon(QStringLiteral("N")), QT_TR_NOOP("New Selection"),
-      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagneticLasso,
-       CanvasTool::MagicWand, CanvasTool::QuickSelect, CanvasTool::PatchTool, CanvasTool::ObjectSelect});
+      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::PolygonLasso,
+       CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::QuickSelect, CanvasTool::PatchTool,
+       CanvasTool::ObjectSelect});
   selection_new->setObjectName(QStringLiteral("selectionNewModeAction"));
   auto* selection_add = add_option_action(
       simple_icon(QStringLiteral("+")), QT_TR_NOOP("Add to Selection"),
-      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagneticLasso,
-       CanvasTool::MagicWand, CanvasTool::QuickSelect, CanvasTool::PatchTool, CanvasTool::ObjectSelect});
+      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::PolygonLasso,
+       CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::QuickSelect, CanvasTool::PatchTool,
+       CanvasTool::ObjectSelect});
   selection_add->setObjectName(QStringLiteral("selectionAddModeAction"));
   auto* selection_subtract = add_option_action(
       simple_icon(QStringLiteral("-")), QT_TR_NOOP("Subtract from Selection"),
-      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagneticLasso,
-       CanvasTool::MagicWand, CanvasTool::QuickSelect, CanvasTool::PatchTool, CanvasTool::ObjectSelect});
+      {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::PolygonLasso,
+       CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::QuickSelect, CanvasTool::PatchTool,
+       CanvasTool::ObjectSelect});
   selection_subtract->setObjectName(QStringLiteral("selectionSubtractModeAction"));
   auto* selection_intersect = add_option_action(simple_icon(QStringLiteral("Ix")), QT_TR_NOOP("Intersect Selection"),
                                                 {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
-                                                 CanvasTool::MagneticLasso, CanvasTool::MagicWand,
-                                                 CanvasTool::PatchTool});
+                                                 CanvasTool::PolygonLasso, CanvasTool::MagneticLasso,
+                                                 CanvasTool::MagicWand, CanvasTool::PatchTool});
   selection_intersect->setObjectName(QStringLiteral("selectionIntersectModeAction"));
   selection_new_mode_action_ = selection_new;
   selection_add_mode_action_ = selection_add;
@@ -959,7 +962,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
           [set_selection_mode] { set_selection_mode(CanvasWidget::SelectionMode::Subtract); });
   connect(selection_intersect, &QAction::triggered, this,
           [set_selection_mode] { set_selection_mode(CanvasWidget::SelectionMode::Intersect); });
-  add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
+  add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::PolygonLasso,
                         CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::QuickSelect,
                         CanvasTool::ObjectSelect});
 
@@ -992,8 +995,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // nested group widget, whose height clipped the field's bottom edge on some
   // desktops (GitHub issue 160).
   add_option_label(QT_TR_NOOP("Feather:"), {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
-                                            CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::QuickSelect,
-                                            CanvasTool::ObjectSelect})
+                                            CanvasTool::PolygonLasso, CanvasTool::MagneticLasso, CanvasTool::MagicWand,
+                                            CanvasTool::QuickSelect, CanvasTool::ObjectSelect})
       ->setObjectName(QStringLiteral("selectionFeatherLabel"));
   auto* feather = new UnitIntSpinBox(SpinUnit::Pixels, options_content);
   feather->setObjectName(QStringLiteral("selectionFeatherSpin"));
@@ -1003,8 +1006,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   feather->setProperty(kToolbarSpinboxSliderCurvedProperty, true);
   configure_toolbar_spinbox(feather, 64);
   add_option_widget(feather, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
-                              CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::QuickSelect,
-                              CanvasTool::ObjectSelect});
+                              CanvasTool::PolygonLasso, CanvasTool::MagneticLasso, CanvasTool::MagicWand,
+                              CanvasTool::QuickSelect, CanvasTool::ObjectSelect});
   // Quick Select has no Anti-alias; Object Selection sets Feather apart from it too
   // (GitHub issues 291, 292).
   add_option_separator({CanvasTool::QuickSelect, CanvasTool::ObjectSelect});
@@ -1013,7 +1016,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   anti_alias->setObjectName(QStringLiteral("selectionAntiAliasCheck"));
   anti_alias->setChecked(current_selection_antialias_);
   add_option_widget(anti_alias,
-                    {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
+                    {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::PolygonLasso,
                      CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::ObjectSelect});
   // Feather and Anti-alias are one group. The Lassos and the Magic Wand get their separator
   // after the marquee fields below, which they do not show.
@@ -1090,7 +1093,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // Width and Height trade places with one click (GitHub issue 286), here and on the Artboard
   // bar: two opposed arrows in the icon ink, an icon button sized like the bar's others.
   // Each marquee pair has its own button; Normal, whose fields are greyed, shows neither.
-  const auto make_swap_dimensions_button = [this, toolbar](const char* object_name) {
+  const auto make_swap_dimensions_button = [toolbar](const char* object_name) {
     auto* button = new QToolButton(toolbar);
     button->setObjectName(QLatin1String(object_name));
     button->setToolButtonStyle(Qt::ToolButtonIconOnly);
@@ -1200,7 +1203,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     fixed_height->setValue(width);
   });
   apply_marquee_settings();
-  add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso,
+  add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::PolygonLasso,
                         CanvasTool::MagneticLasso, CanvasTool::MagicWand});
 
   // Crop: Style picks what the fields mean, like the marquee's Style combo.

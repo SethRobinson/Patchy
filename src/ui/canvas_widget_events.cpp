@@ -212,8 +212,8 @@ bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
   // document tab reacts); setting the cursor while the pointer is elsewhere is
   // harmless since it only shows once the pointer is back over the canvas.
   if ((event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease) && isVisible() &&
-      !selecting_ && !lassoing_ && !magnetic_lassoing_ && !quick_selecting_ && !object_selecting_ &&
-      !moving_selection_ &&
+      !selecting_ && !lassoing_ && !magnetic_lassoing_ && !polygon_lassoing_ && !quick_selecting_ &&
+      !object_selecting_ && !moving_selection_ &&
       !spacebar_panning_ && !panning_ && !dragging_transform_) {
     auto* key_event = static_cast<QKeyEvent*>(event);
     if (!key_event->isAutoRepeat() &&
@@ -335,12 +335,12 @@ bool CanvasWidget::event(QEvent* event) {
     }
     if (key_event->modifiers() == Qt::NoModifier &&
         (key_event->key() == Qt::Key_Backspace || key_event->key() == Qt::Key_Delete)) {
-      // While a magnetic-lasso trace is live (Backspace pops the last anchor) or guides
-      // are selected (Delete/Backspace removes them), the canvas owns these keys.
+      // While a magnetic or polygonal lasso is live (Backspace pops the last point) or
+      // guides are selected (Delete/Backspace removes them), the canvas owns these keys.
       // Accepting the override suppresses the app-level shortcuts (layer.clear binds
       // Backspace on macOS and Delete everywhere) so keyPressEvent receives a plain key
       // event instead of QShortcutMap consuming it first.
-      if (magnetic_lasso_active() || pen_session_active_ ||
+      if (magnetic_lasso_active() || polygon_lasso_active() || pen_session_active_ ||
           (path_edit_tool_active() && path_edit_has_selection()) ||
           (!guides_locked_ && has_selected_guides())) {
         event->accept();
@@ -795,6 +795,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
       case CanvasTool::Marquee:
       case CanvasTool::EllipticalMarquee:
       case CanvasTool::Lasso:
+      case CanvasTool::PolygonLasso:
       case CanvasTool::MagneticLasso:
       case CanvasTool::MagicWand:
       case CanvasTool::QuickSelect:
@@ -887,6 +888,7 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
                                          tool_ == CanvasTool::Marquee ||
                                          tool_ == CanvasTool::EllipticalMarquee ||
                                          tool_ == CanvasTool::Lasso ||
+                                         tool_ == CanvasTool::PolygonLasso ||
                                          tool_ == CanvasTool::MagneticLasso ||
                                          tool_ == CanvasTool::QuickSelect ||
                                          tool_ == CanvasTool::ObjectSelect ||
@@ -1320,8 +1322,34 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
     }
   }
 
+  // The Polygonal Lasso, and the Lasso while its Alt-release switch runs the
+  // same session: a click places a vertex (Shift keeps 45 degrees), a click on
+  // the start point closes, and a press after the first may drag a freehand run.
+  if (polygon_lassoing_ || tool_ == CanvasTool::PolygonLasso) {
+    if (document_ == nullptr || event->button() != Qt::LeftButton) {
+      return;
+    }
+    if (!polygon_lassoing_) {
+      // The combine mode latches at the starting click; later Shift/Alt are the
+      // 45 degree constraint and the freehand run.
+      selection_operation_ = selection_operation(event->modifiers());
+      start_polygon_lasso(QPolygon{document_point}, /*from_lasso=*/false);
+    } else if (polygon_lasso_start_hit(event->pos())) {
+      finish_polygon_lasso();
+    } else {
+      add_polygon_lasso_vertex(polygon_lasso_target(document_point, event->modifiers()));
+      polygon_lasso_button_down_ = true;
+      polygon_lasso_freehand_run_ = false;
+    }
+    emit_info_for_widget_position(event->pos());
+    update();
+    return;
+  }
+
   if (tool_ == CanvasTool::Lasso || tool_ == CanvasTool::PatchTool) {
     lassoing_ = true;
+    lasso_alt_at_press_ = event->modifiers().testFlag(Qt::AltModifier);
+    lasso_alt_released_since_press_ = false;
     selection_edges_visible_ = true;
     selection_press_widget_position_ = event->pos();
     lasso_points_.clear();
@@ -2186,8 +2214,33 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     }
     emit_info_for_widget_position(event->pos());
     update();
+  } else if (polygon_lassoing_ && document_ != nullptr) {
+    // Button up, the rubber band follows the pointer. A held button adds a
+    // freehand run while Alt is down (always in the Lasso's Alt switch, whose
+    // release closes the outline unless Alt is still held).
+    clear_move_hover_outline();
+    if (polygon_lasso_from_lasso_ && !polygon_lasso_button_down_ &&
+        !event->modifiers().testFlag(Qt::AltModifier)) {
+      // Alt came up where the canvas missed the key release (another widget had
+      // focus): the move's own modifiers close the Lasso's Alt switch.
+      finish_polygon_lasso();
+    } else if (polygon_lasso_button_down_ &&
+               (polygon_lasso_from_lasso_ || event->modifiers().testFlag(Qt::AltModifier))) {
+      if (polygon_lasso_points_.last() != document_point) {
+        polygon_lasso_points_ << document_point;
+        polygon_lasso_freehand_run_ = true;
+      }
+      polygon_lasso_cursor_ = document_point;
+      update();
+    } else {
+      update_polygon_lasso_rubber_band(document_point, event->modifiers());
+    }
+    emit_info_for_widget_position(event->pos());
   } else if (lassoing_ && document_ != nullptr) {
     clear_move_hover_outline();
+    if (!event->modifiers().testFlag(Qt::AltModifier)) {
+      lasso_alt_released_since_press_ = true;
+    }
     const auto point = clamped_document_point(*document_, document_point);
     if (lasso_points_.isEmpty() || (point - lasso_points_.last()).manhattanLength() >= 1) {
       lasso_points_ << point;
@@ -2453,6 +2506,23 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
   if (magnetic_lassoing_) {
     // The trace is driven by presses and hover moves; releases (including the
     // start click's) must not fall through to the deselect/selection logic.
+    event->accept();
+    return;
+  }
+
+  if (polygon_lassoing_) {
+    // Like the magnetic trace, the session runs on presses and hover moves. A
+    // freehand run ends in a vertex, so Backspace drops the run with it.
+    if (polygon_lasso_button_down_ && polygon_lasso_freehand_run_) {
+      add_polygon_lasso_vertex(document_position(event->pos()));
+    }
+    polygon_lasso_button_down_ = false;
+    polygon_lasso_freehand_run_ = false;
+    if (polygon_lasso_from_lasso_ && !event->modifiers().testFlag(Qt::AltModifier)) {
+      finish_polygon_lasso();
+    }
+    emit_info_for_widget_position(event->pos());
+    update();
     event->accept();
     return;
   }
@@ -3038,6 +3108,21 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
 
   if (lassoing_) {
     lassoing_ = false;
+    // Alt pressed during a Lasso drag and still held at the release switches to
+    // straight segments: the drag so far stays, and clicks add vertices until Alt
+    // is released (Photoshop's Lasso). Alt held from the press is Subtract only.
+    if (tool_ == CanvasTool::Lasso && document_ != nullptr && event->modifiers().testFlag(Qt::AltModifier) &&
+        (!lasso_alt_at_press_ || lasso_alt_released_since_press_)) {
+      const auto point = clamped_document_point(*document_, document_position(event->pos()));
+      if (lasso_points_.isEmpty() || lasso_points_.last() != point) {
+        lasso_points_ << point;
+      }
+      clear_selection_before_edit();
+      start_polygon_lasso(std::exchange(lasso_points_, QPolygon{}), /*from_lasso=*/true);
+      emit_info_for_widget_position(event->pos());
+      update();
+      return;
+    }
     // A click is a gesture whose WHOLE traced path stayed tiny, not one that
     // merely released near the press point: a carefully closed loop ends where
     // it began, and comparing only press vs release turned it into a deselect.
@@ -3065,19 +3150,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
         lasso_points_ << point;
       }
       if (lasso_points_.size() >= 3) {
-        // A freehand outline is all diagonal edges: with Anti-alias on it
-        // commits through the mask path for partial edge coverage, like the
-        // marquee's rounded corners (the QRegion path is hard-edged).
-        if (selection_feather_radius_ > 0 || selection_antialias_) {
-          QRect mask_bounds;
-          auto mask = lasso_selection_mask(lasso_points_, mask_bounds);
-          combine_selection_from_mask(mask_bounds, std::move(mask));
-        } else {
-          auto lasso_region = QRegion(lasso_points_, Qt::WindingFill);
-          lasso_region =
-              lasso_region.intersected(QRegion(QRect(0, 0, document_->width(), document_->height())));
-          combine_selection_from_region(lasso_region);
-        }
+        combine_selection_from_lasso(lasso_points_);
       } else {
         restore_selection_before_edit();
       }
@@ -3277,7 +3350,7 @@ void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
   if (quick_mask_active_ && event->button() == Qt::LeftButton &&
       (tool_ == CanvasTool::Move || tool_ == CanvasTool::Marquee ||
        tool_ == CanvasTool::EllipticalMarquee || tool_ == CanvasTool::Lasso ||
-       tool_ == CanvasTool::MagneticLasso || tool_ == CanvasTool::MagicWand ||
+       tool_ == CanvasTool::PolygonLasso || tool_ == CanvasTool::MagneticLasso || tool_ == CanvasTool::MagicWand ||
        tool_ == CanvasTool::QuickSelect || tool_ == CanvasTool::ObjectSelect || tool_ == CanvasTool::Clone ||
        tool_ == CanvasTool::Healing ||
        tool_ == CanvasTool::Smudge || is_local_adjustment_tool(tool_) || tool_ == CanvasTool::Text)) {
@@ -3288,7 +3361,7 @@ void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
   if (layer_edit_target_ == LayerEditTarget::SmartFilterMask && event->button() == Qt::LeftButton &&
       (tool_ == CanvasTool::Move || tool_ == CanvasTool::Marquee ||
        tool_ == CanvasTool::EllipticalMarquee || tool_ == CanvasTool::Lasso ||
-       tool_ == CanvasTool::MagneticLasso || tool_ == CanvasTool::MagicWand ||
+       tool_ == CanvasTool::PolygonLasso || tool_ == CanvasTool::MagneticLasso || tool_ == CanvasTool::MagicWand ||
        tool_ == CanvasTool::QuickSelect || tool_ == CanvasTool::ObjectSelect || tool_ == CanvasTool::Clone ||
        tool_ == CanvasTool::Healing ||
        tool_ == CanvasTool::Smudge || is_local_adjustment_tool(tool_) || tool_ == CanvasTool::Text)) {
@@ -3302,6 +3375,14 @@ void CanvasWidget::mouseDoubleClickEvent(QMouseEvent* event) {
     // harmless final manual anchor before closing. Alt+double-click closes
     // with a straight segment, plain double-click magnetically (PS).
     finish_magnetic_lasso(!event->modifiers().testFlag(Qt::AltModifier));
+    event->accept();
+    return;
+  }
+  if ((polygon_lassoing_ || tool_ == CanvasTool::PolygonLasso) && event->button() == Qt::LeftButton) {
+    // The double-click's first press already placed the final vertex (or, on the
+    // start point, already closed). Either way it never reaches the text-layer
+    // branch below.
+    finish_polygon_lasso();
     event->accept();
     return;
   }
@@ -3499,6 +3580,33 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
       // Alt+Enter closes with a straight segment, plain Enter magnetically (PS).
       finish_magnetic_lasso(!event->modifiers().testFlag(Qt::AltModifier));
+      event->accept();
+      return;
+    }
+  }
+
+  // A polygonal lasso owns the same keys (ShortcutOverride accepted in event()),
+  // and Shift re-aims the rubber band with the pointer still.
+  if (polygon_lassoing_) {
+    if (event->key() == Qt::Key_Escape) {
+      cancel_polygon_lasso();
+      event->accept();
+      return;
+    }
+    if (event->key() == Qt::Key_Backspace || event->key() == Qt::Key_Delete) {
+      pop_polygon_lasso_vertex();
+      event->accept();
+      return;
+    }
+    if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
+      finish_polygon_lasso();
+      event->accept();
+      return;
+    }
+    if (event->key() == Qt::Key_Shift && !event->isAutoRepeat() && !polygon_lasso_button_down_) {
+      // The event reports the modifier state before this key, so fold it in.
+      update_polygon_lasso_rubber_band(document_position(last_mouse_position_),
+                                       event->modifiers() | Qt::ShiftModifier);
       event->accept();
       return;
     }
@@ -3832,7 +3940,7 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
   if (layer_edit_target_ != LayerEditTarget::SmartFilterMask &&
       !selection_.isEmpty() && !moving_selection_ &&
       (tool_ == CanvasTool::Marquee || tool_ == CanvasTool::EllipticalMarquee ||
-       tool_ == CanvasTool::Lasso || tool_ == CanvasTool::MagneticLasso ||
+       tool_ == CanvasTool::Lasso || tool_ == CanvasTool::PolygonLasso || tool_ == CanvasTool::MagneticLasso ||
        tool_ == CanvasTool::MagicWand) &&
       (arrow_modifiers == Qt::NoModifier || arrow_modifiers == Qt::ShiftModifier)) {
     const auto step = arrow_modifiers == Qt::ShiftModifier ? 10 : 1;
@@ -3912,7 +4020,7 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
     const bool gesture_active = move_layer_selection_gesture_.has_value() || painting_ || moving_layer_ ||
                                 move_drag_pending_ || drawing_shape_ ||
                                 dragging_transform_ || selecting_ || lassoing_ || magnetic_lassoing_ ||
-                                moving_selection_ || quick_selecting_ || object_selecting_ ||
+                                polygon_lassoing_ || moving_selection_ || quick_selecting_ || object_selecting_ ||
                                 spot_healing_stroke_active_ || patch_tool_dragging_;
     const auto movable_ids = gesture_active ? std::vector<LayerId>{} : movable_layer_ids();
     if (!delta.isNull() && !movable_ids.empty()) {
@@ -3968,6 +4076,23 @@ void CanvasWidget::keyReleaseEvent(QKeyEvent* event) {
     set_tool(tool_);
     event->accept();
     return;
+  }
+  if (lassoing_ && event->key() == Qt::Key_Alt && !event->isAutoRepeat()) {
+    lasso_alt_released_since_press_ = true;
+  }
+  if (polygon_lassoing_ && !event->isAutoRepeat()) {
+    if (event->key() == Qt::Key_Alt && polygon_lasso_from_lasso_ && !polygon_lasso_button_down_) {
+      // The Lasso's Alt switch closes when Alt comes up.
+      finish_polygon_lasso();
+      event->accept();
+      return;
+    }
+    if (event->key() == Qt::Key_Shift && !polygon_lasso_button_down_) {
+      update_polygon_lasso_rubber_band(document_position(last_mouse_position_),
+                                       event->modifiers() & ~Qt::ShiftModifier);
+      event->accept();
+      return;
+    }
   }
   if (selecting_ && !spacebar_repositioning_drag_rect_ &&
       (event->key() == Qt::Key_Shift || event->key() == Qt::Key_Alt) && !event->isAutoRepeat()) {
@@ -4214,6 +4339,7 @@ void CanvasWidget::focusOutEvent(QFocusEvent* event) {
   // A hover trace cannot survive losing the keyboard: Backspace/Enter/Escape
   // would land elsewhere while the wire keeps following the pointer.
   cancel_magnetic_lasso();
+  cancel_polygon_lasso();
   set_tool(tool_);
   if (was_painting) {
     clear_brush_stroke_tracking();
@@ -4302,7 +4428,7 @@ void CanvasWidget::timerEvent(QTimerEvent* event) {
     selection_dash_offset_ = (selection_dash_offset_ + 1) % 8;
     if ((!quick_mask_active_ && !selection_.isEmpty() &&
          selection_edges_visible_) ||
-        lassoing_ || magnetic_lassoing_ || (zooming_ && !zoom_scrubbing_)) {
+        lassoing_ || magnetic_lassoing_ || polygon_lassoing_ || (zooming_ && !zoom_scrubbing_)) {
       update();
     }
     event->accept();

@@ -507,6 +507,7 @@ void CanvasWidget::set_tool(CanvasTool tool) {
     path_hover_hint_action_ = PenHoverAction::Draw;
     path_hover_hint_target_ = PathHoverTarget::None;
     cancel_magnetic_lasso();
+    cancel_polygon_lasso();
     cancel_spot_heal_stroke();
     cancel_patch_tool_drag();
     // A pending crop cancels on tool switch (never commits): an accidental
@@ -582,6 +583,7 @@ void CanvasWidget::set_edit_locked(bool locked) noexcept {
     selecting_ = false;
     lassoing_ = false;
     cancel_magnetic_lasso();
+    cancel_polygon_lasso();
     cancel_quick_select_stroke();
     cancel_object_select();
     cancel_spot_heal_stroke();

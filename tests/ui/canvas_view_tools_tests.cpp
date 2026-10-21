@@ -3217,6 +3217,32 @@ void ui_tool_cycle_hotkeys_walk_each_flyout() {
   QApplication::processEvents();
   CHECK(canvas->tool() == patchy::ui::CanvasTool::Fill);
 
+  // Shift+L walks Lasso, Polygonal Lasso, Magnetic Lasso (GitHub issue 287). The new member
+  // keeps its own persistent id and ships unbound, like every member past the first.
+  auto* lasso_button = window.findChild<QToolButton*>(QStringLiteral("lassoToolButton"));
+  CHECK(lasso_button != nullptr);
+  auto* polygon_lasso = require_action(window, "toolPolygonalLassoAction");
+  CHECK(lasso_button->menu()->actions().indexOf(polygon_lasso) ==
+        lasso_button->menu()->actions().indexOf(require_action(window, "toolLassoAction")) + 1);
+  QTest::keyClick(canvas, Qt::Key_L, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(patchy::ui::tool_hotkey_id(canvas->tool()) == QStringLiteral("tools.polygonal_lasso"));
+  CHECK(lasso_button->defaultAction() == polygon_lasso);
+  QTest::keyClick(canvas, Qt::Key_L, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::MagneticLasso);
+  QTest::keyClick(canvas, Qt::Key_L, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Lasso);
+  QTest::keyClick(canvas, Qt::Key_L, Qt::ShiftModifier);
+  QApplication::processEvents();
+  CHECK(lasso_button->defaultAction() == polygon_lasso);
+  const auto* polygon_command = window.hotkey_registry().find_command(QStringLiteral("tools.polygonal_lasso"));
+  CHECK(polygon_command != nullptr);
+  CHECK(polygon_command->action == polygon_lasso);
+  CHECK(polygon_command->category == QStringLiteral("tools"));
+  CHECK(polygon_lasso->shortcut().isEmpty());
+
   // Every flyout owns one, in the tools category, listed after a separator.
   const auto& registry = window.hotkey_registry();
   const std::pair<const char*, const char*> cycles[] = {
@@ -3754,6 +3780,7 @@ void ui_tool_palette_icons_render_sheet() {
       {"toolMarqueeAction", "Marquee"},
       {"toolEllipticalMarqueeAction", "Elliptical Marquee"},
       {"toolLassoAction", "Lasso"},
+      {"toolPolygonalLassoAction", "Polygonal Lasso"},
       {"toolMagneticLassoAction", "Magnetic Lasso"},
       {"toolMagicWandAction", "Magic Wand"},
       {"toolQuickSelectAction", "Quick Select"},

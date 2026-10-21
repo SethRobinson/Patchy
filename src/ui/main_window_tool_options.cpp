@@ -1824,7 +1824,7 @@ struct SelectionEdgeSettingKeys {
   const char* anti_alias;
 };
 
-constexpr std::array<SelectionEdgeSettingKeys, 7> kSelectionEdgeSettingKeys{{
+constexpr std::array<SelectionEdgeSettingKeys, 8> kSelectionEdgeSettingKeys{{
     {CanvasTool::Marquee, "tools/marqueeFeather", "tools/marqueeAntiAlias"},
     {CanvasTool::EllipticalMarquee, "tools/ellipticalMarqueeFeather", "tools/ellipticalMarqueeAntiAlias"},
     {CanvasTool::Lasso, "tools/lassoFeather", "tools/lassoAntiAlias"},
@@ -1832,6 +1832,7 @@ constexpr std::array<SelectionEdgeSettingKeys, 7> kSelectionEdgeSettingKeys{{
     {CanvasTool::MagicWand, "tools/wandFeather", "tools/wandAntiAlias"},
     {CanvasTool::QuickSelect, "tools/quickSelectFeather", nullptr},
     {CanvasTool::ObjectSelect, "tools/objectSelectFeather", "tools/objectSelectAntiAlias"},
+    {CanvasTool::PolygonLasso, "tools/polygonalLassoFeather", "tools/polygonalLassoAntiAlias"},
 }};
 
 // A stored number, clamped to the control's range; a missing key or one that does not
@@ -3269,7 +3270,8 @@ void MainWindow::apply_selection_modes_to_canvas(CanvasWidget* canvas) {
   }
   const std::array<CanvasTool, CanvasWidget::kSelectionToolCount> tools{
       CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::MagneticLasso,
-      CanvasTool::MagicWand, CanvasTool::QuickSelect, CanvasTool::PatchTool, CanvasTool::ObjectSelect};
+      CanvasTool::MagicWand, CanvasTool::QuickSelect, CanvasTool::PatchTool, CanvasTool::ObjectSelect,
+      CanvasTool::PolygonLasso};
   for (const auto tool : tools) {
     if (const auto index = CanvasWidget::selection_tool_index(tool); index >= 0) {
       canvas->set_selection_mode_for_tool(tool, selection_modes_[static_cast<std::size_t>(index)]);

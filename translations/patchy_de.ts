@@ -11573,6 +11573,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Hintergrund: Diese Ebene bleibt ganz unten im Stapel, ohne Transparenz und ohne Ebenenstile. Klicken Sie mit der rechten Maustaste darauf und wählen Sie Ebene aus Hintergrund, um sie zu einer normalen Ebene zu machen.</translation>
     </message>
     <message>
+        <source>Polygonal Lasso</source>
+        <translation>Polygon-Lasso</translation>
+    </message>
+    <message>
         <source>iPhone 16 Pro</source>
         <translation>iPhone 16 Pro</translation>
     </message>
@@ -13264,6 +13268,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Deselect Shapes</source>
         <translation>Formauswahl aufheben</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>Polygon-Lasso</translation>
     </message>
 </context>
 <context>
@@ -23001,10 +23009,6 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <translation>Auswahlellipse: Ziehen, um auszuwählen. Umschalt+Ziehen fügt hinzu, %ALT%+Ziehen zieht ab, Umschalt+%ALT%+Ziehen bildet die Schnittmenge. Ohne Auswahl zeichnet Umschalt einen Kreis und %ALT% vom Mittelpunkt aus.</translation>
     </message>
     <message>
-        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects.</source>
-        <translation>Lasso: Um den Bereich ziehen, um ihn auszuwählen. Umschalt+Ziehen fügt hinzu, %ALT%+Ziehen zieht ab, Umschalt+%ALT%+Ziehen bildet die Schnittmenge.</translation>
-    </message>
-    <message>
         <source>Magnetic Lasso: click an edge and follow it; click to pin a point. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Backspace removes the last point, Enter closes, Esc cancels.</source>
         <translation>Magnetisches Lasso: Auf eine Kante klicken und ihr folgen; ein Klick setzt einen Punkt. Mit Umschalt+Klick beginnen, um hinzuzufügen, mit %ALT%+Klick, um abzuziehen, mit Umschalt+%ALT%+Klick für die Schnittmenge. Rücktaste entfernt den letzten Punkt, Eingabe schließt, Esc bricht ab.</translation>
     </message>
@@ -23462,6 +23466,22 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
     <message>
         <source>The Background layer cannot have layer styles</source>
         <translation>Die Hintergrundebene kann keine Ebenenstile haben</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso</source>
+        <translation>Polygon-Lasso</translation>
+    </message>
+    <message>
+        <source>Click to place points, Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close.</source>
+        <translation>Klicken, um Punkte zu setzen, Umschalt hält 45 Grad ein, %ALT%+Ziehen zeichnet freihand. Zum Schließen auf den Startpunkt klicken, doppelklicken oder Eingabe drücken.</translation>
+    </message>
+    <message>
+        <source>Lasso: drag around the area to select. Shift+drag adds, %ALT%+drag subtracts, Shift+%ALT%+drag intersects. Press %ALT% mid-drag and let go of the button to click straight segments until %ALT% is released.</source>
+        <translation>Lasso: Um den Bereich ziehen, um ihn auszuwählen. Umschalt+Ziehen fügt hinzu, %ALT%+Ziehen zieht ab, Umschalt+%ALT%+Ziehen bildet die Schnittmenge. Während des Ziehens %ALT% drücken und die Maustaste loslassen, um gerade Segmente zu klicken, bis %ALT% losgelassen wird.</translation>
+    </message>
+    <message>
+        <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
+        <translation>Polygon-Lasso: Klicken, um Punkte zu setzen. Mit Umschalt+Klick beginnen, um hinzuzufügen, mit %ALT%+Klick, um abzuziehen, mit Umschalt+%ALT%+Klick für die Schnittmenge. Umschalt hält 45 Grad ein, %ALT%+Ziehen zeichnet freihand. Zum Schließen auf den Startpunkt klicken, doppelklicken oder Eingabe drücken; Rücktaste entfernt den letzten Punkt, Esc bricht ab.</translation>
     </message>
 </context>
 <context>
