@@ -23546,6 +23546,66 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
         <source>Merged the visible layers</source>
         <translation>Camadas visíveis mescladas</translation>
     </message>
+    <message>
+        <source>The file is open in another program.</source>
+        <translation>O arquivo está aberto em outro programa.</translation>
+    </message>
+    <message>
+        <source>Enter a file name.</source>
+        <translation>Digite um nome de arquivo.</translation>
+    </message>
+    <message>
+        <source>A file name cannot contain / or \.</source>
+        <translation>Um nome de arquivo não pode conter / ou \.</translation>
+    </message>
+    <message>
+        <source>A file name cannot contain control characters.</source>
+        <translation>Um nome de arquivo não pode conter caracteres de controle.</translation>
+    </message>
+    <message>
+        <source>A file name cannot contain any of these characters: %1</source>
+        <translation>Um nome de arquivo não pode conter nenhum destes caracteres: %1</translation>
+    </message>
+    <message>
+        <source>A file name cannot be only dots and spaces.</source>
+        <translation>Um nome de arquivo não pode ter apenas pontos e espaços.</translation>
+    </message>
+    <message>
+        <source>A file name cannot end with a dot or a space.</source>
+        <translation>Um nome de arquivo não pode terminar com ponto ou espaço.</translation>
+    </message>
+    <message>
+        <source>%1 is a reserved device name on Windows.</source>
+        <translation>%1 é um nome de dispositivo reservado no Windows.</translation>
+    </message>
+    <message>
+        <source>The file name is too long.</source>
+        <translation>O nome do arquivo é longo demais.</translation>
+    </message>
+    <message>
+        <source>Rename File</source>
+        <translation>Renomear arquivo</translation>
+    </message>
+    <message>
+        <source>Renamed to %1</source>
+        <translation>Renomeado para %1</translation>
+    </message>
+    <message>
+        <source>A file named %1 already exists in this folder.</source>
+        <translation>Já existe um arquivo chamado %1 nesta pasta.</translation>
+    </message>
+    <message>
+        <source>%1 is no longer on disk.</source>
+        <translation>%1 não está mais no disco.</translation>
+    </message>
+    <message>
+        <source>Could not rename the file: %1</source>
+        <translation>Não foi possível renomear o arquivo: %1</translation>
+    </message>
+    <message>
+        <source>Rename File...</source>
+        <translation>Renomear arquivo...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

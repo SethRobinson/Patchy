@@ -23474,6 +23474,66 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <source>Merged the visible layers</source>
         <translation>보이는 레이어를 병합했습니다</translation>
     </message>
+    <message>
+        <source>The file is open in another program.</source>
+        <translation>파일이 다른 프로그램에서 열려 있습니다.</translation>
+    </message>
+    <message>
+        <source>Enter a file name.</source>
+        <translation>파일 이름을 입력하세요.</translation>
+    </message>
+    <message>
+        <source>A file name cannot contain / or \.</source>
+        <translation>파일 이름에는 / 또는 \를 사용할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>A file name cannot contain control characters.</source>
+        <translation>파일 이름에는 제어 문자를 사용할 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>A file name cannot contain any of these characters: %1</source>
+        <translation>파일 이름에는 다음 문자를 사용할 수 없습니다: %1</translation>
+    </message>
+    <message>
+        <source>A file name cannot be only dots and spaces.</source>
+        <translation>파일 이름은 마침표와 공백만으로 이루어질 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>A file name cannot end with a dot or a space.</source>
+        <translation>파일 이름은 마침표나 공백으로 끝날 수 없습니다.</translation>
+    </message>
+    <message>
+        <source>%1 is a reserved device name on Windows.</source>
+        <translation>%1은(는) Windows에서 예약된 장치 이름입니다.</translation>
+    </message>
+    <message>
+        <source>The file name is too long.</source>
+        <translation>파일 이름이 너무 깁니다.</translation>
+    </message>
+    <message>
+        <source>Rename File</source>
+        <translation>파일 이름 바꾸기</translation>
+    </message>
+    <message>
+        <source>Renamed to %1</source>
+        <translation>%1(으)로 이름을 바꿨습니다</translation>
+    </message>
+    <message>
+        <source>A file named %1 already exists in this folder.</source>
+        <translation>이 폴더에 이름이 %1인 파일이 이미 있습니다.</translation>
+    </message>
+    <message>
+        <source>%1 is no longer on disk.</source>
+        <translation>%1이(가) 더 이상 디스크에 없습니다.</translation>
+    </message>
+    <message>
+        <source>Could not rename the file: %1</source>
+        <translation>파일 이름을 바꿀 수 없습니다: %1</translation>
+    </message>
+    <message>
+        <source>Rename File...</source>
+        <translation>파일 이름 바꾸기...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

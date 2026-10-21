@@ -23474,6 +23474,66 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <source>Merged the visible layers</source>
         <translation>表示レイヤーを結合しました</translation>
     </message>
+    <message>
+        <source>The file is open in another program.</source>
+        <translation>ファイルは別のプログラムで開かれています。</translation>
+    </message>
+    <message>
+        <source>Enter a file name.</source>
+        <translation>ファイル名を入力してください。</translation>
+    </message>
+    <message>
+        <source>A file name cannot contain / or \.</source>
+        <translation>ファイル名に / や \ は使えません。</translation>
+    </message>
+    <message>
+        <source>A file name cannot contain control characters.</source>
+        <translation>ファイル名に制御文字は使えません。</translation>
+    </message>
+    <message>
+        <source>A file name cannot contain any of these characters: %1</source>
+        <translation>ファイル名に次の文字は使えません: %1</translation>
+    </message>
+    <message>
+        <source>A file name cannot be only dots and spaces.</source>
+        <translation>ファイル名をピリオドと空白だけにすることはできません。</translation>
+    </message>
+    <message>
+        <source>A file name cannot end with a dot or a space.</source>
+        <translation>ファイル名の末尾をピリオドや空白にすることはできません。</translation>
+    </message>
+    <message>
+        <source>%1 is a reserved device name on Windows.</source>
+        <translation>%1 は Windows の予約済みデバイス名です。</translation>
+    </message>
+    <message>
+        <source>The file name is too long.</source>
+        <translation>ファイル名が長すぎます。</translation>
+    </message>
+    <message>
+        <source>Rename File</source>
+        <translation>ファイル名を変更</translation>
+    </message>
+    <message>
+        <source>Renamed to %1</source>
+        <translation>%1 に名前を変更しました</translation>
+    </message>
+    <message>
+        <source>A file named %1 already exists in this folder.</source>
+        <translation>このフォルダーには %1 という名前のファイルが既にあります。</translation>
+    </message>
+    <message>
+        <source>%1 is no longer on disk.</source>
+        <translation>%1 はディスク上にもうありません。</translation>
+    </message>
+    <message>
+        <source>Could not rename the file: %1</source>
+        <translation>ファイル名を変更できませんでした: %1</translation>
+    </message>
+    <message>
+        <source>Rename File...</source>
+        <translation>ファイル名を変更...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -96,6 +96,32 @@ void DocumentRecoveryCoordinator::discard_for_session(std::int64_t session_id) {
   }
 }
 
+void DocumentRecoveryCoordinator::refresh_sidecar(std::int64_t session_id) {
+  if (write_in_flight_) {
+    sidecars_after_write_.push_back(session_id);
+    return;
+  }
+  if (!folder_->created() || !marks_.contains(session_id)) {
+    return;  // No copy yet; the next write takes the new fields.
+  }
+  auto entry = host_.session_recovery_entry(session_id);
+  if (!entry.has_value()) {
+    return;
+  }
+  const auto directory = folder_->directory();
+  // Keep the copy's own timestamp: the document in it did not change.
+  for (const auto& existing : recovery::scan_instance_dir(directory)) {
+    if (existing.file_stem == std::to_string(session_id)) {
+      entry->saved_at_unix_ms = existing.saved_at_unix_ms;
+    }
+  }
+  try {
+    recovery::write_sidecar(directory, session_id, *entry);
+  } catch (const std::exception& error) {
+    host_.report_recovery_write_error(QString::fromUtf8(error.what()));
+  }
+}
+
 QStringList DocumentRecoveryCoordinator::write_now(bool wait) {
   QStringList written;
   if (write_in_flight_ || host_.recovery_busy()) {
@@ -166,6 +192,9 @@ void DocumentRecoveryCoordinator::finish_write(const std::vector<RecoveryMark>& 
   }
   if (!errors.isEmpty()) {
     host_.report_recovery_write_error(errors.front());
+  }
+  for (const auto session_id : std::exchange(sidecars_after_write_, {})) {
+    refresh_sidecar(session_id);
   }
 }
 

@@ -1269,6 +1269,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/session_history.cpp
       src/ui/document_save_coordinator.cpp
       src/ui/document_save_coordinator.hpp
+      src/ui/document_file_rename.cpp
+      src/ui/document_file_rename.hpp
       src/ui/save_progress.cpp
       src/ui/save_progress.hpp
       src/ui/session_history.hpp
@@ -2221,6 +2223,7 @@ if(PATCHY_BUILD_TESTS)
       tests/ui/ai_selection_tests.cpp
       tests/ui/misc_visuals_outline_stress_tests.cpp
       tests/ui/float_window_tests.cpp
+      tests/ui/document_rename_tests.cpp
       tests/ui/vector_shape_tool_tests.cpp
       tests/ui/batch_appearance_tests.cpp
       tests/ui/vector_preview_tests.cpp
