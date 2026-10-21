@@ -746,6 +746,11 @@ void CanvasWidget::paintEvent(QPaintEvent* event) {
   draw_canvas_backdrop(painter, target_rect, exposed_rect);
 
   prepare_vector_preview();
+  if (warp_drag_preview_pending_) {
+    // The latest handle position of a warp drag, rendered once per frame however
+    // many mouse moves arrived since the last one (set_warp_handle_document_position).
+    refresh_warp_preview_cache();
+  }
 
   if (!processing_render_wait_active_) {
     if (async_render_cache_explicit_hold_) {

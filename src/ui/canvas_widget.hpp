@@ -3455,6 +3455,9 @@ private:
   // warp_source_image_ halved once per entry (index 0 = level 1), built on demand.
   std::vector<QImage> warp_source_mips_{};
   bool warp_preview_view_refresh_pending_{false};
+  // A handle drag moved the mesh since the last preview render; the next paint
+  // renders it once (GitHub #298: rendering per mouse move fell behind fast input).
+  bool warp_drag_preview_pending_{false};
   // True when warp_content_to_document_ carries a composed free-transform stage
   // (the single-session toggle), so commit must bake even with an untouched mesh.
   bool warp_entry_changed_{false};
