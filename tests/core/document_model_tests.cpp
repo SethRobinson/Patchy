@@ -4,6 +4,8 @@
 #include "core/stroke_patch.hpp"
 #include "core/layer_render_utils.hpp"
 #include "core/pixel_depth.hpp"
+#include "core/document_depth.hpp"
+#include "formats/document_flatten.hpp"
 #include "core/layer_metadata.hpp"
 #include "render/compositor.hpp"
 #include "core/layer_tree.hpp"
@@ -721,6 +723,43 @@ void preview_downscale_halves_deep_buffers_per_sample() {
                  49151) <= 1);
 }
 
+// The RGBA8 flatten behind previews, script flatten and the flat writers accepts 16 and
+// 32-bit documents (it threw on their deep layers) and returns their display values.
+void rgba8_flatten_returns_display_values_of_deep_documents() {
+  patchy::Document reference(24, 16, patchy::PixelFormat::rgba8());
+  patchy::PixelBuffer background(24, 16, patchy::PixelFormat::rgba8());
+  for (std::int32_t y = 0; y < 16; ++y) {
+    for (std::int32_t x = 0; x < 24; ++x) {
+      auto* px = background.pixel(x, y);
+      px[0] = static_cast<std::uint8_t>(x * 10);
+      px[1] = static_cast<std::uint8_t>(y * 15);
+      px[2] = 90;
+      px[3] = 255;
+    }
+  }
+  reference.add_pixel_layer("Background", std::move(background));
+  const auto eight = patchy::flatten_document_rgba8(reference);
+  for (const auto depth : {patchy::BitDepth::UInt16, patchy::BitDepth::Float32}) {
+    auto deep = reference;
+    patchy::convert_document_depth(deep, depth);
+    const auto flat = patchy::flatten_document_rgba8(deep);
+    CHECK(flat.format() == patchy::PixelFormat::rgba8());
+    CHECK(flat.width() == 24 && flat.height() == 16);
+    int worst = 0;
+    for (std::int32_t y = 0; y < 16; ++y) {
+      for (std::int32_t x = 0; x < 24; ++x) {
+        for (int c = 0; c < 4; ++c) {
+          worst = std::max(worst, std::abs(static_cast<int>(flat.pixel(x, y)[c]) - static_cast<int>(eight.pixel(x, y)[c])));
+        }
+      }
+    }
+    CHECK(worst <= 1);
+    const auto rect = patchy::flatten_document_rgba8_rect(deep, patchy::Rect{5, 3, 10, 6});
+    CHECK(rect.width() == 10 && rect.height() == 6);
+    CHECK(std::abs(static_cast<int>(rect.pixel(0, 0)[0]) - static_cast<int>(eight.pixel(5, 3)[0])) <= 1);
+  }
+}
+
 void preview_scaled_document_reuses_only_unchanged_surfaces() {
   patchy::Document document(32, 24, patchy::PixelFormat::rgba8());
   patchy::PixelBuffer pixels(32, 24, patchy::PixelFormat::rgba8());
@@ -940,6 +979,7 @@ std::vector<patchy::test::TestCase> document_model_tests() {
       {"preview_scaled_document_shrinks_layers_and_styles", preview_scaled_document_shrinks_layers_and_styles},
       {"preview_scaled_document_reuses_only_unchanged_surfaces", preview_scaled_document_reuses_only_unchanged_surfaces},
       {"preview_downscale_halves_deep_buffers_per_sample", preview_downscale_halves_deep_buffers_per_sample},
+      {"rgba8_flatten_returns_display_values_of_deep_documents", rgba8_flatten_returns_display_values_of_deep_documents},
       {"preview_scaled_document_flatten_keeps_solid_regions", preview_scaled_document_flatten_keeps_solid_regions},
       {"ungroup_layer_releases_children_in_place_and_order", ungroup_layer_releases_children_in_place_and_order},
   };
