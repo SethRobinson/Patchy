@@ -23830,6 +23830,10 @@ Patchy może pobrać aktualizację, zastąpić ten plik AppImage i uruchomić si
         <source>Rotate</source>
         <translation>Obróć</translation>
     </message>
+    <message>
+        <source>200%</source>
+        <translation>200%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

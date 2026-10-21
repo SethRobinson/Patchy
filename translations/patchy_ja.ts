@@ -23686,6 +23686,10 @@ Patchy はアップデートをダウンロードし、この AppImage を置き
         <source>Rotate</source>
         <translation>回転</translation>
     </message>
+    <message>
+        <source>200%</source>
+        <translation>200%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

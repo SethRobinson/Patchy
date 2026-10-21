@@ -189,8 +189,9 @@ void CanvasWidget::reap_retired_context_menus() {
 }
 
 // The canvas right-click menu (a right release within the drag distance of
-// its press; canvas_widget_events.cpp). One builder, three sections: the Move
-// tool's layers-under-the-pointer entries, the host's selection commands
+// its press; canvas_widget_events.cpp). One builder, four sections: the Move
+// tool's layers-under-the-pointer entries, the Zoom tool's View zoom commands
+// anywhere on the canvas, the host's selection commands
 // (Remove Object, Fill, ...) when the click landed on the selection, and the
 // host's shape commands (Shape Appearance, Free Transform, ...) when it landed
 // on the active vector shape layer, or with the Move tool its layer commands
@@ -249,6 +250,10 @@ bool CanvasWidget::show_canvas_context_menu(QPoint widget_point, QPoint global_p
       }
     }
   };
+  // The Zoom tool's section comes first, anywhere on the canvas (GitHub issue 300).
+  if (tool_ == CanvasTool::Zoom && zoom_tool_context_actions_callback_) {
+    append_section(zoom_tool_context_actions_callback_());
+  }
   const bool inside_selection = has_selection() && selection_alpha_at(document_point) != 0U;
   const bool selection_tool_on_document =
       tool_ != CanvasTool::PatchTool && selection_tool_index(tool_) >= 0 && document_contains(document_point);

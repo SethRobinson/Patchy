@@ -5926,6 +5926,7 @@ void MainWindow::configure_canvas(CanvasWidget* canvas) {
   canvas->set_status_callback([this](QString message) { statusBar()->showMessage(message); });
   canvas->set_selection_context_actions_callback([this] { return selection_context_actions_; });
   canvas->set_selection_tool_context_actions_callback([this] { return selection_tool_context_actions_; });
+  canvas->set_zoom_tool_context_actions_callback([this] { return zoom_tool_context_actions_; });
   // A right-click on the active shape layer: the Layer > Shape and Edit menus'
   // own QActions (docs/tools.md, "Canvas right-click menu").
   canvas->set_shape_context_actions_callback([this] {
@@ -11511,6 +11512,7 @@ bool MainWindow::document_action_enabled_during_preview_lock(const QAction* acti
       object_name == QStringLiteral("viewZoomOutAction") ||
       object_name == QStringLiteral("viewFitOnScreenAction") ||
       object_name == QStringLiteral("viewActualPixelsAction") ||
+      object_name == QStringLiteral("viewZoom200Action") ||
       object_name == QStringLiteral("viewToggleSelectionEdgesAction") ||
       object_name == QStringLiteral("viewToggleRulersAction") ||
       object_name == QStringLiteral("viewToggleGridAction") ||

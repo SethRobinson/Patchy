@@ -23686,6 +23686,10 @@ Patchy 可以下载更新、替换此 AppImage 并重新启动。在此之前会
         <source>Rotate</source>
         <translation>旋转</translation>
     </message>
+    <message>
+        <source>200%</source>
+        <translation>200%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

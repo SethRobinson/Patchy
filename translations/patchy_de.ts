@@ -23758,6 +23758,10 @@ Patchy kann das Update herunterladen, dieses AppImage ersetzen und neu starten. 
         <source>Rotate</source>
         <translation>Drehen</translation>
     </message>
+    <message>
+        <source>200%</source>
+        <translation>200%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

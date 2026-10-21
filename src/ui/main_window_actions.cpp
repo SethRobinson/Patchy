@@ -229,6 +229,7 @@ void MainWindow::bind_action_translations(ActionBuildContext& ctx) {
       {ctx.fit_on_screen, QT_TR_NOOP("&Fit on Screen")},
       {ctx.fill_screen, QT_TR_NOOP("Fi&ll Screen")},
       {ctx.zoom_reset, QT_TR_NOOP("&Actual Pixels")},
+      {ctx.zoom_200, QT_TR_NOOP("200%")},
       {ctx.selection_edges_action, QT_TR_NOOP("Show Selection &Edges")},
       {ctx.target_path_action, QT_TR_NOOP("Show Target &Path")},
       {ctx.tile_preview_action, QT_TR_NOOP("Seamless &Tile Preview")},

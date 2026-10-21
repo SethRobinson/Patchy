@@ -106,6 +106,7 @@ struct ActionBuildContext {
   QAction* fit_on_screen{nullptr};
   QAction* fill_screen{nullptr};
   QAction* zoom_reset{nullptr};
+  QAction* zoom_200{nullptr};
   QAction* selection_edges_action{nullptr};
   QAction* target_path_action{nullptr};
   QAction* tile_preview_action{nullptr};

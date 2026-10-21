@@ -2560,6 +2560,9 @@ private:
   // Shown in the canvas right-click menu while a selection tool is active and the click is
   // not inside a selection (CanvasWidget::set_selection_tool_context_actions_callback).
   QList<QAction*> selection_tool_context_actions_;
+  // The canvas right-click menu's section while the Zoom tool is active: the View menu's
+  // zoom actions (CanvasWidget::set_zoom_tool_context_actions_callback, GitHub issue 300).
+  QList<QAction*> zoom_tool_context_actions_;
   // Frees the subject model a while after the last Select Subject (it reloads on use).
   QTimer* subject_model_release_timer_{nullptr};
   QPushButton* crop_cancel_button_{nullptr};

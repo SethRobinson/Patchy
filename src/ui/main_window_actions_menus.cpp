@@ -1914,6 +1914,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   auto* fit_on_screen = view_menu->addAction(tr("&Fit on Screen"));
   auto* fill_screen = view_menu->addAction(tr("Fi&ll Screen"));
   auto* zoom_reset = view_menu->addAction(tr("&Actual Pixels"));
+  auto* zoom_200 = view_menu->addAction(tr("200%"));
   view_vector_preview_action_ = view_menu->addAction(tr("Dynamic Vector Preview"));
   view_vector_preview_action_->setObjectName(QStringLiteral("viewVectorPreviewAction"));
   view_vector_preview_action_->setCheckable(true);
@@ -1994,6 +1995,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   fit_on_screen->setObjectName(QStringLiteral("viewFitOnScreenAction"));
   fill_screen->setObjectName(QStringLiteral("viewFillScreenAction"));
   zoom_reset->setObjectName(QStringLiteral("viewActualPixelsAction"));
+  zoom_200->setObjectName(QStringLiteral("viewZoom200Action"));
   selection_edges_action->setObjectName(QStringLiteral("viewToggleSelectionEdgesAction"));
   target_path_action->setObjectName(QStringLiteral("viewToggleTargetPathAction"));
   view_rulers_action_->setObjectName(QStringLiteral("viewToggleRulersAction"));
@@ -2058,6 +2060,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   register_hotkey(fit_on_screen, "view.fit_on_screen", QKeySequence(Qt::CTRL | Qt::Key_0));
   register_hotkey(fill_screen, "view.fill_screen");
   register_hotkey(zoom_reset, "view.actual_pixels", QKeySequence(Qt::CTRL | Qt::Key_1));
+  register_hotkey(zoom_200, "view.zoom_200");
   register_hotkey(selection_edges_action, "view.selection_edges", QKeySequence(Qt::CTRL | Qt::Key_H));
   register_hotkey(target_path_action, "view.target_path",
                   QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_H));
@@ -2081,6 +2084,10 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   connect(fit_on_screen, &QAction::triggered, this, [this] { canvas_->fit_to_view(); });
   connect(fill_screen, &QAction::triggered, this, [this] { canvas_->fill_to_view(); });
   connect(zoom_reset, &QAction::triggered, this, [this] { canvas_->set_view_zoom_centered(1.0); });
+  connect(zoom_200, &QAction::triggered, this, [this] { canvas_->set_view_zoom_centered(2.0); });
+  // The Zoom tool's canvas right-click menu (GitHub issue 300; docs/tools.md,
+  // "Canvas right-click menu"): these same actions, so shortcuts and behavior match.
+  zoom_tool_context_actions_ = {zoom_in, zoom_out, nullptr, fit_on_screen, zoom_reset, zoom_200};
   connect(selection_edges_action, &QAction::triggered, this, [this] {
     if (canvas_ != nullptr) {
       canvas_->toggle_selection_edges_visible();
@@ -2149,7 +2156,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   connect(new_guide_layout_action, &QAction::triggered, this, [this] { new_guide_layout_dialog(); });
   connect(clear_selected_guides_action, &QAction::triggered, this, [this] { clear_selected_guides(); });
   connect(clear_guides_action, &QAction::triggered, this, [this] { clear_guides(); });
-  for (auto* action : {zoom_in, zoom_out, fit_on_screen, fill_screen, zoom_reset, selection_edges_action,
+  for (auto* action : {zoom_in, zoom_out, fit_on_screen, fill_screen, zoom_reset, zoom_200, selection_edges_action,
                        view_rulers_action_,
                        view_grid_action_, view_guides_action_, view_snap_action_, view_lock_guides_action_,
                        snap_to_menu->menuAction(), view_snap_guides_action_, view_snap_grid_action_,
@@ -2385,6 +2392,7 @@ void MainWindow::build_menu_bar_actions(ActionBuildContext& ctx) {
   ctx.fit_on_screen = fit_on_screen;
   ctx.fill_screen = fill_screen;
   ctx.zoom_reset = zoom_reset;
+  ctx.zoom_200 = zoom_200;
   ctx.selection_edges_action = selection_edges_action;
   ctx.target_path_action = target_path_action;
   ctx.tile_preview_action = tile_preview_action;

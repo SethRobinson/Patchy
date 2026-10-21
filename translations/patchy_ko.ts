@@ -23686,6 +23686,10 @@ Patchy가 업데이트를 다운로드하고 이 AppImage를 교체한 다음 �
         <source>Rotate</source>
         <translation>회전</translation>
     </message>
+    <message>
+        <source>200%</source>
+        <translation>200%</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

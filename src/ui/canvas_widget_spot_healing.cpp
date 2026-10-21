@@ -768,6 +768,10 @@ void CanvasWidget::set_selection_tool_context_actions_callback(std::function<QLi
   selection_tool_context_actions_callback_ = std::move(callback);
 }
 
+void CanvasWidget::set_zoom_tool_context_actions_callback(std::function<QList<QAction*>()> callback) {
+  zoom_tool_context_actions_callback_ = std::move(callback);
+}
+
 void CanvasWidget::set_shape_context_actions_callback(std::function<QList<QAction*>()> callback) {
   shape_context_actions_callback_ = std::move(callback);
 }

@@ -2458,6 +2458,126 @@ void ui_canvas_scroll_bars_follow_zoom_and_resize() {
   CHECK(vertical->geometry().right() == canvas.width() - 1);
 }
 
+// With the Zoom tool, a right-click anywhere on the canvas opens the View menu's
+// own zoom actions (GitHub issue 300): Zoom In, Zoom Out, then Fit on Screen,
+// Actual Pixels and 200%, ahead of the selection and pasteboard sections, and
+// each entry changes the view as its View menu twin does.
+void ui_zoom_tool_context_menu_offers_view_zoom_commands() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  const auto visible_context_menu = [](QWidget& widget) -> QMenu* {
+    for (auto* menu : widget.findChildren<QMenu*>(QStringLiteral("canvasContextMenu"))) {
+      if (menu->isVisible()) {
+        return menu;
+      }
+    }
+    return nullptr;
+  };
+  const auto right_click = [&](QPoint point) {
+    send_mouse(*canvas, QEvent::MouseButtonPress, point, Qt::RightButton, Qt::RightButton);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, point, Qt::RightButton, Qt::NoButton);
+    QApplication::processEvents();
+    return visible_context_menu(*canvas);
+  };
+  const auto pick = [](QMenu& menu, QAction* action) {
+    CHECK(menu.actions().contains(action));
+    menu.hide();
+    action->trigger();
+    QApplication::processEvents();
+  };
+  const auto close_to = [](double actual, double expected) { return std::abs(actual - expected) < 0.001; };
+  const QList<QAction*> zoom_actions{
+      require_action(window, "viewZoomInAction"), require_action(window, "viewZoomOutAction"),
+      require_action(window, "viewFitOnScreenAction"), require_action(window, "viewActualPixelsAction"),
+      require_action(window, "viewZoom200Action")};
+  for (auto* action : zoom_actions) {
+    if (action == nullptr) {
+      return;
+    }
+  }
+  CHECK(!zoom_actions[0]->shortcut().isEmpty());
+
+  // A painting tool still opens nothing inside the document.
+  require_action(window, "toolBrushAction")->trigger();
+  canvas->set_view_zoom(0.5);
+  QApplication::processEvents();
+  const auto inside = canvas->widget_position_for_document_point(QPoint(40, 40));
+  CHECK(canvas->rect().contains(inside));
+  CHECK(right_click(inside) == nullptr);
+
+  require_action_by_text(window, QStringLiteral("Zoom"))->trigger();
+  QApplication::processEvents();
+  auto* menu = right_click(inside);
+  if (menu == nullptr) {
+    save_widget_artifact("ui_zoom_tool_context_menu", window);
+  }
+  CHECK(menu != nullptr);
+  QList<QAction*> entries;
+  for (auto* action : menu->actions()) {
+    if (!action->isSeparator()) {
+      entries.push_back(action);
+    }
+  }
+  CHECK(entries == zoom_actions);
+  save_window_popup_artifact("ui_zoom_tool_context_menu", window, *canvas, *menu);
+
+  pick(*menu, zoom_actions[4]);
+  CHECK(close_to(canvas->view_zoom(), 2.0));
+  menu = right_click(inside);
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    pick(*menu, zoom_actions[1]);
+    CHECK(canvas->view_zoom() < 2.0 - 0.001);
+  }
+  menu = right_click(canvas->rect().center());
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    pick(*menu, zoom_actions[0]);
+    CHECK(close_to(canvas->view_zoom(), 2.0));
+  }
+  menu = right_click(canvas->rect().center());
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    pick(*menu, zoom_actions[3]);
+    CHECK(close_to(canvas->view_zoom(), 1.0));
+  }
+  zoom_actions[2]->trigger();
+  QApplication::processEvents();
+  const auto fit_zoom = canvas->view_zoom();
+  canvas->set_view_zoom(1.0);
+  QApplication::processEvents();
+  menu = right_click(canvas->rect().center());
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    pick(*menu, zoom_actions[2]);
+    CHECK(close_to(canvas->view_zoom(), fit_zoom));
+  }
+
+  // Off the document the pasteboard colors follow the zoom section; inside a
+  // selection its commands do.
+  canvas->set_zoom_centered(0.25);
+  QApplication::processEvents();
+  const auto backdrop = canvas->widget_position_for_document_point(QPoint(-300, -300));
+  CHECK(canvas->rect().contains(backdrop));
+  menu = right_click(backdrop);
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    CHECK(menu->actions().value(0) == zoom_actions[0]);
+    CHECK(menu->findChild<QAction*>(QStringLiteral("canvasBackdropDefaultAction")) != nullptr);
+    menu->hide();
+  }
+  require_action(window, "editSelectAllAction")->trigger();
+  QApplication::processEvents();
+  menu = right_click(canvas->widget_position_for_document_point(QPoint(40, 40)));
+  CHECK(menu != nullptr);
+  if (menu != nullptr) {
+    CHECK(menu->actions().value(0) == zoom_actions[0]);
+    CHECK(menu->actions().contains(require_action(window, "editDeselectAction")));
+    menu->hide();
+  }
+}
+
 // Right-click on the pasteboard offers Photoshop's backdrop presets (GitHub
 // issue 47): the pick repaints the pasteboard, persists as
 // view/canvasBackdropColor so a new window starts from it, and Default drops
@@ -7190,6 +7310,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_canvas_scroll_bar_scrolls_view", ui_canvas_scroll_bar_scrolls_view},
       {"ui_canvas_scroll_bars_follow_zoom_and_resize", ui_canvas_scroll_bars_follow_zoom_and_resize},
       {"ui_canvas_backdrop_context_menu_sets_color", ui_canvas_backdrop_context_menu_sets_color},
+      {"ui_zoom_tool_context_menu_offers_view_zoom_commands", ui_zoom_tool_context_menu_offers_view_zoom_commands},
       {"ui_canvas_fractional_zoom_paints_to_document_edge", ui_canvas_fractional_zoom_paints_to_document_edge},
       {"ui_canvas_fractional_zoom_keeps_zoomed_in_pixels_sharp",
        ui_canvas_fractional_zoom_keeps_zoomed_in_pixels_sharp},

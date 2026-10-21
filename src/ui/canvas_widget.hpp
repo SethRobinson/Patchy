@@ -1263,6 +1263,9 @@ public:
   // Offered while a selection tool is active and the click is not inside a selection
   // (Select Subject, Select Background, Remove Background).
   void set_selection_tool_context_actions_callback(std::function<QList<QAction*>()> callback);
+  // Offered first, anywhere on the canvas, while the Zoom tool is active (Zoom In, Zoom
+  // Out, Fit on Screen, ...); same contract.
+  void set_zoom_tool_context_actions_callback(std::function<QList<QAction*>()> callback);
   // The commands the host offers when a right-click lands on the active vector
   // shape layer (Shape Appearance, Free Transform, ...); same contract.
   void set_shape_context_actions_callback(std::function<QList<QAction*>()> callback);
@@ -3546,6 +3549,7 @@ private:
   std::function<void(QString)> status_callback_;
   std::function<QList<QAction*>()> selection_context_actions_callback_;
   std::function<QList<QAction*>()> selection_tool_context_actions_callback_;
+  std::function<QList<QAction*>()> zoom_tool_context_actions_callback_;
   std::function<QList<QAction*>()> shape_context_actions_callback_;
   std::function<QList<QAction*>()> layer_context_actions_callback_;
   bool vector_preview_enabled_{false};
