@@ -1116,6 +1116,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/canvas_widget_brush.cpp
       src/ui/canvas_widget_artboard.cpp
       src/ui/main_window_artboards.cpp
+      src/ui/artboard_preset_picker.hpp
+      src/ui/artboard_preset_picker.cpp
   src/ui/canvas_widget_crop.cpp
       src/ui/canvas_widget_cursors.cpp
       src/ui/canvas_widget_draw_tools.cpp

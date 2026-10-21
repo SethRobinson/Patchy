@@ -85,6 +85,7 @@ class ColorWellSwatch;
 class PanelColumn;
 struct PanelSpec;
 class ToolPaletteFooter;
+class ArtboardPresetPicker;
 }  // namespace patchy::ui
 class QShowEvent;
 class QSlider;
@@ -2706,7 +2707,7 @@ private:
   QLabel* active_layer_shape_label_{nullptr};
   QWidget* properties_shape_size_panel_{nullptr};
   // The Artboard tool's options and the Properties panel's artboard section.
-  QComboBox* artboard_preset_combo_{nullptr};
+  ArtboardPresetPicker* artboard_preset_picker_{nullptr};
   QSpinBox* artboard_width_spin_{nullptr};
   QSpinBox* artboard_height_spin_{nullptr};
   QComboBox* artboard_background_combo_{nullptr};

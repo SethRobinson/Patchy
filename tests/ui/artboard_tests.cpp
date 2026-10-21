@@ -8,6 +8,9 @@
 #include "core/layer_render_utils.hpp"
 #include "psd/psd_document_io.hpp"
 #include "ui/app_settings.hpp"
+#include "ui/artboard_preset_picker.hpp"
+#include "ui/localization.hpp"
+#include "ui/new_document_dialog.hpp"
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget.hpp"
 #include "ui/dialog_utils.hpp"
@@ -45,6 +48,7 @@
 #include <QMenu>
 #include <QMenuBar>
 #include <QToolButton>
+#include <QWidgetAction>
 #include <QFile>
 #include <QFileInfo>
 #include <QGuiApplication>
@@ -2140,6 +2144,305 @@ void ui_artboard_blank_click_deselects_the_artboard() {
 // the background and Add Artboard apart: Size [preset] | Width [w] [swap] Height [h] |
 // Background [combo] | Add Artboard | Auto-Nest Layers. The row stays one line at 1366 px
 // and its separators read in Dark and Light.
+// GitHub issue 285 follow-up: the Artboard bar's Size picker groups the New Document presets
+// by template group in submenus under a search field and Custom, carries their ids, shows
+// the chosen preset's name, and keeps one width whatever is chosen.
+patchy::ui::ArtboardPresetPicker* show_artboard_preset_picker(patchy::ui::MainWindow& window) {
+  show_window(window);
+  window.resize(1366, 738);
+  require_hotkey_action(window, QStringLiteral("tools.artboard"))->trigger();
+  QApplication::processEvents();
+  process_events_for(20);
+  return window.findChild<patchy::ui::ArtboardPresetPicker*>(QStringLiteral("artboardPresetButton"));
+}
+
+QStringList artboard_preset_groups(const std::vector<patchy::ui::ArtboardSizePreset>& presets) {
+  QStringList groups;
+  for (const auto& preset : presets) {
+    if (groups.isEmpty() || groups.back() != preset.group) {
+      groups << preset.group;
+    }
+  }
+  return groups;
+}
+
+void ui_artboard_preset_picker_groups_presets_by_template_group() {
+  patchy::ui::MainWindow window;
+  auto* picker = show_artboard_preset_picker(window);
+  CHECK(picker != nullptr && picker->isVisible());
+  if (picker == nullptr) {
+    return;
+  }
+  auto* menu = picker->preset_menu();
+  const auto presets = patchy::ui::artboard_size_presets();
+  const auto groups = artboard_preset_groups(presets);
+  CHECK(groups.size() >= 5);
+  const auto actions = menu->actions();
+  CHECK(actions.size() > 3 + groups.size());
+  if (actions.size() <= 3 + groups.size()) {
+    return;
+  }
+  CHECK(qobject_cast<QWidgetAction*>(actions[0]) != nullptr);
+  CHECK(actions[1]->objectName() == QStringLiteral("artboardPresetCustomAction"));
+  CHECK(actions[2]->isSeparator());
+  int preset_index = 0;
+  for (int group = 0; group < groups.size(); ++group) {
+    auto* group_action = actions[3 + group];
+    CHECK(group_action->menu() != nullptr && group_action->isVisible());
+    // Menu text doubles '&' so "Icons & Games" is not read as a mnemonic.
+    CHECK(group_action->text() == QString(groups[group]).replace(QStringLiteral("&"), QStringLiteral("&&")));
+    if (group_action->menu() == nullptr) {
+      return;
+    }
+    for (auto* action : group_action->menu()->actions()) {
+      CHECK(preset_index < static_cast<int>(presets.size()));
+      if (preset_index >= static_cast<int>(presets.size())) {
+        return;
+      }
+      const auto& preset = presets[static_cast<std::size_t>(preset_index)];
+      CHECK(preset.group == groups[group]);
+      CHECK(action->text().startsWith(preset.name + QStringLiteral(" (")));
+      ++preset_index;
+    }
+  }
+  CHECK(preset_index == static_cast<int>(presets.size()));
+
+  // Picking a preset sizes the artboard fields and names it on the button; a typed size
+  // that matches no preset reads Custom. The button keeps its width.
+  const int width = picker->width();
+  const auto social_name = QObject::tr("Social", "new document template group");
+  const auto social_index = groups.indexOf(social_name);
+  CHECK(social_index >= 0);
+  if (social_index < 0) {
+    return;
+  }
+  auto* social = actions[3 + social_index]->menu();
+  CHECK(social != nullptr && !social->actions().isEmpty());
+  if (social == nullptr || social->actions().isEmpty()) {
+    return;
+  }
+  social->actions().constFirst()->trigger();
+  QApplication::processEvents();
+  const auto chosen = std::find_if(presets.begin(), presets.end(), [&social_name](const auto& preset) {
+    return preset.group == social_name;
+  });
+  auto* width_spin = window.findChild<QSpinBox*>(QStringLiteral("artboardWidthSpin"));
+  auto* height_spin = window.findChild<QSpinBox*>(QStringLiteral("artboardHeightSpin"));
+  CHECK(chosen != presets.end() && width_spin != nullptr && height_spin != nullptr);
+  if (chosen == presets.end() || width_spin == nullptr || height_spin == nullptr) {
+    return;
+  }
+  CHECK(picker->text() == chosen->name);
+  CHECK(picker->current_preset_id() == chosen->id);
+  CHECK(QSize(width_spin->value(), height_spin->value()) == chosen->size);
+  CHECK(picker->width() == width);
+  width_spin->setValue(1234);
+  QApplication::processEvents();
+  CHECK(picker->text() == QObject::tr("Custom"));
+  CHECK(picker->current_preset_id().isEmpty());
+  CHECK(picker->width() == width);
+}
+
+// GitHub issue 281: the picker splits the New Document Mobile templates into a Phone and a
+// Tablet group, and Phone offers the Android HD, FHD and WQHD portrait sizes and the current
+// iPhones, each a shared template with a permanent id.
+void ui_artboard_preset_picker_phone_group_lists_android_and_iphone_sizes() {
+  const auto presets = patchy::ui::artboard_size_presets();
+  const auto phone = QObject::tr("Phone", "artboard size group");
+  const auto tablet = QObject::tr("Tablet", "artboard size group");
+  const auto in_group = [&presets](const QString& group, const char* id, QSize size) {
+    return std::any_of(presets.begin(), presets.end(), [&](const patchy::ui::ArtboardSizePreset& preset) {
+      return preset.group == group && preset.id == QLatin1String(id) && preset.size == size;
+    });
+  };
+  CHECK(in_group(phone, "mobile-android-hd-720x1280", QSize(720, 1280)));
+  CHECK(in_group(phone, "mobile-android-fhd-1080x1920", QSize(1080, 1920)));
+  CHECK(in_group(phone, "mobile-android-wqhd-1440x2560", QSize(1440, 2560)));
+  CHECK(in_group(phone, "mobile-iphone-16-pro-max", QSize(1320, 2868)));
+  CHECK(in_group(phone, "mobile-iphone-16-pro", QSize(1206, 2622)));
+  CHECK(in_group(phone, "mobile-iphone-16", QSize(1179, 2556)));
+  CHECK(in_group(tablet, "mobile-ipad-11", QSize(1640, 2360)));
+  CHECK(in_group(tablet, "mobile-android-tablet-1600x2560", QSize(1600, 2560)));
+  QStringList ids;
+  for (const auto& preset : presets) {
+    CHECK(!ids.contains(preset.id));
+    ids << preset.id;
+  }
+  const auto groups = artboard_preset_groups(presets);
+  CHECK(groups.indexOf(phone) >= 0 && groups.indexOf(tablet) == groups.indexOf(phone) + 1);
+
+  patchy::ui::MainWindow window;
+  auto* picker = show_artboard_preset_picker(window);
+  CHECK(picker != nullptr);
+  if (picker == nullptr) {
+    return;
+  }
+  QMenu* phone_menu = nullptr;
+  for (auto* action : picker->preset_menu()->actions()) {
+    if (action->menu() != nullptr && action->text() == phone) {
+      phone_menu = action->menu();
+    }
+  }
+  CHECK(phone_menu != nullptr);
+  if (phone_menu == nullptr) {
+    return;
+  }
+  QStringList labels;
+  for (auto* action : phone_menu->actions()) {
+    labels << action->text();
+  }
+  CHECK(labels.contains(QStringLiteral("iPhone 16 Pro (1206 x 2622)")));
+  CHECK(labels.contains(QStringLiteral("Android WQHD (1440 x 2560)")));
+}
+
+// The search field filters every preset into one flat list as you type (the New Document
+// search rule), highlights the first match, and Up/Down/Enter pick from the field. The
+// artifacts are the issue shots of the open menu and of a search, in both schemes.
+void ui_artboard_preset_picker_search_filters_and_keyboard_selects() {
+  for (const auto preference : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer scheme_restorer(preference);
+    const std::string suffix = std::string("_") + scheme_label(preference);
+    patchy::ui::MainWindow window;
+    auto* picker = show_artboard_preset_picker(window);
+    CHECK(picker != nullptr);
+    if (picker == nullptr) {
+      return;
+    }
+    auto* menu = picker->preset_menu();
+    const auto presets = patchy::ui::artboard_size_presets();
+    const QString query = QStringLiteral("android");
+    std::vector<int> expected;
+    for (int index = 0; index < static_cast<int>(presets.size()); ++index) {
+      const auto& preset = presets[static_cast<std::size_t>(index)];
+      if (patchy::ui::size_preset_matches_search(preset.name, preset.group, preset.size, query)) {
+        expected.push_back(index);
+      }
+    }
+    CHECK(expected.size() >= 2);
+    if (expected.size() < 2) {
+      return;
+    }
+    const auto visible_results = [menu] {
+      QList<QAction*> results;
+      for (auto* action : menu->actions()) {
+        if (action->isVisible() && action->objectName() == QStringLiteral("artboardPresetResultAction")) {
+          results << action;
+        }
+      }
+      return results;
+    };
+    const auto visible_groups = [menu] {
+      int count = 0;
+      for (auto* action : menu->actions()) {
+        count += action->menu() != nullptr && action->isVisible() ? 1 : 0;
+      }
+      return count;
+    };
+    bool inspected = false;
+    QTimer::singleShot(0, [&] {
+      inspected = true;
+      auto* search = picker->search_edit();
+      CHECK(menu->isVisible() && search != nullptr && search->hasFocus());
+      if (search == nullptr) {
+        menu->close();
+        return;
+      }
+      CHECK(search->text().isEmpty() && visible_groups() >= 5 && visible_results().isEmpty());
+      save_window_popup_artifact("issue_285_preset_menu" + suffix, window, *picker, *menu);
+      // Down from the empty field walks the menu: Custom first, then the first group.
+      QTest::keyClick(search, Qt::Key_Down);
+      CHECK(menu->activeAction() != nullptr &&
+            menu->activeAction()->objectName() == QStringLiteral("artboardPresetCustomAction"));
+      QTest::keyClick(search, Qt::Key_Down);
+      CHECK(menu->activeAction() != nullptr && menu->activeAction()->menu() != nullptr);
+      // Right opens the highlighted group: the Phone group's shot for GitHub issue 281.
+      QAction* phone_group = nullptr;
+      for (auto* action : menu->actions()) {
+        if (action->menu() != nullptr && action->text() == QObject::tr("Phone", "artboard size group")) {
+          phone_group = action;
+        }
+      }
+      CHECK(phone_group != nullptr);
+      if (phone_group != nullptr) {
+        menu->setActiveAction(phone_group);
+        QTest::keyClick(search, Qt::Key_Right);
+        QApplication::processEvents();
+        CHECK(phone_group->menu()->isVisible());
+        save_widget_artifact("issue_281_phone_presets" + suffix, *phone_group->menu());
+        phone_group->menu()->hide();
+        QApplication::processEvents();
+      }
+
+      QTest::keyClicks(search, QStringLiteral("zzqx"));
+      auto* no_match = menu->findChild<QAction*>(QStringLiteral("artboardPresetNoMatchAction"));
+      CHECK(no_match != nullptr && no_match->isVisible() && visible_results().isEmpty() && visible_groups() == 0);
+      search->clear();
+      QTest::keyClicks(search, query);
+      QApplication::processEvents();
+      const auto results = visible_results();
+      CHECK(results.size() == static_cast<qsizetype>(expected.size()));
+      CHECK(visible_groups() == 0 && (no_match == nullptr || !no_match->isVisible()));
+      for (int i = 0; i < results.size() && i < static_cast<int>(expected.size()); ++i) {
+        CHECK(results[i]->data().toInt() == expected[static_cast<std::size_t>(i)]);
+      }
+      CHECK(!results.isEmpty() && menu->activeAction() == results.constFirst());
+      QTest::keyClick(search, Qt::Key_Down);
+      CHECK(results.size() >= 2 && menu->activeAction() == results[1]);
+      save_window_popup_artifact("issue_285_preset_search" + suffix, window, *picker, *menu);
+      QTest::keyClick(search, Qt::Key_Return);
+    });
+    picker->showMenu();
+    QApplication::processEvents();
+    CHECK(inspected);
+    CHECK(!menu->isVisible());
+    const auto& picked = presets[static_cast<std::size_t>(expected[1])];
+    CHECK(picker->text() == picked.name);
+    CHECK(picker->current_preset_id() == picked.id);
+    auto* width_spin = window.findChild<QSpinBox*>(QStringLiteral("artboardWidthSpin"));
+    auto* height_spin = window.findChild<QSpinBox*>(QStringLiteral("artboardHeightSpin"));
+    CHECK(width_spin != nullptr && height_spin != nullptr &&
+          QSize(width_spin->value(), height_spin->value()) == picked.size);
+  }
+}
+
+// A language change rebuilds the picker: its groups, Custom and the search field's
+// placeholder come back in the new language.
+void ui_artboard_preset_picker_retranslates() {
+  LanguageRestorer language_restorer;
+  patchy::ui::MainWindow window;
+  auto* picker = show_artboard_preset_picker(window);
+  CHECK(picker != nullptr);
+  if (picker == nullptr) {
+    return;
+  }
+  // A size no template has, so the button reads Custom.
+  auto* width_spin = window.findChild<QSpinBox*>(QStringLiteral("artboardWidthSpin"));
+  CHECK(width_spin != nullptr);
+  if (width_spin != nullptr) {
+    width_spin->setValue(1234);
+    QApplication::processEvents();
+  }
+  const auto english_placeholder = picker->search_edit()->placeholderText();
+  const auto english_custom = picker->text();
+  CHECK(english_custom == QStringLiteral("Custom"));
+  CHECK(patchy::ui::LocalizationManager::instance().set_language(QStringLiteral("de"), false));
+  QApplication::processEvents();
+  CHECK(picker->text() == QObject::tr("Custom") && picker->text() != english_custom);
+  CHECK(picker->search_edit()->placeholderText() != english_placeholder);
+  CHECK(picker->search_edit()->placeholderText() ==
+        QCoreApplication::translate("patchy::ui::ArtboardPresetPicker", "Search presets..."));
+  const auto groups = artboard_preset_groups(patchy::ui::artboard_size_presets());
+  QStringList titles;
+  for (auto* action : picker->preset_menu()->actions()) {
+    if (action->menu() != nullptr) {
+      titles << QString(action->text()).replace(QStringLiteral("&&"), QStringLiteral("&"));
+    }
+  }
+  CHECK(titles == groups);
+  CHECK(groups.contains(QObject::tr("Print", "new document template group")));
+  CHECK(!groups.contains(QStringLiteral("Print")));
+}
+
 void ui_artboard_options_bar_separates_size_background_and_add() {
   for (const auto preference : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
     ColorSchemeRestorer scheme_restorer(preference);
@@ -2180,7 +2483,7 @@ void ui_artboard_options_bar_separates_size_background_and_add() {
       }
     }
     const QStringList expected{QStringLiteral("Size"),
-                               QStringLiteral("artboardPresetCombo"),
+                               QStringLiteral("artboardPresetButton"),
                                QStringLiteral("|"),
                                QStringLiteral("Width"),
                                QStringLiteral("artboardWidthSpin"),
@@ -2403,6 +2706,13 @@ std::vector<patchy::test::TestCase> artboard_ui_tests() {
        ui_artboard_ag_psd_sample_labels_read_on_their_backing_if_available},
       {"ui_artboard_delete_key_deletes_the_selected_artboard", ui_artboard_delete_key_deletes_the_selected_artboard},
       {"ui_artboard_blank_click_deselects_the_artboard", ui_artboard_blank_click_deselects_the_artboard},
+      {"ui_artboard_preset_picker_groups_presets_by_template_group",
+       ui_artboard_preset_picker_groups_presets_by_template_group},
+      {"ui_artboard_preset_picker_search_filters_and_keyboard_selects",
+       ui_artboard_preset_picker_search_filters_and_keyboard_selects},
+      {"ui_artboard_preset_picker_retranslates", ui_artboard_preset_picker_retranslates},
+      {"ui_artboard_preset_picker_phone_group_lists_android_and_iphone_sizes",
+       ui_artboard_preset_picker_phone_group_lists_android_and_iphone_sizes},
       {"ui_artboard_options_bar_separates_size_background_and_add",
        ui_artboard_options_bar_separates_size_background_and_add},
       {"ui_artboard_empty_artboard_disclosure_toggles_and_saves",

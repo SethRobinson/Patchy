@@ -56,10 +56,18 @@ struct NewDocumentSettings {
 // The New Document size presets an artboard can take (every template but Clipboard), for
 // the Artboard tool and the New Artboard dialog, in the dialog's group order.
 struct ArtboardSizePreset {
+  QString id;  // the New Document preset id (persisted there; never renamed)
   QString name;
   QSize size;
-  QString group;  // the template group's name; the combos separate the groups
+  QString group;  // the template group's name; pickers group the presets by it
 };
 [[nodiscard]] std::vector<ArtboardSizePreset> artboard_size_presets();
+
+// The New Document search rule (GitHub issue 223), shared with the Artboard bar's preset
+// picker: every whitespace-separated word of `text` must appear, ignoring case, in the
+// preset's name or its group's name; a word holding a digit may also match the size
+// ("1080 x 1920", "1080x1920").
+[[nodiscard]] bool size_preset_matches_search(const QString& name, const QString& group, QSize size,
+                                              const QString& text);
 
 }  // namespace patchy::ui

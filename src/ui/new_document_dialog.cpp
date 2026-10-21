@@ -170,6 +170,7 @@ struct NewDocumentPreset {
   QSize size;
   double ppi{kScreenPpi};
   bool clipboard{false};
+  bool tablet{false};  // a Mobile template for a tablet: the Artboard picker's Tablet group
 };
 
 // Sizes come from the published specs: display and video standards, the device makers'
@@ -194,17 +195,25 @@ std::vector<NewDocumentPreset> presets_for_category(PresetCategory category) {
       };
     case PresetCategory::Mobile:
       return {
+          // iPhone 16 Pro and the three Android screen classes joined for GitHub issue 281.
           {QStringLiteral("mobile-iphone-16"), QObject::tr("iPhone 16"), QSize(1179, 2556), kScreenPpi},
+          {QStringLiteral("mobile-iphone-16-pro"), QObject::tr("iPhone 16 Pro"), QSize(1206, 2622), kScreenPpi},
           {QStringLiteral("mobile-iphone-16-pro-max"), QObject::tr("iPhone 16 Pro Max"), QSize(1320, 2868),
            kScreenPpi},
           {QStringLiteral("mobile-iphone-se"), QObject::tr("iPhone SE"), QSize(750, 1334), kScreenPpi},
+          {QStringLiteral("mobile-android-hd-720x1280"), QObject::tr("Android HD"), QSize(720, 1280), kScreenPpi},
+          {QStringLiteral("mobile-android-fhd-1080x1920"), QObject::tr("Android FHD"), QSize(1080, 1920),
+           kScreenPpi},
           {QStringLiteral("mobile-android-1080x2400"), QObject::tr("Android Phone"), QSize(1080, 2400), kScreenPpi},
+          {QStringLiteral("mobile-android-wqhd-1440x2560"), QObject::tr("Android WQHD"), QSize(1440, 2560),
+           kScreenPpi},
           {QStringLiteral("mobile-android-1440x3120"), QObject::tr("Android Phone QHD+"), QSize(1440, 3120),
            kScreenPpi},
-          {QStringLiteral("mobile-ipad-11"), QObject::tr("iPad 11-inch"), QSize(1640, 2360), kScreenPpi},
-          {QStringLiteral("mobile-ipad-pro-13"), QObject::tr("iPad Pro 13-inch"), QSize(2064, 2752), kScreenPpi},
+          {QStringLiteral("mobile-ipad-11"), QObject::tr("iPad 11-inch"), QSize(1640, 2360), kScreenPpi, false, true},
+          {QStringLiteral("mobile-ipad-pro-13"), QObject::tr("iPad Pro 13-inch"), QSize(2064, 2752), kScreenPpi, false,
+           true},
           {QStringLiteral("mobile-android-tablet-1600x2560"), QObject::tr("Android Tablet"), QSize(1600, 2560),
-           kScreenPpi},
+           kScreenPpi, false, true},
       };
     case PresetCategory::Social:
       return {
@@ -284,13 +293,37 @@ std::vector<NewDocumentPreset> presets_for_category(PresetCategory category) {
 
 }  // namespace
 
+// The search field's rule (GitHub issue 223): every whitespace-separated word must
+// appear, ignoring case, in the template's name or its group's name. A word holding a
+// digit may also match the size ("1080 x 1920", "1080x1920"); a bare "x" matching every
+// size made the field show nearly every template.
+bool size_preset_matches_search(const QString& name, const QString& group, QSize size, const QString& text) {
+  const auto names = name + QLatin1Char(' ') + group;
+  const auto sizes = QStringLiteral("%1 x %2 %1x%2").arg(size.width()).arg(size.height());
+  const auto words = text.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
+  return !words.isEmpty() && std::all_of(words.begin(), words.end(), [&names, &sizes](const QString& word) {
+    if (names.contains(word, Qt::CaseInsensitive)) {
+      return true;
+    }
+    const bool has_digit = std::any_of(word.begin(), word.end(), [](QChar character) { return character.isDigit(); });
+    return has_digit && sizes.contains(word, Qt::CaseInsensitive);
+  });
+}
+
 std::vector<ArtboardSizePreset> artboard_size_presets() {
   std::vector<ArtboardSizePreset> presets;
   for (const auto category : kPresetCategories) {
     for (const auto& preset : presets_for_category(category)) {
-      if (!preset.clipboard) {
-        presets.push_back({preset.name, preset.size, preset_category_name(category)});
+      if (preset.clipboard) {
+        continue;
       }
+      // The picker splits Mobile into phones and tablets (GitHub issue 281); the dialog keeps
+      // one Mobile group.
+      QString group = preset_category_name(category);
+      if (category == PresetCategory::Mobile) {
+        group = preset.tablet ? QObject::tr("Tablet", "artboard size group") : QObject::tr("Phone", "artboard size group");
+      }
+      presets.push_back({preset.id, preset.name, preset.size, group});
     }
   }
   return presets;
@@ -443,21 +476,8 @@ class ResizeWatcher final : public QObject {
   std::function<void()> on_resize_;
 };
 
-// The search field's rule (GitHub issue 223): every whitespace-separated word must
-// appear, ignoring case, in the template's name or its group's name. A word holding a
-// digit may also match the size ("1080 x 1920", "1080x1920"); a bare "x" matching every
-// size made the field show nearly every template.
 bool preset_matches_search(const NewDocumentPreset& preset, PresetCategory category, const QString& text) {
-  const auto names = preset.name + QLatin1Char(' ') + preset_category_name(category);
-  const auto sizes = QStringLiteral("%1 x %2 %1x%2").arg(preset.size.width()).arg(preset.size.height());
-  const auto words = text.split(QRegularExpression(QStringLiteral("\\s+")), Qt::SkipEmptyParts);
-  return !words.isEmpty() && std::all_of(words.begin(), words.end(), [&names, &sizes](const QString& word) {
-    if (names.contains(word, Qt::CaseInsensitive)) {
-      return true;
-    }
-    const bool has_digit = std::any_of(word.begin(), word.end(), [](QChar character) { return character.isDigit(); });
-    return has_digit && sizes.contains(word, Qt::CaseInsensitive);
-  });
+  return size_preset_matches_search(preset.name, preset_category_name(category), preset.size, text);
 }
 
 // Paints one preset card: rounded background, an aspect-ratio miniature (the real

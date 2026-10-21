@@ -11572,6 +11572,32 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Polygonal Lasso</source>
         <translation>다각형 올가미</translation>
     </message>
+    <message>
+        <source>iPhone 16 Pro</source>
+        <translation>iPhone 16 Pro</translation>
+    </message>
+    <message>
+        <source>Android HD</source>
+        <translation>Android 휴대폰 HD</translation>
+    </message>
+    <message>
+        <source>Android FHD</source>
+        <translation>Android 휴대폰 FHD</translation>
+    </message>
+    <message>
+        <source>Android WQHD</source>
+        <translation>Android 휴대폰 WQHD</translation>
+    </message>
+    <message>
+        <source>Tablet</source>
+        <comment>artboard size group</comment>
+        <translation>태블릿</translation>
+    </message>
+    <message>
+        <source>Phone</source>
+        <comment>artboard size group</comment>
+        <translation>휴대폰</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -11865,6 +11891,17 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Default frame delay:</source>
         <translation>기본 프레임 지연:</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::ArtboardPresetPicker</name>
+    <message>
+        <source>Search presets...</source>
+        <translation>사전 설정 검색...</translation>
+    </message>
+    <message>
+        <source>No matching presets</source>
+        <translation>일치하는 사전 설정이 없습니다.</translation>
     </message>
 </context>
 <context>

@@ -11642,6 +11642,32 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Polygonal Lasso</source>
         <translation>Lasso wielokątne</translation>
     </message>
+    <message>
+        <source>iPhone 16 Pro</source>
+        <translation>iPhone 16 Pro</translation>
+    </message>
+    <message>
+        <source>Android HD</source>
+        <translation>Telefon z Androidem HD</translation>
+    </message>
+    <message>
+        <source>Android FHD</source>
+        <translation>Telefon z Androidem FHD</translation>
+    </message>
+    <message>
+        <source>Android WQHD</source>
+        <translation>Telefon z Androidem WQHD</translation>
+    </message>
+    <message>
+        <source>Tablet</source>
+        <comment>artboard size group</comment>
+        <translation>Tablet</translation>
+    </message>
+    <message>
+        <source>Phone</source>
+        <comment>artboard size group</comment>
+        <translation>Telefon</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -11935,6 +11961,17 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Default frame delay:</source>
         <translation>Domyślny czas klatki:</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::ArtboardPresetPicker</name>
+    <message>
+        <source>Search presets...</source>
+        <translation>Wyszukaj gotowe rozmiary...</translation>
+    </message>
+    <message>
+        <source>No matching presets</source>
+        <translation>Brak pasujących gotowych rozmiarów</translation>
     </message>
 </context>
 <context>

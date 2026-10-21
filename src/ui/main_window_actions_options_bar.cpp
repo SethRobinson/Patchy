@@ -14,6 +14,7 @@
 #include <QStatusBar>
 #include "ui/canvas_widget.hpp"
 #include "ui/appearance_edits.hpp"
+#include "ui/artboard_preset_picker.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/main_window_actions_internal.hpp"
 #include "ui/options_flow_layout.hpp"
@@ -1018,8 +1019,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
                     {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::PolygonLasso,
                      CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::ObjectSelect});
   // Feather and Anti-alias are one group. The Lassos and the Magic Wand get their separator
-  // after the marquee fields below, which they do not show.
-  add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::ObjectSelect});
+  // after the marquee fields below, which they do not show. Object Selection runs Anti-alias
+  // straight into Sample All Layers: its checkboxes form one group (GitHub issue 292).
+  add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee});
   const auto apply_selection_edge_settings = [this, feather, anti_alias] {
     current_selection_feather_radius_ = feather->value();
     current_selection_antialias_ = anti_alias->isChecked();
@@ -1102,13 +1104,21 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     button->setFocusPolicy(Qt::NoFocus);
     button->setProperty("optionsBarButton", true);
     bind_tooltip(button, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Swap width and height (portrait or landscape)"));
+    // Even space on both sides (GitHub issue 286): the Height label after the button drops
+    // its text padding (label_after_swap_button) and the button adds 2 px on its left, so the
+    // glyph sits as far from the Width field's edge as from the label's text (11 px each).
+    button->setStyleSheet(QStringLiteral("QToolButton { margin-left: 2px; }"));
     return button;
+  };
+  const auto label_after_swap_button = [](QWidget* label) {
+    label->setStyleSheet(QStringLiteral("QLabel { padding-left: 0; }"));
+    return label;
   };
   auto* ratio_swap = make_swap_dimensions_button("selectionRatioSwapButton");
   marquee_ratio_option_widgets_.push_back(
       add_option_widget(ratio_swap, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee}));
-  marquee_ratio_option_widgets_.push_back(
-      add_option_label(QT_TR_NOOP("Height:"), {CanvasTool::Marquee, CanvasTool::EllipticalMarquee}));
+  marquee_ratio_option_widgets_.push_back(label_after_swap_button(
+      add_option_label(QT_TR_NOOP("Height:"), {CanvasTool::Marquee, CanvasTool::EllipticalMarquee})));
   auto* ratio_height = new TrimmedDoubleSpinBox(toolbar);
   ratio_height->setObjectName(QStringLiteral("selectionRatioHeightSpin"));
   ratio_height->setRange(0.01, 1000.0);
@@ -1131,8 +1141,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   auto* size_swap = make_swap_dimensions_button("selectionFixedSizeSwapButton");
   marquee_fixed_size_option_widgets_.push_back(
       add_option_widget(size_swap, {CanvasTool::Marquee, CanvasTool::EllipticalMarquee}));
-  marquee_size_option_widgets_.push_back(
-      add_option_label(QT_TR_NOOP("Height:"), {CanvasTool::Marquee, CanvasTool::EllipticalMarquee}));
+  marquee_size_option_widgets_.push_back(label_after_swap_button(
+      add_option_label(QT_TR_NOOP("Height:"), {CanvasTool::Marquee, CanvasTool::EllipticalMarquee})));
   auto* fixed_height = new UnitIntSpinBox(SpinUnit::Pixels, toolbar);
   fixed_height->set_context_provider(document_axis_context(false));
   fixed_height->setObjectName(QStringLiteral("selectionFixedHeightSpin"));
@@ -1341,21 +1351,17 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // Artboard tool (docs/artboards.md): the size and background show the selected
   // artboard and edit it; with none selected they are what a new artboard gets.
   add_option_label(QT_TR_NOOP("Size:"), {CanvasTool::Artboard});
-  artboard_preset_combo_ = new QComboBox(toolbar);
-  artboard_preset_combo_->setObjectName(QStringLiteral("artboardPresetCombo"));
-  artboard_preset_combo_->setMinimumWidth(150);
-  populate_artboard_size_presets(artboard_preset_combo_);
-  QPointer<QComboBox> artboard_presets(artboard_preset_combo_);
+  // The presets grouped by template group, with a search field (GitHub issue 285 follow-up):
+  // the flat list of every New Document preset was too long to scan.
+  artboard_preset_picker_ = new ArtboardPresetPicker(toolbar);
+  QPointer<ArtboardPresetPicker> artboard_presets(artboard_preset_picker_);
   register_retranslation([artboard_presets] {
     if (artboard_presets != nullptr) {
-      const QSignalBlocker blocker(artboard_presets);
-      const auto index = artboard_presets->currentIndex();
-      populate_artboard_size_presets(artboard_presets);
-      artboard_presets->setCurrentIndex(index);
+      artboard_presets->rebuild();
     }
   });
-  bind_tooltip(artboard_preset_combo_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Size preset for the selected artboard, or for new artboards"));
-  add_option_widget(artboard_preset_combo_, {CanvasTool::Artboard});
+  bind_tooltip(artboard_preset_picker_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Size preset for the selected artboard, or for new artboards"));
+  add_option_widget(artboard_preset_picker_, {CanvasTool::Artboard});
   const auto make_artboard_size_spin = [this, toolbar](const char* name, const char* tooltip) {
     auto* spin = new QSpinBox(toolbar);
     spin->setObjectName(QLatin1String(name));
@@ -1380,7 +1386,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   add_option_widget(artboard_width_spin_, {CanvasTool::Artboard});
   auto* artboard_swap = make_swap_dimensions_button("artboardSwapSizeButton");
   add_option_widget(artboard_swap, {CanvasTool::Artboard});
-  add_option_label(QT_TR_NOOP("Height:"), {CanvasTool::Artboard});
+  label_after_swap_button(add_option_label(QT_TR_NOOP("Height:"), {CanvasTool::Artboard}));
   artboard_height_spin_ = make_artboard_size_spin(
       "artboardHeightSpin", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Height of the selected artboard, or of new artboards"));
   add_option_widget(artboard_height_spin_, {CanvasTool::Artboard});
@@ -1425,11 +1431,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       }
     }
   });
-  connect(artboard_preset_combo_, &QComboBox::activated, this, [this](int index) {
-    if (const auto size = artboard_preset_combo_->itemData(index).toSize(); size.isValid()) {
-      apply_artboard_size_option(size);
-    }
-  });
+  connect(artboard_preset_picker_, &ArtboardPresetPicker::preset_chosen, this,
+          [this](QSize size) { apply_artboard_size_option(size); });
   // A scrub previews on the canvas and commits at its editingFinished; typed values and
   // arrow steps apply at once, one undo step per run (artboard_field_edit_run_).
   for (auto* spin : {artboard_width_spin_, artboard_height_spin_}) {
