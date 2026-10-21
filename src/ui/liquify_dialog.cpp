@@ -8,6 +8,7 @@
 #include "ui/qt_geometry.hpp"
 #include "ui/theme_qss.hpp"
 #include "ui/localization.hpp"
+#include "ui/main_window_shared.hpp"
 
 #include <QButtonGroup>
 #include <QCheckBox>
@@ -15,20 +16,27 @@
 #include <QDialogButtonBox>
 #include <QFormLayout>
 #include <QHBoxLayout>
+#include <QKeySequence>
 #include <QLabel>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
+#include <QPolygonF>
 #include <QPushButton>
 #include <QResizeEvent>
+#include <QShortcut>
 #include <QSlider>
 #include <QSpinBox>
+#include <QTabletEvent>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <deque>
+#include <functional>
 #include <optional>
 #include <utility>
 #include <vector>
@@ -38,6 +46,22 @@ namespace patchy::ui {
 namespace {
 
 constexpr int kMaximumProxyEdge = 720;
+// Rate: stationary dabs per second at Rate 100 (Rate 80, the default, gives 48).
+constexpr double kMaximumDabsPerSecond = 60.0;
+
+// The tools that keep working while the brush is held still.
+bool works_while_held(LiquifyTool tool) {
+  return tool == LiquifyTool::TwirlClockwise || tool == LiquifyTool::TwirlCounterClockwise ||
+         tool == LiquifyTool::Pucker || tool == LiquifyTool::Bloat || tool == LiquifyTool::Reconstruct;
+}
+
+// Undo steps the workspace keeps: one mesh each (about 55 KB at the 720 px proxy).
+constexpr std::size_t kHistoryLimit = 100;
+
+// "Warp (W)": a control's tooltip naming the key that reaches it.
+QString with_key_hint(const QString& text, const QKeySequence& keys) {
+  return QStringLiteral("%1 (%2)").arg(text, keys.toString(QKeySequence::NativeText));
+}
 
 QImage proxy_selection_mask(const QRegion& selection, Rect bounds,
                             QSize original_size, QSize proxy_size) {
@@ -88,6 +112,9 @@ public:
     setMouseTracking(true);
     setFocusPolicy(Qt::StrongFocus);
     setMinimumSize(500, 380);
+    original_display_ = qimage_from_pixel_buffer(source_);
+    rate_timer_.setObjectName(QStringLiteral("liquifyRateTimer"));
+    connect(&rate_timer_, &QTimer::timeout, this, [this] { apply_held_dab(); });
     if (!selection_mask_.isNull()) {
       // Unselected pixels always show the original: convert it to the preview's format
       // once (the same per-pixel conversion as before), then copy rows per render.
@@ -109,15 +136,50 @@ public:
     update();
   }
   void set_pressure(int pressure) { pressure_ = pressure; }
+  void set_rate(int rate) {
+    rate_ = rate;
+    if (rate_timer_.isActive()) {
+      rate_timer_.start(rate_interval_ms());
+    }
+  }
+  void set_stylus_pressure(bool enabled) { stylus_pressure_ = enabled; }
   void set_density(int density) { density_ = density; }
   void set_show_mask(bool show) {
     show_mask_ = show;
     invalidate_preview();
   }
+  void set_show_mesh(bool show) {
+    show_mesh_ = show;
+    update();
+  }
+  // Off shows the original layer for a before/after comparison.
+  void set_show_result(bool show) {
+    show_result_ = show;
+    update();
+  }
+  // Reconstruct by an amount previews on the live mesh, then records one step.
+  void show_mesh_state(LiquifyMesh mesh) {
+    mesh_ = std::move(mesh);
+    invalidate_preview();
+  }
+  void record_step(LiquifyMesh before) { push_history(std::move(before)); }
+  // Restore All is an undo step of its own; it does nothing on an untouched mesh.
   void restore_all() {
+    if (mesh_.is_identity() && !mesh_.has_frozen_nodes()) {
+      return;
+    }
+    push_history(mesh_);
     mesh_.reset();
     invalidate_preview();
   }
+
+  // The workspace's own history (GitHub #296): every stroke, Freeze and Thaw included,
+  // and Restore All is one step. The document's undo stack sees only Apply.
+  void set_history_changed(std::function<void()> callback) { history_changed_ = std::move(callback); }
+  [[nodiscard]] bool can_undo() const noexcept { return !undo_history_.empty(); }
+  [[nodiscard]] bool can_redo() const noexcept { return !redo_history_.empty(); }
+  void undo() { step_history(undo_history_, redo_history_); }
+  void redo() { step_history(redo_history_, undo_history_); }
 
 protected:
   void paintEvent(QPaintEvent*) override {
@@ -132,9 +194,12 @@ protected:
     const auto target = displayed_rect();
     painter.setRenderHint(QPainter::SmoothPixmapTransform,
                           target.width() < preview_image_.width());
-    painter.drawImage(target, preview_image_);
+    painter.drawImage(target, show_result_ ? preview_image_ : original_display_);
     painter.setPen(QPen(QColor(105, 105, 105), 1));
     painter.drawRect(target.adjusted(0, 0, -1, -1));
+    if (show_mesh_) {
+      paint_mesh(painter, target);
+    }
 
     if (cursor_inside_ && target.contains(cursor_position_)) {
       const double radius = cursor_radius();
@@ -157,7 +222,13 @@ protected:
     }
     dragging_ = true;
     last_point_ = *point;
+    push_history(mesh_);
+    held_modifiers_ = event->modifiers();
+    moved_since_held_dab_ = false;
     apply_gesture(*point, *point, event->modifiers());
+    if (works_while_held(tool_)) {
+      rate_timer_.start(rate_interval_ms());
+    }
     event->accept();
   }
 
@@ -170,6 +241,8 @@ protected:
       if (point.has_value()) {
         apply_gesture(last_point_, *point, event->modifiers());
         last_point_ = *point;
+        held_modifiers_ = event->modifiers();
+        moved_since_held_dab_ = true;
       }
     }
     if (!preview_stale_) {
@@ -182,13 +255,27 @@ protected:
   void mouseReleaseEvent(QMouseEvent* event) override {
     if (event->button() == Qt::LeftButton) {
       dragging_ = false;
+      rate_timer_.stop();
       event->accept();
     }
+  }
+
+  // A pen's pressure scales Pressure for the mouse events Qt synthesizes from it, so the
+  // tablet event itself is left unaccepted.
+  void tabletEvent(QTabletEvent* event) override {
+    if (event->type() == QEvent::TabletRelease) {
+      pen_down_ = false;
+    } else if (event->type() == QEvent::TabletPress || event->type() == QEvent::TabletMove) {
+      pen_down_ = event->type() == QEvent::TabletPress || event->buttons() != Qt::NoButton;
+      pen_pressure_ = event->pressure();
+    }
+    event->ignore();
   }
 
   void leaveEvent(QEvent*) override {
     cursor_inside_ = false;
     dragging_ = false;
+    rate_timer_.stop();
     update();
   }
 
@@ -209,6 +296,103 @@ private:
   void invalidate_preview() {
     preview_stale_ = true;
     update();
+  }
+
+  // Show Mesh: the grid drawn where the image moved. The field is inverse (where each
+  // pixel samples from), so a node at p is drawn at p minus its displacement. A dark and
+  // a light line, like the brush outline, so the grid reads over any artwork.
+  void paint_mesh(QPainter& painter, const QRectF& target) const {
+    const int columns = mesh_.columns();
+    const int rows = mesh_.rows();
+    const double scale_x = target.width() / std::max(1, source_.width());
+    const double scale_y = target.height() / std::max(1, source_.height());
+    // About one line every 16 screen pixels.
+    const double spacing = target.width() / std::max(1, columns - 1);
+    const int step = std::max(1, static_cast<int>(std::ceil(16.0 / std::max(1.0, spacing))));
+    const auto node = [&](int column, int row) {
+      const double x = columns <= 1 ? 0.0 : column * (source_.width() - 1.0) / (columns - 1);
+      const double y = rows <= 1 ? 0.0 : row * (source_.height() - 1.0) / (rows - 1);
+      const auto [dx, dy] = mesh_.displacement_at(x, y);
+      return QPointF(target.left() + (x - dx + 0.5) * scale_x, target.top() + (y - dy + 0.5) * scale_y);
+    };
+    const auto lines = [step](int count) {
+      std::vector<int> indices;
+      for (int index = 0; index < count; index += step) {
+        indices.push_back(index);
+      }
+      if (indices.back() != count - 1) {
+        indices.push_back(count - 1);
+      }
+      return indices;
+    };
+    std::vector<QPolygonF> polylines;
+    for (const int row : lines(rows)) {
+      QPolygonF line;
+      for (int column = 0; column < columns; ++column) {
+        line << node(column, row);
+      }
+      polylines.push_back(std::move(line));
+    }
+    for (const int column : lines(columns)) {
+      QPolygonF line;
+      for (int row = 0; row < rows; ++row) {
+        line << node(column, row);
+      }
+      polylines.push_back(std::move(line));
+    }
+    painter.save();
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setClipRect(target);
+    for (const auto& pen : {QPen(QColor(0, 0, 0, 110), 2.0), QPen(QColor(235, 235, 235, 170), 1.0)}) {
+      painter.setPen(pen);
+      for (const auto& line : polylines) {
+        painter.drawPolyline(line);
+      }
+    }
+    painter.restore();
+  }
+
+  [[nodiscard]] int rate_interval_ms() const {
+    const double per_second = std::max(1.0, kMaximumDabsPerSecond * rate_ / 100.0);
+    return std::clamp(static_cast<int>(std::lround(1000.0 / per_second)), 16, 1000);
+  }
+
+  // Rate: while the button is held without moving, the stationary tools add a dab per
+  // tick at the last point; a move in between already applied the brush.
+  void apply_held_dab() {
+    if (!dragging_) {
+      rate_timer_.stop();
+      return;
+    }
+    if (!moved_since_held_dab_) {
+      apply_gesture(last_point_, last_point_, held_modifiers_);
+    }
+    moved_since_held_dab_ = false;
+  }
+
+  // Records `before`, the mesh as it was, as one undo step; a new step drops the redo steps.
+  void push_history(LiquifyMesh before) {
+    undo_history_.push_back(std::move(before));
+    if (undo_history_.size() > kHistoryLimit) {
+      undo_history_.pop_front();
+    }
+    redo_history_.clear();
+    if (history_changed_) {
+      history_changed_();
+    }
+  }
+
+  void step_history(std::deque<LiquifyMesh>& from, std::deque<LiquifyMesh>& to) {
+    if (dragging_ || from.empty()) {
+      return;
+    }
+    to.push_back(std::move(mesh_));
+    mesh_ = std::move(from.back());
+    from.pop_back();
+    if (history_changed_) {
+      history_changed_();
+    }
+    invalidate_preview();
   }
 
   [[nodiscard]] QRectF displayed_rect() const {
@@ -247,8 +431,9 @@ private:
                 modifiers.testFlag(Qt::AltModifier)
             ? LiquifyTool::TwirlCounterClockwise
             : tool_;
+    const double pen = stylus_pressure_ && pen_down_ ? std::clamp(pen_pressure_, 0.0, 1.0) : 1.0;
     mesh_.apply_stroke(gesture_tool, from.x(), from.y(), to.x(), to.y(),
-                       std::max(1.0, proxy_size), pressure_, density_);
+                       std::max(1.0, proxy_size), pressure_ * pen, density_);
     invalidate_preview();
   }
 
@@ -294,14 +479,27 @@ private:
   QImage selection_mask_;
   int original_width_{0};
   LiquifyMesh mesh_;
+  std::deque<LiquifyMesh> undo_history_;
+  std::deque<LiquifyMesh> redo_history_;
+  std::function<void()> history_changed_;
   LiquifyTool tool_{LiquifyTool::ForwardWarp};
   QImage preview_image_;
+  QImage original_display_;
   QPointF cursor_position_;
   QPointF last_point_;
   int size_{150};
   int pressure_{50};
   int density_{50};
+  int rate_{80};
+  QTimer rate_timer_;
+  Qt::KeyboardModifiers held_modifiers_;
+  bool moved_since_held_dab_{false};
+  bool stylus_pressure_{true};
+  bool pen_down_{false};
+  double pen_pressure_{1.0};
   bool show_mask_{true};
+  bool show_mesh_{false};
+  bool show_result_{true};
   bool preview_stale_{false};
   bool cursor_inside_{false};
   bool dragging_{false};
@@ -311,25 +509,26 @@ struct ToolEntry {
   const char* name;
   const char* object_name;
   LiquifyTool tool;
+  Qt::Key key;  // Photoshop's Liquify letters
 };
 
 constexpr std::array<ToolEntry, 8> kTools{{
     {QT_TRANSLATE_NOOP("QObject", "Warp"), "liquifyWarpTool",
-     LiquifyTool::ForwardWarp},
+     LiquifyTool::ForwardWarp, Qt::Key_W},
     {QT_TRANSLATE_NOOP("QObject", "Reconstruct"),
-     "liquifyReconstructTool", LiquifyTool::Reconstruct},
+     "liquifyReconstructTool", LiquifyTool::Reconstruct, Qt::Key_R},
     {QT_TRANSLATE_NOOP("QObject", "Smooth"), "liquifySmoothTool",
-     LiquifyTool::Smooth},
+     LiquifyTool::Smooth, Qt::Key_E},
     {QT_TRANSLATE_NOOP("QObject", "Twirl"), "liquifyTwirlTool",
-     LiquifyTool::TwirlClockwise},
+     LiquifyTool::TwirlClockwise, Qt::Key_C},
     {QT_TRANSLATE_NOOP("QObject", "Pucker"), "liquifyPuckerTool",
-     LiquifyTool::Pucker},
+     LiquifyTool::Pucker, Qt::Key_S},
     {QT_TRANSLATE_NOOP("QObject", "Bloat"), "liquifyBloatTool",
-     LiquifyTool::Bloat},
+     LiquifyTool::Bloat, Qt::Key_B},
     {QT_TRANSLATE_NOOP("QObject", "Freeze"), "liquifyFreezeTool",
-     LiquifyTool::FreezeMask},
+     LiquifyTool::FreezeMask, Qt::Key_F},
     {QT_TRANSLATE_NOOP("QObject", "Thaw"), "liquifyThawTool",
-     LiquifyTool::ThawMask},
+     LiquifyTool::ThawMask, Qt::Key_D},
 }};
 
 }  // namespace
@@ -380,16 +579,17 @@ std::optional<LiquifyMesh> request_liquify(QWidget* parent,
         tools->fontMetrics().horizontalAdvance(translate_data_text(entry.name)) + 24);
   }
   tools->setFixedWidth(tool_width);
+  std::vector<QToolButton*> tool_buttons;
   for (std::size_t index = 0; index < kTools.size(); ++index) {
     const auto& entry = kTools[index];
     auto* button = new QToolButton(&dialog);
     button->setObjectName(QLatin1String(entry.object_name));
     button->setText(translate_data_text(entry.name));
-    button->setToolTip(translate_data_text(entry.name));
-    if (entry.tool == LiquifyTool::TwirlClockwise) {
-      button->setToolTip(
-          resolve_modifier_names(QObject::tr("Twirl clockwise; hold %ALT% to reverse")));
-    }
+    const auto tip = entry.tool == LiquifyTool::TwirlClockwise
+                         ? resolve_modifier_names(QObject::tr("Twirl clockwise; hold %ALT% to reverse"))
+                         : translate_data_text(entry.name);
+    button->setToolTip(with_key_hint(tip, QKeySequence(entry.key)));
+    tool_buttons.push_back(button);
     button->setCheckable(true);
     button->setFixedWidth(tool_width);
     tool_group->addButton(button, static_cast<int>(index));
@@ -433,15 +633,43 @@ std::optional<LiquifyMesh> request_liquify(QWidget* parent,
       QStringLiteral("liquifyDensitySlider"),
       QStringLiteral("liquifyDensitySpin"), 1, 100, 50,
       percent_suffix(), 72);
+  auto* rate = add_dialog_slider_spin_row(form, &dialog, QObject::tr("Rate:"), QStringLiteral("liquifyRateSlider"),
+                                          QStringLiteral("liquifyRateSpin"), 1, 100, 80, QString(), 72);
+  rate->setToolTip(QObject::tr("How fast the brush keeps working while it is held still"));
   controls->addLayout(form);
+  auto* stylus = new QCheckBox(QObject::tr("Stylus Pressure"), &dialog);
+  stylus->setObjectName(QStringLiteral("liquifyStylusPressureCheck"));
+  stylus->setChecked(true);
+  controls->addWidget(stylus);
 
   auto* show_mask = new QCheckBox(QObject::tr("Show Freeze Mask"), &dialog);
   show_mask->setObjectName(QStringLiteral("liquifyShowMaskCheck"));
   show_mask->setChecked(true);
   controls->addWidget(show_mask);
+  auto* show_mesh = new QCheckBox(QObject::tr("Show Mesh"), &dialog);
+  show_mesh->setObjectName(QStringLiteral("liquifyShowMeshCheck"));
+  controls->addWidget(show_mesh);
+  auto* show_result = new QCheckBox(QObject::tr("Preview"), &dialog);
+  show_result->setObjectName(QStringLiteral("liquifyPreviewCheck"));
+  show_result->setChecked(true);
+  show_result->setToolTip(with_key_hint(show_result->text(), QKeySequence(Qt::Key_P)));
+  controls->addWidget(show_result);
   auto* restore = new QPushButton(QObject::tr("Restore All"), &dialog);
   restore->setObjectName(QStringLiteral("liquifyRestoreAllButton"));
   controls->addWidget(restore);
+  auto* reconstruct = new QPushButton(QObject::tr("Reconstruct..."), &dialog);
+  reconstruct->setObjectName(QStringLiteral("liquifyReconstructButton"));
+  controls->addWidget(reconstruct);
+  auto* history_row = new QHBoxLayout();
+  auto* undo = new QPushButton(QObject::tr("Undo"), &dialog);
+  undo->setObjectName(QStringLiteral("liquifyUndoButton"));
+  undo->setToolTip(with_key_hint(undo->text(), QKeySequence(QKeySequence::Undo)));
+  auto* redo = new QPushButton(QObject::tr("Redo"), &dialog);
+  redo->setObjectName(QStringLiteral("liquifyRedoButton"));
+  redo->setToolTip(with_key_hint(redo->text(), QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Z)));
+  history_row->addWidget(undo);
+  history_row->addWidget(redo);
+  controls->addLayout(history_row);
   auto* note = new QLabel(
       QObject::tr("Liquify edits pixels directly. Rasterize a Smart Object before using it."),
       &dialog);
@@ -472,10 +700,84 @@ std::optional<LiquifyMesh> request_liquify(QWidget* parent,
                    [preview](int value) { preview->set_pressure(value); });
   QObject::connect(density, &QSpinBox::valueChanged, &dialog,
                    [preview](int value) { preview->set_density(value); });
+  QObject::connect(rate, &QSpinBox::valueChanged, &dialog, [preview](int value) { preview->set_rate(value); });
+  QObject::connect(stylus, &QCheckBox::toggled, &dialog,
+                   [preview](bool checked) { preview->set_stylus_pressure(checked); });
   QObject::connect(show_mask, &QCheckBox::toggled, &dialog,
                    [preview](bool checked) { preview->set_show_mask(checked); });
   QObject::connect(restore, &QPushButton::clicked, &dialog,
                    [preview] { preview->restore_all(); });
+  QObject::connect(show_mesh, &QCheckBox::toggled, &dialog, [preview](bool checked) { preview->set_show_mesh(checked); });
+  QObject::connect(show_result, &QCheckBox::toggled, &dialog,
+                   [preview](bool checked) { preview->set_show_result(checked); });
+  // Reconstruct by an amount: the whole field moves back toward the original, live while
+  // the amount changes; OK records one step, Cancel puts the mesh back.
+  QObject::connect(reconstruct, &QPushButton::clicked, &dialog, [&dialog, preview] {
+    const auto before = preview->mesh();
+    QDialog amount_dialog(&dialog);
+    amount_dialog.setObjectName(QStringLiteral("liquifyReconstructDialog"));
+    amount_dialog.setWindowTitle(translate_data_text("Reconstruct"));
+    auto* layout = new QVBoxLayout(&amount_dialog);
+    auto* form = new QFormLayout();
+    auto* amount = add_dialog_slider_spin_row(form, &amount_dialog, QObject::tr("Amount:"),
+                                              QStringLiteral("liquifyReconstructAmountSlider"),
+                                              QStringLiteral("liquifyReconstructAmountSpin"), 0, 100, 100,
+                                              percent_suffix(), 72);
+    layout->addLayout(form);
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &amount_dialog);
+    layout->addWidget(buttons);
+    QObject::connect(buttons, &QDialogButtonBox::accepted, &amount_dialog, &QDialog::accept);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &amount_dialog, &QDialog::reject);
+    const auto show_amount = [preview, &before](int value) {
+      auto reconstructed = before;
+      reconstructed.reconstruct(value);
+      preview->show_mesh_state(std::move(reconstructed));
+    };
+    QObject::connect(amount, &QSpinBox::valueChanged, &amount_dialog, show_amount);
+    show_amount(amount->value());
+    if (exec_dialog(amount_dialog) == QDialog::Accepted) {
+      preview->record_step(before);
+    } else {
+      preview->show_mesh_state(before);
+    }
+    // The workspace's keys (Ctrl+Z right after a Reconstruct) need it active again.
+    dialog.activateWindow();
+    preview->setFocus();
+  });
+  const auto refresh_history = [preview, undo, redo] {
+    undo->setEnabled(preview->can_undo());
+    redo->setEnabled(preview->can_redo());
+  };
+  preview->set_history_changed(refresh_history);
+  refresh_history();
+  QObject::connect(undo, &QPushButton::clicked, &dialog, [preview] { preview->undo(); });
+  QObject::connect(redo, &QPushButton::clicked, &dialog, [preview] { preview->redo(); });
+  // Window shortcuts on the modal dialog: the main window's application shortcuts are
+  // blocked while it is open, so these keys never reach the document.
+  const auto add_shortcut = [&dialog](const QKeySequence& keys, auto&& slot) {
+    auto* shortcut = new QShortcut(keys, &dialog);
+    QObject::connect(shortcut, &QShortcut::activated, &dialog, std::forward<decltype(slot)>(slot));
+  };
+  add_shortcut(QKeySequence(QKeySequence::Undo), [preview] { preview->undo(); });
+  for (const auto& keys : {QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_Z), QKeySequence(Qt::CTRL | Qt::Key_Y)}) {
+    add_shortcut(keys, [preview] { preview->redo(); });
+  }
+  add_shortcut(QKeySequence(Qt::Key_P), [show_result] { show_result->toggle(); });
+  for (std::size_t index = 0; index < kTools.size(); ++index) {
+    add_shortcut(QKeySequence(kTools[index].key), [button = tool_buttons[index]] { button->click(); });
+  }
+  // [ and ] step the brush size like the canvas brush keys (Shift for a larger step).
+  const auto add_size_step = [&add_shortcut, size](const QKeySequence& keys, int direction, bool coarse) {
+    add_shortcut(keys, [size, direction, coarse] {
+      const int value = size->value();
+      size->setValue(std::clamp(value + direction * proportional_brush_step(value, direction, coarse),
+                                size->minimum(), size->maximum()));
+    });
+  };
+  add_size_step(QKeySequence(Qt::Key_BracketLeft), -1, false);
+  add_size_step(QKeySequence(Qt::Key_BracketRight), 1, false);
+  add_size_step(QKeySequence(Qt::SHIFT | Qt::Key_BracketLeft), -1, true);
+  add_size_step(QKeySequence(Qt::SHIFT | Qt::Key_BracketRight), 1, true);
   preview->set_size(default_size);
 
   append_themed_style(dialog, dialog_spinbox_button_style());

@@ -11536,6 +11536,38 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source> (Amount %1%, Radius %2 px, Legacy)</source>
         <translation> (Stärke %1%, Radius %2 px, Herkömmlich)</translation>
     </message>
+    <message>
+        <source>Undo</source>
+        <translation>Rückgängig</translation>
+    </message>
+    <message>
+        <source>Redo</source>
+        <translation>Wiederholen</translation>
+    </message>
+    <message>
+        <source>Rate:</source>
+        <translation>Rate:</translation>
+    </message>
+    <message>
+        <source>How fast the brush keeps working while it is held still</source>
+        <translation>Wie schnell der Pinsel weiterwirkt, während er stillgehalten wird</translation>
+    </message>
+    <message>
+        <source>Stylus Pressure</source>
+        <translation>Stiftdruck</translation>
+    </message>
+    <message>
+        <source>Show Mesh</source>
+        <translation>Gitter einblenden</translation>
+    </message>
+    <message>
+        <source>Reconstruct...</source>
+        <translation>Rekonstruieren...</translation>
+    </message>
+    <message>
+        <source>Amount:</source>
+        <translation>Stärke:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
