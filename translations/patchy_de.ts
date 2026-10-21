@@ -23509,6 +23509,66 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
         <source>Merged the visible layers</source>
         <translation>Sichtbare Ebenen reduziert</translation>
     </message>
+    <message>
+        <source>The file is open in another program.</source>
+        <translation>Die Datei ist in einem anderen Programm geöffnet.</translation>
+    </message>
+    <message>
+        <source>Enter a file name.</source>
+        <translation>Geben Sie einen Dateinamen ein.</translation>
+    </message>
+    <message>
+        <source>A file name cannot contain / or \.</source>
+        <translation>Ein Dateiname darf weder / noch \ enthalten.</translation>
+    </message>
+    <message>
+        <source>A file name cannot contain control characters.</source>
+        <translation>Ein Dateiname darf keine Steuerzeichen enthalten.</translation>
+    </message>
+    <message>
+        <source>A file name cannot contain any of these characters: %1</source>
+        <translation>Ein Dateiname darf keines dieser Zeichen enthalten: %1</translation>
+    </message>
+    <message>
+        <source>A file name cannot be only dots and spaces.</source>
+        <translation>Ein Dateiname darf nicht nur aus Punkten und Leerzeichen bestehen.</translation>
+    </message>
+    <message>
+        <source>A file name cannot end with a dot or a space.</source>
+        <translation>Ein Dateiname darf nicht mit einem Punkt oder Leerzeichen enden.</translation>
+    </message>
+    <message>
+        <source>%1 is a reserved device name on Windows.</source>
+        <translation>%1 ist unter Windows ein reservierter Gerätename.</translation>
+    </message>
+    <message>
+        <source>The file name is too long.</source>
+        <translation>Der Dateiname ist zu lang.</translation>
+    </message>
+    <message>
+        <source>Rename File</source>
+        <translation>Datei umbenennen</translation>
+    </message>
+    <message>
+        <source>Renamed to %1</source>
+        <translation>Umbenannt in %1</translation>
+    </message>
+    <message>
+        <source>A file named %1 already exists in this folder.</source>
+        <translation>In diesem Ordner gibt es bereits eine Datei namens %1.</translation>
+    </message>
+    <message>
+        <source>%1 is no longer on disk.</source>
+        <translation>%1 ist nicht mehr auf dem Datenträger.</translation>
+    </message>
+    <message>
+        <source>Could not rename the file: %1</source>
+        <translation>Die Datei konnte nicht umbenannt werden: %1</translation>
+    </message>
+    <message>
+        <source>Rename File...</source>
+        <translation>Datei umbenennen...</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

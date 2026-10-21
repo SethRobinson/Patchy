@@ -1194,6 +1194,7 @@ void MainWindow::show_document_tab_context_menu(const QPoint& position) {
   auto* reveal_action = menu.addAction(tr("Show in File Manager"));
 #endif
   auto* copy_path_action = menu.addAction(tr("Copy File Path"));
+  auto* rename_file_action = menu.addAction(tr("Rename File..."));
   close_action->setObjectName(QStringLiteral("documentTabCloseAction"));
   close_others_action->setObjectName(QStringLiteral("documentTabCloseOthersAction"));
   close_all_action->setObjectName(QStringLiteral("documentTabCloseAllAction"));
@@ -1201,10 +1202,13 @@ void MainWindow::show_document_tab_context_menu(const QPoint& position) {
   reopen_action->setObjectName(QStringLiteral("documentTabReopenAction"));
   reveal_action->setObjectName(QStringLiteral("documentTabRevealAction"));
   copy_path_action->setObjectName(QStringLiteral("documentTabCopyPathAction"));
+  rename_file_action->setObjectName(QStringLiteral("documentTabRenameFileAction"));
   close_others_action->setEnabled(sessions_.size() > 1);
 #ifdef Q_OS_WASM
-  // Float windows are off on wasm; see float_document_session.
+  // Float windows are off on wasm; see float_document_session. A rename would only
+  // move a file inside the page's in-memory file system.
   float_action->setVisible(false);
+  rename_file_action->setVisible(false);
 #endif
   // The file actions need a disk path; never-saved documents (and embedded
   // smart-object child tabs) have none.
@@ -1216,6 +1220,9 @@ void MainWindow::show_document_tab_context_menu(const QPoint& position) {
   reopen_action->setEnabled(has_path);
   reveal_action->setEnabled(has_path);
   copy_path_action->setEnabled(has_path);
+  // A linked smart object's tab is the parent's link target: renaming it would break
+  // the link, so it stays a job for the parent's Relink.
+  rename_file_action->setEnabled(has_path && !target_session->smart_object_link.has_value());
 
   connect(close_action, &QAction::triggered, this, [this, tab_index] { close_document_tab(tab_index); });
   connect(close_others_action, &QAction::triggered, this,
@@ -1242,6 +1249,7 @@ void MainWindow::show_document_tab_context_menu(const QPoint& position) {
     QApplication::clipboard()->setText(QDir::toNativeSeparators(document_path));
     statusBar()->showMessage(tr("File path copied"));
   });
+  connect(rename_file_action, &QAction::triggered, this, [this, session_id] { rename_document_file(session_id); });
   menu.exec(tab_bar->mapToGlobal(position));
 }
 

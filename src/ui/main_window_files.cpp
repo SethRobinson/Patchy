@@ -24,6 +24,10 @@
 #include <QStatusBar>
 #include "ui/canvas_widget.hpp"
 #include "ui/document_save_coordinator.hpp"
+#include "ui/document_file_rename.hpp"
+#ifndef Q_OS_WASM
+#include "ui/document_recovery_coordinator.hpp"
+#endif
 #include "ui/appimage_environment.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/theme_qss.hpp"
@@ -2993,6 +2997,83 @@ void MainWindow::reopen_document_session(DocumentSession& target_session) {
 
 namespace {
 
+// Two spellings of one stored path. Windows and macOS volumes compare names without
+// case, so a session or recent entry saved as "photo.psd" is the file a case-only
+// rename moved.
+bool same_stored_path(const QString& left, const QString& right) {
+#if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
+  constexpr auto sensitivity = Qt::CaseInsensitive;
+#else
+  constexpr auto sensitivity = Qt::CaseSensitive;
+#endif
+  return !left.isEmpty() && !right.isEmpty() &&
+         QFileInfo(left).absoluteFilePath().compare(QFileInfo(right).absoluteFilePath(), sensitivity) == 0;
+}
+
+}  // namespace
+
+void MainWindow::rename_document_file(std::int64_t session_id) {
+  const auto* target_session = session_with_id(session_id);
+  if (target_session == nullptr || target_session->path.isEmpty()) {
+    return;
+  }
+  const auto old_path = QFileInfo(target_session->path).absoluteFilePath();
+  if (!QFileInfo::exists(old_path)) {
+    show_status_error(tr("File is missing"));
+    return;
+  }
+  QWidget* dialog_parent = target_session->float_window != nullptr ? static_cast<QWidget*>(target_session->float_window)
+                                                                    : static_cast<QWidget*>(this);
+  (void)request_file_rename(dialog_parent, old_path, [this, &old_path](const QString& new_path) -> QString {
+    const auto new_name = QFileInfo(new_path).fileName();
+    const auto result = rename_file_without_replacing(old_path, new_path);
+    switch (result.status) {
+      case FileRenameStatus::Renamed:
+        adopt_renamed_document_path(old_path, new_path);
+        statusBar()->showMessage(tr("Renamed to %1").arg(new_name));
+        return {};
+      case FileRenameStatus::TargetExists:
+        return tr("A file named %1 already exists in this folder.").arg(new_name);
+      case FileRenameStatus::SourceMissing:
+        return tr("%1 is no longer on disk.").arg(QFileInfo(old_path).fileName());
+      case FileRenameStatus::Failed:
+        break;
+    }
+    return tr("Could not rename the file: %1").arg(result.detail);
+  });
+}
+
+void MainWindow::adopt_renamed_document_path(const QString& old_path, const QString& new_path) {
+  const auto old_name = QFileInfo(old_path).fileName();
+  const auto new_name = QFileInfo(new_path).fileName();
+  for (const auto& target_session : sessions_) {
+    if (target_session == nullptr || !same_stored_path(target_session->path, old_path)) {
+      continue;
+    }
+    // Only where the file lives changes: no save mark, so unsaved edits stay unsaved
+    // and the next Save writes them to the new name.
+    target_session->path = new_path;
+    if (target_session->title == old_name) {
+      target_session->title = new_name;
+    } else if (target_session->title.startsWith(old_name + QLatin1Char(' '))) {
+      // "photo.psd (Recovered)" and the like keep their suffix.
+      target_session->title = new_name + target_session->title.mid(old_name.size());
+    }
+    if (same_stored_path(target_session->image_save_options_path, old_path)) {
+      target_session->image_save_options_path = new_path;
+    }
+#ifndef Q_OS_WASM
+    if (recovery_coordinator_ != nullptr) {
+      recovery_coordinator_->refresh_sidecar(target_session->session_id);
+    }
+#endif
+  }
+  replace_recent_file(old_path, new_path);
+  refresh_document_tab_titles();
+}
+
+namespace {
+
 // The device-reported scan DPI, when the backend supplied one, overrides the file's own
 // density: drivers routinely write 72 or nothing into scanned JPEGs, which would print
 // a 300 DPI scan at four times its real size. Absurd values (from either source) are
@@ -5585,6 +5666,26 @@ void MainWindow::add_recent_file(QString path) {
       [&path](QStringList& paths) { paths.removeAll(path); paths.prepend(path); }));
   rebuild_recent_files_menu();
   add_recent_folder(QFileInfo(path).absolutePath());
+}
+
+void MainWindow::replace_recent_file(const QString& old_path, const QString& new_path) {
+  const auto target = QFileInfo(new_path).absoluteFilePath();
+  if (target.isEmpty()) {
+    return;
+  }
+  recent_missing_files_.remove(old_path);
+  recent_missing_files_.remove(target);
+  recent_confirmed_paths_.remove(old_path);
+  recent_confirmed_paths_.insert(target);
+  set_recent_files_from_stored(update_recent_history(
+      QStringLiteral("recentFiles"), kMaxRecentFiles, [&old_path, &target](QStringList& paths) {
+        for (auto& entry : paths) {
+          if (same_stored_path(entry, old_path)) {
+            entry = target;
+          }
+        }
+      }));
+  rebuild_recent_files_menu();
 }
 
 void MainWindow::rebuild_recent_files_menu() {
