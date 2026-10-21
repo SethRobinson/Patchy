@@ -1384,6 +1384,14 @@ private:
   // Drives the Layers panel footer's Layer Styles button (GitHub issue 94).
   [[nodiscard]] bool can_edit_layer_styles() const;
   void refresh_layer_styles_button_state();
+  // The active document's Background layer (core background_layer, GitHub issue 274), or null.
+  [[nodiscard]] const Layer* document_background_layer() const;
+  [[nodiscard]] bool layer_is_document_background(LayerId id) const;
+  // True (after a status error) when `after` would move the Background off the bottom.
+  [[nodiscard]] bool refuse_background_stack_change(const std::vector<Layer>& after);
+  // Photoshop's Layer from Background: clears the Background's position and transparency
+  // locks and names it "Layer 0", one undo step; it is an ordinary layer afterwards.
+  void layer_from_background();
   void delete_active_layer_mask();
   void set_active_layer_mask_linked(bool linked);
   void set_layer_edit_target_ui(LayerEditTarget target, bool announce);
@@ -1770,6 +1778,9 @@ private:
   void isolate_layer_visibility(LayerId id);
   void sync_layer_row_visibility_indicators();
   void show_layer_context_menu(QPoint position);
+  // The Background's shorter row menu (GitHub issue 274) and the eye's color menu (issue 276).
+  void show_background_context_menu(QPoint global_position);
+  void show_layer_eye_color_menu(QPoint global_position);
   bool handle_layer_action_button_drag_event(QObject* watched, QEvent* event);
   // A Layers-panel drag over another document (a session canvas, tabbed or
   // floated, or a document tab): accepts it as a copy and defers the copy.

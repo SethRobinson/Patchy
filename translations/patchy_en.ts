@@ -11552,6 +11552,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Amount:</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23327,6 +23331,22 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     </message>
     <message>
         <source>Deleted %1 artboards</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The Background layer cannot go inside a folder</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The Background layer stays at the bottom of the stack</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Layer from Background</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The Background layer cannot have layer styles</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -11603,6 +11603,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Amount:</source>
         <translation>Величина:</translation>
     </message>
+    <message>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
+        <translation>Фон: остается в самом низу стека, без прозрачности и стилей слоя. Щелкните его правой кнопкой мыши и выберите «Слой из фона», чтобы сделать его обычным слоем.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23477,6 +23481,22 @@ Patchy можно будет запускать из меню, а на пане�
     <message>
         <source>Deleted %1 artboards</source>
         <translation>Удалено монтажных областей: %1</translation>
+    </message>
+    <message>
+        <source>The Background layer cannot go inside a folder</source>
+        <translation>Фоновый слой нельзя поместить в папку</translation>
+    </message>
+    <message>
+        <source>The Background layer stays at the bottom of the stack</source>
+        <translation>Фоновый слой остается в самом низу стека</translation>
+    </message>
+    <message>
+        <source>Layer from Background</source>
+        <translation>Слой из фона</translation>
+    </message>
+    <message>
+        <source>The Background layer cannot have layer styles</source>
+        <translation>Фоновый слой не может иметь стилей слоя</translation>
     </message>
 </context>
 <context>

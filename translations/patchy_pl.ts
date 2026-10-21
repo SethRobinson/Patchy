@@ -11603,6 +11603,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Amount:</source>
         <translation>Wartość:</translation>
     </message>
+    <message>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
+        <translation>Tło: pozostaje na samym dole stosu, bez przezroczystości i stylów warstwy. Kliknij je prawym przyciskiem myszy i wybierz Warstwa z tła, aby zmienić je w zwykłą warstwę.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23477,6 +23481,22 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     <message>
         <source>Deleted %1 artboards</source>
         <translation>Usunięto obszary robocze: %1</translation>
+    </message>
+    <message>
+        <source>The Background layer cannot go inside a folder</source>
+        <translation>Warstwa tła nie może trafić do folderu</translation>
+    </message>
+    <message>
+        <source>The Background layer stays at the bottom of the stack</source>
+        <translation>Warstwa tła pozostaje na samym dole stosu</translation>
+    </message>
+    <message>
+        <source>Layer from Background</source>
+        <translation>Warstwa z tła</translation>
+    </message>
+    <message>
+        <source>The Background layer cannot have layer styles</source>
+        <translation>Warstwa tła nie może mieć stylów warstwy</translation>
     </message>
 </context>
 <context>

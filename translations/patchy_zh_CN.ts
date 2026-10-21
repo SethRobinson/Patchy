@@ -11533,6 +11533,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Amount:</source>
         <translation>数量:</translation>
     </message>
+    <message>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
+        <translation>背景：它始终位于堆栈底部，没有透明度，也没有图层样式。右键单击它并选择“从背景生成图层”即可将其变为普通图层。</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23333,6 +23337,22 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Deleted %1 artboards</source>
         <translation>已删除 %1 个画板</translation>
+    </message>
+    <message>
+        <source>The Background layer cannot go inside a folder</source>
+        <translation>背景图层不能放入文件夹</translation>
+    </message>
+    <message>
+        <source>The Background layer stays at the bottom of the stack</source>
+        <translation>背景图层始终位于堆栈底部</translation>
+    </message>
+    <message>
+        <source>Layer from Background</source>
+        <translation>从背景生成图层</translation>
+    </message>
+    <message>
+        <source>The Background layer cannot have layer styles</source>
+        <translation>背景图层不能使用图层样式</translation>
     </message>
 </context>
 <context>

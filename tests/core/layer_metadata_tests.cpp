@@ -71,6 +71,49 @@ void layer_affine_transform_metadata_parses_serializes_and_composes() {
   CHECK(patchy::parse_layer_affine_transform(layer.metadata().at(patchy::kLayerMetadataTextTransform)).has_value());
 }
 
+// GitHub issue 274: the Background is the bottom top-level pixel layer with no alpha that
+// covers the canvas and has its position locked; a stack change that moves it off the
+// bottom is refused.
+void layer_background_rule_matches_photoshop_background() {
+  using patchy::test::solid_rgb;
+  using patchy::test::solid_rgba;
+  const auto make_stack = [] {
+    std::vector<patchy::Layer> layers;
+    layers.emplace_back(1, "Background", solid_rgb(4, 3, 255, 255, 255));
+    patchy::set_layer_locks_position(layers.back(), true);
+    patchy::set_layer_locks_transparent_pixels(layers.back(), true);
+    layers.emplace_back(2, "Layer 1", solid_rgba(4, 3, 10, 20, 30, 255));
+    return layers;
+  };
+  auto layers = make_stack();
+  CHECK(patchy::background_layer(layers, 4, 3) == &layers.front());
+  CHECK(patchy::background_layer({}, 4, 3) == nullptr);
+  // The position lock is what keeps it a Background (Layer from Background clears it).
+  patchy::set_layer_locks_position(layers.front(), false);
+  CHECK(patchy::background_layer(layers, 4, 3) == nullptr);
+  // Transparency, a smaller extent, or another layer underneath: an ordinary layer.
+  auto with_alpha = make_stack();
+  with_alpha.front().set_pixels(solid_rgba(4, 3, 255, 255, 255, 255));
+  CHECK(patchy::background_layer(with_alpha, 4, 3) == nullptr);
+  auto offset = make_stack();
+  CHECK(patchy::background_layer(offset, 5, 3) == nullptr);
+  auto reordered = make_stack();
+  std::swap(reordered.front(), reordered.back());
+  CHECK(patchy::background_layer(reordered, 4, 3) == nullptr);
+
+  const auto before = make_stack();
+  CHECK(!patchy::layer_stack_keeps_background(before, reordered, 4, 3));
+  auto added_on_top = make_stack();
+  added_on_top.emplace_back(3, "Layer 2", solid_rgba(4, 3, 1, 2, 3, 255));
+  CHECK(patchy::layer_stack_keeps_background(before, added_on_top, 4, 3));
+  auto added_below = make_stack();
+  added_below.insert(added_below.begin(), patchy::Layer(3, "Layer 2", solid_rgba(4, 3, 1, 2, 3, 255)));
+  CHECK(!patchy::layer_stack_keeps_background(before, added_below, 4, 3));
+  CHECK(!patchy::layer_stack_keeps_background(before, {}, 4, 3));
+  // Without a Background any order goes.
+  CHECK(patchy::layer_stack_keeps_background(with_alpha, reordered, 4, 3));
+}
+
 void layer_lock_flags_and_inheritance_work() {
   patchy::Layer folder(1, "Folder", patchy::LayerKind::Group);
   patchy::Layer child(2, "Child", solid_rgba(2, 2, 20, 40, 60, 255));
@@ -380,6 +423,7 @@ std::vector<patchy::test::TestCase> layer_metadata_tests() {
       {"layer_affine_transform_serialization_round_trips_every_double",
        layer_affine_transform_serialization_round_trips_every_double},
       {"layer_lock_flags_and_inheritance_work", layer_lock_flags_and_inheritance_work},
+      {"layer_background_rule_matches_photoshop_background", layer_background_rule_matches_photoshop_background},
       {"moved_layer_metadata_translates_linked_masks_and_vector_paths",
        moved_layer_metadata_translates_linked_masks_and_vector_paths},
       {"moved_layer_metadata_leaves_unlinked_masks_stationary",

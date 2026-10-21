@@ -11568,6 +11568,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Amount:</source>
         <translation>Quantité :</translation>
     </message>
+    <message>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
+        <translation>Arrière-plan : il reste tout en bas de la pile, sans transparence ni styles de calque. Faites un clic droit dessus et choisissez Calque d&apos;après l&apos;arrière-plan pour en faire un calque ordinaire.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23405,6 +23409,22 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
     <message>
         <source>Deleted %1 artboards</source>
         <translation>%1 plans de travail supprimés</translation>
+    </message>
+    <message>
+        <source>The Background layer cannot go inside a folder</source>
+        <translation>Le calque d&apos;arrière-plan ne peut pas aller dans un dossier</translation>
+    </message>
+    <message>
+        <source>The Background layer stays at the bottom of the stack</source>
+        <translation>Le calque d&apos;arrière-plan reste tout en bas de la pile</translation>
+    </message>
+    <message>
+        <source>Layer from Background</source>
+        <translation>Calque d&apos;après l&apos;arrière-plan</translation>
+    </message>
+    <message>
+        <source>The Background layer cannot have layer styles</source>
+        <translation>Le calque d&apos;arrière-plan ne peut pas avoir de styles de calque</translation>
     </message>
 </context>
 <context>

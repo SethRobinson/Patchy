@@ -11533,6 +11533,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Amount:</source>
         <translation>양:</translation>
     </message>
+    <message>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
+        <translation>배경: 스택의 맨 아래에 머물며 투명도나 레이어 스타일을 가질 수 없습니다. 마우스 오른쪽 버튼으로 클릭하고 배경에서 레이어로를 선택하면 일반 레이어가 됩니다.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23333,6 +23337,22 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Deleted %1 artboards</source>
         <translation>대지 %1개를 삭제했습니다</translation>
+    </message>
+    <message>
+        <source>The Background layer cannot go inside a folder</source>
+        <translation>배경 레이어는 폴더 안에 넣을 수 없습니다</translation>
+    </message>
+    <message>
+        <source>The Background layer stays at the bottom of the stack</source>
+        <translation>배경 레이어는 스택의 맨 아래에 머뭅니다</translation>
+    </message>
+    <message>
+        <source>Layer from Background</source>
+        <translation>배경에서 레이어로</translation>
+    </message>
+    <message>
+        <source>The Background layer cannot have layer styles</source>
+        <translation>배경 레이어에는 레이어 스타일을 적용할 수 없습니다</translation>
     </message>
 </context>
 <context>

@@ -1458,6 +1458,11 @@ void MainWindow::create_layer_folder_from_layers(std::vector<LayerId> ids) {
     show_status_error(tr("An artboard cannot go inside a folder"));
     return;
   }
+  if (std::any_of(grouped_ids.begin(), grouped_ids.end(),
+                  [this](LayerId id) { return layer_is_document_background(id); })) {
+    show_status_error(tr("The Background layer cannot go inside a folder"));
+    return;
+  }
   const auto destination = common_sibling_grouping_destination(doc.layers(), grouped_ids);
 
   push_undo_snapshot(tr("New folder"));
@@ -1647,8 +1652,52 @@ bool MainWindow::can_edit_layer_styles() const {
   const auto& doc = std::as_const(document());
   const auto ids = selected_or_active_layer_ids();
   return std::any_of(ids.begin(), ids.end(), [&](LayerId id) {
-    return doc.find_layer(id) != nullptr && !layer_is_effectively_locked(doc.layers(), id);
+    return doc.find_layer(id) != nullptr && !layer_is_effectively_locked(doc.layers(), id) &&
+           !layer_is_document_background(id);
   });
+}
+
+const Layer* MainWindow::document_background_layer() const {
+  if (!has_active_document()) {
+    return nullptr;
+  }
+  const auto& doc = std::as_const(document());
+  return background_layer(doc.layers(), doc.width(), doc.height());
+}
+
+bool MainWindow::layer_is_document_background(LayerId id) const {
+  const auto* background = document_background_layer();
+  return background != nullptr && background->id() == id;
+}
+
+bool MainWindow::refuse_background_stack_change(const std::vector<Layer>& after) {
+  const auto& doc = std::as_const(document());
+  if (layer_stack_keeps_background(doc.layers(), after, doc.width(), doc.height())) {
+    return false;
+  }
+  show_status_error(tr("The Background layer stays at the bottom of the stack"));
+  return true;
+}
+
+void MainWindow::layer_from_background() {
+  if (preview_dialog_edit_locked()) {
+    show_preview_dialog_edit_lock_message();
+    return;
+  }
+  const auto* background = document_background_layer();
+  if (background == nullptr) {
+    return;
+  }
+  const auto id = background->id();
+  push_undo_snapshot(tr("Layer from Background"));
+  auto* layer = document().find_layer(id);
+  set_layer_lock_flags(*layer, layer_lock_flags(*layer) & ~(kLayerLockPosition | kLayerLockTransparentPixels |
+                                                            kLayerLockArtboardAutonest));
+  layer->set_name(QObject::tr("Layer %1").arg(0).toStdString());
+  refresh_layer_list();
+  refresh_layer_controls();
+  refresh_document_info();
+  canvas_->document_changed();
 }
 
 void MainWindow::refresh_layer_styles_button_state() {
@@ -2581,10 +2630,18 @@ void MainWindow::edit_active_layer_style(std::optional<LayerStyleEffect> start_e
     const auto it = std::find(ids.begin(), ids.end(), *active);
     if (it != ids.end()) std::rotate(ids.begin(), it, it + 1);
   }
+  const bool background_selected =
+      std::any_of(ids.begin(), ids.end(), [this](LayerId id) { return layer_is_document_background(id); });
   std::erase_if(ids, [&](LayerId id) {
-    return !std::as_const(doc).find_layer(id) || layer_is_effectively_locked(doc.layers(), id);
+    return !std::as_const(doc).find_layer(id) || layer_is_effectively_locked(doc.layers(), id) ||
+           layer_is_document_background(id);
   });
-  if (ids.empty()) return;
+  if (ids.empty()) {
+    if (background_selected) {
+      show_status_error(tr("The Background layer cannot have layer styles"));
+    }
+    return;
+  }
   std::vector<Layer> originals;
   AppearanceDialogContext<LayerStyleSettings> context;
   context.selected_count = selected.size();
@@ -2938,11 +2995,14 @@ void MainWindow::paste_layer_style_to_selected_layers() {
   targets.reserve(ids.size());
   const auto& doc = document();
   for (const auto id : ids) {
-    if (doc.find_layer(id) != nullptr) {
+    if (doc.find_layer(id) != nullptr && !layer_is_document_background(id)) {
       targets.push_back(id);
     }
   }
   if (targets.empty()) {
+    if (std::any_of(ids.begin(), ids.end(), [this](LayerId id) { return layer_is_document_background(id); })) {
+      show_status_error(tr("The Background layer cannot have layer styles"));
+    }
     refresh_layer_style_action_states();
     return;
   }
@@ -3153,16 +3213,18 @@ void MainWindow::refresh_layer_style_action_states() {
   if (has_active_document() && !preview_dialog_edit_locked()) {
     const auto ids = selected_or_active_layer_ids();
     int valid_layer_count = 0;
+    int paste_target_count = 0;
     for (const auto id : ids) {
       const auto* layer = document().find_layer(id);
       if (layer == nullptr) {
         continue;
       }
       ++valid_layer_count;
+      paste_target_count += layer_is_document_background(id) ? 0 : 1;
       can_delete = can_delete || !layer->layer_style().empty();
     }
     can_copy = ids.size() == 1U && valid_layer_count == 1;
-    can_paste = layer_style_clipboard_.has_value() && valid_layer_count > 0;
+    can_paste = layer_style_clipboard_.has_value() && paste_target_count > 0;
   }
 
   if (layer_copy_style_action_ != nullptr) {
@@ -3290,7 +3352,7 @@ void MainWindow::move_active_layer(int direction) {
     }
   };
   move_siblings(move_siblings, moved_document.layers());
-  if (!changed) {
+  if (!changed || refuse_background_stack_change(moved_document.layers())) {
     return;
   }
   push_undo_snapshot(tr("Move layer"));
@@ -3315,6 +3377,12 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   if (item != nullptr) {
     if (auto* row_widget = layer_list_->itemWidget(item); row_widget != nullptr) {
       const auto global = layer_list_->viewport()->mapToGlobal(position);
+      // The row's eye opens Photoshop's short color menu (GitHub issue 276).
+      if (auto* eye = row_widget->findChild<QWidget*>(QStringLiteral("layerVisibilityCheck"));
+          eye != nullptr && eye->isVisible() && eye->rect().contains(eye->mapFromGlobal(global))) {
+        show_layer_eye_color_menu(global);
+        return;
+      }
       for (auto* entry_row : row_widget->findChildren<QWidget*>(QStringLiteral("layerEffectEntryRow"))) {
         if (!entry_row->isVisible() || !entry_row->rect().contains(entry_row->mapFromGlobal(global))) {
           continue;
@@ -3332,6 +3400,10 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   }
 
   const auto ids = selected_or_active_layer_ids();
+  if (ids.size() == 1U && layer_is_document_background(ids.front())) {
+    show_background_context_menu(layer_list_->viewport()->mapToGlobal(position));
+    return;
+  }
   const auto has_layer = !ids.empty();
   const auto active_id = document().active_layer_id();
   // Const on purpose: the menu only reads the layer, and the non-const
@@ -3736,6 +3808,63 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   }
 }
 
+void MainWindow::show_layer_eye_color_menu(QPoint global_position) {
+  // None, then the seven colors: the Layer > Color actions, so a pick labels every selected
+  // layer in one undo step (set_selected_layers_color).
+  QMenu menu(this);
+  menu.setObjectName(QStringLiteral("layerEyeColorMenu"));
+  populate_layer_color_actions(&menu);
+  refresh_layer_color_action_states();
+  // The swatches name the colors, as in Photoshop's eye menu; the row menu hides the shared
+  // actions' icons (hide_menu_action_icons), so show them again here.
+  for (auto* action : menu.actions()) {
+    action->setIconVisibleInMenu(true);
+  }
+  menu.exec(global_position);
+}
+
+void MainWindow::show_background_context_menu(QPoint global_position) {
+  // Photoshop's shorter menu for its Background (GitHub issue 274): no layer styles, masks,
+  // locks or stacking commands apply to it. Delete and Merge Visible need another layer.
+  const bool other_layers = layer_tree_count(std::as_const(document()).layers()) > 1U;
+  QMenu menu(this);
+  menu.setObjectName(QStringLiteral("layerContextMenu"));
+  auto* from_background_action = menu.addAction(tr("Layer from Background"));
+  from_background_action->setObjectName(QStringLiteral("layerFromBackgroundAction"));
+  menu.addSeparator();
+  auto* duplicate_action = menu.addAction(tr("Duplicate Layer"));
+  duplicate_action->setObjectName(QStringLiteral("layerContextDuplicateAction"));
+  auto* duplicate_to_document_action = menu.addAction(tr("Duplicate Layer to Document..."));
+  auto* delete_action = menu.addAction(tr("Delete Layer"));
+  delete_action->setObjectName(QStringLiteral("layerContextDeleteAction"));
+  delete_action->setEnabled(other_layers);
+  menu.addSeparator();
+  if (layer_convert_smart_object_action_ != nullptr) {
+    layer_convert_smart_object_action_->setEnabled(true);
+    menu.addAction(layer_convert_smart_object_action_);
+  }
+  menu.addSeparator();
+  auto* merge_visible_action = menu.addAction(tr("Merge Visible to New Layer (Copy)"));
+  merge_visible_action->setObjectName(QStringLiteral("layerContextMergeVisibleAction"));
+  merge_visible_action->setEnabled(other_layers);
+  if (image_flatten_action_ != nullptr) {
+    menu.addAction(image_flatten_action_);
+  }
+  hide_menu_action_icons(&menu);
+  auto* chosen = menu.exec(global_position);
+  if (chosen == from_background_action) {
+    layer_from_background();
+  } else if (chosen == duplicate_action) {
+    duplicate_active_layer();
+  } else if (chosen == duplicate_to_document_action) {
+    duplicate_layer_to_document();
+  } else if (chosen == delete_action) {
+    delete_active_layer();
+  } else if (chosen == merge_visible_action) {
+    merge_visible_to_new_layer();
+  }
+}
+
 void MainWindow::merge_visible_to_new_layer() {
   if (canvas_ != nullptr) { canvas_->finish_free_transform(); }
   finish_active_text_editor();
@@ -3838,6 +3967,9 @@ bool document_is_flat(const Document& document) {
          layer.bounds().width == document.width() && layer.bounds().height == document.height();
 }
 
+
+}  // namespace
+
 // Photoshop's Flatten Image fills transparent areas with white: straight-alpha RGBA in,
 // opaque RGB at the same depth out. 32-bit rows blend in linear light, like the compositor.
 PixelBuffer composite_onto_white(const PixelBuffer& rgba) {
@@ -3858,8 +3990,6 @@ PixelBuffer composite_onto_white(const PixelBuffer& rgba) {
   }
   return rgb;
 }
-
-}  // namespace
 
 // Image > Flatten Image (and the Layers panel menu): every visible layer, vectors, text and
 // effects included, becomes one opaque, locked "Background" like a new document's; hidden

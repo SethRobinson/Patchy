@@ -1135,11 +1135,13 @@ void ui_layer_rows_toggle_visibility_and_drag_reorder() {
   CHECK(canvas->has_selection());
   CHECK(layer_list->selectedItems().size() == selected_rows_before_thumbnail);
 
-  CHECK(layer_list->model()->moveRow(QModelIndex(), 0, QModelIndex(), layer_list->count()));
+  // Dragged down to just above the Background, which keeps the bottom (GitHub issue 274).
+  CHECK(layer_list->model()->moveRow(QModelIndex(), 0, QModelIndex(), layer_list->count() - 1));
   QApplication::processEvents();
   QApplication::processEvents();
   CHECK(layer_list->count() == 3);
-  CHECK(layer_list->item(layer_list->count() - 1)->text() == QStringLiteral("Layer 3"));
+  CHECK(layer_list->item(layer_list->count() - 2)->text() == QStringLiteral("Layer 3"));
+  CHECK(layer_list->item(layer_list->count() - 1)->text() == QStringLiteral("Background"));
   QStringList names_after_drop;
   for (int row = 0; row < layer_list->count(); ++row) {
     names_after_drop << layer_list->item(row)->text();
@@ -2353,6 +2355,137 @@ void ui_layer_color_labels_menu_undo_and_row_strip() {
   CHECK(label_of("Background") == patchy::kLayerColorBlue);
 }
 
+// GitHub issue 276: a right-click on a row's eye opens Photoshop's short color menu (None,
+// then the seven colors: the Layer > Color actions) instead of the layer menu. It labels
+// the selected layers in one undo step; an unselected row's eye selects that row first.
+void ui_layer_eye_right_click_opens_color_menu() {
+  patchy::Document document(96, 64, patchy::PixelFormat::rgba8());
+  document.add_pixel_layer("Base", solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(245, 245, 245)));
+  document.add_pixel_layer("Middle", solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(40, 90, 200)));
+  document.add_pixel_layer("Top", solid_pixels(96, 64, patchy::PixelFormat::rgba8(), QColor(220, 90, 40)));
+  patchy::ui::MainWindow window;
+  show_window(window);
+  window.add_document_session(std::move(document), QStringLiteral("Eye Colors"));
+  QApplication::processEvents();
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  const auto& doc = std::as_const(patchy::ui::MainWindowTestAccess::document(window));
+  const auto label_of = [&](const char* name) {
+    for (const auto& layer : doc.layers()) {
+      if (layer.name() == name) {
+        return layer.color_label();
+      }
+    }
+    CHECK(false);
+    return patchy::LayerColorLabel{0xffffU};
+  };
+  const auto select_only = [&](std::initializer_list<const char*> names) {
+    layer_list->clearSelection();
+    bool first = true;
+    for (const auto* name : names) {
+      auto* item = require_layer_item(*layer_list, QString::fromLatin1(name));
+      if (first) {
+        layer_list->setCurrentItem(item);
+        first = false;
+      }
+      item->setSelected(true);
+    }
+    QApplication::processEvents();
+  };
+  // Right-clicks the eye of `row_name` and picks `pick` (an action objectName) from the menu
+  // that opens; returns that menu's objectName and its action names.
+  const auto right_click_eye = [&](const char* row_name, const char* pick) {
+    std::pair<QString, QStringList> seen;
+    QTimer::singleShot(0, [&seen, pick] {
+      for (auto* widget : QApplication::topLevelWidgets()) {
+        auto* menu = qobject_cast<QMenu*>(widget);
+        if (menu == nullptr || !menu->isVisible()) {
+          continue;
+        }
+        seen.first = menu->objectName();
+        QAction* chosen = nullptr;
+        for (auto* action : menu->actions()) {
+          seen.second.push_back(action->isSeparator() ? QStringLiteral("-") : action->objectName());
+          if (action->objectName() == QLatin1String(pick)) {
+            chosen = action;
+          }
+          if (!action->isSeparator() && action->objectName() != QStringLiteral("layerColorNoneAction") &&
+              (action->icon().isNull() || !action->isIconVisibleInMenu())) {
+            seen.second.push_back(QStringLiteral("no swatch"));
+          }
+        }
+        if (chosen != nullptr) {
+          menu->setActiveAction(chosen);
+          save_widget_artifact("issue276_eye_color_menu", *menu);
+          QTest::keyClick(menu, Qt::Key_Return);
+        } else {
+          menu->close();
+        }
+        return;
+      }
+    });
+    auto* row = layer_list->itemWidget(require_layer_item(*layer_list, QString::fromLatin1(row_name)));
+    CHECK(row != nullptr);
+    auto* eye = row != nullptr ? row->findChild<QWidget*>(QStringLiteral("layerVisibilityCheck")) : nullptr;
+    CHECK(eye != nullptr);
+    if (eye != nullptr) {
+      const auto local = eye->rect().center();
+      QContextMenuEvent context_event(QContextMenuEvent::Mouse, local, eye->mapToGlobal(local));
+      QApplication::sendEvent(eye, &context_event);
+    }
+    QApplication::processEvents();
+    return seen;
+  };
+
+  select_only({"Top", "Middle"});
+  const auto undo_depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  const auto seen = right_click_eye("Middle", "layerColorRedAction");
+  CHECK(seen.first == QStringLiteral("layerEyeColorMenu"));
+  CHECK(seen.second == (QStringList{QStringLiteral("layerColorNoneAction"), QStringLiteral("-"),
+                                    QStringLiteral("layerColorRedAction"), QStringLiteral("layerColorOrangeAction"),
+                                    QStringLiteral("layerColorYellowAction"), QStringLiteral("layerColorGreenAction"),
+                                    QStringLiteral("layerColorBlueAction"), QStringLiteral("layerColorVioletAction"),
+                                    QStringLiteral("layerColorGrayAction")}));
+  CHECK(label_of("Top") == patchy::kLayerColorRed);
+  CHECK(label_of("Middle") == patchy::kLayerColorRed);
+  CHECK(label_of("Base") == patchy::kLayerColorNone);
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth + 1);
+  // The layers stay visible: a right-click never toggles the eye.
+  CHECK(std::all_of(doc.layers().begin(), doc.layers().end(), [](const patchy::Layer& layer) { return layer.visible(); }));
+
+  // An unselected row's eye: that row alone takes the color.
+  const auto green = right_click_eye("Base", "layerColorGreenAction");
+  CHECK(green.first == QStringLiteral("layerEyeColorMenu"));
+  CHECK(label_of("Base") == patchy::kLayerColorGreen);
+  CHECK(label_of("Top") == patchy::kLayerColorRed);
+  save_widget_artifact("issue276_layers_after_eye_colors", *window.findChild<QWidget*>(QStringLiteral("layersDock")));
+
+  // The rest of the row still opens the layer menu.
+  const auto row_menu = [&] {
+    QString name;
+    QTimer::singleShot(0, [&name] {
+      for (auto* widget : QApplication::topLevelWidgets()) {
+        if (auto* menu = qobject_cast<QMenu*>(widget); menu != nullptr && menu->isVisible()) {
+          name = menu->objectName();
+          menu->close();
+          return;
+        }
+      }
+    });
+    const auto point = layer_list->visualItemRect(require_layer_item(*layer_list, QStringLiteral("Top"))).center();
+    QContextMenuEvent context_event(QContextMenuEvent::Mouse, point, layer_list->viewport()->mapToGlobal(point));
+    QApplication::sendEvent(layer_list->viewport(), &context_event);
+    QApplication::processEvents();
+    return name;
+  }();
+  CHECK(row_menu == QStringLiteral("layerContextMenu"));
+  // The row menu hides the shared actions' icons; the eye menu still shows its swatches.
+  const auto after_row_menu = right_click_eye("Top", "layerColorNoneAction");
+  CHECK(after_row_menu.first == QStringLiteral("layerEyeColorMenu"));
+  CHECK(!after_row_menu.second.contains(QStringLiteral("no swatch")));
+  CHECK(label_of("Top") == patchy::kLayerColorNone);
+}
+
 // GitHub issue 244: the reporter's sample in the Layers panel, Dark and Light, for
 // the issue's before and after pictures, and every sample row's strip. The
 // "before" pictures came from this test without the strip checks on an older build.
@@ -2548,10 +2681,10 @@ void ui_psd_background_hides_prevent_auto_nesting_badge() {
     }
     return tips;
   };
+  // The Background's one padlock (GitHub issue 274) stands for its auto-nest bit too.
   const auto background_tips = badge_tips("Background");
-  CHECK(background_tips.size() == 2);
-  CHECK(background_tips.contains(QStringLiteral("Transparent pixels locked")));
-  CHECK(background_tips.contains(QStringLiteral("Position locked")));
+  CHECK(background_tips.size() == 1);
+  CHECK(background_tips.size() == 1 && background_tips.front().startsWith(QStringLiteral("Background")));
   CHECK(badge_tips("Nesting") == QStringList{QStringLiteral("Auto-nesting into and out of artboards prevented")});
 
   const auto& document = patchy::ui::MainWindowTestAccess::document(window);
@@ -4872,6 +5005,7 @@ std::vector<patchy::test::TestCase> layer_panel_organization_tests() {
        ui_layer_styles_button_tracks_selection_and_lists_effects},
       {"ui_layer_styles_menu_entry_opens_dialog_on_effect", ui_layer_styles_menu_entry_opens_dialog_on_effect},
       {"ui_layer_color_labels_menu_undo_and_row_strip", ui_layer_color_labels_menu_undo_and_row_strip},
+      {"ui_layer_eye_right_click_opens_color_menu", ui_layer_eye_right_click_opens_color_menu},
       {"ui_issue_244_sample_layers_panel_shots_if_available",
        ui_issue_244_sample_layers_panel_shots_if_available},
       {"ui_issue_246_sample_prevent_auto_nesting_if_available",
