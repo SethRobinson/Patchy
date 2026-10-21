@@ -108,7 +108,7 @@ QString resource_icon_key(const QString& value) {
   if (value == QStringLiteral("D")) {
     return QStringLiteral("default-colors");
   }
-  if (value == QStringLiteral("X") || value == QStringLiteral("swap")) {
+  if (value == QStringLiteral("X")) {
     return QStringLiteral("swap-colors");
   }
   if (value == QStringLiteral("N")) {
@@ -228,13 +228,6 @@ void paint_simple_icon_glyph(QPainter& painter, const QString& text, const QColo
     painter.drawLine(QPointF(10.5, 17.5), QPointF(14.0, 14.0));
     painter.drawLine(QPointF(10.5, 17.5), QPointF(14.0, 21.0));
     painter.drawLine(QPointF(7.0, 24.5), QPointF(25.0, 24.5));
-  } else if (text == QStringLiteral("swap")) {
-    painter.drawLine(8, 11, 23, 11);
-    painter.drawLine(23, 11, 19, 7);
-    painter.drawLine(23, 11, 19, 15);
-    painter.drawLine(24, 21, 9, 21);
-    painter.drawLine(9, 21, 13, 17);
-    painter.drawLine(9, 21, 13, 25);
   } else if (text == QStringLiteral("default")) {
     painter.setBrush(Qt::black);
     painter.drawRect(QRect(7, 7, 13, 13));

@@ -4,6 +4,7 @@
 #include "ui/main_window.hpp"
 #include "ui/app_settings.hpp"
 #include "test_harness.hpp"
+#include <QAbstractButton>
 #include <QAbstractSpinBox>
 #include <QApplication>
 #include <QCheckBox>
@@ -683,8 +684,8 @@ void ui_marquee_swap_button_swaps_width_and_height() {
   auto* height = window.findChild<QSpinBox*>(QStringLiteral("selectionFixedHeightSpin"));
   auto* ratio_width = window.findChild<QDoubleSpinBox*>(QStringLiteral("selectionRatioWidthSpin"));
   auto* ratio_height = window.findChild<QDoubleSpinBox*>(QStringLiteral("selectionRatioHeightSpin"));
-  auto* size_swap = window.findChild<QPushButton*>(QStringLiteral("selectionFixedSizeSwapButton"));
-  auto* ratio_swap = window.findChild<QPushButton*>(QStringLiteral("selectionRatioSwapButton"));
+  auto* size_swap = window.findChild<QAbstractButton*>(QStringLiteral("selectionFixedSizeSwapButton"));
+  auto* ratio_swap = window.findChild<QAbstractButton*>(QStringLiteral("selectionRatioSwapButton"));
   CHECK(style != nullptr && width != nullptr && height != nullptr);
   CHECK(ratio_width != nullptr && ratio_height != nullptr);
   CHECK(size_swap != nullptr && ratio_swap != nullptr);

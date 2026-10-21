@@ -61,6 +61,7 @@
     <file alias="selection-edges.svg">icons/selection-edges.svg</file>
     <file alias="default-colors.svg">icons/default-colors.svg</file>
     <file alias="swap-colors.svg">icons/swap-colors.svg</file>
+    <file alias="swap-dimensions.svg">icons/swap-dimensions.svg</file>
     <file alias="selection-new.svg">icons/selection-new.svg</file>
     <file alias="selection-add.svg">icons/selection-add.svg</file>
     <file alias="selection-subtract.svg">icons/selection-subtract.svg</file>
