@@ -2891,6 +2891,95 @@ void liquify_render_preserves_identity_and_scales_the_field() {
   CHECK(!cancelled.has_value());
 }
 
+// GitHub issue 296 made the mesh update and the render faster; neither may change a
+// byte. Every tool runs on proxy-sized meshes (one with the 129-node cap) and the
+// field renders onto RGBA (varied and zero alpha), RGB, a scaled layer and a one-pixel
+// axis. The digests were recorded from the renderer before the speedup.
+void liquify_strokes_and_render_are_pinned() {
+  const auto make_source = [](int width, int height, int channels) {
+    patchy::PixelBuffer source(width, height,
+                               channels == 4 ? patchy::PixelFormat::rgba8() : patchy::PixelFormat::rgb8());
+    std::uint64_t seed = 0x243F6A8885A308D3ULL;
+    for (int y = 0; y < height; ++y) {
+      for (int x = 0; x < width; ++x) {
+        seed += 0x9E3779B97F4A7C15ULL;
+        auto z = seed;
+        z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+        z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
+        z ^= z >> 31;
+        auto* pixel = source.pixel(x, y);
+        pixel[0] = static_cast<std::uint8_t>(x * 255 / std::max(1, width - 1) ^ (z & 15U));
+        pixel[1] = static_cast<std::uint8_t>(y * 255 / std::max(1, height - 1) ^ ((z >> 8) & 15U));
+        pixel[2] = static_cast<std::uint8_t>(z >> 16);
+        if (channels == 4) {
+          // Every fourth band fully transparent, the rest partially or fully opaque.
+          pixel[3] = ((x / 7 + y / 5) % 4 == 0) ? std::uint8_t{0} : static_cast<std::uint8_t>(z >> 24 | 0x20U);
+        }
+      }
+    }
+    return source;
+  };
+  const auto stroke_all_tools = [](patchy::LiquifyMesh& mesh) {
+    const double w = mesh.width();
+    const double h = mesh.height();
+    const double s = std::min(w, h);
+    using patchy::LiquifyTool;
+    mesh.apply_stroke(LiquifyTool::ForwardWarp, 0.2 * w, 0.3 * h, 0.7 * w, 0.45 * h, 0.3 * s, 60, 50);
+    mesh.apply_stroke(LiquifyTool::ForwardWarp, 0.9 * w, 0.9 * h, 0.6 * w, 0.2 * h, 0.12 * s, 100, 10);
+    mesh.apply_stroke(LiquifyTool::FreezeMask, 0.3 * w, 0.7 * h, 0.5 * w, 0.75 * h, 0.2 * s, 70, 90);
+    mesh.apply_stroke(LiquifyTool::TwirlClockwise, 0.4 * w, 0.6 * h, 0.42 * w, 0.62 * h, 0.5 * s, 80, 50);
+    mesh.apply_stroke(LiquifyTool::TwirlCounterClockwise, 0.7 * w, 0.3 * h, 0.7 * w, 0.3 * h, 0.25 * s, 40, 70);
+    mesh.apply_stroke(LiquifyTool::Pucker, 0.25 * w, 0.25 * h, 0.3 * w, 0.2 * h, 0.35 * s, 90, 30);
+    mesh.apply_stroke(LiquifyTool::Bloat, 0.8 * w, 0.6 * h, 0.75 * w, 0.65 * h, 0.3 * s, 55, 100);
+    mesh.apply_stroke(LiquifyTool::Smooth, 0.1 * w, 0.5 * h, 0.9 * w, 0.5 * h, 0.4 * s, 75, 50);
+    mesh.apply_stroke(LiquifyTool::ThawMask, 0.35 * w, 0.7 * h, 0.4 * w, 0.72 * h, 0.1 * s, 100, 100);
+    mesh.apply_stroke(LiquifyTool::ForwardWarp, 0.3 * w, 0.75 * h, 0.55 * w, 0.6 * h, 0.4 * s, 100, 100);
+    mesh.apply_stroke(LiquifyTool::Reconstruct, 0.6 * w, 0.35 * h, 0.65 * w, 0.4 * h, 0.2 * s, 50, 50);
+    // A brush larger than the mesh and one dab hanging off its edge.
+    mesh.apply_stroke(LiquifyTool::ForwardWarp, -0.1 * w, 0.5 * h, 0.05 * w, 0.52 * h, 2.5 * s, 30, 60);
+  };
+  const auto digest = [](const std::optional<patchy::PixelBuffer>& pixels) -> std::uint64_t {
+    CHECK(pixels.has_value());
+    return pixels ? patchy::test::fnv1a_hash_bytes(pixels->data()) : 0U;
+  };
+  // Every digest is printed on a mismatch before the test fails, so a deliberate
+  // change can re-pin them all from one run.
+  bool all_match = true;
+  const auto expect = [&all_match](const char* name, std::uint64_t actual, std::uint64_t expected) {
+    if (actual != expected) {
+      std::cout << "liquify pin " << name << ": 0x" << std::hex << actual << std::dec << "ULL\n";
+      all_match = false;
+    }
+  };
+
+  patchy::LiquifyMesh proxy(180, 135);
+  stroke_all_tools(proxy);
+  std::uint64_t field = 0xcbf29ce484222325ULL;
+  for (int y = 0; y < proxy.height(); y += 3) {
+    for (int x = 0; x < proxy.width(); x += 3) {
+      const auto [dx, dy] = proxy.displacement_at(x, y);
+      for (const auto value : {std::llround(dx * 256.0), std::llround(dy * 256.0),
+                               std::llround(proxy.freeze_strength_at(x, y) * 1e6)}) {
+        field = (field ^ static_cast<std::uint64_t>(value)) * 0x100000001b3ULL;
+      }
+    }
+  }
+  expect("field", field, 0xa0159009d6250713ULL);
+  expect("proxy_rgba", digest(proxy.render(make_source(180, 135, 4))), 0x2b1e10f91a4db272ULL);
+  expect("proxy_rgb", digest(proxy.render(make_source(180, 135, 3))), 0xa061797365f31db7ULL);
+  expect("scaled_rgba", digest(proxy.render(make_source(437, 301, 4))), 0xa5af3867a71c23a9ULL);
+  expect("thin_rgba", digest(proxy.render(make_source(1, 57, 4))), 0xff7125d44c1f8d3eULL);
+
+  // More than 129 nodes per axis would be needed: the grid is capped and its spacing
+  // is no longer 8 px.
+  patchy::LiquifyMesh capped(1100, 820);
+  CHECK(capped.columns() == 129 && capped.rows() == 104);
+  stroke_all_tools(capped);
+  expect("capped_rgba", digest(capped.render(make_source(1100, 820, 4))), 0xa86941d5b87a0faeULL);
+  expect("capped_rgb_downscaled", digest(capped.render(make_source(613, 409, 3))), 0xcb7d1077ba671e4eULL);
+  CHECK(all_match);
+}
+
 // Box Blur radii above the historical 12 px range run an exact integer
 // running-sum path, so a 2000 px radius costs the same per pixel as a 13 px
 // one. It must equal a brute-force edge-clamped, alpha-weighted box average,
@@ -3120,6 +3209,7 @@ std::vector<patchy::test::TestCase> document_ops_filters_tests() {
        liquify_freeze_mask_protects_the_deformation_field},
       {"liquify_render_preserves_identity_and_scales_the_field",
        liquify_render_preserves_identity_and_scales_the_field},
+      {"liquify_strokes_and_render_are_pinned", liquify_strokes_and_render_are_pinned},
       {"document_rotate_arbitrary_quarter_turn_matches_rotate_right",
        document_rotate_arbitrary_quarter_turn_matches_rotate_right},
       {"document_rotate_arbitrary_expands_canvas_to_fit", document_rotate_arbitrary_expands_canvas_to_fit},

@@ -14267,10 +14267,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Selezione automatica</translation>
     </message>
     <message>
-        <source>Show Transform Controls</source>
-        <translation>Mostra controlli di trasformazione</translation>
-    </message>
-    <message>
         <source>Aligned</source>
         <translation>Allineato</translation>
     </message>
@@ -23361,6 +23357,10 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
     <message>
         <source>Smart Sharpen</source>
         <translation>Nitidezza intelligente</translation>
+    </message>
+    <message>
+        <source>Transform Controls</source>
+        <translation>Controlli di trasformazione</translation>
     </message>
     <message>
         <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>

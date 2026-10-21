@@ -15177,10 +15177,6 @@ Either way Patchy writes a copy; the open document keeps its layers and unsaved 
         <translation>%1 枚のレイヤーを選択中</translation>
     </message>
     <message>
-        <source>Show Transform Controls</source>
-        <translation>変形コントロールを表示</translation>
-    </message>
-    <message>
         <source>Show transform controls when selecting a layer with Move</source>
         <translation>移動ツールでレイヤーを選択したときに変形コントロールを表示します</translation>
     </message>
@@ -23289,6 +23285,10 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>Smart Sharpen</source>
         <translation>スマートシャープ</translation>
+    </message>
+    <message>
+        <source>Transform Controls</source>
+        <translation>変形コントロール</translation>
     </message>
     <message>
         <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>

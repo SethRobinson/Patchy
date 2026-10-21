@@ -14443,10 +14443,6 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Automatyczne zaznaczanie</translation>
     </message>
     <message>
-        <source>Show Transform Controls</source>
-        <translation>Pokaż elementy sterujące transformacją</translation>
-    </message>
-    <message>
         <source>Snap</source>
         <translation>Przyciągaj</translation>
     </message>
@@ -23433,6 +23429,10 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     <message>
         <source>Smart Sharpen</source>
         <translation>Inteligentne wyostrzanie</translation>
+    </message>
+    <message>
+        <source>Transform Controls</source>
+        <translation>Elementy sterujące transformacją</translation>
     </message>
     <message>
         <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
