@@ -208,6 +208,27 @@ bool layer_effectively_locks_transparent_pixels(const std::vector<Layer>& layers
   return has_any_flags(layer_effective_lock_flags(layers, layer_id), kLayerLockTransparentPixels);
 }
 
+const Layer* background_layer(const std::vector<Layer>& layers, std::int32_t canvas_width,
+                              std::int32_t canvas_height) {
+  if (layers.empty()) {
+    return nullptr;
+  }
+  const auto& bottom = layers.front();
+  if (bottom.kind() != LayerKind::Pixel || layer_is_text(bottom) || layer_is_smart_object(bottom) ||
+      layer_is_vector_shape(bottom) || bottom.pixels().format().channels != 3U ||
+      !has_any_flags(bottom.lock_flags(), kLayerLockPosition) ||
+      bottom.bounds() != Rect{0, 0, canvas_width, canvas_height}) {
+    return nullptr;
+  }
+  return &bottom;
+}
+
+bool layer_stack_keeps_background(const std::vector<Layer>& before, const std::vector<Layer>& after,
+                                  std::int32_t canvas_width, std::int32_t canvas_height) {
+  const auto* background = background_layer(before, canvas_width, canvas_height);
+  return background == nullptr || (!after.empty() && after.front().id() == background->id());
+}
+
 bool layer_effectively_locks_image_pixels(const std::vector<Layer>& layers, LayerId layer_id) {
   return has_any_flags(layer_effective_lock_flags(layers, layer_id), kLayerLockImagePixels);
 }

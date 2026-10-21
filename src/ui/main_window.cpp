@@ -9679,6 +9679,12 @@ void MainWindow::merge_down() {
   auto merged_pixels = pixels_from_image_at_depth(image, merge_depth);
 
   merge_edit_lock.release();
+  // A merge into the Background keeps it one (Photoshop; GitHub issue 274): opaque RGB over the
+  // whole canvas, which an opaque full-canvas target already is.
+  const auto canvas_rect = Rect::from_size(doc.width(), doc.height());
+  if (layer_is_document_background(target_id) && merge_bounds == canvas_rect) {
+    merged_pixels = composite_onto_white(merged_pixels);
+  }
   push_undo_snapshot(tr("Merge down"));
   const auto target_location = find_layer_location(doc.layers(), target_id);
   if (!target_location.has_value()) {

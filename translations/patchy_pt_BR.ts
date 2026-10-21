@@ -11536,6 +11536,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source> (Amount %1%, Radius %2 px, Legacy)</source>
         <translation> (Intensidade %1%, Raio %2 px, Legado)</translation>
     </message>
+    <message>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
+        <translation>Plano de fundo: fica na base da pilha, sem transparência nem estilos de camada. Clique com o botão direito nele e escolha Camada do plano de fundo para torná-lo uma camada comum.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23361,6 +23365,22 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
     <message>
         <source>Transform Controls</source>
         <translation>Controles de transformação</translation>
+    </message>
+    <message>
+        <source>The Background layer cannot go inside a folder</source>
+        <translation>A camada de plano de fundo não pode ficar dentro de uma pasta</translation>
+    </message>
+    <message>
+        <source>The Background layer stays at the bottom of the stack</source>
+        <translation>A camada de plano de fundo fica na base da pilha</translation>
+    </message>
+    <message>
+        <source>Layer from Background</source>
+        <translation>Camada do plano de fundo</translation>
+    </message>
+    <message>
+        <source>The Background layer cannot have layer styles</source>
+        <translation>A camada de plano de fundo não pode ter estilos de camada</translation>
     </message>
 </context>
 <context>

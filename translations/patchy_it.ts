@@ -11536,6 +11536,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source> (Amount %1%, Radius %2 px, Legacy)</source>
         <translation> (Fattore %1%, Raggio %2 px, Precedente)</translation>
     </message>
+    <message>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
+        <translation>Sfondo: resta in fondo alla pila, senza trasparenza né stili di livello. Fai clic con il pulsante destro e scegli Livello da sfondo per renderlo un livello normale.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23361,6 +23365,22 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
     <message>
         <source>Transform Controls</source>
         <translation>Controlli di trasformazione</translation>
+    </message>
+    <message>
+        <source>The Background layer cannot go inside a folder</source>
+        <translation>Il livello di sfondo non può stare in una cartella</translation>
+    </message>
+    <message>
+        <source>The Background layer stays at the bottom of the stack</source>
+        <translation>Il livello di sfondo resta in fondo alla pila</translation>
+    </message>
+    <message>
+        <source>Layer from Background</source>
+        <translation>Livello da sfondo</translation>
+    </message>
+    <message>
+        <source>The Background layer cannot have layer styles</source>
+        <translation>Il livello di sfondo non può avere stili di livello</translation>
     </message>
 </context>
 <context>

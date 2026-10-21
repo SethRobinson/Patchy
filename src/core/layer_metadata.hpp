@@ -148,6 +148,18 @@ void set_layer_lock_flag(Layer& layer, LayerLockFlags flag, bool locked);
 [[nodiscard]] LayerLockFlags layer_effective_lock_flags(const std::vector<Layer>& layers, LayerId layer_id);
 [[nodiscard]] LayerLockFlags layer_ancestor_lock_flags(const std::vector<Layer>& layers, LayerId layer_id);
 [[nodiscard]] bool layer_effectively_locks_transparent_pixels(const std::vector<Layer>& layers, LayerId layer_id);
+// Photoshop's Background layer (GitHub issue 274): the bottom top-level pixel layer with no
+// transparency, covering exactly the canvas, with its position locked. File > New and Flatten
+// Image make one, the PSD reader turns Photoshop's (a bottom record with no transparency
+// channel) into one, and the PSD writer writes it back as one. It stays at the bottom of the
+// stack and takes no layer styles; clearing its position lock (Layer from Background) makes it
+// an ordinary layer. Null when the stack has none.
+[[nodiscard]] const Layer* background_layer(const std::vector<Layer>& layers, std::int32_t canvas_width,
+                                            std::int32_t canvas_height);
+// False when `before` has a Background and `after` no longer has that layer (by id) as its
+// bottom top-level layer: a reorder, nesting or insertion that would move it off the bottom.
+[[nodiscard]] bool layer_stack_keeps_background(const std::vector<Layer>& before, const std::vector<Layer>& after,
+                                                std::int32_t canvas_width, std::int32_t canvas_height);
 [[nodiscard]] bool layer_effectively_locks_image_pixels(const std::vector<Layer>& layers, LayerId layer_id);
 [[nodiscard]] bool layer_effectively_locks_position(const std::vector<Layer>& layers, LayerId layer_id);
 

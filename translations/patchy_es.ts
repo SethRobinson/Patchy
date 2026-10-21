@@ -11536,6 +11536,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source> (Amount %1%, Radius %2 px, Legacy)</source>
         <translation> (Cantidad %1%, Radio %2 px, Heredado)</translation>
     </message>
+    <message>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
+        <translation>Fondo: se queda al final de la pila, sin transparencia ni estilos de capa. Haga clic con el botón derecho y elija Capa a partir de fondo para convertirlo en una capa normal.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23361,6 +23365,22 @@ Puedes hacerlo más tarde desde Ayuda &gt; Añadir Patchy al menú de aplicacion
     <message>
         <source>Transform Controls</source>
         <translation>Controles de transformación</translation>
+    </message>
+    <message>
+        <source>The Background layer cannot go inside a folder</source>
+        <translation>La capa de fondo no puede ir dentro de una carpeta</translation>
+    </message>
+    <message>
+        <source>The Background layer stays at the bottom of the stack</source>
+        <translation>La capa de fondo se queda al final de la pila</translation>
+    </message>
+    <message>
+        <source>Layer from Background</source>
+        <translation>Capa a partir de fondo</translation>
+    </message>
+    <message>
+        <source>The Background layer cannot have layer styles</source>
+        <translation>La capa de fondo no puede tener estilos de capa</translation>
     </message>
 </context>
 <context>

@@ -11536,6 +11536,10 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source> (Amount %1%, Radius %2 px, Legacy)</source>
         <translation> (Stärke %1%, Radius %2 px, Herkömmlich)</translation>
     </message>
+    <message>
+        <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
+        <translation>Hintergrund: Diese Ebene bleibt ganz unten im Stapel, ohne Transparenz und ohne Ebenenstile. Klicken Sie mit der rechten Maustaste darauf und wählen Sie Ebene aus Hintergrund, um sie zu einer normalen Ebene zu machen.</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -23361,6 +23365,22 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
     <message>
         <source>Transform Controls</source>
         <translation>Transformationssteuerungen</translation>
+    </message>
+    <message>
+        <source>The Background layer cannot go inside a folder</source>
+        <translation>Die Hintergrundebene kann nicht in einen Ordner</translation>
+    </message>
+    <message>
+        <source>The Background layer stays at the bottom of the stack</source>
+        <translation>Die Hintergrundebene bleibt ganz unten im Stapel</translation>
+    </message>
+    <message>
+        <source>Layer from Background</source>
+        <translation>Ebene aus Hintergrund</translation>
+    </message>
+    <message>
+        <source>The Background layer cannot have layer styles</source>
+        <translation>Die Hintergrundebene kann keine Ebenenstile haben</translation>
     </message>
 </context>
 <context>

@@ -1425,6 +1425,87 @@ void psd_writer_preserves_layer_additional_blocks_and_long_names() {
   CHECK(read_again.layers().front().metadata().at(patchy::kLayerMetadataText) == text);
 }
 
+// Saves `bytes` as test-artifacts/psd-background/<name> for the Photoshop open check
+// (scripts/dev/photoshop-open-check.ps1, docs/background-layer.md).
+void save_background_psd_artifact(const char* name, const std::vector<std::uint8_t>& bytes) {
+  const auto dir = std::filesystem::path("test-artifacts") / "psd-background";
+  std::filesystem::create_directories(dir);
+  std::ofstream out(dir / name, std::ios::binary);
+  out.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+}
+
+// GitHub issue 274: a bottom record with no transparency channel is Photoshop's Background.
+// A Patchy-written one (an unlocked opaque bottom layer) comes back as the locked Background
+// Photoshop shows, under its own name, and stays one through another round trip.
+void psd_bottom_record_without_transparency_reads_as_background() {
+  patchy::Document document(4, 3, patchy::PixelFormat::rgb8());
+  document.add_pixel_layer("Paper", patchy::test::solid_rgb(4, 3, 240, 230, 220));
+  document.add_pixel_layer("Paint", patchy::test::solid_rgba(4, 3, 10, 20, 30, 128));
+  CHECK(patchy::background_layer(document.layers(), 4, 3) == nullptr);
+  auto reread = patchy::psd::DocumentIo::read(patchy::psd::DocumentIo::write_layered_rgb8(document));
+  CHECK(reread.layers().size() == 2U);
+  const auto* background = patchy::background_layer(std::as_const(reread).layers(), 4, 3);
+  CHECK(background != nullptr);
+  if (background == nullptr) {
+    return;
+  }
+  CHECK(background->name() == "Paper");
+  CHECK((patchy::layer_lock_flags(*background) & (patchy::kLayerLockPosition | patchy::kLayerLockTransparentPixels)) ==
+        (patchy::kLayerLockPosition | patchy::kLayerLockTransparentPixels));
+  CHECK(background->pixels().pixel(0, 0)[0] == 240);
+  // And again: the Background stays one, the layer above stays ordinary.
+  const auto resaved = patchy::psd::DocumentIo::write_layered_rgb8(reread);
+  save_background_psd_artifact("background-and-layer.psd", resaved);
+  const auto again = patchy::psd::DocumentIo::read(resaved);
+  CHECK(patchy::background_layer(again.layers(), 4, 3) != nullptr);
+  CHECK(again.layers().back().name() == "Paint");
+  CHECK(patchy::layer_lock_flags(again.layers().back()) == patchy::kLayerLockNone);
+}
+
+// The issue's sample, ag-psd's test/write/float-size/expected.psd (MIT; copied into
+// local-test-fixtures/ag-psd/float-size with Photoshop 2026's flatten ps-flat.png): one
+// 300x200 record without a transparency channel on a 2000x2000 canvas. Photoshop opens it as
+// a full-canvas Background, white outside the record.
+void psd_ag_psd_float_size_background_fills_the_canvas_if_available() {
+  const auto path =
+      patchy::test::source_root_path() / "local-test-fixtures" / "ag-psd" / "float-size" / "expected.psd";
+  patchy::test::skip_unless_exists(path);
+  const auto document = patchy::psd::DocumentIo::read_file(path);
+  CHECK(document.width() == 2000 && document.height() == 2000);
+  CHECK(document.layers().size() == 1U);
+  const auto* background = patchy::background_layer(document.layers(), 2000, 2000);
+  CHECK(background != nullptr);
+  if (background == nullptr) {
+    return;
+  }
+  CHECK(background->name() == "test");  // Photoshop shows "Background"; the record's name is kept
+  // Photoshop's flatten: 20900 non-white pixels, all inside the record, and this byte sum.
+  std::uint64_t sum = 0;
+  std::size_t non_white = 0;
+  const auto& pixels = background->pixels();
+  for (std::int32_t y = 0; y < pixels.height(); ++y) {
+    for (std::int32_t x = 0; x < pixels.width(); ++x) {
+      const auto* px = pixels.pixel(x, y);
+      sum += static_cast<std::uint64_t>(px[0]) + px[1] + px[2];
+      if (px[0] != 255 || px[1] != 255 || px[2] != 255) {
+        ++non_white;
+        CHECK(x >= 1588 && x < 1888 && y >= 148 && y < 348);
+      }
+    }
+  }
+  CHECK(non_white == 20900U);
+  CHECK(sum == 3053627952ULL);
+  const auto composite = patchy::Compositor{}.flatten_rgb8(document);
+  CHECK(composite.pixel(0, 0)[0] == 255 && composite.pixel(1999, 1999)[2] == 255);
+  CHECK(composite.pixel(1700, 250)[0] == 0 && composite.pixel(1700, 250)[1] == 173 &&
+        composite.pixel(1700, 250)[2] == 226);
+  // A save writes it back as Photoshop's Background (full canvas, no transparency channel).
+  const auto resaved = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  save_background_psd_artifact("float-size-resave.psd", resaved);
+  const auto reread = patchy::psd::DocumentIo::read(resaved);
+  CHECK(patchy::background_layer(reread.layers(), 2000, 2000) != nullptr);
+}
+
 void psd_fill_opacity_block_round_trips_and_omits_default() {
   patchy::Document document(1, 1, patchy::PixelFormat::rgb8());
   auto& layer = document.add_pixel_layer("Fill", solid_rgba(1, 1, 20, 40, 60, 255));
@@ -1485,5 +1566,9 @@ std::vector<patchy::test::TestCase> psd_structure_tests() {
        psd_writer_preserves_layer_additional_blocks_and_long_names},
       {"psd_fill_opacity_block_round_trips_and_omits_default",
        psd_fill_opacity_block_round_trips_and_omits_default},
+      {"psd_bottom_record_without_transparency_reads_as_background",
+       psd_bottom_record_without_transparency_reads_as_background},
+      {"psd_ag_psd_float_size_background_fills_the_canvas_if_available",
+       psd_ag_psd_float_size_background_fills_the_canvas_if_available},
   };
 }

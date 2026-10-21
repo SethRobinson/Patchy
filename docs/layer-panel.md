@@ -8,7 +8,7 @@ Layer rows use dynamic properties and application rules such as `QWidget#layerRo
 
 Hidden rows disable name, details, mask link and clip badge; fx, smart-object and vector badges stay clickable, drawn dimmed by `LayerRowBadgeButton` (`layerRowBadgeDimmed`, issue 230).
 
-Locks: the panel's lock buttons and the row's right-click Lock submenu, the only home of Prevent Auto-Nesting (`layer.prevent_auto_nesting`; #246, [artboards.md](artboards.md)). Badges (`make_layer_lock_badge`) show each set lock but a Background's auto-nest bit; folders pass on editing locks only.
+Locks: the panel's lock buttons and the row's right-click Lock submenu, the only home of Prevent Auto-Nesting (`layer.prevent_auto_nesting`; #246, [artboards.md](artboards.md)). Badges (`make_layer_lock_badge`) show each set lock; a Background shows one padlock instead ([background-layer.md](background-layer.md)); folders pass on editing locks only.
 
 ## Thumbnails
 
@@ -102,7 +102,11 @@ Tests: `ui_adjustment_layer_inserts_above_selection_with_white_mask`,
 
 ## Color labels
 
-A layer's color label (#244) is `Layer::color_label()`, Photoshop's `lclr` index (0 none, 1 red, 2 orange, 3 yellow, 4 green, 5 blue, 6 violet, 7 gray; constants and the permanent ids in `core/layer.hpp`). It is not an edit to pixels, so it moves no revision, and locked layers take one. The row shows it as `layerRowColorStrip`, a 4 px strip at x 0 of `layerMainRow` inside the base indent, off the layout and transparent to the mouse, created only for a known nonzero label; QSS paints it from the `layer_color_*` theme roles through its `layerColor` property. Layer > Color (`layerColorMenu`, kept inside the Layer menu's 23-row bound) and the row's context menu (`layerContextColorMenu`) share the `layerColor*Action` actions (hotkey ids `layer.color_<id>`), built by `populate_layer_color_actions`; `set_selected_layers_color` labels the selected rows, groups included, as one undo step, and `refresh_layer_color_action_states` checks the common label (none for a mixed selection). Scripts: `layer.colorLabel`. PSD rules in [ps-compat.md](ps-compat.md). Pinned by `ui_layer_color_labels_menu_undo_and_row_strip`.
+A layer's color label (#244) is `Layer::color_label()`, Photoshop's `lclr` index (0 none, 1 red, 2 orange, 3 yellow, 4 green, 5 blue, 6 violet, 7 gray; constants and the permanent ids in `core/layer.hpp`). It is not an edit to pixels, so it moves no revision, and locked layers take one. The row shows it as `layerRowColorStrip`, a 4 px strip at x 0 of `layerMainRow` inside the base indent, off the layout and transparent to the mouse, created only for a known nonzero label; QSS paints it from the `layer_color_*` theme roles through its `layerColor` property. Layer > Color (`layerColorMenu`, kept inside the Layer menu's 23-row bound) and the row's context menu (`layerContextColorMenu`) share the `layerColor*Action` actions (hotkey ids `layer.color_<id>`), built by `populate_layer_color_actions`; `set_selected_layers_color` labels the selected rows, groups included, as one undo step, and `refresh_layer_color_action_states` checks the common label (none for a mixed selection). Scripts: `layer.colorLabel`. PSD rules in [ps-compat.md](ps-compat.md). A right-click on a row's eye opens `layerEyeColorMenu` with the same actions (Photoshop's short eye menu, #276; `show_layer_eye_color_menu`). Pinned by `ui_layer_color_labels_menu_undo_and_row_strip` and `ui_layer_eye_right_click_opens_color_menu`.
+
+## Background layer
+
+Photoshop's Background rules (stays at the bottom, no layer styles, one padlock badge, the short menu, PSD adoption): [background-layer.md](background-layer.md).
 
 ## Disclosure arrow, double-click, visibility eye
 

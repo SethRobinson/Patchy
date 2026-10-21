@@ -6,6 +6,7 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/qt_paths.hpp"
 #include "ui/tool_cursors.hpp"
+#include "core/layer_metadata.hpp"
 #include "core/palette.hpp"
 #include "ui/pattern_library.hpp"
 #include "ui/brush_tip_library.hpp"
@@ -3046,15 +3047,16 @@ void ui_eraser_on_background_paints_background_color_and_size_cursor() {
 
   auto* background_row = layer_list->itemWidget(background);
   CHECK(background_row != nullptr);
+  // One padlock names the Background (GitHub issue 274); its locks are still both set.
   const auto badges = background_row->findChildren<QLabel*>(QStringLiteral("layerLockBadge"));
-  CHECK(badges.size() == 2);
-  QStringList badge_tips;
-  for (const auto* badge : badges) {
-    badge_tips << badge->toolTip();
-  }
-  const auto joined_tips = badge_tips.join(QLatin1Char(' '));
-  CHECK(joined_tips.contains(QStringLiteral("Transparent pixels locked")));
-  CHECK(joined_tips.contains(QStringLiteral("Position locked")));
+  CHECK(badges.size() == 1);
+  CHECK(badges.size() == 1 && badges.front()->property("layerBackgroundBadge").toBool());
+  const auto background_id = static_cast<patchy::LayerId>(background->data(Qt::UserRole).toULongLong());
+  const auto* background_model =
+      std::as_const(patchy::ui::MainWindowTestAccess::document(window)).find_layer(background_id);
+  CHECK(background_model != nullptr &&
+        (patchy::layer_lock_flags(*background_model) & patchy::kLayerLockTransparentPixels) != 0U &&
+        (patchy::layer_lock_flags(*background_model) & patchy::kLayerLockPosition) != 0U);
 
   const auto erase_point = canvas->widget_position_for_document_point(QPoint(90, 90));
   drag(*canvas, erase_point, erase_point + QPoint(1, 1));

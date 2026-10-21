@@ -1901,14 +1901,22 @@ QWidget* make_layer_row_widget(const Layer& layer, QListWidgetItem* item, QWidge
   auto* lock_badges = new QHBoxLayout();
   lock_badges->setContentsMargins(0, 0, 0, 0);
   lock_badges->setSpacing(2);
+  if (background_row) {
+    // The Background's mark (GitHub issue 274): one padlock, like Photoshop's, that names the
+    // layer; its transparency, position and auto-nest locks (lspf 0xd) need no badges of their own.
+    auto* badge = make_layer_lock_badge(kLayerLockNone, false, row, list_parent);
+    badge->setProperty("layerBackgroundBadge", true);
+    badge->setToolTip(QObject::tr("Background: it stays at the bottom of the stack, with no transparency or "
+                                  "layer styles. Right-click it and choose Layer from Background to make it an "
+                                  "ordinary layer."));
+    lock_badges->addWidget(badge, 0, Qt::AlignVCenter);
+  }
   for (const auto flag : {kLayerLockTransparentPixels, kLayerLockImagePixels, kLayerLockPosition,
                           kLayerLockArtboardAutonest}) {
     if ((effective_lock_flags & flag) == kLayerLockNone) {
       continue;
     }
-    // Photoshop stores Prevent Auto-Nesting on its Background (lspf 0xd) but shows that
-    // layer one lock icon; the Background's own lock badges stand for it here too.
-    if (flag == kLayerLockArtboardAutonest && background_row) {
+    if (background_row && flag != kLayerLockImagePixels) {
       continue;
     }
     const bool inherited = (ancestor_lock_flags & flag) != kLayerLockNone &&
@@ -3006,7 +3014,8 @@ void MainWindow::handle_layer_drop() {
   }
   auto trial_layers = doc.layers();
   const auto before_signature = layer_tree_signature(doc.layers());
-  if (!move_layers_for_drop(trial_layers, *request) || layer_tree_signature(trial_layers) == before_signature) {
+  if (!move_layers_for_drop(trial_layers, *request) || layer_tree_signature(trial_layers) == before_signature ||
+      refuse_background_stack_change(trial_layers)) {
     refresh_layer_list();
     return;
   }
@@ -3080,7 +3089,8 @@ void MainWindow::duplicate_layers_for_drop(const LayerDropRequest& request) {
   LayerDropRequest clone_request = request;
   clone_request.layer_ids_top_to_bottom = clone_ids_top_to_bottom;
   clone_request.copy = false;
-  if (clone_ids_top_to_bottom.empty() || !move_layers_for_drop(trial_layers, clone_request)) {
+  if (clone_ids_top_to_bottom.empty() || !move_layers_for_drop(trial_layers, clone_request) ||
+      refuse_background_stack_change(trial_layers)) {
     undo();
     refresh_layer_list();
     return;
@@ -3145,6 +3155,12 @@ void MainWindow::reorder_layers_from_list() {
     }
   }
 
+  if (const auto* background = document_background_layer();
+      background != nullptr && top_to_bottom.back() != background->id()) {
+    show_status_error(tr("The Background layer stays at the bottom of the stack"));
+    refresh_layer_list();
+    return;
+  }
   push_undo_snapshot(tr("Reorder layers"));
   auto old_layers = std::move(layers);
   std::vector<Layer> reordered;
@@ -3772,6 +3788,10 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
     bool row_clipped{false};
     bool background_row{false};
   };
+  std::optional<LayerId> background_id;
+  if (const auto* background = document_background_layer(); background != nullptr) {
+    background_id = background->id();
+  }
   std::vector<PendingLayerRow> pending_rows;
   std::function<void(const std::vector<Layer>&, int, bool, LayerLockFlags)> append_layers =
       [&](const std::vector<Layer>& layers, int depth, bool ancestors_visible, LayerLockFlags ancestor_lock_flags) {
@@ -3831,10 +3851,8 @@ void MainWindow::refresh_layer_list(bool retire_automation_rows, const std::func
         font.setBold(true);
         item->setFont(font);
       }
-      // A Background: the bottom top-level pixel layer named "Background" (the PSD reader's rule).
-      const auto background_row = depth == 0 && sibling_index == 0 && it->kind() == LayerKind::Pixel &&
-                                  QString::fromStdString(it->name()).compare(QStringLiteral("Background"),
-                                                                             Qt::CaseInsensitive) == 0;
+      // The Background (core background_layer, GitHub issue 274) shows one lock badge.
+      const auto background_row = depth == 0 && background_id.has_value() && it->id() == *background_id;
       pending_rows.push_back(PendingLayerRow{item, &*it, depth, ancestors_visible, group_expanded,
                                              ancestor_lock_flags, row_clipped, background_row});
       item_ms += phase_ms(item_started);
