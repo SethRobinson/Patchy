@@ -12,6 +12,7 @@
 #include <QStatusBar>
 #include "ui/canvas_widget.hpp"
 #include "ui/icon_theme.hpp"
+#include "ui/theme_palette.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/main_window_actions_internal.hpp"
 
@@ -36,6 +37,7 @@
 #include <QAction>
 #include <QActionGroup>
 #include <QEvent>
+#include <QCoreApplication>
 #include <QIcon>
 #include <QKeySequence>
 #include <QLatin1Char>
@@ -45,6 +47,7 @@
 #include <QMenu>
 #include <QMouseEvent>
 #include <QObject>
+#include <QPainter>
 #include <QPoint>
 #include <QPointer>
 #include <QPushButton>
@@ -425,6 +428,47 @@ protected:
 
 private:
   std::function<void()> open_menu_;
+};
+
+// The flyout rows' marker column: the tool the button shows gets a small accent square
+// there, before its icon (GitHub issue 284 follow-up). Every row keeps the column, so
+// icons and names line up whether marked or not.
+constexpr int kFlyoutMarkerColumn = 14;
+constexpr int kFlyoutMarkerSize = 6;
+
+// Paints the marker over the menu: the menu paints itself first (the event is resent to
+// it), then the square goes on the current tool's row, in the text color of a highlighted
+// row so it stays visible there.
+class ToolFlyoutCurrentMarker final : public QObject {
+public:
+  ToolFlyoutCurrentMarker(QToolButton* button, QMenu* menu) : QObject(menu), button_(button) {
+    menu->installEventFilter(this);
+  }
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() != QEvent::Paint || painting_ || button_ == nullptr) {
+      return QObject::eventFilter(watched, event);
+    }
+    auto* menu = static_cast<QMenu*>(watched);
+    painting_ = true;
+    QCoreApplication::sendEvent(menu, event);
+    painting_ = false;
+    auto* current = button_->defaultAction();
+    const QRect row = current != nullptr && current->isVisible() ? menu->actionGeometry(current) : QRect();
+    if (row.isValid()) {
+      const auto& colors = theme();
+      QPainter painter(menu);
+      painter.fillRect(QRect(row.left() + (kFlyoutMarkerColumn - kFlyoutMarkerSize) / 2,
+                             row.top() + (row.height() - kFlyoutMarkerSize) / 2, kFlyoutMarkerSize, kFlyoutMarkerSize),
+                       menu->activeAction() == current ? colors.text_on_accent : colors.accent);
+    }
+    return true;
+  }
+
+private:
+  QPointer<QToolButton> button_;
+  bool painting_{false};
 };
 
 // Opens a flyout beside its button (GitHub issue 284). QToolButton puts a vertical bar's
@@ -955,17 +999,18 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     // of the pair still selects the default tool, as in Photoshop.
     button->installEventFilter(new ToolFlyoutEventFilter([button] { button->showMenu(); }, button));
     new ToolFlyoutMenuPlacement(button, menu);
-    // Tool icons at the palette's own size, centered between the menu's left edge and the
+    new ToolFlyoutCurrentMarker(button, menu);
+    // Tool icons at the palette's own size, centered between the marker column and the
     // names (GitHub issue 284). Qt draws a menu icon at the item's left edge and starts the
     // name after the item's left padding plus the icon column it reserves (icon + 4 px), so
-    // shifting the icon by half of padding + 4 centers it. The padding is restated here
-    // (the app sheet's QMenu::item value) so the centering does not depend on that sheet.
-    constexpr int kFlyoutItemLeftPadding = 24;
+    // the icon shifts past the marker column by half of what is left of padding + 4. The
+    // padding is set here so the centering does not depend on the app sheet's QMenu::item.
+    constexpr int kFlyoutItemLeftPadding = 34;
     menu->setStyleSheet(QStringLiteral("QMenu { icon-size: %1px; } QMenu::item { padding-left: %2px; } "
                                        "QMenu::icon { left: %3px; }")
                             .arg(palette->iconSize().width())
                             .arg(kFlyoutItemLeftPadding)
-                            .arg((kFlyoutItemLeftPadding + 4) / 2));
+                            .arg(kFlyoutMarkerColumn + (kFlyoutItemLeftPadding + 4 - kFlyoutMarkerColumn) / 2));
     for (auto* action : actions) {
       QObject::connect(action, &QAction::triggered, button, [button, menu, action] {
         button->setDefaultAction(action);
