@@ -443,6 +443,161 @@ void ui_options_bar_keeps_one_height_across_tools() {
   }
 }
 
+// The active tool's controls left to right, one token each: "|" for a separator, a
+// label's text, a mode button's action name, otherwise the widget's object name.
+std::vector<QString> options_row_tokens(QWidget& options) {
+  std::vector<QWidget*> visible;
+  for (auto* child : options.findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+    if (child->isVisible()) {
+      visible.push_back(child);
+    }
+  }
+  std::sort(visible.begin(), visible.end(), [](QWidget* a, QWidget* b) {
+    const auto key = [](QWidget* widget) { return std::make_pair(widget->geometry().center().y() / 20, widget->x()); };
+    return key(a) < key(b);
+  });
+  std::vector<QString> tokens;
+  for (auto* child : visible) {
+    const auto* label = qobject_cast<QLabel*>(child);
+    const auto* button = qobject_cast<QToolButton*>(child);
+    if (child->objectName() == QLatin1String("optionSeparator")) {
+      tokens.push_back(QStringLiteral("|"));
+    } else if (!child->objectName().isEmpty()) {
+      tokens.push_back(child->objectName());
+    } else if (label != nullptr) {
+      tokens.push_back(label->text());
+    } else if (button != nullptr && button->defaultAction() != nullptr) {
+      tokens.push_back(button->defaultAction()->objectName());
+    } else {
+      tokens.push_back(QString::fromLatin1(child->metaObject()->className()));
+    }
+  }
+  return tokens;
+}
+
+// GitHub issues 286, 290, 291 and 292: separators group the selection tools' options, the
+// Magic Wand spells out Tolerance, Quick Select's Size comes first, and the marquee pairs get
+// a swap button for Fixed Ratio and Fixed Size. Every one of these bars still fits one row at
+// 1366 px. The artifacts are the issue shots, in both schemes.
+void ui_selection_options_bars_group_their_controls() {
+  patchy::ai::set_downloaded_model_directory(std::filesystem::current_path() / "ai-models-none");
+  patchy::ui::configure_automatic_selection_models();
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.resize(1366, 738);
+    auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+    auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+    auto* style = window.findChild<QComboBox*>(QStringLiteral("selectionStyleCombo"));
+    CHECK(options_bar != nullptr && options != nullptr && style != nullptr);
+    if (options_bar == nullptr || options == nullptr || style == nullptr) {
+      return;
+    }
+    const QString separator = QStringLiteral("|");
+    const auto row = [&](const char* what) {
+      QApplication::processEvents();
+      process_events_for(20);
+      auto tokens = options_row_tokens(*options);
+      std::printf("  %-34s", what);
+      for (const auto& token : tokens) {
+        std::printf(" %s", qPrintable(token));
+      }
+      std::printf("\n");
+      const auto [right, lines] = options_row_extent(*options);
+      if (lines != 1) {
+        std::fprintf(stderr, "  %s takes %d lines at 1366 px (row %d px)\n", what, lines, right);
+      }
+      CHECK(lines == 1);
+      return tokens;
+    };
+    const auto at = [](const std::vector<QString>& tokens, const QString& token) {
+      const auto found = std::find(tokens.begin(), tokens.end(), token);
+      return found == tokens.end() ? -1 : static_cast<int>(found - tokens.begin());
+    };
+    const auto next_to = [&at](const std::vector<QString>& tokens, const QString& left, const QString& right) {
+      const int index = at(tokens, left);
+      return index >= 0 && index + 1 < static_cast<int>(tokens.size()) && tokens[index + 1] == right;
+    };
+    const auto separated_before = [&at, &separator](const std::vector<QString>& tokens, const QString& token) {
+      const int index = at(tokens, token);
+      return index > 0 && tokens[index - 1] == separator;
+    };
+    const auto shot = [&](const std::string& name) { save_widget_artifact(name + suffix, *options_bar); };
+
+    // Marquee and Elliptical Marquee: Feather and Anti-alias | Radius and Style | the pair.
+    const std::array<const char*, 3> style_names{"normal", "fixed_ratio", "fixed_size"};
+    for (const char* tool : {"toolMarqueeAction", "toolEllipticalMarqueeAction"}) {
+      require_action(window, tool)->trigger();
+      for (int index = 0; index < 3; ++index) {
+        style->setCurrentIndex(index);
+        const auto tokens = row(tool);
+        CHECK(next_to(tokens, QStringLiteral("selectionAntiAliasCheck"), separator));
+        const bool rectangular = std::string_view(tool) == "toolMarqueeAction";
+        CHECK(separated_before(tokens, rectangular ? QStringLiteral("Radius") : QStringLiteral("Style")));
+        CHECK(separated_before(tokens, QStringLiteral("Width")));
+        auto* ratio_swap = window.findChild<QPushButton*>(QStringLiteral("selectionRatioSwapButton"));
+        auto* size_swap = window.findChild<QPushButton*>(QStringLiteral("selectionFixedSizeSwapButton"));
+        CHECK(ratio_swap != nullptr && size_swap != nullptr);
+        CHECK((at(tokens, QStringLiteral("selectionRatioSwapButton")) >= 0) == (index == 1));
+        CHECK((at(tokens, QStringLiteral("selectionFixedSizeSwapButton")) >= 0) == (index == 2));
+        if (index == 1) {
+          CHECK(next_to(tokens, QStringLiteral("selectionRatioWidthSpin"), QStringLiteral("selectionRatioSwapButton")));
+          CHECK(next_to(tokens, QStringLiteral("selectionRatioSwapButton"), QStringLiteral("Height")));
+        }
+        if (index == 2) {
+          CHECK(next_to(tokens, QStringLiteral("selectionFixedWidthSpin"),
+                        QStringLiteral("selectionFixedSizeSwapButton")));
+          CHECK(next_to(tokens, QStringLiteral("selectionFixedSizeSwapButton"), QStringLiteral("Height")));
+        }
+        if (rectangular) {
+          shot(std::string("issue_286_marquee_options_bar_") + style_names[static_cast<std::size_t>(index)]);
+        } else if (index == 2) {
+          shot("issue_286_elliptical_marquee_options_bar_fixed_size");
+        }
+      }
+    }
+    style->setCurrentIndex(0);
+
+    // Magic Wand: Tolerance spelled out and set apart; Contiguous keeps its name.
+    require_action(window, "toolMagicWandAction")->trigger();
+    {
+      const auto tokens = row("toolMagicWandAction");
+      CHECK(next_to(tokens, QStringLiteral("Tolerance"), QStringLiteral("wandToleranceSpin")));
+      CHECK(next_to(tokens, QStringLiteral("wandToleranceSpin"), separator));
+      auto* contiguous = window.findChild<QCheckBox*>(QStringLiteral("wandContiguousCheck"));
+      CHECK(contiguous != nullptr && contiguous->text() == QStringLiteral("Contiguous"));
+      shot("issue_290_magic_wand_options_bar");
+    }
+
+    // Quick Select: Size | Feather | the checkboxes (no Anti-alias, as in Photoshop).
+    require_action(window, "toolQuickSelectAction")->trigger();
+    {
+      const auto tokens = row("toolQuickSelectAction");
+      const int size = at(tokens, QStringLiteral("Size"));
+      const int feather = at(tokens, QStringLiteral("selectionFeatherLabel"));
+      CHECK(size >= 0 && feather > size);
+      CHECK(next_to(tokens, QStringLiteral("Size"), QStringLiteral("quickSelectSizeSpin")));
+      CHECK(separated_before(tokens, QStringLiteral("selectionFeatherLabel")));
+      CHECK(next_to(tokens, QStringLiteral("selectionFeatherSpin"), separator));
+      CHECK(at(tokens, QStringLiteral("selectionAntiAliasCheck")) < 0);
+      shot("issue_291_quick_select_options_bar");
+    }
+
+    // Object Selection: Feather and Anti-alias | Sample All Layers | Model.
+    if (patchy::ai::segmentation_available()) {
+      require_action(window, "toolObjectSelectionAction")->trigger();
+      const auto tokens = row("toolObjectSelectionAction");
+      CHECK(next_to(tokens, QStringLiteral("selectionAntiAliasCheck"), separator));
+#if !defined(Q_OS_WASM)
+      CHECK(separated_before(tokens, QStringLiteral("Model")));
+#endif
+      shot("issue_292_object_selection_options_bar");
+    }
+  }
+}
+
 void ui_options_bar_drops_duplicate_sliders_before_wrapping() {
   // GitHub issue 91: the inline Size slider repeats the spin box beside it (popup slider
   // and scrub handles), so it is the first thing a narrow bar drops. Opacity and Soft
@@ -2841,6 +2996,116 @@ void ui_tool_flyout_right_click_opens_menu() {
   QApplication::processEvents();
   CHECK(shown);
   CHECK(!menu->isVisible());
+}
+
+// GitHub issue 284: a flyout opens beside its button rather than over its right edge, and
+// draws each tool's icon at the palette's own size, centered between the menu's left edge
+// and the tool names. The artifacts are the issue shots, in both schemes.
+void ui_tool_flyout_opens_beside_its_button_with_palette_size_icons() {
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restore_scheme(scheme);
+    const std::string suffix = scheme == patchy::ui::ColorSchemePreference::Light ? "_light" : "_dark";
+    patchy::ui::MainWindow window;
+    show_window(window);
+    auto* palette = window.findChild<QToolBar*>(QStringLiteral("toolPalette"));
+    auto* button = window.findChild<QToolButton*>(QStringLiteral("marqueeToolButton"));
+    CHECK(palette != nullptr && button != nullptr && button->menu() != nullptr);
+    if (palette == nullptr || button == nullptr || button->menu() == nullptr) {
+      return;
+    }
+    auto* menu = button->menu();
+    const int icon_extent = palette->iconSize().width();
+    CHECK(menu->style()->pixelMetric(QStyle::PM_SmallIconSize, nullptr, menu) == icon_extent);
+
+    QRect menu_geometry;
+    QImage menu_image;
+    QTimer::singleShot(0, [&] {
+      menu_geometry = menu->geometry();
+      menu_image = menu->grab().toImage();
+      save_window_popup_artifact("issue_284_marquee_flyout" + suffix, window, *button, *menu);
+      menu->close();
+    });
+    button->showMenu();
+    QApplication::processEvents();
+    CHECK(!menu->isVisible());
+
+    // Beside the button, covering none of it, with at most a small gap.
+    const QPoint beside = button->mapToGlobal(QPoint(button->width(), 0));
+    std::printf("  button right edge %d, top %d; menu at %d, %d\n", beside.x(), beside.y(), menu_geometry.left(),
+                menu_geometry.top());
+    CHECK(menu_geometry.left() >= beside.x());
+    CHECK(menu_geometry.left() <= beside.x() + 4);
+    CHECK(std::abs(menu_geometry.top() - beside.y()) <= 1);
+
+    CHECK(!menu_image.isNull() && menu_image.devicePixelRatio() == 1.0);
+    if (menu_image.isNull() || menu_image.devicePixelRatio() != 1.0) {
+      return;
+    }
+    // Ink columns of a row: pixels that differ clearly from the row's background.
+    const auto ink_columns = [&menu_image](const QRect& row) {
+      const QColor background = menu_image.pixelColor(row.left() + 1, row.top() + 1);
+      std::vector<bool> ink(static_cast<std::size_t>(row.width()), false);
+      for (int x = row.left(); x <= row.right(); ++x) {
+        for (int y = row.top(); y <= row.bottom(); ++y) {
+          const QColor color = menu_image.pixelColor(x, y);
+          const int delta = std::abs(color.red() - background.red()) + std::abs(color.green() - background.green()) +
+                            std::abs(color.blue() - background.blue());
+          if (delta > 60) {
+            ink[static_cast<std::size_t>(x - row.left())] = true;
+            break;
+          }
+        }
+      }
+      return ink;
+    };
+    for (const char* name : {"toolMarqueeAction", "toolEllipticalMarqueeAction"}) {
+      auto* action = require_action(window, name);
+      const QRect row = menu->actionGeometry(action);
+      CHECK(row.isValid() && menu_image.rect().contains(row));
+      if (!row.isValid() || !menu_image.rect().contains(row)) {
+        continue;
+      }
+      // The same icon at the palette's size: its ink extent and where the ink sits in its box.
+      const QImage reference = action->icon().pixmap(QSize(icon_extent, icon_extent), 1.0).toImage();
+      int reference_left = reference.width();
+      int reference_right = -1;
+      for (int y = 0; y < reference.height(); ++y) {
+        for (int x = 0; x < reference.width(); ++x) {
+          if (qAlpha(reference.pixel(x, y)) > 28) {
+            reference_left = std::min(reference_left, x);
+            reference_right = std::max(reference_right, x);
+          }
+        }
+      }
+      CHECK(reference_right >= reference_left);
+      const auto ink = ink_columns(row);
+      int icon_left = -1;
+      int icon_right = -1;
+      int text_left = -1;
+      for (int x = 0; x < static_cast<int>(ink.size()); ++x) {
+        if (!ink[static_cast<std::size_t>(x)]) {
+          continue;
+        }
+        if (icon_left < 0) {
+          icon_left = x;
+          icon_right = x;
+        } else if (text_left < 0 && x - icon_right <= 3) {
+          icon_right = x;
+        } else if (text_left < 0) {
+          text_left = x;
+        }
+      }
+      CHECK(icon_left >= 0 && text_left > icon_right);
+      const int measured = icon_right - icon_left + 1;
+      const int expected = reference_right - reference_left + 1;
+      const int box_left = icon_left - reference_left;
+      const int box_right = box_left + icon_extent;
+      std::printf("  %s: icon ink %d px (palette %d px), %d px from the row's left edge, %d px before the name\n",
+                  name, measured, expected, box_left, text_left - box_right);
+      CHECK(std::abs(measured - expected) <= 1);
+      CHECK(std::abs(box_left - (text_left - box_right)) <= 2);
+    }
+  }
 }
 
 void ui_shape_flyout_and_zoom_tool_work() {
@@ -6408,6 +6673,8 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_tool_cycle_hotkeys_walk_each_flyout", ui_tool_cycle_hotkeys_walk_each_flyout},
       {"ui_tool_flyout_double_click_opens_menu", ui_tool_flyout_double_click_opens_menu},
       {"ui_tool_flyout_right_click_opens_menu", ui_tool_flyout_right_click_opens_menu},
+      {"ui_tool_flyout_opens_beside_its_button_with_palette_size_icons",
+       ui_tool_flyout_opens_beside_its_button_with_palette_size_icons},
       {"ui_tool_palette_icons_render_sheet", ui_tool_palette_icons_render_sheet},
       {"ui_filled_shape_preview_clears_after_commit", ui_filled_shape_preview_clears_after_commit},
       {"ui_toolbar_spin_boxes_select_all_on_focus", ui_toolbar_spin_boxes_select_all_on_focus},
@@ -6424,6 +6691,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_gradient_toolbar_preset_popup_applies_stops", ui_gradient_toolbar_preset_popup_applies_stops},
       {"ui_options_bar_spinboxes_fit_widest_value", ui_options_bar_spinboxes_fit_widest_value},
       {"ui_options_bar_keeps_one_height_across_tools", ui_options_bar_keeps_one_height_across_tools},
+      {"ui_selection_options_bars_group_their_controls", ui_selection_options_bars_group_their_controls},
       {"ui_options_bar_drops_duplicate_sliders_before_wrapping",
        ui_options_bar_drops_duplicate_sliders_before_wrapping},
       {"ui_options_bar_checkboxes_paint_without_a_frame", ui_options_bar_checkboxes_paint_without_a_frame},
