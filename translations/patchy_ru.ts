@@ -23434,6 +23434,18 @@ Patchy можно будет запускать из меню, а на пане�
         <source>Transform Controls</source>
         <translation>Элементы управления преобразованием</translation>
     </message>
+    <message>
+        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
+        <translation>Монтажные области нельзя очистить. Снимите выделение, затем нажмите Delete для удаления монтажной области.</translation>
+    </message>
+    <message>
+        <source>Deleted artboard</source>
+        <translation>Монтажная область удалена</translation>
+    </message>
+    <message>
+        <source>Deleted %1 artboards</source>
+        <translation>Удалено монтажных областей: %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -23362,6 +23362,18 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
         <source>Transform Controls</source>
         <translation>Controlli di trasformazione</translation>
     </message>
+    <message>
+        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
+        <translation>Le tavole da disegno non possono essere cancellate. Deseleziona prima, poi Delete rimuove la tavola da disegno.</translation>
+    </message>
+    <message>
+        <source>Deleted artboard</source>
+        <translation>Tavola da disegno eliminata</translation>
+    </message>
+    <message>
+        <source>Deleted %1 artboards</source>
+        <translation>Eliminate %1 tavole da disegno</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

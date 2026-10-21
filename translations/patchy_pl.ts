@@ -23434,6 +23434,18 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
         <source>Transform Controls</source>
         <translation>Elementy sterujące transformacją</translation>
     </message>
+    <message>
+        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
+        <translation>Nie można wyczyścić obszarów roboczych. Najpierw usuń zaznaczenie, a następnie naciśnij Delete, aby usunąć obszar roboczy.</translation>
+    </message>
+    <message>
+        <source>Deleted artboard</source>
+        <translation>Usunięto obszar roboczy</translation>
+    </message>
+    <message>
+        <source>Deleted %1 artboards</source>
+        <translation>Usunięto obszary robocze: %1</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

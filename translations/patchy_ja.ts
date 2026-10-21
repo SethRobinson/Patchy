@@ -23290,6 +23290,18 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <source>Transform Controls</source>
         <translation>変形コントロール</translation>
     </message>
+    <message>
+        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
+        <translation>アートボードは消去できません。選択を解除してから Delete キーでアートボードを削除してください。</translation>
+    </message>
+    <message>
+        <source>Deleted artboard</source>
+        <translation>アートボードを削除しました</translation>
+    </message>
+    <message>
+        <source>Deleted %1 artboards</source>
+        <translation>%1 個のアートボードを削除しました</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

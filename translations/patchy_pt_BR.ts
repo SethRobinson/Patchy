@@ -23362,6 +23362,18 @@ Você pode fazer isso depois em Ajuda &gt; Adicionar o Patchy ao menu de aplicat
         <source>Transform Controls</source>
         <translation>Controles de transformação</translation>
     </message>
+    <message>
+        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
+        <translation>Não é possível apagar o conteúdo de pranchetas. Cancele a seleção primeiro; depois, Delete remove a prancheta.</translation>
+    </message>
+    <message>
+        <source>Deleted artboard</source>
+        <translation>Prancheta excluída</translation>
+    </message>
+    <message>
+        <source>Deleted %1 artboards</source>
+        <translation>Excluídas %1 pranchetas</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

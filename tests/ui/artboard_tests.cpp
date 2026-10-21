@@ -6,6 +6,7 @@
 #include "core/document.hpp"
 #include "core/layer_metadata.hpp"
 #include "core/layer_render_utils.hpp"
+#include "psd/psd_document_io.hpp"
 #include "ui/app_settings.hpp"
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget.hpp"
@@ -15,6 +16,7 @@
 #include "ui/hotkey_registry.hpp"
 #include "ui/image_document_io.hpp"
 #include "ui/image_sequence_dialog.hpp"
+#include "ui/layer_list_widget.hpp"
 #include "ui/main_window.hpp"
 #include "ui/print_dialog.hpp"
 #include "ui/qt_paths.hpp"
@@ -54,7 +56,9 @@
 #include <QSpinBox>
 #include <QStatusBar>
 #include <QTemporaryDir>
+#include <QTest>
 #include <QTimer>
+#include <QToolBar>
 #if defined(PATCHY_HAVE_QT_PDF)
 #include <QPdfDocument>
 #endif
@@ -70,6 +74,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -1960,6 +1965,406 @@ void ui_artboard_ag_psd_sample_labels_read_on_their_backing_if_available() {
   }
 }
 
+// A plain click at a document point.
+void click_document_point(patchy::ui::CanvasWidget& canvas, QPoint document_point,
+                          Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+  const auto position = canvas.widget_position_for_document_point(document_point);
+  send_mouse(canvas, QEvent::MouseButtonPress, position, Qt::LeftButton, Qt::LeftButton, modifiers);
+  send_mouse(canvas, QEvent::MouseButtonRelease, position, Qt::LeftButton, Qt::NoButton, modifiers);
+  QApplication::processEvents();
+}
+
+// GitHub issue 277: Delete (and Backspace where layer.clear binds it) on a selected
+// artboard removes it with its layers as one undo step, from the Artboard tool and the
+// Move tool, the way a folder is deleted. With a pixel selection active the artboard stays
+// and the status line says to deselect first.
+void ui_artboard_delete_key_deletes_the_selected_artboard() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto seed = board_document(400, 300);
+  const auto loose = add_solid_layer(seed, "Loose", QRect(300, 200, 40, 40), QColor(0, 160, 0));
+  const auto board = add_board(seed, "Board", patchy::Rect{20, 40, 200, 160}, patchy::ArtboardBackground::White,
+                               QColor(200, 0, 0));
+  window.add_document_session(std::move(seed), QStringLiteral("Delete"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+  const auto& document = [&window]() -> const patchy::Document& { return MainWindowTestAccess::document(window); };
+  const auto* board_layer = document().find_layer(board);
+  CHECK(board_layer != nullptr && board_layer->children().size() == 1U);
+  if (board_layer == nullptr || board_layer->children().size() != 1U) {
+    return;
+  }
+  const auto board_art = board_layer->children().front().id();
+
+  // QTest::keyClick goes through the shortcut map, so layer.clear's own bindings are what
+  // is pressed: Delete everywhere, Backspace too on macOS.
+  const auto shortcuts = require_hotkey_action(window, QStringLiteral("layer.clear"))->shortcuts();
+  CHECK(!shortcuts.empty());
+  if (shortcuts.empty()) {
+    return;
+  }
+  const auto press = [&](const QKeySequence& sequence) {
+    canvas->setFocus();
+    QTest::keyClick(canvas, sequence[0].key(), sequence[0].keyboardModifiers());
+    QApplication::processEvents();
+  };
+  const auto check_deleted_then_undo = [&]() {
+    CHECK(document().find_layer(board) == nullptr);
+    CHECK(document().find_layer(board_art) == nullptr);
+    CHECK(patchy::document_artboards(document()).empty());
+    CHECK(document().find_layer(loose) != nullptr);
+    MainWindowTestAccess::undo(window);
+    const auto* restored = document().find_layer(board);
+    CHECK(restored != nullptr && restored->artboard().has_value() && restored->children().size() == 1U);
+  };
+
+  require_hotkey_action(window, QStringLiteral("tools.artboard"))->trigger();
+  QApplication::processEvents();
+  bool first = true;
+  for (const auto& sequence : shortcuts) {
+    click_document_point(*canvas, QPoint(180, 180));  // the board's empty area selects it
+    CHECK(document().active_layer_id().has_value() && *document().active_layer_id() == board);
+    if (first) {
+      save_widget_artifact("ui_issue_277_selected", window);
+    }
+    window.statusBar()->clearMessage();
+    const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+    press(sequence);
+    if (first) {
+      save_widget_artifact("ui_issue_277_after_delete", window);
+    }
+    CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+    CHECK(window.statusBar()->currentMessage() == QStringLiteral("Deleted artboard"));
+    check_deleted_then_undo();
+    first = false;
+  }
+
+  // The Move tool, with the artboard selected in the Layers panel.
+  require_hotkey_action(window, QStringLiteral("tools.move"))->trigger();
+  MainWindowTestAccess::select_layers(window, {board}, board);
+  press(shortcuts.front());
+  check_deleted_then_undo();
+
+  // The artboard and a layer inside it go together, and with a loose pixel layer
+  // selected too that layer is cleared in the same step.
+  MainWindowTestAccess::select_layers(window, {board, board_art}, board);
+  press(shortcuts.front());
+  check_deleted_then_undo();
+  const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+  MainWindowTestAccess::select_layers(window, {board, loose}, board);
+  press(shortcuts.front());
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth + 1);
+  CHECK(document().find_layer(board) == nullptr);
+  const auto* cleared = document().find_layer(loose);
+  CHECK(cleared != nullptr && cleared->pixels().pixel(5, 5) != nullptr && cleared->pixels().pixel(5, 5)[3] == 0);
+  MainWindowTestAccess::undo(window);
+  CHECK(document().find_layer(board) != nullptr);
+
+  // A pixel selection keeps the artboard: Delete clears pixels, and an artboard has none.
+  MainWindowTestAccess::select_layers(window, {board}, board);
+  canvas->select_all();
+  QApplication::processEvents();
+  CHECK(canvas->has_selection());
+  press(shortcuts.front());
+  CHECK(document().find_layer(board) != nullptr);
+  CHECK(window.statusBar()->currentMessage().startsWith(QStringLiteral("Artboards can't be cleared")));
+}
+
+// GitHub issue 279: with an artboard selected, a plain click on empty canvas or on the
+// pasteboard deselects it with the Artboard tool, as the Move tool's blank click deselects
+// layers. Shift keeps the selection, a click on an artboard still selects it, and a drag
+// there still lays out a new artboard. The Move tool's blank click deselects an artboard
+// the same way.
+void ui_artboard_blank_click_deselects_the_artboard() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto seed = board_document(400, 300);
+  add_solid_layer(seed, "Loose", QRect(300, 200, 40, 40), QColor(0, 160, 0));
+  const auto board = add_board(seed, "Board", patchy::Rect{20, 40, 200, 160}, patchy::ArtboardBackground::White,
+                               QColor(200, 0, 0));
+  window.add_document_session(std::move(seed), QStringLiteral("Deselect"));
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+  const auto& document = [&window]() -> const patchy::Document& { return MainWindowTestAccess::document(window); };
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  if (layer_list == nullptr) {
+    return;
+  }
+  const auto board_selected = [&] {
+    return document().active_layer_id().has_value() && *document().active_layer_id() == board;
+  };
+  const auto nothing_selected = [&] {
+    return !document().active_layer_id().has_value() && layer_list->selectedItems().empty();
+  };
+  const QPoint board_area(180, 180);
+  const QPoint blank_canvas(300, 60);
+  const QPoint pasteboard(-30, 150);
+  CHECK(canvas->rect().contains(canvas->widget_position_for_document_point(pasteboard)));
+
+  require_hotkey_action(window, QStringLiteral("tools.artboard"))->trigger();
+  QApplication::processEvents();
+  const auto depth = MainWindowTestAccess::active_session_undo_depth(window);
+  click_document_point(*canvas, board_area);
+  CHECK(board_selected());
+  save_widget_artifact("ui_issue_279_selected", window);
+  click_document_point(*canvas, blank_canvas);
+  save_widget_artifact("ui_issue_279_after_blank_click", window);
+  CHECK(nothing_selected());
+  click_document_point(*canvas, board_area);
+  CHECK(board_selected());
+  click_document_point(*canvas, pasteboard);
+  CHECK(nothing_selected());
+  // Shift keeps it.
+  click_document_point(*canvas, board_area);
+  click_document_point(*canvas, blank_canvas, Qt::ShiftModifier);
+  CHECK(board_selected());
+  // Clicks change no history; a drag on empty space still creates an artboard.
+  CHECK(MainWindowTestAccess::active_session_undo_depth(window) == depth);
+  canvas_drag(*canvas, QPoint(240, 20), QPoint(290, 70));
+  CHECK(patchy::document_artboards(document()).size() == 2U);
+
+  // The Move tool with Auto-Select: a blank click drops the artboard selection too.
+  require_hotkey_action(window, QStringLiteral("tools.move"))->trigger();
+  canvas->set_auto_select_layer(true);
+  QApplication::processEvents();
+  click_document_point(*canvas, board_area);
+  CHECK(board_selected());
+  click_document_point(*canvas, QPoint(300, 120));
+  CHECK(nothing_selected());
+}
+
+// GitHub issue 285: the Artboard bar spells out Width and Height and sets the size fields,
+// the background and Add Artboard apart: Size [preset] | Width [w] [swap] Height [h] |
+// Background [combo] | Add Artboard | Auto-Nest Layers. The row stays one line at 1366 px
+// and its separators read in Dark and Light.
+void ui_artboard_options_bar_separates_size_background_and_add() {
+  for (const auto preference : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer scheme_restorer(preference);
+    patchy::ui::MainWindow window;
+    show_window(window);
+    window.resize(1366, 738);
+    require_hotkey_action(window, QStringLiteral("tools.artboard"))->trigger();
+    QApplication::processEvents();
+    process_events_for(20);
+    auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options"));
+    auto* options = window.findChild<QWidget*>(QStringLiteral("OptionsContent"));
+    CHECK(options_bar != nullptr && options != nullptr);
+    if (options_bar == nullptr || options == nullptr) {
+      return;
+    }
+    std::vector<QWidget*> row;
+    for (auto* child : options->findChildren<QWidget*>(Qt::FindDirectChildrenOnly)) {
+      if (child->isVisible()) {
+        row.push_back(child);
+      }
+    }
+    CHECK(!row.empty());
+    if (row.empty()) {
+      return;
+    }
+    std::sort(row.begin(), row.end(), [](const QWidget* a, const QWidget* b) { return a->x() < b->x(); });
+    QStringList tokens;
+    std::vector<QFrame*> separators;
+    for (auto* widget : row) {
+      CHECK(std::abs(widget->geometry().center().y() - row.front()->geometry().center().y()) < 8);
+      if (widget->objectName() == QStringLiteral("optionSeparator")) {
+        tokens << QStringLiteral("|");
+        separators.push_back(static_cast<QFrame*>(widget));
+      } else if (const auto* label = qobject_cast<QLabel*>(widget); label != nullptr) {
+        tokens << label->text();
+      } else {
+        tokens << widget->objectName();
+      }
+    }
+    const QStringList expected{QStringLiteral("Size"),
+                               QStringLiteral("artboardPresetCombo"),
+                               QStringLiteral("|"),
+                               QStringLiteral("Width"),
+                               QStringLiteral("artboardWidthSpin"),
+                               QStringLiteral("artboardSwapSizeButton"),
+                               QStringLiteral("Height"),
+                               QStringLiteral("artboardHeightSpin"),
+                               QStringLiteral("|"),
+                               QStringLiteral("Background"),
+                               QStringLiteral("artboardBackgroundCombo"),
+                               QStringLiteral("|"),
+                               QStringLiteral("artboardAddButton"),
+                               QStringLiteral("|"),
+                               QStringLiteral("artboardAutoNestCheck")};
+    save_widget_artifact(std::string("ui_issue_285_artboard_bar_") + scheme_label(preference), *options_bar);
+    const auto first = tokens.indexOf(QStringLiteral("Size"));
+    const auto slice = first >= 0 ? tokens.mid(first, expected.size()) : QStringList{};
+    if (slice != expected) {
+      std::fprintf(stderr, "  artboard bar: %s\n", qPrintable(tokens.join(QStringLiteral(" "))));
+    }
+    CHECK(slice == expected);
+
+    // Each separator is a line in the scheme's separator role, set off from the bar.
+    const auto image = options_bar->grab().toImage();
+    const auto& palette = patchy::ui::theme();
+    for (auto* line : separators) {
+      const QRect rect(line->mapTo(options_bar, QPoint(0, 0)), line->size());
+      int ink = 0;
+      for (int y = rect.top(); y <= rect.bottom(); ++y) {
+        for (int x = rect.left(); x <= rect.right(); ++x) {
+          const auto color = image.pixelColor(x, y);
+          if (std::abs(color.red() - palette.option_separator.red()) <= 12 &&
+              std::abs(color.green() - palette.option_separator.green()) <= 12 &&
+              std::abs(color.blue() - palette.option_separator.blue()) <= 12) {
+            ++ink;
+          }
+        }
+      }
+      CHECK(ink >= 12);
+      const auto beside = image.pixelColor(rect.left() - 2, rect.center().y());
+      CHECK(std::abs(beside.lightness() - palette.option_separator.lightness()) >= 20);
+    }
+  }
+}
+
+// GitHub issue 229 follow-up: an empty artboard's disclosure arrow opens and closes it like
+// an empty folder's, both a PSD's closed empty artboard and a new one the Artboard tool
+// draws, and the state saves to the PSD.
+void ui_artboard_empty_artboard_disclosure_toggles_and_saves() {
+  QTemporaryDir temp;
+  CHECK(temp.isValid());
+  const auto psd_path = temp.filePath(QStringLiteral("empty-artboards.psd"));
+  {
+    patchy::Document document(400, 300, patchy::PixelFormat::rgb8());
+    document.add_pixel_layer("Background",
+                             solid_pixels(400, 300, patchy::PixelFormat::rgb8(), QColor(245, 245, 245)));
+    auto closed = patchy::make_artboard_group(document.allocate_layer_id(), "Closed Board",
+                                              patchy::Rect{20, 40, 150, 100}, patchy::ArtboardBackground::White);
+    patchy::set_layer_group_expanded(closed, false);
+    document.layers().push_back(std::move(closed));
+    document.metadata().artboard_settings.emplace();
+    patchy::psd::DocumentIo::write_layered_rgb8_file(document, patchy::ui::to_filesystem_path(psd_path));
+  }
+
+  patchy::ui::MainWindow window;
+  show_window(window);
+  MainWindowTestAccess::open_document_path(window, psd_path);
+  QApplication::processEvents();
+  auto* canvas = require_canvas(window);
+  canvas->set_zoom(1.0);
+  QApplication::processEvents();
+  auto* layer_list = window.findChild<QListWidget*>(QStringLiteral("layerList"));
+  CHECK(layer_list != nullptr);
+  if (layer_list == nullptr) {
+    return;
+  }
+  // Rows are rebuilt on every toggle, so refetch the disclosure button per click.
+  const auto disclosure_of = [layer_list](const QString& name) {
+    auto* item = require_layer_item(*layer_list, name);
+    auto* row_widget = item != nullptr ? layer_list->itemWidget(item) : nullptr;
+    auto* disclosure = row_widget == nullptr
+                           ? nullptr
+                           : row_widget->findChild<QToolButton*>(QStringLiteral("layerFolderDisclosureButton"));
+    CHECK(disclosure != nullptr);
+    return disclosure;
+  };
+  const auto click_disclosure = [&disclosure_of](const QString& name) {
+    auto* disclosure = disclosure_of(name);
+    if (disclosure == nullptr) {
+      return;
+    }
+    CHECK(disclosure->isEnabled());
+    const auto center = disclosure->rect().center();
+    send_mouse(*disclosure, QEvent::MouseButtonPress, center, Qt::LeftButton, Qt::LeftButton);
+    send_mouse(*disclosure, QEvent::MouseButtonRelease, center, Qt::LeftButton, Qt::NoButton);
+    QApplication::processEvents();
+    QApplication::processEvents();
+  };
+  const auto collapsed = [layer_list](const QString& name) {
+    auto* item = require_layer_item(*layer_list, name);
+    return item != nullptr && !item->data(patchy::ui::kLayerGroupExpandedRole).toBool();
+  };
+
+  const QString closed_name = QStringLiteral("Closed Board");
+  CHECK(collapsed(closed_name));
+  click_disclosure(closed_name);
+  CHECK(!collapsed(closed_name));
+  CHECK(disclosure_of(closed_name) != nullptr && disclosure_of(closed_name)->arrowType() == Qt::DownArrow);
+  CHECK(window.statusBar()->currentMessage() == QStringLiteral("Folder expanded"));
+
+  // A new artboard from the Artboard tool starts open and closes from its arrow.
+  require_hotkey_action(window, QStringLiteral("tools.artboard"))->trigger();
+  QApplication::processEvents();
+  canvas_drag(*canvas, QPoint(220, 60), QPoint(330, 160));
+  const QString new_name = QStringLiteral("Artboard 1");
+  CHECK(patchy::document_artboards(MainWindowTestAccess::document(window)).size() == 2U);
+  CHECK(!collapsed(new_name));
+  click_disclosure(new_name);
+  CHECK(collapsed(new_name));
+  CHECK(disclosure_of(new_name) != nullptr && disclosure_of(new_name)->arrowType() == Qt::RightArrow);
+  save_widget_artifact("ui_issue_229_empty_artboard_arrows", *layer_list);
+  click_disclosure(new_name);
+  CHECK(!collapsed(new_name));
+  click_disclosure(new_name);
+  CHECK(collapsed(new_name));
+
+  CHECK(MainWindowTestAccess::save_document(window));
+  const auto saved = patchy::psd::DocumentIo::read_file(patchy::ui::to_filesystem_path(psd_path));
+  const auto saved_expanded = [&saved](const char* name) {
+    const auto* layer = top_level(saved, name);
+    CHECK(layer != nullptr && layer->artboard().has_value());
+    return layer != nullptr && patchy::layer_group_expanded(*layer);
+  };
+  CHECK(saved_expanded("Closed Board"));
+  CHECK(!saved_expanded("Artboard 1"));
+}
+
+// GitHub issue 278: with artboards the canvas has no fixed size of its own, so the outline
+// around the document bounds is gone and only the artboards are outlined; a document
+// without artboards keeps it. Checked along the canvas's top edge clear of the artboard,
+// in Dark and Light.
+void ui_artboard_document_hides_the_canvas_outline() {
+  std::vector<std::pair<int, int>> counts;  // {plain document, artboard document} per scheme
+  for (const auto preference : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer scheme_restorer(preference);
+    patchy::ui::MainWindow window;
+    show_window(window);
+    const auto border_pixels = [&window](const char* artifact) {
+      auto* canvas = require_canvas(window);
+      canvas->set_zoom(1.0);
+      QApplication::processEvents();
+      const auto image = canvas->grab().toImage();
+      const auto left = canvas->widget_position_for_document_point(QPoint(250, 0));
+      const auto right = canvas->widget_position_for_document_point(QPoint(390, 0));
+      const auto border = patchy::ui::theme().canvas_document_border;
+      int count = 0;
+      for (int y = left.y() - 2; y <= left.y() + 1; ++y) {
+        for (int x = left.x(); x <= right.x(); ++x) {
+          if (!image.rect().contains(x, y)) {
+            continue;
+          }
+          const auto color = image.pixelColor(x, y);
+          if (std::abs(color.red() - border.red()) <= 6 && std::abs(color.green() - border.green()) <= 6 &&
+              std::abs(color.blue() - border.blue()) <= 6) {
+            ++count;
+          }
+        }
+      }
+      save_widget_artifact(artifact, *canvas);
+      return count;
+    };
+    const std::string scheme = scheme_label(preference);
+    window.add_document_session(board_document(400, 300), QStringLiteral("Plain"));
+    const auto plain = border_pixels(("ui_issue_278_plain_document_" + scheme).c_str());
+    auto seed = board_document(400, 300);
+    add_board(seed, "Board", patchy::Rect{20, 40, 200, 160}, patchy::ArtboardBackground::White, QColor(200, 0, 0));
+    window.add_document_session(std::move(seed), QStringLiteral("Boards"));
+    counts.emplace_back(plain, border_pixels(("ui_issue_278_artboard_document_" + scheme).c_str()));
+  }
+  for (const auto& [plain, boards] : counts) {
+    CHECK(plain > 100);
+    CHECK(boards < 10);
+  }
+}
+
 }  // namespace
 
 std::vector<patchy::test::TestCase> artboard_ui_tests() {
@@ -1996,5 +2401,12 @@ std::vector<patchy::test::TestCase> artboard_ui_tests() {
        ui_artboard_label_shows_its_full_name_past_a_narrow_board},
       {"ui_artboard_ag_psd_sample_labels_read_on_their_backing_if_available",
        ui_artboard_ag_psd_sample_labels_read_on_their_backing_if_available},
+      {"ui_artboard_delete_key_deletes_the_selected_artboard", ui_artboard_delete_key_deletes_the_selected_artboard},
+      {"ui_artboard_blank_click_deselects_the_artboard", ui_artboard_blank_click_deselects_the_artboard},
+      {"ui_artboard_options_bar_separates_size_background_and_add",
+       ui_artboard_options_bar_separates_size_background_and_add},
+      {"ui_artboard_empty_artboard_disclosure_toggles_and_saves",
+       ui_artboard_empty_artboard_disclosure_toggles_and_saves},
+      {"ui_artboard_document_hides_the_canvas_outline", ui_artboard_document_hides_the_canvas_outline},
   };
 }
