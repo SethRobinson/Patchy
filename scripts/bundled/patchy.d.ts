@@ -1329,6 +1329,13 @@ interface PatchyUi {
   /** View > Fit on Screen for the active document; throws with no document. */
   fitOnScreen(): void;
   /**
+   * The active 32-bit document's preview exposure in stops, the status bar's Exposure box:
+   * it scales the linear values the canvas, thumbnails and 8-bit exports show, never the
+   * pixels. Not saved and not an undo step. Reads 0 without a 32-bit document; setting
+   * clamps to -20..20 and throws for NaN or without one. Only window captures see it.
+   */
+  previewExposure: number;
+  /**
    * View > Proof Colors: shows every canvas as the working CMYK profile (app.cmykProfile)
    * would print it. Application-wide, not saved, and a view only: pixels, previews, saves
    * and exports are unchanged, so only window captures see it. Stays false when set

@@ -2,6 +2,7 @@
 
 #include "formats/format_registry.hpp"
 
+#include <cstddef>
 #include <cstdint>
 #include <span>
 #include <string>
@@ -24,9 +25,12 @@ namespace patchy::heif {
 //     libheif with dlopen at run time (heif_document_io_linux.cpp); nothing is linked or
 //     bundled, and the HEVC decoder is the distro's plug-in package. The thrown message
 //     names the package to install when the library or its HEVC plug-in is missing.
-//   - macOS, and Linux inside the Flatpak: read_heif() always throws; the registry-error
-//     -> QImageReader fallback in load_document_from_path then decodes via Qt's qmacheif
-//     (ImageIO) / the KDE runtime's kimg_heif (libheif + the runtime's codecs-extra
+//   - macOS: read_heif() decodes through ImageIO (heif_document_io_mac.cpp) only files that
+//     need more than 8 bits (10-bit captures, PQ and HLG HDR) while deep editing is on; it
+//     throws for everything else, so 8-bit files keep the QImageReader fallback below.
+//   - Linux inside the Flatpak: read_heif() always throws; the registry-error ->
+//     QImageReader fallback in load_document_from_path then decodes via Qt's qmacheif
+//     (ImageIO, macOS) / the KDE runtime's kimg_heif (libheif + the runtime's codecs-extra
 //     extension). The thrown message is what the user sees when Qt cannot decode either.
 
 // Lowercase extensions (no dot) routed to the HEIF reader; single source of truth for the
@@ -43,18 +47,20 @@ namespace patchy::heif {
 // failure; on macOS/Linux and the node-only wasm-core build it always throws (see above).
 [[nodiscard]] FormatReadResult read_heif(std::span<const std::uint8_t> bytes);
 
-// Remaps tightly packed RGBA8 pixels by an EXIF/TIFF orientation value (1-8; orientations
-// 5-8 swap the output dimensions, anything out of range is treated as 1). The Windows WIC
-// HEIF decoder returns unrotated pixels plus the container orientation as an EXIF-style
-// value, so the reader applies this after decoding. Public because the mapping is pinned
-// by codec-free unit tests on every platform.
+// Remaps tightly packed pixels (RGBA8 by default, any `bytes_per_pixel` for deeper ones) by
+// an EXIF/TIFF orientation value (1-8; orientations 5-8 swap the output dimensions,
+// anything out of range is treated as 1). The Windows WIC HEIF decoder returns unrotated
+// pixels plus the container orientation as an EXIF-style value, and so does ImageIO on
+// macOS, so the readers apply this after decoding. Public because the mapping is pinned by
+// codec-free unit tests on every platform.
 struct OrientedImage {
   std::int32_t width{0};
   std::int32_t height{0};
-  std::vector<std::uint8_t> rgba;
+  std::vector<std::uint8_t> rgba;  // tightly packed pixels of the input's size
 };
 [[nodiscard]] OrientedImage apply_exif_orientation(std::span<const std::uint8_t> rgba, std::int32_t width,
-                                                   std::int32_t height, int orientation);
+                                                   std::int32_t height, int orientation,
+                                                   std::size_t bytes_per_pixel = 4);
 
 #if defined(__linux__) && !defined(__EMSCRIPTEN__)
 // Linux outside the Flatpak: whether the distribution's libheif loaded and exposes the

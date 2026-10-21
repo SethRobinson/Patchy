@@ -10129,10 +10129,6 @@ Mixed selection</source>
         <translation>AVIF: 画像シーケンスのフレームをデコードできませんでした。その前のフレームは読み込みました</translation>
     </message>
     <message>
-        <source>AVIF: HDR (PQ or HLG) color was imported as stored, without tone mapping</source>
-        <translation>AVIF: HDR (PQ または HLG) の色はトーンマッピングなしで保存されたまま読み込みました</translation>
-    </message>
-    <message>
         <source>AVIF images cannot be opened in the browser build of Patchy</source>
         <translation>AVIF 画像はブラウザー版の Patchy では開けません</translation>
     </message>
@@ -25137,6 +25133,14 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>layer.transform: unknown interpolation %1</source>
         <translation>layer.transform: 不明な補間方法 %1</translation>
+    </message>
+    <message>
+        <source>previewExposure needs a number of stops.</source>
+        <translation>previewExposure には段数を数値で指定してください。</translation>
+    </message>
+    <message>
+        <source>The preview exposure applies only to an open 32-bit document.</source>
+        <translation>プレビューの露光量は開いている 32 ビットドキュメントにのみ適用されます。</translation>
     </message>
 </context>
 <context>

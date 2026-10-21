@@ -3560,6 +3560,18 @@ QJSValue ScriptUiObject::panelState(const QString& name) { const ScriptApiCall a
 
 double ScriptUiObject::zoom() const { const ScriptApiCall api_call(host_); return host_.view_zoom_percent(); }
 
+double ScriptUiObject::preview_exposure() const {
+  const ScriptApiCall api_call(host_);
+  return host_.view_preview_exposure();
+}
+void ScriptUiObject::set_preview_exposure(double stops) {
+  const ScriptApiCall api_call(host_);
+  if (!std::isfinite(stops)) {
+    host_.throw_js_error(ScriptEngineHost::tr("previewExposure needs a number of stops."));
+    return;
+  }
+  host_.set_view_preview_exposure(stops);
+}
 void ScriptUiObject::set_zoom(double percent) {
   const ScriptApiCall api_call(host_);
   if (!std::isfinite(percent) || percent <= 0.0) {

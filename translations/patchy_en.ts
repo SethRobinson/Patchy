@@ -10147,10 +10147,6 @@ RGB: %2, %3, %4</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>AVIF: HDR (PQ or HLG) color was imported as stored, without tone mapping</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>AVIF images cannot be opened in the browser build of Patchy</source>
         <translation type="unfinished"></translation>
     </message>
@@ -25132,6 +25128,14 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     </message>
     <message>
         <source>layer.transform: unknown interpolation %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>previewExposure needs a number of stops.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The preview exposure applies only to an open 32-bit document.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

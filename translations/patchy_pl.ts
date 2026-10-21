@@ -10189,10 +10189,6 @@ RGB: %2, %3, %4</translation>
         <translation>AVIF: nie można zdekodować klatki sekwencji obrazów; zaimportowano klatki przed nią</translation>
     </message>
     <message>
-        <source>AVIF: HDR (PQ or HLG) color was imported as stored, without tone mapping</source>
-        <translation>AVIF: kolory HDR (PQ lub HLG) zaimportowano tak, jak zostały zapisane, bez mapowania tonów</translation>
-    </message>
-    <message>
         <source>AVIF images cannot be opened in the browser build of Patchy</source>
         <translation>Obrazów AVIF nie można otwierać w przeglądarkowej wersji Patchy</translation>
     </message>
@@ -25283,6 +25279,14 @@ Możesz to zrobić później w menu Pomoc &gt; Dodaj Patchy do menu aplikacji.</
     <message>
         <source>layer.transform: unknown interpolation %1</source>
         <translation>layer.transform: nieznana interpolacja %1</translation>
+    </message>
+    <message>
+        <source>previewExposure needs a number of stops.</source>
+        <translation>previewExposure wymaga liczby działek.</translation>
+    </message>
+    <message>
+        <source>The preview exposure applies only to an open 32-bit document.</source>
+        <translation>Ekspozycja podglądu dotyczy tylko otwartego dokumentu 32-bitowego.</translation>
     </message>
 </context>
 <context>

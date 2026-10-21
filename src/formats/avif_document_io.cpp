@@ -4,6 +4,8 @@
 #include "core/worker_budget.hpp"
 #include "formats/animation_timing.hpp"
 #include "formats/document_flatten.hpp"
+#include "formats/hdr_transfer.hpp"
+#include "formats/jxr_document_io.hpp"
 #include "render/compositor.hpp"
 #include "support/string_utils.hpp"
 #include "support/translate_noop.hpp"
@@ -17,8 +19,10 @@
 #include <cmath>
 #include <cstring>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <utility>
+#include <vector>
 
 namespace patchy::avif {
 
@@ -224,14 +228,47 @@ PixelBuffer apply_transforms(PixelBuffer pixels, const avifImage& image, std::ve
   return pixels;
 }
 
+// How PQ and HLG files decode (nclx-only files; an ICC profile keeps the stored values).
+// Unset `transfer`: an SDR file, decoded as stored.
+struct HdrPlan {
+  std::optional<hdr::Transfer> transfer;
+  hdr::Chromaticities primaries{hdr::kBt2020Primaries};
+  // Deep editing off: the linear values go through the JPEG XR highlight rolloff to 8 bits.
+  bool tone_map{false};
+};
+
+HdrPlan hdr_plan_for(const avifImage& image, bool deep) {
+  HdrPlan plan;
+  if (image.icc.size > 0) {
+    return plan;
+  }
+  if (image.transferCharacteristics == AVIF_TRANSFER_CHARACTERISTICS_PQ) {
+    plan.transfer = hdr::Transfer::Pq;
+  } else if (image.transferCharacteristics == AVIF_TRANSFER_CHARACTERISTICS_HLG) {
+    plan.transfer = hdr::Transfer::Hlg;
+  } else {
+    return plan;
+  }
+  // HDR files without stated primaries are BT.2020, the only primaries PQ and HLG are
+  // defined with in BT.2100.
+  if (image.colorPrimaries != AVIF_COLOR_PRIMARIES_UNSPECIFIED) {
+    float xy[8] = {};
+    avifColorPrimariesGetValues(image.colorPrimaries, xy);
+    plan.primaries = {xy[0], xy[1], xy[2], xy[3], xy[4], xy[5], xy[6], xy[7]};
+  }
+  plan.tone_map = !deep;
+  return plan;
+}
+
 // One decoded image as a tightly packed RGBA buffer at the document's depth. libavif
-// rescales 10 and 12-bit samples to 16 and unpremultiplies alpha on the way.
-PixelBuffer convert_frame(const avifDecoder& decoder, BitDepth depth) {
+// rescales 10 and 12-bit samples to 16 and unpremultiplies alpha on the way. HDR frames
+// decode at 16 bits and convert to linear sRGB (32-bit documents) or tone map to 8 bits.
+PixelBuffer convert_frame(const avifDecoder& decoder, BitDepth depth, const HdrPlan& hdr_plan) {
   const avifImage* image = decoder.image;
   RgbPixels out;
   avifRGBImageSetDefaults(&out.rgb, image);
   out.rgb.format = AVIF_RGB_FORMAT_RGBA;
-  out.rgb.depth = depth == BitDepth::UInt16 ? 16 : 8;
+  out.rgb.depth = depth == BitDepth::UInt16 || hdr_plan.transfer ? 16 : 8;
   out.rgb.alphaPremultiplied = AVIF_FALSE;
   out.rgb.maxThreads = decoder.maxThreads;
   if (avifRGBImageAllocatePixels(&out.rgb) != AVIF_RESULT_OK) {
@@ -243,6 +280,27 @@ PixelBuffer convert_frame(const avifDecoder& decoder, BitDepth depth) {
   }
   const auto width = static_cast<std::int32_t>(image->width);
   const auto height = static_cast<std::int32_t>(image->height);
+  if (hdr_plan.transfer) {
+    const auto pixel_count = static_cast<std::size_t>(width) * static_cast<std::size_t>(height);
+    std::vector<std::uint16_t> signal(pixel_count * 4U);
+    for (std::int32_t y = 0; y < height; ++y) {
+      std::memcpy(signal.data() + static_cast<std::size_t>(y) * static_cast<std::size_t>(width) * 4U,
+                  out.rgb.pixels + static_cast<std::size_t>(y) * out.rgb.rowBytes,
+                  static_cast<std::size_t>(width) * 4U * sizeof(std::uint16_t));
+    }
+    std::vector<float> linear(pixel_count * 4U);
+    hdr::signal_rgba16_to_linear_srgb(signal.data(), pixel_count, *hdr_plan.transfer, hdr_plan.primaries,
+                                      linear.data());
+    if (hdr_plan.tone_map) {
+      const auto rgba8 = jxr::tone_map_scrgb_to_rgba8(linear, width, height);
+      PixelBuffer pixels(width, height, PixelFormat::rgba8());
+      std::memcpy(pixels.data().data(), rgba8.data(), rgba8.size());
+      return pixels;
+    }
+    PixelBuffer pixels(width, height, with_bit_depth(PixelFormat::rgba8(), BitDepth::Float32));
+    std::memcpy(pixels.data().data(), linear.data(), linear.size() * sizeof(float));
+    return pixels;
+  }
   PixelBuffer pixels(width, height, with_bit_depth(PixelFormat::rgba8(), depth));
   const auto row_bytes = static_cast<std::size_t>(width) * bytes_per_pixel(pixels.format());
   for (std::int32_t y = 0; y < height; ++y) {
@@ -285,8 +343,10 @@ ReadResult read_avif_detailed(std::span<const std::uint8_t> bytes, const ReadOpt
   if (info->width == 0 || info->height == 0 || pixel_count > kMaxPixels || info->width > 65535 || info->height > 65535) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "The AVIF image is too large to open"));
   }
+  const auto hdr_plan = hdr_plan_for(*info, deep_editing_enabled());
   const bool deep = info->depth > 8 && deep_editing_enabled();
-  const auto depth = deep ? BitDepth::UInt16 : BitDepth::UInt8;
+  const auto depth = hdr_plan.transfer ? (hdr_plan.tone_map ? BitDepth::UInt8 : BitDepth::Float32)
+                                       : (deep ? BitDepth::UInt16 : BitDepth::UInt8);
   const bool sequence = decoder->imageCount > 1;
 
   ReadResult result;
@@ -304,7 +364,7 @@ ReadResult read_avif_detailed(std::span<const std::uint8_t> bytes, const ReadOpt
           PATCHY_TRANSLATE_NOOP("QObject", "AVIF: the image sequence is very large; later frames were not imported"));
       break;
     }
-    auto pixels = apply_transforms(convert_frame(*decoder, depth), *image, result.read.notices);
+    auto pixels = apply_transforms(convert_frame(*decoder, depth, hdr_plan), *image, result.read.notices);
     std::uint32_t delay_ms = 0;
     if (sequence && decoder->imageTiming.timescale > 0) {
       const double ms = decoder->imageTiming.duration * 1000.0;
@@ -333,10 +393,9 @@ ReadResult read_avif_detailed(std::span<const std::uint8_t> bytes, const ReadOpt
   if (info->icc.size > 0 && info->icc.data != nullptr) {
     document.color_state().embedded_icc_profile.assign(info->icc.data, info->icc.data + info->icc.size);
     result.pixels_in_source_space = true;
-  } else if (info->transferCharacteristics == AVIF_TRANSFER_CHARACTERISTICS_PQ ||
-             info->transferCharacteristics == AVIF_TRANSFER_CHARACTERISTICS_HLG) {
+  } else if (hdr_plan.tone_map) {
     result.read.notices.emplace_back(
-        PATCHY_TRANSLATE_NOOP("QObject", "AVIF: HDR (PQ or HLG) color was imported as stored, without tone mapping"));
+        PATCHY_TRANSLATE_NOOP("QObject", "This HDR image was tone mapped to 8-bit sRGB; Patchy edits 8 bits per channel."));
   }
   if (frames.size() > 1) {
     // AVIF_REPETITION_COUNT_INFINITE and UNKNOWN both play forever, the WebP convention for 0.

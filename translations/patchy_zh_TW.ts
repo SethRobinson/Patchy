@@ -10129,10 +10129,6 @@ RGB：%2, %3, %4</translation>
         <translation>AVIF: 影像序列中的一個影格無法解碼；已匯入它之前的影格</translation>
     </message>
     <message>
-        <source>AVIF: HDR (PQ or HLG) color was imported as stored, without tone mapping</source>
-        <translation>AVIF: HDR (PQ 或 HLG) 色彩已按儲存原樣匯入，未做色調對應</translation>
-    </message>
-    <message>
         <source>AVIF images cannot be opened in the browser build of Patchy</source>
         <translation>瀏覽器版 Patchy 無法開啟 AVIF 影像</translation>
     </message>
@@ -25137,6 +25133,14 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
     <message>
         <source>layer.transform: unknown interpolation %1</source>
         <translation>layer.transform：未知的內插方式 %1</translation>
+    </message>
+    <message>
+        <source>previewExposure needs a number of stops.</source>
+        <translation>previewExposure 需要一個級數。</translation>
+    </message>
+    <message>
+        <source>The preview exposure applies only to an open 32-bit document.</source>
+        <translation>預覽曝光度僅適用於已開啟的 32 位元文件。</translation>
     </message>
 </context>
 <context>

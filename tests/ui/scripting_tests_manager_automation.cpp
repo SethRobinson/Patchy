@@ -1,6 +1,7 @@
 #include <QClipboard>
 #include <QStatusBar>
 #include "core/document.hpp"
+#include "core/pixel_depth.hpp"
 #include <QImageReader>
 #include "ui/canvas_widget.hpp"
 #include "ui/ai_control_paths.hpp"
@@ -21,6 +22,8 @@
 #include <QApplication>
 #include <QComboBox>
 #include <QDialog>
+#include <QDoubleSpinBox>
+#include <QScopeGuard>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFontMetrics>
@@ -993,6 +996,36 @@ void ui_script_ui_view_zoom() {
   CHECK(!run_script(connector, QStringLiteral("app.runCommand('view.fit_on_screen');")));
 }
 
+void ui_script_preview_exposure_drives_the_32_bit_view() {
+  patchy::set_deep_editing_override(true);
+  const auto restore = qScopeGuard([] { patchy::set_deep_editing_override(std::nullopt); });
+  patchy::ui::MainWindow window;
+  show_window(window);
+  // An 8-bit document has no preview exposure: it reads 0 and refuses a value.
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    var doc = app.newDocument(32, 32);
+    console.log('eight=' + patchy.ui.previewExposure);
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("eight=0")));
+  CHECK(!run_script(window, QStringLiteral("patchy.ui.previewExposure = -1;")));
+  CHECK(run_script(window, QStringLiteral(R"JS(
+    app.activeDocument.convertBitDepth(32);
+    patchy.ui.previewExposure = -2.5;
+    console.log('set=' + patchy.ui.previewExposure);
+    patchy.ui.previewExposure = 99;
+    console.log('clamped=' + patchy.ui.previewExposure);
+    patchy.ui.previewExposure = -1;
+  )JS")));
+  CHECK(backlog_contains(window, QStringLiteral("set=-2.5")));
+  CHECK(backlog_contains(window, QStringLiteral("clamped=20")));
+  // The status bar's Exposure box shows what the script set.
+  const auto* spin = window.findChild<QDoubleSpinBox*>(QStringLiteral("hdrPreviewExposureSpin"));
+  CHECK(spin != nullptr && spin->isVisibleTo(&window) && spin->value() == -1.0);
+  CHECK(!run_script(window, QStringLiteral("patchy.ui.previewExposure = NaN;")));
+  CHECK(run_script(window, QStringLiteral("console.log('kept=' + patchy.ui.previewExposure);")));
+  CHECK(backlog_contains(window, QStringLiteral("kept=-1")));
+}
+
 void ui_script_ui_staging_apis() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -1497,6 +1530,7 @@ std::vector<patchy::test::TestCase> scripting_tests_part3() {
       {"ui_ai_setup_blurb_reports_missing_and_flatpak_forms", ui_ai_setup_blurb_reports_missing_and_flatpak_forms},
       {"ui_ai_setup_examples_keep_installation_prompt_stable", ui_ai_setup_examples_keep_installation_prompt_stable},
       {"ui_script_ui_view_zoom", ui_script_ui_view_zoom},
+      {"ui_script_preview_exposure_drives_the_32_bit_view", ui_script_preview_exposure_drives_the_32_bit_view},
       {"ui_script_ui_staging_apis", ui_script_ui_staging_apis},
       {"ui_script_ui_side_panels_expand_collapse_close", ui_script_ui_side_panels_expand_collapse_close},
       {"ui_script_ui_expand_panel_in_cli_capture", ui_script_ui_expand_panel_in_cli_capture},

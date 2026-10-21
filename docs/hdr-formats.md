@@ -57,6 +57,23 @@ unsupported formats worth having.
   is not opaque, and float documents flatten to 8-bit. `jp2_round_trips_losslessly_at_8_and_16_bits`
   pins the exact round trip.
 
+## PQ and HLG
+
+`src/formats/hdr_transfer.{hpp,cpp}` (Qt-free, decode only) turns PQ (SMPTE ST 2084) and HLG
+(BT.2100) signals into the 32-bit model: linear light, sRGB primaries, 1.0 at SDR reference
+white, which ITU-R BT.2408 puts at 203 nits (`kSdrReferenceWhiteNits`, the same constant
+libjxl's output is scaled by in the JPEG XL reader, [jxl.md](jxl.md)). PQ codes become
+nits / 203; HLG codes go through the inverse OETF, then the BT.2100 reference OOTF at a
+1000-nit nominal peak (gamma 1.2, luminance weights of the source primaries), which puts the
+75% signal on 203 nits. A 3x3 matrix built from the source chromaticities (Bradford-adapted
+when the white differs) takes the result to sRGB primaries; colors outside sRGB stay
+negative. `signal_rgba16_to_linear_srgb` runs the transfer through a 65536-entry table, so a
+frame costs one table lookup per sample plus the matrix. Users: the AVIF reader
+([avif.md](avif.md)); macOS HEIF lets CoreGraphics do the same conversion and was measured to
+agree ([heif.md](heif.md)). `hdr_transfer_decodes_pq_and_hlg_reference_points` pins the
+reference points and matrices. Licensing record: [patent-research-formats.md](patent-research-formats.md)
+("PQ and HLG decoding").
+
 ## Shared wiring
 
 - Registry rows `patchy.formats.hdr`, `patchy.formats.exr`, `patchy.formats.jp2`

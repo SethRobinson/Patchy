@@ -72,7 +72,7 @@ extension, macOS ImageIO) and never in the AppImage.
   shared worker budget (1 to 16).
 - The primary image converts through `avifImageYUVToRGB` into `AVIF_RGB_FORMAT_RGBA`,
   straight alpha, at depth 8, or 16 when the file stores 10 or 12-bit samples and deep
-  editing is on (libavif rescales to 16). Gray (4:0:0) and every chroma layout come out as
+  editing is on (libavif rescales to 16); PQ and HLG files take the HDR path below. Gray (4:0:0) and every chroma layout come out as
   RGBA; the document is always RGBA.
 - Transforms are applied in MIAF order on the RGBA pixels: `clap` (through
   `avifCropRectFromCleanApertureBox`; an invalid box is ignored with a notice), `irot`
@@ -81,8 +81,17 @@ extension, macOS ImageIO) and never in the AppImage.
   File Info writes the tag back as normal.
 - Color: an ICC profile lands in `color_state().embedded_icc_profile` with
   `pixels_in_source_space` true (libavif converts only the YUV matrix, not primaries or
-  transfer). Without a profile the nclx values are not converted; PQ or HLG files get a
-  notice that no tone mapping happened. Gain maps are ignored.
+  transfer). Without a profile, SDR nclx values are not converted. Gain maps are ignored
+  (the SDR base image opens).
+- HDR: a file without an ICC profile whose nclx transfer is PQ (16) or HLG (18) decodes at
+  16 bits and goes through `hdr::signal_rgba16_to_linear_srgb`
+  ([hdr-formats.md](hdr-formats.md#pq-and-hlg)) with the file's primaries
+  (`avifColorPrimariesGetValues`; unspecified means BT.2020): with deep editing on it opens
+  as a 32-bit linear sRGB document, 1.0 at 203 nits, out-of-gamut colors negative; with it
+  off the same values go through the JPEG XR highlight rolloff to 8 bits with the shared
+  "tone mapped" notice, as JPEG XL does. Sequences convert every frame the same way.
+  `avif_pq_and_hlg_open_as_linear_32_bit` encodes PQ and HLG sources straight through
+  libavif (the core tests link `patchy_avif` for this, `PATCHY_TEST_LIBAVIF`).
 - Image sequences (`imageCount > 1`): one full-canvas layer per frame, frame 1 on top, named
   through `ReadOptions::frame_name` (the UI's translated "Frame N <delay>s"), delays from
   `imageTiming.duration`, `repetitionCount` in `avif.loop_count` (0 = forever, otherwise

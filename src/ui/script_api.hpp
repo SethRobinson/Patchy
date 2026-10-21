@@ -606,6 +606,12 @@ public:
   void set_zoom(double percent);
   // View > Fit on Screen for the active document; throws with no document.
   Q_INVOKABLE void fitOnScreen();
+  // The active 32-bit document's preview exposure in stops (the status bar's Exposure
+  // box): display only, never saved, no history entry. Reads 0 without a 32-bit document;
+  // setting clamps to -20..20 and throws for NaN or without one. Window captures see it.
+  Q_PROPERTY(double previewExposure READ preview_exposure WRITE set_preview_exposure)
+  [[nodiscard]] double preview_exposure() const;
+  void set_preview_exposure(double stops);
   // View > Proof Colors and View > Gamut Warning (docs/cmyk.md): application-wide canvas
   // views through the working CMYK profile. Only window captures see them.
   Q_PROPERTY(bool proofColors READ proof_colors WRITE set_proof_colors)

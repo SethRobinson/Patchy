@@ -527,6 +527,10 @@ public:
   // view; document previews never do. Available in connector sessions.
   [[nodiscard]] double view_zoom_percent() const;
   void set_view_zoom_percent(double percent);
+  // The active 32-bit document's preview exposure (stops), set through the status bar's
+  // Exposure box so the canvas repaints as for a user edit. Setting throws without one.
+  [[nodiscard]] double view_preview_exposure() const;
+  void set_view_preview_exposure(double stops);
   // View > Proof Colors / Gamut Warning (docs/cmyk.md). Setting one on without a CMYK
   // profile leaves it off, as the menu does.
   [[nodiscard]] bool view_proof_colors() const;

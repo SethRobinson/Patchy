@@ -579,6 +579,7 @@ add_library(patchy_formats
   src/formats/exr_document_io.cpp
   src/formats/jp2_document_io.cpp
   src/formats/avif_document_io.cpp
+  src/formats/hdr_transfer.cpp
   src/formats/jxr_document_io.cpp
   src/formats/metadata/exif_tags.cpp
   src/formats/metadata/iptc_iim.cpp
@@ -664,6 +665,13 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   target_sources(patchy_formats PRIVATE src/formats/heif_document_io_linux.cpp)
   target_compile_definitions(patchy_formats PRIVATE PATCHY_HEIF_HOST_LIBHEIF=1)
   target_link_libraries(patchy_formats PRIVATE patchy_lcms2 ${CMAKE_DL_LIBS})
+elseif(APPLE)
+  # HEIF/HEIC deeper than 8 bits (10-bit captures, PQ and HLG HDR) decodes through ImageIO,
+  # the system HEVC decoder (heif_document_io_mac.cpp, plain C APIs, no Objective-C). Every
+  # other HEIC throws there and opens through Qt's qmacheif plugin as before.
+  target_sources(patchy_formats PRIVATE src/formats/heif_document_io_mac.cpp)
+  target_compile_definitions(patchy_formats PRIVATE PATCHY_HEIF_IMAGEIO=1)
+  target_link_libraries(patchy_formats PRIVATE "-framework ImageIO" "-framework CoreGraphics" "-framework CoreFoundation")
 endif()
 patchy_configure_target(patchy_formats)
 
@@ -2074,6 +2082,7 @@ if(PATCHY_BUILD_TESTS)
     tests/core/rttex_tests.cpp
     tests/core/dds_tests.cpp
     tests/core/jxl_tests.cpp
+    tests/core/hdr_import_tests.cpp
     tests/core/raw_heif_tests.cpp
     tests/core/smart_filter_descriptors_tests.cpp
     tests/core/smart_filter_distort_stylize_tests.cpp
@@ -2099,6 +2108,11 @@ if(PATCHY_BUILD_TESTS)
   target_link_libraries(patchy_core_tests PRIVATE patchy_gmic)
   # jxl_tests.cpp builds unusual source files (PQ, gray, premultiplied) straight through libjxl.
   target_link_libraries(patchy_core_tests PRIVATE patchy_jxl)
+  # hdr_import_tests.cpp encodes PQ and HLG AVIF sources straight through libavif.
+  if(NOT EMSCRIPTEN)
+    target_link_libraries(patchy_core_tests PRIVATE patchy_avif)
+    target_compile_definitions(patchy_core_tests PRIVATE PATCHY_TEST_LIBAVIF=1)
+  endif()
   # The split TUs live in tests/core/ but repeat the historical test_main.cpp
   # include block ("test_harness.hpp" etc.), so tests/ must be on the include path.
   target_include_directories(patchy_core_tests PRIVATE tests)

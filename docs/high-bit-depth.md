@@ -305,9 +305,13 @@ Code comments cite these phase numbers. Each phase lands as verified commits.
    transform, and the layered SVG and Aseprite writers receive a copy converted like
    Image > Mode > 8 Bits/Channel (`document_for_8bit_writer`, ui/image_document_io.hpp),
    because they composite at 8 bits and would otherwise fail.
-   Still to do: JXR float native, DDS 16-bit and float sources at depth (they open tone
-   mapped or narrowed: docs/dds.md), HEIF 10-bit, raw at 16 bits, deep .af import,
-   OpenEXR and Radiance .hdr (licensing check first).
+   HDR sources open at 32 bits (October 2026): AVIF PQ and HLG (docs/avif.md), and on
+   macOS PQ/HLG HEIF, with other
+   deeper-than-8-bit HEIF at 16 (docs/heif.md); PQ and HLG decode through
+   `formats/hdr_transfer` (docs/hdr-formats.md). With deep editing off they tone map to 8 bits.
+   Still to do: JXR float native, DDS 16-bit and float sources at depth (they open tone mapped or narrowed:
+   docs/dds.md), HEIF 10-bit on Windows and Linux, JPEG XR 16-bit integer frames, gain maps,
+   raw at 16 bits, deep .af import.
 9. **Memory, performance, platforms** (gate on by default; in progress). The history budget
    counts real buffer bytes (`accumulate_unique_pixel_bytes`), so deep layers weigh 2x
    or 4x. `patchy.exe --stress-test=quick --stress-depth 16|32` runs the whole stress

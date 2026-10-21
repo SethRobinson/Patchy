@@ -74,9 +74,10 @@ bool sniff(std::span<const std::uint8_t> bytes) {
 }
 
 OrientedImage apply_exif_orientation(std::span<const std::uint8_t> rgba, std::int32_t width,
-                                     std::int32_t height, int orientation) {
-  if (width <= 0 || height <= 0 ||
-      rgba.size() < static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * 4U) {
+                                     std::int32_t height, int orientation, std::size_t bytes_per_pixel) {
+  const std::size_t bpp = bytes_per_pixel;
+  if (width <= 0 || height <= 0 || bpp == 0 ||
+      rgba.size() < static_cast<std::size_t>(width) * static_cast<std::size_t>(height) * bpp) {
     throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "HEIF orientation input buffer is too small"));
   }
   if (orientation < 1 || orientation > 8) {
@@ -86,13 +87,13 @@ OrientedImage apply_exif_orientation(std::span<const std::uint8_t> rgba, std::in
   OrientedImage out;
   out.width = swaps_axes ? height : width;
   out.height = swaps_axes ? width : height;
-  out.rgba.resize(static_cast<std::size_t>(out.width) * static_cast<std::size_t>(out.height) * 4U);
+  out.rgba.resize(static_cast<std::size_t>(out.width) * static_cast<std::size_t>(out.height) * bpp);
 
   // EXIF semantics: the value describes where the stored 0th row/column appear visually.
   // For each output (display) pixel, compute the source pixel that belongs there.
   for (std::int32_t oy = 0; oy < out.height; ++oy) {
-    auto* destination = out.rgba.data() + static_cast<std::size_t>(oy) * static_cast<std::size_t>(out.width) * 4U;
-    for (std::int32_t ox = 0; ox < out.width; ++ox, destination += 4) {
+    auto* destination = out.rgba.data() + static_cast<std::size_t>(oy) * static_cast<std::size_t>(out.width) * bpp;
+    for (std::int32_t ox = 0; ox < out.width; ++ox, destination += bpp) {
       std::int32_t sx = ox;
       std::int32_t sy = oy;
       switch (orientation) {
@@ -126,30 +127,27 @@ OrientedImage apply_exif_orientation(std::span<const std::uint8_t> rgba, std::in
           break;
       }
       const auto* source =
-          rgba.data() + (static_cast<std::size_t>(sy) * static_cast<std::size_t>(width) + static_cast<std::size_t>(sx)) * 4U;
-      std::memcpy(destination, source, 4U);
+          rgba.data() + (static_cast<std::size_t>(sy) * static_cast<std::size_t>(width) + static_cast<std::size_t>(sx)) * bpp;
+      std::memcpy(destination, source, bpp);
     }
   }
   return out;
 }
 
-#if !defined(_WIN32) && !defined(PATCHY_HEIF_WEBCODECS) && !defined(PATCHY_HEIF_HOST_LIBHEIF)
+#if !defined(_WIN32) && !defined(PATCHY_HEIF_WEBCODECS) && !defined(PATCHY_HEIF_HOST_LIBHEIF) &&     !defined(PATCHY_HEIF_IMAGEIO)
 
-// macOS defers to the Qt fallback (load_document_from_path retries a failed registry read
-// through QImageReader, which has qmacheif there). The node-only wasm-core build also
-// keeps this stub because node has no browser VideoDecoder. Linux compiles
-// heif_document_io_linux.cpp instead (PATCHY_HEIF_HOST_LIBHEIF, CMakeLists.txt).
+// The node-only wasm-core build keeps this stub because node has no browser VideoDecoder.
+// macOS compiles heif_document_io_mac.cpp (PATCHY_HEIF_IMAGEIO) and Linux
+// heif_document_io_linux.cpp (PATCHY_HEIF_HOST_LIBHEIF) instead (CMakeLists.txt).
 FormatReadResult read_heif(std::span<const std::uint8_t> bytes) {
   (void)bytes;
-#ifdef __APPLE__
-  throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Unable to decode this HEIC image with the system codec."));
-#elif defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__)
   throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "Unable to decode this HEIC image outside a browser."));
 #else
   throw std::runtime_error(PATCHY_TRANSLATE_NOOP("QObject", "This build of Patchy cannot decode HEIC images."));
 #endif
 }
 
-#endif  // !_WIN32 && !PATCHY_HEIF_WEBCODECS && !PATCHY_HEIF_HOST_LIBHEIF
+#endif  // !_WIN32 && !PATCHY_HEIF_WEBCODECS && !PATCHY_HEIF_HOST_LIBHEIF && !PATCHY_HEIF_IMAGEIO
 
 }  // namespace patchy::heif

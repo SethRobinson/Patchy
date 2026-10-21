@@ -10159,10 +10159,6 @@ RGB: %2, %3, %4</translation>
         <translation>AVIF: Ein Bild der Bildsequenz konnte nicht dekodiert werden; die Bilder davor wurden importiert</translation>
     </message>
     <message>
-        <source>AVIF: HDR (PQ or HLG) color was imported as stored, without tone mapping</source>
-        <translation>AVIF: HDR-Farben (PQ oder HLG) wurden wie gespeichert importiert, ohne Tone-Mapping</translation>
-    </message>
-    <message>
         <source>AVIF images cannot be opened in the browser build of Patchy</source>
         <translation>AVIF-Bilder können in der Browser-Version von Patchy nicht geöffnet werden</translation>
     </message>
@@ -25210,6 +25206,14 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
     <message>
         <source>layer.transform: unknown interpolation %1</source>
         <translation>layer.transform: unbekannte Interpolation %1</translation>
+    </message>
+    <message>
+        <source>previewExposure needs a number of stops.</source>
+        <translation>previewExposure braucht eine Anzahl Blendenstufen.</translation>
+    </message>
+    <message>
+        <source>The preview exposure applies only to an open 32-bit document.</source>
+        <translation>Die Vorschaubelichtung gilt nur für ein geöffnetes 32-Bit-Dokument.</translation>
     </message>
 </context>
 <context>
