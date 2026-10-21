@@ -4164,6 +4164,111 @@ void ui_hand_options_bar_shows_zoom_view_buttons() {
   }
 }
 
+// GitHub issue 304: with the Hand tool, and with Space held over another tool,
+// Ctrl+click zooms in and Alt+click zooms out one Zoom-tool step about the
+// clicked point, whatever the Zoom tool's own direction; a plain drag pans.
+void ui_hand_tool_ctrl_alt_click_zooms_and_drag_pans() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  require_action_by_text(window, QStringLiteral("Hand"))->trigger();
+  QApplication::processEvents();
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Pan);
+  canvas->setFocus(Qt::OtherFocusReason);
+  QApplication::processEvents();
+
+  const auto close_to = [](double actual, double expected) { return std::abs(actual - expected) < 0.001; };
+  const QPoint document_point(10, 10);
+  const auto stays_put = [canvas, document_point](QPoint before) {
+    const auto after = canvas->widget_position_for_document_point(document_point);
+    return std::abs(after.x() - before.x()) <= 1 && std::abs(after.y() - before.y()) <= 1;
+  };
+  const auto click = [canvas, document_point](Qt::KeyboardModifiers modifiers) {
+    const auto at = canvas->widget_position_for_document_point(document_point);
+    send_mouse(*canvas, QEvent::MouseButtonPress, at, Qt::LeftButton, Qt::LeftButton, modifiers);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, at, Qt::LeftButton, Qt::NoButton, modifiers);
+    return at;
+  };
+  const auto drag_by = [canvas, document_point](QPoint delta, Qt::KeyboardModifiers modifiers) {
+    const auto from = canvas->widget_position_for_document_point(document_point);
+    send_mouse(*canvas, QEvent::MouseButtonPress, from, Qt::LeftButton, Qt::LeftButton, modifiers);
+    send_mouse(*canvas, QEvent::MouseMove, from + delta / 2, Qt::NoButton, Qt::LeftButton, modifiers);
+    send_mouse(*canvas, QEvent::MouseMove, from + delta, Qt::NoButton, Qt::LeftButton, modifiers);
+    send_mouse(*canvas, QEvent::MouseButtonRelease, from + delta, Qt::LeftButton, Qt::NoButton, modifiers);
+  };
+
+  canvas->set_view_zoom(1.0);
+  auto at = click(Qt::ControlModifier);
+  CHECK(close_to(canvas->view_zoom(), 2.0));
+  CHECK(stays_put(at));
+  at = click(Qt::ControlModifier);
+  CHECK(close_to(canvas->view_zoom(), 3.0));
+  CHECK(stays_put(at));
+  at = click(Qt::AltModifier);
+  CHECK(close_to(canvas->view_zoom(), 2.0));
+  CHECK(stays_put(at));
+  at = click(Qt::AltModifier);
+  CHECK(close_to(canvas->view_zoom(), 1.0));
+  CHECK(stays_put(at));
+  // Alt wins over Ctrl, and the Zoom tool's Zoom Out mode does not flip the Hand.
+  click(Qt::ControlModifier | Qt::AltModifier);
+  CHECK(close_to(canvas->view_zoom(), 2.0 / 3.0));
+  canvas->set_zoom_tool_zooms_out(true);
+  canvas->set_view_zoom(1.0);
+  click(Qt::ControlModifier);
+  CHECK(close_to(canvas->view_zoom(), 2.0));
+  canvas->set_zoom_tool_zooms_out(false);
+
+  // A drag with the modifier does not pan; its release is the zoom click.
+  canvas->set_view_zoom(1.0);
+  const auto origin_before_modifier_drag = canvas->widget_position_for_document_point(QPoint(0, 0));
+  drag_by(QPoint(0, 0), Qt::NoModifier);
+  CHECK(canvas->widget_position_for_document_point(QPoint(0, 0)) == origin_before_modifier_drag);
+  drag_by(QPoint(40, 30), Qt::ControlModifier);
+  CHECK(close_to(canvas->view_zoom(), 2.0));
+
+  // A plain drag pans and leaves the zoom alone.
+  canvas->set_view_zoom(4.0);
+  const auto origin = canvas->widget_position_for_document_point(QPoint(0, 0));
+  drag_by(QPoint(30, 20), Qt::NoModifier);
+  CHECK(close_to(canvas->view_zoom(), 4.0));
+  CHECK(canvas->widget_position_for_document_point(QPoint(0, 0)) != origin);
+
+  // The cursor shows the Zoom tool's magnifier while Ctrl or Alt is held.
+  CHECK(canvas->cursor().shape() == Qt::OpenHandCursor);
+  send_key_press(*canvas, Qt::Key_Control);
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+  CHECK(canvas->cursor().hotSpot() == QPoint(10, 10));
+  send_key_release(*canvas, Qt::Key_Control, Qt::ControlModifier);
+  CHECK(canvas->cursor().shape() == Qt::OpenHandCursor);
+  send_key_press(*canvas, Qt::Key_Alt);
+  CHECK(canvas->cursor().shape() == Qt::BitmapCursor);
+  send_key_release(*canvas, Qt::Key_Alt, Qt::AltModifier);
+  CHECK(canvas->cursor().shape() == Qt::OpenHandCursor);
+
+  // Space held over another tool is the same Hand: the click zooms and the
+  // tool under it (Magic Wand) never sees the press.
+  canvas->set_tool(patchy::ui::CanvasTool::MagicWand);
+  QApplication::processEvents();
+  canvas->set_view_zoom(1.0);
+  send_key_press(*canvas, Qt::Key_Space);
+  CHECK(canvas->cursor().shape() == Qt::OpenHandCursor);
+  at = click(Qt::ControlModifier);
+  CHECK(close_to(canvas->view_zoom(), 2.0));
+  CHECK(stays_put(at));
+  at = click(Qt::AltModifier);
+  CHECK(close_to(canvas->view_zoom(), 1.0));
+  CHECK(stays_put(at));
+  canvas->set_view_zoom(4.0);
+  const auto space_origin = canvas->widget_position_for_document_point(QPoint(0, 0));
+  drag_by(QPoint(30, 20), Qt::NoModifier);
+  CHECK(close_to(canvas->view_zoom(), 4.0));
+  CHECK(canvas->widget_position_for_document_point(QPoint(0, 0)) != space_origin);
+  send_key_release(*canvas, Qt::Key_Space);
+  CHECK(!canvas->has_selection());
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::MagicWand);
+}
+
 void ui_tool_palette_icons_render_sheet() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -7386,6 +7491,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_zoom_steps_follow_photoshop_ladder", ui_zoom_steps_follow_photoshop_ladder},
       {"ui_zoom_options_bar_view_buttons_set_view", ui_zoom_options_bar_view_buttons_set_view},
       {"ui_hand_options_bar_shows_zoom_view_buttons", ui_hand_options_bar_shows_zoom_view_buttons},
+      {"ui_hand_tool_ctrl_alt_click_zooms_and_drag_pans", ui_hand_tool_ctrl_alt_click_zooms_and_drag_pans},
       {"ui_stamp_and_gradient_flyouts_swap_tools", ui_stamp_and_gradient_flyouts_swap_tools},
       {"ui_tool_cycle_hotkeys_walk_each_flyout", ui_tool_cycle_hotkeys_walk_each_flyout},
       {"ui_tool_flyout_double_click_opens_menu", ui_tool_flyout_double_click_opens_menu},

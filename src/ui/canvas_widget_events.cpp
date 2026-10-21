@@ -207,6 +207,19 @@ QRegion stroke_samples_dirty_region(const std::vector<QRect>& rects) {
 }  // namespace
 
 bool CanvasWidget::eventFilter(QObject* watched, QEvent* event) {
+  // The Hand (the tool, or Space held over another tool) shows the magnifier
+  // while Ctrl or Alt would make a click zoom (GitHub issue 304).
+  if ((event->type() == QEvent::KeyPress || event->type() == QEvent::KeyRelease) && isVisible() &&
+      (tool_ == CanvasTool::Pan || spacebar_panning_) && !panning_ && !hand_zoom_pending_) {
+    auto* key_event = static_cast<QKeyEvent*>(event);
+    if (!key_event->isAutoRepeat() && (key_event->key() == Qt::Key_Control || key_event->key() == Qt::Key_Alt)) {
+      // The event reports the modifier state before this key; fold it in.
+      const auto bit = key_event->key() == Qt::Key_Alt ? Qt::AltModifier : Qt::ControlModifier;
+      apply_hand_cursor(event->type() == QEvent::KeyPress ? (key_event->modifiers() | bit)
+                                                          : (key_event->modifiers() & ~bit));
+      return QWidget::eventFilter(watched, event);
+    }
+  }
   // Refresh the selection-mode cursor badge on any Shift/Alt change, regardless
   // of which widget holds focus. Gated on visibility (so only the active
   // document tab reacts); setting the cursor while the pointer is elsewhere is
@@ -402,7 +415,8 @@ double CanvasWidget::wheel_zoom_factor(const QWheelEvent& event) noexcept {
 }
 
 bool CanvasWidget::view_gesture_blocked_by_pointer() const noexcept {
-  return pointer_gesture_active() || panning_ || zooming_ || pen_zoom_dragging_ || brush_adjust_dragging_;
+  return pointer_gesture_active() || panning_ || zooming_ || hand_zoom_pending_ || pen_zoom_dragging_ ||
+         brush_adjust_dragging_;
 }
 
 void CanvasWidget::wheelEvent(QWheelEvent* event) {
@@ -673,6 +687,15 @@ void CanvasWidget::mousePressEvent(QMouseEvent* event) {
   }
 
   if (spacebar_panning_ || tool_ == CanvasTool::Pan || (event->buttons() & Qt::MiddleButton) != 0) {
+    // Ctrl or Alt with the Hand zooms like a Zoom-tool click, on release
+    // (GitHub issue 304); a middle-button pan ignores the modifiers.
+    if (event->button() == Qt::LeftButton && (event->buttons() & Qt::MiddleButton) == 0 &&
+        hand_click_zooms(event->modifiers())) {
+      hand_zoom_pending_ = true;
+      hand_zoom_out_ = (event->modifiers() & Qt::AltModifier) != 0;
+      event->accept();
+      return;
+    }
     panning_ = true;
     setCursor(Qt::ClosedHandCursor);
     return;
@@ -1717,6 +1740,12 @@ void CanvasWidget::mouseMoveEvent(QMouseEvent* event) {
     event->accept();
     return;
   }
+  if (hand_zoom_pending_) {
+    // A Hand zoom click: travel before the release neither pans nor reaches the tool.
+    last_mouse_position_ = event->pos();
+    event->accept();
+    return;
+  }
   if (panning_) {
     clear_move_hover_outline();
     const auto delta = event->pos() - last_mouse_position_;
@@ -2449,6 +2478,15 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
     if (context_press.has_value() &&
         (event->pos() - *context_press).manhattanLength() < QApplication::startDragDistance()) {
       show_canvas_context_menu(*context_press, event->globalPosition().toPoint());
+    }
+    event->accept();
+    return;
+  }
+  if (hand_zoom_pending_) {
+    if (event->button() == Qt::LeftButton || (event->buttons() & Qt::LeftButton) == 0) {
+      hand_zoom_pending_ = false;
+      zoom_click_step(event->position(), hand_zoom_out_);
+      emit_info_for_widget_position(event->pos());
     }
     event->accept();
     return;
@@ -3188,13 +3226,7 @@ void CanvasWidget::mouseReleaseEvent(QMouseEvent* event) {
       if (!zoom_out && widget_drag >= kZoomClickSlopPx && (zoom_rect.width() > 1 || zoom_rect.height() > 1)) {
         zoom_to_document_rect(zoom_rect);
       } else {
-        // A click in the grey margin zooms toward the nearest point on the
-        // document frame rather than toward the empty space under the cursor.
-        // The step follows Photoshop's zoom ladder (GitHub issue 77): from a
-        // rung to its neighbour, from between rungs to the next one.
-        const auto current_view_zoom = view_zoom();
-        const auto next_view_zoom = next_zoom_ladder_step(current_view_zoom, !zoom_out);
-        zoom_at_widget_point(zoom_click_anchor(event->position()), next_view_zoom / current_view_zoom);
+        zoom_click_step(event->position(), zoom_out);
       }
     }
     emit_info_for_widget_position(event->pos());
@@ -3539,7 +3571,7 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
   if (edit_locked_) {
     if (event->key() == Qt::Key_Space && !event->isAutoRepeat()) {
       spacebar_panning_ = true;
-      setCursor(Qt::OpenHandCursor);
+      apply_hand_cursor(event->modifiers());
       event->accept();
       return;
     }
@@ -3921,7 +3953,7 @@ void CanvasWidget::keyPressEvent(QKeyEvent* event) {
       setCursor(Qt::SizeAllCursor);
     } else {
       spacebar_panning_ = true;
-      setCursor(Qt::OpenHandCursor);
+      apply_hand_cursor(event->modifiers());
     }
     event->accept();
     return;
@@ -4266,7 +4298,7 @@ void CanvasWidget::cancel_pointer_gestures() {
   if (dragging_guide_) {
     cancel_guide_drag();
   }
-  panning_ = zooming_ = false;
+  panning_ = zooming_ = hand_zoom_pending_ = false;
   zoom_scrubbing_ = zoom_scrub_started_ = false;
   spacebar_repositioning_drag_rect_ = spacebar_panning_ = false;
   update();
@@ -4302,6 +4334,7 @@ void CanvasWidget::focusOutEvent(QFocusEvent* event) {
   }
   spacebar_repositioning_drag_rect_ = false;
   spacebar_panning_ = false;
+  hand_zoom_pending_ = false;
   dragging_text_rect_ = false;
   // In-flight crop drags end on focus loss; the established session survives
   // (like the transform box).

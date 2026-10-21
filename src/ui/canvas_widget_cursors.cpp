@@ -275,6 +275,14 @@ bool CanvasWidget::apply_selection_cursor_for_mode(SelectionMode mode) {
   }
 }
 
+void CanvasWidget::apply_hand_cursor(Qt::KeyboardModifiers modifiers) {
+  if (hand_click_zooms(modifiers)) {
+    apply_zoom_cursor((modifiers & Qt::AltModifier) != 0);
+  } else {
+    setCursor(Qt::OpenHandCursor);
+  }
+}
+
 void CanvasWidget::apply_zoom_cursor(bool zoom_out) {
   QPixmap pixmap(24, 24);
   pixmap.fill(Qt::transparent);
@@ -323,7 +331,7 @@ void CanvasWidget::apply_move_tool_cursor(QPoint widget_position) {
 void CanvasWidget::update_tool_cursor() {
   ZoomTraceScope trace("tool_cursor", zoom_);
   if (spacebar_panning_ || tool_ == CanvasTool::Pan) {
-    setCursor(Qt::OpenHandCursor);
+    apply_hand_cursor(QApplication::keyboardModifiers());
     return;
   }
   if (transient_read_callback_) {
