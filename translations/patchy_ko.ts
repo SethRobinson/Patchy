@@ -11521,6 +11521,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Stylus Pressure</source>
         <translation>스타일러스 압력</translation>
     </message>
+    <message>
+        <source>Show Mesh</source>
+        <translation>메시 표시</translation>
+    </message>
+    <message>
+        <source>Reconstruct...</source>
+        <translation>재구성...</translation>
+    </message>
+    <message>
+        <source>Amount:</source>
+        <translation>양:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

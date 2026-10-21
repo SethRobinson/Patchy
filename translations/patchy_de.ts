@@ -11556,6 +11556,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Stylus Pressure</source>
         <translation>Stiftdruck</translation>
     </message>
+    <message>
+        <source>Show Mesh</source>
+        <translation>Gitter einblenden</translation>
+    </message>
+    <message>
+        <source>Reconstruct...</source>
+        <translation>Rekonstruieren...</translation>
+    </message>
+    <message>
+        <source>Amount:</source>
+        <translation>Stärke:</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

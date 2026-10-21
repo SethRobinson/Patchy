@@ -985,6 +985,122 @@ void ui_liquify_rate_and_pen_pressure() {
   }), full));
 }
 
+QImage liquify_preview_grab(QWidget& preview) {
+  QEvent leave(QEvent::Leave);
+  QApplication::sendEvent(&preview, &leave);
+  QApplication::processEvents();
+  return preview.grab().toImage();
+}
+
+// Show Mesh draws the deformed grid over the preview; unchecking Preview (or pressing P)
+// shows the original; Reconstruct... moves the whole field back by an amount, as one
+// history step, and its Cancel changes nothing.
+void ui_liquify_mesh_preview_toggle_and_reconstruct_amount() {
+  const QPointF from(40.0, 60.0), to(80.0, 60.0);
+  patchy::LiquifyMesh expected(160, 120);
+  expect_drag(expected, from, to);
+  const auto run_reconstruct = [](QDialog& dialog, int amount, bool accept) {
+    QTimer::singleShot(0, [amount, accept] {
+      auto* reconstruct = find_top_level_dialog(QStringLiteral("liquifyReconstructDialog"));
+      if (reconstruct == nullptr) {
+        patchy::test::report_failure("no Reconstruct dialog");
+        return;
+      }
+      auto* spin = reconstruct->findChild<QSpinBox*>(QStringLiteral("liquifyReconstructAmountSpin"));
+      if (spin == nullptr || spin->minimum() != 0 || spin->maximum() != 100) {
+        patchy::test::report_failure("no Reconstruct amount field");
+      } else {
+        spin->setValue(amount);
+      }
+      if (accept) {
+        reconstruct->accept();
+      } else {
+        reconstruct->reject();
+      }
+    });
+    QTest::mouseClick(liquify_push_button(dialog, "liquifyReconstructButton"), Qt::LeftButton);
+    QApplication::processEvents();
+  };
+
+  auto halfway = expected;
+  halfway.reconstruct(50.0);
+  CHECK(liquify_meshes_equal(drive_liquify([&](QDialog& dialog, QWidget& preview) {
+    auto* show_mesh = dialog.findChild<QCheckBox*>(QStringLiteral("liquifyShowMeshCheck"));
+    auto* show_preview = dialog.findChild<QCheckBox*>(QStringLiteral("liquifyPreviewCheck"));
+    CHECK(show_mesh != nullptr && show_preview != nullptr);
+    CHECK(!show_mesh->isChecked() && show_preview->isChecked());
+    const auto original = liquify_preview_grab(preview);
+    liquify_drag(preview, from, to);
+    const auto warped = liquify_preview_grab(preview);
+    CHECK(warped != original);
+    show_preview->setChecked(false);
+    CHECK(liquify_preview_grab(preview) == original);
+    liquify_key(preview, Qt::Key_P);
+    CHECK(show_preview->isChecked());
+    CHECK(liquify_preview_grab(preview) == warped);
+    show_mesh->setChecked(true);
+    const auto meshed = liquify_preview_grab(preview);
+    CHECK(meshed != warped);
+    show_mesh->setChecked(false);
+    CHECK(liquify_preview_grab(preview) == warped);
+    run_reconstruct(dialog, 30, false);
+    CHECK(liquify_preview_grab(preview) == warped);
+    run_reconstruct(dialog, 50, true);
+  }), halfway));
+
+  // Reconstruct is one step: Ctrl+Z brings the stroke back.
+  CHECK(liquify_meshes_equal(drive_liquify([&](QDialog& dialog, QWidget& preview) {
+    liquify_drag(preview, from, to);
+    run_reconstruct(dialog, 100, true);
+    liquify_key(preview, Qt::Key_Z, Qt::ControlModifier);
+  }), expected));
+}
+
+// A smooth sunset gradient with a pale disc, so the shot's mesh and warp read clearly.
+patchy::PixelBuffer liquify_shot_source(int width, int height) {
+  patchy::PixelBuffer source(width, height, patchy::PixelFormat::rgba8());
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      auto* pixel = source.pixel(x, y);
+      const double u = static_cast<double>(x) / std::max(1, width - 1);
+      const double v = static_cast<double>(y) / std::max(1, height - 1);
+      const double disc = std::hypot(u - 0.45, (v - 0.5) * 0.75) < 0.16 ? 1.0 : 0.0;
+      pixel[0] = static_cast<std::uint8_t>(std::lround(60 + 170 * v + 25 * disc));
+      pixel[1] = static_cast<std::uint8_t>(std::lround(50 + 80 * u * (1.0 - v) + 110 * disc));
+      pixel[2] = static_cast<std::uint8_t>(std::lround(170 - 110 * v + 60 * disc));
+      pixel[3] = 255;
+    }
+  }
+  return source;
+}
+
+// Issue 296 shots: the workspace with its new controls (Undo/Redo, Rate, Stylus Pressure,
+// Show Mesh, Preview, Reconstruct...) after a warp and a frozen area, in Dark and Light.
+void ui_liquify_dialog_captures_in_both_schemes() {
+  for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
+    ColorSchemeRestorer restorer(scheme);
+    const auto name = std::string(scheme == patchy::ui::ColorSchemePreference::Dark ? "liquify/after-dialog-dark"
+                                                                                        : "liquify/after-dialog-light");
+    (void)drive_liquify(
+        [&](QDialog& dialog, QWidget& preview) {
+          const auto proxy = [&preview](double x, double y) {
+            return QPoint(static_cast<int>(preview.width() * x), static_cast<int>(preview.height() * y));
+          };
+          QTest::mouseClick(liquify_tool_button(dialog, "liquifyFreezeTool"), Qt::LeftButton);
+          drag(preview, proxy(0.62, 0.30), proxy(0.66, 0.36));
+          QTest::mouseClick(liquify_tool_button(dialog, "liquifyWarpTool"), Qt::LeftButton);
+          drag(preview, proxy(0.35, 0.55), proxy(0.55, 0.45));
+          dialog.findChild<QCheckBox*>(QStringLiteral("liquifyShowMeshCheck"))->setChecked(true);
+          send_mouse(preview, QEvent::MouseMove, proxy(0.45, 0.62), Qt::NoButton, Qt::NoButton);
+          QApplication::processEvents();
+          std::filesystem::create_directories("test-artifacts/liquify");
+          save_widget_artifact(name, dialog);
+          dialog.reject();
+        },
+        /*fixed_preview=*/false, liquify_shot_source(640, 480));
+  }
+}
+
 void ui_liquify_preview_selection_preserves_sample_mapping() {
   for (const auto size : {QSize(83, 61), QSize(1001, 773), QSize(1024, 1), QSize(1, 1024)}) {
     auto proxy_size = size;
@@ -1916,5 +2032,7 @@ std::vector<patchy::test::TestCase> filter_catalog_dialog_tests() {
       {"ui_liquify_keys_choose_tools_and_size_without_reaching_the_main_window",
        ui_liquify_keys_choose_tools_and_size_without_reaching_the_main_window},
       {"ui_liquify_rate_and_pen_pressure", ui_liquify_rate_and_pen_pressure},
+      {"ui_liquify_mesh_preview_toggle_and_reconstruct_amount", ui_liquify_mesh_preview_toggle_and_reconstruct_amount},
+      {"ui_liquify_dialog_captures_in_both_schemes", ui_liquify_dialog_captures_in_both_schemes},
   };
 }
