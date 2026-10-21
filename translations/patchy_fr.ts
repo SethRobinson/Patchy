@@ -23394,6 +23394,18 @@ Vous pourrez le faire plus tard depuis Aide &gt; Ajouter Patchy au menu des appl
         <source>Transform Controls</source>
         <translation>Options de transformation</translation>
     </message>
+    <message>
+        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
+        <translation>Les plans de travail ne peuvent pas être effacés. Désélectionnez d&apos;abord, puis Delete supprime le plan de travail.</translation>
+    </message>
+    <message>
+        <source>Deleted artboard</source>
+        <translation>Plan de travail supprimé</translation>
+    </message>
+    <message>
+        <source>Deleted %1 artboards</source>
+        <translation>%1 plans de travail supprimés</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

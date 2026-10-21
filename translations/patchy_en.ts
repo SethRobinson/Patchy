@@ -23317,6 +23317,18 @@ You can do this later from Help &gt; Add Patchy to Applications Menu.</source>
         <source>Transform Controls</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Deleted artboard</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Deleted %1 artboards</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

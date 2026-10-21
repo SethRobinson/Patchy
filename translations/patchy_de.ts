@@ -23394,6 +23394,18 @@ Sie können das auch später über Hilfe &gt; Patchy zum Anwendungsmenü hinzuf�
         <source>Transform Controls</source>
         <translation>Transformationssteuerungen</translation>
     </message>
+    <message>
+        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
+        <translation>Zeichenflächen können nicht geleert werden. Heben Sie zuerst die Auswahl auf, dann entfernt Delete die Zeichenfläche.</translation>
+    </message>
+    <message>
+        <source>Deleted artboard</source>
+        <translation>Zeichenfläche gelöscht</translation>
+    </message>
+    <message>
+        <source>Deleted %1 artboards</source>
+        <translation>%1 Zeichenflächen gelöscht</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -45,8 +45,11 @@
 #include <QMenu>
 #include <QMouseEvent>
 #include <QObject>
+#include <QPoint>
 #include <QPointer>
 #include <QPushButton>
+#include <QRect>
+#include <QScreen>
 #include <QSize>
 #include <QString>
 #include <QStringLiteral>
@@ -409,6 +412,40 @@ protected:
 
 private:
   std::function<void()> open_menu_;
+};
+
+// Opens a flyout beside its button (GitHub issue 284). QToolButton puts a vertical bar's
+// menu at the button's last pixel column, over its edge, one pixel low. Every way in (the
+// hold timer, a double-click, a right-click) shows the menu, so the move happens on Show,
+// before the window maps. Qt's placement stays when the menu would not fit on the right.
+class ToolFlyoutMenuPlacement final : public QObject {
+public:
+  ToolFlyoutMenuPlacement(QToolButton* button, QMenu* menu) : QObject(menu), button_(button) {
+    menu->installEventFilter(this);
+  }
+
+protected:
+  bool eventFilter(QObject* watched, QEvent* event) override {
+    if (event->type() == QEvent::Show && button_ != nullptr && button_->isVisible()) {
+      auto* menu = static_cast<QWidget*>(watched);
+      constexpr int kGap = 2;
+      QPoint target = button_->mapToGlobal(QPoint(button_->width() + kGap, 0));
+      const auto* screen = button_->screen();
+      const QRect available = screen != nullptr ? screen->availableGeometry() : QRect();
+      if (!menu->isRightToLeft() &&
+          (!available.isValid() || target.x() + menu->width() - 1 <= available.right())) {
+        if (available.isValid()) {
+          target.setY(std::clamp(target.y(), available.top(),
+                                 std::max(available.top(), available.bottom() - menu->height() + 1)));
+        }
+        menu->move(target);
+      }
+    }
+    return QObject::eventFilter(watched, event);
+  }
+
+private:
+  QPointer<QToolButton> button_;
 };
 
 // Stock QToolBar collapses an expanded overflow bar half a second after the
@@ -901,6 +938,18 @@ void MainWindow::build_tool_palette(ActionBuildContext& ctx) {
     // menu through the same showMenu() path the timer uses. The first click
     // of the pair still selects the default tool, as in Photoshop.
     button->installEventFilter(new ToolFlyoutEventFilter([button] { button->showMenu(); }, button));
+    new ToolFlyoutMenuPlacement(button, menu);
+    // Tool icons at the palette's own size, centered between the menu's left edge and the
+    // names (GitHub issue 284). Qt draws a menu icon at the item's left edge and starts the
+    // name after the item's left padding plus the icon column it reserves (icon + 4 px), so
+    // shifting the icon by half of padding + 4 centers it. The padding is restated here
+    // (the app sheet's QMenu::item value) so the centering does not depend on that sheet.
+    constexpr int kFlyoutItemLeftPadding = 24;
+    menu->setStyleSheet(QStringLiteral("QMenu { icon-size: %1px; } QMenu::item { padding-left: %2px; } "
+                                       "QMenu::icon { left: %3px; }")
+                            .arg(palette->iconSize().width())
+                            .arg(kFlyoutItemLeftPadding)
+                            .arg((kFlyoutItemLeftPadding + 4) / 2));
     for (auto* action : actions) {
       QObject::connect(action, &QAction::triggered, button, [button, menu, action] {
         button->setDefaultAction(action);
