@@ -1308,6 +1308,8 @@ ${PATCHY_LUPDATE_MANIFEST_SOURCES}
       src/ui/unit_spin_box.cpp
       src/ui/new_document_dialog.hpp
       src/ui/new_document_dialog.cpp
+      src/ui/new_layer_dialog.hpp
+      src/ui/new_layer_dialog.cpp
       src/ui/stress_test.hpp
       src/ui/palette_convert_dialog.hpp
       src/ui/palette_convert_dialog.cpp

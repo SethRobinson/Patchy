@@ -4194,6 +4194,7 @@ void MainWindow::refresh_layer_thumbnails() {
 
 void MainWindow::refresh_layer_controls() {
   const UiProfileScope profile_scope("refresh_layer_controls");
+  refresh_merge_visible_action_state();
   sync_text_character_dialog_from_editor();
   sync_text_options_from_active_layer();
   sync_text_alignment_buttons_from_editor();

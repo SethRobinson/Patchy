@@ -65,6 +65,7 @@
 #include <QDialogButtonBox>
 #include <QScrollArea>
 #include <QStandardItemModel>
+#include <QTabWidget>
 #include <QTimer>
 #include <QMouseEvent>
 #include <QToolBar>
@@ -4949,6 +4950,74 @@ void ui_properties_edit_appearance_hides_when_layers_are_deselected() {
 }
 
 
+// GitHub issue 273 follow-up (the reporter): a click on Edit Appearance with no shape layer
+// selected crashed. The entry is safe on its own: forced visible and clicked with a pixel
+// layer active, with no active layer and with no document, it reports the usual status
+// message, opens nothing and changes nothing; the Properties W and H fields stay inert too.
+void ui_properties_shape_controls_are_safe_without_a_shape() {
+  VectorSettingsGuard settings_guard;
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::show_panel(window, QStringLiteral("propertiesDock"));
+  QApplication::processEvents();
+  auto* button = window.findChild<QPushButton*>(QStringLiteral("propertiesEditAppearanceButton"));
+  auto* width = window.findChild<QDoubleSpinBox*>(QStringLiteral("propertiesShapeWidthSpin"));
+  auto* height = window.findChild<QDoubleSpinBox*>(QStringLiteral("propertiesShapeHeightSpin"));
+  CHECK(button != nullptr && width != nullptr && height != nullptr);
+  if (button == nullptr || width == nullptr || height == nullptr) {
+    return;
+  }
+  const auto expected = QStringLiteral("Select an unlocked, editable shape layer");
+  const auto click_forced = [&] {
+    bool dialog_opened = false;
+    QTimer::singleShot(0, [&dialog_opened] {
+      if (auto* dialog = patchy::test::ui::find_top_level_dialog(QStringLiteral("shapeAppearanceDialog"));
+          dialog != nullptr) {
+        dialog_opened = true;
+        dialog->reject();
+      }
+    });
+    window.statusBar()->clearMessage();
+    button->setVisible(true);
+    button->setEnabled(true);
+    button->click();
+    QApplication::processEvents();
+    CHECK(!dialog_opened);
+    return window.statusBar()->currentMessage();
+  };
+  const auto type_sizes = [&] {
+    for (auto* spin : {width, height}) {
+      spin->setEnabled(true);
+      spin->setValue(spin->value() + 17.0);
+    }
+    QApplication::processEvents();
+  };
+
+  // The default document's Paint Layer: a pixel layer.
+  const auto undo_depth = patchy::ui::MainWindowTestAccess::active_session_undo_depth(window);
+  CHECK(click_forced().contains(expected));
+  type_sizes();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth);
+
+  // No active layer.
+  require_action(window, "selectDeselectLayersAction")->trigger();
+  QApplication::processEvents();
+  CHECK(!patchy::ui::MainWindowTestAccess::document(window).active_layer_id().has_value());
+  CHECK(click_forced().contains(expected));
+  type_sizes();
+  CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_depth);
+
+  // No document at all.
+  require_action(window, "fileCloseAllAction")->trigger();
+  QApplication::processEvents();
+  auto* tabs = window.findChild<QTabWidget*>(QStringLiteral("documentTabs"));
+  CHECK(tabs != nullptr && tabs->count() == 0);
+  // Before the fix the size fields reached document() here, which throws with no document
+  // (a crash from inside a Qt slot), and the button returned without a word.
+  type_sizes();
+  CHECK(click_forced().contains(expected));
+}
+
 // The active-shape W / H readouts belong to Shape mode: Path and Pixels have
 // no shape layer to size, and Pixels already carries the fixed-size Width /
 // Height row (two width/height pairs on one bar was the September 2026 bug).
@@ -5346,5 +5415,6 @@ std::vector<patchy::test::TestCase> vector_shape_tool_tests() {
        ui_shape_appearance_entry_points_open_the_dialog},
       {"ui_properties_edit_appearance_hides_when_layers_are_deselected",
        ui_properties_edit_appearance_hides_when_layers_are_deselected},
+      {"ui_properties_shape_controls_are_safe_without_a_shape", ui_properties_shape_controls_are_safe_without_a_shape},
   };
 }

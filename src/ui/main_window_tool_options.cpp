@@ -1060,7 +1060,7 @@ void MainWindow::report_layer_selection_count(const std::vector<LayerId>& select
 
 std::vector<LayerId> MainWindow::selected_or_active_layer_ids() const {
   auto ids = selected_layer_ids();
-  const auto active = document().active_layer_id();
+  const auto active = has_active_document() ? document().active_layer_id() : std::nullopt;
   if (ids.empty() && active.has_value()) {
     ids.push_back(*active);
   }

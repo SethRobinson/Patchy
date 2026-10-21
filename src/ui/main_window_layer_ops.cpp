@@ -79,6 +79,7 @@
 #include "ui/canvas_widget.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/layer_merge.hpp"
+#include "ui/new_layer_dialog.hpp"
 #include "ui/background_workers.hpp"
 
 #include "core/layer_metadata.hpp"
@@ -1410,9 +1411,27 @@ void MainWindow::warp_transform_active_layer() {
   refresh_options_bar();
 }
 
-void MainWindow::add_layer() {
+namespace {
+
+// Whether a new layer inserted above `anchor` (insert_layer_after_anchor) has a layer
+// below it to clip to: the New Layer dialog's "Use Previous Layer" option.
+bool new_layer_has_clip_base(const Document& document, std::optional<LayerId> anchor) {
+  if (!anchor.has_value()) {
+    return false;
+  }
+  Document probe = document;  // copy-on-write pixels: only the tree is copied
+  const auto probe_id = probe.allocate_layer_id();
+  Layer marker(probe_id, std::string(), LayerKind::Pixel);
+  insert_layer_after_anchor(probe, std::move(marker), anchor);
+  const auto location = find_layer_location(std::as_const(probe).layers(), probe_id);
+  return location.has_value() && effective_clip_base(*location->siblings, location->index) != nullptr;
+}
+
+}  // namespace
+
+void MainWindow::add_layer(const NewLayerSettings* settings) {
   auto& doc = document();
-  const auto name = default_new_layer_name(doc);
+  const auto name = settings != nullptr ? settings->name : default_new_layer_name(doc);
   auto anchor_id = doc.active_layer_id();
   const auto selected_ids = selected_layer_ids();
   if (!selected_ids.empty()) {
@@ -1425,13 +1444,51 @@ void MainWindow::add_layer() {
                         with_bit_depth(PixelFormat::rgba8(), std::as_const(doc).color_state().bit_depth));
   Layer layer(doc.allocate_layer_id(), name.toStdString(), std::move(layer_pixels));
   const auto layer_id = layer.id();
-  layer.set_opacity(1.0F);
-  layer.set_blend_mode(BlendMode::Normal);
+  layer.set_opacity(settings != nullptr ? settings->opacity : 1.0F);
+  layer.set_blend_mode(settings != nullptr ? settings->blend_mode : BlendMode::Normal);
+  if (settings != nullptr) {
+    layer.set_color_label(settings->color_label);
+  }
   insert_layer_after_anchor(doc, std::move(layer), anchor_id);
+  if (settings != nullptr && settings->clip_to_previous) {
+    if (const auto location = find_layer_location(doc.layers(), layer_id);
+        location.has_value() && effective_clip_base(*location->siblings, location->index) != nullptr) {
+      (*location->siblings)[location->index].set_clipped(true);
+    }
+  }
   doc.set_active_layer(layer_id);
   refresh_layer_list();
   refresh_layer_controls();
   canvas_->document_changed();
+}
+
+// Layer > New > New Layer... (GitHub issue 275): Photoshop's fields in Patchy's own dialog.
+void MainWindow::add_layer_with_dialog() {
+  if (!has_active_document()) {
+    return;
+  }
+  if (canvas_ != nullptr) {
+    canvas_->finish_free_transform();
+  }
+  finish_active_text_editor();
+  const auto session_id = session().session_id;
+  const auto& doc = std::as_const(document());
+  auto anchor_id = doc.active_layer_id();
+  if (const auto selected_ids = selected_layer_ids(); !selected_ids.empty()) {
+    anchor_id = selected_ids.front();
+  }
+  std::vector<NewLayerColorChoice> colors;
+  for (auto* action : layer_color_actions_) {
+    colors.push_back({action != nullptr ? action->text().remove(QLatin1Char('&')) : QString(),
+                      action != nullptr ? action->icon() : QIcon()});
+  }
+  const auto settings = request_new_layer_settings(this, default_new_layer_name(doc),
+                                                   new_layer_has_clip_base(doc, anchor_id),
+                                                   doc.color_state().bit_depth, colors);
+  if (!settings.has_value() || active_session() == nullptr || active_session()->session_id != session_id) {
+    return;
+  }
+  add_layer(&*settings);
 }
 
 void MainWindow::create_layer_folder() {
@@ -3516,6 +3573,9 @@ void MainWindow::show_layer_context_menu(QPoint position) {
   menu.addSeparator();
   auto* merge_down_action =
       menu.addAction(simple_icon(QStringLiteral("merge"), QColor(160, 220, 255)), tr("Merge Down"));
+  auto* merge_visible_layers_action = menu.addAction(simple_icon(QStringLiteral("merge")), tr("Merge Visible"));
+  merge_visible_layers_action->setObjectName(QStringLiteral("layerContextMergeVisibleLayersAction"));
+  merge_visible_layers_action->setEnabled(merge_visible_layer_count(std::as_const(document())) >= 2U);
   auto* merge_visible_action = menu.addAction(simple_icon(QStringLiteral("merge")), tr("Merge Visible to New Layer (Copy)"));
   if (image_flatten_action_ != nullptr) {
     menu.addAction(image_flatten_action_);
@@ -3755,6 +3815,8 @@ void MainWindow::show_layer_context_menu(QPoint position) {
     ungroup_selected_layers();
   } else if (chosen == merge_down_action) {
     merge_down();
+  } else if (chosen == merge_visible_layers_action) {
+    merge_visible_layers();
   } else if (chosen == merge_visible_action) {
     merge_visible_to_new_layer();
   } else if (chosen == visibility_action) {
@@ -3825,7 +3887,7 @@ void MainWindow::show_layer_eye_color_menu(QPoint global_position) {
 
 void MainWindow::show_background_context_menu(QPoint global_position) {
   // Photoshop's shorter menu for its Background (GitHub issue 274): no layer styles, masks,
-  // locks or stacking commands apply to it. Delete and Merge Visible need another layer.
+  // locks or stacking commands apply to it. Delete and the Merge Visible pair need another layer.
   const bool other_layers = layer_tree_count(std::as_const(document()).layers()) > 1U;
   QMenu menu(this);
   menu.setObjectName(QStringLiteral("layerContextMenu"));
@@ -3844,6 +3906,9 @@ void MainWindow::show_background_context_menu(QPoint global_position) {
     menu.addAction(layer_convert_smart_object_action_);
   }
   menu.addSeparator();
+  auto* merge_visible_layers_action = menu.addAction(tr("Merge Visible"));
+  merge_visible_layers_action->setObjectName(QStringLiteral("layerContextMergeVisibleLayersAction"));
+  merge_visible_layers_action->setEnabled(merge_visible_layer_count(std::as_const(document())) >= 2U);
   auto* merge_visible_action = menu.addAction(tr("Merge Visible to New Layer (Copy)"));
   merge_visible_action->setObjectName(QStringLiteral("layerContextMergeVisibleAction"));
   merge_visible_action->setEnabled(other_layers);
@@ -3860,6 +3925,8 @@ void MainWindow::show_background_context_menu(QPoint global_position) {
     duplicate_layer_to_document();
   } else if (chosen == delete_action) {
     delete_active_layer();
+  } else if (chosen == merge_visible_layers_action) {
+    merge_visible_layers();
   } else if (chosen == merge_visible_action) {
     merge_visible_to_new_layer();
   }
@@ -3943,6 +4010,79 @@ void MainWindow::merge_visible_to_new_layer() {
   refresh_paths_panel();
   if (canvas_ != nullptr) { canvas_->document_changed(); }
   statusBar()->showMessage(tr("Created a merged copy of the visible layers"));
+}
+
+void MainWindow::refresh_merge_visible_action_state() {
+  if (layer_merge_visible_layers_action_ != nullptr) {
+    layer_merge_visible_layers_action_->setEnabled(has_active_document() && !preview_dialog_edit_locked() &&
+                                                   merge_visible_layer_count(std::as_const(document())) >= 2U);
+  }
+}
+
+// Photoshop's Merge Visible (GitHub issue 294; docs/layer-merging.md): the visible composite
+// replaces every layer that draws, in the target's slot (merge_visible_target), as one pixel
+// layer, rasterizing text, shapes, Smart Objects, adjustments and styles. Hidden layers stay.
+void MainWindow::merge_visible_layers() {
+  if (canvas_ != nullptr) { canvas_->finish_free_transform(); }
+  finish_active_text_editor();
+  if (active_session() == nullptr) { return; }
+  const auto session_id = active_session()->session_id;
+  const Document source = std::as_const(document());
+  if (merge_visible_layer_count(source) < 2U) {
+    show_status_error(tr("Merge Visible needs at least two visible layers"));
+    return;
+  }
+  const auto target_id = merge_visible_target(source);
+  const auto* target = source.find_layer(target_id);
+  if (target == nullptr) { return; }
+  // A visible Background takes the merge and stays the Background (opaque RGB, its locks).
+  const bool background = background_layer(source.layers(), source.width(), source.height()) == target;
+  auto edit_lock = lock_preview_dialog_edits();
+  const QPointer<CanvasWidget> processing(canvas_);
+  if (processing) { processing->begin_processing_operation(tr("Merging layers...")); }
+  const auto finish_processing = qScopeGuard([processing] { if (processing) { processing->end_processing_operation(); } });
+  PixelBuffer pixels;
+  try {
+    auto future = launch_async([source, background] {
+      const ScopedDocumentDepthRender depth_render;
+      auto composite = pixels_from_image_at_depth(qimage_from_document(source, true), source.color_state().bit_depth);
+      return background ? composite_onto_white(composite) : composite;
+    });
+    if (processing) {
+      processing->wait_for_processing_operation([&future] {
+        return future.wait_for(std::chrono::milliseconds(16)) == std::future_status::ready;
+      });
+    }
+    pixels = future.get();
+  } catch (const std::exception&) {
+    show_status_error(tr("Could not merge the layers. The original layers are unchanged."));
+    return;
+  }
+  if (active_session() == nullptr || active_session()->session_id != session_id) { return; }
+  Layer merged(target_id, target->name(), std::move(pixels));
+  merged.set_color_label(target->color_label());
+  if (background) {
+    set_layer_locks_position(merged, true);
+    set_layer_locks_transparent_pixels(merged, true);
+  }
+  Document prepared = source;
+  prepared.layers() = merge_visible_layer_stack(source, target_id, std::move(merged));
+  prepared.set_active_layer(target_id);
+  edit_lock.release();
+  push_undo_snapshot(tr("Merge visible"));
+  document() = std::move(prepared);
+  if (canvas_ != nullptr) {
+    canvas_->clear_path_edit_selection();
+    canvas_->set_layer_edit_target(CanvasWidget::LayerEditTarget::Content);
+    canvas_->set_selected_layer_ids({target_id});
+  }
+  refresh_layer_list();
+  refresh_layer_controls();
+  refresh_document_info();
+  path_row_hidden_for_layer_.reset();
+  refresh_paths_panel();
+  if (canvas_ != nullptr) { canvas_->document_changed(); }
+  statusBar()->showMessage(tr("Merged the visible layers"));
 }
 
 namespace {

@@ -317,6 +317,37 @@
     </message>
 </context>
 <context>
+    <name>NewLayerDialog</name>
+    <message>
+        <source>New Layer</source>
+        <translation>Новый слой</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>Имя:</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>Цвет:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>Режим:</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Непрозрачность:</translation>
+    </message>
+    <message>
+        <source>Use Previous Layer to Create Clipping Mask</source>
+        <translation>Использовать предыдущий слой для создания обтравочной маски</translation>
+    </message>
+    <message>
+        <source>Clip the new layer to the layer below it</source>
+        <translation>Обтравить новый слой по слою под ним</translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Patchy raster image editor.</source>
@@ -23513,6 +23544,38 @@ Patchy можно будет запускать из меню, а на пане�
     <message>
         <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
         <translation>Многоугольное лассо: щёлкайте, чтобы ставить точки. Начните с Shift+щелчка, чтобы добавить, %ALT%+щелчка, чтобы вычесть, или Shift+%ALT%+щелчка для пересечения. Shift держит 45 градусов, %ALT%+перетаскивание рисует от руки. Чтобы замкнуть контур, щёлкните по начальной точке, дважды щёлкните или нажмите Enter; Backspace удаляет последнюю точку, Esc отменяет.</translation>
+    </message>
+    <message>
+        <source>New &amp;Layer...</source>
+        <translation>Новый &amp;слой...</translation>
+    </message>
+    <message>
+        <source>Add a layer, choosing its name, color, mode and opacity first</source>
+        <translation>Добавить слой, сначала выбрав имя, цвет, режим и непрозрачность</translation>
+    </message>
+    <message>
+        <source>&amp;Merge Visible</source>
+        <translation>Объединить в&amp;идимые</translation>
+    </message>
+    <message>
+        <source>Merge every visible layer into one, keeping the hidden layers</source>
+        <translation>Объединить все видимые слои в один, сохранив скрытые</translation>
+    </message>
+    <message>
+        <source>Merge Visible</source>
+        <translation>Объединить видимые</translation>
+    </message>
+    <message>
+        <source>Merge Visible needs at least two visible layers</source>
+        <translation>Для объединения видимых нужно не менее двух видимых слоев</translation>
+    </message>
+    <message>
+        <source>Merge visible</source>
+        <translation>Объединить видимые</translation>
+    </message>
+    <message>
+        <source>Merged the visible layers</source>
+        <translation>Видимые слои объединены</translation>
     </message>
 </context>
 <context>

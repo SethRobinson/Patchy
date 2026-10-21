@@ -317,6 +317,37 @@
     </message>
 </context>
 <context>
+    <name>NewLayerDialog</name>
+    <message>
+        <source>New Layer</source>
+        <translation>Nuovo livello</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>Nome:</translation>
+    </message>
+    <message>
+        <source>Color:</source>
+        <translation>Colore:</translation>
+    </message>
+    <message>
+        <source>Mode:</source>
+        <translation>Metodo:</translation>
+    </message>
+    <message>
+        <source>Opacity:</source>
+        <translation>Opacità:</translation>
+    </message>
+    <message>
+        <source>Use Previous Layer to Create Clipping Mask</source>
+        <translation>Usa livello precedente per creare maschera di ritaglio</translation>
+    </message>
+    <message>
+        <source>Clip the new layer to the layer below it</source>
+        <translation>Ritaglia il nuovo livello sul livello sottostante</translation>
+    </message>
+</context>
+<context>
     <name>QObject</name>
     <message>
         <source>Patchy raster image editor.</source>
@@ -23441,6 +23472,38 @@ Puoi farlo anche più tardi da Aiuto &gt; Aggiungi Patchy al menu delle applicaz
     <message>
         <source>Polygonal Lasso: click to place points. Start with Shift+click to add, %ALT%+click to subtract, Shift+%ALT%+click to intersect. Shift keeps 45 degrees, %ALT%+drag draws freehand. Click the start point, double-click or press Enter to close; Backspace removes the last point, Esc cancels.</source>
         <translation>Lazo poligonale: fai clic per posizionare i punti. Inizia con Maiusc+clic per aggiungere, %ALT%+clic per sottrarre, Maiusc+%ALT%+clic per intersecare. Maiusc mantiene i 45 gradi, %ALT%+trascina disegna a mano libera. Per chiudere fai clic sul punto iniziale, fai doppio clic o premi Invio; Backspace rimuove l&apos;ultimo punto, Esc annulla.</translation>
+    </message>
+    <message>
+        <source>New &amp;Layer...</source>
+        <translation>Nuovo &amp;livello...</translation>
+    </message>
+    <message>
+        <source>Add a layer, choosing its name, color, mode and opacity first</source>
+        <translation>Aggiungi un livello scegliendo prima nome, colore, metodo e opacità</translation>
+    </message>
+    <message>
+        <source>&amp;Merge Visible</source>
+        <translation>Unisci visi&amp;bili</translation>
+    </message>
+    <message>
+        <source>Merge every visible layer into one, keeping the hidden layers</source>
+        <translation>Unisci tutti i livelli visibili in uno, mantenendo quelli nascosti</translation>
+    </message>
+    <message>
+        <source>Merge Visible</source>
+        <translation>Unisci visibili</translation>
+    </message>
+    <message>
+        <source>Merge Visible needs at least two visible layers</source>
+        <translation>Unisci visibili richiede almeno due livelli visibili</translation>
+    </message>
+    <message>
+        <source>Merge visible</source>
+        <translation>Unisci visibili</translation>
+    </message>
+    <message>
+        <source>Merged the visible layers</source>
+        <translation>Livelli visibili uniti</translation>
     </message>
 </context>
 <context>
