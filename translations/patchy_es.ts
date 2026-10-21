@@ -23362,6 +23362,18 @@ Puedes hacerlo más tarde desde Ayuda &gt; Añadir Patchy al menú de aplicacion
         <source>Smart Sharpen</source>
         <translation>Enfoque inteligente</translation>
     </message>
+    <message>
+        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
+        <translation>Las mesas de trabajo no se pueden borrar. Deseleccione primero; después, Delete elimina la mesa de trabajo.</translation>
+    </message>
+    <message>
+        <source>Deleted artboard</source>
+        <translation>Mesa de trabajo eliminada</translation>
+    </message>
+    <message>
+        <source>Deleted %1 artboards</source>
+        <translation>%1 mesas de trabajo eliminadas</translation>
+    </message>
 </context>
 <context>
     <name>patchy::ui::MarkdownViewerDialog</name>

@@ -1306,7 +1306,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     configure_toolbar_spinbox(spin, 84);
     return spin;
   };
-  add_option_label(QT_TR_NOOP("W:"), {CanvasTool::Artboard});
+  // Separators set the size fields, the background and Add Artboard apart (GitHub issue 285).
+  add_option_separator({CanvasTool::Artboard});
+  add_option_label(QT_TR_NOOP("Width:"), {CanvasTool::Artboard});
   artboard_width_spin_ = make_artboard_size_spin(
       "artboardWidthSpin", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Width of the selected artboard, or of new artboards"));
   add_option_widget(artboard_width_spin_, {CanvasTool::Artboard});
@@ -1316,10 +1318,11 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   artboard_swap->setFixedWidth(28);
   bind_tooltip(artboard_swap, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Swap width and height (portrait or landscape)"));
   add_option_widget(artboard_swap, {CanvasTool::Artboard});
-  add_option_label(QT_TR_NOOP("H:"), {CanvasTool::Artboard});
+  add_option_label(QT_TR_NOOP("Height:"), {CanvasTool::Artboard});
   artboard_height_spin_ = make_artboard_size_spin(
       "artboardHeightSpin", QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Height of the selected artboard, or of new artboards"));
   add_option_widget(artboard_height_spin_, {CanvasTool::Artboard});
+  add_option_separator({CanvasTool::Artboard});
   add_option_label(QT_TR_NOOP("Background:"), {CanvasTool::Artboard});
   artboard_background_combo_ = new QComboBox(toolbar);
   artboard_background_combo_->setObjectName(QStringLiteral("artboardBackgroundCombo"));
@@ -1335,6 +1338,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   });
   bind_tooltip(artboard_background_combo_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Background of the selected artboard, or of new artboards"));
   add_option_widget(artboard_background_combo_, {CanvasTool::Artboard});
+  add_option_separator({CanvasTool::Artboard});
   auto* artboard_add = new QPushButton(tr("Add Artboard"), toolbar);
   artboard_add->setObjectName(QStringLiteral("artboardAddButton"));
   bind_widget_text(artboard_add, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Add Artboard"));
