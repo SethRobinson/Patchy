@@ -1019,8 +1019,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
                     {CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::Lasso, CanvasTool::PolygonLasso,
                      CanvasTool::MagneticLasso, CanvasTool::MagicWand, CanvasTool::ObjectSelect});
   // Feather and Anti-alias are one group. The Lassos and the Magic Wand get their separator
-  // after the marquee fields below, which they do not show.
-  add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee, CanvasTool::ObjectSelect});
+  // after the marquee fields below, which they do not show. Object Selection runs Anti-alias
+  // straight into Sample All Layers: its checkboxes form one group (GitHub issue 292).
+  add_option_separator({CanvasTool::Marquee, CanvasTool::EllipticalMarquee});
   const auto apply_selection_edge_settings = [this, feather, anti_alias] {
     current_selection_feather_radius_ = feather->value();
     current_selection_antialias_ = anti_alias->isChecked();
