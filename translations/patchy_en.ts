@@ -11556,6 +11556,32 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>iPhone 16 Pro</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Android HD</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Android FHD</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Android WQHD</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Tablet</source>
+        <comment>artboard size group</comment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Phone</source>
+        <comment>artboard size group</comment>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -11848,6 +11874,17 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
     </message>
     <message>
         <source>Default frame delay:</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::ArtboardPresetPicker</name>
+    <message>
+        <source>Search presets...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>No matching presets</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -4,6 +4,7 @@
 // the canvas until the artboards fit (the view follows, so nothing jumps on screen).
 
 #include "ui/main_window.hpp"
+#include "ui/artboard_preset_picker.hpp"
 
 #include "core/artboard.hpp"
 #include "core/layer_render_utils.hpp"
@@ -715,16 +716,8 @@ void MainWindow::sync_artboard_controls() {
       spin->setValue(spin == artboard_width_spin_ ? size.width() : size.height());
     }
   }
-  if (artboard_preset_combo_ != nullptr) {
-    const QSignalBlocker blocker(artboard_preset_combo_);
-    int match = 0;
-    for (int row = 1; row < artboard_preset_combo_->count(); ++row) {
-      if (artboard_preset_combo_->itemData(row).toSize() == size) {
-        match = row;
-        break;
-      }
-    }
-    artboard_preset_combo_->setCurrentIndex(match);
+  if (artboard_preset_picker_ != nullptr) {
+    artboard_preset_picker_->set_current_size(size);
   }
   if (artboard_background_combo_ != nullptr) {
     const QSignalBlocker blocker(artboard_background_combo_);

@@ -11537,6 +11537,32 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
         <translation>背景：它始终位于堆栈底部，没有透明度，也没有图层样式。右键单击它并选择“从背景生成图层”即可将其变为普通图层。</translation>
     </message>
+    <message>
+        <source>iPhone 16 Pro</source>
+        <translation>iPhone 16 Pro</translation>
+    </message>
+    <message>
+        <source>Android HD</source>
+        <translation>Android 手机 HD</translation>
+    </message>
+    <message>
+        <source>Android FHD</source>
+        <translation>Android 手机 FHD</translation>
+    </message>
+    <message>
+        <source>Android WQHD</source>
+        <translation>Android 手机 WQHD</translation>
+    </message>
+    <message>
+        <source>Tablet</source>
+        <comment>artboard size group</comment>
+        <translation>平板电脑</translation>
+    </message>
+    <message>
+        <source>Phone</source>
+        <comment>artboard size group</comment>
+        <translation>手机</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -11830,6 +11856,17 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Default frame delay:</source>
         <translation>默认帧间隔:</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::ArtboardPresetPicker</name>
+    <message>
+        <source>Search presets...</source>
+        <translation>搜索预设...</translation>
+    </message>
+    <message>
+        <source>No matching presets</source>
+        <translation>没有匹配的预设</translation>
     </message>
 </context>
 <context>

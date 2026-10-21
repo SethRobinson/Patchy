@@ -11572,6 +11572,32 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
         <translation>Plano de fundo: fica na base da pilha, sem transparência nem estilos de camada. Clique com o botão direito nele e escolha Camada do plano de fundo para torná-lo uma camada comum.</translation>
     </message>
+    <message>
+        <source>iPhone 16 Pro</source>
+        <translation>iPhone 16 Pro</translation>
+    </message>
+    <message>
+        <source>Android HD</source>
+        <translation>Celular Android HD</translation>
+    </message>
+    <message>
+        <source>Android FHD</source>
+        <translation>Celular Android FHD</translation>
+    </message>
+    <message>
+        <source>Android WQHD</source>
+        <translation>Celular Android WQHD</translation>
+    </message>
+    <message>
+        <source>Tablet</source>
+        <comment>artboard size group</comment>
+        <translation>Tablet</translation>
+    </message>
+    <message>
+        <source>Phone</source>
+        <comment>artboard size group</comment>
+        <translation>Celular</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -11865,6 +11891,17 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Default frame delay:</source>
         <translation>Duração padrão do quadro:</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::ArtboardPresetPicker</name>
+    <message>
+        <source>Search presets...</source>
+        <translation>Pesquisar predefinições...</translation>
+    </message>
+    <message>
+        <source>No matching presets</source>
+        <translation>Nenhuma predefinição correspondente</translation>
     </message>
 </context>
 <context>

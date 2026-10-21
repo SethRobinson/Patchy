@@ -11537,6 +11537,32 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Background: it stays at the bottom of the stack, with no transparency or layer styles. Right-click it and choose Layer from Background to make it an ordinary layer.</source>
         <translation>배경: 스택의 맨 아래에 머물며 투명도나 레이어 스타일을 가질 수 없습니다. 마우스 오른쪽 버튼으로 클릭하고 배경에서 레이어로를 선택하면 일반 레이어가 됩니다.</translation>
     </message>
+    <message>
+        <source>iPhone 16 Pro</source>
+        <translation>iPhone 16 Pro</translation>
+    </message>
+    <message>
+        <source>Android HD</source>
+        <translation>Android 휴대폰 HD</translation>
+    </message>
+    <message>
+        <source>Android FHD</source>
+        <translation>Android 휴대폰 FHD</translation>
+    </message>
+    <message>
+        <source>Android WQHD</source>
+        <translation>Android 휴대폰 WQHD</translation>
+    </message>
+    <message>
+        <source>Tablet</source>
+        <comment>artboard size group</comment>
+        <translation>태블릿</translation>
+    </message>
+    <message>
+        <source>Phone</source>
+        <comment>artboard size group</comment>
+        <translation>휴대폰</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>
@@ -11830,6 +11856,17 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <message>
         <source>Default frame delay:</source>
         <translation>기본 프레임 지연:</translation>
+    </message>
+</context>
+<context>
+    <name>patchy::ui::ArtboardPresetPicker</name>
+    <message>
+        <source>Search presets...</source>
+        <translation>사전 설정 검색...</translation>
+    </message>
+    <message>
+        <source>No matching presets</source>
+        <translation>일치하는 사전 설정이 없습니다.</translation>
     </message>
 </context>
 <context>

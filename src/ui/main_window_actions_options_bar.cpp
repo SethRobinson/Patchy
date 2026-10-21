@@ -14,6 +14,7 @@
 #include <QStatusBar>
 #include "ui/canvas_widget.hpp"
 #include "ui/appearance_edits.hpp"
+#include "ui/artboard_preset_picker.hpp"
 #include "ui/main_window_shared.hpp"
 #include "ui/main_window_actions_internal.hpp"
 #include "ui/options_flow_layout.hpp"
@@ -1346,21 +1347,17 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   // Artboard tool (docs/artboards.md): the size and background show the selected
   // artboard and edit it; with none selected they are what a new artboard gets.
   add_option_label(QT_TR_NOOP("Size:"), {CanvasTool::Artboard});
-  artboard_preset_combo_ = new QComboBox(toolbar);
-  artboard_preset_combo_->setObjectName(QStringLiteral("artboardPresetCombo"));
-  artboard_preset_combo_->setMinimumWidth(150);
-  populate_artboard_size_presets(artboard_preset_combo_);
-  QPointer<QComboBox> artboard_presets(artboard_preset_combo_);
+  // The presets grouped by template group, with a search field (GitHub issue 285 follow-up):
+  // the flat list of every New Document preset was too long to scan.
+  artboard_preset_picker_ = new ArtboardPresetPicker(toolbar);
+  QPointer<ArtboardPresetPicker> artboard_presets(artboard_preset_picker_);
   register_retranslation([artboard_presets] {
     if (artboard_presets != nullptr) {
-      const QSignalBlocker blocker(artboard_presets);
-      const auto index = artboard_presets->currentIndex();
-      populate_artboard_size_presets(artboard_presets);
-      artboard_presets->setCurrentIndex(index);
+      artboard_presets->rebuild();
     }
   });
-  bind_tooltip(artboard_preset_combo_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Size preset for the selected artboard, or for new artboards"));
-  add_option_widget(artboard_preset_combo_, {CanvasTool::Artboard});
+  bind_tooltip(artboard_preset_picker_, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Size preset for the selected artboard, or for new artboards"));
+  add_option_widget(artboard_preset_picker_, {CanvasTool::Artboard});
   const auto make_artboard_size_spin = [this, toolbar](const char* name, const char* tooltip) {
     auto* spin = new QSpinBox(toolbar);
     spin->setObjectName(QLatin1String(name));
@@ -1430,11 +1427,8 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       }
     }
   });
-  connect(artboard_preset_combo_, &QComboBox::activated, this, [this](int index) {
-    if (const auto size = artboard_preset_combo_->itemData(index).toSize(); size.isValid()) {
-      apply_artboard_size_option(size);
-    }
-  });
+  connect(artboard_preset_picker_, &ArtboardPresetPicker::preset_chosen, this,
+          [this](QSize size) { apply_artboard_size_option(size); });
   // A scrub previews on the canvas and commits at its editingFinished; typed values and
   // arrow steps apply at once, one undo step per run (artboard_field_edit_run_).
   for (auto* spin : {artboard_width_spin_, artboard_height_spin_}) {
