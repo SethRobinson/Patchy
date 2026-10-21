@@ -933,6 +933,58 @@ void ui_liquify_keys_choose_tools_and_size_without_reaching_the_main_window() {
   CHECK(patchy::ui::MainWindowTestAccess::active_session_undo_depth(window) == undo_before);
 }
 
+// Twirl, Pucker, Bloat and Reconstruct keep working while the button is held still, at
+// the Rate; Warp does nothing without motion. With Stylus Pressure on, a pen's pressure
+// scales the Pressure setting.
+void ui_liquify_rate_and_pen_pressure() {
+  const QPointF center(80.0, 60.0);
+  patchy::LiquifyMesh one_dab(160, 120);
+  one_dab.apply_stroke(patchy::LiquifyTool::TwirlClockwise, center.x(), center.y(), center.x(), center.y(), 50.0,
+                       50.0, 50.0);
+  const auto magnitude = [](const patchy::LiquifyMesh& mesh) {
+    const auto [dx, dy] = mesh.displacement_at(95.0, 60.0);
+    return std::hypot(dx, dy);
+  };
+  const auto held = drive_liquify([&](QDialog& dialog, QWidget& preview) {
+    auto* rate = dialog.findChild<QSpinBox*>(QStringLiteral("liquifyRateSpin"));
+    CHECK(rate != nullptr && rate->minimum() == 1 && rate->maximum() == 100 && rate->value() == 80);
+    QTest::mouseClick(liquify_tool_button(dialog, "liquifyTwirlTool"), Qt::LeftButton);
+    send_mouse(preview, QEvent::MouseButtonPress, liquify_widget_point(center), Qt::LeftButton, Qt::LeftButton);
+    QTest::qWait(300);
+    send_mouse(preview, QEvent::MouseButtonRelease, liquify_widget_point(center), Qt::LeftButton, Qt::NoButton);
+  });
+  CHECK(held.has_value() && magnitude(*held) > 3.0 * magnitude(one_dab));
+  const auto still_warp = drive_liquify([&](QDialog&, QWidget& preview) {
+    send_mouse(preview, QEvent::MouseButtonPress, liquify_widget_point(center), Qt::LeftButton, Qt::LeftButton);
+    QTest::qWait(150);
+    send_mouse(preview, QEvent::MouseButtonRelease, liquify_widget_point(center), Qt::LeftButton, Qt::NoButton);
+  });
+  CHECK(still_warp.has_value() && still_warp->is_identity());
+
+  const QPointF from(40.0, 60.0), to(70.0, 62.0);
+  const auto pen_drag = [&](QWidget& preview) {
+    send_tablet(preview, QEvent::TabletPress, liquify_widget_point(from), 0.25);
+    send_mouse(preview, QEvent::MouseButtonPress, liquify_widget_point(from), Qt::LeftButton, Qt::LeftButton);
+    send_tablet(preview, QEvent::TabletMove, liquify_widget_point(to), 0.25);
+    send_mouse(preview, QEvent::MouseMove, liquify_widget_point(to), Qt::NoButton, Qt::LeftButton);
+    send_tablet(preview, QEvent::TabletRelease, liquify_widget_point(to), 0.0, Qt::LeftButton, Qt::NoButton);
+    send_mouse(preview, QEvent::MouseButtonRelease, liquify_widget_point(to), Qt::LeftButton, Qt::NoButton);
+  };
+  patchy::LiquifyMesh light(160, 120);
+  expect_drag(light, from, to, patchy::LiquifyTool::ForwardWarp, 12.5);
+  CHECK(liquify_meshes_equal(drive_liquify([&](QDialog& dialog, QWidget& preview) {
+    auto* stylus = dialog.findChild<QCheckBox*>(QStringLiteral("liquifyStylusPressureCheck"));
+    CHECK(stylus != nullptr && stylus->isChecked());
+    pen_drag(preview);
+  }), light));
+  patchy::LiquifyMesh full(160, 120);
+  expect_drag(full, from, to);
+  CHECK(liquify_meshes_equal(drive_liquify([&](QDialog& dialog, QWidget& preview) {
+    dialog.findChild<QCheckBox*>(QStringLiteral("liquifyStylusPressureCheck"))->setChecked(false);
+    pen_drag(preview);
+  }), full));
+}
+
 void ui_liquify_preview_selection_preserves_sample_mapping() {
   for (const auto size : {QSize(83, 61), QSize(1001, 773), QSize(1024, 1), QSize(1, 1024)}) {
     auto proxy_size = size;
@@ -1863,5 +1915,6 @@ std::vector<patchy::test::TestCase> filter_catalog_dialog_tests() {
       {"ui_liquify_undo_redo_steps_strokes_and_restore", ui_liquify_undo_redo_steps_strokes_and_restore},
       {"ui_liquify_keys_choose_tools_and_size_without_reaching_the_main_window",
        ui_liquify_keys_choose_tools_and_size_without_reaching_the_main_window},
+      {"ui_liquify_rate_and_pen_pressure", ui_liquify_rate_and_pen_pressure},
   };
 }

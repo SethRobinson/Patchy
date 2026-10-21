@@ -11544,6 +11544,18 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <source>Redo</source>
         <translation>Ripeti</translation>
     </message>
+    <message>
+        <source>Rate:</source>
+        <translation>Velocità:</translation>
+    </message>
+    <message>
+        <source>How fast the brush keeps working while it is held still</source>
+        <translation>Velocità con cui il pennello continua ad agire mentre resta fermo</translation>
+    </message>
+    <message>
+        <source>Stylus Pressure</source>
+        <translation>Pressione stilo</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

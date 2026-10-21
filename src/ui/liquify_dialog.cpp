@@ -26,6 +26,8 @@
 #include <QShortcut>
 #include <QSlider>
 #include <QSpinBox>
+#include <QTabletEvent>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -43,6 +45,15 @@ namespace patchy::ui {
 namespace {
 
 constexpr int kMaximumProxyEdge = 720;
+// Rate: stationary dabs per second at Rate 100 (Rate 80, the default, gives 48).
+constexpr double kMaximumDabsPerSecond = 60.0;
+
+// The tools that keep working while the brush is held still.
+bool works_while_held(LiquifyTool tool) {
+  return tool == LiquifyTool::TwirlClockwise || tool == LiquifyTool::TwirlCounterClockwise ||
+         tool == LiquifyTool::Pucker || tool == LiquifyTool::Bloat || tool == LiquifyTool::Reconstruct;
+}
+
 // Undo steps the workspace keeps: one mesh each (about 55 KB at the 720 px proxy).
 constexpr std::size_t kHistoryLimit = 100;
 
@@ -100,6 +111,8 @@ public:
     setMouseTracking(true);
     setFocusPolicy(Qt::StrongFocus);
     setMinimumSize(500, 380);
+    rate_timer_.setObjectName(QStringLiteral("liquifyRateTimer"));
+    connect(&rate_timer_, &QTimer::timeout, this, [this] { apply_held_dab(); });
     if (!selection_mask_.isNull()) {
       // Unselected pixels always show the original: convert it to the preview's format
       // once (the same per-pixel conversion as before), then copy rows per render.
@@ -121,6 +134,13 @@ public:
     update();
   }
   void set_pressure(int pressure) { pressure_ = pressure; }
+  void set_rate(int rate) {
+    rate_ = rate;
+    if (rate_timer_.isActive()) {
+      rate_timer_.start(rate_interval_ms());
+    }
+  }
+  void set_stylus_pressure(bool enabled) { stylus_pressure_ = enabled; }
   void set_density(int density) { density_ = density; }
   void set_show_mask(bool show) {
     show_mask_ = show;
@@ -183,7 +203,12 @@ protected:
     dragging_ = true;
     last_point_ = *point;
     push_history(mesh_);
+    held_modifiers_ = event->modifiers();
+    moved_since_held_dab_ = false;
     apply_gesture(*point, *point, event->modifiers());
+    if (works_while_held(tool_)) {
+      rate_timer_.start(rate_interval_ms());
+    }
     event->accept();
   }
 
@@ -196,6 +221,8 @@ protected:
       if (point.has_value()) {
         apply_gesture(last_point_, *point, event->modifiers());
         last_point_ = *point;
+        held_modifiers_ = event->modifiers();
+        moved_since_held_dab_ = true;
       }
     }
     if (!preview_stale_) {
@@ -208,13 +235,27 @@ protected:
   void mouseReleaseEvent(QMouseEvent* event) override {
     if (event->button() == Qt::LeftButton) {
       dragging_ = false;
+      rate_timer_.stop();
       event->accept();
     }
+  }
+
+  // A pen's pressure scales Pressure for the mouse events Qt synthesizes from it, so the
+  // tablet event itself is left unaccepted.
+  void tabletEvent(QTabletEvent* event) override {
+    if (event->type() == QEvent::TabletRelease) {
+      pen_down_ = false;
+    } else if (event->type() == QEvent::TabletPress || event->type() == QEvent::TabletMove) {
+      pen_down_ = event->type() == QEvent::TabletPress || event->buttons() != Qt::NoButton;
+      pen_pressure_ = event->pressure();
+    }
+    event->ignore();
   }
 
   void leaveEvent(QEvent*) override {
     cursor_inside_ = false;
     dragging_ = false;
+    rate_timer_.stop();
     update();
   }
 
@@ -235,6 +276,24 @@ private:
   void invalidate_preview() {
     preview_stale_ = true;
     update();
+  }
+
+  [[nodiscard]] int rate_interval_ms() const {
+    const double per_second = std::max(1.0, kMaximumDabsPerSecond * rate_ / 100.0);
+    return std::clamp(static_cast<int>(std::lround(1000.0 / per_second)), 16, 1000);
+  }
+
+  // Rate: while the button is held without moving, the stationary tools add a dab per
+  // tick at the last point; a move in between already applied the brush.
+  void apply_held_dab() {
+    if (!dragging_) {
+      rate_timer_.stop();
+      return;
+    }
+    if (!moved_since_held_dab_) {
+      apply_gesture(last_point_, last_point_, held_modifiers_);
+    }
+    moved_since_held_dab_ = false;
   }
 
   // Records `before`, the mesh as it was, as one undo step; a new step drops the redo steps.
@@ -298,8 +357,9 @@ private:
                 modifiers.testFlag(Qt::AltModifier)
             ? LiquifyTool::TwirlCounterClockwise
             : tool_;
+    const double pen = stylus_pressure_ && pen_down_ ? std::clamp(pen_pressure_, 0.0, 1.0) : 1.0;
     mesh_.apply_stroke(gesture_tool, from.x(), from.y(), to.x(), to.y(),
-                       std::max(1.0, proxy_size), pressure_, density_);
+                       std::max(1.0, proxy_size), pressure_ * pen, density_);
     invalidate_preview();
   }
 
@@ -355,6 +415,13 @@ private:
   int size_{150};
   int pressure_{50};
   int density_{50};
+  int rate_{80};
+  QTimer rate_timer_;
+  Qt::KeyboardModifiers held_modifiers_;
+  bool moved_since_held_dab_{false};
+  bool stylus_pressure_{true};
+  bool pen_down_{false};
+  double pen_pressure_{1.0};
   bool show_mask_{true};
   bool preview_stale_{false};
   bool cursor_inside_{false};
@@ -489,7 +556,14 @@ std::optional<LiquifyMesh> request_liquify(QWidget* parent,
       QStringLiteral("liquifyDensitySlider"),
       QStringLiteral("liquifyDensitySpin"), 1, 100, 50,
       percent_suffix(), 72);
+  auto* rate = add_dialog_slider_spin_row(form, &dialog, QObject::tr("Rate:"), QStringLiteral("liquifyRateSlider"),
+                                          QStringLiteral("liquifyRateSpin"), 1, 100, 80, QString(), 72);
+  rate->setToolTip(QObject::tr("How fast the brush keeps working while it is held still"));
   controls->addLayout(form);
+  auto* stylus = new QCheckBox(QObject::tr("Stylus Pressure"), &dialog);
+  stylus->setObjectName(QStringLiteral("liquifyStylusPressureCheck"));
+  stylus->setChecked(true);
+  controls->addWidget(stylus);
 
   auto* show_mask = new QCheckBox(QObject::tr("Show Freeze Mask"), &dialog);
   show_mask->setObjectName(QStringLiteral("liquifyShowMaskCheck"));
@@ -538,6 +612,9 @@ std::optional<LiquifyMesh> request_liquify(QWidget* parent,
                    [preview](int value) { preview->set_pressure(value); });
   QObject::connect(density, &QSpinBox::valueChanged, &dialog,
                    [preview](int value) { preview->set_density(value); });
+  QObject::connect(rate, &QSpinBox::valueChanged, &dialog, [preview](int value) { preview->set_rate(value); });
+  QObject::connect(stylus, &QCheckBox::toggled, &dialog,
+                   [preview](bool checked) { preview->set_stylus_pressure(checked); });
   QObject::connect(show_mask, &QCheckBox::toggled, &dialog,
                    [preview](bool checked) { preview->set_show_mask(checked); });
   QObject::connect(restore, &QPushButton::clicked, &dialog,
