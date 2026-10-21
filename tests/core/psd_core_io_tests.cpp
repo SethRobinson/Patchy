@@ -594,6 +594,23 @@ void psd_image_resources_round_trip_and_icc_profile_is_exposed() {
   CHECK(test_image_resource_count(layered_resources, 1005) == 1);
 }
 
+void psd_without_resolution_resource_opens_at_72_ppi() {
+  // Photoshop 2026 opens a PSD with no ResolutionInfo (1005) at 72 PPI (ag-psd's
+  // auto-lead/expected.psd, GitHub issue 272); the reader kept the 300 PPI default.
+  patchy::psd::BigEndianWriter writer;
+  patchy::psd::write_header(writer, patchy::psd::Header{false, 3, 1, 1, 8, 3});
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u32(0);
+  writer.write_u16(0);
+  writer.write_u8(1);
+  writer.write_u8(2);
+  writer.write_u8(3);
+  const auto document = patchy::psd::DocumentIo::read(writer.bytes());
+  CHECK(document.print_settings().horizontal_ppi == 72.0);
+  CHECK(document.print_settings().vertical_ppi == 72.0);
+}
+
 void psd_resolution_resource_units_are_display_only() {
   // Photoshop 2026 ground truth (COM byte-patch probe, July 2026): resource 1005
   // resolutions are stored as pixels/inch no matter what the unit fields say; a
@@ -3687,6 +3704,7 @@ std::vector<patchy::test::TestCase> psd_core_io_tests() {
       {"psd_image_resources_round_trip_and_icc_profile_is_exposed",
        psd_image_resources_round_trip_and_icc_profile_is_exposed},
       {"psd_resolution_resource_units_are_display_only", psd_resolution_resource_units_are_display_only},
+      {"psd_without_resolution_resource_opens_at_72_ppi", psd_without_resolution_resource_opens_at_72_ppi},
       {"psd_grid_guides_resource_round_trip_and_replaces_duplicates",
        psd_grid_guides_resource_round_trip_and_replaces_duplicates},
       {"psd_grid_guides_keep_positions_outside_the_canvas", psd_grid_guides_keep_positions_outside_the_canvas},

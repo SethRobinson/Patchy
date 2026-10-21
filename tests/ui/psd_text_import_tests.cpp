@@ -1501,6 +1501,148 @@ void ui_imported_psd_box_text_line_clip_hides_overflow_after_edit() {
 #endif
 }
 
+// ag-psd's write/auto-lead/expected.psd (GitHub issue 272): a writer-made type layer with no
+// raster at all. Photoshop 2026, after updating the layer, draws 12 pt (12 px at 72 PPI)
+// "some text" with its first baseline on ty = 0: ink x 0..50, y -8..0, all above the canvas.
+// Patchy drew its built-in placeholder (134 x 28, inside the canvas) instead. The open lays the
+// text out at Photoshop's anchor, and a save writes those pixels under the file's own TySh.
+void ui_raster_less_psd_type_layer_lays_out_at_the_photoshop_anchor_if_available() {
+  const auto path = patchy::test::source_root_path() / "local-test-fixtures" / "ag-psd" / "auto-lead" / "expected.psd";
+  patchy::test::skip_unless_exists(path);
+  patchy::ui::MainWindow window;
+  show_window(window);
+  patchy::ui::MainWindowTestAccess::open_document_path(window, patchy::ui::to_qstring(path));
+  QApplication::processEvents();
+  const auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  CHECK(document.print_settings().vertical_ppi == 72.0);
+  CHECK(document.layers().size() == 1U);
+  if (document.layers().size() != 1U) {
+    return;
+  }
+  const auto& layer = document.layers().front();
+  CHECK(layer.metadata().at(patchy::kLayerMetadataTextRasterStatus) != "placeholder");
+  const auto ink = patchy::visible_alpha_local_bounds(layer.pixels());
+  CHECK(ink.has_value());
+  if (!ink.has_value()) {
+    return;
+  }
+  const auto ink_left = layer.bounds().x + ink->x;
+  const auto ink_top = layer.bounds().y + ink->y;
+  const auto ink_right = ink_left + ink->width;
+  const auto ink_bottom = ink_top + ink->height;
+  int canvas_row_alpha = 0;
+  if (ink_bottom > 0) {
+    for (std::int32_t x = 0; x < layer.pixels().width(); ++x) {
+      canvas_row_alpha = std::max<int>(canvas_row_alpha, std::as_const(layer).pixels().pixel(x, -layer.bounds().y)[3]);
+    }
+  }
+  std::printf("  laid out ink x %d..%d, y %d..%d, row 0 alpha up to %d (Photoshop: x 0..50, y -8..0); font %s\n",
+              ink_left, ink_right, ink_top, ink_bottom, canvas_row_alpha,
+              layer.metadata().at(patchy::kLayerMetadataTextFont).c_str());
+  std::fflush(stdout);
+  // "some text" has no descenders: its ink ends on the baseline, the canvas's top edge.
+  CHECK(ink_bottom >= -1 && ink_bottom <= 1);
+  // 12 px type: the 't' rises about 8 px. A substituted face may differ a little.
+  CHECK(ink->height >= 6 && ink->height <= 12);
+  CHECK(ink_left >= -1 && ink_left <= 3);
+  CHECK(ink_right >= 35 && ink_right <= 70);
+  // The text transform is still the file's (baseline anchored), not moved to a layout top.
+  CHECK(layer.metadata().at(patchy::kLayerMetadataTextTransform) == "1 0 0 1 0 0");
+  // Issue screenshot: the layer's transform box straddles the canvas top as in Photoshop.
+  window.resize(1100, 720);
+  require_action_by_text(window, QStringLiteral("Move"))->trigger();
+  auto* canvas = require_canvas(window);
+  canvas->set_show_transform_controls(true);
+  canvas->set_zoom(2.0);
+  process_events_for(150);
+  save_widget_artifact("issue272_auto_lead_window", window);
+
+  // A save writes the laid-out pixels (above the canvas, a negative layer top, as Photoshop's
+  // own save does) and the file's type block, which reopens on the same anchor.
+  const auto saved = patchy::psd::DocumentIo::write_layered_rgb8(document);
+  {
+    // For the Photoshop open check (docs/photoshop-com.md).
+    std::filesystem::create_directories("test-artifacts");
+    std::ofstream out("test-artifacts/auto_lead_resaved.psd", std::ios::binary);
+    out.write(reinterpret_cast<const char*>(saved.data()), static_cast<std::streamsize>(saved.size()));
+  }
+  const auto reread = patchy::psd::DocumentIo::read(saved);
+  CHECK(reread.layers().size() == 1U);
+  if (reread.layers().size() != 1U) {
+    return;
+  }
+  const auto& reopened = reread.layers().front();
+  CHECK(reopened.bounds().x == layer.bounds().x && reopened.bounds().y == layer.bounds().y);
+  CHECK(reopened.bounds().width == layer.bounds().width && reopened.bounds().height == layer.bounds().height);
+  CHECK(reopened.bounds().y < 0);
+  CHECK(reopened.metadata().at(patchy::kLayerMetadataTextRasterStatus) == "psd_raster_preview");
+  CHECK(reopened.metadata().at(patchy::kLayerMetadataTextTransform) == "1 0 0 1 0 0");
+  CHECK(reread.print_settings().vertical_ppi == 72.0);
+}
+
+// The same pass without the fixture: a raster-less imported point layer ("HEH", Arial 32 px,
+// no descenders) lays its first baseline on ty and its justification point on tx, left and
+// centered; vertical type keeps the placeholder.
+void ui_raster_less_imported_point_text_pins_baseline_and_justification() {
+  skip_without_arial_for_psd_text_preview();
+  const auto laid_out = [](const char* alignment, bool vertical) {
+    patchy::Document document(240, 120, patchy::PixelFormat::rgba8());
+    patchy::Layer text_layer(document.allocate_layer_id(), "Text: HEH",
+                             solid_pixels(48, 28, patchy::PixelFormat::rgba8(), QColor(0, 0, 0, 0)));
+    text_layer.set_bounds(patchy::Rect{0, 0, 48, 28});
+    auto& metadata = text_layer.metadata();
+    metadata[patchy::kLayerMetadataText] = "HEH";
+    metadata[patchy::kLayerMetadataTextFont] = "Arial";
+    metadata[patchy::kLayerMetadataTextSize] = "32";
+    metadata[patchy::kLayerMetadataTextColor] = "#000000";
+    metadata[patchy::kLayerMetadataTextFlow] = "point";
+    metadata[patchy::kLayerMetadataTextParagraphRuns] = std::string("v1\n0\t3\t") + alignment;
+    metadata[patchy::kLayerMetadataTextLayoutMode] = patchy::kTextLayoutModePhotoshop;
+    metadata[patchy::kLayerMetadataTextSourceBlock] = "TySh";
+    metadata[patchy::kLayerMetadataTextRasterStatus] = "placeholder";
+    metadata[patchy::kLayerMetadataTextTransform] = "1 0 0 1 100 60";
+    metadata[patchy::kLayerMetadataPsdTextTransform] = "1 0 0 1 100 60";
+    if (vertical) {
+      metadata[patchy::kLayerMetadataTextOrientation] = patchy::kTextOrientationVertical;
+    }
+    document.add_layer(std::move(text_layer));
+    patchy::ui::MainWindow window;
+    patchy::ui::MainWindowTestAccess::lay_out_raster_less_imported_text(window, document);
+    return document.layers().front();
+  };
+
+  const auto left = laid_out("left", false);
+  CHECK(left.metadata().at(patchy::kLayerMetadataTextRasterStatus) == "psd_raster_preview");
+  CHECK(left.metadata().at(patchy::kLayerMetadataTextTransform) == "1 0 0 1 100 60");
+  const auto left_ink = patchy::visible_alpha_local_bounds(left.pixels());
+  CHECK(left_ink.has_value());
+  if (left_ink.has_value()) {
+    const auto ink_left = left.bounds().x + left_ink->x;
+    const auto ink_bottom = left.bounds().y + left_ink->y + left_ink->height;
+    std::printf("  left: ink x %d..%d, bottom %d (tx 100, ty 60)\n", ink_left, ink_left + left_ink->width, ink_bottom);
+    // Arial's H stands on the baseline and starts its side bearing (about 2.4 px) past the line start.
+    CHECK(ink_bottom == 60);
+    CHECK(ink_left >= 101 && ink_left <= 104);
+    CHECK(left_ink->height >= 22 && left_ink->height <= 25);
+  }
+
+  const auto centered = laid_out("center", false);
+  const auto centered_ink = patchy::visible_alpha_local_bounds(centered.pixels());
+  CHECK(centered_ink.has_value());
+  if (centered_ink.has_value() && left_ink.has_value()) {
+    const auto ink_left = centered.bounds().x + centered_ink->x;
+    const auto ink_middle = ink_left + centered_ink->width / 2.0;
+    std::printf("  centered: ink x %d..%d (tx 100)\n", ink_left, ink_left + centered_ink->width);
+    CHECK(centered.bounds().y + centered_ink->y + centered_ink->height == 60);
+    CHECK(std::abs(ink_middle - 100.0) <= 2.0);
+    // The same glyphs at another sub-pixel phase.
+    CHECK(std::abs(centered_ink->width - left_ink->width) <= 1);
+  }
+
+  const auto vertical = laid_out("left", true);
+  CHECK(vertical.metadata().at(patchy::kLayerMetadataTextRasterStatus) == "placeholder");
+}
+
 void ui_cdi_a4_title_text_import_edit_visual_bounds_if_available() {
   const auto path = patchy::test::local_psd_fixture_path("CDi_A4.psd");
   patchy::test::skip_unless_exists(path);
@@ -3915,6 +4057,10 @@ std::vector<patchy::test::TestCase> psd_text_import_tests() {
        ui_text_commit_records_photoshop_baseline_metrics_and_round_trips_psd},
       {"ui_reopened_old_convention_point_text_migrates_to_baseline_anchor",
        ui_reopened_old_convention_point_text_migrates_to_baseline_anchor},
+      {"ui_raster_less_psd_type_layer_lays_out_at_the_photoshop_anchor_if_available",
+       ui_raster_less_psd_type_layer_lays_out_at_the_photoshop_anchor_if_available},
+      {"ui_raster_less_imported_point_text_pins_baseline_and_justification",
+       ui_raster_less_imported_point_text_pins_baseline_and_justification},
       {"ui_psd_point_text_edit_origin_survives_scale_transform_if_available",
        ui_psd_point_text_edit_origin_survives_scale_transform_if_available},
       {"ui_psd_point_text_transform_scales_crisply", ui_psd_point_text_transform_scales_crisply},

@@ -36,6 +36,7 @@ std::vector<patchy::test::TestCase> pat_asl_abr_tests();
 std::vector<patchy::test::TestCase> pixel_tools_tests();
 std::vector<patchy::test::TestCase> palette_tests();
 std::vector<patchy::test::TestCase> document_ops_filters_tests();
+std::vector<patchy::test::TestCase> builtin_filter_looks_tests();
 std::vector<patchy::test::TestCase> flat_formats_bmp_tests();
 std::vector<patchy::test::TestCase> raw_heif_tests();
 std::vector<patchy::test::TestCase> jxr_tests();
