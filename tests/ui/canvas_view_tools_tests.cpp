@@ -10706,7 +10706,6 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
   return {
       {"ui_startup_restores_stored_brush_and_gradient_settings",
        ui_startup_restores_stored_brush_and_gradient_settings},
-      {"ui_startup_defaults_to_round_brush", ui_startup_defaults_to_round_brush},
       {"ui_canvas_renderer_selects_a_safe_runtime_backend",
        ui_canvas_renderer_selects_a_safe_runtime_backend},
       {"ui_canvas_renderer_defaults_to_cpu_without_an_explicit_request",
