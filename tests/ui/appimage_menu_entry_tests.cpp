@@ -20,9 +20,11 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QFrame>
+#include <QLabel>
 #include <QMenu>
 #include <QMenuBar>
-#include <QMessageBox>
+#include <QPoint>
 #include <QStatusBar>
 #include <QString>
 #include <QStringList>
@@ -378,9 +380,25 @@ void ui_appimage_menu_entry_item_follows_the_environment() {
   patchy::ui::set_stored_appimage_menu_entry_prompt_declined(false);
 }
 
-// The startup offer: Add writes the entry, Not Now leaves the next launch free to ask,
-// Don't Ask Again stops it for good, Add after Help already added it changes nothing, and
-// an unattended run never sees it.
+// The startup offer appears only in a desktop session that is not a CI run: the AppImage
+// catalog's test starts Patchy under a bare X server and captured the offer instead of the
+// main window (GitHub issue 208).
+void appimage_menu_entry_offer_needs_a_desktop_session() {
+  const auto allowed = [](const char* desktop, const char* session, const char* ci) {
+    const ScopedEnvironment env{{"XDG_CURRENT_DESKTOP", desktop}, {"DESKTOP_SESSION", session}, {"CI", ci}};
+    return patchy::ui::appimage_menu_entry_offer_session_allowed();
+  };
+  CHECK(allowed("GNOME", "", ""));
+  CHECK(allowed("", "plasma", ""));
+  CHECK(allowed("ubuntu:GNOME", "ubuntu", ""));
+  CHECK(!allowed("", "", ""));
+  CHECK(!allowed("GNOME", "gnome", "true"));
+  CHECK(!allowed("", "", "1"));
+}
+
+// The offer is a bar across the top of the workspace, never a window of its own: Not Now
+// leaves the next launch free to ask, Add writes the entry, Help adding it closes the bar,
+// Don't Ask Again stops it for good, and an unattended run never sees it.
 void ui_appimage_menu_entry_offer_dont_ask_again() {
   QTemporaryDir root;
   CHECK(root.isValid());
@@ -400,31 +418,42 @@ void ui_appimage_menu_entry_offer_dont_ask_again() {
   MainWindowTestAccess::set_appimage_bundled_share(window, share);
   show_window_empty(window);
   const auto desktop_file = QDir(data_home).filePath(QStringLiteral("applications/com.rtsoft.patchy.desktop"));
+  const auto offer_bar = [&window] { return window.findChild<QFrame*>(QStringLiteral("appImageMenuEntryOfferBar")); };
 #ifdef Q_OS_LINUX
-  // Answers the offer with `button`; returns whether it appeared.
-  const auto answer = [&window](const char* button, const char* artifact = nullptr) {
-    bool saw = false;
-    QTimer::singleShot(0, [&saw, button, artifact] {
-      auto* dialog = qobject_cast<QMessageBox*>(find_top_level_dialog(QStringLiteral("appImageMenuEntryOfferMessageBox")));
-      CHECK(dialog != nullptr);
-      if (dialog == nullptr) {
-        return;
-      }
-      CHECK(dialog->text().contains(QStringLiteral("Help > Add Patchy to Applications Menu")));
-      CHECK(!dialog->isModal());
-      if (artifact != nullptr) {
-        save_widget_artifact(artifact, *dialog);
-      }
-      auto* choice = dialog->findChild<QAbstractButton*>(QString::fromLatin1(button));
-      CHECK(choice != nullptr);
-      saw = true;
-      if (choice != nullptr) {
-        choice->click();
-      }
-    });
+  auto* workspace = window.findChild<QWidget*>(QStringLiteral("workspaceSplitter"));
+  CHECK(workspace != nullptr && window.centralWidget() == workspace);
+  // Shows the offer, checks it is a bar inside the main window above the workspace, and
+  // clicks `button`.
+  const auto answer = [&](const char* button, const char* artifact = nullptr) {
     const bool shown = MainWindowTestAccess::offer_appimage_menu_entry(window);
-    CHECK(shown == saw);
-    return shown;
+    CHECK(shown);
+    auto* bar = offer_bar();
+    CHECK(bar != nullptr);
+    if (!shown || bar == nullptr) {
+      return false;
+    }
+    QApplication::processEvents();
+    CHECK(bar->window() == &window);
+    CHECK(bar->isVisible() && workspace->isVisible());
+    CHECK(bar->mapTo(&window, QPoint(0, bar->height())).y() <= workspace->mapTo(&window, QPoint(0, 0)).y());
+    CHECK(QApplication::activeModalWidget() == nullptr);
+    auto* text = bar->findChild<QLabel*>(QStringLiteral("appImageMenuEntryOfferText"));
+    CHECK(text != nullptr && text->text().contains(QStringLiteral("Help > Add Patchy to Applications Menu")));
+    // A second offer while one is up is not stacked.
+    CHECK(!MainWindowTestAccess::offer_appimage_menu_entry(window));
+    if (artifact != nullptr) {
+      save_widget_artifact(artifact, window);
+    }
+    auto* choice = bar->findChild<QAbstractButton*>(QString::fromLatin1(button));
+    CHECK(choice != nullptr);
+    if (choice != nullptr) {
+      choice->click();
+    }
+    QApplication::processEvents();
+    CHECK(offer_bar() == nullptr || !offer_bar()->isVisible());
+    // The workspace is the central widget again.
+    CHECK(window.centralWidget() == workspace && workspace->isVisible());
+    return true;
   };
 
   CHECK(answer("appImageMenuEntryNotNowButton", "ui_appimage_menu_entry_offer"));
@@ -436,30 +465,17 @@ void ui_appimage_menu_entry_offer_dont_ask_again() {
   // Added: nothing left to offer.
   CHECK(!MainWindowTestAccess::offer_appimage_menu_entry(window));
   CHECK(patchy::ui::remove_appimage_menu_entry(patchy::ui::resolve_appimage_menu_entry_paths()).ok);
+  patchy::ui::set_stored_appimage_menu_entry_prompt_declined(false);
 
-  // The offer is non-modal: Help can add the entry while it is open, and its Add then leaves
-  // that entry alone instead of flipping it back off.
-  {
-    bool saw = false;
-    QTimer::singleShot(0, [&window, &saw] {
-      auto* dialog = find_top_level_dialog(QStringLiteral("appImageMenuEntryOfferMessageBox"));
-      CHECK(dialog != nullptr);
-      if (dialog == nullptr) {
-        return;
-      }
-      help_menu_entry_action(window)->trigger();
-      auto* add = dialog->findChild<QAbstractButton*>(QStringLiteral("appImageMenuEntryAddButton"));
-      CHECK(add != nullptr);
-      saw = true;
-      if (add != nullptr) {
-        add->click();
-      }
-    });
-    CHECK(MainWindowTestAccess::offer_appimage_menu_entry(window));
-    CHECK(saw);
-    CHECK(QFileInfo::exists(desktop_file));
-    CHECK(patchy::ui::remove_appimage_menu_entry(patchy::ui::resolve_appimage_menu_entry_paths()).ok);
-  }
+  // The bar stays while the user works: Help adding the entry answers it and closes it.
+  CHECK(MainWindowTestAccess::offer_appimage_menu_entry(window));
+  help_menu_entry_action(window)->trigger();
+  QApplication::processEvents();
+  CHECK(QFileInfo::exists(desktop_file));
+  CHECK(offer_bar() == nullptr || !offer_bar()->isVisible());
+  CHECK(window.centralWidget() == workspace);
+  CHECK(patchy::ui::remove_appimage_menu_entry(patchy::ui::resolve_appimage_menu_entry_paths()).ok);
+  patchy::ui::set_stored_appimage_menu_entry_prompt_declined(false);
 
   CHECK(answer("appImageMenuEntryDontAskButton"));
   CHECK(patchy::ui::stored_appimage_menu_entry_prompt_declined());
@@ -474,7 +490,54 @@ void ui_appimage_menu_entry_offer_dont_ask_again() {
   CHECK(!MainWindowTestAccess::offer_appimage_menu_entry(window));
   CHECK(!QFileInfo::exists(desktop_file));
 #endif
+  QApplication::processEvents();
+  CHECK(offer_bar() == nullptr || !offer_bar()->isVisible());
   patchy::ui::set_stored_appimage_menu_entry_prompt_declined(false);
+}
+
+// Startup schedules the offer only in a desktop session (issue 208): under CI, or with no
+// desktop named, the launch shows the main window alone; in a session the bar arrives.
+void ui_appimage_menu_entry_startup_offer_follows_the_session() {
+  QTemporaryDir root;
+  CHECK(root.isValid());
+  const auto data_home = QDir(root.path()).filePath(QStringLiteral("data-home"));
+  const auto share = QDir(root.path()).filePath(QStringLiteral("mount/usr/share"));
+  populate_bundled_share(share);
+  auto parent = QDir(QCoreApplication::applicationDirPath());
+  parent.cdUp();
+  const ScopedEnvironment env{
+      {"APPIMAGE", QDir(root.path()).filePath(QStringLiteral("Apps/PatchyLinux.AppImage")).toUtf8()},
+      {"APPDIR", parent.absolutePath().toUtf8()},
+      {"XDG_DATA_HOME", data_home.toUtf8()},
+      {"XDG_DATA_DIRS", QDir(root.path()).filePath(QStringLiteral("system-share")).toUtf8()},
+  };
+  patchy::ui::set_stored_appimage_menu_entry_prompt_declined(false);
+  const auto launch_shows_offer = [&share](const char* desktop, const char* ci) {
+    const ScopedEnvironment session{{"XDG_CURRENT_DESKTOP", desktop}, {"DESKTOP_SESSION", ""}, {"CI", ci}};
+    patchy::ui::MainWindow window;
+    MainWindowTestAccess::set_appimage_bundled_share(window, share);
+    show_window_empty(window);
+    window.begin_appimage_menu_entry_startup();
+    const auto bar = [&window] { return window.findChild<QFrame*>(QStringLiteral("appImageMenuEntryOfferBar")); };
+    // The offer comes 2 s after startup; wait past that.
+    const bool shown = process_events_until([&bar] { return bar() != nullptr; }, 4000);
+    if (shown) {
+      if (auto* not_now = bar()->findChild<QAbstractButton*>(QStringLiteral("appImageMenuEntryNotNowButton"));
+          not_now != nullptr) {
+        not_now->click();
+      }
+      QApplication::processEvents();
+    }
+    return shown;
+  };
+#ifdef Q_OS_LINUX
+  CHECK(!launch_shows_offer("", ""));
+  CHECK(!launch_shows_offer("GNOME", "true"));
+  CHECK(launch_shows_offer("GNOME", ""));
+#else
+  CHECK(!launch_shows_offer("GNOME", ""));
+#endif
+  CHECK(!patchy::ui::stored_appimage_menu_entry_prompt_declined());
 }
 
 }  // namespace
@@ -485,6 +548,9 @@ std::vector<patchy::test::TestCase> appimage_menu_entry_tests() {
       {"appimage_menu_entry_follows_a_moved_appimage", appimage_menu_entry_follows_a_moved_appimage},
       {"appimage_menu_entry_detects_other_integrations", appimage_menu_entry_detects_other_integrations},
       {"ui_appimage_menu_entry_item_follows_the_environment", ui_appimage_menu_entry_item_follows_the_environment},
+      {"appimage_menu_entry_offer_needs_a_desktop_session", appimage_menu_entry_offer_needs_a_desktop_session},
       {"ui_appimage_menu_entry_offer_dont_ask_again", ui_appimage_menu_entry_offer_dont_ask_again},
+      {"ui_appimage_menu_entry_startup_offer_follows_the_session",
+       ui_appimage_menu_entry_startup_offer_follows_the_session},
   };
 }
