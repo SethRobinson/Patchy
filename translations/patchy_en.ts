@@ -11613,6 +11613,170 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <comment>artboard size group</comment>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Warm Film</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Golden tones, softened contrast and fine grain.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cool Cinema</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Blue-teal grade with deeper contrast and a light vignette.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Faded Matte</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Lifted blacks and muted color for a soft, flat print.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bold Black and White</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>High-contrast monochrome with punchy local detail.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Sepia Print</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Warm brown monochrome with grain and darkened corners.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cross Process</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Shifted, saturated colors with yellow highlights and cool shadows.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Silver Contrast</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Gritty, silvery contrast with low saturation.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Vintage Print</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>An aged, faded photo with a warm cast and vignette.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Deep blue monochrome in the style of an early photographic print.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dreamy Glow</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A soft halo around highlights for portraits and backlit scenes.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Crisp Detail</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Adds local contrast and fine sharpening without changing color.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Watercolor</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Soft washes of color with darker pigment edges on light paper.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Ink Sketch</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Clean black ink lines on white.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Pencil Drawing</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Graphite strokes and shading on white paper.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Comic</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bold outlines and flat, vivid color areas.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Oil Paint</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Smoothed color with visible diagonal brush texture.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Halftone Print</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Bright color printed as large halftone dots.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Film Grain</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Even monochrome grain with a touch of contrast.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Toy Camera</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Saturated color and heavy dark corners, like a plastic-lens camera.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Miniature</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>A narrow band of focus and bright color that makes scenes look like models.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Built-in Looks</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>My Looks</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

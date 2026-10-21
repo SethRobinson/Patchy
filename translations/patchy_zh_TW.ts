@@ -11594,6 +11594,170 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <comment>artboard size group</comment>
         <translation>手機</translation>
     </message>
+    <message>
+        <source>Warm Film</source>
+        <translation>暖調底片</translation>
+    </message>
+    <message>
+        <source>Golden tones, softened contrast and fine grain.</source>
+        <translation>金色色調、柔和的對比與細緻的顆粒。</translation>
+    </message>
+    <message>
+        <source>Cool Cinema</source>
+        <translation>冷調電影</translation>
+    </message>
+    <message>
+        <source>Blue-teal grade with deeper contrast and a light vignette.</source>
+        <translation>藍綠調色，對比更深，帶輕微暈映。</translation>
+    </message>
+    <message>
+        <source>Faded Matte</source>
+        <translation>褪色霧面</translation>
+    </message>
+    <message>
+        <source>Lifted blacks and muted color for a soft, flat print.</source>
+        <translation>提亮黑色並降低色彩，呈現柔和平淡的相片質感。</translation>
+    </message>
+    <message>
+        <source>Bold Black and White</source>
+        <translation>濃烈黑白</translation>
+    </message>
+    <message>
+        <source>High-contrast monochrome with punchy local detail.</source>
+        <translation>高對比單色，局部細節鮮明。</translation>
+    </message>
+    <message>
+        <source>Sepia Print</source>
+        <translation>深褐相片</translation>
+    </message>
+    <message>
+        <source>Warm brown monochrome with grain and darkened corners.</source>
+        <translation>帶顆粒與暗角的暖褐色單色。</translation>
+    </message>
+    <message>
+        <source>Cross Process</source>
+        <translation>交叉沖印</translation>
+    </message>
+    <message>
+        <source>Shifted, saturated colors with yellow highlights and cool shadows.</source>
+        <translation>偏移且飽和的色彩，亮部偏黃，陰影偏冷。</translation>
+    </message>
+    <message>
+        <source>Silver Contrast</source>
+        <translation>銀色對比</translation>
+    </message>
+    <message>
+        <source>Gritty, silvery contrast with low saturation.</source>
+        <translation>粗獷的銀色對比，飽和度低。</translation>
+    </message>
+    <message>
+        <source>Vintage Print</source>
+        <translation>復古相片</translation>
+    </message>
+    <message>
+        <source>An aged, faded photo with a warm cast and vignette.</source>
+        <translation>帶暖色偏色與暈映的陳舊褪色相片。</translation>
+    </message>
+    <message>
+        <source>Deep blue monochrome in the style of an early photographic print.</source>
+        <translation>早期相片印相風格的深藍色單色。</translation>
+    </message>
+    <message>
+        <source>Dreamy Glow</source>
+        <translation>夢幻光暈</translation>
+    </message>
+    <message>
+        <source>A soft halo around highlights for portraits and backlit scenes.</source>
+        <translation>在亮部周圍加上柔和光暈，適合人像與逆光場景。</translation>
+    </message>
+    <message>
+        <source>Crisp Detail</source>
+        <translation>清晰細節</translation>
+    </message>
+    <message>
+        <source>Adds local contrast and fine sharpening without changing color.</source>
+        <translation>增加局部對比與細微銳利化，不改變顏色。</translation>
+    </message>
+    <message>
+        <source>Watercolor</source>
+        <translation>水彩</translation>
+    </message>
+    <message>
+        <source>Soft washes of color with darker pigment edges on light paper.</source>
+        <translation>淺色紙上柔和的色彩暈染，顏料邊緣更深。</translation>
+    </message>
+    <message>
+        <source>Ink Sketch</source>
+        <translation>墨水速寫</translation>
+    </message>
+    <message>
+        <source>Clean black ink lines on white.</source>
+        <translation>白底上的乾淨黑色墨線。</translation>
+    </message>
+    <message>
+        <source>Pencil Drawing</source>
+        <translation>鉛筆畫</translation>
+    </message>
+    <message>
+        <source>Graphite strokes and shading on white paper.</source>
+        <translation>白紙上的石墨筆觸與陰影。</translation>
+    </message>
+    <message>
+        <source>Comic</source>
+        <translation>漫畫</translation>
+    </message>
+    <message>
+        <source>Bold outlines and flat, vivid color areas.</source>
+        <translation>粗輪廓與平塗的鮮豔色塊。</translation>
+    </message>
+    <message>
+        <source>Oil Paint</source>
+        <translation>油畫</translation>
+    </message>
+    <message>
+        <source>Smoothed color with visible diagonal brush texture.</source>
+        <translation>平滑的色彩，帶有可見的斜向筆觸紋理。</translation>
+    </message>
+    <message>
+        <source>Halftone Print</source>
+        <translation>網點印刷</translation>
+    </message>
+    <message>
+        <source>Bright color printed as large halftone dots.</source>
+        <translation>以大型網點印刷的明亮色彩。</translation>
+    </message>
+    <message>
+        <source>Film Grain</source>
+        <translation>底片顆粒</translation>
+    </message>
+    <message>
+        <source>Even monochrome grain with a touch of contrast.</source>
+        <translation>均勻的單色顆粒，略增對比。</translation>
+    </message>
+    <message>
+        <source>Toy Camera</source>
+        <translation>玩具相機</translation>
+    </message>
+    <message>
+        <source>Saturated color and heavy dark corners, like a plastic-lens camera.</source>
+        <translation>飽和的色彩與濃重的暗角，像塑膠鏡頭相機。</translation>
+    </message>
+    <message>
+        <source>Miniature</source>
+        <translation>微縮</translation>
+    </message>
+    <message>
+        <source>A narrow band of focus and bright color that makes scenes look like models.</source>
+        <translation>狹窄的對焦帶與明亮的色彩，讓場景看起來像模型。</translation>
+    </message>
+    <message>
+        <source>Built-in Looks</source>
+        <translation>內建外觀</translation>
+    </message>
+    <message>
+        <source>My Looks</source>
+        <translation>我的外觀</translation>
+    </message>
 </context>
 <context>
     <name>ScannerImport</name>

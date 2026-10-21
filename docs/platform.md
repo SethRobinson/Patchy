@@ -19,6 +19,14 @@ Windows is the lead platform and must not regress. Every code change completes t
 - Read environment variables through `core/environment.hpp`. The helper returns an owned string so callers never retain process-environment storage, and its Windows implementation avoids the deprecated `getenv` diagnostic.
 - Never derive a font size by arithmetic on `pointSizeF()`. A QFont carries points or pixels and the unused accessor returns -1; macOS resolves inherited widget fonts by pixel size, so `f.setPointSizeF(f.pointSizeF() * 0.85)` asks for -0.85, which Qt refuses (`Point size <= 0`), leaving full-size text on macOS only. Clamping only hides the warning. Use `scale_font_size` / `scaled_font` / `offset_font` from `dialog_utils.hpp`; they branch on the unit the font actually carries.
 
+## Floating-point determinism
+
+Pixel output must be bit-identical on MSVC x64, macOS arm64 clang, Linux x86-64 GCC and wasm, so pins and digests hold everywhere. The trap is fused multiply-add: arm64 has it in the base ISA and clang contracts `a * b + c` into one FMA by default (`-ffp-contract=on`), rounding once where MSVC (`/fp:precise` forbids contraction) and x86-64 GCC (no FMA without `-mfma`) round twice. One ulp before an 8-bit quantize is enough to flip a level. GCC and clang therefore build every float-heavy pixel target with `-ffp-contract=off`, set in `CMakeLists.txt`: `patchy_filters` (all filter, Smart Filter and Look kernels) and the vendored DDS encoders (stb_dxt, bc7enc; [dds.md](dds.md)).
+
+- Measured October 21, 2026: before the flag, 9 of the 20 built-in Look renders (`builtin_looks_render_pins_8_bit`) hashed differently on macOS arm64; every one used Punchy Color, High Pass, Gaussian Blur under Divide, Brightness/Contrast or Tilt-Shift Blur. With contraction off all 20 match the MSVC digests, so libm differences played no part there. MSVC output is unchanged by the flag.
+- A new library or source with float pixel math gets the same flag, or uses integer math. Never pin per-platform digests or loosen a tolerance on one platform to hide a contraction difference ("Cross-platform implementation rules" above).
+- Never call `std::fma` or add `-ffast-math`, `-mfma` or `/fp:fast`/`/fp:contract`: each changes rounding on some toolchains only.
+
 ## Warning verification
 
 Patchy keeps warnings non-fatal, but supported clean builds must produce no compiler,

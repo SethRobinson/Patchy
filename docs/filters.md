@@ -76,7 +76,7 @@ Only eight catalog filter IDs are hotkey command IDs: Invert, Desaturate, Auto T
 
 Catalog names are canonical English translation sources (`QObject` context); submenu and status text keep the `MainWindow` context.
 
-Liquify is a top-level Filter menu action under Filter Gallery, outside this catalog (`docs/liquify.md`).
+Liquify (Filter menu, below Filter Gallery) is outside this catalog (`docs/liquify.md`).
 
 ## Bit depth
 
@@ -110,8 +110,8 @@ The three autos share one Qt-free kernel, `src/filters/auto_levels_math.{hpp,cpp
 
 `Filter > Filter Gallery...` is the shared browsing entry point; persisted hotkey command ID `filter.gallery`, no default shortcut. Direct Filter-menu actions keep their IDs, defaults and output.
 
-- Original is a UI sentinel (no filter ID or invocation), always listed first. Real items carry their ID in `Qt::UserRole + 1` (Original: empty) and a session-only SF badge flag in `Qt::UserRole + 6`. Items are pre-created in catalog order and filtered in place. Thumbnail readiness is the ready role (`Qt::UserRole + 2`), never icon nullity.
-- Search: case-insensitive over translated and English filter and category names. Hiding the selected filter selects Original without clearing the recipe; clicking Original clears it.
+- Original is a UI sentinel (no filter ID or invocation), listed first. Real items carry their ID in `Qt::UserRole + 1` (Original: empty) and a session-only SF badge flag in `Qt::UserRole + 6`. Items are pre-created in catalog order and filtered in place. Thumbnail readiness is the ready role (`Qt::UserRole + 2`), never icon nullity.
+- Search: case-insensitive, translated and English filter and category names. Hiding the selected filter selects Original without clearing the recipe; clicking Original clears it.
 - Favorites persist by ID in catalog order; loading drops missing/duplicate IDs; toggling writes at once (Cancel keeps it).
 - Settings keys (prefix `filters/gallery/`): `favorites` (ordered list of valid IDs), `category` (one of the eleven tokens; unknown falls back to `all`), `lastFilterId` (empty = Original; restored only when still visible), `liveCanvasPreview` (bool), `size` (880x560..3200x2400, default 1120x720). Search, zoom, pan and parameter edits are session-only.
 
@@ -212,13 +212,13 @@ The applied-effects list shows the final effect at the top, opposite execution o
 
 Selecting a catalog filter creates the first entry or replaces the active entry's invocation, keeping its enabled state and blending. Duplicate inserts a copy after the active entry. Per-entry blend mode and opacity sit below the list; Saved Looks persist them and the Smart Filter mapping copies them into native entries. Reset returns the active entry to Normal at 100% and default parameters. Remove selects the nearest remaining row; Original clears the recipe. Category, search, and Favorites changes never mutate the recipe. Effect rows are drag sources, not drop targets: a drop inserts between rows and emits the canonical row-move signal.
 
-Recipe scaling returns a normalized copy that keeps order, enable state, blending, and captured colors. Aggregate translation support is the checked sum over enabled nonzero-opacity entries; an executed entry with unknown support makes the aggregate unknown. Zero-opacity entries are validated for persistence but do not execute, expand bounds, report progress, or affect aggregate support.
+Recipe scaling returns a normalized copy keeping order, enable state, blending and captured colors. Aggregate translation support is the checked sum over enabled nonzero-opacity entries; an executed entry with unknown support makes the aggregate unknown. Zero-opacity entries are validated for persistence but do not execute, expand bounds, report progress, or affect aggregate support.
 
 With a selection, the whole recipe runs against one immutable source and the wrapper restores outside pixels once after the final entry; per-entry restoration would change spatial results near the edge. A fully transparent expanded result returns to the input rectangle.
 
 ## Saved Looks
 
-User Looks live at `<settings dir>/looks/<uuid>.json`; the lowercase canonical UUID is the stable preset ID and filename stem. Save creates a fresh UUID, Rename keeps it, Delete removes the record. Library operations apply immediately; gallery Cancel does not roll them back.
+User Looks live at `<settings dir>/looks/<uuid>.json` (built-in ones: [builtin-looks.md](builtin-looks.md)); the lowercase canonical UUID is the stable preset ID and filename stem. Save creates a fresh UUID, Rename keeps it, Delete removes the record. Library operations apply immediately; gallery Cancel does not roll them back.
 
 Version-1 record shape: `{version, id, name, recipe: {entries: [{enabled, opacity, blendMode, invocation: {filterId, schemaVersion, parameters: {key: {type, value}}, foreground: {red, green, blue}, background}}]}}`. Parameter values carry an explicit `integer`, `double`, `boolean`, or `string` type. Blend modes use the stable full Photoshop descriptor string tokens, never enum ordinals or translated names. Entry array order is execution order; colors are required even when unused.
 
