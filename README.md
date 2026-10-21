@@ -187,7 +187,7 @@ Note from Seth:
   
 Hey folks!  This release has a ton of bugfixes, tweaks and QOL stuff.   I've spent some time in designing a system and control panel that helps me do more quicker.   It's an extremely fun and interesting challenge to divide what I should be doing instead of AI, and what I've come up with is I need to approve and test each change that happens manually.  
   
-Special thanks to the madman [philipzae](https://github.com/philipzae) who is did a metric shite-ton of bug reports and suggestions for this release.
+Special thanks to the madman [philipzae](https://github.com/philipzae) who did a metric shite-ton of bug reports and suggestions for this release.
 
 ### 1.15 - October 21, 2026
 
