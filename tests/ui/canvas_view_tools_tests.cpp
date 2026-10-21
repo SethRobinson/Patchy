@@ -4114,6 +4114,56 @@ void ui_zoom_options_bar_view_buttons_set_view() {
   CHECK(std::abs(canvas->zoom() - fill_zoom) < 0.001);
 }
 
+// GitHub issue 303: the Hand tool's options row shows the Zoom row's 100% /
+// Fit Screen / Fill Screen buttons (the same widgets) and they set the view.
+void ui_hand_options_bar_shows_zoom_view_buttons() {
+  patchy::ui::MainWindow window;
+  show_window(window);
+  auto* canvas = require_canvas(window);
+  auto* actual = window.findChild<QPushButton*>(QStringLiteral("zoomActualPixelsButton"));
+  auto* fit = window.findChild<QPushButton*>(QStringLiteral("zoomFitScreenButton"));
+  auto* fill = window.findChild<QPushButton*>(QStringLiteral("zoomFillScreenButton"));
+  CHECK(actual != nullptr);
+  CHECK(fit != nullptr);
+  CHECK(fill != nullptr);
+  if (actual == nullptr || fit == nullptr || fill == nullptr) {
+    return;
+  }
+  require_action(window, "toolHandAction")->trigger();
+  QApplication::processEvents();
+  CHECK(actual->isVisible());
+  CHECK(fit->isVisible());
+  CHECK(fill->isVisible());
+  CHECK(actual->isEnabled());
+  CHECK(fit->isEnabled());
+  CHECK(fill->isEnabled());
+  // The Zoom-only controls stay on the Zoom row.
+  auto* scrubby = window.findChild<QCheckBox*>(QStringLiteral("zoomScrubbyCheck"));
+  CHECK(scrubby != nullptr && !scrubby->isVisible());
+
+  const auto& document = patchy::ui::MainWindowTestAccess::document(window);
+  const auto doc_width = static_cast<double>(document.width());
+  const auto doc_height = static_cast<double>(document.height());
+  const auto fit_zoom = std::min((canvas->width() - 80.0) / doc_width, (canvas->height() - 80.0) / doc_height);
+  const auto fill_zoom = std::max(canvas->width() / doc_width, canvas->height() / doc_height);
+
+  canvas->set_zoom(0.37);
+  actual->click();
+  QApplication::processEvents();
+  CHECK(std::abs(canvas->zoom() - 1.0) < 0.001);
+  fit->click();
+  QApplication::processEvents();
+  CHECK(std::abs(canvas->zoom() - fit_zoom) < 0.001);
+  fill->click();
+  QApplication::processEvents();
+  CHECK(std::abs(canvas->zoom() - fill_zoom) < 0.001);
+  CHECK(canvas->tool() == patchy::ui::CanvasTool::Pan);
+
+  if (auto* options_bar = window.findChild<QToolBar*>(QStringLiteral("Options")); options_bar != nullptr) {
+    save_widget_artifact("issue_303_hand_options_bar", *options_bar);
+  }
+}
+
 void ui_tool_palette_icons_render_sheet() {
   patchy::ui::MainWindow window;
   show_window(window);
@@ -7335,6 +7385,7 @@ std::vector<patchy::test::TestCase> canvas_view_tools_tests() {
       {"ui_zoom_tool_direction_buttons_set_click_direction", ui_zoom_tool_direction_buttons_set_click_direction},
       {"ui_zoom_steps_follow_photoshop_ladder", ui_zoom_steps_follow_photoshop_ladder},
       {"ui_zoom_options_bar_view_buttons_set_view", ui_zoom_options_bar_view_buttons_set_view},
+      {"ui_hand_options_bar_shows_zoom_view_buttons", ui_hand_options_bar_shows_zoom_view_buttons},
       {"ui_stamp_and_gradient_flyouts_swap_tools", ui_stamp_and_gradient_flyouts_swap_tools},
       {"ui_tool_cycle_hotkeys_walk_each_flyout", ui_tool_cycle_hotkeys_walk_each_flyout},
       {"ui_tool_flyout_double_click_opens_menu", ui_tool_flyout_double_click_opens_menu},

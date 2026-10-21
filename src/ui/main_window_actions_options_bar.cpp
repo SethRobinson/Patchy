@@ -3436,7 +3436,9 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   });
   add_option_separator({CanvasTool::Zoom});
   // The view presets call the canvas directly (the View menu actions do the
-  // same), so the row does not depend on the menu build order.
+  // same), so the row does not depend on the menu build order. The Hand tool's
+  // row shows the same three buttons (GitHub issue 303); Photoshop's Scroll All
+  // Windows is left out because Patchy has no multi-window scroll sync.
   const auto add_zoom_view_button = [this, toolbar, add_option_widget, allow_while_locked](
                                         const char* source, const QString& object_name, const char* tooltip,
                                         std::function<void(CanvasWidget&)> apply) {
@@ -3444,7 +3446,7 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
     button->setObjectName(object_name);
     bind_tooltip(button, tooltip);
     allow_while_locked(button);
-    add_option_widget(button, {CanvasTool::Zoom});
+    add_option_widget(button, {CanvasTool::Zoom, CanvasTool::Pan});
     connect(button, &QPushButton::clicked, this, [this, apply] {
       if (canvas_ != nullptr) {
         apply(*canvas_);
