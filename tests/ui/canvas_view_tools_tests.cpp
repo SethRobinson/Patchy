@@ -3407,13 +3407,13 @@ void ui_tool_flyout_right_click_opens_menu() {
   CHECK(!menu->isVisible());
 }
 
-// The flyout rows' marker column (the current tool's marker, GitHub issue 284 follow-up):
-// every row keeps it, so the icons center between it and the tool names.
-constexpr int kFlyoutMarkerColumn = 14;
+// Where a flyout row's icon box starts (GitHub issue 284). The current tool's marker (issue
+// 284 follow-up) sits in the margin before it.
+constexpr int kFlyoutIconLeft = 14;
 
 // GitHub issue 284: a flyout opens beside its button rather than over its right edge, and
-// draws each tool's icon at the palette's own size, centered between the marker column and
-// the tool names. The artifacts are the issue shots, in both schemes.
+// draws each tool's icon at the palette's own size, centered between the menu edge and the
+// tool names. The artifacts are the issue shots, in both schemes.
 void ui_tool_flyout_opens_beside_its_button_with_palette_size_icons() {
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
     ColorSchemeRestorer restore_scheme(scheme);
@@ -3495,7 +3495,7 @@ void ui_tool_flyout_opens_beside_its_button_with_palette_size_icons() {
       int icon_left = -1;
       int icon_right = -1;
       int text_left = -1;
-      for (int x = kFlyoutMarkerColumn; x < static_cast<int>(ink.size()); ++x) {
+      for (int x = kFlyoutIconLeft; x < static_cast<int>(ink.size()); ++x) {
         if (!ink[static_cast<std::size_t>(x)]) {
           continue;
         }
@@ -3513,17 +3513,17 @@ void ui_tool_flyout_opens_beside_its_button_with_palette_size_icons() {
       const int expected = reference_right - reference_left + 1;
       const int box_left = icon_left - reference_left;
       const int box_right = box_left + icon_extent;
-      std::printf("  %s: icon ink %d px (palette %d px), %d px after the marker column, %d px before the name\n",
-                  name, measured, expected, box_left - kFlyoutMarkerColumn, text_left - box_right);
+      std::printf("  %s: icon ink %d px (palette %d px), %d px after the menu edge, %d px before the name\n", name,
+                  measured, expected, box_left, text_left - box_right);
       CHECK(std::abs(measured - expected) <= 1);
-      CHECK(std::abs((box_left - kFlyoutMarkerColumn) - (text_left - box_right)) <= 2);
+      CHECK(std::abs(box_left - (text_left - box_right)) <= 2);
     }
   }
 }
 
 // GitHub issue 284 follow-up: the flyout marks the tool its button shows with a small
-// accent square in the marker column before the icon, and the mark moves when another tool
-// is picked. Marked and unmarked rows keep their icons and names at the same place. The
+// accent square a few pixels before its icon, and the mark moves when another tool is
+// picked. Marked and unmarked rows keep their icons and names at the same place. The
 // artifacts are the issue shots, in both schemes.
 void ui_tool_flyout_marks_the_tool_its_button_shows() {
   for (const auto scheme : {patchy::ui::ColorSchemePreference::Dark, patchy::ui::ColorSchemePreference::Light}) {
@@ -3553,22 +3553,27 @@ void ui_tool_flyout_marks_the_tool_its_button_shows() {
       QApplication::processEvents();
       return image;
     };
-    // Accent pixels in a row's marker column.
-    const auto marker_pixels = [&](const QImage& image, QAction* action) {
+    // Accent pixels in the margin before a row's icon box, and the rightmost one's column
+    // (row-relative; -1 when there is none).
+    const auto marker_scan = [&](const QImage& image, QAction* action) {
       const QRect row = menu->actionGeometry(action);
       int count = 0;
+      int right = -1;
       for (int y = row.top(); y <= row.bottom(); ++y) {
-        for (int x = row.left(); x < row.left() + kFlyoutMarkerColumn; ++x) {
+        for (int x = row.left(); x < row.left() + kFlyoutIconLeft; ++x) {
           const QColor color = image.pixelColor(x, y);
-          count += std::abs(color.red() - accent.red()) + std::abs(color.green() - accent.green()) +
-                               std::abs(color.blue() - accent.blue()) < 40
-                       ? 1
-                       : 0;
+          if (std::abs(color.red() - accent.red()) + std::abs(color.green() - accent.green()) +
+                  std::abs(color.blue() - accent.blue()) <
+              40) {
+            ++count;
+            right = std::max(right, x - row.left());
+          }
         }
       }
-      return count;
+      return std::make_pair(count, right);
     };
-    // Where a row's icon box and name start, past the marker column.
+    const auto marker_pixels = [&](const QImage& image, QAction* action) { return marker_scan(image, action).first; };
+    // Where a row's icon box and name start, past the marker.
     const auto icon_and_name = [&](const QImage& image, QAction* action) {
       const QRect row = menu->actionGeometry(action);
       const QColor background = image.pixelColor(row.right() - 2, row.top() + 1);
@@ -3584,7 +3589,7 @@ void ui_tool_flyout_marks_the_tool_its_button_shows() {
       int icon_left = -1;
       int icon_right = -1;
       int name_left = -1;
-      for (int x = row.left() + kFlyoutMarkerColumn; x <= row.right() && name_left < 0; ++x) {
+      for (int x = row.left() + kFlyoutIconLeft; x <= row.right() && name_left < 0; ++x) {
         bool ink = false;
         for (int y = row.top(); y <= row.bottom() && !ink; ++y) {
           const QColor color = image.pixelColor(x, y);
@@ -3617,6 +3622,13 @@ void ui_tool_flyout_marks_the_tool_its_button_shows() {
     CHECK(marker_pixels(first, ellipse) == 0);
     const auto marquee_marked = icon_and_name(first, marquee);
     const auto ellipse_plain = icon_and_name(first, ellipse);
+    // The marker sits close to its icon: a few pixels between them, no more.
+    const int marker_right = marker_scan(first, marquee).second;
+    std::printf("  %s: marker ends at %d, icon box starts at %d\n", suffix.c_str(), marker_right,
+                marquee_marked.first);
+    CHECK(marker_right >= 0);
+    CHECK(marquee_marked.first - marker_right - 1 >= 2);
+    CHECK(marquee_marked.first - marker_right - 1 <= 4);
     CHECK(std::abs(marquee_marked.first - ellipse_plain.first) <= 1);
     CHECK(std::abs(marquee_marked.second - ellipse_plain.second) <= 1);
 
