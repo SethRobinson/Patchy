@@ -202,10 +202,10 @@ bool signatures_match(std::string_view actual, std::string_view expected, int to
 }
 
 // One pin per Look on the 8-bit source at its scaled size, so a filter change
-// that alters a shipped Look shows up. The signature (block means, +-2 levels)
-// holds on every toolchain. The exact digest is the Windows release gate's:
-// several kernels round floating point differently elsewhere (arm64 clang
-// contracts multiply-adds). A mismatch prints every actual value before
+// that alters a shipped Look shows up. The exact digest holds on every
+// toolchain (patchy_filters builds without multiply-add contraction,
+// docs/platform.md); the signature (block means, +-2 levels) shows how far a
+// change moved the render. A mismatch prints every actual value before
 // failing, so a deliberate change re-pins from one run.
 void builtin_looks_render_pins_8_bit() {
   struct Pin {
@@ -281,12 +281,7 @@ void builtin_looks_render_pins_8_bit() {
     CHECK(!std::equal(result.pixels.data().begin(), result.pixels.data().end(), source.data().begin()));
     const auto digest = patchy::test::fnv1a_hash_bytes(result.pixels.data());
     const auto signature = render_signature(result.pixels);
-#if defined(_MSC_VER) && defined(_M_X64)
-    const bool digest_matches = digest == pin.digest;
-#else
-    const bool digest_matches = true;
-#endif
-    if (!digest_matches || !signatures_match(signature, pin.signature, 2)) {
+    if (digest != pin.digest || !signatures_match(signature, pin.signature, 2)) {
       std::cout << "look pin {\"" << pin.id << "\", 0x" << std::hex << digest << std::dec << "ULL, \""
                 << signature << "\"},\n";
       all_match = false;

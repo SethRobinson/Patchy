@@ -470,6 +470,13 @@ add_library(patchy_filters
 )
 target_link_libraries(patchy_filters PUBLIC patchy_core)
 patchy_configure_target(patchy_filters)
+# The filter kernels run in float and double. arm64 has fused multiply-add and clang
+# contracts a*b+c into it by default, rounding once where MSVC and x86-64 GCC round
+# twice, so the same filter wrote different 8-bit pixels on macOS. Contraction is off so
+# every toolchain matches MSVC's /fp:precise (docs/platform.md).
+if(NOT MSVC)
+  target_compile_options(patchy_filters PRIVATE -ffp-contract=off)
+endif()
 
 include(cmake/patchy_gmic.cmake)
 
