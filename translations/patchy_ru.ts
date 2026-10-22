@@ -20,7 +20,7 @@
         <translation>В этом AppImage нет файла .desktop Patchy</translation>
     </message>
     <message>
-        <source>This AppImage's desktop file has no Exec line</source>
+        <source>This AppImage&apos;s desktop file has no Exec line</source>
         <translation>В файле .desktop этого AppImage нет строки Exec</translation>
     </message>
     <message>
@@ -40,7 +40,7 @@
         <translation>Не удалось удалить %1</translation>
     </message>
     <message>
-        <source>The AppImage's file name cannot be used in a menu entry</source>
+        <source>The AppImage&apos;s file name cannot be used in a menu entry</source>
         <translation>Имя файла AppImage нельзя использовать в пункте меню</translation>
     </message>
 </context>
@@ -150,7 +150,7 @@
         <translation>Сохранить возможность редактирования векторных слоёв</translation>
     </message>
     <message>
-        <source>These layers keep their own effects and stay separate in a vector merge. Turning off "Keep vector layers editable" rasterizes merged artwork.</source>
+        <source>These layers keep their own effects and stay separate in a vector merge. Turning off &quot;Keep vector layers editable&quot; rasterizes merged artwork.</source>
         <translation>Эти слои сохраняют собственные эффекты и остаются отдельными при векторном объединении. Отключение параметра «Сохранить возможность редактирования векторных слоёв» растрирует объединяемое изображение.</translation>
     </message>
     <message>
@@ -190,11 +190,11 @@
         <translation>Сохранённые векторные данные нельзя редактировать.</translation>
     </message>
     <message>
-        <source>This compound vector's opacity requires it to stay separate.</source>
+        <source>This compound vector&apos;s opacity requires it to stay separate.</source>
         <translation>Непрозрачность этого составного вектора требует сохранить его отдельно.</translation>
     </message>
     <message>
-        <source>This group's appearance prevents moving shapes across its boundary.</source>
+        <source>This group&apos;s appearance prevents moving shapes across its boundary.</source>
         <translation>Оформление этой группы не позволяет перемещать фигуры через её границу.</translation>
     </message>
     <message>
@@ -386,7 +386,7 @@
         <translation>Открыть указанный файл, сохранить в &lt;path&gt; (формат определяется расширением) и выйти. Автоматический режим: запросы отключены, работающие экземпляры не используются.</translation>
     </message>
     <message>
-        <source>With --export: append this text to every text layer, re-rendering each through Patchy's text engine, before saving.</source>
+        <source>With --export: append this text to every text layer, re-rendering each through Patchy&apos;s text engine, before saving.</source>
         <translation>С --export: перед сохранением добавить этот текст к каждому текстовому слою и заново отрисовать каждый слой текстовым движком Patchy.</translation>
     </message>
     <message>
@@ -1207,7 +1207,7 @@
     </message>
     <message>
         <source>Curves preset has malformed version-1 data</source>
-        <translation>В наборе кривых содержатся неверные данные версии 1.</translation>
+        <translation>В наборе кривых содержатся неверные данные версии&#xa0;1.</translation>
     </message>
     <message>
         <source>Curves preset is too large</source>
@@ -1394,7 +1394,7 @@
         <translation>Данные Aseprite cel не удалось распаковать</translation>
     </message>
     <message>
-        <source>This is an Adobe swatch palette (.ase), not an Aseprite image. Load it from the Palette panel's Load Palette File instead.</source>
+        <source>This is an Adobe swatch palette (.ase), not an Aseprite image. Load it from the Palette panel&apos;s Load Palette File instead.</source>
         <translation>Это палитра образцов Adobe (.ase), а не изображение Aseprite. Загрузите её командой «Загрузить файл палитры» на панели «Палитра».</translation>
     </message>
     <message>
@@ -1630,7 +1630,7 @@
         <translation>Невозможно инициализировать параметры декодирования HEIF.</translation>
     </message>
     <message>
-        <source>This HEIF image's dimensions are not supported</source>
+        <source>This HEIF image&apos;s dimensions are not supported</source>
         <translation>Размеры этого изображения HEIF не поддерживаются.</translation>
     </message>
     <message>
@@ -1750,7 +1750,7 @@
         <translation>Строка с плавающей запятой JPEG XR превышает предел буфера кодека</translation>
     </message>
     <message>
-        <source>This JPEG XR image's dimensions are not supported</source>
+        <source>This JPEG XR image&apos;s dimensions are not supported</source>
         <translation>Размеры этого изображения JPEG XR не поддерживаются.</translation>
     </message>
     <message>
@@ -1950,7 +1950,7 @@
         <translation>Маска прозрачности изображения PDF была слишком велика для импорта; импортированное изображение непрозрачно.</translation>
     </message>
     <message>
-        <source>A PDF image's transparency mask used a codec Patchy could not decode; the image imported opaque.</source>
+        <source>A PDF image&apos;s transparency mask used a codec Patchy could not decode; the image imported opaque.</source>
         <translation>Маска прозрачности PDF-изображения использовала кодек, который Patchy не мог декодировать; импортированное изображение непрозрачно.</translation>
     </message>
     <message>
@@ -2042,7 +2042,7 @@
         <translation>Текстура Proton использует неизвестный тип сжатия RTPACK</translation>
     </message>
     <message>
-        <source>Proton texture's zlib payload is damaged</source>
+        <source>Proton texture&apos;s zlib payload is damaged</source>
         <translation>Данные zlib текстуры Proton повреждены</translation>
     </message>
     <message>
@@ -2054,15 +2054,15 @@
         <translation>Текстуры Proton, сжатые PVRTC, не открываются; сначала повторно экспортируйте исходное изображение с помощью RTPack -8888.</translation>
     </message>
     <message>
-        <source>Proton texture's embedded payload is neither a JPEG nor raw RGB pixels</source>
+        <source>Proton texture&apos;s embedded payload is neither a JPEG nor raw RGB pixels</source>
         <translation>Встроенные данные текстуры Proton не являются ни JPEG, ни несжатыми пикселями RGB</translation>
     </message>
     <message>
-        <source>Proton texture's embedded JPEG could not be read</source>
+        <source>Proton texture&apos;s embedded JPEG could not be read</source>
         <translation>Не удалось прочитать встроенный JPEG текстуры Proton</translation>
     </message>
     <message>
-        <source>Proton texture's embedded JPEG could not be decoded</source>
+        <source>Proton texture&apos;s embedded JPEG could not be decoded</source>
         <translation>Не удалось декодировать встроенный JPEG текстуры Proton</translation>
     </message>
     <message>
@@ -2086,7 +2086,7 @@
         <translation>Записанная исходная высота некорректна; используется высота текстуры</translation>
     </message>
     <message>
-        <source>Proton texture's first mip level does not match the texture size</source>
+        <source>Proton texture&apos;s first mip level does not match the texture size</source>
         <translation>Первый mip-уровень текстуры Proton не соответствует размеру текстуры</translation>
     </message>
     <message>
@@ -2098,7 +2098,7 @@
         <translation>Нельзя записать пустой документ как текстуру Proton</translation>
     </message>
     <message>
-        <source>JPEG-encoded Proton textures need the application's JPEG encoder, which is not installed</source>
+        <source>JPEG-encoded Proton textures need the application&apos;s JPEG encoder, which is not installed</source>
         <translation>Для текстур Proton в формате JPEG требуется кодировщик JPEG приложения, который не установлен.</translation>
     </message>
     <message>
@@ -2258,7 +2258,7 @@
         <translation>SVG не имеет полезной ширины/высоты или viewBox; открыт в размере 300 х 150</translation>
     </message>
     <message>
-        <source>SVG canvas was scaled down to Patchy's 30000 px document limit</source>
+        <source>SVG canvas was scaled down to Patchy&apos;s 30000 px document limit</source>
         <translation>Холст SVG был уменьшен до лимита документа Patchy в 30 000 пикселей.</translation>
     </message>
     <message>
@@ -2290,7 +2290,7 @@
         <translation>Не удалось закодировать встроенный PNG для экспорта SVG.</translation>
     </message>
     <message>
-        <source>A pattern fill's tile was missing and exported as gray</source>
+        <source>A pattern fill&apos;s tile was missing and exported as gray</source>
         <translation>Плитка заливки узором отсутствовала и экспортировалась как серая.</translation>
     </message>
     <message>
@@ -3362,7 +3362,7 @@
         </translation>
     </message>
     <message>
-        <source>Delete brush tip "%1"?</source>
+        <source>Delete brush tip &quot;%1&quot;?</source>
         <translation>Удалить отпечаток кисти «%1»?</translation>
     </message>
     <message numerus="yes">
@@ -3438,11 +3438,11 @@
         <translation>%1 — смарт-объект, связанный с внешним файлом; Patchy сохраняет его и может обновить с диска, когда исходный файл станет доступен.</translation>
     </message>
     <message>
-        <source>%1 is a smart object with Smart Filters; Patchy preserves them and shows Photoshop's preview (rasterize the layer to edit it here).</source>
+        <source>%1 is a smart object with Smart Filters; Patchy preserves them and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
         <translation>%1 содержит смарт-фильтры; Patchy сохраняет их и показывает изображение предпросмотра, созданное Photoshop (для редактирования здесь растрируйте слой).</translation>
     </message>
     <message>
-        <source>%1 is a smart object with a warp or perspective transform; Patchy preserves it and shows Photoshop's preview (rasterize the layer to edit it here).</source>
+        <source>%1 is a smart object with a warp or perspective transform; Patchy preserves it and shows Photoshop&apos;s preview (rasterize the layer to edit it here).</source>
         <translation>%1 содержит деформацию или перспективное преобразование; Patchy сохраняет смарт-объект и показывает изображение предпросмотра, созданное Photoshop (для редактирования здесь растрируйте слой).</translation>
     </message>
     <message>
@@ -3970,7 +3970,7 @@
         <translation>Разделить фотографии</translation>
     </message>
     <message>
-        <source>The folder "%1" could not be created.</source>
+        <source>The folder &quot;%1&quot; could not be created.</source>
         <translation>Не удалось создать папку «%1».</translation>
     </message>
     <message>
@@ -4411,7 +4411,7 @@
     </message>
     <message>
         <source>Zoom to 100% (1 image pixel = 1 screen pixel)</source>
-        <translation>Увеличьте масштаб до 100 % (1 пиксель изображения = 1 пиксель экрана).</translation>
+        <translation>Увеличьте масштаб до 100&#xa0;% (1 пиксель изображения = 1 пиксель экрана).</translation>
     </message>
     <message>
         <source>Zoom out</source>
@@ -4682,7 +4682,7 @@
         <translation>Сжать (контейнер RTPACK zlib)</translation>
     </message>
     <message>
-        <source>The texture is padded to a power of two and its true size is recorded in the header, so it opens again at the true size. JPEG applies only to images without transparency (RTPack's rule): a transparent image is written lossless instead.</source>
+        <source>The texture is padded to a power of two and its true size is recorded in the header, so it opens again at the true size. JPEG applies only to images without transparency (RTPack&apos;s rule): a transparent image is written lossless instead.</source>
         <translation>Текстура дополняется до степени двойки, а ее истинный размер записывается в заголовок, поэтому она снова открывается с истинным размером. JPEG применяется только к изображениям без прозрачности (правило RTPack): вместо этого прозрачное изображение записывается без потерь.</translation>
     </message>
     <message>
@@ -4798,11 +4798,11 @@
         <translation>Если шрифт отсутствует, экспортируйте этот текст как изображение вместо замены шрифта.</translation>
     </message>
     <message>
-        <source>Unchecked, text in a font that is not installed is written as editable text in a substitute font, so it can look different from the canvas. Checked, that text is written as an image of the layer's pixels instead.</source>
+        <source>Unchecked, text in a font that is not installed is written as editable text in a substitute font, so it can look different from the canvas. Checked, that text is written as an image of the layer&apos;s pixels instead.</source>
         <translation>Если флажок снят, текст шрифта, который не установлен, записывается как редактируемый текст замещающим шрифтом, поэтому он может отличаться от холста. Установлен флажок, вместо этого текст записывается как изображение пикселей слоя.</translation>
     </message>
     <message>
-        <source>The page is sized from the document's resolution, so it prints at the image's own size.</source>
+        <source>The page is sized from the document&apos;s resolution, so it prints at the image&apos;s own size.</source>
         <translation>Размер страницы зависит от разрешения документа, поэтому она печатается с собственным размером изображения.</translation>
     </message>
     <message>
@@ -4830,7 +4830,7 @@
         <translation> с</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer name ending in a time, like "blink 0.25s", overrides the default delay for that frame. The animation loops forever.</source>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. Hidden layers are skipped. A layer name ending in a time, like &quot;blink 0.25s&quot;, overrides the default delay for that frame. The animation loops forever.</source>
         <translation>Каждый видимый слой верхнего уровня становится кадром, начиная с верхнего. Скрытые слои пропускаются. Время в конце имени слоя, например «blink 0.25s», заменяет стандартную задержку этого кадра. Анимация повторяется бесконечно.</translation>
     </message>
     <message>
@@ -5115,11 +5115,11 @@
         <translation>Введите имя для предустановки.</translation>
     </message>
     <message>
-        <source>"%1" is a built-in preset. Choose another name.</source>
+        <source>&quot;%1&quot; is a built-in preset. Choose another name.</source>
         <translation>«%1» — это встроенная предустановка. Выберите другое имя.</translation>
     </message>
     <message>
-        <source>Replace the preset "%1"?</source>
+        <source>Replace the preset &quot;%1&quot;?</source>
         <translation>Заменить предустановку «%1»?</translation>
     </message>
     <message>
@@ -5127,7 +5127,7 @@
         <translation>Удалить предустановку трассировки</translation>
     </message>
     <message>
-        <source>Delete the preset "%1"?</source>
+        <source>Delete the preset &quot;%1&quot;?</source>
         <translation>Удалить предустановку «%1»?</translation>
     </message>
     <message>
@@ -5135,7 +5135,7 @@
         <translation>Стиль слоя</translation>
     </message>
     <message>
-        <source>Pattern "%1" is not embedded in this document, so the effect that references it cannot render until you choose another pattern.</source>
+        <source>Pattern &quot;%1&quot; is not embedded in this document, so the effect that references it cannot render until you choose another pattern.</source>
         <translation>Узор «%1» не встроен в документ; использующий его эффект не отображается, пока вы не выберете другой узор.</translation>
     </message>
     <message>
@@ -5155,7 +5155,7 @@
         <translation>Заменить редактируемыми значениями по умолчанию</translation>
     </message>
     <message>
-        <source>This folder's closing PSD record contains separate Blend If data. Patchy preserves that boundary data unchanged; the controls below edit only the visible folder record.</source>
+        <source>This folder&apos;s closing PSD record contains separate Blend If data. Patchy preserves that boundary data unchanged; the controls below edit only the visible folder record.</source>
         <translation>Закрывающая запись папки в PSD содержит отдельные данные «Наложение, если». Patchy сохраняет их без изменений; элементы ниже изменяют только видимую запись папки.</translation>
     </message>
     <message>
@@ -5345,7 +5345,7 @@
         <translation>Если канал отключён, для него сохраняется изображение нижележащих слоёв без наложения этого слоя</translation>
     </message>
     <message>
-        <source>This layer preserves Photoshop channel restrictions Patchy cannot edit for this file's color mode</source>
+        <source>This layer preserves Photoshop channel restrictions Patchy cannot edit for this file&apos;s color mode</source>
         <translation>Слой сохраняет ограничения каналов Photoshop, которые Patchy не может редактировать в цветовом режиме этого файла</translation>
     </message>
     <message>
@@ -5369,7 +5369,7 @@
         <translation>Внутренние эффекты как группа</translation>
     </message>
     <message>
-        <source>Put the layer's blend mode over its overlays, satin, and inner glow instead of letting them blend with their own modes</source>
+        <source>Put the layer&apos;s blend mode over its overlays, satin, and inner glow instead of letting them blend with their own modes</source>
         <translation>Применить режим наложения слоя к наложениям цвета, градиента и узора, глянцу и внутреннему свечению, вместо их собственных режимов наложения</translation>
     </message>
     <message>
@@ -5561,7 +5561,7 @@
         <translation>Надпечатка</translation>
     </message>
     <message>
-        <source>Blend the stroke against the layer's own content. When off, the stroke knocks the content out of its band and blends with the layers below, like Photoshop</source>
+        <source>Blend the stroke against the layer&apos;s own content. When off, the stroke knocks the content out of its band and blends with the layers below, like Photoshop</source>
         <translation>Смешайте обводку с собственным содержимым слоя. Если этот параметр отключен, обводка выбивает содержимое из полосы и смешивается со слоями ниже, как в Photoshop.</translation>
     </message>
     <message>
@@ -5661,7 +5661,7 @@
         <translation>Слой скрывает тень</translation>
     </message>
     <message>
-        <source>Hide the shadow under the layer's own shape so it never shows through knocked-out or semi-transparent content, like Photoshop</source>
+        <source>Hide the shadow under the layer&apos;s own shape so it never shows through knocked-out or semi-transparent content, like Photoshop</source>
         <translation>Скрыть тень под формой самого слоя, чтобы она не просвечивала через вырезанные или полупрозрачные участки, как в Photoshop</translation>
     </message>
     <message>
@@ -5813,11 +5813,11 @@
         <translation>Отсутствует шрифт</translation>
     </message>
     <message>
-        <source>Patchy can't locate these fonts: %1. These fonts have no glyphs for their text: %2. Editing this PSD raster preview will substitute other fonts. Continue?</source>
+        <source>Patchy can&apos;t locate these fonts: %1. These fonts have no glyphs for their text: %2. Editing this PSD raster preview will substitute other fonts. Continue?</source>
         <translation>Patchy не находит шрифты: %1. В этих шрифтах нет символов для их текста: %2. При редактировании растрового предпросмотра PSD будут подставлены другие шрифты. Продолжить?</translation>
     </message>
     <message>
-        <source>The font "%1" has no glyphs for this text. Editing this PSD raster preview will substitute another font. Continue?</source>
+        <source>The font &quot;%1&quot; has no glyphs for this text. Editing this PSD raster preview will substitute another font. Continue?</source>
         <translation>Шрифт «%1» не содержит глифов для этого текста. При редактировании этого предварительного просмотра растра PSD шрифт будет заменен другим. Продолжать?</translation>
     </message>
     <message>
@@ -5825,11 +5825,11 @@
         <translation>В этих шрифтах нет символов для их текста: %1. При редактировании растрового предпросмотра PSD будут подставлены другие шрифты. Продолжить?</translation>
     </message>
     <message>
-        <source>Patchy can't locate the font "%1". Editing this PSD raster preview will substitute another font. Continue?</source>
+        <source>Patchy can&apos;t locate the font &quot;%1&quot;. Editing this PSD raster preview will substitute another font. Continue?</source>
         <translation>Patchy не может найти шрифт «%1». При редактировании этого предварительного просмотра растра PSD шрифт будет заменен другим. Продолжать?</translation>
     </message>
     <message>
-        <source>Patchy can't locate these fonts: %1. Editing this PSD raster preview will substitute other fonts. Continue?</source>
+        <source>Patchy can&apos;t locate these fonts: %1. Editing this PSD raster preview will substitute other fonts. Continue?</source>
         <translation>Patchy не находит шрифты: %1. При редактировании растрового предпросмотра PSD будут подставлены другие шрифты. Продолжить?</translation>
     </message>
     <message>
@@ -6169,11 +6169,11 @@
         <translation>Patchy сохранил неподдерживаемые данные «Наложение, если» Photoshop без отображения (записей слоёв: %1, записей границ групп: %2).</translation>
     </message>
     <message>
-        <source>Layer '%1': invalid Gaussian blur radius; effect skipped</source>
+        <source>Layer &apos;%1&apos;: invalid Gaussian blur radius; effect skipped</source>
         <translation>Слой «%1»: недопустимый радиус размытия по Гауссу; эффект пропущен</translation>
     </message>
     <message>
-        <source>Layer '%1': Gaussian blur could not be applied; original pixels kept</source>
+        <source>Layer &apos;%1&apos;: Gaussian blur could not be applied; original pixels kept</source>
         <translation>Слой «%1»: невозможно применить размытие по Гауссу; исходные пиксели сохранены</translation>
     </message>
     <message>
@@ -7219,7 +7219,7 @@ RGB: %2, %3, %4</translation>
         <translation>Открыть как изображение</translation>
     </message>
     <message>
-        <source>Open the selected pattern's texture as a new image</source>
+        <source>Open the selected pattern&apos;s texture as a new image</source>
         <translation>Откройте текстуру выбранного узора как новое изображение.</translation>
     </message>
     <message>
@@ -7251,7 +7251,7 @@ RGB: %2, %3, %4</translation>
         </translation>
     </message>
     <message>
-        <source>Delete pattern "%1"?</source>
+        <source>Delete pattern &quot;%1&quot;?</source>
         <translation>Удалить узор «%1»?</translation>
     </message>
     <message numerus="yes">
@@ -7275,7 +7275,7 @@ RGB: %2, %3, %4</translation>
         </translation>
     </message>
     <message>
-        <source>Could not load the selected pattern's texture.</source>
+        <source>Could not load the selected pattern&apos;s texture.</source>
         <translation>Не удалось загрузить текстуру выбранного узора.</translation>
     </message>
     <message>
@@ -7420,7 +7420,7 @@ RGB: %2, %3, %4</translation>
     </message>
     <message>
         <source>Import PDF - %1</source>
-        <translation>Импортировать PDF – %1</translation>
+        <translation>Импортировать PDF&#xa0;– %1</translation>
     </message>
     <message>
         <source>Select All Pages</source>
@@ -7479,7 +7479,7 @@ RGB: %2, %3, %4</translation>
         <translation>Слоев: %1, первая страница %2 x %3 пикселей</translation>
     </message>
     <message>
-        <source>About %1 GB of memory, more than half of this computer's %2 GB. Fewer pages or a lower resolution will open faster.</source>
+        <source>About %1 GB of memory, more than half of this computer&apos;s %2 GB. Fewer pages or a lower resolution will open faster.</source>
         <translation>Около %1 ГБ памяти, более половины %2 ГБ этого компьютера. Меньшее количество страниц или более низкое разрешение будут открываться быстрее.</translation>
     </message>
     <message>
@@ -7495,7 +7495,7 @@ RGB: %2, %3, %4</translation>
         <translation>Не удалось импортировать страницу %1 в редактируемом виде (%2); она импортирована как сведённое изображение.</translation>
     </message>
     <message>
-        <source>Some artwork could not be kept editable; reimport with "Flattened image per page" for an exact copy.</source>
+        <source>Some artwork could not be kept editable; reimport with &quot;Flattened image per page&quot; for an exact copy.</source>
         <translation>Некоторые изображения невозможно было сохранить для редактирования; повторный импорт с параметром «Сведенное изображение на странице» для получения точной копии.</translation>
     </message>
     <message>
@@ -7531,7 +7531,7 @@ RGB: %2, %3, %4</translation>
         <translation>Принтер недоступен</translation>
     </message>
     <message>
-        <source>Windows cannot read the settings for "%1". The printer driver may need to be repaired or reinstalled.</source>
+        <source>Windows cannot read the settings for &quot;%1&quot;. The printer driver may need to be repaired or reinstalled.</source>
         <translation>Windows не может прочитать настройки для «%1». Возможно, драйвер принтера необходимо отремонтировать или переустановить.</translation>
     </message>
     <message>
@@ -7984,7 +7984,7 @@ RGB: %2, %3, %4</translation>
     </message>
     <message>
         <source>Quick preview - waiting to refine</source>
-        <translation>Быстрый предварительный просмотр – ожидание уточнения</translation>
+        <translation>Быстрый предварительный просмотр&#xa0;– ожидание уточнения</translation>
     </message>
     <message>
         <source>Preview incomplete: %1</source>
@@ -8119,11 +8119,11 @@ RGB: %2, %3, %4</translation>
         <translation>Выровнять по слою</translation>
     </message>
     <message>
-        <source>Anchor the tile grid to the layer's position; unchecked anchors it to the document origin</source>
+        <source>Anchor the tile grid to the layer&apos;s position; unchecked anchors it to the document origin</source>
         <translation>Привязать сетку узора к положению слоя; если отключено, привязать к началу координат документа</translation>
     </message>
     <message>
-        <source>Softens the whole shape, stroke included, like Photoshop's vector mask feather</source>
+        <source>Softens the whole shape, stroke included, like Photoshop&apos;s vector mask feather</source>
         <translation>Смягчает всю фигуру вместе с обводкой, подобно растушёвке векторной маски Photoshop</translation>
     </message>
     <message>
@@ -8131,7 +8131,7 @@ RGB: %2, %3, %4</translation>
         <translation>Растушёвка:</translation>
     </message>
     <message>
-        <source>Below 100% the fill shows through everywhere, like Photoshop's vector mask density</source>
+        <source>Below 100% the fill shows through everywhere, like Photoshop&apos;s vector mask density</source>
         <translation>Ниже 100% заливка проявляется повсюду, как плотность векторной маски Photoshop.</translation>
     </message>
     <message>
@@ -8225,7 +8225,7 @@ RGB: %2, %3, %4</translation>
     </message>
     <message>
         <source>%1 MB</source>
-        <translation>%1 МБ</translation>
+        <translation>%1&#xa0;МБ</translation>
     </message>
     <message>
         <source>Memory used: %1 (heap %2, limit %3)</source>
@@ -8260,7 +8260,7 @@ RGB: %2, %3, %4</translation>
         <translation>GitHub: %1</translation>
     </message>
     <message>
-        <source>Seth's site: %1</source>
+        <source>Seth&apos;s site: %1</source>
         <translation>Сайт Сета: %1</translation>
     </message>
     <message>
@@ -8400,8 +8400,8 @@ RGB: %2, %3, %4</translation>
         </translation>
     </message>
     <message>
-        <source>Delete style "%1"?</source>
-        <translation>Удалить стиль "%1"?</translation>
+        <source>Delete style &quot;%1&quot;?</source>
+        <translation>Удалить стиль &quot;%1&quot;?</translation>
     </message>
     <message numerus="yes">
         <source>Delete %n style(s)?</source>
@@ -8692,8 +8692,8 @@ RGB: %2, %3, %4</translation>
         <translation>Удалить образ</translation>
     </message>
     <message>
-        <source>Delete Look "%1"?</source>
-        <translation>Удалить образ "%1"?</translation>
+        <source>Delete Look &quot;%1&quot;?</source>
+        <translation>Удалить образ &quot;%1&quot;?</translation>
     </message>
     <message>
         <source>delete</source>
@@ -8824,8 +8824,8 @@ RGB: %2, %3, %4</translation>
         <translation>Число воспроизведений:</translation>
     </message>
     <message>
-        <source>Each visible top-level layer becomes one frame, with the top layer first. A name ending in a time, like "blink 0.033s", sets that frame's delay. Play count includes the first play.</source>
-        <translation>Каждый видимый слой верхнего уровня становится кадром, начиная с самого верхнего. Время в конце имени, например "blink 0.033s", задаёт длительность кадра. Число воспроизведений включает первое.</translation>
+        <source>Each visible top-level layer becomes one frame, with the top layer first. A name ending in a time, like &quot;blink 0.033s&quot;, sets that frame&apos;s delay. Play count includes the first play.</source>
+        <translation>Каждый видимый слой верхнего уровня становится кадром, начиная с самого верхнего. Время в конце имени, например &quot;blink 0.033s&quot;, задаёт длительность кадра. Число воспроизведений включает первое.</translation>
     </message>
     <message>
         <source>Animated WebP: imported %1 frames as layers</source>
@@ -9028,7 +9028,7 @@ RGB: %2, %3, %4</translation>
         <translation>32-битное изображение преобразовано в 16 бит на канал: веб-версия редактирует не более 16 бит.</translation>
     </message>
     <message>
-        <source>This document's preserved text engine cannot store new area text.</source>
+        <source>This document&apos;s preserved text engine cannot store new area text.</source>
         <translation>Сохранённый текстовый движок этого документа не поддерживает сохранение нового текста внутри фигур.</translation>
     </message>
     <message>
@@ -9052,8 +9052,8 @@ RGB: %2, %3, %4</translation>
         <translation>Битовые маски формата пикселей DDS не умещаются в размер пикселя</translation>
     </message>
     <message>
-        <source>Not a DDS texture: the 'DDS ' signature is missing</source>
-        <translation>Это не текстура DDS: отсутствует сигнатура 'DDS '</translation>
+        <source>Not a DDS texture: the &apos;DDS &apos; signature is missing</source>
+        <translation>Это не текстура DDS: отсутствует сигнатура &apos;DDS &apos;</translation>
     </message>
     <message>
         <source>DDS texture is truncated: the header is incomplete</source>
@@ -9656,7 +9656,7 @@ RGB: %2, %3, %4</translation>
         <translation>Программа:</translation>
     </message>
     <message>
-        <source>The file also carries a maker note: the camera maker's private data, which often includes serial numbers.</source>
+        <source>The file also carries a maker note: the camera maker&apos;s private data, which often includes serial numbers.</source>
         <translation>Файл также содержит заметку производителя: закрытые данные производителя камеры, которые часто включают серийные номера.</translation>
     </message>
     <message>
@@ -9988,7 +9988,7 @@ RGB: %2, %3, %4</translation>
         <translation>Усилие:</translation>
     </message>
     <message>
-        <source>Patchy does not use JPEG XL's patch and dot coding tools, so images with repeated text or small dots can be somewhat larger than with other encoders.</source>
+        <source>Patchy does not use JPEG XL&apos;s patch and dot coding tools, so images with repeated text or small dots can be somewhat larger than with other encoders.</source>
         <translation>Patchy не использует инструменты кодирования патчей и точек JPEG XL, поэтому изображения с повторяющимся текстом или мелкими точками могут быть немного больше, чем при сохранении другими кодировщиками.</translation>
     </message>
     <message>
@@ -10004,7 +10004,7 @@ RGB: %2, %3, %4</translation>
         <translation>Изображение CMYK: преобразовано в RGB через профиль %1</translation>
     </message>
     <message>
-        <source>The file's CMYK profile %1 differs from the working CMYK profile %2, which CMYK saves use</source>
+        <source>The file&apos;s CMYK profile %1 differs from the working CMYK profile %2, which CMYK saves use</source>
         <translation>Профиль CMYK файла, %1, отличается от рабочего профиля CMYK %2, который используется при сохранении в CMYK</translation>
     </message>
     <message>
@@ -10260,7 +10260,7 @@ RGB: %2, %3, %4</translation>
         <translation>Эта сборка Patchy не может декодировать изображения HEIC.</translation>
     </message>
     <message>
-        <source>This build of Patchy cannot decode HEIC images because the system's libheif library is not installed. Install it and try again.
+        <source>This build of Patchy cannot decode HEIC images because the system&apos;s libheif library is not installed. Install it and try again.
 Debian/Ubuntu: sudo apt install libheif1
 Fedora: sudo dnf install libheif</source>
         <translation>Эта сборка Patchy не может декодировать изображения HEIC, потому что системная библиотека libheif не установлена. Установите её и повторите попытку.
@@ -10272,7 +10272,7 @@ Fedora: sudo dnf install libheif</translation>
         <translation>Эта сборка Patchy не может декодировать изображения HEIC, потому что установленная библиотека libheif слишком старая. Patchy требуется libheif 1.12 или новее.</translation>
     </message>
     <message>
-        <source>The system's libheif library has no HEVC decoder plug-in, so Patchy cannot decode HEIC images. Install it and try again.
+        <source>The system&apos;s libheif library has no HEVC decoder plug-in, so Patchy cannot decode HEIC images. Install it and try again.
 Debian/Ubuntu: sudo apt install libheif-plugin-libde265
 Fedora (RPM Fusion): sudo dnf install libheif-freeworld</source>
         <translation>В системной библиотеке libheif нет подключаемого модуля декодера HEVC, поэтому Patchy не может декодировать изображения HEIC. Установите его и повторите попытку.
@@ -10280,7 +10280,7 @@ Debian/Ubuntu: sudo apt install libheif-plugin-libde265
 Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
-        <source>This HEIC image's bit depth is not supported by the installed libheif library.</source>
+        <source>This HEIC image&apos;s bit depth is not supported by the installed libheif library.</source>
         <translation>Битовая глубина этого изображения HEIC не поддерживается установленной библиотекой libheif.</translation>
     </message>
     <message>
@@ -10328,7 +10328,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Введите разрешение от %1 до %2 пикс/дюйм.</translation>
     </message>
     <message>
-        <source>Indexed color needs "Flattened image per page": shapes, text and images cannot be converted to a palette.</source>
+        <source>Indexed color needs &quot;Flattened image per page&quot;: shapes, text and images cannot be converted to a palette.</source>
         <translation>Для индексированных цветов нужен режим «Сведенное изображение на странице»: фигуры, текст и изображения нельзя преобразовать в палитру.</translation>
     </message>
     <message>
@@ -10444,7 +10444,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Глубокое</translation>
     </message>
     <message>
-        <source>Shallow cuts through the layers below to the bottom of this layer's group; Deep cuts through to the Background, or to transparency without one</source>
+        <source>Shallow cuts through the layers below to the bottom of this layer&apos;s group; Deep cuts through to the Background, or to transparency without one</source>
         <translation>Неглубокое выбивает нижние слои до низа группы этого слоя; Глубокое выбивает до фона, а без фона до прозрачности</translation>
     </message>
     <message>
@@ -10504,7 +10504,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Заменить на:</translation>
     </message>
     <message>
-        <source>Don't show when opening documents</source>
+        <source>Don&apos;t show when opening documents</source>
         <translation>Не показывать при открытии документов</translation>
     </message>
     <message>
@@ -10524,15 +10524,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Текстовый слой. Шрифт отсутствует на этом компьютере: %1.</translation>
     </message>
     <message>
-        <source>The TIFF's Photoshop layer records are damaged</source>
+        <source>The TIFF&apos;s Photoshop layer records are damaged</source>
         <translation>Записи слоёв Photoshop в файле TIFF повреждены</translation>
     </message>
     <message>
-        <source>The TIFF's Photoshop layer data mixes byte orders</source>
+        <source>The TIFF&apos;s Photoshop layer data mixes byte orders</source>
         <translation>В данных слоёв Photoshop в файле TIFF смешаны порядки байтов</translation>
     </message>
     <message>
-        <source>The TIFF's Photoshop layer data is cut short</source>
+        <source>The TIFF&apos;s Photoshop layer data is cut short</source>
         <translation>Данные слоёв Photoshop в файле TIFF обрываются</translation>
     </message>
     <message>
@@ -10544,7 +10544,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Это не файл TIFF, из которого Patchy читает слои</translation>
     </message>
     <message>
-        <source>The TIFF's first directory is damaged</source>
+        <source>The TIFF&apos;s first directory is damaged</source>
         <translation>Первый каталог файла TIFF повреждён</translation>
     </message>
     <message>
@@ -10552,7 +10552,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>В файле TIFF нет данных слоёв Photoshop</translation>
     </message>
     <message>
-        <source>The TIFF's first directory lacks its image size or color layout</source>
+        <source>The TIFF&apos;s first directory lacks its image size or color layout</source>
         <translation>В первом каталоге файла TIFF нет размера изображения или цветовой схемы</translation>
     </message>
     <message>
@@ -10560,7 +10560,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Patchy читает слои TIFF только с глубиной 8 или 16 бит либо 32 бита с плавающей точкой</translation>
     </message>
     <message>
-        <source>The TIFF's Photoshop layer data holds no layers</source>
+        <source>The TIFF&apos;s Photoshop layer data holds no layers</source>
         <translation>Данные слоёв Photoshop в файле TIFF не содержат слоёв</translation>
     </message>
     <message>
@@ -10568,7 +10568,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Этот TIFF хранит слои в порядке байтов IBM PC, и часть этих данных слоёв записана в виде, который Patchy пока не умеет преобразовывать. Patchy пропустил её, поэтому некоторые слои могут выглядеть иначе, чем в Photoshop.</translation>
     </message>
     <message>
-        <source>The TIFF's Photoshop layer data is too large</source>
+        <source>The TIFF&apos;s Photoshop layer data is too large</source>
         <translation>Данные слоёв Photoshop в файле TIFF слишком велики</translation>
     </message>
     <message>
@@ -10620,7 +10620,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Photoshop и Patchy открывают слои; другие программы показывают сведённое изображение. Без слоёв Patchy сохраняет сведённую копию, а этот документ сохраняет свои слои.</translation>
     </message>
     <message>
-        <source>The file's CMYK profile %1 differs from the working CMYK profile %2, which CMYK Proof and CMYK JPEG, TIFF and PDF saves use</source>
+        <source>The file&apos;s CMYK profile %1 differs from the working CMYK profile %2, which CMYK Proof and CMYK JPEG, TIFF and PDF saves use</source>
         <translation>Профиль CMYK файла, %1, отличается от рабочего профиля CMYK %2, который используется CMYK-цветопробой и при сохранении в CMYK в форматах JPEG, TIFF и PDF</translation>
     </message>
     <message>
@@ -10963,23 +10963,23 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Удалить все смарт-фильтры</translation>
     </message>
     <message>
-        <source>Patchy can't render every Smart Filter that would then run. Photoshop renders them when the file is opened there.</source>
+        <source>Patchy can&apos;t render every Smart Filter that would then run. Photoshop renders them when the file is opened there.</source>
         <translation>Patchy не может отрисовать все смарт-фильтры, которые тогда будут применяться. Photoshop отрисует их, когда файл будет открыт в нём.</translation>
     </message>
     <message>
-        <source>Hiding this filter would leave Smart Filters running that Patchy can't render. Hide or delete those first, or hide all Smart Filters.</source>
+        <source>Hiding this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or hide all Smart Filters.</source>
         <translation>Если скрыть этот фильтр, останутся активными смарт-фильтры, которые Patchy не может отрисовать. Сначала скройте или удалите их либо скройте все смарт-фильтры.</translation>
     </message>
     <message>
-        <source>Deleting this filter would leave Smart Filters running that Patchy can't render. Hide or delete those first, or delete all Smart Filters.</source>
+        <source>Deleting this filter would leave Smart Filters running that Patchy can&apos;t render. Hide or delete those first, or delete all Smart Filters.</source>
         <translation>Если удалить этот фильтр, останутся активными смарт-фильтры, которые Patchy не может отрисовать. Сначала скройте или удалите их либо удалите все смарт-фильтры.</translation>
     </message>
     <message>
-        <source>Patchy can't edit this filter's settings. It is preserved unchanged.</source>
+        <source>Patchy can&apos;t edit this filter&apos;s settings. It is preserved unchanged.</source>
         <translation>Patchy не может изменить настройки этого фильтра. Он сохраняется без изменений.</translation>
     </message>
     <message>
-        <source>This stack runs Smart Filters that Patchy can't render, so their settings can't change here. Hide or delete those filters first.</source>
+        <source>This stack runs Smart Filters that Patchy can&apos;t render, so their settings can&apos;t change here. Hide or delete those filters first.</source>
         <translation>Этот стек применяет смарт-фильтры, которые Patchy не может отрисовать, поэтому их настройки здесь изменить нельзя. Сначала скройте или удалите эти фильтры.</translation>
     </message>
     <message>
@@ -11255,7 +11255,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>%1 %2</source>
-        <extracomment>Layer-row tooltip detail of a Smart Filter setting: "Radius 3 px".</extracomment>
+        <extracomment>Layer-row tooltip detail of a Smart Filter setting: &quot;Radius 3 px&quot;.</extracomment>
         <translation>%1 %2</translation>
     </message>
     <message>
@@ -11439,7 +11439,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Автовложение в монтажные области и из них запрещено</translation>
     </message>
     <message>
-        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Photoshop's Color and Vibrance). They have no effect here and are saved unchanged.</source>
+        <source>Some adjustment layers use kinds Patchy cannot apply yet (such as Photoshop&apos;s Color and Vibrance). They have no effect here and are saved unchanged.</source>
         <translation>Некоторые корректирующие слои используют виды, которые Patchy пока не умеет применять (например, «Цвет и сочность» из Photoshop). Здесь они не действуют и сохраняются без изменений.</translation>
     </message>
     <message>
@@ -11513,7 +11513,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Связать заново...</translation>
     </message>
     <message>
-        <source>Used by layer "%1"</source>
+        <source>Used by layer &quot;%1&quot;</source>
         <translation>Используется слоем «%1»</translation>
     </message>
     <message numerus="yes">
@@ -11958,30 +11958,30 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Формат файла темы %1 не поддерживается этой сборкой (ожидается %2).</translation>
     </message>
     <message>
-        <source>Theme file is missing a valid "base" (must be "dark" or "light").</source>
+        <source>Theme file is missing a valid &quot;base&quot; (must be &quot;dark&quot; or &quot;light&quot;).</source>
         <translation>В файле темы отсутствует допустимое поле «base» (требуется «dark» или «light»).</translation>
     </message>
     <message>
-        <source>Theme file's "roles" is not an object.</source>
+        <source>Theme file&apos;s &quot;roles&quot; is not an object.</source>
         <translation>Поле «roles» файла темы не является объектом.</translation>
     </message>
     <message>
-        <source>Unknown color role "%1" (ignored).</source>
+        <source>Unknown color role &quot;%1&quot; (ignored).</source>
         <translation>Неизвестная цветовая роль «%1» (игнорируется).</translation>
     </message>
     <message>
-        <source>Invalid color "%1" for role "%2" (expected #RRGGBB or #RRGGBBAA).</source>
+        <source>Invalid color &quot;%1&quot; for role &quot;%2&quot; (expected #RRGGBB or #RRGGBBAA).</source>
         <translation>Недопустимый цвет «%1» для роли «%2» (ожидается #RRGGBB или #RRGGBBAA).</translation>
     </message>
     <message>
-        <source>Theme file "%1" could not be read.</source>
+        <source>Theme file &quot;%1&quot; could not be read.</source>
         <translation>Не удалось прочитать файл темы «%1».</translation>
     </message>
 </context>
 <context>
     <name>VectorPreview</name>
     <message>
-        <source>Dynamic Vector Preview: using the document's pixel view.</source>
+        <source>Dynamic Vector Preview: using the document&apos;s pixel view.</source>
         <translation>Динамический векторный предварительный просмотр: использование пиксельного представления документа.</translation>
     </message>
     <message>
@@ -12147,7 +12147,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Установить время</translation>
     </message>
     <message>
-        <source>Renames the selected layers to end with this frame time, like "blink 0.25s".</source>
+        <source>Renames the selected layers to end with this frame time, like &quot;blink 0.25s&quot;.</source>
         <translation>Добавляет время кадра в конец имён выбранных слоёв, например «blink 0.25s».</translation>
     </message>
     <message>
@@ -12155,7 +12155,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Удалить</translation>
     </message>
     <message>
-        <source>Removes the trailing frame time from the selected layers' names.</source>
+        <source>Removes the trailing frame time from the selected layers&apos; names.</source>
         <translation>Удаляет время кадра из конца имён выбранных слоёв.</translation>
     </message>
     <message>
@@ -12171,8 +12171,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Остановить</translation>
     </message>
     <message>
-        <source>Plays the visible top-level layers as frames, top layer first, like animated GIF and WebP export. A layer name ending in a time, like "blink 0.25s", sets that frame's delay.</source>
-        <translation>Воспроизводит видимые слои верхнего уровня как кадры, сверху вниз, как при экспорте анимированных GIF и WebP. Время в конце имени слоя, например "blink 0.25s", задаёт длительность кадра.</translation>
+        <source>Plays the visible top-level layers as frames, top layer first, like animated GIF and WebP export. A layer name ending in a time, like &quot;blink 0.25s&quot;, sets that frame&apos;s delay.</source>
+        <translation>Воспроизводит видимые слои верхнего уровня как кадры, сверху вниз, как при экспорте анимированных GIF и WebP. Время в конце имени слоя, например &quot;blink 0.25s&quot;, задаёт длительность кадра.</translation>
     </message>
     <message>
         <source>Default frame delay:</source>
@@ -12574,19 +12574,19 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
 <context>
     <name>patchy::ui::BrushTipLibrary</name>
     <message>
-        <source>Could not open "%1".</source>
-        <translation>Не удалось открыть "%1".</translation>
+        <source>Could not open &quot;%1&quot;.</source>
+        <translation>Не удалось открыть &quot;%1&quot;.</translation>
     </message>
     <message>
         <source>Brush %1</source>
         <translation>Кисть %1</translation>
     </message>
     <message>
-        <source>Could not save brush "%1".</source>
+        <source>Could not save brush &quot;%1&quot;.</source>
         <translation>Не удалось сохранить кисть «%1».</translation>
     </message>
     <message>
-        <source>No brush tips could be imported from "%1".</source>
+        <source>No brush tips could be imported from &quot;%1&quot;.</source>
         <translation>Не удалось импортировать отпечатки кистей из «%1».</translation>
     </message>
 </context>
@@ -12610,7 +12610,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>%1 - %2 (%3×%4)</source>
-        <translation>%1 – %2 (%3×%4)</translation>
+        <translation>%1&#xa0;– %2 (%3×%4)</translation>
     </message>
     <message>
         <source>All Brushes</source>
@@ -12900,11 +12900,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Чтобы рисовать поверх текста, сначала выберите обычный растровый слой</translation>
     </message>
     <message>
-        <source>Smart object contents can't be painted. Rasterize the layer to edit its pixels.</source>
+        <source>Smart object contents can&apos;t be painted. Rasterize the layer to edit its pixels.</source>
         <translation>Содержимое смарт-объекта нельзя раскрасить. Растеризуйте слой, чтобы редактировать его пиксели.</translation>
     </message>
     <message>
-        <source>Shape layers can't be painted. Rasterize the layer to edit its pixels.</source>
+        <source>Shape layers can&apos;t be painted. Rasterize the layer to edit its pixels.</source>
         <translation>Слои фигур не могут быть окрашены. Растеризуйте слой, чтобы редактировать его пиксели.</translation>
     </message>
     <message>
@@ -13025,15 +13025,15 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Expanded selection by %1 px</source>
-        <translation>Расширено выделение на %1 пкс.</translation>
+        <translation>Расширено выделение на %1&#xa0;пкс.</translation>
     </message>
     <message>
         <source>Contracted selection by %1 px</source>
-        <translation>Сокращенное выделение на %1 пиксель</translation>
+        <translation>Сокращенное выделение на %1&#xa0;пиксель</translation>
     </message>
     <message>
         <source>Selected %1 px border</source>
-        <translation>Выбрана граница %1 пикселя</translation>
+        <translation>Выбрана граница %1&#xa0;пикселя</translation>
     </message>
     <message>
         <source>Select a pixel layer first</source>
@@ -13176,11 +13176,11 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Выберите редактируемый слой пикселей для преобразования</translation>
     </message>
     <message>
-        <source>This smart object is preview-only and can't be transformed. Rasterize the layer first.</source>
+        <source>This smart object is preview-only and can&apos;t be transformed. Rasterize the layer first.</source>
         <translation>Этот смарт-объект доступен только для предварительного просмотра и не может быть преобразован. Сначала растрируйте слой.</translation>
     </message>
     <message>
-        <source>This layer's vector data is preserved but can't be edited.</source>
+        <source>This layer&apos;s vector data is preserved but can&apos;t be edited.</source>
         <translation>Векторные данные этого слоя сохраняются, но их нельзя редактировать.</translation>
     </message>
     <message>
@@ -13276,19 +13276,19 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Выберите редактируемый слой пикселей для деформации</translation>
     </message>
     <message>
-        <source>Text layers use Warp Text (the Type tool's Warp... button). For a custom mesh, convert to a smart object or rasterize first.</source>
+        <source>Text layers use Warp Text (the Type tool&apos;s Warp... button). For a custom mesh, convert to a smart object or rasterize first.</source>
         <translation>В текстовых слоях используется «Деформация текста» (кнопка «Деформация...» инструмента «Текст»). Для пользовательской сетки сначала преобразуйте ее в смарт-объект или растрируйте.</translation>
     </message>
     <message>
-        <source>This smart object is preview-only and can't be warped. Rasterize the layer first.</source>
+        <source>This smart object is preview-only and can&apos;t be warped. Rasterize the layer first.</source>
         <translation>Этот смарт-объект доступен только для предварительного просмотра и не может быть деформирован. Сначала растрируйте слой.</translation>
     </message>
     <message>
-        <source>Shape layers and vector masks can't be warped. Convert to a smart object or rasterize first.</source>
+        <source>Shape layers and vector masks can&apos;t be warped. Convert to a smart object or rasterize first.</source>
         <translation>Слои фигур и векторные маски не могут быть деформированы. Сначала преобразуйте в смарт-объект или растрируйте.</translation>
     </message>
     <message>
-        <source>This smart object's contents can't be decoded for warping</source>
+        <source>This smart object&apos;s contents can&apos;t be decoded for warping</source>
         <translation>Содержимое этого смарт-объекта невозможно декодировать для деформации.</translation>
     </message>
     <message>
@@ -13520,7 +13520,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Растрируйте слой, чтобы исказить его</translation>
     </message>
     <message>
-        <source>A smart object in perspective can't be warped. Rasterize the layer first.</source>
+        <source>A smart object in perspective can&apos;t be warped. Rasterize the layer first.</source>
         <translation>Смарт-объект в перспективе нельзя деформировать. Сначала растрируйте слой.</translation>
     </message>
     <message>
@@ -13635,7 +13635,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     <name>patchy::ui::FontPickerCombo</name>
     <message>
         <source>The quick brown fox jumps over the lazy dog. 0123456789</source>
-        <extracomment>Latin sample text in the font preview; keep it Latin in every language (it demonstrates the font's Latin glyph coverage).</extracomment>
+        <extracomment>Latin sample text in the font preview; keep it Latin in every language (it demonstrates the font&apos;s Latin glyph coverage).</extracomment>
         <translation>Быстрая бурая лиса перепрыгивает через ленивую собаку. 0123456789</translation>
     </message>
     <message>
@@ -13650,8 +13650,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
 <context>
     <name>patchy::ui::GmicFilterLibraryDialog</name>
     <message>
-        <source>G'MIC Filter Library</source>
-        <translation>Библиотека фильтров G'MIC</translation>
+        <source>G&apos;MIC Filter Library</source>
+        <translation>Библиотека фильтров G&apos;MIC</translation>
     </message>
     <message>
         <source>Search filters...</source>
@@ -13662,8 +13662,8 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Сбросить</translation>
     </message>
     <message>
-        <source>Filters from G'MIC %1 (gmic.eu)</source>
-        <translation>Фильтры из G'MIC %1 (gmic.eu)</translation>
+        <source>Filters from G&apos;MIC %1 (gmic.eu)</source>
+        <translation>Фильтры из G&apos;MIC %1 (gmic.eu)</translation>
     </message>
     <message>
         <source>Select a filter</source>
@@ -13706,40 +13706,40 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Слои, с которыми работает фильтр. Фильтр для одного изображения применяется по очереди к каждому выбранному слою; фильтр для нескольких слоёв, например фильтры Blend, объединяет их. Заблокированные слои, текстовые слои, слои-фигуры и смарт-объекты читаются, но никогда не изменяются.</translation>
     </message>
     <message>
-        <source>About G'MIC...</source>
-        <translation>О G'MIC...</translation>
+        <source>About G&apos;MIC...</source>
+        <translation>О G&apos;MIC...</translation>
     </message>
     <message>
-        <source>About G'MIC</source>
-        <translation>О G'MIC</translation>
+        <source>About G&apos;MIC</source>
+        <translation>О G&apos;MIC</translation>
     </message>
     <message>
-        <source>G'MIC %1</source>
-        <translation>G'MIC %1</translation>
+        <source>G&apos;MIC %1</source>
+        <translation>G&apos;MIC %1</translation>
     </message>
     <message numerus="yes">
-        <source>G'MIC (GREYC's Magic for Image Computing) is a free, open-source framework for image processing. Patchy includes its interpreter and %n of the filters from its standard library, and runs them in this Patchy dialog.</source>
+        <source>G&apos;MIC (GREYC&apos;s Magic for Image Computing) is a free, open-source framework for image processing. Patchy includes its interpreter and %n of the filters from its standard library, and runs them in this Patchy dialog.</source>
         <translation>
-            <numerusform>G'MIC (GREYC's Magic for Image Computing) является свободной платформой с открытым исходным кодом для обработки изображений. Patchy включает её интерпретатор и %n фильтр из её стандартной библиотеки и запускает их в этом окне Patchy.</numerusform>
-            <numerusform>G'MIC (GREYC's Magic for Image Computing) является свободной платформой с открытым исходным кодом для обработки изображений. Patchy включает её интерпретатор и %n фильтра из её стандартной библиотеки и запускает их в этом окне Patchy.</numerusform>
-            <numerusform>G'MIC (GREYC's Magic for Image Computing) является свободной платформой с открытым исходным кодом для обработки изображений. Patchy включает её интерпретатор и %n фильтров из её стандартной библиотеки и запускает их в этом окне Patchy.</numerusform>
+            <numerusform>G&apos;MIC (GREYC&apos;s Magic for Image Computing) является свободной платформой с открытым исходным кодом для обработки изображений. Patchy включает её интерпретатор и %n фильтр из её стандартной библиотеки и запускает их в этом окне Patchy.</numerusform>
+            <numerusform>G&apos;MIC (GREYC&apos;s Magic for Image Computing) является свободной платформой с открытым исходным кодом для обработки изображений. Patchy включает её интерпретатор и %n фильтра из её стандартной библиотеки и запускает их в этом окне Patchy.</numerusform>
+            <numerusform>G&apos;MIC (GREYC&apos;s Magic for Image Computing) является свободной платформой с открытым исходным кодом для обработки изображений. Patchy включает её интерпретатор и %n фильтров из её стандартной библиотеки и запускает их в этом окне Patchy.</numerusform>
         </translation>
     </message>
     <message>
-        <source>G'MIC is made by David Tschumperlé and the Image Team of the GREYC laboratory in Caen, France, with filters written by many contributors. Most filters name their authors at the end of their settings.</source>
-        <translation>G'MIC разрабатывают David Tschumperlé и группа Image Team лаборатории GREYC в Кане (Франция), а фильтры написаны многими участниками. Большинство фильтров указывают своих авторов в конце настроек.</translation>
+        <source>G&apos;MIC is made by David Tschumperlé and the Image Team of the GREYC laboratory in Caen, France, with filters written by many contributors. Most filters name their authors at the end of their settings.</source>
+        <translation>G&apos;MIC разрабатывают David Tschumperlé и группа Image Team лаборатории GREYC в Кане (Франция), а фильтры написаны многими участниками. Большинство фильтров указывают своих авторов в конце настроек.</translation>
     </message>
     <message>
-        <source>How to say it: its author pronounces it like the English word "gimmick", a nod to the magic in its name, and says any pronunciation is fine.</source>
+        <source>How to say it: its author pronounces it like the English word &quot;gimmick&quot;, a nod to the magic in its name, and says any pronunciation is fine.</source>
         <translation>Как произносить: автор произносит название как английское слово «gimmick» (гиммик), намекая на магию в названии, и говорит, что подходит любое произношение.</translation>
     </message>
     <message>
-        <source>G'MIC is distributed under the CeCILL-C license, and its license text is included with Patchy. Questions about how Patchy runs a filter belong with Patchy, not the G'MIC team.</source>
-        <translation>G'MIC распространяется по лицензии CeCILL-C, её текст входит в состав Patchy. Вопросы о том, как Patchy запускает фильтр, адресуйте Patchy, а не команде G'MIC.</translation>
+        <source>G&apos;MIC is distributed under the CeCILL-C license, and its license text is included with Patchy. Questions about how Patchy runs a filter belong with Patchy, not the G&apos;MIC team.</source>
+        <translation>G&apos;MIC распространяется по лицензии CeCILL-C, её текст входит в состав Patchy. Вопросы о том, как Patchy запускает фильтр, адресуйте Patchy, а не команде G&apos;MIC.</translation>
     </message>
     <message>
-        <source>Visit the G'MIC website (gmic.eu)</source>
-        <translation>Открыть сайт G'MIC (gmic.eu)</translation>
+        <source>Visit the G&apos;MIC website (gmic.eu)</source>
+        <translation>Открыть сайт G&apos;MIC (gmic.eu)</translation>
     </message>
 </context>
 <context>
@@ -13816,7 +13816,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Nudge layer by 1 px / 10 px</source>
-        <translation>Сдвинуть слой на 1 пиксель/10 пикселей.</translation>
+        <translation>Сдвинуть слой на 1&#xa0;пиксель/10&#xa0;пикселей.</translation>
     </message>
     <message>
         <source>Commit / cancel a transform or text edit</source>
@@ -13906,7 +13906,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Показать окно плагина</translation>
     </message>
     <message>
-        <source>Brings the plug-in's window back in front of Patchy.</source>
+        <source>Brings the plug-in&apos;s window back in front of Patchy.</source>
         <translation>Возвращает окно плагина обратно перед Patchy.</translation>
     </message>
     <message>
@@ -13918,13 +13918,13 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Принудительно остановить плагин</translation>
     </message>
     <message>
-        <source>Ends the plug-in without applying it. Use it only if the plug-in's window has stopped responding.</source>
+        <source>Ends the plug-in without applying it. Use it only if the plug-in&apos;s window has stopped responding.</source>
         <extracomment>Tooltip of the stop button while a plug-in is loading or waits for the user in its own window.</extracomment>
         <translation>Завершает плагин без его применения. Используйте его только в том случае, если окно плагина перестало отвечать.</translation>
     </message>
     <message>
         <source>%1 is open in its own window. Adjust its settings there and click its OK button to apply it to this layer.</source>
-        <extracomment>%1 is the plug-in's name; shown while its own settings window is open.</extracomment>
+        <extracomment>%1 is the plug-in&apos;s name; shown while its own settings window is open.</extracomment>
         <translation>%1 открыт в отдельном окне. Настройте там его настройки и нажмите кнопку «ОК», чтобы применить его к этому слою.</translation>
     </message>
     <message>
@@ -13995,7 +13995,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Искусственно жирный</translation>
     </message>
     <message>
-        <source>Thicken the current face synthetically instead of switching to the family's bold face</source>
+        <source>Thicken the current face synthetically instead of switching to the family&apos;s bold face</source>
         <translation>Искусственно утолщить текущее начертание вместо переключения на полужирное начертание гарнитуры</translation>
     </message>
     <message>
@@ -14003,7 +14003,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Искусственный курсив</translation>
     </message>
     <message>
-        <source>Slant the current face synthetically instead of switching to the family's italic face</source>
+        <source>Slant the current face synthetically instead of switching to the family&apos;s italic face</source>
         <translation>Искусственно наклонить текущее начертание вместо переключения на курсивное начертание гарнитуры</translation>
     </message>
     <message>
@@ -14011,7 +14011,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Повернуть латиницу (вертикальный текст)</translation>
     </message>
     <message>
-        <source>Lay Latin letters on their side along the column instead of upright (Photoshop's Standard Vertical Roman Alignment)</source>
+        <source>Lay Latin letters on their side along the column instead of upright (Photoshop&apos;s Standard Vertical Roman Alignment)</source>
         <translation>Повернуть латинские буквы набок вдоль столбца вместо вертикального положения (стандартное вертикальное выравнивание латиницы в Photoshop)</translation>
     </message>
     <message>
@@ -14075,7 +14075,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Отступ первой строки:</translation>
     </message>
     <message>
-        <source>Indent of each paragraph's first line; negative with a left indent makes a hanging indent</source>
+        <source>Indent of each paragraph&apos;s first line; negative with a left indent makes a hanging indent</source>
         <translation>Отступ первой строки абзаца; отрицательное значение вместе с левым отступом создаёт выступ</translation>
     </message>
     <message>
@@ -14083,7 +14083,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Левый отступ:</translation>
     </message>
     <message>
-        <source>Space between the box edge and every line's start</source>
+        <source>Space between the box edge and every line&apos;s start</source>
         <translation>Пространство между краем поля и началом каждой строки</translation>
     </message>
     <message>
@@ -14091,7 +14091,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Правый отступ:</translation>
     </message>
     <message>
-        <source>Space between every line's end and the box edge</source>
+        <source>Space between every line&apos;s end and the box edge</source>
         <translation>Пространство между концом каждой строки и краем поля</translation>
     </message>
     <message>
@@ -15031,7 +15031,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Разгруппировать слои</translation>
     </message>
     <message>
-        <source>Release the selected folder's layers into their parent</source>
+        <source>Release the selected folder&apos;s layers into their parent</source>
         <translation>Переместить слои выбранной папки в её родительскую папку</translation>
     </message>
     <message>
@@ -15095,7 +15095,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Внешний вид фигуры...</translation>
     </message>
     <message>
-        <source>Edit the active shape layer's fill, stroke, opacity, and edge</source>
+        <source>Edit the active shape layer&apos;s fill, stroke, opacity, and edge</source>
         <translation>Редактирование заливки, обводки, непрозрачности и края активного слоя фигуры.</translation>
     </message>
     <message>
@@ -16015,7 +16015,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Ширина активной формы</translation>
     </message>
     <message>
-        <source>Keep the shape's width and height in proportion</source>
+        <source>Keep the shape&apos;s width and height in proportion</source>
         <translation>Сохраняйте ширину и высоту фигуры пропорциональными.</translation>
     </message>
     <message>
@@ -16107,7 +16107,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
         <translation>Мягкая растушевка краев для инструмента «Заливка» и сочетания клавиш «Заливка».</translation>
     </message>
     <message>
-        <source>How far a pixel's color may differ from the clicked color and still be filled</source>
+        <source>How far a pixel&apos;s color may differ from the clicked color and still be filled</source>
         <translation>Насколько цвет пикселя может отличаться от цвета, по которому щелкнули мышью, и при этом оставаться заполненным</translation>
     </message>
     <message>
@@ -16942,7 +16942,7 @@ Fedora (RPM Fusion): sudo dnf install libheif-freeworld</translation>
     </message>
     <message>
         <source>Showing the vector mask. %ALT%-click the thumbnail to return.</source>
-        <translation>Показ векторной маски. %ALT% – щелкните миниатюру, чтобы вернуться.</translation>
+        <translation>Показ векторной маски. %ALT%&#xa0;– щелкните миниатюру, чтобы вернуться.</translation>
     </message>
     <message>
         <source>Editing the vector mask path with the pen and path tools</source>
@@ -17187,43 +17187,43 @@ RGB: -
         <translation>Повернут холст на %1 градус против часовой стрелки</translation>
     </message>
     <message>
-        <source>text layer "%1"</source>
-        <translation>текстовый слой "%1"</translation>
+        <source>text layer &quot;%1&quot;</source>
+        <translation>текстовый слой &quot;%1&quot;</translation>
     </message>
     <message>
-        <source>pixel layer "%1"</source>
-        <translation>слой пикселей "%1"</translation>
+        <source>pixel layer &quot;%1&quot;</source>
+        <translation>слой пикселей &quot;%1&quot;</translation>
     </message>
     <message>
-        <source>smart object "%1"</source>
-        <translation>смарт-объект "%1"</translation>
+        <source>smart object &quot;%1&quot;</source>
+        <translation>смарт-объект &quot;%1&quot;</translation>
     </message>
     <message>
-        <source>adjustment layer "%1" and the layers below it</source>
+        <source>adjustment layer &quot;%1&quot; and the layers below it</source>
         <translation>корректирующий слой «%1» и слои под ним</translation>
     </message>
     <message>
-        <source>the blend mode of "%1" and the layers below it</source>
+        <source>the blend mode of &quot;%1&quot; and the layers below it</source>
         <translation>режим наложения «%1» и слоев под ним</translation>
     </message>
     <message>
-        <source>shape layer "%1" (its styles or fill options)</source>
+        <source>shape layer &quot;%1&quot; (its styles or fill options)</source>
         <translation>слой-фигура «%1» (его стили или параметры заливки)</translation>
     </message>
     <message>
-        <source>group "%1" (its styles or masks)</source>
-        <translation>группа "%1" (ее стили или маски)</translation>
+        <source>group &quot;%1&quot; (its styles or masks)</source>
+        <translation>группа &quot;%1&quot; (ее стили или маски)</translation>
     </message>
     <message>
-        <source>clipping mask group "%1"</source>
-        <translation>группа обтравочных масок "%1"</translation>
+        <source>clipping mask group &quot;%1&quot;</source>
+        <translation>группа обтравочных масок &quot;%1&quot;</translation>
     </message>
     <message>
-        <source>the layer mask on "%1"</source>
-        <translation>маска слоя на "%1"</translation>
+        <source>the layer mask on &quot;%1&quot;</source>
+        <translation>маска слоя на &quot;%1&quot;</translation>
     </message>
     <message>
-        <source>"%1" (merged under an adjustment layer or blend mode)</source>
+        <source>&quot;%1&quot; (merged under an adjustment layer or blend mode)</source>
         <translation>«%1» (объединено с корректирующим слоем или режимом наложения)</translation>
     </message>
     <message numerus="yes">
@@ -17364,7 +17364,7 @@ RGB: -
         <translation>Слои изображений Affinity</translation>
     </message>
     <message numerus="yes">
-        <source>This document places %n image file(s) as Affinity "Image" layers.</source>
+        <source>This document places %n image file(s) as Affinity &quot;Image&quot; layers.</source>
         <translation>
             <numerusform>В этом документе %n файл изображения размещён как слой «Изображение» Affinity.</numerusform>
             <numerusform>В этом документе %n файла изображений размещены как слои «Изображение» Affinity.</numerusform>
@@ -17389,7 +17389,7 @@ RGB: -
     </message>
     <message>
         <source>%1 - %2</source>
-        <translation>%1 – %2</translation>
+        <translation>%1&#xa0;–&#xa0;%2</translation>
     </message>
     <message>
         <source>Opened %1</source>
@@ -17696,7 +17696,7 @@ Baked into images: %1.</source>
         <translation>Сохранение слоев PDF</translation>
     </message>
     <message>
-        <source>How should this document's layers be written to the PDF?</source>
+        <source>How should this document&apos;s layers be written to the PDF?</source>
         <translation>Как слои этого документа следует записать в PDF?</translation>
     </message>
     <message>
@@ -18340,27 +18340,27 @@ Save your work and close Patchy before running the installer.</source>
         <translation>Растрировать слой?</translation>
     </message>
     <message>
-        <source>"%1" is a text layer: its pixels are re-created from the text, so changes made by %2 would be lost on the next text edit.</source>
+        <source>&quot;%1&quot; is a text layer: its pixels are re-created from the text, so changes made by %2 would be lost on the next text edit.</source>
         <translation>«%1» — это текстовый слой: его пиксели воссоздаются из текста, поэтому изменения, внесенные %2, будут потеряны при следующем редактировании текста.</translation>
     </message>
     <message>
-        <source>"%1" is a shape layer: its pixels are re-created from the shape, so changes made by %2 would be lost on the next shape edit.</source>
+        <source>&quot;%1&quot; is a shape layer: its pixels are re-created from the shape, so changes made by %2 would be lost on the next shape edit.</source>
         <translation>«%1» — это слой формы: его пиксели воссоздаются из формы, поэтому изменения, внесенные %2, будут потеряны при следующем редактировании формы.</translation>
     </message>
     <message>
-        <source>Convert the layer to a smart object to keep the text editable, or rasterize it into plain pixels. Rasterized text can't be edited again.</source>
+        <source>Convert the layer to a smart object to keep the text editable, or rasterize it into plain pixels. Rasterized text can&apos;t be edited again.</source>
         <translation>Преобразуйте слой в смарт-объект, чтобы сохранить редактируемый текст, или растрируйте его в простые пиксели. Растрированный текст нельзя редактировать повторно.</translation>
     </message>
     <message>
-        <source>Convert the layer to a smart object to keep the shape editable, or rasterize it into plain pixels. A rasterized shape can't be edited as a vector again.</source>
+        <source>Convert the layer to a smart object to keep the shape editable, or rasterize it into plain pixels. A rasterized shape can&apos;t be edited as a vector again.</source>
         <translation>Преобразуйте слой в смарт-объект, чтобы фигуру можно было редактировать, или растрируйте ее в простые пиксели. Растрированную фигуру нельзя снова редактировать как векторную.</translation>
     </message>
     <message>
-        <source>Rasterize the layer into plain pixels to use %1. Rasterized text can't be edited again.</source>
+        <source>Rasterize the layer into plain pixels to use %1. Rasterized text can&apos;t be edited again.</source>
         <translation>Растеризуйте слой в простые пиксели, чтобы использовать %1. Растрированный текст нельзя редактировать повторно.</translation>
     </message>
     <message>
-        <source>Rasterize the layer into plain pixels to use %1. A rasterized shape can't be edited as a vector again.</source>
+        <source>Rasterize the layer into plain pixels to use %1. A rasterized shape can&apos;t be edited as a vector again.</source>
         <translation>Растеризуйте слой в простые пиксели, чтобы использовать %1. Растрированную фигуру нельзя снова редактировать как векторную.</translation>
     </message>
     <message>
@@ -18488,8 +18488,8 @@ Save your work and close Patchy before running the installer.</source>
         <translation>Создать документ из этого состояния</translation>
     </message>
     <message>
-        <source>Created new document from "%1"</source>
-        <translation>Создан новый документ из "%1"</translation>
+        <source>Created new document from &quot;%1&quot;</source>
+        <translation>Создан новый документ из &quot;%1&quot;</translation>
     </message>
     <message>
         <source>Select a layer to copy as SVG</source>
@@ -18844,7 +18844,7 @@ Save your work and close Patchy before running the installer.</source>
         <translation>Удалить время кадра</translation>
     </message>
     <message>
-        <source>"%1" will open as a new image when the Layer Style dialog closes</source>
+        <source>&quot;%1&quot; will open as a new image when the Layer Style dialog closes</source>
         <translation>«%1» откроется как новое изображение после закрытия диалогового окна «Стиль слоя».</translation>
     </message>
     <message>
@@ -18852,7 +18852,7 @@ Save your work and close Patchy before running the installer.</source>
         <translation>Открыть узор как изображение</translation>
     </message>
     <message>
-        <source>Opened pattern "%1" as a new image</source>
+        <source>Opened pattern &quot;%1&quot; as a new image</source>
         <translation>Узор «%1» открыт как новое изображение</translation>
     </message>
     <message>
@@ -19060,7 +19060,7 @@ Save your work and close Patchy before running the installer.</source>
         <translation>Нечего очищать</translation>
     </message>
     <message>
-        <source>Text and smart object layers can't be cleared. Deselect first, then Delete removes the layer.</source>
+        <source>Text and smart object layers can&apos;t be cleared. Deselect first, then Delete removes the layer.</source>
         <translation>Текстовые слои и смарт-объекты нельзя очистить. Снимите выделение, затем нажмите Delete для удаления слоя.</translation>
     </message>
     <message>
@@ -19084,7 +19084,7 @@ Save your work and close Patchy before running the installer.</source>
         <translation>Соответствие тона</translation>
     </message>
     <message>
-        <source>How strongly the fill's brightness is smoothed to its own edges (0 keeps the raw fill)</source>
+        <source>How strongly the fill&apos;s brightness is smoothed to its own edges (0 keeps the raw fill)</source>
         <translation>Насколько сильно яркость заливки сглаживается по краям (0 сохраняет необработанную заливку)</translation>
     </message>
     <message>
@@ -19096,7 +19096,7 @@ Save your work and close Patchy before running the installer.</source>
         <translation> пикс.</translation>
     </message>
     <message>
-        <source>Softens the fill's edge outward from the selection, on top of its own feather. The filled area grows by the feather, so keep it small when the selection hugs an edge</source>
+        <source>Softens the fill&apos;s edge outward from the selection, on top of its own feather. The filled area grows by the feather, so keep it small when the selection hugs an edge</source>
         <translation>Смягчает край заливки наружу от выделенной области поверх собственного растушевки. Заполненная область увеличивается за счет растушевки, поэтому сохраняйте ее маленькой, когда выделение касается края.</translation>
     </message>
     <message>
@@ -19112,7 +19112,7 @@ Save your work and close Patchy before running the installer.</source>
         <translation>Дублировать на новый слой</translation>
     </message>
     <message>
-        <source>Copies this variation's filled area onto a new hidden layer above this one, so several variations can be kept and compared</source>
+        <source>Copies this variation&apos;s filled area onto a new hidden layer above this one, so several variations can be kept and compared</source>
         <translation>Копирует заполненную область этого варианта на новый скрытый слой над этим, чтобы можно было сохранить и сравнить несколько вариантов.</translation>
     </message>
     <message>
@@ -19144,7 +19144,7 @@ Save your work and close Patchy before running the installer.</source>
         <translation>Удалить вариант объекта %1</translation>
     </message>
     <message>
-        <source>Copied variation %1 to the hidden layer "%2"</source>
+        <source>Copied variation %1 to the hidden layer &quot;%2&quot;</source>
         <translation>Вариант %1 скопирован в скрытый слой «%2».</translation>
     </message>
     <message>
@@ -19774,7 +19774,7 @@ Y: %2
         <translation>Некоторые слои содержат цвета вне палитры, поэтому на холсте они заменяются ближайшими цветами палитры (причиной могут быть фильтры, коррекции, вставка или текст).</translation>
     </message>
     <message>
-        <source>Keep the palettized look by making those snapped colors permanent, or restore the layers' original colors?</source>
+        <source>Keep the palettized look by making those snapped colors permanent, or restore the layers&apos; original colors?</source>
         <translation>Сохранить вид с ограниченной палитрой, окончательно заменив цвета ближайшими, или восстановить исходные цвета слоёв?</translation>
     </message>
     <message>
@@ -19838,7 +19838,7 @@ Y: %2
         <translation>Сделайте это для каждого проиндексированного изображения.</translation>
     </message>
     <message>
-        <source>Editing with the image's palette</source>
+        <source>Editing with the image&apos;s palette</source>
         <translation>Редактирование с помощью палитры изображения</translation>
     </message>
     <message numerus="yes">
@@ -19990,7 +19990,7 @@ Y: %2
         <translation>Выровнять по слою</translation>
     </message>
     <message>
-        <source>Anchor the tile grid to the layer's position; unchecked anchors it to the document origin</source>
+        <source>Anchor the tile grid to the layer&apos;s position; unchecked anchors it to the document origin</source>
         <translation>Привязать сетку узора к положению слоя; если отключено, привязать к началу координат документа</translation>
     </message>
     <message>
@@ -20169,7 +20169,7 @@ Y: %2
     </message>
     <message>
         <source>%1 via Patchy</source>
-        <extracomment>Title of the movable window a full-screen plug-in interface is shown in; %1 is the plug-in's name.</extracomment>
+        <extracomment>Title of the movable window a full-screen plug-in interface is shown in; %1 is the plug-in&apos;s name.</extracomment>
         <translation>%1 через Patchy</translation>
     </message>
     <message>
@@ -20237,12 +20237,12 @@ Y: %2
         <translation>Удалить тему</translation>
     </message>
     <message>
-        <source>Delete the theme "%1"? Its file is removed from the themes folder.</source>
+        <source>Delete the theme &quot;%1&quot;? Its file is removed from the themes folder.</source>
         <translation>Удалить тему «%1»? Её файл будет удалён из папки тем.</translation>
     </message>
     <message>
-        <source>Could not delete "%1".</source>
-        <translation>Не удалось удалить "%1".</translation>
+        <source>Could not delete &quot;%1&quot;.</source>
+        <translation>Не удалось удалить &quot;%1&quot;.</translation>
     </message>
     <message>
         <source>Import Theme</source>
@@ -20253,8 +20253,8 @@ Y: %2
         <translation>Тема Patchy (*.patchytheme)</translation>
     </message>
     <message>
-        <source>Could not open "%1".</source>
-        <translation>Не удалось открыть "%1".</translation>
+        <source>Could not open &quot;%1&quot;.</source>
+        <translation>Не удалось открыть &quot;%1&quot;.</translation>
     </message>
     <message>
         <source>Could not create the themes folder.</source>
@@ -20314,7 +20314,7 @@ Y: %2
         <translation>Приблизить миниатюры слоев к содержимому слоя</translation>
     </message>
     <message>
-        <source>When enabled, layer thumbnails crop to the layer's visible pixels instead of previewing the whole canvas, so small layers fill their thumbnail.</source>
+        <source>When enabled, layer thumbnails crop to the layer&apos;s visible pixels instead of previewing the whole canvas, so small layers fill their thumbnail.</source>
         <translation>Если этот параметр включен, миниатюры слоев обрезаются до видимых пикселей слоя вместо предварительного просмотра всего холста, поэтому небольшие слои заполняют их миниатюры.</translation>
     </message>
     <message>
@@ -20346,7 +20346,7 @@ Y: %2
         <translation>Преобразование в пиксельные слои</translation>
     </message>
     <message>
-        <source>Affinity documents place image files as "Image" layers. Smart objects keep each placed file's full-resolution original for re-editing and PSD export; pixel layers keep only the pixels at their placed size.</source>
+        <source>Affinity documents place image files as &quot;Image&quot; layers. Smart objects keep each placed file&apos;s full-resolution original for re-editing and PSD export; pixel layers keep only the pixels at their placed size.</source>
         <translation>В документах Affinity файлы изображений размещаются как слои «Изображение». Смарт-объекты сохраняют оригинал каждого размещенного файла в полном разрешении для повторного редактирования и экспорта в PSD; Слои пикселей сохраняют только пиксели в их размещенном размере.</translation>
     </message>
     <message>
@@ -20446,7 +20446,7 @@ Y: %2
         <translation>Показывать значения преобразования при перетаскивании</translation>
     </message>
     <message>
-        <source>Shows a small readout beside the pointer while moving, scaling, or rotating: the reference point's position and the offset, the width and height with the scale percentages, or the angle and how far it turned.</source>
+        <source>Shows a small readout beside the pointer while moving, scaling, or rotating: the reference point&apos;s position and the offset, the width and height with the scale percentages, or the angle and how far it turned.</source>
         <translation>Показывает небольшую информацию рядом с указателем во время перемещения, масштабирования или вращения: положение и смещение опорной точки, ширину и высоту с процентами масштаба или угол и степень поворота.</translation>
     </message>
     <message>
@@ -20454,7 +20454,7 @@ Y: %2
         <translation>Привязывать трансформации к пиксельной сетке</translation>
     </message>
     <message>
-        <source>Positions and sizes typed into the Free Transform bar land on whole pixels, like Photoshop's "Snap Vector Tools and Transforms to Pixel Grid". Rotated transforms are not snapped. When off, a typed fraction such as 3.4 px is kept and the pixels are resampled.</source>
+        <source>Positions and sizes typed into the Free Transform bar land on whole pixels, like Photoshop&apos;s &quot;Snap Vector Tools and Transforms to Pixel Grid&quot;. Rotated transforms are not snapped. When off, a typed fraction such as 3.4 px is kept and the pixels are resampled.</source>
         <translation>Положение и размеры, введённые на панели «Свободное трансформирование», округляются до целых пикселей, как при включённом параметре Photoshop «Привязать векторные инструменты и трансформирование к пиксельной сетке». Трансформирование с поворотом не привязывается к сетке. Если параметр отключён, введённые дробные значения, например 3.4 пикс., сохраняются, а пиксели пересчитываются при интерполяции.</translation>
     </message>
     <message>
@@ -20854,11 +20854,11 @@ Y: %2
         <translation>Содержимое смарт-объекта экспортировано в %1.</translation>
     </message>
     <message>
-        <source>This smart object has Smart Filters; Patchy keeps Photoshop's preview (rasterize to edit pixels)</source>
+        <source>This smart object has Smart Filters; Patchy keeps Photoshop&apos;s preview (rasterize to edit pixels)</source>
         <translation>Смарт-объект содержит смарт-фильтры; Patchy сохраняет предпросмотр Photoshop (для редактирования пикселей растрируйте слой)</translation>
     </message>
     <message>
-        <source>This smart object has a warp or perspective transform; Patchy keeps Photoshop's preview</source>
+        <source>This smart object has a warp or perspective transform; Patchy keeps Photoshop&apos;s preview</source>
         <translation>Этот смарт-объект имеет деформационное или перспективное преобразование; Patchy сохраняет предварительный просмотр Photoshop</translation>
     </message>
     <message>
@@ -20866,7 +20866,7 @@ Y: %2
         <translation>Этот смарт-объект можно только сохранить, но не редактировать.</translation>
     </message>
     <message>
-        <source>This smart object's contents are not embedded in the document</source>
+        <source>This smart object&apos;s contents are not embedded in the document</source>
         <translation>Содержимое этого смарт-объекта не встроено в документ.</translation>
     </message>
     <message>
@@ -20878,7 +20878,7 @@ Y: %2
         <translation>Редактирование связанного файла. Сохранение (%CTRL%+S) записывает %1 и обновляет %2.</translation>
     </message>
     <message>
-        <source>Patchy can't re-encode %1 contents; use Export Smart Object Contents or rasterize the layer</source>
+        <source>Patchy can&apos;t re-encode %1 contents; use Export Smart Object Contents or rasterize the layer</source>
         <translation>Patchy не может перекодировать содержимое %1; используйте «Экспорт содержимого смарт-объекта» или растрируйте слой</translation>
     </message>
     <message>
@@ -20894,7 +20894,7 @@ Y: %2
         <translation>Редактирование содержимого смарт-объекта. Сохранение (%CTRL%+S) применяет их обратно к %1.</translation>
     </message>
     <message>
-        <source>Smart object contents can't be painted. Rasterize the layer to edit its pixels.</source>
+        <source>Smart object contents can&apos;t be painted. Rasterize the layer to edit its pixels.</source>
         <translation>Содержимое смарт-объекта нельзя раскрасить. Растеризуйте слой, чтобы редактировать его пиксели.</translation>
     </message>
     <message>
@@ -20902,15 +20902,15 @@ Y: %2
         <translation>Рисовать на смарт-объекте?</translation>
     </message>
     <message>
-        <source>"%1" is a smart object, so its pixels can't be painted directly.</source>
+        <source>&quot;%1&quot; is a smart object, so its pixels can&apos;t be painted directly.</source>
         <translation>«%1» — это смарт-объект, поэтому его пиксели нельзя рисовать напрямую.</translation>
     </message>
     <message>
-        <source>Rasterize the layer to paint on its pixels, or open the smart object's contents in their own tab and draw there.</source>
+        <source>Rasterize the layer to paint on its pixels, or open the smart object&apos;s contents in their own tab and draw there.</source>
         <translation>Растрируйте слой, чтобы рисовать на его пикселях, или откройте содержимое смарт-объекта на отдельной вкладке и рисуйте там.</translation>
     </message>
     <message>
-        <source>Rasterize the layer to paint on its pixels. This smart object's contents can't be edited in Patchy.</source>
+        <source>Rasterize the layer to paint on its pixels. This smart object&apos;s contents can&apos;t be edited in Patchy.</source>
         <translation>Растеризуйте слой, чтобы рисовать на его пикселях. Содержимое этого смарт-объекта нельзя редактировать в Patchy.</translation>
     </message>
     <message>
@@ -20934,7 +20934,7 @@ Y: %2
         <translation>Не удалось перекодировать содержимое как %1.</translation>
     </message>
     <message>
-        <source>These contents can't be re-encoded</source>
+        <source>These contents can&apos;t be re-encoded</source>
         <translation>Это содержимое не может быть перекодировано</translation>
     </message>
     <message>
@@ -21042,15 +21042,15 @@ Y: %2
         <translation>Удалите смарт-фильтры перед преобразованием этого смарт-объекта в слои.</translation>
     </message>
     <message>
-        <source>A warped or perspective Smart Object can't be converted to layers; rasterize it instead</source>
+        <source>A warped or perspective Smart Object can&apos;t be converted to layers; rasterize it instead</source>
         <translation>Деформированный или перспективный смарт-объект нельзя преобразовать в слои; растеризуйте его вместо этого</translation>
     </message>
     <message>
-        <source>The smart object's contents have no layers to convert</source>
+        <source>The smart object&apos;s contents have no layers to convert</source>
         <translation>Содержимое смарт-объекта не имеет слоев для преобразования.</translation>
     </message>
     <message>
-        <source>The contents contain Smart Filters, which can't be moved out of the Smart Object yet</source>
+        <source>The contents contain Smart Filters, which can&apos;t be moved out of the Smart Object yet</source>
         <translation>В содержимом есть смарт-фильтры, которые пока нельзя переместить из смарт-объекта наружу</translation>
     </message>
     <message>
@@ -21454,7 +21454,7 @@ Y: %2
         <translation>Поместите слои-фигуры в группу и примените векторную маску к этой группе.</translation>
     </message>
     <message>
-        <source>This layer's vector data is preserved but can't be edited.</source>
+        <source>This layer&apos;s vector data is preserved but can&apos;t be edited.</source>
         <translation>Векторные данные этого слоя сохраняются, но их нельзя редактировать.</translation>
     </message>
     <message>
@@ -21818,7 +21818,7 @@ Y: %2
         <translation>Ширина рамки кадрирования</translation>
     </message>
     <message>
-        <source>Keep the crop box's width and height in proportion</source>
+        <source>Keep the crop box&apos;s width and height in proportion</source>
         <translation>Сохранять пропорции ширины и высоты рамки кадрирования</translation>
     </message>
     <message>
@@ -21962,7 +21962,7 @@ Y: %2
         <translation>Значок сохранен в %1.</translation>
     </message>
     <message numerus="yes">
-        <source>%n recovered document(s) could not be moved to this session's recovery folder; the copies stay in %1</source>
+        <source>%n recovered document(s) could not be moved to this session&apos;s recovery folder; the copies stay in %1</source>
         <translation>
             <numerusform>Не удалось переместить %n восстановленный документ в папку восстановления этого сеанса; копия остаётся в %1</numerusform>
             <numerusform>Не удалось переместить %n восстановленных документа в папку восстановления этого сеанса; копии остаются в %1</numerusform>
@@ -22146,7 +22146,7 @@ Y: %2
         <translation>загруженные файлы находятся не там, где их ищет Patchy</translation>
     </message>
     <message>
-        <source>Deletes the downloaded High Quality model. Object Selection then uses the built-in model; you can download it again from the tool's options bar.</source>
+        <source>Deletes the downloaded High Quality model. Object Selection then uses the built-in model; you can download it again from the tool&apos;s options bar.</source>
         <translation>Удаляет скачанную модель высокого качества. Выделение объектов будет использовать встроенную модель; скачать её снова можно на панели параметров инструмента.</translation>
     </message>
     <message>
@@ -22242,16 +22242,16 @@ You can still download it in your browser.</source>
 Его по-прежнему можно скачать в браузере.</translation>
     </message>
     <message>
-        <source>G'&amp;MIC Filter Library...</source>
-        <translation>Библиотека фильтров G'&amp;MIC...</translation>
+        <source>G&apos;&amp;MIC Filter Library...</source>
+        <translation>Библиотека фильтров G&apos;&amp;MIC...</translation>
     </message>
     <message>
-        <source>Browse and apply filters from the G'MIC library</source>
-        <translation>Просмотр и применение фильтров из библиотеки G'MIC</translation>
+        <source>Browse and apply filters from the G&apos;MIC library</source>
+        <translation>Просмотр и применение фильтров из библиотеки G&apos;MIC</translation>
     </message>
     <message>
-        <source>This G'MIC filter is not available</source>
-        <translation>Этот фильтр G'MIC недоступен</translation>
+        <source>This G&apos;MIC filter is not available</source>
+        <translation>Этот фильтр G&apos;MIC недоступен</translation>
     </message>
     <message>
         <source>Rasterize the Smart Object before using %1</source>
@@ -22262,8 +22262,8 @@ You can still download it in your browser.</source>
         <translation>Фильтр не вернул изображение.</translation>
     </message>
     <message>
-        <source>G'MIC Filter Library</source>
-        <translation>Библиотека фильтров G'MIC</translation>
+        <source>G&apos;MIC Filter Library</source>
+        <translation>Библиотека фильтров G&apos;MIC</translation>
     </message>
     <message>
         <source>%1 could not be applied.
@@ -22286,7 +22286,7 @@ You can still download it in your browser.</source>
         <translation>Для %1 требуется около %2 МБ памяти для этих слоёв, больше, чем может выделить этот компьютер. Используйте меньше входных слоёв или изображение меньшего размера.</translation>
     </message>
     <message>
-        <source>Don't ask again about version %1</source>
+        <source>Don&apos;t ask again about version %1</source>
         <translation>Больше не спрашивать о версии %1</translation>
     </message>
     <message>
@@ -22402,8 +22402,8 @@ You can still download it in your browser.</source>
         <translation>Профиль CMYK</translation>
     </message>
     <message>
-        <source>"%1" is not a CMYK profile Patchy can use.</source>
-        <translation>"%1" не является профилем CMYK, который может использовать Patchy.</translation>
+        <source>&quot;%1&quot; is not a CMYK profile Patchy can use.</source>
+        <translation>&quot;%1&quot; не является профилем CMYK, который может использовать Patchy.</translation>
     </message>
     <message>
         <source>CMYK profile:</source>
@@ -22614,7 +22614,7 @@ Patchy может скачать обновление, заменить этот
         <translation>Печатает черный текст и серые области только черной краской, чтобы мелкий шрифт оставался четким при печати. Цветные области, как обычно, разделяются через профиль.</translation>
     </message>
     <message>
-        <source>Don't show this again</source>
+        <source>Don&apos;t show this again</source>
         <translation>Больше не показывать</translation>
     </message>
     <message>
@@ -22691,16 +22691,16 @@ Patchy может скачать обновление, заменить этот
         <translation>Последний фильтр: %1</translation>
     </message>
     <message>
-        <source>The G'MIC Filter Library, nearly 400 filters, is part of the desktop version of Patchy for Windows, macOS and Linux.</source>
-        <translation>Библиотека фильтров G'MIC, почти 400 фильтров, входит в настольную версию Patchy для Windows, macOS и Linux.</translation>
+        <source>The G&apos;MIC Filter Library, nearly 400 filters, is part of the desktop version of Patchy for Windows, macOS and Linux.</source>
+        <translation>Библиотека фильтров G&apos;MIC, почти 400 фильтров, входит в настольную версию Patchy для Windows, macOS и Linux.</translation>
     </message>
     <message>
         <source>Get the Desktop Version</source>
         <translation>Получить версию для ПК</translation>
     </message>
     <message>
-        <source>Nearly 400 G'MIC filters, in the desktop version of Patchy</source>
-        <translation>Почти 400 фильтров G'MIC в настольной версии Patchy</translation>
+        <source>Nearly 400 G&apos;MIC filters, in the desktop version of Patchy</source>
+        <translation>Почти 400 фильтров G&apos;MIC в настольной версии Patchy</translation>
     </message>
     <message>
         <source>Rotate Layer &amp;Right</source>
@@ -23203,7 +23203,7 @@ Patchy может скачать обновление, заменить этот
         <translation>Пово&amp;рот и отражение</translation>
     </message>
     <message>
-        <source>Shows the desktop's own title bar and window frame instead of Patchy's window controls in the menu bar. On by default where the desktop shows application menus in a global menu bar. Takes effect the next time Patchy starts.</source>
+        <source>Shows the desktop&apos;s own title bar and window frame instead of Patchy&apos;s window controls in the menu bar. On by default where the desktop shows application menus in a global menu bar. Takes effect the next time Patchy starts.</source>
         <translation>Показывает заголовок и рамку окна рабочего стола вместо кнопок окна Patchy в строке меню. Включено по умолчанию, если рабочий стол показывает меню приложений в глобальной строке меню. Вступает в силу при следующем запуске Patchy.</translation>
     </message>
     <message>
@@ -23235,7 +23235,7 @@ Patchy может скачать обновление, заменить этот
         <translation>Подтверждать текст клавишей Esc</translation>
     </message>
     <message>
-        <source>When on, Esc applies the text you are typing, like %CTRL%+Enter, and the options bar's Cancel button discards the edit. When off, Esc cancels the edit.</source>
+        <source>When on, Esc applies the text you are typing, like %CTRL%+Enter, and the options bar&apos;s Cancel button discards the edit. When off, Esc cancels the edit.</source>
         <translation>Если включено, Esc применяет вводимый текст, как %CTRL%+Enter, а кнопка «Отмена» на панели параметров отменяет правку. Если выключено, Esc отменяет правку.</translation>
     </message>
     <message>
@@ -23291,7 +23291,7 @@ Patchy может скачать обновление, заменить этот
         <translation>Текст &gt; Заменить отсутствующие шрифты открывает это же окно в любой момент.</translation>
     </message>
     <message>
-        <source>The following fonts are missing for text layer "%1": %2. The existing pixels will be transformed instead of re-rendered. Continue?</source>
+        <source>The following fonts are missing for text layer &quot;%1&quot;: %2. The existing pixels will be transformed instead of re-rendered. Continue?</source>
         <translation>Для текстового слоя «%1» отсутствуют шрифты: %2. Существующие пиксели будут преобразованы без повторной отрисовки. Продолжить?</translation>
     </message>
     <message numerus="yes">
@@ -23331,11 +23331,11 @@ Patchy может скачать обновление, заменить этот
         <translation>Ежедневно</translation>
     </message>
     <message>
-        <source>Width part of the selection's aspect ratio</source>
+        <source>Width part of the selection&apos;s aspect ratio</source>
         <translation>Ширина в пропорциях выделения</translation>
     </message>
     <message>
-        <source>Height part of the selection's aspect ratio</source>
+        <source>Height part of the selection&apos;s aspect ratio</source>
         <translation>Высота в пропорциях выделения</translation>
     </message>
     <message>
@@ -23419,7 +23419,7 @@ Patchy может скачать обновление, заменить этот
         <translation>Этот файл CMYK открыт в режиме Изображение &gt; Режим &gt; CMYK-цветопроба.</translation>
     </message>
     <message>
-        <source>CMYK Proof is an emulation. Patchy edits in RGB: it converts the file's inks to RGB when it opens it, shows the print through the CMYK color profile, and converts back to CMYK when it saves. Colors and ink numbers can therefore differ slightly from a true CMYK editor such as Photoshop. Layers of a CMYK PSD that you do not change keep their original inks.</source>
+        <source>CMYK Proof is an emulation. Patchy edits in RGB: it converts the file&apos;s inks to RGB when it opens it, shows the print through the CMYK color profile, and converts back to CMYK when it saves. Colors and ink numbers can therefore differ slightly from a true CMYK editor such as Photoshop. Layers of a CMYK PSD that you do not change keep their original inks.</source>
         <translation>CMYK-цветопроба является эмуляцией. Patchy редактирует в RGB: при открытии он преобразует краски файла в RGB, показывает печать через цветовой профиль CMYK, а при сохранении преобразует обратно в CMYK. Поэтому цвета и значения красок могут немного отличаться от настоящего редактора CMYK, например Photoshop. Слои PSD в CMYK, которые вы не меняете, сохраняют исходные краски.</translation>
     </message>
     <message>
@@ -23459,7 +23459,7 @@ Patchy может скачать обновление, заменить этот
         <translation>Patchy удалён из меню приложений</translation>
     </message>
     <message>
-        <source>Don't Ask Again</source>
+        <source>Don&apos;t Ask Again</source>
         <translation>Больше не спрашивать</translation>
     </message>
     <message>
@@ -23727,7 +23727,7 @@ Patchy может скачать обновление, заменить этот
         <translation>Элементы управления преобразованием</translation>
     </message>
     <message>
-        <source>Artboards can't be cleared. Deselect first, then Delete removes the artboard.</source>
+        <source>Artboards can&apos;t be cleared. Deselect first, then Delete removes the artboard.</source>
         <translation>Монтажные области нельзя очистить. Снимите выделение, затем нажмите Delete для удаления монтажной области.</translation>
     </message>
     <message>
@@ -24023,7 +24023,7 @@ Patchy может скачать обновление, заменить этот
         <translation>Разрешение:</translation>
     </message>
     <message>
-        <source>Resolution of the result in pixels per inch; blank keeps the document's</source>
+        <source>Resolution of the result in pixels per inch; blank keeps the document&apos;s</source>
         <translation>Разрешение результата в пикселях на дюйм; пустое поле сохраняет разрешение документа</translation>
     </message>
     <message>
@@ -24094,16 +24094,8 @@ Patchy может скачать обновление, заменить этот
         <source>Perspective Crop: drag a box or click four corners, then drag the corners or sides onto the edges of the area. Drag inside to move it, just outside a corner to rotate it (Shift snaps to 15 degrees). The arrow marks the top of the result. Enter crops and straightens, Esc clears the corners.</source>
         <translation>Кадрирование перспективы: растяните рамку или щёлкните четыре угла, затем перетащите углы или стороны на края области. Перетаскивание внутри перемещает её, сразу за углом поворачивает (Shift шагами по 15 градусов). Стрелка показывает верх результата. Enter кадрирует и выпрямляет, Esc убирает углы.</translation>
     </message>
-<message>
-        <source>Drag a box or click four corners around a skewed area, then drag the corners onto its edges. Enter straightens it into a rectangle.</source>
-        <translation>Растяните рамку или щёлкните четыре угла вокруг скошенной области, затем перетащите углы на её края. Enter выпрямляет её в прямоугольник.</translation>
-    </message>
     <message>
-        <source>Perspective Crop: drag a box or click four corners, then drag each corner onto the edges of the area. Drag inside to move it. Enter crops and straightens, Esc clears the corners.</source>
-        <translation>Кадрирование перспективы: растяните рамку или щёлкните четыре угла, затем перетащите каждый угол на края области. Перетаскивание внутри перемещает её. Enter кадрирует и выпрямляет, Esc убирает углы.</translation>
-    </message>
-    <message>
-        <source>Size of the tool palette's icons and buttons, relative to the interface scale.</source>
+        <source>Size of the tool palette&apos;s icons and buttons, relative to the interface scale.</source>
         <translation>Размер значков и кнопок палитры инструментов относительно масштаба интерфейса.</translation>
     </message>
     <message>
@@ -24335,7 +24327,7 @@ Patchy может скачать обновление, заменить этот
         <translation>Извлекать</translation>
     </message>
     <message>
-        <source>Build the palette from the image's colors</source>
+        <source>Build the palette from the image&apos;s colors</source>
         <translation>Создайте палитру из цветов изображения.</translation>
     </message>
     <message>
@@ -24351,7 +24343,7 @@ Patchy может скачать обновление, заменить этот
         <translation>Копировать</translation>
     </message>
     <message>
-        <source>Copy the selected color's hex code to the clipboard</source>
+        <source>Copy the selected color&apos;s hex code to the clipboard</source>
         <translation>Скопируйте шестнадцатеричный код выбранного цвета в буфер обмена.</translation>
     </message>
     <message>
@@ -24589,7 +24581,7 @@ Patchy может скачать обновление, заменить этот
         <translation>Щелчок с %CTRL% или %CTRL%+Enter загружает контур как выделение; перетаскивайте для изменения порядка.</translation>
     </message>
     <message>
-        <source>This is the document's clipping path.</source>
+        <source>This is the document&apos;s clipping path.</source>
         <translation>Это обтравочный контур документа.</translation>
     </message>
     <message>
@@ -24597,7 +24589,7 @@ Patchy может скачать обновление, заменить этот
         <translation>Временный рабочий контур. Дважды щёлкните, чтобы сохранить его с именем.</translation>
     </message>
     <message>
-        <source>The active layer's path (shape or vector mask).</source>
+        <source>The active layer&apos;s path (shape or vector mask).</source>
         <translation>Контур активного слоя (фигура или векторная маска).</translation>
     </message>
 </context>
@@ -24608,19 +24600,19 @@ Patchy может скачать обновление, заменить этот
         <translation>Безымянный узор</translation>
     </message>
     <message>
-        <source>Could not open "%1".</source>
-        <translation>Не удалось открыть "%1".</translation>
+        <source>Could not open &quot;%1&quot;.</source>
+        <translation>Не удалось открыть &quot;%1&quot;.</translation>
     </message>
     <message>
-        <source>Could not read "%1".</source>
-        <translation>Не удалось прочитать "%1".</translation>
+        <source>Could not read &quot;%1&quot;.</source>
+        <translation>Не удалось прочитать &quot;%1&quot;.</translation>
     </message>
     <message>
-        <source>"%1" is too large to import safely.</source>
+        <source>&quot;%1&quot; is too large to import safely.</source>
         <translation>«%1» слишком велик для безопасного импорта.</translation>
     </message>
     <message>
-        <source>Could not import patterns from "%1". The file is not a supported Photoshop PAT file or is damaged.</source>
+        <source>Could not import patterns from &quot;%1&quot;. The file is not a supported Photoshop PAT file or is damaged.</source>
         <translation>Не удалось импортировать узоры из «%1». Файл Photoshop PAT повреждён или не поддерживается.</translation>
     </message>
     <message>
@@ -24636,35 +24628,35 @@ Patchy может скачать обновление, заменить этот
         <translation>Узор %1</translation>
     </message>
     <message>
-        <source>Skipped pattern "%1" because its pixels could not be decoded.</source>
+        <source>Skipped pattern &quot;%1&quot; because its pixels could not be decoded.</source>
         <translation>Узор «%1» пропущен: не удалось декодировать его пиксели.</translation>
     </message>
     <message>
-        <source>Pattern "%1" used an id already assigned to different pixels; it was imported with a new id.</source>
+        <source>Pattern &quot;%1&quot; used an id already assigned to different pixels; it was imported with a new id.</source>
         <translation>Идентификатор узора «%1» уже назначен другим пикселям; узор импортирован с новым идентификатором.</translation>
     </message>
     <message>
-        <source>Could not save pattern "%1".</source>
+        <source>Could not save pattern &quot;%1&quot;.</source>
         <translation>Не удалось сохранить узор «%1».</translation>
     </message>
     <message>
-        <source>No patterns could be imported from "%1".</source>
+        <source>No patterns could be imported from &quot;%1&quot;.</source>
         <translation>Не удалось импортировать узоры из «%1».</translation>
     </message>
     <message>
-        <source>"%1" is too large to use as a pattern (over 30,000 pixels wide or tall).</source>
+        <source>&quot;%1&quot; is too large to use as a pattern (over 30,000 pixels wide or tall).</source>
         <translation>«%1» слишком велик для узора (ширина или высота превышает 30 000 пикселей).</translation>
     </message>
     <message>
-        <source>"%1" is too large to use as a pattern (over 8 million pixels).</source>
+        <source>&quot;%1&quot; is too large to use as a pattern (over 8 million pixels).</source>
         <translation>«%1» слишком велик для узора (более 8 миллионов пикселей).</translation>
     </message>
     <message>
-        <source>Could not read "%1" as an image.</source>
+        <source>Could not read &quot;%1&quot; as an image.</source>
         <translation>Не удалось прочитать «%1» как изображение.</translation>
     </message>
     <message>
-        <source>Animated image "%1": imported the first frame only.</source>
+        <source>Animated image &quot;%1&quot;: imported the first frame only.</source>
         <translation>Анимированное изображение «%1»: импортирован только первый кадр.</translation>
     </message>
     <message>
@@ -24779,7 +24771,7 @@ Patchy может скачать обновление, заменить этот
         <translation>Установить значок из текущего окна</translation>
     </message>
     <message>
-        <source>Captures the running script's window (or the active image) as this script's icon.</source>
+        <source>Captures the running script&apos;s window (or the active image) as this script&apos;s icon.</source>
         <translation>Захватывает окно работающего скрипта (или активное изображение) в качестве значка этого скрипта.</translation>
     </message>
     <message>
@@ -24875,7 +24867,7 @@ Patchy может скачать обновление, заменить этот
         <translation>Назначить горячую клавишу...</translation>
     </message>
     <message>
-        <source>Opens Preferences &gt; Hotkeys at this script's row.</source>
+        <source>Opens Preferences &gt; Hotkeys at this script&apos;s row.</source>
         <translation>Открывает Настройки &gt; Горячие клавиши на строке этого скрипта.</translation>
     </message>
     <message>
@@ -24886,7 +24878,7 @@ Patchy может скачать обновление, заменить этот
 <context>
     <name>patchy::ui::ScriptEngineHost</name>
     <message>
-        <source>Invalid color: %1 (use "#rrggbb" or a named color)</source>
+        <source>Invalid color: %1 (use &quot;#rrggbb&quot; or a named color)</source>
         <translation>Неверный цвет: %1 (используйте «#rrggbb» или именованный цвет)</translation>
     </message>
     <message>
@@ -24942,15 +24934,15 @@ Patchy может скачать обновление, заменить этот
         <translation>Не удалось редактировать текстовый слой.</translation>
     </message>
     <message>
-        <source>textOrientation must be 'horizontal' or 'vertical'.</source>
+        <source>textOrientation must be &apos;horizontal&apos; or &apos;vertical&apos;.</source>
         <translation>textOrientation должен быть «horizontal» или «vertical».</translation>
     </message>
     <message>
-        <source>textAlign must be 'left', 'center', 'right' or 'justify'.</source>
+        <source>textAlign must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
         <translation>textAlign должен быть «left», «center», «right» или «justify».</translation>
     </message>
     <message>
-        <source>textDirection must be 'auto', 'ltr' or 'rtl'.</source>
+        <source>textDirection must be &apos;auto&apos;, &apos;ltr&apos; or &apos;rtl&apos;.</source>
         <translation>textDirection должно быть «auto», «ltr» или «rtl».</translation>
     </message>
     <message>
@@ -25166,11 +25158,11 @@ Patchy может скачать обновление, заменить этот
         <translation>addTextLayer: text должен быть строкой или массивом текстовых фрагментов.</translation>
     </message>
     <message>
-        <source>orientation must be 'horizontal' or 'vertical'.</source>
+        <source>orientation must be &apos;horizontal&apos; or &apos;vertical&apos;.</source>
         <translation>orientation должен быть «horizontal» или «vertical».</translation>
     </message>
     <message>
-        <source>direction must be 'auto', 'ltr' or 'rtl'.</source>
+        <source>direction must be &apos;auto&apos;, &apos;ltr&apos; or &apos;rtl&apos;.</source>
         <translation>direction должен быть «auto», «ltr» или «rtl».</translation>
     </message>
     <message>
@@ -25178,7 +25170,7 @@ Patchy может скачать обновление, заменить этот
         <translation>box должен иметь вид {width, height}, каждое значение не менее 16 пикселей документа.</translation>
     </message>
     <message>
-        <source>align must be 'left', 'center', 'right' or 'justify'.</source>
+        <source>align must be &apos;left&apos;, &apos;center&apos;, &apos;right&apos; or &apos;justify&apos;.</source>
         <translation>align должен быть «left», «center», «right» или «justify».</translation>
     </message>
     <message>
@@ -25194,7 +25186,7 @@ Patchy может скачать обновление, заменить этот
         <translation>%1: слои должны представлять собой непустой массив слоев этого документа.</translation>
     </message>
     <message>
-        <source>%1: alignTo must be "selection" or "canvas".</source>
+        <source>%1: alignTo must be &quot;selection&quot; or &quot;canvas&quot;.</source>
         <translation>%1: alignTo должен быть «selection» или «canvas».</translation>
     </message>
     <message>
@@ -25246,7 +25238,7 @@ Patchy может скачать обновление, заменить этот
         <translation>exportPdf требует путь для вывода.</translation>
     </message>
     <message>
-        <source>exportPdf imageQuality must be "lossless", "high", "medium", or "low".</source>
+        <source>exportPdf imageQuality must be &quot;lossless&quot;, &quot;high&quot;, &quot;medium&quot;, or &quot;low&quot;.</source>
         <translation>Для exportPdf параметр imageQuality должен быть «lossless», «high», «medium» или «low».</translation>
     </message>
     <message>
@@ -25430,8 +25422,8 @@ Patchy может скачать обновление, заменить этот
         <translation>Остановить сценарий</translation>
     </message>
     <message>
-        <source>Stop "%1"?</source>
-        <translation>Остановить "%1"?</translation>
+        <source>Stop &quot;%1&quot;?</source>
+        <translation>Остановить &quot;%1&quot;?</translation>
     </message>
     <message>
         <source>Undo the changes it made</source>
@@ -25490,7 +25482,7 @@ Patchy может скачать обновление, заменить этот
         <translation>Медленный режим требует видимого рабочего пространства Patchy.</translation>
     </message>
     <message>
-        <source>removeObject needs the document's active layer (set doc.activeLayer first).</source>
+        <source>removeObject needs the document&apos;s active layer (set doc.activeLayer first).</source>
         <translation>removeObject требует активный слой документа (сначала задайте doc.activeLayer).</translation>
     </message>
     <message>
@@ -25582,11 +25574,11 @@ Patchy может скачать обновление, заменить этот
         <translation>showDialog: spec.fields должен быть массивом</translation>
     </message>
     <message>
-        <source>showDialog: every field needs a non-empty "key"</source>
+        <source>showDialog: every field needs a non-empty &quot;key&quot;</source>
         <translation>showDialog: каждому полю требуется непустой «key»</translation>
     </message>
     <message>
-        <source>showDialog: unknown field type "%1" (use number, slider, checkbox, choice, text, color, folder, or file)</source>
+        <source>showDialog: unknown field type &quot;%1&quot; (use number, slider, checkbox, choice, text, color, folder, or file)</source>
         <translation>showDialog: неизвестный тип поля «%1» (используйте number, slider, checkbox, choice, text, color, folder или file)</translation>
     </message>
     <message>
@@ -25678,24 +25670,24 @@ Patchy может скачать обновление, заменить этот
         <translation>%1: нужен путь к выходному файлу.</translation>
     </message>
     <message>
-        <source>patchy.scripts.install: options must be an object such as {hotkey: "Ctrl+Alt+D"}.</source>
-        <translation>patchy.scripts.install: параметры должны быть объектом вида {hotkey: "Ctrl+Alt+D"}.</translation>
+        <source>patchy.scripts.install: options must be an object such as {hotkey: &quot;Ctrl+Alt+D&quot;}.</source>
+        <translation>patchy.scripts.install: параметры должны быть объектом вида {hotkey: &quot;Ctrl+Alt+D&quot;}.</translation>
     </message>
     <message>
-        <source>patchy.scripts.install: hotkey must be a string such as "Ctrl+Alt+D".</source>
-        <translation>patchy.scripts.install: hotkey должен быть строкой вида "Ctrl+Alt+D".</translation>
+        <source>patchy.scripts.install: hotkey must be a string such as &quot;Ctrl+Alt+D&quot;.</source>
+        <translation>patchy.scripts.install: hotkey должен быть строкой вида &quot;Ctrl+Alt+D&quot;.</translation>
     </message>
     <message>
-        <source>patchy.scripts: no script at "%1" (install it or call rescan() first).</source>
-        <translation>patchy.scripts: нет скрипта по пути "%1" (сначала установите его или вызовите rescan()).</translation>
+        <source>patchy.scripts: no script at &quot;%1&quot; (install it or call rescan() first).</source>
+        <translation>patchy.scripts: нет скрипта по пути &quot;%1&quot; (сначала установите его или вызовите rescan()).</translation>
     </message>
     <message>
-        <source>patchy.scripts: "%1" is not a shortcut Patchy can bind (use Qt's portable spelling, such as "Ctrl+Alt+D").</source>
-        <translation>patchy.scripts: "%1" не является сочетанием клавиш, которое Patchy может назначить (используйте переносимую запись Qt, например "Ctrl+Alt+D").</translation>
+        <source>patchy.scripts: &quot;%1&quot; is not a shortcut Patchy can bind (use Qt&apos;s portable spelling, such as &quot;Ctrl+Alt+D&quot;).</source>
+        <translation>patchy.scripts: &quot;%1&quot; не является сочетанием клавиш, которое Patchy может назначить (используйте переносимую запись Qt, например &quot;Ctrl+Alt+D&quot;).</translation>
     </message>
     <message>
-        <source>patchy.scripts: the script path must be a .js file path inside the user scripts folder ("Mine/export.js"), not "%1".</source>
-        <translation>patchy.scripts: путь скрипта должен быть путём к файлу .js внутри папки пользовательских скриптов ("Mine/export.js"), а не "%1".</translation>
+        <source>patchy.scripts: the script path must be a .js file path inside the user scripts folder (&quot;Mine/export.js&quot;), not &quot;%1&quot;.</source>
+        <translation>patchy.scripts: путь скрипта должен быть путём к файлу .js внутри папки пользовательских скриптов (&quot;Mine/export.js&quot;), а не &quot;%1&quot;.</translation>
     </message>
     <message>
         <source>patchy.scripts: could not create the folder for %1.</source>
@@ -25758,8 +25750,8 @@ Patchy может скачать обновление, заменить этот
         <translation>Недопустимый параметр removeBackground: %1.</translation>
     </message>
     <message>
-        <source>setFileInfo needs an object such as {title: "Harbor"}.</source>
-        <translation>setFileInfo ожидает объект, например {title: "Harbor"}.</translation>
+        <source>setFileInfo needs an object such as {title: &quot;Harbor&quot;}.</source>
+        <translation>setFileInfo ожидает объект, например {title: &quot;Harbor&quot;}.</translation>
     </message>
     <message>
         <source>setFileInfo: %1 must be %2.</source>
@@ -25810,12 +25802,12 @@ Patchy может скачать обновление, заменить этот
         <translation>Не удалось скачать модель высокого качества: %1</translation>
     </message>
     <message>
-        <source>G'MIC filters are not available in this build.</source>
-        <translation>Фильтры G'MIC недоступны в этой сборке.</translation>
+        <source>G&apos;MIC filters are not available in this build.</source>
+        <translation>Фильтры G&apos;MIC недоступны в этой сборке.</translation>
     </message>
     <message>
-        <source>Unknown G'MIC filter: %1</source>
-        <translation>Неизвестный фильтр G'MIC: %1</translation>
+        <source>Unknown G&apos;MIC filter: %1</source>
+        <translation>Неизвестный фильтр G&apos;MIC: %1</translation>
     </message>
     <message>
         <source>applyGmic: %1 is not a valid value for %2.</source>
@@ -25838,12 +25830,12 @@ Patchy может скачать обновление, заменить этот
         <translation>applyGmic: неизвестное значение inputLayers %1.</translation>
     </message>
     <message>
-        <source>G'MIC filter %1 was cancelled.</source>
-        <translation>Фильтр G'MIC %1 отменён.</translation>
+        <source>G&apos;MIC filter %1 was cancelled.</source>
+        <translation>Фильтр G&apos;MIC %1 отменён.</translation>
     </message>
     <message>
-        <source>G'MIC filter %1 failed: %2</source>
-        <translation>Сбой фильтра G'MIC %1: %2</translation>
+        <source>G&apos;MIC filter %1 failed: %2</source>
+        <translation>Сбой фильтра G&apos;MIC %1: %2</translation>
     </message>
     <message>
         <source>CMYK values are percentages from 0 to 100</source>
@@ -25866,12 +25858,12 @@ Patchy может скачать обновление, заменить этот
         <translation>Монтажные области не могут сделать холст больше %1 x %1 px.</translation>
     </message>
     <message>
-        <source>exportPdf pages must be "artboards", "groups" or "canvas".</source>
-        <translation>exportPdf pages должен быть "artboards", "groups" или "canvas".</translation>
+        <source>exportPdf pages must be &quot;artboards&quot;, &quot;groups&quot; or &quot;canvas&quot;.</source>
+        <translation>exportPdf pages должен быть &quot;artboards&quot;, &quot;groups&quot; или &quot;canvas&quot;.</translation>
     </message>
     <message>
-        <source>Unknown panel "%1". Panels: %2.</source>
-        <translation>Неизвестная панель "%1". Панели: %2.</translation>
+        <source>Unknown panel &quot;%1&quot;. Panels: %2.</source>
+        <translation>Неизвестная панель &quot;%1&quot;. Панели: %2.</translation>
     </message>
     <message>
         <source>Unknown layer color label: %1</source>
@@ -25914,8 +25906,8 @@ Patchy может скачать обновление, заменить этот
         <translation>параметры trim должны быть объектом.</translation>
     </message>
     <message>
-        <source>trim basedOn must be one of "transparent", "topLeft", "bottomRight".</source>
-        <translation>trim basedOn должен быть "transparent", "topLeft" или "bottomRight".</translation>
+        <source>trim basedOn must be one of &quot;transparent&quot;, &quot;topLeft&quot;, &quot;bottomRight&quot;.</source>
+        <translation>trim basedOn должен быть &quot;transparent&quot;, &quot;topLeft&quot; или &quot;bottomRight&quot;.</translation>
     </message>
     <message>
         <source>trim does not apply to a document with artboards.</source>
@@ -25937,44 +25929,44 @@ Patchy может скачать обновление, заменить этот
 <context>
     <name>patchy::ui::ScriptSaveOptions</name>
     <message>
-        <source>%1: option "%2" must be an integer from %3 to %4.</source>
-        <translation>%1: параметр "%2" должен быть целым числом от %3 до %4.</translation>
+        <source>%1: option &quot;%2&quot; must be an integer from %3 to %4.</source>
+        <translation>%1: параметр &quot;%2&quot; должен быть целым числом от %3 до %4.</translation>
     </message>
     <message>
-        <source>%1: option "%2" must be true or false.</source>
-        <translation>%1: параметр "%2" должен быть true или false.</translation>
+        <source>%1: option &quot;%2&quot; must be true or false.</source>
+        <translation>%1: параметр &quot;%2&quot; должен быть true или false.</translation>
     </message>
     <message>
-        <source>%1: option "%2" must be a string.</source>
-        <translation>%1: параметр "%2" должен быть строкой.</translation>
+        <source>%1: option &quot;%2&quot; must be a string.</source>
+        <translation>%1: параметр &quot;%2&quot; должен быть строкой.</translation>
     </message>
     <message>
-        <source>%1: option "%2" must be one of %3.</source>
-        <translation>%1: параметр "%2" должен быть одним из: %3.</translation>
+        <source>%1: option &quot;%2&quot; must be one of %3.</source>
+        <translation>%1: параметр &quot;%2&quot; должен быть одним из: %3.</translation>
     </message>
     <message>
-        <source>%1: option "%2" does not apply to a .%3 file.</source>
-        <translation>%1: параметр "%2" не применяется к файлу .%3.</translation>
+        <source>%1: option &quot;%2&quot; does not apply to a .%3 file.</source>
+        <translation>%1: параметр &quot;%2&quot; не применяется к файлу .%3.</translation>
     </message>
     <message>
-        <source>%1: option "%2" must be a non-empty array of sizes from %3.</source>
-        <translation>%1: параметр "%2" должен быть непустым массивом размеров из %3.</translation>
+        <source>%1: option &quot;%2&quot; must be a non-empty array of sizes from %3.</source>
+        <translation>%1: параметр &quot;%2&quot; должен быть непустым массивом размеров из %3.</translation>
     </message>
     <message>
-        <source>%1: option "%2" must be an object {x, y} of integers from 0 to 255.</source>
-        <translation>%1: параметр "%2" должен быть объектом {x, y} из целых чисел от 0 до 255.</translation>
+        <source>%1: option &quot;%2&quot; must be an object {x, y} of integers from 0 to 255.</source>
+        <translation>%1: параметр &quot;%2&quot; должен быть объектом {x, y} из целых чисел от 0 до 255.</translation>
     </message>
     <message>
         <source>%1: options must be an object such as {quality: 85}.</source>
         <translation>%1: параметры должны быть объектом вида {quality: 85}.</translation>
     </message>
     <message>
-        <source>%1: blackInkOnly needs colorMode: "cmyk".</source>
-        <translation>%1: для blackInkOnly нужен colorMode: "cmyk".</translation>
+        <source>%1: blackInkOnly needs colorMode: &quot;cmyk&quot;.</source>
+        <translation>%1: для blackInkOnly нужен colorMode: &quot;cmyk&quot;.</translation>
     </message>
     <message>
-        <source>%1: layers needs colorMode: "rgb"; a TIFF with layers is saved in RGB.</source>
-        <translation>%1: для layers нужен colorMode: "rgb"; TIFF со слоями сохраняется в RGB.</translation>
+        <source>%1: layers needs colorMode: &quot;rgb&quot;; a TIFF with layers is saved in RGB.</source>
+        <translation>%1: для layers нужен colorMode: &quot;rgb&quot;; TIFF со слоями сохраняется в RGB.</translation>
     </message>
 </context>
 <context>
@@ -26040,7 +26032,7 @@ Patchy может скачать обновление, заменить этот
         <translation>GitHub: %1</translation>
     </message>
     <message>
-        <source>Seth's site: %1</source>
+        <source>Seth&apos;s site: %1</source>
         <translation>Сайт Сета: %1</translation>
     </message>
     <message>
@@ -26048,8 +26040,8 @@ Patchy может скачать обновление, заменить этот
         <translation>Нет соответствующих последних файлов</translation>
     </message>
     <message>
-        <source>More features, nearly 400 G'MIC filters, faster editing, and full access to your system fonts.</source>
-        <translation>Больше функций, почти 400 фильтров G'MIC, быстрее редактирование и полный доступ к системным шрифтам.</translation>
+        <source>More features, nearly 400 G&apos;MIC filters, faster editing, and full access to your system fonts.</source>
+        <translation>Больше функций, почти 400 фильтров G&apos;MIC, быстрее редактирование и полный доступ к системным шрифтам.</translation>
     </message>
     <message>
         <source>Remove from Recent Files</source>
@@ -26147,7 +26139,7 @@ Patchy может скачать обновление, заменить этот
         <translation>Стили Photoshop (*.asl)</translation>
     </message>
     <message numerus="yes">
-        <source>Exported %n style(s) to "%1".</source>
+        <source>Exported %n style(s) to &quot;%1&quot;.</source>
         <translation>
             <numerusform>%n стиль экспортирован в «%1».</numerusform>
             <numerusform>%n стиля экспортированы в «%1».</numerusform>
@@ -26170,20 +26162,20 @@ Patchy может скачать обновление, заменить этот
         <translation>Безымянный стиль</translation>
     </message>
     <message>
-        <source>Could not open "%1".</source>
-        <translation>Не удалось открыть "%1".</translation>
+        <source>Could not open &quot;%1&quot;.</source>
+        <translation>Не удалось открыть &quot;%1&quot;.</translation>
     </message>
     <message>
-        <source>Could not read "%1".</source>
-        <translation>Не удалось прочитать "%1".</translation>
+        <source>Could not read &quot;%1&quot;.</source>
+        <translation>Не удалось прочитать &quot;%1&quot;.</translation>
     </message>
     <message>
-        <source>"%1" is too large to import safely.</source>
+        <source>&quot;%1&quot; is too large to import safely.</source>
         <translation>«%1» слишком велик для безопасного импорта.</translation>
     </message>
     <message>
-        <source>Could not import styles from "%1". The file is not a supported Photoshop ASL file or is damaged.</source>
-        <translation>Не удалось импортировать стили из "%1". Этот файл не является поддерживаемым Photoshop ASL или поврежден.</translation>
+        <source>Could not import styles from &quot;%1&quot;. The file is not a supported Photoshop ASL file or is damaged.</source>
+        <translation>Не удалось импортировать стили из &quot;%1&quot;. Этот файл не является поддерживаемым Photoshop ASL или поврежден.</translation>
     </message>
     <message>
         <source>Imported Styles</source>
@@ -26194,23 +26186,23 @@ Patchy может скачать обновление, заменить этот
         <translation>Стиль %1</translation>
     </message>
     <message>
-        <source>Style "%1" used an id already assigned to a different style; it was imported with a new id.</source>
-        <translation>Стиль "%1" использовал идентификатор, уже присвоенный другому стилю; он был импортирован с новым идентификатором.</translation>
+        <source>Style &quot;%1&quot; used an id already assigned to a different style; it was imported with a new id.</source>
+        <translation>Стиль &quot;%1&quot; использовал идентификатор, уже присвоенный другому стилю; он был импортирован с новым идентификатором.</translation>
     </message>
     <message>
-        <source>Could not save style "%1".</source>
-        <translation>Не удалось сохранить стиль "%1".</translation>
+        <source>Could not save style &quot;%1&quot;.</source>
+        <translation>Не удалось сохранить стиль &quot;%1&quot;.</translation>
     </message>
     <message>
-        <source>No styles could be imported from "%1".</source>
-        <translation>Не удалось импортировать стили из "%1".</translation>
+        <source>No styles could be imported from &quot;%1&quot;.</source>
+        <translation>Не удалось импортировать стили из &quot;%1&quot;.</translation>
     </message>
     <message>
         <source>There are no styles to export.</source>
         <translation>Нет стилей для экспорта.</translation>
     </message>
     <message>
-        <source>Could not write "%1".</source>
+        <source>Could not write &quot;%1&quot;.</source>
         <translation>Не удалось записать «%1».</translation>
     </message>
     <message>
