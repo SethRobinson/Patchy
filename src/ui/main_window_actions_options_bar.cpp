@@ -1625,6 +1625,20 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
   bind_tooltip(perspective_clear, QT_TRANSLATE_NOOP("patchy::ui::MainWindow", "Clear the width, height and resolution"));
   add_option_widget(perspective_clear, {CanvasTool::PerspectiveCrop});
   add_option_separator({CanvasTool::PerspectiveCrop});
+  // Moves the up marker to the next side: the result turns a quarter clockwise
+  // without refitting the corners (a page photographed sideways).
+  perspective_crop_turn_button_ = new QToolButton(toolbar);
+  perspective_crop_turn_button_->setObjectName(QStringLiteral("perspectiveCropTurnButton"));
+  perspective_crop_turn_button_->setToolButtonStyle(Qt::ToolButtonIconOnly);
+  perspective_crop_turn_button_->setIcon(simple_icon(QStringLiteral("rotate")));
+  perspective_crop_turn_button_->setIconSize(QSize(18, 18));
+  perspective_crop_turn_button_->setAutoRaise(true);
+  perspective_crop_turn_button_->setFocusPolicy(Qt::NoFocus);
+  perspective_crop_turn_button_->setProperty("optionsBarButton", true);
+  bind_tooltip(perspective_crop_turn_button_,
+               QT_TRANSLATE_NOOP("patchy::ui::MainWindow",
+                                 "Turn the result a quarter turn: the top marker moves to the next side"));
+  add_option_widget(perspective_crop_turn_button_, {CanvasTool::PerspectiveCrop});
   perspective_crop_grid_check_ = new CheckGlyphBox(tr("Show Grid"), toolbar);
   perspective_crop_grid_check_->setObjectName(QStringLiteral("perspectiveCropShowGridCheck"));
   perspective_crop_grid_check_->setChecked(current_perspective_crop_show_grid_);
@@ -1676,6 +1690,11 @@ void MainWindow::build_options_bar(ActionBuildContext& ctx) {
       }
     }
     save_tool_settings();
+  });
+  connect(perspective_crop_turn_button_, &QToolButton::clicked, this, [this] {
+    if (canvas_ != nullptr) {
+      canvas_->turn_perspective_crop_top();
+    }
   });
   connect(perspective_crop_apply_button_, &QPushButton::clicked, this, [this] {
     if (canvas_ != nullptr) {

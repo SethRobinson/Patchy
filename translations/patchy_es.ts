@@ -23987,14 +23987,6 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
         <translation>Recorte con perspectiva</translation>
     </message>
     <message>
-        <source>Drag a box or click four corners around a skewed area, then drag the corners onto its edges. Enter straightens it into a rectangle.</source>
-        <translation>Arrastre un recuadro o haga clic en cuatro esquinas alrededor de una zona inclinada y luego arrastre las esquinas a sus bordes. Enter la endereza en un rectángulo.</translation>
-    </message>
-    <message>
-        <source>Perspective Crop: drag a box or click four corners, then drag each corner onto the edges of the area. Drag inside to move it. Enter crops and straightens, Esc clears the corners.</source>
-        <translation>Recorte con perspectiva: arrastre un recuadro o haga clic en cuatro esquinas y luego arrastre cada esquina a los bordes de la zona. Arrastre dentro para moverlo. Enter recorta y endereza, Esc quita las esquinas.</translation>
-    </message>
-    <message>
         <source>Crop Tools</source>
         <translation>Herramientas de recorte</translation>
     </message>
@@ -24017,6 +24009,18 @@ Patchy puede descargar la actualización, reemplazar este AppImage y volver a in
     <message>
         <source>Corners: none placed</source>
         <translation>Esquinas: ninguna colocada</translation>
+    </message>
+    <message>
+        <source>Turn the result a quarter turn: the top marker moves to the next side</source>
+        <translation>Girar el resultado un cuarto de vuelta: la marca superior pasa al lado siguiente</translation>
+    </message>
+    <message>
+        <source>Drag a box or click four corners around a skewed area, then drag the corners or sides onto its edges. The arrow marks the top of the result; Enter straightens it into a rectangle.</source>
+        <translation>Arrastre un recuadro o haga clic en cuatro esquinas alrededor de una zona inclinada y luego arrastre las esquinas o los lados a sus bordes. La flecha marca la parte superior del resultado; Enter la endereza en un rectángulo.</translation>
+    </message>
+    <message>
+        <source>Perspective Crop: drag a box or click four corners, then drag the corners or sides onto the edges of the area. Drag inside to move it, just outside a corner to rotate it (Shift snaps to 15 degrees). The arrow marks the top of the result. Enter crops and straightens, Esc clears the corners.</source>
+        <translation>Recorte con perspectiva: arrastre un recuadro o haga clic en cuatro esquinas y luego arrastre las esquinas o los lados a los bordes de la zona. Arrastre dentro para moverlo y justo fuera de una esquina para girarlo (Mayús ajusta a pasos de 15 grados). La flecha marca la parte superior del resultado. Enter recorta y endereza, Esc quita las esquinas.</translation>
     </message>
 </context>
 <context>

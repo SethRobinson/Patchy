@@ -24059,14 +24059,6 @@ Patchy может скачать обновление, заменить этот
         <translation>Кадрирование перспективы</translation>
     </message>
     <message>
-        <source>Drag a box or click four corners around a skewed area, then drag the corners onto its edges. Enter straightens it into a rectangle.</source>
-        <translation>Растяните рамку или щёлкните четыре угла вокруг скошенной области, затем перетащите углы на её края. Enter выпрямляет её в прямоугольник.</translation>
-    </message>
-    <message>
-        <source>Perspective Crop: drag a box or click four corners, then drag each corner onto the edges of the area. Drag inside to move it. Enter crops and straightens, Esc clears the corners.</source>
-        <translation>Кадрирование перспективы: растяните рамку или щёлкните четыре угла, затем перетащите каждый угол на края области. Перетаскивание внутри перемещает её. Enter кадрирует и выпрямляет, Esc убирает углы.</translation>
-    </message>
-    <message>
         <source>Crop Tools</source>
         <translation>Инструменты кадрирования</translation>
     </message>
@@ -24089,6 +24081,18 @@ Patchy может скачать обновление, заменить этот
     <message>
         <source>Corners: none placed</source>
         <translation>Углы: не расставлены</translation>
+    </message>
+    <message>
+        <source>Turn the result a quarter turn: the top marker moves to the next side</source>
+        <translation>Повернуть результат на четверть оборота: метка верха переходит на следующую сторону</translation>
+    </message>
+    <message>
+        <source>Drag a box or click four corners around a skewed area, then drag the corners or sides onto its edges. The arrow marks the top of the result; Enter straightens it into a rectangle.</source>
+        <translation>Растяните рамку или щёлкните четыре угла вокруг скошенной области, затем перетащите углы или стороны на её края. Стрелка показывает верх результата; Enter выпрямляет её в прямоугольник.</translation>
+    </message>
+    <message>
+        <source>Perspective Crop: drag a box or click four corners, then drag the corners or sides onto the edges of the area. Drag inside to move it, just outside a corner to rotate it (Shift snaps to 15 degrees). The arrow marks the top of the result. Enter crops and straightens, Esc clears the corners.</source>
+        <translation>Кадрирование перспективы: растяните рамку или щёлкните четыре угла, затем перетащите углы или стороны на края области. Перетаскивание внутри перемещает её, сразу за углом поворачивает (Shift шагами по 15 градусов). Стрелка показывает верх результата. Enter кадрирует и выпрямляет, Esc убирает углы.</translation>
     </message>
 </context>
 <context>

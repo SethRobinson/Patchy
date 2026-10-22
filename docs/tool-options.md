@@ -50,7 +50,7 @@ Every options-bar control, in bar order. "Before" is the state before issue 254.
 | Crop | Crop options popup: Show Cropped Area, shield on, color, opacity (`cropOptionsButton`) | `cropShowCroppedArea`, `cropShieldEnabled`, `cropShieldColor`, `cropShieldOpacity` | no | yes |
 | Crop | Size W/H, ratio preset row, Apply/Cancel | none (live box; preset derived) | no | no (session) |
 | Perspective Crop | Show Grid (`perspectiveCropShowGridCheck`) | `perspectiveCropShowGrid` | new (issue 328) | yes |
-| Perspective Crop | W, H, Resolution, Front Image, Clear, Apply/Cancel (`perspectiveCrop*`) | none | new (issue 328) | no (session) |
+| Perspective Crop | W, H, Resolution, Front Image, Clear, Turn, Apply/Cancel (`perspectiveCrop*`) | none | new (issue 328) | no (session) |
 | Crop | Overlay, Turn Overlay, Always / While Dragging (`cropOverlayCombo`; `cropOverlayTurnAction` and the show choice in the Crop options menu) | `cropOverlay` (token), `cropOverlayOrientation`, `cropOverlayShow` | new (issue 325) | yes |
 | Artboard | Size preset, W, H, Background, Auto-nest | `artboardWidth`, `artboardHeight`, `artboardBackground`, `artboardBackgroundColor`, `artboardAutoNest` | yes | yes |
 | Brush family | Preset (`brushPresetCombo`, built-in presets) | `brushPreset` | no | yes |
