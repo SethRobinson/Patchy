@@ -17,6 +17,7 @@
 #include "ui/canvas_types.hpp"
 #include "ui/canvas_widget_shared.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/eyedropper_sample_overlay.hpp"
 #include "ui/qt_geometry.hpp"
 #include "ui/theme_palette.hpp"
 
@@ -1484,9 +1485,8 @@ void CanvasWidget::pick_color(QPoint point) {
     return;
   }
 
-  const int half = eyedropper_sample_size_ / 2;
-  const QRect area = QRect(point.x() - half, point.y() - half, 2 * half + 1, 2 * half + 1)
-                         .intersected(QRect(0, 0, document_->width(), document_->height()));
+  const QRect area =
+      eyedropper_sample_rect(point, eyedropper_sample_size_, QSize(document_->width(), document_->height()));
   if (!eyedropper_sample_all_layers_) {
     // Current Layer: the active layer's own pixels (mask and opacity folded into
     // alpha). A transparent spot leaves the color as it was, as in Photoshop.
@@ -1509,6 +1509,60 @@ void CanvasWidget::pick_color(QPoint point) {
   }
   // Merged and fully transparent reads like the point sample there (black).
   set_picked_color(average_sample_color(compose_document_rect(area)).value_or(QColor(Qt::transparent)));
+}
+
+// The sample square's outline (GitHub issue 319): the pixels a click averages,
+// snapped to the document grid, in the brush outline's cursor ink.
+std::optional<QRect> CanvasWidget::eyedropper_sample_outline_widget_rect() const {
+  if (!eyedropper_hover_position_valid_ || tool_ != CanvasTool::Eyedropper || document_ == nullptr ||
+      spacebar_panning_ || !eyedropper_sample_outline_visible(eyedropper_sample_size_, zoom_)) {
+    return std::nullopt;
+  }
+  const auto point = document_position(eyedropper_hover_widget_position_);
+  if (!document_contains(point)) {
+    return std::nullopt;
+  }
+  const auto area =
+      eyedropper_sample_rect(point, eyedropper_sample_size_, QSize(document_->width(), document_->height()));
+  const auto top_left = widget_position_f(QPointF(area.topLeft()));
+  const auto bottom_right = widget_position_f(QPointF(area.x() + area.width(), area.y() + area.height()));
+  return QRect(top_left.toPoint(), bottom_right.toPoint() - QPoint(1, 1));
+}
+
+void CanvasWidget::track_eyedropper_sample_outline(QPoint widget_position) {
+  if (tool_ != CanvasTool::Eyedropper && !eyedropper_hover_position_valid_) {
+    return;
+  }
+  const auto old_outline = eyedropper_sample_outline_widget_rect();
+  eyedropper_hover_widget_position_ = widget_position;
+  eyedropper_hover_position_valid_ = tool_ == CanvasTool::Eyedropper;
+  const auto new_outline = eyedropper_sample_outline_widget_rect();
+  if (old_outline != new_outline) {
+    update(old_outline.value_or(QRect()).united(new_outline.value_or(QRect())).adjusted(-2, -2, 2, 2));
+  }
+}
+
+void CanvasWidget::hide_eyedropper_sample_outline() {
+  if (const auto old_outline = eyedropper_sample_outline_widget_rect(); old_outline.has_value()) {
+    update(old_outline->adjusted(-2, -2, 2, 2));
+  }
+  eyedropper_hover_position_valid_ = false;
+}
+
+void CanvasWidget::draw_eyedropper_sample_outline(QPainter& painter) const {
+  const auto outline = eyedropper_sample_outline_widget_rect();
+  if (!outline.has_value()) {
+    return;
+  }
+  painter.save();
+  painter.setRenderHint(QPainter::Antialiasing, false);
+  painter.setBrush(Qt::NoBrush);
+  // Dark outside, light inside, as the brush outline draws its footprint.
+  painter.setPen(QPen(QColor(25, 25, 25), 1));
+  painter.drawRect(outline->adjusted(-1, -1, 1, 1));
+  painter.setPen(QPen(QColor(255, 255, 255), 1));
+  painter.drawRect(*outline);
+  painter.restore();
 }
 
 }  // namespace patchy::ui

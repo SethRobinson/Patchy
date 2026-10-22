@@ -62,9 +62,7 @@ Image > Rotate Right / Left / 180 and Flip Horizontal / Vertical act on the whol
 
 ## Eyedropper
 
-A click sets the foreground color; with the Eyedropper tool active, Alt+click sets the background color instead (Photoshop's convention, GitHub issue 150; `color_pick_to_background_`, reported through `set_background_color_picked_callback`). The paint tools' temporary Alt eyedropper (`tool_uses_alt_left_for_color_pick`) always sets the foreground. Test: `ui_eyedropper_alt_click_picks_the_background_color`.
-
-Options (GitHub issue 151; the tool is labeled "Pick"): Sample Size (`eyedropperSampleSizeCombo`: Point Sample, 3/5/11/31/51/101 by N Average; `tools/eyedropperSampleSize`, odd sides 1 to 101) and Sample (`eyedropperSampleLayersCombo`: All Layers or Current Layer; `tools/eyedropperSampleAllLayers`, default All Layers). `current_eyedropper_*` mirrors in MainWindow, applied to every canvas; the paint tools' Alt eyedropper uses them too, as in Photoshop. An average is alpha-weighted over the square clipped to the document: All Layers reads the displayed composite (`compose_document_rect`, a fully transparent square gives black like a point pick), Current Layer reads the active pixel layer through `active_layer_sample_region` (mask and opacity in alpha); a transparent spot there leaves the color unchanged, and a non-pixel active layer warns once per gesture. Sets (`eyedropperSetsForegroundButton` / `eyedropperSetsBackgroundButton`, an exclusive pair; `tools/eyedropperPicksBackground`, default Foreground) names the color a click sets, and Alt inverts it for that click (`eyedropper_target_is_background`, the Zoom tool's mode-XOR-Alt rule), so the default keeps Photoshop's Alt+click background pick. The Eyedropper cursor carries a swatch badge for that target (`eyedropper_target_cursor`), refreshed when Alt toggles; the paint tools' Alt eyedropper ignores Sets. Tests: `ui_eyedropper_sample_size_and_current_layer`, `ui_eyedropper_sets_option_and_alt_inverts`, `ui_eyedropper_options_bar_sample_controls`.
+The Pick tool (`CanvasTool::Eyedropper`) and the paint tools' Alt eyedropper: [pick-tool.md](pick-tool.md).
 
 ## Arrow-key nudging
 

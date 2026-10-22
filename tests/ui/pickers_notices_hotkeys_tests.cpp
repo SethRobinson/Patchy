@@ -10,6 +10,7 @@
 #include "core/smart_object.hpp"
 #include "ui/color_panel.hpp"
 #include "ui/dialog_utils.hpp"
+#include "ui/eyedropper_sample_overlay.hpp"
 #include "ui/theme_qss.hpp"
 #include "ui/compatibility_report.hpp"
 #include "formats/bmp_document_io.hpp"
@@ -2029,6 +2030,95 @@ void ui_eyedropper_sets_option_and_alt_inverts() {
   CHECK(color_close(canvas.primary_color(), teal, 1) && canvas.secondary_color() == QColor(250, 250, 250));
 }
 
+// A small colorful document for the Pick tool's overlay shots: a two-way gradient
+// with a dark block, so outlines and the loupe read over light and dark pixels.
+patchy::Document eyedropper_overlay_document() {
+  patchy::Document document(64, 48, patchy::PixelFormat::rgba8());
+  auto pixels = solid_pixels(64, 48, patchy::PixelFormat::rgba8(), QColor(Qt::white));
+  for (int y = 0; y < 48; ++y) {
+    for (int x = 0; x < 64; ++x) {
+      fill_pixel_rect(pixels, QRect(x, y, 1, 1), QColor(60 + x * 3, 90 + y * 3, 230 - x * 2));
+    }
+  }
+  fill_pixel_rect(pixels, QRect(36, 8, 20, 14), QColor(30, 26, 40));
+  fill_pixel_rect(pixels, QRect(8, 28, 14, 12), QColor(250, 236, 120));
+  document.add_pixel_layer("Gradient", std::move(pixels));
+  return document;
+}
+
+// GitHub issue 319: with an average Sample Size the Pick tool outlines the square a
+// click averages, snapped to the document pixels and moving with the pointer. Point
+// Sample, a square under 4 screen pixels, the pointer off the document and other
+// tools show nothing.
+void ui_eyedropper_sample_outline_follows_the_pointer() {
+  CHECK(!patchy::ui::eyedropper_sample_outline_visible(1, 32.0));
+  CHECK(!patchy::ui::eyedropper_sample_outline_visible(3, 1.0));
+  CHECK(patchy::ui::eyedropper_sample_outline_visible(3, 4.0 / 3.0));
+  CHECK(patchy::ui::eyedropper_sample_outline_visible(5, 1.0));
+  CHECK(!patchy::ui::eyedropper_sample_outline_visible(101, 0.03));
+  CHECK(patchy::ui::eyedropper_sample_rect(QPoint(10, 10), 5, QSize(64, 48)) == QRect(8, 8, 5, 5));
+  CHECK(patchy::ui::eyedropper_sample_rect(QPoint(0, 47), 5, QSize(64, 48)) == QRect(0, 45, 3, 3));
+
+  auto document = eyedropper_overlay_document();
+  patchy::ui::CanvasWidget canvas;
+  canvas.resize(640, 480);
+  canvas.set_document(&document);
+  canvas.set_tool(patchy::ui::CanvasTool::Eyedropper);
+  canvas.show();
+  canvas.set_zoom(1.0);
+  QApplication::processEvents();
+  const auto hover = [&canvas](QPoint document_point) {
+    send_mouse(canvas, QEvent::MouseMove, canvas.widget_position_for_document_point(document_point), Qt::NoButton,
+               Qt::NoButton);
+    QApplication::processEvents();
+  };
+  const auto expected = [&canvas](QRect area) {
+    const auto top_left = canvas.widget_position_f(QPointF(area.topLeft()));
+    const auto bottom_right = canvas.widget_position_f(QPointF(area.x() + area.width(), area.y() + area.height()));
+    return QRect(top_left.toPoint(), bottom_right.toPoint() - QPoint(1, 1));
+  };
+
+  hover(QPoint(20, 20));
+  CHECK(!canvas.eyedropper_sample_outline_widget_rect().has_value());  // Point Sample
+  canvas.set_eyedropper_sample_size(3);
+  CHECK(!canvas.eyedropper_sample_outline_widget_rect().has_value());  // 3 screen pixels
+  canvas.set_eyedropper_sample_size(5);
+  auto outline = canvas.eyedropper_sample_outline_widget_rect();
+  CHECK(outline.has_value() && outline->size() == QSize(5, 5));
+
+  canvas.set_zoom(6.0);
+  QApplication::processEvents();
+  hover(QPoint(20, 20));
+  outline = canvas.eyedropper_sample_outline_widget_rect();
+  CHECK(outline.has_value() && *outline == expected(QRect(18, 18, 5, 5)));
+  CHECK(outline.has_value() && outline->size() == QSize(30, 30));
+  // It moves with the pointer, one document pixel at a time.
+  hover(QPoint(21, 20));
+  const auto moved = canvas.eyedropper_sample_outline_widget_rect();
+  CHECK(moved.has_value() && outline.has_value() && moved->topLeft() == outline->topLeft() + QPoint(6, 0));
+  // Clipped to the document at its edge, like the average.
+  hover(QPoint(0, 0));
+  outline = canvas.eyedropper_sample_outline_widget_rect();
+  CHECK(outline.has_value() && *outline == expected(QRect(0, 0, 3, 3)));
+  hover(QPoint(24, 24));
+  save_widget_artifact("ui_eyedropper_sample_outline", canvas);
+  // Off the document: nothing.
+  send_mouse(canvas, QEvent::MouseMove, canvas.widget_position_for_document_point(QPoint(0, 0)) - QPoint(30, 30),
+             Qt::NoButton, Qt::NoButton);
+  QApplication::processEvents();
+  CHECK(!canvas.eyedropper_sample_outline_widget_rect().has_value());
+  hover(QPoint(24, 24));
+  CHECK(canvas.eyedropper_sample_outline_widget_rect().has_value());
+  // Another tool hides it.
+  canvas.set_tool(patchy::ui::CanvasTool::Brush);
+  CHECK(!canvas.eyedropper_sample_outline_widget_rect().has_value());
+  canvas.set_tool(patchy::ui::CanvasTool::Eyedropper);
+  hover(QPoint(24, 24));
+  CHECK(canvas.eyedropper_sample_outline_widget_rect().has_value());
+  canvas.set_eyedropper_sample_size(1);
+  CHECK(!canvas.eyedropper_sample_outline_widget_rect().has_value());
+}
+
 // The Eyedropper options row (GitHub issue 151): Sample Size and Sample combos
 // for the Eyedropper only, reaching the canvas, every new document and the
 // saved tool settings.
@@ -3577,6 +3667,7 @@ std::vector<patchy::test::TestCase> pickers_notices_hotkeys_tests() {
       {"ui_eyedropper_alt_click_picks_the_background_color", ui_eyedropper_alt_click_picks_the_background_color},
       {"ui_eyedropper_sample_size_and_current_layer", ui_eyedropper_sample_size_and_current_layer},
       {"ui_eyedropper_sets_option_and_alt_inverts", ui_eyedropper_sets_option_and_alt_inverts},
+      {"ui_eyedropper_sample_outline_follows_the_pointer", ui_eyedropper_sample_outline_follows_the_pointer},
       {"ui_eyedropper_options_bar_sample_controls", ui_eyedropper_options_bar_sample_controls},
       {"ui_eyedropper_starts_in_gray_area_and_drags_to_document_color",
        ui_eyedropper_starts_in_gray_area_and_drags_to_document_color},
